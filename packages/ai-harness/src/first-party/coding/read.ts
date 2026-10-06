@@ -1,9 +1,8 @@
-import { dirname, join, parse } from 'node:path'
 import { toolDefinition } from '@tanstack/ai'
 import { toBase64 } from '../../media'
 import { mimeTypeOf } from '../../media-ref'
 import { isRecord } from '../../utils'
-import { stringArg } from './backend'
+import { pathsOf, stringArg } from './backend'
 import type { ContentPart } from '@tanstack/ai'
 import type { ToolEnv } from './backend'
 
@@ -59,6 +58,7 @@ function distance(a: string, b: string) {
  * same name with another extension, or a name 2 or fewer changes away.
  */
 async function notFound(env: ToolEnv, full: string) {
+  const { dirname, join, parse } = pathsOf(env.backend)
   const folder = dirname(full)
   const wanted = parse(full).base.toLowerCase()
   const wantedStem = parse(wanted).name

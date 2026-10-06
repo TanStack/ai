@@ -54,6 +54,20 @@ import type {
   ResolveInputModalities,
 } from '../model-meta'
 
+/**
+ * The Claude models that reject a forced tool (`any` or a named `tool`) on
+ * every request, with or without thinking. A Bedrock id has the family name
+ * inside it, for example `us.anthropic.claude-opus-5-5-...`.
+ * ponytail: a hand list, the same as the Anthropic adapter. Move it to the
+ * model catalog when the catalog script can set it.
+ */
+const CLAUDE_NO_FORCED_TOOL_MODELS = [
+  'claude-fable-5-1',
+  'claude-mythos-5-1',
+  'claude-opus-5-5',
+  'claude-sonnet-5-5',
+]
+
 /** Config for the Converse adapter — same client config as the chat adapter. */
 export interface BedrockConverseConfig extends BedrockClientConfig {}
 
@@ -791,10 +805,6 @@ export class BedrockConverseTextAdapter<
       },
     )
 
-    const toolConfig = options.tools
-      ? toToolConfig(convertTools(options.tools), 'auto')
-      : undefined
-
     // Sampling options live on `modelOptions` (typed as the narrowed
     // `BedrockConverseProviderOptions`, which surfaces the OpenAI Chat
     // Completions field names); translate them into Converse's `inferenceConfig`,
@@ -809,6 +819,22 @@ export class BedrockConverseTextAdapter<
       options.reasoning,
       BEDROCK_MODEL_REASONING[this.model],
     )
+
+    // `chat({ toolChoice })`. Converse has no `none` choice, so `none` sends
+    // no tool config. Claude rejects a forced tool while thinking is on (only
+    // Claude gets thinking fields), and some Claude models reject it on every
+    // request. Then a forced choice falls back to auto.
+    const canForceTool =
+      additionalModelRequestFields === undefined &&
+      !CLAUDE_NO_FORCED_TOOL_MODELS.some((name) => this.model.includes(name))
+    const toolChoice =
+      canForceTool || options.toolChoice === 'none'
+        ? options.toolChoice
+        : 'auto'
+    const toolConfig = options.tools
+      ? toToolConfig(convertTools(options.tools), toolChoice)
+      : undefined
+
     const requestedMaxTokens = modelOptions?.max_completion_tokens
     const maxTokens =
       minMaxTokens !== undefined &&

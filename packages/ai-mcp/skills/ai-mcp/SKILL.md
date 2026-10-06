@@ -17,6 +17,7 @@ sources:
   - 'TanStack/ai:packages/ai-mcp/src/transport.ts'
   - 'TanStack/ai:packages/ai-mcp/src/server/create-server.ts'
   - 'TanStack/ai:packages/ai-mcp/src/server/stdio.ts'
+  - 'TanStack/ai:packages/ai-mcp/src/harness-plugin.ts'
 ---
 
 # `@tanstack/ai-mcp`
@@ -55,7 +56,9 @@ The package has these subpaths:
 - `./server/stdio` exports `serveMCPStdio`.
 - `./apps` exports `createMcpAppCallHandler`.
 - `./harness` exports `createHarnessMcpServer`. It serves a TanStack AI
-  harness as an MCP server. See `docs/harness/mcp-server.md`.
+  harness as an MCP server. See `docs/harness/mcp-server.md`. It also
+  exports the `mcp()` harness plugin. See "`mcp()`: MCP servers in a
+  harness" below.
 
 Import `./stdio` and `./server/stdio` only from Node code.
 Those entries use Node I/O.
@@ -814,6 +817,64 @@ await using pool = await createMCPClients({
   },
 })
 ```
+
+## `mcp()`: MCP servers in a harness
+
+In a TanStack AI harness, use the `mcp()` plugin. It connects each server,
+gives the model the tools as `<server>_<tool>`, and adds a `/mcp` command
+that shows the status of each server.
+
+```typescript
+import { defineHarness } from '@tanstack/ai-harness'
+import { openaiText } from '@tanstack/ai-openai'
+import { mcp } from '@tanstack/ai-mcp/harness'
+
+const agent = defineHarness({
+  name: 'acme/agent',
+  adapter: openaiText('gpt-5.5'),
+  plugins: () => [
+    mcp({
+      servers: {
+        files: {
+          type: 'stdio',
+          command: 'npx',
+          args: ['-y', '@modelcontextprotocol/server-filesystem', '.'],
+        },
+        docs: {
+          type: 'http',
+          url: 'https://mcp.example.com/mcp',
+          headers: { authorization: `Bearer ${process.env.DOCS_TOKEN}` },
+          timeoutMs: 10_000,
+          codeMode: true,
+        },
+        notion: { type: 'http', url: 'https://mcp.notion.com/mcp', oauth: true },
+      },
+    }),
+  ],
+})
+```
+
+How it works:
+
+- Each server connects on its own, in the background. The first turn waits
+  for the connections.
+- A server that fails gets the status `failed` with its error. The tools of
+  the other servers still work.
+- The status of a server is `connecting`, `connected`, or `failed`. `/mcp`
+  prints it. A UI reads `snapshot().plugins['tanstack/mcp'].servers`.
+- A `stdio` server runs as a child process (Node only). It stops when the
+  session closes.
+
+Options for each server:
+
+- `timeoutMs`: the limit for each tool list and tool call of that server.
+  The connect itself uses the SDK default.
+- `oauth: true` (`http` only): sign in like `mcpConnector`. The user runs
+  `/connect <name>`, and the tools come after the sign-in.
+- `codeMode: true`: sets `metadata.codeMode` on the tools of the server. The
+  `codeMode()` plugin of `@tanstack/ai-code-mode` then moves each safe tool
+  into `execute_typescript`. A safe tool needs no approval, the permission
+  rules allow it in plan mode, and it declares no `PermissionResources`.
 
 ## Abort signal — cancelling in-flight MCP calls
 

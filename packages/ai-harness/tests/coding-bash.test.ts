@@ -1,5 +1,5 @@
 import { tmpdir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join, posix, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   bashResources,
@@ -188,6 +188,17 @@ describe('bash', () => {
     expect(dirname(path)).toBe(join(root, '.agent', 'bash'))
     expect(files.get(path)).toBe(LONG.stdout)
     expect(result).toBe(`${LONG_RESULT}\n[Full output saved to ${path}.]`)
+  })
+
+  it('saves it with a POSIX path in a sandbox, also on a Windows host', async () => {
+    const { env, files } = workspace(LONG, { shell: 'sh' })
+    await bash(
+      { ...env, root: '/workspace' },
+      { command: 'test' },
+      { spillDir: '.agent/bash' },
+    )
+    const [path = ''] = files.keys()
+    expect(posix.dirname(path)).toBe('/workspace/.agent/bash')
   })
 
   it('still gives the output when the save fails', async () => {

@@ -114,6 +114,23 @@ async function filesUnder(folder: string) {
 
 const TREE = /^[0-9a-f]{40}$/
 
+/** A backend that keeps no files. Each command goes to `exec`. */
+function fakeBackend(
+  exec: WorkspaceBackend['exec'],
+  shell?: WorkspaceBackend['shell'],
+) {
+  const fail = () => Promise.reject(new Error('Not used.'))
+  const backend: WorkspaceBackend = {
+    shell,
+    readFile: fail,
+    writeFile: async () => undefined,
+    stat: fail,
+    readdir: fail,
+    exec,
+  }
+  return backend
+}
+
 describe.skipIf(!hasGit)('snapshots', () => {
   // Each git call starts a shell and a process, which is slow on Windows.
   it('starts few git commands for each step', async () => {
@@ -297,25 +314,37 @@ describe.skipIf(!hasGit)('snapshots', () => {
   })
 })
 
-describe('snapshots without git', () => {
-  /** A backend where every command fails, like a machine with no git. */
-  function noGitBackend() {
-    const fail = () => Promise.reject(new Error('Not used.'))
-    const backend: WorkspaceBackend = {
-      readFile: fail,
-      writeFile: fail,
-      stat: fail,
-      readdir: fail,
-      exec: async () => ({ exitCode: 127, stdout: '', stderr: 'not found' }),
-    }
-    return backend
-  }
+describe('snapshots on a cmd.exe backend', () => {
+  it('quotes the git arguments for cmd.exe', async () => {
+    const commands: Array<string> = []
+    const backend = fakeBackend(async (command) => {
+      commands.push(command)
+      return { exitCode: 0, stdout: '', stderr: '' }
+    }, 'cmd')
+    const { host, session } = await open({
+      replies: [() => text('Hi.')],
+      backend,
+    })
 
+    await session.prompt('Hello')
+
+    // `git --version`, then the init of the shadow repository.
+    expect(commands[1]).toMatch(/^git init --bare -q \^".+\^"$/)
+    await host.close()
+  })
+})
+
+describe('snapshots without git', () => {
   it('adds no commands, warns once, and the turn still runs', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    // Every command fails, like a machine with no git.
     const { host, session, plugin } = await open({
       replies: [() => text('Hi.')],
-      backend: noGitBackend(),
+      backend: fakeBackend(async () => ({
+        exitCode: 127,
+        stdout: '',
+        stderr: 'not found',
+      })),
     })
 
     await session.prompt('Hello')

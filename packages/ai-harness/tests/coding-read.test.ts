@@ -1,14 +1,19 @@
 import { tmpdir } from 'node:os'
-import { join, resolve, sep } from 'node:path'
+import { join, posix, resolve, sep } from 'node:path'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { createWorkspaceTools } from '../src/first-party/coding/workspace'
 import type { WorkspaceBackend } from '../src/first-party/coding/backend'
 import type { WorkspaceHooks } from '../src/first-party/workspace-hooks'
 
-/** A backend that keeps files in a map, by absolute path. It runs no commands. */
-function memoryBackend() {
+/**
+ * A backend that keeps files in a map, by absolute path. It runs no
+ * commands. `shell: 'sh'` gives it POSIX paths, like a Linux sandbox.
+ */
+function memoryBackend(shell?: 'sh') {
+  const separator = shell === 'sh' ? posix.sep : sep
   const files = new Map<string, Uint8Array>()
   const backend: WorkspaceBackend = {
+    shell,
     readFile: async (path) => {
       const data = files.get(path)
       if (!data) throw new Error(`No file ${path}`)
@@ -26,13 +31,13 @@ function memoryBackend() {
       return { type: 'file', size: data.length, mtimeMs: 0 }
     },
     readdir: async (path) => {
-      const prefix = path + sep
+      const prefix = path + separator
       const paths = [...files.keys()].filter((file) => file.startsWith(prefix))
       // Like the host, a folder that is not there throws.
       if (paths.length === 0) throw new Error(`No folder ${path}`)
       return paths
         .map((file) => file.slice(prefix.length))
-        .filter((name) => !name.includes(sep))
+        .filter((name) => !name.includes(separator))
         .sort()
         .map((name) => ({ name, type: 'file' as const }))
     },
@@ -48,12 +53,20 @@ const ascii = (text: string) => new TextEncoder().encode(text)
 const put = (path: string, data: Uint8Array | string) =>
   backend.writeFile(join(root, path), data)
 
-/** `read_file` on the memory backend, with `hooks`. */
-function reader(hooks: Array<WorkspaceHooks> = []) {
-  const tool = createWorkspaceTools(
-    { root, backend },
-    { hooks: () => hooks },
-  ).tools.find((item) => item.name === 'read_file')
+/**
+ * `read_file` with `hooks`, in `workspace`. Default: the memory backend at
+ * `root`.
+ */
+function reader(
+  options: {
+    hooks?: Array<WorkspaceHooks>
+    workspace?: { root: string; backend: WorkspaceBackend }
+  } = {},
+) {
+  const { hooks = [], workspace = { root, backend } } = options
+  const tool = createWorkspaceTools(workspace, {
+    hooks: () => hooks,
+  }).tools.find((item) => item.name === 'read_file')
   return async (
     path: string,
     options: { offset?: number; limit?: number } = {},
@@ -265,11 +278,24 @@ describe('read_file on a missing file', () => {
   ])('names similar files for $path', async ({ path, message }) => {
     await expect(read(path)).rejects.toThrow(message)
   })
+
+  it('names them with POSIX paths in a sandbox, also on a Windows host', async () => {
+    const sandbox = memoryBackend('sh')
+    await sandbox.writeFile('/workspace/src/Button.tsx', 'x')
+    const readInSandbox = reader({
+      workspace: { root: '/workspace', backend: sandbox },
+    })
+    await expect(readInSandbox('src/button.tsx')).rejects.toThrow(
+      'File not found: src/button.tsx. Did you mean src/Button.tsx?',
+    )
+  })
 })
 
 describe('read_file hooks', () => {
   it('adds afterRead text to a text file, not to media or binary files', async () => {
-    const readWithHook = reader([{ afterRead: async () => 'hook note' }])
+    const readWithHook = reader({
+      hooks: [{ afterRead: async () => 'hook note' }],
+    })
     await put('hooked.txt', 'hello')
     await put('hooked.png', PNG)
     await put('hooked.bin', BINARY)

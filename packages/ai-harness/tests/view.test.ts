@@ -281,16 +281,26 @@ describe('createSessionView', () => {
   })
 
   it('stops after dispose', async () => {
-    const { host, session, view } = await openView([])
+    const { host, session } = await open([])
+    // The host also reads `session.snapshot()` for its status feed. Count
+    // only the reads of the view.
+    const snapshot = vi.fn(() => session.snapshot())
+    const view = createSessionView(
+      new Proxy(session, {
+        get: (target, key) =>
+          key === 'snapshot' ? snapshot : Reflect.get(target, key),
+      }),
+    )
+    await view.ready
     const before = view.store.get()
-    const slow = vi.spyOn(session, 'snapshot')
+    snapshot.mockClear()
 
     view.dispose()
     await session.command('ping')
     await new Promise((resolve) => setTimeout(resolve, 20))
 
     expect(view.store.get()).toEqual({ ...before, connection: 'closed' })
-    expect(slow).not.toHaveBeenCalled()
+    expect(snapshot).not.toHaveBeenCalled()
     await expect(view.send('hi')).rejects.toThrow('disposed')
     expect(() => view.approve('x')).toThrow('disposed')
     await host.close()

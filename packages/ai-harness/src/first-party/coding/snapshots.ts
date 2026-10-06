@@ -3,7 +3,7 @@ import { LogRecordsCapability, getLogRecords } from '@tanstack/ai'
 import { defineCommand } from '../../commands'
 import { definePlugin } from '../../plugins'
 import { hostBackend } from './backend'
-import { quoteArg } from './search'
+import { quoteArg, shellPlatform } from './search'
 import type { ModelMessage } from '@tanstack/ai'
 import type { WorkspaceBackend } from './backend'
 
@@ -42,9 +42,7 @@ const BUSY = 'Wait until the turn ends, then try again.'
  */
 function shadowRepo(options: SnapshotsOptions) {
   const backend = options.backend ?? hostBackend
-  // ponytail: the same rule as search.ts. A backend other than the host is
-  // taken to have a POSIX `sh`, like a Linux sandbox.
-  const platform = backend === hostBackend ? process.platform : 'linux'
+  const platform = shellPlatform(backend)
   const quote = (value: string) => quoteArg(value, platform)
   const hash = createHash('sha1').update(options.root).digest('hex')
   const gitDir = `${options.dataDir}/${hash}`

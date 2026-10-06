@@ -29,6 +29,7 @@ import type {
   ReasoningRequest,
   ResolvedPromptCache,
   TextOptions,
+  ToolChoice,
 } from '@tanstack/ai'
 import type {
   MISTRAL_CHAT_MODELS,
@@ -135,6 +136,14 @@ function mistralReasoning(
       : { reasoningEffort: resolved.value as ReasoningEffort }
   }
   return resolved.level === 'off' ? {} : { promptMode: 'reasoning' }
+}
+
+/** Maps `chat({ toolChoice })` to the Mistral `toolChoice`. */
+function toMistralToolChoice(
+  choice: ToolChoice,
+): NonNullable<ChatCompletionStreamRequest['toolChoice']> {
+  if (typeof choice === 'string') return choice
+  return { type: 'function', function: { name: choice.name } }
 }
 
 /**
@@ -1092,7 +1101,15 @@ export class MistralTextAdapter<
       messages.push(this.convertMessageToMistral(message))
     }
 
+    // `chat({ toolChoice })` is sent only when the request has tools. It goes
+    // before the `modelOptions` spread, so a `tool_choice` there wins.
+    const toolChoiceField =
+      tools?.length && options.toolChoice !== undefined
+        ? { toolChoice: toMistralToolChoice(options.toolChoice) }
+        : undefined
+
     return {
+      ...toolChoiceField,
       model: this.rawConfig.requestModel ?? options.model,
       messages: messages,
       temperature: modelOptions?.temperature ?? undefined,

@@ -27,6 +27,9 @@ import type {
 import type { ContentBlock } from '@modelcontextprotocol/server'
 import type { MCPToolContext } from './server/context'
 
+export { mcp } from './harness-plugin'
+export type { McpServerConfig, McpServerStatus } from './harness-plugin'
+
 /** Options for {@link createHarnessMcpServer}. */
 export interface HarnessMcpServerOptions {
   /** The host that runs the sessions, from `createHarnessHost`. */

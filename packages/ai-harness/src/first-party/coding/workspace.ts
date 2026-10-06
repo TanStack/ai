@@ -242,12 +242,12 @@ function withEditStyle(
 /**
  * File, shell, and web tools for a coding agent, in `root`: `read_file`,
  * `write_file`, `edit_file` or `patch` (see `editStyle`), `list_files`,
- * `grep`, `bash`, `webfetch`, and `websearch` with a search provider. Edits
- * and `bash` ask for approval through `permissions()`, and each call tells
- * the permission rules which paths or commands it touches. A path outside
- * `root` is refused, or with `outside: 'ask'` the user is asked first. A
- * link that leads out of `root` counts as outside. Other plugins add
- * {@link WorkspaceHooks} to run code after a read or a write.
+ * `grep`, `bash`, `webfetch`, and `websearch` with a search provider. Edits,
+ * `bash`, and `webfetch` ask for approval through `permissions()`, and each
+ * call tells the permission rules which paths or commands it touches. A
+ * path outside `root` is refused, or with `outside: 'ask'` the user is
+ * asked first. A link that leads out of `root` counts as outside. Other
+ * plugins add {@link WorkspaceHooks} to run code after a read or a write.
  *
  * The tools use `backend` for files and commands. The default,
  * `hostBackend`, runs on this machine with the host's authority. Use a
@@ -314,6 +314,11 @@ export function workspaceTools(options: WorkspaceToolsOptions) {
             decision: 'ask',
             kind: 'execute',
           }),
+          // webfetch sends a request to a URL that the model picks, so it
+          // asks. A user rule can allow it. websearch stays allowed.
+          ...(options.web === false
+            ? []
+            : [PermissionRules.item({ tool: 'webfetch', decision: 'ask' })]),
           PermissionResources.item(resources),
         ],
       }

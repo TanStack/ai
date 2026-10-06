@@ -1,10 +1,9 @@
-import { extname, join, resolve } from 'node:path'
 import { createPluginEvent } from '../../extensions'
 import { definePlugin } from '../../plugins'
 import { isRecord } from '../../utils'
 import { WorkspaceHooks } from '../workspace-hooks'
-import { hostBackend, readText } from './backend'
-import { quoteArg } from './search'
+import { hostBackend, pathsOf, readText } from './backend'
+import { quoteArg, shellPlatform } from './search'
 import type { WorkspaceBackend } from './backend'
 
 /** What a formatter can check in the project root folder. */
@@ -144,12 +143,11 @@ export function formatOnWrite(
   options: FormatterOptions,
   onFailure: (failure: FormatFailure) => void,
 ) {
-  const root = resolve(options.root)
   const backend = options.backend ?? hostBackend
+  const { extname, join, resolve } = pathsOf(backend)
+  const root = resolve(options.root)
   const timeoutMs = options.timeoutMs ?? 20_000
-  // ponytail: the same rule as search.ts. A backend other than the host is
-  // taken to have a POSIX `sh`, like a Linux sandbox.
-  const platform = backend === hostBackend ? process.platform : 'linux'
+  const platform = shellPlatform(backend)
   const candidates = [
     ...(options.formatters ?? []),
     ...(options.builtins === false ? [] : BUILTINS),

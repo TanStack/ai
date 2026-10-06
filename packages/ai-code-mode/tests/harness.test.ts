@@ -8,8 +8,10 @@ import {
   defineHarness,
   definePlugin,
 } from '@tanstack/ai-harness'
+import { PermissionResources } from '@tanstack/ai-harness/plugins'
 import { codeMode } from '../src/harness'
-import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
+import type { AnyTextAdapter, AnyTool, StreamChunk } from '@tanstack/ai'
+import type { HarnessPlugin } from '@tanstack/ai-harness'
 import type { ExecutionResult, IsolateDriver, ToolBinding } from '../src/types'
 
 const now = () => Date.now()
@@ -182,6 +184,38 @@ const notion = definePlugin({
   setup: () => ({ discoverTools: () => [tools.notionSearch] }),
 })
 
+/** A server tool marked for code mode, like the tools of `mcp({ codeMode })`. */
+function markedTool(name: string, needsApproval = false) {
+  return toolDefinition({
+    name,
+    description: 'A marked tool',
+    inputSchema: z.object({}),
+    needsApproval,
+    metadata: { codeMode: true },
+  }).server(async () => name)
+}
+
+/** Opens a code mode session and returns the tool names of the first model call. */
+async function firstToolNames(options: {
+  tools: ReadonlyArray<AnyTool>
+  plugins: ReadonlyArray<HarnessPlugin>
+}) {
+  const { adapter, calls } = scripted([textTurn('ok')])
+  const host = createHarnessHost({ persistence: memoryPersistence() })
+  const session = await host.open(
+    defineHarness({
+      name: 'test/code-mode-marked',
+      adapter,
+      tools: options.tools,
+      plugins: () => options.plugins,
+    }),
+    { threadId: 't' },
+  )
+  await session.prompt('hi')
+  await host.close()
+  return calls[0].tools.map((tool: { name: string }) => tool.name)
+}
+
 describe('codeMode', () => {
   it('moves safe tools, including discovered ones, behind execute_typescript', async () => {
     const { driver, seen } = fakeDriver()
@@ -339,5 +373,52 @@ describe('codeMode', () => {
     expect(seen[0]).toEqual(['external__2fa', 'external_web_search'])
     expect(JSON.stringify(calls[1].messages)).toContain('from web-search')
     await host.close()
+  })
+
+  it('moves a marked tool that include does not pick, unless a rule or an approval stops it', async () => {
+    const rules = definePlugin({
+      name: 'test/marked-rules',
+      setup: () => ({
+        contribute: [
+          PermissionRules.item({ tool: 'docs_allowed', decision: 'allow' }),
+          PermissionRules.item({ tool: 'docs_ask', decision: 'ask' }),
+          PermissionRules.item({ tool: 'docs_deny', decision: 'deny' }),
+        ],
+      }),
+    })
+    const names = await firstToolNames({
+      tools: [
+        markedTool('docs_allowed'),
+        markedTool('docs_ask'),
+        markedTool('docs_deny'),
+        markedTool('docs_write', true),
+      ],
+      plugins: [
+        rules,
+        codeMode({ driver: fakeDriver().driver, include: () => false }),
+      ],
+    })
+    expect(names).toEqual([
+      'docs_ask',
+      'docs_deny',
+      'docs_write',
+      'execute_typescript',
+    ])
+  })
+
+  it('keeps a tool that declares permission resources as a tool call', async () => {
+    const resources = definePlugin({
+      name: 'test/resources',
+      setup: () => ({
+        contribute: [
+          PermissionResources.item({ read_file: { paths: () => ['a.txt'] } }),
+        ],
+      }),
+    })
+    const names = await firstToolNames({
+      tools: [tools.lookup, markedTool('read_file')],
+      plugins: [resources, codeMode({ driver: fakeDriver().driver })],
+    })
+    expect(names).toEqual(['read_file', 'execute_typescript'])
   })
 })

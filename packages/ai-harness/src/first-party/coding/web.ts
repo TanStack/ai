@@ -1,8 +1,12 @@
 import { lookup } from 'node:dns/promises'
+import * as http from 'node:http'
+import * as https from 'node:https'
 import { BlockList, isIP } from 'node:net'
 import { toolDefinition } from '@tanstack/ai'
 import { isRecord } from '../../utils'
 import { optionalString, stringArg } from './backend'
+import type { IncomingMessage } from 'node:http'
+import type { LookupFunction } from 'node:net'
 
 const DEFAULT_TIMEOUT_MS = 30_000
 const MAX_TIMEOUT_MS = 120_000
@@ -69,7 +73,12 @@ export interface SearchProvider {
 }
 
 export interface WebToolsOptions {
-  /** The `fetch` that `webfetch` uses. Default: the global `fetch`. */
+  /**
+   * The `fetch` that `webfetch` uses. Default: a request with `node:http`
+   * and `node:https` that checks the address of each connection. A custom
+   * `fetch` looks up host names itself. Then a DNS server that changes its
+   * answer after the check (DNS rebinding) can reach a private host.
+   */
   fetch?: typeof fetch
   /**
    * Let `webfetch` read localhost and private network hosts. Default:
@@ -158,10 +167,16 @@ function isPrivateAddress(address: string) {
   return PRIVATE.check(address, isIP(address) === 6 ? 'ipv6' : 'ipv4')
 }
 
+/** The error for a host that `webfetch` does not read. */
+function refused(host: string) {
+  return new Error(`webfetch does not read private or local hosts: ${host}`)
+}
+
 /**
  * Throws unless `url` is http or https. Unless `allowPrivateHosts` is set,
  * it also throws for a private or local host: the host as written, and
- * every address that DNS gives for it.
+ * every address that DNS gives for it. The default request checks the
+ * addresses again when it connects.
  */
 async function checkUrl(url: URL, allowPrivateHosts: boolean) {
   const isWeb = url.protocol === 'http:' || url.protocol === 'https:'
@@ -173,43 +188,113 @@ async function checkUrl(url: URL, allowPrivateHosts: boolean) {
   if (allowPrivateHosts) return
   // The URL keeps IPv6 hosts in brackets. A name can end with a dot.
   const host = url.hostname.replace(/^\[|\]$/g, '').replace(/\.$/, '')
-  const refused = `webfetch does not read private or local hosts: ${url.hostname}`
   const isLocalName = host === 'localhost' || host.endsWith('.localhost')
-  if (isLocalName) throw new Error(refused)
+  if (isLocalName) throw refused(url.hostname)
   if (isIP(host) !== 0) {
-    if (isPrivateAddress(host)) throw new Error(refused)
+    if (isPrivateAddress(host)) throw refused(url.hostname)
     return
   }
-  // ponytail: `fetch` looks the name up again. A DNS server that changes
-  // its answer between the two lookups (DNS rebinding) can still reach a
-  // private host. Pin the checked address in a custom dispatcher if that
-  // matters.
   const addresses = await lookup(host, { all: true }).catch(() => {
     throw new Error(`Could not resolve ${host}.`)
   })
   const isPrivate = addresses.some(({ address }) => isPrivateAddress(address))
-  if (isPrivate) throw new Error(refused)
+  if (isPrivate) throw refused(url.hostname)
 }
 
 /**
- * Fetch `start` and follow at most 5 redirects. Each URL is checked before
- * it is fetched, so a redirect cannot lead to a private host.
+ * A `lookup` for Node sockets. It refuses `hostname` when any of its
+ * addresses is private, unless `allowPrivateHosts` is set. The socket
+ * connects only to the addresses that were checked here, so a DNS answer
+ * that changes after `checkUrl` cannot reach a private host.
+ */
+function checkedLookup(allowPrivateHosts: boolean) {
+  const checked: LookupFunction = (hostname, options, callback) => {
+    void lookup(hostname, { ...options, all: true }).then(
+      (addresses) => {
+        const isPrivate =
+          !allowPrivateHosts &&
+          addresses.some(({ address }) => isPrivateAddress(address))
+        const [first] = addresses
+        if (isPrivate) callback(refused(hostname), [])
+        else if (options.all) callback(null, addresses)
+        else if (first) callback(null, first.address, first.family)
+        else callback(new Error(`Could not resolve ${hostname}.`), [])
+      },
+      (error) => callback(error, []),
+    )
+  }
+  return checked
+}
+
+/**
+ * A Node response as a fetch `Response`. Only the headers that `webfetch`
+ * reads are copied. The body is read from the socket on demand.
+ */
+function toResponse(response: IncomingMessage) {
+  const status = response.statusCode ?? 500
+  const headers = new Headers()
+  const { location, 'content-type': type } = response.headers
+  if (location !== undefined) headers.set('location', location)
+  if (type !== undefined) headers.set('content-type', type)
+  const hasNoBody = status === 204 || status === 205 || status === 304
+  if (hasNoBody) {
+    response.resume()
+    return new Response(null, { status, headers })
+  }
+  // The chunks are Buffers, so the stream gives Uint8Array chunks.
+  const chunks = response[Symbol.asyncIterator]()
+  const body = new ReadableStream({
+    pull: async (controller) => {
+      const next = await chunks.next()
+      if (next.done) controller.close()
+      else controller.enqueue(next.value)
+    },
+    cancel: () => {
+      response.destroy()
+    },
+  })
+  return new Response(body, { status, headers })
+}
+
+/**
+ * GET `url` with `node:http` or `node:https`. It never follows redirects.
+ * Each request gets its own connection (`agent: false`), so every
+ * connection goes through `checkedLookup`.
+ */
+async function request(
+  url: URL,
+  options: { signal: AbortSignal; allowPrivateHosts: boolean },
+) {
+  const settings = {
+    agent: false,
+    signal: options.signal,
+    lookup: checkedLookup(options.allowPrivateHosts),
+  }
+  const response = await new Promise<IncomingMessage>((resolve, reject) => {
+    const sent =
+      url.protocol === 'https:'
+        ? https.get(url, settings, resolve)
+        : http.get(url, settings, resolve)
+    sent.on('error', reject)
+  })
+  return toResponse(response)
+}
+
+/**
+ * Fetch `start` with `send` and follow at most 5 redirects. Each URL is
+ * checked before it is sent, so a redirect cannot lead to a private host.
  */
 async function follow(
   start: URL,
   options: {
-    fetch: typeof fetch
+    send: (url: URL) => Promise<Response>
     allowPrivateHosts: boolean
-    signal: AbortSignal
   },
 ) {
   let url = start
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     await checkUrl(url, options.allowPrivateHosts)
-    const response = await options.fetch(url.href, {
-      redirect: 'manual',
-      signal: options.signal,
-    })
+    const response = await options.send(url)
     const location = response.headers.get('location')
     const isRedirect =
       response.status >= 300 && response.status < 400 && location !== null
@@ -285,6 +370,8 @@ async function readPage(
  * `webfetch` fetches URLs that the model picks. So it reads only http and
  * https, and it refuses localhost, loopback, link-local (with cloud
  * metadata), and private network hosts, unless `allowPrivateHosts` is set.
+ * Without `options.fetch`, it checks the address of each connection, so a
+ * DNS answer that changes after the check cannot reach a private host.
  *
  * @example
  * ```ts
@@ -325,12 +412,13 @@ export function webTools(options: WebToolsOptions = {}) {
     const timeout = AbortSignal.timeout(timeoutMs)
     const runSignal = context?.abortSignal
     const signal = runSignal ? AbortSignal.any([timeout, runSignal]) : timeout
+    const customFetch = options.fetch
+    const send = customFetch
+      ? (target: URL) =>
+          customFetch(target.href, { redirect: 'manual', signal })
+      : (target: URL) => request(target, { signal, allowPrivateHosts })
     try {
-      const fetched = await follow(url, {
-        fetch: options.fetch ?? fetch,
-        allowPrivateHosts,
-        signal,
-      })
+      const fetched = await follow(url, { send, allowPrivateHosts })
       return await readPage(fetched.response, fetched.url, format)
     } catch (error) {
       if (timeout.aborted) {

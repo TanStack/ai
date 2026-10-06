@@ -1,8 +1,7 @@
-import { join, resolve } from 'node:path'
 import { toolDefinition } from '@tanstack/ai'
 import { isRecord } from '../../utils'
 import { boundText } from '../bound-output'
-import { stringArg } from './backend'
+import { pathsOf, stringArg } from './backend'
 import type { ToolEnv } from './backend'
 
 /** The longest timeout that one call can ask for: 10 minutes. */
@@ -142,6 +141,7 @@ export function bashTools(
 
   /** Save the full output in `dir`. Gives back the note for the model. */
   const spill = async (dir: string, output: string) => {
+    const { join, resolve } = pathsOf(env.backend)
     const path = join(
       resolve(env.root, dir),
       `bash-${crypto.randomUUID()}.txt`,

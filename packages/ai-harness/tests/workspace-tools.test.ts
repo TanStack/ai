@@ -14,6 +14,7 @@ import { mockAdapter, text, toolCall } from './helpers'
 import type { PlatformPath } from 'node:path'
 import type { AnyTextAdapter, AnyTool } from '@tanstack/ai'
 import type { HarnessPlugin } from '../src'
+import type { PermissionRule } from '../src/first-party/permissions'
 import type { WorkspaceBackend } from '../src/first-party/coding/backend'
 import type {
   OutsideAccess,
@@ -557,6 +558,56 @@ describe('permission resources', () => {
     await session.prompt('work')
     expect(session.snapshot().pendingQuestions).toHaveLength(0)
     expect([...files.keys()]).toEqual(['/workspace/src/a.ts'])
+    await host.close()
+  })
+})
+
+describe('webfetch approval', () => {
+  /** The page that every request gets, so no request leaves the test. */
+  const fetchPage: typeof fetch = async () =>
+    new Response('fetched body', {
+      headers: { 'content-type': 'text/plain' },
+    })
+
+  /** A session where the model calls webfetch once. `rules` go to permissions(). */
+  async function fetchOnce(rules: Array<PermissionRule> = []) {
+    const { adapter, calls } = mockAdapter([
+      () => toolCall('webfetch', { url: 'https://example.com/' }, 'c1'),
+      () => text('done'),
+    ])
+    const { host, session } = await openSession(adapter, [
+      permissions({ root: '/workspace', rules }),
+      workspaceTools({
+        root: '/workspace',
+        backend: memoryBackend().backend,
+        // So the URL check does no DNS lookup.
+        web: { fetch: fetchPage, allowPrivateHosts: true },
+      }),
+    ])
+    return { host, session, calls }
+  }
+
+  it('asks before webfetch by default', async () => {
+    const { host, session } = await fetchOnce()
+    const turn = session.prompt('read the page')
+    await vi.waitFor(() =>
+      expect(session.snapshot().pendingQuestions).toHaveLength(1),
+    )
+    const [question] = session.snapshot().pendingQuestions
+    if (!question) throw new Error('No question.')
+    expect(question.message).toContain('Allow webfetch')
+    await session.answer(question.questionId, { answer: 'reject' })
+    await turn
+    await host.close()
+  })
+
+  it('runs webfetch without a question when a user rule allows it', async () => {
+    const { host, session, calls } = await fetchOnce([
+      { tool: 'webfetch', decision: 'allow' },
+    ])
+    await session.prompt('read the page')
+    expect(session.snapshot().pendingQuestions).toHaveLength(0)
+    expect(JSON.stringify(calls[1].messages)).toContain('fetched body')
     await host.close()
   })
 })

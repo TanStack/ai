@@ -1,4 +1,5 @@
 import {
+  PermissionResources,
   PermissionRules,
   decidePermission,
   definePlugin,
@@ -14,7 +15,9 @@ export interface CodeModePluginOptions extends Omit<
   /**
    * Which tools move into code mode. Default: every server tool that does
    * not need approval and that the permission rules allow in plan mode (so
-   * no edits, no commands, nothing that asks first).
+   * no edits, no commands, nothing that asks first). A safe tool with
+   * `metadata.codeMode: true`, for example a tool of an `mcp()` server with
+   * `codeMode: true`, moves even when `include` does not pick it.
    */
   include?: (tool: CodeModeTool) => boolean
   /**
@@ -51,8 +54,12 @@ function isServerTool(tool: AnyTool): tool is CodeModeTool {
  *
  * Calls inside the isolate do not stop for approval, so by default only
  * tools that are safe to run without a question move into code mode. The
- * other tools stay normal tool calls. With `lazy: true`, the model gets only
- * the names of the moved tools and asks `discover_tools` for the signatures.
+ * other tools stay normal tool calls. A tool with `metadata.codeMode: true`
+ * moves even when `include` does not pick it, but only when it is safe in
+ * the same way. Calls inside the isolate also skip the permission checks,
+ * so a tool that declares `PermissionResources` never moves. With
+ * `lazy: true`, the model gets only the names of the moved tools and asks
+ * `discover_tools` for the signatures.
  *
  * @example
  * ```ts
@@ -72,18 +79,31 @@ export function codeMode(options: CodeModePluginOptions) {
     name: 'tanstack/code-mode',
     setup: (ctx) => {
       const rules = ctx.collect(PermissionRules)
-      const safe = (tool: CodeModeTool) =>
-        !tool.needsApproval &&
-        decidePermission(rules, tool.name, 'plan') === 'allow'
+      const resources = ctx.collect(PermissionResources)
       // The system prompt for the tools of the current turn.
       let prompt = ''
       return {
         prompts: [{ id: 'tanstack/code-mode', text: () => prompt }],
         prepareTools: ({ tools }) => {
+          const safe = (tool: CodeModeTool) =>
+            !tool.needsApproval &&
+            decidePermission(rules, tool.name, 'plan') === 'allow'
+          const moves = (tool: CodeModeTool) => {
+            // The permission checks run on tool calls of the model. A call
+            // inside the isolate skips them, so such a tool stays a tool call.
+            const hasResources = resources.some((map) =>
+              Object.hasOwn(map, tool.name),
+            )
+            if (hasResources) return false
+            // A marked tool still needs the checks of the default pick.
+            const isMarked = tool.metadata?.codeMode === true
+            if (isMarked && safe(tool)) return true
+            return include ? include(tool) : safe(tool)
+          }
           // Two tools that map to the same identifier: the first one moves.
           const byIdentifier = new Map<string, CodeModeTool>()
           for (const tool of tools.filter(isServerTool)) {
-            if (!(include ? include(tool) : safe(tool))) continue
+            if (!moves(tool)) continue
             const identifier = identifierOf(tool.name)
             if (!byIdentifier.has(identifier))
               byIdentifier.set(identifier, tool)

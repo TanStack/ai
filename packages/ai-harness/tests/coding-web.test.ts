@@ -1,16 +1,22 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createServer } from 'node:http'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { webTools } from '../src/first-party/coding/web'
+import type { AddressInfo } from 'node:net'
 import type {
   SearchProvider,
   WebToolsOptions,
 } from '../src/first-party/coding/web'
 
-// DNS is the network boundary: each test says what a name resolves to.
-const dns = vi.hoisted(() => ({ hosts: new Map<string, Array<string>>() }))
+// DNS is the network boundary. Each lookup of a name takes its next
+// answer, and the last answer repeats.
+const dns = vi.hoisted(() => ({
+  answers: new Map<string, Array<Array<string>>>(),
+}))
 
 vi.mock('node:dns/promises', () => ({
   lookup: async (hostname: string) => {
-    const addresses = dns.hosts.get(hostname)
+    const answers = dns.answers.get(hostname) ?? []
+    const addresses = answers.length > 1 ? answers.shift() : answers[0]
     if (!addresses) throw new Error(`getaddrinfo ENOTFOUND ${hostname}`)
     return addresses.map((address) => ({
       address,
@@ -18,6 +24,11 @@ vi.mock('node:dns/promises', () => ({
     }))
   },
 }))
+
+/** `host` resolves to `answers`, one answer a lookup. */
+function resolves(host: string, ...answers: Array<Array<string>>) {
+  dns.answers.set(host, answers)
+}
 
 const PUBLIC_IP = '93.184.216.34'
 const MB5 = 5 * 1024 * 1024
@@ -66,8 +77,8 @@ function webfetch(
 }
 
 beforeEach(() => {
-  dns.hosts.clear()
-  dns.hosts.set('example.com', [PUBLIC_IP])
+  dns.answers.clear()
+  resolves('example.com', [PUBLIC_IP])
 })
 
 describe('webfetch formats', () => {
@@ -200,7 +211,7 @@ describe('webfetch hosts', () => {
   })
 
   it('refuses a name when DNS gives a private address', async () => {
-    dns.hosts.set('intranet.example', [PUBLIC_IP, '10.1.2.3'])
+    resolves('intranet.example', [PUBLIC_IP, '10.1.2.3'])
     const { fetch, urls } = fakeFetch({})
     await expect(
       run('webfetch', { url: 'https://intranet.example/' }, { fetch }),
@@ -263,6 +274,54 @@ describe('webfetch redirects', () => {
       run('webfetch', { url: 'https://example.com/loop' }, { fetch }),
     ).rejects.toThrow('https://example.com/loop redirected more than 5 times.')
     expect(urls).toHaveLength(6)
+  })
+})
+
+describe('webfetch without a custom fetch', () => {
+  // A real server on 127.0.0.1. `paths` lists the requests that reach it.
+  const paths: Array<string> = []
+  const server = createServer((req, res) => {
+    paths.push(req.url ?? '')
+    if (req.url === '/old') {
+      res.writeHead(302, { location: '/new' }).end()
+      return
+    }
+    res.writeHead(200, { 'content-type': 'text/plain' }).end('hello')
+  })
+  let port = 0
+
+  beforeAll(async () => {
+    await new Promise<void>((done) => server.listen(0, '127.0.0.1', done))
+    const address: AddressInfo | string | null = server.address()
+    port = typeof address === 'object' && address ? address.port : 0
+  })
+
+  afterAll(async () => {
+    await new Promise<void>((done) => server.close(() => done()))
+  })
+
+  beforeEach(() => {
+    paths.length = 0
+  })
+
+  it('refuses a name whose answer turns private when it connects', async () => {
+    // The check sees a public address. The connection sees 127.0.0.1.
+    resolves('rebind.test', [PUBLIC_IP], ['127.0.0.1'])
+    await expect(
+      run('webfetch', { url: `http://rebind.test:${port}/` }),
+    ).rejects.toThrow(`${REFUSED}: rebind.test`)
+    expect(paths).toEqual([])
+  })
+
+  it('reaches a private host with allowPrivateHosts and follows redirects', async () => {
+    resolves('rebind.test', ['127.0.0.1'])
+    const result = await run(
+      'webfetch',
+      { url: `http://rebind.test:${port}/old` },
+      { allowPrivateHosts: true },
+    )
+    expect(result).toBe('hello')
+    expect(paths).toEqual(['/old', '/new'])
   })
 })
 

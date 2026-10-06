@@ -1,5 +1,5 @@
 import { tmpdir } from 'node:os'
-import { basename, dirname, join, resolve } from 'node:path'
+import * as nodePath from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin } from '../src'
@@ -17,6 +17,7 @@ import type {
   FormatterOptions,
 } from '../src/first-party/coding/formatter'
 
+const { join, posix, resolve } = nodePath
 const root = resolve(tmpdir(), 'harness-format')
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
@@ -29,16 +30,25 @@ const ok: Exec = () => ({ exitCode: 0, stdout: '', stderr: '' })
 const quoted = (path: string) => `'${join(root, path)}'`
 
 /**
- * A project in memory that starts as `files`, by path from the root. `exec`
- * answers each command. `runs` lists each command with its options.
+ * A project in memory that starts as `files`, by path from its root. `exec`
+ * answers each command. `runs` lists each command with its options. With
+ * `shell: 'sh'`, the project is at `/workspace` with POSIX paths, like a
+ * Linux sandbox. Else it is at `root` on this machine.
  */
-function project(files: Record<string, string>, exec: Exec = ok) {
+function project(
+  files: Record<string, string>,
+  exec: Exec = ok,
+  shell?: 'sh',
+) {
+  const paths = shell === 'sh' ? posix : nodePath
+  const base = shell === 'sh' ? '/workspace' : root
   const store = new Map<string, Uint8Array>()
   const put = (path: string, content: string) =>
-    store.set(join(root, path), encoder.encode(content))
+    store.set(paths.join(base, path), encoder.encode(content))
   for (const [path, content] of Object.entries(files)) put(path, content)
   const runs: Array<{ command: string; cwd?: string; timeoutMs?: number }> = []
   const backend: WorkspaceBackend = {
+    shell,
     readFile: async (path) => {
       const data = store.get(path)
       if (!data) throw new Error(`No file ${path}`)
@@ -53,14 +63,15 @@ function project(files: Record<string, string>, exec: Exec = ok) {
     },
     readdir: async (dir) =>
       [...store.keys()]
-        .filter((path) => dirname(path) === dir)
-        .map((path) => ({ name: basename(path), type: 'file' as const })),
+        .filter((path) => paths.dirname(path) === dir)
+        .map((path) => ({ name: paths.basename(path), type: 'file' as const })),
     exec: async (command, options) => {
       runs.push({ command, cwd: options?.cwd, timeoutMs: options?.timeoutMs })
       return exec(command)
     },
   }
-  const read = (path: string) => decoder.decode(store.get(join(root, path)))
+  const read = (path: string) =>
+    decoder.decode(store.get(paths.join(base, path)))
   return { backend, runs, put, read }
 }
 
@@ -184,6 +195,21 @@ describe('formatOnWrite', () => {
     const skipped = await formatIn({}, 'a.toml', { formatters: [taplo] })
     expect(used.commands).toEqual([`taplo fmt ${quoted('a.toml')}`])
     expect(skipped.commands).toEqual([])
+  })
+
+  it('keeps POSIX paths in a sandbox, also on a Windows host', async () => {
+    const { backend, runs } = project(prettier, ok, 'sh')
+    const afterWrite = formatOnWrite({ root: '/workspace', backend }, () =>
+      undefined,
+    )
+    await afterWrite('/workspace/src/a.ts')
+    expect(runs).toEqual([
+      {
+        command: `npx --no-install prettier --write '/workspace/src/a.ts'`,
+        cwd: '/workspace',
+        timeoutMs: 20_000,
+      },
+    ])
   })
 
   it('runs no built-in formatter with builtins: false', async () => {

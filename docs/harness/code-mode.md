@@ -71,7 +71,7 @@ The model now has an `execute_typescript` tool. Inside the program, each moved t
 A call inside the program does not stop for approval. So by default, a tool moves into code mode only when it is safe to run without a question:
 
 - The tool runs on the server and does not set `needsApproval`.
-- The permission rules allow it in plan mode. File reads move. `write_file` and `run_command` stay.
+- The permission rules allow it in plan mode. File reads move. `write_file` and `bash` stay.
 - MCP tools that the server does not mark read-only ask for approval, so they stay too.
 
 Every other tool stays a normal tool call, with its approvals. To pick the tools yourself, pass `include`:

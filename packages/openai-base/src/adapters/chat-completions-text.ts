@@ -26,6 +26,7 @@ import type {
   StructuredOutputCompatibility,
 } from '../utils/schema-converter'
 import { buildChatCompletionsUsage } from '../usage'
+import { toChatCompletionsToolChoice } from '../tools/tool-choice'
 import { convertToolsToChatCompletionsFormat } from './chat-completions-tool-converter'
 import type OpenAI from 'openai'
 import type {
@@ -1466,11 +1467,19 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       this.modelReasoning(options.model),
     )
 
+    // `chat({ toolChoice })` is sent only when the request has tools. It goes
+    // before the `modelOptions` spread, so a `tool_choice` there wins.
+    const toolChoiceField =
+      tools?.length && options.toolChoice !== undefined
+        ? { tool_choice: toChatCompletionsToolChoice(options.toolChoice) }
+        : undefined
+
     // `modelOptions` is the sole sampling surface: callers set provider-native
     // wire names (`temperature`, `top_p`, `max_tokens`/`max_completion_tokens`)
     // there and they flow through the spread below. The root
     // `temperature`/`topP`/`maxTokens` fields are intentionally NOT read here.
     const params: ChatCompletionCreateParamsStreaming = {
+      ...toolChoiceField,
       ...modelOptions,
       model: options.model,
       messages,

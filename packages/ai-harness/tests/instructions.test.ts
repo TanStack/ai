@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
 import { projectInstructions } from '../src/first-party'
-import { workspaceTools } from '../src/first-party/coding'
+import { hostBackend, workspaceTools } from '../src/first-party/coding'
 import { mockAdapter, text, toolCall } from './helpers'
 import type { AnyTextAdapter, ModelMessage } from '@tanstack/ai'
 import type { HarnessPlugin } from '../src'
@@ -19,30 +19,22 @@ vi.mock('node:os', async (importOriginal) => ({
 }))
 
 // A fake git: real git can take seconds to start on a busy machine, more
-// than the plugin waits. It names `git.branch` for `git rev-parse` in
-// `git.cwd`, and fails for anything else.
-const git = vi.hoisted(() => {
-  const fake: { cwd: string; branch: string | undefined } = {
-    cwd: '',
-    branch: undefined,
-  }
-  return fake
+// than the plugin waits. The plugin runs git with `hostBackend.exec`. The
+// fake names `git.branch` for `git rev-parse` in `git.cwd`, and fails for
+// anything else.
+const git: { cwd: string; branch: string | undefined } = {
+  cwd: '',
+  branch: undefined,
+}
+vi.spyOn(hostBackend, 'exec').mockImplementation(async (command, options) => {
+  const isBranchQuery =
+    command === 'git rev-parse --abbrev-ref HEAD' &&
+    options?.cwd === git.cwd &&
+    git.branch !== undefined
+  return isBranchQuery
+    ? { exitCode: 0, stdout: `${git.branch}\n`, stderr: '' }
+    : { exitCode: 128, stdout: '', stderr: 'git failed' }
 })
-vi.mock('node:child_process', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('node:child_process')>()),
-  exec: (
-    command: string,
-    options: { cwd?: string },
-    callback: (error: Error | null, stdout: string, stderr: string) => void,
-  ) => {
-    const isBranchQuery =
-      command === 'git rev-parse --abbrev-ref HEAD' &&
-      options.cwd === git.cwd &&
-      git.branch !== undefined
-    if (isBranchQuery) callback(null, `${git.branch}\n`, '')
-    else callback(Object.assign(new Error('git failed'), { code: 128 }), '', '')
-  },
-}))
 
 let dir = ''
 /** The `root` of the plugin, in the test folder. */

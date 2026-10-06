@@ -69,7 +69,7 @@ export function quoteArg(value: string, platform: NodeJS.Platform) {
  * The platform of the shell that `backend.exec` uses, for {@link quoteArg}.
  * A backend without `shell` has a POSIX `sh`, like a Linux sandbox.
  */
-function shellPlatform(backend: WorkspaceBackend) {
+export function shellPlatform(backend: WorkspaceBackend) {
   return backend.shell === 'cmd' ? 'win32' : 'linux'
 }
 
