@@ -899,7 +899,7 @@
           "label": "Connect clients",
           "to": "harness/connect",
           "addedAt": "2026-09-26",
-          "updatedAt": "2026-10-05"
+          "updatedAt": "2026-10-06"
         },
         {
           "label": "Send and show media",
@@ -910,7 +910,7 @@
           "label": "Run in the terminal",
           "to": "harness/cli",
           "addedAt": "2026-09-26",
-          "updatedAt": "2026-10-05"
+          "updatedAt": "2026-10-06"
         },
         {
           "label": "Durable sessions",
@@ -1015,7 +1015,7 @@
           "label": "Auth and connectors",
           "to": "harness/auth",
           "addedAt": "2026-09-26",
-          "updatedAt": "2026-10-05"
+          "updatedAt": "2026-10-06"
         },
         {
           "label": "Share a thread between people",
@@ -1038,13 +1038,13 @@
           "label": "Use from any MCP client",
           "to": "harness/mcp-server",
           "addedAt": "2026-09-28",
-          "updatedAt": "2026-09-29"
+          "updatedAt": "2026-10-06"
         },
         {
           "label": "Code mode in a harness",
           "to": "harness/code-mode",
           "addedAt": "2026-09-26",
-          "updatedAt": "2026-10-01"
+          "updatedAt": "2026-10-06"
         },
         {
           "label": "Add skills",
@@ -1065,7 +1065,7 @@
           "label": "Build your own UI",
           "to": "harness/custom-ui",
           "addedAt": "2026-09-28",
-          "updatedAt": "2026-10-05"
+          "updatedAt": "2026-10-06"
         },
         {
           "label": "Run agents from a harness",
