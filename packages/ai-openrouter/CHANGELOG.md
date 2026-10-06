@@ -1,5 +1,32 @@
 # @tanstack/ai-openrouter
 
+## 0.20.3
+
+### Patch Changes
+
+- [#1545](https://github.com/TanStack/ai/pull/1545) [`aadfed3`](https://github.com/TanStack/ai/commit/aadfed3cff1925f647cbf956f309f0a38b7ccf85) - Keep optional tool fields optional. The Chat Completions adapter now sends function tools with `strict: false`. With `strict` omitted, OpenAI models through OpenRouter were observed to treat the schema as strict and make every optional field required, so before this fix the model could not leave one out. The Responses adapter now strips the `null` that strict mode puts in an omitted optional field before the tool input is validated, so the tool runs and sees the field as absent. A `.nullable()` field keeps its `null`. Known limit: an optional field inside a union of several object shapes is not stripped and still arrives as `null`.
+
+- [#1576](https://github.com/TanStack/ai/pull/1576) [`0977222`](https://github.com/TanStack/ai/commit/097722249c033792538d6f95f5db76473a6e3035) - Update model metadata from OpenRouter API
+
+- Updated dependencies [[`4c57d04`](https://github.com/TanStack/ai/commit/4c57d04f0f5dd98e176386f3208b68daf9e7d929)]:
+  - @tanstack/ai@0.64.1
+
+## 0.20.2
+
+### Patch Changes
+
+- [#1516](https://github.com/TanStack/ai/pull/1516) [`36e77d9`](https://github.com/TanStack/ai/commit/36e77d90f7a3e7b900abd9bfb099ce7f4d47d148) - Update model metadata from OpenRouter API
+
+- Updated dependencies [[`3a09cf0`](https://github.com/TanStack/ai/commit/3a09cf04431a45810051ea5df6bb3935af421ddb), [`ee726f5`](https://github.com/TanStack/ai/commit/ee726f537dbb036d5edb756b92739afaa7573824), [`a5fce7f`](https://github.com/TanStack/ai/commit/a5fce7f95b8b9c6eb57697aa1e3f587bf27483b9), [`94116ad`](https://github.com/TanStack/ai/commit/94116ad137015b6f62fe62b4c06a335dbde36a49)]:
+  - @tanstack/ai@0.64.0
+
+## 0.20.1
+
+### Patch Changes
+
+- Updated dependencies [[`37b2826`](https://github.com/TanStack/ai/commit/37b282655ea9c780e9793ef33013d64b1bf88625), [`8e8ee26`](https://github.com/TanStack/ai/commit/8e8ee26959a471bb6fac180ded3a9a048ae93609), [`c5c1996`](https://github.com/TanStack/ai/commit/c5c19961b8c98497fd88ae93c5d6330d7b2ecb6a), [`3e30cde`](https://github.com/TanStack/ai/commit/3e30cde8ae7f5be7be3bc9c4f30c842159fc7edf), [`0eb8f0b`](https://github.com/TanStack/ai/commit/0eb8f0b7f4ffa0133a814f8fcfccbc1acedd7488), [`f44b6b2`](https://github.com/TanStack/ai/commit/f44b6b22578b893501e05612f02ea1aaee0951d3), [`d632d41`](https://github.com/TanStack/ai/commit/d632d41df227bf11bc3cdbf5542823f87562b3d4)]:
+  - @tanstack/ai@0.63.0
+
 ## 0.20.0
 
 ### Minor Changes

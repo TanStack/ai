@@ -2,6 +2,7 @@ import type { SubagentInfo as AGUISubagentInfo } from '@ag-ui/core'
 import type { InterruptDefinition } from '../../../interrupt-definition'
 import type {
   AnyTool,
+  InferSchemaType,
   ModelMessage,
   RunAgentResumeItem,
   SchemaInput,
@@ -12,8 +13,16 @@ import type { AnyClientTool } from '../tools/tool-definition'
 
 /**
  * Context the library passes into {@link defineAgent} `run`.
+ * `TInput` is the agent's `inputSchema`.
  */
-export interface SubagentRunContext {
+export interface SubagentRunContext<
+  TInput extends SchemaInput | undefined = any,
+> {
+  /**
+   * The input the parent model wrote for this child, checked against
+   * `inputSchema`. `undefined` when the agent has no `inputSchema`.
+   */
+  input: TInput extends SchemaInput ? InferSchemaType<TInput> : undefined
   messages: Array<UIMessage | ModelMessage>
   abortSignal?: AbortSignal
   threadId: string
@@ -53,13 +62,20 @@ export interface DefinedAgent<
   TSchema extends SchemaInput | undefined = SchemaInput | undefined,
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
     ReadonlyArray<InterruptDefinition<any, any, any, any>>,
+  TInput extends SchemaInput | undefined = any,
 > extends AGUISubagentInfo {
   name: TName
   /** Required here: the router and the synthetic tool both read it. */
   description: string
   run: (
-    ctx: SubagentRunContext,
+    ctx: SubagentRunContext<TInput>,
   ) => AsyncIterable<StreamChunk> | Promise<AsyncIterable<StreamChunk>>
+  /**
+   * The input the parent model writes when it calls this agent's tool, such
+   * as a short brief. `run` reads it as `ctx.input`. Tool mode only: a
+   * `subagents.router` cannot start an agent that has `inputSchema`.
+   */
+  inputSchema?: TInput
   tools?: TTools
   interrupts?: TInterrupts
   outputSchema?: TSchema
@@ -104,7 +120,8 @@ export function defineAgent<
   const TInterrupts extends ReadonlyArray<
     InterruptDefinition<any, any, any, any>
   > = readonly [],
->(agent: DefinedAgent<TName, TTools, TSchema, TInterrupts>) {
+  TInput extends SchemaInput | undefined = undefined,
+>(agent: DefinedAgent<TName, TTools, TSchema, TInterrupts, TInput>) {
   if (agent.name.trim() === '') {
     throw new Error('defineAgent requires a non-empty name')
   }

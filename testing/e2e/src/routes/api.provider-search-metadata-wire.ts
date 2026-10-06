@@ -12,10 +12,11 @@ export const Route = createFileRoute('/api/provider-search-metadata-wire')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const provider = new URL(request.url).searchParams.get('provider')
+        const params = new URL(request.url).searchParams
+        const provider = params.get('provider')
 
         if (provider === 'openai') {
-          return runOpenAISearch()
+          return runOpenAISearch(params.get('model'))
         }
         if (provider === 'gemini') {
           return runGeminiSearch()
@@ -29,18 +30,56 @@ export const Route = createFileRoute('/api/provider-search-metadata-wire')({
   },
 })
 
-async function runOpenAISearch() {
-  const adapter = createOpenaiChat('gpt-4o', DUMMY_KEY, {
-    baseURL: `${LLMOCK_DEFAULT_BASE}/provider-search-openai/v1`,
-  })
+const OPENAI_SEARCH_BASE_URL = `${LLMOCK_DEFAULT_BASE}/provider-search-openai/v1`
+const SEARCH_MESSAGES = [
+  { role: 'user' as const, content: 'Find the latest release.' },
+]
+
+// Each call site names its model literally, so `webSearchTool` is checked
+// against that model's `supports.tools` at compile time.
+function openAISearchStream(model: string | null) {
+  const tools = [webSearchTool({ type: 'web_search' })]
+  switch (model) {
+    case 'gpt-6-astra':
+      return chat({
+        adapter: createOpenaiChat('gpt-6-astra', DUMMY_KEY, {
+          baseURL: OPENAI_SEARCH_BASE_URL,
+        }),
+        messages: SEARCH_MESSAGES,
+        tools,
+      })
+    case 'gpt-6-sol':
+      return chat({
+        adapter: createOpenaiChat('gpt-6-sol', DUMMY_KEY, {
+          baseURL: OPENAI_SEARCH_BASE_URL,
+        }),
+        messages: SEARCH_MESSAGES,
+        tools,
+      })
+    case 'gpt-6-luna':
+      return chat({
+        adapter: createOpenaiChat('gpt-6-luna', DUMMY_KEY, {
+          baseURL: OPENAI_SEARCH_BASE_URL,
+        }),
+        messages: SEARCH_MESSAGES,
+        tools,
+      })
+    default:
+      return chat({
+        adapter: createOpenaiChat('gpt-4o', DUMMY_KEY, {
+          baseURL: OPENAI_SEARCH_BASE_URL,
+        }),
+        messages: SEARCH_MESSAGES,
+        tools,
+      })
+  }
+}
+
+async function runOpenAISearch(model: string | null) {
   let sources: unknown
 
   try {
-    for await (const chunk of chat({
-      adapter,
-      messages: [{ role: 'user', content: 'Find the latest release.' }],
-      tools: [webSearchTool({ type: 'web_search' })],
-    })) {
+    for await (const chunk of openAISearchStream(model)) {
       if (chunk.type === 'TOOL_CALL_START') {
         sources = (chunk.metadata as { sources?: unknown } | undefined)?.sources
       }

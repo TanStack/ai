@@ -1,5 +1,33 @@
 # @tanstack/ai-openai
 
+## 0.26.0
+
+### Minor Changes
+
+- [#1574](https://github.com/TanStack/ai/pull/1574) [`0f737ac`](https://github.com/TanStack/ai/commit/0f737ac7a60334c53d5178bc9d47d4ce540a9a2a) - Add `@tanstack/ai-openai/siwc`: Sign in with ChatGPT for BYOK. Users can sign in with their ChatGPT account instead of pasting an API key. The access token goes into the `openai` BYOK slot, and `refreshChatGptSignIn` renews it in the browser.
+
+- [#1539](https://github.com/TanStack/ai/pull/1539) [`94116ad`](https://github.com/TanStack/ai/commit/94116ad137015b6f62fe62b4c06a335dbde36a49) - `snapDuration` and `snapToDurationOption` accept seconds (`6`), a numeric string (`"6"`), a seconds template (`"6s"`), or a keyword the model lists (`"auto"`). `durationToSeconds` reads the numeric forms. Sora (`sora-2`, `sora-2-pro`) accepts `4 | 8 | 12`, `"4" | "8" | "12"`, or `"4s" | "8s" | "12s"` and sends `"4" | "8" | "12"`. Lovable Veo accepts the same three spellings for 4, 6, and 8 seconds.
+
+### Patch Changes
+
+- [#1516](https://github.com/TanStack/ai/pull/1516) [`36e77d9`](https://github.com/TanStack/ai/commit/36e77d90f7a3e7b900abd9bfb099ce7f4d47d148) - Update model metadata from OpenRouter API
+
+- Updated dependencies [[`3a09cf0`](https://github.com/TanStack/ai/commit/3a09cf04431a45810051ea5df6bb3935af421ddb), [`ee726f5`](https://github.com/TanStack/ai/commit/ee726f537dbb036d5edb756b92739afaa7573824), [`a5fce7f`](https://github.com/TanStack/ai/commit/a5fce7f95b8b9c6eb57697aa1e3f587bf27483b9), [`94116ad`](https://github.com/TanStack/ai/commit/94116ad137015b6f62fe62b4c06a335dbde36a49)]:
+  - @tanstack/ai@0.64.0
+  - @tanstack/openai-base@0.12.2
+
+## 0.25.1
+
+### Patch Changes
+
+- [#1532](https://github.com/TanStack/ai/pull/1532) [`6b8a1c0`](https://github.com/TanStack/ai/commit/6b8a1c066e79c9aea28d99583a2fe22646627eb9) - List the Responses provider tools on `gpt-6-astra`, `gpt-6-sol`, and `gpt-6-luna`. The model sync added them with `tools: []`, so `webSearchTool`, `imageGenerationTool`, and the other provider tools were type errors on GPT-6. They now accept `web_search`, `file_search`, `image_generation`, `code_interpreter`, `mcp`, `computer_use`, `shell`, and `apply_patch`, as listed on OpenAI's model pages.
+
+- [#1529](https://github.com/TanStack/ai/pull/1529) [`24baf35`](https://github.com/TanStack/ai/commit/24baf354cf4416af97ce8351f9f6ab00910c6f87) - `openaiImage()` accepts `gpt-image-2.5-flare` and `gpt-image-2.5-sunburst`. Both take sizes `1024x1024`, `1536x1024`, `1024x1536` and `auto`, and `quality` adds `xhigh` and `max` to `low`, `medium`, `high` and `auto`. Before, both ids threw `Unknown image model` before any request was sent.
+
+- Updated dependencies [[`37b2826`](https://github.com/TanStack/ai/commit/37b282655ea9c780e9793ef33013d64b1bf88625), [`8e8ee26`](https://github.com/TanStack/ai/commit/8e8ee26959a471bb6fac180ded3a9a048ae93609), [`c5c1996`](https://github.com/TanStack/ai/commit/c5c19961b8c98497fd88ae93c5d6330d7b2ecb6a), [`3e30cde`](https://github.com/TanStack/ai/commit/3e30cde8ae7f5be7be3bc9c4f30c842159fc7edf), [`0eb8f0b`](https://github.com/TanStack/ai/commit/0eb8f0b7f4ffa0133a814f8fcfccbc1acedd7488), [`bb3bf30`](https://github.com/TanStack/ai/commit/bb3bf309f41b7744c14d1b0f967e76780b7266c9), [`f44b6b2`](https://github.com/TanStack/ai/commit/f44b6b22578b893501e05612f02ea1aaee0951d3), [`d632d41`](https://github.com/TanStack/ai/commit/d632d41df227bf11bc3cdbf5542823f87562b3d4)]:
+  - @tanstack/ai@0.63.0
+  - @tanstack/openai-base@0.12.1
+
 ## 0.25.0
 
 ### Minor Changes

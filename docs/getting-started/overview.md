@@ -18,6 +18,8 @@ TanStack AI is a lightweight, type-safe SDK for building production-ready AI exp
 
 Build a streaming React chat in [Basic Chat](../tutorials/basic-chat). The key stays in the tab.
 
+Serve a tool, a resource, and a prompt in [Build an MCP Server](../tutorials/mcp-server).
+
 Generate an image from a prompt in [Generate Image](../tutorials/generate-image).
 
 Stream a typed table from `chat({ outputSchema })` in [Streaming Structured Table](../tutorials/streaming-structured-table).
@@ -139,6 +141,7 @@ With the help of adapters, TanStack AI can connect to various LLM providers. Ava
 - **@tanstack/ai-llmgateway** - LLM Gateway (hundreds of models via one OpenAI-compatible endpoint, self-hostable)
 - **@tanstack/ai-cloudflare** - Cloudflare Workers AI (chat, embeddings, image, speech, transcription, evaluate) and AI Gateway routing
 - **@tanstack/ai-typesafe** - TypeSafe Jev (typed evaluate decisions)
+- **@tanstack/ai-ollaya** - local Ollaya `laya` models for typed evaluate decisions. No API key.
 - **@tanstack/ai-lovable** - Lovable AI Gateway (Google and OpenAI chat, image, video, embeddings, and speech via one project key)
 
 ## Next Steps

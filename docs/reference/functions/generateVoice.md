@@ -52,7 +52,7 @@ const [preview] = designed.voices
 if (!preview) throw new Error('No voice candidates returned')
 
 const speech = await generateSpeech({
-  adapter: elevenlabsSpeech('eleven_v3'),
+  adapter: elevenlabsSpeech('eleven_v4'),
   text: 'Once upon a time...',
   voice: preview.voiceId,
 })

@@ -32,6 +32,7 @@ Do now:
 Later:
 
 - `REASONING_*` / `REASONING_ENCRYPTED_VALUE`: thinking content. See [Thinking and Reasoning](./thinking-content)
+- `TEXT_MESSAGE_CHUNK` / `TOOL_CALL_CHUNK` / `REASONING_MESSAGE_CHUNK`: other AG-UI servers can send one of these in place of START / CONTENT / END. A chunk with no id continues the open stream of the same kind. A chunk of a different kind closes that stream. The client builds the same message from both forms
 - `STEP_STARTED` / `STEP_FINISHED`: `stepName` only
 - `CUSTOM`: `name` and `value`. See [Custom Events](../protocol/custom-events)
 - `SUBAGENT_STARTED` / `SUBAGENT_FINISHED` / `SUBAGENT_ERROR`: a child agent. Attributed events carry `subagentRunId`. A child that waits for an interrupt ends with `SUBAGENT_FINISHED` and `outcome: { type: 'suspended' }`. In request messages, each child message carries `subagentRunId`. See [Subagents](./subagents)

@@ -251,6 +251,13 @@ const stream = chat({
 })
 ```
 
+`createMCPClient` tries protocol `2026-07-28` first. If the server does not support that protocol, the client uses the 2025 initialize handshake.
+
+- A client app imports `@modelcontextprotocol/client`.
+- A server app imports `@modelcontextprotocol/server`.
+
+Package names for an `@modelcontextprotocol/sdk` import are in [MCP SDK packages](../migration/mcp-sdk).
+
 Vercel AI SDK's `@ai-sdk/mcp` (`createMCPClient`) is a stable host-side client with HTTP/SSE transports, OAuth, resource reading, and prompt templates. TanStack AI's `@tanstack/ai-mcp` matches that surface and adds generated end-to-end types, multi-server pools, lazy discovery, a managed `chat()` lifecycle, and the provider-routed `mcpTool()` alternative.
 
 ### MCP Apps (Interactive Widgets)
@@ -592,13 +599,14 @@ This isn't just philosophical - it means no accidental dependencies on platform-
 
 Code Mode lets the model write TypeScript that calls your tools inside a sandbox. One `execute_typescript` call can loop, branch, and `Promise.all` instead of one tool per turn.
 
-TanStack AI ships five isolate drivers behind one `IsolateDriver` interface:
+TanStack AI ships six isolate drivers behind one `IsolateDriver` interface:
 
 - **`@tanstack/ai-isolate-node`** - Node.js sandbox via `isolated-vm`
 - **`@tanstack/ai-isolate-quickjs`** - QuickJS WASM (browsers and edge)
 - **`@tanstack/ai-isolate-quickjs-bun`** - Native QuickJS on Bun via `bun:ffi`
 - **`@tanstack/ai-isolate-cloudflare`** - Cloudflare Workers
 - **`@tanstack/ai-isolate-daytona`** - Remote Daytona sandbox
+- **`@tanstack/ai-isolate-e2b`** - Remote E2B sandbox
 
 Swap the driver without changing application code. A companion `@tanstack/ai-code-mode-snippets` package gives the model a persistent snippet library. The model can save working TypeScript snippets, list them, and reuse them across sessions. Trust strategies control what gets promoted to a first-class tool.
 

@@ -1,5 +1,30 @@
 # @tanstack/openai-base
 
+## 0.12.3
+
+### Patch Changes
+
+- [#1602](https://github.com/TanStack/ai/pull/1602) [`6d8e648`](https://github.com/TanStack/ai/commit/6d8e6485f92c98a6f2200471e2aff21ab50be013) - Preserve malformed Chat Completions tool arguments so they return a tool error without executing the tool with an empty object.
+
+- Updated dependencies [[`4c57d04`](https://github.com/TanStack/ai/commit/4c57d04f0f5dd98e176386f3208b68daf9e7d929)]:
+  - @tanstack/ai@0.64.1
+
+## 0.12.2
+
+### Patch Changes
+
+- Updated dependencies [[`3a09cf0`](https://github.com/TanStack/ai/commit/3a09cf04431a45810051ea5df6bb3935af421ddb), [`ee726f5`](https://github.com/TanStack/ai/commit/ee726f537dbb036d5edb756b92739afaa7573824), [`a5fce7f`](https://github.com/TanStack/ai/commit/a5fce7f95b8b9c6eb57697aa1e3f587bf27483b9), [`94116ad`](https://github.com/TanStack/ai/commit/94116ad137015b6f62fe62b4c06a335dbde36a49)]:
+  - @tanstack/ai@0.64.0
+
+## 0.12.1
+
+### Patch Changes
+
+- [#1530](https://github.com/TanStack/ai/pull/1530) [`bb3bf30`](https://github.com/TanStack/ai/commit/bb3bf309f41b7744c14d1b0f967e76780b7266c9) - Chat Completions usage now reads Moonshot (Kimi) prompt cache counts. `prompt_tokens_details.cache_write_tokens` maps to `promptTokensDetails.cacheWriteTokens`, and a `cached_tokens` field at the root of `usage` maps to `promptTokensDetails.cachedTokens` when `prompt_tokens_details.cached_tokens` is absent.
+
+- Updated dependencies [[`37b2826`](https://github.com/TanStack/ai/commit/37b282655ea9c780e9793ef33013d64b1bf88625), [`8e8ee26`](https://github.com/TanStack/ai/commit/8e8ee26959a471bb6fac180ded3a9a048ae93609), [`c5c1996`](https://github.com/TanStack/ai/commit/c5c19961b8c98497fd88ae93c5d6330d7b2ecb6a), [`3e30cde`](https://github.com/TanStack/ai/commit/3e30cde8ae7f5be7be3bc9c4f30c842159fc7edf), [`0eb8f0b`](https://github.com/TanStack/ai/commit/0eb8f0b7f4ffa0133a814f8fcfccbc1acedd7488), [`f44b6b2`](https://github.com/TanStack/ai/commit/f44b6b22578b893501e05612f02ea1aaee0951d3), [`d632d41`](https://github.com/TanStack/ai/commit/d632d41df227bf11bc3cdbf5542823f87562b3d4)]:
+  - @tanstack/ai@0.63.0
+
 ## 0.12.0
 
 ### Minor Changes

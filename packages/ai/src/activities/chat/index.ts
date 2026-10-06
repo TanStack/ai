@@ -41,6 +41,7 @@ import {
 import { subagentHostMessageId } from '../../utilities/subagent-wire'
 import { withDurabilityBatchHint } from '../../utilities/durability-batch'
 import { normalizeStreamChunk } from '../../utilities/normalize-stream-chunk'
+import { isRedactedThinkingId } from '../../utilities/reasoning-encrypted-value'
 import { restorePublicUsage } from '../../utilities/restore-inbound-chunk'
 import type { AdapterYieldChunk } from '../../utilities/adapter-yield-chunk'
 import {
@@ -119,6 +120,7 @@ import type {
 import type {
   ApprovalRequest,
   ClientToolRequest,
+  McpInputRequest,
   ToolResult,
 } from './tools/tool-calls'
 import type { ApprovalSchemaConfig } from './tools/tool-definition'
@@ -155,6 +157,7 @@ import type {
   ToolCallEndEvent,
   ToolCallResultEvent,
   ToolCallStartEvent,
+  ToolInputResponse,
   UIMessage,
 } from '../../types'
 import type {
@@ -528,6 +531,8 @@ export interface TextActivityOptions<
   abortController?: TextOptions['abortController']
   /** Strategy for controlling the agent loop */
   agentLoopStrategy?: TextOptions['agentLoopStrategy']
+  /** How the server tools of one model turn run. Default `'parallel'`. */
+  toolExecution?: TextOptions['toolExecution']
   /**
    * Optional configuration for lazy-tool discovery (tools marked `lazy: true`).
    * Tunes how much of each lazy tool's description appears in the discovery
@@ -859,8 +864,7 @@ class TextEngine<
   private currentMessageCreatedAt: Date | null = null
   private streamIdentityCaptured = false
   private accumulatedContent = ''
-  private accumulatedThinking: Array<{ content: string; signature?: string }> =
-    []
+  private accumulatedThinking: NonNullable<ModelMessage['thinking']> = []
   /**
    * Arrival order of this iteration's thinking steps, text and tool calls.
    * A ModelMessage keeps `thinking` apart from `content`/`toolCalls`, so a
@@ -872,6 +876,7 @@ class TextEngine<
   private turnParts: Array<TurnPart> | null = []
   private currentThinkingContent = ''
   private currentThinkingSignature = ''
+  private currentThinkingRedacted = false
   private eventOptions?: Record<string, unknown> | undefined
   private eventToolNames?: Array<string>
   private finishedEvent: RunFinishedEvent | null = null
@@ -891,6 +896,7 @@ class TextEngine<
   private readonly resumeClientToolErrors = new Map<string, string>()
   private readonly resumeDeniedToolResults = new Map<string, unknown>()
   private readonly resumeCancelledToolCallIds = new Set<string>()
+  private readonly resumeInputResponses = new Map<string, ToolInputResponse>()
   private readonly resumeGenericInterrupts = new Map<
     string,
     ChatResumeGenericResolution
@@ -1531,6 +1537,7 @@ class TextEngine<
     this.turnParts = []
     this.currentThinkingContent = ''
     this.currentThinkingSignature = ''
+    this.currentThinkingRedacted = false
 
     this.finishedEvent = null
     this.streamedToolErrorResults.clear()
@@ -2026,6 +2033,7 @@ class TextEngine<
         ...(this.currentThinkingSignature && {
           signature: this.currentThinkingSignature,
         }),
+        ...(this.currentThinkingRedacted && { redacted: true }),
       })
       if (this.turnParts) {
         const placeholder = [...this.turnParts]
@@ -2043,6 +2051,7 @@ class TextEngine<
       }
       this.currentThinkingContent = ''
       this.currentThinkingSignature = ''
+      this.currentThinkingRedacted = false
     }
   }
 
@@ -2070,6 +2079,7 @@ class TextEngine<
     if (typeof chunk.signature === 'string' && chunk.signature !== '') {
       this.noteThinkingStepPosition()
       this.currentThinkingSignature = chunk.signature
+      this.currentThinkingRedacted = isRedactedThinkingId(chunk.stepId)
     }
   }
 
@@ -2099,6 +2109,7 @@ class TextEngine<
     }
     this.noteThinkingStepPosition()
     this.currentThinkingSignature = chunk.encryptedValue
+    this.currentThinkingRedacted = isRedactedThinkingId(chunk.entityId)
   }
 
   /**
@@ -2234,7 +2245,9 @@ class TextEngine<
         clientToolErrors: this.resumeClientToolErrors,
         deniedToolResults: this.resumeDeniedToolResults,
         cancelledToolCallIds: this.resumeCancelledToolCallIds,
+        inputResponses: this.resumeInputResponses,
       },
+      this.params.toolExecution,
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -2258,11 +2271,12 @@ class TextEngine<
       }),
     )
 
-    if (
+    const pauseForDecision =
       executionResult.needsApproval.length > 0 ||
       executionResult.needsClientExecution.length > 0 ||
+      executionResult.inputRequired.length > 0 ||
       executionResult.subagentInterrupts.length > 0
-    ) {
+    if (pauseForDecision) {
       this.discardDeferredToolCallRunFinishedChunks()
 
       if (allResults.length > 0) {
@@ -2279,6 +2293,7 @@ class TextEngine<
         executionResult.needsApproval,
         executionResult.needsClientExecution,
         [],
+        executionResult.inputRequired,
         executionResult.subagentInterrupts,
       )
       this.setToolPhase(emitted ? 'wait' : 'stop')
@@ -2419,7 +2434,9 @@ class TextEngine<
         clientToolErrors: this.resumeClientToolErrors,
         deniedToolResults: this.resumeDeniedToolResults,
         cancelledToolCallIds: this.resumeCancelledToolCallIds,
+        inputResponses: this.resumeInputResponses,
       },
+      this.params.toolExecution,
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -2466,16 +2483,18 @@ class TextEngine<
         finishEvent,
         toolCalls,
         afterToolRequests,
+        executionResult.inputRequired,
       )
       this.setToolPhase('wait')
       return
     }
 
-    if (
+    const pauseForDecision =
       executionResult.needsApproval.length > 0 ||
       executionResult.needsClientExecution.length > 0 ||
+      executionResult.inputRequired.length > 0 ||
       executionResult.subagentInterrupts.length > 0
-    ) {
+    if (pauseForDecision) {
       if (allResults.length > 0) {
         for (const chunk of afterToolBoundaryChunks) {
           yield* this.pipeThroughMiddleware(chunk)
@@ -2487,6 +2506,7 @@ class TextEngine<
         executionResult.needsApproval,
         executionResult.needsClientExecution,
         [],
+        executionResult.inputRequired,
         executionResult.subagentInterrupts,
       )
       this.setToolPhase(emitted ? 'wait' : 'stop')
@@ -2606,7 +2626,7 @@ class TextEngine<
       ),
     )
     type Segment = {
-      thinking: Array<{ content: string; signature?: string }>
+      thinking: NonNullable<ModelMessage['thinking']>
       text: string
       callIds: Array<string>
     }
@@ -2905,6 +2925,7 @@ class TextEngine<
       GenericInterruptRequest<InterruptDefinition<any, any, any, any>>
     > = [],
     genericInterruptIds: ReadonlyArray<string> = [],
+    inputRequired: ReadonlyArray<McpInputRequest> = [],
     childInterrupts: ReadonlyArray<Interrupt> = [],
   ): Array<Interrupt> {
     const interrupts: Array<Interrupt> = []
@@ -3023,6 +3044,30 @@ class TextEngine<
       })
     }
 
+    for (const pendingInput of inputRequired) {
+      const id = `mcp_input_${pendingInput.toolCallId}`
+      interrupts.push({
+        id,
+        reason: 'mcp_input',
+        message: `Input required to run ${pendingInput.toolName}`,
+        toolCallId: pendingInput.toolCallId,
+        metadata: {
+          toolName: pendingInput.toolName,
+          // A generic binding with no definition id. `useChat` shows it as a
+          // generic interrupt with `resolveInterrupt` and `cancel`. The answer
+          // is not validated here. The MCP server checks it.
+          [interruptBindingMetadataKey]: {
+            v: INTERRUPT_BINDING_VERSION,
+            kind: 'generic',
+            interruptId: id,
+          },
+          [INTERRUPT_PAYLOAD_METADATA_KEY]: {
+            kind: pendingInput.kind,
+            request: pendingInput.request,
+          },
+        },
+      })
+    }
     // A subagent tool call raised these. They keep their `subagentRunId`.
     interrupts.push(...childInterrupts)
 
@@ -3047,6 +3092,7 @@ class TextEngine<
       GenericInterruptRequest<InterruptDefinition<any, any, any, any>>
     > = [],
     genericInterruptIds?: ReadonlyArray<string>,
+    inputRequired: ReadonlyArray<McpInputRequest> = [],
     childInterrupts?: ReadonlyArray<Interrupt>,
   ): StreamChunk {
     return {
@@ -3059,6 +3105,7 @@ class TextEngine<
           clientRequests,
           genericRequests,
           genericInterruptIds,
+          inputRequired,
           childInterrupts,
         ),
       },
@@ -3216,6 +3263,7 @@ class TextEngine<
     genericRequests: ReadonlyArray<
       GenericInterruptRequest<InterruptDefinition<any, any, any, any>>
     > = [],
+    inputRequired: ReadonlyArray<McpInputRequest> = [],
     childInterrupts: ReadonlyArray<Interrupt> = [],
   ): AsyncGenerator<StreamChunk, boolean, void> {
     yield* this.emitSyntheticRunStarted(finishEvent)
@@ -3230,6 +3278,7 @@ class TextEngine<
         clientRequests,
         genericRequests,
         genericInterruptIds,
+        inputRequired,
         childInterrupts,
       ),
     )
@@ -3266,6 +3315,7 @@ class TextEngine<
     requests?: ReadonlyArray<
       GenericInterruptRequest<InterruptDefinition<any, any, any, any>>
     >,
+    inputRequired: ReadonlyArray<McpInputRequest> = [],
   ): AsyncGenerator<StreamChunk, boolean, void> {
     this.middlewareCtx.phase = phase
     const boundaryRequests =
@@ -3292,7 +3342,7 @@ class TextEngine<
       if (this.toolCallManager.hasToolCalls()) {
         this.addAssistantToolCallMessage(this.toolCallManager.getToolCalls())
       } else {
-        this.addAssistantTextMessageForInterrupt()
+        this.addTerminalAssistantMessages()
       }
     }
     const actionable = this.getBoundaryActionableToolRequests(toolCalls)
@@ -3301,17 +3351,9 @@ class TextEngine<
       actionable.approvals,
       actionable.clientRequests,
       boundaryRequests,
+      inputRequired,
     )
     return true
-  }
-
-  private addAssistantTextMessageForInterrupt(): void {
-    if (this.accumulatedContent.length === 0) return
-    this.messages = [
-      ...this.messages,
-      { role: 'assistant', content: this.accumulatedContent },
-    ]
-    this.middlewareCtx.messages = this.messages
   }
 
   private getBoundaryActionableToolRequests(
@@ -4529,6 +4571,26 @@ class TextEngine<
         : []
     })
     pending.push(...genericPending)
+    // An `mcp_input_*` answer is valid only for a server tool call that is
+    // still pending in history.
+    const mcpInputCallIds = new Map<string, string>()
+    for (const toolCall of pendingToolCalls) {
+      const interruptId = `mcp_input_${toolCall.id}`
+      if (!resumeInterruptIds.has(interruptId)) continue
+      if (!toolsByCallId.get(toolCall.id)?.execute) continue
+      mcpInputCallIds.set(interruptId, toolCall.id)
+      pending.push({
+        interruptId,
+        payload: { id: interruptId },
+        binding: {
+          v: INTERRUPT_BINDING_VERSION,
+          kind: 'generic',
+          interruptId,
+          interruptedRunId,
+          generation: 0,
+        },
+      })
+    }
     const validated = await validateInterruptResumeBatch({
       threadId: this.threadId,
       interruptedRunId,
@@ -4558,6 +4620,16 @@ class TextEngine<
     })
 
     const genericResolutions = validated.resumeToolState.genericInterrupts
+    for (const [interruptId, toolCallId] of mcpInputCallIds) {
+      const resolution = genericResolutions?.get(interruptId)
+      if (!resolution) continue
+      this.resumeInputResponses.set(
+        toolCallId,
+        resolution.status === 'resolved'
+          ? { status: 'resolved', payload: resolution.payload }
+          : { status: 'cancelled' },
+      )
+    }
     if (genericPending.length > 0 && genericResolutions) {
       const resolutions = genericPending
         .sort((left, right) => {
@@ -4971,6 +5043,7 @@ class TextEngine<
         results: Array<ToolResult>
         needsApproval: Array<ApprovalRequest>
         needsClientExecution: Array<ClientToolRequest>
+        inputRequired: Array<McpInputRequest>
         subagentInterrupts: Array<Interrupt>
       },
       void
@@ -4981,6 +5054,7 @@ class TextEngine<
       results: Array<ToolResult>
       needsApproval: Array<ApprovalRequest>
       needsClientExecution: Array<ClientToolRequest>
+      inputRequired: Array<McpInputRequest>
       subagentInterrupts: Array<Interrupt>
     },
     void
@@ -5418,6 +5492,16 @@ async function* runRoutedSubagents(
   if (!bag?.router) {
     yield* runChatEngine(options, engineRef)
     return
+  }
+  // ponytail: a router cannot write input yet. Add it to the router pick if
+  // someone needs it.
+  const withInput = bag.agents.find(
+    (agent: DefinedAgent) => agent.inputSchema !== undefined,
+  )
+  if (withInput) {
+    throw new Error(
+      `Subagent "${withInput.name}" has an inputSchema. inputSchema needs tool mode: remove subagents.router so the model writes the input.`,
+    )
   }
   const threadId = options.threadId ?? `thread-${Date.now()}`
   const runId = options.runId ?? `run-${Date.now()}`

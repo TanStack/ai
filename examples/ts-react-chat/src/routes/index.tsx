@@ -35,6 +35,7 @@ import {
   completeOpenRouterPkceIntoByok,
   startOpenRouterPkceLogin,
 } from '@tanstack/ai-openrouter/pkce'
+import { refreshChatGptSignIn } from '@tanstack/ai-openai/siwc'
 import { clientTools } from '@tanstack/ai-client'
 import { ThinkingPart } from '@tanstack/ai-react/ui'
 import type { BoundInterrupts } from '@tanstack/ai-client'
@@ -462,6 +463,18 @@ function ChatPage() {
         ),
       )
       .finally(() => setOpenRouterCompleting(false))
+  }, [])
+
+  // A ChatGPT sign-in token lasts an hour. Refresh it before it expires.
+  useEffect(() => {
+    const refresh = () => {
+      void refreshChatGptSignIn(byok).catch((error: unknown) =>
+        console.warn('ChatGPT token refresh failed', error),
+      )
+    }
+    refresh()
+    const timer = setInterval(refresh, 60_000)
+    return () => clearInterval(timer)
   }, [])
 
   useEffect(() => {

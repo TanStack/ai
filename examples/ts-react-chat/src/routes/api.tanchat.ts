@@ -450,10 +450,14 @@ export const Route = createFileRoute('/api/tanchat')({
                   requireApiKey(apiKey),
                   viaCloudflareGateway('openai'),
                 ),
-                modelOptions: {
-                  prompt_cache_key: 'user-session-12345',
-                  prompt_cache_retention: '24h',
-                },
+                // A Sign in with ChatGPT token is not an `sk-` key. That
+                // route needs store: false and rejects prompt_cache_retention.
+                modelOptions: apiKey?.startsWith('sk-')
+                  ? {
+                      prompt_cache_key: 'user-session-12345',
+                      prompt_cache_retention: '24h',
+                    }
+                  : { store: false },
               })
           }
         }

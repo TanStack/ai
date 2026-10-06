@@ -381,7 +381,12 @@ export interface ModelMessage<
   name?: string
   toolCalls?: Array<ToolCall>
   toolCallId?: string
-  thinking?: Array<{ content: string; signature?: string }>
+  /**
+   * Signed thinking to send back to the provider. `redacted: true` marks a
+   * block the provider encrypted: `content` is empty and `signature` holds its
+   * opaque data. See `ThinkingPart.signature` for the planned rename.
+   */
+  thinking?: Array<{ content: string; signature?: string; redacted?: boolean }>
   /** Error reported by an AG-UI tool message. */
   error?: string
   /** Optional AG-UI message metadata. TanStack-owned fields live under `tanstack`. */
@@ -465,7 +470,20 @@ export interface ThinkingPart {
   type: 'thinking'
   content: string
   stepId?: string
+  /**
+   * The provider's opaque reasoning artefact, sent back unchanged: an
+   * Anthropic signature, Anthropic redacted data, or OpenAI encrypted content.
+   * TODO(#1581): rename to `encryptedValue` to match AG-UI's `ReasoningMessage`.
+   * Renaming breaks stored messages, so it needs a read shim for `signature`.
+   */
   signature?: string
+  /**
+   * The provider encrypted this thinking block (Anthropic `redacted_thinking`).
+   * `content` is empty, and `signature` holds the opaque data that goes back
+   * to the provider unchanged. On the AG-UI wire, the reasoning message id
+   * starts with `redacted_thinking-` instead.
+   */
+  redacted?: boolean
 }
 
 /**
@@ -727,6 +745,15 @@ export interface EmitCustomEventOptions {
 }
 
 /**
+ * The user's answer to an `mcp_input` interrupt.
+ * `resolved` carries the `payload` from `resolveInterrupt`.
+ * `cancelled` means the user called `cancel()`.
+ */
+export type ToolInputResponse =
+  | { status: 'resolved'; payload: unknown }
+  | { status: 'cancelled' }
+
+/**
  * Context passed to tool execute functions, providing capabilities like
  * emitting custom events during execution.
  */
@@ -740,6 +767,12 @@ export type ToolExecutionContext<TContext = unknown> =
      * e.g. MCP `callTool` — should forward this to cancel in-flight work.
      */
     abortSignal?: AbortSignal
+    /**
+     * The answer to the input request that this tool call raised in the
+     * previous run. It is set only when the run resumes an `mcp_input`
+     * interrupt for this tool call.
+     */
+    inputResponse?: ToolInputResponse
     /**
      * Emit a custom event during tool execution.
      * Events are streamed to the client in real-time as AG-UI CUSTOM events.
@@ -1098,6 +1131,11 @@ export interface TextOptions<
    */
   systemPrompts?: Array<SystemPrompt>
   agentLoopStrategy?: AgentLoopStrategy
+  /**
+   * How the server tools of one model turn run. `'parallel'` (the default)
+   * starts them together, and `'sequential'` runs them one at a time.
+   */
+  toolExecution?: 'parallel' | 'sequential'
   /**
    * Optional configuration for lazy-tool discovery (tools marked `lazy: true`).
    * Tunes how much of each lazy tool's description appears in the discovery
@@ -2313,9 +2351,10 @@ export interface VideoGenerationOptions<
   /** Video size — format depends on the provider (e.g., "16:9", "1280x720") */
   size?: TSize
   /**
-   * Video duration in seconds. Adapters that declare a per-model duration
-   * map narrow this to the model's valid union; use
-   * `adapter.snapDuration(seconds)` to coerce raw seconds to a valid value.
+   * Video duration. Adapters that declare a per-model duration map narrow
+   * this to that model's union (a number, `"8"`, or `"8s"`). Use
+   * `adapter.snapDuration(input)` to coerce a raw value. `input` may be
+   * seconds, a `"6s"` template, or `"auto"` when the model lists it.
    */
   duration?: TDuration
   /** Model-specific options for video generation */

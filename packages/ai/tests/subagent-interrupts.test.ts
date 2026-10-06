@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
 import { chat } from '../src/activities/chat'
 import { defineAgent } from '../src/activities/chat/agents/define-agent'
 import { StreamProcessor } from '../src/activities/chat/stream/processor'
@@ -22,8 +23,8 @@ const user: UIMessage = {
   parts: [{ type: 'text', content: 'Clean up' }],
 }
 
-/** A child that asks approval to delete a file, then reports. */
-function cleanerAgent({ needsApproval = true } = {}) {
+/** A child model that asks to delete a file, then reports. */
+function cleanerChild({ needsApproval = true } = {}) {
   const execute = vi.fn().mockReturnValue({ deleted: true })
   const { adapter } = createMockAdapter({
     iterations: [
@@ -51,25 +52,58 @@ function cleanerAgent({ needsApproval = true } = {}) {
       ],
     ],
   })
+  const tools = [{ ...serverTool('deleteFile', execute), needsApproval }]
+  const run = (ctx: SubagentRunContext) =>
+    chat({
+      adapter,
+      messages: ctx.messages,
+      threadId: ctx.threadId,
+      runId: ctx.runId,
+      parentRunId: ctx.parentRunId,
+      subagentRunId: ctx.subagentRunId,
+      resume: ctx.resume,
+      tools,
+    })
+  return { run, execute }
+}
+
+/** A child that asks approval to delete a file, then reports. */
+function cleanerAgent({ needsApproval = true } = {}) {
+  const { run, execute } = cleanerChild({ needsApproval })
   const contexts: Array<SubagentRunContext> = []
   const agent = defineAgent({
     name: 'cleaner',
     description: 'Deletes files',
     run: (ctx) => {
       contexts.push(ctx)
-      return chat({
-        adapter,
-        messages: ctx.messages,
-        threadId: ctx.threadId,
-        runId: ctx.runId,
-        parentRunId: ctx.parentRunId,
-        subagentRunId: ctx.subagentRunId,
-        resume: ctx.resume,
-        tools: [{ ...serverTool('deleteFile', execute), needsApproval }],
-      })
+      return run(ctx)
     },
   })
   return { agent, execute, contexts }
+}
+
+/** A parent model that calls `cleaner` with `args`, then wraps up. */
+function toolParent(args: string) {
+  return createMockAdapter({
+    iterations: [
+      [
+        ev.runStarted('p1'),
+        ev.textStart('parent-note'),
+        ev.textContent('Checking the disk first', 'parent-note'),
+        ev.textEnd('parent-note'),
+        ev.toolStart('call_p', 'cleaner'),
+        ev.toolArgs('call_p', args),
+        ev.runFinished('tool_calls', 'p1'),
+      ],
+      [
+        ev.runStarted('p2'),
+        ev.textStart('parent-done'),
+        ev.textContent('All clean', 'parent-done'),
+        ev.textEnd('parent-done'),
+        ev.runFinished('stop', 'p2'),
+      ],
+    ],
+  }).adapter
 }
 
 function cardOf(messages: ReadonlyArray<UIMessage>): SubagentPart {
@@ -386,26 +420,7 @@ describe('subagent interrupts', () => {
 
   it('suspends a child that a tool call started, then resumes it', async () => {
     const { agent, execute, contexts } = cleanerAgent()
-    const { adapter: parent } = createMockAdapter({
-      iterations: [
-        [
-          ev.runStarted('p1'),
-          ev.textStart('parent-note'),
-          ev.textContent('Checking the disk first', 'parent-note'),
-          ev.textEnd('parent-note'),
-          ev.toolStart('call_p', 'cleaner'),
-          ev.toolArgs('call_p', '{}'),
-          ev.runFinished('tool_calls', 'p1'),
-        ],
-        [
-          ev.runStarted('p2'),
-          ev.textStart('parent-done'),
-          ev.textContent('All clean', 'parent-done'),
-          ev.textEnd('parent-done'),
-          ev.runFinished('stop', 'p2'),
-        ],
-      ],
-    })
+    const parent = toolParent('{}')
     const subagents = { agents: [agent] }
 
     const first = await collectChunks(
@@ -476,6 +491,62 @@ describe('subagent interrupts', () => {
     expect(toolResult).toBeDefined()
     expect(second.at(-1)).toMatchObject({ type: EventType.RUN_FINISHED })
     expect(second.at(-1)).not.toHaveProperty('outcome.type', 'interrupt')
+  })
+
+  it('gives a resumed child the same input the model wrote', async () => {
+    const { run, execute } = cleanerChild()
+    const inputs: Array<{ folder: string }> = []
+    const agent = defineAgent({
+      name: 'cleaner',
+      description: 'Deletes files',
+      inputSchema: z.object({ folder: z.string() }),
+      run: (ctx) => {
+        inputs.push(ctx.input)
+        return run(ctx)
+      },
+    })
+    const parent = toolParent('{"folder":"old"}')
+    const subagents = { agents: [agent] }
+
+    const first = await collectChunks(
+      chat({
+        adapter: parent,
+        threadId: 't',
+        runId: 'run-1',
+        messages: [user],
+        subagents,
+      }) as AsyncIterable<StreamChunk>,
+    )
+    const processor = new StreamProcessor({ initialMessages: [user] })
+    replay(processor, first)
+    // The input stays on the parent's tool call, next to the card.
+    expect(
+      processor.getMessages().flatMap((message) => message.parts),
+    ).toContainEqual(
+      expect.objectContaining({
+        type: 'tool-call',
+        id: 'call_p',
+        arguments: '{"folder":"old"}',
+      }),
+    )
+
+    processor.addToolApprovalResponse('approval_call_c', true)
+    await collectChunks(
+      chat({
+        adapter: parent,
+        threadId: 't',
+        runId: 'run-2',
+        parentRunId: 'run-1',
+        messages: requestMessages(processor.getMessages()),
+        resume: [
+          { interruptId: 'approval_call_c', status: 'resolved', payload: true },
+        ],
+        subagents,
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(inputs).toEqual([{ folder: 'old' }, { folder: 'old' }])
+    expect(execute).toHaveBeenCalledTimes(1)
   })
 })
 

@@ -23,6 +23,7 @@ import type {
 import type { MetadataRecord } from './merge-metadata'
 import { tanstackMetadata } from './merge-metadata'
 import { isProviderExecutedToolCall } from './provider-executed'
+import { REDACTED_THINKING_ID_PREFIX } from './reasoning-encrypted-value'
 import { normalizeToolResult } from './tool-result'
 import { wireSubagentInfo, wireSubagentRunId } from './subagent-wire'
 import type { SubagentWireInfo } from './subagent-wire'
@@ -645,7 +646,10 @@ function collectToolCalls(
 }
 
 function deriveReasoningId(messageId: string, part: MessagePart): string {
-  return `${messageId}-reasoning-${(part as { id?: string }).id ?? hashContent((part as { content: string }).content)}`
+  const id = `${messageId}-reasoning-${(part as { id?: string }).id ?? hashContent((part as { content: string }).content)}`
+  return part.type === 'thinking' && part.redacted
+    ? `${REDACTED_THINKING_ID_PREFIX}${id}`
+    : id
 }
 
 function deriveToolMessageId(toolCallId: string): string {

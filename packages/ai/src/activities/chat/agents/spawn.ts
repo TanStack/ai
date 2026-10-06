@@ -9,6 +9,7 @@ import {
   tanstackMetadata,
   withTanstackMetadata,
 } from '../../../utilities/merge-metadata'
+import { mergeStreams } from '../../../utilities/merge-streams'
 import { INTERRUPT_BINDING_METADATA_KEY } from '../../../interrupt-resume'
 import { EMIT_STREAM_CHUNK, SUBAGENT_TOOL } from '../tools/tool-calls'
 import type { SubagentToolOutcome } from '../tools/tool-calls'
@@ -93,6 +94,8 @@ export function createSubagentSink(): SubagentSink {
 /** One child to start, or a suspended child to continue. */
 export interface SpawnEntry {
   name: string
+  /** The checked tool input for an agent with `inputSchema`. */
+  input?: unknown
   resume?: {
     subagentRunId: string
     /** The child's own messages from the interrupted run. */
@@ -248,6 +251,7 @@ function openAgentStream(
   return spawnAgentStream(
     agent,
     {
+      input: entry.input,
       messages: resumed?.messages ?? ctx.messages,
       ...(ctx.abortSignal ? { abortSignal: ctx.abortSignal } : {}),
       threadId: childThreadId(bag.sandbox, ctx.threadId, entry.name),
@@ -522,36 +526,6 @@ export async function* spawnAgentStream(
   }
 }
 
-async function* mergeAgentStreams(streams: Array<AsyncIterable<StreamChunk>>) {
-  const readers = streams.map((stream) => {
-    const iterator = stream[Symbol.asyncIterator]()
-    return {
-      iterator,
-      next: iterator.next(),
-    }
-  })
-
-  try {
-    while (readers.length > 0) {
-      const indexed = readers.map((reader, index) =>
-        reader.next.then((result) => ({ index, result, reader })),
-      )
-      const winner = await Promise.race(indexed)
-      if (winner.result.done) {
-        readers.splice(winner.index, 1)
-        continue
-      }
-      yield winner.result.value
-      winner.reader.next = winner.reader.iterator.next()
-    }
-  } finally {
-    // The reader stopped early. Close every child so its finally runs.
-    for (const reader of readers) {
-      void reader.iterator.return?.().catch(() => {})
-    }
-  }
-}
-
 /** True when a child in these chunks failed or stopped for outside input. */
 function stopsSequence(chunks: ReadonlyArray<StreamChunk>, id: string) {
   return chunks.some(
@@ -617,7 +591,7 @@ export async function* spawnNamedAgents(
       yield* onlyStream
       return
     }
-    yield* mergeAgentStreams(streams)
+    yield* mergeStreams(streams)
   } finally {
     group.controller.abort()
     group.dispose()
@@ -721,8 +695,10 @@ export function createSyntheticSubagentTools(
   return bag.agents.map((agent) => ({
     name: agent.name,
     description: agent.description,
+    ...(agent.inputSchema !== undefined && { inputSchema: agent.inputSchema }),
     [SUBAGENT_TOOL]: true,
-    execute: async (_input: unknown, context?: unknown) => {
+    // The tool loop checks `input` against `inputSchema` before this runs.
+    execute: async (input: unknown, context?: unknown) => {
       const toolContext = context as
         | {
             toolCallId?: string
@@ -736,17 +712,20 @@ export function createSyntheticSubagentTools(
           child.parentToolCallId !== undefined &&
           child.parentToolCallId === toolCallId,
       )
-      const entry: SpawnEntry = suspended
-        ? {
-            name: agent.name,
-            resume: {
-              subagentRunId: suspended.subagentRunId,
-              messages: suspended.messages,
-              entries: suspended.resume,
-              text: suspended.text,
-            },
-          }
-        : { name: agent.name }
+      // An agent without `inputSchema` still gets `{}` from the model. Its
+      // `ctx.input` stays undefined.
+      const entry: SpawnEntry = {
+        name: agent.name,
+        ...(agent.inputSchema !== undefined && { input }),
+        ...(suspended && {
+          resume: {
+            subagentRunId: suspended.subagentRunId,
+            messages: suspended.messages,
+            entries: suspended.resume,
+            text: suspended.text,
+          },
+        }),
+      }
       const sink = createSubagentSink()
       const link = linkAbort(parent.abortSignal)
       let subagentRunId = suspended?.subagentRunId ?? ''

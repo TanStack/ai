@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
+import { z } from 'zod'
 import {
   defineAgent,
   type DefinedAgent,
@@ -707,6 +708,193 @@ describe('chat({ subagents }) synthetic tools', () => {
     expect(chunks.some((chunk) => chunk.type === 'SUBAGENT_FINISHED')).toBe(
       true,
     )
+  })
+})
+
+describe('defineAgent inputSchema', () => {
+  const briefSchema = z.object({ task: z.string() })
+
+  /** A parent model that calls `researcher` once per args string, then stops. */
+  function parentCalling(...args: Array<string>) {
+    return createMockAdapter({
+      iterations: [
+        [
+          ev.runStarted(),
+          ...args.flatMap((json, index) => [
+            ev.toolStart(`call_${index}`, 'researcher'),
+            ev.toolArgs(`call_${index}`, json),
+          ]),
+          ev.runFinished('tool_calls'),
+        ],
+        [ev.runStarted(), ev.runFinished('stop')],
+      ],
+    })
+  }
+
+  /** A researcher that records every `ctx.input` it gets. */
+  function briefResearcher() {
+    const inputs: Array<{ task: string }> = []
+    const agent = defineAgent({
+      name: 'researcher',
+      description: 'Looks up facts',
+      inputSchema: briefSchema,
+      run: async function* (ctx) {
+        expectTypeOf(ctx.input).toEqualTypeOf<{ task: string }>()
+        inputs.push(ctx.input)
+      },
+    })
+    return { agent, inputs }
+  }
+
+  it('shows the schema to the model and passes the input to run', async () => {
+    const { agent, inputs } = briefResearcher()
+    const { adapter, calls } = parentCalling('{"task":"Price Vendor A"}')
+
+    await collectChunks(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Compare pricing' }],
+        subagents: { agents: [agent] },
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    const tool = calls[0]?.tools?.find((entry) => entry.name === 'researcher')
+    expect(tool?.inputSchema).toMatchObject({
+      type: 'object',
+      properties: { task: { type: 'string' } },
+    })
+    expect(inputs).toEqual([{ task: 'Price Vendor A' }])
+  })
+
+  it('gives each call to the same agent its own input', async () => {
+    const { agent, inputs } = briefResearcher()
+    const { adapter } = parentCalling(
+      '{"task":"Price Vendor A"}',
+      '{"task":"Price Vendor B"}',
+    )
+
+    await collectChunks(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Compare pricing' }],
+        subagents: { agents: [agent] },
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(inputs).toHaveLength(2)
+    expect(inputs).toEqual(
+      expect.arrayContaining([
+        { task: 'Price Vendor A' },
+        { task: 'Price Vendor B' },
+      ]),
+    )
+  })
+
+  it('returns a bad input to the model and does not start the child', async () => {
+    const { agent, inputs } = briefResearcher()
+    const { adapter } = parentCalling('{}')
+
+    const chunks = await collectChunks(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Compare pricing' }],
+        subagents: { agents: [agent] },
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    const result = chunks.find(
+      (chunk) =>
+        chunk.type === EventType.TOOL_CALL_RESULT &&
+        chunk.toolCallId === 'call_0',
+    )
+    expect(result).toMatchObject({
+      content: expect.stringContaining(
+        'Input validation failed for tool researcher',
+      ),
+    })
+    expect(chunks.some((chunk) => chunk.type === 'SUBAGENT_STARTED')).toBe(
+      false,
+    )
+    expect(inputs).toEqual([])
+  })
+
+  it('passes the parsed args through a plain JSON Schema', async () => {
+    const inputs: Array<unknown> = []
+    const agent = defineAgent({
+      name: 'researcher',
+      description: 'Looks up facts',
+      inputSchema: {
+        type: 'object',
+        properties: { task: { type: 'string' } },
+        required: ['task'],
+      },
+      run: async function* (ctx) {
+        inputs.push(ctx.input)
+      },
+    })
+    const { adapter, calls } = parentCalling('{"task":"Price Vendor A"}')
+
+    await collectChunks(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Compare pricing' }],
+        subagents: { agents: [agent] },
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    const tool = calls[0]?.tools?.find((entry) => entry.name === 'researcher')
+    expect(tool?.inputSchema).toMatchObject({
+      properties: { task: { type: 'string' } },
+    })
+    expect(inputs).toEqual([{ task: 'Price Vendor A' }])
+  })
+
+  it('keeps ctx.input undefined for an agent without inputSchema', async () => {
+    const inputs: Array<unknown> = []
+    const agent = defineAgent({
+      name: 'researcher',
+      description: 'Looks up facts',
+      run: async function* (ctx) {
+        expectTypeOf(ctx.input).toEqualTypeOf<undefined>()
+        inputs.push(ctx.input)
+      },
+    })
+    const { adapter, calls } = parentCalling('{}')
+
+    await collectChunks(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Research this' }],
+        subagents: { agents: [agent] },
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    const tool = calls[0]?.tools?.find((entry) => entry.name === 'researcher')
+    // The engine gives a tool with no schema an empty object schema.
+    expect(tool?.inputSchema?.properties ?? {}).toEqual({})
+    expect(inputs).toEqual([undefined])
+  })
+
+  it('throws when a router meets an agent with inputSchema', async () => {
+    const { agent } = briefResearcher()
+    let routerCalls = 0
+
+    await expect(
+      collectChunks(
+        chat({
+          adapter: parentAdapter().adapter,
+          messages: [{ role: 'user', content: 'Compare pricing' }],
+          subagents: {
+            agents: [agent],
+            router: () => {
+              routerCalls += 1
+              return 'main'
+            },
+          },
+        }) as AsyncIterable<StreamChunk>,
+      ),
+    ).rejects.toThrow('Subagent "researcher" has an inputSchema')
+    expect(routerCalls).toBe(0)
   })
 })
 

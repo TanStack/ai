@@ -17,6 +17,10 @@ keywords:
 
 You have a live [MCP client](./mcp) and want to do more than auto-discover tools: spread fully-typed tools into a `chat()` run, inject the server's resources and prompts into the conversation, and cancel in-flight MCP calls when the run aborts. By the end of this guide you'll have wired all of these into a single `chat()` call.
 
+> `createMCPClient` tries protocol `2026-07-28` first. If the server does not support that protocol, the client uses the 2025 initialize handshake.
+>
+> Package names for an `@modelcontextprotocol/sdk` import are in [MCP SDK packages](../migration/mcp-sdk).
+
 > **Manual (`tools` spread) vs managed (`mcp` prop)**
 >
 > This page covers the **manual** path — you call `client.tools()` / `client.resources()` / `client.getPrompt()` yourself and own `close()`. If you only need runtime-typed tools with discovery and lifecycle handled for you, use the `mcp` prop instead — see [Managed MCP with `chat()`](./mcp-managed). Both paths build on the [`createMCPClient` basics](./mcp).
@@ -72,6 +76,31 @@ export const Route = createFileRoute('/api/chat')({
   },
 })
 ```
+
+## Server instructions
+
+A server can send instructions that tell the model how to use its tools. Put them in the system prompt so the model reads them before it calls a tool.
+
+Read them from `mcp.instructions` after connect. The value is `undefined` when the server sends none.
+
+```ts
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+const mcp = await createMCPClient({
+  transport: { type: 'http', url: process.env.MCP_URL! },
+})
+
+const stream = chat({
+  adapter: openaiText('gpt-5.5'),
+  messages: [{ role: 'user', content: 'What is the weather in Paris?' }],
+  systemPrompts: mcp.instructions ? [mcp.instructions] : [],
+  tools: await mcp.tools(),
+})
+```
+
+In a [multi-server pool](./mcp#per-server-access), each client has its own value: `pool.clients.github!.instructions`.
 
 ## Resources
 

@@ -1,5 +1,37 @@
 # @tanstack/ai-mcp
 
+## 0.7.0
+
+### Minor Changes
+
+- [#1595](https://github.com/TanStack/ai/pull/1595) [`ee726f5`](https://github.com/TanStack/ai/commit/ee726f537dbb036d5edb756b92739afaa7573824) - `createMCPServer` from `@tanstack/ai-mcp/server`:
+  - A resource `read(uri, variables, ctx)` now gets the requested URI, the template variables, and `ctx.context` (the `handle` context plus `authInfo`). A template resource can take `list(ctx)` for `resources/list`.
+  - `metadata._meta` on a tool definition is sent as the MCP tool `_meta`, so a tool can link an MCP Apps view with `_meta.ui.resourceUri`.
+  - New `sessions: 'stateless'` serves spec 2025 clients without a session store, so it works on Cloudflare Workers and other multi-instance hosts. It is now the default. In that mode, `ctx.context.requestInput` throws a clear error for a spec 2025 client, and `ctx.context.sample` uses the `sample` option. Set `sessions: 'memory'` to keep the old spec 2025 sessions. `serveMCPStdio` still uses `'memory'` when `sessions` is not set.
+  - New `onerror` option receives SDK transport and protocol errors, including the `serveMCPStdio` transport errors.
+  - Tool and prompt schemas are converted and compiled once at `createMCPServer`, not on every request.
+  - Output schemas are advertised from the output view, and tool results are parsed with the output schema, so a transform or pipe no longer fails the structured-content check. Async output schemas work. Output that fails its schema returns a tool error that names the tool. An output schema with a bare transform advertises no output schema.
+  - `createMCPClient({ server })` parses tool output the same way, and `readResource(uri, context)` takes a context for the resource.
+  - `MCPResourceContext`, `MCPResourceRead`, and `MCPResourceList` are exported. `resourceDefinition` accepts `list` only with `uriTemplate`.
+
+  `convertSchemaToJsonSchema` from `@tanstack/ai` takes a new `io: 'input' | 'output'` option.
+
+### Patch Changes
+
+- Updated dependencies [[`3a09cf0`](https://github.com/TanStack/ai/commit/3a09cf04431a45810051ea5df6bb3935af421ddb), [`ee726f5`](https://github.com/TanStack/ai/commit/ee726f537dbb036d5edb756b92739afaa7573824), [`a5fce7f`](https://github.com/TanStack/ai/commit/a5fce7f95b8b9c6eb57697aa1e3f587bf27483b9), [`94116ad`](https://github.com/TanStack/ai/commit/94116ad137015b6f62fe62b4c06a335dbde36a49)]:
+  - @tanstack/ai@0.64.0
+
+## 0.6.0
+
+### Minor Changes
+
+- [#1452](https://github.com/TanStack/ai/pull/1452) [`0eb8f0b`](https://github.com/TanStack/ai/commit/0eb8f0b7f4ffa0133a814f8fcfccbc1acedd7488) - `@tanstack/ai-mcp` can create an MCP server with `createMCPServer` and `serveMCPStdio`. The client package moves from `@modelcontextprotocol/sdk` to `@modelcontextprotocol/client` and `@modelcontextprotocol/server`. The client tries spec 2026-07-28 first, then the 2025 handshake. When an MCP server asks for input, `chat()` pauses with an `mcp_input` interrupt. Answer it with `resolveInterrupt` or `cancel()`, and the tool runs again with the answer in `ctx.inputResponse`. A tool can set `execution: 'task'` for a spec 2025 task handle. A tool reads `requestInput` and `sample` on `ctx.context`, typed by `MCPToolContext`. The server `auth` option takes the MCP SDK `OAuthTokenVerifier` shape. `jwtVerifier` and `introspectionVerifier` cover JWT and opaque tokens, and a tool reads the token as `ctx.context.authInfo`. `createMCPClient<typeof server>({ transport })` types a remote client from a `createMCPServer` server, and `createMCPClient({ server })` calls a server in the same process. `server.handle(request, { authInfo, context })` takes a token your own middleware verified and values for `ctx.context`, typed with `MCPToolContext<{ db: Db }>`. A tool's `metadata.title` and `metadata.annotations` reach the host as the MCP title and annotations. A tool with no `outputSchema` can return a `CallToolResult` as is. `sessions: 'reject'` turns spec 2025 sessions off for hosts with many instances.
+
+### Patch Changes
+
+- Updated dependencies [[`37b2826`](https://github.com/TanStack/ai/commit/37b282655ea9c780e9793ef33013d64b1bf88625), [`8e8ee26`](https://github.com/TanStack/ai/commit/8e8ee26959a471bb6fac180ded3a9a048ae93609), [`c5c1996`](https://github.com/TanStack/ai/commit/c5c19961b8c98497fd88ae93c5d6330d7b2ecb6a), [`3e30cde`](https://github.com/TanStack/ai/commit/3e30cde8ae7f5be7be3bc9c4f30c842159fc7edf), [`0eb8f0b`](https://github.com/TanStack/ai/commit/0eb8f0b7f4ffa0133a814f8fcfccbc1acedd7488), [`f44b6b2`](https://github.com/TanStack/ai/commit/f44b6b22578b893501e05612f02ea1aaee0951d3), [`d632d41`](https://github.com/TanStack/ai/commit/d632d41df227bf11bc3cdbf5542823f87562b3d4)]:
+  - @tanstack/ai@0.63.0
+
 ## 0.5.0
 
 ### Minor Changes

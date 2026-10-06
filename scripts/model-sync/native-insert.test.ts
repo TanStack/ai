@@ -26,6 +26,10 @@ export type AnthropicModelInputModalitiesByName = {
 const ANTHROPIC_MODEL_MAX_OUTPUT_TOKENS: Record<string, number> = {
   [FOO.id]: FOO.max_output_tokens,
 }
+
+export const ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS = new Set<string>([
+  FOO.id,
+])
 `
 
 const ANTHROPIC_CONFIG = {
@@ -35,6 +39,7 @@ const ANTHROPIC_CONFIG = {
   inputModalitiesTypeName: 'AnthropicModelInputModalitiesByName',
   toolCapabilitiesTypeName: 'AnthropicChatModelToolCapabilitiesByName',
   maxOutputTokensMapName: 'ANTHROPIC_MODEL_MAX_OUTPUT_TOKENS',
+  combinedToolsAndSchemaSetName: 'ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS',
   providerOptionsIsMappedType: false,
 }
 
@@ -46,6 +51,7 @@ describe('applyChatModelCatalogInserts', () => {
         providerOptionsEntry:
           'AnthropicAdaptiveOnlyThinkingOptions & AnthropicMaxTokensOptions',
         hasMaxOutputTokens: true,
+        acceptsCombinedToolsAndSchema: true,
       },
     ])
 
@@ -62,6 +68,26 @@ describe('applyChatModelCatalogInserts', () => {
     expect(result).toContain(
       '[CLAUDE_FABLE_5_1.id]: CLAUDE_FABLE_5_1.max_output_tokens,',
     )
+    expect(result).toContain(
+      'export const ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS = new Set<string>([\n  CLAUDE_FABLE_5_1.id,',
+    )
+  })
+
+  it('leaves a -fast Anthropic model out of the combined set', () => {
+    const result = applyChatModelCatalogInserts(STUB, ANTHROPIC_CONFIG, [
+      {
+        constName: 'CLAUDE_OPUS_5_FAST',
+        providerOptionsEntry: 'AnthropicSamplingOptions',
+        hasMaxOutputTokens: true,
+        acceptsCombinedToolsAndSchema: false,
+      },
+    ])
+
+    expect(result).toContain('CLAUDE_OPUS_5_FAST.id,')
+    const set = result.slice(
+      result.indexOf('ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS'),
+    )
+    expect(set).not.toContain('CLAUDE_OPUS_5_FAST')
   })
 
   it('writes the tool-capabilities row for OpenAI and Gemini (.name refs)', () => {

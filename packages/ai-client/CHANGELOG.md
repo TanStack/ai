@@ -1,5 +1,40 @@
 # @tanstack/ai-client
 
+## 0.36.2
+
+### Patch Changes
+
+- [#1620](https://github.com/TanStack/ai/pull/1620) [`4c57d04`](https://github.com/TanStack/ai/commit/4c57d04f0f5dd98e176386f3208b68daf9e7d929) - Send one hydrate `GET` when a chat with `persistence: true` mounts in React Strict Mode. Strict Mode attaches, detaches and attaches the client again in dev, and each attach sent its own `GET`. A re-attach now reuses the `GET` that is still in flight.
+
+- [#1598](https://github.com/TanStack/ai/pull/1598) [`e436250`](https://github.com/TanStack/ai/commit/e4362509fd7becad7175ce895178cd3b107fcd4b) - Cancel fetch response bodies when SSE or NDJSON parsing fails, the consumer exits early, or SSE reaches a `[DONE]` marker. This closes unfinished connections and preserves the original error if cancellation fails.
+
+  Also cancel streaming generation responses when the client stops reading, including after a `RUN_ERROR` event.
+
+  Start cancellation without waiting for custom hooks, so pending hooks cannot delay errors, iterator completion, or reader lock release.
+
+- Updated dependencies [[`4c57d04`](https://github.com/TanStack/ai/commit/4c57d04f0f5dd98e176386f3208b68daf9e7d929)]:
+  - @tanstack/ai@0.64.1
+
+## 0.36.1
+
+### Patch Changes
+
+- Updated dependencies [[`3a09cf0`](https://github.com/TanStack/ai/commit/3a09cf04431a45810051ea5df6bb3935af421ddb), [`ee726f5`](https://github.com/TanStack/ai/commit/ee726f537dbb036d5edb756b92739afaa7573824), [`a5fce7f`](https://github.com/TanStack/ai/commit/a5fce7f95b8b9c6eb57697aa1e3f587bf27483b9), [`94116ad`](https://github.com/TanStack/ai/commit/94116ad137015b6f62fe62b4c06a335dbde36a49)]:
+  - @tanstack/ai@0.64.0
+
+## 0.36.0
+
+### Minor Changes
+
+- [#1401](https://github.com/TanStack/ai/pull/1401) [`c5c1996`](https://github.com/TanStack/ai/commit/c5c19961b8c98497fd88ae93c5d6330d7b2ecb6a) - Preserve structured outcomes for cancelled and denied tool results. A `tool-result` part now carries `outcome: 'cancelled' | 'denied'` (new `ToolResultOutcome` type and `isToolResultOutcome` guard) across tool execution, streaming, persistence, and UI restoration, so callers can tell a user or middleware decision from an ordinary tool failure without matching error text. `state` stays `'error'` for these results. The `@tanstack/ai-client` `ToolResultPart` type (used by `useChat` messages) now has the same `outcome` field.
+
+### Patch Changes
+
+- [#1233](https://github.com/TanStack/ai/pull/1233) [`8e8ee26`](https://github.com/TanStack/ai/commit/8e8ee26959a471bb6fac180ded3a9a048ae93609) - Preserve failed client tool results across native interrupt resumes and await asynchronous client output validation
+
+- Updated dependencies [[`37b2826`](https://github.com/TanStack/ai/commit/37b282655ea9c780e9793ef33013d64b1bf88625), [`8e8ee26`](https://github.com/TanStack/ai/commit/8e8ee26959a471bb6fac180ded3a9a048ae93609), [`c5c1996`](https://github.com/TanStack/ai/commit/c5c19961b8c98497fd88ae93c5d6330d7b2ecb6a), [`3e30cde`](https://github.com/TanStack/ai/commit/3e30cde8ae7f5be7be3bc9c4f30c842159fc7edf), [`0eb8f0b`](https://github.com/TanStack/ai/commit/0eb8f0b7f4ffa0133a814f8fcfccbc1acedd7488), [`f44b6b2`](https://github.com/TanStack/ai/commit/f44b6b22578b893501e05612f02ea1aaee0951d3), [`d632d41`](https://github.com/TanStack/ai/commit/d632d41df227bf11bc3cdbf5542823f87562b3d4)]:
+  - @tanstack/ai@0.63.0
+
 ## 0.35.2
 
 ### Patch Changes

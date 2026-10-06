@@ -18,6 +18,10 @@ keywords:
 
 You have one or more live [MCP clients](./mcp) (or pools) and you want the model to use their tools — without writing boilerplate `await client.tools()` calls and `try/finally close()` blocks for every route. By the end of this guide you'll hand those clients to `chat()` via the `mcp` option and let it handle both discovery and lifecycle for you.
 
+> `createMCPClient` tries protocol `2026-07-28` first. If the server does not support that protocol, the client uses the 2025 initialize handshake.
+>
+> Package names for an `@modelcontextprotocol/sdk` import are in [MCP SDK packages](../migration/mcp-sdk).
+
 > **Managed (`mcp` prop) vs manual (`tools` spread)**
 >
 > - Use `mcp: { clients: [...] }` when you want **discovery + lifecycle** managed for you and you are happy with runtime-typed (`unknown`-argument) tools.

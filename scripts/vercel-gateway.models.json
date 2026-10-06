@@ -1982,7 +1982,8 @@
       "reasoning",
       "structured-output",
       "tool-use",
-      "vision"
+      "vision",
+      "explicit-caching"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -2007,7 +2008,12 @@
       },
       {
         "type": "effort",
-        "values": ["none", "low", "medium", "high"]
+        "values": ["low", "medium", "xhigh"]
+      },
+      {
+        "type": "budget_tokens",
+        "min": 0,
+        "max": 262144
       }
     ],
     "pricing": {
@@ -3026,7 +3032,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh", "max"]
       },
       {
         "type": "budget_tokens"
@@ -3094,7 +3100,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh", "max"]
       },
       {
         "type": "budget_tokens"
@@ -3447,7 +3453,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh", "max"]
       },
       {
         "type": "budget_tokens"
@@ -3529,7 +3535,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh", "max"]
       },
       {
         "type": "budget_tokens"
@@ -3617,7 +3623,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh", "max"]
       },
       {
         "type": "budget_tokens"
@@ -3686,7 +3692,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh", "max"]
       },
       {
         "type": "budget_tokens"
@@ -3773,7 +3779,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh", "max"]
       },
       {
         "type": "budget_tokens"
@@ -3816,7 +3822,8 @@
       "reasoning",
       "tool-use",
       "vision",
-      "web-search"
+      "web-search",
+      "structured-output"
     ],
     "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -3830,7 +3837,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": false,
     "reasoning_options": [
@@ -3894,7 +3903,8 @@
       "reasoning",
       "tool-use",
       "vision",
-      "web-search"
+      "web-search",
+      "structured-output"
     ],
     "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -3908,7 +3918,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": false,
     "reasoning_options": [
@@ -4358,13 +4370,81 @@
       },
       {
         "type": "effort",
-        "values": ["none", "low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh", "max"]
       },
       {
         "type": "budget_tokens"
       }
     ],
     "knowledge": "2026-01-31",
+    "pricing": {
+      "input": "0.000002",
+      "output": "0.00001",
+      "input_cache_read": "0.0000002",
+      "input_cache_write": "0.0000025",
+      "web_search": "10",
+      "regional": {
+        "eu": {
+          "input": "0.0000022",
+          "output": "0.000011",
+          "input_cache_read": "0.00000022",
+          "input_cache_write": "0.00000275"
+        },
+        "us": {
+          "input": "0.0000022",
+          "output": "0.000011",
+          "input_cache_read": "0.00000022",
+          "input_cache_write": "0.00000275"
+        }
+      }
+    }
+  },
+  {
+    "id": "anthropic/claude-sonnet-5.5",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790553600,
+    "owned_by": "anthropic",
+    "name": "Claude Sonnet 5.5",
+    "description": "Claude Sonnet 5.5 is a step-change improvement over Sonnet 5 for well-scoped everyday work like building features, fixing bugs, and creating polished documents, slides, and spreadsheets. It also writes more clearly than Sonnet 5.",
+    "context_window": 1000000,
+    "max_tokens": 128000,
+    "type": "language",
+    "zdr": "all",
+    "no_training": "all",
+    "tags": [
+      "explicit-caching",
+      "file-input",
+      "reasoning",
+      "tool-use",
+      "vision",
+      "web-search",
+      "structured-output"
+    ],
+    "regions": ["eu", "us"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": false,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high", "xhigh", "max"]
+      }
+    ],
+    "knowledge": "2026-06",
     "pricing": {
       "input": "0.000002",
       "output": "0.00001",
@@ -5699,6 +5779,54 @@
     "pricing": {}
   },
   {
+    "id": "convaiinnovations/laya",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790812800,
+    "owned_by": "convaiinnovations",
+    "name": "Laya",
+    "description": "Laya is Convai Innovations’ System One evaluation model for fast, structured decisions. It evaluates shared state against choice, score, and yes/no questions and returns typed answers with probabilities in a single forward pass. It supports classification, routing, guardrail checks, and rubric-based assessment without generating free-form text.",
+    "context_window": 8192,
+    "max_tokens": 0,
+    "type": "evaluation",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["free"],
+    "supported_specifications": ["v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": "0",
+      "output": "0"
+    }
+  },
+  {
+    "id": "convaiinnovations/laya-free",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790812800,
+    "owned_by": "convaiinnovations",
+    "name": "Laya (Free)",
+    "description": "Laya is Convai Innovations’ System One evaluation model for fast, structured decisions. It evaluates shared state against choice, score, and yes/no questions and returns typed answers with probabilities in a single forward pass. It supports classification, routing, guardrail checks, and rubric-based assessment without generating free-form text.",
+    "context_window": 8192,
+    "max_tokens": 0,
+    "type": "evaluation",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["free"],
+    "supported_specifications": ["v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": "0",
+      "output": "0"
+    }
+  },
+  {
     "id": "deepseek/deepseek-r1",
     "object": "model",
     "created": 1755815280,
@@ -6131,7 +6259,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "high", "max"]
+        "values": ["none", "low", "high", "max"]
       }
     ],
     "knowledge": "2025-05",
@@ -6152,7 +6280,8 @@
             "end_minute_utc": 600,
             "days_of_week": [1, 2, 3, 4, 5]
           }
-        ]
+        ],
+        "holiday_calendar": "cn"
       },
       "varies_by_provider": true,
       "regional": {
@@ -6202,7 +6331,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "high", "max"]
+        "values": ["none", "low", "high", "max"]
       }
     ],
     "pricing": {
@@ -6272,7 +6401,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "high", "max"]
+        "values": ["none", "low", "high", "max"]
       }
     ],
     "pricing": {
@@ -6280,6 +6409,11 @@
       "output": "0.0000012",
       "input_cache_read": "0.000000007",
       "varies_by_provider": true,
+      "fast": {
+        "input": "0.0000003",
+        "output": "0.0000012",
+        "input_cache_read": "0.000000006"
+      },
       "regional": {
         "us": {
           "input": "0.0000003",
@@ -6287,6 +6421,58 @@
           "input_cache_read": "0.000000007"
         }
       }
+    }
+  },
+  {
+    "id": "deepseek/deepseek-v4.1-flash-fast",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790640000,
+    "owned_by": "deepseek",
+    "name": "DeepSeek V4.1 Flash Fast",
+    "description": "Speed-optimized deployment of DeepSeek V4.1 Flash using tensor parallelism and DSpark speculative decoding for faster token output and lower latency.",
+    "context_window": 1048576,
+    "max_tokens": 1000000,
+    "type": "language",
+    "zdr": "all",
+    "no_training": "all",
+    "tags": [
+      "implicit-caching",
+      "reasoning",
+      "structured-output",
+      "tool-use",
+      "vision"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
+    "pricing": {
+      "input": "0.0000003",
+      "output": "0.0000012",
+      "input_cache_read": "0.000000006"
     }
   },
   {
@@ -6324,7 +6510,11 @@
       },
       {
         "type": "effort",
-        "values": ["none", "low", "medium", "high"]
+        "values": ["low", "medium", "high"]
+      },
+      {
+        "type": "budget_tokens",
+        "min": 1024
       }
     ],
     "pricing": {
@@ -7882,9 +8072,9 @@
     "released": 1790121600,
     "owned_by": "google",
     "name": "Gemini 3.8 Flash-Lite TTS",
-    "description": "Gemini 3.8 Flash-Lite TTS is Google’s text-to-speech model optimized for high-volume, cost-efficient audio generation across more than 100 languages. It combines expressive speech with fine-grained control over tone, pacing, and line-by-line delivery, supporting long-form narration and native two-speaker conversations. Built for scale, it helps developers and creators power multilingual dubbing, audio content production, and expressive voice agents.",
+    "description": "Gemini 3.8 Flash-Lite TTS is Google's preview text-to-speech model for low-latency, high-volume speech generation in 101 languages. It supports single- and multi-speaker speech, streaming synthesis, and style direction using the same request schema as Gemini 3.8 Flash TTS. Prebuilt and curated voices, voice design, and voice replication support read-aloud features and conversational voice agents.",
     "type": "speech",
-    "zdr": "none",
+    "zdr": "some",
     "no_training": "all",
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -7900,7 +8090,6 @@
     "pricing": {
       "input": "0.0000005",
       "output": "0.000006",
-      "input_cache_read": "0.000000125",
       "audio_output_token_cost": "0.000006"
     }
   },
@@ -7911,9 +8100,9 @@
     "released": 1790121600,
     "owned_by": "google",
     "name": "Gemini 3.8 Flash TTS",
-    "description": "Gemini 3.8 Flash TTS is Google’s text-to-speech model for expressive voice generation and custom character design across more than 100 languages. It creates original voices from natural language prompts and offers granular control over acting cues, pacing, accents, and conversational reactions. Long-form audio and native two-speaker dialogue make it well suited to immersive audiobooks, games, podcasts, and interactive media",
+    "description": "Gemini 3.8 Flash TTS is Google's preview text-to-speech model for expressive narration and multi-speaker dialogue in 130 languages. It supports line-by-line style direction, regional accents, streaming synthesis, and consistent long-form audio. Prebuilt and curated voices, voice design, and voice replication help creators produce audiobooks, studio narration, games, and podcasts.",
     "type": "speech",
-    "zdr": "none",
+    "zdr": "some",
     "no_training": "all",
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -7929,7 +8118,6 @@
     "pricing": {
       "input": "0.0000005",
       "output": "0.000009",
-      "input_cache_read": "0.000000125",
       "audio_output_token_cost": "0.000009"
     }
   },
@@ -8767,13 +8955,7 @@
     "type": "language",
     "zdr": "some",
     "no_training": "some",
-    "tags": [
-      "implicit-caching",
-      "reasoning",
-      "tool-use",
-      "structured-output",
-      "free"
-    ],
+    "tags": ["implicit-caching", "reasoning", "tool-use", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -8797,48 +8979,10 @@
       }
     ],
     "pricing": {
-      "input": "0",
-      "output": "0",
+      "input": "0.000000075",
+      "output": "0.00000022",
+      "input_cache_read": "0.000000015",
       "varies_by_provider": true
-    }
-  },
-  {
-    "id": "inclusionai/ling-3.0-flash-fin-free",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1787788800,
-    "owned_by": "inclusionai",
-    "name": "Ling 3.0 Flash Fin (Free)",
-    "description": "Ling 3.0 Flash Fin is InclusionAI’s finance-enhanced MoE language model, combining 124 billion total parameters with approximately 5.1 billion active parameters for efficient financial reasoning. Its 256K context window, function calling, and support for complex, multi-step investment workflows make it ideal for financial research, analysis, long-horizon planning, and execution, while retaining strong capabilities in coding and mathematics.",
-    "context_window": 256000,
-    "max_tokens": 32000,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "none",
-    "tags": ["free", "reasoning", "tool-use"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      }
-    ],
-    "pricing": {
-      "input": "0",
-      "output": "0"
     }
   },
   {
@@ -8854,7 +8998,7 @@
     "type": "language",
     "zdr": "none",
     "no_training": "none",
-    "tags": ["free", "reasoning", "tool-use"],
+    "tags": ["reasoning", "tool-use", "implicit-caching"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -8880,51 +9024,9 @@
       }
     ],
     "pricing": {
-      "input": "0",
-      "output": "0"
-    }
-  },
-  {
-    "id": "inclusionai/ling-3.0-flash-sante-free",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1788480000,
-    "owned_by": "inclusionai",
-    "name": "Ling 3.0 Flash Sante (Free)",
-    "description": "Ling-3.0-Flash-Sante is inclusionAI’s language model specialized for health and medicine, built on a Mixture-of-Experts architecture with 124 billion total parameters and approximately 5.1 billion active per token. With a 256K context window and function calling, it supports medical knowledge reasoning, evidence-based retrieval, and complex medical workflows while retaining general reasoning, coding, and agentic capabilities.",
-    "context_window": 256000,
-    "max_tokens": 32000,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "none",
-    "tags": ["free", "reasoning", "tool-use"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
-    "pricing": {
-      "input": "0",
-      "output": "0"
+      "input": "0.000000075",
+      "output": "0.00000022",
+      "input_cache_read": "0.000000015"
     }
   },
   {
@@ -8965,6 +9067,92 @@
       "input": "0.000000075",
       "output": "0.00000022",
       "input_cache_read": "0.000000015"
+    }
+  },
+  {
+    "id": "inclusionai/ling-3.1-flash",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790640000,
+    "owned_by": "inclusionai",
+    "name": "Ling 3.1 Flash",
+    "description": "Ling 3.1 Flash is InclusionAI's hybrid reasoning language model for coding, multi-step analysis, and tool-using agents. It has 560B total parameters with 25B activated parameters and supports long-context text workflows.",
+    "context_window": 262144,
+    "max_tokens": 32768,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["free", "reasoning", "tool-use", "implicit-caching"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
+    "pricing": {
+      "input": "0",
+      "output": "0"
+    }
+  },
+  {
+    "id": "inclusionai/ling-3.1-flash-free",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790640000,
+    "owned_by": "inclusionai",
+    "name": "Ling 3.1 Flash (Free)",
+    "description": "Ling 3.1 Flash is InclusionAI's hybrid reasoning language model for coding, multi-step analysis, and tool-using agents. It has 560B total parameters with 25B activated parameters and supports long-context text workflows.",
+    "context_window": 262144,
+    "max_tokens": 32768,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["free", "reasoning", "tool-use", "implicit-caching"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
+    "pricing": {
+      "input": "0",
+      "output": "0"
     }
   },
   {
@@ -9093,7 +9281,7 @@
     "max_tokens": 0,
     "type": "video",
     "zdr": "none",
-    "no_training": "none",
+    "no_training": "all",
     "supported_specifications": ["v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9146,7 +9334,7 @@
     "max_tokens": 0,
     "type": "video",
     "zdr": "none",
-    "no_training": "none",
+    "no_training": "all",
     "supported_specifications": ["v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9190,7 +9378,7 @@
     "max_tokens": 0,
     "type": "video",
     "zdr": "none",
-    "no_training": "none",
+    "no_training": "all",
     "supported_specifications": ["v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9249,7 +9437,7 @@
     "max_tokens": 0,
     "type": "video",
     "zdr": "none",
-    "no_training": "none",
+    "no_training": "all",
     "supported_specifications": ["v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9315,7 +9503,7 @@
     "max_tokens": 0,
     "type": "video",
     "zdr": "none",
-    "no_training": "none",
+    "no_training": "all",
     "supported_specifications": ["v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9365,7 +9553,7 @@
     "max_tokens": 0,
     "type": "video",
     "zdr": "none",
-    "no_training": "none",
+    "no_training": "all",
     "supported_specifications": ["v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9448,7 +9636,7 @@
     "max_tokens": 0,
     "type": "video",
     "zdr": "none",
-    "no_training": "none",
+    "no_training": "all",
     "tags": ["video-generation"],
     "supported_specifications": ["v3", "v4"],
     "modalities": {
@@ -9515,7 +9703,7 @@
     "max_tokens": 0,
     "type": "video",
     "zdr": "none",
-    "no_training": "none",
+    "no_training": "all",
     "supported_specifications": ["v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9571,6 +9759,77 @@
           "cost_per_second": "0.392"
         }
       ]
+    }
+  },
+  {
+    "id": "liquid/d1",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790640000,
+    "owned_by": "liquid",
+    "name": "Liquid d1",
+    "description": "Liquid d1 is a decision model for classification, routing, and scoring. It evaluates shared state against typed Choice, Score, and yes/no questions and returns structured answers with calibrated probabilities through the TypeSafe-compatible System One API.",
+    "context_window": 65536,
+    "max_tokens": 0,
+    "type": "evaluation",
+    "zdr": "none",
+    "no_training": "none",
+    "supported_specifications": ["v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": "0.00000004",
+      "output": "0"
+    }
+  },
+  {
+    "id": "meituan/longcat-2.5-preview",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790380800,
+    "owned_by": "meituan",
+    "name": "LongCat 2.5 Preview",
+    "description": "LongCat-2.5-Preview is Meituan’s multimodal reasoning model for coding and agentic workflows, with a 1M-token context window and support for text and image inputs. It combines image understanding, visual question answering, and content summarization with code generation, code understanding, and automated programming, and supports tool calling and optional thinking for complex tasks.",
+    "context_window": 1048576,
+    "max_tokens": 131072,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": [
+      "implicit-caching",
+      "reasoning",
+      "tool-use",
+      "vision",
+      "structured-output"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      }
+    ],
+    "pricing": {
+      "input": "0.0000003",
+      "output": "0.0000012",
+      "input_cache_read": "0.000000006"
     }
   },
   {
@@ -10041,6 +10300,7 @@
     "id": "meta/muse-spark-1.3",
     "object": "model",
     "created": 1755815280,
+    "released": 1788307200,
     "owned_by": "meta",
     "name": "Muse Spark 1.3",
     "description": "Muse Spark 1.3 is Meta’s multimodal reasoning model for long-horizon agentic and coding workflows. With a 1M-token context window, reliable tool calling, higher first-attempt accuracy, and native understanding of video, images, and documents, it helps developers build capable coding agents and AI development workflows with fewer unnecessary turns and cleaner output.",
@@ -10090,6 +10350,7 @@
     "id": "meta/muse-spark-1.3-contributor",
     "object": "model",
     "created": 1755815280,
+    "released": 1788307200,
     "owned_by": "meta",
     "name": "Muse Spark 1.3 Contributor",
     "description": "Muse Spark 1.3 Contributor is Meta’s cost-optimized API option for agentic coding workflows. It offers a 1M-token context window, dependable tool calling, and multimodal perception at $0.10 per million input tokens and $0.20 per million output tokens, with usage permitted to improve Meta’s products.",
@@ -10133,6 +10394,151 @@
       "input": "0.0000001",
       "output": "0.0000002",
       "input_cache_read": "0.000000002"
+    }
+  },
+  {
+    "id": "microsoft/mai-transcribe-1.5",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1780272000,
+    "owned_by": "microsoft",
+    "name": "MAI-Transcribe-1.5",
+    "description": "Microsoft AI's multilingual speech-to-text model for file transcription, with automatic language detection and keyword biasing. Returns the transcript, audio duration, and a timed segment. ",
+    "type": "transcription",
+    "zdr": "all",
+    "no_training": "all",
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["audio"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": "0.0000000001",
+      "transcription_duration_cost_per_second": "0.0001"
+    }
+  },
+  {
+    "id": "microsoft/mai-transcribe-2",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1788393600,
+    "owned_by": "microsoft",
+    "name": "MAI-Transcribe 2",
+    "description": "MAI-Transcribe 2 is a multilingual speech-to-text model from Microsoft AI, ranked #1 on the FLEURS multilingual benchmark. It supports 60 languages with automatic language identification, code switching for mixed-language speech, speaker diarization, word-level timestamps, keyword biasing for domain-specific terminology, and configurable verbatim or clean transcription styles. It is suited for captions, call transcription, subtitling, accessibility, and other voice-enabled applications, and is faster than MAI-Transcribe-1.5 on long-form audio.",
+    "type": "transcription",
+    "zdr": "all",
+    "no_training": "all",
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["audio"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": "0",
+      "transcription_duration_cost_per_second": "0.00002778"
+    }
+  },
+  {
+    "id": "microsoft/mai-transcribe-2-streaming",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790812800,
+    "owned_by": "microsoft",
+    "name": "MAI-Transcribe-2-Streaming",
+    "description": "MAI-Transcribe-2-Streaming is a low-latency, \"speech in, text out\" realtime transcription API. Audio can be sent to the model as a continuous stream over a WebSocket connection and transcripts are returned incrementally as the speaker talks, with no need to wait for the utterance to finish. Intermediate results (aka Partials) update the current transcription; final results confirm a segment.",
+    "type": "transcription",
+    "zdr": "all",
+    "no_training": "all",
+    "tags": ["websocket-transcription"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["audio"],
+      "output": ["text"]
+    },
+    "pricing": {}
+  },
+  {
+    "id": "microsoft/mai-voice-2",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1780358400,
+    "owned_by": "microsoft",
+    "name": "MAI-Voice-2",
+    "description": "Microsoft AI's highest-fidelity text-to-speech model, with expressive multilingual voices and consistent speakers across long-form narration. Served through Azure Speech (preview).",
+    "type": "speech",
+    "zdr": "all",
+    "no_training": "all",
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["audio"]
+    },
+    "pricing": {
+      "input": "0.000022",
+      "speech_input_character_cost": "0.000022"
+    }
+  },
+  {
+    "id": "microsoft/mai-voice-2-flash",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1784764800,
+    "owned_by": "microsoft",
+    "name": "MAI-Voice-2-Flash",
+    "description": "Microsoft AI's low-latency text-to-speech model for voice agents and assistants, with the expressive multilingual voices of MAI-Voice-2 at twice the speed.",
+    "type": "speech",
+    "zdr": "all",
+    "no_training": "all",
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["audio"]
+    },
+    "pricing": {
+      "input": "0.000015",
+      "speech_input_character_cost": "0.000015"
+    }
+  },
+  {
+    "id": "microsoft/mai-voice-2.1",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790812800,
+    "owned_by": "microsoft",
+    "name": "MAI-Voice-2.1",
+    "description": "MAI-Voice-2.1 is our highest-fidelity, most expressive text-to-speech model, delivering rich, natural speech across 23 languages. It extends the MAI-Voice family with broad multilingual coverage, gated instant voice cloning, and strong long-form generation capabilities. With its detailed prosody, nuanced expressiveness, and studio-grade audio quality, MAI-Voice-2.1 is ideal for experiences where maximum voice quality and fidelity are required - long-form narration, brand-defining audio etc.",
+    "type": "speech",
+    "zdr": "all",
+    "no_training": "all",
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["audio"]
+    },
+    "pricing": {
+      "input": "0.000022",
+      "speech_input_character_cost": "0.000022"
+    }
+  },
+  {
+    "id": "microsoft/mai-voice-2.1-flash",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790812800,
+    "owned_by": "microsoft",
+    "name": "MAI-Voice-2.1-Flash",
+    "description": "MAI-Voice-2.1-Flash is a text-to-speech model built for fast, low-latency generation. It produces high- fidelity, natural, and expressive speech across 23 languages and supports gated instant voice cloning, all while being optimized for real-time responsiveness. Its human-like intonation, rhythm, and emotional nuance make it ideal for voice agents, assistants, and other interactive scenarios where latency and cost are critical.",
+    "type": "speech",
+    "zdr": "all",
+    "no_training": "all",
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["audio"]
+    },
+    "pricing": {
+      "input": "0.000015",
+      "speech_input_character_cost": "0.000015"
     }
   },
   {
@@ -11207,10 +11613,9 @@
       "reasoning",
       "tool-use",
       "vision",
-      "structured-output",
-      "video-input"
+      "video-input",
+      "structured-output"
     ],
-    "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "video"],
@@ -11238,14 +11643,7 @@
       "input": "0.00000095",
       "output": "0.000004",
       "input_cache_read": "0.00000016",
-      "varies_by_provider": true,
-      "regional": {
-        "us": {
-          "input": "0.00000095",
-          "output": "0.000004",
-          "input_cache_read": "0.00000016"
-        }
-      }
+      "varies_by_provider": true
     }
   },
   {
@@ -11267,10 +11665,9 @@
       "implicit-caching",
       "file-input",
       "vision",
-      "structured-output",
-      "video-input"
+      "video-input",
+      "structured-output"
     ],
-    "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf", "video"],
@@ -11298,23 +11695,14 @@
       }
     ],
     "knowledge": "2025-01",
-    "deprecated_at": 1790380800000,
     "pricing": {
       "input": "0.00000095",
       "output": "0.000004",
-      "input_cache_read": "0.00000016",
-      "varies_by_provider": true,
+      "input_cache_read": "0.00000019",
       "fast": {
         "input": "0.0000019",
         "output": "0.000008",
         "input_cache_read": "0.00000038"
-      },
-      "regional": {
-        "us": {
-          "input": "0.00000095",
-          "output": "0.000004",
-          "input_cache_read": "0.00000016"
-        }
       }
     }
   },
@@ -12220,6 +12608,7 @@
       "structured-output",
       "fast"
     ],
+    "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -12252,6 +12641,18 @@
         "input": "0.00000425",
         "output": "0.000017",
         "input_cache_read": "0.000002125"
+      },
+      "regional": {
+        "eu": {
+          "input": "0.0000025",
+          "output": "0.00001",
+          "input_cache_read": "0.00000125"
+        },
+        "us": {
+          "input": "0.0000025",
+          "output": "0.00001",
+          "input_cache_read": "0.00000125"
+        }
       }
     }
   },
@@ -12277,6 +12678,7 @@
       "structured-output",
       "fast"
     ],
+    "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -12297,7 +12699,19 @@
       "input": "0.00000425",
       "output": "0.000017",
       "input_cache_read": "0.000002125",
-      "web_search": "10"
+      "web_search": "10",
+      "regional": {
+        "eu": {
+          "input": "0.00000425",
+          "output": "0.000017",
+          "input_cache_read": "0.000002125"
+        },
+        "us": {
+          "input": "0.00000425",
+          "output": "0.000017",
+          "input_cache_read": "0.000002125"
+        }
+      }
     }
   },
   {
@@ -12322,6 +12736,7 @@
       "structured-output",
       "fast"
     ],
+    "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -12354,6 +12769,18 @@
         "input": "0.00000025",
         "output": "0.000001",
         "input_cache_read": "0.000000125"
+      },
+      "regional": {
+        "eu": {
+          "input": "0.00000015",
+          "output": "0.0000006",
+          "input_cache_read": "0.000000075"
+        },
+        "us": {
+          "input": "0.00000015",
+          "output": "0.0000006",
+          "input_cache_read": "0.000000075"
+        }
       }
     }
   },
@@ -12379,6 +12806,7 @@
       "structured-output",
       "fast"
     ],
+    "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -12399,7 +12827,19 @@
       "input": "0.00000025",
       "output": "0.000001",
       "input_cache_read": "0.000000125",
-      "web_search": "10"
+      "web_search": "10",
+      "regional": {
+        "eu": {
+          "input": "0.00000025",
+          "output": "0.000001",
+          "input_cache_read": "0.000000125"
+        },
+        "us": {
+          "input": "0.00000025",
+          "output": "0.000001",
+          "input_cache_read": "0.000000125"
+        }
+      }
     }
   },
   {
@@ -14449,7 +14889,7 @@
       "websocket-realtime",
       "fast"
     ],
-    "regions": ["us"],
+    "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -14601,6 +15041,55 @@
         ]
       },
       "regional": {
+        "eu": {
+          "input": "0.00000022",
+          "input_tiers": [
+            {
+              "cost": "0.00000022",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.00000044",
+              "min": 272000
+            }
+          ],
+          "output": "0.00000132",
+          "output_tiers": [
+            {
+              "cost": "0.00000132",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.00000198",
+              "min": 272000
+            }
+          ],
+          "input_cache_read": "0.000000022",
+          "input_cache_read_tiers": [
+            {
+              "cost": "0.000000022",
+              "max": 272000
+            },
+            {
+              "cost": "0.000000044",
+              "min": 272000
+            }
+          ],
+          "input_cache_write": "0.000000275",
+          "input_cache_write_tiers": [
+            {
+              "cost": "0.000000275",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.00000055",
+              "min": 272000
+            }
+          ]
+        },
         "us": {
           "input": "0.00000022",
           "input_tiers": [
@@ -14728,7 +15217,7 @@
       "websocket-realtime",
       "fast"
     ],
-    "regions": ["us"],
+    "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -14806,6 +15295,56 @@
       ],
       "web_search": "10",
       "regional": {
+        "eu": {
+          "input": "0.0000004",
+          "input_tiers": [
+            {
+              "cost": "0.0000004",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.0000008",
+              "min": 272000
+            }
+          ],
+          "output": "0.0000024",
+          "output_tiers": [
+            {
+              "cost": "0.0000024",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.0000036",
+              "min": 272000
+            }
+          ],
+          "input_cache_read": "0.00000004",
+          "input_cache_read_tiers": [
+            {
+              "cost": "0.00000004",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.00000008",
+              "min": 272000
+            }
+          ],
+          "input_cache_write": "0.0000005",
+          "input_cache_write_tiers": [
+            {
+              "cost": "0.0000005",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.000001",
+              "min": 272000
+            }
+          ]
+        },
         "us": {
           "input": "0.00000044",
           "input_tiers": [
@@ -14884,7 +15423,7 @@
       "websocket-realtime",
       "fast"
     ],
-    "regions": ["us"],
+    "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -15038,6 +15577,56 @@
         ]
       },
       "regional": {
+        "eu": {
+          "input": "0.0000044",
+          "input_tiers": [
+            {
+              "cost": "0.0000044",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.0000088",
+              "min": 272000
+            }
+          ],
+          "output": "0.000022",
+          "output_tiers": [
+            {
+              "cost": "0.000022",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.000033",
+              "min": 272000
+            }
+          ],
+          "input_cache_read": "0.00000044",
+          "input_cache_read_tiers": [
+            {
+              "cost": "0.00000044",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.00000088",
+              "min": 272000
+            }
+          ],
+          "input_cache_write": "0.00000275",
+          "input_cache_write_tiers": [
+            {
+              "cost": "0.00000275",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.0000055",
+              "min": 272000
+            }
+          ]
+        },
         "us": {
           "input": "0.0000044",
           "input_tiers": [
@@ -15166,7 +15755,7 @@
       "websocket-realtime",
       "fast"
     ],
-    "regions": ["us"],
+    "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -15244,6 +15833,56 @@
       ],
       "web_search": "10",
       "regional": {
+        "eu": {
+          "input": "0.000008",
+          "input_tiers": [
+            {
+              "cost": "0.000008",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.000016",
+              "min": 272000
+            }
+          ],
+          "output": "0.00004",
+          "output_tiers": [
+            {
+              "cost": "0.00004",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.00006",
+              "min": 272000
+            }
+          ],
+          "input_cache_read": "0.0000008",
+          "input_cache_read_tiers": [
+            {
+              "cost": "0.0000008",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.0000016",
+              "min": 272000
+            }
+          ],
+          "input_cache_write": "0.00001",
+          "input_cache_write_tiers": [
+            {
+              "cost": "0.00001",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.00002",
+              "min": 272000
+            }
+          ]
+        },
         "us": {
           "input": "0.0000088",
           "input_tiers": [
@@ -15322,7 +15961,7 @@
       "websocket-realtime",
       "fast"
     ],
-    "regions": ["us"],
+    "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -15475,6 +16114,56 @@
         ]
       },
       "regional": {
+        "eu": {
+          "input": "0.0000022",
+          "input_tiers": [
+            {
+              "cost": "0.0000022",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.0000044",
+              "min": 272000
+            }
+          ],
+          "output": "0.0000132",
+          "output_tiers": [
+            {
+              "cost": "0.0000132",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.0000198",
+              "min": 272000
+            }
+          ],
+          "input_cache_read": "0.00000022",
+          "input_cache_read_tiers": [
+            {
+              "cost": "0.00000022",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.00000044",
+              "min": 272000
+            }
+          ],
+          "input_cache_write": "0.00000275",
+          "input_cache_write_tiers": [
+            {
+              "cost": "0.00000275",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.0000055",
+              "min": 272000
+            }
+          ]
+        },
         "us": {
           "input": "0.0000022",
           "input_tiers": [
@@ -15603,7 +16292,7 @@
       "websocket-realtime",
       "fast"
     ],
-    "regions": ["us"],
+    "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -15681,6 +16370,56 @@
       ],
       "web_search": "10",
       "regional": {
+        "eu": {
+          "input": "0.000004",
+          "input_tiers": [
+            {
+              "cost": "0.000004",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.000008",
+              "min": 272000
+            }
+          ],
+          "output": "0.000024",
+          "output_tiers": [
+            {
+              "cost": "0.000024",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.000036",
+              "min": 272000
+            }
+          ],
+          "input_cache_read": "0.0000004",
+          "input_cache_read_tiers": [
+            {
+              "cost": "0.0000004",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.0000008",
+              "min": 272000
+            }
+          ],
+          "input_cache_write": "0.000005",
+          "input_cache_write_tiers": [
+            {
+              "cost": "0.000005",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.00001",
+              "min": 272000
+            }
+          ]
+        },
         "us": {
           "input": "0.0000044",
           "input_tiers": [
@@ -15759,7 +16498,7 @@
       "structured-output",
       "fast"
     ],
-    "regions": ["us"],
+    "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -15851,6 +16590,17 @@
             "output": "0.00015",
             "input_cache_read": "0.000004"
           }
+        },
+        "ultrafast": {
+          "input": "0.00006",
+          "output": "0.0003",
+          "input_cache_read": "0.000006",
+          "long_context": {
+            "threshold": 272001,
+            "input": "0.00012",
+            "output": "0.00045",
+            "input_cache_read": "0.000012"
+          }
         }
       },
       "fast": {
@@ -15903,6 +16653,52 @@
         ]
       },
       "regional": {
+        "eu": {
+          "input": "0.000011",
+          "input_tiers": [
+            {
+              "cost": "0.000011",
+              "max": 272001
+            },
+            {
+              "cost": "0.000022",
+              "min": 272001
+            }
+          ],
+          "output": "0.000055",
+          "output_tiers": [
+            {
+              "cost": "0.000055",
+              "max": 272001
+            },
+            {
+              "cost": "0.0000825",
+              "min": 272001
+            }
+          ],
+          "input_cache_read": "0.0000011",
+          "input_cache_read_tiers": [
+            {
+              "cost": "0.0000011",
+              "max": 272001
+            },
+            {
+              "cost": "0.0000022",
+              "min": 272001
+            }
+          ],
+          "input_cache_write": "0.00001375",
+          "input_cache_write_tiers": [
+            {
+              "cost": "0.00001375",
+              "max": 272001
+            },
+            {
+              "cost": "0.0000275",
+              "min": 272001
+            }
+          ]
+        },
         "us": {
           "input": "0.000011",
           "input_tiers": [
@@ -16026,7 +16822,7 @@
       "structured-output",
       "fast"
     ],
-    "regions": ["us"],
+    "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -16100,6 +16896,55 @@
       ],
       "web_search": "10",
       "regional": {
+        "eu": {
+          "input": "0.00002",
+          "input_tiers": [
+            {
+              "cost": "0.00002",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.00004",
+              "min": 272001
+            }
+          ],
+          "output": "0.0001",
+          "output_tiers": [
+            {
+              "cost": "0.0001",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.00015",
+              "min": 272001
+            }
+          ],
+          "input_cache_read": "0.000002",
+          "input_cache_read_tiers": [
+            {
+              "cost": "0.000002",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.000004",
+              "min": 272001
+            }
+          ],
+          "input_cache_write": "0.000025",
+          "input_cache_write_tiers": [
+            {
+              "cost": "0.000025",
+              "max": 272001
+            },
+            {
+              "cost": "0.00005",
+              "min": 272001
+            }
+          ]
+        },
         "us": {
           "input": "0.000022",
           "input_tiers": [
@@ -16176,7 +17021,7 @@
       "web-search",
       "fast"
     ],
-    "regions": ["us"],
+    "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -16329,6 +17174,56 @@
         ]
       },
       "regional": {
+        "eu": {
+          "input": "0.00000011",
+          "input_tiers": [
+            {
+              "cost": "0.00000011",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.00000022",
+              "min": 272001
+            }
+          ],
+          "output": "0.00000055",
+          "output_tiers": [
+            {
+              "cost": "0.00000055",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.000000825",
+              "min": 272001
+            }
+          ],
+          "input_cache_read": "0.000000011",
+          "input_cache_read_tiers": [
+            {
+              "cost": "0.000000011",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.000000022",
+              "min": 272001
+            }
+          ],
+          "input_cache_write": "0.0000001375",
+          "input_cache_write_tiers": [
+            {
+              "cost": "0.0000001375",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.000000275",
+              "min": 272001
+            }
+          ]
+        },
         "us": {
           "input": "0.00000011",
           "input_tiers": [
@@ -16456,7 +17351,7 @@
       "web-search",
       "fast"
     ],
-    "regions": ["us"],
+    "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -16535,6 +17430,56 @@
       ],
       "web_search": "10",
       "regional": {
+        "eu": {
+          "input": "0.0000002",
+          "input_tiers": [
+            {
+              "cost": "0.0000002",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.0000004",
+              "min": 272001
+            }
+          ],
+          "output": "0.000001",
+          "output_tiers": [
+            {
+              "cost": "0.000001",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.0000015",
+              "min": 272001
+            }
+          ],
+          "input_cache_read": "0.00000002",
+          "input_cache_read_tiers": [
+            {
+              "cost": "0.00000002",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.00000004",
+              "min": 272001
+            }
+          ],
+          "input_cache_write": "0.00000025",
+          "input_cache_write_tiers": [
+            {
+              "cost": "0.00000025",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.0000005",
+              "min": 272001
+            }
+          ]
+        },
         "us": {
           "input": "0.00000022",
           "input_tiers": [
@@ -16612,7 +17557,7 @@
       "web-search",
       "fast"
     ],
-    "regions": ["us"],
+    "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -16765,6 +17710,56 @@
         ]
       },
       "regional": {
+        "eu": {
+          "input": "0.0000022",
+          "input_tiers": [
+            {
+              "cost": "0.0000022",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.0000044",
+              "min": 272001
+            }
+          ],
+          "output": "0.000011",
+          "output_tiers": [
+            {
+              "cost": "0.000011",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.0000165",
+              "min": 272001
+            }
+          ],
+          "input_cache_read": "0.00000022",
+          "input_cache_read_tiers": [
+            {
+              "cost": "0.00000022",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.00000044",
+              "min": 272001
+            }
+          ],
+          "input_cache_write": "0.00000275",
+          "input_cache_write_tiers": [
+            {
+              "cost": "0.00000275",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.0000055",
+              "min": 272001
+            }
+          ]
+        },
         "us": {
           "input": "0.0000022",
           "input_tiers": [
@@ -16892,7 +17887,7 @@
       "web-search",
       "fast"
     ],
-    "regions": ["us"],
+    "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -16971,6 +17966,56 @@
       ],
       "web_search": "10",
       "regional": {
+        "eu": {
+          "input": "0.000004",
+          "input_tiers": [
+            {
+              "cost": "0.000004",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.000008",
+              "min": 272001
+            }
+          ],
+          "output": "0.00002",
+          "output_tiers": [
+            {
+              "cost": "0.00002",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.00003",
+              "min": 272001
+            }
+          ],
+          "input_cache_read": "0.0000004",
+          "input_cache_read_tiers": [
+            {
+              "cost": "0.0000004",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.0000008",
+              "min": 272001
+            }
+          ],
+          "input_cache_write": "0.000005",
+          "input_cache_write_tiers": [
+            {
+              "cost": "0.000005",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.00001",
+              "min": 272001
+            }
+          ]
+        },
         "us": {
           "input": "0.0000044",
           "input_tiers": [
@@ -17005,6 +18050,534 @@
             },
             {
               "cost": "0.00000088",
+              "min": 272001
+            }
+          ],
+          "input_cache_write": "0.0000055",
+          "input_cache_write_tiers": [
+            {
+              "cost": "0.0000055",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.000011",
+              "min": 272001
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "openai/gpt-6.1-sol",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790640000,
+    "owned_by": "openai",
+    "name": "GPT-6.1 Sol",
+    "description": "GPT-6.1 Sol is OpenAI's reasoning model for complex coding, computer use, and professional work. It accepts text and images, generates text, and supports a 1,050,000-token context window with up to 128,000 output tokens. Configurable reasoning effort, structured outputs, prompt caching, and Responses API tools support multi-step workflows.",
+    "context_window": 1050000,
+    "max_tokens": 128000,
+    "type": "language",
+    "zdr": "some",
+    "no_training": "all",
+    "tags": [
+      "explicit-caching",
+      "file-input",
+      "implicit-caching",
+      "reasoning",
+      "structured-output",
+      "tool-use",
+      "vision",
+      "web-search",
+      "fast"
+    ],
+    "regions": ["eu", "us"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high", "xhigh", "max"]
+      }
+    ],
+    "pricing": {
+      "input": "0.000002",
+      "input_tiers": [
+        {
+          "cost": "0.000002",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.000004",
+          "min": 272001
+        }
+      ],
+      "output": "0.00001",
+      "output_tiers": [
+        {
+          "cost": "0.00001",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.000015",
+          "min": 272001
+        }
+      ],
+      "input_cache_read": "0.0000001",
+      "input_cache_read_tiers": [
+        {
+          "cost": "0.0000001",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.0000002",
+          "min": 272001
+        }
+      ],
+      "input_cache_write": "0.0000025",
+      "input_cache_write_tiers": [
+        {
+          "cost": "0.0000025",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.000005",
+          "min": 272001
+        }
+      ],
+      "web_search": "10",
+      "service_tiers": {
+        "flex": {
+          "input": "0.000001",
+          "output": "0.000005",
+          "input_cache_read": "0.00000005",
+          "long_context": {
+            "threshold": 272001,
+            "input": "0.000002",
+            "output": "0.0000075",
+            "input_cache_read": "0.0000001"
+          }
+        },
+        "priority": {
+          "input": "0.000004",
+          "output": "0.00002",
+          "input_cache_read": "0.0000002",
+          "long_context": {
+            "threshold": 272001,
+            "input": "0.000008",
+            "output": "0.00003",
+            "input_cache_read": "0.0000004"
+          }
+        }
+      },
+      "fast": {
+        "input": "0.000004",
+        "input_tiers": [
+          {
+            "cost": "0.000004",
+            "min": 0,
+            "max": 272001
+          },
+          {
+            "cost": "0.000008",
+            "min": 272001
+          }
+        ],
+        "output": "0.00002",
+        "output_tiers": [
+          {
+            "cost": "0.00002",
+            "min": 0,
+            "max": 272001
+          },
+          {
+            "cost": "0.00003",
+            "min": 272001
+          }
+        ],
+        "input_cache_read": "0.0000002",
+        "input_cache_read_tiers": [
+          {
+            "cost": "0.0000002",
+            "min": 0,
+            "max": 272001
+          },
+          {
+            "cost": "0.0000004",
+            "min": 272001
+          }
+        ],
+        "input_cache_write": "0.000005",
+        "input_cache_write_tiers": [
+          {
+            "cost": "0.000005",
+            "min": 0,
+            "max": 272001
+          },
+          {
+            "cost": "0.00001",
+            "min": 272001
+          }
+        ]
+      },
+      "regional": {
+        "eu": {
+          "input": "0.0000022",
+          "input_tiers": [
+            {
+              "cost": "0.0000022",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.0000044",
+              "min": 272001
+            }
+          ],
+          "output": "0.000011",
+          "output_tiers": [
+            {
+              "cost": "0.000011",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.0000165",
+              "min": 272001
+            }
+          ],
+          "input_cache_read": "0.00000011",
+          "input_cache_read_tiers": [
+            {
+              "cost": "0.00000011",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.00000022",
+              "min": 272001
+            }
+          ],
+          "input_cache_write": "0.00000275",
+          "input_cache_write_tiers": [
+            {
+              "cost": "0.00000275",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.0000055",
+              "min": 272001
+            }
+          ]
+        },
+        "us": {
+          "input": "0.0000022",
+          "input_tiers": [
+            {
+              "cost": "0.0000022",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.0000044",
+              "min": 272001
+            }
+          ],
+          "output": "0.000011",
+          "output_tiers": [
+            {
+              "cost": "0.000011",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.0000165",
+              "min": 272001
+            }
+          ],
+          "input_cache_read": "0.00000011",
+          "input_cache_read_tiers": [
+            {
+              "cost": "0.00000011",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.00000022",
+              "min": 272001
+            }
+          ],
+          "input_cache_write": "0.00000275",
+          "input_cache_write_tiers": [
+            {
+              "cost": "0.00000275",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.0000055",
+              "min": 272001
+            }
+          ],
+          "fast": {
+            "input": "0.0000044",
+            "input_tiers": [
+              {
+                "cost": "0.0000044",
+                "min": 0,
+                "max": 272001
+              },
+              {
+                "cost": "0.0000088",
+                "min": 272001
+              }
+            ],
+            "output": "0.000022",
+            "output_tiers": [
+              {
+                "cost": "0.000022",
+                "min": 0,
+                "max": 272001
+              },
+              {
+                "cost": "0.000033",
+                "min": 272001
+              }
+            ],
+            "input_cache_read": "0.00000022",
+            "input_cache_read_tiers": [
+              {
+                "cost": "0.00000022",
+                "min": 0,
+                "max": 272001
+              },
+              {
+                "cost": "0.00000044",
+                "min": 272001
+              }
+            ],
+            "input_cache_write": "0.0000055",
+            "input_cache_write_tiers": [
+              {
+                "cost": "0.0000055",
+                "min": 0,
+                "max": 272001
+              },
+              {
+                "cost": "0.000011",
+                "min": 272001
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "openai/gpt-6.1-sol-fast",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790640000,
+    "owned_by": "openai",
+    "name": "GPT-6.1 Sol (Fast)",
+    "description": "GPT-6.1 Sol is OpenAI's reasoning model for complex coding, computer use, and professional work. It accepts text and images, generates text, and supports a 1,050,000-token context window with up to 128,000 output tokens. Configurable reasoning effort, structured outputs, prompt caching, and Responses API tools support multi-step workflows.",
+    "context_window": 1050000,
+    "max_tokens": 128000,
+    "type": "language",
+    "zdr": "some",
+    "no_training": "all",
+    "tags": [
+      "explicit-caching",
+      "file-input",
+      "implicit-caching",
+      "reasoning",
+      "structured-output",
+      "tool-use",
+      "vision",
+      "web-search",
+      "fast"
+    ],
+    "regions": ["eu", "us"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high", "xhigh", "max"]
+      }
+    ],
+    "pricing": {
+      "input": "0.000004",
+      "input_tiers": [
+        {
+          "cost": "0.000004",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.000008",
+          "min": 272001
+        }
+      ],
+      "output": "0.00002",
+      "output_tiers": [
+        {
+          "cost": "0.00002",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.00003",
+          "min": 272001
+        }
+      ],
+      "input_cache_read": "0.0000002",
+      "input_cache_read_tiers": [
+        {
+          "cost": "0.0000002",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.0000004",
+          "min": 272001
+        }
+      ],
+      "input_cache_write": "0.000005",
+      "input_cache_write_tiers": [
+        {
+          "cost": "0.000005",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.00001",
+          "min": 272001
+        }
+      ],
+      "web_search": "10",
+      "regional": {
+        "eu": {
+          "input": "0.000004",
+          "input_tiers": [
+            {
+              "cost": "0.000004",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.000008",
+              "min": 272001
+            }
+          ],
+          "output": "0.00002",
+          "output_tiers": [
+            {
+              "cost": "0.00002",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.00003",
+              "min": 272001
+            }
+          ],
+          "input_cache_read": "0.0000002",
+          "input_cache_read_tiers": [
+            {
+              "cost": "0.0000002",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.0000004",
+              "min": 272001
+            }
+          ],
+          "input_cache_write": "0.000005",
+          "input_cache_write_tiers": [
+            {
+              "cost": "0.000005",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.00001",
+              "min": 272001
+            }
+          ]
+        },
+        "us": {
+          "input": "0.0000044",
+          "input_tiers": [
+            {
+              "cost": "0.0000044",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.0000088",
+              "min": 272001
+            }
+          ],
+          "output": "0.000022",
+          "output_tiers": [
+            {
+              "cost": "0.000022",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.000033",
+              "min": 272001
+            }
+          ],
+          "input_cache_read": "0.00000022",
+          "input_cache_read_tiers": [
+            {
+              "cost": "0.00000022",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.00000044",
               "min": 272001
             }
           ],
@@ -17977,13 +19550,22 @@
     "type": "embedding",
     "zdr": "some",
     "no_training": "all",
+    "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
       "output": ["text"]
     },
     "pricing": {
-      "input": "0.00000002"
+      "input": "0.00000002",
+      "regional": {
+        "eu": {
+          "input": "0.00000002"
+        },
+        "us": {
+          "input": "0.00000002"
+        }
+      }
     }
   },
   {
@@ -18129,67 +19711,7 @@
     "type": "language",
     "zdr": "none",
     "no_training": "all",
-    "tags": ["vision", "web-search", "structured-output"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "response_format",
-      "structured_outputs"
-    ],
-    "temperature": true,
-    "knowledge": "2025-02",
-    "pricing": {}
-  },
-  {
-    "id": "perplexity/sonar-pro",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1739923200,
-    "owned_by": "perplexity",
-    "name": "Sonar Pro",
-    "description": "Perplexity's premier offering with search grounding, supporting advanced queries and follow-ups.",
-    "context_window": 200000,
-    "max_tokens": 8000,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "all",
-    "tags": ["vision", "web-search", "structured-output"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "response_format",
-      "structured_outputs"
-    ],
-    "temperature": true,
-    "knowledge": "2025-09",
-    "pricing": {}
-  },
-  {
-    "id": "perplexity/sonar-reasoning-pro",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1739923200,
-    "owned_by": "perplexity",
-    "name": "Sonar Reasoning Pro",
-    "description": "A premium reasoning-focused model that outputs Chain of Thought (CoT) in responses, providing comprehensive explanations with enhanced search capabilities and multiple search queries per request.",
-    "context_window": 127000,
-    "max_tokens": 8000,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "all",
-    "tags": ["reasoning", "web-search", "vision", "structured-output"],
+    "tags": ["vision", "web-search", "structured-output", "reasoning"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
@@ -18208,11 +19730,16 @@
     "reasoning_options": [
       {
         "type": "effort",
-        "values": ["minimal", "low", "medium", "high"]
+        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
       }
     ],
-    "knowledge": "2025-09",
-    "pricing": {}
+    "knowledge": "2025-02",
+    "pricing": {
+      "input": "0.00000025",
+      "output": "0.0000025",
+      "input_cache_write": "0.0000000625",
+      "web_search": "2.5"
+    }
   },
   {
     "id": "poolside/laguna-s-2.1",
@@ -18333,6 +19860,7 @@
       "input": ["text"],
       "output": ["image"]
     },
+    "deprecated_at": 1792137600000,
     "pricing": {
       "image_dimension_quality_pricing": [
         {
@@ -19963,53 +21491,53 @@
     ],
     "knowledge": "2026-05",
     "pricing": {
-      "input": "0.0000012",
+      "input": "0.000002",
       "input_tiers": [
         {
-          "cost": "0.0000012",
+          "cost": "0.000002",
           "min": 0,
           "max": 200001
         },
         {
-          "cost": "0.0000024",
+          "cost": "0.000004",
           "min": 200001
         }
       ],
-      "output": "0.0000036",
+      "output": "0.000006",
       "output_tiers": [
         {
-          "cost": "0.0000036",
+          "cost": "0.000006",
           "min": 0,
           "max": 200001
         },
         {
-          "cost": "0.0000072",
+          "cost": "0.000012",
           "min": 200001
         }
       ],
-      "input_cache_read": "0.0000003",
+      "input_cache_read": "0.0000005",
       "input_cache_read_tiers": [
         {
-          "cost": "0.0000003",
+          "cost": "0.0000005",
           "min": 0,
           "max": 200001
         },
         {
-          "cost": "0.0000006",
+          "cost": "0.000001",
           "min": 200001
         }
       ],
       "web_search": "5",
       "service_tiers": {
         "priority": {
-          "input": "0.0000024",
-          "output": "0.0000072",
-          "input_cache_read": "0.0000006",
+          "input": "0.000004",
+          "output": "0.000012",
+          "input_cache_read": "0.000001",
           "long_context": {
             "threshold": 200001,
-            "input": "0.0000048",
-            "output": "0.0000144",
-            "input_cache_read": "0.0000012"
+            "input": "0.000008",
+            "output": "0.000024",
+            "input_cache_read": "0.000002"
           }
         }
       }
@@ -20342,6 +21870,77 @@
         {
           "resolution": "1080p",
           "cost_per_second": "0.25"
+        }
+      ]
+    }
+  },
+  {
+    "id": "spacexai/grok-imagine-video-1.5-lite",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790812800,
+    "owned_by": "spacexai",
+    "name": "Grok Imagine Video 1.5 Lite",
+    "description": "Grok Imagine Video 1.5 Lite is xAI's lightweight video generation model for turning text prompts and images into clips with native audio. It supports videos from 1 to 15 seconds in 480p, 720p, and 1080p, with seven aspect ratios for formats including widescreen 16:9 and vertical 9:16.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "type": "video",
+    "zdr": "none",
+    "no_training": "all",
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["video"]
+    },
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
+    "video_capabilities": {
+      "supported_operations": ["text-to-video", "image-to-video"],
+      "supported_resolutions": ["480p", "720p", "1080p"],
+      "supported_aspect_ratios": [
+        "1:1",
+        "16:9",
+        "9:16",
+        "4:3",
+        "3:4",
+        "3:2",
+        "2:3"
+      ],
+      "supported_durations_seconds": [
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+      ],
+      "generate_audio": true,
+      "supported_fps": [24],
+      "input_limits": {
+        "image": {
+          "max_count": 7,
+          "supported_sources": ["url", "base64"]
+        },
+        "audio": {
+          "supported_sources": ["url"]
+        }
+      }
+    },
+    "pricing": {
+      "video_duration_pricing": [
+        {
+          "resolution": "480p",
+          "cost_per_second": "0.02"
+        },
+        {
+          "resolution": "720p",
+          "cost_per_second": "0.03"
+        },
+        {
+          "resolution": "1080p",
+          "cost_per_second": "0.14"
         }
       ]
     }
@@ -20808,14 +22407,13 @@
     "zdr": "some",
     "no_training": "some",
     "tags": [
+      "implicit-caching",
       "reasoning",
+      "structured-output",
       "tool-use",
       "vision",
-      "file-input",
-      "structured-output",
-      "implicit-caching"
+      "file-input"
     ],
-    "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -20839,19 +22437,11 @@
         "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
       }
     ],
-    "deprecated_at": 1790380800000,
     "pricing": {
       "input": "0.000001",
       "output": "0.00000405",
       "input_cache_read": "0.00000017",
-      "varies_by_provider": true,
-      "regional": {
-        "us": {
-          "input": "0.000001",
-          "output": "0.00000405",
-          "input_cache_read": "0.00000017"
-        }
-      }
+      "varies_by_provider": true
     }
   },
   {
@@ -20875,7 +22465,6 @@
       "implicit-caching",
       "structured-output"
     ],
-    "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -20899,19 +22488,11 @@
         "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
       }
     ],
-    "deprecated_at": 1790380800000,
     "pricing": {
-      "input": "0.0000005",
+      "input": "0.00000045",
       "output": "0.0000012",
       "input_cache_read": "0.0000001",
-      "varies_by_provider": true,
-      "regional": {
-        "us": {
-          "input": "0.0000005",
-          "output": "0.0000012",
-          "input_cache_read": "0.0000001"
-        }
-      }
+      "varies_by_provider": true
     }
   },
   {
@@ -20921,7 +22502,7 @@
     "released": 1789430400,
     "owned_by": "typesafe-ai",
     "name": "Jev",
-    "description": "TypeSafe AI System One evaluation model. Accepts shared state and typed questions, returning choices, scores, and boolean probabilities. Limits: 64,000 tokens total per request; 32,000 tokens for the state plus the longest question. No streaming or output-token limit.",
+    "description": "TypeSafe AI System One decision model. Accepts shared state and typed questions, returning choices, scores, and boolean probabilities. Limits: 64,000 tokens total per request; 32,000 tokens for the state plus the longest question. No streaming or output-token limit.",
     "context_window": 32000,
     "max_tokens": 0,
     "type": "evaluation",
@@ -20967,6 +22548,50 @@
     "owned_by": "voyage",
     "name": "Voyage Rerank 2.5 Lite",
     "description": "A generalist reranker optimized for both latency and quality with instruction-following and multilingual support.",
+    "context_window": 32000,
+    "max_tokens": 32000,
+    "type": "reranking",
+    "zdr": "none",
+    "no_training": "all",
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": "0.00000002"
+    }
+  },
+  {
+    "id": "voyage/rerank-3",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790726400,
+    "owned_by": "voyage",
+    "name": "Voyage Rerank 3",
+    "description": "A general-purpose reranker optimized for retrieval accuracy.",
+    "context_window": 32000,
+    "max_tokens": 32000,
+    "type": "reranking",
+    "zdr": "none",
+    "no_training": "all",
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": "0.00000005"
+    }
+  },
+  {
+    "id": "voyage/rerank-3-lite",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790726400,
+    "owned_by": "voyage",
+    "name": "Voyage Rerank 3 Lite",
+    "description": "A fast, cost-effective reranker optimized for latency-sensitive retrieval.",
     "context_window": 32000,
     "max_tokens": 32000,
     "type": "reranking",
@@ -21302,20 +22927,20 @@
     "released": 1789948800,
     "owned_by": "xiaomi",
     "name": "MiMo V2.6 Flash",
-    "description": "MiMo V2.6 Flash is Xiaomi's efficient multimodal reasoning model for coding, automation, and everyday agent workflows. It accepts text, images, audio, and video within a 1M-token context window, with up to 128K tokens of output. Deep thinking, tool calling, JSON mode, and prompt caching make it suitable for applications that need multimodal understanding at a lower token cost.",
+    "description": "MiMo-V2.6-Flash is an open-source Mixture-of-Experts model from Xiaomi with 309B total parameters and 15B activated per token. Its hybrid attention (sliding-window layers interleaved with global attention) keeps long-context serving efficient across a 1M-token context window. It accepts text and image input and is suited for coding, agent workflows and high-volume tool use.\n\nReasoning is supported and enabled by default.",
     "context_window": 1048576,
     "max_tokens": 131072,
     "type": "language",
     "zdr": "some",
     "no_training": "some",
     "tags": [
+      "audio-input",
       "implicit-caching",
       "reasoning",
       "structured-output",
       "tool-use",
-      "vision",
-      "audio-input",
-      "video-input"
+      "video-input",
+      "vision"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -21344,9 +22969,10 @@
       }
     ],
     "pricing": {
-      "input": "0.00000014",
-      "output": "0.00000028",
-      "input_cache_read": "0.0000000028"
+      "input": "0.00000004",
+      "output": "0.00000128",
+      "input_cache_read": "0.00000004",
+      "varies_by_provider": true
     }
   },
   {
@@ -21363,13 +22989,13 @@
     "zdr": "some",
     "no_training": "some",
     "tags": [
+      "audio-input",
       "implicit-caching",
       "reasoning",
       "structured-output",
       "tool-use",
-      "vision",
-      "audio-input",
-      "video-input"
+      "video-input",
+      "vision"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -21400,7 +23026,8 @@
     "pricing": {
       "input": "0.000000435",
       "output": "0.00000087",
-      "input_cache_read": "0.0000000036"
+      "input_cache_read": "0.0000000036",
+      "varies_by_provider": true
     }
   },
   {
@@ -21645,14 +23272,13 @@
     "released": 1766361600,
     "owned_by": "zai",
     "name": "GLM 4.7",
-    "description": "GLM-4.7 is Z.ai’s latest flagship model, with major upgrades focused on two key areas: stronger coding capabilities and more stable multi-step reasoning and execution.",
+    "description": "GLM-4.7 is a powerful next-generation coding model that delivers major gains in multilingual agentic coding, terminal-based workflows, and tool use, with strong improvements across benchmarks like SWE-bench, Terminal Bench, and τ²-Bench. It also features enhanced reasoning and math performance, plus significantly upgraded UI generation—producing cleaner, more modern web pages and better-designed slides.",
     "context_window": 200000,
     "max_tokens": 120000,
     "type": "language",
     "zdr": "some",
     "no_training": "some",
-    "tags": ["reasoning", "tool-use", "implicit-caching", "structured-output"],
-    "regions": ["us"],
+    "tags": ["reasoning", "tool-use", "structured-output", "implicit-caching"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -21677,19 +23303,10 @@
     ],
     "knowledge": "2025-04",
     "interleaved": true,
-    "deprecated_at": 1790380800000,
     "pricing": {
       "input": "0.0000006",
       "output": "0.0000022",
-      "input_cache_read": "0.00000012",
-      "varies_by_provider": true,
-      "regional": {
-        "us": {
-          "input": "0.0000006",
-          "output": "0.0000022",
-          "input_cache_read": "0.00000012"
-        }
-      }
+      "varies_by_provider": true
     }
   },
   {

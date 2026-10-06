@@ -78,6 +78,37 @@
       "response": {
         "content": "Research is done."
       }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-brief] compare squid facts",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "researcher",
+            "arguments": "{\"task\":\"[subagent-brief-task] List two squid facts.\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-brief-task] List two squid facts."
+      },
+      "response": {
+        "content": "Squids have three hearts and blue blood."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-brief] compare squid facts",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "The comparison is ready."
+      }
     }
   ]
 }

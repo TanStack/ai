@@ -135,6 +135,19 @@ export default async function globalSetup() {
   // spec asserts those reach `RUN_FINISHED.usage` as the canonical
   // `promptTokensDetails.cachedTokens` / `completionTokensDetails.reasoningTokens`.
   mock.mount('/openai-usage-details', openaiUsageDetailsMount())
+  // Moonshot (Kimi) usage shape: `cached_tokens` at the root of `usage` and
+  // `cache_write_tokens` under `prompt_tokens_details`
+  // (https://platform.kimi.ai/docs/api/chat).
+  mock.mount(
+    '/moonshot-usage-details',
+    openaiUsageDetailsMount({
+      prompt_tokens: 1000,
+      completion_tokens: 50,
+      total_tokens: 1050,
+      cached_tokens: 800,
+      prompt_tokens_details: { cached_tokens: 800, cache_write_tokens: 150 },
+    }),
+  )
 
   // Provider-executed web search responses need native Responses/Gemini wire
   // items that aimock does not synthesize. These mounts feed the adapter E2E
@@ -1752,14 +1765,22 @@ function openRouterCostMount(): Mountable {
  * canonical `TokenUsage` detail breakdowns, proving detailed usage survives
  * end-to-end through the chat pipeline.
  */
-function openaiUsageDetailsMount(): Mountable {
+function openaiUsageDetailsMount(
+  usage: Record<string, unknown> = {
+    prompt_tokens: 100,
+    completion_tokens: 50,
+    total_tokens: 150,
+    prompt_tokens_details: { cached_tokens: 80 },
+    completion_tokens_details: { reasoning_tokens: 30 },
+  },
+): Mountable {
   return {
     async handleRequest(
       req: http.IncomingMessage,
       res: http.ServerResponse,
       pathname: string,
     ): Promise<boolean> {
-      // The mount prefix (/openai-usage-details) is stripped before dispatch;
+      // The mount prefix is stripped before dispatch;
       // the SDK posts to <serverURL>/chat/completions where serverURL ends /v1.
       if (
         req.method !== 'POST' ||
@@ -1795,13 +1816,7 @@ function openaiUsageDetailsMount(): Mountable {
         {
           ...base,
           choices: [],
-          usage: {
-            prompt_tokens: 100,
-            completion_tokens: 50,
-            total_tokens: 150,
-            prompt_tokens_details: { cached_tokens: 80 },
-            completion_tokens_details: { reasoning_tokens: 30 },
-          },
+          usage,
         },
       ]
 

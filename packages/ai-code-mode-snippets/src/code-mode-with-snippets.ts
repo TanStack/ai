@@ -95,14 +95,18 @@ export async function codeModeWithSnippets({
           description: snippet.description,
           inputSchema: snippet.inputSchema,
           outputSchema: snippet.outputSchema,
-          execute: async (input: unknown) => {
+          execute: async (input: unknown, toolContext) => {
             // This is a simplified execution - the full snippetToTool handles events
             const wrappedCode = `const input = ${JSON.stringify(input)};\n${snippet.code}`
             const { stripTypeScript, createEventAwareBindings } =
               await import('@tanstack/ai-code-mode')
             const strippedCode = await stripTypeScript(wrappedCode)
             const context = await config.driver.createContext({
-              bindings: createEventAwareBindings(baseBindings, () => {}),
+              bindings: createEventAwareBindings(
+                baseBindings,
+                () => {},
+                toolContext,
+              ),
               timeout: config.timeout,
               ...(config.memoryLimit !== undefined && {
                 memoryLimit: config.memoryLimit,

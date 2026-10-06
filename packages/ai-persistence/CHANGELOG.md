@@ -1,5 +1,23 @@
 # @tanstack/ai-persistence
 
+## 0.7.2
+
+### Patch Changes
+
+- [#1590](https://github.com/TanStack/ai/pull/1590) [`0d5b2ea`](https://github.com/TanStack/ai/commit/0d5b2ea24fdac399cf3b9a7826c0fa93178b4d56) - Update the Redis guidance in the `ai-persistence/build-custom-adapter` skill: keep `runs` and `interrupts` indexes in sorted sets written by one Lua script together with the record, instead of advising against Redis for interrupts.
+
+- Updated dependencies [[`3a09cf0`](https://github.com/TanStack/ai/commit/3a09cf04431a45810051ea5df6bb3935af421ddb), [`ee726f5`](https://github.com/TanStack/ai/commit/ee726f537dbb036d5edb756b92739afaa7573824), [`a5fce7f`](https://github.com/TanStack/ai/commit/a5fce7f95b8b9c6eb57697aa1e3f587bf27483b9), [`94116ad`](https://github.com/TanStack/ai/commit/94116ad137015b6f62fe62b4c06a335dbde36a49)]:
+  - @tanstack/ai@0.64.0
+
+## 0.7.1
+
+### Patch Changes
+
+- [#1233](https://github.com/TanStack/ai/pull/1233) [`8e8ee26`](https://github.com/TanStack/ai/commit/8e8ee26959a471bb6fac180ded3a9a048ae93609) - Preserve failed client tool results across native interrupt resumes and await asynchronous client output validation
+
+- Updated dependencies [[`37b2826`](https://github.com/TanStack/ai/commit/37b282655ea9c780e9793ef33013d64b1bf88625), [`8e8ee26`](https://github.com/TanStack/ai/commit/8e8ee26959a471bb6fac180ded3a9a048ae93609), [`c5c1996`](https://github.com/TanStack/ai/commit/c5c19961b8c98497fd88ae93c5d6330d7b2ecb6a), [`3e30cde`](https://github.com/TanStack/ai/commit/3e30cde8ae7f5be7be3bc9c4f30c842159fc7edf), [`0eb8f0b`](https://github.com/TanStack/ai/commit/0eb8f0b7f4ffa0133a814f8fcfccbc1acedd7488), [`f44b6b2`](https://github.com/TanStack/ai/commit/f44b6b22578b893501e05612f02ea1aaee0951d3), [`d632d41`](https://github.com/TanStack/ai/commit/d632d41df227bf11bc3cdbf5542823f87562b3d4)]:
+  - @tanstack/ai@0.63.0
+
 ## 0.7.0
 
 ### Minor Changes
