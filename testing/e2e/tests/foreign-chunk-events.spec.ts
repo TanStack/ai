@@ -29,8 +29,9 @@ test.describe('AG-UI *_CHUNK events from a foreign server', () => {
 
     const message = page.getByTestId('message-msg-error')
     await expect(message.getByTestId('text')).toHaveText('the run failed')
+    // RUN_ERROR also marks the message as failed, so a replay leaves it out.
     await expect(message.getByTestId('metadata')).toHaveText(
-      '{"error":"upstream timeout"}',
+      '{"error":"upstream timeout","tanstack":{"stopReason":"error"}}',
     )
   })
 })
