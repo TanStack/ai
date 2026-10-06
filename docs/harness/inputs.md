@@ -27,7 +27,7 @@ import { openaiText } from '@tanstack/ai-openai'
 
 const assistant = defineHarness({
   name: 'acme/assistant',
-  adapter: openaiText('gpt-5.6'),
+  adapter: openaiText('gpt-6.1-sol'),
 })
 const host = createHarnessHost({
   persistence: {
@@ -185,7 +185,7 @@ const openRecord = toolDefinition({
 
 const records = defineHarness({
   name: 'acme/records',
-  adapter: openaiText('gpt-5.6'),
+  adapter: openaiText('gpt-6.1-sol'),
   tools: [openRecord],
 })
 const recordSession = await host.open(records, { threadId: 'user-1-records' })

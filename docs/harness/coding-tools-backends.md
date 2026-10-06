@@ -52,7 +52,7 @@ const root = '/workspace'
 
 export const sandboxed = defineHarness({
   name: 'acme/sandboxed-coder',
-  adapter: openaiText('gpt-5.6'),
+  adapter: openaiText('gpt-6.1-sol'),
   plugins: () => [
     permissions({ root }),
     workspaceTools({ root, backend: sandboxWorkspaceBackend(sandbox) }),
@@ -162,7 +162,7 @@ import { openaiText } from '@tanstack/ai-openai'
 
 export const formatted = defineHarness({
   name: 'acme/formatted-coder',
-  adapter: openaiText('gpt-5.6'),
+  adapter: openaiText('gpt-6.1-sol'),
   plugins: () => [
     permissions({ root }),
     workspaceTools({ root }),
@@ -238,7 +238,7 @@ import { boundToolOutput } from '@tanstack/ai-harness/plugins'
 
 export const bounded = defineHarness({
   name: 'acme/bounded-coder',
-  adapter: openaiText('gpt-5.6'),
+  adapter: openaiText('gpt-6.1-sol'),
   plugins: () => [
     workspaceTools({ root }),
     boundToolOutput({ dir: '.agent/tool-output' }),

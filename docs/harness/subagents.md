@@ -30,7 +30,7 @@ const explorer = defineAgent({
   inputSchema: z.object({ task: z.string() }),
   run: (ctx) =>
     ctx.chat({
-      adapter: openaiText('gpt-5.6-luna'),
+      adapter: openaiText('gpt-6-luna'),
       messages: [{ role: 'user', content: ctx.input.task }],
       stream: false,
     }),
@@ -89,7 +89,7 @@ const migrator = defineAgent({
     const exportId = await ctx.step.do('export', () => startExport(ctx.input.customer))
     await ctx.step.do('import', () => importInto('eu-west', exportId))
     return ctx.chat({
-      adapter: openaiText('gpt-5.6'),
+      adapter: openaiText('gpt-6.1-sol'),
       messages: [{ role: 'user', content: `Write a short report about ${exportId}.` }],
       stream: false,
     })
@@ -139,7 +139,7 @@ import { z } from 'zod'
 const writer = defineAgent({
   name: 'writer',
   description: 'Writes blog posts',
-  run: (ctx) => ctx.chat({ adapter: openaiText('gpt-5.6'), stream: false }),
+  run: (ctx) => ctx.chat({ adapter: openaiText('gpt-6.1-sol'), stream: false }),
 })
 
 const pricer = defineAgent({
@@ -148,7 +148,7 @@ const pricer = defineAgent({
   inputSchema: z.object({ vendor: z.string() }),
   run: (ctx) =>
     ctx.chat({
-      adapter: openaiText('gpt-5.6'),
+      adapter: openaiText('gpt-6.1-sol'),
       messages: [{ role: 'user', content: `Compare the plans of ${ctx.input.vendor}` }],
       stream: false,
     }),
@@ -156,7 +156,7 @@ const pricer = defineAgent({
 
 export const studio = defineHarness({
   name: 'acme/studio',
-  adapter: openaiText('gpt-5.6'),
+  adapter: openaiText('gpt-6.1-sol'),
   agents: [writer, pricer],
   routing: {
     router: async ({ agents, messages, adapter }) => {
@@ -207,12 +207,12 @@ import { defineHarness, harnessAgent } from '@tanstack/ai-harness'
 const reviewer = defineHarness({
   name: 'acme/reviewer',
   description: 'Reviews a change and lists the risks',
-  adapter: openaiText('gpt-5.6'),
+  adapter: openaiText('gpt-6.1-sol'),
 })
 
 export const lead = defineHarness({
   name: 'acme/lead',
-  adapter: openaiText('gpt-5.6'),
+  adapter: openaiText('gpt-6.1-sol'),
   subagents: { agents: [harnessAgent(reviewer)] },
 })
 ```
@@ -289,7 +289,7 @@ export const coder = defineHarness({
 })
 ```
 
-The permission rules of an `agents()` profile apply only while that profile is the primary agent. They do not apply inside a child run.
+The permission rules of an `agents()` profile apply only while that profile is the primary agent. They do not apply inside a child run. See [Known limits](./agents#known-limits).
 
 ## Stay within limits
 
@@ -298,7 +298,7 @@ A harness always limits its children. Without `subagents.limits`, it uses a dept
 ```ts group=harness-subagents
 export const careful = defineHarness({
   name: 'acme/careful',
-  adapter: openaiText('gpt-5.6'),
+  adapter: openaiText('gpt-6.1-sol'),
   subagents: {
     agents: [explorer],
     limits: { maxDepth: 1, maxConcurrent: 2, maxCalls: 6, timeoutMs: 60_000 },

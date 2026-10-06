@@ -61,7 +61,7 @@ const root = process.cwd()
 
 const coder = defineHarness({
   name: 'acme/coder',
-  adapter: openaiText('gpt-5.6'),
+  adapter: openaiText('gpt-6.1-sol'),
   plugins: () => [permissions({ root }), workspaceTools({ root })],
 })
 
@@ -228,7 +228,7 @@ import { openaiText } from '@tanstack/ai-openai'
 
 const repos = defineHarness({
   name: 'acme/repos',
-  adapter: openaiText('gpt-5.6'),
+  adapter: openaiText('gpt-6.1-sol'),
   plugins: () => [workspaceTools({ root: '/srv/repos' })],
 })
 

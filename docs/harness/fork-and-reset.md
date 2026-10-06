@@ -25,7 +25,7 @@ import { openaiText } from '@tanstack/ai-openai'
 
 export const assistant = defineHarness({
   name: 'acme/assistant',
-  adapter: openaiText('gpt-5.6'),
+  adapter: openaiText('gpt-6.1-sol'),
 })
 
 const host = createHarnessHost({ persistence: memoryPersistence() })
