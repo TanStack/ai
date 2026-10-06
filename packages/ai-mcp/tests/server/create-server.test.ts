@@ -235,6 +235,56 @@ async function withClient(
 }
 
 describe('createMCPServer', () => {
+  it('does not advertise list changes for static tools, resources, or prompts', async () => {
+    const server = surfaceServer()
+
+    for (const era of ['2025', '2026'] as const) {
+      await withClient(server, { era }, async (client) => {
+        const capabilities = client.getServerCapabilities()
+        expect(capabilities?.tools?.listChanged).toBe(false)
+        expect(capabilities?.resources?.listChanged).toBe(false)
+        expect(capabilities?.prompts?.listChanged).toBe(false)
+      })
+    }
+  })
+
+  it('rejects subscriptions/listen without opening an SSE stream', async () => {
+    const server = surfaceServer()
+    const response = await server.fetch(
+      new Request(serverUrl, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          accept: 'application/json, text/event-stream',
+          'mcp-protocol-version': '2026-07-28',
+          'mcp-method': 'subscriptions/listen',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 7,
+          method: 'subscriptions/listen',
+          params: {
+            notifications: { toolsListChanged: true },
+            _meta: {
+              'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+              'io.modelcontextprotocol/clientInfo': {
+                name: 'tester',
+                version: '1.0.0',
+              },
+              'io.modelcontextprotocol/clientCapabilities': {},
+            },
+          },
+        }),
+      }),
+    )
+    expect(response.headers.get('content-type')).toContain('application/json')
+    expect(await response.json()).toEqual({
+      jsonrpc: '2.0',
+      id: 7,
+      error: { code: -32601, message: 'Method not found' },
+    })
+  })
+
   it('lists and calls a tool for a spec 2026 request', async () => {
     const server = surfaceServer()
 

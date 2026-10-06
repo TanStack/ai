@@ -526,7 +526,7 @@
           "label": "Serve Tools over HTTP",
           "to": "mcp/server",
           "addedAt": "2026-09-22",
-          "updatedAt": "2026-10-02"
+          "updatedAt": "2026-10-06"
         },
         {
           "label": "Serve Resources and Prompts",
