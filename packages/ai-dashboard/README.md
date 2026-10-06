@@ -60,9 +60,11 @@ const connection = await connectDashboard({
   harness: studio,
   url: 'http://127.0.0.1:8790',
   token: savedToken,
-  onError: (error) => console.error(`Pair this host again: ${error.message}`),
+  onError: (error) => console.error(`Dashboard: ${error.message}`),
 })
 ```
+
+`onError` also gets an error when the agent cannot handle a frame from the dashboard, for example when a thread cannot open. Then the connection stays.
 
 `connection.token` always holds the current host token.
 

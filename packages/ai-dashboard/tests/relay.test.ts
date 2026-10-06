@@ -100,6 +100,7 @@ async function openEvents(url: string) {
 async function onlineHost(
   dashboard: { url: string; ownerToken: string },
   allowRemoteStart: boolean,
+  onError?: (error: Error) => void,
 ) {
   const owner = {
     Authorization: `Bearer ${dashboard.ownerToken}`,
@@ -129,6 +130,7 @@ async function onlineHost(
     url: dashboard.url,
     token,
     allowRemoteStart,
+    onError,
   })
   cleanups.push(() => connection.close())
   await vi.waitFor(async () => {
@@ -314,6 +316,32 @@ describe('dashboard relay', () => {
   )
 
   it(
+    'reports a frame that the host fails to handle',
+    { timeout: 20_000 },
+    async () => {
+      const dashboard = await startDashboard({ port: 0 })
+      cleanups.push(() => dashboard.close())
+      const errors: Array<Error> = []
+      const { host, hostId, owner } = await onlineHost(
+        dashboard,
+        true,
+        (error) => errors.push(error),
+      )
+      host.open = () => Promise.reject(new Error('The thread cannot open.'))
+
+      await fetch(`${dashboard.url}/api/sessions/${hostId}/broken/open`, {
+        method: 'POST',
+        headers: owner,
+      })
+      await vi.waitFor(() =>
+        expect(errors.map((error) => error.message)).toEqual([
+          'The thread cannot open.',
+        ]),
+      )
+    },
+  )
+
+  it(
     'refuses inputs to a thread the host does not let the dashboard start',
     { timeout: 20_000 },
     async () => {
@@ -345,6 +373,13 @@ describe('dashboard relay', () => {
           reason: 'remote_start_disabled',
         }),
       )
+      // The sessions list names the harness of the refused thread.
+      const sessions = await (
+        await fetch(`${dashboard.url}/api/sessions`, { headers: owner })
+      ).json()
+      expect(sessions).toMatchObject([
+        { threadId: 'fresh', harness: 'acme/remote' },
+      ])
     },
   )
 

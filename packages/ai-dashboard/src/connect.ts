@@ -22,7 +22,10 @@ export interface ConnectDashboardOptions {
   onPairingCode?: (code: string) => void
   /** Called with the new host token after pairing. Save it to skip pairing next time. */
   onToken?: (token: string) => void
-  /** Called when the dashboard refuses the host token and `onPairingCode` is not set. The connection stops. */
+  /**
+   * Called when the dashboard refuses the host token and `onPairingCode` is not set. The connection stops.
+   * Also called when the host fails to handle a frame from the dashboard, for example when a thread does not open. The connection stays.
+   */
   onError?: (error: Error) => void
   fetch?: typeof fetch
   /** Wait between reconnects, doubled up to 30 s. Default 1000 ms. */
@@ -196,6 +199,7 @@ export async function connectDashboard(options: ConnectDashboardOptions) {
       ) {
         await post('/api/host/frames', {
           threadId,
+          harness: options.harness.name,
           frames: [
             {
               type: 'harness.receipt',
@@ -217,6 +221,7 @@ export async function connectDashboard(options: ConnectDashboardOptions) {
         )
         await post('/api/host/frames', {
           threadId,
+          harness: options.harness.name,
           frames: [
             { type: 'harness.receipt', requestId: frame.requestId, ...receipt },
           ],
@@ -224,6 +229,7 @@ export async function connectDashboard(options: ConnectDashboardOptions) {
       } catch (error) {
         await post('/api/host/frames', {
           threadId,
+          harness: options.harness.name,
           frames: [
             {
               type: 'harness.error',
@@ -248,7 +254,14 @@ export async function connectDashboard(options: ConnectDashboardOptions) {
           await hello()
         } else {
           delay = options.reconnectDelayMs ?? 1000
-          for await (const envelope of sseData(response)) void handle(envelope)
+          for await (const envelope of sseData(response)) {
+            // A frame that fails does not stop the host. Report it.
+            void handle(envelope).catch((error: unknown) =>
+              options.onError?.(
+                error instanceof Error ? error : new Error(String(error)),
+              ),
+            )
+          }
         }
       } catch {
         if (stopped.signal.aborted) return
