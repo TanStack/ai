@@ -453,6 +453,7 @@ describe('a host and a principal', () => {
         name: 'test/serve-principal',
         adapter: scripted([]).adapter,
         plugins: () => [providerKeys({ providers: [acme] })],
+        expose: { commands: ['connect:acme'] },
       }),
       port: 0,
       hostname: '127.0.0.1',

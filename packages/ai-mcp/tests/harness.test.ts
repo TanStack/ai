@@ -425,7 +425,16 @@ async function harnessServer(
     adapter: model.adapter,
     tools: [remove, pickColor],
     agents: [pricer, broken, waiter],
-    expose: { agents: ['pricer', 'broken', 'waiter'] },
+    expose: {
+      agents: ['pricer', 'broken', 'waiter'],
+      commands: [
+        'confirm',
+        'connect:notion',
+        'fail',
+        'greet',
+        'release/v2.1-beta',
+      ],
+    },
     plugins: () => [commands],
     ...(reviewer === undefined
       ? {}
@@ -483,7 +492,7 @@ async function connect(
 }
 
 describe('createHarnessMcpServer', () => {
-  it('lists the control tools, one tool per exposed agent, and one per command', async () => {
+  it('lists the control tools, one tool per exposed agent, and one per exposed command', async () => {
     const { server } = await harnessServer([])
     const { client } = await connect(server)
 
@@ -555,6 +564,7 @@ describe('createHarnessMcpServer', () => {
         name: 'test/clash',
         adapter: scripted([]).adapter,
         plugins: () => [clashing],
+        expose: { commands: ['connect_notion', 'connect:notion'] },
       }),
     )
     const { client } = await connect(server)
@@ -586,6 +596,55 @@ describe('createHarnessMcpServer', () => {
       arguments: {},
     })
     expect(suffixed.content).toEqual([{ type: 'text', text: 'New flow.' }])
+  })
+
+  it('lists and runs only the commands in expose.commands', async () => {
+    const modes: Array<string> = []
+    const permissions = definePlugin({
+      name: 'test/permissions',
+      setup: () => ({
+        commands: {
+          mode: defineCommand({
+            description: 'Set the permission mode',
+            input: z.object({ mode: z.string() }),
+            run: (input) => {
+              modes.push(input.mode)
+              return `Mode: ${input.mode}.`
+            },
+          }),
+          undo: defineCommand({
+            description: 'Undo the last change',
+            run: () => 'Undone.',
+          }),
+        },
+      }),
+    })
+    const { server } = await serve(
+      defineHarness({
+        name: 'test/expose-commands',
+        adapter: scripted([]).adapter,
+        plugins: () => [permissions],
+        expose: { commands: ['undo'] },
+      }),
+    )
+    const { client } = await connect(server)
+
+    const listed = await client.listTools()
+    const commandTools = listed.tools
+      .map((tool) => tool.name)
+      .filter((name) => name.startsWith('command_'))
+    expect(commandTools).toEqual(['command_undo'])
+
+    await expect(
+      client.callTool({ name: 'command_mode', arguments: { mode: 'bypass' } }),
+    ).rejects.toThrow('Tool command_mode not found')
+    expect(modes).toEqual([])
+
+    const undone = await client.callTool({
+      name: 'command_undo',
+      arguments: {},
+    })
+    expect(undone.content).toEqual([{ type: 'text', text: 'Undone.' }])
   })
 
   it.each([

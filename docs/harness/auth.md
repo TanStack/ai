@@ -96,6 +96,8 @@ export const assistant = defineHarness({
   name: 'acme/assistant',
   adapter: openaiText('gpt-5.6'),
   plugins: () => [github],
+  // A web app starts the sign-in with this command.
+  expose: { commands: ['connect:github'] },
 })
 ```
 
@@ -111,7 +113,7 @@ When the credential is missing, the turn stops with an interrupt:
 - `wait` is for a tool of the running chat turn. Do not pass it in a command, a background agent, or a hook. The credentials of a command never wait.
 - Provider keys (`ctx.keys.require`) do not wait.
 
-In a web app, the wait shows in `state.signIns` of the session view, also after a reload. When the user presses your connect button, run the connector command:
+In a web app, the wait shows in `state.signIns` of the session view, also after a reload. When the user presses your connect button, run the connector command. A client can run only the commands in `expose.commands`, so the harness above exposes `connect:github` (see [Choose what clients can change](./connect#choose-what-clients-can-change)):
 
 ```ts group=harness-auth-wait-client
 import { createHarnessClient } from '@tanstack/ai-harness/client'

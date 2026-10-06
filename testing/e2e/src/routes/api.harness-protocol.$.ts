@@ -120,7 +120,14 @@ function harnessFor(request: Request) {
         run: async (ctx) => ctx.input.text,
       }),
     ],
-    expose: { agents: ['echo'], settings: ['model', 'instructions'] },
+    // `mode` of `permissions()` stays on the server, so a client cannot pick
+    // `bypass`.
+    expose: {
+      agents: ['echo'],
+      settings: ['model', 'instructions'],
+      config: ['tone'],
+      commands: ['greet'],
+    },
     plugins: () => [
       ...asks,
       todos(),

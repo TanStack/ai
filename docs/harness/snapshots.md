@@ -55,7 +55,7 @@ process.exitCode = await runCli(coder)
 - The snapshots skip the files that `.gitignore` names, like `node_modules`. `/undo` does not touch them.
 - A new turn clears `/redo`.
 
-In your own UI, call `client.command('undo')`. The result text arrives as a `harness.command.result` event.
+In your own UI, add `expose: { commands: ['undo', 'redo'] }` to `defineHarness`. A client can run only the commands that the harness exposes (see [Choose what clients can change](./connect#choose-what-clients-can-change)). Then call `client.command('undo')`. The result text arrives as a `harness.command.result` event.
 
 ## See what a step changed
 

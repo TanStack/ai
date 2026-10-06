@@ -52,7 +52,7 @@ process.exitCode = await runCli(coder)
 - `/agent` alone shows the current agent and the list: `Agent: build. Agents: build, plan.`
 - A switch applies at the next turn.
 
-A client changes the `agent` setting. The [session view](./custom-ui) lists its options for a menu:
+A client can change the `agent` setting when the harness exposes it. Add `expose: { config: ['agent'] }` to `defineHarness` (see [Choose what clients can change](./connect#choose-what-clients-can-change)). The [session view](./custom-ui) lists the options for a menu:
 
 ```ts group=harness-agents-client
 import { createHarnessClient } from '@tanstack/ai-harness/client'

@@ -95,6 +95,32 @@ test.describe('harness protocol', () => {
     expect(command.operationId).toMatch(/^op-command-/)
   })
 
+  test('refuses a command and a config key that the harness does not expose', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    // `x-harness-permissions: 1` adds `permissions()`, so `mode` exists.
+    const control = async (input: unknown) =>
+      (
+        await request.post('/api/harness-protocol/control', {
+          headers: {
+            ...headers(testId, aimockPort),
+            'x-harness-permissions': '1',
+            'content-type': 'application/json',
+          },
+          data: { threadId: `expose-${testId}`, input },
+        })
+      ).json()
+
+    expect(
+      await control({ op: 'command', name: 'mode', input: 'bypass' }),
+    ).toMatchObject({ status: 'rejected', reason: 'not_exposed' })
+    expect(
+      await control({ op: 'config', key: 'mode', value: 'bypass' }),
+    ).toMatchObject({ status: 'rejected', reason: 'not_exposed' })
+  })
+
   test('runs a retried prompt with the same inputId once on a durable host', async ({
     request,
     testId,
