@@ -18,6 +18,7 @@ there is no separate enable list.
 | `blobs` | File bytes. Needs `artifacts`. | `withGenerationPersistence`, portable snapshots |
 | `log` | Append-only session log per thread. | Durable harness hosts, with `runs` or `leases` |
 | `leases` | Leases for harness turns, from a system that already has them. | Durable harness hosts, instead of `runs` |
+| `workClaims` | Claims on threads that have pending work. | Harness hosts, for `host.resumePending` |
 
 Named groupings of the chat stores (`ChatTranscriptStores`, `ChatPersistenceStores`,
 `ChatWithInterruptsStores`) are covered in [Controls](./controls).
@@ -680,6 +681,103 @@ function createMemoryLeases(): LeaseStore {
 To wire `leases` into a host, and to set `lease.renewMs` and `lease.ttlMs`, see
 [Use your own leases](../harness/durable-sessions#use-your-own-leases).
 
+## WorkClaimStore
+
+A harness host claims a thread while the thread has work, and renews the claim. When
+the host stops, the claim expires. Another host's `resumePending` sweep finds the
+thread with `listExpired` and takes it over with `claim`. `WorkClaimStore` stores
+these claims.
+
+```ts
+interface WorkClaimStore {
+  claim(entry: {
+    threadId: string
+    harness: string // the harness name, so a sweep can open the thread
+    ownerId: string // the host that holds the claim
+    until: number // epoch ms
+  }): Promise<boolean>
+  release(threadId: string, ownerId: string): Promise<void>
+  listExpired(options: {
+    now: number // epoch ms
+    limit?: number
+  }): Promise<Array<{ threadId: string; harness: string }>>
+}
+```
+
+Rules for an implementation:
+
+- `claim` is atomic. Two callers never both get `true` for one thread at one moment.
+- `claim` returns `true` and sets `until` when nobody holds the thread, when
+  `ownerId` already holds it (a renewal), or when the claim expired (a takeover).
+- `claim` returns `false` while another owner holds a claim that has not expired.
+- `release` removes the claim only for its owner. For another `ownerId`, it does
+  nothing.
+- `listExpired` returns the claims that expired before `now`, oldest first, at most
+  `limit`. Without `limit`, it returns all of them.
+
+In SQL, one row per thread and a conditional upsert give the atomic rule. The `WHERE`
+clause refuses a live claim of another owner:
+
+```sql
+CREATE TABLE harness_work_claims (
+  thread_id TEXT PRIMARY KEY,
+  harness TEXT NOT NULL,
+  owner_id TEXT NOT NULL,
+  until INTEGER NOT NULL
+);
+
+INSERT INTO harness_work_claims (thread_id, harness, owner_id, until)
+VALUES (:thread_id, :harness, :owner_id, :until)
+ON CONFLICT (thread_id) DO UPDATE
+  SET harness = excluded.harness, owner_id = excluded.owner_id, until = excluded.until
+  WHERE harness_work_claims.owner_id = excluded.owner_id
+     OR harness_work_claims.until <= :now;
+```
+
+The claim is `true` when the statement wrote one row. An index on `until` keeps
+`listExpired` fast.
+
+`defineWorkClaimStore` types an implementation inline:
+
+```ts
+import { defineWorkClaimStore } from '@tanstack/ai-persistence'
+
+type Claim = { threadId: string; harness: string; ownerId: string; until: number }
+
+// One process only. Swap the Map for your database.
+const claims = new Map<string, Claim>()
+
+const workClaims = defineWorkClaimStore({
+  claim: async (entry) => {
+    const held = claims.get(entry.threadId)
+    if (held && held.ownerId !== entry.ownerId && held.until > Date.now()) {
+      return false
+    }
+    claims.set(entry.threadId, { ...entry })
+    return true
+  },
+  release: async (threadId, ownerId) => {
+    if (claims.get(threadId)?.ownerId === ownerId) claims.delete(threadId)
+  },
+  listExpired: async ({ now, limit }) =>
+    [...claims.values()]
+      .filter((claim) => claim.until <= now)
+      .sort((a, b) => a.until - b.until)
+      .slice(0, limit)
+      .map(({ threadId, harness }) => ({ threadId, harness })),
+})
+```
+
+`memoryPersistence()` includes a memory `workClaims` store like this one. It does not
+survive a restart.
+
+The conformance suite has `workClaims` cases: renew, refuse, release by the owner,
+one winner of two concurrent claims, and `listExpired` order, limit, and takeover. The
+cases are opt-in. A backend without `workClaims` skips them, and needs no `skip` entry.
+
+To run the sweep, see
+[Resume pending work after a deploy](../harness/durable-sessions#resume-pending-work-after-a-deploy).
+
 ## How the records relate
 
 The thread is not a table of its own: it exists as the `thread_id` the other records
@@ -737,12 +835,12 @@ erDiagram
 
 Each store has a `define*Store` helper (`defineMessageStore`, `defineRunStore`,
 `defineInterruptStore`, `defineMetadataStore`, `defineGenerationRunStore`,
-`defineArtifactStore`, `defineBlobStore`, `defineLogStore`). They compose into
+`defineArtifactStore`, `defineBlobStore`, `defineLogStore`, `defineWorkClaimStore`). They compose into
 `defineAIPersistence`, which tracks exact presence: the stores you passed autocomplete
 on `persistence.stores`, and reading one you did not pass is a compile error.
 
 The keys in the table at the top are the only ones `stores` accepts, together with the
-harness keys `inbox`, `credentials`, `log`, and `leases`. Anything else throws
+harness keys `inbox`, `credentials`, `log`, `leases`, and `workClaims`. Anything else throws
 `Unknown AIPersistence store key` at construction.
 
 To annotate the value instead, use a named shape:

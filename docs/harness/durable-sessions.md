@@ -75,6 +75,82 @@ A background agent that you started with `resume: true` runs again on the next h
 
 `durability.recover` does not run for background agents.
 
+## Resume pending work after a deploy
+
+A host recovers a thread when something opens it. After a deploy, nobody opens a thread whose user closed the tab, so its queued turn or background agent waits. Give the host `stores.workClaims`, then call `host.resumePending` to find that work and run it.
+
+Add `workClaims` to the stores of every replica:
+
+```ts group=harness-durable
+const claimStores = memoryPersistence().stores
+
+const sweeper = createHarnessHost({
+  persistence: {
+    stores: {
+      log: memoryLogStore(),
+      runs: claimStores.runs,
+      metadata: claimStores.metadata,
+      workClaims: claimStores.workClaims,
+    },
+  },
+})
+```
+
+Call `resumePending` once when the server starts:
+
+```ts group=harness-durable
+const opened = await sweeper.resumePending({ harnesses: [assistant] })
+console.log(`Resumed ${opened.length} threads`, opened)
+```
+
+Call it again on a timer, from a cron route or a Durable Object alarm. Then a replica that stops while the others keep running does not leave work behind:
+
+```ts group=harness-durable
+export async function GET() {
+  const resumed = await sweeper.resumePending({
+    harnesses: [assistant],
+    limit: 50,
+  })
+  return Response.json({ resumed })
+}
+```
+
+`memoryPersistence()` includes a memory `workClaims` store. It does not survive a restart. To keep claims in your database, implement the [`WorkClaimStore` contract](../persistence/store-reference#workclaimstore). This is server-side only. Clients do nothing for it.
+
+### When a thread holds a claim
+
+The session claims its thread for its host when the thread gets work:
+
+- An input that leaves work: `prompt`, `steer`, `followUp`, `resolve`, `reset`, or an `agent` input.
+- A queued turn that the session recovers.
+- A background agent run.
+
+The session renews the claim on the lease timer: every `lease.renewMs`, for `lease.ttlMs`. See [One host drives a thread](#one-host-drives-a-thread) to set them.
+
+The session gives the claim back when the thread is idle: no queued or running turn, no waiting steer, and no running agent. A thread that waits for a human (an approval or a sign-in) is idle, so a sweep never takes it.
+
+### What a sweep does
+
+`host.resumePending({ harnesses, close, limit })`:
+
+1. Reads the expired claims, oldest first. It reads at most `limit` claims. The default is 100.
+2. Skips a thread whose harness is not in `harnesses`. That claim stays listed and counts against `limit`, so pass every harness that the host serves.
+3. Claims each thread with compare-and-set. If two hosts sweep at the same time, each thread goes to one of them.
+4. Opens the thread. The recovery steps in [What happens after a crash](#what-happens-after-a-crash) run its pending work.
+
+It resolves with the threads that it opened, as `{ threadId, harness }` entries. Without `stores.workClaims`, it throws.
+
+The `close` option sets what happens to a session that the sweep opened:
+
+- `'whenIdle'` (default): the session closes when its work ends. If the app opened the same thread too, the session stays open.
+- `'never'`: the session stays open, like any session that you open.
+
+### Watch for claim warnings
+
+A failed claim or release write does not fail the work. The session publishes a `harness.plugin.warning` custom event with `plugin: 'harness:work-claims'` and the error message. Without that claim, a sweep cannot find the work after a crash. Watch for this event to find these threads.
+
+A known limit: if this host already has the thread open, the sweep claims it, but the session does not recover again. The claim expires, and a later sweep finds the thread.
+
 ## Retry model errors
 
 A model call can fail for a short time: a 429, a 5xx, an overloaded provider, or a network error. Add `retryTransientErrors()` to run the model again in the same turn, after a backoff:
@@ -200,7 +276,7 @@ For the full contract, see [`LeaseStore`](../persistence/store-reference#leasest
 
 ## What you have now
 
-- Turns that continue after a crash or a deploy, from the session log.
+- Turns that continue after a crash or a deploy, from the session log, also on threads that nobody opens again.
 - A turn that stops after `maxAttempts` or `timeoutMs`, with a clear error code.
 - Tools that either run again safely or tell the model to check first.
 - A turn that retries a short model error by itself.
