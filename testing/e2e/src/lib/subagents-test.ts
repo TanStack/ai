@@ -24,6 +24,7 @@ export type SubagentScenario =
   | 'tool'
   | 'brief'
   | 'result'
+  | 'session'
 
 /** The user message for each scenario. It matches `fixtures/subagents`. */
 export const SUBAGENT_PROMPTS: Record<SubagentScenario, string> = {
@@ -32,6 +33,7 @@ export const SUBAGENT_PROMPTS: Record<SubagentScenario, string> = {
   tool: '[subagent-tool] research squids',
   brief: '[subagent-brief] compare squid facts',
   result: '[subagent-result] price vendor a',
+  session: '[subagent-session] take squid notes',
 }
 
 export function isSubagentScenario(value: unknown): value is SubagentScenario {
@@ -40,6 +42,7 @@ export function isSubagentScenario(value: unknown): value is SubagentScenario {
     value === 'approval' ||
     value === 'tool' ||
     value === 'brief' ||
-    value === 'result'
+    value === 'result' ||
+    value === 'session'
   )
 }
