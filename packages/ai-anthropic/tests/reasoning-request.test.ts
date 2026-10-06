@@ -223,6 +223,65 @@ describe('Anthropic reasoning from the config', () => {
     expect(body).not.toHaveProperty('output_config')
   })
 
+  // The configs below are `modelReasoning(record)` of the catalog records
+  // (`@tanstack/ai-models` tests that part).
+  it('adaptive: true gives adaptive thinking to a dot id (Vercel anthropic/claude-opus-4.7)', async () => {
+    const body = await sendWith(
+      'anthropic/claude-opus-4.7',
+      { map: { ...effortMap, off: 'none' }, budget: true, adaptive: true },
+      on('high'),
+    )
+    expect(body.thinking).toEqual({ type: 'adaptive', display: 'summarized' })
+    expect(body.output_config).toEqual({ effort: 'high' })
+  })
+
+  it('adaptive: false gives budget thinking to older Claude (OpenRouter anthropic/claude-sonnet-4.5)', async () => {
+    const body = await sendWith(
+      'anthropic/claude-sonnet-4.5',
+      {
+        map: {
+          off: 'off',
+          minimal: null,
+          low: null,
+          medium: null,
+          high: 'high',
+        },
+        budget: false,
+        adaptive: false,
+      },
+      on('high'),
+    )
+    expect(body.thinking).toEqual({ type: 'enabled', budget_tokens: 16384 })
+    expect(body).not.toHaveProperty('output_config')
+  })
+
+  it('adaptive: false gives budget thinking to another model on the wire (Vercel openai/gpt-5)', async () => {
+    const body = await sendWith(
+      'openai/gpt-5',
+      {
+        map: { ...effortMap, minimal: 'minimal' },
+        budget: false,
+        adaptive: false,
+      },
+      on('medium'),
+    )
+    expect(body.thinking).toEqual({ type: 'enabled', budget_tokens: 8192 })
+    expect(body).not.toHaveProperty('output_config')
+  })
+
+  it("adaptive thinking without a map sends pi's default effort", async () => {
+    const config: ModelReasoning = { budget: false, adaptive: true }
+    const effort = async (level: ReasoningRequest['level']) =>
+      (await sendWith('kimi-for-coding-highspeed', config, on(level)))
+        .output_config
+    expect(await effort('minimal')).toEqual({ effort: 'low' })
+    expect(await effort('low')).toEqual({ effort: 'low' })
+    expect(await effort('medium')).toEqual({ effort: 'medium' })
+    expect(await effort('high')).toEqual({ effort: 'high' })
+    // No map: xhigh and max clamp to high.
+    expect(await effort('max')).toEqual({ effort: 'high' })
+  })
+
   it('clamps the level with the config, not with the table', async () => {
     // The table gives claude-opus-4-5 low, medium, and high with a budget.
     // This config has only high and max, and no budget.

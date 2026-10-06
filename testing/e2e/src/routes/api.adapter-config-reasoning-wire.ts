@@ -8,18 +8,49 @@ const DUMMY_KEY = 'sk-ant-e2e-test-dummy-key'
 /** A gateway id that the Anthropic adapter does not list. */
 const GATEWAY_MODEL = 'anthropic/claude-sonnet-4.6'
 
-/** The reasoning data of its catalog record (budget thinking). */
-const RECORD_REASONING: ModelReasoning = {
-  map: { minimal: null, xhigh: null, max: 'max' },
-  budget: true,
-}
+/**
+ * Model ids and the reasoning data of their catalog records
+ * (`modelReasoning(record)` of `@tanstack/ai-models`).
+ */
+const CASES: Array<{ model: string; reasoning: ModelReasoning }> = [
+  // Vercel AI Gateway: Claude 4.6 thinks adaptively.
+  {
+    model: GATEWAY_MODEL,
+    reasoning: {
+      map: { off: 'none', minimal: null, xhigh: null, max: 'max' },
+      budget: true,
+      adaptive: true,
+    },
+  },
+  // Vercel AI Gateway: a model of another vendor thinks with a budget.
+  {
+    model: 'openai/gpt-5',
+    reasoning: {
+      map: { off: null, xhigh: null, max: null },
+      budget: false,
+      adaptive: false,
+    },
+  },
+  // OpenRouter: mid-conversation effort.
+  {
+    model: 'anthropic/claude-opus-5.5',
+    reasoning: {
+      map: { off: null, minimal: null, xhigh: 'xhigh', max: 'max' },
+      budget: false,
+      adaptive: true,
+      midConversationEffort: true,
+    },
+  },
+  // `reasoning: false`: no thinking field.
+  { model: GATEWAY_MODEL, reasoning: false },
+]
 
 /**
  * Wire-format verification for the `reasoning` config of an adapter.
  *
- * The route runs `chat({ reasoning: 'high' })` two times on a model id that
- * the Anthropic adapter does not list: once with the record's reasoning data
- * in the config, once with `reasoning: false`. A custom `fetch` records each
+ * The route runs `chat({ reasoning: 'high' })` once for each of `CASES`:
+ * model ids that the Anthropic adapter does not list, with the reasoning
+ * data of their records in the config. A custom `fetch` records each
  * Messages request and answers with a synthetic Claude stream, the same
  * approach as `api.anthropic-sonnet-5-5-wire.ts`.
  */
@@ -77,6 +108,7 @@ export const Route = createFileRoute('/api/adapter-config-reasoning-wire')({
     handlers: {
       POST: async () => {
         const capturedRequests: Array<Record<string, unknown> | null> = []
+        const capturedBetas: Array<string | null> = []
 
         /** Records the outgoing request and answers with the synthetic stream. */
         const capturingFetch: typeof fetch = async (input, init) => {
@@ -86,6 +118,7 @@ export const Route = createFileRoute('/api/adapter-config-reasoning-wire')({
           capturedRequests.push(
             rawBody ? (JSON.parse(rawBody) as Record<string, unknown>) : null,
           )
+          capturedBetas.push(req.headers.get('anthropic-beta'))
           return new Response(makeSyntheticAnthropicStream(), {
             status: 200,
             headers: {
@@ -96,34 +129,31 @@ export const Route = createFileRoute('/api/adapter-config-reasoning-wire')({
         }
 
         try {
-          for await (const _ of chat({
-            adapter: createAnthropicChat(GATEWAY_MODEL, DUMMY_KEY, {
-              fetch: capturingFetch,
-              reasoning: RECORD_REASONING,
-            }),
-            messages: [{ role: 'user', content: '[config-reasoning] plan it' }],
-            reasoning: 'high',
-          })) {
-            // Drain the stream.
-          }
-          for await (const _ of chat({
-            adapter: createAnthropicChat(GATEWAY_MODEL, DUMMY_KEY, {
-              fetch: capturingFetch,
-              reasoning: false,
-            }),
-            messages: [{ role: 'user', content: '[config-reasoning] plan it' }],
-          })) {
-            // Drain the stream.
+          for (const { model, reasoning } of CASES) {
+            for await (const _ of chat({
+              adapter: createAnthropicChat(model, DUMMY_KEY, {
+                fetch: capturingFetch,
+                reasoning,
+              }),
+              messages: [
+                { role: 'user', content: '[config-reasoning] plan it' },
+              ],
+              reasoning: 'high',
+              promptCache: 'none',
+            })) {
+              // Drain the stream.
+            }
           }
         } catch (error) {
           return Response.json({
             ok: false,
             error: error instanceof Error ? error.message : String(error),
             capturedRequests,
+            capturedBetas,
           })
         }
 
-        return Response.json({ ok: true, capturedRequests })
+        return Response.json({ ok: true, capturedRequests, capturedBetas })
       },
     },
   },

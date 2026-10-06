@@ -210,6 +210,12 @@ export const REASONING_TARGETS: ReadonlyArray<ReasoningTarget> = [
     constPrefix: 'VERCEL_GATEWAY',
     sources: ['vercel'],
     gateway: 'vercel',
+    overrides: {
+      // models.dev lists no reasoning for it at Vercel. Vercel's own model
+      // list tags it `reasoning`, and Google, OpenRouter, and pi 0.87.1 list
+      // it (also in `packages/ai-models/scripts/overrides.ts`).
+      'google/gemma-4-31b-it': { budget: false },
+    },
   },
   {
     pkg: 'ai-claude-code',

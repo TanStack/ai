@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-ollaya",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Ollaya adapter for TanStack AI — typed evaluate decisions against a local Ollaya / laya decision server.",
   "author": "Tanner Linsley",
   "license": "MIT",

@@ -52,7 +52,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.22, output: 0.88, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 262144,
     maxTokens: 16384,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'alibaba/qwen-3-30b',
@@ -696,7 +696,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 2, output: 6, cacheRead: 0.25, cacheWrite: 0 },
     contextWindow: 262144,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'alibaba/qwen3.8-27b',
@@ -718,7 +718,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.5, output: 3, cacheRead: 0.1, cacheWrite: 0.625 },
     contextWindow: 1000000,
     maxTokens: 131072,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'alibaba/qwen3.8-flash',
@@ -832,7 +832,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.15, output: 0.47, cacheRead: 0.016, cacheWrite: 0 },
     contextWindow: 1000000,
     maxTokens: 131072,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'amazon/nova-2-lite',
@@ -854,7 +854,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.3, output: 2.5, cacheRead: 0.075, cacheWrite: 0 },
     contextWindow: 1000000,
     maxTokens: 65535,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'amazon/nova-lite',
@@ -942,7 +942,11 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 10, output: 50, cacheRead: 1, cacheWrite: 12.5 },
     contextWindow: 1000000,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true, supportsTemperature: false },
+    compat: {
+      allowEmptySignature: true,
+      supportsTemperature: false,
+      forceAdaptiveThinking: true,
+    },
   },
   {
     id: 'anthropic/claude-fable-5.1',
@@ -965,7 +969,11 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 10, output: 50, cacheRead: 0.25, cacheWrite: 12.5 },
     contextWindow: 1000000,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true, supportsTemperature: false },
+    compat: {
+      allowEmptySignature: true,
+      supportsTemperature: false,
+      forceAdaptiveThinking: true,
+    },
   },
   {
     id: 'anthropic/claude-haiku-4.5',
@@ -1053,7 +1061,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
     contextWindow: 1000000,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true },
+    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
   },
   {
     id: 'anthropic/claude-opus-4.7',
@@ -1076,7 +1084,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
     contextWindow: 1000000,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true },
+    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
   },
   {
     id: 'anthropic/claude-opus-4.8',
@@ -1099,7 +1107,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
     contextWindow: 1000000,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true },
+    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
   },
   {
     id: 'anthropic/claude-opus-4.8-fast',
@@ -1122,7 +1130,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 10, output: 50, cacheRead: 1, cacheWrite: 12.5 },
     contextWindow: 1000000,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true },
+    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
   },
   {
     id: 'anthropic/claude-opus-5',
@@ -1145,7 +1153,11 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
     contextWindow: 1000000,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true, supportsTemperature: false },
+    compat: {
+      allowEmptySignature: true,
+      supportsTemperature: false,
+      forceAdaptiveThinking: true,
+    },
   },
   {
     id: 'anthropic/claude-opus-5-fast',
@@ -1168,7 +1180,11 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 10, output: 50, cacheRead: 1, cacheWrite: 12.5 },
     contextWindow: 1000000,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true, supportsTemperature: false },
+    compat: {
+      allowEmptySignature: true,
+      supportsTemperature: false,
+      forceAdaptiveThinking: true,
+    },
   },
   {
     id: 'anthropic/claude-opus-5.5',
@@ -1306,7 +1322,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
     contextWindow: 1000000,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true },
+    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
   },
   {
     id: 'anthropic/claude-sonnet-5',
@@ -1329,7 +1345,11 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5 },
     contextWindow: 1000000,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true, supportsTemperature: false },
+    compat: {
+      allowEmptySignature: true,
+      supportsTemperature: false,
+      forceAdaptiveThinking: true,
+    },
   },
   {
     id: 'anthropic/claude-sonnet-5.5',
@@ -1377,7 +1397,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.25, output: 0.9, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 262100,
     maxTokens: 80000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'bytedance/seed-1.6',
@@ -1447,7 +1467,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
     contextWindow: 256000,
     maxTokens: 32768,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'bytedance/seed-2.1-turbo',
@@ -1469,7 +1489,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.5, output: 2.5, cacheRead: 0.1, cacheWrite: 0 },
     contextWindow: 262144,
     maxTokens: 262144,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'cohere/command-a',
@@ -1595,7 +1615,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.25, output: 0.95, cacheRead: 0.13, cacheWrite: 0 },
     contextWindow: 163840,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'deepseek/deepseek-v3.1-terminus',
@@ -1617,7 +1637,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.27, output: 1, cacheRead: 0.135, cacheWrite: 0 },
     contextWindow: 131072,
     maxTokens: 32768,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'deepseek/deepseek-v3.2',
@@ -1652,7 +1672,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.62, output: 1.85, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 128000,
     maxTokens: 8000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'deepseek/deepseek-v4-flash',
@@ -1674,7 +1694,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.13, output: 0.26, cacheRead: 0.028, cacheWrite: 0 },
     contextWindow: 1000000,
     maxTokens: 384000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'deepseek/deepseek-v4-flash-0731',
@@ -1696,7 +1716,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.076, output: 0.153, cacheRead: 0.014, cacheWrite: 0 },
     contextWindow: 1000000,
     maxTokens: 384000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'deepseek/deepseek-v4-flash-vision-exp',
@@ -1718,7 +1738,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.2156, output: 0.6468, cacheRead: 0.0068, cacheWrite: 0 },
     contextWindow: 1048576,
     maxTokens: 1048576,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'deepseek/deepseek-v4-pro',
@@ -1740,7 +1760,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.66, output: 1.98, cacheRead: 0.022, cacheWrite: 0 },
     contextWindow: 1000000,
     maxTokens: 384000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'deepseek/deepseek-v4-pro-0813',
@@ -1762,7 +1782,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.66, output: 1.98, cacheRead: 0.066, cacheWrite: 0 },
     contextWindow: 1000000,
     maxTokens: 384000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'deepseek/deepseek-v4.1-flash',
@@ -1784,7 +1804,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.3, output: 1.2, cacheRead: 0.007, cacheWrite: 0 },
     contextWindow: 1048576,
     maxTokens: 32768,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'deepseek/deepseek-v4.1-flash-fast',
@@ -1806,7 +1826,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.3, output: 1.2, cacheRead: 0.006, cacheWrite: 0 },
     contextWindow: 1048576,
     maxTokens: 1000000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'fireworks/ember-1',
@@ -1949,7 +1969,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.5, output: 3, cacheRead: 0.05, cacheWrite: 0 },
     contextWindow: 1000000,
     maxTokens: 65000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'google/gemini-3-pro-image',
@@ -1984,7 +2004,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.5, output: 3, cacheRead: 0.05, cacheWrite: 0 },
     contextWindow: 131072,
     maxTokens: 32768,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'google/gemini-3.1-flash-image-preview',
@@ -2006,7 +2026,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.5, output: 3, cacheRead: 0.05, cacheWrite: 0 },
     contextWindow: 131072,
     maxTokens: 32768,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'google/gemini-3.1-flash-lite',
@@ -2028,7 +2048,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.25, output: 1.5, cacheRead: 0.03, cacheWrite: 0 },
     contextWindow: 1000000,
     maxTokens: 65000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'google/gemini-3.1-flash-lite-image',
@@ -2050,7 +2070,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.25, output: 1.5, cacheRead: 0.03, cacheWrite: 0 },
     contextWindow: 65536,
     maxTokens: 4096,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'google/gemini-3.1-pro-preview',
@@ -2086,7 +2106,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
     contextWindow: 1000000,
     maxTokens: 64000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'google/gemini-3.5-flash',
@@ -2108,7 +2128,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 1.5, output: 9, cacheRead: 0.15, cacheWrite: 0 },
     contextWindow: 1000000,
     maxTokens: 64000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'google/gemini-3.5-flash-lite',
@@ -2130,7 +2150,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.3, output: 2.5, cacheRead: 0.03, cacheWrite: 0 },
     contextWindow: 1000000,
     maxTokens: 65000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'google/gemini-3.5-transcribe',
@@ -2178,7 +2198,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.75, output: 3.75, cacheRead: 0.075, cacheWrite: 0 },
     contextWindow: 1000000,
     maxTokens: 64000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'google/gemini-3.7-flash',
@@ -2200,7 +2220,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.75, output: 3.75, cacheRead: 0.075, cacheWrite: 0 },
     contextWindow: 1000000,
     maxTokens: 65535,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'google/gemini-3.8-flash',
@@ -2222,7 +2242,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.75, output: 3.75, cacheRead: 0.075, cacheWrite: 0 },
     contextWindow: 1000000,
     maxTokens: 65535,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'google/gemini-3.8-live',
@@ -2296,7 +2316,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 1.5, output: 9, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 1000000,
     maxTokens: 57920,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'google/gemma-4-26b-a4b-it',
@@ -2318,7 +2338,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     api: 'anthropic-messages',
     baseUrl: 'https://ai-gateway.vercel.sh',
     input: ['text', 'image', 'document'],
-    reasoning: false,
+    reasoning: true,
     cost: { input: 0.14, output: 0.4, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 262144,
     maxTokens: 131072,
@@ -2375,7 +2395,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
     contextWindow: 128000,
     maxTokens: 50000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'inception/mercury-2.5',
@@ -2397,7 +2417,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.04, output: 0.15, cacheRead: 0.004, cacheWrite: 0 },
     contextWindow: 260000,
     maxTokens: 65536,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'inception/mercury-coder-small',
@@ -2472,7 +2492,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.075, output: 0.22, cacheRead: 0.015, cacheWrite: 0 },
     contextWindow: 262144,
     maxTokens: 235929,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
     borrowedFrom: 'kilo/inclusionai/ling-3.0-flash-fin',
   },
   {
@@ -2495,7 +2515,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 256000,
     maxTokens: 32000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'inclusionai/ling-3.0-flash-sante-free',
@@ -2517,7 +2537,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 256000,
     maxTokens: 32000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'inclusionai/ling-3.0-flash-vl',
@@ -2559,7 +2579,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.06, output: 0.18, cacheRead: 0.012, cacheWrite: 0 },
     contextWindow: 262144,
     maxTokens: 32768,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
     borrowedFrom: 'nano-gpt/inclusionai/ling-3.0-flash-vl',
   },
   {
@@ -2582,7 +2602,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 262144,
     maxTokens: 32768,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'inclusionai/ling-3.1-flash-free',
@@ -2604,7 +2624,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 262144,
     maxTokens: 32768,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'inference-net/schematron-v2-small',
@@ -2652,7 +2672,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 1.5, output: 3.5, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 1000000,
     maxTokens: 32000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'liquid/d1',
@@ -2772,7 +2792,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.35, output: 1.5, cacheRead: 0.04, cacheWrite: 0 },
     contextWindow: 131072,
     maxTokens: 131072,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'meta/muse-spark-1.1',
@@ -2794,7 +2814,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 1.25, output: 4.25, cacheRead: 0.15, cacheWrite: 0 },
     contextWindow: 1048576,
     maxTokens: 1048576,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'meta/muse-spark-1.2',
@@ -2816,7 +2836,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 1.25, output: 4.25, cacheRead: 0.15, cacheWrite: 0 },
     contextWindow: 1048576,
     maxTokens: 1048576,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'meta/muse-spark-1.2-contributor',
@@ -2838,7 +2858,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.1, output: 0.2, cacheRead: 0.002, cacheWrite: 0 },
     contextWindow: 1048576,
     maxTokens: 1048576,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'meta/muse-spark-1.3',
@@ -2860,7 +2880,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 1.25, output: 4.25, cacheRead: 0.15, cacheWrite: 0 },
     contextWindow: 1048576,
     maxTokens: 1048576,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'meta/muse-spark-1.3-contributor',
@@ -2882,7 +2902,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.1, output: 0.2, cacheRead: 0.002, cacheWrite: 0 },
     contextWindow: 1048576,
     maxTokens: 1048576,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'microsoft/mai-transcribe-1.5',
@@ -3146,7 +3166,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 1.5, output: 7.5, cacheRead: 0.15, cacheWrite: 0 },
     contextWindow: 262144,
     maxTokens: 256000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'mistral/mistral-nemo',
@@ -3220,7 +3240,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.47, output: 2, cacheRead: 0.141, cacheWrite: 0 },
     contextWindow: 216144,
     maxTokens: 216144,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'moonshotai/kimi-k2.5',
@@ -3282,7 +3302,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.95, output: 4, cacheRead: 0.19, cacheWrite: 0 },
     contextWindow: 256000,
     maxTokens: 32768,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'moonshotai/kimi-k2.7-code-highspeed',
@@ -3304,7 +3324,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 1.9, output: 8, cacheRead: 0.38, cacheWrite: 0 },
     contextWindow: 262144,
     maxTokens: 32768,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'moonshotai/kimi-k3',
@@ -3326,11 +3346,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 0 },
     contextWindow: 1000000,
     maxTokens: 131072,
-    compat: {
-      allowEmptySignature: true,
-      supportsTemperature: false,
-      forceAdaptiveThinking: true,
-    },
+    compat: { allowEmptySignature: true, supportsTemperature: false },
   },
   {
     id: 'moonshotai/kimi-k3-fast',
@@ -3352,11 +3368,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 4.5, output: 22.5, cacheRead: 0.45, cacheWrite: 0 },
     contextWindow: 1000000,
     maxTokens: 131072,
-    compat: {
-      allowEmptySignature: true,
-      supportsTemperature: false,
-      forceAdaptiveThinking: true,
-    },
+    compat: { allowEmptySignature: true, supportsTemperature: false },
   },
   {
     id: 'morph/morph-v3-fast',
@@ -3424,7 +3436,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.15, output: 0.65, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 256000,
     maxTokens: 32000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'nvidia/nemotron-3-ultra-550b-a55b',
@@ -3446,7 +3458,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.6, output: 2.4, cacheRead: 0.12, cacheWrite: 0 },
     contextWindow: 1000000,
     maxTokens: 65000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'nvidia/nemotron-3.5-lightning',
@@ -3711,11 +3723,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 1.25, output: 10, cacheRead: 0.125, cacheWrite: 0 },
     contextWindow: 400000,
     maxTokens: 128000,
-    compat: {
-      allowEmptySignature: true,
-      supportsTemperature: false,
-      forceAdaptiveThinking: true,
-    },
+    compat: { allowEmptySignature: true, supportsTemperature: false },
   },
   {
     id: 'openai/gpt-5-codex',
@@ -3737,11 +3745,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 1.25, output: 10, cacheRead: 0.13, cacheWrite: 0 },
     contextWindow: 400000,
     maxTokens: 128000,
-    compat: {
-      allowEmptySignature: true,
-      supportsTemperature: false,
-      forceAdaptiveThinking: true,
-    },
+    compat: { allowEmptySignature: true, supportsTemperature: false },
   },
   {
     id: 'openai/gpt-5-fast',
@@ -3763,11 +3767,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 2.5, output: 20, cacheRead: 0.25, cacheWrite: 0 },
     contextWindow: 400000,
     maxTokens: 128000,
-    compat: {
-      allowEmptySignature: true,
-      supportsTemperature: false,
-      forceAdaptiveThinking: true,
-    },
+    compat: { allowEmptySignature: true, supportsTemperature: false },
   },
   {
     id: 'openai/gpt-5-mini',
@@ -3789,11 +3789,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.25, output: 2, cacheRead: 0.025, cacheWrite: 0 },
     contextWindow: 400000,
     maxTokens: 128000,
-    compat: {
-      allowEmptySignature: true,
-      supportsTemperature: false,
-      forceAdaptiveThinking: true,
-    },
+    compat: { allowEmptySignature: true, supportsTemperature: false },
   },
   {
     id: 'openai/gpt-5-mini-fast',
@@ -3815,11 +3811,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.45, output: 3.6, cacheRead: 0.045, cacheWrite: 0 },
     contextWindow: 400000,
     maxTokens: 128000,
-    compat: {
-      allowEmptySignature: true,
-      supportsTemperature: false,
-      forceAdaptiveThinking: true,
-    },
+    compat: { allowEmptySignature: true, supportsTemperature: false },
   },
   {
     id: 'openai/gpt-5-nano',
@@ -3841,11 +3833,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.05, output: 0.4, cacheRead: 0.005, cacheWrite: 0 },
     contextWindow: 400000,
     maxTokens: 128000,
-    compat: {
-      allowEmptySignature: true,
-      supportsTemperature: false,
-      forceAdaptiveThinking: true,
-    },
+    compat: { allowEmptySignature: true, supportsTemperature: false },
   },
   {
     id: 'openai/gpt-5-pro',
@@ -3867,7 +3855,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 15, output: 120, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 400000,
     maxTokens: 272000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'openai/gpt-5.1-codex',
@@ -3889,7 +3877,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 1.25, output: 10, cacheRead: 0.13, cacheWrite: 0 },
     contextWindow: 400000,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'openai/gpt-5.1-codex-max',
@@ -3911,7 +3899,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 1.25, output: 10, cacheRead: 0.125, cacheWrite: 0 },
     contextWindow: 400000,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'openai/gpt-5.1-codex-mini',
@@ -3933,7 +3921,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.25, output: 2, cacheRead: 0.03, cacheWrite: 0 },
     contextWindow: 400000,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'openai/gpt-5.1-thinking',
@@ -3955,7 +3943,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 1.25, output: 10, cacheRead: 0.125, cacheWrite: 0 },
     contextWindow: 400000,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'openai/gpt-5.1-thinking-fast',
@@ -3977,7 +3965,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 2.5, output: 20, cacheRead: 0.25, cacheWrite: 0 },
     contextWindow: 400000,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'openai/gpt-5.2',
@@ -3999,7 +3987,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 1.75, output: 14, cacheRead: 0.175, cacheWrite: 0 },
     contextWindow: 400000,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'openai/gpt-5.2-codex',
@@ -4021,7 +4009,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 1.75, output: 14, cacheRead: 0.175, cacheWrite: 0 },
     contextWindow: 400000,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'openai/gpt-5.2-fast',
@@ -4043,7 +4031,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 3.5, output: 28, cacheRead: 0.35, cacheWrite: 0 },
     contextWindow: 400000,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'openai/gpt-5.2-pro',
@@ -4065,7 +4053,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 21, output: 168, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 400000,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'openai/gpt-5.3-codex',
@@ -4087,7 +4075,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 1.75, output: 14, cacheRead: 0.175, cacheWrite: 0 },
     contextWindow: 400000,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'openai/gpt-5.3-codex-fast',
@@ -4109,7 +4097,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 3.5, output: 28, cacheRead: 0.35, cacheWrite: 0 },
     contextWindow: 400000,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'openai/gpt-5.4',
@@ -4145,7 +4133,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
     contextWindow: 1050000,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'openai/gpt-5.4-fast',
@@ -4167,7 +4155,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 5, output: 30, cacheRead: 0.5, cacheWrite: 0 },
     contextWindow: 1050000,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'openai/gpt-5.4-mini',
@@ -4189,7 +4177,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.75, output: 4.5, cacheRead: 0.075, cacheWrite: 0 },
     contextWindow: 400000,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'openai/gpt-5.4-mini-fast',
@@ -4211,7 +4199,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 1.5, output: 9, cacheRead: 0.15, cacheWrite: 0 },
     contextWindow: 400000,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'openai/gpt-5.4-nano',
@@ -4233,7 +4221,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.2, output: 1.25, cacheRead: 0.02, cacheWrite: 0 },
     contextWindow: 400000,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'openai/gpt-5.4-pro',
@@ -4269,7 +4257,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
     contextWindow: 1050000,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'openai/gpt-5.5',
@@ -4305,7 +4293,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
     contextWindow: 1000000,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'openai/gpt-5.5-fast',
@@ -4327,11 +4315,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 12.5, output: 75, cacheRead: 1.25, cacheWrite: 0 },
     contextWindow: 1000000,
     maxTokens: 128000,
-    compat: {
-      allowEmptySignature: true,
-      supportsTemperature: false,
-      forceAdaptiveThinking: true,
-    },
+    compat: { allowEmptySignature: true, supportsTemperature: false },
   },
   {
     id: 'openai/gpt-5.5-pro',
@@ -4367,7 +4351,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
     contextWindow: 1000000,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'openai/gpt-5.6-luna',
@@ -4403,7 +4387,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
     contextWindow: 1050000,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'openai/gpt-5.6-luna-fast',
@@ -4439,11 +4423,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
     contextWindow: 1050000,
     maxTokens: 128000,
-    compat: {
-      allowEmptySignature: true,
-      supportsTemperature: false,
-      forceAdaptiveThinking: true,
-    },
+    compat: { allowEmptySignature: true, supportsTemperature: false },
   },
   {
     id: 'openai/gpt-5.6-sol',
@@ -4479,7 +4459,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
     contextWindow: 1050000,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'openai/gpt-5.6-sol-fast',
@@ -4515,11 +4495,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
     contextWindow: 1050000,
     maxTokens: 128000,
-    compat: {
-      allowEmptySignature: true,
-      supportsTemperature: false,
-      forceAdaptiveThinking: true,
-    },
+    compat: { allowEmptySignature: true, supportsTemperature: false },
   },
   {
     id: 'openai/gpt-5.6-terra',
@@ -4555,7 +4531,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
     contextWindow: 1050000,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'openai/gpt-5.6-terra-fast',
@@ -4591,11 +4567,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
     contextWindow: 1050000,
     maxTokens: 128000,
-    compat: {
-      allowEmptySignature: true,
-      supportsTemperature: false,
-      forceAdaptiveThinking: true,
-    },
+    compat: { allowEmptySignature: true, supportsTemperature: false },
   },
   {
     id: 'openai/gpt-6-astra',
@@ -4631,11 +4603,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
     contextWindow: 1050000,
     maxTokens: 128000,
-    compat: {
-      allowEmptySignature: true,
-      supportsTemperature: false,
-      forceAdaptiveThinking: true,
-    },
+    compat: { allowEmptySignature: true, supportsTemperature: false },
   },
   {
     id: 'openai/gpt-6-astra-fast',
@@ -4671,11 +4639,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
     contextWindow: 1050000,
     maxTokens: 128000,
-    compat: {
-      allowEmptySignature: true,
-      supportsTemperature: false,
-      forceAdaptiveThinking: true,
-    },
+    compat: { allowEmptySignature: true, supportsTemperature: false },
   },
   {
     id: 'openai/gpt-6-luna',
@@ -4711,11 +4675,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
     contextWindow: 1050000,
     maxTokens: 128000,
-    compat: {
-      allowEmptySignature: true,
-      supportsTemperature: false,
-      forceAdaptiveThinking: true,
-    },
+    compat: { allowEmptySignature: true, supportsTemperature: false },
   },
   {
     id: 'openai/gpt-6-luna-fast',
@@ -4751,11 +4711,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
     contextWindow: 1050000,
     maxTokens: 128000,
-    compat: {
-      allowEmptySignature: true,
-      supportsTemperature: false,
-      forceAdaptiveThinking: true,
-    },
+    compat: { allowEmptySignature: true, supportsTemperature: false },
   },
   {
     id: 'openai/gpt-6-sol',
@@ -4791,11 +4747,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
     contextWindow: 1050000,
     maxTokens: 128000,
-    compat: {
-      allowEmptySignature: true,
-      supportsTemperature: false,
-      forceAdaptiveThinking: true,
-    },
+    compat: { allowEmptySignature: true, supportsTemperature: false },
   },
   {
     id: 'openai/gpt-6-sol-fast',
@@ -4831,11 +4783,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
     contextWindow: 1050000,
     maxTokens: 128000,
-    compat: {
-      allowEmptySignature: true,
-      supportsTemperature: false,
-      forceAdaptiveThinking: true,
-    },
+    compat: { allowEmptySignature: true, supportsTemperature: false },
   },
   {
     id: 'openai/gpt-6.1-sol',
@@ -4871,11 +4819,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
     contextWindow: 1050000,
     maxTokens: 128000,
-    compat: {
-      allowEmptySignature: true,
-      supportsTemperature: false,
-      forceAdaptiveThinking: true,
-    },
+    compat: { allowEmptySignature: true, supportsTemperature: false },
   },
   {
     id: 'openai/gpt-6.1-sol-fast',
@@ -4911,11 +4855,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
     contextWindow: 1050000,
     maxTokens: 128000,
-    compat: {
-      allowEmptySignature: true,
-      supportsTemperature: false,
-      forceAdaptiveThinking: true,
-    },
+    compat: { allowEmptySignature: true, supportsTemperature: false },
   },
   {
     id: 'openai/gpt-live-1',
@@ -4950,7 +4890,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.1, output: 0.5, cacheRead: 0.1, cacheWrite: 0 },
     contextWindow: 131072,
     maxTokens: 131072,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'openai/gpt-oss-20b',
@@ -4972,7 +4912,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.03, output: 0.14, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 131072,
     maxTokens: 8192,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'openai/gpt-oss-safeguard-120b',
@@ -4994,7 +4934,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.15, output: 0.6, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 128000,
     maxTokens: 16000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'openai/gpt-oss-safeguard-20b',
@@ -5016,7 +4956,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.07, output: 0.2, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 128000,
     maxTokens: 16000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'openai/gpt-realtime-1.5',
@@ -5064,7 +5004,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 4, output: 24, cacheRead: 0.4, cacheWrite: 0 },
     contextWindow: 128000,
     maxTokens: 32000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'openai/gpt-realtime-mini',
@@ -5112,11 +5052,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 15, output: 60, cacheRead: 7.5, cacheWrite: 0 },
     contextWindow: 200000,
     maxTokens: 100000,
-    compat: {
-      allowEmptySignature: true,
-      supportsTemperature: false,
-      forceAdaptiveThinking: true,
-    },
+    compat: { allowEmptySignature: true, supportsTemperature: false },
   },
   {
     id: 'openai/o3',
@@ -5138,11 +5074,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 2, output: 8, cacheRead: 0.5, cacheWrite: 0 },
     contextWindow: 200000,
     maxTokens: 100000,
-    compat: {
-      allowEmptySignature: true,
-      supportsTemperature: false,
-      forceAdaptiveThinking: true,
-    },
+    compat: { allowEmptySignature: true, supportsTemperature: false },
   },
   {
     id: 'openai/o3-fast',
@@ -5164,11 +5096,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 3.5, output: 14, cacheRead: 0.875, cacheWrite: 0 },
     contextWindow: 200000,
     maxTokens: 100000,
-    compat: {
-      allowEmptySignature: true,
-      supportsTemperature: false,
-      forceAdaptiveThinking: true,
-    },
+    compat: { allowEmptySignature: true, supportsTemperature: false },
   },
   {
     id: 'openai/o3-mini',
@@ -5190,11 +5118,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 1.1, output: 4.4, cacheRead: 0.55, cacheWrite: 0 },
     contextWindow: 200000,
     maxTokens: 100000,
-    compat: {
-      allowEmptySignature: true,
-      supportsTemperature: false,
-      forceAdaptiveThinking: true,
-    },
+    compat: { allowEmptySignature: true, supportsTemperature: false },
   },
   {
     id: 'openai/o3-pro',
@@ -5216,7 +5140,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 20, output: 80, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 200000,
     maxTokens: 100000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'openai/o4-mini',
@@ -5238,11 +5162,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 1.1, output: 4.4, cacheRead: 0.275, cacheWrite: 0 },
     contextWindow: 200000,
     maxTokens: 100000,
-    compat: {
-      allowEmptySignature: true,
-      supportsTemperature: false,
-      forceAdaptiveThinking: true,
-    },
+    compat: { allowEmptySignature: true, supportsTemperature: false },
   },
   {
     id: 'openai/o4-mini-fast',
@@ -5264,11 +5184,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 2, output: 8, cacheRead: 0.5, cacheWrite: 0 },
     contextWindow: 200000,
     maxTokens: 100000,
-    compat: {
-      allowEmptySignature: true,
-      supportsTemperature: false,
-      forceAdaptiveThinking: true,
-    },
+    compat: { allowEmptySignature: true, supportsTemperature: false },
   },
   {
     id: 'openai/text-embedding-3-large',
@@ -5421,7 +5337,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 4, output: 20, cacheRead: 0.4, cacheWrite: 5 },
     contextWindow: 131072,
     maxTokens: 65536,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'quiverai/arrow-2-telos',
@@ -5443,7 +5359,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 6, output: 30, cacheRead: 0.6, cacheWrite: 7.5 },
     contextWindow: 131072,
     maxTokens: 65536,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'sakana/fugu-max',
@@ -5465,7 +5381,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 2, output: 6, cacheRead: 0.25, cacheWrite: 0 },
     contextWindow: 1000000,
     maxTokens: 1000000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'sakana/fugu-ultra',
@@ -5501,7 +5417,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
     contextWindow: 1000000,
     maxTokens: 1000000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'sakana/fugu-ultra-v2',
@@ -5537,7 +5453,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
     contextWindow: 1000000,
     maxTokens: 1000000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'sakana/namazu',
@@ -5559,7 +5475,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.95, output: 4, cacheRead: 0.15, cacheWrite: 0 },
     contextWindow: 256000,
     maxTokens: 256000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'spacexai/grok-4.1-fast-non-reasoning',
@@ -5594,7 +5510,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.2, output: 0.5, cacheRead: 0.05, cacheWrite: 0 },
     contextWindow: 1000000,
     maxTokens: 1000000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'spacexai/grok-4.20-multi-agent',
@@ -5630,7 +5546,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
     contextWindow: 2000000,
     maxTokens: 2000000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'spacexai/grok-4.20-multi-agent-beta',
@@ -5666,7 +5582,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
     contextWindow: 2000000,
     maxTokens: 2000000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'spacexai/grok-4.20-non-reasoning',
@@ -5756,7 +5672,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
     contextWindow: 2000000,
     maxTokens: 2000000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'spacexai/grok-4.20-reasoning-beta',
@@ -5792,7 +5708,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
     contextWindow: 2000000,
     maxTokens: 2000000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'spacexai/grok-4.3',
@@ -5828,7 +5744,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
     contextWindow: 1000000,
     maxTokens: 1000000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'spacexai/grok-4.5',
@@ -5864,7 +5780,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
     contextWindow: 500000,
     maxTokens: 500000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'spacexai/grok-4.6',
@@ -5900,7 +5816,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
     contextWindow: 500000,
     maxTokens: 500000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'spacexai/grok-4.7',
@@ -5936,7 +5852,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
     contextWindow: 500000,
     maxTokens: 500000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'spacexai/grok-build-0.1',
@@ -5972,7 +5888,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
     contextWindow: 256000,
     maxTokens: 256000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'spacexai/grok-stt',
@@ -6033,7 +5949,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 262144,
     maxTokens: 131072,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'stepfun/step-3.5-flash',
@@ -6055,7 +5971,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.09, output: 0.3, cacheRead: 0.02, cacheWrite: 0 },
     contextWindow: 262114,
     maxTokens: 262114,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'stepfun/step-3.7-flash',
@@ -6077,7 +5993,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.2, output: 1.15, cacheRead: 0.04, cacheWrite: 0 },
     contextWindow: 256000,
     maxTokens: 256000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'stepfun/step-5-preview',
@@ -6151,7 +6067,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.14, output: 0.58, cacheRead: 0.035, cacheWrite: 0 },
     contextWindow: 262144,
     maxTokens: 262144,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'tencent/hy4-preview',
@@ -6173,7 +6089,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.834, output: 2.501, cacheRead: 0.042, cacheWrite: 0 },
     contextWindow: 1024000,
     maxTokens: 64000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'thinkingmachines/inkling',
@@ -6195,7 +6111,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 1, output: 4.05, cacheRead: 0.17, cacheWrite: 0 },
     contextWindow: 256000,
     maxTokens: 256000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'thinkingmachines/inkling-small',
@@ -6217,7 +6133,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.45, output: 1.2, cacheRead: 0.1, cacheWrite: 0 },
     contextWindow: 1000000,
     maxTokens: 1000000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'typesafe-ai/jev',
@@ -6474,7 +6390,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.14, output: 0.28, cacheRead: 0.0028, cacheWrite: 0 },
     contextWindow: 1048576,
     maxTokens: 131072,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'xiaomi/mimo-v2.6-pro',
@@ -6496,7 +6412,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.435, output: 0.87, cacheRead: 0.0036, cacheWrite: 0 },
     contextWindow: 1048576,
     maxTokens: 131072,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'xiaomi/mimo-v2.6-pro-ultraspeed',
@@ -6518,7 +6434,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 4.35, output: 8.7, cacheRead: 0.036, cacheWrite: 0 },
     contextWindow: 1048576,
     maxTokens: 131072,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'zai/glm-4.5',
@@ -6740,7 +6656,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.8, output: 2.55, cacheRead: 0.16, cacheWrite: 0 },
     contextWindow: 1000000,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'zai/glm-5.2-fast',
@@ -6762,7 +6678,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 2.8, output: 8.8, cacheRead: 0.56, cacheWrite: 0 },
     contextWindow: 1000000,
     maxTokens: 128000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'zai/glm-5.3',
@@ -6784,7 +6700,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 1.4, output: 4.4, cacheRead: 0.14, cacheWrite: 0 },
     contextWindow: 1000000,
     maxTokens: 1000000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'zai/glm-5.3-fast',
@@ -6806,7 +6722,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 2.1, output: 6.6, cacheRead: 0.21, cacheWrite: 0 },
     contextWindow: 1048576,
     maxTokens: 262144,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'zai/glm-5.3-flash',
@@ -6828,7 +6744,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.15, output: 0.5, cacheRead: 0.03, cacheWrite: 0 },
     contextWindow: 1000000,
     maxTokens: 131000,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'zai/glm-5.3-flashx',
@@ -6850,7 +6766,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 0.37, output: 1.25, cacheRead: 0.075, cacheWrite: 0 },
     contextWindow: 1000000,
     maxTokens: 131072,
-    compat: { allowEmptySignature: true, forceAdaptiveThinking: true },
+    compat: { allowEmptySignature: true },
   },
   {
     id: 'zai/glm-5v-turbo',

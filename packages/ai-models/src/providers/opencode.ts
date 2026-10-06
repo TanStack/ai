@@ -161,6 +161,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
     contextWindow: 1000000,
     maxTokens: 128000,
+    compat: { forceAdaptiveThinking: true },
   },
   {
     id: 'claude-opus-4-7',
@@ -325,6 +326,7 @@ export const models: ReadonlyArray<ModelRecord> = [
     cost: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
     contextWindow: 1000000,
     maxTokens: 64000,
+    compat: { forceAdaptiveThinking: true },
   },
   {
     id: 'claude-sonnet-5',

@@ -1,4 +1,8 @@
-import { FIREWORKS_ANTHROPIC_WIRE } from './known-ids'
+import {
+  FIREWORKS_ANTHROPIC_WIRE,
+  FIREWORKS_BUDGET_THINKING,
+  MID_CONVERSATION_EFFORT,
+} from './known-ids'
 import type { ModelCompat, WireApi } from '../src/types'
 
 /** Where one model is served: its wire protocol and endpoint. */
@@ -143,6 +147,10 @@ export const PROVIDERS: ReadonlyArray<ProviderRow> = [
       ['ANTHROPIC_AUTH_TOKEN'],
     ],
     compat: { supportsStrictTools: true },
+    modelCompat: (id) =>
+      MID_CONVERSATION_EFFORT.anthropic?.includes(id)
+        ? { supportsMidConvoEffort: true }
+        : undefined,
   },
   {
     id: 'azure-openai-responses',
@@ -271,6 +279,9 @@ export const PROVIDERS: ReadonlyArray<ProviderRow> = [
             allowEmptySignature: true,
             supportsEagerToolInputStreaming: false,
             supportsCacheControlOnTools: false,
+            ...(!FIREWORKS_BUDGET_THINKING.includes(id) && {
+              forceAdaptiveThinking: true,
+            }),
           }
         : { ...NON_STANDARD, supportsStrictMode: true, ...deepseekFamily(id) },
   },
@@ -454,6 +465,9 @@ export const PROVIDERS: ReadonlyArray<ProviderRow> = [
       supportsDeveloperRole: /^(anthropic|openai)\//.test(id),
       ...(id.startsWith('anthropic/')
         ? { cacheControlFormat: 'anthropic' as const }
+        : {}),
+      ...(MID_CONVERSATION_EFFORT.openrouter?.includes(id)
+        ? { supportsMidConvoEffort: true }
         : {}),
     }),
   },

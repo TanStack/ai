@@ -21,9 +21,17 @@ export type ReasoningMap = Partial<Record<ReasoningLevel, string | null>>
 /**
  * A model's reasoning data, in the shape of the `reasoning` config of the
  * `@tanstack/ai` adapters (`ModelReasoning` there). `false`: the model does
- * not reason. Otherwise its level map and whether it takes a token budget.
+ * not reason. Otherwise its level map, whether it takes a token budget, and
+ * for Anthropic Messages, its thinking shape.
  */
-export type ModelReasoning = false | { map?: ReasoningMap; budget: boolean }
+export type ModelReasoning =
+  | false
+  | {
+      map?: ReasoningMap
+      budget: boolean
+      adaptive?: boolean
+      midConversationEffort?: boolean
+    }
 
 /** The wire protocol of a model. It picks the adapter. */
 export type WireApi =
@@ -79,6 +87,8 @@ export interface ModelCompat {
   supportsTemperature?: boolean
   // Anthropic Messages.
   forceAdaptiveThinking?: boolean
+  /** The level goes into the messages, not into `output_config` (pi's flag). */
+  supportsMidConvoEffort?: boolean
   supportsMidConvoSystemMessages?: boolean
   supportsStrictTools?: boolean
   allowEmptySignature?: boolean

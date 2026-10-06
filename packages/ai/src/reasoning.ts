@@ -79,10 +79,23 @@ export interface ReasoningRequest {
 
 /**
  * A model's reasoning data at runtime. `false`: the model does not reason.
- * Otherwise its level map (none means every level up to `high` passes as its
- * own name) and whether it takes a token budget.
+ * Otherwise:
+ * - `map`: the level map (none means every level up to `high` passes as its
+ *   own name).
+ * - `budget`: the model takes a token budget.
+ * - `adaptive` (Anthropic Messages): `true` sends adaptive thinking, `false`
+ *   sends budget thinking. Absent: the adapter decides from the model id.
+ * - `midConversationEffort` (Anthropic Messages): the level goes into the
+ *   messages, so a level change keeps the cached prefix.
  */
-export type ModelReasoning = false | { map?: ReasoningMap; budget: boolean }
+export type ModelReasoning =
+  | false
+  | {
+      map?: ReasoningMap
+      budget: boolean
+      adaptive?: boolean
+      midConversationEffort?: boolean
+    }
 
 /**
  * The reasoning capability of an adapter whose config can carry `reasoning`

@@ -248,3 +248,25 @@ export const FIREWORKS_ANTHROPIC_WIRE: ReadonlyArray<string> = [
   'accounts/fireworks/routers/minimax-latest',
   'accounts/fireworks/routers/qwen-max-latest',
 ]
+
+/**
+ * Fireworks models on the Anthropic endpoint that think with a budget (pi
+ * 0.87.1). The others think adaptively: pi has `effort` levels for them,
+ * and models.dev does not have them for all.
+ */
+export const FIREWORKS_BUDGET_THINKING: ReadonlyArray<string> = [
+  'accounts/fireworks/models/inkling',
+  'accounts/fireworks/models/kimi-k2p6',
+  'accounts/fireworks/models/kimi-k2p7-code',
+  'accounts/fireworks/models/nemotron-3-ultra-nvfp4',
+  'accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b',
+  'accounts/fireworks/routers/qwen-max-latest',
+]
+
+/** The models with mid-conversation effort, by provider (pi 0.87.1 `supportsMidConvoEffort`). */
+export const MID_CONVERSATION_EFFORT: Readonly<
+  Record<string, ReadonlyArray<string>>
+> = {
+  anthropic: ['claude-fable-5-1', 'claude-opus-5', 'claude-opus-5-5'],
+  openrouter: ['anthropic/claude-fable-5.1', 'anthropic/claude-opus-5.5'],
+}
