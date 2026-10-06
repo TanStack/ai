@@ -107,13 +107,14 @@ const UNCONFIRMED_STOP =
 
 function noteUnconfirmed<T>(result: ExecutionResult<T>): ExecutionResult<T> {
   const logs = [...(result.logs ?? []), UNCONFIRMED_STOP]
-  if (result.success) return { ...result, logs }
+  const error = result.error
+  if (result.success || error === undefined) return { ...result, logs }
   return {
     ...result,
     logs,
     error: {
-      ...result.error,
-      message: `${result.error.message} ${UNCONFIRMED_STOP}`,
+      ...error,
+      message: `${error.message} ${UNCONFIRMED_STOP}`,
     },
   }
 }
