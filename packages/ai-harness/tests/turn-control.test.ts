@@ -467,6 +467,80 @@ describe('turn.onModelError', () => {
     expect(calls).toHaveLength(1)
     await host.close()
   })
+
+  describe('after a restart', () => {
+    /**
+     * Hosts on one durable store set that retry every model error. `seen`
+     * has the `retries` that each host's hook got.
+     */
+    function durableHosts() {
+      const { runs, metadata } = memoryPersistence().stores
+      const persistence = { stores: { log: memoryLogStore(), runs, metadata } }
+      const openOn = async (replies: Array<Reply>) => {
+        const seen: Array<number> = []
+        const { adapter, calls } = mockAdapter(replies)
+        const host = createHarnessHost({ persistence })
+        const session = await host.open(
+          defineHarness({
+            name: 'test/turn-control',
+            adapter,
+            tools: [lookup()],
+            turn: {
+              onModelError: ({ retries }) => {
+                seen.push(retries)
+                return 'retry'
+              },
+            },
+          }),
+          { threadId: THREAD },
+        )
+        return { host, session, calls, seen }
+      }
+      /** Run `replies`, then a call that hangs, and stop that host there. */
+      const crashAfter = async (replies: Array<Reply>) => {
+        const first = await openOn([...replies, untilAborted()])
+        const turn = first.session.prompt('go', { inputId: 'in-1' })
+        await vi.waitFor(() =>
+          expect(first.calls).toHaveLength(replies.length + 1),
+        )
+        await runs.update(turn.id, { leaseExpiresAt: Date.now() - 1 })
+        return first
+      }
+      return { openOn, crashAfter }
+    }
+
+    it('goes on from the retries of the attempt that stopped', async () => {
+      const { openOn, crashAfter } = durableHosts()
+      const first = await crashAfter([
+        failsWith('503 Service Unavailable'),
+        failsWith('503 Service Unavailable'),
+      ])
+      expect(first.seen).toEqual([0, 1])
+
+      const next = await openOn([failsWith('503 Service Unavailable')])
+      await next.session.settled('in-1')
+
+      expect(next.seen).toEqual([2])
+      await first.host.close().catch(() => {})
+      await next.host.close()
+    })
+
+    it('starts from 0 after a finished tool phase', async () => {
+      const { openOn, crashAfter } = durableHosts()
+      const first = await crashAfter([
+        failsWith('503 Service Unavailable'),
+        () => toolCall('lookup', { q: 'x' }),
+      ])
+      expect(first.seen).toEqual([0])
+
+      const next = await openOn([failsWith('503 Service Unavailable')])
+      await next.session.settled('in-1')
+
+      expect(next.seen).toEqual([0])
+      await first.host.close().catch(() => {})
+      await next.host.close()
+    })
+  })
 })
 
 describe('turn.beforeFinish', () => {
@@ -595,6 +669,49 @@ describe('turn.beforeFinish', () => {
         maxFinishCycles: 2,
         beforeFinish: () => ({
           messages: [{ role: 'user', content: 'once more' }],
+        }),
+      },
+    })
+
+    await expect(session.prompt('go')).rejects.toThrow('2 times')
+    expect(calls).toHaveLength(3)
+    await host.close()
+  })
+
+  it('gives the next model call ephemeral messages that no store keeps', async () => {
+    const { host, session, calls, log } = await open({
+      durable: true,
+      replies: [() => text('draft'), () => text('posted'), () => text('never')],
+      turn: {
+        beforeFinish: ({ cycle }) =>
+          cycle === 0
+            ? { ephemeral: [{ role: 'user', content: REMINDER }] }
+            : undefined,
+      },
+    })
+
+    expect(await session.prompt('answer the user')).toEqual({
+      text: 'draftposted',
+    })
+
+    expect(calls).toHaveLength(2)
+    expect(messageTexts(calls[1])).toEqual([
+      'answer the user',
+      'draft',
+      REMINDER,
+    ])
+    expect(JSON.stringify(await session.transcript())).not.toContain(REMINDER)
+    expect(JSON.stringify(await log.read(THREAD))).not.toContain(REMINDER)
+    await host.close()
+  })
+
+  it('counts a continue with only ephemeral messages for the cycle limit', async () => {
+    const { host, session, calls } = await open({
+      replies: () => text('again'),
+      turn: {
+        maxFinishCycles: 2,
+        beforeFinish: () => ({
+          ephemeral: [{ role: 'user', content: 'once more' }],
         }),
       },
     })

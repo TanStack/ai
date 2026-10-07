@@ -293,6 +293,24 @@
       "response": {
         "content": "Both steps ran."
       }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-cut-off] tell a long story"
+      },
+      "response": {
+        "content": "Once upon a time, a guitar maker carved a new neck from an old maple tree. He worked on it every day for a year. He sanded the wood, he set the frets, and he tuned the strings again and again. The people of the town came to the shop to watch him, and each of them asked when the guitar would be ready. He always gave the same answer: when the wood tells me that it is done. One spring morning, the wood told him."
+      },
+      "chunkSize": 16,
+      "streamingProfile": { "tps": 4 }
+    },
+    {
+      "match": {
+        "userMessage": "The previous answer was cut off."
+      },
+      "response": {
+        "content": "The guitar was ready."
+      }
     }
   ]
 }

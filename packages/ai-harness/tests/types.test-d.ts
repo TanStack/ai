@@ -96,6 +96,8 @@ it('takes attempt and time limits on the harness', () => {
         timeoutMs?: number
         recover?: RecoverHook
         interruptedToolResult?: string
+        truncatedToolResult?: string
+        continueCutOff?: boolean | { note?: string }
       }
     | undefined
   >()

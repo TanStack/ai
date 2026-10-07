@@ -55,9 +55,9 @@ The client stores one record per `threadId`, the transcript plus a small resume
 pointer. On the next load `useChat` reads it and:
 
 - **Repaints the transcript** from storage with no network. Sync adapters
-  (`localStorage` / `sessionStorage`) hydrate during construction; IndexedDB
-  hydrates asynchronously after the database opens (so the first paint may be
-  empty for a tick).
+  (`localStorage` / `sessionStorage`) hydrate during construction. IndexedDB
+  hydrates asynchronously after the database opens. Until then, `isHydrating`
+  is `true`, so you can show a loading state instead of an empty chat.
 - **Rehydrates a pending interrupt**, so an approval prompt comes back exactly as
   it was.
 - **Rejoins an in-flight run**, if a reply was still streaming when the page
@@ -165,13 +165,19 @@ import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 const connection = fetchServerSentEvents('/api/chat')
 
 function Chat({ threadId }: { threadId: string }) {
-  const { messages, hasOlderMessages, loadOlderMessages, sendMessage } =
-    useChat({
-      threadId,
-      connection,
-      persistence: true,
-      history: { pageSize: 50 },
-    })
+  const {
+    messages,
+    isHydrating,
+    hasOlderMessages,
+    loadOlderMessages,
+    sendMessage,
+  } = useChat({
+    threadId,
+    connection,
+    persistence: true,
+    history: { pageSize: 50 },
+  })
+  if (isHydrating) return <p>Loading conversation...</p>
   return (
     <div>
       {hasOlderMessages ? (
@@ -200,6 +206,10 @@ function Chat({ threadId }: { threadId: string }) {
 Call `loadOlderMessages()` from your scroll handler. The library does not watch
 the scrollbar.
 
+- `isHydrating` is `true` from the first render until the transcript is in
+  place. If a run is still generating, `isLoading` is already `true` when
+  `isHydrating` turns `false`. If the load fails, `isHydrating` turns `false`
+  and `error` is set.
 - `hasOlderMessages` follows `page.truncated` on the last hydrate or older-page
   response.
 - Without `history`, hydrate loads the full thread.

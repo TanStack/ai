@@ -1093,6 +1093,13 @@ export interface ChatClientBaseOptions<
   onSessionGeneratingChange?: (isGenerating: boolean) => void
 
   /**
+   * Callback when the client starts or stops rebuilding the chat from
+   * persistence (the server hydrate, or an async storage adapter). It turns
+   * false once the transcript is applied and any in-flight run is re-joined.
+   */
+  onHydratingChange?: (isHydrating: boolean) => void
+
+  /**
    * Policy for messages sent while the client is busy (streaming, claiming
    * a send, or draining the queue). Accepts a `WhenBusy` string, a
    * `QueueConfig`, or a `QueueStrategy` function.

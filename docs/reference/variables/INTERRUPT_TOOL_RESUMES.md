@@ -7,4 +7,4 @@ title: INTERRUPT_TOOL_RESUMES
 const INTERRUPT_TOOL_RESUMES: readonly ["continue", "cancel", "stop"];
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:107](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L107)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:108](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L108)

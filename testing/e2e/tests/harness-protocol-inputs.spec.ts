@@ -121,7 +121,7 @@ function asUser(
     ).json()
   const transcript = (
     threadId: string,
-  ): Promise<Array<{ role: string; content: unknown }>> =>
+  ): Promise<Array<{ id?: string; role: string; content: unknown }>> =>
     read('transcript', threadId)
   const answers = async (threadId: string) =>
     (await transcript(threadId))
@@ -624,5 +624,65 @@ test.describe('harness protocol inputs', () => {
       (message) => message.role === 'tool',
     )
     expect(JSON.stringify(result?.content)).toContain('Forecast for Paris')
+  })
+
+  test('answers the stored user message on continue, with no new message', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const user = asUser(request, testId, aimockPort)
+    const threadId = `continue-${testId}`
+    expect(
+      await user.control(threadId, {
+        op: 'prompt',
+        message: '[harness-continue] name a color',
+      }),
+    ).toMatchObject({ status: 'accepted' })
+    await expect.poll(() => user.answers(threadId)).toEqual(['Red.'])
+    // A fork through the prompt ends with the user message.
+    const at = (await user.transcript(threadId))[0]?.id
+    if (!at) throw new Error('The prompt has no message id.')
+    const forked = await request.post('/api/harness-protocol/sessions', {
+      headers: user.json,
+      data: { op: 'fork', threadId, through: at },
+    })
+    const fork: { threadId: string } = await forked.json()
+
+    expect(await user.control(fork.threadId, { op: 'continue' })).toMatchObject(
+      { status: 'accepted' },
+    )
+    await expect
+      .poll(async () =>
+        (await user.transcript(fork.threadId)).map(
+          (message) => `${message.role}: ${String(message.content)}`,
+        ),
+      )
+      .toEqual(['user: [harness-continue] name a color', 'assistant: Blue.'])
+  })
+
+  test('rejects continue on an empty thread with nothing_to_continue', async ({
+    request,
+    baseURL,
+    testId,
+    aimockPort,
+  }) => {
+    const user = asUser(request, testId, aimockPort)
+    const threadId = `continue-empty-${testId}`
+    const inputId = `empty-${testId}`
+    await user.control(threadId, { op: 'continue', inputId })
+
+    // The session checks the transcript when the turn starts, and tells
+    // every client.
+    const events = await customEvents(
+      `${baseURL}/api/harness-protocol/events?threadId=${threadId}&from=0`,
+      user.headers,
+      (seen) => seen.some((event) => event.name === 'harness.input.rejected'),
+    )
+    expect(events).toContainEqual({
+      name: 'harness.input.rejected',
+      value: { inputId, reason: 'nothing_to_continue' },
+    })
+    expect(await user.transcript(threadId)).toEqual([])
   })
 })

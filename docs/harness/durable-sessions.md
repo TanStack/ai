@@ -59,10 +59,10 @@ A turn that passes its time limit is stopped. It ends with the error code `timeo
 
 When a host opens the thread and finds a turn whose lease expired, it checks these, in order:
 
-1. An abort was asked for the turn: the input ends `aborted`. The model is not called.
-2. No attempt is left: the input ends `failed`, with the error code `attempts_exhausted`.
-3. The time limit passed: the input ends `failed`, with the error code `timeout`.
-4. The log already has the final answer: the input ends `completed`. The model is not called again.
+1. The log already has the final answer: the input ends `completed`. This wins over the checks below, so finished work is never lost.
+2. An abort was asked for the turn: the input ends `aborted`. The model is not called.
+3. No attempt is left: the input ends `failed`, with the error code `attempts_exhausted`.
+4. The time limit passed: the input ends `failed`, with the error code `timeout`.
 5. Else the turn runs again as the next attempt, and clients get a `harness.operation.resumed` event.
 
 An input that was stored but never ran, runs now. See [Send inputs safely](./inputs) to read how an input ended.
@@ -74,6 +74,22 @@ A background agent that you started with `resume: true` runs again on the next h
 3. Starts a new turn, if you started the agent with `{ wake: true }`.
 
 `durability.recover` does not run for background agents.
+
+## Stop a host for a deploy
+
+`host.close()` ends each running turn `aborted`, so no host runs it again. When the server stops only for a deploy, close it with `recoverable: true`. The running turns stop, but they stay open in the log, and the next host continues them at once:
+
+```ts group=harness-durable
+process.on('SIGTERM', async () => {
+  await host.close({ recoverable: true })
+  process.exit(0)
+})
+```
+
+- Running turns and background agents stop. The host writes no end for them and gives their leases back, so the next host does not wait for the lease to expire.
+- A tool that the stop cut gets the same result as after a crash. See [Mark tools that are safe to run again](#mark-tools-that-are-safe-to-run-again).
+- A turn that a user cancelled still ends `aborted`.
+- `session.close({ recoverable: true })` does the same for one session.
 
 ## Resume pending work after a deploy
 
@@ -149,7 +165,7 @@ The `close` option sets what happens to a session that the sweep opened:
 
 A failed claim or release write does not fail the work. The session publishes a `harness.plugin.warning` custom event with `plugin: 'harness:work-claims'` and the error message. Without that claim, a sweep cannot find the work after a crash. Watch for this event to find these threads.
 
-A known limit: if this host already has the thread open, the sweep claims it, but the session does not recover again. The claim expires, and a later sweep finds the thread.
+If this host already has the thread open, the sweep claims it, but the session does not recover again. Call `host.recover(threadId)` for that thread. See [Check a skipped turn again](#check-a-skipped-turn-again).
 
 ## Retry model errors
 
@@ -167,17 +183,19 @@ const resilient = defineHarness({
 
 Other errors fail the turn. To set the limits, see [Control how a turn ends](./turn-control#retry-model-errors).
 
+The log keeps the retry count. A turn that a crash stopped goes on with the count that it had, so a crash does not give it new retries. The count starts again at 0 after a finished tool phase and at a new turn.
+
 ## Decide recovery yourself
 
 The steps above are the default. To change them for one input, add `durability.recover`. It runs for each input that a crashed host left. It gets `{ session, input, messages, decision }`:
 
-- `input`: the input, with `inputId`, `attempt`, `timeoutAt`, and `abortRequested`.
+- `input`: the input, with `inputId`, `attempt`, `timeoutAt`, `abortRequested`, and `retries` (the model-error retries so far).
 - `messages`: the transcript from the log.
 - `decision`: what the harness does by default. It is one of the 5 steps above, or `run` for an input that never ran.
 
 Return `undefined` to keep the decision. Or return one of these:
 
-- `{ action: 'run' }`: run the input now.
+- `{ action: 'run', overrides? }`: run the input now. `overrides` are the [turn overrides](./turn-control#give-one-prompt-its-own-settings) of this attempt, for example the adapter that the first attempt used. The log does not keep overrides, so without them a recovered attempt uses the defaults.
 - `{ action: 'settle', outcome, error? }`: end the input as `'completed'`, `'failed'`, or `'aborted'`. Without a model call.
 
 This example fails an input with your own error code after 2 runs:
@@ -222,6 +240,49 @@ const lookup = toolDefinition({
 
 A tool that finished before the crash keeps its result. It does not run again. For a tool with side effects, such as a payment, see [Run side effects once](./durable-tools).
 
+### Set the texts that the model gets
+
+The model reads these tool results after a crash. To give them in your own words, set them on the harness:
+
+```ts group=harness-durable
+const worded = defineHarness({
+  name: 'acme/worded',
+  adapter: openaiText('gpt-6.1-sol'),
+  durability: {
+    interruptedToolResult:
+      'The tool stopped before it finished. Check the result before you call it again.',
+    truncatedToolResult:
+      'Your answer was cut off before this call was complete. Call the tool again.',
+  },
+})
+```
+
+- `interruptedToolResult`: the result of a `replay: 'never'` call that a crash stopped.
+- `truncatedToolResult`: the result of each call in an answer that stopped at the output limit (finish reason `length`). The input of such a call can be incomplete, so after a crash it does not run, also with `replay: 'safe'`.
+
+## Continue an answer that a crash cut
+
+A crash in the middle of a long answer loses the text that the model already wrote, and the next attempt starts the answer again. Set `continueCutOff`, and the next host keeps that text and asks the model to go on from it:
+
+```ts group=harness-durable
+const continuing = defineHarness({
+  name: 'acme/continuing',
+  adapter: openaiText('gpt-6.1-sol'),
+  durability: { continueCutOff: true },
+})
+```
+
+When a turn runs again after a crash, the host adds two messages to the transcript, in one log write:
+
+1. An assistant message with the text that the model wrote before the crash.
+2. A user message with a note: `The previous answer was cut off. Continue exactly where it stopped, without repeating it.`
+
+Then the model continues after the note. To use your own note, set `continueCutOff: { note: 'Go on from where you stopped.' }`.
+
+- The host keeps only the answer text. Reasoning and the input of a cut tool call are left out.
+- A crash before any answer text runs the model call again, with no note.
+- It also works after a [stop for a deploy](#stop-a-host-for-a-deploy).
+
 ## One host drives a thread
 
 Only one host writes to the log of a thread at a time. A host that only reads (for example `GET /events` on a second server) follows the log and writes nothing. When a second host writes to the thread, the first host's session stops, and its running turn fails with a clear error. Open the thread again to continue on that host.
@@ -234,6 +295,21 @@ const leasedHost = createHarnessHost({
   lease: { ttlMs: 60_000, renewMs: 20_000 },
 })
 ```
+
+## Check a skipped turn again
+
+A host checks the log of a thread when it opens the thread. A turn that another host still runs at that time is skipped. If that other host stops later, the turn waits until something checks again. Call `host.recover()` on a timer:
+
+```ts group=harness-durable
+setInterval(() => {
+  void leasedHost.recover()
+}, 15_000)
+```
+
+- `host.recover()` checks every session that this host has open. `host.recover(threadId)` checks one thread.
+- `session.recover()` does the same for one session.
+- Each call first reads the log records that other hosts wrote. Then it runs the turns whose lease expired.
+- The turns that this session already runs or queues stay as they are. Two calls at the same time run a turn once.
 
 ## Use your own leases
 
@@ -276,8 +352,8 @@ For the full contract, see [`LeaseStore`](../persistence/store-reference#leasest
 
 ## What you have now
 
-- Turns that continue after a crash or a deploy, from the session log, also on threads that nobody opens again.
+- Turns that continue after a crash or a deploy, from the session log, also on threads that nobody opens again, and with the answer text that the crash cut.
 - A turn that stops after `maxAttempts` or `timeoutMs`, with a clear error code.
-- Tools that either run again safely or tell the model to check first.
-- A turn that retries a short model error by itself.
-- Your own rule for how a crashed input recovers, and your own leases if you have them.
+- Tools that either run again safely or tell the model to check first, in your own words.
+- A turn that retries a short model error by itself, with a retry count that survives a crash.
+- Your own rule for how a crashed input recovers, your own leases, and a timer that checks skipped turns again.

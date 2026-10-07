@@ -1,10 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { defineAgent } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHandler, createHarnessHost, defineHarness } from '../src'
 import { createHarnessClient } from '../src/client'
-import { gate, mockAdapter, text } from './helpers'
+import { gate, messageTexts, mockAdapter, text } from './helpers'
 import type { SessionEvent } from '../src'
 
 describe('createHarnessClient', () => {
@@ -88,6 +88,33 @@ describe('createHarnessClient', () => {
     expect(retry).toEqual(first)
     expect(steerRetry).toEqual(steer)
     expect(calls.length).toBeLessThanOrEqual(2)
+    await host.close()
+  })
+
+  it('sends continue, and the model answers the stored transcript', async () => {
+    const { adapter, calls } = mockAdapter([() => text('went')])
+    const studio = defineHarness({ name: 'test/client-continue', adapter })
+    const persistence = memoryPersistence()
+    await persistence.stores.messages.saveThread('thread-go', [
+      { id: 'u1', role: 'user', content: 'go' },
+    ])
+    const host = createHarnessHost({ persistence })
+    const handler = createHarnessHandler({
+      host,
+      harness: studio,
+      authorize: () => ({ id: 'u' }),
+    })
+    const client = createHarnessClient<typeof studio>({
+      url: 'http://local/api/harness',
+      threadId: 'thread-go',
+      fetch: (input, init) => handler(new Request(input, init)),
+    })
+
+    const receipt = await client.continue({ inputId: 'c-1' })
+
+    expect(receipt).toMatchObject({ inputId: 'c-1', status: 'accepted' })
+    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    expect(messageTexts(calls[0])).toEqual(['go'])
     await host.close()
   })
 

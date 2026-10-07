@@ -8,6 +8,7 @@ interface StageResult {
 interface GeminiImageGaModelsResponse {
   gaModelListed: boolean
   gaModel: StageResult
+  nanoBanana21: StageResult
   legacyModel: StageResult
 }
 
@@ -40,6 +41,18 @@ test.describe('gemini — GA image model ids and per-model sizes (#1104)', () =>
     expect(gaModelListed).toBe(true)
     expect(gaModel.error ?? null).toBeNull()
     expect(gaModel.imageCount).toBe(1)
+  })
+
+  test('gemini-nano-banana-2.1 routes to generateContent with aspectRatio and imageSize (#1640)', async ({
+    request,
+  }) => {
+    const res = await request.post('/api/gemini-image-ga-models')
+    expect(res.ok()).toBe(true)
+
+    const { nanoBanana21 } = (await res.json()) as GeminiImageGaModelsResponse
+
+    expect(nanoBanana21.error ?? null).toBeNull()
+    expect(nanoBanana21.imageCount).toBe(1)
   })
 
   test('gemini-2.5-flash-image sends imageConfig.aspectRatio with no imageSize', async ({

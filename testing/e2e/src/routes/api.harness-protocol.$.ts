@@ -93,7 +93,18 @@ function harnessFor(request: Request) {
                 ? undefined
                 : { messages: [{ role: 'user' as const, content: reminder }] },
           }
-        : undefined
+        : turnMode === 'ephemeral'
+          ? {
+              // The transcript never gets an ephemeral reminder, so the hook
+              // counts its cycles to send it once.
+              beforeFinish: ({ cycle }: FinishContext) =>
+                cycle === 0
+                  ? {
+                      ephemeral: [{ role: 'user' as const, content: reminder }],
+                    }
+                  : undefined,
+            }
+          : undefined
   // The retry test needs the harness to see the 503, so the SDK must not retry.
   const adapter =
     turnMode === 'retry'

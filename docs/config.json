@@ -220,7 +220,7 @@
           "label": "Multi-Turn Chat",
           "to": "structured-outputs/multi-turn",
           "addedAt": "2026-05-19",
-          "updatedAt": "2026-08-19"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "With Tools",
@@ -661,7 +661,7 @@
           "label": "Client Persistence",
           "to": "persistence/client-persistence",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Generation Persistence",
@@ -786,7 +786,7 @@
           "label": "Image Generation",
           "to": "media/image-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-27"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Video Generation",
@@ -928,7 +928,7 @@
           "label": "Send inputs safely",
           "to": "harness/inputs",
           "addedAt": "2026-09-30",
-          "updatedAt": "2026-10-06"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Run side effects once",
@@ -946,7 +946,7 @@
           "label": "Control how a turn ends",
           "to": "harness/turn-control",
           "addedAt": "2026-10-01",
-          "updatedAt": "2026-10-06"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Store settings per thread",
@@ -1112,7 +1112,7 @@
           "label": "Providers",
           "to": "sandbox/providers",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-10-05"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Harnesses",
@@ -1394,7 +1394,7 @@
           "label": "Google Gemini",
           "to": "adapters/gemini",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-30"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Google Vertex AI",
@@ -1658,55 +1658,55 @@
           "label": "@tanstack/ai-client",
           "to": "api/ai-client",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-03"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "@tanstack/ai-react",
           "to": "api/ai-react",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-23"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "@tanstack/ai-solid",
           "to": "api/ai-solid",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-23"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "@tanstack/ai-preact",
           "to": "api/ai-preact",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-23"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "@tanstack/ai-vue",
           "to": "api/ai-vue",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-23"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "@tanstack/ai-svelte",
           "to": "api/ai-svelte",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-23"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "@tanstack/ai-angular",
           "to": "api/ai-angular",
           "addedAt": "2026-06-15",
-          "updatedAt": "2026-09-23"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "@tanstack/ai-octane",
           "to": "api/ai-octane",
           "addedAt": "2026-08-21",
-          "updatedAt": "2026-09-23"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "@tanstack/ai-remix",
           "to": "api/ai-remix",
           "addedAt": "2026-09-01",
-          "updatedAt": "2026-09-23"
+          "updatedAt": "2026-10-07"
         }
       ]
     },

@@ -42,6 +42,12 @@ export type HarnessRecord =
   | { type: 'harness.input.rejected'; inputId: string; reason: string }
   | { type: 'harness.input.abort'; inputId: string }
   | {
+      type: 'harness.turn.retry'
+      inputId: string
+      operationId: string
+      retries: number
+    }
+  | {
       type: 'harness.input.delivery'
       inputId: string
       delivery: WaitingInput['delivery']
@@ -97,6 +103,7 @@ const HARNESS_RECORD_TYPES = new Set<string>([
   'harness.input.joined',
   'harness.input.rejected',
   'harness.input.abort',
+  'harness.turn.retry',
   'harness.input.delivery',
   'harness.input.settled',
   'harness.tool.result',
@@ -144,6 +151,8 @@ export interface InputState {
   /** The host input that this input joined. */
   into?: string
   abortRequested: boolean
+  /** Model retries since the last finished tool phase. Recovery starts from it. */
+  retries?: number
   /** The delivery that a `setDelivery` input set. Recovery honors it. */
   delivery?: WaitingInput['delivery']
   /** Transcript length when the input was last applied. */
@@ -157,6 +166,11 @@ export interface LogState {
   /** The position of the last folded record. */
   seq: number
   messages: Array<ModelMessage>
+  /**
+   * The position of the last transcript record. The events after it are not
+   * in the transcript. Unknown after a fold checkpoint from before this field.
+   */
+  transcriptSeq?: number
   /** In admission order. */
   inputs: Map<string, InputState>
   toolResults: Map<string, ModelMessage>
@@ -174,6 +188,7 @@ export function emptyLogState() {
   const state: LogState = {
     seq: 0,
     messages: [],
+    transcriptSeq: 0,
     inputs: new Map(),
     toolResults: new Map(),
     started: new Map(),
@@ -256,6 +271,7 @@ export function foldEntry(
         ...state.messages.slice(0, record.keep),
         ...record.add.map(revive),
       ]
+      state.transcriptSeq = entry.seq
       return
     case 'harness.input':
       if (state.inputs.has(record.inputId)) return
@@ -301,6 +317,12 @@ export function foldEntry(
       updateInput(state, record.inputId, (input) => ({
         ...input,
         abortRequested: true,
+      }))
+      return
+    case 'harness.turn.retry':
+      updateInput(state, record.inputId, (input) => ({
+        ...input,
+        retries: record.retries,
       }))
       return
     case 'harness.input.delivery':
@@ -437,6 +459,7 @@ function serialize(state: SharedLogState, versions: CheckpointVersions) {
       thread,
       {
         messages: session.messages,
+        transcriptSeq: session.transcriptSeq,
         inputs: [...session.inputs.values()],
         toolResults: [...session.toolResults.entries()],
         started: [...session.started.entries()],
@@ -464,6 +487,10 @@ function parseSession(value: unknown, seq: number) {
   const session: LogState = {
     seq,
     messages: (messages as Array<ModelMessage>).map(revive),
+    // A checkpoint from before `transcriptSeq` has none.
+    ...(typeof value.transcriptSeq === 'number'
+      ? { transcriptSeq: value.transcriptSeq }
+      : {}),
     inputs: new Map(
       (inputs as Array<InputState>).map((input) => [input.inputId, input]),
     ),
@@ -696,17 +723,25 @@ export class SharedLog<TState = unknown> {
     this.failureListeners.add(listener)
     const shared = this.state
     let closed = false
+    // A closed view writes nothing more, like a host that stopped. After a
+    // failed write, a write still rejects with that failure.
+    const isDropped = () => closed && this.failure === undefined
     return {
       threadId,
       logId: this.logId,
       get state() {
         return sessionOf(shared, threadId)
       },
-      publish: (operationId, event) =>
-        this.publish(threadId, operationId, event),
-      append: (records) => this.append(threadId, records),
-      stage: (records) => this.stage(threadId, records),
-      commit: (options) => this.commit(threadId, options),
+      publish: (operationId, event) => {
+        if (!isDropped()) this.publish(threadId, operationId, event)
+      },
+      append: (records) =>
+        isDropped() ? Promise.resolve() : this.append(threadId, records),
+      stage: (records) => {
+        if (!isDropped()) this.stage(threadId, records)
+      },
+      commit: (options) =>
+        isDropped() ? Promise.resolve() : this.commit(threadId, options),
       flush: () => this.flush(),
       catchUp: () => this.enqueue(() => this.catchUp()),
       head: () => this.head(),

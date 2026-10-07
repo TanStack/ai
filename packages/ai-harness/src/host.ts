@@ -300,8 +300,17 @@ export interface HarnessHost<TLogState = unknown> {
    * ```
    */
   reload: (harness: AnyHarness) => Promise<void>
-  /** Close every live session. */
-  close: () => Promise<void>
+  /**
+   * Close every live session. With `recoverable`, their running work stops
+   * with no settlement, and the next host that opens a thread runs it again.
+   * See `session.close`.
+   *
+   * @example
+   * ```ts
+   * await host.close({ recoverable: true })
+   * ```
+   */
+  close: (options?: { recoverable?: boolean }) => Promise<void>
   /**
    * The `reduce` fold of a log that has an open session in this host, or
    * `undefined`.
@@ -744,13 +753,13 @@ export function createHarnessHost<TLogState = undefined>(
         if (result.status === 'rejected') throw result.reason
       }
     },
-    async close() {
+    async close(closeOptions) {
       await Promise.allSettled(closing.values())
       const live = await Promise.allSettled(sessions.values())
       await Promise.all(
         live
           .filter((entry) => entry.status === 'fulfilled')
-          .map((entry) => entry.value.close()),
+          .map((entry) => entry.value.close(closeOptions)),
       )
     },
     logState: (logId) => resolved.get(logId)?.state.reduced,

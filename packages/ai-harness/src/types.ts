@@ -101,6 +101,8 @@ export type HarnessInput = (
   | { op: 'prompt'; message: UserInput; busy?: BusyPolicy; context?: unknown }
   | { op: 'steer'; message: UserInput; context?: unknown }
   | { op: 'followUp'; message: UserInput; context?: unknown }
+  /** A turn from the stored transcript, with no new message. */
+  | { op: 'continue'; context?: unknown }
   | { op: 'resolve'; resume: Array<RunAgentResumeItem> }
   | {
       op: 'agent'
@@ -247,7 +249,7 @@ export interface TurnInfo {
   operationId: string
   /** The id of the turn input, when the turn has one. */
   inputId?: string
-  /** The user message of the input. `undefined` for a resolve. */
+  /** The user message of the input. `undefined` for a resolve and a continue. */
   message?: UserInput
   /** The `context` of the input. Client data: do not trust it. */
   context?: unknown

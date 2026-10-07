@@ -50,6 +50,7 @@ export type {
   GeminiImageModelSizeByName,
   GeminiStandardImageAspectRatio,
   GeminiExtendedImageAspectRatio,
+  GeminiNanoBanana21ImageSize,
   Gemini31FlashImageSize,
   Gemini31FlashLiteImageSize,
   Gemini3ProImageSize,

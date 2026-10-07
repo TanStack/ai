@@ -51,11 +51,38 @@ const assistant = defineHarness({
 })
 ```
 
-- The hook returns `{ messages?, records? }`. Return nothing when the work is done, and the turn ends.
+- The hook returns `{ messages?, records?, ephemeral? }`. Return nothing when the work is done, and the turn ends.
 - When the return changes the transcript, the model runs again. The hook runs again at the next stop.
 - Always check `messages`. A hook that returns the same reminder every time never stops.
 - `maxFinishCycles` (default 32) is the limit. A hook that still asks for more at the limit fails the turn.
 - `records` are host records in the same append. They need a durable host. See [Append your own records](./session-log#append-your-own-records).
+
+### Remind the model without saving the reminder
+
+A reminder in `messages` stays in the transcript, so every later model call sees it again. Return it as `ephemeral`, and only the next model call gets it:
+
+```ts group=harness-turn-control
+const reminded = defineHarness({
+  name: 'acme/reminded',
+  adapter: openaiText('gpt-6.1-sol'),
+  turn: {
+    beforeFinish: ({ messages }) => {
+      const done = messages.some((message) =>
+        message.toolCalls?.some((call) => call.function.name === 'finish'),
+      )
+      if (done) return undefined
+      return {
+        ephemeral: [{ role: 'user', content: 'Call finish or give_up now.' }],
+      }
+    },
+  },
+})
+```
+
+- The model gets the ephemeral messages at the end of its context, for that one call.
+- The transcript, the session log, and the message store never keep them.
+- A return with only `ephemeral` messages also sends the model back to work, and it counts for `maxFinishCycles`.
+- `onJoin` can return `ephemeral` messages too. They go to the model call of the join.
 
 ## Retry model errors
 
@@ -299,7 +326,7 @@ The session keeps the overrides in memory only. The session log does not store t
 - A queued prompt keeps its overrides until its turn runs.
 - A steer that joins a running turn uses the overrides of that turn. The session ignores the overrides of the steer.
 - A `prompt(text, { busy: 'steer', overrides })` that does not join runs as its own turn, with its own overrides.
-- After a restart, recovery runs an unfinished turn with the harness settings.
+- After a restart, recovery runs an unfinished turn with the harness settings. To give it overrides again, return them from `durability.recover`. See [Decide recovery yourself](./durable-sessions#decide-recovery-yourself).
 - A second prompt with the same `inputId` and message is a duplicate, also when its overrides are different.
 
 To keep a model or instructions for every turn of a thread, also after a restart, store them with `session.configure`. See [Store settings per thread](./thread-settings).

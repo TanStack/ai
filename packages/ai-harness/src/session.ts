@@ -11,6 +11,7 @@ import {
   createSubagentId,
   maxIterations,
   modelMessagesToUIMessages,
+  provideDetachableRun,
   provideLogRecords,
   readInterruptBinding,
   runAgentStream,
@@ -41,6 +42,7 @@ import {
   mountPlugins,
 } from './plugins'
 import {
+  CUT_OFF_NOTE,
   LEASE,
   checkpointMiddleware,
   findCrashedRuns,
@@ -355,6 +357,8 @@ interface QueuedTurn {
   sentMessage?: UserInput
   /** A `reset()`: it adds its marker to the transcript and runs no model. */
   reset?: { note?: string }
+  /** A `continue()`: it runs only when the model can answer the transcript. */
+  isContinue?: boolean
 }
 
 /**
@@ -845,6 +849,22 @@ const resetCut: AnyChatMiddleware = {
   },
 }
 
+/**
+ * Gives the next model call the `pending` messages after its context, and
+ * empties `pending`. It changes only what the adapter gets
+ * (`providerMessages`), so no save keeps them.
+ */
+function ephemeralCall(pending: Array<ModelMessage>): AnyChatMiddleware {
+  return {
+    name: 'harness:ephemeral',
+    onConfig: (ctx, config) => {
+      if (ctx.phase !== 'beforeModel' || pending.length === 0) return undefined
+      const messages = config.providerMessages ?? config.messages
+      return { providerMessages: [...messages, ...pending.splice(0)] }
+    },
+  }
+}
+
 /** A short transcript note about how an agent ended, for the next turn. */
 function referenceNote(
   agent: string,
@@ -877,13 +897,20 @@ export function acceptedKinds(
 }
 
 /** The inputs that run as chat turns. They settle, and so do agent inputs. */
-const CHAT_OPS = new Set<string>(['prompt', 'steer', 'followUp', 'resolve'])
+const CHAT_OPS = new Set<string>([
+  'prompt',
+  'steer',
+  'followUp',
+  'continue',
+  'resolve',
+])
 
 /** The inputs that leave work to do: the thread is busy until they end. */
 const WORK_OPS = new Set<string>([
   'prompt',
   'steer',
   'followUp',
+  'continue',
   'resolve',
   'reset',
   'agent',
@@ -899,6 +926,24 @@ const TIMEOUT_REASON = 'harness:input-timeout'
 /** What the model gets after its partial answer, on a `'continue'`. */
 const CONTINUE_NOTE =
   'Your last answer stopped early because of an error. Continue from the exact point where it stopped. Do not repeat the text you already wrote.'
+
+/**
+ * Why work stops at `close({ recoverable: true })`. A user cancel stops it
+ * with `RUN_CANCEL_REASON`.
+ */
+const SHUTDOWN_REASON = 'harness:shutdown'
+
+/**
+ * A shutdown abort is a detach, not an end: `withPersistence` then writes no
+ * aborted state to the run record. It goes before `withPersistence`, which
+ * reads the detach in its own `onAbort`.
+ */
+const detachOnShutdown: AnyChatMiddleware = {
+  name: 'harness:detach-on-shutdown',
+  onAbort: (ctx, info) => {
+    if (info.reason === SHUTDOWN_REASON) provideDetachableRun(ctx, true)
+  },
+}
 
 /** Why a turn fails when no option gives it an adapter. */
 const NO_MODEL =
@@ -1924,6 +1969,74 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       })
       return this.keep({ inputId, status, operationId: operation.id })
     })
+  }
+
+  /**
+   * Start a chat turn from the stored transcript, with no new message. While
+   * a turn runs, it queues. When it starts, the transcript must end with a
+   * user or a tool message. Else the input is rejected with
+   * `'nothing_to_continue'`. `inputId`, `overrides`, `principal`, and
+   * `context` mean the same as in `prompt`.
+   *
+   * @example
+   * ```ts
+   * await session.append([{ type: 'app.signal', text: 'The build failed.' }])
+   * await session.continue({ inputId: 'after-signal' })
+   * ```
+   */
+  continue(options?: {
+    inputId?: string
+    overrides?: TurnOverrides
+    principal?: Principal
+    context?: unknown
+  }): Operation<ChatTurnResult> {
+    const inputId = options?.inputId ?? createInputId()
+    const principal = options?.principal ?? this.principal
+    const context = options?.context
+    const input: HarnessInput = {
+      op: 'continue',
+      ...(context !== undefined ? { context } : {}),
+    }
+    const known = this.knownTurn(inputId, input, principal)
+    if (known) return known
+    const operation = this.createTurnOperation()
+    this.bindTurn(inputId, operation)
+    void this.admitting(() =>
+      this.accept(inputId, input, principal).then(
+        (admission) => {
+          if (admission !== 'new') {
+            this.answerDuplicate(operation, inputId, admission)
+            return
+          }
+          const isWaiting =
+            this.activeTurn !== undefined || this.queue.length > 0
+          this.answerTurn(operation, {
+            inputId,
+            status: isWaiting ? 'queued' : 'accepted',
+            operationId: operation.id,
+          })
+          this.enqueueTurn({
+            operation,
+            inputId,
+            overrides: options?.overrides,
+            principal,
+            context,
+            isContinue: true,
+          })
+        },
+        (error: unknown) => {
+          // As in `prompt`: the input was not stored.
+          const failure = this.logFailure ?? error
+          this.answerTurn(operation, {
+            inputId,
+            status: 'rejected',
+            reason: errorText(failure),
+          })
+          operation.fail('failed', failure)
+        },
+      ),
+    )
+    return operation
   }
 
   /**
@@ -3521,14 +3634,27 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   /**
    * Stop every running operation, wait for them, then dispose session plugins.
    * Safe to call twice.
+   *
+   * With `recoverable`, the running turns and agent runs stop as on a host
+   * crash: the log gets none of their later writes, they do not settle, and
+   * the run store gets no aborted state. They give their leases back, so the
+   * next host that opens the thread runs them again at once. Use it when a
+   * durable host shuts down, for example for a deploy.
+   *
+   * @example
+   * ```ts
+   * await session.close({ recoverable: true })
+   * ```
    */
-  close(): Promise<void> {
+  close(options?: { recoverable?: boolean }): Promise<void> {
     this.closing ??= (async () => {
       // A thread with work keeps its claim, so a sweep finds that work after
       // the claim expires. An idle thread gives it back.
       const wasIdle = this.isIdle()
       this.stopClaimTimer()
       if (wasIdle) await this.releaseClaim()
+      // Before the stop, so no write of the stopped work lands.
+      if (options?.recoverable) this.writer?.close()
       for (const turn of this.queue.splice(0)) {
         await this.refreshTurnInterrupts(turn.operation)
         turn.operation.fail('cancelled', new Error('Session closed.'))
@@ -3537,7 +3663,9 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         (operation) => !operation.isSettled(),
       )
       for (const operation of running) {
-        operation.abortController.abort(RUN_CANCEL_REASON)
+        operation.abortController.abort(
+          options?.recoverable ? SHUTDOWN_REASON : RUN_CANCEL_REASON,
+        )
       }
       for (const question of this.questions.values()) {
         question.reject(new Error('Session closed.'))
@@ -3546,6 +3674,9 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       await Promise.allSettled(
         running.map((operation) => Promise.resolve(operation)),
       )
+      // The events from before the close land first, so the next host has
+      // the text of a cut answer.
+      if (options?.recoverable) await this.writer?.flush().catch(() => {})
       try {
         await this.sessionPlugins?.dispose()
       } finally {
@@ -3827,9 +3958,10 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
    * `turn.onJoin` adds its messages after theirs. On a durable host, one
    * append commits the engine's messages, the steer messages, the join
    * records, and the `onJoin` records, so a crash never splits a join. The
-   * model gets the folded log when a host record changed the context.
+   * model gets the folded log when a host record changed the context. The
+   * `onJoin` ephemeral messages go to `ephemeral`, for this model call.
    */
-  private steering(): AnyChatMiddleware {
+  private steering(ephemeral: Array<ModelMessage>): AnyChatMiddleware {
     return {
       name: 'harness:steering',
       onConfig: async (ctx, config) => {
@@ -3899,6 +4031,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           // Only now, so a hook or an append that fails leaves them waiting.
           this.steerQueue.splice(0, count)
           for (const steer of steers) this.join(ctx.runId, steer)
+          ephemeral.push(...(added?.ephemeral ?? []))
           if (list.length === config.messages.length && !synced) {
             return undefined
           }
@@ -4208,6 +4341,23 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   }
 
   /**
+   * End work that `close({ recoverable: true })` stopped, with no settlement.
+   * Its leases end now, so the next host that opens the thread runs it again
+   * at once. Call it after the run lease renewal stopped.
+   */
+  private async giveBack(
+    operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
+    releaseLease: (() => Promise<void>) | undefined,
+  ) {
+    // An expired run lease, for a host without a lease store.
+    await this.persistence.stores.runs
+      ?.update(operation.id, { leaseExpiresAt: 0 })
+      .catch(() => {})
+    await releaseLease?.()
+    operation.fail('cancelled', new Error('Session closed.'))
+  }
+
+  /**
    * Apply a `reset()`: add its marker to the transcript. A thread that waits
    * for interrupts gets no marker, and the reset fails.
    */
@@ -4257,6 +4407,13 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     this.requeueWaitingSteers()
   }
 
+  /** The model can answer the context: it ends with a user or a tool message. */
+  private async canContinue() {
+    const history = await this.messages.loadThread(this.threadId)
+    const last = resetContext(history).at(-1)
+    return last?.role === 'user' || last?.role === 'tool'
+  }
+
   private async runTurn(turn: QueuedTurn): Promise<void> {
     // The next turn drops the messages that a revert hides.
     try {
@@ -4283,6 +4440,14 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     }
     if (turn.inputId) {
       try {
+        if (turn.isContinue && !(await this.canContinue())) {
+          this.refuse(
+            operation,
+            this.reject(turn.inputId, 'nothing_to_continue'),
+          )
+          this.requeueWaitingSteers()
+          return
+        }
         await this.applied(turn.inputId, operation.id)
       } catch (error) {
         // The log refused the write, so the session stops.
@@ -4537,12 +4702,15 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       }
       /** The messages a resolve of a routed turn continues from. */
       let routedFrom = turn.answers?.routed?.messages
-      /** Retries since the last finished tool phase. */
-      let retries = 0
+      /** Retries since the last finished tool phase. The log keeps them. */
+      let retries =
+        this.writer?.state.inputs.get(turn.inputId ?? '')?.retries ?? 0
       /** The partial answer and the note that a `'continue'` adds. */
       let continued: Array<ModelMessage> = []
       /** How many times `turn.beforeFinish` continued this turn. */
       let cycle = 0
+      /** The ephemeral messages of a turn hook, for the next model call. */
+      const ephemeral: Array<ModelMessage> = []
       // One chat() run, and one more each time steers wait after a final
       // answer: a late join gets its answer in this turn. A run that failed
       // runs again when `turn.onModelError` answers 'retry'. A final answer
@@ -4592,6 +4760,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             tools,
             middleware: [
               ...bridges,
+              detachOnShutdown,
               withPersistence(chatPersistence),
               checkpoint,
               // Before the harness middleware, so a compaction sees only the
@@ -4603,10 +4772,12 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
               ...(runPlugins?.middleware ?? []),
               ...(keepTools ? [keepTools] : []),
               ...(durableTools ? [durableTools] : []),
-              ...(rootBag ? [] : [this.steering()]),
+              ...(rootBag ? [] : [this.steering(ephemeral)]),
               // Again: a middleware that returns `messages` (as steering
               // does) resets what the model gets to the whole transcript.
               resetCut,
+              // After steering and the reset, so neither drops them.
+              ephemeralCall(ephemeral),
               // Last, because a later middleware that returns `messages` (as
               // steering does) resets what the model gets.
               mediaMiddleware({
@@ -4719,6 +4890,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
                   resultIds.add(chunk.toolCallId)
                 }
               }
+              if (retries > 0) this.stageRetries(turn, operation, 0)
               retries = 0
               textBefore = text
             }
@@ -4754,6 +4926,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             !signal.aborted
           ) {
             retries += 1
+            this.stageRetries(turn, operation, retries)
             const isContinued = answer === 'continue' && partial
             if (isContinued) {
               // The partial answer stays in the turn result and in the
@@ -4816,11 +4989,13 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           // this check cannot leave a run with no new input.
           const hasLateJoin = !rootBag && (await this.claimJoins()) > 0
           if (!hasLateJoin) {
-            if (
-              !(await this.continueBeforeFinish(operation, turn.inputId, cycle))
-            ) {
-              break
-            }
+            const goesOn = await this.continueBeforeFinish(
+              operation,
+              turn.inputId,
+              cycle,
+              ephemeral,
+            )
+            if (!goesOn) break
             cycle += 1
           }
         }
@@ -4855,6 +5030,13 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       await runPlugins?.dispose().catch(() => {})
     }
     const timedOut = operation.abortController.signal.reason === TIMEOUT_REASON
+    // A recoverable close: the turn stops as on a crash, and the next host
+    // runs it again.
+    if (operation.abortController.signal.reason === SHUTDOWN_REASON) {
+      await this.giveBack(operation, releaseLease)
+      this.requeueWaitingSteers()
+      return
+    }
 
     // The stream has ended, so withPersistence has saved the turn. A failed or
     // cancelled turn may not have saved its answer, and its last assistant
@@ -5120,6 +5302,28 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   }
 
   /**
+   * Keep the retry count of a turn in the log, so a recovered attempt starts
+   * from it. It lands with the next append of the turn: the commit of the
+   * model call that runs next.
+   */
+  private stageRetries(
+    turn: QueuedTurn,
+    operation: OperationImpl<ChatTurnResult>,
+    retries: number,
+  ) {
+    const { inputId } = turn
+    if (inputId === undefined) return
+    this.writer?.stage([
+      {
+        type: 'harness.turn.retry',
+        inputId,
+        operationId: operation.id,
+        retries,
+      },
+    ])
+  }
+
+  /**
    * Add hook messages and host records to the transcript, in one append.
    * Returns true when the transcript changed.
    */
@@ -5152,12 +5356,13 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
 
   /**
    * Ask `turn.beforeFinish` whether the turn goes on. True when it added to
-   * the transcript, so the turn runs the model again.
+   * the transcript or to `ephemeral`, so the turn runs the model again.
    */
   private async continueBeforeFinish(
     operation: OperationImpl<ChatTurnResult>,
     inputId: string | undefined,
     cycle: number,
+    ephemeral: Array<ModelMessage>,
   ): Promise<boolean> {
     const hooks = this.harness.turn
     if (!hooks?.beforeFinish) return false
@@ -5174,7 +5379,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     const isEmpty =
       !added ||
       ((added.messages?.length ?? 0) === 0 &&
-        (added.records?.length ?? 0) === 0)
+        (added.records?.length ?? 0) === 0 &&
+        (added.ephemeral?.length ?? 0) === 0)
     if (isEmpty) return false
     const max = hooks.maxFinishCycles ?? 32
     if (cycle >= max) {
@@ -5182,7 +5388,9 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         `beforeFinish continued the turn ${max} times. Return nothing from the hook when the work is done.`,
       )
     }
-    return this.addToTurn(added)
+    const isChanged = await this.addToTurn(added)
+    ephemeral.push(...(added.ephemeral ?? []))
+    return isChanged || ephemeral.length > 0
   }
 
   // ===========================
@@ -5406,6 +5614,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       pending: newest?.checkpoint?.pendingTools ?? [],
       finished,
       interrupted: this.harness.durability?.interruptedToolResult,
+      truncated: this.harness.durability?.truncatedToolResult,
     })
     return store.loadThread(agentThread)
   }
@@ -5726,6 +5935,13 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           ...settlement,
         })),
       ).catch(() => {})
+    }
+    // A recoverable close: the run stops as on a crash, and the next host
+    // runs it again.
+    if (operation.abortController.signal.reason === SHUTDOWN_REASON) {
+      stopRunLease()
+      await this.giveBack(operation, releaseLease)
+      return
     }
     if (operation.abortController.signal.aborted) {
       operation.publish({
@@ -6257,6 +6473,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       threadId: newest.threadId,
       pending: newest.checkpoint?.pendingTools ?? [],
       interrupted: this.harness.durability?.interruptedToolResult,
+      truncated: this.harness.durability?.truncatedToolResult,
     })
     const operation = this.createTurnOperation()
     this.feed.publish(
@@ -6351,11 +6568,36 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           : {}),
         abortRequested: input.abortRequested,
         ...(input.operationId ? { operationId: input.operationId } : {}),
+        retries: input.retries ?? 0,
       },
       messages: [...writer.state.messages],
       decision,
     })
     return answer ?? decision
+  }
+
+  /**
+   * The answer text that operation `operationId` streamed after the last
+   * transcript record: the part of a cut answer that the log has. Thinking,
+   * tool call arguments, and agent text are not in it.
+   */
+  private async cutOffText(writer: LogWriter, operationId: string) {
+    const from = writer.state.transcriptSeq
+    if (from === undefined) return ''
+    let text = ''
+    for await (const { event } of writer.read({
+      from: String(from),
+      filter: (entry) => entry.operationId === operationId,
+      until: () => true,
+    })) {
+      if (
+        event.type === EventType.TEXT_MESSAGE_CONTENT &&
+        !('subagentRunId' in event && event.subagentRunId)
+      ) {
+        text += event.delta
+      }
+    }
+    return text
   }
 
   /**
@@ -6463,7 +6705,10 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           }
           continue
         }
-        if (!isChat || !('message' in input.input)) {
+        if (
+          !isChat ||
+          !('message' in input.input || input.input.op === 'continue')
+        ) {
           this.reject(input.inputId, 'expired_on_restart')
           continue
         }
@@ -6480,6 +6725,20 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             inputId: input.inputId,
             outcome: decision.outcome,
             ...(decision.error ? { error: decision.error } : {}),
+          })
+          continue
+        }
+        if (input.input.op === 'continue') {
+          // It runs from the transcript, as `continue()` does.
+          const operation = this.createTurnOperation()
+          this.bindTurn(input.inputId, operation)
+          this.enqueueTurn({
+            operation,
+            inputId: input.inputId,
+            principal: input.principal,
+            context: input.input.context,
+            overrides: decision.overrides,
+            isContinue: true,
           })
           continue
         }
@@ -6666,13 +6925,32 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       const started = [...writer.state.started]
         .filter(([toolCallId]) => !writer.state.toolResults.has(toolCallId))
         .map(([toolCallId, tool]) => ({ toolCallId, ...tool }))
+      // Before the repair, which can write a transcript record.
+      const cutOff = this.harness.durability?.continueCutOff
+      const partial =
+        cutOff && operationId ? await this.cutOffText(writer, operationId) : ''
       await repairTranscript({
         messages: this.messages,
         threadId: this.threadId,
         pending: [...(run?.checkpoint?.pendingTools ?? []), ...started],
         finished: writer.state.toolResults,
         interrupted: this.harness.durability?.interruptedToolResult,
+        truncated: this.harness.durability?.truncatedToolResult,
       })
+      if (partial !== '') {
+        const history = await this.messages.loadThread(this.threadId)
+        // One append, so the transcript never ends with the cut answer.
+        await this.messages.saveThread(this.threadId, [
+          ...history,
+          { id: createMessageId(), role: 'assistant', content: partial },
+          {
+            id: createMessageId(),
+            role: 'user',
+            content:
+              (typeof cutOff === 'object' && cutOff.note) || CUT_OFF_NOTE,
+          },
+        ])
+      }
       const operation = this.createTurnOperation()
       this.bindTurn(input.inputId, operation)
       this.feed.publish(

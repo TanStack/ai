@@ -72,6 +72,30 @@ describe('Gemini per-model image size gating', () => {
     })
   })
 
+  describe('gemini-nano-banana-2.1 — 14 ratios × 1K/2K/4K', () => {
+    it('accepts 1K/2K/4K, including the banner ratios', () => {
+      createImageOptions({
+        adapter: createGeminiImage('gemini-nano-banana-2.1', apiKey),
+        prompt: 'a landscape',
+        size: '16:9_4K',
+      })
+      createImageOptions({
+        adapter: createGeminiImage('gemini-nano-banana-2.1', apiKey),
+        prompt: 'a banner',
+        size: '8:1_1K',
+      })
+    })
+
+    it('rejects the 512 tier', () => {
+      createImageOptions({
+        adapter: createGeminiImage('gemini-nano-banana-2.1', apiKey),
+        prompt: 'a square',
+        // @ts-expect-error - the 512 tier is Gemini 3.1 Flash Image only
+        size: '1:1_512',
+      })
+    })
+  })
+
   describe('gemini-3.1-flash-lite-image — 14 ratios, 1K only', () => {
     it('accepts 1K at any of the 14 ratios', () => {
       createImageOptions({
