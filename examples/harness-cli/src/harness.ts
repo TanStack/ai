@@ -12,8 +12,8 @@ import {
   providerKeys,
   todos,
   usage,
-  workspaceTools,
 } from '@tanstack/ai-harness/plugins'
+import { workspaceTools } from '@tanstack/ai-harness/plugins/coding'
 import { ANTHROPIC_MODELS, createAnthropicChat } from '@tanstack/ai-anthropic'
 import { anthropicByok } from '@tanstack/ai-anthropic/byok'
 import { claudeCodeText } from '@tanstack/ai-claude-code'

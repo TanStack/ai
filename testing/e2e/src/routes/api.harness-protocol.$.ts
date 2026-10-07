@@ -11,7 +11,7 @@ import {
   defineHarness,
   definePlugin,
 } from '@tanstack/ai-harness'
-import { todos } from '@tanstack/ai-harness/plugins'
+import { permissions, todos } from '@tanstack/ai-harness/plugins'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { z } from 'zod'
 import { askName, deploy, probe, whoami } from '@/lib/harness-protocol-tools'
@@ -102,6 +102,18 @@ function harnessFor(request: Request) {
           maxRetries: 0,
         })
       : createTextAdapter('openai', undefined, port, testId).adapter
+  // `x-harness-permissions: 1` asks the user before each `whoami` call. An
+  // `always` answer is saved for the root, and the host is shared, so each
+  // test gets its own root.
+  const asks =
+    request.headers.get('x-harness-permissions') === '1'
+      ? [
+          permissions({
+            root: `/e2e/${testId}`,
+            rules: [{ tool: 'whoami', decision: 'ask' }],
+          }),
+        ]
+      : []
   const harness = defineHarness({
     name: 'e2e/protocol',
     adapter,
@@ -146,11 +158,16 @@ function harnessFor(request: Request) {
         },
       }),
     ],
+    // `mode` of `permissions()` stays on the server, so a client cannot pick
+    // `bypass`.
     expose: {
       agents: ['echo', 'drafter'],
       settings: ['model', 'instructions'],
+      config: ['tone'],
+      commands: ['greet'],
     },
     plugins: () => [
+      ...asks,
       todos(),
       // The sender of the running turn, as plugins see it.
       definePlugin({
@@ -232,7 +249,8 @@ function handlerFor(request: Request) {
 /**
  * Test only: `POST .../fork` with `{ threadId, newThreadId, at? }` forks a
  * thread with `host.fork` and answers with the transcript of the new thread.
- * The handler has no fork route.
+ * The handler forks with `POST .../sessions`, which picks the new thread id.
+ * Here the test picks it, so a test can fork onto a thread that has messages.
  */
 async function forkThread(request: Request) {
   const principal = authorize(request)

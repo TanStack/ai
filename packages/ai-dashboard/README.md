@@ -47,6 +47,27 @@ await connectDashboard({
 
 With `@tanstack/ai-harness-cli`, run your CLI with `--dashboard <url>`.
 
+## When the dashboard restarts
+
+The dashboard keeps host tokens in memory. After a restart, it refuses the saved token of each agent. It also refuses the token of a revoked host. What the agent does next depends on `onPairingCode`:
+
+- If `onPairingCode` is set, the agent pairs again. It calls `onPairingCode` with a new code, then `onToken` with the new token.
+- If `onPairingCode` is not set, the agent stops and calls `onError`.
+
+```ts
+const connection = await connectDashboard({
+  host,
+  harness: studio,
+  url: 'http://127.0.0.1:8790',
+  token: savedToken,
+  onError: (error) => console.error(`Dashboard: ${error.message}`),
+})
+```
+
+`onError` also gets an error when the agent cannot handle a frame from the dashboard, for example when a thread cannot open. Then the connection stays.
+
+`connection.token` always holds the current host token.
+
 ## Documentation
 
 Read [Self-host the dashboard](https://tanstack.com/ai/latest/docs/harness/dashboard).

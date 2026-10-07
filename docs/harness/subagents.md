@@ -30,7 +30,7 @@ const explorer = defineAgent({
   inputSchema: z.object({ task: z.string() }),
   run: (ctx) =>
     ctx.chat({
-      adapter: openaiText('gpt-5.6-luna'),
+      adapter: openaiText('gpt-6-luna'),
       messages: [{ role: 'user', content: ctx.input.task }],
       stream: false,
     }),
@@ -89,7 +89,7 @@ const migrator = defineAgent({
     const exportId = await ctx.step.do('export', () => startExport(ctx.input.customer))
     await ctx.step.do('import', () => importInto('eu-west', exportId))
     return ctx.chat({
-      adapter: openaiText('gpt-5.6'),
+      adapter: openaiText('gpt-6.1-sol'),
       messages: [{ role: 'user', content: `Write a short report about ${exportId}.` }],
       stream: false,
     })
@@ -271,7 +271,7 @@ import { z } from 'zod'
 const writer = defineAgent({
   name: 'writer',
   description: 'Writes blog posts',
-  run: (ctx) => ctx.chat({ adapter: openaiText('gpt-5.6'), stream: false }),
+  run: (ctx) => ctx.chat({ adapter: openaiText('gpt-6.1-sol'), stream: false }),
 })
 
 const pricer = defineAgent({
@@ -280,7 +280,7 @@ const pricer = defineAgent({
   inputSchema: z.object({ vendor: z.string() }),
   run: (ctx) =>
     ctx.chat({
-      adapter: openaiText('gpt-5.6'),
+      adapter: openaiText('gpt-6.1-sol'),
       messages: [{ role: 'user', content: `Compare the plans of ${ctx.input.vendor}` }],
       stream: false,
     }),
@@ -288,7 +288,7 @@ const pricer = defineAgent({
 
 export const studio = defineHarness({
   name: 'acme/studio',
-  adapter: openaiText('gpt-5.6'),
+  adapter: openaiText('gpt-6.1-sol'),
   agents: [writer, pricer],
   routing: {
     router: async ({ agents, messages, adapter }) => {
@@ -339,17 +339,89 @@ import { defineHarness, harnessAgent } from '@tanstack/ai-harness'
 const reviewer = defineHarness({
   name: 'acme/reviewer',
   description: 'Reviews a change and lists the risks',
-  adapter: openaiText('gpt-5.6'),
+  adapter: openaiText('gpt-6.1-sol'),
 })
 
 export const lead = defineHarness({
   name: 'acme/lead',
-  adapter: openaiText('gpt-5.6'),
+  adapter: openaiText('gpt-6.1-sol'),
   subagents: { agents: [harnessAgent(reviewer)] },
 })
 ```
 
 The tool name comes from the harness name, with characters other than letters, digits, `_`, and `-` changed to `_`. Pass `name` to pick another.
+
+## Give the model one subagent tool
+
+In a long session, the model can need a follow-up from a child that it started earlier. It can also need to start slow work and answer the user while the work runs. Set `subagents.tool` to `'single'`, and the model gets one `subagent` tool for every agent:
+
+```ts
+import { defineAgent } from '@tanstack/ai'
+import { defineHarness } from '@tanstack/ai-harness'
+import { openaiText } from '@tanstack/ai-openai'
+import { z } from 'zod'
+
+const researcher = defineAgent({
+  name: 'researcher',
+  description: 'Researches one question and returns sourced findings',
+  inputSchema: z.object({ question: z.string() }),
+  run: (ctx) =>
+    ctx.chat({
+      adapter: openaiText('gpt-6.1-sol'),
+      messages: [{ role: 'user', content: ctx.input.question }],
+      stream: false,
+    }),
+})
+
+const writer = defineAgent({
+  name: 'writer',
+  description: 'Writes and edits drafts',
+  run: (ctx) => ctx.chat({ adapter: openaiText('gpt-6.1-sol'), stream: false }),
+})
+
+export const studio = defineHarness({
+  name: 'acme/studio',
+  adapter: openaiText('gpt-6.1-sol'),
+  subagents: { agents: [researcher, writer], tool: 'single' },
+})
+```
+
+The tool input is the same as in `chat()`: `agent`, then `input` or `prompt`, plus `sessionId` and `background`. See [Give the model one subagent tool](../chat/subagents#give-the-model-one-subagent-tool). In a harness:
+
+- `sessionId` needs no more setup, because the host stores each child.
+- `background: true` gives the model `{ subagentRunId, result: { status: 'started' } }` at once. The child runs as a background agent of the session.
+- When a background child ends, the session starts a new turn. Its message starts with `Background agent researcher finished:` or `Background agent researcher failed:`.
+
+What a [session view](./custom-ui#what-the-state-holds) shows:
+
+- A child that the tool runs is an `agent` part on the assistant message.
+- A background child is in `state.agents` while it runs.
+- With a session index, each child gets an entry with its `parentThreadId` and `parentToolCallId`. See [Turn on the session index](./sessions#turn-on-the-session-index).
+
+Known limits:
+
+- A background child cannot be continued by its `sessionId`. If the model needs follow-ups, start the child without `background`.
+- Only the turns of the session can start a background child. A child that calls the `subagent` tool with `background` gets the tool error `background needs a harness host.`
+- A call with `background` and `sessionId` gets the tool error `background cannot continue a sessionId.`
+
+### Agents from plugins
+
+The `tool` setting also applies to the agents that plugins add. For example, the `agents()` plugin adds its subagent profiles, such as `general` and `explore`. With `subagents: { agents: [], tool: 'single' }`, they share one `subagent` tool:
+
+```ts
+import { defineHarness } from '@tanstack/ai-harness'
+import { agents } from '@tanstack/ai-harness/plugins'
+import { openaiText } from '@tanstack/ai-openai'
+
+export const coder = defineHarness({
+  name: 'acme/coder',
+  adapter: openaiText('gpt-6.1-sol'),
+  subagents: { agents: [], tool: 'single' },
+  plugins: () => [agents({ adapter: () => openaiText('gpt-6.1-sol') })],
+})
+```
+
+The permission rules of an `agents()` profile apply only while that profile is the primary agent. They do not apply inside a child run. See [Known limits](./agents#known-limits).
 
 ## Stay within limits
 
@@ -358,7 +430,7 @@ A harness always limits its children. Without `subagents.limits`, it uses a dept
 ```ts group=harness-subagents
 export const careful = defineHarness({
   name: 'acme/careful',
-  adapter: openaiText('gpt-5.6'),
+  adapter: openaiText('gpt-6.1-sol'),
   subagents: {
     agents: [explorer],
     limits: { maxDepth: 1, maxConcurrent: 2, maxCalls: 6, timeoutMs: 60_000 },
@@ -374,5 +446,5 @@ See [subagent limits](../chat/subagents) for what each limit does.
 - Background agents that continue on the next host after a crash, with steps that do not run twice.
 - Running agents that take steers and follow-ups, from your server or from the browser.
 - A router that sends each turn to the right agent, and gives each agent its input.
-- Harnesses that call other harnesses as tools.
+- Harnesses that call other harnesses as tools, and one `subagent` tool that continues a child or starts it in the background.
 - A tree of children that stays within limits.

@@ -2,7 +2,7 @@
 title: Track usage and cost
 id: harness-usage
 order: 7
-description: "Read the tokens and the cost of a thread, in total, by model, and by sender. Show a live total, and stop a person who is over budget."
+description: "Read the tokens and the cost of a thread, in total, by model, and by sender. Show a live total, stop a person who is over budget, and add /usage with your own prices."
 keywords:
   - tanstack ai
   - harness
@@ -23,7 +23,7 @@ import { openaiText } from '@tanstack/ai-openai'
 
 export const assistant = defineHarness({
   name: 'acme/assistant',
-  adapter: openaiText('gpt-5.6'),
+  adapter: openaiText('gpt-6.1-sol'),
 })
 
 const host = createHarnessHost({ persistence: memoryPersistence() })
@@ -36,13 +36,13 @@ await session.prompt('Summarize the open tickets.')
 
 const { total, byModel, bySender } = session.usage()
 console.log(total.calls, total.totalTokens, total.cost)
-console.log(byModel['openai/gpt-5.6']?.totalTokens, bySender.ada?.cost)
+console.log(byModel['openai/gpt-6.1-sol']?.totalTokens, bySender.ada?.cost)
 ```
 
 The totals have three groups. `snapshot().usage` has the same data:
 
 - `total`: every model call of the thread.
-- `byModel`: the calls of each model, keyed by `provider/model`, for example `openai/gpt-5.6`.
+- `byModel`: the calls of each model, keyed by `provider/model`, for example `openai/gpt-6.1-sol`.
 - `bySender`: the calls of each person, keyed by the principal id. It has only the calls of a known sender, so its sum can be less than `total`.
 
 Each entry has `calls`, `promptTokens`, `completionTokens`, `totalTokens`, `cachedTokens`, and `cacheWriteTokens`. If a provider reported a cost, the entry also has `cost`. The harness adds the costs that the providers report, in their currency. It uses no price list of its own.
@@ -105,9 +105,88 @@ export async function send(threadId: string, userId: string, text: string) {
 }
 ```
 
+## Show usage and price the calls
+
+Many providers report no cost, so `cost` stays empty. The `usage()` plugin adds a `/usage` command, and can price those calls with your own price list. Install `@tanstack/ai-models` for the prices:
+
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-models
+vue: @tanstack/ai-models
+solid: @tanstack/ai-models
+svelte: @tanstack/ai-models
+preact: @tanstack/ai-models
+angular: @tanstack/ai-models
+octane: @tanstack/ai-models
+vanilla: @tanstack/ai-models
+
+<!-- ::end:tabs -->
+
+```ts group=harness-usage
+import { usage } from '@tanstack/ai-harness/plugins'
+import { getModel } from '@tanstack/ai-models'
+
+export const priced = defineHarness({
+  name: 'acme/priced',
+  adapter: openaiText('gpt-6.1-sol'),
+  plugins: () => [usage({ model: (id) => getModel('openai', id) })],
+})
+```
+
+`/usage` reads `session.usage()` and shows the total. When the thread used more than one model, it also shows a line for each model:
+
+```text
+3 model calls, 41200 input tokens (30000 cache read, 0 cache write), 2100 output tokens, 43300 total. Cost: $0.0432.
+openai/gpt-6.1-sol: 2 model calls, 40000 input tokens (30000 cache read, 0 cache write), 2000 output tokens, 42000 total.
+openai/gpt-6-luna: 1 model calls, 1200 input tokens, 100 output tokens, 1300 total.
+```
+
+How the plugin finds the cost:
+
+- A call with a cost from its provider keeps that cost, as it is.
+- `model` prices only the calls with no provider cost. It gets the model id without the provider, like `gpt-6.1-sol`. It returns `{ cost }` with prices in USD per 1M tokens, or `undefined`.
+- Without `model`, `/usage` shows `Cost:` only when a provider reported a cost.
+- A call with no price adds a note, for example `(cost unknown for 1 call)`.
+
+`session.usage()` keeps only the costs that the providers report. The prices of `model` show in `/usage` and in the session index.
+
+## Show the cost in a list of sessions
+
+With `stores.sessions`, each [session index](./sessions) entry has a `usage` field:
+
+- The host writes the token counts of `session.usage()` at the end of each turn. `turns` is the number of model calls.
+- The `usage()` plugin writes `usage.cost` whenever it has a cost: the provider costs plus the prices of `model`.
+
+Read them in the browser with `listSessions`:
+
+```ts group=harness-usage-client
+const page = await client.listSessions({ limit: 20 })
+for (const entry of page.entries) {
+  const cost = entry.usage?.cost
+  console.log(entry.title ?? 'New chat', cost === undefined ? '' : `$${cost.toFixed(2)}`)
+}
+```
+
+## Show a context meter
+
+The plugin state, `state.plugins['tanstack/usage']`, has a copy of `session.usage().total` and one more field:
+
+- `contextTokens`: the input tokens of the latest call of the lead model. This is how much of the context window the conversation fills now.
+
+Compare `contextTokens` with the context window of the model, and show the result as a meter in [your own UI](./custom-ui).
+
+## Known limits
+
+- A host with no `usage()` plugin writes no cost to the index entry. The token counts are still there.
+- On a host with a log, the cost in the index entry and the state copy can miss the last call of a run. They get it at the end of the next run.
+- A background agent can end after the turn. Then the index entry counts its tokens at the end of the next turn.
+- For one model, when some calls have a provider cost and others do not, `model` does not price the others.
+- `model` uses the base prices only. Higher prices for a long input, like the `tiers` of `@tanstack/ai-models`, do not apply.
+
 ## What you have now
 
 - The tokens and the cost of a thread, in total, by model, and by sender.
 - Totals that stay after a restart.
 - A live total in your UI, from the `harness.usage` event.
 - A budget check before each prompt.
+- `/usage` with your own prices, a cost for each session in the session index, and a context meter.

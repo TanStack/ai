@@ -56,6 +56,7 @@ import type {
   ModelMessage,
   AdapterYieldChunk,
   TextOptions,
+  ToolChoice,
 } from '@tanstack/ai'
 import type { ExternalResponsesProviderOptions } from '../text/responses-provider-options'
 import type { OpenRouterModelReasoningByName } from '../model-reasoning'
@@ -109,6 +110,14 @@ type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof OpenRouterChatModelToolCapabilitiesByName
     ? NonNullable<OpenRouterChatModelToolCapabilitiesByName[TModel]>
     : readonly []
+
+/** Maps `chat({ toolChoice })` to the OpenRouter Responses `toolChoice`. */
+function toOpenRouterResponsesToolChoice(
+  choice: ToolChoice,
+): NonNullable<ResponsesRequest['toolChoice']> {
+  if (typeof choice === 'string') return choice
+  return { type: 'function', name: choice.name }
+}
 
 /**
  * OpenRouter Responses (beta) Adapter — standalone implementation that talks
@@ -1838,6 +1847,13 @@ export class OpenRouterResponsesTextAdapter<
     )
     const effort = openRouterEffort(resolved)
 
+    // `chat({ toolChoice })` is sent only when the request has tools. It goes
+    // before the `modelOptions` spread, so a `toolChoice` there wins.
+    const toolChoiceField =
+      tools?.length && options.toolChoice !== undefined
+        ? { toolChoice: toOpenRouterResponsesToolChoice(options.toolChoice) }
+        : undefined
+
     const built: Pick<
       ResponsesRequest,
       | 'model'
@@ -1853,6 +1869,7 @@ export class OpenRouterResponsesTextAdapter<
       | 'text'
       | 'reasoning'
     > = {
+      ...toolChoiceField,
       ...modelOptions,
       model: options.model + variantSuffix,
       // Root `metadata` is observability-only and intentionally not forwarded:

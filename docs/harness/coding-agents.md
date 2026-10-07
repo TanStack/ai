@@ -44,7 +44,7 @@ const repo = '/path/to/your/repo'
 
 export const lead = defineHarness({
   name: 'acme/lead',
-  adapter: openaiText('gpt-5.6'),
+  adapter: openaiText('gpt-6.1-sol'),
   plugins: () => [
     permissions(),
     codingAgents({
@@ -103,7 +103,7 @@ Use `'shared'` when the agents build on each other's changes. Use `'per-agent'` 
 
 ## Plan mode
 
-When the `permissions()` plugin is in `plan` mode, the agents start read-only:
+When the `permissions()` plugin is in [`plan` mode](./permissions#pick-a-mode), the agents start read-only:
 
 - Claude Code gets `permissionMode: 'plan'`.
 - Codex gets `sandboxMode: 'read-only'`.

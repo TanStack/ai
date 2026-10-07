@@ -42,6 +42,8 @@ const INPUT_OPS = new Set([
   'resolve',
   'agent',
   'cancel',
+  'cancelInput',
+  'setDelivery',
   'command',
   'answer',
   'config',
@@ -99,6 +101,14 @@ export function parseHarnessInput(value: unknown): HarnessInput {
   if (value.op === 'config' && typeof value.key !== 'string') {
     throw new Error('Invalid input: config needs a key.')
   }
+  const namesInput = value.op === 'cancelInput' || value.op === 'setDelivery'
+  if (namesInput && typeof value.inputId !== 'string') {
+    throw new Error(`Invalid input: ${value.op} needs an inputId.`)
+  }
+  const isDelivery = value.delivery === 'steer' || value.delivery === 'queue'
+  if (value.op === 'setDelivery' && !isDelivery) {
+    throw new Error("Invalid input: setDelivery needs 'steer' or 'queue'.")
+  }
   // The session checks each field, and answers a bad one with a receipt.
   if (value.op === 'configure' && !isRecord(value.settings)) {
     throw new Error('Invalid input: configure needs a settings object.')
@@ -143,10 +153,12 @@ export function parseControlFrame(data: string): ControlFrame {
 }
 
 /**
- * Apply a client input to a session. Only agents in `expose.agents` can run,
- * or take messages, from a client. Resolves to the receipt. `principal` is who sent the input,
- * from your `authorize`, never from the input itself. A chat input runs with
- * its credentials.
+ * Apply a client input to a session. A client can run, or send messages to,
+ * only the agents in `expose.agents`. It can run only the commands in
+ * `expose.commands`, and change only the settings in `expose.settings` and the
+ * config keys in `expose.config`. Resolves to the receipt. `principal` is who
+ * sent the input, from your `authorize`, never from the input itself. A chat
+ * input runs with its credentials.
  */
 export async function applyInput(
   harness: AnyHarness,
@@ -163,6 +175,11 @@ export async function applyInput(
     ...('context' in input && input.context !== undefined
       ? { context: input.context }
       : {}),
+  }
+  const notExposed: Receipt = {
+    inputId: input.inputId ?? '',
+    status: 'rejected',
+    reason: 'not_exposed',
   }
   switch (input.op) {
     case 'prompt': {
@@ -185,7 +202,15 @@ export async function applyInput(
       return session.resolve(input.resume, id)
     case 'cancel':
       return session.cancel(input.operationId)
+    case 'cancelInput':
+      return session.cancelInput(input.inputId)
+    case 'setDelivery':
+      return session.setDelivery(input.inputId, input.delivery)
     case 'command': {
+      // A command can change the session, for example `/mode bypass`.
+      if (!(harness.expose?.commands ?? []).includes(input.name)) {
+        return notExposed
+      }
       const operation = session.command(
         input.name,
         input.input,
@@ -204,6 +229,9 @@ export async function applyInput(
     case 'answer':
       return session.answer(input.questionId, input.value)
     case 'config':
+      if (!(harness.expose?.config ?? []).includes(input.key)) {
+        return notExposed
+      }
       return session.setConfig(input.key, input.value)
     case 'configure': {
       // A client changes only the settings the harness exposes.
@@ -211,13 +239,7 @@ export async function applyInput(
       const isExposed = Object.keys(input.settings).every((key) =>
         exposed.includes(key),
       )
-      if (!isExposed) {
-        return {
-          inputId: input.inputId ?? '',
-          status: 'rejected',
-          reason: 'not_exposed',
-        }
-      }
+      if (!isExposed) return notExposed
       return session.configure(input.settings, id)
     }
     case 'reset':

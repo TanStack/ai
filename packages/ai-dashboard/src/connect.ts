@@ -18,10 +18,15 @@ export interface ConnectDashboardOptions {
   threads?: ReadonlyArray<string>
   /** Let the dashboard open new sessions on this host. Default false. */
   allowRemoteStart?: boolean
-  /** Called with the code to approve in the dashboard. */
+  /** Called with the code to approve in the dashboard. Set it to pair again when the dashboard refuses the token. */
   onPairingCode?: (code: string) => void
   /** Called with the new host token after pairing. Save it to skip pairing next time. */
   onToken?: (token: string) => void
+  /**
+   * Called when the dashboard refuses the host token and `onPairingCode` is not set. The connection stops.
+   * Also called when the host fails to handle a frame from the dashboard, for example when a thread does not open. The connection stays.
+   */
+  onError?: (error: Error) => void
   fetch?: typeof fetch
   /** Wait between reconnects, doubled up to 30 s. Default 1000 ms. */
   reconnectDelayMs?: number
@@ -60,9 +65,8 @@ export async function connectDashboard(options: ConnectDashboardOptions) {
   const base = options.url.replace(/\/$/, '')
   const doFetch = options.fetch ?? fetch
   const stopped = new AbortController()
-  let token = options.token
 
-  if (!token) {
+  const pair = async (): Promise<string> => {
     const started = await (
       await doFetch(`${base}/api/pair/start`, {
         method: 'POST',
@@ -78,7 +82,7 @@ export async function connectDashboard(options: ConnectDashboardOptions) {
       throw new Error('The dashboard did not start a pairing.')
     }
     options.onPairingCode?.(started.code)
-    while (!token) {
+    while (true) {
       if (stopped.signal.aborted)
         throw new Error('Stopped before pairing finished.')
       await new Promise((resolve) => setTimeout(resolve, 1000))
@@ -92,37 +96,46 @@ export async function connectDashboard(options: ConnectDashboardOptions) {
         status.status === 'approved' &&
         typeof status.token === 'string'
       ) {
-        token = status.token
+        options.onToken?.(status.token)
+        return status.token
       } else if (!isRecord(status) || status.status !== 'pending') {
         throw new Error('The pairing expired. Start again.')
       }
     }
-    options.onToken?.(token)
   }
-  const hostToken = token
-  const headers = {
+
+  let hostToken = options.token || (await pair())
+  const headers = () => ({
     'Content-Type': 'application/json',
     Authorization: `Bearer ${hostToken}`,
-  }
+  })
 
   const post = (path: string, value: unknown) =>
     doFetch(`${base}${path}`, {
       method: 'POST',
-      headers,
+      headers: headers(),
       body: JSON.stringify(value),
     })
 
-  await post('/api/host/hello', {
-    name: options.name ?? options.harness.name,
-    harnesses: [options.harness.name],
-  })
+  const hello = async (): Promise<void> => {
+    const response = await post('/api/host/hello', {
+      name: options.name ?? options.harness.name,
+      harnesses: [options.harness.name],
+    })
+    if (response.status !== 401) return
+    // A restarted dashboard forgets its host tokens. Pair again, or report it.
+    if (!options.onPairingCode) {
+      options.onError?.(new Error('The dashboard refused this host token.'))
+      return stopped.abort()
+    }
+    hostToken = await pair()
+    await hello()
+  }
+  await hello()
 
-  const attached = new Map<string, HarnessSession>()
-  const attach = async (threadId: string): Promise<HarnessSession> => {
-    const existing = attached.get(threadId)
-    if (existing) return existing
+  /** Open a thread and send its events to the dashboard. */
+  const open = async (threadId: string): Promise<HarnessSession> => {
     const session = await options.host.open(options.harness, { threadId })
-    attached.set(threadId, session)
     // Batch events so a streaming answer is a few requests, not one per token.
     let pending: Array<unknown> = []
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -149,6 +162,19 @@ export async function connectDashboard(options: ConnectDashboardOptions) {
     })()
     return session
   }
+  // Keep the open while it runs, so a frame that comes before it ends waits
+  // for it, and a second attach does not open the thread again.
+  const attached = new Map<string, Promise<HarnessSession>>()
+  const attach = (threadId: string): Promise<HarnessSession> => {
+    const existing = attached.get(threadId)
+    if (existing) return existing
+    const opening = open(threadId)
+    attached.set(threadId, opening)
+    // A failed open leaves no entry. Its inputs are refused, and a later
+    // open tries again.
+    opening.catch(() => attached.delete(threadId))
+    return opening
+  }
   for (const threadId of options.threads ?? []) await attach(threadId)
 
   const handle = async (envelope: unknown) => {
@@ -164,7 +190,8 @@ export async function connectDashboard(options: ConnectDashboardOptions) {
         await attach(threadId)
       return
     }
-    const session = attached.get(threadId)
+    // Wait for an open that still runs. A failed open refuses the input.
+    const session = await attached.get(threadId)?.catch(() => undefined)
     if (!session) {
       if (
         frame.type === 'harness.input' &&
@@ -172,6 +199,7 @@ export async function connectDashboard(options: ConnectDashboardOptions) {
       ) {
         await post('/api/host/frames', {
           threadId,
+          harness: options.harness.name,
           frames: [
             {
               type: 'harness.receipt',
@@ -193,6 +221,7 @@ export async function connectDashboard(options: ConnectDashboardOptions) {
         )
         await post('/api/host/frames', {
           threadId,
+          harness: options.harness.name,
           frames: [
             { type: 'harness.receipt', requestId: frame.requestId, ...receipt },
           ],
@@ -200,6 +229,7 @@ export async function connectDashboard(options: ConnectDashboardOptions) {
       } catch (error) {
         await post('/api/host/frames', {
           threadId,
+          harness: options.harness.name,
           frames: [
             {
               type: 'harness.error',
@@ -217,16 +247,24 @@ export async function connectDashboard(options: ConnectDashboardOptions) {
     while (!stopped.signal.aborted) {
       try {
         const response = await doFetch(`${base}/api/host/stream`, {
-          headers,
+          headers: headers(),
           signal: stopped.signal,
         })
-        if (response.status === 401)
-          throw new Error('The dashboard refused this host token.')
-        delay = options.reconnectDelayMs ?? 1000
-        for await (const envelope of sseData(response)) void handle(envelope)
-      } catch (error) {
+        if (response.status === 401) {
+          await hello()
+        } else {
+          delay = options.reconnectDelayMs ?? 1000
+          for await (const envelope of sseData(response)) {
+            // A frame that fails does not stop the host. Report it.
+            void handle(envelope).catch((error: unknown) =>
+              options.onError?.(
+                error instanceof Error ? error : new Error(String(error)),
+              ),
+            )
+          }
+        }
+      } catch {
         if (stopped.signal.aborted) return
-        if (error instanceof Error && error.message.includes('refused')) return
       }
       await new Promise((resolve) => setTimeout(resolve, delay))
       delay = Math.min(delay * 2, 30_000)
@@ -234,7 +272,10 @@ export async function connectDashboard(options: ConnectDashboardOptions) {
   })()
 
   return {
-    token: hostToken,
+    /** The host token. It changes when the host pairs again. */
+    get token() {
+      return hostToken
+    },
     /** Show another thread in the dashboard. */
     attach: (threadId: string) => attach(threadId).then(() => undefined),
     close: () => stopped.abort(),

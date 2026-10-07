@@ -78,7 +78,9 @@ To answer the harness:
 To run what the harness has:
 
 - `agent_<name>`: one tool for each agent in `expose.agents`. It takes the agent input and returns the agent result.
-- `command_<name>`: one tool for each plugin command. The command `connect:notion` becomes the tool `command_connect_notion`.
+- `command_<name>`: one tool for each command in `expose.commands`. The command `connect:notion` becomes the tool `command_connect_notion`.
+
+The harness exposes nothing by default. Add the agents and commands that an MCP client can run to `expose` in `defineHarness`. See [Choose what clients can change](./connect#choose-what-clients-can-change).
 
 Two names can give the same tool name, for example `connect:notion` and `connect_notion`. Then the later one in name order gets a number: `command_connect_notion_2`. The description of each of these tools names its command or agent.
 

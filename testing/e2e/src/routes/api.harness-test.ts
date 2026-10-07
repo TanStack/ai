@@ -1,15 +1,35 @@
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, defineAgent, toolDefinition } from '@tanstack/ai'
 import {
   HARNESS_EVENTS,
   createHarnessHost,
   defineHarness,
+  definePlugin,
   harnessText,
   retryTransientErrors,
 } from '@tanstack/ai-harness'
 import { createOpenaiChat } from '@tanstack/ai-openai'
 import Anthropic from '@anthropic-ai/sdk'
 import { createAnthropicChatWithClient } from '@tanstack/ai-anthropic'
+import {
+  TitleFailed,
+  agents,
+  permissions,
+  projectInstructions,
+  title,
+} from '@tanstack/ai-harness/plugins'
+import {
+  FormatFailed,
+  formatter,
+  hostBackend,
+  snapshots,
+  workspaceTools,
+} from '@tanstack/ai-harness/plugins/coding'
+import { mcp } from '@tanstack/ai-mcp/harness'
+import { createMCPServer } from '@tanstack/ai-mcp/server'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { z } from 'zod'
 import type { ModelMessage, UIMessage } from '@tanstack/ai'
@@ -419,6 +439,377 @@ async function agentResume(
     // The first host sees the writes of the second host, and stops.
     await stopped.close().catch(() => {})
   }
+}
+
+/**
+ * The lead calls `writer` in plan mode, and the writer's model calls
+ * `write_file`. `permissions()` checks the child run too, so it denies the
+ * edit. Returns how many times the tool ran, the tool results the writer
+ * got, and the text of the turn.
+ */
+async function planSubagent(
+  host: HarnessHost,
+  openai: () => ReturnType<typeof createTextAdapter>['adapter'],
+) {
+  let writes = 0
+  const results: Array<unknown> = []
+  // ponytail: a fake write_file, so a failing test changes no files.
+  const writeFile = toolDefinition({
+    name: 'write_file',
+    description: 'Write a file',
+    inputSchema: z.object({ path: z.string() }),
+  }).server(async () => {
+    writes += 1
+    return { written: true }
+  })
+  const writer = defineAgent({
+    name: 'writer',
+    description: 'Writes files',
+    run: (ctx) =>
+      ctx.chat({
+        adapter: openai(),
+        messages: [
+          { role: 'user', content: '[harness-plan-writer] write x.txt' },
+        ],
+        tools: [writeFile],
+        middleware: [
+          {
+            name: 'e2e/tool-results',
+            onAfterToolCall: (_ctx, info) => {
+              results.push(info.result)
+            },
+          },
+        ],
+        stream: false,
+      }),
+  })
+  const session = await host.open(
+    defineHarness({
+      name: 'e2e/harness-plan',
+      adapter: openai(),
+      subagents: { agents: [writer] },
+      plugins: () => [
+        permissions({
+          rules: [{ tool: 'write_file', decision: 'ask', kind: 'edit' }],
+        }),
+      ],
+    }),
+    { threadId: 'e2e-plan' },
+  )
+  await session.command('mode', 'plan')
+  const turn = await session.prompt('[harness-plan-subagent] write x.txt')
+  return { writes, results, text: turn.text }
+}
+
+/**
+ * One model call asks for the server tools `first` and `second`. `first`
+ * waits until `second` starts, for at most one second. With `'parallel'`,
+ * `second` starts and ends in that wait. With `'sequential'`, it starts
+ * after `first` ends. Returns the start and end order, and the turn text.
+ */
+async function toolOrder(
+  host: HarnessHost,
+  openai: () => ReturnType<typeof createTextAdapter>['adapter'],
+  toolExecution: 'parallel' | 'sequential',
+) {
+  const log: Array<string> = []
+  let secondStarted = () => {}
+  const started = new Promise<void>((resolve) => {
+    secondStarted = resolve
+  })
+  const step = (name: 'first' | 'second') =>
+    toolDefinition({
+      name,
+      description: `The ${name} step`,
+      inputSchema: z.object({}),
+    }).server(async () => {
+      log.push(`start:${name}`)
+      if (name === 'second') secondStarted()
+      else
+        await Promise.race([
+          started,
+          new Promise((resolve) => setTimeout(resolve, 1_000)),
+        ])
+      log.push(`end:${name}`)
+      return { done: name }
+    })
+  const session = await host.open(
+    defineHarness({
+      name: `e2e/harness-tools-${toolExecution}`,
+      adapter: openai(),
+      tools: [step('first'), step('second')],
+      toolExecution,
+    }),
+    { threadId: `e2e-tools-${toolExecution}` },
+  )
+  const turn = await session.prompt(`[harness-tool-order] ${toolExecution}`)
+  return { log, text: turn.text }
+}
+
+/**
+ * `agents()`: the first turn runs with the default `build` agent. `/agent
+ * brief` switches to an agent with `steps: 1`. Its turn calls `lookup` once,
+ * then the step limit makes the last call without tools. The spec reads the
+ * model calls in aimock's journal.
+ */
+async function agentProfiles(
+  host: HarnessHost,
+  openai: () => ReturnType<typeof createTextAdapter>['adapter'],
+) {
+  const lookup = toolDefinition({
+    name: 'lookup',
+    description: 'Look up a fact',
+    inputSchema: z.object({}),
+  }).server(async () => 'A fact.')
+  const session = await host.open(
+    defineHarness({
+      name: 'e2e/harness-agents',
+      adapter: openai(),
+      tools: [lookup],
+      plugins: () => [
+        agents({
+          adapter: () => openai(),
+          agents: [
+            {
+              name: 'brief',
+              description: 'Answers after one tool step',
+              mode: 'primary',
+              system: 'You are the brief agent.',
+              steps: 1,
+            },
+          ],
+        }),
+      ],
+    }),
+    { threadId: 'e2e-agents' },
+  )
+  const first = (await session.prompt('[harness-agents] first')).text
+  const switched = await session.command('agent', 'brief')
+  const second = (await session.prompt('[harness-agents] second')).text
+  return { first, switched, second }
+}
+
+/**
+ * `projectInstructions()` in a new git repository on the branch `e2e-env`.
+ * Returns the folder and the platform, so the spec can find the environment
+ * block in the system prompt of the model call.
+ */
+async function environmentPrompt(
+  host: HarnessHost,
+  openai: () => ReturnType<typeof createTextAdapter>['adapter'],
+) {
+  const root = await mkdtemp(join(tmpdir(), 'e2e-env-'))
+  try {
+    // The branch line needs a commit.
+    const git = await hostBackend.exec(
+      'git init -q -b e2e-env && git -c user.name=e2e -c user.email=e2e@example.com commit -q --allow-empty -m init',
+      { cwd: root, timeoutMs: 30_000 },
+    )
+    if (git.exitCode !== 0) throw new Error(`git failed: ${git.stderr}`)
+    const session = await host.open(
+      defineHarness({
+        name: 'e2e/harness-env',
+        adapter: openai(),
+        plugins: () => [projectInstructions({ root })],
+      }),
+      { threadId: 'e2e-env' },
+    )
+    const turn = await session.prompt('[harness-env] where am i')
+    return { root, platform: process.platform, text: turn.text }
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+}
+
+/**
+ * `snapshots()`: a turn writes `a.txt` with `write_file`, then `/undo` puts
+ * the file back and removes the turn. The workspace and the snapshot data
+ * are in a new temp folder.
+ */
+async function undoTurn(
+  host: HarnessHost,
+  openai: () => ReturnType<typeof createTextAdapter>['adapter'],
+) {
+  const base = await mkdtemp(join(tmpdir(), 'e2e-undo-'))
+  const root = join(base, 'work')
+  try {
+    await mkdir(root)
+    await writeFile(join(root, 'a.txt'), 'one')
+    const session = await host.open(
+      defineHarness({
+        name: 'e2e/harness-undo',
+        adapter: openai(),
+        plugins: () => [
+          workspaceTools({ root }),
+          snapshots({ root, dataDir: join(base, 'data') }),
+        ],
+      }),
+      { threadId: 'e2e-undo' },
+    )
+    const turn = await session.prompt('[harness-undo] change a.txt')
+    const written = await readFile(join(root, 'a.txt'), 'utf8')
+    const undo = await session.command('undo')
+    return {
+      text: turn.text,
+      written,
+      undo,
+      restored: await readFile(join(root, 'a.txt'), 'utf8'),
+      transcript: await session.transcript(),
+    }
+  } finally {
+    await rm(base, { recursive: true, force: true })
+  }
+}
+
+/**
+ * `formatter()` with one test formatter for `.txt` files and no built-in
+ * formatters. The formatter is a node one-liner that makes the text upper
+ * case. Returns the file after the turn wrote it, and each `FormatFailed`.
+ */
+async function formatAfterWrite(
+  host: HarnessHost,
+  openai: () => ReturnType<typeof createTextAdapter>['adapter'],
+) {
+  const root = await mkdtemp(join(tmpdir(), 'e2e-format-'))
+  try {
+    const failures: Array<string> = []
+    const listener = definePlugin({
+      name: 'e2e/format-failures',
+      setup: (ctx) => {
+        ctx.on(FormatFailed, (failure) => failures.push(failure.message))
+      },
+    })
+    const session = await host.open(
+      defineHarness({
+        name: 'e2e/harness-format',
+        adapter: openai(),
+        plugins: () => [
+          workspaceTools({ root }),
+          formatter({
+            root,
+            builtins: false,
+            formatters: [
+              {
+                name: 'e2e-upper',
+                extensions: ['.txt'],
+                command: (file) =>
+                  `node -e "const fs = require('fs'); const file = process.argv[1]; fs.writeFileSync(file, fs.readFileSync(file, 'utf8').toUpperCase())" ${file}`,
+              },
+            ],
+          }),
+          listener,
+        ],
+      }),
+      { threadId: 'e2e-format' },
+    )
+    const turn = await session.prompt('[harness-format] write b.txt')
+    return {
+      text: turn.text,
+      content: await readFile(join(root, 'b.txt'), 'utf8'),
+      failures,
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+}
+
+/**
+ * `mcp()` with two servers and no network. `local` is an MCP server in this
+ * process with an `echo` tool. The fetch of `broken` fails. Returns `/mcp`,
+ * the plugin state, and each tool result of the turn.
+ */
+async function mcpServers(
+  host: HarnessHost,
+  openai: () => ReturnType<typeof createTextAdapter>['adapter'],
+) {
+  const echo = toolDefinition({
+    name: 'echo',
+    description: 'Echo text',
+    inputSchema: z.object({ text: z.string() }),
+  }).server(async ({ text }) => text)
+  const server = createMCPServer({
+    name: 'echo',
+    version: '1.0.0',
+    tools: [echo],
+  })
+  const results: Array<unknown> = []
+  const session = await host.open(
+    defineHarness({
+      name: 'e2e/harness-mcp',
+      adapter: openai(),
+      plugins: () => [
+        mcp({
+          servers: {
+            local: {
+              type: 'http',
+              url: 'http://mcp.test/mcp',
+              fetch: async (input, init) =>
+                server.fetch(new Request(input, init)),
+            },
+            broken: {
+              type: 'http',
+              url: 'http://mcp.test/broken',
+              fetch: async () => {
+                throw new TypeError('connection refused')
+              },
+            },
+          },
+        }),
+      ],
+      middleware: [
+        {
+          name: 'e2e/tool-results',
+          onAfterToolCall: (_ctx, info) => {
+            results.push({ tool: info.toolName, result: info.result })
+          },
+        },
+      ],
+    }),
+    { threadId: 'e2e-mcp' },
+  )
+  const turn = await session.prompt('[harness-mcp] echo hello')
+  return {
+    status: await session.command('mcp'),
+    state: session.snapshot().plugins['tanstack/mcp'],
+    results,
+    text: turn.text,
+  }
+}
+
+/**
+ * `title()` names the session from its first turn. The title call runs next
+ * to the turn, with the model `gpt-5.4-nano`, so the fixtures tell the two
+ * calls apart by model. Waits up to 5 seconds for the title in the session
+ * index.
+ */
+async function sessionTitle(
+  host: HarnessHost,
+  openai: () => ReturnType<typeof createTextAdapter>['adapter'],
+  titleModel: ReturnType<typeof createTextAdapter>['adapter'],
+) {
+  const failures: Array<string> = []
+  const listener = definePlugin({
+    name: 'e2e/title-failures',
+    setup: (ctx) => {
+      ctx.on(TitleFailed, (failure) => failures.push(failure.message))
+    },
+  })
+  const session = await host.open(
+    defineHarness({
+      name: 'e2e/harness-title',
+      adapter: openai(),
+      plugins: () => [listener, title({ adapter: titleModel })],
+    }),
+    { threadId: 'e2e-title' },
+  )
+  const turn = await session.prompt('[harness-title] plan a trip to Rome')
+  const deadline = Date.now() + 5_000
+  let entry = await host.sessions.get('e2e-title')
+  while (!entry?.title && failures.length === 0 && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    entry = await host.sessions.get('e2e-title')
+  }
+  return { text: turn.text, title: entry?.title, failures }
 }
 
 /**
@@ -877,6 +1268,47 @@ export const Route = createFileRoute('/api/harness-test')({
           }
           if (body.scenario === 'routing') {
             return Response.json(await routingTurns(host, openai))
+          }
+          if (body.scenario === 'plan-subagent') {
+            return Response.json(await planSubagent(host, openai))
+          }
+          if (
+            body.scenario === 'tools-sequential' ||
+            body.scenario === 'tools-parallel'
+          ) {
+            return Response.json(
+              await toolOrder(
+                host,
+                openai,
+                body.scenario === 'tools-sequential'
+                  ? 'sequential'
+                  : 'parallel',
+              ),
+            )
+          }
+          if (body.scenario === 'plugin-agents') {
+            return Response.json(await agentProfiles(host, openai))
+          }
+          if (body.scenario === 'plugin-env') {
+            return Response.json(await environmentPrompt(host, openai))
+          }
+          if (body.scenario === 'plugin-undo') {
+            return Response.json(await undoTurn(host, openai))
+          }
+          if (body.scenario === 'plugin-format') {
+            return Response.json(await formatAfterWrite(host, openai))
+          }
+          if (body.scenario === 'plugin-mcp') {
+            return Response.json(await mcpServers(host, openai))
+          }
+          if (body.scenario === 'plugin-title') {
+            const titleModel = createTextAdapter(
+              'openai',
+              'gpt-5.4-nano',
+              aimockPort,
+              testId,
+            ).adapter
+            return Response.json(await sessionTitle(host, openai, titleModel))
           }
           if (body.scenario === 'agent') {
             const result = await session.agents.pricer.run({

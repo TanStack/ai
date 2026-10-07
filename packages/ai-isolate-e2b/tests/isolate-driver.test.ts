@@ -403,6 +403,17 @@ describe('createE2BIsolateDriver', () => {
     expect(result.error?.message).toContain('code 3')
   })
 
+  // The memory test alone is not enough: whether its stderr arrives in a chunk
+  // without "heap out of memory" depends on pipe timing.
+  it('reports ordinary stderr on exit as an execution error, not a memory limit breach', async () => {
+    const { result } = await run(
+      "process.stderr.write('boom\\n', () => process.exit(2)); await new Promise(() => {})",
+    )
+    expect(result.error?.name).toBe('E2BExecutionError')
+    expect(result.error?.message).toContain('code 2')
+    expect(result.error?.message).toContain('stderr: boom')
+  })
+
   it('kills an in-flight execution on dispose and refuses new ones', async () => {
     const fake = localSandbox()
     const context = await createE2BIsolateDriver({

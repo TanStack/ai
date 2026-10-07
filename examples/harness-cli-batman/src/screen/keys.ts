@@ -57,6 +57,7 @@ export function isOn(
 
 /** The totals of the usage plugin. */
 export interface Usage {
+  /** Model calls: `calls` in the state. */
   turns: number
   promptTokens: number
   completionTokens: number
@@ -71,7 +72,7 @@ export function usageIn(saved: unknown): Usage {
     return typeof value === 'number' ? value : 0
   }
   return {
-    turns: read('turns'),
+    turns: read('calls'),
     promptTokens: read('promptTokens'),
     completionTokens: read('completionTokens'),
     contextTokens: read('contextTokens'),

@@ -15,13 +15,22 @@ import { describe, expect, it } from 'vitest'
 const here = dirname(fileURLToPath(import.meta.url))
 const srcDir = resolve(here, '..', 'src')
 
-/** Node-only entry points, relative to `src`. */
+/**
+ * Node-only entry points, relative to `src`. A path that ends with `/` allows
+ * the whole folder: `first-party/coding/` is the Node-only `plugins/coding` entry.
+ */
 const ALLOWED = [
   'build.ts',
   'worker.ts',
   'first-party/files.ts',
-  'first-party/workspace.ts',
+  'first-party/bound-output.ts',
+  'first-party/coding/',
 ]
+
+const isAllowed = (file: string) =>
+  ALLOWED.some((entry) =>
+    entry.endsWith('/') ? file.startsWith(entry) : file === entry,
+  )
 
 const NODE_BUILTINS = [
   'fs',
@@ -80,7 +89,7 @@ describe('edge safety of the harness core', () => {
     expect(files.length).toBeGreaterThan(0)
 
     const offenders = files
-      .filter((file) => !ALLOWED.includes(toPosix(file)))
+      .filter((file) => !isAllowed(toPosix(file)))
       .filter((file) => importsNode(readFileSync(file, 'utf8')))
       .map(toPosix)
 

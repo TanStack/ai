@@ -14,7 +14,7 @@ async function run(page: Page) {
 
 function open(
   page: Page,
-  scenario: 'route' | 'approval' | 'tool' | 'brief' | 'result',
+  scenario: 'route' | 'approval' | 'tool' | 'brief' | 'result' | 'session',
   testId: string,
   aimockPort: number,
 ) {
@@ -148,5 +148,31 @@ test.describe('subagents', () => {
     await expect(page.getByTestId('card-pricer')).toContainText(
       'text:Vendor A costs 42 EUR.',
     )
+  })
+
+  test('the single subagent tool continues a child by its sessionId', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await open(page, 'session', testId, aimockPort)
+    await run(page)
+
+    // The parent model runs a third time only after the second call gave it
+    // the child's result.
+    await expect(page.getByTestId('parent-text')).toHaveText(
+      'Both notes are ready.',
+    )
+    await expect(page.getByTestId('card-status-researcher')).toHaveText(
+      'finished',
+    )
+    const card = page.getByTestId('card-researcher')
+    await expect(card).toContainText('text:Squids have three hearts.')
+    // The second call has no prompt, so the child's last user message is the
+    // task it stored from the first call. Only that fixture gives this reply.
+    // A child that did not get its earlier messages would get no reply.
+    await expect(card).toContainText('text:Squids also have blue blood.')
+    // One card: the second call continued the same child.
+    await expect(card).toHaveCount(1)
   })
 })

@@ -1,7 +1,8 @@
 /**
  * A session setting a plugin declares, for example the model or the
- * thinking level. Hosts render it from this description (a picker in the
- * CLI, `configOptions` in ACP). A change applies at the next turn.
+ * thinking level. Hosts render it from this description, for example a
+ * picker in the CLI. `serveAcp` does not send config options yet. A change
+ * applies at the next turn.
  */
 export type ConfigOption =
   | {
@@ -9,7 +10,10 @@ export type ConfigOption =
       options: ReadonlyArray<string>
       default: string
       description?: string
-      /** ACP category, for example `'model'` or `'thought_level'`. */
+      /**
+       * A kind for hosts that group settings, for example `'model'` or
+       * `'thought_level'`. `serveAcp` does not send it yet.
+       */
       category?: string
     }
   | { type: 'boolean'; default: boolean; description?: string }

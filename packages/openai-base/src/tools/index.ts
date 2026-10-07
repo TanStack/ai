@@ -35,7 +35,11 @@ export * from './image-generation-tool'
 export * from './local-shell-tool'
 export * from './mcp-tool'
 export * from './shell-tool'
-export type * from './tool-choice'
+export {
+  toChatCompletionsToolChoice,
+  toResponsesToolChoice,
+  type ToolChoice,
+} from './tool-choice'
 export * from './tool-converter'
 export * from './web-search-preview-tool'
 export * from './web-search-tool'

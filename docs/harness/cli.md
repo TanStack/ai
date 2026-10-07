@@ -57,6 +57,8 @@ To use the harness from another program:
 - `--mcp`: serve the harness as an MCP server over stdio, for Claude Code, Cursor, and other MCP clients. Needs `@tanstack/ai-mcp`. Add `--yes` to approve every tool call. Read [Use a harness from any MCP client](./mcp-server).
 - `--serve`: serve the session protocol over HTTP on `127.0.0.1:8787`. Every request needs the bearer token. Pass `--token`, set `HARNESS_TOKEN`, or copy the token the CLI prints. With `@tanstack/ai-mcp`, it also serves MCP at `/mcp`.
 
+`--mcp` and `--serve` run only the commands in `expose.commands` of the harness. `--serve` also sets only the config keys in `expose.config`. Add the names to `expose` in `defineHarness`, for example `expose: { commands: ['connect:github'] }`. Line mode and `-p` run every command. See [Choose what clients can change](./connect#choose-what-clients-can-change).
+
 Line mode reads one message or command per line and waits for each turn. It works the same in a terminal and with piped input. In a terminal, it also opens sign-in links in the browser.
 
 ## 3. Use it in CI

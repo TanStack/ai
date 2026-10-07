@@ -1,3 +1,5 @@
+import { tmpdir } from 'node:os'
+import { resolve, sep } from 'node:path'
 import { createFileRoute } from '@tanstack/react-router'
 import {
   EventType,
@@ -6,7 +8,13 @@ import {
   maxIterations,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import type { AnyTextAdapter, AdapterYieldChunk } from '@tanstack/ai'
+import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import { workspaceTools } from '@tanstack/ai-harness/plugins/coding'
+import type {
+  AnyTextAdapter,
+  AdapterYieldChunk,
+  StreamChunk,
+} from '@tanstack/ai'
 import type { TestRuntimeContext } from '@/lib/tools-test-tools'
 import { createTextAdapter } from '@/lib/providers'
 import {
@@ -470,6 +478,40 @@ function createInterleavedArgsAdapter(): AnyTextAdapter {
   }
 }
 
+/**
+ * A `coding-*` scenario: one harness turn with `workspaceTools()` in `root`,
+ * as the chunks the client gets. `coding-patch` gets the `patch` tool, the
+ * other scenarios get `edit_file`. No `permissions()` is mounted, so no tool
+ * asks for approval.
+ */
+async function* codingTurn(
+  scenario: string,
+  root: string,
+  threadId: string,
+  adapter: AnyTextAdapter,
+): AsyncGenerator<StreamChunk> {
+  const host = createHarnessHost()
+  try {
+    const session = await host.open(
+      defineHarness({
+        name: 'e2e/tools-test-coding',
+        adapter,
+        plugins: () => [
+          workspaceTools({
+            root,
+            editStyle: scenario === 'coding-patch' ? 'patch' : 'edit',
+          }),
+        ],
+      }),
+      { threadId },
+    )
+    // The session keeps its own history, so the turn gets the prompt only.
+    yield* session.prompt(`[${scenario}] run test`).stream()
+  } finally {
+    await host.close()
+  }
+}
+
 export const Route = createFileRoute('/api/tools-test')({
   server: {
     handlers: {
@@ -526,6 +568,25 @@ export const Route = createFileRoute('/api/tools-test')({
                 }
               })()
             return toServerSentEventsResponse(errorStream, { abortController })
+          }
+
+          if (scenario.startsWith('coding-')) {
+            const root = typeof fp.root === 'string' ? resolve(fp.root) : ''
+            // The tools write files and run commands: only in a temp folder.
+            if (!root.startsWith(resolve(tmpdir()) + sep)) {
+              return new Response('root must be in the temp folder', {
+                status: 400,
+              })
+            }
+            const { adapter } = createTextAdapter(
+              'openai',
+              'gpt-5.5',
+              aimockPort,
+              testId,
+            )
+            return toServerSentEventsResponse(
+              codingTurn(scenario, root, params.threadId, adapter),
+            )
           }
 
           const adapterOptions =

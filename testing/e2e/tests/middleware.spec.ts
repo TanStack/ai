@@ -132,6 +132,62 @@ test.describe('Middleware Lifecycle', () => {
     expect(toolResults[0].content).toContain('skipped')
   })
 
+  test('onAfterToolCall replaceResult changes what the client and the model see', async ({
+    page,
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const params = new URLSearchParams()
+    if (testId) params.set('testId', testId)
+    if (aimockPort) params.set('aimockPort', String(aimockPort))
+    const qs = params.toString()
+    await page.goto(`/middleware-test${qs ? '?' + qs : ''}`)
+    await page.waitForTimeout(2000)
+    await page.locator('#mw-scenario-select').selectOption('with-tool')
+    await page.locator('#mw-mode-select').selectOption('tool-replace')
+    await page.locator('#mw-run-button').click()
+
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector('#mw-metadata')
+          ?.getAttribute('data-test-complete') === 'true',
+      { timeout: 10000 },
+    )
+
+    // get_weather returns {"city":"NYC","temperature":72,...}. The
+    // tool-replace middleware swaps it for this value after the call.
+    const replaced = '{"replaced":true,"reason":"middleware"}'
+
+    // The client gets the replaced result in TOOL_CALL_RESULT.
+    const messagesJson = await page.locator('#mw-messages-json').textContent()
+    const messages = JSON.parse(messagesJson || '[]')
+    const toolResults = messages.flatMap((m: any) =>
+      m.parts.filter((p: any) => p.type === 'tool-result'),
+    )
+    expect(toolResults).toHaveLength(1)
+    expect(toolResults[0].content).toBe(replaced)
+
+    // The model gets the replaced result on the next call. aimock journals
+    // the Responses `function_call_output` as a `role: 'tool'` message.
+    const journal = await request.get(
+      `http://127.0.0.1:${aimockPort}/v1/_requests`,
+    )
+    const entries: Array<{
+      headers?: Record<string, string>
+      body: { messages?: Array<{ role: string; content: unknown }> } | null
+    }> = await journal.json()
+    const calls = entries.filter(
+      (entry) => entry.headers?.['x-test-id'] === testId,
+    )
+    expect(calls).toHaveLength(2)
+    const toolMessage = calls[1]?.body?.messages?.find(
+      (message) => message.role === 'tool',
+    )
+    expect(toolMessage?.content).toBe(replaced)
+  })
+
   test('capability provide/consume flow surfaces the consumed value in the stream', async ({
     page,
     testId,

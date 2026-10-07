@@ -72,7 +72,7 @@ An unknown field, model, or plugin, or a bad value, gets a receipt with `status:
 
 ## 3. Let the user pick
 
-A client can change only the fields in `expose.settings` of the harness. The harness above exposes `model` and `reasoning`.
+A client can change only the fields in `expose.settings` of the harness. The harness above exposes `model` and `reasoning`. [Choose what clients can change](./connect#choose-what-clients-can-change) lists the other `expose` fields.
 
 - A client input with another field gets `status: 'rejected'` with the reason `not_exposed`. Nothing changes.
 - With no `expose.settings`, a client can change no field.
@@ -122,7 +122,7 @@ For `reasoning`, the `overrides` of the prompt win, then the stored setting, the
 `workspaceTools` work in the `cwd` of the thread. Relative paths start there, and `bash` runs there:
 
 ```ts group=harness-thread-settings
-import { workspaceTools } from '@tanstack/ai-harness/plugins'
+import { workspaceTools } from '@tanstack/ai-harness/plugins/coding'
 
 export const coder = defineHarness({
   name: 'acme/coder',

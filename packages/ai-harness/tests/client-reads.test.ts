@@ -33,6 +33,7 @@ function setup(
     name: 'test/client-reads',
     adapter,
     plugins: () => [asker],
+    expose: { config: ['tone'], commands: ['confirm'] },
   })
   const host = createHarnessHost({ persistence: memoryPersistence() })
   const handler = createHarnessHandler({

@@ -27,6 +27,9 @@ import type {
 import type { ContentBlock } from '@modelcontextprotocol/server'
 import type { MCPToolContext } from './server/context'
 
+export { mcp } from './harness-plugin'
+export type { McpServerConfig, McpServerStatus } from './harness-plugin'
+
 /** Options for {@link createHarnessMcpServer}. */
 export interface HarnessMcpServerOptions {
   /** The host that runs the sessions, from `createHarnessHost`. */
@@ -147,7 +150,8 @@ const attachmentsSchema: JSONSchema = {
  *
  * The tools are `chat`, `steer`, `cancel`, `approve`, `reject`, `resolve`,
  * `answer`, and `status`, plus `agent_<name>` for each agent in
- * `harness.expose.agents` and `command_<name>` for each plugin command.
+ * `harness.expose.agents` and `command_<name>` for each plugin command in
+ * `harness.expose.commands`.
  * Every tool takes an optional `threadId`. Sessions open with
  * `host.open(harness, { threadId })`.
  *
@@ -457,7 +461,12 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
       }),
   )
 
-  const commands = session.describe().commands
+  // A command can change the session, for example `/mode bypass`, so an MCP
+  // client runs only the commands in `expose.commands`, like a protocol client.
+  const exposedCommands: ReadonlyArray<string> = harness.expose?.commands ?? []
+  const commands = session
+    .describe()
+    .commands.filter(({ name }) => exposedCommands.includes(name))
   const commandTools = toolNames('command', commands).map(
     ({ item: command, toolName, description }) =>
       toolDefinition({

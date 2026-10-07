@@ -94,6 +94,8 @@ export interface SessionEvent {
  * screen the user is on. It is stored with the input, so a turn that runs
  * again after a restart sees the same value. It is client data: do not trust
  * it. Who sent the input is the principal from `authorize`, not a field here.
+ *
+ * In `cancelInput` and `setDelivery`, `inputId` is the input that waits.
  */
 export type HarnessInput = (
   | { op: 'prompt'; message: UserInput; busy?: BusyPolicy; context?: unknown }
@@ -113,6 +115,12 @@ export type HarnessInput = (
       parentRunId?: string
     }
   | { op: 'cancel'; operationId?: string }
+  | { op: 'cancelInput'; inputId: string }
+  | {
+      op: 'setDelivery'
+      inputId: string
+      delivery: WaitingInput['delivery']
+    }
   | { op: 'command'; name: string; input?: unknown }
   | { op: 'answer'; questionId: string; value: unknown }
   | { op: 'config'; key: string; value: unknown }
@@ -129,6 +137,28 @@ export type HarnessInput = (
       run?: string
     }
 ) & { inputId?: string }
+
+/**
+ * An input that waits to run. `session.inputs()` lists them. Change one with
+ * the `cancelInput` and `setDelivery` inputs.
+ */
+export interface WaitingInput {
+  inputId: string
+  /**
+   * - `steer`: it joins the running turn at the next model call. When the
+   *   turn makes no more model calls, it runs as the next turn.
+   * - `queue`: it runs as its own turn, after the turns before it.
+   */
+  delivery: 'steer' | 'queue'
+  /** The user message of the input. */
+  message: UserInput
+}
+
+/**
+ * Where a fork cuts the transcript, by message id. `before` keeps the
+ * messages before that message. `through` keeps that message too.
+ */
+export type ForkPoint = { before: string } | { through: string }
 
 /**
  * The stored settings of one thread. They apply from the next turn, stay
@@ -320,6 +350,11 @@ export const HARNESS_EVENTS = {
   inputRejected: 'harness.input.rejected',
   /** An input ended. The value is an `InputSettlement`. */
   inputSettled: 'harness.input.settled',
+  /**
+   * A `setDelivery` input moved a waiting input. The value has `inputId` and
+   * `delivery`.
+   */
+  inputDelivery: 'harness.input.delivery',
   /** A media file was stored. The value is a `MediaRecord`. */
   media: 'harness.media',
   /**

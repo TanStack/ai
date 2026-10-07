@@ -1,5 +1,5 @@
 import type { ConfigOption } from '../config'
-import type { MediaKind, Receipt, UserInput } from '../types'
+import type { MediaKind, Receipt, UserInput, WaitingInput } from '../types'
 
 export type ToolCallStatus = 'running' | 'done' | 'failed' | 'needs-approval'
 
@@ -149,6 +149,8 @@ export interface SessionViewState {
   /** Background agents that run now. */
   agents: Array<ViewAgent>
   queuedTurns: number
+  /** The inputs that wait, in the order they run. */
+  waitingInputs: Array<WaitingInput>
   commands: Array<ViewCommand>
   config: Array<ViewConfigEntry>
   tools: Array<{ name: string; owner: string }>

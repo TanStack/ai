@@ -12,6 +12,7 @@ import {
 } from '../src/view/reduce'
 import { at, childRun, custom, sessionSnapshot } from './view-fixtures'
 import type { SessionEvent } from '../src'
+import type { WaitingInput } from '../src/types'
 import type { ItemFactory } from '../src/view/reduce'
 import type { SessionViewState } from '../src/view/types'
 
@@ -403,6 +404,43 @@ describe('view reducer', () => {
       factory,
     )
     expect(again).toBe(first)
+  })
+
+  it('reads the waiting inputs from the snapshot, and keeps their identity', () => {
+    // Each snapshot gets a new copy, as one from the session does.
+    const later: WaitingInput = {
+      inputId: 'in-1',
+      delivery: 'queue',
+      message: 'later',
+    }
+    const first = applySnapshot(
+      emptyState(),
+      sessionSnapshot({ waitingInputs: [{ ...later }] }),
+      factory,
+    )
+    expect(first.waitingInputs).toEqual([
+      { inputId: 'in-1', delivery: 'queue', message: 'later' },
+    ])
+    expect(
+      applySnapshot(
+        first,
+        sessionSnapshot({ waitingInputs: [{ ...later }] }),
+        factory,
+      ),
+    ).toBe(first)
+
+    const moved = applySnapshot(
+      first,
+      sessionSnapshot({ waitingInputs: [{ ...later, delivery: 'steer' }] }),
+      factory,
+    )
+    expect(moved.waitingInputs).toEqual([
+      { inputId: 'in-1', delivery: 'steer', message: 'later' },
+    ])
+    // A snapshot without the list has no waiting inputs.
+    expect(
+      applySnapshot(moved, sessionSnapshot(), factory).waitingInputs,
+    ).toEqual([])
   })
 
   it('reads a client tool interrupt as a client tool, not an approval', () => {

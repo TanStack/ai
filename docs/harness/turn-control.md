@@ -2,7 +2,7 @@
 title: Control how a turn ends
 id: harness-turn-control
 order: 4
-description: "Send the model back to work when it stops too soon, retry model errors, choose which waiting messages join a running turn, and give one prompt its own model and tools."
+description: "Send the model back to work when it stops too soon, retry model errors, choose which waiting messages join a running turn, run tools one at a time, and give one prompt its own model and tools."
 keywords:
   - tanstack ai
   - harness
@@ -14,11 +14,12 @@ keywords:
   - steer
   - overrides
   - TurnOverrides
+  - toolExecution
 ---
 
 A model can stop before the job is done: it writes a nice answer and forgets to call `post_message`. A provider can answer 503 in the middle of a turn. A user can send three messages while the agent works, and one of them must not join. The `turn` options of the harness give you a hook for each case.
 
-One job can also need its own model or tools. Pass `overrides` to the prompt to [give it its own settings](#give-one-prompt-its-own-settings).
+One job can also need its own model or tools. Pass `overrides` to the prompt to [give it its own settings](#give-one-prompt-its-own-settings). Two tools of one model call can need to run one after the other. Set [`toolExecution`](#run-tools-one-at-a-time) on the harness.
 
 ## Send the model back to work
 
@@ -165,6 +166,52 @@ const selective = defineHarness({
 
 Tools or system prompts that a plugin or a middleware adds during a turn keep the prompt cache on models with a mid-conversation channel. See [Mid-conversation changes in a harness](../advanced/mid-conversation-changes#in-a-harness).
 
+## Run tools one at a time
+
+The model can call several server tools in one model call. By default, they run at the same time. Some tools must not overlap, for example a tool that writes a file and a tool that runs the tests. Set `toolExecution: 'sequential'` on the harness:
+
+```ts group=harness-turn-control-tools
+import { toolDefinition } from '@tanstack/ai'
+import { defineHarness } from '@tanstack/ai-harness'
+import { openaiText } from '@tanstack/ai-openai'
+import { z } from 'zod'
+
+const writeFile = toolDefinition({
+  name: 'write_file',
+  description: 'Write a file',
+  inputSchema: z.object({ path: z.string(), content: z.string() }),
+}).server(async ({ path }) => ({ written: path }))
+
+const runTests = toolDefinition({
+  name: 'run_tests',
+  description: 'Run the test suite',
+  inputSchema: z.object({}),
+}).server(async () => ({ passed: true }))
+
+const coder = defineHarness({
+  name: 'acme/coder',
+  adapter: openaiText('gpt-6.1-sol'),
+  tools: [writeFile, runTests],
+  toolExecution: 'sequential',
+})
+```
+
+| Value | What it does |
+|---|---|
+| `'parallel'` (default) | Prepares each call in call order: the input check, the approval check, and `onBeforeToolCall`. Then the server tools start together. |
+| `'sequential'` | Runs one call at a time, in call order. Each call finishes `onBeforeToolCall`, its run, and `onAfterToolCall` before the next call starts. |
+
+With both values, the model gets the results in the order of its calls. Client tools do not change.
+
+Use `'sequential'` when:
+
+- a tool must see the changes of an earlier tool in the same model call, for example `run_tests` after `write_file`.
+- two identical calls must share one [`toolCacheMiddleware`](../advanced/built-in-middleware#toolcachemiddleware) entry. When they run at the same time, both calls miss the cache.
+
+Keep `'parallel'` for slow tools that do not depend on each other. Then a model call with three web fetches takes as long as the slowest fetch.
+
+The setting applies to every turn of the harness. `overrides` cannot change it for one prompt. To set it on `chat()` without a harness, see [Run tools one at a time](../tools/tools#run-tools-one-at-a-time).
+
 ## Give one prompt its own settings
 
 Most prompts are fine with the harness settings. One job can need more: a stronger model for a review, more reasoning, or a tool that only this job uses. Pass `overrides` to `session.prompt` or `session.followUp`:
@@ -233,4 +280,5 @@ To keep a model or instructions for every turn of a thread, also after a restart
 - A turn that goes back to work until the job is done, with a limit.
 - Model errors that retry with a backoff, and a policy of your own for a context overflow.
 - Waiting messages that join a turn only when you allow it.
+- Tools that run one at a time when they must not overlap.
 - A prompt that runs with its own model, reasoning, prompt cache, and tools.

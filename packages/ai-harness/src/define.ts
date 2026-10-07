@@ -136,6 +136,13 @@ export interface HarnessConfig<
   middleware?: ReadonlyArray<AnyChatMiddleware>
   /** When a turn stops calling the model. Defaults to `maxIterations(50)`. */
   agentLoopStrategy?: AgentLoopStrategy
+  /**
+   * How the server tools of one model call run, the same as
+   * `chat({ toolExecution })`. `'parallel'` starts them together.
+   * `'sequential'` runs them one at a time, in call order. Default
+   * `'parallel'`.
+   */
+  toolExecution?: 'parallel' | 'sequential'
   modelOptions?: TAdapter['~types']['providerOptions']
   /**
    * Automatic prompt caching for every session, the same as
@@ -200,6 +207,25 @@ export interface HarnessConfig<
      * system prompt, so expose them only to clients you trust.
      */
     settings?: ReadonlyArray<keyof ThreadSettings>
+    /**
+     * The plugin config keys a client may set with a `config` input, for
+     * example `client.setConfig('model', 'fast')`. An input with any other
+     * key is refused with `not_exposed`. Server code that calls
+     * `session.setConfig()` can set every key. Warning: `mode` of
+     * `permissions()` lets a client turn approvals off with `bypass`. Keep
+     * `mode` on the server, or expose it only to clients you trust.
+     */
+    config?: ReadonlyArray<string>
+    /**
+     * The commands a client may run with a `command` input, for example
+     * `client.command('undo')`, or `/undo` in a session view on a client.
+     * An input with any other command is refused with `not_exposed`. Server
+     * code that calls `session.command()` can run every command. Warning:
+     * `/mode bypass` of `permissions()` turns approvals off, so expose `mode`
+     * only to clients you trust. Plugins add their commands when a session
+     * opens, so `defineHarness` does not check these names.
+     */
+    commands?: ReadonlyArray<string>
   }
 }
 

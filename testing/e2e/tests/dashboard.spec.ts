@@ -65,6 +65,36 @@ function echoAdapter(): AnyTextAdapter {
   }
 }
 
+/** Start a dashboard, and pair a host that lists no threads with it. */
+async function pairedHost(allowRemoteStart: boolean) {
+  const dashboard = await startDashboard({ port: 0 })
+  const host = createHarnessHost({ persistence: memoryPersistence() })
+  const connection = await connectDashboard({
+    host,
+    harness: defineHarness({ name: 'acme/open-demo', adapter: echoAdapter() }),
+    url: dashboard.url,
+    allowRemoteStart,
+    onPairingCode: (code) =>
+      void fetch(`${dashboard.url}/api/pair/approve`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${dashboard.ownerToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ code }),
+      }),
+  })
+  return {
+    host,
+    pageUrl: `${dashboard.url}/#token=${dashboard.ownerToken}`,
+    close: async () => {
+      connection.close()
+      await host.close()
+      await dashboard.close()
+    },
+  }
+}
+
 test.describe('dashboard', () => {
   test('a paired host shows up, and a prompt from a phone reaches it', async ({
     page,
@@ -119,6 +149,52 @@ test.describe('dashboard', () => {
       connection.close()
       await host.close()
       await dashboard.close()
+    }
+  })
+
+  test('a thread opened from a host row gets a message and answers', async ({
+    page,
+  }) => {
+    const { host, pageUrl, close } = await pairedHost(true)
+    try {
+      // The host refuses an input that comes before it attaches the thread.
+      const attached = (async () => {
+        for await (const event of host.events())
+          if (event.type === 'status' && event.threadId === 'fresh') return
+      })()
+      await page.goto(pageUrl)
+      await page.getByRole('textbox', { name: 'Thread id' }).fill('fresh')
+      await page.getByRole('button', { name: 'Open', exact: true }).click()
+      await expect(page.getByRole('heading', { name: 'fresh' })).toBeVisible()
+      await attached
+
+      await page.getByPlaceholder('Send a message').fill('hello from the view')
+      await page.getByRole('button', { name: 'Send' }).click()
+      await expect(
+        page.getByText('You said: hello from the view'),
+      ).toBeVisible()
+    } finally {
+      await close()
+    }
+  })
+
+  test('a host without allowRemoteStart refuses the first input', async ({
+    page,
+  }) => {
+    const { pageUrl, close } = await pairedHost(false)
+    try {
+      await page.goto(pageUrl)
+      await page.getByRole('textbox', { name: 'Thread id' }).fill('fresh')
+      await page.getByRole('button', { name: 'Open', exact: true }).click()
+      await expect(page.getByRole('heading', { name: 'fresh' })).toBeVisible()
+
+      await page.getByPlaceholder('Send a message').fill('hello')
+      await page.getByRole('button', { name: 'Send' }).click()
+      await expect(
+        page.getByText('Refused: remote_start_disabled'),
+      ).toBeVisible()
+    } finally {
+      await close()
     }
   })
 })

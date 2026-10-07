@@ -16,6 +16,7 @@ import type {
   HarnessInput,
   InputSettlement,
   SessionEvent,
+  WaitingInput,
 } from './types'
 import type { SessionUsage, UsageCall } from './usage'
 
@@ -40,6 +41,11 @@ export type HarnessRecord =
   | { type: 'harness.input.joined'; inputId: string; into: string }
   | { type: 'harness.input.rejected'; inputId: string; reason: string }
   | { type: 'harness.input.abort'; inputId: string }
+  | {
+      type: 'harness.input.delivery'
+      inputId: string
+      delivery: WaitingInput['delivery']
+    }
   | {
       type: 'harness.input.settled'
       inputId: string
@@ -70,6 +76,7 @@ const HARNESS_RECORD_TYPES = new Set<string>([
   'harness.input.joined',
   'harness.input.rejected',
   'harness.input.abort',
+  'harness.input.delivery',
   'harness.input.settled',
   'harness.tool.result',
   'harness.tool.started',
@@ -115,6 +122,8 @@ export interface InputState {
   /** The host input that this input joined. */
   into?: string
   abortRequested: boolean
+  /** The delivery that a `setDelivery` input set. Recovery honors it. */
+  delivery?: WaitingInput['delivery']
   /** Transcript length when the input was last applied. */
   appliedAt?: number
   settlement?: InputSettlement
@@ -268,6 +277,12 @@ export function foldEntry(
       updateInput(state, record.inputId, (input) => ({
         ...input,
         abortRequested: true,
+      }))
+      return
+    case 'harness.input.delivery':
+      updateInput(state, record.inputId, (input) => ({
+        ...input,
+        delivery: record.delivery,
       }))
       return
     case 'harness.input.settled':

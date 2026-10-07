@@ -2,6 +2,7 @@
 '@tanstack/ai': minor
 '@tanstack/ai-anthropic': minor
 '@tanstack/ai-models': minor
+'@tanstack/ai-vercel-gateway': patch
 ---
 
 Send the Anthropic thinking shape that the model record gives.
@@ -11,3 +12,5 @@ Send the Anthropic thinking shape that the model record gives.
 - `midConversationChannels` takes `{ tools?: boolean; systemPrompts?: boolean }` to turn on one channel only.
 
 `modelReasoning(record)` sets `adaptive` from `compat.forceAdaptiveThinking` and `midConversationEffort` from the new `compat.supportsMidConvoEffort` for `anthropic-messages` records. The catalog flags now equal pi's: Claude 4.6 and later think adaptively on every provider (also with dot ids such as `anthropic/claude-opus-4.7`), and the other Vercel AI Gateway models think with a budget.
+
+Vercel `google/gemma-4-31b-it` reasons, in the catalog and in `@tanstack/ai-vercel-gateway`. Vercel's own model list tags it `reasoning`. Seven Fireworks records take Fireworks' own effort levels.

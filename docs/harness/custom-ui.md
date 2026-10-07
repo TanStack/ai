@@ -163,12 +163,19 @@ Start and stop work:
 - `view.cancel()`: cancels the running turn.
 - `view.dispose()`: stops the view when your screen closes. After that, each action throws an error.
 
+On a view with a [`HarnessClient`](#a-ui-in-the-browser), two actions need `expose` in the harness:
+
+- `view.command`, and a `/command` in `view.send`, run only the commands in `expose.commands`.
+- `view.setConfig` sets only the keys in `expose.config`.
+
+See [Choose what clients can change](./connect#choose-what-clients-can-change).
+
 Answer what waits:
 
 - `approval.approve()` and `approval.reject()`: answer one approval. `view.approve(id)` and `view.reject(id)` do the same by id.
 - `view.approveAll()` and `view.rejectAll()`: answer all open approvals.
 - `call.resolve(output)` and `call.fail(message)`: answer one client tool call.
-- `question.answer(value)`: answers a question.
+- `question.answer(value)`: answers a question. For the answers to a permission question, see [Answer a question](./permissions#answer-a-question).
 
 If a turn waits for more than one approval or client tool, the turn continues after you answer all of them.
 
