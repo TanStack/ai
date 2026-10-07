@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-sandbox-railway",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Railway sandbox provider for TanStack AI — run harness adapters inside Railway sandboxes through the uniform SandboxHandle.",
   "author": "",
   "license": "MIT",
