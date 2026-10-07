@@ -308,7 +308,7 @@
           "label": "Middleware",
           "to": "advanced/middleware",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-06"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Built-in Middleware",
@@ -951,7 +951,8 @@
         {
           "label": "Store settings per thread",
           "to": "harness/thread-settings",
-          "addedAt": "2026-10-05"
+          "addedAt": "2026-10-05",
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Compact a long session",
@@ -974,7 +975,7 @@
           "label": "Write a plugin",
           "to": "harness/plugins",
           "addedAt": "2026-09-26",
-          "updatedAt": "2026-10-05"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Build a coding agent",
@@ -1382,13 +1383,13 @@
           "label": "OpenAI",
           "to": "adapters/openai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-06"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Anthropic",
           "to": "adapters/anthropic",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-06"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Google Gemini",
@@ -1406,25 +1407,25 @@
           "label": "Ollama",
           "to": "adapters/ollama",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-06"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Grok (xAI)",
           "to": "adapters/grok",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-19"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Groq",
           "to": "adapters/groq",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-30"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Mistral",
           "to": "adapters/mistral",
           "addedAt": "2026-06-30",
-          "updatedAt": "2026-10-04"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Cohere",
@@ -1470,7 +1471,7 @@
           "label": "OpenRouter Adapter",
           "to": "adapters/openrouter",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-03"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Perplexity Search",
@@ -1481,31 +1482,31 @@
           "label": "Vercel AI Gateway",
           "to": "adapters/vercel-gateway",
           "addedAt": "2026-08-12",
-          "updatedAt": "2026-09-18"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Lovable AI Gateway",
           "to": "adapters/lovable",
           "addedAt": "2026-08-24",
-          "updatedAt": "2026-09-28"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "OpenAI-Compatible",
           "to": "adapters/openai-compatible",
           "addedAt": "2026-06-01",
-          "updatedAt": "2026-10-04"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "LLM Gateway",
           "to": "adapters/llmgateway",
           "addedAt": "2026-07-29",
-          "updatedAt": "2026-09-30"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Cloudflare",
           "to": "adapters/cloudflare",
           "addedAt": "2026-09-03",
-          "updatedAt": "2026-10-02"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Claude Code",
@@ -1547,7 +1548,7 @@
           "label": "BytePlus",
           "to": "adapters/byteplus",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-09-30"
+          "updatedAt": "2026-10-07"
         }
       ],
       "tab": "adapters"
