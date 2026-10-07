@@ -126,7 +126,7 @@ For `bash`:
 
 - The model gets the exit code and the last 1000 lines (20 KiB) of the output.
 - A command stops after 2 minutes, with exit code 124. Every process that it started stops too. Set another limit with `bashTimeoutMs`. The model can ask for up to 10 minutes.
-- With `background: true`, the call returns at once with a job id. When the job ends, the model gets a note with the output, and a new turn starts.
+- With `background: true`, the call returns at once with a job id. When the job ends, the model gets a note with the output, and a new turn starts. A user can also [move a running command to the background](./inputs#move-a-running-tool-call-to-the-background). Its time limit still applies.
 - With `spillDir`, long output goes to a file in that folder, and the model gets the path. `spillDir` is relative to `root`, or absolute.
 - When the session closes, the background jobs stop.
 

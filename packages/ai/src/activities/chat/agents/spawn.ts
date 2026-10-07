@@ -1197,9 +1197,20 @@ export function createSyntheticSubagentTools(
             result: { status: 'started' },
           } satisfies SubagentToolOutcome
         }
-        if (call.sessionId === undefined) return runChild(child, context)
-        const continued = await storedChild(call.sessionId, agent.name)
-        return runChild({ ...child, continued }, context)
+        const { sessionId } = call
+        const work =
+          sessionId === undefined
+            ? runChild(child, context)
+            : storedChild(sessionId, agent.name).then((continued) =>
+                runChild({ ...child, continued }, context),
+              )
+        // The host can move the child to the background. It keeps running.
+        const detach = context?.detach
+        if (!detach) return work
+        const moved = detach(work).then(
+          (text) => ({ subagentRunId: '', text }) satisfies SubagentToolOutcome,
+        )
+        return Promise.race([work, moved])
       },
     }
     return [single]
