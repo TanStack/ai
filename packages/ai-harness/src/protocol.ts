@@ -241,8 +241,8 @@ export async function applyInput(
       }
     }
     case 'agentMessage': {
-      const run = session.operation(input.operationId)
-      if (!run || run.kind !== 'agent') {
+      const run = session.agentRun(input.operationId)
+      if (!run) {
         return {
           inputId: input.inputId ?? '',
           status: 'rejected',

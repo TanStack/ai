@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { defineAgent, toolDefinition } from '@tanstack/ai'
-import { memoryPersistence } from '@tanstack/ai-persistence'
+import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
 import {
   after,
@@ -247,6 +247,119 @@ describe('steers to an agent run', () => {
     expect(receipt.operationId).not.toBe(run.id)
     expect(messageTexts(model.calls[1])).not.toContain('Ignore the brief.')
     expect(messageTexts(model.calls[2]).at(-1)).toBe('Ignore the brief.')
+    await host.close()
+  })
+})
+
+describe('agentRuns() and agentRun(id)', () => {
+  it('lists the runs of the session and finds each one', async () => {
+    const release = gate()
+    const model = mockAdapter([
+      after(release.opened, 'Draft one.'),
+      () => text('Draft two.'),
+    ])
+    const { host, session } = await open(writing(model.adapter))
+    const run = session.agents.writer.start()
+    await vi.waitFor(() => expect(model.calls).toHaveLength(1))
+    const queued = await run.send('Add a title.', { mode: 'followUp' })
+
+    expect(session.agentRuns()).toEqual([
+      {
+        operationId: run.id,
+        agent: 'writer',
+        status: 'running',
+        principal: alice,
+      },
+      {
+        operationId: queued.operationId,
+        agent: 'writer',
+        status: 'queued',
+        principal: alice,
+      },
+    ])
+    expect(session.agentRun(run.id)).toBe(run)
+    expect(session.agentRun('op-agent-none')).toBeUndefined()
+    release.open()
+    await vi.waitFor(() =>
+      expect(session.agentRuns().map((item) => item.status)).toEqual([
+        'completed',
+        'completed',
+      ]),
+    )
+    await host.close()
+  })
+
+  it('knows the runs in the log after a restart, and continues one', async () => {
+    const stores = memoryPersistence().stores
+    const persistence = {
+      stores: {
+        log: memoryLogStore(),
+        runs: stores.runs,
+        metadata: stores.metadata,
+      },
+    }
+    const first = mockAdapter([() => text('Draft one.')])
+    const hostA = createHarnessHost({ persistence })
+    const sessionA = await hostA.open(writing(first.adapter), {
+      threadId: THREAD,
+      principal: alice,
+    })
+    const run = sessionA.agents.writer.start()
+    await run
+    await hostA.close()
+
+    const second = mockAdapter([() => text('Draft two.')])
+    const hostB = createHarnessHost({ persistence })
+    const sessionB = await hostB.open(writing(second.adapter), {
+      threadId: THREAD,
+      principal: alice,
+    })
+
+    expect(sessionB.agentRuns()).toEqual([
+      {
+        operationId: run.id,
+        agent: 'writer',
+        status: 'completed',
+        principal: alice,
+      },
+    ])
+    const again = sessionB.agentRun(run.id)
+    expect(again?.status()).toBe('completed')
+    const receipt = await again?.send('Shorter.', { mode: 'followUp' })
+    await expect(sessionB.operation(receipt?.operationId ?? '')).resolves.toBe(
+      'Draft two.',
+    )
+    const texts = messageTexts(second.calls[0])
+    expect(texts).toContain('Draft one.')
+    expect(texts.at(-1)).toBe('Shorter.')
+    await hostB.close()
+  })
+
+  it('lists a steer from another sender as a follow-up run of that sender', async () => {
+    const { release, model, harness } = researching([
+      () => toolCall('lookup', {}),
+      () => text('Done.'),
+      () => text('Noted.'),
+    ])
+    const { host, session } = await open(harness)
+    const run = session.agents.researcher.start()
+    await vi.waitFor(() => expect(model.calls).toHaveLength(1))
+
+    const receipt = await session.sendToAgent(run.id, 'Ignore the brief.', {
+      principal: { id: 'bob' },
+    })
+    release.open()
+    await run
+    await vi.waitFor(() => expect(model.calls).toHaveLength(3))
+
+    expect(session.agentRuns()).toMatchObject([
+      { operationId: run.id, agent: 'researcher', principal: alice },
+      {
+        operationId: receipt.operationId,
+        agent: 'researcher',
+        principal: { id: 'bob' },
+      },
+    ])
     await host.close()
   })
 })

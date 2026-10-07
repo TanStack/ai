@@ -114,6 +114,7 @@ import type {
   MediaKind,
   MediaRecord,
   Operation,
+  OperationStatus,
   Principal,
   Receipt,
   SessionEvent,
@@ -178,6 +179,18 @@ export interface DynamicAgentHandle {
 /** `session.agents`: one typed handle per registered agent name. */
 export type AgentHandles<THarness> = {
   [TAgent in HarnessAgentsOf<THarness> as TAgent['name']]: AgentHandle<TAgent>
+}
+
+/** One agent run, as `session.agentRuns()` lists it. */
+export interface AgentRunInfo {
+  operationId: string
+  agent: string
+  /** `queued`: a follow-up that waits for the run before it. */
+  status: 'running' | 'queued' | 'completed' | 'failed' | 'cancelled'
+  /** The run whose agent code started this run. */
+  parentRunId?: string
+  /** Who the run runs for. */
+  principal?: Principal
 }
 
 /** What a session looks like right now. */
@@ -361,6 +374,8 @@ interface AgentChain {
   budget: SubagentBudget
   /** The newest run that started. */
   current: AgentRunEntry
+  /** Every run that started, oldest first. */
+  runs: Array<AgentRunEntry>
   /** Steers that wait for the current run's next model call. */
   steers: Array<AgentMessage>
   /** Follow-ups that run after the current run ends, in order. */
@@ -402,6 +417,7 @@ const chainFields = (first: AgentInputState) => ({
   options: {
     wake: first.input.detached === true,
     ...(first.input.resume ? { resume: true } : {}),
+    ...(first.input.attach ? { attach: first.input.attach } : {}),
   },
   ...(first.principal ? { principal: first.principal } : {}),
 })
@@ -412,6 +428,59 @@ const asUserMessage = (sent: AgentMessage): ModelMessage => ({
   role: 'user',
   content: sent.message,
 })
+
+/** True for the `agent` input of a first run. */
+const isAgentInput = (
+  input: InputState | undefined,
+): input is AgentInputState => input?.input.op === 'agent'
+
+/**
+ * The `agent` input of the chain that `input` runs: the input itself, or
+ * the first run of a follow-up message. `undefined` for other inputs, and
+ * for a steer that joined a run.
+ */
+const chainInputOf = (
+  inputs: ReadonlyMap<string, InputState>,
+  input: InputState,
+): AgentInputState | undefined => {
+  if (isAgentInput(input)) return input
+  if (input.input.op !== 'agentMessage' || input.into !== undefined) {
+    return undefined
+  }
+  const first = inputs.get(input.input.run ?? '')
+  return isAgentInput(first) ? first : undefined
+}
+
+/** The `agentRuns()` status of a live run. */
+const runStatus = (status: OperationStatus): AgentRunInfo['status'] => {
+  switch (status) {
+    case 'accepted':
+      return 'queued'
+    case 'interrupted':
+      return 'running'
+    case 'running':
+    case 'completed':
+    case 'failed':
+    case 'cancelled':
+      return status
+  }
+}
+
+/** The `agentRuns()` status of a run in the log, from how it ended. */
+const loggedStatus = (input: InputState): AgentRunInfo['status'] => {
+  const outcome = input.settlement?.outcome
+  switch (outcome) {
+    case undefined:
+      return 'running'
+    case 'aborted':
+      return 'cancelled'
+    case 'failed':
+      return 'failed'
+    case 'completed':
+    case 'interrupted':
+      return 'completed'
+  }
+}
 
 /** True for an interrupted turn as `stores.metadata` gives it back. */
 function isInterruptedTurn(value: unknown): value is InterruptedTurn {
@@ -1141,7 +1210,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     },
   ): Promise<Receipt> {
     const inputId = options?.inputId ?? createInputId()
-    const chain = this.chainOf.get(operationId)
+    const chain = this.chainOf.get(operationId) ?? this.loggedChain(operationId)
     if (!chain) return { inputId, status: 'rejected', reason: 'not_running' }
     const principal = options?.principal ?? this.principal
     const mode = options?.mode ?? 'steer'
@@ -1161,6 +1230,115 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       const sent = { inputId, message, ...(principal ? { principal } : {}) }
       return this.keep({ inputId, ...this.deliver(chain, sent, mode) })
     })
+  }
+
+  /**
+   * The agent run `operationId`: a run of this session, or on a durable
+   * host a run in the log that ended, so a follow-up continues it after a
+   * restart. `undefined` for an unknown run, and for one that another host
+   * runs.
+   */
+  agentRun(operationId: string): AgentRun<unknown> | undefined {
+    const chain = this.chainOf.get(operationId) ?? this.loggedChain(operationId)
+    return [...(chain?.runs ?? []), ...(chain?.followUps ?? [])].find(
+      (run) => run.operation.id === operationId,
+    )?.operation
+  }
+
+  /**
+   * The agent runs of this session, oldest first. On a durable host it also
+   * lists the runs in the log, so it works after a restart.
+   */
+  agentRuns(): Array<AgentRunInfo> {
+    const live = [...this.agentChains.values()].flatMap((chain) =>
+      [...chain.runs, ...chain.followUps].map(
+        ({ operation, principal }): AgentRunInfo => ({
+          operationId: operation.id,
+          agent: chain.agent,
+          status: runStatus(operation.status()),
+          ...(principal ? { principal } : {}),
+        }),
+      ),
+    )
+    const known = new Set(live.map((run) => run.operationId))
+    return [
+      ...this.loggedRuns().filter((run) => !known.has(run.operationId)),
+      ...live,
+    ]
+  }
+
+  /** The agent runs in the log: each input that a run applied. */
+  private loggedRuns(): Array<AgentRunInfo> {
+    const inputs = this.writer?.state.inputs
+    if (!inputs) return []
+    return [...inputs.values()].flatMap((input): Array<AgentRunInfo> => {
+      const first = chainInputOf(inputs, input)
+      if (!first || input.operationId === undefined) return []
+      return [
+        {
+          operationId: input.operationId,
+          agent: first.input.agent,
+          status: loggedStatus(input),
+          ...(input.principal ? { principal: input.principal } : {}),
+        },
+      ]
+    })
+  }
+
+  /**
+   * The chain of a run in the log, with every run it had, so a follow-up
+   * continues its thread after a restart. `undefined` for an unknown run,
+   * and while a run of the chain has not ended: another host runs it.
+   */
+  private loggedChain(operationId: string): AgentChain | undefined {
+    const inputs = this.writer?.state.inputs
+    if (!inputs) return undefined
+    const own = [...inputs.values()].find(
+      (input) => input.operationId === operationId,
+    )
+    const first = own && chainInputOf(inputs, own)
+    if (!first) return undefined
+    const known = this.agentChains.get(first.inputId)
+    if (known) return known
+    const logged = [...inputs.values()].filter(
+      (input) =>
+        input.operationId !== undefined &&
+        chainInputOf(inputs, input) === first,
+    )
+    if (logged.some((input) => input.settlement === undefined)) {
+      return undefined
+    }
+    // ponytail: a run rebuilt from the log resolves to `undefined`. The log
+    // keeps how it ended, not its value. Read `stores.runs` if callers need
+    // the value.
+    const entries = logged.map((input) => {
+      const operation = this.agentOperation(
+        first.input.agent,
+        input.operationId,
+      )
+      const settlement = input.settlement
+      if (settlement?.outcome === 'completed') {
+        operation.finish('completed', undefined)
+      } else {
+        operation.fail(
+          settlement?.outcome === 'aborted' ? 'cancelled' : 'failed',
+          new Error(settlement?.error?.message ?? 'The run did not complete.'),
+        )
+      }
+      return {
+        operation,
+        ...(input.principal ? { principal: input.principal } : {}),
+      }
+    })
+    const [firstRun, ...later] = entries
+    if (!firstRun) return undefined
+    const chain = this.createChain(chainFields(first), firstRun)
+    for (const entry of later) {
+      chain.runs.push(entry)
+      this.chainOf.set(entry.operation.id, chain)
+    }
+    chain.current = later.at(-1) ?? firstRun
+    return chain
   }
 
   /** @internal Mount session plugins and replay inputs left in the inbox. */
@@ -4422,6 +4600,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       thread: `${this.threadId}:${agent}:${fields.runInputId}`,
       budget: this.codeBudget(),
       current: first,
+      runs: [first],
       steers: [],
       followUps: [],
     }
@@ -4637,6 +4816,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       operation: next.operation,
       ...(next.principal ? { principal: next.principal } : {}),
     }
+    chain.runs.push(chain.current)
     this.markBusy()
     void this.executeAgent(next.operation, chain, {
       inputId: next.inputId,
@@ -4667,6 +4847,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           input,
           ...(options.wake ? { detached: true } : {}),
           ...(options.resume ? { resume: true } : {}),
+          ...(options.attach === 'none' ? { attach: 'none' as const } : {}),
         },
         principal,
       )

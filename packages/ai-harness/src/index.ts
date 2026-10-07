@@ -88,6 +88,7 @@ export { HarnessSession } from './session'
 export type {
   AgentHandle,
   AgentHandles,
+  AgentRunInfo,
   AgentRunOptions,
   AgentStartOptions,
   DynamicAgentHandle,

@@ -107,6 +107,8 @@ export type HarnessInput = (
       detached?: boolean
       /** Run again after a host stop. See `AgentStartOptions.resume`. */
       resume?: boolean
+      /** `'none'`: no note for the main model. See `AgentRunOptions.attach`. */
+      attach?: 'none'
     }
   | { op: 'cancel'; operationId?: string }
   | { op: 'command'; name: string; input?: unknown }
