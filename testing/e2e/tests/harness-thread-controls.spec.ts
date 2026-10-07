@@ -154,7 +154,7 @@ test.describe('harness thread controls', () => {
         settings: { model: 'missing' },
       }),
     ).toMatchObject({ status: 'rejected' })
-    // The harness exposes only `model` and `instructions` to clients.
+    // The harness does not expose `plugins` to clients.
     expect(
       await user.control(threadId, {
         op: 'configure',
@@ -177,6 +177,31 @@ test.describe('harness thread controls', () => {
       instructions: 'Answer in one word.',
     })
     expect(described.models).toEqual(expect.arrayContaining(['fast', 'strong']))
+  })
+
+  test('tells the next model call that the working folder changed', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const user = client(request, testId, aimockPort)
+    const threadId = `cwd-${testId}`
+    expect(
+      await user.control(threadId, {
+        op: 'configure',
+        settings: { cwd: '/repo/app' },
+      }),
+    ).toMatchObject({ status: 'accepted' })
+    expect(await user.prompt(threadId, '[harness-cwd] where')).toBe('Moved.')
+
+    const [call] = await user.modelCalls()
+    const seen = (call?.body?.messages ?? [])
+      .filter((message) => message.role !== 'system')
+      .map((message) => contentText(message.content))
+    expect(seen).toEqual([
+      'The working folder is now /repo/app. Paths are relative to it.',
+      '[harness-cwd] where',
+    ])
   })
 
   test('starts a fresh context with the handoff note after a reset', async ({

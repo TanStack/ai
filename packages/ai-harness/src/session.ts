@@ -2465,7 +2465,16 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       return this.keep({ inputId, status: 'rejected', reason })
     }
     await this.persistence.stores.metadata?.set(SETTINGS, this.threadId, next)
+    const movedFrom = this.threadSettings.cwd
     this.threadSettings = next
+    // Tell the model about a new folder, so it stops using the old paths.
+    if (next.cwd !== movedFrom) {
+      await this.addNote(
+        next.cwd === undefined
+          ? 'The working folder is the default folder again.'
+          : `The working folder is now ${next.cwd}. Paths are relative to it.`,
+      )
+    }
     await this.applied(inputId, 'session')
     this.feed.publish(
       'session',

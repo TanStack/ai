@@ -178,7 +178,7 @@ function harnessFor(request: Request) {
     // `bypass`. A client can list and forget saved rules with `permissions`.
     expose: {
       agents: ['echo', 'drafter'],
-      settings: ['model', 'instructions'],
+      settings: ['model', 'instructions', 'cwd'],
       config: ['tone'],
       commands: ['greet', 'release', 'permissions'],
     },
