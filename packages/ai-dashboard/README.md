@@ -47,6 +47,8 @@ await connectDashboard({
 
 With `@tanstack/ai-harness-cli`, run your CLI with `--dashboard <url>`.
 
+To open new threads on this host from the dashboard, set `allowRemoteStart: true`. Only a host with this option shows the "Thread id" field.
+
 ## When the dashboard restarts
 
 The dashboard keeps host tokens in memory. After a restart, it refuses the saved token of each agent. It also refuses the token of a revoked host. What the agent does next depends on `onPairingCode`:

@@ -24,6 +24,8 @@ interface HostRecord {
   hostId: string
   name: string
   harnesses: Array<string>
+  /** From the hello. A host that sends no flag does not allow remote start. */
+  allowRemoteStart: boolean
   token: string
   lastSeen: number
   streams: Set<ServerResponse>
@@ -39,6 +41,11 @@ interface SessionRecord {
     operationId: string
     event: Record<string, unknown>
   }>
+  /**
+   * The latest refused input, until a new event comes. A view that connects
+   * later gets it after the events.
+   */
+  refusal?: Record<string, unknown>
   lastActivity: number
   status: 'idle' | 'running' | 'waiting'
   clients: Set<ServerResponse>
@@ -187,7 +194,10 @@ export async function startDashboard(options: DashboardOptions = {}) {
       })
       if (session.events.length > cacheSize)
         session.events.splice(0, session.events.length - cacheSize)
+      session.refusal = undefined
     }
+    if (frame.type === 'harness.receipt' && frame.status === 'rejected')
+      session.refusal = frame
     for (const client of session.clients)
       sse(
         client,
@@ -269,6 +279,7 @@ export async function startDashboard(options: DashboardOptions = {}) {
         if (typeof input.name === 'string') host.name = input.name.slice(0, 100)
         if (Array.isArray(input.harnesses))
           host.harnesses = input.harnesses.map(String).slice(0, 50)
+        host.allowRemoteStart = input.allowRemoteStart === true
         return json(res, 200, { hostId: host.hostId })
       }
       if (method === 'POST' && path === '/api/host/frames') {
@@ -319,6 +330,7 @@ export async function startDashboard(options: DashboardOptions = {}) {
         hostId,
         name: entry[1].name,
         harnesses: [],
+        allowRemoteStart: false,
         token: hostToken,
         lastSeen: Date.now(),
         streams: new Set(),
@@ -345,6 +357,7 @@ export async function startDashboard(options: DashboardOptions = {}) {
           hostId: host.hostId,
           name: host.name,
           harnesses: host.harnesses,
+          allowRemoteStart: host.allowRemoteStart,
           online: host.streams.size > 0,
           lastSeen: host.lastSeen,
         })),
@@ -384,6 +397,7 @@ export async function startDashboard(options: DashboardOptions = {}) {
           if (Number(entry.cursor) > from)
             sse(res, { type: 'harness.event', ...entry }, entry.cursor)
         }
+        if (session.refusal) sse(res, session.refusal)
         session.clients.add(res)
         const heartbeat = setInterval(() => res.write(': ping\n\n'), 15_000)
         res.on('close', () => {
@@ -402,6 +416,9 @@ export async function startDashboard(options: DashboardOptions = {}) {
         return json(res, 202, { requestId, status: delivery })
       }
       if (method === 'POST' && match[3] === 'open') {
+        // The host would ignore the open, so say no at once.
+        if (!host.allowRemoteStart)
+          return json(res, 403, { error: 'remote_start_disabled' })
         const delivery = sendToHost(host, {
           threadId,
           frame: { type: 'harness.subscribe', threadId },

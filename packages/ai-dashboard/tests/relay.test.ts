@@ -133,11 +133,14 @@ async function onlineHost(
     onError,
   })
   cleanups.push(() => connection.close())
+  // The hello tells the relay if the host allows remote start.
   await vi.waitFor(async () => {
     const hosts = await (
       await fetch(`${dashboard.url}/api/hosts`, { headers: owner })
     ).json()
-    expect(hosts).toMatchObject([{ hostId, online: true }])
+    expect(hosts).toEqual([
+      expect.objectContaining({ hostId, online: true, allowRemoteStart }),
+    ])
   })
   return { host, hostId, owner }
 }
@@ -353,13 +356,14 @@ describe('dashboard relay', () => {
         `${session}/events?token=${dashboard.ownerToken}`,
       )
 
-      // The route only relays the request. The host ignores it and refuses
-      // the first input with the reason.
+      // The relay refuses the open at once. The host also refuses an input
+      // to the thread, with the same reason.
       const opened = await fetch(`${session}/open`, {
         method: 'POST',
         headers: owner,
       })
-      expect(await opened.json()).toEqual({ status: 'sent' })
+      expect(opened.status).toBe(403)
+      expect(await opened.json()).toEqual({ error: 'remote_start_disabled' })
       await fetch(`${session}/input`, {
         method: 'POST',
         headers: owner,
@@ -380,6 +384,46 @@ describe('dashboard relay', () => {
       expect(sessions).toMatchObject([
         { threadId: 'fresh', harness: 'acme/remote' },
       ])
+    },
+  )
+
+  it(
+    'shows a refusal to a view that connects after it',
+    { timeout: 20_000 },
+    async () => {
+      const dashboard = await startDashboard({ port: 0 })
+      cleanups.push(() => dashboard.close())
+      const { hostId, owner } = await onlineHost(dashboard, false)
+      const session = `${dashboard.url}/api/sessions/${hostId}/fresh`
+      const events = `${session}/events?token=${dashboard.ownerToken}`
+      const send = async (): Promise<string> => {
+        const receipt = await (
+          await fetch(`${session}/input`, {
+            method: 'POST',
+            headers: owner,
+            body: JSON.stringify({ input: { op: 'prompt', message: 'hi' } }),
+          })
+        ).json()
+        return receipt.requestId
+      }
+
+      // The first view sees the refusal live.
+      const first = await openEvents(events)
+      const refused = await send()
+      await first('remote_start_disabled')
+
+      // A view that connects after it gets it too. The second input only
+      // makes sure that the stream has something to read.
+      const late = await openEvents(events)
+      await send()
+      expect(await late('remote_start_disabled')).toContainEqual(
+        expect.objectContaining({
+          type: 'harness.receipt',
+          requestId: refused,
+          status: 'rejected',
+          reason: 'remote_start_disabled',
+        }),
+      )
     },
   )
 
@@ -512,20 +556,37 @@ describe('dashboard relay', () => {
       ).json()
       expect(queued.status).toBe('queued')
 
+      const hello = (value: Record<string, unknown>) =>
+        fetch(`${dashboard.url}/api/host/hello`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${status.token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(value),
+        })
+      const openThread = () =>
+        fetch(`${dashboard.url}/api/sessions/${status.hostId}/fresh/open`, {
+          method: 'POST',
+          headers: owner,
+        })
+      // An older host sends no flag. It does not allow remote start.
+      await hello({ name: 'laptop' })
+      const disabled = await openThread()
+      expect(disabled.status).toBe(403)
+      expect(await disabled.json()).toEqual({ error: 'remote_start_disabled' })
+      // A host that allows it gets the open when it comes back online.
+      await hello({ name: 'laptop', allowRemoteStart: true })
+      const waiting = await openThread()
+      expect(waiting.status).toBe(202)
+      expect(await waiting.json()).toEqual({ status: 'queued' })
+
       await fetch(`${dashboard.url}/api/hosts/revoke`, {
         method: 'POST',
         headers: owner,
         body: JSON.stringify({ hostId: status.hostId }),
       })
-      const refused = await fetch(`${dashboard.url}/api/host/hello`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${status.token}`,
-          'Content-Type': 'application/json',
-        },
-        body: '{}',
-      })
-      expect(refused.status).toBe(401)
+      expect((await hello({})).status).toBe(401)
     },
   )
 })
@@ -639,19 +700,29 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
 describe('dashboard page', () => {
   it('opens a thread from a host row, and keeps the form while it has focus', async () => {
     const page = loadPage([
-      { hostId: 'host 1', name: 'laptop', harnesses: ['acme/remote'] },
+      {
+        hostId: 'host 1',
+        name: 'laptop',
+        harnesses: ['acme/remote'],
+        allowRemoteStart: true,
+      },
+      // An older host sends no flag.
+      { hostId: 'host 2', name: 'server', harnesses: ['acme/remote'] },
     ])
     await settle()
     const hostLoads = () =>
       page.requests.filter((request) => request === 'GET /api/hosts').length
-    const row = page
-      .side()
-      .find((node) => node.textContent.startsWith('laptop'))
+    const rowOf = (name: string) =>
+      page.side().find((node) => node.textContent.startsWith(name))
+    const row = rowOf('laptop')
     const form = row?.find((node) => node.tag === 'form')
     const input = form?.find((node) => node.tag === 'input')
     if (!row || !form?.onsubmit || !input) throw new Error('No open form.')
     expect(row.className).toBe('row')
     expect(form.textContent).toBe('Open')
+    // Only a host that allows remote start gets the form.
+    expect(rowOf('server')?.textContent).toBe('server (acme/remote)')
+    expect(rowOf('server')?.find((node) => node.tag === 'form')).toBeUndefined()
 
     // The 5 s refresh skips while the input has focus.
     input.value = 'feature/<b>'
@@ -667,16 +738,20 @@ describe('dashboard page', () => {
     expect(page.sources[0]?.url).toBe(`${path}/events?token=owner`)
     expect(page.main().children[0]?.textContent).toBe('feature/<b>')
 
-    // A host without allowRemoteStart refuses the first input.
-    page.sources[0]?.onmessage?.({
-      data: JSON.stringify({
-        type: 'harness.receipt',
-        status: 'rejected',
-        reason: 'remote_start_disabled',
-      }),
+    // A refused input shows once. The relay sends the refusal again when
+    // the stream reconnects.
+    const refusal = JSON.stringify({
+      type: 'harness.receipt',
+      requestId: 'dash-1',
+      status: 'rejected',
+      reason: 'not_running',
     })
-    const error = page.main().find((node) => node.className === 'msg error')
-    expect(error?.textContent).toBe('Refused: remote_start_disabled')
+    page.sources[0]?.onmessage?.({ data: refusal })
+    page.sources[0]?.onmessage?.({ data: refusal })
+    const log = page.main().find((node) => node.className === 'log')
+    expect(log?.children.map((node) => node.textContent)).toEqual([
+      'Refused: not_running',
+    ])
 
     // Without focus, the refresh runs again.
     page.focus(null)

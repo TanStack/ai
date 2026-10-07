@@ -69,7 +69,7 @@ async function refresh() {
       $('button', { onclick: async () => { await api('/api/pair/approve', { method: 'POST', body: JSON.stringify({ code: pairing.code }) }); refresh() } }, 'Approve'))) : [$('p', { class: 'muted' }, 'None')]),
     $('h3', {}, 'Hosts'),
     ...(hosts.length ? hosts.map((host) => $('div', { class: 'row' },
-      $('span', { class: host.online ? 'dot on' : 'dot' }), $('span', {}, host.name + ' (' + host.harnesses.join(', ') + ')'), openForm(host))) : [$('p', { class: 'muted' }, 'No hosts yet')]),
+      $('span', { class: host.online ? 'dot on' : 'dot' }), $('span', {}, host.name + ' (' + host.harnesses.join(', ') + ')'), ...(host.allowRemoteStart ? [openForm(host)] : []))) : [$('p', { class: 'muted' }, 'No hosts yet')]),
     $('h3', {}, 'Sessions'),
     ...(sessions.length ? sessions.map((session) => $('button', { class: 'session ' + session.status, onclick: () => open(session) },
       session.threadId + ' | ' + (session.harness || '') + ' | ' + session.status)) : [$('p', { class: 'muted' }, 'No sessions yet')]),
@@ -78,8 +78,8 @@ async function refresh() {
 
 const sessionPath = (hostId, threadId) => '/api/sessions/' + encodeURIComponent(hostId) + '/' + encodeURIComponent(threadId)
 
-// Start or attach a thread on a host, then watch it. A host without
-// allowRemoteStart ignores this and refuses the first input instead.
+// Start or attach a thread on a host, then watch it. Only a host with
+// allowRemoteStart gets this form.
 function openForm(host) {
   const input = $('input', { placeholder: 'Thread id', 'aria-label': 'Thread id', autocomplete: 'off' })
   return $('form', { class: 'row open-thread', onsubmit: async (event) => {
@@ -105,7 +105,9 @@ function open(session) {
 function apply(frame) {
   if (!current) return
   // A refused input, for example to a thread the host does not let the dashboard start.
-  if (frame.type === 'harness.receipt' && frame.status === 'rejected') current.messages.push({ kind: 'error', text: 'Refused: ' + (frame.reason || 'no reason') })
+  // The relay sends the latest refusal again when the stream reconnects, so show each one once.
+  if (frame.type === 'harness.receipt' && frame.status === 'rejected' && !(frame.requestId && current.messages.some((message) => message.requestId === frame.requestId)))
+    current.messages.push({ kind: 'error', requestId: frame.requestId, text: 'Refused: ' + (frame.reason || 'no reason') })
   if (frame.type !== 'harness.event') return
   const event = frame.event
   if (event.subagentRunId) { applyChild(event); return }

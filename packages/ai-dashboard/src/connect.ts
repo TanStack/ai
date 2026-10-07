@@ -121,6 +121,7 @@ export async function connectDashboard(options: ConnectDashboardOptions) {
     const response = await post('/api/host/hello', {
       name: options.name ?? options.harness.name,
       harnesses: [options.harness.name],
+      allowRemoteStart: options.allowRemoteStart === true,
     })
     if (response.status !== 401) return
     // A restarted dashboard forgets its host tokens. Pair again, or report it.
