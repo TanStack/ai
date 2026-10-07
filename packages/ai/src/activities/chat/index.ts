@@ -41,6 +41,7 @@ import {
 import { subagentHostMessageId } from '../../utilities/subagent-wire'
 import { withDurabilityBatchHint } from '../../utilities/durability-batch'
 import { normalizeStreamChunk } from '../../utilities/normalize-stream-chunk'
+import { isRedactedThinkingId } from '../../utilities/reasoning-encrypted-value'
 import { restorePublicUsage } from '../../utilities/restore-inbound-chunk'
 import type { AdapterYieldChunk } from '../../utilities/adapter-yield-chunk'
 import {
@@ -89,6 +90,12 @@ import {
 import { maxIterations as maxIterationsStrategy } from './agent-loop-strategies'
 import { isCancelRequestedReason } from './cancel'
 import {
+  applyActivityDeltaToRecords,
+  applyActivitySnapshotToRecords,
+  interleaveActivityRecords,
+  peelInboundActivities,
+} from './activity-records'
+import {
   appendUiResourceToModelMessages,
   convertMessagesToModelMessages,
   generateMessageId,
@@ -123,6 +130,7 @@ import type {
   StructuredOutputResult,
 } from './adapter'
 import type {
+  ActivityRecord,
   AgentLoopStrategy,
   AnyTool,
   ChatStream,
@@ -523,6 +531,8 @@ export interface TextActivityOptions<
   abortController?: TextOptions['abortController']
   /** Strategy for controlling the agent loop */
   agentLoopStrategy?: TextOptions['agentLoopStrategy']
+  /** How the server tools of one model turn run. Default `'parallel'`. */
+  toolExecution?: TextOptions['toolExecution']
   /**
    * Optional configuration for lazy-tool discovery (tools marked `lazy: true`).
    * Tunes how much of each lazy tool's description appears in the discovery
@@ -838,6 +848,7 @@ class TextEngine<
   private readonly effectiveSignal?: AbortSignal
 
   private messages: Array<ModelMessage>
+  private activities: Array<ActivityRecord> = []
   private providerMessages: Array<ModelMessage>
   private iterationCount = 0
   /** Cumulative tool calls counted in this run (emitted + pending resume). */
@@ -853,8 +864,7 @@ class TextEngine<
   private currentMessageCreatedAt: Date | null = null
   private streamIdentityCaptured = false
   private accumulatedContent = ''
-  private accumulatedThinking: Array<{ content: string; signature?: string }> =
-    []
+  private accumulatedThinking: NonNullable<ModelMessage['thinking']> = []
   /**
    * Arrival order of this iteration's thinking steps, text and tool calls.
    * A ModelMessage keeps `thinking` apart from `content`/`toolCalls`, so a
@@ -866,6 +876,7 @@ class TextEngine<
   private turnParts: Array<TurnPart> | null = []
   private currentThinkingContent = ''
   private currentThinkingSignature = ''
+  private currentThinkingRedacted = false
   private eventOptions?: Record<string, unknown> | undefined
   private eventToolNames?: Array<string>
   private finishedEvent: RunFinishedEvent | null = null
@@ -1002,6 +1013,7 @@ class TextEngine<
 
     // Convert messages to ModelMessage format (handles both UIMessage and ModelMessage input)
     // This ensures consistent internal format regardless of what the client sends
+    this.activities = peelInboundActivities(config.params.messages ?? [])
     this.messages = convertMessagesToModelMessages(config.params.messages)
     this.providerMessages = this.messages
 
@@ -1095,6 +1107,7 @@ class TextEngine<
       accumulatedContent: '',
       // References
       messages: this.messages,
+      activities: this.activities,
       createId: (prefix: string) => this.createId(prefix),
       // Capability bookkeeping for this request (populated by middleware setup)
       capabilities: new CapabilityRegistry(),
@@ -1524,6 +1537,7 @@ class TextEngine<
     this.turnParts = []
     this.currentThinkingContent = ''
     this.currentThinkingSignature = ''
+    this.currentThinkingRedacted = false
 
     this.finishedEvent = null
     this.streamedToolErrorResults.clear()
@@ -1812,11 +1826,38 @@ class TextEngine<
         // No special handling needed
         break
 
+      case 'ACTIVITY_SNAPSHOT':
+        this.setActivities(
+          applyActivitySnapshotToRecords(
+            this.activities,
+            chunk as Extract<StreamChunk, { type: 'ACTIVITY_SNAPSHOT' }>,
+            interleaveActivityRecords(
+              modelMessagesToUIMessages(this.messages),
+              this.activities,
+            ).length,
+          ),
+        )
+        break
+
+      case 'ACTIVITY_DELTA':
+        this.setActivities(
+          applyActivityDeltaToRecords(
+            this.activities,
+            chunk as Extract<StreamChunk, { type: 'ACTIVITY_DELTA' }>,
+          ),
+        )
+        break
+
       default:
         // RUN_STARTED, TEXT_MESSAGE_END, STATE_SNAPSHOT, STATE_DELTA, CUSTOM
         // - no special handling needed in chat activity
         break
     }
+  }
+
+  private setActivities(activities: Array<ActivityRecord>): void {
+    this.activities = activities
+    this.middlewareCtx.activities = this.activities
   }
 
   // ===========================
@@ -1992,6 +2033,7 @@ class TextEngine<
         ...(this.currentThinkingSignature && {
           signature: this.currentThinkingSignature,
         }),
+        ...(this.currentThinkingRedacted && { redacted: true }),
       })
       if (this.turnParts) {
         const placeholder = [...this.turnParts]
@@ -2009,6 +2051,7 @@ class TextEngine<
       }
       this.currentThinkingContent = ''
       this.currentThinkingSignature = ''
+      this.currentThinkingRedacted = false
     }
   }
 
@@ -2036,6 +2079,7 @@ class TextEngine<
     if (typeof chunk.signature === 'string' && chunk.signature !== '') {
       this.noteThinkingStepPosition()
       this.currentThinkingSignature = chunk.signature
+      this.currentThinkingRedacted = isRedactedThinkingId(chunk.stepId)
     }
   }
 
@@ -2065,6 +2109,7 @@ class TextEngine<
     }
     this.noteThinkingStepPosition()
     this.currentThinkingSignature = chunk.encryptedValue
+    this.currentThinkingRedacted = isRedactedThinkingId(chunk.entityId)
   }
 
   /**
@@ -2202,6 +2247,7 @@ class TextEngine<
         cancelledToolCallIds: this.resumeCancelledToolCallIds,
         inputResponses: this.resumeInputResponses,
       },
+      this.params.toolExecution,
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -2390,6 +2436,7 @@ class TextEngine<
         cancelledToolCallIds: this.resumeCancelledToolCallIds,
         inputResponses: this.resumeInputResponses,
       },
+      this.params.toolExecution,
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -2579,7 +2626,7 @@ class TextEngine<
       ),
     )
     type Segment = {
-      thinking: Array<{ content: string; signature?: string }>
+      thinking: NonNullable<ModelMessage['thinking']>
       text: string
       callIds: Array<string>
     }
@@ -3091,9 +3138,16 @@ class TextEngine<
     return {
       type: EventType.MESSAGES_SNAPSHOT,
       timestamp: Date.now(),
-      messages: uiMessagesToWire(modelMessagesToUIMessages(withIds), {
-        includeSnapshotStructuredOutput: true,
-      }),
+      messages: uiMessagesToWire(
+        interleaveActivityRecords(
+          modelMessagesToUIMessages(withIds),
+          this.activities,
+        ),
+        {
+          includeSnapshotStructuredOutput: true,
+          includeActivity: true,
+        },
+      ),
     }
   }
 
@@ -3288,7 +3342,7 @@ class TextEngine<
       if (this.toolCallManager.hasToolCalls()) {
         this.addAssistantToolCallMessage(this.toolCallManager.getToolCalls())
       } else {
-        this.addAssistantTextMessageForInterrupt()
+        this.addTerminalAssistantMessages()
       }
     }
     const actionable = this.getBoundaryActionableToolRequests(toolCalls)
@@ -3300,15 +3354,6 @@ class TextEngine<
       inputRequired,
     )
     return true
-  }
-
-  private addAssistantTextMessageForInterrupt(): void {
-    if (this.accumulatedContent.length === 0) return
-    this.messages = [
-      ...this.messages,
-      { role: 'assistant', content: this.accumulatedContent },
-    ]
-    this.middlewareCtx.messages = this.messages
   }
 
   private getBoundaryActionableToolRequests(
@@ -4375,6 +4420,7 @@ class TextEngine<
   private buildMiddlewareConfig(): ChatMiddlewareConfig {
     return {
       messages: this.messages,
+      activities: this.activities,
       providerMessages: this.messages,
       systemPrompts: [...this.systemPrompts],
       tools: [...this.tools],
@@ -4848,6 +4894,9 @@ class TextEngine<
   private applyMiddlewareConfig(config: ChatMiddlewareConfig): void {
     this.applyResumeToolState(config.resumeToolState)
     this.messages = config.messages
+    if (config.activities !== undefined) {
+      this.setActivities(config.activities)
+    }
     this.providerMessages = config.providerMessages ?? config.messages
     this.systemPrompts = config.systemPrompts
     assertUniqueToolNames(config.tools)

@@ -441,6 +441,60 @@ describe('Gemini Image Adapter', () => {
       expect(result.images[0]!.b64Json).toBe('lite-base64-image')
     })
 
+    it('routes Nano Banana 2.1 (gemini-nano-banana-2.1) through the native generateContent path', async () => {
+      const mockGenerateContent = vi.fn().mockResolvedValueOnce({
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  inlineData: {
+                    mimeType: 'image/jpeg',
+                    data: 'nb21-base64-image',
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      })
+
+      const adapter = createGeminiImage(
+        'gemini-nano-banana-2.1',
+        'test-api-key',
+      )
+      ;(
+        adapter as unknown as {
+          client: { models: { generateContent: unknown } }
+        }
+      ).client = {
+        models: {
+          generateContent: mockGenerateContent,
+        },
+      }
+
+      const result = await generateImage({
+        adapter,
+        prompt: 'A red circle',
+        size: '8:1_4K',
+      })
+
+      expect(mockGenerateContent).toHaveBeenCalledWith({
+        model: 'gemini-nano-banana-2.1',
+        contents: 'A red circle',
+        config: {
+          responseModalities: ['TEXT', 'IMAGE'],
+          imageConfig: {
+            aspectRatio: '8:1',
+            imageSize: '4K',
+          },
+        },
+      })
+
+      expect(result.model).toBe('gemini-nano-banana-2.1')
+      expect(result.images[0]!.b64Json).toBe('nb21-base64-image')
+    })
+
     it('routes the GA id gemini-3.1-flash-image through generateContent and sends the 512 tier', async () => {
       const mockResponse = {
         candidates: [
@@ -1334,6 +1388,7 @@ describe('Gemini Image Adapter', () => {
 describe('GEMINI_NATIVE_IMAGE_MODELS public routing list', () => {
   it('exports the same membership the adapter uses', () => {
     expect(isGeminiNativeImageModel('gemini-3.1-flash-image')).toBe(true)
+    expect(isGeminiNativeImageModel('gemini-nano-banana-2.1')).toBe(true)
     expect(isGeminiNativeImageModel('gemini-3-pro-image')).toBe(true)
     expect(isGeminiNativeImageModel('gemini-2.5-flash-image')).toBe(true)
     expect(isGeminiNativeImageModel('imagen-4.0-generate-001')).toBe(false)

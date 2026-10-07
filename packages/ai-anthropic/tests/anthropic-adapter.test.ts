@@ -1352,6 +1352,59 @@ describe('Anthropic adapter option mapping', () => {
     })
   })
 
+  it('sends an object tool_use input when replayed tool call arguments are truncated (issue #1582)', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('Done'))
+
+    const adapter = createAdapter('claude-opus-4-1')
+
+    for await (const _ of chat({
+      adapter,
+      messages: [
+        { role: 'user', content: 'Weather in Berlin and Paris?' },
+        {
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'call_berlin',
+              type: 'function',
+              function: { name: 'lookup_weather', arguments: toolArguments },
+            },
+            {
+              id: 'call_paris',
+              type: 'function',
+              function: {
+                name: 'lookup_weather',
+                arguments: '{"location": "Par',
+              },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_berlin', content: '{"temp":72}' },
+        { role: 'tool', toolCallId: 'call_paris', content: '{"temp":68}' },
+      ],
+      tools: [weatherTool],
+    })) {
+      // consume stream
+    }
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+    expect(payload.messages[1].content).toEqual([
+      {
+        type: 'tool_use',
+        id: 'call_berlin',
+        name: 'lookup_weather',
+        input: { location: 'Berlin' },
+      },
+      {
+        type: 'tool_use',
+        id: 'call_paris',
+        name: 'lookup_weather',
+        input: {},
+      },
+    ])
+  })
+
   it('merges multiple consecutive tool result messages into one user message', async () => {
     // When multiple tools are called, each tool result becomes a role:'user' message.
     // These must be merged into a single user message.

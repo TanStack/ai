@@ -1,0 +1,12 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "[max-tokens-usage] say hello in five words" },
+      "response": {
+        "content": "Hello there, my",
+        "finishReason": "length",
+        "usage": { "input_tokens": 13, "output_tokens": 3 }
+      }
+    }
+  ]
+}

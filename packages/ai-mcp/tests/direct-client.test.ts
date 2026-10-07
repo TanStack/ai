@@ -5,6 +5,7 @@ import { createMCPClient } from '../src/client'
 import { ToolInputRequiredError } from '../src/server/context'
 import type { MCPToolContext } from '../src/server/context'
 import { createMCPServer } from '../src/server/create-server'
+import { resourceDefinition } from '../src/server/definitions'
 import { travelClient } from './direct-client-boundary'
 import { travelServer } from './fixtures/travel-server'
 
@@ -74,6 +75,57 @@ describe('createMCPClient({ server })', () => {
       callTool: (name: string, args: unknown) => Promise<unknown>
     }
     await expect(loose.callTool('ask', { city: 1 })).rejects.toThrow()
+  })
+
+  it('parses the tool output with its output schema, like the HTTP server', async () => {
+    const server = createMCPServer({
+      name: 'counter',
+      version: '1.0.0',
+      tools: [
+        toolDefinition({
+          name: 'count',
+          description: 'Counts',
+          outputSchema: z.object({
+            n: z.string().transform(Number).pipe(z.number()),
+          }),
+        }).server(async () => ({ n: '3' })),
+        toolDefinition({
+          name: 'broken',
+          description: 'Returns output that fails its schema',
+          outputSchema: z.object({ n: z.number() }),
+        }).server(async () => JSON.parse('{"n":"x"}')),
+      ],
+    })
+    const client = await createMCPClient({ server })
+
+    expect(await client.callTool('count', {})).toEqual({ n: 3 })
+    await expect(client.callTool('broken', {})).rejects.toThrow(
+      'Tool broken returned output that does not match its outputSchema',
+    )
+  })
+
+  it('passes a context to a resource read', async () => {
+    const server = createMCPServer({
+      name: 'tenants',
+      version: '1.0.0',
+      resources: [
+        resourceDefinition({
+          uri: 'myapp://tenant',
+          name: 'tenant',
+          mimeType: 'text/plain',
+        }).read(async (_uri, variables, ctx) => ({
+          text: `${String(ctx.context.tenant)} ${JSON.stringify(variables)}`,
+        })),
+      ],
+    })
+    const client = await createMCPClient({ server })
+
+    expect(
+      await client.readResource('myapp://tenant', { tenant: 'acme' }),
+    ).toEqual({ text: 'acme {}' })
+    expect(await client.readResource('myapp://tenant')).toEqual({
+      text: 'undefined {}',
+    })
   })
 })
 

@@ -139,6 +139,7 @@ type ChatClientUpdateOptionsWithoutContext<
   onSubscriptionChange?: (isSubscribed: boolean) => void
   onConnectionStatusChange?: (status: ConnectionStatus) => void
   onSessionGeneratingChange?: (isGenerating: boolean) => void
+  onHydratingChange?: (isHydrating: boolean) => void
   onQueueChange?: (queue: Array<QueuedMessage>) => void
   onResumeStateChange?: (
     resumeState: ChatResumeState | null,
@@ -345,8 +346,11 @@ const REJOIN_CONNECT_DEADLINE_MS = 2000
 const REJOIN_REBUILD_TRIGGERS = new Set<string>([
   'TEXT_MESSAGE_START',
   'TEXT_MESSAGE_CONTENT',
+  'TEXT_MESSAGE_CHUNK',
   'REASONING_MESSAGE_CONTENT',
+  'REASONING_MESSAGE_CHUNK',
   'TOOL_CALL_START',
+  'TOOL_CALL_CHUNK',
   'MESSAGES_SNAPSHOT',
   // Drop the hydrated card before this chunk creates it again. A subagent
   // turn may have no parent text, so the text triggers arrive too late.
@@ -509,6 +513,7 @@ export class ChatClient<
   private readonly postStreamActions: Array<() => Promise<void>> = []
   // Track pending client tool executions to await them before stream finalization
   private readonly pendingToolExecutions: Map<string, Promise<void>> = new Map()
+  private handingOverPendingToolCalls = false
   private activeClientTools: Map<string, AnyClientTool> | null = null
   private activeContext: TContext | undefined = undefined
   // Flag to deduplicate continuation checks during action draining
@@ -540,6 +545,12 @@ export class ChatClient<
   private hydrationError: Error | undefined
   /** Whether a view is currently watching. See `attach` / `detach`. */
   private tailing = false
+  /** `historyGeneration` of the mount hydration GET still in flight, if any. */
+  private hydrationInFlight: number | undefined
+  /** An async storage adapter is still reading the persisted transcript. */
+  private storeHydrating = false
+  /** See {@link getIsHydrating}. */
+  private isHydrating = false
   /** Constructor inputs `attach()` needs on every re-attach, not just the first. */
   private readonly rejoinRunId: string | null | undefined
   private readonly cachesMessages: boolean
@@ -568,6 +579,7 @@ export class ChatClient<
       onSubscriptionChange: (isSubscribed: boolean) => void
       onConnectionStatusChange: (status: ConnectionStatus) => void
       onSessionGeneratingChange: (isGenerating: boolean) => void
+      onHydratingChange: (isHydrating: boolean) => void
       onQueueChange: (queue: Array<QueuedMessage>) => void
       onResumeStateChange: (
         resumeState: ChatResumeState | null,
@@ -671,6 +683,7 @@ export class ChatClient<
           options.onConnectionStatusChange || (() => {}),
         onSessionGeneratingChange:
           options.onSessionGeneratingChange || (() => {}),
+        onHydratingChange: options.onHydratingChange || (() => {}),
         onQueueChange: options.onQueueChange || (() => {}),
         onResumeStateChange: options.onResumeStateChange || (() => {}),
         onRunIdChange: options.onRunIdChange || (() => {}),
@@ -872,6 +885,17 @@ export class ChatClient<
             this.activeClientTools ?? this.clientToolsRef.current
           const clientTool = clientTools.get(args.toolName)
           const executeFunc = clientTool?.execute
+          // A success RUN_FINISHED hands over calls that no approval step
+          // covered. A tool that needs approval does not run from there.
+          if (
+            this.handingOverPendingToolCalls &&
+            clientTool?.needsApproval === true
+          ) {
+            console.warn(
+              `[ChatClient] Did not run tool call ${args.toolCallId}: ${args.toolName} needs approval, and the server did not ask for it`,
+            )
+            return
+          }
           if (executeFunc) {
             const continuationGeneration = this.continuationGeneration
             // Capture the run context at execution-start so a tool whose
@@ -976,10 +1000,21 @@ export class ChatClient<
     // `initialMessages` do not fire a change event. Give their cards handles.
     this.syncSubagentHandles()
 
-    this.persistor?.hydrateAsync(persistedState)
+    const storeHydration = this.persistor?.hydrateAsync(persistedState)
+    if (storeHydration) {
+      this.storeHydrating = true
+      void storeHydration.finally(() => {
+        this.storeHydrating = false
+        this.syncIsHydrating()
+      })
+    }
 
     this.rejoinRunId = rejoinRunId
     this.cachesMessages = cachesMessages
+    // Server-authoritative mode loads the thread on the first `attach()`.
+    // Start as hydrating so the first render shows loading, not an empty thread.
+    this.isHydrating =
+      this.storeHydrating || (!cachesMessages && !!this.connection.hydrate)
     // NO TAILING HERE, deliberately. Constructing a client must not open a
     // connection.
     //
@@ -1145,24 +1180,44 @@ export class ChatClient<
    */
   private hydrateFromServer(): void {
     const hydrate = this.connection.hydrate
-    if (!hydrate) return
-    if (this.isLoading || this.abortController) return
-    if (this.disposed) return
+    if (!hydrate || this.isLoading || this.abortController || this.disposed) {
+      this.syncIsHydrating()
+      return
+    }
+    // A re-attach while the last GET is still out reuses that GET. React Strict
+    // Mode runs mount effects twice (attach, detach, attach), and the GET
+    // applies its result because a view is attached again when it returns.
+    if (this.hydrationInFlight === this.historyGeneration) return
     const pageSize = this.historyPageSize
     const hydrateOptions: ChatHydrateOptions | undefined =
       pageSize === undefined ? undefined : { limit: pageSize }
+    // Settles only after the transcript is applied and any in-flight run is
+    // re-joined, so `isLoading` turns on before `isHydrating` turns off.
     void (async () => {
       let result: ChatHydrationResult
       const generation = this.historyGeneration
+      this.hydrationInFlight = generation
+      this.syncIsHydrating()
+      // A send, a clear, or a newer load clears or replaces `hydrationInFlight`
+      // (see `supersedeHydration`). Then this result is stale.
+      const isCurrent = () =>
+        this.hydrationInFlight === generation &&
+        generation === this.historyGeneration
+      let current: boolean
       try {
         result = await hydrate(this.threadId, hydrateOptions)
       } catch (cause) {
         // Same staleness guard as the success path below: a failure from an
         // older attempt must not touch the state of a newer one.
-        if (generation === this.historyGeneration) this.failHydration(cause)
+        if (isCurrent()) this.failHydration(cause)
         return
+      } finally {
+        current = isCurrent()
+        if (this.hydrationInFlight === generation) {
+          this.hydrationInFlight = undefined
+        }
       }
-      if (generation !== this.historyGeneration) return
+      if (!current) return
       // NO VIEW IS WATCHING ANY MORE (it unmounted while this fetch was in
       // flight). Applying anything now is pointless, and one thing is actively
       // harmful: the branch below calls `maybeRejoinInFlight`, which opens a TAIL.
@@ -1216,7 +1271,7 @@ export class ChatClient<
       } else if (result.activeRun?.runId) {
         this.maybeRejoinInFlight(result.activeRun.runId)
       }
-    })()
+    })().finally(() => this.syncIsHydrating())
   }
 
   /**
@@ -1715,6 +1770,18 @@ export class ChatClient<
     this.isLoading = isLoading
     this.callbacksRef.current.onLoadingChange(isLoading)
     this.events.loadingChanged(isLoading)
+    if (isLoading) this.supersedeHydration()
+  }
+
+  /**
+   * A send or a clear now owns the transcript. A load that is still pending can
+   * no longer paint it (the generation guards drop its result), so it no longer
+   * counts as hydrating.
+   */
+  private supersedeHydration(): void {
+    this.hydrationInFlight = undefined
+    this.storeHydrating = false
+    this.syncIsHydrating()
   }
 
   private setStatus(status: ChatClientState): void {
@@ -1733,6 +1800,14 @@ export class ChatClient<
     this.connectionStatus = status
     this.callbacksRef.current.onConnectionStatusChange(status)
     this.devtoolsBridge.emitSnapshot()
+  }
+
+  private syncIsHydrating(): void {
+    const isHydrating =
+      this.hydrationInFlight !== undefined || this.storeHydrating
+    if (this.isHydrating === isHydrating) return
+    this.isHydrating = isHydrating
+    this.callbacksRef.current.onHydratingChange(isHydrating)
   }
 
   private setSessionGenerating(isGenerating: boolean): void {
@@ -2124,7 +2199,13 @@ export class ChatClient<
       this.resolveJoinedRun(chunk)
       return
     }
-    this.processor.processChunk(chunk)
+    this.handingOverPendingToolCalls =
+      chunk.type === 'RUN_FINISHED' && chunk.outcome?.type !== 'interrupt'
+    try {
+      this.processor.processChunk(chunk)
+    } finally {
+      this.handingOverPendingToolCalls = false
+    }
     this.syncSubagentHandles()
     this.updateRunLifecycle(chunk)
     this.observeInterruptState(chunk)
@@ -2435,7 +2516,16 @@ export class ChatClient<
       return
     }
 
-    // Type assertion: after checking for system, we know it's user or assistant
+    // Activity is frontend-only. Keep it in the transcript; do not start a run.
+    if (normalizedMessage.role === 'activity') {
+      const uiMessage = normalizedMessage as UIMessage
+      this.events.messageAppended(uiMessage)
+      const messages = this.processor.getMessages()
+      this.processor.setMessages([...messages, uiMessage])
+      this.devtoolsBridge.emitSnapshot()
+      return
+    }
+
     const uiMessage = normalizedMessage as UIMessage
 
     // Emit message appended event
@@ -2503,7 +2593,8 @@ export class ChatClient<
     let runTerminalEventEmitted = false
 
     try {
-      // Get UIMessages with parts (preserves approval state and client tool results)
+      // Get UIMessages with parts (preserves approval state and client tool results).
+      // Activity is frontend-only — never send it as model input.
       const messages = this.messagesForSend(this.processor.getMessages())
       const clientTools = new Map(this.clientToolsRef.current)
       const runtimeContext = this.context
@@ -2860,6 +2951,7 @@ export class ChatClient<
     this.persistor?.beginClear()
     this.processor.clearMessages()
     this.resetHistoryPaging()
+    this.supersedeHydration()
     this.discardPendingSends()
     this.persistor?.remove()
     this.stoppedSubagentIds.clear()
@@ -3138,6 +3230,7 @@ export class ChatClient<
    * Get current messages
    */
   getMessages(): Array<UIMessage<TTools>> {
+    // StreamProcessor is untyped over client tools / output schema.
     return this.processor.getMessages() as Array<UIMessage<TTools>>
   }
 
@@ -3283,11 +3376,12 @@ export class ChatClient<
   }
 
   private messagesForSend(messages: Array<UIMessage>) {
+    const forModel = messages.filter((message) => message.role !== 'activity')
     if (this.historyPageSize === undefined) {
-      return messages
+      return forModel
     }
     const unknownMessages: Array<UIMessage> = []
-    for (const message of messages) {
+    for (const message of forModel) {
       const isKnown = this.knownServerMessageIds.has(message.id)
       if (isKnown) {
         continue
@@ -3300,13 +3394,13 @@ export class ChatClient<
     // No new ids: reload has already dropped the old assistant, so this is
     // `[lastUser]`. Resume/continue still has the assistant, so the cutoff is
     // that assistant and the stored tool-call stays.
-    const lastUserIndex = messages.findLastIndex(
+    const lastUserIndex = forModel.findLastIndex(
       (message) => message.role === 'user',
     )
     if (lastUserIndex === -1) {
       return []
     }
-    return messages.slice(lastUserIndex)
+    return forModel.slice(lastUserIndex)
   }
 
   /**
@@ -3471,6 +3565,16 @@ export class ChatClient<
   }
 
   /**
+   * Whether the client is rebuilding the chat from persistence: the server
+   * hydrate (`persistence: true`) or an async storage adapter. Turns false once
+   * the transcript is applied and any in-flight run is re-joined (from then on
+   * `isLoading` covers the stream), or when the load fails.
+   */
+  getIsHydrating(): boolean {
+    return this.isHydrating
+  }
+
+  /**
    * Get current error
    */
   getError(): Error | undefined {
@@ -3577,6 +3681,9 @@ export class ChatClient<
     if (options.onSessionGeneratingChange !== undefined) {
       this.callbacksRef.current.onSessionGeneratingChange =
         options.onSessionGeneratingChange
+    }
+    if (options.onHydratingChange !== undefined) {
+      this.callbacksRef.current.onHydratingChange = options.onHydratingChange
     }
     if (options.onQueueChange !== undefined) {
       this.callbacksRef.current.onQueueChange = options.onQueueChange

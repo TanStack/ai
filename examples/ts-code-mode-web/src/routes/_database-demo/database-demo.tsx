@@ -25,7 +25,7 @@ import ChatInput from '@/components/ChatInput'
 import { formatDuration } from '@/lib/efficiency'
 import { toolResultContentToString } from '@/lib/tool-result-content'
 
-export const Route = createFileRoute('/_database-demo/database-demo' as any)({
+export const Route = createFileRoute('/_database-demo/database-demo')({
   component: DatabaseDemoPage,
 })
 

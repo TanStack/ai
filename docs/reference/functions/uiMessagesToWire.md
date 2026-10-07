@@ -7,7 +7,7 @@ title: uiMessagesToWire
 function uiMessagesToWire(messages, options?): WireMessage[];
 ```
 
-Defined in: [packages/ai/src/utilities/ag-ui-wire.ts:85](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/ag-ui-wire.ts#L85)
+Defined in: [packages/ai/src/utilities/ag-ui-wire.ts:98](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/ag-ui-wire.ts#L98)
 
 Serialize TanStack `UIMessage`s and `ModelMessage`s into the AG-UI
 `RunAgentInput.messages` wire shape. Anchors are spec-only (`id`, `role`,
@@ -15,7 +15,9 @@ Serialize TanStack `UIMessage`s and `ModelMessage`s into the AG-UI
 on assistant messages are additionally emitted as fan-out
 `{role:'tool',...}` and `{role:'reasoning',...}` entries for strict AG-UI
 server consumers. Set `includeSnapshotStructuredOutput` to retain complete
-structured-output metadata for UI snapshots.
+structured-output metadata for UI snapshots. Set `includeActivity` to emit
+AG-UI `ActivityMessage` rows (MESSAGES_SNAPSHOT only — default omit so
+RunAgentInput never carries activity).
 
 ## Parameters
 
@@ -30,7 +32,11 @@ structured-output metadata for UI snapshots.
 
 ### options?
 
-#### includeSnapshotStructuredOutput
+#### includeActivity?
+
+`boolean`
+
+#### includeSnapshotStructuredOutput?
 
 `boolean`
 

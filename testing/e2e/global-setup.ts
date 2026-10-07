@@ -664,7 +664,8 @@ function rejectGeminiImageRequest(
 
 /**
  * Mounts Gemini native `generateContent` image calls for
- * `gemini-3.1-flash-image` and `gemini-2.5-flash-image`.
+ * `gemini-3.1-flash-image`, `gemini-nano-banana-2.1` and
+ * `gemini-2.5-flash-image`.
  *
  * aimock has no `generateContent` image branch. This mount reads the raw
  * body so two specs can assert on the wire:
@@ -675,6 +676,7 @@ function rejectGeminiImageRequest(
 function geminiNativeImageMount(): Mountable {
   const NATIVE_IMAGE_MODELS = new Set([
     'gemini-3.1-flash-image',
+    'gemini-nano-banana-2.1',
     'gemini-2.5-flash-image',
   ])
 
@@ -767,7 +769,7 @@ function geminiNativeImageMount(): Mountable {
           )
         }
 
-        if (model === 'gemini-3.1-flash-image') {
+        if (model !== 'gemini-2.5-flash-image') {
           if (imageSize !== EXPECTED_FLASH_IMAGE_SIZE) {
             return rejectGeminiImageRequest(
               res,
@@ -1152,7 +1154,7 @@ function rejectVoiceRequest(res: http.ServerResponse, message: string): true {
  * The success body mirrors a captured live task (see the Phase 0 probe notes):
  * `content.video_url` plus `usage.completion_tokens`, `seed`, `resolution`,
  * `ratio`, `duration`, the lowercase `framespersecond`, and `output_format`.
- * `updated_at` matters — `getVideoUrl` anchors its 24-hour `expiresAt` to it.
+ * `updated_at` matters — `getVideo` anchors its 24-hour `expiresAt` to it.
  * The `model` is echoed back from the submitted task rather than hardcoded, so
  * the poll response can't drift from what the adapter actually asked for.
  *

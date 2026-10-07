@@ -1,5 +1,13 @@
 # @tanstack/ai-event-client
 
+## 0.13.1
+
+### Patch Changes
+
+- [#1323](https://github.com/TanStack/ai/pull/1323) [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66) - Expose AG-UI activity messages on the chat client UIMessage path without sending them to the model.
+
+  Migration: `UIMessage.role` can now be `'activity'`. If your UI renders only `'user'` and `'assistant'` rows, it skips activity rows. If your code handles every role (for example, a `switch` that must be exhaustive), add a case for `'activity'`. Read the activity payload from the part with `type: 'activity'`.
+
 ## 0.13.0
 
 ### Minor Changes

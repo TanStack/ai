@@ -147,6 +147,12 @@ function toEncodedStream(
   let pumpPromise: Promise<void> = Promise.resolve()
   let pumpFailure: RecordedFailure | undefined
   let cancelled = false
+  let resumePump: (() => void) | undefined
+
+  const wakePump = (): void => {
+    resumePump?.()
+    resumePump = undefined
+  }
 
   const recordPumpFailure = (error: unknown, phase: string): void => {
     pumpFailure = {
@@ -167,12 +173,27 @@ function toEncodedStream(
   return new ReadableStream({
     start(controller) {
       iterator = stream[Symbol.asyncIterator]()
+      cancellation.signal.addEventListener('abort', wakePump)
       pumpPromise = (async () => {
         let index = 0
         let iteratorDone = false
 
         try {
           while (!isAborted(cancellation.signal)) {
+            // Keep at most the stream's high-water mark queued for a slow
+            // reader. A fresh durable run never waits: its log is the real
+            // destination, so a stalled viewer must not stall the run.
+            while (
+              !detachOnCancel &&
+              !cancelled &&
+              !isAborted(cancellation.signal) &&
+              (controller.desiredSize ?? 0) <= 0
+            ) {
+              await new Promise<void>((resolve) => {
+                resumePump = resolve
+              })
+            }
+            if (isAborted(cancellation.signal)) break
             const result = await iterator.next()
             if (result.done) {
               iteratorDone = true
@@ -188,6 +209,7 @@ function toEncodedStream(
         } catch (error) {
           recordPumpFailure(error, 'stream iteration failed')
         } finally {
+          cancellation.signal.removeEventListener('abort', wakePump)
           if (!iteratorDone) {
             try {
               await closeIterator()
@@ -209,8 +231,12 @@ function toEncodedStream(
         recordPumpFailure(error, 'stream pump failed')
       })
     },
+    pull() {
+      wakePump()
+    },
     async cancel(reason) {
       cancelled = true
+      wakePump()
       // Detached durable delivery: the client is gone (e.g. a page reload), but
       // the run must finish into the durable log so a rejoining client can tail
       // it to the real terminal. Do NOT abort the producer (that would kill the
@@ -306,6 +332,63 @@ function sseEncoders(
 const DEFAULT_DURABILITY_BATCH = 32
 
 /**
+ * Default `batchWaitMs`: the longest a buffered chunk waits for the producer's
+ * next chunk before its batch flushes anyway. Chunks are forwarded only AFTER
+ * they are appended, so a size-only batch held live text until 32 chunks
+ * arrived: a short reply showed up all at once at `RUN_FINISHED`. This bounds
+ * that wait and keeps bursts in one `append`, so a remote log still does not
+ * pay one write per token.
+ */
+const DEFAULT_DURABILITY_BATCH_WAIT_MS = 50
+
+/** Largest delay `setTimeout` honors; a larger one fires at once. */
+const MAX_TIMER_DELAY_MS = 2_147_483_647
+
+/**
+ * Resolve and validate `batchWaitMs`. `NaN`, a negative value, `Infinity`, and
+ * anything past the timer limit are rejected: `setTimeout` would turn each of
+ * them into an immediate flush, the opposite of what a large value asks for.
+ */
+function resolveBatchWaitMs(batchWaitMs: number | undefined): number {
+  if (batchWaitMs === undefined) return DEFAULT_DURABILITY_BATCH_WAIT_MS
+  if (
+    !Number.isFinite(batchWaitMs) ||
+    batchWaitMs < 0 ||
+    batchWaitMs > MAX_TIMER_DELAY_MS
+  ) {
+    throw new Error(
+      `Invalid durability batchWaitMs: ${batchWaitMs}. Must be a number from 0 to ${MAX_TIMER_DELAY_MS}.`,
+    )
+  }
+  return batchWaitMs
+}
+
+/**
+ * True when `promise` settles within `ms`. The promise is observed either way,
+ * so a rejection that loses the race is not reported as unhandled.
+ */
+async function settlesWithin(
+  promise: Promise<unknown>,
+  ms: number,
+): Promise<boolean> {
+  if (ms <= 0) return false
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      promise.then(
+        () => true,
+        () => true,
+      ),
+      new Promise<boolean>((resolve) => {
+        timer = setTimeout(() => resolve(false), ms)
+      }),
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
  * Resolve and validate the durability batch size. A non-positive-integer (0,
  * negative, fractional, or `NaN`) is rejected rather than clamped: silently
  * `Math.max(1, …)`-ing a `NaN` used to disable size-based flushing entirely
@@ -378,8 +461,9 @@ export const RUN_ACCEPTED_EVENT = 'run.accepted'
  *   so `chat()`'s lazy iterator never fires the provider — the untouched
  *   generator is simply GC'd. This is what makes resume free of re-invocation.
  * - **Fresh** (`resumeFrom()` null): iterate `stream`, buffering up to `batch`
- *   chunks (flushing early at terminal / tool-call boundaries), `append` each
- *   batch to the log, then forward. Appending BEFORE forwarding guarantees a
+ *   chunks (flushing early at terminal / tool-call boundaries, or once the
+ *   oldest buffered chunk has waited `batchWaitMs`), `append` each batch to
+ *   the log, then forward. Appending BEFORE forwarding guarantees a
  *   reconnecting client can always replay exactly what it already saw.
  *
  * The returned `getId` maps each forwarded chunk to the exact opaque offset
@@ -391,6 +475,7 @@ export function durableStreamSource<TOffset extends string>(
   options: {
     abortController: AbortController
     batch?: number
+    batchWaitMs?: number
     logger?: InternalLogger
   },
 ): {
@@ -399,6 +484,7 @@ export function durableStreamSource<TOffset extends string>(
 } {
   const resumeOffset = durability.resumeFrom()
   const batchSize = resolveBatchSize(options.batch)
+  const batchWaitMs = resolveBatchWaitMs(options.batchWaitMs)
   const abortController = options.abortController
   const logger = options.logger
   const idByChunk = new WeakMap<object, string>()
@@ -502,11 +588,64 @@ export function durableStreamSource<TOffset extends string>(
         timestamp: Date.now(),
       })
       yield* flush()
-      for await (const chunk of stream) {
-        if (isAborted(abortController.signal)) break
-        batch.push(chunk)
-        if (batch.length >= batchSize || isDurabilityFlushBoundary(chunk)) {
-          yield* flush()
+      // Iterated by hand, not with `for await`, so the batch can flush while
+      // the next chunk is still pending. The `finally` does what `for await`
+      // would: close the producer on an early exit, but not after it finished
+      // or threw. After a failed timed flush it closes it in the background.
+      const iterator = stream[Symbol.asyncIterator]()
+      let iteratorFinished = false
+      // A timed flush failed while `next` was still pending.
+      let pullPending = false
+      let flushBy = 0
+      try {
+        for (;;) {
+          const next = iterator.next()
+          if (
+            batch.length > 0 &&
+            !(await settlesWithin(next, flushBy - Date.now()))
+          ) {
+            try {
+              yield* flush()
+            } catch (error) {
+              pullPending = true
+              throw error
+            }
+          }
+          let result: IteratorResult<StreamChunk>
+          try {
+            result = await next
+          } catch (error) {
+            iteratorFinished = true
+            throw error
+          }
+          if (result.done) {
+            iteratorFinished = true
+            break
+          }
+          if (isAborted(abortController.signal)) break
+          const chunk = result.value
+          if (batch.length === 0) {
+            flushBy = Date.now() + batchWaitMs
+          }
+          batch.push(chunk)
+          if (batch.length >= batchSize || isDurabilityFlushBoundary(chunk)) {
+            yield* flush()
+          }
+        }
+      } finally {
+        if (pullPending) {
+          // An async generator runs `return()` only after its pending pull,
+          // so awaiting it here waits for the model's next chunk, maybe
+          // forever. Close it in the background: the failure path below must
+          // persist RUN_ERROR now, and a failure is never a detach, so nothing
+          // below needs the producer's `onAbort` chain to finish first.
+          Promise.resolve(iterator.return?.()).catch((error: unknown) => {
+            logger?.errors('closing the producer after a failed flush failed', {
+              error,
+            })
+          })
+        } else if (!iteratorFinished) {
+          await iterator.return?.()
         }
       }
       if (!isAborted(abortController.signal)) yield* flush()
@@ -663,17 +802,28 @@ export function durableStreamSource<TOffset extends string>(
   }
 
   async function* replay(offset: TOffset): AsyncIterable<StreamChunk> {
-    // Thread the consumer's abort signal into the read so a live-tailing join
-    // (a mid-stream reconnect) that is aborted — or that hit a runId with no
-    // in-process producer — stops parking and ends instead of hanging forever.
-    for await (const { offset: eventOffset, chunk } of durability.read(
-      offset,
-      abortController.signal,
-    )) {
-      if (isAborted(abortController.signal)) break
-      validateOffset(eventOffset)
-      idByChunk.set(chunk, eventOffset)
-      yield chunk
+    try {
+      // Thread the consumer's abort signal into the read so a live-tailing join
+      // (a mid-stream reconnect) that is aborted — or that hit a runId with no
+      // in-process producer — stops parking and ends instead of hanging forever.
+      for await (const { offset: eventOffset, chunk } of durability.read(
+        offset,
+        abortController.signal,
+      )) {
+        if (isAborted(abortController.signal)) break
+        validateOffset(eventOffset)
+        idByChunk.set(chunk, eventOffset)
+        yield chunk
+      }
+    } catch (error) {
+      // The HTTP transports send this to the reader as a RUN_ERROR, but a
+      // replay has no producer to log it (`chat()` logs its own failures), so
+      // an expired run or a failed backend read would leave no server-side
+      // trace. An aborted read is expected teardown, not a failure.
+      if (!isAborted(abortController.signal)) {
+        logger?.errors('replaying durability stream failed', { error })
+      }
+      throw error
     }
   }
 
@@ -695,10 +845,11 @@ export function durableStreamSource<TOffset extends string>(
  * to make the stream resumable: fresh runs are appended to the log and each SSE
  * event is tagged with an `id:` offset; a reconnect (native `Last-Event-ID`) or
  * a `?offset` join replays from the log without re-running the producer. `batch`
- * controls how many chunks are buffered per `append` (default 32).
+ * controls how many chunks are buffered per `append` (default 32), and
+ * `batchWaitMs` how long a buffered chunk waits for more (default 50).
  *
  * @param stream - AsyncIterable of StreamChunks from chat()
- * @param init - Optional Response initialization options (including `abortController`, `durability` with its optional `batch`, and `debug`)
+ * @param init - Optional Response initialization options (including `abortController`, `durability` with its optional `batch` and `batchWaitMs`, and `debug`)
  * @returns Response in Server-Sent Events format
  *
  * @example
@@ -713,14 +864,26 @@ export function toServerSentEventsResponse<TOffset extends string = string>(
   stream: AsyncIterable<StreamChunk>,
   init?: ResponseInit & {
     abortController?: AbortController
-    durability?: { adapter: StreamDurability<TOffset>; batch?: number }
+    durability?: {
+      adapter: StreamDurability<TOffset>
+      /** Most chunks in one `append` (default 32). */
+      batch?: number
+      /**
+       * Most ms a chunk waits in the batch for the next one before the batch
+       * is appended and sent anyway (default 50). Chunks reach the client only
+       * after their append, so a higher value means fewer writes but slower
+       * live text, and `0` appends every chunk on its own.
+       */
+      batchWaitMs?: number
+    }
     /**
-     * Customize logging for durability failure paths (terminal-append and
-     * close). These failures are always logged server-side by default (the
+     * Customize logging for durability failure paths (replay, terminal-append,
+     * and close). These failures are always logged server-side by default (the
      * `errors` category is on even without `debug`, via a `ConsoleLogger`);
      * pass `debug` to route them to a custom `Logger` or raise verbosity. A
-     * joiner replaying the log only ever sees a generic incomplete error, so
-     * server-side logging is where the real cause is recoverable.
+     * joiner never learns why a terminal-append or close failed, and a replay
+     * failure reaches only its reader, so server-side logging is where the real
+     * cause is recoverable.
      */
     debug?: DebugOption
   },
@@ -761,6 +924,7 @@ export function toServerSentEventsResponse<TOffset extends string = string>(
     const { source, getId } = durableStreamSource(stream, durability.adapter, {
       abortController: producerAbortController,
       batch: durability.batch,
+      batchWaitMs: durability.batchWaitMs,
       // `errors` category is on by default even when `debug` is undefined, so
       // durability terminal-append / close failures always surface server-side —
       // including on the client-disconnect path where there is no live consumer.
@@ -1109,12 +1273,13 @@ function ndjsonEncoders(
  * NDJSON line is emitted as an `{ id, chunk }` envelope carrying an opaque
  * offset; a reconnect (native `Last-Event-ID` header) or a `?offset` join
  * replays from the log without re-running the producer. `batch` controls how
- * many chunks are buffered per `append` (default 32). This shares the exact
+ * many chunks are buffered per `append` (default 32), and `batchWaitMs` how
+ * long a buffered chunk waits for more (default 50). This shares the exact
  * `durableStreamSource` used by `toServerSentEventsResponse` — only the wire
  * encoding differs.
  *
  * @param stream - AsyncIterable of StreamChunks from chat()
- * @param init - Optional Response initialization options (including `abortController`, `durability` with its optional `batch`, and `debug`)
+ * @param init - Optional Response initialization options (including `abortController`, `durability` with its optional `batch` and `batchWaitMs`, and `debug`)
  * @returns Response in HTTP stream format (newline-delimited JSON)
  *
  * @example
@@ -1129,14 +1294,26 @@ export function toHttpResponse<TOffset extends string = string>(
   stream: AsyncIterable<StreamChunk>,
   init?: ResponseInit & {
     abortController?: AbortController
-    durability?: { adapter: StreamDurability<TOffset>; batch?: number }
+    durability?: {
+      adapter: StreamDurability<TOffset>
+      /** Most chunks in one `append` (default 32). */
+      batch?: number
+      /**
+       * Most ms a chunk waits in the batch for the next one before the batch
+       * is appended and sent anyway (default 50). Chunks reach the client only
+       * after their append, so a higher value means fewer writes but slower
+       * live text, and `0` appends every chunk on its own.
+       */
+      batchWaitMs?: number
+    }
     /**
-     * Customize logging for durability failure paths (terminal-append and
-     * close). These failures are always logged server-side by default (the
+     * Customize logging for durability failure paths (replay, terminal-append,
+     * and close). These failures are always logged server-side by default (the
      * `errors` category is on even without `debug`, via a `ConsoleLogger`);
      * pass `debug` to route them to a custom `Logger` or raise verbosity. A
-     * joiner replaying the log only ever sees a generic incomplete error, so
-     * server-side logging is where the real cause is recoverable.
+     * joiner never learns why a terminal-append or close failed, and a replay
+     * failure reaches only its reader, so server-side logging is where the real
+     * cause is recoverable.
      */
     debug?: DebugOption
   },
@@ -1172,6 +1349,7 @@ export function toHttpResponse<TOffset extends string = string>(
     const { source, getId } = durableStreamSource(stream, durability.adapter, {
       abortController: producerAbortController,
       batch: durability.batch,
+      batchWaitMs: durability.batchWaitMs,
       // Errors-on-by-default logger (see toServerSentEventsResponse).
       logger: resolveDebugOption(debug),
     })

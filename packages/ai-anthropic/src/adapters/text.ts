@@ -4,7 +4,10 @@ import {
   isFileSource,
   normalizeSystemPrompts,
 } from '@tanstack/ai'
-import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
+import {
+  REDACTED_THINKING_ID_PREFIX,
+  toRunErrorRawEvent,
+} from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import { getAnthropicProviderToolKind } from '../tools/anthropic-provider-tool'
@@ -832,6 +835,7 @@ export class AnthropicTextAdapter<
                 : typeof toolContent === 'string'
                   ? toolContent
                   : '',
+              ...(message.error !== undefined && { is_error: true }),
             },
           ],
         })
@@ -861,7 +865,7 @@ export class AnthropicTextAdapter<
               : {}
             parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
           } catch {
-            parsedInput = toolCall.function.arguments
+            parsedInput = {}
           }
 
           // Provider-executed server tools (e.g. web_search) replay as the
@@ -960,6 +964,13 @@ export class AnthropicTextAdapter<
 
     for (const thinking of thinkingParts) {
       if (!thinking.signature) continue
+      if (thinking.redacted) {
+        contentBlocks.push({
+          type: 'redacted_thinking',
+          data: thinking.signature,
+        })
+        continue
+      }
       const block: ThinkingBlockParam = {
         type: 'thinking',
         thinking: thinking.content,
@@ -1010,6 +1021,22 @@ export class AnthropicTextAdapter<
       } else {
         merged.push({ ...msg })
       }
+    }
+
+    // Anthropic rejects a request that ends in a thinking-only assistant
+    // message ("The final block in an assistant message cannot be `thinking`").
+    // An interrupt can pause a turn that has thinking but no text. Drop it so
+    // the request ends in the user message and the model answers again.
+    const last = merged.at(-1)
+    if (
+      last?.role === 'assistant' &&
+      Array.isArray(last.content) &&
+      last.content.every(
+        (block) =>
+          block.type === 'thinking' || block.type === 'redacted_thinking',
+      )
+    ) {
+      merged.pop()
     }
 
     // De-duplicate tool_result blocks with the same tool_use_id.
@@ -1074,6 +1101,9 @@ export class AnthropicTextAdapter<
     let hasEmittedRunFinished = false
     // Track current content block type for proper content_block_stop handling
     let currentBlockType: string | null = null
+    // Input and cache counts from message_start, for a closing message_delta
+    // that leaves them out.
+    let messageStartUsage: Anthropic_SDK.Beta.BetaUsage | undefined
 
     try {
       for await (const event of stream) {
@@ -1093,7 +1123,9 @@ export class AnthropicTextAdapter<
           }
         }
 
-        if (event.type === 'content_block_start') {
+        if (event.type === 'message_start') {
+          messageStartUsage = event.message.usage
+        } else if (event.type === 'content_block_start') {
           currentBlockType = event.content_block.type
           if (event.content_block.type === 'tool_use') {
             currentToolIndex++
@@ -1222,6 +1254,63 @@ export class AnthropicTextAdapter<
               timestamp: Date.now(),
               stepType: 'thinking',
             }
+          } else if (event.content_block.type === 'redacted_thinking') {
+            // Encrypted thinking: no text, and its data must go back to
+            // Anthropic unchanged. It gets its own reasoning message, and the
+            // encrypted value names that message. The id prefix marks the
+            // data as a redacted block, not a signature. The step reuses the
+            // id so the stream processor sees the prefix too.
+            const redactedId = `${REDACTED_THINKING_ID_PREFIX}${genId()}`
+            yield {
+              type: EventType.REASONING_START,
+              messageId: redactedId,
+              model,
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.REASONING_MESSAGE_START,
+              messageId: redactedId,
+              role: 'reasoning' as const,
+              model,
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.STEP_STARTED,
+              stepName: redactedId,
+              stepId: redactedId,
+              model,
+              timestamp: Date.now(),
+              stepType: 'thinking',
+            }
+            yield {
+              type: EventType.STEP_FINISHED,
+              stepName: redactedId,
+              stepId: redactedId,
+              model,
+              timestamp: Date.now(),
+              delta: '',
+              content: '',
+            }
+            yield {
+              type: EventType.REASONING_ENCRYPTED_VALUE,
+              subtype: 'message' as const,
+              entityId: redactedId,
+              encryptedValue: event.content_block.data,
+              model,
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.REASONING_MESSAGE_END,
+              messageId: redactedId,
+              model,
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.REASONING_END,
+              messageId: redactedId,
+              model,
+              timestamp: Date.now(),
+            }
           }
         } else if (event.type === 'content_block_delta') {
           if (event.delta.type === 'text_delta') {
@@ -1340,8 +1429,10 @@ export class AnthropicTextAdapter<
           }
         } else if (event.type === 'content_block_stop') {
           if (currentBlockType === 'thinking') {
-            // Emit signature so it can be replayed in multi-turn context
-            if (accumulatedSignature && stepId) {
+            // Emit signature so it can be replayed in multi-turn context.
+            // It belongs to the reasoning message, not the step, so an AG-UI
+            // client finds that message by `entityId`.
+            if (accumulatedSignature && stepId && reasoningMessageId) {
               yield {
                 type: EventType.STEP_FINISHED,
                 stepName: stepId,
@@ -1350,7 +1441,14 @@ export class AnthropicTextAdapter<
                 timestamp: Date.now(),
                 delta: '',
                 content: accumulatedThinking,
-                signature: accumulatedSignature,
+              }
+              yield {
+                type: EventType.REASONING_ENCRYPTED_VALUE,
+                subtype: 'message' as const,
+                entityId: reasoningMessageId,
+                encryptedValue: accumulatedSignature,
+                model,
+                timestamp: Date.now(),
               }
             }
           } else if (currentBlockType === 'tool_use') {
@@ -1462,6 +1560,7 @@ export class AnthropicTextAdapter<
         } else if (event.type === 'message_delta') {
           if (event.delta.stop_reason) {
             hasEmittedRunFinished = true
+            const usage = buildAnthropicUsage(event.usage, messageStartUsage)
 
             // Close reasoning events if still open
             if (reasoningMessageId && !hasClosedReasoning) {
@@ -1489,7 +1588,7 @@ export class AnthropicTextAdapter<
                   model,
                   timestamp: Date.now(),
                   finishReason: 'tool_calls',
-                  usage: buildAnthropicUsage(event.usage),
+                  usage,
                 }
                 break
               }
@@ -1522,6 +1621,7 @@ export class AnthropicTextAdapter<
                       'The response was cut off because the maximum token limit was reached.',
                     code: 'max_tokens',
                   },
+                  usage,
                 }
                 break
               }
@@ -1543,7 +1643,7 @@ export class AnthropicTextAdapter<
                   model,
                   timestamp: Date.now(),
                   finishReason: 'stop',
-                  usage: buildAnthropicUsage(event.usage),
+                  usage,
                 }
               }
             }

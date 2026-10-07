@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-openai",
-  "version": "0.25.1",
+  "version": "0.27.0",
   "description": "OpenAI adapter for TanStack AI chat, tools, images, video, speech, transcription, realtime, and structured outputs.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -32,6 +32,10 @@
     "./compatible": {
       "types": "./dist/esm/compatible/index.d.ts",
       "import": "./dist/esm/compatible/index.js"
+    },
+    "./siwc": {
+      "types": "./dist/esm/siwc.d.ts",
+      "import": "./dist/esm/siwc.js"
     },
     "./tools": {
       "types": "./dist/esm/tools/index.d.ts",

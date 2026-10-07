@@ -175,6 +175,63 @@ test('preserves UI message IDs at the server conversion boundary', async ({
   )
 })
 
+test('merges assistant segments that share a UI message ID', async ({
+  request,
+}) => {
+  const response = await request.post('/api/message-ids', {
+    data: {
+      messages: [
+        {
+          id: 'assistant-round-trip',
+          role: 'assistant',
+          parts: [
+            { type: 'text', content: 'First step.' },
+            {
+              type: 'tool-call',
+              id: 'tool-1',
+              name: 'first',
+              arguments: '{}',
+              state: 'input-complete',
+            },
+            {
+              type: 'tool-result',
+              toolCallId: 'tool-1',
+              content: '{"ok":true}',
+              state: 'complete',
+            },
+            { type: 'text', content: 'Second step.' },
+          ],
+        },
+      ],
+    },
+  })
+
+  expect(response.ok()).toBe(true)
+  const { modelMessages, mergedSnapshots } = await response.json()
+
+  const assistantSegments = modelMessages.filter(
+    (message: { role: string }) => message.role === 'assistant',
+  )
+  expect(assistantSegments).toHaveLength(2)
+  expect(
+    assistantSegments.map((message: { id?: string }) => message.id),
+  ).toEqual(['assistant-round-trip', 'assistant-round-trip'])
+
+  const assistantMessages = mergedSnapshots.filter(
+    (message: { role: string }) => message.role === 'assistant',
+  )
+  expect(assistantMessages).toHaveLength(1)
+  expect(assistantMessages[0]).toMatchObject({
+    id: 'assistant-round-trip',
+    parts: [
+      expect.objectContaining({ type: 'text', content: 'First step.' }),
+      expect.objectContaining({ type: 'tool-call', id: 'tool-1' }),
+      expect.objectContaining({ type: 'tool-result', toolCallId: 'tool-1' }),
+      expect.objectContaining({ type: 'text', content: 'Second step.' }),
+    ],
+  })
+})
+
 test('rejects malformed JSON at the server conversion boundary', async ({
   request,
 }) => {

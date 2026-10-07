@@ -4,6 +4,7 @@ import {
   getDetachableRun,
   InterruptResumeValidationError,
   MetadataCapability,
+  modelMessagesToUIMessages,
   provideMetadata,
   readInterruptBinding,
   validateInterruptResumeBatch,
@@ -29,7 +30,7 @@ import {
   providePersistence,
   providePersistenceCompletion,
 } from './capabilities'
-import { mergeStoredMessages } from './merge-stored'
+import { mergeStoredMessages, storedCutoff } from './merge-stored'
 import { createSubagentRunRecorder } from './subagent-runs'
 import {
   validateChatPersistenceStores,
@@ -37,6 +38,7 @@ import {
 } from './types'
 import type {
   AbortInfo,
+  ActivityRecord,
   ChatMiddleware,
   ChatMiddlewareConfig,
   ChatMiddlewareContext,
@@ -307,6 +309,24 @@ interface RunStateEntry {
 }
 
 const runState = new WeakMap<object, RunStateEntry>()
+/**
+ * Stored activity rows that sit before the reload cutoff. A reload drops the
+ * old assistant turn, so its activity rows go too.
+ */
+function keptActivities(
+  records: Array<ActivityRecord>,
+  stored: Array<ModelMessage>,
+  cutoff: number,
+): Array<ActivityRecord> {
+  if (cutoff >= stored.length) return records
+  const keptUi = modelMessagesToUIMessages(stored.slice(0, cutoff)).length
+  // `index` counts the earlier activity rows too, so subtract them.
+  // ponytail: assumes one row per index, which is what chat() writes.
+  return [...records]
+    .sort((a, b) => a.index - b.index)
+    .filter((record, earlier) => record.index - earlier < keptUi)
+}
+
 /** `metadata.tanstack.run.id` of a stored message, when set. */
 function runTagOf(message: ModelMessage): string | undefined {
   const tanstack: unknown = message.metadata?.tanstack
@@ -1168,7 +1188,17 @@ function builtInArtifactDescriptors(
     }
   }
 
-  if (activity === 'video' && typeof output.url === 'string') {
+  if (activity === 'video' && output.body instanceof ReadableStream) {
+    // Provider bytes with no URL: stream them straight into the blob store.
+    descriptors.push({
+      role: 'output',
+      path: 'video',
+      mediaType: 'video',
+      mimeType: stringField(output, 'contentType') ?? 'video/mp4',
+      bytes: output.body,
+      jobId: stringField(output, 'jobId'),
+    })
+  } else if (activity === 'video' && typeof output.url === 'string') {
     descriptors.push({
       role: 'output',
       path: 'video',
@@ -1668,7 +1698,9 @@ function applyDurableMediaUrls(
         next = { ...next, images: cloned }
       }
     } else if (path === 'video') {
-      next = { ...next, url: ref.url }
+      // The stream is now in the blob store; only the durable URL goes on.
+      const { body: _body, contentType: _contentType, ...rest } = next
+      next = { ...rest, url: ref.url }
     } else if (path === 'audio' && objectValue(next.audio)) {
       next = { ...next, audio: { ...objectValue(next.audio), url: ref.url } }
     }
@@ -2024,6 +2056,23 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
     // validateChatPersistenceStores already throws; this narrows for TypeScript.
     throw new Error('Chat persistence requires stores.messages.')
   }
+  const activityStore = persistence.stores.activities
+
+  // Best-effort: the activity store is an optional sidecar, so a failed save
+  // must never fail the run or block the message, run, and interrupt writes.
+  async function persistActivities(ctx: ChatMiddlewareContext): Promise<void> {
+    // A hand-built context can have no `activities`. `saveActivities` replaces
+    // the thread's rows, so saving `[]` for it would wipe the store.
+    if (!activityStore || ctx.activities === undefined) return
+    try {
+      await activityStore.saveActivities(ctx.threadId, [...ctx.activities])
+    } catch (error) {
+      console.warn(
+        `[ai-persistence] saveActivities failed for thread '${ctx.threadId}'`,
+        error,
+      )
+    }
+  }
 
   const provides = [
     PersistenceCapability,
@@ -2096,6 +2145,19 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
           // incoming list must not drop stored extras.
           const list = mergeStoredMessages(stored, ctx.messages)
           await messageStore.saveThread(ctx.threadId, list)
+          // This save can cut a reloaded turn before onConfig sees it, so cut
+          // that turn's activity rows here too.
+          const cutoff = storedCutoff(stored, ctx.messages)
+          if (activityStore && cutoff < stored.length) {
+            await activityStore.saveActivities(
+              ctx.threadId,
+              keptActivities(
+                await activityStore.loadActivities(ctx.threadId),
+                stored,
+                cutoff,
+              ),
+            )
+          }
         },
       })
     },
@@ -2163,6 +2225,24 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
           await messageStore.loadThread(ctx.threadId),
         )
         patch.messages = mergeStoredMessages(stored, config.messages)
+        if (activityStore) {
+          // Not best-effort like the save: a failed load followed by a save
+          // would wipe the stored rows, so a load error fails the run.
+          const byId = new Map(
+            keptActivities(
+              await activityStore.loadActivities(ctx.threadId),
+              stored,
+              storedCutoff(stored, config.messages),
+            ).map((record) => [record.id, record]),
+          )
+          // Same merge as the messages: an inbound row replaces the stored row
+          // with its id and keeps the stored position.
+          for (const record of ctx.activities ?? []) {
+            const index = byId.get(record.id)?.index ?? record.index
+            byId.set(record.id, { ...record, index })
+          }
+          patch.activities = [...byId.values()]
+        }
       }
 
       return Object.keys(patch).length > 0 ? patch : undefined
@@ -2177,6 +2257,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       if (state) state.firstRunMessage = ctx.messages.length
       try {
         await messageStore.saveThread(ctx.threadId, [...ctx.messages])
+        await persistActivities(ctx)
       } catch {
         // Eager pre-save is best-effort; the run continues and onFinish saves.
       }
@@ -2246,6 +2327,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
                     : {}),
                 },
               ])
+              await persistActivities(ctx)
             } catch {
               // Streaming snapshots are best-effort; onFinish persists final.
             }
@@ -2290,6 +2372,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       await interruptRun(runs, ctx.runId, usage)
       await messageStore.saveThread(ctx.threadId, runMessages(ctx, state))
       state.interrupted = true
+      await persistActivities(ctx)
     },
 
     onUsage(ctx: ChatMiddlewareContext, usage: TokenUsage) {
@@ -2309,6 +2392,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
         await messageStore.saveThread(ctx.threadId, runMessages(ctx, state))
         await commitPendingResumes(state, persistence.stores.interrupts)
         await completeRun(runs, ctx.runId, state?.usage ?? info.usage)
+        await persistActivities(ctx)
         state?.completion?.resolve()
       } catch (error) {
         // Core has already selected its terminal hook. Persist the failed run

@@ -3,7 +3,7 @@ id: DocumentPart
 title: DocumentPart
 ---
 
-Defined in: [packages/ai/src/types.ts:301](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L301)
+Defined in: [packages/ai/src/types.ts:314](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L314)
 
 Document content part for multimodal messages (e.g., PDFs). AG-UI `DocumentPart` with typed metadata.
 
@@ -27,7 +27,7 @@ Provider-specific metadata type (e.g., Anthropic's media_type)
 optional metadata?: TMetadata;
 ```
 
-Defined in: [packages/ai/src/types.ts:303](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L303)
+Defined in: [packages/ai/src/types.ts:316](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L316)
 
 Provider-specific metadata (e.g., media_type for PDFs)
 

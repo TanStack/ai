@@ -5,6 +5,16 @@
         "userMessage": "[generic-after-model] run test",
         "sequenceIndex": 0
       },
+      "response": {
+        "reasoning": "AFTER_MODEL_REASONING",
+        "content": "AFTER_MODEL_CONTENT"
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[generic-after-model] run test",
+        "sequenceIndex": 1
+      },
       "response": { "content": "AFTER_MODEL_CONTENT" }
     }
   ]

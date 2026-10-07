@@ -14,6 +14,20 @@ Mongo) and you do not want another service just for chat history. You do not nee
 one. An adapter is a plain object of store functions. The core never looks at your
 tables, so the schema stays yours.
 
+## Third-party adapters
+
+If you would rather use a ready-made backend, these adapters are published and maintained
+outside TanStack AI. Each one returns an `AIPersistence` for `withPersistence`, so the rest
+of this page applies unchanged.
+
+| Adapter | Package | Backend | Stores |
+| --- | --- | --- | --- |
+| [Upstash](../community-adapters/upstash) | `@upstash/agentkit-tanstack-ai/persistence` | Upstash Redis, plus Upstash Blob for `blobs` | All seven |
+
+Maintain an adapter? Add a row with a pull request. Run it against the
+[conformance suite](#prove-it-with-the-conformance-suite) first, and list the stores it
+passes.
+
 ## The smallest adapter that works
 
 One store, `messages`, is enough for `withPersistence`. This is the whole thing:
@@ -165,7 +179,7 @@ import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
 import { chatOnlyPersistence } from './chat-only'
 
 runPersistenceConformance('chat-only adapter', () => chatOnlyPersistence(), {
-  skip: ['generationRuns', 'artifacts', 'blobs'],
+  skip: ['activities', 'generationRuns', 'artifacts', 'blobs'],
   skipMethods: ['runs.listByThread'],
 })
 ```
