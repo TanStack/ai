@@ -249,7 +249,12 @@ class MCPClientImpl<
           this.#toolDefinitions = undefined
         },
       )
-      await this.#client.connect(transport)
+      // The connect handshake gets the request options too, so `timeout`
+      // also limits a server that does not answer while it connects.
+      await this.#client.connect(
+        transport,
+        sdkRequestOptions(this.#policy.requestOptions),
+      )
       this.capabilities = this.#client.getServerCapabilities() ?? {}
       this.instructions = this.#client.getInstructions()
       // A failed listen only means that tool changes are not pushed.

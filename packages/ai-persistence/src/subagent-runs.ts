@@ -634,7 +634,8 @@ export function createSubagentRunRecorder(stores: {
     // other thread.
     if (marker.parentThreadId !== ownerThread(caller)) return undefined
     const messages = withoutPlaceholder(stored)
-    const waits = storedSubagentInfo(stored)?.status === 'suspended'
+    const info = storedSubagentInfo(stored)
+    const waits = info?.status === 'suspended'
     const transcript =
       waits && marker.base !== undefined
         ? messages.slice(0, marker.base)
@@ -649,7 +650,11 @@ export function createSubagentRunRecorder(stores: {
               content: marker.prompt,
             },
           ]
-    return { messages: [...task, ...transcript] }
+    // The agent the child ran under. Only that agent can continue it.
+    return {
+      messages: [...task, ...transcript],
+      ...(info !== undefined && { agent: info.name }),
+    }
   }
 
   async function settleChild(

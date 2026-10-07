@@ -96,10 +96,11 @@ Then open the thread in the dashboard:
 
 The thread view opens. For a new thread, send a prompt to start it. If the host is offline, the view shows "Queued: the host is offline." The host opens the thread if it reconnects within 10 minutes.
 
+If the host refuses an input, the view shows "Refused:" and the reason. A view that you open later shows the latest refusal too.
+
 Know these limits:
 
-- The form shows on every host. A host does not tell the dashboard if it allows remote start.
-- The dashboard sends the open request to the host and does not wait for an answer. A host without `allowRemoteStart` ignores it. Then the host refuses the first input that you send, and the view shows "Refused: remote_start_disabled".
+- Only a host with `allowRemoteStart` shows the "Thread id" field. For other hosts, the dashboard refuses an open with a `403` and `remote_start_disabled`.
 - A thread in `threads`, or a thread that you attach with `connection.attach(threadId)`, opens without `allowRemoteStart`.
 - The CLI does not set `allowRemoteStart`. It opens only its own thread: the `--thread` value, `main` by default.
 

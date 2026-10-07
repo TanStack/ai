@@ -134,8 +134,8 @@ export interface MCPClientOptions {
    */
   clientOptions?: ClientOptions
   /**
-   * Sent with tool lists, tool calls, resources, and prompts. SDK defaults
-   * when unset.
+   * Sent with the connect handshake, tool lists, tool calls, resources, and
+   * prompts. SDK defaults when unset.
    *
    * A spec 2026 `tools/call` gets no progress notifications, so there only
    * `timeout` applies.

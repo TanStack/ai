@@ -137,6 +137,33 @@ if (process.env[childEnv] === '1') {
       )
     })
 
+    it('stops a server that does not connect within its timeoutMs, and closes its request', async () => {
+      const good = echoServer()
+      const signals: Array<AbortSignal> = []
+      const { session, model } = await openWith({
+        good: httpServer((request) => good.fetch(request)),
+        silent: {
+          type: 'http',
+          url: 'http://mcp.test/mcp',
+          timeoutMs: 100,
+          // The handshake never gets an answer, so only the timeout ends the
+          // wait. The signal shows if the request was closed.
+          fetch: (_input, init) => {
+            if (init?.signal) signals.push(init.signal)
+            return new Promise<Response>(() => {})
+          },
+        },
+      })
+      await session.prompt('hi')
+
+      expect(model.toolNames(0)).toEqual(['good_echo'])
+      await expect(session.command('mcp')).resolves.toBe(
+        'good: connected (1 tool)\nsilent: failed: Failed to connect to MCP server: Version negotiation probe timed out after 100ms',
+      )
+      expect(signals.length).toBeGreaterThan(0)
+      expect(signals.every((signal) => signal.aborted)).toBe(true)
+    })
+
     it('marks the tools of a codeMode server for code mode', async () => {
       const plain = echoServer()
       const coded = echoServer()

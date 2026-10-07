@@ -130,6 +130,8 @@ For `bash`:
 - With `spillDir`, long output goes to a file in that folder, and the model gets the path. `spillDir` is relative to `root`, or absolute.
 - When the session closes, the background jobs stop.
 
+On Windows, the default backend runs commands in `cmd.exe`. A program name like `rg` or `gradlew` comes from the `PATH` only, not from the working folder. So a cloned repo cannot put its own `rg.cmd` in place of `rg`. To run a script in the working folder, give its path: `.\gradlew build`.
+
 For `webfetch`:
 
 - It reads `http` and `https` URLs only, and follows at most 5 redirects.
@@ -172,6 +174,8 @@ Each tool tells `permissions()` what kind of call it makes:
 - `acceptEdits` mode runs the edits without a question. `bash` still asks.
 - `bypass` mode runs every call.
 - `read_file` asks for a `.env` file.
+- `grep` skips each file that `read_file` asks about or denies, also in `plan` mode. A note at the end gives the number of skipped files.
+- `list_files` still shows the names of these files. A name is not the contents.
 
 Let `webfetch` run without a question with one rule:
 
@@ -197,6 +201,7 @@ export const trustTests = permissions({
 ```
 
 - Paths match from `root`. Give `permissions()` and `workspaceTools()` the same `root`.
+- A rule also matches the real path of a link, and the stricter decision wins. So a link `notes` to `.env` asks, and a `deny` for `secrets/**` also stops a link to `secrets`.
 - `bash` splits a command at `&&`, `||`, `;`, `|`, and new lines. Every part must be allowed.
 - A command with `$(`, a backtick, or a heredoc never gets an allow.
 
@@ -215,6 +220,7 @@ export const askOutside = workspaceTools({ root, outside: 'ask' })
 - A yes allows that folder, and the folders in it, until the session ends.
 - `bypass` mode allows every path without a question.
 - A link in `root` that leads out of `root` counts as outside.
+- With `permissions()`, `grep` skips the files outside `root`, because `read_file` asks for them. A `read_file` rule for that folder, for example `{ tool: 'read_file', resource: '/shared/**', decision: 'allow' }`, lets `grep` show them.
 
 ### A working folder for each thread
 

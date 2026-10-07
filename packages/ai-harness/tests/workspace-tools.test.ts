@@ -562,6 +562,192 @@ describe('permission resources', () => {
   })
 })
 
+describe('permission rules, links, and grep', () => {
+  const SECRET = 'KEY=hunter2'
+  const SKIPPED_TWO = '[Skipped 2 files that the permission rules protect.]'
+
+  /**
+   * A memory backend with `files` (from `/workspace`) and `links` (a link
+   * path to its target, both from `/workspace`). A path through a link reads
+   * as its target, and readdir marks the link, like the host.
+   */
+  function linkedBackend(
+    files: Record<string, string>,
+    links: Record<string, string> = {},
+  ) {
+    const base = memoryBackend()
+    for (const [path, text] of Object.entries(files)) {
+      base.files.set(`/workspace/${path}`, new TextEncoder().encode(text))
+    }
+    const real = (path: string) => {
+      for (const [link, target] of Object.entries(links)) {
+        const from = `/workspace/${link}`
+        if (path === from || path.startsWith(`${from}/`)) {
+          return `/workspace/${target}${path.slice(from.length)}`
+        }
+      }
+      return path
+    }
+    const backend: WorkspaceBackend = {
+      ...base.backend,
+      realpath: async (path) => real(path),
+      readFile: (path) => base.backend.readFile(real(path)),
+      stat: (path) => base.backend.stat(real(path)),
+      readdir: async (path) => {
+        const entries = await base.backend.readdir(real(path))
+        const linked = Object.keys(links)
+          .filter((link) => posix.dirname(`/workspace/${link}`) === path)
+          .map((link) => ({
+            name: posix.basename(link),
+            type: 'link' as const,
+          }))
+        return [...entries, ...linked]
+      },
+    }
+    return backend
+  }
+
+  /** A session where the model calls `tools` in order, in `mode`. */
+  async function callTools(
+    backend: WorkspaceBackend,
+    tools: Array<[string, Record<string, unknown>]>,
+    options: { rules?: Array<PermissionRule>; mode?: string } = {},
+  ) {
+    const { adapter, calls } = mockAdapter([
+      ...tools.map(
+        ([name, args], index) =>
+          () =>
+            toolCall(name, args, `c${index}`),
+      ),
+      () => text('done'),
+    ])
+    const { host, session } = await openSession(adapter, [
+      permissions({ root: '/workspace', rules: options.rules }),
+      workspaceTools({ root: '/workspace', backend, web: false }),
+    ])
+    if (options.mode) await session.command('mode', options.mode)
+    /** Everything the model saw in its last call. */
+    const seen = () => JSON.stringify(calls.at(-1)?.messages)
+    /** The result of the tool call with id `id`, as the model saw it. */
+    const result = (id: string) =>
+      JSON.stringify(
+        calls
+          .at(-1)
+          ?.messages.find(
+            (message: { toolCallId?: string }) => message.toolCallId === id,
+          )?.content,
+      )
+    return { host, session, seen, result }
+  }
+
+  it('asks before read_file reads .env through a link with another name', async () => {
+    const backend = linkedBackend({ '.env': SECRET }, { notes: '.env' })
+    const { host, session, seen } = await callTools(backend, [
+      ['read_file', { path: 'notes' }],
+    ])
+    const turn = session.prompt('read the notes')
+    await vi.waitFor(() =>
+      expect(session.snapshot().pendingQuestions).toHaveLength(1),
+    )
+    const [question] = session.snapshot().pendingQuestions
+    if (!question) throw new Error('No question.')
+    expect(question.message).toContain('.env')
+    await session.answer(question.questionId, 'n')
+    await turn
+    expect(seen()).not.toContain('hunter2')
+    await host.close()
+  })
+
+  it('applies a deny rule to the real path of a linked folder', async () => {
+    const backend = linkedBackend(
+      { 'secrets/key.txt': SECRET },
+      { docs: 'secrets' },
+    )
+    const { host, session, seen, result } = await callTools(
+      backend,
+      [['read_file', { path: 'docs/key.txt' }]],
+      {
+        rules: [
+          { tool: 'read_file', resource: 'secrets/**', decision: 'deny' },
+        ],
+      },
+    )
+    await session.prompt('read the key')
+    expect(session.snapshot().pendingQuestions).toHaveLength(0)
+    expect(result('c0')).toContain('The permission rules do not allow')
+    expect(seen()).not.toContain('hunter2')
+    await host.close()
+  })
+
+  it('refuses a linked .env in plan mode without a question', async () => {
+    const backend = linkedBackend({ '.env': SECRET }, { notes: '.env' })
+    const { host, session, seen } = await callTools(
+      backend,
+      [['read_file', { path: 'notes' }]],
+      { mode: 'plan' },
+    )
+    await session.prompt('read the notes')
+    expect(session.snapshot().pendingQuestions).toHaveLength(0)
+    expect(seen()).not.toContain('hunter2')
+    await host.close()
+  })
+
+  it.each(['default', 'plan'])(
+    'grep in %s mode skips the files a read_file rule protects, whatever the pattern',
+    async (mode) => {
+      const backend = linkedBackend({
+        '.env': SECRET,
+        'secrets/key.txt': 'KEY=2',
+        'src/a.ts': 'KEY=1',
+      })
+      const { host, session, seen, result } = await callTools(
+        backend,
+        [
+          ['grep', { pattern: 'KEY' }],
+          // Matches no protected file. The note must not tell that.
+          ['grep', { pattern: 'KEY=1' }],
+        ],
+        {
+          rules: [
+            { tool: 'read_file', resource: 'secrets/**', decision: 'deny' },
+          ],
+          mode,
+        },
+      )
+      await session.prompt('search')
+      expect(session.snapshot().pendingQuestions).toHaveLength(0)
+      for (const id of ['c0', 'c1']) {
+        expect(result(id)).toBe(`"src/a.ts:1: KEY=1\\n${SKIPPED_TWO}"`)
+      }
+      expect(seen()).not.toContain('hunter2')
+      expect(seen()).not.toContain('KEY=2')
+      await host.close()
+    },
+  )
+
+  it('grep in a linked folder checks the real paths of its files', async () => {
+    const backend = linkedBackend(
+      { 'secrets/key.txt': SECRET },
+      { docs: 'secrets' },
+    )
+    const { host, session, seen, result } = await callTools(
+      backend,
+      [['grep', { pattern: 'KEY', path: 'docs' }]],
+      {
+        rules: [
+          { tool: 'read_file', resource: 'secrets/**', decision: 'deny' },
+        ],
+      },
+    )
+    await session.prompt('search')
+    expect(result('c0')).toBe(
+      '"No matches.\\n[Skipped 1 file that the permission rules protect.]"',
+    )
+    expect(seen()).not.toContain('hunter2')
+    await host.close()
+  })
+})
+
 describe('webfetch approval', () => {
   /** The page that every request gets, so no request leaves the test. */
   const fetchPage: typeof fetch = async () =>
@@ -745,6 +931,27 @@ describe('links on the host', () => {
 
   it('allows a link that stays inside the workspace', async () => {
     expect(await run('read_file', { path: 'inner/a.ts' })).toBe('1\tinside')
+  })
+
+  it('applies a deny rule for the real path of a link with permissions()', async () => {
+    const { adapter, calls } = mockAdapter([
+      () => toolCall('read_file', { path: 'inner/a.ts' }, 'c0'),
+      () => text('done'),
+    ])
+    const { host, session } = await openSession(adapter, [
+      permissions({
+        root,
+        rules: [{ tool: 'read_file', resource: 'src/**', decision: 'deny' }],
+      }),
+      workspaceTools({ root, backend: hostBackend, web: false }),
+    ])
+    await session.prompt('read through the link')
+    const seen = JSON.stringify(calls[1].messages)
+    expect(seen).toContain(
+      'The permission rules do not allow read_file on src/a.ts, the real path of inner/a.ts.',
+    )
+    expect(seen).not.toContain('inside')
+    await host.close()
   })
 
   it('asks about the real folder of a linked path with outside: ask', async () => {

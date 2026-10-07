@@ -107,6 +107,8 @@ const MODES = ['primary', 'subagent', 'all'] as const
 const MAX_STEPS_PROMPT =
   'You reached the step limit. Do not call more tools. Answer now with what you have, and say what is left to do.'
 
+const MAX_STEPS_RESULT = 'Step limit reached. Answer without calling tools.'
+
 /** The tools whose name matches one of `patterns`. Without patterns, all of them. */
 function allowedTools<TTool extends { name: string }>(
   tools: ReadonlyArray<TTool>,
@@ -124,23 +126,30 @@ function allowedTools<TTool extends { name: string }>(
  * and at its step limit, make one last call with no tool calls.
  */
 function profileMiddleware(current: () => AgentProfile) {
+  const isLastStep = (iteration: number) => {
+    const { steps } = current()
+    return steps !== undefined && iteration >= steps
+  }
   const middleware: ChatMiddleware = {
     name: 'tanstack/agents',
     onConfig: (run, config) => {
       if (run.phase !== 'init' && run.phase !== 'beforeModel') return
-      const { tools, steps } = current()
-      const isLastStep =
-        run.phase === 'beforeModel' &&
-        steps !== undefined &&
-        run.iteration >= steps
+      const { tools } = current()
       const update: Partial<ChatMiddlewareConfig> = {}
       if (tools !== undefined) update.tools = allowedTools(config.tools, tools)
-      if (isLastStep) {
+      if (run.phase === 'beforeModel' && isLastStep(run.iteration)) {
         update.toolChoice = 'none'
         update.systemPrompts = [...config.systemPrompts, MAX_STEPS_PROMPT]
       }
       return update
     },
+    // Some providers do not follow `toolChoice: 'none'`. Bedrock Converse
+    // sends it as `auto` after tool calls. So refuse a call of the last step
+    // here. In the tool phase, `iteration` is still the one of that call.
+    onBeforeToolCall: (run) =>
+      isLastStep(run.iteration)
+        ? { type: 'skip', result: { error: MAX_STEPS_RESULT } }
+        : undefined,
     // After the last call, stop. The harness loop limit still applies.
     onShouldContinue: (_run, state) => {
       const { steps } = current()

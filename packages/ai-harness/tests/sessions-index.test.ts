@@ -289,6 +289,52 @@ describe('host.sessions', () => {
     expect(threadIds(await host.sessions.list())).toEqual(['t1'])
     await host.close()
   })
+
+  it('refuses a fork with a harness that does not run the thread', async () => {
+    const { host, harness } = hostWith()
+    const session = await host.open(harness, { threadId: 't1' })
+    await session.prompt('hi')
+    const [, answer] = await session.transcript()
+    const other = defineHarness({
+      name: 'test/other',
+      adapter: mockAdapter(() => text('other')).adapter,
+    })
+
+    await expect(
+      host.sessions.fork(other, 't1', { through: idOf(answer) }),
+    ).rejects.toThrow(
+      'Thread "t1" belongs to harness "test/sessions", not "test/other".',
+    )
+    expect(threadIds(await host.sessions.list())).toEqual(['t1'])
+    expect((await host.sessions.get('t1'))?.harness).toBe('test/sessions')
+    await host.close()
+  })
+
+  it('forks with any harness without a sessions store, as there is no entry to check', async () => {
+    const { messages, runs, metadata } = memoryPersistence().stores
+    const host = createHarnessHost({
+      persistence: { stores: { messages, runs, metadata } },
+    })
+    const { harness } = hostWith()
+    const session = await host.open(harness, { threadId: 't1' })
+    await session.prompt('hi')
+    const [, answer] = await session.transcript()
+    const other = defineHarness({
+      name: 'test/other',
+      adapter: mockAdapter(() => text('other')).adapter,
+    })
+
+    const fork = await host.sessions.fork(other, 't1', {
+      through: idOf(answer),
+    })
+
+    expect(fork.harness).toBe('test/other')
+    expect(turnsOf(await messages.loadThread(fork.threadId))).toEqual([
+      ['user', 'hi'],
+      ['assistant', 'answer'],
+    ])
+    await host.close()
+  })
 })
 
 describe('ctx.session.entry and updateEntry', () => {
@@ -458,6 +504,26 @@ describe('sessions over HTTP', () => {
     ).rejects.toThrow(
       '(400): The transcript has no message with id not-a-message.',
     )
+    await host.close()
+  })
+
+  it('answers 409 for a fork of a thread that another harness runs', async () => {
+    const { host, clientOf } = setup()
+    const other = defineHarness({
+      name: 'test/other',
+      adapter: mockAdapter(() => text('other')).adapter,
+    })
+    const session = await host.open(other, {
+      threadId: 'alice-thread',
+      principal: { id: 'alice' },
+    })
+    await session.prompt('hi')
+    const [, answer] = await session.transcript()
+
+    await expect(
+      clientOf('alice').forkSession('alice-thread', { through: idOf(answer) }),
+    ).rejects.toThrow('(409): other_harness')
+    expect(threadIds(await host.sessions.list())).toEqual(['alice-thread'])
     await host.close()
   })
 })

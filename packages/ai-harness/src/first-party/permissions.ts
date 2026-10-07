@@ -61,13 +61,19 @@ export const PERMISSION_MODES = [
 export type PermissionMode = (typeof PERMISSION_MODES)[number]
 
 /**
- * What `permissions()` decides for a call of `tool` in `mode`, when the call
- * declares no `PermissionResources`. It uses all rules in their order and the
- * `default`. Other plugins, like `codeMode()`, ask it. Saved answers are not
- * used: they only allow more, so an answer here is never looser than a call.
+ * What `permissions()` decides for a call of `tool` in `mode`. With
+ * `resources`, for a call that touches them. Without, for a call that
+ * declares no `PermissionResources`. It uses all rules in their order, the
+ * `default`, and the `root`. Other plugins, like `codeMode()` and
+ * `workspaceTools()`, ask it. Saved answers are not used: they only allow
+ * more, so an answer here is never looser than a call.
  */
 export const PermissionDecisionCapability = createCapability<
-  (tool: string, mode: PermissionMode) => PermissionDecision
+  (
+    tool: string,
+    mode: PermissionMode,
+    resources?: CallResources,
+  ) => PermissionDecision
 >()('tanstack/permission-decision')
 
 /** Is the user's answer a yes: `true`, `y`, or `yes`? */
@@ -408,9 +414,11 @@ export function permissions(
       const declared = ctx.collect(PermissionResources)
       // The rules of tool plugins, then the user's rules, so the user's win.
       const configured = () => [...contributed, ...(options.rules ?? [])]
-      ctx.provide(PermissionDecisionCapability, (tool, current) =>
+      ctx.provide(PermissionDecisionCapability, (tool, current, resources) =>
         decidePermission(configured(), tool, current, {
           fallback: options.default,
+          resources,
+          root: options.root,
         }),
       )
       const mode = (): PermissionMode => {

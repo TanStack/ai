@@ -173,6 +173,8 @@ export const exampleEnv = permissions({
 
 - `websearch` has no rule, so it runs.
 - The path rules above also apply. For example, `read_file` asks for a `.env` file.
+- The coding tools check the real path of a link too, and the stricter decision wins. So a link `notes` to `.env` asks, like `.env`.
+- `grep` skips each file that `read_file` asks about or denies, also after an `always` answer. A note gives the number of skipped files.
 - Your `rules` come after these rules, so they win. `{ tool: 'webfetch', decision: 'allow' }` lets `webfetch` run without a question.
 
 ## Answer a question
@@ -320,6 +322,7 @@ export const planTools = definePlugin({
 ```
 
 - The answer is `'allow'`, `'ask'`, or `'deny'`. It uses all rules in their order, your `rules` last, and your `default`.
+- Pass what a call touches as a third argument, for example `decide('read_file', 'default', { paths: [file] })`. Then the path rules and `root` apply too.
 - Read it when the plugin runs, not in `setup`. Then `permissions()` can come before or after your plugin.
 - Saved `always` answers are not part of it. They can only allow, so a check that needs `'allow'` stays strict.
 - [Code mode](./code-mode) uses this answer. With `default: 'ask'`, a tool with no rule stays a normal tool call.
@@ -330,6 +333,7 @@ export const planTools = definePlugin({
 - `serveAcp` does not show harness questions. An editor that uses [ACP](./connect#use-it-from-an-editor-acp) shows tool approvals only, so a call that asks waits.
 - A client that can send inputs to the thread can answer the questions, also with `always`. Control who opens a thread with `canAccess`. See [Connect clients](./connect).
 - There is no command to forget a saved `always` answer.
+- `permissions()` does not follow links. The coding tools check the real path of a link, and your own tool can do it with `PermissionDecisionCapability`.
 
 ## What you have now
 

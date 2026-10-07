@@ -14,6 +14,7 @@ import { hostBackend } from '../src/first-party/coding/backend'
 import { quoteArg } from '../src/first-party/coding/search'
 import { createWorkspaceTools } from '../src/first-party/coding/workspace'
 import type { WorkspaceBackend } from '../src/first-party/coding/backend'
+import type { OutsideAccess } from '../src/first-party/coding/workspace'
 
 // The bundled rg of `@vscode/ripgrep`. It points at a file that exists, so
 // no test needs the real binary. No test runs it.
@@ -104,9 +105,16 @@ function fakeBackend(
   return { backend, commands }
 }
 
-/** `list_files` and `grep` on `backend`, with the workspace at `folder`. */
-function searchOn(backend: WorkspaceBackend, folder = root) {
-  const { tools } = createWorkspaceTools({ root: folder, backend })
+/**
+ * `list_files` and `grep` on `backend`, with the workspace at `folder`.
+ * `access` is what the session gives the tools.
+ */
+function searchOn(
+  backend: WorkspaceBackend,
+  folder = root,
+  access?: OutsideAccess,
+) {
+  const { tools } = createWorkspaceTools({ root: folder, backend }, { access })
   const run = async (name: string, args: object) => {
     const tool = tools.find((each) => each.name === name)
     if (!tool?.execute) throw new Error(`No tool ${name}`)
@@ -260,6 +268,35 @@ describe('list_files and grep engines', () => {
     await expect(grep({ pattern: 'a\nb' })).rejects.toThrow(
       'The pattern must be one line.',
     )
+  })
+
+  it('rg: grep drops the lines of a protected file, and lists the files to count them', async () => {
+    const fake = fakeBackend(
+      { '.env': 'two=1\n', 'a.ts': 'two\n' },
+      (command) => {
+        if (command === 'rg --version') return ok('ripgrep 14.1.0')
+        if (command.startsWith('rg --files ')) return ok('./.env\0./a.ts\0')
+        return command.startsWith('rg --line-number ')
+          ? ok('./.env\x001:two=1\n./a.ts\x001:two\n')
+          : undefined
+      },
+    )
+    // Rules that ask about every .env file, like permissions() does.
+    const { grep } = searchOn(fake.backend, root, {
+      ask: async () => 'n',
+      mode: () => 'default',
+      rules: () => (_tool, paths) =>
+        paths.some((path) => path.endsWith('.env')) ? 'ask' : 'allow',
+    })
+
+    expect(await grep({ pattern: 'two' })).toBe(
+      'a.ts:1: two\n[Skipped 1 file that the permission rules protect.]',
+    )
+    expect(fake.commands).toEqual([
+      'rg --version',
+      expect.stringMatching(/^rg --files /),
+      expect.stringMatching(/^rg --line-number /),
+    ])
   })
 })
 

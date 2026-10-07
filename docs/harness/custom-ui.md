@@ -168,6 +168,8 @@ On a view with a [`HarnessClient`](#a-ui-in-the-browser), two actions need `expo
 - `view.command`, and a `/command` in `view.send`, run only the commands in `expose.commands`.
 - `view.setConfig` sets only the keys in `expose.config`.
 
+For any other command or key, the view adds a `rejected` notice with the text `Not accepted: not_exposed`. It also calls your `'error'` handler with that text. On a client, `commands` and `config` in the state list only the exposed items.
+
 See [Choose what clients can change](./connect#choose-what-clients-can-change).
 
 Answer what waits:

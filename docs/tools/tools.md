@@ -557,11 +557,17 @@ Some providers change or ignore some values:
   - The Anthropic rule applies to the Claude models, and also to `claude-mythos-5-1`.
   - Converse has no `none` value, so `'none'` sends no tools.
   - After a tool call in the history, Bedrock needs the tools. Then `'none'` sends them with `auto`, and the model can still call a tool.
+  - A request with no tools sends the tool calls and tool results of the history as text.
   - AWS documents a named tool for Claude and Nova models only.
 - **Gemini**: the value becomes `functionCallingConfig`.
   - The modes are `AUTO`, `NONE`, and `ANY`. A named tool is `ANY` with `allowedFunctionNames`.
   - With only provider tools, such as Google Search, Gemini gets no tool config.
 - **Ollama**: Ollama has no tool choice, so the adapter ignores `toolChoice`. See [Ollama](../adapters/ollama#tool-choice).
+- **Claude Code**: `'none'` and a named tool turn off the built-in tools. The adapter then bridges none of your tools, or only the named one. `'required'` logs a warning. See [Claude Code](../adapters/claude-code#tool-choice).
+- **Codex**: `'none'` and a named tool limit only your bridged tools. The built-in Codex tools stay on. These values and `'required'` log a warning. See [Codex](../adapters/codex#tool-choice).
+- **OpenCode**: the Codex rule applies to the built-in OpenCode tools. See [OpenCode](../adapters/opencode#tool-choice).
+- **Grok Build**: the Codex rule applies to the built-in Grok Build tools. See [Grok Build](../adapters/grok-build#tool-choice).
+- **ACP-compatible adapters**: the Codex rule applies to the built-in tools of the agent. See [ACP-compatible](../adapters/acp-compatible#tool-choice).
 
 ## Progress Events and Runtime Context
 

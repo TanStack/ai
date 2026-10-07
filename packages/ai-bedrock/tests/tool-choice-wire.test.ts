@@ -239,6 +239,67 @@ describe('Bedrock Converse toolChoice', () => {
   })
 })
 
+// Bedrock rejects toolUse and toolResult blocks without a toolConfig. So a
+// request with no tools sends the tool history as text.
+describe('Bedrock Converse tool history in a request with no tools', () => {
+  const noTools: Array<{ label: string; tools?: Array<Tool> }> = [
+    { label: 'no tools' },
+    { label: 'an empty tools list', tools: [] },
+  ]
+
+  it.each(noTools)(
+    'sends the tool blocks as text for $label',
+    async ({ tools }) => {
+      const history = structuredClone(toolHistory)
+      const body = await converseBody(nova, { messages: history, tools })
+      expect(body).not.toHaveProperty('toolConfig')
+      expect(body).toHaveProperty('messages', [
+        { role: 'user', content: [{ text: 'Weather in Paris?' }] },
+        {
+          role: 'assistant',
+          content: [
+            { text: '[Tool call lookup_weather({"location":"Paris"})]' },
+          ],
+        },
+        {
+          role: 'user',
+          content: [{ text: '[Tool result for lookup_weather: Sunny]' }],
+        },
+      ])
+      // Only the provider input changes. The transcript stays the same.
+      expect(history).toEqual(toolHistory)
+    },
+  )
+
+  it('keeps an image of a tool result as an image block', async () => {
+    const png = 'iVBORw0KGgo='
+    const body = await converseBody(nova, {
+      messages: [
+        ...toolHistory.slice(0, 2),
+        {
+          role: 'tool',
+          toolCallId: 'call_1',
+          content: [
+            { type: 'text', content: 'Radar map' },
+            {
+              type: 'image',
+              source: { type: 'data', value: png, mimeType: 'image/png' },
+            },
+          ],
+        },
+      ],
+    })
+    expect(body).not.toHaveProperty('toolConfig')
+    expect(body).toHaveProperty('messages.2', {
+      role: 'user',
+      content: [
+        { text: '[Tool result for lookup_weather: Radar map]' },
+        { image: { format: 'png', source: { bytes: png } } },
+      ],
+    })
+  })
+})
+
 // The Bedrock OpenAI-compatible adapters inherit the openai-base mapping.
 const gptOss = 'openai.gpt-oss-120b-1:0'
 

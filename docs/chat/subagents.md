@@ -342,6 +342,7 @@ The writer gets its stored transcript, then `Make it shorter` as the last user m
 
 - `sessionId` needs `withPersistence` on the parent `chat()`. The stored child comes from that store.
 - A thread can continue only its own children. An id from another thread gives the tool error `Unknown sessionId "..."`.
+- The call must name the agent that the child ran under. Another agent gives the tool error `Session "..." belongs to agent "writer", not "researcher".`
 - The stream uses the same `subagentRunId`, so the client shows the new work on the card with that id.
 
 ### Wrong calls

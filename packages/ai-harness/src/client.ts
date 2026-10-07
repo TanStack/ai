@@ -138,7 +138,10 @@ export interface HarnessClient<THarness extends AnyHarness> {
   snapshot: () => Promise<SessionSnapshot>
   /** The saved messages of the thread. */
   transcript: () => Promise<Array<ModelMessage>>
-  /** The commands, settings, and tools of the session. */
+  /**
+   * The commands, settings, and tools of the session. Only the commands in
+   * `expose.commands` and the config keys in `expose.config`.
+   */
   describe: () => Promise<SessionDescription>
   /**
    * Store a file in the media store of the thread. Send the record in a

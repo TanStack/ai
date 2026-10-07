@@ -363,3 +363,35 @@ export function toConverseMessages(
 
   return { system, messages: converseMessages }
 }
+
+/**
+ * Write the `toolUse` and `toolResult` blocks as text blocks. Bedrock rejects
+ * these blocks in a request with no `toolConfig`, so a request with no tools
+ * sends its tool history this way. An image of a tool result stays an image
+ * block: the result is in a user message, and a user message takes images.
+ * The function returns new messages and does not change `messages`.
+ */
+export function toolBlocksToText(messages: Array<Message>): Array<Message> {
+  const toolNames = new Map<string | undefined, string | undefined>()
+  return messages.map((message) => ({
+    ...message,
+    content: message.content?.flatMap((block): Array<ContentBlock> => {
+      if (block.toolUse) {
+        const { toolUseId, name, input } = block.toolUse
+        toolNames.set(toolUseId, name)
+        return [{ text: `[Tool call ${name}(${JSON.stringify(input ?? {})})]` }]
+      }
+      if (!block.toolResult) return [block]
+      const { toolUseId, content = [] } = block.toolResult
+      const text = content.map((part) => part.text ?? '').join('')
+      return [
+        {
+          text: `[Tool result for ${toolNames.get(toolUseId) ?? toolUseId}: ${text}]`,
+        },
+        ...content.flatMap((part) =>
+          part.image ? [{ image: part.image }] : [],
+        ),
+      ]
+    }),
+  }))
+}

@@ -1,5 +1,11 @@
 import { definePlugin } from '../../plugins'
-import { PermissionResources, PermissionRules, isYes } from '../permissions'
+import {
+  PERMISSION_MODES,
+  PermissionDecisionCapability,
+  PermissionResources,
+  PermissionRules,
+  isYes,
+} from '../permissions'
 import { WorkspaceHooks } from '../workspace-hooks'
 import { hostBackend, optionalString, pathsOf, stringArg } from './backend'
 import { bashResources, bashTools } from './bash'
@@ -9,7 +15,7 @@ import { readTools } from './read'
 import { searchTools } from './search'
 import { webTools } from './web'
 import type { AnyTool } from '@tanstack/ai'
-import type { ToolResources } from '../permissions'
+import type { PermissionDecision, ToolResources } from '../permissions'
 import type { ToolEnv, WorkspaceBackend } from './backend'
 import type { WebToolsOptions } from './web'
 
@@ -55,6 +61,14 @@ export interface OutsideAccess {
    * `session.configure`). Relative paths start there. Read at each call.
    */
   cwd?: () => string | undefined
+  /**
+   * What `permissions()` decides in the current mode for a call of a tool
+   * that touches `paths`, or `undefined` without `permissions()`. Read at
+   * each call.
+   */
+  rules?: () =>
+    | ((tool: string, paths: ReadonlyArray<string>) => PermissionDecision)
+    | undefined
 }
 
 /** Is `full` the folder `dir`, or a path in it? `sep` is the separator. */
@@ -152,57 +166,22 @@ export function createWorkspaceTools(
     }
   }
 
-  // The boundary check uses real paths, so a link inside the workspace that
-  // leads out of it counts as outside.
-  const reach: ToolEnv['reach'] = async (path, tool, kind) => {
-    const full = paths.resolve(here(), path)
-    const real = await realPath(full)
-    const folders = [await realPath(root), ...allowed]
-    const isAllowed = folders.some((dir) => within(dir, real, paths.sep))
-    if (isAllowed) return full
-    if (options.outside !== 'ask' || !access) {
-      throw new Error(`Path "${path}" is outside the workspace.`)
-    }
-    if (access.mode() === 'bypass') return full
-    const folder = kind === 'folder' ? real : paths.dirname(real)
-    const yes = await allow(
-      folder,
-      `${tool} wants ${real}, outside the workspace (${root}). Allow ${folder} for this session? (y/n)`,
-    )
-    if (!yes) {
-      throw new Error(
-        `The user did not allow ${full}. It is outside the workspace.`,
-      )
-    }
-    return full
+  /**
+   * The real path of `full`, as the permission rules see it. In the real
+   * root, it is a path in `root`, so a root that is a link (like `/tmp` on
+   * macOS) does not move every path outside.
+   */
+  const realForRules = async (full: string) => {
+    const [real, realRoot] = await Promise.all([realPath(full), realPath(root)])
+    return within(realRoot, real, paths.sep)
+      ? paths.join(root, paths.relative(realRoot, real))
+      : real
   }
 
-  const env: ToolEnv = {
-    backend,
-    root,
-    hooks: session.hooks ?? (() => []),
-    // ponytail: one lock per session. Sessions on one folder do not wait
-    // for each other.
-    lock: createLock(),
-    reach,
-    shown: (full) =>
-      (within(root, full, paths.sep) ? paths.relative(root, full) || '.' : full)
-        .split(paths.sep)
-        .join('/'),
-  }
-  const tools = [
-    ...readTools(env),
-    ...editTools(env),
-    ...patchTools(env),
-    ...searchTools(env),
-    ...bashTools(env, {
-      timeoutMs: options.bashTimeoutMs,
-      note: session.note,
-      spillDir: options.spillDir,
-      signal: session.signal,
-    }),
-    ...(options.web === false ? [] : webTools(options.web)),
-  ]
+  const shown = (full: string) =>
+    (within(root, full, paths.sep) ? paths.relative(root, full) || '.' : full)
+      .split(paths.sep)
+      .join('/')
 
   // What each call touches, as the tool resolves it, for the permission
   // rules with a `resource`.
@@ -226,6 +205,108 @@ export function createWorkspaceTools(
     },
     bash: { commands: bashResources },
   }
+
+  /**
+   * The rules see the path that the call names. A link can lead to a path
+   * with a stricter rule, like `notes` to `.env`. So the rules check the
+   * real path too, and the strictest decision wins.
+   */
+  const checkRealPath = async (path: string, tool: string, full: string) => {
+    const decide = access?.rules?.()
+    // `bash` touches commands. Its rules do not match paths.
+    if (!access || !decide || !resources[tool]?.paths) return
+    const real = await realForRules(full)
+    if (paths.relative(full, real) === '') return
+    // `permissions()` checked `full` before the call. Act only when the
+    // real path makes the decision stricter.
+    const decision = decide(tool, [full, real])
+    if (decision === decide(tool, [full])) return
+    if (decision === 'deny') {
+      throw new Error(
+        `The permission rules do not allow ${tool} on ${shown(real)}, the real path of ${path}.`,
+      )
+    }
+    const reply = await access.ask(
+      `${path} is a link to ${shown(real)}. The permission rules ask before ${tool} uses ${shown(real)}. Allow it? (y/n)`,
+    )
+    if (!isYes(reply)) {
+      throw new Error(
+        `The user did not allow ${tool} on ${shown(real)}, the real path of ${path}.`,
+      )
+    }
+  }
+
+  /** Throws when the user or the options do not allow `real`, outside. */
+  const allowOutside = async (
+    path: string,
+    tool: string,
+    kind: 'file' | 'folder',
+    full: string,
+    real: string,
+  ) => {
+    if (options.outside !== 'ask' || !access) {
+      throw new Error(`Path "${path}" is outside the workspace.`)
+    }
+    if (access.mode() === 'bypass') return
+    const dir = kind === 'folder' ? real : paths.dirname(real)
+    const yes = await allow(
+      dir,
+      `${tool} wants ${real}, outside the workspace (${root}). Allow ${dir} for this session? (y/n)`,
+    )
+    if (!yes) {
+      throw new Error(
+        `The user did not allow ${full}. It is outside the workspace.`,
+      )
+    }
+  }
+
+  // The boundary check uses real paths, so a link inside the workspace that
+  // leads out of it counts as outside.
+  const reach: ToolEnv['reach'] = async (path, tool, kind) => {
+    const full = paths.resolve(here(), path)
+    const real = await realPath(full)
+    const folders = [await realPath(root), ...allowed]
+    const isAllowed = folders.some((dir) => within(dir, real, paths.sep))
+    if (!isAllowed) await allowOutside(path, tool, kind, full, real)
+    await checkRealPath(path, tool, full)
+    return full
+  }
+
+  const env: ToolEnv = {
+    backend,
+    root,
+    hooks: session.hooks ?? (() => []),
+    // ponytail: one lock per session. Sessions on one folder do not wait
+    // for each other.
+    lock: createLock(),
+    reach,
+    shown,
+    protectedIn: async (dir) => {
+      const decide = access?.rules?.()
+      if (!decide) return undefined
+      // rg and the other engines do not follow links in `dir`. So only `dir`
+      // itself can be a link, and its real path covers the files in it.
+      const real = await realForRules(dir)
+      return (path) =>
+        decide('read_file', [
+          paths.resolve(dir, path),
+          paths.resolve(real, path),
+        ]) !== 'allow'
+    },
+  }
+  const tools = [
+    ...readTools(env),
+    ...editTools(env),
+    ...patchTools(env),
+    ...searchTools(env),
+    ...bashTools(env, {
+      timeoutMs: options.bashTimeoutMs,
+      note: session.note,
+      spillDir: options.spillDir,
+      signal: session.signal,
+    }),
+    ...(options.web === false ? [] : webTools(options.web)),
+  ]
 
   const prompt =
     options.outside === 'ask'
@@ -271,6 +352,7 @@ function withEditStyle(
 export function workspaceTools(options: WorkspaceToolsOptions) {
   return definePlugin({
     name: 'tanstack/workspace-tools',
+    optionalRequires: [PermissionDecisionCapability],
     setup: (ctx) => {
       const hooks = ctx.collect(WorkspaceHooks)
       // The working folder is the thread's `cwd` setting, read at each call.
@@ -280,6 +362,15 @@ export function workspaceTools(options: WorkspaceToolsOptions) {
           ask: (message) => ctx.session.ask({ message }),
           mode: () => ctx.config.get('mode'),
           cwd,
+          // Read at each call, so permissions() can come after this plugin.
+          rules: () => {
+            const decide = ctx.getOptional(PermissionDecisionCapability)
+            if (!decide) return undefined
+            const value = ctx.config.get('mode')
+            const mode =
+              PERMISSION_MODES.find((each) => each === value) ?? 'default'
+            return (tool, paths) => decide(tool, mode, { paths })
+          },
         },
         hooks: () => hooks,
         note: (text) => ctx.session.note(text, { wake: true }),

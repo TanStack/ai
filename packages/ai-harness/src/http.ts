@@ -17,6 +17,7 @@ import {
   HARNESS_PROTOCOL_VERSION,
   applyInput,
   capabilitiesOf,
+  describeForClient,
   parseControlFrame,
   parseHarnessInput,
 } from './protocol'
@@ -250,7 +251,8 @@ async function mediaResponse(
  * - `POST .../control`: `{ threadId, input }`. Returns the receipt.
  * - `GET  .../snapshot?threadId=`: the session snapshot.
  * - `GET  .../transcript?threadId=`: the saved messages of the thread.
- * - `GET  .../describe?threadId=`: the commands, settings, and tools.
+ * - `GET  .../describe?threadId=`: the commands, settings, and tools. Only
+ *   the commands in `expose.commands` and the config keys in `expose.config`.
  * - `POST .../media?threadId=&name=`: store the raw body as a media file of
  *   the thread, with `Content-Type` as its type. Returns the `MediaRecord`.
  *   413 when it is over `media.maxBytes`, 415 for a type the harness does not
@@ -268,7 +270,8 @@ async function mediaResponse(
  *   removes the index entry only), or `{ op: 'fork', threadId, before }` or
  *   `{ op: 'fork', threadId, through }` with a message id. Rename and fork
  *   answer with the entry, delete with 204. 403 when `canAccess` refuses
- *   the thread, 404 for a thread this principal does not own.
+ *   the thread, 404 for a thread this principal does not own, and 409
+ *   (`other_harness`) for a fork of a thread that another harness runs.
  * - `GET  .../host-events`: the `host.events()` of this principal as SSE:
  *   status changes and session index changes. First the current status of
  *   each open session. Only the threads that `canAccess` lets in and that
@@ -517,7 +520,7 @@ export function createHarnessHandler(
         return json(
           route === 'transcript'
             ? await session.transcript()
-            : session.describe(),
+            : describeForClient(harness, session),
         )
       }
 
@@ -576,6 +579,9 @@ export function createHarnessHandler(
             await host.sessions.delete(op.threadId)
             return new Response(null, { status: 204 })
           case 'fork':
+            // The host can run more harnesses than this handler serves.
+            if (entry.harness !== undefined && entry.harness !== harness.name)
+              return json({ error: 'other_harness' }, 409)
             return json(await host.sessions.fork(harness, op.threadId, op.at))
         }
       }

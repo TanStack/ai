@@ -332,6 +332,62 @@ describe('createSessionView', () => {
     view.dispose()
     await host.close()
   })
+
+  it('shows a command or setting that a client may not use, once each', async () => {
+    const harness = defineHarness({
+      name: 'test/view-refused',
+      adapter: mockAdapter([]).adapter,
+      plugins: () => [pinger],
+      // No plugin has `missing`, so the session refuses it with an event.
+      expose: { config: ['missing'] },
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const handler = createHarnessHandler({
+      host,
+      harness,
+      authorize: () => ({ id: 'u' }),
+    })
+    const view = createSessionView(
+      createHarnessClient({
+        url: 'http://local/api/harness',
+        threadId: 't',
+        fetch: (input, init) => handler(new Request(input, init)),
+      }),
+    )
+    await view.ready
+    const errors: Array<string> = []
+    view.on('error', (message) => errors.push(message))
+
+    await view.setConfig('missing', 1)
+    await vi.waitFor(() =>
+      expect(errors).toEqual(['Not accepted: unknown_config']),
+    )
+    await view.setConfig('mode', 'bypass')
+    await view.command('ping')
+    await view.send('/ping')
+
+    const refused = 'Not accepted: not_exposed'
+    await vi.waitFor(() => expect(errors).toHaveLength(4))
+    expect(errors).toEqual([
+      'Not accepted: unknown_config',
+      refused,
+      refused,
+      refused,
+    ])
+    const notices = view.store
+      .get()
+      .messages.flatMap((message) =>
+        message.role === 'notice' ? [[message.kind, message.text]] : [],
+      )
+    expect(notices).toEqual([
+      ['rejected', 'Not accepted: unknown_config'],
+      ['rejected', refused],
+      ['rejected', refused],
+      ['rejected', refused],
+    ])
+    view.dispose()
+    await host.close()
+  })
 })
 
 describe('the agents of a session view', () => {

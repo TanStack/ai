@@ -1290,7 +1290,13 @@ describe('Bedrock installed SDK Document values', () => {
         }),
       ).rejects.toThrow('Transport probe complete')
       const chunks: Array<AdapterYieldChunk> = []
-      for await (const chunk of adapter.chatStream(options)) chunks.push(chunk)
+      // Bedrock takes toolUse blocks only in a request with tools. Without
+      // tools, the adapter sends the tool history as text.
+      for await (const chunk of adapter.chatStream({
+        ...options,
+        tools: [{ name: 'lookup', description: 'Look up a value' }],
+      }))
+        chunks.push(chunk)
       expect(chunks.at(-1)?.type).toBe(EventType.RUN_ERROR)
       expect(requests.map((request) => request.path)).toEqual([
         '/model/us.amazon.nova-pro-v1%3A0/converse',

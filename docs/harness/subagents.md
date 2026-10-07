@@ -140,12 +140,12 @@ import { openaiText } from '@tanstack/ai-openai'
 const drafter = defineAgent({
   name: 'drafter',
   description: 'Drafts a blog post',
-  run: (ctx) => ctx.chat({ adapter: openaiText('gpt-5.6'), stream: false }),
+  run: (ctx) => ctx.chat({ adapter: openaiText('gpt-6.1-sol'), stream: false }),
 })
 
 export const studio = defineHarness({
   name: 'acme/studio',
-  adapter: openaiText('gpt-5.6'),
+  adapter: openaiText('gpt-6.1-sol'),
   agents: [drafter],
   expose: { agents: ['drafter'] },
 })

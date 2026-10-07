@@ -18,8 +18,9 @@ export type McpServerConfig = (
     })
 ) & {
   /**
-   * The time in milliseconds that a tool list or a tool call of this server
-   * can take. Default: the MCP SDK default, 60,000.
+   * The time in milliseconds that this server can take to connect, to send
+   * its tool list, or to answer a tool call. Default: the MCP SDK default,
+   * 60,000.
    */
   timeoutMs?: number
   /**

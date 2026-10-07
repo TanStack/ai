@@ -270,6 +270,10 @@ async function grepFiles(
  * `.git` or `node_modules`, or gives links: rg does not follow them, and
  * the git list and the walk leave them out. The results have the same
  * shape whichever engine ran.
+ *
+ * With `permissions()`, grep skips the files that the rules protect (see
+ * `ToolEnv.protectedIn`), and a note says how many. `list_files` shows
+ * them: a name is not the contents.
  */
 export function searchTools(env: ToolEnv) {
   const { backend } = env
@@ -306,18 +310,22 @@ export function searchTools(env: ToolEnv) {
     return { files: tidy(walked), partial: walked.length > MAX_WALK }
   }
 
-  /** The hits for `pattern` under `base`, in the files that `isWanted` keeps. */
+  /**
+   * The hits for `pattern` under `base`, in the files that `isWanted` keeps.
+   * `listed` is the result of `filesUnder(base)`, when the caller has it.
+   */
   async function grepUnder(
     base: string,
     pattern: string,
     isWanted: (path: string) => boolean,
+    listed?: Awaited<ReturnType<typeof filesUnder>>,
   ) {
     // A pattern that is not a valid JS regular expression throws here,
     // whichever engine runs.
     const regex = new RegExp(pattern)
     const command = await findRgOnce()
     if (command === undefined) {
-      const { files, partial } = await filesUnder(base)
+      const { files, partial } = listed ?? (await filesUnder(base))
       const hits = await grepFiles(backend, base, files.filter(isWanted), regex)
       return { hits, partial }
     }
@@ -391,15 +399,30 @@ export function searchTools(env: ToolEnv) {
         'grep',
         'folder',
       )
-      const isWanted = globMatcher(optionalString(args, 'glob'))
-      const { hits, partial } = await grepUnder(base, pattern, isWanted)
+      const inGlob = globMatcher(optionalString(args, 'glob'))
+      // grep must not show the lines of a file that read_file could not
+      // read without a question.
+      const isProtected = await env.protectedIn?.(base)
+      // The note counts the protected files in the list, not in the hits,
+      // so it does not tell whether a protected file has the pattern.
+      const listed = isProtected ? await filesUnder(base) : undefined
+      const skipped =
+        listed?.files.filter((path) => inGlob(path) && isProtected?.(path))
+          .length ?? 0
+      const isWanted = (path: string) =>
+        inGlob(path) && !(isProtected?.(path) ?? false)
+      const { hits, partial } = await grepUnder(base, pattern, isWanted, listed)
       const shown = hits.slice(0, MAX_MATCHES).map((hit) => {
         const text = hit.text.slice(0, MAX_LINE).trim()
         return `${env.shown(resolve(base, hit.path))}:${hit.line}: ${text}`
       })
-      const text = shown.join('\n') || 'No matches.'
-      const isCut = partial || hits.length > MAX_MATCHES
-      return clip(isCut ? `${text}\n${MATCHES_NOTE}` : text)
+      const lines = [shown.join('\n') || 'No matches.']
+      if (partial || hits.length > MAX_MATCHES) lines.push(MATCHES_NOTE)
+      if (skipped > 0) {
+        const files = skipped === 1 ? '1 file' : `${skipped} files`
+        lines.push(`[Skipped ${files} that the permission rules protect.]`)
+      }
+      return clip(lines.join('\n'))
     }),
   ]
 }

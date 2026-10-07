@@ -277,6 +277,78 @@ describe.skipIf(!hasGit)('snapshots', () => {
     await host.close()
   })
 
+  it('/undo and /redo keep the files that the turn did not change', async () => {
+    await put('a.txt', 'one')
+    await put('c.txt', 'one')
+    const { host, session } = await open({
+      replies: editTurn('Done.'),
+      changes: [() => put('a.txt', 'two')],
+    })
+    await session.prompt('Edit a.txt')
+    // The user adds and edits files after the turn.
+    await put('b.txt', 'mine')
+    await put('c.txt', 'mine')
+
+    expect(await session.command('undo')).toBe(
+      'Undid the last turn. Files restored: 1.',
+    )
+    expect(await read('a.txt')).toBe('one')
+    expect(await read('b.txt')).toBe('mine')
+    expect(await read('c.txt')).toBe('mine')
+
+    await put('c.txt', 'later')
+    expect(await session.command('redo')).toBe('Redid the last turn.')
+    expect(await read('a.txt')).toBe('two')
+    expect(await read('b.txt')).toBe('mine')
+    expect(await read('c.txt')).toBe('later')
+    await host.close()
+  })
+
+  it('/undo removes a file that the turn added, and /redo brings it back', async () => {
+    await put('a.txt', 'one')
+    const { host, session } = await open({
+      replies: editTurn('Done.'),
+      changes: [() => put('new/c.txt', 'added')],
+    })
+    await session.prompt('Add a file')
+
+    await session.command('undo')
+    expect(await readdir(root)).toEqual(['a.txt'])
+    // A file that the user adds between /undo and /redo stays.
+    await put('mine.txt', 'mine')
+    await session.command('redo')
+    expect(await read('new/c.txt')).toBe('added')
+    expect(await read('mine.txt')).toBe('mine')
+    await host.close()
+  })
+
+  it('restores paths with a space or a glob character', async () => {
+    await put('my file.txt', 'one')
+    await put('x.txt', 'one')
+    const { host, session } = await open({
+      replies: editTurn('Done.'),
+      changes: [
+        async () => {
+          await put('my file.txt', 'two')
+          await put('[x].txt', 'added')
+        },
+      ],
+    })
+    await session.prompt('Edit the files')
+    await put('x.txt', 'mine')
+    // No file has the name `[x].txt` now. As a glob, it matches `x.txt`, so
+    // git must read it as a plain name.
+    await rm(join(root, '[x].txt'))
+
+    expect(await session.command('undo')).toBe(
+      'Undid the last turn. Files restored: 2.',
+    )
+    expect(await read('my file.txt')).toBe('one')
+    expect(await read('x.txt')).toBe('mine')
+    expect((await readdir(root)).sort()).toEqual(['my file.txt', 'x.txt'])
+    await host.close()
+  })
+
   it('clears redo when a new turn starts', async () => {
     await put('a.txt', 'one')
     const { host, session } = await open({

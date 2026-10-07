@@ -3,7 +3,10 @@ import { EventType, convertSchemaToJsonSchema } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { resolveBedrockAuth } from '../utils/auth'
-import { toConverseMessages } from '../converse/message-converter'
+import {
+  toConverseMessages,
+  toolBlocksToText,
+} from '../converse/message-converter'
 import { toToolConfig } from '../converse/tool-converter'
 import {
   processConverseStream,
@@ -16,6 +19,7 @@ import { BEDROCK_MODEL_REASONING } from '../model-reasoning'
 import type { BedrockModelReasoningByName } from '../model-reasoning'
 import {
   STRUCTURED_TOOL_NAME,
+  buildStructuredOutputConfig,
   buildStructuredToolConfig,
 } from '../converse/structured-output'
 import type { ResolvedBedrockAuth } from '../utils/auth'
@@ -471,10 +475,10 @@ export class BedrockConverseTextAdapter<
   }
 
   /**
-   * Structured output via the forced-tool strategy. Converse has no native
-   * json_schema response_format, so we force a single tool whose input schema
-   * is the requested output schema and read the model's `toolUse.input` back as
-   * the structured result.
+   * Structured output. A model that takes a forced tool gets a single forced
+   * tool whose input schema is the requested output schema, and its
+   * `toolUse.input` is the result. A model that rejects a forced tool gets
+   * Converse's native JSON schema output, and its text answer is the result.
    */
   async structuredOutput(
     options: StructuredOutputOptions<TProviderOptions>,
@@ -485,12 +489,11 @@ export class BedrockConverseTextAdapter<
         `activity=structuredOutput provider=${this.name} model=${this.model} messages=${chatOptions.messages.length}`,
         { provider: this.name, model: this.model },
       )
-      const input: ConverseCommandInput = {
-        ...this.buildInput(chatOptions),
-        toolConfig: buildStructuredToolConfig(outputSchema),
-      }
+      const input = this.buildInput(chatOptions, outputSchema)
       const res = await this.send(input)
-      const structured = extractStructuredToolInput(res)
+      const structured = input.outputConfig
+        ? parseJsonAnswer(res, `${this.name}.structuredOutput: ${this.model}`)
+        : extractStructuredToolInput(res)
       if (structured === undefined) {
         throw new Error(
           `${this.name}.structuredOutput: response contained no forced-tool output`,
@@ -512,11 +515,12 @@ export class BedrockConverseTextAdapter<
   }
 
   /**
-   * Streaming structured output. Same forced-tool strategy as
-   * `structuredOutput`, but streamed: the forced tool's `toolUse.input` JSON
-   * fragments are accumulated from the Converse stream and a terminal
-   * `CUSTOM 'structured-output.complete'` event carries `{ object, raw }`,
-   * mirroring openai-base's `structuredOutputStream` contract exactly.
+   * Streaming structured output. Same strategy as `structuredOutput`, but
+   * streamed: the JSON fragments (the forced tool's `toolUse.input`, or the
+   * text of the native JSON schema output) are accumulated from the Converse
+   * stream and a terminal `CUSTOM 'structured-output.complete'` event carries
+   * `{ object, raw }`, mirroring openai-base's `structuredOutputStream`
+   * contract exactly.
    */
   async *structuredOutputStream(
     options: StructuredOutputOptions<TProviderOptions>,
@@ -539,16 +543,15 @@ export class BedrockConverseTextAdapter<
         `activity=structuredOutputStream provider=${this.name} model=${this.model} messages=${chatOptions.messages.length}`,
         { provider: this.name, model: this.model },
       )
-      const input: ConverseStreamCommandInput = {
-        ...this.buildInput(chatOptions),
-        toolConfig: buildStructuredToolConfig(outputSchema),
-      }
+      const input = this.buildInput(chatOptions, outputSchema)
+      const native = input.outputConfig !== undefined
       const stream = await this.sendStream(input)
 
       // The forced tool streams its `input` as partial-JSON fragments inside
-      // `contentBlockDelta.delta.toolUse.input`. We surface them as
-      // TEXT_MESSAGE_CONTENT deltas (raw JSON text), matching openai-base which
-      // carries the structured JSON as text deltas.
+      // `contentBlockDelta.delta.toolUse.input`. The native output streams
+      // them as `delta.text` (reasoning deltas are not part of the JSON). We
+      // surface them as TEXT_MESSAGE_CONTENT deltas (raw JSON text), matching
+      // openai-base which carries the structured JSON as text deltas.
       for await (const ev of stream) {
         if (!hasEmittedRunStarted) {
           hasEmittedRunStarted = true
@@ -577,8 +580,7 @@ export class BedrockConverseTextAdapter<
 
         if ('contentBlockDelta' in ev) {
           const delta = ev.contentBlockDelta?.delta
-          const fragment =
-            delta && 'toolUse' in delta ? delta.toolUse?.input : undefined
+          const fragment = native ? delta?.text : delta?.toolUse?.input
           if (fragment !== undefined) {
             if (!hasEmittedTextMessageStart) {
               hasEmittedTextMessageStart = true
@@ -807,11 +809,12 @@ export class BedrockConverseTextAdapter<
 
   /**
    * Translate `TextOptions` into a `ConverseCommandInput`. Shared by chatStream,
-   * structuredOutput, and structuredOutputStream (the latter two override
-   * `toolConfig` with the forced structured tool afterwards).
+   * structuredOutput, and structuredOutputStream (the latter two pass the
+   * `outputSchema`, which replaces the tools of `options`).
    */
   protected buildInput(
     options: TextOptions<TProviderOptions>,
+    outputSchema?: JSONSchema,
   ): ConverseCommandInput {
     const { system, messages } = toConverseMessages(
       options.messages,
@@ -859,9 +862,24 @@ export class BedrockConverseTextAdapter<
         : canForceTool
           ? options.toolChoice
           : 'auto'
-    const toolConfig = options.tools
-      ? toToolConfig(convertTools(options.tools), toolChoice)
-      : undefined
+    // Structured output forces the `structured_output` tool. A model that
+    // rejects a forced tool gets the native JSON schema output, with no tools.
+    // ponytail: native output only where a forced tool fails, because not
+    // every Bedrock model takes `outputConfig`. A model that takes neither
+    // (for example an older Claude with thinking on) still fails. Add the
+    // `structured_output` tool with auto plus an instruction if that matters.
+    const toolConfig =
+      outputSchema === undefined
+        ? options.tools
+          ? toToolConfig(convertTools(options.tools), toolChoice)
+          : undefined
+        : canForceTool
+          ? buildStructuredToolConfig(outputSchema)
+          : undefined
+    const outputConfig =
+      outputSchema !== undefined && !canForceTool
+        ? buildStructuredOutputConfig(outputSchema)
+        : undefined
 
     const requestedMaxTokens = modelOptions?.max_completion_tokens
     const maxTokens =
@@ -888,9 +906,14 @@ export class BedrockConverseTextAdapter<
 
     const input: ConverseCommandInput = {
       modelId: this.model,
-      messages,
+      // Bedrock rejects toolUse and toolResult blocks without a tool config.
+      // So a request with no tools sends its tool history as text. Only this
+      // provider input changes, the transcript stays the same.
+      messages:
+        hasToolBlocks && !toolConfig ? toolBlocksToText(messages) : messages,
       ...(system.length > 0 && { system }),
       ...(toolConfig && { toolConfig }),
+      ...(outputConfig && { outputConfig }),
       ...(inferenceConfig && { inferenceConfig }),
       ...(additionalModelRequestFields && { additionalModelRequestFields }),
     }
@@ -945,6 +968,24 @@ function extractStructuredToolInput(
     }
   }
   return undefined
+}
+
+/**
+ * Parse the text answer of the native JSON schema output. A text that is not
+ * JSON fails with `source` (the model name) and the text, so no unchecked
+ * text becomes the structured result.
+ */
+function parseJsonAnswer(res: ConverseCommandOutput, source: string): unknown {
+  const text = (res.output?.message?.content ?? [])
+    .map((block) => block.text ?? '')
+    .join('')
+  try {
+    return JSON.parse(text)
+  } catch {
+    throw new Error(
+      `${source} did not answer with JSON for the output schema. Content: ${text.slice(0, 200)}`,
+    )
+  }
 }
 
 /** Converse adapter with an explicit API key (low-level; mirrors createBedrockChat). */
