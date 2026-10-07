@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { EventType, isContextOverflow, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, retryTransientErrors } from '../src'
+import { TRUNCATED_TOOL_RESULT } from '../src/resume'
 import {
   gate,
   messageTexts,
@@ -610,6 +611,83 @@ describe('turn.beforeFinish', () => {
 
     await expect(session.prompt('go')).rejects.toThrow('2 times')
     expect(calls).toHaveLength(3)
+    await host.close()
+  })
+
+  it('never runs a call of an answer cut at the output limit', async () => {
+    const lookupRuns = vi.fn(async () => ({ found: true }))
+    const tool = toolDefinition({
+      name: 'lookup',
+      description: 'Look something up',
+      inputSchema: z.object({ q: z.string() }),
+    }).server(lookupRuns)
+    // A provider search, then thinking, so the engine keeps the answer as
+    // two segments with their tool calls. The output limit cuts the answer.
+    const cutAnswer: Reply = () => [
+      { type: EventType.RUN_STARTED, runId: 'r', threadId: 't', timestamp: 1 },
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: 'call-search',
+        toolCallName: 'web_search',
+        timestamp: 1,
+        metadata: { providerExecuted: true },
+      },
+      {
+        type: EventType.TOOL_CALL_END,
+        toolCallId: 'call-search',
+        timestamp: 1,
+      },
+      {
+        type: EventType.REASONING_MESSAGE_CONTENT,
+        messageId: 'r1',
+        delta: 'Now look it up.',
+        timestamp: 1,
+      },
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: 'call-lookup',
+        toolCallName: 'lookup',
+        timestamp: 1,
+      },
+      {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId: 'call-lookup',
+        delta: '{"q":"x"}',
+        timestamp: 1,
+      },
+      {
+        type: EventType.RUN_FINISHED,
+        runId: 'r',
+        threadId: 't',
+        timestamp: 1,
+        finishReason: 'length',
+      },
+    ]
+    const { host, session, calls } = await open({
+      tools: [tool],
+      replies: [cutAnswer, () => text('posted')],
+      turn: {
+        beforeFinish: ({ cycle }) =>
+          cycle === 0
+            ? { ephemeral: [{ role: 'user', content: REMINDER }] }
+            : undefined,
+      },
+    })
+
+    expect(await session.prompt('look it up')).toEqual({ text: 'posted' })
+
+    expect(lookupRuns).not.toHaveBeenCalled()
+    expect(calls).toHaveLength(2)
+    expect(
+      (await session.transcript()).filter((message) => message.role === 'tool'),
+    ).toEqual([
+      {
+        role: 'tool',
+        toolCallId: 'call-lookup',
+        content: TRUNCATED_TOOL_RESULT,
+        error: TRUNCATED_TOOL_RESULT,
+      },
+    ])
     await host.close()
   })
 

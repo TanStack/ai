@@ -405,6 +405,7 @@ describe('recovery of a durable input', () => {
     await first.session.prompt('look it up', { inputId: 'in-1' })
     await first.host.close()
     // The host stopped after it saved the answer, before the turn settled.
+    // The live run gave the call its result. A log from before that has none.
     const entries = await persistence.stores.log.read(THREAD)
     const settledAt = entries.findIndex(
       (entry) => entry.record.type === 'harness.input.settled',
@@ -413,7 +414,16 @@ describe('recovery of a durable input', () => {
     await stopped.stores.log.append(
       THREAD,
       1,
-      entries.slice(0, settledAt).map((entry) => entry.record),
+      entries.slice(0, settledAt).map(({ record }) =>
+        Array.isArray(record.add)
+          ? {
+              ...record,
+              add: record.add.filter(
+                (message: ModelMessage) => message.role !== 'tool',
+              ),
+            }
+          : record,
+      ),
     )
 
     const next = await openDurable({

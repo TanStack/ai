@@ -229,6 +229,13 @@ function turnBlockOrder(
   return buildBlockOrder(entries)
 }
 
+/**
+ * The tool result of a call in an answer that stopped at the output limit.
+ * The harness default is the same text.
+ */
+const TRUNCATED_TOOL_RESULT =
+  'The answer was cut off at the output limit before this tool call was complete. The call did not run.'
+
 // ===========================
 // Activity Kind
 // ===========================
@@ -3069,8 +3076,37 @@ class TextEngine<
         },
       ]),
     ]
+    this.closeTruncatedToolCalls(from)
     this.saveMidConversationChange(from)
     this.middlewareCtx.messages = this.messages
+  }
+
+  /**
+   * Give each call of the assistant messages from index `from` an error result
+   * when the output limit cut their answer. Such a call is not complete, so it
+   * never runs and asks for nothing. A provider-executed call has its result.
+   */
+  private closeTruncatedToolCalls(from: number): void {
+    const cut = this.messages
+      .slice(from)
+      .flatMap((message) =>
+        tanstackMetadata(message)?.finishReason === 'length'
+          ? (message.toolCalls ?? []).filter(
+              (call) => !isProviderExecutedToolCall(call),
+            )
+          : [],
+      )
+    this.messages = [
+      ...this.messages,
+      ...cut.map(
+        (call): ModelMessage => ({
+          role: 'tool',
+          toolCallId: call.id,
+          content: TRUNCATED_TOOL_RESULT,
+          error: TRUNCATED_TOOL_RESULT,
+        }),
+      ),
+    ]
   }
 
   private addTerminalAssistantMessages(): void {
@@ -3197,6 +3233,7 @@ class TextEngine<
     }
 
     this.messages = messages
+    this.closeTruncatedToolCalls(startedLength)
     this.saveMidConversationChange(startedLength)
     this.middlewareCtx.messages = this.messages
   }
@@ -4091,8 +4128,15 @@ class TextEngine<
 
     for (const message of this.messages) {
       if (message.role === 'assistant' && message.toolCalls) {
-        const stopReason = tanstackMetadata(message)?.stopReason
-        if (stopReason === 'error' || stopReason === 'aborted') continue
+        const metadata = tanstackMetadata(message)
+        // The calls of a failed answer, or of an answer that the output limit
+        // cut, are not complete. They never run.
+        if (
+          metadata?.stopReason === 'error' ||
+          metadata?.stopReason === 'aborted' ||
+          metadata?.finishReason === 'length'
+        )
+          continue
         for (const toolCall of message.toolCalls) {
           // Provider-executed tool calls (e.g. Anthropic `web_search`) were
           // already run by the provider; they carry no client result, so they

@@ -258,7 +258,9 @@ const worded = defineHarness({
 ```
 
 - `interruptedToolResult`: the result of a `replay: 'never'` call that a crash stopped.
-- `truncatedToolResult`: the result of each call in an answer that stopped at the output limit (finish reason `length`). The input of such a call can be incomplete, so after a crash it does not run, also with `replay: 'safe'`.
+- `truncatedToolResult`: the result that recovery gives a call in an answer that stopped at the output limit (finish reason `length`), when the log has no result for that call. The input of such a call can be incomplete, so it never runs, also with `replay: 'safe'`.
+
+A call in an answer that stops at the output limit during a turn gets its result at once, with the text `The answer was cut off at the output limit before this tool call was complete. The call did not run.` So recovery only fills the calls that have no result.
 
 ## Continue an answer that a crash cut
 
