@@ -10,7 +10,7 @@ type ContentPartSource =
   | ContentPartFileSource;
 ```
 
-Defined in: [packages/ai/src/types.ts:265](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L265)
+Defined in: [packages/ai/src/types.ts:278](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L278)
 
 Where a media part's bytes come from: inline data, a URL, or a provider
 file handle. Same members as AG-UI `PartSource`.

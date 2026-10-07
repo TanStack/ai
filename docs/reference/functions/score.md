@@ -7,7 +7,7 @@ title: score
 function score<TLevels>(options): object;
 ```
 
-Defined in: [packages/ai/src/activities/evaluate/index.ts:389](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L389)
+Defined in: [packages/ai/src/activities/evaluate/index.ts:393](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L393)
 
 Build a score question. The model rates `state` on ordered `levels`.
 

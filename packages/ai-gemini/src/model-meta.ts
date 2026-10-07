@@ -278,6 +278,37 @@ const GEMINI_3_1_FLASH_LITE_IMAGE = {
     GeminiStructuredOutputOptions
 >
 
+/**
+ * Nano Banana 2.1 — GA. 1K / 2K / 4K output, no 512 tier. The id does not
+ * follow the `gemini-<version>-flash-image` pattern of the earlier models.
+ * Token limits are the values `GET /v1beta/models` returns.
+ * @see https://ai.google.dev/gemini-api/docs/models/gemini-nano-banana-2.1
+ */
+const GEMINI_NANO_BANANA_2_1 = {
+  name: 'gemini-nano-banana-2.1',
+  max_input_tokens: 65_536,
+  max_output_tokens: 65_536,
+  supports: {
+    input: ['text', 'image'],
+    output: ['text', 'image'],
+    capabilities: ['batch_api', 'thinking'],
+    tools: ['google_search'],
+  },
+  pricing: {
+    input: {
+      normal: 1.5,
+    },
+    output: {
+      normal: 7.5,
+    },
+  },
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions
+>
+
 const GEMINI_3_1_FLASH_LITE = {
   name: 'gemini-3.1-flash-lite',
   max_input_tokens: 1_048_576,
@@ -1127,6 +1158,7 @@ export type GeminiImageModels =
  * should use the GA id above its alias.
  */
 export const GEMINI_IMAGE_MODELS = [
+  GEMINI_NANO_BANANA_2_1.name,
   GEMINI_3_1_FLASH_IMAGE.name,
   GEMINI_3_1_FLASH_LITE_IMAGE.name,
   GEMINI_3_PRO_IMAGE.name,

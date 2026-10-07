@@ -349,11 +349,11 @@ export const generateImageFn = createServerFn({ method: 'POST' })
           },
         })
       }
-      case 'gemini-3.1-flash-image': {
+      case 'gemini-nano-banana-2.1': {
         // Reference images are uploaded once via the Gemini Files API and
         // referenced by handle (fileData.fileUri) rather than inlined as base64.
         return generateImage({
-          adapter: geminiI('gemini-3.1-flash-image'),
+          adapter: geminiI('gemini-nano-banana-2.1'),
           prompt: await uploadInlineImageInputs(
             asImagePrompt(data.prompt),
             geminiF(),
