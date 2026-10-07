@@ -505,6 +505,49 @@ test.describe('harness protocol inputs', () => {
     ])
   })
 
+  test('moves a running tool call to the background', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const user = asUser(request, testId, aimockPort)
+    const threadId = `background-${testId}`
+    // Before the tool runs, there is nothing to move.
+    expect(await user.control(threadId, { op: 'background' })).toMatchObject({
+      status: 'rejected',
+      reason: 'not_running',
+    })
+    expect(
+      await user.control(threadId, {
+        op: 'prompt',
+        message: '[harness-background] build it',
+      }),
+    ).toMatchObject({ status: 'accepted' })
+    // `slowBuild` waits for `release`. A client needs no `expose` entry.
+    await expect
+      .poll(
+        async () => (await user.control(threadId, { op: 'background' })).status,
+      )
+      .toBe('accepted')
+
+    // The tool call answers at once, and the turn ends.
+    await expect
+      .poll(() => user.answers(threadId))
+      .toContain('The build runs in the background.')
+    const results = (await user.transcript(threadId))
+      .filter((message) => message.role === 'tool')
+      .map((message) => message.content)
+    expect(String(results[0])).toContain('The job moved to the background.')
+
+    // When the job ends, a note wakes the session.
+    expect(
+      await user.control(threadId, { op: 'command', name: 'release' }),
+    ).toMatchObject({ status: 'accepted' })
+    await expect
+      .poll(() => user.answers(threadId))
+      .toContain('The build is done.')
+  })
+
   test('asks once for a tool that the user allows always', async ({
     request,
     testId,
@@ -584,6 +627,46 @@ test.describe('harness protocol inputs', () => {
       (message) => message.role === 'tool',
     )
     expect(String(result?.content)).toContain(reason)
+  })
+
+  test('asks an MCP elicitation as a question and sends the answer to the server', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const user = asUser(request, testId, aimockPort, 'e2e-token', {
+      'x-harness-mcp': '1',
+    })
+    const threadId = `elicit-${testId}`
+    expect(
+      await user.control(threadId, {
+        op: 'prompt',
+        message: '[harness-elicit] what is the forecast',
+      }),
+    ).toMatchObject({ status: 'accepted' })
+    await expect.poll(() => user.question(threadId)).toBeTruthy()
+    const asked = await user.question(threadId)
+    expect(asked).toMatchObject({
+      message: 'Which city?',
+      schema: { type: 'object', properties: { value: { type: 'string' } } },
+    })
+
+    expect(
+      await user.control(threadId, {
+        op: 'answer',
+        questionId: asked?.questionId,
+        value: { value: 'Paris' },
+      }),
+    ).toMatchObject({ status: 'accepted' })
+    await expect
+      .poll(() => user.answers(threadId))
+      .toContain('The forecast for Paris is sunny.')
+
+    // The server got the answer: the tool result has the city.
+    const result = (await user.transcript(threadId)).find(
+      (message) => message.role === 'tool',
+    )
+    expect(JSON.stringify(result?.content)).toContain('Forecast for Paris')
   })
 
   test('answers the stored user message on continue, with no new message', async ({

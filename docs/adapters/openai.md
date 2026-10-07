@@ -315,6 +315,8 @@ const config: Omit<OpenAITextConfig, "apiKey"> = {
 const adapter = createOpenaiChat("gpt-5.5", process.env.OPENAI_API_KEY!, config);
 ```
 
+The chat adapters on this page support `wrapFetch`. A middleware can use it to change the HTTP requests of a model call. See [Change the HTTP requests of a call](../advanced/middleware#change-the-http-requests-of-a-call).
+
 ### Tools that cannot use strict mode
 
 OpenAI holds tool arguments to the schema only when the tool is sent with `strict: true`. Some schemas cannot be strict, for example a schema that uses `$ref`, `z.any()`, or `z.record()`. The adapter sends these tools with `strict: false`, so the tool still works. The model can then return arguments that do not match the schema.
@@ -431,6 +433,30 @@ For a model that this package does not list, pass the model's reasoning data as 
 ### Answers on the next request
 
 OpenAI gives each answer item an `id` and a `phase`: `commentary` for text before a tool call, and `final_answer` for the answer. The adapter keeps both in the assistant message, in `metadata.tanstack.responseItems`. When the same model gets that message again, for example on the next turn, the adapter sends each item back with its `id` and `phase`. Another model gets the plain text.
+
+### Native compaction
+
+OpenAI can compact a long conversation on its side, with `POST /responses/compact`. The Responses adapters (`openaiText` and `createOpenaiChat`) have a `compact` method for it. Turn it on with the `native` option of `withCompaction`:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { withCompaction } from "@tanstack/ai-compaction";
+
+const adapter = openaiText("gpt-6.1-sol");
+
+const stream = chat({
+  adapter,
+  messages: [{ role: "user", content: "Hello!" }],
+  middleware: [withCompaction({ maxTokens: 100_000, native: adapter })],
+});
+```
+
+- The result holds your user messages and one encrypted `compaction` item.
+- The adapter sends that item back as it is on each later request to the same model.
+- `openaiChatCompletions` has no `compact` method, so `withCompaction` uses its `strategy`.
+
+See [Let the provider compact](../advanced/compaction#let-the-provider-compact).
 
 ### Prompt caching
 

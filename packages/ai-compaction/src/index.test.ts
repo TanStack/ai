@@ -2917,3 +2917,77 @@ describe('background compaction', () => {
     )
   })
 })
+
+describe('withCompaction native', () => {
+  const sealed: ModelMessage = {
+    role: 'assistant',
+    content: null,
+    thinking: [{ content: '', redacted: true, signature: 'sealed' }],
+  }
+
+  it('uses the adapter compact when native is on and the adapter has it', async () => {
+    const calls: Array<{ messages: number; model: string; wrapped: boolean }> =
+      []
+    const strategy = vi.fn<CompactionStrategy>(() => [text('user', 'cut')])
+    const adapter = {
+      prefix: 'kept',
+      async compact(options: {
+        messages: Array<ModelMessage>
+        model: string
+        wrapFetch?: unknown
+      }) {
+        calls.push({
+          messages: options.messages.length,
+          model: options.model,
+          wrapped: options.wrapFetch !== undefined,
+        })
+        return [text('user', this.prefix), sealed]
+      },
+    }
+    const mw = withCompaction({ maxTokens: 50, strategy, native: adapter })
+    const { ctx } = recordingContext('beforeModel', { model: 'gpt-5.5' })
+    const result = await mw.onConfig?.(ctx, {
+      messages: [big('user'), big('assistant'), big('user')],
+      systemPrompts: [],
+      tools: [],
+      wrapFetch: (next) => next,
+    })
+
+    expect(calls).toStrictEqual([
+      { messages: 3, model: 'gpt-5.5', wrapped: true },
+    ])
+    expect(strategy).not.toHaveBeenCalled()
+    expect(result).toStrictEqual({
+      providerMessages: [text('user', 'kept'), sealed],
+    })
+  })
+
+  it('uses the strategy when the adapter has no compact', async () => {
+    const strategy = vi.fn<CompactionStrategy>(() => [text('user', 'cut')])
+    const mw = withCompaction({ maxTokens: 50, strategy, native: {} })
+    const result = await runOnConfig(mw, [
+      big('user'),
+      big('assistant'),
+      big('user'),
+    ])
+
+    expect(strategy).toHaveBeenCalledTimes(1)
+    expect(result).toStrictEqual({ providerMessages: [text('user', 'cut')] })
+  })
+
+  it('uses the strategy when the adapter compact fails', async () => {
+    const strategy = vi.fn<CompactionStrategy>(() => [text('user', 'cut')])
+    const adapter = {
+      compact: () => Promise.reject(new Error('404 Not Found')),
+    }
+    const mw = withCompaction({ maxTokens: 50, strategy, native: adapter })
+    const result = await runOnConfig(mw, [
+      big('user'),
+      big('assistant'),
+      big('user'),
+    ])
+
+    expect(strategy).toHaveBeenCalledTimes(1)
+    expect(result).toStrictEqual({ providerMessages: [text('user', 'cut')] })
+  })
+})

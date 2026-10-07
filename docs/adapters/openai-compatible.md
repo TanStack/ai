@@ -181,6 +181,8 @@ const provider = openaiCompatible({
 });
 ```
 
+The chat adapters on this page support `wrapFetch`. A middleware can use it to change the HTTP requests of a model call. See [Change the HTTP requests of a call](../advanced/middleware#change-the-http-requests-of-a-call).
+
 ## Chat Completions vs Responses
 
 By default the adapter targets the **Chat Completions** API (`/chat/completions`). For providers that implement the **Responses** API, select `api: "responses"`. This API choice also controls how `ChatStreamSummarizeAdapter` forwards `maxLength`, regardless of the wrapper name:
@@ -224,6 +226,14 @@ Any provider implementing the OpenAI Chat Completions API works. Common ones are
 | Baseten | `https://inference.baseten.co/v1` | model-dependent |
 | Hugging Face (router) | `https://router.huggingface.co/v1` | `meta-llama/Llama-3.3-70B-Instruct` |
 | NVIDIA NIM | `https://integrate.api.nvidia.com/v1` | `meta/llama-3.3-70b-instruct` |
+| Kilo Gateway | `https://api.kilo.ai/api/gateway` | `anthropic/claude-opus-5.5` |
+| ZenMux | `https://zenmux.ai/api/v1` | `openai/gpt-5.5` |
+| Poe | `https://api.poe.com/v1` | `openai/gpt-5.5` |
+| DigitalOcean | `https://inference.do-ai.run/v1` | `openai-gpt-5.5` |
+| Modal | `https://inference.us-west.modal.direct/v1` | `moonshotai/Kimi-K3` |
+| Snowflake Cortex | `https://<account>.snowflakecomputing.com/api/v2/cortex/v1` | `claude-opus-5` |
+
+Some providers sign the user in with OAuth instead of an API key. For Poe, DigitalOcean, and Snowflake Cortex, pass the access token from your sign-in code as `apiKey`.
 
 On Chat Completions, `RUN_FINISHED.usage` carries the prompt cache counts that the provider reports. Cache reads arrive on `promptTokensDetails.cachedTokens`, and cache writes arrive on `promptTokensDetails.cacheWriteTokens`. Moonshot / Kimi reports both.
 
@@ -299,6 +309,86 @@ const azure = azureOpenaiText('gpt-5.5', {
 ```
 
 See [Azure OpenAI](./openai#azure-openai) for environment variables and configuration precedence.
+
+## GitHub Copilot
+
+Your users can pay for model calls with their GitHub Copilot plan. Your sign-in code gets a GitHub token for the user. Pass that token as `apiKey`:
+
+```typescript
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { openaiCompatible } from "@tanstack/ai-openai/compatible";
+import type { FetchWrapper } from "@tanstack/ai";
+import { getCopilotToken } from "./copilot-auth"; // your sign-in code
+
+/** Copilot bills the requests that a user starts. Tool loop requests are "agent". */
+const initiator: FetchWrapper = (next) => (input, init) => {
+  const body = typeof init?.body === "string" ? JSON.parse(init.body) : {};
+  const last = (body.input ?? body.messages ?? []).at(-1);
+  const headers = new Headers(init?.headers);
+  headers.set("x-initiator", last?.role === "user" ? "user" : "agent");
+  return next(input, { ...init, headers });
+};
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request);
+  const copilot = openaiCompatible({
+    name: "github-copilot",
+    baseURL: "https://api.githubcopilot.com",
+    apiKey: await getCopilotToken(request),
+    api: "responses",
+    models: ["gpt-5.5"],
+    defaultHeaders: {
+      "Openai-Intent": "conversation-edits",
+      "X-GitHub-Api-Version": "2026-08-01",
+    },
+  });
+
+  const stream = chat({
+    adapter: copilot("gpt-5.5"),
+    messages: params.messages,
+    modelOptions: { store: false, include: ["reasoning.encrypted_content"] },
+    wrapFetch: initiator,
+  });
+  return toServerSentEventsResponse(stream);
+}
+```
+
+- `baseURL`: use `endpoints.api` from `GET https://api.github.com/copilot_internal/user` when it is set. Business and enterprise accounts get a different host.
+- `api`: each entry of `GET {baseURL}/models` lists its `supported_endpoints`. Use `api: "responses"` for a model with `/responses`. Leave out `api` and `modelOptions` for a model with only `/chat/completions`.
+- `store: false`: Copilot keeps no responses. With `include`, the stream gives the encrypted reasoning. The adapter sends it back on the next turn when your history keeps it.
+- `wrapFetch`: add `Copilot-Vision-Request: true` in the same wrapper when a request has images.
+
+The Chat Completions adapter reads the thinking that Copilot streams on `delta.reasoning_text`.
+
+## ChatGPT plan
+
+A user with a ChatGPT plan can sign in with ChatGPT instead of an API key. The access token works with `createOpenaiChat` on the default OpenAI URL:
+
+```typescript
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { createOpenaiChat } from "@tanstack/ai-openai";
+import { getChatGptToken } from "./chatgpt-auth"; // your sign-in code
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request);
+  const stream = chat({
+    adapter: createOpenaiChat("gpt-5.5", await getChatGptToken(request)),
+    messages: params.messages,
+    modelOptions: { store: false },
+  });
+  return toServerSentEventsResponse(stream);
+}
+```
+
+The ChatGPT route requires `store: false`. Do not set `max_output_tokens`. [Sign in with ChatGPT](./openai#sign-in-with-chatgpt-byok) has the browser sign-in helpers and the other limits.
 
 ## Example: With Tools
 

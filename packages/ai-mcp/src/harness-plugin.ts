@@ -1,7 +1,12 @@
 import { defineCommand, definePlugin } from '@tanstack/ai-harness'
 import { createMCPClient } from './client'
-import type { AnyTool } from '@tanstack/ai'
-import type { AnyCommand, PluginPrompt } from '@tanstack/ai-harness'
+import { isMCPInputRequiredError } from './input-required'
+import type { AnyTool, JSONSchema } from '@tanstack/ai'
+import type {
+  AnyCommand,
+  PluginPrompt,
+  PluginSessionApi,
+} from '@tanstack/ai-harness'
 import type { HttpTransportConfig, StdioTransportConfig } from './transport'
 
 /** One server of {@link mcp}, keyed by its name. */
@@ -111,9 +116,13 @@ export function mcp(options: {
                 transport,
                 prefix: name,
                 requestOptions: requestOptionsOf(server),
+                clientOptions: harnessClientOptions,
               })
               try {
-                const tools = forCodeMode(server, await client.tools())
+                const tools = askForInput(
+                  forCodeMode(server, await client.tools()),
+                  ctx.session,
+                )
                 return { client, tools }
               } catch (error) {
                 // Connected, but no tool list: the server failed.
@@ -203,6 +212,82 @@ export function mcp(options: {
       }
     },
   })
+}
+
+/**
+ * The harness asks the user for form and URL elicitations, so its clients
+ * declare both. `chat()` clients keep the default: form only.
+ */
+export const harnessClientOptions = {
+  capabilities: { elicitation: { form: {}, url: {} } },
+}
+
+/**
+ * Ask the session user when an MCP tool asks for input (a form or a URL
+ * elicitation). The tool call waits for the answer, then sends it to the
+ * server. The answer is the form content, or an MCP result such as
+ * `{ action: 'decline' }` or `{ action: 'cancel' }`.
+ */
+export function askForInput(
+  tools: ReadonlyArray<AnyTool>,
+  session: PluginSessionApi,
+) {
+  return tools.map((tool): AnyTool => {
+    const execute = tool.execute
+    if (!execute) return tool
+    return {
+      ...tool,
+      execute: async (args, context) => {
+        try {
+          return await execute(args, context)
+        } catch (error) {
+          // A resumed `mcp_input` interrupt already carries its answer.
+          const resumed =
+            isRecord(context) && context.inputResponse !== undefined
+          if (
+            !isMCPInputRequiredError(error) ||
+            error.kind !== 'form' ||
+            resumed
+          ) {
+            throw error
+          }
+          const request = isRecord(error.request) ? error.request : {}
+          const url =
+            request.mode === 'url' && typeof request.url === 'string'
+              ? request.url
+              : undefined
+          const answer = await session.ask({
+            message:
+              typeof request.message === 'string'
+                ? request.message
+                : 'The MCP server asks for input.',
+            schema: isJsonSchema(request.requestedSchema)
+              ? request.requestedSchema
+              : undefined,
+            ...(url ? { url } : {}),
+          })
+          // A URL request has no content: the answer only says "done".
+          const payload =
+            url !== undefined && !(isRecord(answer) && 'action' in answer)
+              ? { action: 'accept' }
+              : answer
+          return execute(args, {
+            ...(isRecord(context) ? context : {}),
+            inputResponse: { status: 'resolved', payload },
+          })
+        }
+      },
+    }
+  })
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+// ponytail: the server owns the schema. The session passes it on as is.
+function isJsonSchema(value: unknown): value is JSONSchema {
+  return isRecord(value)
 }
 
 /** The SDK request options for `timeoutMs`. */

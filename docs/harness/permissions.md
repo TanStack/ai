@@ -238,6 +238,38 @@ This card fits the permission question. A question from another plugin has its o
 - Without a metadata store, the rules stay in memory until the session closes.
 - No rule for a part with shell syntax, `*`, or `?`. The next call like it asks again.
 
+### See and forget saved answers
+
+1. Type `/permissions`. The command lists the saved rules of the project:
+
+```text
+Saved rules:
+1. bash pnpm test
+2. read_file .env
+```
+
+2. Type `/permissions forget 2` to delete rule 2. The open session asks again at the next `read_file` call for `.env`.
+
+A client can run the command only when `expose.commands` has `permissions`.
+
+Server code can read and delete the saved rules too. Pass the stores of your host and the same `root` that `permissions()` gets:
+
+```ts group=harness-permissions
+import { memoryPersistence } from '@tanstack/ai-persistence'
+import { deleteSavedPermission, listSavedPermissions } from '@tanstack/ai-harness/plugins'
+
+// The persistence that you give to createHarnessHost.
+const persistence = memoryPersistence()
+
+const saved = await listSavedPermissions(persistence.stores, root)
+const [first] = saved
+if (first) await deleteSavedPermission(persistence.stores, root, first)
+```
+
+- `deleteSavedPermission` finds the rule by its fields. An unknown rule does nothing.
+- New sessions stop using a deleted rule. A session that is open now can keep it until it opens again.
+- Without a metadata store, both functions find no rules. `/permissions` then lists the answers of the open session.
+
 ## Rules in subagents
 
 The same check runs in every agent run of the session:
@@ -332,7 +364,6 @@ export const planTools = definePlugin({
 - A rule that allows a tool with no `kind` also lets it run in `plan` mode. For example, an `allow` for `webfetch` lets it fetch pages in `plan` mode. `plan` denies only edits, commands, and calls that ask.
 - `serveAcp` does not show harness questions. An editor that uses [ACP](./connect#use-it-from-an-editor-acp) shows tool approvals only, so a call that asks waits.
 - A client that can send inputs to the thread can answer the questions, also with `always`. Control who opens a thread with `canAccess`. See [Connect clients](./connect).
-- There is no command to forget a saved `always` answer.
 - `permissions()` does not follow links. The coding tools check the real path of a link, and your own tool can do it with `PermissionDecisionCapability`.
 
 ## What you have now
@@ -340,7 +371,7 @@ export const planTools = definePlugin({
 - A question before each edit, command, and web fetch.
 - Modes to plan, to edit fast, or to run everything.
 - A mode that a client cannot change, unless you expose it.
-- Rules for folders, files, and commands, and saved answers for each project.
+- Rules for folders, files, and commands, and saved answers for each project that you can list and forget.
 - The same rules in every agent run.
 
 Next: give the agent a planner and a builder with [agent profiles](./agents).

@@ -61,4 +61,40 @@ test.describe('withCompaction — wire format', () => {
     // The old tool result content is gone.
     expect(wire).not.toContain('SECRET_TOOL_ALPHA')
   })
+
+  test('native compaction posts to /responses/compact and replays its item', async ({
+    request,
+  }) => {
+    const response = await request.post('/api/compaction-wire?strategy=native')
+    expect(response.ok()).toBe(true)
+    const result = (await response.json()) as {
+      ok: boolean
+      error?: string
+      firstRequestBody: unknown
+      secondRequestBody: unknown
+      compactRequestBodies: Array<unknown>
+      compactionCount: number
+    }
+    if (!result.ok) throw new Error(`Route failed: ${result.error}`)
+
+    // One compaction call got the whole history.
+    expect(result.compactRequestBodies).toHaveLength(1)
+    expect(JSON.stringify(result.compactRequestBodies[0])).toContain(
+      'SECRET_ALPHA_ONE',
+    )
+    // The next model call sends the compacted history, with the encrypted
+    // item as it came back.
+    expect(result.firstRequestBody).toMatchObject({
+      input: [
+        { type: 'message', role: 'user' },
+        { type: 'compaction', id: 'cmp_e2e', encrypted_content: 'SEALED_E2E' },
+      ],
+    })
+    expect(JSON.stringify(result.firstRequestBody)).not.toContain(
+      'SECRET_ALPHA_ONE',
+    )
+    // The second run reuses the checkpoint and does not compact again.
+    expect(JSON.stringify(result.secondRequestBody)).toContain('SEALED_E2E')
+    expect(result.compactionCount).toBe(1)
+  })
 })

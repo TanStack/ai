@@ -28,13 +28,19 @@ import { bindDurable, createToolStep } from './durable-tool'
 import {
   commonPrefix,
   engineMessageStore,
+  revertOf,
   sessionMessageStore,
   stepKey,
 } from './log'
 import { createMediaStore, mediaCapture, mediaMiddleware } from './media'
 import { mediaIdOf, mediaOfMessage, mediaPart } from './media-ref'
 import { OperationImpl } from './operation'
-import { mountPlugins } from './plugins'
+import {
+  CapabilityValues,
+  RevertFiles,
+  SessionMetadata,
+  mountPlugins,
+} from './plugins'
 import {
   CUT_OFF_NOTE,
   LEASE,
@@ -64,6 +70,7 @@ import type {
   SubagentBinding,
   SubagentRouterPick,
   SubagentsBag,
+  ToolExecutionContext,
   UIMessage,
 } from '@tanstack/ai'
 import type {
@@ -89,6 +96,7 @@ import type {
   InputState,
   LogWriter,
   ProjectOptions,
+  RevertState,
 } from './log'
 import type { DurableBind } from './durable-tool'
 import type { LeaseOptions } from './resume'
@@ -246,6 +254,8 @@ export interface SessionSnapshot {
     schema?: unknown
     /** The answer is a secret (a key or a password). Hide it as the user types. */
     secret?: boolean
+    /** A page the user must open before they answer. Show the link. */
+    url?: string
   }>
   /** The state of each plugin that uses `ctx.state`, by plugin name. */
   plugins: Record<string, unknown>
@@ -916,6 +926,10 @@ const CONTROL_OPS = new Set<string>(['cancelInput', 'setDelivery'])
 /** Why a turn stops when its input passes its time limit. */
 const TIMEOUT_REASON = 'harness:input-timeout'
 
+/** What the model gets after its partial answer, on a `'continue'`. */
+const CONTINUE_NOTE =
+  'Your last answer stopped early because of an error. Continue from the exact point where it stopped. Do not repeat the text you already wrote.'
+
 /**
  * Why work stops at `close({ recoverable: true })`. A user cancel stops it
  * with `RUN_CANCEL_REASON`.
@@ -1092,6 +1106,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   /** The ids of the waiting steers that a join took. A cancel of one is refused. */
   private readonly joining = new Set<string>()
   private readonly pendingNotes: Array<string> = []
+  /** Running tool calls that support `detach`: id to the move. */
+  private readonly detachable = new Map<string, () => void>()
   private activeTurn: OperationImpl<ChatTurnResult> | undefined
   /** Renews this host's claim on the thread while the thread has work. */
   private claimTimer: ReturnType<typeof setInterval> | undefined
@@ -1116,6 +1132,12 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   private activeResume = false
   private plugins: ReadonlyArray<HarnessPlugin> = []
   private sessionPlugins: MountedPlugins | undefined
+  /** The last `reload()`. The calls run one at a time. */
+  private reloads: Promise<void> = Promise.resolve()
+  /** A reload waits for the running turn, so no new turn starts. */
+  private holdTurns = false
+  /** Called when the running turn ends. A reload waits for it. */
+  private readonly turnEnds = new Set<() => void>()
   private closing: Promise<void> | undefined
   /** The last `recover()`. The calls run one at a time. */
   private recovery: Promise<void> = Promise.resolve()
@@ -1136,6 +1158,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       message: string
       schema: SchemaInput | undefined
       secret: boolean
+      url: string | undefined
       /** The operation whose events carry the question and its answer. */
       operationId: string
       resolve: (value: unknown) => void
@@ -1146,6 +1169,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   /** Reads each plugin's saved state, so the first snapshot has it. */
   private readonly stateLoaders = new Map<string, () => Promise<unknown>>()
   private readonly localState = new Map<string, unknown>()
+  /** The revert that stands. See `revert`. */
+  private reverted: RevertState | undefined
   /** The credentials of the running turn's sender, else of the session's principal. */
   private readonly credentialAccess: CredentialsAccess
   /**
@@ -1460,29 +1485,29 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     return chain
   }
 
+  /** The stores that first-party plugins read as capabilities. */
+  private storeCapabilities() {
+    const values = new CapabilityValues()
+    const { metadata } = this.persistence.stores
+    if (metadata) values.provide(SessionMetadata, metadata)
+    return values
+  }
+
   /** @internal Mount session plugins and replay inputs left in the inbox. */
   async open(): Promise<void> {
     // First: plugins publish events while they mount.
     await this.openLog()
     try {
-      this.plugins = this.harness.plugins?.() ?? []
-      this.sessionPlugins = await mountPlugins(
-        this.plugins.filter(
-          (plugin) => (plugin.lifetime ?? 'session') === 'session',
-        ),
-        {
-          threadId: this.threadId,
-          registry: this.agentRegistry,
-          harnessTools: this.harness.tools ?? [],
-          harnessProvides: (this.harness.middleware ?? []).flatMap(
-            (middleware) => middleware.provides ?? [],
-          ),
-          services: this.services,
-        },
-      )
-      await this.loadConfig()
+      await this.mountSessionPlugins()
       await this.loadSettings()
-      await this.loadPluginState()
+      this.reverted = this.writer
+        ? this.writer.state.revert
+        : revertOf(
+            await this.persistence.stores.metadata?.get(
+              'harness:revert',
+              this.threadId,
+            ),
+          )
       await this.loadInterrupted()
       // Before recovery: a turn that recovery runs updates this entry.
       await this.openEntry()
@@ -1498,6 +1523,79 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       // can open again.
       this.feed.close()
       throw error
+    }
+  }
+
+  /** Read `harness.plugins()` and set up its session plugins. */
+  private async mountSessionPlugins(): Promise<void> {
+    this.plugins = this.harness.plugins?.() ?? []
+    this.sessionPlugins = await mountPlugins(
+      this.plugins.filter(
+        (plugin) => (plugin.lifetime ?? 'session') === 'session',
+      ),
+      {
+        threadId: this.threadId,
+        registry: this.agentRegistry,
+        harnessTools: this.harness.tools ?? [],
+        harnessProvides: (this.harness.middleware ?? []).flatMap(
+          (middleware) => middleware.provides ?? [],
+        ),
+        services: this.services,
+        inherited: this.storeCapabilities(),
+      },
+    )
+    await this.loadConfig()
+    await this.loadPluginState()
+  }
+
+  /**
+   * Tear the plugins down and set them up again, with the list that
+   * `harness.plugins()` gives now. It waits for the running turn, and no new
+   * turn starts until it ends. The transcript, the log, the thread settings,
+   * and the inbox stay. Clients get a `harness.reloaded` event.
+   *
+   * When the new setup throws, the session keeps working with no plugins,
+   * and the promise rejects with the error. Call `reload()` again after a
+   * fix.
+   *
+   * @example
+   * ```ts
+   * await session.reload()
+   * ```
+   */
+  reload(): Promise<void> {
+    const run = this.reloads.then(() => this.runReload())
+    this.reloads = run.catch(() => {})
+    return run
+  }
+
+  private async runReload(): Promise<void> {
+    if (this.closing) return
+    this.holdTurns = true
+    try {
+      while (this.activeTurn) {
+        await new Promise<void>((resolve) => this.turnEnds.add(resolve))
+      }
+      const old = this.sessionPlugins
+      // No plugins until the new setup works, so a failed setup leaves none.
+      this.sessionPlugins = undefined
+      this.plugins = []
+      this.agentRegistry.deletePluginAgents()
+      await old?.dispose()
+      await this.mountSessionPlugins()
+      this.feed.publish('session', customEvent(HARNESS_EVENTS.reloaded, {}))
+    } catch (error) {
+      this.sessionPlugins = undefined
+      this.plugins = []
+      this.agentRegistry.deletePluginAgents()
+      this.feed.publish(
+        'session',
+        customEvent(HARNESS_EVENTS.reloaded, { error: errorText(error) }),
+      )
+      throw error
+    } finally {
+      this.holdTurns = false
+      this.drain()
     }
   }
 
@@ -2077,6 +2175,31 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
    * abort request is stored first, so a turn that a crash stops later settles
    * `aborted` and does not run again.
    */
+  /**
+   * Move a running tool call to the background: the call returns at once,
+   * and the job keeps running. When it ends, a note tells the model and
+   * wakes an idle session. Without `toolCallId`, it moves every running
+   * call that supports it, such as `bash` and the single `subagent` tool.
+   * With no such call, the receipt is rejected with `not_running`.
+   *
+   * @example
+   * ```ts
+   * await session.background()
+   * ```
+   */
+  async background(toolCallId?: string): Promise<Receipt> {
+    const inputId = createInputId()
+    const ids =
+      toolCallId === undefined ? [...this.detachable.keys()] : [toolCallId]
+    const moves = ids.flatMap((id) => this.detachable.get(id) ?? [])
+    if (moves.length === 0) {
+      return { inputId, status: 'rejected', reason: 'not_running' }
+    }
+    for (const id of ids) this.detachable.delete(id)
+    for (const move of moves) move()
+    return { inputId, status: 'accepted' }
+  }
+
   async cancel(operationId?: string): Promise<Receipt> {
     const inputId = createInputId()
     await this.accept(inputId, { op: 'cancel', operationId })
@@ -2360,6 +2483,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             ? { schema: convertSchemaToJsonSchema(question.schema) }
             : {}),
           ...(question.secret ? { secret: true } : {}),
+          ...(question.url ? { url: question.url } : {}),
         }),
       ),
       plugins: { ...this.stateDoc },
@@ -2573,7 +2697,16 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       return this.keep({ inputId, status: 'rejected', reason })
     }
     await this.persistence.stores.metadata?.set(SETTINGS, this.threadId, next)
+    const movedFrom = this.threadSettings.cwd
     this.threadSettings = next
+    // Tell the model about a new folder, so it stops using the old paths.
+    if (next.cwd !== movedFrom) {
+      await this.addNote(
+        next.cwd === undefined
+          ? 'The working folder is the default folder again.'
+          : `The working folder is now ${next.cwd}. Paths are relative to it.`,
+      )
+    }
     await this.applied(inputId, 'session')
     this.feed.publish(
       'session',
@@ -2607,9 +2740,121 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     }))
   }
 
-  /** The saved messages of this thread, oldest first. */
+  /**
+   * The saved messages of this thread, oldest first. While a revert stands,
+   * the messages after its message are hidden.
+   */
   async transcript() {
-    return [...(await this.messages.loadThread(this.threadId))]
+    const messages = [...(await this.messages.loadThread(this.threadId))]
+    const at = this.revertedAt(messages)
+    return at < 0 ? messages : messages.slice(0, at + 1)
+  }
+
+  /** The index of the revert message in `messages`, or -1. */
+  private revertedAt(messages: ReadonlyArray<ModelMessage>) {
+    const id = this.reverted?.messageId
+    return id === undefined
+      ? -1
+      : messages.findIndex((message) => message.id === id)
+  }
+
+  /**
+   * Go back to the message `messageId`. The transcript hides the messages
+   * after it. With the snapshots plugin, the files that their tool calls
+   * changed go back too. `unrevert()` undoes it. The next turn drops the
+   * hidden messages for good. The revert state is saved, so it survives a
+   * restart. Refused while the session is not idle (`'busy'`), and for a
+   * message that is not in the transcript (`'unknown_message'`).
+   */
+  async revert(messageId: string): Promise<Receipt> {
+    const inputId = createInputId()
+    if (this.snapshot().status !== 'idle') {
+      return { inputId, status: 'rejected', reason: 'busy' }
+    }
+    const messages = await this.messages.loadThread(this.threadId)
+    const at = messages.findIndex((message) => message.id === messageId)
+    if (at < 0)
+      return { inputId, status: 'rejected', reason: 'unknown_message' }
+    // A revert that stands ends first, so its files come back.
+    await this.unrevert()
+    const handler = this.sessionPlugins?.values.get(RevertFiles)
+    const files = await handler?.revert(messages.slice(at + 1), (type) =>
+      this.hostRecords(type),
+    )
+    await this.saveRevert({
+      messageId,
+      ...(files !== undefined ? { files } : {}),
+    })
+    return { inputId, status: 'accepted' }
+  }
+
+  /** End the revert that stands: its files and messages come back. */
+  async unrevert(): Promise<Receipt> {
+    const inputId = createInputId()
+    if (this.snapshot().status !== 'idle') {
+      return { inputId, status: 'rejected', reason: 'busy' }
+    }
+    const reverted = this.reverted
+    if (!reverted) return { inputId, status: 'accepted' }
+    if (reverted.files !== undefined) {
+      await this.sessionPlugins?.values
+        .get(RevertFiles)
+        ?.unrevert(reverted.files)
+    }
+    await this.saveRevert(undefined)
+    return { inputId, status: 'accepted' }
+  }
+
+  /** Drop the messages that a standing revert hides, and end the revert. */
+  private async commitRevert() {
+    if (!this.reverted) return
+    const messages = await this.messages.loadThread(this.threadId)
+    const at = this.revertedAt(messages)
+    if (at >= 0) {
+      await this.messages.saveThread(this.threadId, messages.slice(0, at + 1))
+    }
+    await this.saveRevert(undefined)
+  }
+
+  /** Keep the revert state in the log, else in the metadata store. */
+  private async saveRevert(revert: RevertState | undefined) {
+    this.reverted = revert
+    if (this.writer) {
+      await this.writer.append([
+        { type: 'harness.revert', revert: revert ?? null },
+      ])
+    } else {
+      await this.persistence.stores.metadata?.set(
+        'harness:revert',
+        this.threadId,
+        revert ?? null,
+      )
+    }
+    this.feed.publish(
+      'session',
+      customEvent(HARNESS_EVENTS.revert, {
+        messageId: revert?.messageId ?? null,
+      }),
+    )
+  }
+
+  /** The host records of `type` of this thread, from the log, oldest first. */
+  private async hostRecords(type: string) {
+    const found: Array<Record<string, unknown>> = []
+    if (!this.writer || !this.log) return found
+    let after = 0
+    for (;;) {
+      const entries = await this.log.store.read(this.logId, {
+        after,
+        limit: 256,
+      })
+      for (const { seq, record } of entries) {
+        after = seq
+        const isOwn = (record.thread ?? this.logId) === this.threadId
+        if (isOwn && record.type === type) found.push(record)
+      }
+      if (entries.length < 256) return found
+    }
   }
 
   /** The commands, settings, and tools of this session, for a UI. */
@@ -3100,6 +3345,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         message: question.message,
         schema: question.schema,
         secret: question.secret === true,
+        url: question.url,
         operationId,
         resolve,
         reject,
@@ -3113,6 +3359,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             ? { schema: convertSchemaToJsonSchema(question.schema) }
             : {}),
           ...(question.secret ? { secret: true } : {}),
+          ...(question.url ? { url: question.url } : {}),
         }),
       )
     })
@@ -3644,7 +3891,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   }
 
   private drain(): void {
-    if (this.activeTurn || this.closing) return
+    if (this.activeTurn || this.closing || this.holdTurns) return
     const next = this.queue.shift()
     if (!next) return this.checkIdle()
     this.activeTurn = next.operation
@@ -3654,6 +3901,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       this.activeResume = false
       this.activeTurn = undefined
       this.turnPrincipal = undefined
+      for (const end of this.turnEnds) end()
+      this.turnEnds.clear()
       this.drain()
     })
   }
@@ -3733,6 +3982,57 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           (tool, index) => tool === config.tools[index],
         )
         return isSame ? undefined : { tools }
+      },
+    }
+  }
+
+  /**
+   * Middleware that gives each tool call of a turn `detach` in its context,
+   * so `background()` can move the call to the background. A tool that
+   * calls `detach` supports it.
+   */
+  private detachTools(): AnyChatMiddleware {
+    // Each model call gets the tools of the last one. Wrap each tool once.
+    const wrapped = new WeakSet<AnyTool>()
+    const wrap = (tool: AnyTool): AnyTool => {
+      const { execute } = tool
+      if (!execute || wrapped.has(tool)) return tool
+      const next: AnyTool = {
+        ...tool,
+        execute: (args: unknown, context?: ToolExecutionContext) => {
+          const id = context?.toolCallId
+          if (!context || id === undefined) return execute(args, context)
+          context.detach = (work) =>
+            new Promise((moved) => {
+              this.detachable.set(id, () => {
+                moved(
+                  `The job moved to the background. Its id is ${id}. You get a note when it ends.`,
+                )
+                // Like other background jobs: a note that wakes the session.
+                work
+                  .then(
+                    (result) =>
+                      `Background job ${id} ended.\n${typeof result === 'string' ? result : JSON.stringify(result)}`,
+                    (error: unknown) =>
+                      `Background job ${id} failed: ${error instanceof Error ? error.message : String(error)}`,
+                  )
+                  .then((text) => this.pluginApi().note(text, { wake: true }))
+                  .catch(() => undefined)
+              })
+            })
+          return Promise.resolve(execute(args, context)).finally(() =>
+            this.detachable.delete(id),
+          )
+        },
+      }
+      wrapped.add(next)
+      return next
+    }
+    return {
+      name: 'harness:detach-tools',
+      onConfig: (ctx, config) => {
+        if (ctx.phase !== 'init' && ctx.phase !== 'beforeModel') return
+        return { tools: config.tools.map(wrap) }
       },
     }
   }
@@ -4337,6 +4637,15 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   }
 
   private async runTurn(turn: QueuedTurn): Promise<void> {
+    // The next turn drops the messages that a revert hides.
+    try {
+      await this.commitRevert()
+    } catch (error) {
+      turn.operation.fail('failed', error)
+      this.publishFinished(turn.operation)
+      this.requeueWaitingSteers()
+      return
+    }
     if (turn.reset) return this.runReset(turn, turn.reset)
     const { operation } = turn
     operation.setStatus('running')
@@ -4618,6 +4927,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       /** Retries since the last finished tool phase. The log keeps them. */
       let retries =
         this.writer?.state.inputs.get(turn.inputId ?? '')?.retries ?? 0
+      /** The partial answer and the note that a `'continue'` adds. */
+      let continued: Array<ModelMessage> = []
       /** How many times `turn.beforeFinish` continued this turn. */
       let cycle = 0
       /** The ephemeral messages of a turn hook, for the next model call. */
@@ -4640,7 +4951,14 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             routed && !routedFrom
               ? await this.messages.loadThread(this.threadId)
               : []
-          const turnMessages = [...history, ...(message ? [message] : [])]
+          const turnMessages = [
+            ...history,
+            ...(message ? [message] : []),
+            ...continued,
+          ]
+          // withPersistence saves them at the start of the call, so a later
+          // call finds them in the thread.
+          continued = []
           // The store keeps each agent in its own thread, and chat() finds a
           // stopped agent in the cards that a client sends back. So the
           // harness keeps the cards of a routed run, as a client does.
@@ -4679,6 +4997,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
               ...(runPlugins?.middleware ?? []),
               ...(keepTools ? [keepTools] : []),
               ...(durableTools ? [durableTools] : []),
+              this.detachTools(),
               ...(rootBag ? [] : [this.steering(ephemeral)]),
               // Again: a middleware that returns `messages` (as steering
               // does) resets what the model gets to the whole transcript.
@@ -4825,6 +5144,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           }
         }
         if (runError && turnHooks?.onModelError) {
+          const partial = text !== textBefore
           const answer =
             signal.aborted || this.logFailure
               ? undefined
@@ -4834,18 +5154,33 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
                   ...(turn.inputId ? { inputId: turn.inputId } : {}),
                   error: runError,
                   retries,
+                  partial,
                   signal,
                 })
-          if (answer === 'retry' && !signal.aborted) {
+          if (
+            (answer === 'retry' || answer === 'continue') &&
+            !signal.aborted
+          ) {
             retries += 1
             this.stageRetries(turn, operation, retries)
-            // The turn result has only the text of the calls that counted.
-            text = textBefore
+            const isContinued = answer === 'continue' && partial
+            if (isContinued) {
+              // The partial answer stays in the turn result and in the
+              // transcript. The model continues it.
+              continued = [
+                { role: 'assistant', content: text.slice(textBefore.length) },
+                { role: 'user', content: CONTINUE_NOTE },
+              ]
+            } else {
+              // The turn result has only the text of the calls that counted.
+              text = textBefore
+            }
             operation.publish(
               customEvent(HARNESS_EVENTS.turnRetry, {
                 operationId: operation.id,
                 retries,
                 error: runError,
+                continued: isContinued,
               }),
             )
             // The resume stays: withPersistence commits it only when a call

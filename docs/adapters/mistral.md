@@ -97,6 +97,8 @@ const adapter = createMistralText("mistral-large-latest", process.env.MISTRAL_AP
 
 `serverURL` is an alias of `baseURL`. If you set both, `baseURL` wins.
 
+The adapter supports [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call).
+
 ## Mistral on Vertex
 
 Use `@tanstack/ai-mistral/vertex` when Mistral must run on Vertex AI. That

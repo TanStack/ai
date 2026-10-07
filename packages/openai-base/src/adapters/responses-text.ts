@@ -18,7 +18,7 @@ import {
   toRunErrorRawEvent,
 } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
-import { extractRequestOptions } from '../utils/request-options'
+import { clientFor, extractRequestOptions } from '../utils/request-options'
 import {
   makeStructuredOutputCompatibleWithMap,
   warnStrictFallback,
@@ -67,6 +67,7 @@ import type {
   ProviderExecutedToolSource,
   ReasoningCapability,
   TanStackMessageMetadata,
+  TextCompactOptions,
   TextOptions,
   AnyTool,
   NormalizedSystemPrompt,
@@ -195,6 +196,118 @@ function readReasoningItem(
     ...(id ? { id } : {}),
     ...(encrypted_content ? { encrypted_content } : {}),
   }
+}
+
+/** The compaction item packed in a thinking signature, or `undefined`. */
+function readCompactionSignature(
+  signature: string,
+): { type: 'compaction'; id?: string; encrypted_content: string } | undefined {
+  try {
+    const parsed: unknown = JSON.parse(signature)
+    if (
+      !isRecord(parsed) ||
+      parsed.type !== 'compaction' ||
+      typeof parsed.encrypted_content !== 'string'
+    )
+      return undefined
+    return {
+      type: 'compaction',
+      ...(typeof parsed.id === 'string' ? { id: parsed.id } : {}),
+      encrypted_content: parsed.encrypted_content,
+    }
+  } catch {
+    return undefined
+  }
+}
+
+/** The texts of a list of output parts. */
+function partTexts(content: Array<unknown>): Array<string> {
+  return content.flatMap((part) =>
+    isRecord(part) && typeof part.text === 'string' ? [part.text] : [],
+  )
+}
+
+/**
+ * Map one item of a `/responses/compact` output to a message. The
+ * compaction item and reasoning items go in thinking signatures, so they
+ * go back to the same model as they are.
+ */
+function fromCompactedItem(
+  item: unknown,
+  metadata: { tanstack: TanStackMessageMetadata },
+): ModelMessage {
+  if (isRecord(item) && item.type === 'compaction') {
+    return {
+      role: 'assistant',
+      content: null,
+      thinking: [
+        {
+          content: '',
+          redacted: true,
+          signature: JSON.stringify({
+            type: 'compaction',
+            id: item.id,
+            encrypted_content: item.encrypted_content,
+          }),
+        },
+      ],
+      metadata,
+    }
+  }
+  const reasoning = readReasoningItem(item)
+  if (reasoning && isRecord(item)) {
+    const summary = Array.isArray(item.summary) ? partTexts(item.summary) : []
+    return {
+      role: 'assistant',
+      content: null,
+      thinking: [
+        {
+          content: summary.join('\n'),
+          signature: packResponsesReasoningSignature(
+            reasoning.id,
+            reasoning.encrypted_content,
+          ),
+        },
+      ],
+      metadata,
+    }
+  }
+  if (
+    isRecord(item) &&
+    item.type === 'message' &&
+    Array.isArray(item.content) &&
+    (item.role === 'user' || item.role === 'assistant')
+  ) {
+    if (item.role === 'assistant') {
+      return {
+        role: 'assistant',
+        content: partTexts(item.content).join(''),
+        metadata,
+      }
+    }
+    return {
+      role: 'user',
+      content: item.content.map((part): ContentPart => {
+        if (isRecord(part) && typeof part.text === 'string')
+          return { type: 'text', content: part.text }
+        if (
+          isRecord(part) &&
+          part.type === 'input_image' &&
+          typeof part.image_url === 'string'
+        )
+          return {
+            type: 'image',
+            source: { type: 'url', value: part.image_url },
+          }
+        // ponytail: text and image urls only. Map files here when a
+        // compacted history holds them.
+        throw new Error(
+          `Cannot map a compacted ${isRecord(part) ? String(part.type) : 'part'} part.`,
+        )
+      }),
+    }
+  }
+  throw new Error('Cannot map a compacted output item.')
 }
 
 /**
@@ -375,7 +488,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         `activity=chat provider=${this.name} model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
         { provider: this.name, model: this.model },
       )
-      const response = await this.client.responses.create(
+      const response = await clientFor(this.client, options).responses.create(
         {
           ...requestParams,
           stream: true,
@@ -481,7 +594,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         `activity=structuredOutput provider=${this.name} model=${this.model} messages=${chatOptions.messages.length}`,
         { provider: this.name, model: this.model },
       )
-      const response = await this.client.responses.create(
+      const response = await clientFor(
+        this.client,
+        chatOptions,
+      ).responses.create(
         {
           ...(cleanParams as Omit<ResponseCreateParams, 'stream'>),
           stream: false,
@@ -665,7 +781,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
       const stream: AsyncIterable<
         ResponseStreamEvent | LegacyReasoningDeltaEvent
-      > = await this.client.responses.create(
+      > = await clientFor(this.client, chatOptions).responses.create(
         {
           ...cleanParams,
           stream: true,
@@ -964,6 +1080,34 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         source: `${this.name}.structuredOutputStream`,
       })
     }
+  }
+
+  /**
+   * Compact the history with `POST /responses/compact`. The result holds
+   * the user messages and one encrypted compaction item.
+   */
+  async compact(options: TextCompactOptions): Promise<Array<ModelMessage>> {
+    const response = await clientFor(this.client, options).responses.compact(
+      {
+        model: options.model,
+        input: this.convertMessagesToInput(
+          options.messages,
+          undefined,
+          options.model,
+        ),
+      },
+      options.signal ? { signal: options.signal } : {},
+    )
+    const metadata = {
+      tanstack: {
+        source: {
+          provider: this.provider ?? this.name,
+          api: this.api,
+          model: options.model,
+        },
+      },
+    }
+    return response.output.map((item) => fromCompactedItem(item, metadata))
   }
 
   /**
@@ -1317,6 +1461,21 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       stepId = null
       hasClosedReasoning = false
       accumulatedReasoning = ''
+    }
+
+    // A stateless GitHub Copilot stream gives a new item id on each event of
+    // one output item. The output index stays, so a new id joins the call
+    // that already has that index.
+    const trackedCall = (id: string, outputIndex: number | undefined) => {
+      const tracked =
+        toolCallMetadata.get(id) ??
+        (outputIndex === undefined
+          ? undefined
+          : [...toolCallMetadata.values()].find(
+              (metadata) => metadata.index === outputIndex,
+            ))
+      if (tracked) toolCallMetadata.set(id, tracked)
+      return tracked
     }
 
     const userToolChunks = (
@@ -1712,7 +1871,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             // name would propagate into TOOL_CALL_END (which reads the same
             // metadata) and route the tool call to whatever name happens to
             // match `''` downstream — a silent misroute.
-            let metadata = toolCallMetadata.get(item.id)
+            let metadata = trackedCall(item.id, chunk.output_index)
             if (!metadata) {
               metadata = {
                 callId: item.call_id || item.id,
@@ -1763,11 +1922,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           chunk.type === 'response.function_call_arguments.delta' &&
           typeof chunk.delta === 'string'
         ) {
-          let metadata = toolCallMetadata.get(chunk.item_id)
+          let metadata = trackedCall(chunk.item_id, chunk.output_index)
           if (!metadata) {
             metadata = {
               callId: chunk.item_id,
-              index: 0,
+              index: chunk.output_index,
               name: '',
               started: false,
             }
@@ -1801,9 +1960,14 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           const { item_id } = chunk
 
           // Get the function name from metadata (captured in output_item.added)
-          let metadata = toolCallMetadata.get(item_id)
+          let metadata = trackedCall(item_id, chunk.output_index)
           if (!metadata) {
-            metadata = { callId: item_id, index: 0, name: '', started: false }
+            metadata = {
+              callId: item_id,
+              index: chunk.output_index,
+              name: '',
+              started: false,
+            }
             toolCallMetadata.set(item_id, metadata)
           }
           metadata.pendingArguments = chunk.arguments
@@ -1887,7 +2051,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             yield* openReasoning()
           }
           if (item.type === 'function_call' && item.id) {
-            const metadata = toolCallMetadata.get(item.id) ?? {
+            const metadata = trackedCall(item.id, chunk.output_index) ?? {
               callId: item.call_id || item.id,
               index: chunk.output_index,
               name: item.name || '',
@@ -2054,7 +2218,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           // leaving consumers waiting for tool results they never saw start.
           for (const [outputIndex, item] of responseOutput.entries()) {
             if (item.type !== 'function_call' || !item.id) continue
-            const metadata = toolCallMetadata.get(item.id) ?? {
+            const metadata = trackedCall(item.id, outputIndex) ?? {
               callId: item.call_id || item.id,
               index: outputIndex,
               name: item.name || '',
@@ -2682,6 +2846,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         if (message.thinking) {
           for (const thinking of message.thinking) {
             if (!thinking.signature) continue
+            const compaction = readCompactionSignature(thinking.signature)
+            if (compaction) {
+              result.push(compaction)
+              continue
+            }
             const packed = unpackResponsesReasoningSignature(thinking.signature)
             if (!packed?.id) continue
             reasoningCandidates++

@@ -72,6 +72,29 @@ export class AgentRegistry implements AgentRegistryView {
     if (!existing) this.agents.set(agent.name, { agent, owner })
   }
 
+  /** Add `owner`'s agent, or replace it. A name another owner has throws. */
+  set(agent: AnyAgent, owner: string): void {
+    const existing = this.agents.get(agent.name)
+    if (existing && existing.owner !== owner) {
+      throw new Error(
+        `Agent "${agent.name}" belongs to ${existing.owner}. ${owner} cannot replace it.`,
+      )
+    }
+    this.agents.set(agent.name, { agent, owner })
+  }
+
+  /** Remove `owner`'s agent `name`. Another owner's name does nothing. */
+  delete(name: string, owner: string): void {
+    if (this.agents.get(name)?.owner === owner) this.agents.delete(name)
+  }
+
+  /** Remove every agent that the harness itself did not add. */
+  deletePluginAgents(): void {
+    for (const [name, entry] of this.agents) {
+      if (entry.owner !== 'the harness') this.agents.delete(name)
+    }
+  }
+
   list(): ReadonlyArray<AnyAgent> {
     return [...this.agents.values()].map((entry) => entry.agent)
   }

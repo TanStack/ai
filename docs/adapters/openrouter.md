@@ -59,6 +59,8 @@ const adapter = createOpenRouterText(
 );
 ```
 
+Both text adapters support [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call). The wrapped fetch sends each request through your `httpClient` when you set one.
+
 ### Retry rate limits
 
 A busy upstream provider can reply with HTTP 429. The adapter retries only 5XX errors by default. Add `"429"` to `retryCodes` to retry rate limits too:

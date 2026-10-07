@@ -461,6 +461,56 @@ describe('the working folder of a thread', () => {
   })
 })
 
+describe('the working folder note', () => {
+  const sent = (call: { messages: ReadonlyArray<ModelMessage> }) =>
+    JSON.stringify(call.messages)
+
+  it('tells the next model call when the working folder changes', async () => {
+    const { adapter, calls } = mockAdapter(() => text('ok'))
+    const { host, session } = await open({ adapter })
+
+    await session.configure({ cwd: '/repo/app' })
+    await session.prompt('Hi.')
+    expect(sent(calls[0])).toContain(
+      'The working folder is now /repo/app. Paths are relative to it.',
+    )
+    // The note is in the saved transcript, so it survives a restart.
+    expect(JSON.stringify(await session.transcript())).toContain(
+      'The working folder is now /repo/app.',
+    )
+    await host.close()
+  })
+
+  it('adds no note when the working folder stays the same', async () => {
+    const { adapter, calls } = mockAdapter(() => text('ok'))
+    const { host, session } = await open({ adapter })
+
+    await session.configure({ cwd: '/repo/app' })
+    await session.configure({ cwd: '/repo/app' })
+    await session.configure({ instructions: 'Be short.' })
+    await session.prompt('Hi.')
+    expect(sent(calls[0]).split('The working folder is now')).toHaveLength(2)
+    await host.close()
+  })
+
+  it('tells the model when the working folder is cleared', async () => {
+    const { adapter, calls } = mockAdapter(() => text('ok'))
+    const { host, session } = await open({ adapter })
+
+    await session.configure({ cwd: null })
+    await session.prompt('Hi.')
+    expect(sent(calls[0])).not.toContain('working folder')
+
+    await session.configure({ cwd: '/repo/app' })
+    await session.configure({ cwd: null })
+    await session.prompt('Again.')
+    expect(sent(calls[1])).toContain(
+      'The working folder is the default folder again.',
+    )
+    await host.close()
+  })
+})
+
 describe('plugin config next to the settings', () => {
   it('keeps plugin config and the settings apart', async () => {
     const { adapter } = mockAdapter(() => text('ok'))

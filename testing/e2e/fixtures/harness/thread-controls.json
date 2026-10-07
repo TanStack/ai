@@ -9,6 +9,10 @@
       "response": { "content": "Strong." }
     },
     {
+      "match": { "userMessage": "[harness-cwd] where" },
+      "response": { "content": "Moved." }
+    },
+    {
       "match": { "userMessage": "[harness-reset] first" },
       "response": { "content": "First answer." }
     },

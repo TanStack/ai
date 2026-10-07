@@ -18,6 +18,7 @@ import {
 } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../internal/request-options'
+import { clientForCall } from '../internal/wrap-fetch'
 import { makeStructuredOutputCompatible } from '../internal/schema-converter'
 import { openRouterSupportsCombinedToolsAndSchema } from '../internal/combined-tools-and-schema'
 import { OPENROUTER_MODEL_INPUT_MODALITIES } from '../model-meta'
@@ -162,11 +163,13 @@ export class OpenRouterTextAdapter<
     OPENROUTER_MODEL_INPUT_MODALITIES[this.model]
 
   protected orClient: OpenRouter
+  private readonly sdkOptions: SDKOptions
   private readonly retryCodes: Array<string> | undefined
 
   constructor(config: OpenRouterConfig, model: TModel) {
     super({}, model)
     const { retryCodes, ...sdkOptions } = config
+    this.sdkOptions = sdkOptions
     this.orClient = new OpenRouter(sdkOptions)
     this.retryCodes = retryCodes
   }
@@ -212,7 +215,11 @@ export class OpenRouterTextAdapter<
         { provider: this.name, model: this.model },
       )
       const reqOptions = extractRequestOptions(options.request)
-      const stream = await this.orClient.chat.send(
+      const stream = await clientForCall(
+        this.orClient,
+        this.sdkOptions,
+        options.wrapFetch,
+      ).chat.send(
         {
           chatRequest: {
             ...chatRequest,
@@ -353,7 +360,11 @@ export class OpenRouterTextAdapter<
         { provider: this.name, model: this.model },
       )
       const reqOptions = extractRequestOptions(chatOptions.request)
-      const response = await this.orClient.chat.send(
+      const response = await clientForCall(
+        this.orClient,
+        this.sdkOptions,
+        chatOptions.wrapFetch,
+      ).chat.send(
         {
           chatRequest: {
             ...cleanParams,
@@ -593,7 +604,11 @@ export class OpenRouterTextAdapter<
       )
 
       const reqOptions = extractRequestOptions(chatOptions.request)
-      const stream = await this.orClient.chat.send(
+      const stream = await clientForCall(
+        this.orClient,
+        this.sdkOptions,
+        chatOptions.wrapFetch,
+      ).chat.send(
         {
           chatRequest: {
             ...cleanParams,

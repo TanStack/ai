@@ -114,6 +114,13 @@ export interface HarnessClient<THarness extends AnyHarness> {
    */
   reset: (note?: string, options?: { inputId?: string }) => Promise<Receipt>
   /**
+   * Go back to the message `messageId`, as `session.revert` does. The
+   * harness must list `'undo'` in `expose.commands`.
+   */
+  revert: (messageId: string) => Promise<Receipt>
+  /** End the revert that stands, as `session.unrevert` does. */
+  unrevert: () => Promise<Receipt>
+  /**
    * Send a message to the agent run `operationId`, as `AgentRun.send`
    * does. The harness must list the run's agent in `expose.agents`.
    */
@@ -167,12 +174,16 @@ export interface HarnessClient<THarness extends AnyHarness> {
   /**
    * One page of your sessions, newest first. Default: top-level sessions.
    * Pass `parentThreadId` to get the child sessions of a thread, and the
-   * `cursor` of a page to get the next page.
+   * `cursor` of a page to get the next page. `search` keeps the sessions
+   * whose title contains the text, without case. `metadata` keeps the
+   * sessions with each exact metadata value.
    */
   listSessions: (options?: {
     limit?: number
     cursor?: string
     parentThreadId?: string
+    search?: string
+    metadata?: Record<string, string>
   }) => Promise<SessionIndexPage>
   /** Set the title of one of your sessions. Resolves to the changed entry. */
   renameSession: (threadId: string, title: string) => Promise<SessionIndexEntry>
@@ -485,6 +496,8 @@ export function createHarnessClient<THarness extends AnyHarness>(
         ...(note !== undefined ? { note } : {}),
         ...(resetOptions?.inputId ? { inputId: resetOptions.inputId } : {}),
       }),
+    revert: (messageId) => send({ op: 'revert', messageId }),
+    unrevert: () => send({ op: 'unrevert' }),
     sendToAgent: (operationId, message, sendOptions) =>
       send({
         op: 'agentMessage',
@@ -501,11 +514,20 @@ export function createHarnessClient<THarness extends AnyHarness>(
     upload,
     mediaUrl,
     loadMedia,
-    listSessions: async ({ limit, cursor, parentThreadId } = {}) => {
+    listSessions: async ({
+      limit,
+      cursor,
+      parentThreadId,
+      search,
+      metadata = {},
+    } = {}) => {
       const query = new URLSearchParams()
       if (limit !== undefined) query.set('limit', String(limit))
       if (cursor) query.set('cursor', cursor)
       if (parentThreadId) query.set('parentThreadId', parentThreadId)
+      if (search) query.set('search', search)
+      for (const [key, value] of Object.entries(metadata))
+        query.set(`metadata.${key}`, value)
       const response = await checked(
         'sessions',
         await doFetch(`${base}/sessions?${query}`, { headers: headers() }),

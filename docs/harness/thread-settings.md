@@ -136,6 +136,14 @@ await task.configure({ cwd: 'web-app' })
 
 `cwd` is relative to `root`. The tools refuse a working folder outside `root`. The coding agents of `@tanstack/ai-sandbox` get their folder from the sandbox, so they do not read `cwd`.
 
+When `cwd` changes, the model gets a short note before its next call. So it stops using the paths of the old folder:
+
+- A new `cwd` adds "The working folder is now web-app. Paths are relative to it."
+- `cwd: null` adds "The working folder is the default folder again."
+- The same `cwd` again adds no note.
+
+The note is an assistant message in the transcript, so it stays after a restart. A change while a turn runs adds the note before the next turn.
+
 ## What you have now
 
 - A model menu per thread, from the `models` of the harness.

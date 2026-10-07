@@ -444,6 +444,7 @@ export function createSessionView(source: SessionViewSource) {
       message: question.message,
       ...(question.schema ? { schema: question.schema } : {}),
       ...(question.secret ? { secret: true } : {}),
+      ...(question.url ? { url: question.url } : {}),
       answer: (value) => {
         alive()
         return source.answer(question.questionId, value)
@@ -493,6 +494,17 @@ export function createSessionView(source: SessionViewSource) {
     try {
       const description = await source.describe()
       if (!disposed) commit(applyDescription(get(), description))
+    } catch (error) {
+      fail(error)
+    }
+  })
+
+  // A revert changes which saved messages show. The session is idle then.
+  const refreshTranscript = coalesce(async () => {
+    try {
+      const transcript = await source.transcript()
+      if (!disposed)
+        commit({ ...get(), messages: messagesFromTranscript(transcript) })
     } catch (error) {
       fail(error)
     }
@@ -551,6 +563,7 @@ export function createSessionView(source: SessionViewSource) {
         event.name === HARNESS_EVENTS.configChanged ||
         event.name === HARNESS_EVENTS.commandsChanged
       if (isDescriptionChange) refreshDescription()
+      if (event.name === HARNESS_EVENTS.revert) refreshTranscript()
     }
     for (const signIn of after.signIns)
       if (!before.signIns.includes(signIn)) emit('signIn', signIn)

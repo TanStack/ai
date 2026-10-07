@@ -263,6 +263,7 @@ Full walkthrough, including the client: [Harness Agents](../structured-outputs/h
 
 ## Limitations
 
+- **No `wrapFetch`.** The adapter ignores [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call), because the harness process sends the model requests.
 - **No token-level text streaming.** The Codex SDK reports assistant text and reasoning only as completed items, so text arrives message-at-a-time. Tool activity (commands starting/finishing) still streams live, which keeps the UI feeling alive during long turns.
 - **Server-only (Node).** The harness spawns a subprocess.
 - **The harness owns the agent loop.** TanStack's agent-loop strategies and per-iteration middleware don't apply inside a harness turn.

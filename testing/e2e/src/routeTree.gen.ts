@@ -67,6 +67,7 @@ import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiCloudflareBindingWireRouteImport } from './routes/api.cloudflare-binding-wire'
 import { Route as ApiCompactionDurableWireRouteImport } from './routes/api.compaction-durable-wire'
 import { Route as ApiCompactionWireRouteImport } from './routes/api.compaction-wire'
+import { Route as ApiCopilotWireRouteImport } from './routes/api.copilot-wire'
 import { Route as ApiDevtoolsMemoryRouteImport } from './routes/api.devtools-memory'
 import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-delivery'
 import { Route as ApiDurableTakeoverRouteImport } from './routes/api.durable-takeover'
@@ -79,6 +80,7 @@ import { Route as ApiGeminiImageGaModelsRouteImport } from './routes/api.gemini-
 import { Route as ApiGeminiNativeImageWireRouteImport } from './routes/api.gemini-native-image-wire'
 import { Route as ApiGenerationPersistenceResumeRouteImport } from './routes/api.generation-persistence-resume'
 import { Route as ApiGenerationPersistenceServerRouteImport } from './routes/api.generation-persistence-server'
+import { Route as ApiHarnessContinueRouteImport } from './routes/api.harness-continue'
 import { Route as ApiHarnessTestRouteImport } from './routes/api.harness-test'
 import { Route as ApiHarnessTurnOverridesRouteImport } from './routes/api.harness-turn-overrides'
 import { Route as ApiImageRouteImport } from './routes/api.image'
@@ -149,6 +151,7 @@ import { Route as ApiVideoLiveRouteImport } from './routes/api.video-live'
 import { Route as ApiVoiceRouteImport } from './routes/api.voice'
 import { Route as ApiWebMcpPageToolsRouteImport } from './routes/api.web-mcp-page-tools'
 import { Route as ApiWorldRouteImport } from './routes/api.world'
+import { Route as ApiWrapFetchWireRouteImport } from './routes/api.wrap-fetch-wire'
 import { Route as ApiAudioStreamRouteImport } from './routes/api.audio.stream'
 import { Route as ApiHarnessProtocolSplatRouteImport } from './routes/api.harness-protocol.$'
 import { Route as ApiImageStreamRouteImport } from './routes/api.image.stream'
@@ -461,6 +464,11 @@ const ApiCompactionWireRoute = ApiCompactionWireRouteImport.update({
   path: '/api/compaction-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCopilotWireRoute = ApiCopilotWireRouteImport.update({
+  id: '/api/copilot-wire',
+  path: '/api/copilot-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiDevtoolsMemoryRoute = ApiDevtoolsMemoryRouteImport.update({
   id: '/api/devtools-memory',
   path: '/api/devtools-memory',
@@ -524,6 +532,11 @@ const ApiGenerationPersistenceServerRoute =
     path: '/api/generation-persistence-server',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiHarnessContinueRoute = ApiHarnessContinueRouteImport.update({
+  id: '/api/harness-continue',
+  path: '/api/harness-continue',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHarnessTestRoute = ApiHarnessTestRouteImport.update({
   id: '/api/harness-test',
   path: '/api/harness-test',
@@ -892,6 +905,11 @@ const ApiWorldRoute = ApiWorldRouteImport.update({
   path: '/api/world',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWrapFetchWireRoute = ApiWrapFetchWireRouteImport.update({
+  id: '/api/wrap-fetch-wire',
+  path: '/api/wrap-fetch-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAudioStreamRoute = ApiAudioStreamRouteImport.update({
   id: '/stream',
   path: '/stream',
@@ -981,6 +999,7 @@ export interface FileRoutesByFullPath {
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
   '/api/compaction-durable-wire': typeof ApiCompactionDurableWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
+  '/api/copilot-wire': typeof ApiCopilotWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
@@ -993,6 +1012,7 @@ export interface FileRoutesByFullPath {
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
+  '/api/harness-continue': typeof ApiHarnessContinueRoute
   '/api/harness-test': typeof ApiHarnessTestRoute
   '/api/harness-turn-overrides': typeof ApiHarnessTurnOverridesRoute
   '/api/image': typeof ApiImageRouteWithChildren
@@ -1063,6 +1083,7 @@ export interface FileRoutesByFullPath {
   '/api/voice': typeof ApiVoiceRoute
   '/api/web-mcp-page-tools': typeof ApiWebMcpPageToolsRoute
   '/api/world': typeof ApiWorldRoute
+  '/api/wrap-fetch-wire': typeof ApiWrapFetchWireRoute
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
@@ -1129,6 +1150,7 @@ export interface FileRoutesByTo {
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
   '/api/compaction-durable-wire': typeof ApiCompactionDurableWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
+  '/api/copilot-wire': typeof ApiCopilotWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
@@ -1141,6 +1163,7 @@ export interface FileRoutesByTo {
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
+  '/api/harness-continue': typeof ApiHarnessContinueRoute
   '/api/harness-test': typeof ApiHarnessTestRoute
   '/api/harness-turn-overrides': typeof ApiHarnessTurnOverridesRoute
   '/api/image': typeof ApiImageRouteWithChildren
@@ -1211,6 +1234,7 @@ export interface FileRoutesByTo {
   '/api/voice': typeof ApiVoiceRoute
   '/api/web-mcp-page-tools': typeof ApiWebMcpPageToolsRoute
   '/api/world': typeof ApiWorldRoute
+  '/api/wrap-fetch-wire': typeof ApiWrapFetchWireRoute
   '/$provider': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
@@ -1278,6 +1302,7 @@ export interface FileRoutesById {
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
   '/api/compaction-durable-wire': typeof ApiCompactionDurableWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
+  '/api/copilot-wire': typeof ApiCopilotWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
@@ -1290,6 +1315,7 @@ export interface FileRoutesById {
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
+  '/api/harness-continue': typeof ApiHarnessContinueRoute
   '/api/harness-test': typeof ApiHarnessTestRoute
   '/api/harness-turn-overrides': typeof ApiHarnessTurnOverridesRoute
   '/api/image': typeof ApiImageRouteWithChildren
@@ -1360,6 +1386,7 @@ export interface FileRoutesById {
   '/api/voice': typeof ApiVoiceRoute
   '/api/web-mcp-page-tools': typeof ApiWebMcpPageToolsRoute
   '/api/world': typeof ApiWorldRoute
+  '/api/wrap-fetch-wire': typeof ApiWrapFetchWireRoute
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
@@ -1428,6 +1455,7 @@ export interface FileRouteTypes {
     | '/api/cloudflare-binding-wire'
     | '/api/compaction-durable-wire'
     | '/api/compaction-wire'
+    | '/api/copilot-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
     | '/api/durable-takeover'
@@ -1440,6 +1468,7 @@ export interface FileRouteTypes {
     | '/api/gemini-native-image-wire'
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
+    | '/api/harness-continue'
     | '/api/harness-test'
     | '/api/harness-turn-overrides'
     | '/api/image'
@@ -1510,6 +1539,7 @@ export interface FileRouteTypes {
     | '/api/voice'
     | '/api/web-mcp-page-tools'
     | '/api/world'
+    | '/api/wrap-fetch-wire'
     | '/$provider/'
     | '/api/audio/stream'
     | '/api/harness-protocol/$'
@@ -1576,6 +1606,7 @@ export interface FileRouteTypes {
     | '/api/cloudflare-binding-wire'
     | '/api/compaction-durable-wire'
     | '/api/compaction-wire'
+    | '/api/copilot-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
     | '/api/durable-takeover'
@@ -1588,6 +1619,7 @@ export interface FileRouteTypes {
     | '/api/gemini-native-image-wire'
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
+    | '/api/harness-continue'
     | '/api/harness-test'
     | '/api/harness-turn-overrides'
     | '/api/image'
@@ -1658,6 +1690,7 @@ export interface FileRouteTypes {
     | '/api/voice'
     | '/api/web-mcp-page-tools'
     | '/api/world'
+    | '/api/wrap-fetch-wire'
     | '/$provider'
     | '/api/audio/stream'
     | '/api/harness-protocol/$'
@@ -1724,6 +1757,7 @@ export interface FileRouteTypes {
     | '/api/cloudflare-binding-wire'
     | '/api/compaction-durable-wire'
     | '/api/compaction-wire'
+    | '/api/copilot-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
     | '/api/durable-takeover'
@@ -1736,6 +1770,7 @@ export interface FileRouteTypes {
     | '/api/gemini-native-image-wire'
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
+    | '/api/harness-continue'
     | '/api/harness-test'
     | '/api/harness-turn-overrides'
     | '/api/image'
@@ -1806,6 +1841,7 @@ export interface FileRouteTypes {
     | '/api/voice'
     | '/api/web-mcp-page-tools'
     | '/api/world'
+    | '/api/wrap-fetch-wire'
     | '/$provider/'
     | '/api/audio/stream'
     | '/api/harness-protocol/$'
@@ -1873,6 +1909,7 @@ export interface RootRouteChildren {
   ApiCloudflareBindingWireRoute: typeof ApiCloudflareBindingWireRoute
   ApiCompactionDurableWireRoute: typeof ApiCompactionDurableWireRoute
   ApiCompactionWireRoute: typeof ApiCompactionWireRoute
+  ApiCopilotWireRoute: typeof ApiCopilotWireRoute
   ApiDevtoolsMemoryRoute: typeof ApiDevtoolsMemoryRoute
   ApiDurableDeliveryRoute: typeof ApiDurableDeliveryRoute
   ApiDurableTakeoverRoute: typeof ApiDurableTakeoverRoute
@@ -1885,6 +1922,7 @@ export interface RootRouteChildren {
   ApiGeminiNativeImageWireRoute: typeof ApiGeminiNativeImageWireRoute
   ApiGenerationPersistenceResumeRoute: typeof ApiGenerationPersistenceResumeRoute
   ApiGenerationPersistenceServerRoute: typeof ApiGenerationPersistenceServerRoute
+  ApiHarnessContinueRoute: typeof ApiHarnessContinueRoute
   ApiHarnessTestRoute: typeof ApiHarnessTestRoute
   ApiHarnessTurnOverridesRoute: typeof ApiHarnessTurnOverridesRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
@@ -1955,6 +1993,7 @@ export interface RootRouteChildren {
   ApiVoiceRoute: typeof ApiVoiceRoute
   ApiWebMcpPageToolsRoute: typeof ApiWebMcpPageToolsRoute
   ApiWorldRoute: typeof ApiWorldRoute
+  ApiWrapFetchWireRoute: typeof ApiWrapFetchWireRoute
   ProviderIndexRoute: typeof ProviderIndexRoute
   ApiHarnessProtocolSplatRoute: typeof ApiHarnessProtocolSplatRoute
 }
@@ -2367,6 +2406,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCompactionWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/copilot-wire': {
+      id: '/api/copilot-wire'
+      path: '/api/copilot-wire'
+      fullPath: '/api/copilot-wire'
+      preLoaderRoute: typeof ApiCopilotWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/devtools-memory': {
       id: '/api/devtools-memory'
       path: '/api/devtools-memory'
@@ -2449,6 +2495,13 @@ declare module '@tanstack/react-router' {
       path: '/api/generation-persistence-server'
       fullPath: '/api/generation-persistence-server'
       preLoaderRoute: typeof ApiGenerationPersistenceServerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/harness-continue': {
+      id: '/api/harness-continue'
+      path: '/api/harness-continue'
+      fullPath: '/api/harness-continue'
+      preLoaderRoute: typeof ApiHarnessContinueRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/harness-test': {
@@ -2941,6 +2994,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWorldRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/wrap-fetch-wire': {
+      id: '/api/wrap-fetch-wire'
+      path: '/api/wrap-fetch-wire'
+      fullPath: '/api/wrap-fetch-wire'
+      preLoaderRoute: typeof ApiWrapFetchWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/audio/stream': {
       id: '/api/audio/stream'
       path: '/stream'
@@ -3104,6 +3164,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCloudflareBindingWireRoute: ApiCloudflareBindingWireRoute,
   ApiCompactionDurableWireRoute: ApiCompactionDurableWireRoute,
   ApiCompactionWireRoute: ApiCompactionWireRoute,
+  ApiCopilotWireRoute: ApiCopilotWireRoute,
   ApiDevtoolsMemoryRoute: ApiDevtoolsMemoryRoute,
   ApiDurableDeliveryRoute: ApiDurableDeliveryRoute,
   ApiDurableTakeoverRoute: ApiDurableTakeoverRoute,
@@ -3116,6 +3177,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGeminiNativeImageWireRoute: ApiGeminiNativeImageWireRoute,
   ApiGenerationPersistenceResumeRoute: ApiGenerationPersistenceResumeRoute,
   ApiGenerationPersistenceServerRoute: ApiGenerationPersistenceServerRoute,
+  ApiHarnessContinueRoute: ApiHarnessContinueRoute,
   ApiHarnessTestRoute: ApiHarnessTestRoute,
   ApiHarnessTurnOverridesRoute: ApiHarnessTurnOverridesRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
@@ -3186,6 +3248,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiVoiceRoute: ApiVoiceRoute,
   ApiWebMcpPageToolsRoute: ApiWebMcpPageToolsRoute,
   ApiWorldRoute: ApiWorldRoute,
+  ApiWrapFetchWireRoute: ApiWrapFetchWireRoute,
   ProviderIndexRoute: ProviderIndexRoute,
   ApiHarnessProtocolSplatRoute: ApiHarnessProtocolSplatRoute,
 }

@@ -1,4 +1,4 @@
-import { CapabilityRegistry } from '@tanstack/ai'
+import { CapabilityRegistry, createCapability } from '@tanstack/ai'
 import { ResourceScope, disposeAll } from './resources'
 import type {
   AgentProduces,
@@ -9,6 +9,8 @@ import type {
   Capability,
   CapabilityHandle,
   KeyedAdapter,
+  MetadataStore,
+  ModelMessage,
   ProviderKeys,
 } from '@tanstack/ai'
 import type {
@@ -221,8 +223,19 @@ export interface PluginSetupContext {
   /**
    * The agents of this session (harness agents plus earlier plugins'
    * agents): find them, and run them from commands, tools, and hooks.
+   * `set` and `delete` change this plugin's agents while the session runs,
+   * like `ctx.commands`.
    */
-  agents: AgentRegistryView & PluginAgentActions
+  agents: AgentRegistryView &
+    PluginAgentActions & {
+      /**
+       * Add this plugin's agent, or replace the one with the same name. A
+       * name that another plugin or the harness owns throws.
+       */
+      set: (agent: AnyAgent) => void
+      /** Remove this plugin's agent `name`. Another owner's name does nothing. */
+      delete: (name: string) => void
+    }
   /**
    * The items other plugins contributed to `point`. The list fills while
    * plugins set up, so read it at run time (in a tool, a command, or a
@@ -434,6 +447,37 @@ const NO_SERVICES: PluginServices = {
   },
 }
 
+/**
+ * @internal The metadata store of the session, for first-party plugins that
+ * need it outside a chat run (in a command). The package does not export it.
+ */
+export const SessionMetadata = createCapability<MetadataStore>()(
+  'tanstack/session-metadata',
+)
+
+/**
+ * @internal How the snapshots plugin puts files back for `session.revert`.
+ * The package does not export it.
+ */
+export interface RevertFilesHandler {
+  /**
+   * Put back the files that the tool calls of `hidden` changed. `records`
+   * reads the host records of one type from the session log. Resolves to
+   * what `unrevert` needs (JSON), or `undefined` when no file changed.
+   */
+  revert: (
+    hidden: ReadonlyArray<ModelMessage>,
+    records: (type: string) => Promise<Array<Record<string, unknown>>>,
+  ) => Promise<unknown>
+  /** Put the files back as they were before `revert`. */
+  unrevert: (saved: unknown) => Promise<void>
+}
+
+/** @internal See {@link RevertFilesHandler}. */
+export const RevertFiles = createCapability<RevertFilesHandler>()(
+  'tanstack/revert-files',
+)
+
 /** Capability values provided by plugins, keyed by handle. */
 export class CapabilityValues {
   readonly context = { capabilities: new CapabilityRegistry() }
@@ -597,6 +641,18 @@ export async function mountPlugins(
           run: services.agents.run,
           start: services.agents.start,
           group: services.agents.group,
+          set: (agent) => {
+            env.registry.set(agent, plugin.name)
+            const at = agents.findIndex((item) => item.name === agent.name)
+            agents.splice(at < 0 ? agents.length : at, 1, agent)
+          },
+          delete: (name) => {
+            env.registry.delete(name, plugin.name)
+            // Still there: another owner has it.
+            if (env.registry.get(name)) return
+            const at = agents.findIndex((item) => item.name === name)
+            if (at >= 0) agents.splice(at, 1)
+          },
         },
         collect: <T>(point: ExtensionPoint<T>): ReadonlyArray<T> => {
           let items = extensions.get(point.name)

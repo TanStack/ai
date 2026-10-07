@@ -73,6 +73,27 @@ export type HarnessRecord =
       value: unknown
     }
   | ({ type: 'harness.usage' } & UsageCall)
+  /** A revert that stands, or `null` when it ended. */
+  | { type: 'harness.revert'; revert: RevertState | null }
+
+/**
+ * A revert that stands: the transcript hides the messages after
+ * `messageId`. `files` is what the snapshots plugin needs to put the files
+ * back, when it changed files.
+ */
+export interface RevertState {
+  messageId: string
+  files?: unknown
+}
+
+/** The {@link RevertState} in `value`, or `undefined` when it is not one. */
+export function revertOf(value: unknown): RevertState | undefined {
+  if (!isRecord(value) || typeof value.messageId !== 'string') return undefined
+  return {
+    messageId: value.messageId,
+    ...(value.files !== undefined ? { files: value.files } : {}),
+  }
+}
 
 const HARNESS_RECORD_TYPES = new Set<string>([
   'harness.event',
@@ -89,6 +110,7 @@ const HARNESS_RECORD_TYPES = new Set<string>([
   'harness.tool.started',
   'harness.tool.step',
   'harness.usage',
+  'harness.revert',
 ])
 
 // The harness wrote every record of these types, so the fields are its own.
@@ -158,6 +180,8 @@ export interface LogState {
   steps: Map<string, unknown>
   /** The usage of every model call of the thread. */
   usage: SessionUsage
+  /** The revert that stands, if any. */
+  revert?: RevertState
 }
 
 export function emptyLogState() {
@@ -334,6 +358,10 @@ export function foldEntry(
     case 'harness.usage':
       addUsage(state.usage, record)
       return
+    case 'harness.revert':
+      if (record.revert) state.revert = record.revert
+      else delete state.revert
+      return
   }
 }
 
@@ -437,6 +465,7 @@ function serialize(state: SharedLogState, versions: CheckpointVersions) {
         started: [...session.started.entries()],
         steps: [...session.steps.entries()],
         usage: session.usage,
+        revert: session.revert ?? null,
       },
     ]),
     reduced: state.reduced ?? null,
@@ -453,6 +482,7 @@ function parseSession(value: unknown, seq: number) {
     Array.isArray(toolResults) &&
     Array.isArray(steps)
   if (!isShaped) return undefined
+  const revert = revertOf(value.revert)
   // The harness wrote these arrays with `serialize`.
   const session: LogState = {
     seq,
@@ -476,6 +506,8 @@ function parseSession(value: unknown, seq: number) {
     steps: new Map(steps as Array<[string, unknown]>),
     // A checkpoint from before usage totals has none.
     usage: isSessionUsage(value.usage) ? value.usage : emptyUsage(),
+    // A checkpoint from before reverts has none.
+    ...(revert ? { revert } : {}),
   }
   return session
 }

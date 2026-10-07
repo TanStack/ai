@@ -68,6 +68,8 @@ export interface ModelErrorContext {
    * keeps the count, so an attempt that recovery runs goes on from it.
    */
   retries: number
+  /** True when the failed call streamed text before the error. */
+  partial: boolean
   /** Aborted when the turn is cancelled. */
   signal: AbortSignal
 }
@@ -113,11 +115,18 @@ export interface HarnessTurnOptions {
   /**
    * A run of the turn failed (a `RUN_ERROR`, or an error thrown by the run).
    * Return `'retry'` to run the model again in the same operation, after any
-   * work (a backoff, a compaction record). See `retryTransientErrors`.
+   * work (a backoff, a compaction record). The text of the failed call is
+   * dropped. Return `'continue'` to keep that text: the model gets it and a
+   * note to continue from where it stopped. With no partial text,
+   * `'continue'` acts as `'retry'`. See `retryTransientErrors`.
    */
   onModelError?: (
     ctx: ModelErrorContext,
-  ) => 'retry' | undefined | Promise<'retry' | undefined>
+  ) =>
+    | 'retry'
+    | 'continue'
+    | undefined
+    | Promise<'retry' | 'continue' | undefined>
   /**
    * The model stopped calling tools and the turn would end. Return messages,
    * records, or ephemeral messages to send the model back to work in the same
@@ -181,6 +190,8 @@ function wait(ms: number, signal: AbortSignal) {
 /**
  * A `turn.onModelError` policy: retry a transient model error after a
  * backoff of `baseDelayMs * 2^retries`, times a jitter from 0.75 to 1.0.
+ * It answers `'continue'` when the failed call streamed text, so the model
+ * continues that text, and `'retry'` otherwise.
  *
  * @example
  * ```ts
@@ -200,10 +211,11 @@ export function retryTransientErrors(
   const maxRetries = options.maxRetries ?? 3
   const baseDelayMs = options.baseDelayMs ?? 2_000
   const isTransient = options.isTransient ?? isTransientModelError
-  return async (ctx: ModelErrorContext): Promise<'retry' | undefined> => {
+  return async (ctx: ModelErrorContext) => {
     if (ctx.retries >= maxRetries || !isTransient(ctx.error)) return undefined
     const jitter = 0.75 + Math.random() * 0.25
     await wait(Math.round(baseDelayMs * 2 ** ctx.retries * jitter), ctx.signal)
-    return ctx.signal.aborted ? undefined : 'retry'
+    if (ctx.signal.aborted) return undefined
+    return ctx.partial ? 'continue' : 'retry'
   }
 }

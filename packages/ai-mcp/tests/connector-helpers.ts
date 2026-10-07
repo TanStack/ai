@@ -1,5 +1,12 @@
+import { z } from 'zod'
+import {
+  McpServer,
+  createMcpHandler,
+  inputRequired,
+} from '@modelcontextprotocol/server'
 import { EventType } from '@tanstack/ai'
 import { HARNESS_EVENTS } from '@tanstack/ai-harness'
+import type { InputRequest } from '@modelcontextprotocol/server'
 import type { AnyTextAdapter, StreamChunk, TextOptions } from '@tanstack/ai'
 import type { HarnessSession } from '@tanstack/ai-harness'
 
@@ -121,4 +128,45 @@ export function approveSignIns(
     }
   })()
   return { authorizationUrls, stop: () => controller.abort() }
+}
+
+/**
+ * A spec 2026 server with one `book` tool. The first call asks for `input`.
+ * The retry records the answer in `answers` and ends the call.
+ */
+export function elicitServer(input: InputRequest) {
+  const answers: Array<unknown> = []
+  const handler = createMcpHandler(
+    () => {
+      const server = new McpServer({ name: 'trips', version: '1.0.0' })
+      server.registerTool(
+        'book',
+        {
+          description: 'Book a trip',
+          inputSchema: z.object({ text: z.string() }),
+        },
+        (_args, ctx) => {
+          const responses = ctx.mcpReq.inputResponses
+          if (responses === undefined) {
+            return inputRequired({ inputRequests: { trip: input } })
+          }
+          answers.push(responses.trip)
+          return { content: [{ type: 'text', text: 'booked' }] }
+        },
+      )
+      return server
+    },
+    { legacy: 'reject', keepAliveMs: 0 },
+  )
+  return { answers, fetch: (request: Request) => handler.fetch(request) }
+}
+
+/** The form the `book` tool of {@link elicitServer} asks for. */
+export const tripForm = {
+  message: 'Which city?',
+  requestedSchema: {
+    type: 'object' as const,
+    properties: { city: { type: 'string' as const } },
+    required: ['city'],
+  },
 }

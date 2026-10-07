@@ -98,6 +98,8 @@ export interface ViewQuestion {
   schema?: unknown
   /** The answer is a secret (a key or a password). Do not show what the user types. */
   secret?: boolean
+  /** A page the user must open before they answer. Show the link. */
+  url?: string
   answer: (value: unknown) => Promise<Receipt>
 }
 

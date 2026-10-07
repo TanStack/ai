@@ -12,9 +12,16 @@ import {
   definePlugin,
 } from '@tanstack/ai-harness'
 import { permissions, todos } from '@tanstack/ai-harness/plugins'
+import { mcp } from '@tanstack/ai-mcp/harness'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { z } from 'zod'
-import { askName, deploy, probe, whoami } from '@/lib/harness-protocol-tools'
+import {
+  askName,
+  deploy,
+  probe,
+  slowBuild,
+  whoami,
+} from '@/lib/harness-protocol-tools'
 import { createImageAdapter } from '@/lib/media-providers'
 import { createTextAdapter } from '@/lib/providers'
 
@@ -44,8 +51,8 @@ const authorize = (req: Request) => {
   return null
 }
 
-// The `drafter` of each test waits until the test sends the `release`
-// command, so the test can steer it before its model call.
+// The `drafter` and `slowBuild` of each test wait until the test sends the
+// `release` command, so the test can act while they wait.
 // ponytail: one gate per test id, kept for the life of the server.
 const drafterGates = new Map<
   string,
@@ -125,6 +132,21 @@ function harnessFor(request: Request) {
           }),
         ]
       : []
+  // `x-harness-mcp: 1` connects the `api.mcp-input-server` route. Its
+  // `ask_city` tool asks the user for a city by MCP elicitation.
+  const servers =
+    request.headers.get('x-harness-mcp') === '1'
+      ? [
+          mcp({
+            servers: {
+              weather: {
+                type: 'http',
+                url: new URL('/api/mcp-input-server', request.url).href,
+              },
+            },
+          }),
+        ]
+      : []
   const harness = defineHarness({
     name: 'e2e/protocol',
     adapter,
@@ -141,6 +163,14 @@ function harnessFor(request: Request) {
       probe.server(async (_input, toolContext) => ({
         context: toolContext?.context ?? null,
       })),
+      // It supports `detach`, so a client can move it to the background.
+      slowBuild.server((_input, toolContext) => {
+        const work = drafterGate(testId).opened.then(() => ({
+          built: '[harness-background-done]',
+        }))
+        const detach = toolContext?.detach
+        return detach ? Promise.race([work, detach(work)]) : work
+      }),
     ],
     subagents: { agents: [painter] },
     agents: [
@@ -170,15 +200,17 @@ function harnessFor(request: Request) {
       }),
     ],
     // `mode` of `permissions()` stays on the server, so a client cannot pick
-    // `bypass`.
+    // `bypass`. A client can list and forget saved rules with `permissions`.
     expose: {
       agents: ['echo', 'drafter'],
-      settings: ['model', 'instructions'],
+      settings: ['model', 'instructions', 'cwd'],
       config: ['tone'],
-      commands: ['greet', 'release'],
+      // `undo` lets a client revert and unrevert the transcript.
+      commands: ['greet', 'release', 'permissions', 'undo'],
     },
     plugins: () => [
       ...asks,
+      ...servers,
       todos(),
       // The sender of the running turn, as plugins see it.
       definePlugin({

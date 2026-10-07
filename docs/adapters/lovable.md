@@ -136,6 +136,8 @@ const stream = chat({
 
 `api: "responses"` is the same as the default. `api: "chat-completions"` is the same as `api: "chat"`.
 
+The chat adapters on this page support `wrapFetch`. A middleware can use it to change the HTTP requests of a model call. See [Change the HTTP requests of a call](../advanced/middleware#change-the-http-requests-of-a-call).
+
 ## Summarize
 
 ```typescript

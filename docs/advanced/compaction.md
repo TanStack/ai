@@ -166,6 +166,36 @@ withCompaction({
 });
 ```
 
+## Let the provider compact
+
+Some providers can compact the conversation on their own servers. The model then keeps more of the old turns than a marker gives. It costs one compaction call.
+
+Pass the adapter of the `chat()` call as `native`. When the count passes `maxTokens`, the adapter's `compact` method runs in place of `strategy`.
+
+```typescript
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { withCompaction } from "@tanstack/ai-compaction";
+
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+  const adapter = openaiText("gpt-6.1-sol");
+
+  const stream = chat({
+    adapter,
+    messages,
+    middleware: [withCompaction({ maxTokens: 100_000, native: adapter })],
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+- An adapter with no `compact` method uses `strategy`.
+- When `compact` fails, `strategy` runs for that call. Some providers on the OpenAI Responses base have no compaction endpoint.
+- The compacted messages can hold an encrypted provider item. The adapter sends it back as it is to the same model. Another model does not get it.
+- The OpenAI Responses adapters have `compact`. See [Native compaction](../adapters/openai#native-compaction).
+
 ## Options
 
 ### withCompaction
@@ -183,6 +213,7 @@ withCompaction({
 | `durable` | `boolean` | `false` | In a harness with a log, write the result into the session log. See [Compact a harness session](../harness/compaction). |
 | `continueOnError` | `boolean` | `false` | When the strategy fails, send the full messages and go on. By default the run fails. |
 | `background` | `{ atTokens: number }` | - | Prepare the summary when the count passes `atTokens`, and apply it at the next run. `atTokens` must be below `maxTokens`. See [Prepare the summary in the background](#prepare-the-summary-in-the-background). |
+| `native` | `{ compact?: (options) => Promise<ModelMessage[]> }` | - | The adapter of the `chat()` call. When it has `compact`, the provider compacts in place of `strategy`. See [Let the provider compact](#let-the-provider-compact). |
 
 ### Strategy options
 

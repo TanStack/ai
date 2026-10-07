@@ -285,6 +285,7 @@ Full walkthrough, including the client: [Harness Agents](../structured-outputs/h
 
 ## Limitations
 
+- **No `wrapFetch`.** The adapter ignores [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call), because the harness process sends the model requests.
 - **Requires a sandbox.** Always run it under `withSandbox(...)`; see the
   [Sandboxes overview](../sandbox/overview).
 - **Server-only (Node).** The harness spawns the `grok` CLI in a sandbox.

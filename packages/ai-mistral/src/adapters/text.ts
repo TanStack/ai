@@ -22,6 +22,7 @@ import {
 import type { MistralModelReasoningByName } from '../model-reasoning'
 import type {
   ContentPart,
+  FetchWrapper,
   Modality,
   ModelMessage,
   AdapterYieldChunk,
@@ -323,7 +324,11 @@ export class MistralTextAdapter<
         ...this.toWireBody(requestParams),
         ...mistralPromptCacheKey(options.promptCache),
       }
-      const stream = this.fetchRawMistralStream(body, this.rawConfig)
+      const stream = this.fetchRawMistralStream(
+        body,
+        this.rawConfig,
+        options.wrapFetch,
+      )
       for await (const chunk of this.processMistralStreamChunks(
         stream,
         options,
@@ -412,7 +417,10 @@ export class MistralTextAdapter<
       outputSchema.required || [],
     )
 
-    const response = await this.client.chat.complete({
+    const client = chatOptions.wrapFetch
+      ? createMistralClient(this.rawConfig, chatOptions.wrapFetch(fetch))
+      : this.client
+    const response = await client.chat.complete({
       ...nonStreamParams,
       responseFormat: {
         type: 'json_schema',
@@ -892,6 +900,7 @@ export class MistralTextAdapter<
   private async *fetchRawMistralStream(
     body: Record<string, unknown>,
     config: MistralClientConfig,
+    wrapFetch: FetchWrapper | undefined,
   ): AsyncGenerator<MistralRawChunk> {
     const serverURL = (
       config.baseURL ??
@@ -914,7 +923,8 @@ export class MistralTextAdapter<
       ...config.defaultHeaders,
     }
 
-    const response = await fetch(url, {
+    const send = wrapFetch ? wrapFetch(fetch) : fetch
+    const response = await send(url, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),

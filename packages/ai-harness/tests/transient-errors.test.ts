@@ -8,11 +8,13 @@ afterEach(() => {
 })
 
 const context = (message: string, retries = 0): ModelErrorContext => ({
-  // The policy reads only the error, the retries, and the signal.
+  // The policy reads only the error, the retries, the partial flag, and the
+  // signal.
   session: undefined as never,
   operationId: 'op-1',
   error: { message },
   retries,
+  partial: false,
   signal: new AbortController().signal,
 })
 

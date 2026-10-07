@@ -2,6 +2,34 @@
   "fixtures": [
     {
       "match": {
+        "userMessage": "[harness-background] build it",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [{ "name": "slowBuild", "arguments": "{}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-background] build it",
+        "sequenceIndex": 1
+      },
+      "response": { "content": "The build runs in the background." }
+    },
+    {
+      "match": { "userMessage": "[harness-background-done]" },
+      "response": { "content": "The build is done." }
+    },
+    {
+      "match": { "userMessage": "[harness-revert] first" },
+      "response": { "content": "First answer." }
+    },
+    {
+      "match": { "userMessage": "[harness-revert] second" },
+      "response": { "content": "Second answer." }
+    },
+    {
+      "match": {
         "userMessage": "[harness-rejoin] ask my name",
         "sequenceIndex": 0
       },
@@ -168,6 +196,24 @@
       },
       "response": {
         "content": "Hi, without a look."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-elicit] what is the forecast",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [{ "name": "weather_ask_city", "arguments": "{}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-elicit] what is the forecast",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "The forecast for Paris is sunny."
       }
     },
     {

@@ -121,6 +121,65 @@ test.describe('harness protocol', () => {
     ).toMatchObject({ status: 'rejected', reason: 'not_exposed' })
   })
 
+  test('lists saved permissions with the permissions command', async ({
+    request,
+    baseURL,
+    testId,
+    aimockPort,
+  }) => {
+    // `x-harness-permissions: 1` adds `permissions()`, with its own root.
+    const auth = {
+      ...headers(testId, aimockPort),
+      'x-harness-permissions': '1',
+    }
+    const threadId = `saved-${testId}`
+    const command = async (input: string) =>
+      (
+        await request.post('/api/harness-protocol/control', {
+          headers: { ...auth, 'content-type': 'application/json' },
+          data: {
+            threadId,
+            input: { op: 'command', name: 'permissions', input },
+          },
+        })
+      ).json()
+
+    expect(await command('')).toMatchObject({ status: 'accepted' })
+    expect(await command('forget 1')).toMatchObject({ status: 'accepted' })
+
+    // The session stream has the result of each command.
+    const feed = await fetch(
+      `${baseURL}/api/harness-protocol/events?threadId=${threadId}&from=0`,
+      { headers: auth },
+    )
+    if (!feed.body) throw new Error('The session stream has no body.')
+    const reader = feed.body.pipeThrough(new TextDecoderStream()).getReader()
+    const results: Array<unknown> = []
+    let buffer = ''
+    while (results.length < 2) {
+      const read = await reader.read()
+      if (read.done) break
+      buffer += read.value
+      const blocks = buffer.split('\n\n')
+      buffer = blocks.pop() ?? ''
+      for (const block of blocks) {
+        const data = block.split('\n').find((line) => line.startsWith('data: '))
+        if (!data) continue
+        const frame: {
+          event?: { type: string; name?: string; value?: { result?: unknown } }
+        } = JSON.parse(data.slice('data: '.length))
+        if (frame.event?.name === 'harness.command.result') {
+          results.push(frame.event.value?.result)
+        }
+      }
+    }
+    await reader.cancel()
+    expect(results).toEqual([
+      'No saved rules.',
+      'No saved rule 1. Run /permissions to see the list.',
+    ])
+  })
+
   test('runs a retried prompt with the same inputId once on a durable host', async ({
     request,
     testId,
@@ -235,6 +294,64 @@ test.describe('harness protocol', () => {
         'user: [harness-finish] reminder: post the answer',
         'assistant: Posted answer.',
       ])
+  })
+
+  test('reverts to an earlier message, then unreverts', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const threadId = `revert-${testId}`
+    const json = {
+      ...headers(testId, aimockPort),
+      'content-type': 'application/json',
+    }
+    const control = async (input: unknown) =>
+      (
+        await request.post('/api/harness-protocol/control', {
+          headers: json,
+          data: { threadId, input },
+        })
+      ).json()
+    const transcript = async () => {
+      const response = await request.get(
+        `/api/harness-protocol/transcript?threadId=${threadId}`,
+        { headers: json },
+      )
+      const messages: Array<{ id: string; role: string; content: unknown }> =
+        await response.json()
+      return messages
+    }
+    const lines = async () =>
+      (await transcript()).map(
+        (message) => `${message.role}: ${String(message.content)}`,
+      )
+    await control({ op: 'prompt', message: '[harness-revert] first' })
+    await expect.poll(lines).toHaveLength(2)
+    await control({ op: 'prompt', message: '[harness-revert] second' })
+    const all = [
+      'user: [harness-revert] first',
+      'assistant: First answer.',
+      'user: [harness-revert] second',
+      'assistant: Second answer.',
+    ]
+    await expect.poll(lines).toEqual(all)
+    const [, firstAnswer] = await transcript()
+
+    // A refused revert changes nothing, so the test can ask again until the
+    // last turn has ended.
+    await expect
+      .poll(
+        async () =>
+          (await control({ op: 'revert', messageId: firstAnswer?.id })).status,
+      )
+      .toBe('accepted')
+    expect(await lines()).toEqual(all.slice(0, 2))
+
+    expect(await control({ op: 'unrevert' })).toMatchObject({
+      status: 'accepted',
+    })
+    expect(await lines()).toEqual(all)
   })
 
   test('gives an ephemeral reminder from beforeFinish to the next model call only', async ({
@@ -401,6 +518,55 @@ test.describe('harness protocol', () => {
       [second]: null,
       [fork.threadId]: `${title} (fork)`,
     })
+  })
+
+  test('searches the session list by title, without case', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const auth = headers(testId, aimockPort)
+    const json = { ...auth, 'content-type': 'application/json' }
+    const titles = {
+      [`search-a-${testId}`]: `Plan the trip ${testId}`,
+      [`search-b-${testId}`]: `Write the docs ${testId}`,
+      [`search-c-${testId}`]: `Trip budget ${testId}`,
+    }
+    for (const [threadId, title] of Object.entries(titles)) {
+      const opened = await request.get(
+        `/api/harness-protocol/snapshot?threadId=${threadId}`,
+        { headers: auth },
+      )
+      expect(opened.status()).toBe(200)
+      const renamed = await request.post('/api/harness-protocol/sessions', {
+        headers: json,
+        data: { op: 'rename', threadId, title },
+      })
+      expect(renamed.status()).toBe(200)
+    }
+
+    // The test id keeps out the threads of other tests on the shared host.
+    const query = new URLSearchParams({ search: `TRIP ${testId}` })
+    const response = await request.get(
+      `/api/harness-protocol/sessions?${query}`,
+      { headers: auth },
+    )
+    const listed: { entries: Array<{ threadId: string }> } =
+      await response.json()
+    expect(listed.entries.map((entry) => entry.threadId)).toEqual([
+      `search-a-${testId}`,
+    ])
+    const budget = await request.get(
+      `/api/harness-protocol/sessions?${new URLSearchParams({ search: 'trip' })}`,
+      { headers: auth },
+    )
+    const found: { entries: Array<{ threadId: string }> } = await budget.json()
+    expect(found.entries.map((entry) => entry.threadId)).toEqual(
+      expect.arrayContaining([`search-a-${testId}`, `search-c-${testId}`]),
+    )
+    expect(found.entries.map((entry) => entry.threadId)).not.toContain(
+      `search-b-${testId}`,
+    )
   })
 
   test('shows running, then idle, on the host status feed', async ({

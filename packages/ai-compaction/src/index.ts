@@ -38,8 +38,10 @@ import {
   toUsageCount,
 } from './usage-count'
 import type {
+  AnyTextAdapter,
   ChatMiddleware,
   ChatMiddlewareContext,
+  FetchWrapper,
   ModelMessage,
   TokenUsage,
 } from '@tanstack/ai'
@@ -422,6 +424,12 @@ export interface CompactionOptions {
    * `maxTokens`. Default: off.
    */
   background?: { atTokens: number }
+  /**
+   * Compact with the provider's own endpoint. Pass the adapter of the
+   * `chat()` call. When the adapter has `compact`, it runs in place of
+   * `strategy`. Else, or when `compact` fails, `strategy` runs. Default: off.
+   */
+  native?: Pick<AnyTextAdapter, 'compact'>
 }
 
 /** What {@link withCompaction} returns: a chat middleware with `compactNext`. */
@@ -734,10 +742,40 @@ export function withCompaction(
     )
   }
   const estimate = options.estimateTokens ?? estimateMessageTokens
-  const strategy = options.strategy ?? evictOldest()
+  const configured = options.strategy ?? evictOldest()
+  const nativeCompact = options.native?.compact?.bind(options.native)
+  /**
+   * The strategy of a call: the adapter's `compact` when `native` has it.
+   * When `compact` fails, the configured strategy runs. An adapter can get
+   * `compact` from a shared base and point at a provider with no such
+   * endpoint.
+   */
+  const strategyOf = (
+    ctx: ChatMiddlewareContext,
+    wrapFetch?: FetchWrapper,
+  ): CompactionStrategy =>
+    nativeCompact
+      ? async (messages, compaction) => {
+          try {
+            return await nativeCompact({
+              messages: [...messages],
+              model: ctx.model,
+              ...(compaction.signal ? { signal: compaction.signal } : {}),
+              ...(wrapFetch ? { wrapFetch } : {}),
+            })
+          } catch (error) {
+            if (compaction.signal?.aborted) throw error
+            return configured(messages, compaction)
+          }
+        }
+      : configured
   const strategyKey =
     options.strategyKey ??
-    (options.estimateTokens ? undefined : strategyKeys.get(strategy))
+    (nativeCompact
+      ? 'native'
+      : options.estimateTokens
+        ? undefined
+        : strategyKeys.get(configured))
   const checkpointStrategyKey = strategyKey
     ? `${strategyKey}:maxTokens=${options.maxTokens}`
     : undefined
@@ -774,6 +812,7 @@ export function withCompaction(
     snapshot: Array<ModelMessage>,
     before: number,
     reusedCheckpoint: boolean,
+    wrapFetch: FetchWrapper | undefined,
   ) {
     const startedAt = Date.now()
     const store = backgroundStore(ctx)
@@ -807,7 +846,7 @@ export function withCompaction(
     // still removes its entry.
     const done = Promise.resolve().then(async () => {
       try {
-        const next = await strategy(snapshot, {
+        const next = await strategyOf(ctx, wrapFetch)(snapshot, {
           maxTokens: options.maxTokens,
           estimate,
           addUsage: (usage) => {
@@ -911,7 +950,7 @@ export function withCompaction(
       const isOverflow =
         options.contextWindow !== undefined && tokens > options.contextWindow
       if (!isOverflow && !(auto && tokens > options.maxTokens)) return
-      next = await strategy(messages, {
+      next = await strategyOf(ctx)(messages, {
         maxTokens: options.maxTokens,
         estimate,
         signal: ctx.signal,
@@ -1196,7 +1235,13 @@ export function withCompaction(
             ))
         ) {
           // The model call goes on at once, with the messages as they are.
-          startBackground(ctx, [...workingMessages], before, reusedCheckpoint)
+          startBackground(
+            ctx,
+            [...workingMessages],
+            before,
+            reusedCheckpoint,
+            config.wrapFetch,
+          )
         }
       }
       const startedValue: CompactionStartedEventValue = {
@@ -1248,7 +1293,7 @@ export function withCompaction(
       const spent: { usage?: TokenUsage } = {}
       let next: Array<ModelMessage> | null
       try {
-        next = await strategy(workingMessages, {
+        next = await strategyOf(ctx, config.wrapFetch)(workingMessages, {
           maxTokens: options.maxTokens,
           estimate,
           signal: ctx.signal,

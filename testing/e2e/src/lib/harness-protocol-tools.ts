@@ -32,3 +32,10 @@ export const whoami = toolDefinition({
   description: 'Show who runs this turn.',
   inputSchema: z.object({}),
 })
+
+/** Builds until the test sends `release`, so a spec can move it to the background. */
+export const slowBuild = toolDefinition({
+  name: 'slowBuild',
+  description: 'Build the project. It takes a while.',
+  inputSchema: z.object({}),
+})

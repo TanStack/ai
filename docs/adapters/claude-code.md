@@ -266,6 +266,7 @@ Full walkthrough, including the client: [Harness Agents](../structured-outputs/h
 
 ## Limitations
 
+- **No `wrapFetch`.** The adapter ignores [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call), because the harness process sends the model requests.
 - **Server-only (Node).** The harness spawns a subprocess; Windows support is untested.
 - **The harness owns the agent loop.** TanStack's agent-loop strategies and per-iteration middleware don't apply inside a harness turn; `maxTurns` is the equivalent control.
 - **No sampling controls.** `temperature`-style options don't exist here.

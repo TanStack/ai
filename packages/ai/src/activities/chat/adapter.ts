@@ -3,6 +3,8 @@ import type {
   JSONSchema,
   MidConversationChannels,
   Modality,
+  ModelMessage,
+  TextCompactOptions,
   TextOptions,
   TokenUsage,
 } from '../../types'
@@ -179,6 +181,14 @@ export interface TextAdapter<
   structuredOutputStream?: (
     options: StructuredOutputOptions<TProviderOptions>,
   ) => AsyncIterable<AdapterYieldChunk>
+
+  /**
+   * Compact the history with the provider's own compaction endpoint.
+   * Resolves to the history to send from the next call on. It can hold
+   * provider items that only this provider reads. Optional: adapters
+   * without native compaction omit it.
+   */
+  compact?: (options: TextCompactOptions) => Promise<Array<ModelMessage>>
 
   /**
    * Declares whether the adapter supports combining `tools` and a

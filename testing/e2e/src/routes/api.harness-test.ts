@@ -667,6 +667,46 @@ async function environmentPrompt(
 }
 
 /**
+ * `session.reload()`: the server adds a plugin to the list that
+ * `harness.plugins()` reads, and reloads the session. The next turn calls
+ * the plugin's `stamp` tool.
+ */
+async function reloadPlugins(
+  host: HarnessHost,
+  openai: () => ReturnType<typeof createTextAdapter>['adapter'],
+) {
+  const plugins: Array<ReturnType<typeof definePlugin>> = []
+  let stamped = 0
+  const stamp = definePlugin({
+    name: 'e2e/stamp',
+    setup: () => ({
+      tools: [
+        toolDefinition({
+          name: 'stamp',
+          description: 'Stamps the page',
+        }).server(() => {
+          stamped += 1
+          return 'stamped'
+        }),
+      ],
+    }),
+  })
+  const session = await host.open(
+    defineHarness({
+      name: 'e2e/harness-reload',
+      adapter: openai(),
+      plugins: () => [...plugins],
+    }),
+    { threadId: 'e2e-reload' },
+  )
+  const before = await session.prompt('[harness-reload] before')
+  plugins.push(stamp)
+  await session.reload()
+  const after = await session.prompt('[harness-reload] after')
+  return { before: before.text, after: after.text, stamped }
+}
+
+/**
  * `snapshots()`: a turn writes `a.txt` with `write_file`, then `/undo` puts
  * the file back and removes the turn. The workspace and the snapshot data
  * are in a new temp folder.
@@ -1339,6 +1379,9 @@ export const Route = createFileRoute('/api/harness-test')({
           }
           if (body.scenario === 'plugin-env') {
             return Response.json(await environmentPrompt(host, openai))
+          }
+          if (body.scenario === 'plugin-reload') {
+            return Response.json(await reloadPlugins(host, openai))
           }
           if (body.scenario === 'plugin-undo') {
             return Response.json(await undoTurn(host, openai))

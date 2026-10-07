@@ -112,6 +112,9 @@ export function bashResources(input: unknown) {
  * With `background: true`, the call returns at once with a job id, and
  * `note` tells the model when the job ends. Background jobs need
  * `env.backend.spawn`. They are killed when `signal` aborts.
+ *
+ * A command that runs in the foreground supports `detach` of the tool
+ * context: the host can move it to the background while it runs.
  */
 export function bashTools(
   env: ToolEnv,
@@ -209,7 +212,7 @@ export function bashTools(
         required: ['command'],
       },
       replay: 'never',
-    }).server(async (args: unknown) => {
+    }).server(async (args: unknown, context) => {
       const command = stringArg(args, 'command')
       // The shell runs in the working folder, so it must be in the workspace.
       const cwd = await env.reach('.', 'bash', 'folder')
@@ -219,17 +222,21 @@ export function bashTools(
       const requested = isRecord(args) ? args.timeoutMs : undefined
       // A timeout of 0 would mean no timeout, so it gets the default.
       const isTimeout = typeof requested === 'number' && requested > 0
-      const { exitCode, stdout, stderr } = await env.backend.exec(command, {
-        cwd,
-        env: AGENT_ENV,
-        timeoutMs: isTimeout
-          ? Math.min(requested, MAX_TIMEOUT_MS)
-          : defaultTimeoutMs,
-      })
-      return report(
-        exitCode,
-        `${stdout}${stderr ? `\nstderr:\n${stderr}` : ''}`,
-      )
+      const work = env.backend
+        .exec(command, {
+          cwd,
+          env: AGENT_ENV,
+          timeoutMs: isTimeout
+            ? Math.min(requested, MAX_TIMEOUT_MS)
+            : defaultTimeoutMs,
+        })
+        .then(({ exitCode, stdout, stderr }) =>
+          report(exitCode, `${stdout}${stderr ? `\nstderr:\n${stderr}` : ''}`),
+        )
+      // The host can move the command to the background. The timeout still
+      // applies to it.
+      const detach = context?.detach
+      return detach ? Promise.race([work, detach(work)]) : work
     }),
   ]
 }

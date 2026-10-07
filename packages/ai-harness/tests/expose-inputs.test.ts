@@ -11,7 +11,7 @@ import {
 } from '../src'
 import { createHarnessClient } from '../src/client'
 import { permissions } from '../src/first-party'
-import { mockAdapter } from './helpers'
+import { mockAdapter, text } from './helpers'
 import type { HarnessSession } from '../src'
 
 async function open(expose?: {
@@ -156,6 +156,62 @@ describe('describe for a client', () => {
     const full = session.describe()
     expect(full.commands.map(({ name }) => name)).toEqual(['ping', 'wipe'])
     expect(full.config.map(({ key }) => key)).toEqual(['tone', 'secret'])
+    await host.close()
+  })
+})
+
+describe('client revert inputs', () => {
+  /** A session with one turn, and a client over HTTP. No snapshots plugin. */
+  async function openWithTurn(commands: Array<string>) {
+    const harness = defineHarness({
+      name: 'test/expose-revert',
+      adapter: mockAdapter([() => text('Hi.')]).adapter,
+      expose: { commands },
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(harness, { threadId: 't' })
+    await session.prompt('Hello')
+    const handler = createHarnessHandler({
+      host,
+      harness,
+      authorize: () => ({ id: 'u' }),
+    })
+    const client = createHarnessClient({
+      url: 'http://local/api/harness',
+      threadId: 't',
+      fetch: (input, init) => handler(new Request(input, init)),
+    })
+    const [first] = await session.transcript()
+    return { host, session, client, firstId: first?.id ?? '' }
+  }
+
+  it('refuses revert and unrevert unless undo is exposed', async () => {
+    const { host, session, client, firstId } = await openWithTurn(['ping'])
+
+    expect(await client.revert(firstId)).toMatchObject({
+      status: 'rejected',
+      reason: 'not_exposed',
+    })
+    expect(await client.unrevert()).toMatchObject({
+      status: 'rejected',
+      reason: 'not_exposed',
+    })
+    expect(await session.transcript()).toHaveLength(2)
+    await host.close()
+  })
+
+  it('reverts the transcript only, without the snapshots plugin', async () => {
+    const { host, session, client, firstId } = await openWithTurn(['undo'])
+
+    expect(await client.revert(firstId)).toMatchObject({ status: 'accepted' })
+    expect(await client.transcript()).toMatchObject([
+      { role: 'user', content: 'Hello' },
+    ])
+    expect(await client.unrevert()).toMatchObject({ status: 'accepted' })
+    expect(await session.transcript()).toMatchObject([
+      { role: 'user', content: 'Hello' },
+      { role: 'assistant', content: 'Hi.' },
+    ])
     await host.close()
   })
 })

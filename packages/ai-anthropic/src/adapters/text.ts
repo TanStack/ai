@@ -81,6 +81,7 @@ import type {
   AnyTool,
   ConfigReasoning,
   ContentPart,
+  FetchWrapper,
   MidConversationChannels,
   Modality,
   ModelMessage,
@@ -499,6 +500,9 @@ export class AnthropicTextAdapter<
     | undefined = undefined
 
   private readonly client: SdkAnthropicMessagesClient
+  /** The adapter's own SDK client. An injected client cannot take a fetch. */
+  private readonly sdkClient: Anthropic_SDK | undefined
+  private readonly baseFetch: typeof fetch | undefined
   /** `config.reasoning`, which wins over `ANTHROPIC_MODEL_REASONING`. */
   private readonly modelReasoning: ModelReasoning | undefined
   private readonly oauth: boolean
@@ -530,22 +534,25 @@ export class AnthropicTextAdapter<
       }
     }
     this.allowEmptySignature = config.allowEmptySignature ?? false
-    this.client =
-      'client' in config
-        ? asSdkAnthropicMessagesClient(config.client)
-        : createAnthropicClient(
-            {
-              ...config,
-              ...(this.oauth && {
-                defaultHeaders: {
-                  'user-agent': 'claude-cli/2.1.280',
-                  'x-app': 'cli',
-                  ...config.defaultHeaders,
-                },
-              }),
+    if ('client' in config) {
+      this.client = asSdkAnthropicMessagesClient(config.client)
+    } else {
+      this.sdkClient = createAnthropicClient(
+        {
+          ...config,
+          ...(this.oauth && {
+            defaultHeaders: {
+              'user-agent': 'claude-cli/2.1.280',
+              'x-app': 'cli',
+              ...config.defaultHeaders,
             },
-            this.oauth,
-          )
+          }),
+        },
+        this.oauth,
+      )
+      this.client = this.sdkClient
+      this.baseFetch = config.fetch
+    }
     // On by default only on Anthropic's own API: a proxy, a gateway, Vertex,
     // or Bedrock (a `baseURL`, a `fetch`, an injected client, or the SDK's
     // ANTHROPIC_BASE_URL env var) may not pass the changes. The option wins.
@@ -576,6 +583,14 @@ export class AnthropicTextAdapter<
     } else if (option ?? !customEndpoint) {
       this.midConversationChannels = table
     }
+  }
+
+  /** Use a client whose fetch goes through `wrapFetch` for one call. */
+  private clientFor(wrapFetch: FetchWrapper | undefined) {
+    if (!wrapFetch || !this.sdkClient) return this.client
+    return this.sdkClient.withOptions({
+      fetch: wrapFetch(this.baseFetch ?? globalThis.fetch),
+    })
   }
 
   async *chatStream(
@@ -619,7 +634,9 @@ export class AnthropicTextAdapter<
       // thinking) plus richer `container` (skills) and `context_management`
       // shapes that `InternalTextProviderOptions` carries. We route every
       // Messages call through it so the request mapper stays single-shape.
-      const stream = await this.client.beta.messages.create(
+      const stream = await this.clientFor(
+        options.wrapFetch,
+      ).beta.messages.create(
         {
           ...requestParams,
           stream: true,
@@ -722,7 +739,9 @@ export class AnthropicTextAdapter<
           ]
         : betas
       // Make non-streaming request with tool_choice forced to our structured output tool
-      const response = await this.client.beta.messages.create(
+      const response = await this.clientFor(
+        chatOptions.wrapFetch,
+      ).beta.messages.create(
         {
           ...requestParams,
           stream: false,

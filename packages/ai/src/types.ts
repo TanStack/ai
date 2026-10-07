@@ -890,6 +890,19 @@ export type ToolExecutionContext<TContext = unknown> =
      */
     inputResponse?: ToolInputResponse
     /**
+     * Set when the host can move this call to the background. Pass it the
+     * work of the call, and race the two promises. It resolves to a short
+     * note for the model when the user moves the call. The work keeps
+     * running, and the host tells the model its result when it ends.
+     *
+     * @example
+     * ```ts
+     * const work = runJob(args)
+     * return context?.detach ? Promise.race([work, context.detach(work)]) : work
+     * ```
+     */
+    detach?: (work: Promise<unknown>) => Promise<string>
+    /**
      * Emit a custom event during tool execution.
      * Events are streamed to the client in real-time as AG-UI CUSTOM events.
      *
@@ -1256,6 +1269,13 @@ export type ToolChoice =
   | { type: 'tool'; name: string }
 
 /**
+ * Wraps the fetch of a model call. It gets the next fetch and gives back a
+ * new fetch. A wrapper can change the URL, the headers, the request, or the
+ * response.
+ */
+export type FetchWrapper = (next: typeof fetch) => typeof fetch
+
+/**
  * Options passed into the SDK and further piped to the AI provider.
  */
 export interface TextOptions<
@@ -1395,6 +1415,12 @@ export interface TextOptions<
    */
   toolChoice?: ToolChoice
   /**
+   * Wraps the fetch of this request. The engine composes the `chat()` option
+   * and the middleware wrappers into one function. An adapter that supports
+   * it calls `wrapFetch(baseFetch)` and sends the request with the result.
+   */
+  wrapFetch?: FetchWrapper
+  /**
    * The tools and system prompts that changed between model calls. The
    * engine sets it only when `adapter.midConversationChannels` has a channel
    * that is on. `tools` and `systemPrompts` stay the full current lists, so
@@ -1457,6 +1483,16 @@ export interface TextOptions<
    * here). Undefined for direct adapter usage outside the chat engine.
    */
   approvals?: ReadonlyMap<string, boolean>
+}
+
+/** What `TextAdapter.compact` receives. */
+export interface TextCompactOptions {
+  /** The history to compact. */
+  messages: Array<ModelMessage>
+  model: string
+  signal?: AbortSignal
+  /** Wraps the fetch of the compaction request. */
+  wrapFetch?: FetchWrapper
 }
 
 // ============================================================================

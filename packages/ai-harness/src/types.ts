@@ -126,6 +126,8 @@ export type HarnessInput = (
       parentRunId?: string
     }
   | { op: 'cancel'; operationId?: string }
+  /** Move a running tool call to the background. See `session.background`. */
+  | { op: 'background'; toolCallId?: string }
   | { op: 'cancelInput'; inputId: string }
   | {
       op: 'setDelivery'
@@ -140,6 +142,8 @@ export type HarnessInput = (
   | { op: 'tool'; name: string; args?: unknown; meta?: Record<string, unknown> }
   | { op: 'configure'; settings: ThreadSettingsChange }
   | { op: 'reset'; note?: string }
+  | { op: 'revert'; messageId: string }
+  | { op: 'unrevert' }
   | {
       op: 'agentMessage'
       /** A run of the agent: any run of its chain. */
@@ -355,6 +359,12 @@ export const HARNESS_EVENTS = {
   settingsChanged: 'harness.settings.changed',
   /** A plugin added or removed a command with `ctx.commands`. */
   commandsChanged: 'harness.commands.changed',
+  /**
+   * `session.reload()` set the plugins up again. The value is empty, or has
+   * the `error` message when the new setup failed. Read the commands, the
+   * config, and the agents again.
+   */
+  reloaded: 'harness.reloaded',
   question: 'harness.question',
   questionAnswered: 'harness.question.answered',
   pluginEvent: 'harness.plugin.event',
@@ -373,7 +383,8 @@ export const HARNESS_EVENTS = {
   media: 'harness.media',
   /**
    * A turn runs the model again after an error. The value has `operationId`,
-   * `retries`, and `error`.
+   * `retries`, `error`, and `continued`. `continued` is true when the model
+   * continues a partial answer.
    */
   turnRetry: 'harness.turn.retry',
   /**
@@ -381,6 +392,12 @@ export const HARNESS_EVENTS = {
    * `inputId` and the `note`, when there is one.
    */
   reset: 'harness.reset',
+  /**
+   * `session.revert` or `session.unrevert` changed what the transcript
+   * shows. The value has the `messageId` of the revert, or `null` when no
+   * revert stands. Read the transcript again.
+   */
+  revert: 'harness.revert',
   /**
    * A model call reported its usage. The value has `model`, `sender` (when
    * known), the `usage` of the call, and the new thread `total`.

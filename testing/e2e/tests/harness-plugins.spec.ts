@@ -2,7 +2,7 @@ import { test, expect } from './fixtures'
 import type { APIRequestContext } from '@playwright/test'
 
 /**
- * First-party harness plugins in a session: `agents()`,
+ * Harness plugins in a session: `session.reload()`, `agents()`,
  * `projectInstructions()`, `snapshots()`, `formatter()`, `mcp()`, and
  * `title()`. Each test runs one scenario of `/api/harness-test`. The model
  * is the OpenAI adapter against aimock, and aimock's journal shows what each
@@ -66,6 +66,22 @@ test.describe('harness plugins', () => {
     expect(systemOf(calls[1])).not.toContain('You are the build agent.')
     expect(systemOf(calls[1])).not.toContain('step limit')
     expect(systemOf(calls[2])).toContain('You reached the step limit.')
+  })
+
+  test('session.reload(): the next turn calls a tool of the new plugin list', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const response = await request.post('/api/harness-test', {
+      data: { scenario: 'plugin-reload', testId, aimockPort },
+    })
+    expect(response.ok()).toBe(true)
+    expect(await response.json()).toEqual({
+      before: 'No stamp yet.',
+      after: 'Stamped it.',
+      stamped: 1,
+    })
   })
 
   test('projectInstructions(): the environment block reaches the model', async ({

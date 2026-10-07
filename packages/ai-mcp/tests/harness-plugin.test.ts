@@ -1,14 +1,19 @@
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { McpServer } from '@modelcontextprotocol/server'
+import { McpServer, inputRequired } from '@modelcontextprotocol/server'
 import { StdioServerTransport } from '@modelcontextprotocol/server/stdio'
 import { toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
 import { mcp } from '../src/harness'
 import { createMCPServer } from '../src/server/index'
-import { approveSignIns, recorder } from './connector-helpers'
+import {
+  approveSignIns,
+  elicitServer,
+  recorder,
+  tripForm,
+} from './connector-helpers'
 import { startProtectedServer } from './protected-server'
 import type { McpServerConfig } from '../src/harness'
 
@@ -183,6 +188,65 @@ if (process.env[childEnv] === '1') {
         ['plain_echo', undefined],
         ['coded_echo', true],
       ])
+    })
+
+    it.each([
+      [
+        'accepts',
+        { city: 'Paris' },
+        { action: 'accept', content: { city: 'Paris' } },
+      ],
+      ['declines', { action: 'decline' }, { action: 'decline' }],
+      ['cancels', { action: 'cancel' }, { action: 'cancel' }],
+    ])(
+      'asks a form elicitation as a session question, and the user %s',
+      async (_name, value, expected) => {
+        const trips = elicitServer(inputRequired.elicit(tripForm))
+        const model = recorder('trips_book')
+        const { session } = await openWith(
+          { trips: httpServer((request) => trips.fetch(request)) },
+          model,
+        )
+        const turn = session.prompt('book a trip')
+        await vi.waitFor(() =>
+          expect(session.snapshot().pendingQuestions).toHaveLength(1),
+        )
+        const [question] = session.snapshot().pendingQuestions
+
+        expect(question?.message).toBe('Which city?')
+        expect(question?.schema).toMatchObject(tripForm.requestedSchema)
+        expect(question?.url).toBeUndefined()
+        await session.answer(question?.questionId ?? '', value)
+        await turn
+        expect(trips.answers).toEqual([expected])
+        expect(JSON.stringify(model.calls[1]?.messages)).toContain('booked')
+      },
+    )
+
+    it('asks a url elicitation as a session question with the url', async () => {
+      const trips = elicitServer(
+        inputRequired.elicitUrl({
+          message: 'Pay for the trip, then come back.',
+          url: 'https://pay.example.com/trip',
+        }),
+      )
+      const { session } = await openWith(
+        { trips: httpServer((request) => trips.fetch(request)) },
+        recorder('trips_book'),
+      )
+      const turn = session.prompt('book a trip')
+      await vi.waitFor(() =>
+        expect(session.snapshot().pendingQuestions).toHaveLength(1),
+      )
+      const [question] = session.snapshot().pendingQuestions
+
+      expect(question).toMatchObject({
+        message: 'Pay for the trip, then come back.',
+        url: 'https://pay.example.com/trip',
+      })
+      await session.answer(question?.questionId ?? '', 'done')
+      await turn
+      expect(trips.answers).toEqual([{ action: 'accept' }])
     })
 
     it('runs a stdio server as a child process and stops it when the session closes', async () => {

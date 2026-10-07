@@ -170,6 +170,8 @@ export async function POST(request: Request) {
 
 `service_tier: 'flex'` routes the request to the cheaper offline batch queue with no latency guarantee.
 
+The chat adapters on this page support `wrapFetch`. A middleware can use it to change the HTTP requests of a model call. See [Change the HTTP requests of a call](../advanced/middleware#change-the-http-requests-of-a-call).
+
 ## Reasoning and `encrypted_content`
 
 Seed models reason by default. Reasoning arrives as its own stream of `reasoning_content` deltas and is surfaced as reasoning content rather than answer text, so `useChat` renders it separately from the reply. The adapter sends `reasoning` as Ark's `thinking.type`, plus `reasoning_effort` when the level has an effort. Turn reasoning off per request on a model that can stop thinking:
