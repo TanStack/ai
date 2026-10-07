@@ -164,7 +164,7 @@ function harnessFor(request: Request) {
       agents: ['echo', 'drafter'],
       settings: ['model', 'instructions'],
       config: ['tone'],
-      commands: ['greet'],
+      commands: ['greet', 'release'],
     },
     plugins: () => [
       ...asks,
