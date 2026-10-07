@@ -15,7 +15,14 @@ import { createHarnessHost, defineHarness } from '../src'
 import { hostBackend } from '../src/first-party/coding/backend'
 import { quoteArg } from '../src/first-party/coding/search'
 import { snapshots } from '../src/first-party/coding/snapshots'
-import { mockAdapter, text, toolCall } from './helpers'
+import {
+  after,
+  gate,
+  messageTexts,
+  mockAdapter,
+  text,
+  toolCall,
+} from './helpers'
 import type { HarnessPersistence, HarnessSession } from '../src'
 import type { WorkspaceBackend } from '../src/first-party/coding/backend'
 import type { Reply } from './helpers'
@@ -74,7 +81,7 @@ async function open(options: {
     return 'changed'
   })
   const plugin = snapshots({ root, dataDir, backend: options.backend })
-  const { adapter } = mockAdapter(options.replies)
+  const { adapter, calls } = mockAdapter(options.replies)
   const host = createHarnessHost({
     persistence: options.persistence ?? memoryPersistence(),
   })
@@ -87,7 +94,7 @@ async function open(options: {
     }),
     { threadId: THREAD },
   )
-  return { host, session, plugin }
+  return { host, session, plugin, calls }
 }
 
 /** The steps that the plugin state keeps. */
@@ -385,6 +392,151 @@ describe.skipIf(!hasGit)('snapshots', () => {
     expect(savedSteps(session)).toMatchObject([{ files: ['b.txt'] }])
     expect(await filesUnder(projectGit)).toEqual(before)
     await host.close()
+  })
+})
+
+/** Three turns. Each one changes the files once, with its own tool call. */
+const threeTurns = () => ({
+  replies: (['First.', 'Second.', 'Third.'] as const).flatMap(
+    (answer, index): Array<Reply> => [
+      () => toolCall('change', {}, `call-${index}`),
+      () => text(answer),
+    ],
+  ),
+  changes: [
+    () => put('a.txt', 'two'),
+    () => put('a.txt', 'three'),
+    () => put('b.txt', 'new'),
+  ],
+})
+
+/** Run the three turns of {@link threeTurns}. Gives the id of the first answer. */
+async function runThreeTurns(session: HarnessSession) {
+  await session.prompt('One')
+  await session.prompt('Two')
+  await session.prompt('Three')
+  const transcript = await session.transcript()
+  const first = transcript.find((message) => message.content === 'First.')
+  if (!first?.id) throw new Error('The first answer has no id.')
+  return { transcript, firstId: first.id }
+}
+
+describe.skipIf(!hasGit)('session.revert', () => {
+  it('reverts two turns back: the files and the transcript', async () => {
+    await put('a.txt', 'one')
+    const { host, session } = await open(threeTurns())
+    const { transcript, firstId } = await runThreeTurns(session)
+    expect(transcript).toHaveLength(12)
+
+    expect(await session.revert(firstId)).toMatchObject({ status: 'accepted' })
+
+    expect(await read('a.txt')).toBe('two')
+    expect(await readdir(root)).toEqual(['a.txt'])
+    expect(await session.transcript()).toEqual(transcript.slice(0, 4))
+    await host.close()
+  })
+
+  it('unrevert brings back the files and the messages', async () => {
+    await put('a.txt', 'one')
+    const { host, session } = await open(threeTurns())
+    const { transcript, firstId } = await runThreeTurns(session)
+    await session.revert(firstId)
+
+    expect(await session.unrevert()).toMatchObject({ status: 'accepted' })
+
+    expect(await read('a.txt')).toBe('three')
+    expect(await read('b.txt')).toBe('new')
+    expect(await session.transcript()).toEqual(transcript)
+    await host.close()
+  })
+
+  it('the next prompt drops the hidden messages for good', async () => {
+    await put('a.txt', 'one')
+    const turns = threeTurns()
+    const { host, session, calls } = await open({
+      ...turns,
+      replies: [...turns.replies, () => text('Fourth.')],
+    })
+    const { transcript, firstId } = await runThreeTurns(session)
+    await session.revert(firstId)
+
+    await session.prompt('Four')
+
+    expect(messageTexts(calls.at(-1))).toEqual([
+      'One',
+      'null',
+      'changed',
+      'First.',
+      'Four',
+    ])
+    expect(await session.transcript()).toMatchObject([
+      ...transcript.slice(0, 4),
+      { role: 'user', content: 'Four' },
+      { role: 'assistant', content: 'Fourth.' },
+    ])
+    // The revert ended, so unrevert changes nothing.
+    await session.unrevert()
+    expect(await read('a.txt')).toBe('two')
+    expect(await session.transcript()).toHaveLength(6)
+    await host.close()
+  })
+
+  it('is refused while a turn runs, and for an unknown message', async () => {
+    const wait = gate()
+    const { host, session } = await open({
+      replies: [() => text('Hi.'), after(wait.opened, 'Later.')],
+    })
+    await session.prompt('Hello')
+    const [message] = await session.transcript()
+    const running = session.prompt('Again')
+    await vi.waitFor(() => expect(session.snapshot().status).toBe('running'))
+
+    expect(await session.revert(message?.id ?? '')).toMatchObject({
+      status: 'rejected',
+      reason: 'busy',
+    })
+    wait.open()
+    await running
+    expect(await session.revert('no-such-id')).toMatchObject({
+      status: 'rejected',
+      reason: 'unknown_message',
+    })
+    expect(await session.transcript()).toHaveLength(4)
+    await host.close()
+  })
+
+  it('keeps the revert after a restart on a durable host', async () => {
+    await put('a.txt', 'one')
+    const { runs, metadata } = memoryPersistence().stores
+    const persistence = { stores: { log: memoryLogStore(), runs, metadata } }
+    const first = await open({ ...threeTurns(), persistence })
+    const { transcript, firstId } = await runThreeTurns(first.session)
+    await first.session.revert(firstId)
+    await first.host.close()
+
+    const second = await open({ replies: [], persistence })
+
+    expect(await second.session.transcript()).toEqual(transcript.slice(0, 4))
+    await second.session.unrevert()
+    expect(await read('a.txt')).toBe('three')
+    expect(await second.session.transcript()).toEqual(transcript)
+    await second.host.close()
+  })
+
+  it('keeps the revert after a restart on a host without a log', async () => {
+    await put('a.txt', 'one')
+    const persistence = memoryPersistence()
+    const first = await open({ ...threeTurns(), persistence })
+    const { transcript, firstId } = await runThreeTurns(first.session)
+    await first.session.revert(firstId)
+    await first.host.close()
+
+    const second = await open({ replies: [], persistence })
+
+    expect(await second.session.transcript()).toEqual(transcript.slice(0, 4))
+    await second.session.unrevert()
+    expect(await read('b.txt')).toBe('new')
+    await second.host.close()
   })
 })
 

@@ -180,7 +180,8 @@ function harnessFor(request: Request) {
       agents: ['echo', 'drafter'],
       settings: ['model', 'instructions', 'cwd'],
       config: ['tone'],
-      commands: ['greet', 'release', 'permissions'],
+      // `undo` lets a client revert and unrevert the transcript.
+      commands: ['greet', 'release', 'permissions', 'undo'],
     },
     plugins: () => [
       ...asks,

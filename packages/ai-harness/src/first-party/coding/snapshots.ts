@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto'
 import { LogRecordsCapability, getLogRecords } from '@tanstack/ai'
 import { defineCommand } from '../../commands'
-import { definePlugin } from '../../plugins'
+import { RevertFiles, definePlugin } from '../../plugins'
 import { hostBackend } from './backend'
+import { isRecord } from '../../utils'
 import { quoteArg, shellPlatform } from './search'
 import type { ModelMessage } from '@tanstack/ai'
 import type { WorkspaceBackend } from './backend'
@@ -28,7 +29,21 @@ export interface SnapshotStep {
   to: string
   /** The changed paths, relative to the workspace, with `/`. */
   files: Array<string>
+  /** The tool calls of the step. `session.revert` reads them. */
+  toolCallIds: Array<string>
 }
+
+const isStep = (value: unknown): value is SnapshotStep =>
+  isRecord(value) &&
+  typeof value.from === 'string' &&
+  typeof value.to === 'string' &&
+  Array.isArray(value.toolCallIds)
+
+/** What `unrevert` needs: the trees around the steps that a revert undid. */
+const isTrees = (value: unknown): value is { from: string; to: string } =>
+  isRecord(value) &&
+  typeof value.from === 'string' &&
+  typeof value.to === 'string'
 
 /** The log record type of a {@link SnapshotStep}. */
 const STEP_RECORD = 'tanstack/snapshots:step'
@@ -177,6 +192,9 @@ const messageOf = (error: unknown) =>
  *   as they are.
  * - `/redo`: bring back what the last `/undo` removed. A new turn clears it.
  *
+ * `session.revert(messageId)` also puts back the files that the tool calls
+ * after that message changed, and `session.unrevert()` brings them back.
+ *
  * The changed files of each step go to the session log as a
  * `tanstack/snapshots:step` record on a durable host, else to the plugin
  * state. `diff(from, to?)` gives the changed files and a unified diff
@@ -216,10 +234,41 @@ export function snapshots(options: SnapshotsOptions) {
         throw new Error('snapshots: git is not available.')
       return repo.diff(from, to)
     },
+    provides: [RevertFiles],
     setup: async (ctx) => {
-      if (!(await isReady())) return
+      if (!(await isReady())) {
+        // Without git, a revert changes only the transcript.
+        ctx.provide(RevertFiles, {
+          revert: async () => undefined,
+          unrevert: async () => {},
+        })
+        return
+      }
       const noSteps: Array<SnapshotStep> = []
       const steps = ctx.state(noSteps)
+      ctx.provide(RevertFiles, {
+        revert: async (hidden, records) => {
+          const calls = new Set(
+            hidden.flatMap((message) =>
+              (message.toolCalls ?? []).map((call) => call.id),
+            ),
+          )
+          // A durable host keeps the steps in the log, else in the state.
+          const all = [...(await steps.get()), ...(await records(STEP_RECORD))]
+          const later = all
+            .filter(isStep)
+            .filter((step) => step.toolCallIds.some((id) => calls.has(id)))
+          const first = later[0]
+          const last = later.at(-1)
+          if (!first || !last) return undefined
+          // As in `/undo`: only the files that the steps changed go back.
+          await repo.restore(first.from, last.to)
+          return { from: first.from, to: last.to }
+        },
+        unrevert: async (saved) => {
+          if (isTrees(saved)) await repo.restore(saved.to, saved.from)
+        },
+      })
       /** The tree at the start of the step that runs. */
       let stepStart: string | undefined
       /** The tree at the start of the last turn: what `/undo` restores. */
@@ -253,13 +302,14 @@ export function snapshots(options: SnapshotsOptions) {
               turnStart = stepStart
               redo = undefined
             },
-            onToolPhaseComplete: async (ctx) => {
+            onToolPhaseComplete: async (ctx, { toolCalls }) => {
               const from = stepStart
               if (from === undefined) return
               const step = await guard(async () => {
                 const to = await repo.track()
                 const files = to === from ? [] : await repo.changed(from, to)
-                return { from, to, files }
+                const toolCallIds = toolCalls.map((call) => call.id)
+                return { from, to, files, toolCallIds }
               })
               // A failed snapshot leaves no start: the next step takes one.
               stepStart = step?.to

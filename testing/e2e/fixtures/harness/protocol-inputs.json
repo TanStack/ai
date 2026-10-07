@@ -1,6 +1,14 @@
 {
   "fixtures": [
     {
+      "match": { "userMessage": "[harness-revert] first" },
+      "response": { "content": "First answer." }
+    },
+    {
+      "match": { "userMessage": "[harness-revert] second" },
+      "response": { "content": "Second answer." }
+    },
+    {
       "match": {
         "userMessage": "[harness-rejoin] ask my name",
         "sequenceIndex": 0

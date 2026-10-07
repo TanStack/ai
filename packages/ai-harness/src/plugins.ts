@@ -10,6 +10,7 @@ import type {
   CapabilityHandle,
   KeyedAdapter,
   MetadataStore,
+  ModelMessage,
   ProviderKeys,
 } from '@tanstack/ai'
 import type {
@@ -441,6 +442,29 @@ const NO_SERVICES: PluginServices = {
  */
 export const SessionMetadata = createCapability<MetadataStore>()(
   'tanstack/session-metadata',
+)
+
+/**
+ * @internal How the snapshots plugin puts files back for `session.revert`.
+ * The package does not export it.
+ */
+export interface RevertFilesHandler {
+  /**
+   * Put back the files that the tool calls of `hidden` changed. `records`
+   * reads the host records of one type from the session log. Resolves to
+   * what `unrevert` needs (JSON), or `undefined` when no file changed.
+   */
+  revert: (
+    hidden: ReadonlyArray<ModelMessage>,
+    records: (type: string) => Promise<Array<Record<string, unknown>>>,
+  ) => Promise<unknown>
+  /** Put the files back as they were before `revert`. */
+  unrevert: (saved: unknown) => Promise<void>
+}
+
+/** @internal See {@link RevertFilesHandler}. */
+export const RevertFiles = createCapability<RevertFilesHandler>()(
+  'tanstack/revert-files',
 )
 
 /** Capability values provided by plugins, keyed by handle. */

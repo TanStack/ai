@@ -27,13 +27,19 @@ import { bindDurable, createToolStep } from './durable-tool'
 import {
   commonPrefix,
   engineMessageStore,
+  revertOf,
   sessionMessageStore,
   stepKey,
 } from './log'
 import { createMediaStore, mediaCapture, mediaMiddleware } from './media'
 import { mediaIdOf, mediaOfMessage, mediaPart } from './media-ref'
 import { OperationImpl } from './operation'
-import { CapabilityValues, SessionMetadata, mountPlugins } from './plugins'
+import {
+  CapabilityValues,
+  RevertFiles,
+  SessionMetadata,
+  mountPlugins,
+} from './plugins'
 import {
   LEASE,
   checkpointMiddleware,
@@ -87,6 +93,7 @@ import type {
   InputState,
   LogWriter,
   ProjectOptions,
+  RevertState,
 } from './log'
 import type { DurableBind } from './durable-tool'
 import type { LeaseOptions } from './resume'
@@ -1106,6 +1113,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   /** Reads each plugin's saved state, so the first snapshot has it. */
   private readonly stateLoaders = new Map<string, () => Promise<unknown>>()
   private readonly localState = new Map<string, unknown>()
+  /** The revert that stands. See `revert`. */
+  private reverted: RevertState | undefined
   /** The credentials of the running turn's sender, else of the session's principal. */
   private readonly credentialAccess: CredentialsAccess
   /**
@@ -1452,6 +1461,14 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       await this.loadConfig()
       await this.loadSettings()
       await this.loadPluginState()
+      this.reverted = this.writer
+        ? this.writer.state.revert
+        : revertOf(
+            await this.persistence.stores.metadata?.get(
+              'harness:revert',
+              this.threadId,
+            ),
+          )
       await this.loadInterrupted()
       // Before recovery: a turn that recovery runs updates this entry.
       await this.openEntry()
@@ -2508,9 +2525,121 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     }))
   }
 
-  /** The saved messages of this thread, oldest first. */
+  /**
+   * The saved messages of this thread, oldest first. While a revert stands,
+   * the messages after its message are hidden.
+   */
   async transcript() {
-    return [...(await this.messages.loadThread(this.threadId))]
+    const messages = [...(await this.messages.loadThread(this.threadId))]
+    const at = this.revertedAt(messages)
+    return at < 0 ? messages : messages.slice(0, at + 1)
+  }
+
+  /** The index of the revert message in `messages`, or -1. */
+  private revertedAt(messages: ReadonlyArray<ModelMessage>) {
+    const id = this.reverted?.messageId
+    return id === undefined
+      ? -1
+      : messages.findIndex((message) => message.id === id)
+  }
+
+  /**
+   * Go back to the message `messageId`. The transcript hides the messages
+   * after it. With the snapshots plugin, the files that their tool calls
+   * changed go back too. `unrevert()` undoes it. The next turn drops the
+   * hidden messages for good. The revert state is saved, so it survives a
+   * restart. Refused while the session is not idle (`'busy'`), and for a
+   * message that is not in the transcript (`'unknown_message'`).
+   */
+  async revert(messageId: string): Promise<Receipt> {
+    const inputId = createInputId()
+    if (this.snapshot().status !== 'idle') {
+      return { inputId, status: 'rejected', reason: 'busy' }
+    }
+    const messages = await this.messages.loadThread(this.threadId)
+    const at = messages.findIndex((message) => message.id === messageId)
+    if (at < 0)
+      return { inputId, status: 'rejected', reason: 'unknown_message' }
+    // A revert that stands ends first, so its files come back.
+    await this.unrevert()
+    const handler = this.sessionPlugins?.values.get(RevertFiles)
+    const files = await handler?.revert(messages.slice(at + 1), (type) =>
+      this.hostRecords(type),
+    )
+    await this.saveRevert({
+      messageId,
+      ...(files !== undefined ? { files } : {}),
+    })
+    return { inputId, status: 'accepted' }
+  }
+
+  /** End the revert that stands: its files and messages come back. */
+  async unrevert(): Promise<Receipt> {
+    const inputId = createInputId()
+    if (this.snapshot().status !== 'idle') {
+      return { inputId, status: 'rejected', reason: 'busy' }
+    }
+    const reverted = this.reverted
+    if (!reverted) return { inputId, status: 'accepted' }
+    if (reverted.files !== undefined) {
+      await this.sessionPlugins?.values
+        .get(RevertFiles)
+        ?.unrevert(reverted.files)
+    }
+    await this.saveRevert(undefined)
+    return { inputId, status: 'accepted' }
+  }
+
+  /** Drop the messages that a standing revert hides, and end the revert. */
+  private async commitRevert() {
+    if (!this.reverted) return
+    const messages = await this.messages.loadThread(this.threadId)
+    const at = this.revertedAt(messages)
+    if (at >= 0) {
+      await this.messages.saveThread(this.threadId, messages.slice(0, at + 1))
+    }
+    await this.saveRevert(undefined)
+  }
+
+  /** Keep the revert state in the log, else in the metadata store. */
+  private async saveRevert(revert: RevertState | undefined) {
+    this.reverted = revert
+    if (this.writer) {
+      await this.writer.append([
+        { type: 'harness.revert', revert: revert ?? null },
+      ])
+    } else {
+      await this.persistence.stores.metadata?.set(
+        'harness:revert',
+        this.threadId,
+        revert ?? null,
+      )
+    }
+    this.feed.publish(
+      'session',
+      customEvent(HARNESS_EVENTS.revert, {
+        messageId: revert?.messageId ?? null,
+      }),
+    )
+  }
+
+  /** The host records of `type` of this thread, from the log, oldest first. */
+  private async hostRecords(type: string) {
+    const found: Array<Record<string, unknown>> = []
+    if (!this.writer || !this.log) return found
+    let after = 0
+    for (;;) {
+      const entries = await this.log.store.read(this.logId, {
+        after,
+        limit: 256,
+      })
+      for (const { seq, record } of entries) {
+        after = seq
+        const isOwn = (record.thread ?? this.logId) === this.threadId
+        if (isOwn && record.type === type) found.push(record)
+      }
+      if (entries.length < 256) return found
+    }
   }
 
   /** The commands, settings, and tools of this session, for a UI. */
@@ -4065,6 +4194,15 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   }
 
   private async runTurn(turn: QueuedTurn): Promise<void> {
+    // The next turn drops the messages that a revert hides.
+    try {
+      await this.commitRevert()
+    } catch (error) {
+      turn.operation.fail('failed', error)
+      this.publishFinished(turn.operation)
+      this.requeueWaitingSteers()
+      return
+    }
     if (turn.reset) return this.runReset(turn, turn.reset)
     const { operation } = turn
     operation.setStatus('running')

@@ -499,6 +499,17 @@ export function createSessionView(source: SessionViewSource) {
     }
   })
 
+  // A revert changes which saved messages show. The session is idle then.
+  const refreshTranscript = coalesce(async () => {
+    try {
+      const transcript = await source.transcript()
+      if (!disposed)
+        commit({ ...get(), messages: messagesFromTranscript(transcript) })
+    } catch (error) {
+      fail(error)
+    }
+  })
+
   const fire = (
     entry: SessionEvent,
     before: SessionViewState,
@@ -552,6 +563,7 @@ export function createSessionView(source: SessionViewSource) {
         event.name === HARNESS_EVENTS.configChanged ||
         event.name === HARNESS_EVENTS.commandsChanged
       if (isDescriptionChange) refreshDescription()
+      if (event.name === HARNESS_EVENTS.revert) refreshTranscript()
     }
     for (const signIn of after.signIns)
       if (!before.signIns.includes(signIn)) emit('signIn', signIn)

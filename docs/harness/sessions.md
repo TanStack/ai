@@ -175,6 +175,34 @@ If another harness of the host runs the thread, the handler answers `409` with `
 
 What a fork copies, and what it does not copy: [Fork and reset a thread](./fork-and-reset#fork-a-thread-at-a-message).
 
+## Go back to an earlier message
+
+A fork keeps the old chat. To go back in the same chat, revert it to a message:
+
+```ts group=harness-sessions
+const [question] = await session.transcript()
+if (!question?.id) throw new Error('The chat has no messages.')
+
+await session.revert(question.id)
+// The transcript now ends at `question`. To bring the later messages back:
+await session.unrevert()
+```
+
+- While a revert stands, `transcript()` hides the messages after that message. The session keeps them.
+- The next prompt drops the hidden messages for good.
+- The session saves the revert in the log, or in `stores.metadata` on a host without a log. A restart keeps it.
+- With the [snapshots plugin](./snapshots#go-back-to-an-earlier-message), the files go back too.
+- `revert` refuses with `busy` when the session is not idle. It refuses with `unknown_message` for an id that is not in the transcript.
+
+In the browser:
+
+```ts group=harness-sessions-client
+await client.revert('msg-7')
+await client.unrevert()
+```
+
+A revert can put back files, as `/undo` does. So a client can send it only when `expose.commands` lists `'undo'`. Else the receipt is `rejected` with `not_exposed`. A view from `createSessionView` reads the transcript again after each revert.
+
 ## Rename and remove a session
 
 ```ts group=harness-sessions
@@ -245,5 +273,5 @@ To watch the sessions of many machines from a phone, without a screen of your ow
 ## What you have now
 
 - A sidebar of past chats, newest first, with a title for each.
-- Rename, remove, and fork, from the server and from the browser.
+- Rename, remove, fork, and revert, from the server and from the browser.
 - A status for each chat that stays current.

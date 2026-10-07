@@ -296,6 +296,64 @@ test.describe('harness protocol', () => {
       ])
   })
 
+  test('reverts to an earlier message, then unreverts', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const threadId = `revert-${testId}`
+    const json = {
+      ...headers(testId, aimockPort),
+      'content-type': 'application/json',
+    }
+    const control = async (input: unknown) =>
+      (
+        await request.post('/api/harness-protocol/control', {
+          headers: json,
+          data: { threadId, input },
+        })
+      ).json()
+    const transcript = async () => {
+      const response = await request.get(
+        `/api/harness-protocol/transcript?threadId=${threadId}`,
+        { headers: json },
+      )
+      const messages: Array<{ id: string; role: string; content: unknown }> =
+        await response.json()
+      return messages
+    }
+    const lines = async () =>
+      (await transcript()).map(
+        (message) => `${message.role}: ${String(message.content)}`,
+      )
+    await control({ op: 'prompt', message: '[harness-revert] first' })
+    await expect.poll(lines).toHaveLength(2)
+    await control({ op: 'prompt', message: '[harness-revert] second' })
+    const all = [
+      'user: [harness-revert] first',
+      'assistant: First answer.',
+      'user: [harness-revert] second',
+      'assistant: Second answer.',
+    ]
+    await expect.poll(lines).toEqual(all)
+    const [, firstAnswer] = await transcript()
+
+    // A refused revert changes nothing, so the test can ask again until the
+    // last turn has ended.
+    await expect
+      .poll(
+        async () =>
+          (await control({ op: 'revert', messageId: firstAnswer?.id })).status,
+      )
+      .toBe('accepted')
+    expect(await lines()).toEqual(all.slice(0, 2))
+
+    expect(await control({ op: 'unrevert' })).toMatchObject({
+      status: 'accepted',
+    })
+    expect(await lines()).toEqual(all)
+  })
+
   test('takes a control input and returns a receipt', async ({
     request,
     testId,

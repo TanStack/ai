@@ -62,7 +62,7 @@ In your own UI, add `expose: { commands: ['undo', 'redo'] }` to `defineHarness`.
 
 ## See what a step changed
 
-Each model step that changed files leaves a step: `{ from, to, files }`. `from` and `to` are the ids of two snapshots, and `files` lists the changed paths. `history.diff(from, to)` gives the changed files and a unified diff.
+Each model step that changed files leaves a step: `{ from, to, files, toolCallIds }`. `from` and `to` are the ids of two snapshots. `files` lists the changed paths, and `toolCallIds` lists the tool calls of the step. `history.diff(from, to)` gives the changed files and a unified diff.
 
 On a [durable host](./durable-sessions), the steps are `tanstack/snapshots:step` records in the session log:
 
@@ -89,6 +89,26 @@ for (const { record } of await log.read('fix-login')) {
 - Without `to`, `diff` compares with the files now. `history.diff(record.to)` shows what changed after that step.
 - On a host without a log, the steps are a list in the plugin state, `snapshot().plugins['tanstack/snapshots']`.
 - A step that changed no file is not saved.
+
+## Go back to an earlier message
+
+`/undo` goes back one turn. To go back more turns, revert the session to a message of the transcript:
+
+```ts group=harness-snapshots
+const messages = await session.transcript()
+const firstAnswer = messages.find((message) => message.role === 'assistant')
+if (firstAnswer?.id) await session.revert(firstAnswer.id)
+
+// Bring back the files and the messages.
+await session.unrevert()
+```
+
+- The files that the tool calls after that message changed go back, as with `/undo`. Other files stay as they are.
+- `transcript()` hides the messages after that message until `unrevert()` or the next prompt.
+- The next prompt drops the hidden messages for good. Then `unrevert()` does not change the files.
+- The revert is saved, so `unrevert()` still works after a restart.
+
+In your own UI, call `client.revert(messageId)` and `client.unrevert()`. The client needs `'undo'` in `expose.commands`. More about reverts: [Go back to an earlier message](./sessions#go-back-to-an-earlier-message).
 
 ## In a sandbox
 
@@ -121,5 +141,6 @@ Git then runs in the sandbox, and `dataDir` is a path in the sandbox. The sandbo
 ## What you have now
 
 - `/undo` and `/redo` for the file changes of the last turn, also the changes of shell commands.
+- A revert to any earlier message, with its files, and `unrevert()` to bring them back.
 - A list of changed files and a unified diff for each model step.
 - Snapshots that never touch the git repository of your project.

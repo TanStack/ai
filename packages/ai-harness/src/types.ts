@@ -126,6 +126,8 @@ export type HarnessInput = (
   | { op: 'config'; key: string; value: unknown }
   | { op: 'configure'; settings: ThreadSettingsChange }
   | { op: 'reset'; note?: string }
+  | { op: 'revert'; messageId: string }
+  | { op: 'unrevert' }
   | {
       op: 'agentMessage'
       /** A run of the agent: any run of its chain. */
@@ -368,6 +370,12 @@ export const HARNESS_EVENTS = {
    * `inputId` and the `note`, when there is one.
    */
   reset: 'harness.reset',
+  /**
+   * `session.revert` or `session.unrevert` changed what the transcript
+   * shows. The value has the `messageId` of the revert, or `null` when no
+   * revert stands. Read the transcript again.
+   */
+  revert: 'harness.revert',
   /**
    * A model call reported its usage. The value has `model`, `sender` (when
    * known), the `usage` of the call, and the new thread `total`.
