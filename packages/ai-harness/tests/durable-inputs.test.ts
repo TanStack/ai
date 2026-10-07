@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { toolDefinition } from '@tanstack/ai'
+import { EventType, toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { InputRejectedError, createHarnessHost, defineHarness } from '../src'
@@ -336,6 +336,109 @@ describe('recovery of a durable input', () => {
       },
     ])
     await first.host.close().catch(() => {})
+    await next.host.close()
+  })
+
+  it('never runs a call of an answer cut at the output limit, also after a crash', async () => {
+    const lookup = vi.fn(async () => 'found')
+    const tools = [
+      toolDefinition({
+        name: 'lookup',
+        description: 'Look up a fact',
+        inputSchema: z.object({ q: z.string() }),
+        replay: 'safe',
+      }).server(lookup),
+    ]
+    // A provider search, then thinking, so the engine keeps the answer as
+    // two segments with their tool calls. The output limit cuts the answer.
+    const cutAnswer: Reply = () => [
+      { type: EventType.RUN_STARTED, runId: 'r', threadId: 't', timestamp: 1 },
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: 'call-search',
+        toolCallName: 'web_search',
+        timestamp: 1,
+        metadata: { providerExecuted: true },
+      },
+      {
+        type: EventType.TOOL_CALL_END,
+        toolCallId: 'call-search',
+        timestamp: 1,
+      },
+      {
+        type: EventType.REASONING_MESSAGE_CONTENT,
+        messageId: 'r1',
+        delta: 'Now look it up.',
+        timestamp: 1,
+      },
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: 'call-lookup',
+        toolCallName: 'lookup',
+        timestamp: 1,
+      },
+      {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId: 'call-lookup',
+        delta: '{"q":"x"}',
+        timestamp: 1,
+      },
+      {
+        type: EventType.TOOL_CALL_END,
+        toolCallId: 'call-lookup',
+        timestamp: 1,
+      },
+      {
+        type: EventType.RUN_FINISHED,
+        runId: 'r',
+        threadId: 't',
+        timestamp: 1,
+        finishReason: 'length',
+      },
+    ]
+    const persistence = durablePersistence()
+    const first = await openDurable({
+      persistence,
+      replies: [cutAnswer],
+      tools,
+    })
+    await first.session.prompt('look it up', { inputId: 'in-1' })
+    await first.host.close()
+    // The host stopped after it saved the answer, before the turn settled.
+    const entries = await persistence.stores.log.read(THREAD)
+    const settledAt = entries.findIndex(
+      (entry) => entry.record.type === 'harness.input.settled',
+    )
+    const stopped = durablePersistence()
+    await stopped.stores.log.append(
+      THREAD,
+      1,
+      entries.slice(0, settledAt).map((entry) => entry.record),
+    )
+
+    const next = await openDurable({
+      persistence: stopped,
+      replies: [() => text('done')],
+      tools,
+      durability: { truncatedToolResult: 'Cut off. Not run.' },
+    })
+
+    expect(await next.session.settled('in-1')).toMatchObject({
+      outcome: 'completed',
+    })
+    expect(lookup).not.toHaveBeenCalled()
+    const results = (await next.session.transcript()).filter(
+      (message) => message.role === 'tool',
+    )
+    expect(results).toEqual([
+      {
+        role: 'tool',
+        toolCallId: 'call-lookup',
+        content: 'Cut off. Not run.',
+        error: 'Cut off. Not run.',
+      },
+    ])
+    expect(next.calls).toHaveLength(1)
     await next.host.close()
   })
 
@@ -926,6 +1029,130 @@ describe('input ids', () => {
     await turn
     await host.close()
   })
+})
+
+describe('session.continue()', () => {
+  const user: ModelMessage = { id: 'u1', role: 'user', content: 'go' }
+  const transcript = (...add: Array<ModelMessage>): LogRecord => ({
+    type: 'harness.transcript',
+    keep: 0,
+    add,
+  })
+
+  it.each([
+    ['a user message', [user]],
+    [
+      'a tool message',
+      [
+        user,
+        {
+          id: 'a1',
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'call-1',
+              type: 'function',
+              function: { name: 'lookup', arguments: '{}' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call-1', content: 'found' },
+      ],
+    ],
+  ] satisfies Array<[string, Array<ModelMessage>]>)(
+    'runs the model on a stored transcript that ends with %s',
+    async (_name, messages) => {
+      const persistence = durablePersistence()
+      await persistence.stores.log.append(THREAD, 1, [transcript(...messages)])
+      const { host, session, calls } = await openDurable({
+        persistence,
+        replies: [() => text('went')],
+      })
+
+      expect(await session.continue({ inputId: 'c-1' })).toEqual({
+        text: 'went',
+      })
+      // The stored transcript, and no new message.
+      expect(
+        calls[0].messages.map((message: ModelMessage) => message.role),
+      ).toEqual(messages.map((message) => message.role))
+      expect(await session.settled('c-1')).toMatchObject({
+        outcome: 'completed',
+      })
+      await host.close()
+    },
+  )
+
+  it('returns the first operation for a duplicate inputId, and runs once', async () => {
+    const persistence = durablePersistence()
+    await persistence.stores.log.append(THREAD, 1, [transcript(user)])
+    const { host, session, calls } = await openDurable({
+      persistence,
+      replies: [() => text('once'), () => text('twice')],
+    })
+
+    const first = session.continue({ inputId: 'c-1' })
+    const again = session.continue({ inputId: 'c-1' })
+
+    expect(again).toBe(first)
+    await first
+    expect(calls).toHaveLength(1)
+    await host.close()
+  })
+
+  it('runs a continue that a stopped host left pending', async () => {
+    const persistence = durablePersistence()
+    await persistence.stores.log.append(THREAD, 1, [
+      transcript(user),
+      {
+        type: 'harness.input',
+        inputId: 'c-1',
+        input: { op: 'continue' },
+        at: 1,
+      },
+    ])
+
+    const { host, session, calls } = await openDurable({
+      persistence,
+      replies: [() => text('went')],
+    })
+
+    expect(await session.settled('c-1')).toMatchObject({
+      outcome: 'completed',
+    })
+    expect(messageTexts(calls[0])).toEqual(['go'])
+    await host.close()
+  })
+
+  it.each([
+    ['an empty transcript', []],
+    [
+      'a transcript that ends with an answer',
+      [transcript(user, { id: 'a1', role: 'assistant', content: 'done' })],
+    ],
+  ] satisfies Array<[string, Array<LogRecord>]>)(
+    'rejects a continue on %s',
+    async (_name, records) => {
+      const persistence = durablePersistence()
+      if (records.length > 0) {
+        await persistence.stores.log.append(THREAD, 1, records)
+      }
+      const { host, session, calls } = await openDurable({
+        persistence,
+        replies: [() => text('never')],
+      })
+
+      const turn = session.continue({ inputId: 'c-1' })
+
+      await expect(turn).rejects.toBeInstanceOf(InputRejectedError)
+      await expect(session.settled('c-1')).rejects.toMatchObject({
+        receipt: { status: 'rejected', reason: 'nothing_to_continue' },
+      })
+      expect(calls).toHaveLength(0)
+      await host.close()
+    },
+  )
 })
 
 describe('settled() without a log', () => {

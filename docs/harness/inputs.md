@@ -95,6 +95,26 @@ for await (const entry of client.events()) {
 }
 ```
 
+## Continue without a new message
+
+Sometimes the transcript already holds what the model must answer, for example a tool result that your own system stored. Start a turn with `continue`, and the model answers the stored transcript. No new user message goes in:
+
+```ts group=harness-inputs
+const continued = session.continue({ inputId: 'req-43' })
+await continued
+```
+
+From the client:
+
+```ts group=harness-inputs-client
+const continuedReceipt = await client.continue({ inputId: 'req-43' })
+```
+
+- `inputId` works as for `prompt`: a retry with the same id runs once.
+- `continue` takes `overrides`, `principal`, and `context` too, as `prompt` does.
+- When the turn starts, the last message of the transcript must be a user message or a tool result. Else the input is rejected with the reason `nothing_to_continue`, and `await continued` rejects with `InputRejectedError`.
+- A `continue` that a host left after a crash runs on the next host, as a prompt does.
+
 ## Send a message while a turn runs
 
 With `busy: 'steer'`, a prompt joins the running turn. It reaches the model at the next model call, in the order the messages arrived, and it ends with that turn.

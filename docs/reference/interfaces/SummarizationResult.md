@@ -3,7 +3,7 @@ id: SummarizationResult
 title: SummarizationResult
 ---
 
-Defined in: [packages/ai/src/types.ts:1860](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1860)
+Defined in: [packages/ai/src/types.ts:1974](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1974)
 
 ## Properties
 
@@ -13,7 +13,7 @@ Defined in: [packages/ai/src/types.ts:1860](https://github.com/TanStack/ai/blob/
 id: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1861](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1861)
+Defined in: [packages/ai/src/types.ts:1975](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1975)
 
 ***
 
@@ -23,7 +23,7 @@ Defined in: [packages/ai/src/types.ts:1861](https://github.com/TanStack/ai/blob/
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1862](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1862)
+Defined in: [packages/ai/src/types.ts:1976](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1976)
 
 ***
 
@@ -33,7 +33,7 @@ Defined in: [packages/ai/src/types.ts:1862](https://github.com/TanStack/ai/blob/
 summary: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1863](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1863)
+Defined in: [packages/ai/src/types.ts:1977](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1977)
 
 ***
 
@@ -43,4 +43,4 @@ Defined in: [packages/ai/src/types.ts:1863](https://github.com/TanStack/ai/blob/
 usage: TokenUsage;
 ```
 
-Defined in: [packages/ai/src/types.ts:1864](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1864)
+Defined in: [packages/ai/src/types.ts:1978](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1978)

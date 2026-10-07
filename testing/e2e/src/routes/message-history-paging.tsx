@@ -44,6 +44,7 @@ function MessageHistoryPagingPage() {
     messages,
     sendMessage,
     isLoading,
+    isHydrating,
     hasOlderMessages,
     loadOlderMessages,
   } = useChat({
@@ -68,6 +69,11 @@ function MessageHistoryPagingPage() {
       <div
         data-testid="painted-ids"
         data-ids={messages.map((message) => message.id).join(',')}
+        hidden
+      />
+      <div
+        data-testid="is-hydrating"
+        data-is-hydrating={String(isHydrating)}
         hidden
       />
       <div

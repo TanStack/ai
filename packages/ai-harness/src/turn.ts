@@ -30,6 +30,8 @@ export interface RecoverContext {
     timeoutAt?: number
     abortRequested: boolean
     operationId?: string
+    /** Model retries since the last finished tool phase, from the log. */
+    retries: number
   }
   /** The transcript of the session, from the log. */
   messages: ReadonlyArray<ModelMessage>
@@ -48,6 +50,11 @@ export interface TurnAdditions {
   messages?: Array<ModelMessage>
   /** Host records in the same append. A durable host only. */
   records?: ReadonlyArray<LogRecord>
+  /**
+   * Messages at the end of the context of the next model call only. No store
+   * keeps them: not the transcript, and not the log.
+   */
+  ephemeral?: ReadonlyArray<ModelMessage>
 }
 
 /** What `turn.onModelError` gets. */
@@ -56,7 +63,10 @@ export interface ModelErrorContext {
   operationId: string
   inputId?: string
   error: { message: string; code?: string }
-  /** Retries since the last finished tool phase of this operation. */
+  /**
+   * Retries since the last finished tool phase of this turn. A durable host
+   * keeps the count, so an attempt that recovery runs goes on from it.
+   */
   retries: number
   /** Aborted when the turn is cancelled. */
   signal: AbortSignal
@@ -109,8 +119,9 @@ export interface HarnessTurnOptions {
     ctx: ModelErrorContext,
   ) => 'retry' | undefined | Promise<'retry' | undefined>
   /**
-   * The model stopped calling tools and the turn would end. Return messages
-   * or records to send the model back to work in the same turn.
+   * The model stopped calling tools and the turn would end. Return messages,
+   * records, or ephemeral messages to send the model back to work in the same
+   * turn.
    */
   beforeFinish?: (
     ctx: FinishContext,
@@ -118,7 +129,7 @@ export interface HarnessTurnOptions {
   /**
    * How many times `beforeFinish` can continue one turn. Default 32. At the
    * limit, a hook that still returns messages or records fails the turn
-   * (records alone count too).
+   * (records or ephemeral messages alone count too).
    */
   maxFinishCycles?: number
   /**

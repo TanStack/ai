@@ -6,6 +6,7 @@ import { HARNESS_EVENTS, createHarnessHost, defineHarness } from '../src'
 import {
   INTERRUPTED_TOOL_RESULT,
   LEASE,
+  TRUNCATED_TOOL_RESULT,
   checkpointMiddleware,
   repairTranscript,
 } from '../src/resume'
@@ -337,6 +338,58 @@ describe('crash resume', () => {
       'call-mail',
     ])
     expect(tools[0]?.content).toBe('charged')
+  })
+
+  it('gives each call of an answer cut at the output limit the truncated result', async () => {
+    const { stores } = memoryPersistence()
+    const cut = { tanstack: { finishReason: 'length' } }
+    const call = (id: string, name: string) => ({
+      id,
+      type: 'function' as const,
+      function: { name, arguments: '{}' },
+    })
+    await stores.messages.saveThread('t1', [
+      { id: 'u1', role: 'user', content: 'search, then look up' },
+      {
+        id: 'a1',
+        role: 'assistant',
+        content: null,
+        metadata: cut,
+        toolCalls: [
+          call('call-a', 'lookup'),
+          {
+            ...call('call-search', 'web_search'),
+            metadata: { providerExecuted: true },
+          },
+        ],
+      },
+      {
+        id: 'a1-segment-1',
+        role: 'assistant',
+        content: 'Now',
+        metadata: cut,
+        toolCalls: [call('call-b', 'lookup')],
+      },
+    ])
+
+    await repairTranscript({
+      messages: stores.messages,
+      threadId: 't1',
+      pending: [],
+    })
+
+    const tools = (await stores.messages.loadThread('t1')).filter(
+      (message) => message.role === 'tool',
+    )
+    // The provider ran its own search, so it gets no result.
+    expect(tools).toEqual(
+      ['call-a', 'call-b'].map((toolCallId) => ({
+        role: 'tool',
+        toolCallId,
+        content: TRUNCATED_TOOL_RESULT,
+        error: TRUNCATED_TOOL_RESULT,
+      })),
+    )
   })
 
   it('fails a background agent that a crashed host left running, and notes it', async () => {

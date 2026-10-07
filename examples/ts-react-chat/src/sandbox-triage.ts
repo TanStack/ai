@@ -15,6 +15,7 @@ import {
 import { daytonaSandbox } from '@tanstack/ai-sandbox-daytona'
 import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
 import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
+import { railwaySandbox } from '@tanstack/ai-sandbox-railway'
 import { vercelSandbox } from '@tanstack/ai-sandbox-vercel'
 import { parseVerdict } from './sandbox-triage-options'
 import type {
@@ -321,6 +322,28 @@ export const PROVIDERS: Record<ProviderName, ProviderSpec> = {
     // Daytona auto-exposes ports via preview URLs, so it ignores `ports`.
     make: () => daytonaSandbox(),
     requiredEnv: ['DAYTONA_API_KEY'],
+    toolBridge: false,
+  },
+  railway: {
+    label: 'Railway',
+    // Railway publishes sandbox domains only on the environment's private
+    // network, so preview ports opt into PRIVATE isolation; without ports the
+    // sandbox stays ISOLATED.
+    make: (ports) =>
+      railwaySandbox(
+        ports.length ? { ports, networkIsolation: 'PRIVATE' } : {},
+      ),
+    // Either a project token (RAILWAY_TOKEN) or an account/workspace token
+    // (RAILWAY_API_TOKEN), plus the environment the sandboxes run in.
+    requiredEnv: ['RAILWAY_API_TOKEN', 'RAILWAY_ENVIRONMENT_ID'],
+    envCheck: () => [
+      ...(!process.env.RAILWAY_TOKEN && !process.env.RAILWAY_API_TOKEN
+        ? ['RAILWAY_API_TOKEN (or RAILWAY_TOKEN)']
+        : []),
+      ...(!process.env.RAILWAY_ENVIRONMENT_ID
+        ? ['RAILWAY_ENVIRONMENT_ID']
+        : []),
+    ],
     toolBridge: false,
   },
 }

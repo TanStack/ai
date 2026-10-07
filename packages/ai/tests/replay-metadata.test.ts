@@ -193,9 +193,15 @@ describe('replay metadata', () => {
     })
     const assistants = saved.filter((message) => message.role === 'assistant')
     expect(assistants.length).toBeGreaterThan(1)
+    const tags = {
+      source,
+      runId: 'run-1',
+      responseId: 'response-segments',
+      finishReason: 'stop',
+    }
     expect(assistants.map((message) => message.metadata?.tanstack)).toEqual([
-      { source, runId: 'run-1', responseId: 'response-segments' },
-      { source, runId: 'run-1', responseId: 'response-segments' },
+      tags,
+      tags,
     ])
   })
 

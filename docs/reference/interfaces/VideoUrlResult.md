@@ -3,7 +3,7 @@ id: VideoUrlResult
 title: VideoUrlResult
 ---
 
-Defined in: [packages/ai/src/types.ts:2302](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2302)
+Defined in: [packages/ai/src/types.ts:2417](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2417)
 
 **`Experimental`**
 
@@ -19,11 +19,23 @@ Result containing the URL to a generated video.
 optional artifacts?: PersistedArtifactRef[];
 ```
 
-Defined in: [packages/ai/src/types.ts:2316](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2316)
+Defined in: [packages/ai/src/types.ts:2431](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2431)
 
 **`Experimental`**
 
 Persisted artifact references for generated assets, when available
+
+***
+
+### body?
+
+```ts
+optional body?: undefined;
+```
+
+Defined in: [packages/ai/src/types.ts:2432](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2432)
+
+**`Experimental`**
 
 ***
 
@@ -33,7 +45,7 @@ Persisted artifact references for generated assets, when available
 optional expiresAt?: Date;
 ```
 
-Defined in: [packages/ai/src/types.ts:2308](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2308)
+Defined in: [packages/ai/src/types.ts:2423](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2423)
 
 **`Experimental`**
 
@@ -47,7 +59,7 @@ When the URL expires, if applicable
 jobId: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2304](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2304)
+Defined in: [packages/ai/src/types.ts:2419](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2419)
 
 **`Experimental`**
 
@@ -61,7 +73,7 @@ Job identifier
 url: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2306](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2306)
+Defined in: [packages/ai/src/types.ts:2421](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2421)
 
 **`Experimental`**
 
@@ -75,7 +87,7 @@ URL to the generated video
 optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [packages/ai/src/types.ts:2314](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2314)
+Defined in: [packages/ai/src/types.ts:2429](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2429)
 
 **`Experimental`**
 

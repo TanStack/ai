@@ -7,7 +7,7 @@ title: ToolExecutionContext
 type ToolExecutionContext<TContext> = RuntimeContextField<TContext> & object;
 ```
 
-Defined in: [packages/ai/src/types.ts:686](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L686)
+Defined in: [packages/ai/src/types.ts:769](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L769)
 
 Context passed to tool execute functions, providing capabilities like
 emitting custom events during execution.
@@ -69,6 +69,16 @@ const tool = toolDefinition({ ... }).server(async (args, context) => {
   return result
 })
 ```
+
+### inputResponse?
+
+```ts
+optional inputResponse?: ToolInputResponse;
+```
+
+The answer to the input request that this tool call raised in the
+previous run. It is set only when the run resumes an `mcp_input`
+interrupt for this tool call.
 
 ### toolCallId?
 

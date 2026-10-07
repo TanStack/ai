@@ -1,4 +1,4 @@
-import { normalizeToolResult } from '@tanstack/ai'
+import { isProviderExecutedToolCall, normalizeToolResult } from '@tanstack/ai'
 import type {
   AnyChatMiddleware,
   ModelMessage,
@@ -23,6 +23,14 @@ export const INTERRUPTED_TOOL_RESULT = {
   interrupted: true,
   note: 'The tool may or may not have run. Check before you retry.',
 }
+
+/** The tool result of a call in an answer that stopped at the output limit. */
+export const TRUNCATED_TOOL_RESULT =
+  'The answer was cut off at the output limit before this tool call was complete. The call did not run.'
+
+/** The user message after an answer that a crash cut. */
+export const CUT_OFF_NOTE =
+  'The previous answer was cut off. Continue exactly where it stopped, without repeating it.'
 
 export type PendingTool = {
   toolCallId: string
@@ -190,6 +198,9 @@ export async function findCrashedRuns(
  *
  * - A call in `finished` gets its finished tool message. It does not run
  *   again.
+ * - A call of an answer that stopped at the output limit (finish reason
+ *   `length`) gets `truncated`, else {@link TRUNCATED_TOOL_RESULT}, as a tool
+ *   error. It never runs.
  * - A pending call with `replay: 'never'` gets `interrupted`, else
  *   {@link INTERRUPTED_TOOL_RESULT}, as a tool error.
  * - A pending call with `replay: 'safe'`, or a call that never started, stays
@@ -204,10 +215,26 @@ export async function repairTranscript(options: {
   finished?: ReadonlyMap<string, ModelMessage>
   /** The content and error of a cut `replay: 'never'` call. */
   interrupted?: string
+  /** The content and error of a call that the output limit cut. */
+  truncated?: string
 }): Promise<void> {
-  const { messages, threadId, pending, finished, interrupted } = options
-  if (pending.length === 0 && (finished?.size ?? 0) === 0) return
+  const { messages, threadId, pending, finished, interrupted, truncated } =
+    options
   const history = await messages.loadThread(threadId)
+  // The last answer, with its segments. When the output limit stopped it,
+  // its calls are not complete.
+  const answer = history.slice(
+    history.findLastIndex((message) => message.role !== 'assistant') + 1,
+  )
+  const cut = answer.flatMap((message) =>
+    message.metadata?.tanstack?.finishReason === 'length'
+      ? (message.toolCalls ?? [])
+          .filter((call) => !isProviderExecutedToolCall(call))
+          .map((call) => call.id)
+      : [],
+  )
+  if (pending.length === 0 && (finished?.size ?? 0) === 0 && cut.length === 0)
+    return
   const answered = new Set(
     history.flatMap((message) =>
       message.role === 'tool' && message.toolCallId ? [message.toolCallId] : [],
@@ -219,6 +246,7 @@ export async function repairTranscript(options: {
   const pendingById = new Map(pending.map((tool) => [tool.toolCallId, tool]))
   const callIds = [
     ...new Set([
+      ...cut,
       ...(batch?.toolCalls ?? []).map((call) => call.id),
       ...pending.map((tool) => tool.toolCallId),
     ]),
@@ -228,6 +256,10 @@ export async function repairTranscript(options: {
     .flatMap((toolCallId): Array<ModelMessage> => {
       const result = finished?.get(toolCallId)
       if (result) return [result]
+      if (cut.includes(toolCallId)) {
+        const text = truncated ?? TRUNCATED_TOOL_RESULT
+        return [{ role: 'tool', toolCallId, content: text, error: text }]
+      }
       const tool = pendingById.get(toolCallId)
       if (!tool || tool.replay === 'safe') return []
       return [

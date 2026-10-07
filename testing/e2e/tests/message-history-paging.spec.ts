@@ -128,6 +128,49 @@ async function paintedIds(page: Page) {
 }
 
 test.describe('message history paging', () => {
+  test('isHydrating stays true until the server transcript is painted', async ({
+    page,
+    request,
+  }) => {
+    const id = threadId('is-hydrating')
+    await seedThread(request, 'array', id, SEED)
+
+    // Hold the browser's hydrate GET so the loading state is observable.
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    await page.route(
+      (url) =>
+        url.pathname === '/api/message-history-paging' &&
+        url.searchParams.get('threadId') === id,
+      async (route) => {
+        if (route.request().method() === 'GET') await gate
+        await route.continue()
+      },
+    )
+
+    await page.goto(
+      `/message-history-paging?threadId=${encodeURIComponent(id)}&store=array&pageSize=2`,
+    )
+    await expect(page.getByTestId('hydration-marker')).toBeAttached()
+    await expect(page.getByTestId('is-hydrating')).toHaveAttribute(
+      'data-is-hydrating',
+      'true',
+    )
+    expect(await paintedIds(page)).toEqual([])
+
+    release()
+    await expect(page.getByTestId('painted-ids')).toHaveAttribute(
+      'data-ids',
+      'u3,a3',
+    )
+    await expect(page.getByTestId('is-hydrating')).toHaveAttribute(
+      'data-is-hydrating',
+      'false',
+    )
+  })
+
   for (const store of ['array', 'page'] as const) {
     test(`${store} store hydrates the newest window and Load older prepends`, async ({
       page,

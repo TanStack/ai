@@ -213,6 +213,65 @@ describe('transcript fold', () => {
   })
 })
 
+describe('input fold', () => {
+  it('keeps the newest retry count of an input', async () => {
+    const store = memoryLogStore()
+    const retry = (retries: number): LogRecord => ({
+      type: 'harness.turn.retry',
+      inputId: 'in-1',
+      operationId: 'op-1',
+      retries,
+    })
+    await store.append(THREAD, 1, [
+      {
+        type: 'harness.input',
+        inputId: 'in-1',
+        input: { op: 'prompt', message: 'go' },
+        at: 1,
+      },
+    ])
+    expect((await loadSession({ store })).inputs.get('in-1')?.retries).toBe(
+      undefined,
+    )
+
+    await store.append(THREAD, 2, [retry(1), retry(2)])
+    expect((await loadSession({ store })).inputs.get('in-1')?.retries).toBe(2)
+    await store.append(THREAD, 4, [retry(0)])
+    expect((await loadSession({ store })).inputs.get('in-1')?.retries).toBe(0)
+  })
+})
+
+describe('a closed view', () => {
+  it('writes nothing more, also when its thread opens again', async () => {
+    const store = memoryLogStore()
+    const log = new SharedLog({
+      store,
+      logId: THREAD,
+      state: emptySharedLogState(),
+      coalesceMs: 0,
+    })
+    const closed = log.view('a', () => {})
+    // Another session keeps the log open.
+    log.view('b', () => {})
+
+    closed.close()
+    closed.publish('op-1', textStart('m1'))
+    closed.stage([{ type: 'app.staged' }])
+    await closed.append([{ type: 'app.late' }])
+    await closed.commit({ messages: [user('u0', 'late')] })
+    await log.view('a', () => {}).commit({ messages: [user('u1', 'hi')] })
+
+    expect(await records(store)).toEqual([
+      {
+        type: 'harness.transcript',
+        keep: 0,
+        add: [user('u1', 'hi')],
+        thread: 'a',
+      },
+    ])
+  })
+})
+
 describe('events and batches', () => {
   it('merges adjacent deltas and flushes at a boundary', async () => {
     const store = memoryLogStore()
@@ -483,6 +542,28 @@ describe('fold checkpoints', () => {
     await expect
       .poll(() => metadata.get(NAMESPACE, THREAD))
       .toMatchObject({ v: 2, seq: 50, version: 'v1' })
+  })
+
+  it('keeps the position of the last transcript record', async () => {
+    const store = memoryLogStore()
+    const { metadata } = memoryPersistence().stores
+    const writer = newWriter(store, { metadata, project })
+    await writer.commit({ messages: [user('u1', 'one')] })
+    for (let index = 1; index < 50; index += 1) {
+      await writer.append([{ type: 'app.tick', index }])
+    }
+    await expect
+      .poll(() => metadata.get(NAMESPACE, THREAD))
+      .toMatchObject({ seq: 50 })
+
+    expect(
+      (await loadSession({ store, metadata, project })).transcriptSeq,
+    ).toBe(1)
+    // A checkpoint from before the field does not know it.
+    await metadata.set(NAMESPACE, THREAD, checkpoint({ seq: 2 }))
+    expect(
+      (await loadSession({ store, metadata, project })).transcriptSeq,
+    ).toBeUndefined()
   })
 
   /** Counts the host records of the log. */
