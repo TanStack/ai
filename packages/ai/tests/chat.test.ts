@@ -2849,6 +2849,57 @@ describe('chat()', () => {
       expect(calls).toHaveLength(1)
     })
 
+    it('does not run or ask for the calls of an answer cut at the output limit', async () => {
+      const executeSpy = vi.fn().mockReturnValue({ ok: true })
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Going on.'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+      const call = (id: string, name: string) => ({
+        id,
+        type: 'function' as const,
+        function: { name, arguments: '{}' },
+      })
+
+      // A client history, or one from before the cut calls got results.
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          messages: [
+            { role: 'user', content: 'Look up, remove, and ask' },
+            {
+              role: 'assistant',
+              content: null,
+              metadata: { tanstack: { finishReason: 'length' } },
+              toolCalls: [
+                call('call_1', 'lookup'),
+                call('call_2', 'remove'),
+                call('call_3', 'ask'),
+              ],
+            },
+          ],
+          tools: [
+            serverTool('lookup', executeSpy),
+            { ...serverTool('remove', executeSpy), needsApproval: true },
+            clientTool('ask'),
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect(executeSpy).not.toHaveBeenCalled()
+      expect(expectSingleRunFinished(chunks).outcome?.type).not.toBe(
+        'interrupt',
+      )
+      expect(calls).toHaveLength(1)
+    })
+
     it('should emit only TOOL_CALL_RESULT for pending tool calls', async () => {
       const executeSpy = vi.fn().mockReturnValue({ temp: 72 })
 
@@ -5214,6 +5265,76 @@ describe('chat()', () => {
           },
         ],
       })
+    })
+
+    it('asks nothing for the calls of an answer cut at the output limit', async () => {
+      const review = defineInterrupt({
+        id: 'after-model-cut',
+        responseSchema: z.object({ approved: z.boolean() }),
+      })
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('call-draft', 'saveDraft'),
+            ev.toolArgs('call-draft', '{}'),
+            ev.toolEnd('call-draft'),
+            ev.toolStart('call-remove', 'remove'),
+            ev.toolArgs('call-remove', '{"path":'),
+            ev.runFinished('length'),
+          ],
+        ],
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          interrupts: [review],
+          middleware: [
+            defineChatMiddleware({
+              onInterruptBoundary(ctx) {
+                if (ctx.phase !== 'afterModel') return
+                return {
+                  interrupts: [
+                    review.interrupt({
+                      key: 'after-model',
+                      reason: 'review',
+                      message: 'Review the answer',
+                    }),
+                  ],
+                }
+              },
+            }),
+          ],
+          messages: [{ role: 'user', content: 'Save and remove' }],
+          tools: [
+            clientTool('saveDraft'),
+            {
+              ...serverTool('remove', () => ({ ok: true })),
+              needsApproval: true,
+            },
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      const terminal = expectSingleRunFinished(chunks)
+      if (terminal.outcome?.type !== 'interrupt') {
+        throw new Error('Expected afterModel interrupt')
+      }
+      expect(terminal.outcome.interrupts).toEqual([
+        expect.objectContaining({ reason: 'review' }),
+      ])
+      const snapshot = chunks.find(
+        (chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT,
+      )
+      if (!snapshot || snapshot.type !== EventType.MESSAGES_SNAPSHOT) {
+        throw new Error('Expected messages snapshot')
+      }
+      expect(
+        snapshot.messages
+          .filter((message) => message.role === 'tool')
+          .map((message) => message.toolCallId),
+      ).toEqual(['call-draft', 'call-remove'])
     })
 
     it.each([
