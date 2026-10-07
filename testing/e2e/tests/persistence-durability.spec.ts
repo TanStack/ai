@@ -362,19 +362,17 @@ test.describe('server persistence', () => {
     )
   })
 
-  test('restores a failed child error code from matching persisted metadata', async ({
-    request,
-  }) => {
-    const threadId = `subagent-error-code-${crypto.randomUUID()}`
+  test('restores the error of a stopped child', async ({ request }) => {
+    const threadId = `subagent-stopped-${crypto.randomUUID()}`
     const runId = crypto.randomUUID()
     const seed = await request.post(
-      '/api/persistence-durability?scenario=subagent-error-code',
+      '/api/persistence-durability?scenario=subagent-stopped',
       { data: { threadId, runId } },
     )
     expect(seed.ok()).toBe(true)
 
     const hydration = await request.get(
-      `/api/persistence-durability?scenario=subagent-error-code&threadId=${encodeURIComponent(threadId)}`,
+      `/api/persistence-durability?scenario=subagent-stopped&threadId=${encodeURIComponent(threadId)}`,
     )
     expect(hydration.ok()).toBe(true)
     const body = (await hydration.json()) as {
@@ -388,7 +386,7 @@ test.describe('server persistence', () => {
         subagent: expect.objectContaining({
           name: 'researcher',
           status: 'error',
-          error: { message: 'Provider failed', code: 'provider_error' },
+          error: { message: 'Stopped' },
         }),
       }),
     )

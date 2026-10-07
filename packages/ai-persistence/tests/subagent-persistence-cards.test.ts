@@ -442,26 +442,26 @@ describe('subagent run recorder', () => {
     expect(second).not.toContain('first thread notes')
   })
 
-  it('restores the cancellation reason on a zero-output child card', async () => {
+  /** Start one child, end it with this error, then end the parent run. */
+  async function settleChild(
+    error: { message: string; code?: string },
+    end: 'finish' | 'abort',
+  ) {
     const persistence = memoryPersistence()
-    const { stores } = persistence
-    if (!stores.messages || !stores.runs) {
-      throw new Error('memory persistence has message and run stores')
-    }
+    const { messages, runs } = persistence.stores
+    if (!messages || !runs) throw new Error('memory store has messages')
     const recorder = createSubagentRunRecorder({
-      messages: stores.messages,
-      runs: stores.runs,
+      messages,
+      runs,
       intervalMs: 0,
     })
-
+    const base = { threadId: 'desk', runId: 'parent-run' }
     await recorder.start({
-      threadId: 'desk',
-      runId: 'parent-run',
-      messages: [{ id: 'user-1', role: 'user', content: 'Research this' }],
+      ...base,
+      messages: [{ role: 'user', content: 'Research this' }],
     })
     await recorder.chunk({
-      threadId: 'desk',
-      runId: 'parent-run',
+      ...base,
       chunk: {
         type: EventType.SUBAGENT_STARTED,
         subagentRunId: 'child-run',
@@ -470,106 +470,33 @@ describe('subagent run recorder', () => {
       },
     })
     await recorder.chunk({
-      threadId: 'desk',
-      runId: 'parent-run',
+      ...base,
       chunk: {
         type: EventType.SUBAGENT_ERROR,
         subagentRunId: 'child-run',
-        message: 'Subagent stopped',
-        code: 'cancelled',
+        ...error,
         timestamp: t,
       },
     })
-    await recorder.abort({
-      threadId: 'desk',
-      runId: 'parent-run',
-      error: Object.assign(new Error('Aborted'), { name: 'AbortError' }),
-    })
+    await recorder[end](base)
+    return cardOf((await loadDesk(persistence)).messages).subagent
+  }
 
-    expect((await stores.runs.get('child-run'))?.status).toBe('aborted')
-    const card = cardOf((await loadDesk(persistence)).messages)
-    expect(card.subagent).toMatchObject({
-      status: 'error',
-      error: { message: 'Subagent stopped', code: 'cancelled' },
-    })
+  it('keeps the error of a stopped child after a reload', async () => {
+    const child = await settleChild({ message: 'Stopped' }, 'abort')
+    expect(child.status).toBe('error')
+    expect(child.error).toEqual({ message: 'Stopped' })
   })
 
-  it('retains stored error codes for failed child cards after reload', async () => {
-    const persistence = memoryPersistence()
-    const { stores } = persistence
-    if (!stores.messages || !stores.runs) {
-      throw new Error('memory persistence has message and run stores')
-    }
-    const recorder = createSubagentRunRecorder({
-      messages: stores.messages,
-      runs: stores.runs,
-      intervalMs: 0,
-    })
-
-    await recorder.start({
-      threadId: 'desk',
-      runId: 'parent-run',
-      messages: [{ id: 'user-1', role: 'user', content: 'Research this' }],
-    })
-    const failChild = async (input: {
-      runId: string
-      name: string
-      message: string
-      code: string
-    }) => {
-      await recorder.chunk({
-        threadId: 'desk',
-        runId: 'parent-run',
-        chunk: {
-          type: EventType.SUBAGENT_STARTED,
-          subagentRunId: input.runId,
-          name: input.name,
-          timestamp: t,
-        },
-      })
-      await recorder.chunk({
-        threadId: 'desk',
-        runId: 'parent-run',
-        chunk: {
-          type: EventType.SUBAGENT_ERROR,
-          subagentRunId: input.runId,
-          message: input.message,
-          code: input.code,
-          timestamp: t,
-        },
-      })
-    }
-
-    await failChild({
-      runId: 'matching-child',
-      name: 'matching',
+  it('keeps the error code of a failed child after a reload', async () => {
+    const child = await settleChild(
+      { message: 'Provider failed', code: 'provider_error' },
+      'finish',
+    )
+    expect(child.status).toBe('error')
+    expect(child.error).toEqual({
       message: 'Provider failed',
       code: 'provider_error',
-    })
-    await failChild({
-      runId: 'mismatched-child',
-      name: 'mismatched',
-      message: 'Metadata error',
-      code: 'metadata_error',
-    })
-    await stores.runs.update('mismatched-child', {
-      error: { message: 'Run error wins', code: 'run_error' },
-    })
-    await recorder.finish({ threadId: 'desk', runId: 'parent-run' })
-
-    const cards = (await loadDesk(persistence)).messages
-      .flatMap((message) => message.parts)
-      .filter((part) => part.type === 'subagent')
-    const matching = cards.find((part) => part.subagent.name === 'matching')
-    const mismatched = cards.find((part) => part.subagent.name === 'mismatched')
-
-    expect(matching?.subagent.error).toEqual({
-      message: 'Provider failed',
-      code: 'provider_error',
-    })
-    expect(mismatched?.subagent.error).toEqual({
-      message: 'Run error wins',
-      code: 'run_error',
     })
   })
 })

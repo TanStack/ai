@@ -56,8 +56,8 @@ import type {
  *   their stored cumulative usage.
  * - `tool-error` — runs a server tool that throws through `withPersistence`,
  *   then hydrates the failed tool call from `reconstructChat`.
- * - `subagent-error-code` — reconstructs a failed child with matching run and
- *   metadata messages, preserving its typed error code.
+ * - `subagent-stopped` — reconstructs a stopped child. Its run record has no
+ *   error, so the card error comes from the stored child metadata.
  *
  * Exempt from the aimock policy: this route never reaches an LLM provider's HTTP
  * layer, so there is nothing to mock.
@@ -157,7 +157,7 @@ const harnessOutputAdapter: AnyTextAdapter = {
 } as unknown as AnyTextAdapter
 
 const toolErrorPersistence = memoryPersistence()
-const subagentErrorCodePersistence = memoryPersistence()
+const subagentStoppedPersistence = memoryPersistence()
 const failingTool = toolDefinition({
   name: 'check_status',
   description: 'Check the service status',
@@ -380,7 +380,7 @@ function scenarioOf(
   | 'harness-output'
   | 'usage'
   | 'tool-error'
-  | 'subagent-error-code' {
+  | 'subagent-stopped' {
   try {
     const value = new URL(request.url).searchParams.get('scenario')
     if (value === 'interrupt') return 'interrupt'
@@ -389,7 +389,7 @@ function scenarioOf(
     if (value === 'harness-output') return 'harness-output'
     if (value === 'usage') return 'usage'
     if (value === 'tool-error') return 'tool-error'
-    if (value === 'subagent-error-code') return 'subagent-error-code'
+    if (value === 'subagent-stopped') return 'subagent-stopped'
     return 'text'
   } catch {
     return 'text'
@@ -483,8 +483,8 @@ export const Route = createFileRoute('/api/persistence-durability')({
           for await (const _ of stream) void _
           return Response.json({ runId, threadId })
         }
-        if (scenario === 'subagent-error-code') {
-          const { stores } = subagentErrorCodePersistence
+        if (scenario === 'subagent-stopped') {
+          const { stores } = subagentStoppedPersistence
           if (!stores.messages || !stores.runs) {
             throw new Error('memory persistence has message and run stores')
           }
@@ -510,13 +510,11 @@ export const Route = createFileRoute('/api/persistence-durability')({
             parentRunId: runId,
             subagentRunId: childRunId,
             name: 'researcher',
-            status: 'failed',
+            status: 'aborted',
             startedAt,
           })
-          await stores.runs.update(childRunId, {
-            error: { message: 'Provider failed' },
-            finishedAt: startedAt,
-          })
+          // A stopped child has no error on its run record.
+          await stores.runs.update(childRunId, { finishedAt: startedAt })
           await stores.messages.saveThread(`subagent:${childRunId}`, [
             {
               id: `child:${childRunId}`,
@@ -527,10 +525,7 @@ export const Route = createFileRoute('/api/persistence-durability')({
                   subagent: {
                     name: 'researcher',
                     status: 'error',
-                    error: {
-                      message: 'Provider failed',
-                      code: 'provider_error',
-                    },
+                    error: { message: 'Stopped' },
                     placeholder: true,
                   },
                 },
@@ -577,8 +572,8 @@ export const Route = createFileRoute('/api/persistence-durability')({
             authorize: (threadId) => threadId.length > 0,
           })
         }
-        if (scenarioOf(request) === 'subagent-error-code') {
-          return reconstructChat(subagentErrorCodePersistence, request, {
+        if (scenarioOf(request) === 'subagent-stopped') {
+          return reconstructChat(subagentStoppedPersistence, request, {
             authorize: (threadId) => threadId.length > 0,
           })
         }

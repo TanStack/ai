@@ -25,7 +25,7 @@ function describeParts(messages: ReadonlyArray<UIMessage>): Array<string> {
 
 function SubagentsTestPage() {
   const { testId, aimockPort, scenario } = Route.useSearch()
-  const { messages, sendMessage, interrupts, isLoading, subagents } = useChat({
+  const { messages, sendMessage, interrupts, isLoading } = useChat({
     threadId: `subagents-${testId ?? 'manual'}-${scenario}`,
     connection: fetchServerSentEvents('/api/subagents-test'),
     body: { scenario, testId, aimockPort },
@@ -57,11 +57,6 @@ function SubagentsTestPage() {
       >
         Run
       </button>
-      {scenario === 'cancel' ? (
-        <button data-testid="stop" onClick={() => subagents[0]?.stop?.()}>
-          Stop child
-        </button>
-      ) : null}
       <div data-testid="loading">{String(isLoading)}</div>
       <div data-testid="message-count">{messages.length}</div>
       <div data-testid="parent-part-types">{parentParts.join(',')}</div>
@@ -69,9 +64,6 @@ function SubagentsTestPage() {
       {cards.map((card) => (
         <section key={card.id} data-testid={`card-${card.name}`}>
           <span data-testid={`card-status-${card.name}`}>{card.status}</span>
-          <span data-testid={`card-error-code-${card.name}`}>
-            {card.error?.code ?? ''}
-          </span>
           <ul>
             {describeParts(card.messages).map((line, index) => (
               <li key={index}>{line}</li>

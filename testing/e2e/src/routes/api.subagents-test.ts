@@ -95,24 +95,6 @@ function subagentsFor(
     const agents: Array<DefinedAgent> = [researcher]
     return { agents }
   }
-  if (scenario === 'cancel') {
-    const researcher = defineAgent({
-      name: 'researcher',
-      description: 'Waits until the user stops the child',
-      run: async function* (ctx) {
-        const signal = ctx.abortSignal
-        if (!signal) throw new Error('Expected the child abort signal')
-        await new Promise<void>((resolve) => {
-          if (signal.aborted) {
-            resolve()
-            return
-          }
-          signal.addEventListener('abort', () => resolve(), { once: true })
-        })
-      },
-    })
-    return { agents: [researcher], router: () => 'researcher' }
-  }
   return { agents: [child('researcher', [])] }
 }
 

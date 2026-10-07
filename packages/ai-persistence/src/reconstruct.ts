@@ -358,11 +358,9 @@ async function childCard(
     }
   }
   const failed = child.status === 'failed' || child.status === 'aborted'
-  const storedError = info?.error
-  const error =
-    child.error && storedError?.message === child.error.message
-      ? { ...storedError, ...child.error }
-      : (child.error ?? storedError)
+  // The child metadata keeps the full error with its code. A stopped child
+  // has no error on its run record.
+  const error = info?.error ?? child.error
   const interruptIds = pending
     .filter((record) => record.payload.subagentRunId === subagentRunId)
     .map((record) => record.interruptId)

@@ -388,10 +388,7 @@ export function createSubagentRunRecorder(stores: {
       children.get(note.parentSubagentRunId)?.processor.processChunk(chunk)
     }
     if (chunk.type === 'SUBAGENT_ERROR') {
-      const cancelled =
-        chunk.code !== undefined
-          ? chunk.code === 'cancelled'
-          : chunk.message === 'Stopped'
+      const stopped = chunk.message === 'Stopped'
       note.status = 'error'
       note.error = {
         message: chunk.message,
@@ -399,9 +396,9 @@ export function createSubagentRunRecorder(stores: {
       }
       await saveChild(id)
       await stores.runs?.update(id, {
-        status: cancelled ? 'aborted' : 'failed',
+        status: stopped ? 'aborted' : 'failed',
         finishedAt: Date.now(),
-        ...(!cancelled ? { error: { message: chunk.message } } : {}),
+        ...(!stopped ? { error: { message: chunk.message } } : {}),
       })
       return
     }

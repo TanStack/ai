@@ -113,8 +113,6 @@ Save these three fields on the child run. `createOrResume` writes them on the fi
 
 A child that waits for an approval comes back with `status: 'suspended'`, and its interrupt stays pending. The reloaded client can answer it, and the next run continues that child.
 
-A stopped child comes back with `status: 'error'` and `error.code: 'cancelled'`, including when the child produced no transcript messages before it stopped.
-
 A child that a tool call started sits on the message with that tool call. `reconstructChat` finds its parent run with `listByThread`, so implement that method too.
 
 Put `withPersistence` on the parent `chat()` only, not on a child `chat()`. The parent stores the child runs. A child with its own `withPersistence` stores the same child a second time, and its interrupt records conflict with the parent's.
