@@ -436,26 +436,17 @@ export function createHarnessHost<TLogState = undefined>(
         if (isOwn) {
           const stop = session.onIdle(() => {
             stop()
-            // ponytail: the session is idle while it still stores an input,
-            // such as the wake turn of a stopped agent. Look again after one
-            // macrotask. A store write slower than that loses the race; count
-            // inputs in flight in `isIdle` if that matters.
-            setTimeout(() => {
-              const again = session.onIdle(() => {
-                again()
-                // The app opened it since: it stays open.
-                if (!sweptOnly.delete(key)) return
-                // From here on, an open gets a new session, so a new prompt
-                // never reaches this one while it closes.
-                sessions.delete(key)
-                // ponytail: a failed close is dropped, as an idle session
-                // has no work to lose.
-                const closed = session.close().catch(() => {})
-                closing.set(key, closed)
-                void closed.then(() => {
-                  if (closing.get(key) === closed) closing.delete(key)
-                })
-              })
+            // The app opened it since: it stays open.
+            if (!sweptOnly.delete(key)) return
+            // From here on, an open gets a new session, so a new prompt
+            // never reaches this one while it closes.
+            sessions.delete(key)
+            // ponytail: a failed close is dropped, as an idle session has no
+            // work to lose.
+            const closed = session.close().catch(() => {})
+            closing.set(key, closed)
+            void closed.then(() => {
+              if (closing.get(key) === closed) closing.delete(key)
             })
           })
         }

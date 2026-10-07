@@ -5,6 +5,7 @@ import { defineHarness, definePlugin } from '../src'
 import { mockAdapter } from './helpers'
 import type { AnyTextAdapter, KeyedAdapter } from '@tanstack/ai'
 import type {
+  AgentRun,
   HarnessConfig,
   HarnessInput,
   HarnessSession,
@@ -93,4 +94,10 @@ it('takes attempt and time limits on the harness', () => {
     | { maxAttempts?: number; timeoutMs?: number; recover?: RecoverHook }
     | undefined
   >()
+})
+
+it('gives a started agent run send()', () => {
+  const run = session.agents.pricer.start({ vendor: 'a' })
+  expectTypeOf(run).toEqualTypeOf<AgentRun<{ vendor: string; cents: number }>>()
+  expectTypeOf(run.send).returns.toEqualTypeOf<Promise<Receipt>>()
 })

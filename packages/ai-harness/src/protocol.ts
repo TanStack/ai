@@ -47,6 +47,7 @@ const INPUT_OPS = new Set([
   'config',
   'configure',
   'reset',
+  'agentMessage',
 ])
 
 /** Check the shape of a client input. Throws with a short reason. */
@@ -59,7 +60,10 @@ export function parseHarnessInput(value: unknown): HarnessInput {
     throw new Error('Invalid input: expected { op } with a known op.')
   }
   const needsMessage =
-    value.op === 'prompt' || value.op === 'steer' || value.op === 'followUp'
+    value.op === 'prompt' ||
+    value.op === 'steer' ||
+    value.op === 'followUp' ||
+    value.op === 'agentMessage'
   if (
     needsMessage &&
     typeof value.message !== 'string' &&
@@ -72,6 +76,19 @@ export function parseHarnessInput(value: unknown): HarnessInput {
   }
   if (value.op === 'agent' && typeof value.agent !== 'string') {
     throw new Error('Invalid input: agent needs an agent name.')
+  }
+  if (value.op === 'agentMessage' && typeof value.operationId !== 'string') {
+    throw new Error('Invalid input: agentMessage needs an operationId.')
+  }
+  if (
+    value.op === 'agentMessage' &&
+    value.mode !== undefined &&
+    value.mode !== 'steer' &&
+    value.mode !== 'followUp'
+  ) {
+    throw new Error(
+      "Invalid input: the mode of agentMessage must be 'steer' or 'followUp'.",
+    )
   }
   if (value.op === 'command' && typeof value.name !== 'string') {
     throw new Error('Invalid input: command needs a name.')
@@ -126,8 +143,8 @@ export function parseControlFrame(data: string): ControlFrame {
 }
 
 /**
- * Apply a client input to a session. Only agents in `expose.agents` can run
- * from a client. Resolves to the receipt. `principal` is who sent the input,
+ * Apply a client input to a session. Only agents in `expose.agents` can run,
+ * or take messages, from a client. Resolves to the receipt. `principal` is who sent the input,
  * from your `authorize`, never from the input itself. A chat input runs with
  * its credentials.
  */
@@ -222,6 +239,29 @@ export async function applyInput(
         status: 'accepted',
         operationId: operation.id,
       }
+    }
+    case 'agentMessage': {
+      const run = session.operation(input.operationId)
+      if (!run || run.kind !== 'agent') {
+        return {
+          inputId: input.inputId ?? '',
+          status: 'rejected',
+          reason: 'not_running',
+        }
+      }
+      // Only a run of an exposed agent takes messages from a client.
+      const exposed: ReadonlyArray<string> = harness.expose?.agents ?? []
+      if (!exposed.includes(run.agent ?? '')) {
+        return {
+          inputId: input.inputId ?? '',
+          status: 'rejected',
+          reason: 'not_exposed',
+        }
+      }
+      return session.sendToAgent(input.operationId, input.message, {
+        ...id,
+        ...(input.mode ? { mode: input.mode } : {}),
+      })
     }
   }
 }

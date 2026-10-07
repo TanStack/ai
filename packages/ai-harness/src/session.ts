@@ -105,6 +105,7 @@ import type {
   PluginState,
 } from './plugins'
 import type {
+  AgentRun,
   BusyPolicy,
   ChatTurnResult,
   Cursor,
@@ -165,13 +166,13 @@ export interface AgentHandle<TAgent> {
   ) => Operation<AgentResultOf<TAgent>>
   start: (
     ...args: RunArgs<TAgent, AgentStartOptions>
-  ) => Operation<AgentResultOf<TAgent>>
+  ) => AgentRun<AgentResultOf<TAgent>>
 }
 
 /** A handle for an agent picked by name at runtime. */
 export interface DynamicAgentHandle {
   run: (input?: unknown, options?: AgentRunOptions) => Operation<unknown>
-  start: (input?: unknown, options?: AgentStartOptions) => Operation<unknown>
+  start: (input?: unknown, options?: AgentStartOptions) => AgentRun<unknown>
 }
 
 /** `session.agents`: one typed handle per registered agent name. */
@@ -325,9 +326,19 @@ interface InterruptedTurn {
   context?: unknown
 }
 
+/** An agent run operation. `send` adds a message to its chain. */
+type AgentRunImpl = OperationImpl<unknown> & AgentRun<unknown>
+
+/** A message to an agent run: a steer or a follow-up. */
+interface AgentMessage {
+  inputId: string
+  message: UserInput
+  principal?: Principal
+}
+
 /** One run of an agent chain, and who it runs for. */
 interface AgentRunEntry {
-  operation: OperationImpl<unknown>
+  operation: AgentRunImpl
   principal?: Principal
 }
 
@@ -350,12 +361,18 @@ interface AgentChain {
   budget: SubagentBudget
   /** The newest run that started. */
   current: AgentRunEntry
+  /** Steers that wait for the current run's next model call. */
+  steers: Array<AgentMessage>
+  /** Follow-ups that run after the current run ends, in order. */
+  followUps: Array<AgentMessage & { operation: AgentRunImpl }>
 }
 
 /** What one run of a chain applies. */
 interface AgentRunStart {
   /** The input this run applies. */
   inputId: string
+  /** The follow-up message this run adds to the chain's thread. */
+  message?: AgentMessage
   /** Recovery runs again a run whose host stopped. */
   resumed?: boolean
 }
@@ -387,6 +404,13 @@ const chainFields = (first: AgentInputState) => ({
     ...(first.input.resume ? { resume: true } : {}),
   },
   ...(first.principal ? { principal: first.principal } : {}),
+})
+
+/** A message to an agent run as a user message. Its id is its input id. */
+const asUserMessage = (sent: AgentMessage): ModelMessage => ({
+  id: sent.inputId,
+  role: 'user',
+  content: sent.message,
 })
 
 /** True for an interrupted turn as `stores.metadata` gives it back. */
@@ -735,6 +759,7 @@ const WORK_OPS = new Set<string>([
   'resolve',
   'reset',
   'agent',
+  'agentMessage',
 ])
 
 /** Why a turn stops when its input passes its time limit. */
@@ -862,6 +887,10 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   private readonly settlements = new Map<string, InputSettlement>()
   private readonly agentRegistry = new AgentRegistry()
   private readonly operations = new Map<string, OperationImpl<unknown>>()
+  /** The agent chains of this session, by the input id of the first run. */
+  private readonly agentChains = new Map<string, AgentChain>()
+  /** The chain of each agent run operation, by operation id. */
+  private readonly chainOf = new Map<string, AgentChain>()
   private readonly queue: Array<QueuedTurn> = []
   /**
    * Messages for the running turn. A steer that the turn never reached (no
@@ -892,6 +921,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   private claimWrite: Promise<void> = Promise.resolve()
   /** Called each time the thread goes idle. See `onIdle`. */
   private readonly idleListeners = new Set<() => void>()
+  /** Work inputs that are being stored and are not queued yet. */
+  private inputsInFlight = 0
   /** Who sent the input of the running turn. */
   private turnPrincipal: Principal | undefined
   /**
@@ -1093,6 +1124,43 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   /** An operation of this session by id, running or settled. */
   operation(id: string): Operation<unknown> | undefined {
     return this.operations.get(id)
+  }
+
+  /**
+   * Add a message to the agent run `operationId`, as `AgentRun.send` does.
+   * `principal` is who sent it. A follow-up runs for its sender. An unknown
+   * run gets `not_running`.
+   */
+  async sendToAgent(
+    operationId: string,
+    message: UserInput,
+    options?: {
+      mode?: 'steer' | 'followUp'
+      inputId?: string
+      principal?: Principal
+    },
+  ): Promise<Receipt> {
+    const inputId = options?.inputId ?? createInputId()
+    const chain = this.chainOf.get(operationId)
+    if (!chain) return { inputId, status: 'rejected', reason: 'not_running' }
+    const principal = options?.principal ?? this.principal
+    const mode = options?.mode ?? 'steer'
+    return this.admitting(async () => {
+      const admission = await this.accept(
+        inputId,
+        {
+          op: 'agentMessage',
+          operationId,
+          message,
+          mode,
+          run: chain.runInputId,
+        },
+        principal,
+      )
+      if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
+      const sent = { inputId, message, ...(principal ? { principal } : {}) }
+      return this.keep({ inputId, ...this.deliver(chain, sent, mode) })
+    })
   }
 
   /** @internal Mount session plugins and replay inputs left in the inbox. */
@@ -1317,64 +1385,68 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     }
     const operation = this.createTurnOperation(runId)
     this.bindTurn(inputId, operation)
-    void this.accept(inputId, input, principal).then(
-      async (admission) => {
-        if (admission !== 'new') {
-          this.answerDuplicate(operation, inputId, admission)
-          return
-        }
-        // Awaited only for a client run id, so other prompts keep their order.
-        if (runId !== undefined && (await this.isRunTaken(runId))) {
-          this.reject(inputId, 'conflict')
-          this.refuse(operation, {
+    void this.admitting(() =>
+      this.accept(inputId, input, principal).then(
+        async (admission) => {
+          if (admission !== 'new') {
+            this.answerDuplicate(operation, inputId, admission)
+            return
+          }
+          // Awaited only for a client run id, so other prompts keep their order.
+          if (runId !== undefined && (await this.isRunTaken(runId))) {
+            this.reject(inputId, 'conflict')
+            this.refuse(operation, {
+              inputId,
+              status: 'rejected',
+              reason: 'conflict',
+            })
+            return
+          }
+          if (this.activeTurn && busy === 'reject') {
+            this.reject(inputId, 'busy')
+            this.refuse(operation, {
+              inputId,
+              status: 'rejected',
+              reason: 'busy',
+            })
+            return
+          }
+          const isWaiting =
+            this.activeTurn !== undefined || this.queue.length > 0
+          // A steer joins the running turn, so the receipt names that turn, as
+          // `steer()` does.
+          const running = busy === 'steer' ? this.activeTurn : undefined
+          this.answerTurn(operation, {
+            inputId,
+            status: isWaiting && busy !== 'steer' ? 'queued' : 'accepted',
+            operationId: running?.id ?? operation.id,
+          })
+          const sent = { principal, context }
+          if (running) {
+            this.steerQueue.push({
+              inputId,
+              message,
+              operation,
+              overrides,
+              ...sent,
+            })
+            return
+          }
+          this.enqueueTurn({ operation, message, inputId, overrides, ...sent })
+        },
+        (error: unknown) => {
+          // The input was not stored. After a log failure, say why the
+          // session stopped.
+          const failure = this.logFailure ?? error
+          this.answerTurn(operation, {
             inputId,
             status: 'rejected',
-            reason: 'conflict',
+            reason:
+              failure instanceof Error ? failure.message : String(failure),
           })
-          return
-        }
-        if (this.activeTurn && busy === 'reject') {
-          this.reject(inputId, 'busy')
-          this.refuse(operation, {
-            inputId,
-            status: 'rejected',
-            reason: 'busy',
-          })
-          return
-        }
-        const isWaiting = this.activeTurn !== undefined || this.queue.length > 0
-        // A steer joins the running turn, so the receipt names that turn, as
-        // `steer()` does.
-        const running = busy === 'steer' ? this.activeTurn : undefined
-        this.answerTurn(operation, {
-          inputId,
-          status: isWaiting && busy !== 'steer' ? 'queued' : 'accepted',
-          operationId: running?.id ?? operation.id,
-        })
-        const sent = { principal, context }
-        if (running) {
-          this.steerQueue.push({
-            inputId,
-            message,
-            operation,
-            overrides,
-            ...sent,
-          })
-          return
-        }
-        this.enqueueTurn({ operation, message, inputId, overrides, ...sent })
-      },
-      (error: unknown) => {
-        // The input was not stored. After a log failure, say why the
-        // session stopped.
-        const failure = this.logFailure ?? error
-        this.answerTurn(operation, {
-          inputId,
-          status: 'rejected',
-          reason: failure instanceof Error ? failure.message : String(failure),
-        })
-        operation.fail('failed', failure)
-      },
+          operation.fail('failed', failure)
+        },
+      ),
     )
     return operation
   }
@@ -1387,34 +1459,36 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     message: UserInput,
     options?: { inputId?: string; principal?: Principal; context?: unknown },
   ): Promise<Receipt> {
-    const inputId = options?.inputId ?? createInputId()
-    const principal = options?.principal ?? this.principal
-    const context = options?.context
-    const admission = await this.accept(
-      inputId,
-      {
-        op: 'steer',
-        message,
-        ...(context !== undefined ? { context } : {}),
-      },
-      principal,
-    )
-    if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
-    if (!this.activeTurn) {
-      const operation = this.createTurnOperation()
-      this.bindTurn(inputId, operation)
-      this.enqueueTurn({ operation, message, inputId, principal, context })
+    return this.admitting(async () => {
+      const inputId = options?.inputId ?? createInputId()
+      const principal = options?.principal ?? this.principal
+      const context = options?.context
+      const admission = await this.accept(
+        inputId,
+        {
+          op: 'steer',
+          message,
+          ...(context !== undefined ? { context } : {}),
+        },
+        principal,
+      )
+      if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
+      if (!this.activeTurn) {
+        const operation = this.createTurnOperation()
+        this.bindTurn(inputId, operation)
+        this.enqueueTurn({ operation, message, inputId, principal, context })
+        return this.keep({
+          inputId,
+          status: 'accepted',
+          operationId: operation.id,
+        })
+      }
+      this.steerQueue.push({ inputId, message, principal, context })
       return this.keep({
         inputId,
         status: 'accepted',
-        operationId: operation.id,
+        operationId: this.activeTurn.id,
       })
-    }
-    this.steerQueue.push({ inputId, message, principal, context })
-    return this.keep({
-      inputId,
-      status: 'accepted',
-      operationId: this.activeTurn.id,
     })
   }
 
@@ -1432,32 +1506,34 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       context?: unknown
     },
   ): Promise<Receipt> {
-    const inputId = options?.inputId ?? createInputId()
-    const principal = options?.principal ?? this.principal
-    const context = options?.context
-    const admission = await this.accept(
-      inputId,
-      {
-        op: 'followUp',
+    return this.admitting(async () => {
+      const inputId = options?.inputId ?? createInputId()
+      const principal = options?.principal ?? this.principal
+      const context = options?.context
+      const admission = await this.accept(
+        inputId,
+        {
+          op: 'followUp',
+          message,
+          ...(context !== undefined ? { context } : {}),
+        },
+        principal,
+      )
+      if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
+      const operation = this.createTurnOperation()
+      this.bindTurn(inputId, operation)
+      const status =
+        this.activeTurn || this.queue.length > 0 ? 'queued' : 'accepted'
+      this.enqueueTurn({
+        operation,
         message,
-        ...(context !== undefined ? { context } : {}),
-      },
-      principal,
-    )
-    if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
-    const operation = this.createTurnOperation()
-    this.bindTurn(inputId, operation)
-    const status =
-      this.activeTurn || this.queue.length > 0 ? 'queued' : 'accepted'
-    this.enqueueTurn({
-      operation,
-      message,
-      inputId,
-      overrides: options?.overrides,
-      principal,
-      context,
+        inputId,
+        overrides: options?.overrides,
+        principal,
+        context,
+      })
+      return this.keep({ inputId, status, operationId: operation.id })
     })
-    return this.keep({ inputId, status, operationId: operation.id })
   }
 
   /**
@@ -1475,26 +1551,28 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     note?: string,
     options?: { principal?: Principal; inputId?: string },
   ): Promise<Receipt> {
-    const inputId = options?.inputId ?? createInputId()
-    const principal = options?.principal ?? this.principal
-    // An empty note is no note: the model never gets an empty message.
-    const text = note?.trim() ? note : undefined
-    const admission = await this.accept(
-      inputId,
-      { op: 'reset', ...(text !== undefined ? { note: text } : {}) },
-      principal,
-    )
-    if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
-    const isRunning = this.activeTurn !== undefined
-    if (!isRunning && this.queue.length === 0 && this.interrupted) {
-      this.reject(inputId, 'pending_interrupts')
-      return { inputId, status: 'rejected', reason: 'pending_interrupts' }
-    }
-    const operation = this.queueReset(inputId, text, principal, 'front')
-    return this.keep({
-      inputId,
-      status: isRunning ? 'queued' : 'accepted',
-      operationId: operation.id,
+    return this.admitting(async () => {
+      const inputId = options?.inputId ?? createInputId()
+      const principal = options?.principal ?? this.principal
+      // An empty note is no note: the model never gets an empty message.
+      const text = note?.trim() ? note : undefined
+      const admission = await this.accept(
+        inputId,
+        { op: 'reset', ...(text !== undefined ? { note: text } : {}) },
+        principal,
+      )
+      if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
+      const isRunning = this.activeTurn !== undefined
+      if (!isRunning && this.queue.length === 0 && this.interrupted) {
+        this.reject(inputId, 'pending_interrupts')
+        return { inputId, status: 'rejected', reason: 'pending_interrupts' }
+      }
+      const operation = this.queueReset(inputId, text, principal, 'front')
+      return this.keep({
+        inputId,
+        status: isRunning ? 'queued' : 'accepted',
+        operationId: operation.id,
+      })
     })
   }
 
@@ -1512,60 +1590,66 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       runId?: string
     },
   ): Promise<Receipt> {
-    const inputId = options?.inputId ?? createInputId()
-    const principal = options?.principal ?? this.principal
-    const admission = await this.accept(
-      inputId,
-      { op: 'resolve', resume },
-      principal,
-    )
-    if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
-    const runId = options?.runId
-    // A run id must not take the id of another operation or stored run.
-    const isTaken =
-      runId !== undefined &&
-      (this.operations.has(runId) || (await this.isRunTaken(runId)))
-    if (isTaken) {
-      this.reject(inputId, 'conflict')
-      return { inputId, status: 'rejected', reason: 'conflict' }
-    }
-    const answers = this.interrupted
-    if (!answers) {
-      this.reject(inputId, 'no_pending_interrupts')
-      return { inputId, status: 'rejected', reason: 'no_pending_interrupts' }
-    }
-    // A client answers on RUN_FINISHED, while the interrupted turn still
-    // ends. The resolve runs right after it.
-    const isEnding = this.activeTurn?.id === answers.runId
-    if (
-      (this.activeTurn && !isEnding) ||
-      this.queue.some((turn) => turn.answers?.runId === answers.runId)
-    ) {
-      this.reject(inputId, 'busy')
-      return { inputId, status: 'rejected', reason: 'busy' }
-    }
-    // A cancelled sign-in fails its tool when the turn runs it again.
-    for (const entry of resume) {
-      const connector = signInConnector(
-        answers.interrupts.find((item) => item.id === entry.interruptId),
+    return this.admitting(async () => {
+      const inputId = options?.inputId ?? createInputId()
+      const principal = options?.principal ?? this.principal
+      const admission = await this.accept(
+        inputId,
+        { op: 'resolve', resume },
+        principal,
       )
-      if (connector && entry.status === 'cancelled')
-        this.declinedSignIns.add(connector)
-    }
-    const operation = this.createTurnOperation(runId)
-    this.bindTurn(inputId, operation)
-    // The turn goes on with the context its input sent.
-    const turn: QueuedTurn = {
-      operation,
-      resume,
-      inputId,
-      answers,
-      principal,
-      context: answers.context,
-    }
-    if (isEnding) this.queue.unshift(turn)
-    else this.enqueueTurn(turn)
-    return this.keep({ inputId, status: 'accepted', operationId: operation.id })
+      if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
+      const runId = options?.runId
+      // A run id must not take the id of another operation or stored run.
+      const isTaken =
+        runId !== undefined &&
+        (this.operations.has(runId) || (await this.isRunTaken(runId)))
+      if (isTaken) {
+        this.reject(inputId, 'conflict')
+        return { inputId, status: 'rejected', reason: 'conflict' }
+      }
+      const answers = this.interrupted
+      if (!answers) {
+        this.reject(inputId, 'no_pending_interrupts')
+        return { inputId, status: 'rejected', reason: 'no_pending_interrupts' }
+      }
+      // A client answers on RUN_FINISHED, while the interrupted turn still
+      // ends. The resolve runs right after it.
+      const isEnding = this.activeTurn?.id === answers.runId
+      if (
+        (this.activeTurn && !isEnding) ||
+        this.queue.some((turn) => turn.answers?.runId === answers.runId)
+      ) {
+        this.reject(inputId, 'busy')
+        return { inputId, status: 'rejected', reason: 'busy' }
+      }
+      // A cancelled sign-in fails its tool when the turn runs it again.
+      for (const entry of resume) {
+        const connector = signInConnector(
+          answers.interrupts.find((item) => item.id === entry.interruptId),
+        )
+        if (connector && entry.status === 'cancelled')
+          this.declinedSignIns.add(connector)
+      }
+      const operation = this.createTurnOperation(runId)
+      this.bindTurn(inputId, operation)
+      // The turn goes on with the context its input sent.
+      const turn: QueuedTurn = {
+        operation,
+        resume,
+        inputId,
+        answers,
+        principal,
+        context: answers.context,
+      }
+      if (isEnding) this.queue.unshift(turn)
+      else this.enqueueTurn(turn)
+      return this.keep({
+        inputId,
+        status: 'accepted',
+        operationId: operation.id,
+      })
+    })
   }
 
   /**
@@ -2712,9 +2796,18 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     )
   }
 
-  /** No queued or running turn, no waiting steer, and no running agent. */
+  /**
+   * No input being stored, no queued or running turn, no waiting steer, and
+   * no running agent.
+   */
   private isIdle(): boolean {
+    // A follow-up that waits for its run keeps the thread busy.
+    const hasFollowUps = [...this.agentChains.values()].some(
+      (chain) => chain.followUps.length > 0,
+    )
+    if (hasFollowUps) return false
     return (
+      this.inputsInFlight === 0 &&
       this.activeTurn === undefined &&
       this.queue.length === 0 &&
       this.steerQueue.length === 0 &&
@@ -2722,6 +2815,21 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         (operation) => operation.kind === 'agent' && !operation.isSettled(),
       )
     )
+  }
+
+  /**
+   * Run `work`, a public entry that stores a work input and queues its work.
+   * The thread is busy until `work` ends, so it is not idle while the input
+   * is stored.
+   */
+  private async admitting<T>(work: () => Promise<T>) {
+    this.inputsInFlight += 1
+    try {
+      return await work()
+    } finally {
+      this.inputsInFlight -= 1
+      this.checkIdle()
+    }
   }
 
   /**
@@ -4211,7 +4319,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     target: string | AnyAgent,
     input: unknown,
     options: AgentStartOptions,
-  ): OperationImpl<unknown> {
+  ): AgentRunImpl {
     const name = typeof target === 'string' ? target : target.name
     if (options.resume && !this.writer) {
       throw new Error(
@@ -4233,7 +4341,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   }
 
   /** A new agent run operation. `id`: a stored one, after a restart. */
-  private agentOperation(agent: string, id?: string): OperationImpl<unknown> {
+  private agentOperation(agent: string, id?: string): AgentRunImpl {
     const operation = new OperationImpl<unknown>(
       'agent',
       this.feed,
@@ -4241,8 +4349,14 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       agent,
       id,
     )
-    this.operations.set(operation.id, operation)
-    return operation
+    const run = Object.assign(operation, {
+      send: (
+        message: UserInput,
+        options?: { mode?: 'steer' | 'followUp'; inputId?: string },
+      ) => this.sendToAgent(operation.id, message, options),
+    })
+    this.operations.set(run.id, run)
+    return run
   }
 
   /** A new chain, with `first` as its first run. */
@@ -4255,13 +4369,18 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   ): AgentChain {
     const agent =
       typeof fields.target === 'string' ? fields.target : fields.target.name
-    return {
+    const chain = {
       ...fields,
       agent,
       thread: `${this.threadId}:${agent}:${fields.runInputId}`,
       budget: this.codeBudget(),
       current: first,
+      steers: [],
+      followUps: [],
     }
+    this.agentChains.set(chain.runInputId, chain)
+    this.chainOf.set(first.operation.id, chain)
+    return chain
   }
 
   /**
@@ -4398,17 +4517,77 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     }
   }
 
-  /** One run of `chain`. The thread can be idle when it ends. */
+  /**
+   * One run of `chain`. Then the steers it never took run as follow-ups,
+   * before the follow-ups that wait, and the next follow-up starts.
+   */
   private async executeAgent(
-    operation: OperationImpl<unknown>,
+    operation: AgentRunImpl,
     chain: AgentChain,
     start: AgentRunStart,
   ): Promise<void> {
     try {
       await this.runAgentOnce(operation, chain, start)
     } finally {
+      // After a log failure, another host owns the thread.
+      if (!this.logFailure) {
+        chain.followUps.unshift(
+          ...chain.steers
+            .splice(0)
+            .map((steer) => this.followUpOf(chain, steer)),
+        )
+        this.nextFollowUp(chain)
+      }
       this.checkIdle()
     }
+  }
+
+  /**
+   * Give `sent` to `chain`. A steer waits for the running run's next model
+   * call. A follow-up, or a steer to a run that ended, runs after the
+   * current run. Returns the receipt fields.
+   */
+  private deliver(
+    chain: AgentChain,
+    sent: AgentMessage,
+    mode: 'steer' | 'followUp',
+  ) {
+    const running = chain.current.operation
+    if (mode === 'steer' && !running.isSettled()) {
+      chain.steers.push(sent)
+      return { status: 'accepted' as const, operationId: running.id }
+    }
+    const isWaiting = !running.isSettled() || chain.followUps.length > 0
+    const next = this.followUpOf(chain, sent)
+    chain.followUps.push(next)
+    this.nextFollowUp(chain)
+    return {
+      status: isWaiting ? ('queued' as const) : ('accepted' as const),
+      operationId: next.operation.id,
+    }
+  }
+
+  /** `sent` as a follow-up of `chain`, with the operation of its run. */
+  private followUpOf(chain: AgentChain, sent: AgentMessage) {
+    const operation = this.agentOperation(chain.agent)
+    this.chainOf.set(operation.id, chain)
+    return { ...sent, operation }
+  }
+
+  /** Start the next follow-up of `chain` once its current run ended. */
+  private nextFollowUp(chain: AgentChain): void {
+    if (!chain.current.operation.isSettled()) return
+    const next = chain.followUps.shift()
+    if (!next) return
+    chain.current = {
+      operation: next.operation,
+      ...(next.principal ? { principal: next.principal } : {}),
+    }
+    this.markBusy()
+    void this.executeAgent(next.operation, chain, {
+      inputId: next.inputId,
+      message: next,
+    })
   }
 
   /**
@@ -4417,7 +4596,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
    * after a host stop continues them.
    */
   private async runAgentOnce(
-    operation: OperationImpl<unknown>,
+    operation: AgentRunImpl,
     chain: AgentChain,
     start: AgentRunStart,
   ): Promise<void> {
@@ -4425,7 +4604,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     const { inputId } = start
     // This run is the chain's current run.
     const { principal } = chain.current
-    if (!start.resumed) {
+    if (!start.resumed && !start.message) {
       await this.accept(
         inputId,
         {
@@ -4497,10 +4676,21 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       )
       releaseLease = await this.holdLease(inputId, operation)
       // A first run starts from the session thread. A run again after a
-      // host stop continues the chain's thread.
-      const messages = start.resumed
+      // host stop continues the chain's thread. A follow-up run continues
+      // the chain's thread, with its message added. The message id is its
+      // input id, so a run again after a host stop does not add it twice.
+      const { message } = start
+      const saved = start.resumed
         ? await this.continueAgentThread(chain.thread, inputId)
-        : await this.messages.loadThread(this.threadId)
+        : message
+          ? ((await this.chatPersistence?.stores.messages.loadThread(
+              chain.thread,
+            )) ?? [])
+          : await this.messages.loadThread(this.threadId)
+      const messages =
+        message && !saved.some((item) => item.id === message.inputId)
+          ? [...saved, asUserMessage(message)]
+          : saved
       subagentRunId = createSubagentId()
       const binding = this.binding(operation, [], principal)
       const durable = options.resume ? this.resumable(inputId) : undefined
@@ -4865,10 +5055,14 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
 
   private isChatInput(inputId: string) {
     const input = this.writer?.state.inputs.get(inputId)?.input
-    // A reset and an agent run in the log settle their input too.
+    // A reset, an agent run, and a message to an agent run in the log
+    // settle their input too.
     if (input)
       return (
-        CHAT_OPS.has(input.op) || input.op === 'reset' || input.op === 'agent'
+        CHAT_OPS.has(input.op) ||
+        input.op === 'reset' ||
+        input.op === 'agent' ||
+        input.op === 'agentMessage'
       )
     return this.turnOperations.has(inputId) || this.receipts.has(inputId)
   }
@@ -5186,7 +5380,13 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       }
       const isChat = CHAT_OPS.has(input.input.op)
       if (input.status === 'pending') {
-        if (!(isChat && 'message' in input.input)) {
+        // ponytail: a message to an agent run does not survive a restart.
+        // Run it again on its chain if that matters.
+        if (
+          !isChat ||
+          !('message' in input.input) ||
+          input.input.op === 'agentMessage'
+        ) {
           this.reject(input.inputId, 'expired_on_restart')
           continue
         }

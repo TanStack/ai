@@ -18,7 +18,7 @@ import type {
   AgentResultOf,
   AnyAgent,
 } from './agents'
-import type { Operation, TurnInfo } from './types'
+import type { AgentRun, Operation, TurnInfo } from './types'
 import type { CredentialsAccess } from './auth'
 import type { AnyCommand, PluginSessionApi } from './commands'
 import type { ConfigOption } from './config'
@@ -121,13 +121,13 @@ export interface PluginAgentActions {
       input?: AgentInputOf<TAgent>,
       /** See `AgentStartOptions`. */
       options?: { wake?: boolean; resume?: boolean },
-    ): Operation<AgentResultOf<TAgent>>
+    ): AgentRun<AgentResultOf<TAgent>>
     (
       name: string,
       input?: unknown,
       /** See `AgentStartOptions`. */
       options?: { wake?: boolean; resume?: boolean },
-    ): Operation<unknown>
+    ): AgentRun<unknown>
   }
   /**
    * Run children together. With `onFailure: 'cancel-siblings'` (default), one

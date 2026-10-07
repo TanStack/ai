@@ -5,7 +5,7 @@ import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin } from '../src'
 import { after, gate, mockAdapter, text, toolCall } from './helpers'
 import type { StreamChunk } from '@tanstack/ai'
-import type { WorkClaimStore } from '@tanstack/ai-persistence'
+import type { LogStore, WorkClaimStore } from '@tanstack/ai-persistence'
 import type { Reply } from './helpers'
 
 const THREAD = 't1'
@@ -232,6 +232,50 @@ const settledRecord = async (
         record.type === 'harness.input.settled' && record.inputId === inputId,
     )
 
+/** A detached agent run `op-agent` whose host stopped. */
+async function seedStoppedAgent(
+  persistence: ReturnType<typeof durablePersistence>,
+) {
+  await persistence.stores.log.append(THREAD, 1, [
+    {
+      type: 'harness.input',
+      inputId: 'in-agent',
+      input: { op: 'agent', agent: 'waiter', detached: true },
+      at: 1,
+    },
+    {
+      type: 'harness.input.applied',
+      inputId: 'in-agent',
+      operationId: 'op-agent',
+      attempt: 1,
+    },
+  ])
+  await persistence.stores.runs.createOrResume({
+    runId: 'op-agent',
+    threadId: THREAD,
+    startedAt: Date.now() - 60_000,
+    kind: 'agent',
+    agent: 'waiter',
+  })
+  await persistence.stores.runs.update('op-agent', {
+    leaseOwner: 'host-gone',
+    leaseExpiresAt: Date.now() - 1_000,
+  })
+}
+
+/** A log store whose writes take about 30 ms. */
+function slowLogStore(): LogStore {
+  const log = memoryLogStore()
+  return {
+    append: async (threadId, seq, records) => {
+      await new Promise((resolve) => setTimeout(resolve, 30))
+      return log.append(threadId, seq, records)
+    },
+    read: (threadId, options) => log.read(threadId, options),
+    subscribe: (threadId, listener) => log.subscribe(threadId, listener),
+  }
+}
+
 describe('host.resumePending', () => {
   it('resumes a turn whose host stopped, and gives the claim back', async () => {
     const persistence = durablePersistence()
@@ -310,31 +354,7 @@ describe('host.resumePending', () => {
 
   it('fails a stopped background agent and wakes the thread, as an open does', async () => {
     const persistence = durablePersistence()
-    await persistence.stores.log.append(THREAD, 1, [
-      {
-        type: 'harness.input',
-        inputId: 'in-agent',
-        input: { op: 'agent', agent: 'waiter', detached: true },
-        at: 1,
-      },
-      {
-        type: 'harness.input.applied',
-        inputId: 'in-agent',
-        operationId: 'op-agent',
-        attempt: 1,
-      },
-    ])
-    await persistence.stores.runs.createOrResume({
-      runId: 'op-agent',
-      threadId: THREAD,
-      startedAt: Date.now() - 60_000,
-      kind: 'agent',
-      agent: 'waiter',
-    })
-    await persistence.stores.runs.update('op-agent', {
-      leaseOwner: 'host-gone',
-      leaseExpiresAt: Date.now() - 1_000,
-    })
+    await seedStoppedAgent(persistence)
     await expireClaim(persistence.stores.workClaims)
     const { adapter, calls } = mockAdapter([() => text('Noted.')])
     const host = createHarnessHost({ persistence })
@@ -343,6 +363,27 @@ describe('host.resumePending', () => {
       harnesses: [defineHarness({ name: NAME, adapter })],
     })
     await vi.waitFor(() => expect(calls).toHaveLength(1))
+    expect(await settledRecord(persistence, 'in-agent')).toMatchObject({
+      outcome: 'failed',
+    })
+    await host.close()
+  })
+
+  it('with close: whenIdle, runs the wake turn of a stopped agent when the log store is slow', async () => {
+    const { runs, metadata, workClaims } = memoryPersistence().stores
+    const persistence = {
+      stores: { log: slowLogStore(), runs, metadata, workClaims },
+    }
+    await seedStoppedAgent(persistence)
+    await expireClaim(workClaims)
+    const { adapter, calls } = mockAdapter([() => text('Noted.')])
+    const host = createHarnessHost({ persistence })
+
+    await host.resumePending({
+      harnesses: [defineHarness({ name: NAME, adapter })],
+      close: 'whenIdle',
+    })
+    await vi.waitFor(() => expect(calls).toHaveLength(1), { timeout: 2_000 })
     expect(await settledRecord(persistence, 'in-agent')).toMatchObject({
       outcome: 'failed',
     })

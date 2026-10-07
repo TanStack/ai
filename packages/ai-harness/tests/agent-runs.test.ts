@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { defineAgent } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
-import { mockAdapter, text } from './helpers'
+import { after, gate, messageTexts, mockAdapter, text } from './helpers'
+import type { AnyTextAdapter } from '@tanstack/ai'
 import type { AnyHarness } from '../src'
 
 const THREAD = 't1'
@@ -20,6 +21,22 @@ async function open<THarness extends AnyHarness>(
   })
   return { host, session }
 }
+
+/** An agent whose one `ctx.chat` gets the messages of its run. */
+const writer = (adapter: AnyTextAdapter) =>
+  defineAgent({
+    name: 'writer',
+    description: 'Writes',
+    run: (ctx) => ctx.chat({ adapter }),
+  })
+
+/** A harness whose one agent is `writer` on `adapter`. */
+const writing = (adapter: AnyTextAdapter) =>
+  defineHarness({
+    name: 'test/agent-runs',
+    adapter: mockAdapter([]).adapter,
+    agents: [writer(adapter)],
+  })
 
 describe('the thread of an agent run', () => {
   it('keeps the messages of each background run in a thread of its own', async () => {
@@ -54,6 +71,97 @@ describe('the thread of an agent run', () => {
     )
     expect(saved).toContain('Draft it.')
     expect(saved).toContain('Drafted.')
+    await host.close()
+  })
+})
+
+describe('follow-ups to an agent run', () => {
+  it('runs the agent again after the run ended, on its transcript', async () => {
+    const model = mockAdapter([
+      () => text('Draft one.'),
+      () => text('Draft two.'),
+    ])
+    const { host, session } = await open(writing(model.adapter))
+    const run = session.agents.writer.start()
+    await run
+
+    const receipt = await run.send('Make it shorter.', { mode: 'followUp' })
+
+    expect(receipt.status).toBe('accepted')
+    expect(receipt.operationId).not.toBe(run.id)
+    await expect(session.operation(receipt.operationId ?? '')).resolves.toBe(
+      'Draft two.',
+    )
+    const texts = messageTexts(model.calls[1])
+    expect(texts).toContain('Draft one.')
+    expect(texts.at(-1)).toBe('Make it shorter.')
+    await host.close()
+  })
+
+  it('runs a follow-up that comes during the run after it, once per input id', async () => {
+    const release = gate()
+    const model = mockAdapter([
+      after(release.opened, 'Draft one.'),
+      () => text('Draft two.'),
+    ])
+    const { host, session } = await open(writing(model.adapter))
+    const run = session.agents.writer.start()
+    await vi.waitFor(() => expect(model.calls).toHaveLength(1))
+
+    const receipt = await run.send('Add a title.', {
+      mode: 'followUp',
+      inputId: 'follow-1',
+    })
+    const retry = await run.send('Add a title.', {
+      mode: 'followUp',
+      inputId: 'follow-1',
+    })
+
+    expect(receipt.status).toBe('queued')
+    expect(retry).toEqual(receipt)
+    expect(session.operation(receipt.operationId ?? '')?.status()).toBe(
+      'accepted',
+    )
+    release.open()
+    await expect(run).resolves.toBe('Draft one.')
+    await expect(session.operation(receipt.operationId ?? '')).resolves.toBe(
+      'Draft two.',
+    )
+    expect(model.calls).toHaveLength(2)
+    expect(messageTexts(model.calls[1]).at(-1)).toBe('Add a title.')
+    await host.close()
+  })
+
+  it('runs a steer that the run never took as a follow-up', async () => {
+    const release = gate()
+    const model = mockAdapter([
+      after(release.opened, 'Draft one.'),
+      () => text('Draft two.'),
+    ])
+    const { host, session } = await open(writing(model.adapter))
+    const run = session.agents.writer.start()
+    await vi.waitFor(() => expect(model.calls).toHaveLength(1))
+
+    const receipt = await run.send('Use a warmer tone.')
+
+    expect(receipt).toMatchObject({ status: 'accepted', operationId: run.id })
+    release.open()
+    await run
+    await vi.waitFor(() => expect(model.calls).toHaveLength(2))
+    expect(messageTexts(model.calls[1]).at(-1)).toBe('Use a warmer tone.')
+    expect(await session.settled(receipt.inputId)).toMatchObject({
+      outcome: 'completed',
+    })
+    await host.close()
+  })
+
+  it('refuses a message to a run it does not know', async () => {
+    const { host, session } = await open(writing(mockAdapter([]).adapter))
+
+    expect(await session.sendToAgent('op-agent-none', 'Hello.')).toMatchObject({
+      status: 'rejected',
+      reason: 'not_running',
+    })
     await host.close()
   })
 })
