@@ -427,7 +427,7 @@ export interface CompactionOptions {
   /**
    * Compact with the provider's own endpoint. Pass the adapter of the
    * `chat()` call. When the adapter has `compact`, it runs in place of
-   * `strategy`. Else `strategy` runs. Default: off.
+   * `strategy`. Else, or when `compact` fails, `strategy` runs. Default: off.
    */
   native?: Pick<AnyTextAdapter, 'compact'>
 }
@@ -744,19 +744,30 @@ export function withCompaction(
   const estimate = options.estimateTokens ?? estimateMessageTokens
   const configured = options.strategy ?? evictOldest()
   const nativeCompact = options.native?.compact?.bind(options.native)
-  /** The strategy of a call: the adapter's `compact` when `native` has it. */
+  /**
+   * The strategy of a call: the adapter's `compact` when `native` has it.
+   * When `compact` fails, the configured strategy runs. An adapter can get
+   * `compact` from a shared base and point at a provider with no such
+   * endpoint.
+   */
   const strategyOf = (
     ctx: ChatMiddlewareContext,
     wrapFetch?: FetchWrapper,
   ): CompactionStrategy =>
     nativeCompact
-      ? (messages, compaction) =>
-          nativeCompact({
-            messages: [...messages],
-            model: ctx.model,
-            ...(compaction.signal ? { signal: compaction.signal } : {}),
-            ...(wrapFetch ? { wrapFetch } : {}),
-          })
+      ? async (messages, compaction) => {
+          try {
+            return await nativeCompact({
+              messages: [...messages],
+              model: ctx.model,
+              ...(compaction.signal ? { signal: compaction.signal } : {}),
+              ...(wrapFetch ? { wrapFetch } : {}),
+            })
+          } catch (error) {
+            if (compaction.signal?.aborted) throw error
+            return configured(messages, compaction)
+          }
+        }
       : configured
   const strategyKey =
     options.strategyKey ??

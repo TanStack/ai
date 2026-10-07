@@ -2974,4 +2974,20 @@ describe('withCompaction native', () => {
     expect(strategy).toHaveBeenCalledTimes(1)
     expect(result).toStrictEqual({ providerMessages: [text('user', 'cut')] })
   })
+
+  it('uses the strategy when the adapter compact fails', async () => {
+    const strategy = vi.fn<CompactionStrategy>(() => [text('user', 'cut')])
+    const adapter = {
+      compact: () => Promise.reject(new Error('404 Not Found')),
+    }
+    const mw = withCompaction({ maxTokens: 50, strategy, native: adapter })
+    const result = await runOnConfig(mw, [
+      big('user'),
+      big('assistant'),
+      big('user'),
+    ])
+
+    expect(strategy).toHaveBeenCalledTimes(1)
+    expect(result).toStrictEqual({ providerMessages: [text('user', 'cut')] })
+  })
 })

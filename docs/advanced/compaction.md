@@ -192,6 +192,7 @@ export async function POST(request: Request) {
 ```
 
 - An adapter with no `compact` method uses `strategy`.
+- When `compact` fails, `strategy` runs for that call. Some providers on the OpenAI Responses base have no compaction endpoint.
 - The compacted messages can hold an encrypted provider item. The adapter sends it back as it is to the same model. Another model does not get it.
 - The OpenAI Responses adapters have `compact`. See [Native compaction](../adapters/openai#native-compaction).
 
