@@ -16,4 +16,5 @@ Session lists, coding tools, and safer clients for the harness.
 - **Clients set only what you expose.** `defineHarness({ expose: { config, commands } })`. A client config input or command outside these lists gets `not_exposed`, so a client cannot switch the permission mode to `bypass`. Nothing is exposed by default, and server code is not affected. The harness MCP server also makes tools only for exposed commands.
 - **`mcp()` harness plugin** in `@tanstack/ai-mcp/harness`: MCP servers by name, tools named `<server>_<tool>`, `/mcp` status, and `codeMode: true`.
 - **Code mode** moves a tool marked `metadata.codeMode` only when `permissions()` allows it in plan mode, and never moves a tool that declares permission resources.
+- **`defineHarness({ toolExecution })`** passes `'parallel'` or `'sequential'` to the `chat()` call of every turn.
 - **Plugin API.** `ctx.session.note(text, { wake })`, `ctx.session.entry()` and `updateEntry(patch)`, `prepareTools({ tools, model })`, and the `WorkspaceHooks` extension point. `ctx.collect()` now works with every array method.
