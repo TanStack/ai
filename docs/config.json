@@ -928,7 +928,7 @@
           "label": "Send inputs safely",
           "to": "harness/inputs",
           "addedAt": "2026-09-30",
-          "updatedAt": "2026-10-06"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Run side effects once",
@@ -946,7 +946,7 @@
           "label": "Control how a turn ends",
           "to": "harness/turn-control",
           "addedAt": "2026-10-01",
-          "updatedAt": "2026-10-06"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Store settings per thread",
