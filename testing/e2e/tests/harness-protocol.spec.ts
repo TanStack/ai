@@ -237,6 +237,61 @@ test.describe('harness protocol', () => {
       ])
   })
 
+  test('gives an ephemeral reminder from beforeFinish to the next model call only', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const threadId = `ephemeral-${testId}`
+    const turnHeaders = {
+      ...headers(testId, aimockPort),
+      'x-harness-turn': 'ephemeral',
+    }
+    await request.post('/api/harness-protocol/control', {
+      headers: { ...turnHeaders, 'content-type': 'application/json' },
+      data: {
+        threadId,
+        input: { op: 'prompt', message: '[harness-finish] post it' },
+      },
+    })
+
+    const transcript = async () => {
+      const response = await request.get(
+        `/api/harness-protocol/transcript?threadId=${threadId}`,
+        { headers: turnHeaders },
+      )
+      const messages: Array<{ role: string; content: unknown }> =
+        await response.json()
+      return messages.map(
+        (message) => `${message.role}: ${String(message.content)}`,
+      )
+    }
+    // The transcript does not keep the reminder.
+    await expect
+      .poll(transcript)
+      .toEqual([
+        'user: [harness-finish] post it',
+        'assistant: Draft answer.',
+        'assistant: Posted answer.',
+      ])
+
+    // The second model call got the reminder as its last message.
+    const journal = await request.get(
+      `http://127.0.0.1:${aimockPort}/v1/_requests`,
+    )
+    const entries: Array<{
+      headers?: Record<string, string>
+      body: { messages?: Array<{ role: string; content: unknown }> } | null
+    }> = await journal.json()
+    const lastSent = entries
+      .filter((entry) => entry.headers?.['x-test-id'] === testId)
+      .map((entry) => entry.body?.messages?.at(-1)?.content)
+    expect(lastSent).toEqual([
+      '[harness-finish] post it',
+      '[harness-finish] reminder: post the answer',
+    ])
+  })
+
   test('takes a control input and returns a receipt', async ({
     request,
     testId,

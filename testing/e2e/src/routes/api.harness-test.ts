@@ -442,6 +442,51 @@ async function agentResume(
 }
 
 /**
+ * A turn streams the start of a long answer, and its durable host stops for
+ * a deploy with `close({ recoverable: true })`. A second host opens the same
+ * stores and runs the turn again. With `continueCutOff`, it keeps the
+ * streamed text and adds a note, and the model goes on from there. Returns
+ * the transcript on the second host.
+ */
+async function cutOffRestart(
+  openai: () => ReturnType<typeof createTextAdapter>['adapter'],
+) {
+  const persistence = {
+    stores: { log: memoryLogStore(), runs: memoryPersistence().stores.runs },
+  }
+  const harness = defineHarness({
+    name: 'e2e/harness-cut-off',
+    adapter: openai(),
+    durability: { continueCutOff: true },
+  })
+  const stopped = createHarnessHost({ persistence })
+  const next = createHarnessHost({ persistence })
+  try {
+    const first = await stopped.open(harness, { threadId: 'e2e-cut-off' })
+    // ponytail: the fixture streams for about 7 seconds after the first
+    // text, so the turn still runs at the close. If CI gets slower than
+    // that, give the adapter a fetch that waits for the abort.
+    void first
+      .prompt('[harness-cut-off] tell a long story', { inputId: 'story' })
+      .then(
+        () => {},
+        () => {},
+      )
+    for await (const { event } of first.events({ from: '0' })) {
+      if (event.type === 'TEXT_MESSAGE_CONTENT') break
+    }
+    await stopped.close({ recoverable: true })
+
+    const session = await next.open(harness, { threadId: 'e2e-cut-off' })
+    await session.settled('story')
+    return { transcript: await session.transcript() }
+  } finally {
+    await next.close()
+    await stopped.close().catch(() => {})
+  }
+}
+
+/**
  * The lead calls `writer` in plan mode, and the writer's model calls
  * `write_file`. `permissions()` checks the child run too, so it denies the
  * edit. Returns how many times the tool ran, the tool results the writer
@@ -1265,6 +1310,9 @@ export const Route = createFileRoute('/api/harness-test')({
           }
           if (body.scenario === 'agent-resume') {
             return Response.json(await agentResume(openai))
+          }
+          if (body.scenario === 'cut-off-restart') {
+            return Response.json(await cutOffRestart(openai))
           }
           if (body.scenario === 'routing') {
             return Response.json(await routingTurns(host, openai))
