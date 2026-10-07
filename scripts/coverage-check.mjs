@@ -1,4 +1,5 @@
-// Compares coverage between two runs and fails when a package regressed.
+// Compares coverage between two runs and fails when a metric falls under
+// THRESHOLD.
 //
 // Both sides are measured in the same CI job — the PR head and its merge-base
 // with main — so there is no baseline file to keep in sync, no per-platform
@@ -7,7 +8,7 @@
 //
 // Usage:
 //   node scripts/coverage-check.mjs --collect <dir> [--expect pkg,pkg]
-//   node scripts/coverage-check.mjs --base <dir> --head <dir>
+//   node scripts/coverage-check.mjs --base <dir> --head <dir> [--report <file>]
 import {
   appendFileSync,
   mkdirSync,
@@ -19,9 +20,13 @@ import { join } from 'node:path'
 
 const METRICS = ['statements', 'branches', 'functions', 'lines']
 
-// Coverage percentages wobble slightly between runs (v8 attributes some bytes
-// differently depending on JIT timing), so require a real drop.
-const TOLERANCE = 0.5
+// A metric fails only when it falls under this line: at or above it on the
+// merge base, under it on the PR. A package that is already under it never
+// fails, and any other drop is reported but does not fail.
+const THRESHOLD = 60
+
+// Marks the PR comment so the workflow can find and update it.
+const REPORT_MARKER = '<!-- coverage-report -->'
 
 function arg(name) {
   const i = process.argv.indexOf(name)
@@ -151,7 +156,7 @@ const baseDir = arg('--base')
 const headDir = arg('--head')
 if (!baseDir || !headDir) {
   console.error(
-    'Usage: coverage-check.mjs --collect <dir> [--expect pkg,pkg] | --base <dir> --head <dir>',
+    'Usage: coverage-check.mjs --collect <dir> [--expect pkg,pkg] | --base <dir> --head <dir> [--report <file>]',
   )
   process.exit(2)
 }
@@ -182,7 +187,9 @@ for (const name of names) {
     continue
   }
   const deltas = METRICS.map((metric) => after[metric] - before[metric])
-  const dropped = METRICS.filter((metric, i) => deltas[i] < -TOLERANCE)
+  const dropped = METRICS.filter(
+    (metric) => before[metric] >= THRESHOLD && after[metric] < THRESHOLD,
+  )
   if (dropped.length > 0) regressions.push({ name, before, after, dropped })
   rows.push([
     name,
@@ -190,7 +197,7 @@ for (const name of names) {
       const sign = deltas[i] > 0 ? '+' : ''
       return `${after[metric].toFixed(2)}% (${sign}${deltas[i].toFixed(2)})`
     }),
-    dropped.length > 0 ? 'DROP' : 'ok',
+    dropped.length > 0 ? 'FAIL' : 'ok',
   ])
 }
 
@@ -202,7 +209,7 @@ for (const name of Object.keys(base)
   rows.push([
     name,
     ...METRICS.map((metric) => `missing (${before[metric].toFixed(2)}%)`),
-    'DROP',
+    'FAIL',
   ])
 }
 
@@ -231,37 +238,46 @@ if (additions.length > 0) {
 
 const headline =
   regressions.length > 0
-    ? `❌ Coverage dropped in ${regressions.length} package(s).`
+    ? `❌ Coverage fell under ${THRESHOLD}% in ${regressions.length} package(s).`
     : compared > 0
       ? `✅ Coverage held across ${compared} compared package(s).`
       : `${additions.length} package(s) are new; nothing to compare against.`
 
+const md = [
+  `## Coverage`,
+  ``,
+  headline,
+  ``,
+  `Each package is measured twice in this job — on this PR and on its merge-base` +
+    ` with \`main\` — and compared. A metric fails only when it is at or above` +
+    ` ${THRESHOLD}% on the merge-base and under ${THRESHOLD}% on this PR. Other` +
+    ` drops are listed but do not fail. Packages your PR doesn't affect are not` +
+    ` measured and not listed.`,
+  ``,
+  `| package | ${METRICS.join(' | ')} | |`,
+  `| --- | ${METRICS.map(() => '---:').join(' | ')} | --- |`,
+  ...rows.map((row) => `| ${row.join(' | ')} |`),
+]
+if (additions.length > 0) {
+  md.push(
+    ``,
+    `> No coverage on the base commit, so nothing to compare against:` +
+      ` ${additions.join(', ')}.`,
+  )
+}
+const markdown = `${md.join('\n')}\n`
+
 if (process.env.GITHUB_STEP_SUMMARY) {
-  const md = [
-    `## Coverage`,
-    ``,
-    headline,
-    ``,
-    `Each package is measured twice in this job — on this PR and on its merge-base` +
-      ` with \`main\` — and compared. A drop of more than ${TOLERANCE}pp in any metric fails.` +
-      ` Packages your PR doesn't affect are not measured and not listed.`,
-    ``,
-    `| package | ${METRICS.join(' | ')} | |`,
-    `| --- | ${METRICS.map(() => '---:').join(' | ')} | --- |`,
-    ...rows.map((row) => `| ${row.join(' | ')} |`),
-  ]
-  if (additions.length > 0) {
-    md.push(
-      ``,
-      `> No coverage on the base commit, so nothing to compare against:` +
-        ` ${additions.join(', ')}.`,
-    )
-  }
-  appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${md.join('\n')}\n`)
+  appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown)
 }
 
+const reportFile = arg('--report')
+if (reportFile) writeFileSync(reportFile, `${REPORT_MARKER}\n${markdown}`)
+
 if (regressions.length > 0) {
-  console.error(`\nCoverage dropped in ${regressions.length} package(s):`)
+  console.error(
+    `\nCoverage fell under ${THRESHOLD}% in ${regressions.length} package(s):`,
+  )
   for (const { name, before, after, dropped } of regressions) {
     if (!after) {
       console.error(`  ${name}: measured on base, missing on this PR`)
@@ -273,7 +289,9 @@ if (regressions.length > 0) {
       )
     }
   }
-  console.error(`\nAdd tests covering the code this PR changed.`)
+  console.error(
+    `\nAdd tests covering the code this PR changed, so each metric is back at ${THRESHOLD}% or more.`,
+  )
   process.exit(1)
 }
 

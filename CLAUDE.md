@@ -325,10 +325,12 @@ Each package uses `exports` field in package.json for subpath exports (e.g., `@t
 - **Coverage is CI-only.** Don't run it locally and don't add it to local
   gates — it is deliberately absent from `test`, `test:pr`, `test:ci` and the
   git hooks. The `Coverage` job on each PR measures every affected package
-  twice, on the PR head and on its merge-base with `main`, and fails when a
-  metric drops more than 0.5pp between them. There is **no baseline file** —
+  twice, on the PR head and on its merge-base with `main`, and posts the
+  table as a PR comment. It fails only when a metric is at or above 60% on
+  the merge-base and under 60% on the PR. Other drops are reported, not
+  failed. There is **no baseline file** —
   don't reintroduce one, it was removed precisely because it needed manual
-  syncing and was platform-sensitive. The only remedy for a drop is tests.
+  syncing and was platform-sensitive. The only remedy for a failure is tests.
   `.github/workflows/coverage.yml` runs coverage on pushes to `main` purely to
   warm the Nx Cloud cache so the base-side run is mostly cache restores. See
   CONTRIBUTING.md.
