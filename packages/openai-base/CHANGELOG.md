@@ -1,5 +1,30 @@
 # @tanstack/openai-base
 
+## 0.12.4
+
+### Patch Changes
+
+- [#1585](https://github.com/TanStack/ai/pull/1585) [`b414953`](https://github.com/TanStack/ai/commit/b4149531da00f97beb9b718f06752ab9a99ec389) - Attach an OpenAI Responses reasoning signature to its reasoning message. Before, the `REASONING_ENCRYPTED_VALUE` event used the thinking step's id as `entityId`, and no message had that id. An AG-UI client that is not TanStack's (for example, `@ag-ui/client`) dropped the value, so the next request did not send the reasoning item back. Now `entityId` is the id of the reasoning message. The signature no longer rides on `STEP_FINISHED`. This fixes every adapter that uses the Responses base: OpenAI, OpenAI-compatible, Grok, OpenRouter, Bedrock, Lovable, and Vercel AI Gateway.
+
+- Updated dependencies [[`7b6b1a9`](https://github.com/TanStack/ai/commit/7b6b1a99d45e40165f0a1f833a04e793a09275de), [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66), [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66), [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66), [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66), [`82291b2`](https://github.com/TanStack/ai/commit/82291b22941d2c813ff0050fc9d41b024480153d), [`ff3a66e`](https://github.com/TanStack/ai/commit/ff3a66ed8f628d45b282316fab337d3ed19f34cd), [`560c76f`](https://github.com/TanStack/ai/commit/560c76fd638b5691e195e1d0619fee8a78d98c20), [`4b9dcb4`](https://github.com/TanStack/ai/commit/4b9dcb44d8fe1e7c933b79c23d8f072e7bc300f4), [`30254ad`](https://github.com/TanStack/ai/commit/30254ad70161894d232d3b45e3b21f45d49f336e), [`40fdd22`](https://github.com/TanStack/ai/commit/40fdd22ce05d55e71514b4cc80b1c28cefb4a431)]:
+  - @tanstack/ai@0.65.0
+
+## 0.12.3
+
+### Patch Changes
+
+- [#1602](https://github.com/TanStack/ai/pull/1602) [`6d8e648`](https://github.com/TanStack/ai/commit/6d8e6485f92c98a6f2200471e2aff21ab50be013) - Preserve malformed Chat Completions tool arguments so they return a tool error without executing the tool with an empty object.
+
+- Updated dependencies [[`4c57d04`](https://github.com/TanStack/ai/commit/4c57d04f0f5dd98e176386f3208b68daf9e7d929)]:
+  - @tanstack/ai@0.64.1
+
+## 0.12.2
+
+### Patch Changes
+
+- Updated dependencies [[`3a09cf0`](https://github.com/TanStack/ai/commit/3a09cf04431a45810051ea5df6bb3935af421ddb), [`ee726f5`](https://github.com/TanStack/ai/commit/ee726f537dbb036d5edb756b92739afaa7573824), [`a5fce7f`](https://github.com/TanStack/ai/commit/a5fce7f95b8b9c6eb57697aa1e3f587bf27483b9), [`94116ad`](https://github.com/TanStack/ai/commit/94116ad137015b6f62fe62b4c06a335dbde36a49)]:
+  - @tanstack/ai@0.64.0
+
 ## 0.12.1
 
 ### Patch Changes

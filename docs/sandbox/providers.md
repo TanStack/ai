@@ -2,7 +2,7 @@
 title: Providers
 id: providers
 order: 3
-description: "Pick and configure where a TanStack AI sandbox runs (local process, Docker container, Docker Sandboxes microVM, Daytona, Vercel, Upstash Box, Blaxel, E2B, or boxd) and what each one can do."
+description: "Pick and configure where a TanStack AI sandbox runs (local process, Docker container, Docker Sandboxes microVM, Daytona, Vercel, Upstash Box, Blaxel, E2B, boxd, or Railway) and what each one can do."
 ---
 
 A provider owns the isolation primitive: where the harness actually runs. Every
@@ -34,6 +34,7 @@ completed workspace data in your application persistence for reconstruction.
 | Blaxel | `@tanstack/ai-sandbox-blaxel` | cloud sandbox | Managed [Blaxel](https://blaxel.ai) sandboxes; durable filesystem, per-port preview URLs, native file watch, resume-by-id. Snapshot/fork remain disabled while the source-scoped private-preview semantics are unproven. Accepts `BL_API_KEY` + `BL_WORKSPACE` or SDK-resolved CLI or client credentials. |
 | E2B | `@tanstack/ai-sandbox-e2b` | microVM | Managed [E2B](https://e2b.dev) Firecracker sandboxes. Native snapshots and fork, preview URLs, writable stdin, process-group kill, resume-by-id (also wakes a paused sandbox). Needs `E2B_API_KEY`. |
 | boxd | `@tanstack/ai-sandbox-boxd` | microVM | Managed [boxd](https://boxd.sh) KVM microVMs; live fork (memory and processes), snapshots that restore into a new machine, persistent disk, resume-by-id across stop, suspend and hibernate, one public HTTPS URL per machine. Needs `BOXD_API_KEY` + `BOXD_ORG`. |
+| Railway | `@tanstack/ai-sandbox-railway` | microVM | Managed [Railway](https://railway.com) sandboxes. Private networking to your other Railway services, live disk fork, environment-scoped checkpoints that survive deletion of their source, durable exec sessions, create-time HTTP domains, resume-by-id. Needs `RAILWAY_API_TOKEN` or `RAILWAY_TOKEN` + an environment. |
 
 Most providers are their own package. `dockerSandbox()` and `sbxSandbox()` both
 come from `@tanstack/ai-sandbox-docker`. The constructor is the only thing that
@@ -48,6 +49,7 @@ import { upstashBoxSandbox } from '@tanstack/ai-sandbox-upstash-box'
 import { blaxelSandbox } from '@tanstack/ai-sandbox-blaxel'
 import { e2bSandbox } from '@tanstack/ai-sandbox-e2b'
 import { boxdSandbox } from '@tanstack/ai-sandbox-boxd'
+import { railwaySandbox } from '@tanstack/ai-sandbox-railway'
 
 const dev = localProcessSandbox() // runs on your host
 const isolated = dockerSandbox({ image: 'node:22' }) // container
@@ -58,9 +60,10 @@ const box = upstashBoxSandbox({ apiKey: process.env.UPSTASH_BOX_API_KEY }) // ma
 const blaxel = blaxelSandbox() // managed Blaxel sandbox; uses API-key or CLI credentials
 const e2b = e2bSandbox() // managed E2B microVM; reads E2B_API_KEY
 const boxd = boxdSandbox({ org: 'acme' }) // managed boxd microVM; reads BOXD_API_KEY
+const railway = railwaySandbox() // managed Railway sandbox; reads RAILWAY_TOKEN + RAILWAY_ENVIRONMENT_ID
 ```
 
-> Cloud providers (including Daytona, Vercel, Sprites, Upstash Box, Blaxel, E2B, and boxd)
+> Cloud providers (including Daytona, Vercel, Sprites, Upstash Box, Blaxel, E2B, boxd, and Railway)
 > run remotely. When you drive them from your laptop, [tools](./tools) bridged
 > from `chat()` can't dial your machine's
 > `localhost`, you need the bridge tunnel. See the [tools guide](./tools) for the
@@ -436,6 +439,9 @@ const boxd = boxdSandbox({
   100 GB disk.
 - **Working directory:** the portable root `/workspace` maps to
   `/home/boxd/workspace`. Override with `workdir`.
+- **Cancellation:** if you abort create or snapshot restore during startup,
+  the provider tries to delete the new machine after the current SDK call
+  finishes.
 - **Processes:** `spawn()` opens a streaming exec with separate stdout and
   stderr and a writable stdin. `kill()` signals the process group inside the
   machine and verifies that it is gone, so `killableProcesses` is measured,
@@ -513,6 +519,92 @@ const e2b = e2bSandbox({ apiKey: process.env.E2B_API_KEY })
 - **Bridge:** like Daytona and Vercel, it is a remote VM, so bridged tools need
   the tunnel in local dev (see [tools](./tools)).
 
+## Railway
+
+```ts
+import { railwaySandbox } from '@tanstack/ai-sandbox-railway'
+
+const railway = railwaySandbox({
+  environmentId: process.env.RAILWAY_ENVIRONMENT_ID,
+  region: 'us-west2',
+  idleTimeoutMinutes: 30,
+  resources: { cpu: 2, memoryGB: 4 },
+  // Optional: publish preview domains. Requires PRIVATE networking.
+  networkIsolation: 'PRIVATE',
+  ports: [3000],
+})
+```
+
+- **Isolation:** a managed [Railway](https://railway.com) sandbox, a VM you do
+  not run yourself, created in a Railway environment. Boot from the base image,
+  a named `checkpoint`, or a `Sandbox.template()` recipe (`template`).
+- **Auth / env:** the SDK reads `RAILWAY_TOKEN` (a project token) or
+  `RAILWAY_API_TOKEN` (an account or workspace token). An explicit `token`
+  defaults to bearer auth; pass `authType: 'project-token'` for a project
+  token. Scope is the environment (`environmentId` or
+  `RAILWAY_ENVIRONMENT_ID`), frozen per provider. Harness credentials are
+  injected as [workspace secrets](./provisioning): at create and restore they
+  are sent as the sandbox's runtime `env`, and per-command `env` travels in the
+  exec init frame. No value is written into a command string.
+- **Private networking:** with `networkIsolation: 'PRIVATE'` the sandbox joins
+  the environment's private network, so the agent can reach your other Railway
+  services (databases, internal APIs) by their private hostnames. The default,
+  `ISOLATED`, has no private-network access.
+- **Lifetime:** Railway destroys a sandbox after `idleTimeoutMinutes` of
+  inactivity (plan default when omitted; `0` disables idle destruction where
+  the plan allows it). There is no stop/start that keeps the disk, so
+  `durableFilesystem` is `false`: use a checkpoint or
+  [Portable Snapshots](./portable-snapshots) to keep work across idle expiry.
+  `SandboxCreateInput` carries no lifecycle hint, so set the timeout here.
+  Resume resets the idle countdown.
+- **Size:** `resources: { cpu, memoryGB }` sets vCPU (fractions allowed) and
+  memory in decimal GB for every create, restore, and fork. Omitted fields use
+  the workspace default; values above its maximum fail at create.
+- **Snapshot / resume:** `snapshot(label)` captures a native Railway checkpoint
+  named `tsai-<sandbox-id>-<uuid>`. The label stays on the returned ref only,
+  because checkpoint names are environment-scoped and a capture replaces an
+  existing name. Checkpoints belong to the environment, not the sandbox, so
+  `restoreSnapshot()` boots a new sandbox from one after its source is
+  destroyed, and reapplies env, network mode, domains, and idle timeout from
+  the provider config. Restores and forks run in the source region, so
+  `region` applies to fresh sandboxes only. Checkpoints count
+  against a per-plan quota and the contract has no delete hook: prune
+  `tsai-*` checkpoints you no longer reference with `Sandbox.checkpoints()`
+  and `Sandbox.deleteCheckpoint()` from the `railway` SDK. Resume-by-id uses
+  `Sandbox.connect`. A missing, `DESTROYED`, `DESTROYING`, or `FAILED` sandbox
+  resumes as `null`, a `CREATING` one is awaited, and auth or transport errors
+  are rethrown.
+- **Fork:** `fork()` is a native live disk fork of the running sandbox into a
+  new one in the same environment and region. Processes are not copied. The
+  fork gets the parent's network mode, domains, idle timeout, and a copy of
+  its env overlay.
+- **Processes:** stdout and stderr stay separate. `spawn()` runs in a durable
+  exec session with a flow-controlled stdin writer, so it keeps running if the
+  host disconnects; this provider does not expose reattach, because TanStack's
+  [run journal](./journal) owns run identity. Blocking `exec` runs without a
+  durable session and is killed if the connection drops. `spawn()` reports
+  `pid: -1` because the exec bridge exposes no remote pid. `kill()` and an
+  aborted `exec` send `TERM` to the process group and escalate to `KILL` after
+  2 s. An aborted `spawn` sends `KILL` at once. All of them settle on the
+  confirmed remote exit. An aborted `exec` resolves with the signalled exit
+  code.
+- **Cancellation:** if create fails or times out after Railway minted the
+  sandbox, or the caller aborts while it boots, the provider tries to destroy
+  it. Both are best effort.
+- **Ports:** Railway publishes HTTP domains at create time only. Declare them
+  with `ports` (at most 10), which requires `networkIsolation: 'PRIVATE'`;
+  `ports.connect(port)` returns `https://<domain>` for a declared port and
+  rejects any other. Without `ports`, the `ports` capability is `false`. The
+  domain is public: it carries no preview token.
+- **Network:** `networkPolicy` is `false`. Both modes keep public internet
+  egress, so `policy.capabilities.network: 'deny'` is rejected at create
+  instead of being dropped.
+- **Paths:** the portable root `/workspace` is a real directory created at
+  boot. Override with `workdir`. `fs.remove` is recursive (`rm -rf`) and
+  `fs.lstat` is a GNU `stat` probe that does not follow symlinks.
+- **Bridge:** like the other cloud providers, it is a remote VM, so bridged
+  tools need the tunnel in local dev (see [tools](./tools)).
+
 ## Capabilities
 
 Providers declare what they support via `capabilities()`. The flags are:
@@ -524,7 +616,7 @@ Providers declare what they support via `capabilities()`. The flags are:
 | `env` | Inject environment variables. |
 | `ports` | Expose/forward ports (preview URLs). |
 | `backgroundProcesses` | Keep long-running processes alive between calls. |
-| `writableStdin` | A spawned process exposes a writable host→process stdin. `true` for local-process, Docker container, Daytona, Upstash Box, E2B, and boxd. `false` for Docker Sandboxes (`sbx`), Vercel, Sprites, Blaxel, and Cloudflare. When `false`, stdin-fed harnesses write the prompt to a file and redirect it in the shell. |
+| `writableStdin` | A spawned process exposes a writable host→process stdin. `true` for local-process, Docker container, Daytona, Upstash Box, E2B, boxd, and Railway. `false` for Docker Sandboxes (`sbx`), Vercel, Sprites, Blaxel, and Cloudflare. When `false`, stdin-fed harnesses write the prompt to a file and redirect it in the shell. |
 | `killableProcesses` | A spawned process can be forcibly stopped via `SpawnHandle.kill()` **and** aborted mid-flight via the `signal` passed to `spawn`. |
 | `snapshots` | Capture and restore point-in-time snapshots. |
 | `networkPolicy` | Enforce network allow/deny rules. |
@@ -578,6 +670,7 @@ merely slower while a wrong `follow` is a leak.
 | E2B | `true` | **Measured.** The SDK's own kill is a SIGKILL to the shell pid, and a backgrounded `( … ) & wait` child survived it. Every command therefore runs as a `setsid` group leader and `kill()` runs `kill -KILL -- -<pid>` inside the sandbox. The shared journal conformance kill case passes against a real sandbox. Needs `E2B_API_KEY`. |
 | Cloudflare | `false` | `kill()` is a no-op, and the caller's `AbortSignal` reaches neither `exec` nor `spawn`, because Workers RPC cannot serialize one. |
 | boxd | `true` | **Measured.** The spawn wrapper runs under `setsid`, so the pid it records leads its own process group. `kill()` runs a shell inside the machine that signals that group, escalates to `KILL`, and checks with `kill -0`. Closing the stream alone is not a kill: the process survived it. Verified against production: a spawned `sleep 5 && touch <marker>` was killed and the marker never appeared. Needs `BOXD_API_KEY`. |
+| Railway | `true` | **Measured.** `kill()` and an aborted `exec` send `TERM` to the command's process group and escalate to `KILL` after 2 s. An aborted `spawn` sends `KILL` at once. Each settles only when the remote exit is confirmed. Verified against production: the shared journal conformance kill case passes, and spawned `sleep 5 && touch <marker>` commands (including a backgrounded child) were killed before the marker appeared, for `kill()`, an aborted `exec`, and an aborted `spawn`. Needs `RAILWAY_API_TOKEN` or `RAILWAY_TOKEN` + `RAILWAY_ENVIRONMENT_ID`. |
 
 Each of the remote providers registers the shared journal conformance suite, so
 the claim is falsifiable rather than asserted: with credentials present the suite

@@ -73,6 +73,20 @@ export const Route = createFileRoute('/api/gemini-image-ga-models')({
           }),
         )
 
+        // #1640: `gemini-nano-banana-2.1` does not match the
+        // `gemini-*-flash-image` naming, so it only reaches `generateContent`
+        // when it is in `GEMINI_NATIVE_IMAGE_MODELS`. Otherwise it goes to
+        // the Imagen endpoint, which the mock does not serve.
+        const nanoBanana21 = await runStage(() =>
+          generateImage({
+            adapter: createGeminiImage('gemini-nano-banana-2.1', DUMMY_KEY, {
+              httpOptions: { baseUrl: LLMOCK_DEFAULT_BASE },
+            }),
+            prompt: 'a guitar in a music store',
+            size: '16:9_2K',
+          }),
+        )
+
         const legacyModel = await runStage(() =>
           generateImage({
             adapter: createGeminiImage('gemini-2.5-flash-image', DUMMY_KEY, {
@@ -86,7 +100,7 @@ export const Route = createFileRoute('/api/gemini-image-ga-models')({
         )
 
         return new Response(
-          JSON.stringify({ gaModelListed, gaModel, legacyModel }),
+          JSON.stringify({ gaModelListed, gaModel, nanoBanana21, legacyModel }),
           {
             status: 200,
             headers: { 'Content-Type': 'application/json' },

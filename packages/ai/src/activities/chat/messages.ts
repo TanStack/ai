@@ -11,6 +11,7 @@ import {
   tanstackMetadata,
   withTanstackMetadata,
 } from '../../utilities/merge-metadata'
+import { isRedactedThinkingId } from '../../utilities/reasoning-encrypted-value'
 import {
   splitSubagentWire,
   subagentWireText,
@@ -70,6 +71,13 @@ function encryptedValueFrom(value: object): string | undefined {
     if (fromSpec !== undefined) return fromSpec
   }
   return nonEmptyString(tanstackMetadata(value)?.signature)
+}
+
+/** `{ redacted: true }` when a reasoning message's id marks a redacted block. */
+function redactedFrom(value: object) {
+  return 'id' in value && isRedactedThinkingId(value.id)
+    ? { redacted: true }
+    : {}
 }
 
 function toolCallFromWire(toolCall: ToolCall, bag: unknown): ToolCall {
@@ -246,7 +254,7 @@ function convertOwnMessages(
   }
 
   const modelMessages: Array<ModelMessage> = []
-  let pendingThinking: Array<{ content: string; signature?: string }> = []
+  let pendingThinking: NonNullable<ModelMessage['thinking']> = []
   for (const msg of messages) {
     if ('parts' in msg) {
       modelMessages.push(...uiMessageToModelMessages(msg))
@@ -273,6 +281,7 @@ function convertOwnMessages(
         pendingThinking.push({
           content: typeof content === 'string' ? content : '',
           ...(signature !== undefined ? { signature } : {}),
+          ...redactedFrom(msg),
         })
       }
       continue
@@ -587,6 +596,11 @@ export function uiMessageToModelMessages(
     return []
   }
 
+  // AG-UI activity is frontend-only and must never enter model input.
+  if (uiMessage.role === 'activity') {
+    return []
+  }
+
   // For non-assistant messages (user), use the simpler path since they
   // don't have tool calls or tool results to interleave
   if (uiMessage.role !== 'assistant') {
@@ -663,7 +677,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
   // shared UI id on each one so persistence can retain the original identity.
   const messageList: Array<ModelMessage> = []
   let current = createSegment()
-  let pendingThinking: Array<{ content: string; signature?: string }> = []
+  let pendingThinking: NonNullable<ModelMessage['thinking']> = []
 
   // Track emitted tool result IDs to avoid duplicates.
   // A tool call can have BOTH an explicit tool-result part AND an output
@@ -764,6 +778,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
           pendingThinking.push({
             content: part.content,
             ...(part.signature && { signature: part.signature }),
+            ...(part.redacted && { redacted: true }),
           })
         }
         break
@@ -790,6 +805,10 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
       case 'ui-resource':
         // MCP Apps widget — rendered client-side only. It must never enter
         // model input, so it is intentionally dropped from the model message.
+        break
+
+      case 'activity':
+        // Frontend-only AG-UI activity. Never converted into ModelMessage input.
         break
 
       case 'subagent': {
@@ -898,6 +917,7 @@ export function modelMessageToUIMessage(
         type: 'thinking',
         content: thinking.content,
         ...(thinking.signature && { signature: thinking.signature }),
+        ...(thinking.redacted && { redacted: true }),
       })
     }
   }
@@ -1121,14 +1141,26 @@ export function aguiSnapshotMessageToUIMessage(
                   type: 'thinking' as const,
                   content,
                   ...(signature !== undefined ? { signature } : {}),
+                  ...redactedFrom(message),
                 },
               ]
             : [],
       })
     }
     case 'activity':
+      return applySnapshotMetadata(message, {
+        id,
+        role: 'activity',
+        parts: [
+          {
+            type: 'activity',
+            activityType: message.activityType,
+            content: structuredClone(message.content),
+          },
+        ],
+      })
     default:
-      // `activity` (and any future role) has no text/parts equivalent today.
+      // Any future role has no text/parts equivalent today.
       return applySnapshotMetadata(message, {
         id,
         role: 'assistant',
@@ -1185,17 +1217,20 @@ function snapshotStructuredOutput(
   ) {
     return undefined
   }
-  return {
-    type: 'structured-output',
-    status: value.status,
+  const base = {
+    type: 'structured-output' as const,
     raw: value.raw,
     ...(value.partial !== undefined ? { partial: value.partial } : {}),
-    ...(value.data !== undefined ? { data: value.data } : {}),
     ...(value.reasoning ? { reasoning: value.reasoning } : {}),
     ...(value.errorMessage !== undefined
       ? { errorMessage: value.errorMessage }
       : {}),
   }
+  if (value.status !== 'complete') return { ...base, status: value.status }
+  // A complete part must carry `data`. Drop a malformed snapshot so the
+  // message falls back to plain text.
+  if (value.data === undefined) return undefined
+  return { ...base, status: 'complete', data: value.data }
 }
 
 /**
@@ -1232,7 +1267,8 @@ export function aguiContentToContentParts(
 /**
  * Convert an array of ModelMessages to UIMessages
  *
- * This handles merging tool result messages with their corresponding assistant messages
+ * This handles merging tool result messages with their corresponding assistant
+ * messages, and assistant segments that share the same stable message ID.
  *
  * @param modelMessages - Array of ModelMessages to convert
  * @returns Array of UIMessages
@@ -1300,7 +1336,8 @@ export function modelMessagesToUIMessages(
       if (
         msg.role === 'assistant' &&
         currentAssistantMessage &&
-        isAssistantSegmentOf(msg.id, currentAssistantMessage.id)
+        (msg.id === currentAssistantMessage.id ||
+          isAssistantSegmentOf(msg.id, currentAssistantMessage.id))
       ) {
         currentAssistantMessage.parts.push(...uiMessage.parts)
         continue

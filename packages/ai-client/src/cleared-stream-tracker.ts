@@ -140,10 +140,12 @@ export class ClearedStreamTracker {
     return (
       chunk.type === 'TEXT_MESSAGE_START' ||
       chunk.type === 'TEXT_MESSAGE_CONTENT' ||
+      chunk.type === 'TEXT_MESSAGE_CHUNK' ||
       chunk.type === 'TOOL_CALL_START' ||
       chunk.type === 'TOOL_CALL_ARGS' ||
       chunk.type === 'TOOL_CALL_END' ||
       chunk.type === 'TOOL_CALL_RESULT' ||
+      chunk.type === 'TOOL_CALL_CHUNK' ||
       chunk.type === 'MESSAGES_SNAPSHOT' ||
       chunk.type === 'RUN_ERROR'
     )

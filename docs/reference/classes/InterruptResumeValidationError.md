@@ -3,7 +3,7 @@ id: InterruptResumeValidationError
 title: InterruptResumeValidationError
 ---
 
-Defined in: [packages/ai/src/interrupt-resume.ts:77](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L77)
+Defined in: [packages/ai/src/interrupt-resume.ts:78](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L78)
 
 ## Extends
 
@@ -17,7 +17,7 @@ Defined in: [packages/ai/src/interrupt-resume.ts:77](https://github.com/TanStack
 new InterruptResumeValidationError(errors): InterruptResumeValidationError;
 ```
 
-Defined in: [packages/ai/src/interrupt-resume.ts:80](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L80)
+Defined in: [packages/ai/src/interrupt-resume.ts:81](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L81)
 
 #### Parameters
 
@@ -43,7 +43,7 @@ Error.constructor
 readonly errors: readonly InterruptSubmissionError[];
 ```
 
-Defined in: [packages/ai/src/interrupt-resume.ts:80](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L80)
+Defined in: [packages/ai/src/interrupt-resume.ts:81](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L81)
 
 ***
 
@@ -53,7 +53,7 @@ Defined in: [packages/ai/src/interrupt-resume.ts:80](https://github.com/TanStack
 readonly name: "InterruptResumeValidationError" = 'InterruptResumeValidationError';
 ```
 
-Defined in: [packages/ai/src/interrupt-resume.ts:78](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L78)
+Defined in: [packages/ai/src/interrupt-resume.ts:79](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L79)
 
 #### Overrides
 

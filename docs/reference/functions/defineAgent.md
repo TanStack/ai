@@ -4,10 +4,10 @@ title: defineAgent
 ---
 
 ```ts
-function defineAgent<TName, TTools, TSchema, TInterrupts>(agent): DefinedAgent<TName, TTools, TSchema, TInterrupts>;
+function defineAgent<TName, TTools, TSchema, TInterrupts, TInput>(agent): DefinedAgent<TName, TTools, TSchema, TInterrupts, TInput>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:100](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L100)
+Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:116](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L116)
 
 Define a named child agent. Pass the same object to `chat({ subagents })`.
 Pass the agents array to `useChat({ subagents })` when you render parts
@@ -31,15 +31,19 @@ yourself. The hook uses it for types only. It does not call `run`.
 
 `TInterrupts` *extends* readonly [`InterruptDefinition`](../interfaces/InterruptDefinition.md)\<`any`, `any`, `any`, `any`, `any`\>[] = readonly \[\]
 
+### TInput
+
+`TInput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) \| `undefined` = `undefined`
+
 ## Parameters
 
 ### agent
 
-[`DefinedAgent`](../interfaces/DefinedAgent.md)\<`TName`, `TTools`, `TSchema`, `TInterrupts`\>
+[`DefinedAgent`](../interfaces/DefinedAgent.md)\<`TName`, `TTools`, `TSchema`, `TInterrupts`, `TInput`\>
 
 ## Returns
 
-[`DefinedAgent`](../interfaces/DefinedAgent.md)\<`TName`, `TTools`, `TSchema`, `TInterrupts`\>
+[`DefinedAgent`](../interfaces/DefinedAgent.md)\<`TName`, `TTools`, `TSchema`, `TInterrupts`, `TInput`\>
 
 ## Example
 

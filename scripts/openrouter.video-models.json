@@ -670,6 +670,32 @@
     ]
   },
   {
+    "id": "heygen/heygen-video-1",
+    "canonical_slug": "heygen/heygen-video-1-20260930",
+    "hugging_face_id": null,
+    "name": "HeyGen: HeyGen Video",
+    "created": 1790798684,
+    "description": "HeyGen Video is a general-purpose video generation model from HeyGen. It renders short clips with synthesized audio (dialogue, ambience, and sound effects) in a single call, working from a text...",
+    "supported_resolutions": ["480p", "768p", "2K"],
+    "supported_aspect_ratios": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
+    "supported_sizes": null,
+    "supported_durations": [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    "supported_frame_images": ["first_frame"],
+    "upscale_factor": null,
+    "creativity": null,
+    "generate_audio": false,
+    "seed": true,
+    "pricing_skus": {
+      "duration_seconds_2k": "0.09",
+      "duration_seconds_480p": "0.02",
+      "duration_seconds_768p": "0.03",
+      "reference_duration_seconds_2k": "0.18",
+      "reference_duration_seconds_480p": "0.04",
+      "reference_duration_seconds_768p": "0.06"
+    },
+    "allowed_passthrough_parameters": []
+  },
+  {
     "id": "kwaivgi/kling-v3.0-pro",
     "canonical_slug": "kwaivgi/kling-v3.0-pro-20260429",
     "hugging_face_id": null,
@@ -811,29 +837,6 @@
     "allowed_passthrough_parameters": ["aigc_watermark"]
   },
   {
-    "id": "openai/sora-2-pro",
-    "canonical_slug": "openai/sora-2-pro-20260320",
-    "hugging_face_id": null,
-    "name": "OpenAI: Sora 2 Pro",
-    "created": 1774277521,
-    "description": "OpenAI's flagship video generation model, delivering production-quality video with physics-accurate motion, synchronized audio, and world-state persistence across shots. Sora 2 Pro follows intricate multi-shot instructions while maintaining consistent spatial relationships...",
-    "supported_resolutions": ["720p", "1080p"],
-    "supported_aspect_ratios": ["16:9", "9:16"],
-    "supported_sizes": ["1280x720", "1080x1920", "1920x1080", "720x1280"],
-    "supported_durations": [4, 8, 12, 16, 20],
-    "supported_frame_images": null,
-    "upscale_factor": null,
-    "creativity": null,
-    "generate_audio": true,
-    "seed": false,
-    "pricing_skus": {
-      "duration_seconds_720p": "0.30",
-      "duration_seconds_1024p": "0.50",
-      "duration_seconds_1080p": "0.50"
-    },
-    "allowed_passthrough_parameters": ["quality", "style"]
-  },
-  {
     "id": "runway/aleph-2",
     "canonical_slug": "runway/aleph-2-20260729",
     "hugging_face_id": null,
@@ -960,6 +963,38 @@
       "cents_per_video_output_second_480p": "8",
       "cents_per_video_output_second_720p": "14",
       "cents_per_video_output_second_1080p": "25"
+    },
+    "allowed_passthrough_parameters": []
+  },
+  {
+    "id": "x-ai/grok-imagine-video-1.5-lite",
+    "canonical_slug": "x-ai/grok-imagine-video-1.5-lite-20261001",
+    "hugging_face_id": null,
+    "name": "SpaceXAI: Grok Imagine Video 1.5 Lite",
+    "created": 1791309778,
+    "description": "Grok Imagine Video 1.5 Lite is a faster, lower-cost video generation model from SpaceXAI, distilled from [Grok Imagine Video 1.5](/x-ai/grok-imagine-video-1.5). It supports text-to-video and image-to-video, trading some quality for speed...",
+    "supported_resolutions": ["480p", "720p", "1080p"],
+    "supported_aspect_ratios": [
+      "16:9",
+      "9:16",
+      "1:1",
+      "4:3",
+      "3:4",
+      "3:2",
+      "2:3"
+    ],
+    "supported_sizes": null,
+    "supported_durations": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    "supported_frame_images": ["first_frame"],
+    "upscale_factor": null,
+    "creativity": null,
+    "generate_audio": null,
+    "seed": null,
+    "pricing_skus": {
+      "cents_per_image_input": "1",
+      "cents_per_video_output_second_480p": "2",
+      "cents_per_video_output_second_720p": "3",
+      "cents_per_video_output_second_1080p": "14"
     },
     "allowed_passthrough_parameters": []
   }

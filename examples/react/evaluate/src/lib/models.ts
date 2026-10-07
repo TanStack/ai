@@ -4,6 +4,7 @@
  * generics keep the model type.
  */
 export const PROVIDERS = [
+  'ollaya',
   'typesafe',
   'openrouter',
   'vercel',
@@ -13,6 +14,7 @@ export const PROVIDERS = [
 export type Provider = (typeof PROVIDERS)[number]
 
 export const PROVIDER_LABELS: Record<Provider, string> = {
+  ollaya: 'Ollaya (local)',
   typesafe: 'TypeSafe',
   openrouter: 'OpenRouter',
   vercel: 'Vercel Gateway',
@@ -20,6 +22,7 @@ export const PROVIDER_LABELS: Record<Provider, string> = {
 }
 
 export const PROVIDER_MODELS: Record<Provider, string> = {
+  ollaya: 'laya:latest',
   typesafe: 'jev-latest',
   openrouter: '~typesafe/jev-latest',
   vercel: 'typesafe-ai/jev',
@@ -28,6 +31,8 @@ export const PROVIDER_MODELS: Record<Provider, string> = {
 
 /** Env vars each adapter reads, shown in the "no key" hint. */
 export const PROVIDER_ENV_VARS: Record<Provider, ReadonlyArray<string>> = {
+  // Ollaya runs locally with no key. Point elsewhere with OLLAYA_BASE_URL.
+  ollaya: [],
   typesafe: ['TYPESAFE_API_KEY'],
   openrouter: ['OPENROUTER_API_KEY'],
   vercel: ['AI_GATEWAY_API_KEY'],
