@@ -185,6 +185,14 @@ describe('OpenAI evaluate adapter', () => {
     })
   })
 
+  it('keeps an answer for a question named __proto__ as an own key', async () => {
+    const { adapter } = setup(
+      decision([{ type: 'predicate', name: '__proto__', probability: 0.5 }]),
+    )
+    const result = await run(adapter)
+    expect(Object.keys(result.answers)).toEqual(['__proto__'])
+  })
+
   it('throws when a question is refused', async () => {
     const { adapter } = setup(decision([{ type: 'refusal', name: 'refund' }]))
     await expect(run(adapter)).rejects.toThrow('"refund"')

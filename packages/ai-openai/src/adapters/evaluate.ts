@@ -142,12 +142,14 @@ export class OpenAIEvaluateAdapter<
       )
 
       // Answers come back in question order. `name` is null only for
-      // unnamed questions, and we always send names.
-      const answers: Record<string, WireAnswer> = {}
-      decision.answers.forEach((answer, index) => {
-        const name = answer.name ?? questionKeys[index] ?? String(index)
-        answers[name] = toWireAnswer(answer, name)
-      })
+      // unnamed questions, and we always send names. Object.fromEntries keeps
+      // a question named "__proto__" as an own key.
+      const answers: Record<string, WireAnswer> = Object.fromEntries(
+        decision.answers.map((answer, index) => {
+          const name = answer.name ?? questionKeys[index] ?? String(index)
+          return [name, toWireAnswer(answer, name)]
+        }),
+      )
 
       return {
         model: decision.model,
