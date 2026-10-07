@@ -158,7 +158,7 @@ if (process.env[childEnv] === '1') {
 
       expect(model.toolNames(0)).toEqual(['good_echo'])
       await expect(session.command('mcp')).resolves.toBe(
-        'good: connected (1 tool)\nsilent: failed: MCP server "silent" did not connect within 100 ms.',
+        'good: connected (1 tool)\nsilent: failed: Failed to connect to MCP server: Version negotiation probe timed out after 100ms',
       )
       expect(signals.length).toBeGreaterThan(0)
       expect(signals.every((signal) => signal.aborted)).toBe(true)

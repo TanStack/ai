@@ -179,13 +179,13 @@ export const quick = mcp({
 
 - The default is the MCP SDK default, 60 seconds.
 - A server that is too slow gets the status `failed`. The tools of the other servers still work.
-- If a server does not connect in time, the plugin closes its open request or stops its child process.
-- With `oauth: true`, `timeoutMs` does not limit the time to connect.
+- If a server does not connect in time, its open request closes, or its child process stops.
+- A `stdio` server can take up to two times `timeoutMs` to connect. When the version check runs out of time, the SDK tries the older handshake, with its own `timeoutMs`.
 
-A server that does not connect in time shows this in `/mcp`:
+An `http` server that does not connect in time shows this in `/mcp`:
 
 ```text
-docs: failed: MCP server "docs" did not connect within 10000 ms.
+docs: failed: Failed to connect to MCP server: Version negotiation probe timed out after 10000ms
 ```
 
 ## One OAuth server with more options
