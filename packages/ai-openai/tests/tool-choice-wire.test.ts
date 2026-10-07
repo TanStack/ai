@@ -98,7 +98,7 @@ const adapters = [
         'responses',
       )('my-model').chatStream(callOptions('my-model', request)),
   },
-] satisfies Array<{ adapter: string; send: Send }>
+] satisfies Array<{ adapter: string; namedChoice: object; send: Send }>
 
 /** Runs one streaming call and returns the JSON body sent over HTTP. */
 async function sentBody(send: Send, request: ToolRequest) {

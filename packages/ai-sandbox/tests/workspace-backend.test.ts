@@ -32,7 +32,7 @@ interface FsSeed {
  * `withLstat: false`, it has no `lstat`.
  */
 function memoryFs(seed: FsSeed, withLstat = true) {
-  const files = new Map(
+  const files = new Map<string, Uint8Array>(
     Object.entries(seed.files ?? {}).map(([path, text]) => [
       path,
       encoder.encode(text),
