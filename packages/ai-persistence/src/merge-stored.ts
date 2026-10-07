@@ -4,6 +4,20 @@ import type { ModelMessage } from '@tanstack/ai'
 // exists in stored is a cutoff (reload drops the old assistant after that
 // user). Same id is replaced in place. New ids and messages with no id are
 // appended.
+/** How many stored messages the merge keeps. Less than `stored.length` on a reload. */
+export function storedCutoff(
+  stored: ReadonlyArray<ModelMessage>,
+  incoming: ReadonlyArray<ModelMessage>,
+) {
+  for (let index = incoming.length - 1; index >= 0; index--) {
+    const id = incoming[index]?.id
+    if (id === undefined) continue
+    const storedIndex = stored.findIndex((message) => message.id === id)
+    if (storedIndex >= 0) return storedIndex + 1
+  }
+  return stored.length
+}
+
 export function mergeStoredMessages(
   stored: ReadonlyArray<ModelMessage>,
   incoming: ReadonlyArray<ModelMessage>,
@@ -12,17 +26,7 @@ export function mergeStoredMessages(
     return stored.slice()
   }
 
-  let cutoff = stored.length
-  for (let index = incoming.length - 1; index >= 0; index--) {
-    const id = incoming[index]?.id
-    if (id === undefined) continue
-    const storedIndex = stored.findIndex((message) => message.id === id)
-    if (storedIndex >= 0) {
-      cutoff = storedIndex + 1
-      break
-    }
-  }
-  const prefix = stored.slice(0, cutoff)
+  const prefix = stored.slice(0, storedCutoff(stored, incoming))
 
   const incomingById = new Map<string, ModelMessage>()
   for (const message of incoming) {

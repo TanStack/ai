@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai",
-  "version": "0.64.1",
+  "version": "0.65.1",
   "description": "Type-safe TypeScript AI SDK for streaming chat, tool calling, agents, structured outputs, and multimodal generation.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -101,6 +101,7 @@
     "@standard-schema/spec": "^1.1.0",
     "@tanstack/ai-event-client": "workspace:^",
     "@tanstack/ai-utils": "workspace:^",
+    "fast-json-patch": "^3.1.1",
     "partial-json": "^0.1.7"
   },
   "peerDependencies": {

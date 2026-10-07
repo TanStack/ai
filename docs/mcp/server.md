@@ -108,6 +108,8 @@ The worker URL is the MCP URL.
 
 Each request can reach a different instance. The server keeps no spec 2025 session by default, so this works with no extra setup. See [MCP Server Sessions](./server-sessions).
 
+`createMCPServer` serves fixed lists of tools, resources, and prompts. It reports `listChanged: false` and answers `subscriptions/listen` with JSON-RPC `-32601`. The Worker does not keep an idle subscription stream open.
+
 The host can list `get_weather`. Then the host can call that tool.
 
 To call this URL from `chat()`, see [MCP Server Tools](../tools/mcp).

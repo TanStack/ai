@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   buildTurnRequest,
   decodeWsFrame,
@@ -546,14 +546,25 @@ describe('resumeWebSocketStream', () => {
       snapshot: () => Promise.resolve([]),
     }
     const joiner = new FakeSocket()
+    const logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }
 
     expect(() =>
-      resumeWebSocketStream(joiner, { adapter: failingAdapter, debug: false }),
+      resumeWebSocketStream(joiner, {
+        adapter: failingAdapter,
+        debug: { logger },
+      }),
     ).not.toThrow()
     await flush()
 
     expect(joiner.closed).toBe(true)
     expect(joiner.closeCode).toBe(1011)
+    // One failure, one log line: the shared replay source must not log it too.
+    expect(logger.error).toHaveBeenCalledTimes(1)
   })
 })
 

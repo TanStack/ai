@@ -7,7 +7,7 @@ title: toolDefinition
 function toolDefinition<TInput, TOutput, TName, TNeedsApproval, TApprovalSchema>(config): ToolDefinition<TInput, TOutput, TName, TNeedsApproval, TApprovalSchema>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:331](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L331)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:335](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L335)
 
 Create an isomorphic tool definition that can be used directly or instantiated for server/client
 

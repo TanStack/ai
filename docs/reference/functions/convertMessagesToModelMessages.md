@@ -10,7 +10,7 @@ function convertMessagesToModelMessages(messages): ModelMessage<
   | null>[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/messages.ts:175](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/messages.ts#L175)
+Defined in: [packages/ai/src/activities/chat/messages.ts:188](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/messages.ts#L188)
 
 Convert UIMessages or ModelMessages to ModelMessages
 

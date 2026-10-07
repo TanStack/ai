@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ActivityTestRouteImport } from './routes/activity-test'
 import { Route as ByokRouteImport } from './routes/byok'
 import { Route as ChatClientDefaultBridgeRouteImport } from './routes/chat-client-default-bridge'
 import { Route as ChatClientStreamProcessingRouteImport } from './routes/chat-client-stream-processing'
@@ -22,6 +23,8 @@ import { Route as DevtoolsRouteBRouteImport } from './routes/devtools-route-b'
 import { Route as DevtoolsStructuredRouteImport } from './routes/devtools-structured'
 import { Route as DevtoolsSubagentsRouteImport } from './routes/devtools-subagents'
 import { Route as DevtoolsToolsRouteImport } from './routes/devtools-tools'
+import { Route as ForeignChunkEventsRouteImport } from './routes/foreign-chunk-events'
+import { Route as ForeignClientToolRouteImport } from './routes/foreign-client-tool'
 import { Route as ForeignInterruptRouteImport } from './routes/foreign-interrupt'
 import { Route as GenerationPersistenceResumeRouteImport } from './routes/generation-persistence-resume'
 import { Route as GenerationPersistenceServerRouteImport } from './routes/generation-persistence-server'
@@ -43,13 +46,17 @@ import { Route as WebMcpToolsRouteImport } from './routes/web-mcp-tools'
 import { Route as WebsocketAdapterRouteImport } from './routes/websocket-adapter'
 import { Route as ProviderIndexRouteImport } from './routes/$provider/index'
 import { Route as ProviderFeatureRouteImport } from './routes/$provider/$feature'
+import { Route as ApiActivityTestRouteImport } from './routes/api.activity-test'
 import { Route as ApiAnthropicBugTestRouteImport } from './routes/api.anthropic-bug-test'
+import { Route as ApiAnthropicMaxTokensUsageRouteImport } from './routes/api.anthropic-max-tokens-usage'
 import { Route as ApiAnthropicMultiTurnStructuredWireRouteImport } from './routes/api.anthropic-multi-turn-structured-wire'
 import { Route as ApiAnthropicOpus5CombinedWireRouteImport } from './routes/api.anthropic-opus-5-combined-wire'
 import { Route as ApiAnthropicRedactedThinkingWireRouteImport } from './routes/api.anthropic-redacted-thinking-wire'
 import { Route as ApiAnthropicSkillsWireRouteImport } from './routes/api.anthropic-skills-wire'
+import { Route as ApiAnthropicSonnet55WireRouteImport } from './routes/api.anthropic-sonnet-5-5-wire'
 import { Route as ApiAnthropicStructuredUsageRouteImport } from './routes/api.anthropic-structured-usage'
 import { Route as ApiAnthropicThinkingOrderWireRouteImport } from './routes/api.anthropic-thinking-order-wire'
+import { Route as ApiAnthropicTruncatedToolInputWireRouteImport } from './routes/api.anthropic-truncated-tool-input-wire'
 import { Route as ApiArktypeToolWireRouteImport } from './routes/api.arktype-tool-wire'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
 import { Route as ApiBedrockConverseCacheRouteImport } from './routes/api.bedrock-converse-cache'
@@ -62,6 +69,8 @@ import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-del
 import { Route as ApiDurableTakeoverRouteImport } from './routes/api.durable-takeover'
 import { Route as ApiEmbeddingRouteImport } from './routes/api.embedding'
 import { Route as ApiFileSourceWireRouteImport } from './routes/api.file-source-wire'
+import { Route as ApiForeignChunkEventsRouteImport } from './routes/api.foreign-chunk-events'
+import { Route as ApiForeignClientToolRouteImport } from './routes/api.foreign-client-tool'
 import { Route as ApiForeignInterruptRouteImport } from './routes/api.foreign-interrupt'
 import { Route as ApiGeminiImageGaModelsRouteImport } from './routes/api.gemini-image-ga-models'
 import { Route as ApiGeminiNativeImageWireRouteImport } from './routes/api.gemini-native-image-wire'
@@ -142,6 +151,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ActivityTestRoute = ActivityTestRouteImport.update({
+  id: '/activity-test',
+  path: '/activity-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ByokRoute = ByokRouteImport.update({
   id: '/byok',
   path: '/byok',
@@ -201,6 +215,16 @@ const DevtoolsSubagentsRoute = DevtoolsSubagentsRouteImport.update({
 const DevtoolsToolsRoute = DevtoolsToolsRouteImport.update({
   id: '/devtools-tools',
   path: '/devtools-tools',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForeignChunkEventsRoute = ForeignChunkEventsRouteImport.update({
+  id: '/foreign-chunk-events',
+  path: '/foreign-chunk-events',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForeignClientToolRoute = ForeignClientToolRouteImport.update({
+  id: '/foreign-client-tool',
+  path: '/foreign-client-tool',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ForeignInterruptRoute = ForeignInterruptRouteImport.update({
@@ -310,11 +334,22 @@ const ProviderFeatureRoute = ProviderFeatureRouteImport.update({
   path: '/$provider/$feature',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiActivityTestRoute = ApiActivityTestRouteImport.update({
+  id: '/api/activity-test',
+  path: '/api/activity-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAnthropicBugTestRoute = ApiAnthropicBugTestRouteImport.update({
   id: '/api/anthropic-bug-test',
   path: '/api/anthropic-bug-test',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAnthropicMaxTokensUsageRoute =
+  ApiAnthropicMaxTokensUsageRouteImport.update({
+    id: '/api/anthropic-max-tokens-usage',
+    path: '/api/anthropic-max-tokens-usage',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAnthropicMultiTurnStructuredWireRoute =
   ApiAnthropicMultiTurnStructuredWireRouteImport.update({
     id: '/api/anthropic-multi-turn-structured-wire',
@@ -338,6 +373,12 @@ const ApiAnthropicSkillsWireRoute = ApiAnthropicSkillsWireRouteImport.update({
   path: '/api/anthropic-skills-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAnthropicSonnet55WireRoute =
+  ApiAnthropicSonnet55WireRouteImport.update({
+    id: '/api/anthropic-sonnet-5-5-wire',
+    path: '/api/anthropic-sonnet-5-5-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAnthropicStructuredUsageRoute =
   ApiAnthropicStructuredUsageRouteImport.update({
     id: '/api/anthropic-structured-usage',
@@ -348,6 +389,12 @@ const ApiAnthropicThinkingOrderWireRoute =
   ApiAnthropicThinkingOrderWireRouteImport.update({
     id: '/api/anthropic-thinking-order-wire',
     path: '/api/anthropic-thinking-order-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAnthropicTruncatedToolInputWireRoute =
+  ApiAnthropicTruncatedToolInputWireRouteImport.update({
+    id: '/api/anthropic-truncated-tool-input-wire',
+    path: '/api/anthropic-truncated-tool-input-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiArktypeToolWireRoute = ApiArktypeToolWireRouteImport.update({
@@ -409,6 +456,16 @@ const ApiEmbeddingRoute = ApiEmbeddingRouteImport.update({
 const ApiFileSourceWireRoute = ApiFileSourceWireRouteImport.update({
   id: '/api/file-source-wire',
   path: '/api/file-source-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiForeignChunkEventsRoute = ApiForeignChunkEventsRouteImport.update({
+  id: '/api/foreign-chunk-events',
+  path: '/api/foreign-chunk-events',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiForeignClientToolRoute = ApiForeignClientToolRouteImport.update({
+  id: '/api/foreign-client-tool',
+  path: '/api/foreign-client-tool',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiForeignInterruptRoute = ApiForeignInterruptRouteImport.update({
@@ -804,6 +861,7 @@ const ApiVideoStreamRoute = ApiVideoStreamRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/activity-test': typeof ActivityTestRoute
   '/byok': typeof ByokRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/chat-client-stream-processing': typeof ChatClientStreamProcessingRoute
@@ -816,6 +874,8 @@ export interface FileRoutesByFullPath {
   '/devtools-structured': typeof DevtoolsStructuredRoute
   '/devtools-subagents': typeof DevtoolsSubagentsRoute
   '/devtools-tools': typeof DevtoolsToolsRoute
+  '/foreign-chunk-events': typeof ForeignChunkEventsRoute
+  '/foreign-client-tool': typeof ForeignClientToolRoute
   '/foreign-interrupt': typeof ForeignInterruptRoute
   '/generation-persistence-resume': typeof GenerationPersistenceResumeRoute
   '/generation-persistence-server': typeof GenerationPersistenceServerRoute
@@ -836,13 +896,17 @@ export interface FileRoutesByFullPath {
   '/web-mcp-tools': typeof WebMcpToolsRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
+  '/api/activity-test': typeof ApiActivityTestRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
   '/api/anthropic-redacted-thinking-wire': typeof ApiAnthropicRedactedThinkingWireRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
+  '/api/anthropic-sonnet-5-5-wire': typeof ApiAnthropicSonnet55WireRoute
   '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
   '/api/anthropic-thinking-order-wire': typeof ApiAnthropicThinkingOrderWireRoute
+  '/api/anthropic-truncated-tool-input-wire': typeof ApiAnthropicTruncatedToolInputWireRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/bedrock-converse-cache': typeof ApiBedrockConverseCacheRoute
@@ -855,6 +919,8 @@ export interface FileRoutesByFullPath {
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
   '/api/file-source-wire': typeof ApiFileSourceWireRoute
+  '/api/foreign-chunk-events': typeof ApiForeignChunkEventsRoute
+  '/api/foreign-client-tool': typeof ApiForeignClientToolRoute
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
   '/api/gemini-image-ga-models': typeof ApiGeminiImageGaModelsRoute
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
@@ -933,6 +999,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/activity-test': typeof ActivityTestRoute
   '/byok': typeof ByokRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/chat-client-stream-processing': typeof ChatClientStreamProcessingRoute
@@ -945,6 +1012,8 @@ export interface FileRoutesByTo {
   '/devtools-structured': typeof DevtoolsStructuredRoute
   '/devtools-subagents': typeof DevtoolsSubagentsRoute
   '/devtools-tools': typeof DevtoolsToolsRoute
+  '/foreign-chunk-events': typeof ForeignChunkEventsRoute
+  '/foreign-client-tool': typeof ForeignClientToolRoute
   '/foreign-interrupt': typeof ForeignInterruptRoute
   '/generation-persistence-resume': typeof GenerationPersistenceResumeRoute
   '/generation-persistence-server': typeof GenerationPersistenceServerRoute
@@ -965,13 +1034,17 @@ export interface FileRoutesByTo {
   '/web-mcp-tools': typeof WebMcpToolsRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
+  '/api/activity-test': typeof ApiActivityTestRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
   '/api/anthropic-redacted-thinking-wire': typeof ApiAnthropicRedactedThinkingWireRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
+  '/api/anthropic-sonnet-5-5-wire': typeof ApiAnthropicSonnet55WireRoute
   '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
   '/api/anthropic-thinking-order-wire': typeof ApiAnthropicThinkingOrderWireRoute
+  '/api/anthropic-truncated-tool-input-wire': typeof ApiAnthropicTruncatedToolInputWireRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/bedrock-converse-cache': typeof ApiBedrockConverseCacheRoute
@@ -984,6 +1057,8 @@ export interface FileRoutesByTo {
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
   '/api/file-source-wire': typeof ApiFileSourceWireRoute
+  '/api/foreign-chunk-events': typeof ApiForeignChunkEventsRoute
+  '/api/foreign-client-tool': typeof ApiForeignClientToolRoute
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
   '/api/gemini-image-ga-models': typeof ApiGeminiImageGaModelsRoute
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
@@ -1063,6 +1138,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/activity-test': typeof ActivityTestRoute
   '/byok': typeof ByokRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/chat-client-stream-processing': typeof ChatClientStreamProcessingRoute
@@ -1075,6 +1151,8 @@ export interface FileRoutesById {
   '/devtools-structured': typeof DevtoolsStructuredRoute
   '/devtools-subagents': typeof DevtoolsSubagentsRoute
   '/devtools-tools': typeof DevtoolsToolsRoute
+  '/foreign-chunk-events': typeof ForeignChunkEventsRoute
+  '/foreign-client-tool': typeof ForeignClientToolRoute
   '/foreign-interrupt': typeof ForeignInterruptRoute
   '/generation-persistence-resume': typeof GenerationPersistenceResumeRoute
   '/generation-persistence-server': typeof GenerationPersistenceServerRoute
@@ -1095,13 +1173,17 @@ export interface FileRoutesById {
   '/web-mcp-tools': typeof WebMcpToolsRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
+  '/api/activity-test': typeof ApiActivityTestRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
   '/api/anthropic-redacted-thinking-wire': typeof ApiAnthropicRedactedThinkingWireRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
+  '/api/anthropic-sonnet-5-5-wire': typeof ApiAnthropicSonnet55WireRoute
   '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
   '/api/anthropic-thinking-order-wire': typeof ApiAnthropicThinkingOrderWireRoute
+  '/api/anthropic-truncated-tool-input-wire': typeof ApiAnthropicTruncatedToolInputWireRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/bedrock-converse-cache': typeof ApiBedrockConverseCacheRoute
@@ -1114,6 +1196,8 @@ export interface FileRoutesById {
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
   '/api/file-source-wire': typeof ApiFileSourceWireRoute
+  '/api/foreign-chunk-events': typeof ApiForeignChunkEventsRoute
+  '/api/foreign-client-tool': typeof ApiForeignClientToolRoute
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
   '/api/gemini-image-ga-models': typeof ApiGeminiImageGaModelsRoute
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
@@ -1194,6 +1278,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/activity-test'
     | '/byok'
     | '/chat-client-default-bridge'
     | '/chat-client-stream-processing'
@@ -1206,6 +1291,8 @@ export interface FileRouteTypes {
     | '/devtools-structured'
     | '/devtools-subagents'
     | '/devtools-tools'
+    | '/foreign-chunk-events'
+    | '/foreign-client-tool'
     | '/foreign-interrupt'
     | '/generation-persistence-resume'
     | '/generation-persistence-server'
@@ -1226,13 +1313,17 @@ export interface FileRouteTypes {
     | '/web-mcp-tools'
     | '/websocket-adapter'
     | '/$provider/$feature'
+    | '/api/activity-test'
     | '/api/anthropic-bug-test'
+    | '/api/anthropic-max-tokens-usage'
     | '/api/anthropic-multi-turn-structured-wire'
     | '/api/anthropic-opus-5-combined-wire'
     | '/api/anthropic-redacted-thinking-wire'
     | '/api/anthropic-skills-wire'
+    | '/api/anthropic-sonnet-5-5-wire'
     | '/api/anthropic-structured-usage'
     | '/api/anthropic-thinking-order-wire'
+    | '/api/anthropic-truncated-tool-input-wire'
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/bedrock-converse-cache'
@@ -1245,6 +1336,8 @@ export interface FileRouteTypes {
     | '/api/durable-takeover'
     | '/api/embedding'
     | '/api/file-source-wire'
+    | '/api/foreign-chunk-events'
+    | '/api/foreign-client-tool'
     | '/api/foreign-interrupt'
     | '/api/gemini-image-ga-models'
     | '/api/gemini-native-image-wire'
@@ -1323,6 +1416,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/activity-test'
     | '/byok'
     | '/chat-client-default-bridge'
     | '/chat-client-stream-processing'
@@ -1335,6 +1429,8 @@ export interface FileRouteTypes {
     | '/devtools-structured'
     | '/devtools-subagents'
     | '/devtools-tools'
+    | '/foreign-chunk-events'
+    | '/foreign-client-tool'
     | '/foreign-interrupt'
     | '/generation-persistence-resume'
     | '/generation-persistence-server'
@@ -1355,13 +1451,17 @@ export interface FileRouteTypes {
     | '/web-mcp-tools'
     | '/websocket-adapter'
     | '/$provider/$feature'
+    | '/api/activity-test'
     | '/api/anthropic-bug-test'
+    | '/api/anthropic-max-tokens-usage'
     | '/api/anthropic-multi-turn-structured-wire'
     | '/api/anthropic-opus-5-combined-wire'
     | '/api/anthropic-redacted-thinking-wire'
     | '/api/anthropic-skills-wire'
+    | '/api/anthropic-sonnet-5-5-wire'
     | '/api/anthropic-structured-usage'
     | '/api/anthropic-thinking-order-wire'
+    | '/api/anthropic-truncated-tool-input-wire'
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/bedrock-converse-cache'
@@ -1374,6 +1474,8 @@ export interface FileRouteTypes {
     | '/api/durable-takeover'
     | '/api/embedding'
     | '/api/file-source-wire'
+    | '/api/foreign-chunk-events'
+    | '/api/foreign-client-tool'
     | '/api/foreign-interrupt'
     | '/api/gemini-image-ga-models'
     | '/api/gemini-native-image-wire'
@@ -1452,6 +1554,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/activity-test'
     | '/byok'
     | '/chat-client-default-bridge'
     | '/chat-client-stream-processing'
@@ -1464,6 +1567,8 @@ export interface FileRouteTypes {
     | '/devtools-structured'
     | '/devtools-subagents'
     | '/devtools-tools'
+    | '/foreign-chunk-events'
+    | '/foreign-client-tool'
     | '/foreign-interrupt'
     | '/generation-persistence-resume'
     | '/generation-persistence-server'
@@ -1484,13 +1589,17 @@ export interface FileRouteTypes {
     | '/web-mcp-tools'
     | '/websocket-adapter'
     | '/$provider/$feature'
+    | '/api/activity-test'
     | '/api/anthropic-bug-test'
+    | '/api/anthropic-max-tokens-usage'
     | '/api/anthropic-multi-turn-structured-wire'
     | '/api/anthropic-opus-5-combined-wire'
     | '/api/anthropic-redacted-thinking-wire'
     | '/api/anthropic-skills-wire'
+    | '/api/anthropic-sonnet-5-5-wire'
     | '/api/anthropic-structured-usage'
     | '/api/anthropic-thinking-order-wire'
+    | '/api/anthropic-truncated-tool-input-wire'
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/bedrock-converse-cache'
@@ -1503,6 +1612,8 @@ export interface FileRouteTypes {
     | '/api/durable-takeover'
     | '/api/embedding'
     | '/api/file-source-wire'
+    | '/api/foreign-chunk-events'
+    | '/api/foreign-client-tool'
     | '/api/foreign-interrupt'
     | '/api/gemini-image-ga-models'
     | '/api/gemini-native-image-wire'
@@ -1582,6 +1693,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ActivityTestRoute: typeof ActivityTestRoute
   ByokRoute: typeof ByokRoute
   ChatClientDefaultBridgeRoute: typeof ChatClientDefaultBridgeRoute
   ChatClientStreamProcessingRoute: typeof ChatClientStreamProcessingRoute
@@ -1594,6 +1706,8 @@ export interface RootRouteChildren {
   DevtoolsStructuredRoute: typeof DevtoolsStructuredRoute
   DevtoolsSubagentsRoute: typeof DevtoolsSubagentsRoute
   DevtoolsToolsRoute: typeof DevtoolsToolsRoute
+  ForeignChunkEventsRoute: typeof ForeignChunkEventsRoute
+  ForeignClientToolRoute: typeof ForeignClientToolRoute
   ForeignInterruptRoute: typeof ForeignInterruptRoute
   GenerationPersistenceResumeRoute: typeof GenerationPersistenceResumeRoute
   GenerationPersistenceServerRoute: typeof GenerationPersistenceServerRoute
@@ -1614,13 +1728,17 @@ export interface RootRouteChildren {
   WebMcpToolsRoute: typeof WebMcpToolsRoute
   WebsocketAdapterRoute: typeof WebsocketAdapterRoute
   ProviderFeatureRoute: typeof ProviderFeatureRoute
+  ApiActivityTestRoute: typeof ApiActivityTestRoute
   ApiAnthropicBugTestRoute: typeof ApiAnthropicBugTestRoute
+  ApiAnthropicMaxTokensUsageRoute: typeof ApiAnthropicMaxTokensUsageRoute
   ApiAnthropicMultiTurnStructuredWireRoute: typeof ApiAnthropicMultiTurnStructuredWireRoute
   ApiAnthropicOpus5CombinedWireRoute: typeof ApiAnthropicOpus5CombinedWireRoute
   ApiAnthropicRedactedThinkingWireRoute: typeof ApiAnthropicRedactedThinkingWireRoute
   ApiAnthropicSkillsWireRoute: typeof ApiAnthropicSkillsWireRoute
+  ApiAnthropicSonnet55WireRoute: typeof ApiAnthropicSonnet55WireRoute
   ApiAnthropicStructuredUsageRoute: typeof ApiAnthropicStructuredUsageRoute
   ApiAnthropicThinkingOrderWireRoute: typeof ApiAnthropicThinkingOrderWireRoute
+  ApiAnthropicTruncatedToolInputWireRoute: typeof ApiAnthropicTruncatedToolInputWireRoute
   ApiArktypeToolWireRoute: typeof ApiArktypeToolWireRoute
   ApiAudioRoute: typeof ApiAudioRouteWithChildren
   ApiBedrockConverseCacheRoute: typeof ApiBedrockConverseCacheRoute
@@ -1633,6 +1751,8 @@ export interface RootRouteChildren {
   ApiDurableTakeoverRoute: typeof ApiDurableTakeoverRoute
   ApiEmbeddingRoute: typeof ApiEmbeddingRoute
   ApiFileSourceWireRoute: typeof ApiFileSourceWireRoute
+  ApiForeignChunkEventsRoute: typeof ApiForeignChunkEventsRoute
+  ApiForeignClientToolRoute: typeof ApiForeignClientToolRoute
   ApiForeignInterruptRoute: typeof ApiForeignInterruptRoute
   ApiGeminiImageGaModelsRoute: typeof ApiGeminiImageGaModelsRoute
   ApiGeminiNativeImageWireRoute: typeof ApiGeminiNativeImageWireRoute
@@ -1712,6 +1832,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/activity-test': {
+      id: '/activity-test'
+      path: '/activity-test'
+      fullPath: '/activity-test'
+      preLoaderRoute: typeof ActivityTestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/byok': {
@@ -1796,6 +1923,20 @@ declare module '@tanstack/react-router' {
       path: '/devtools-tools'
       fullPath: '/devtools-tools'
       preLoaderRoute: typeof DevtoolsToolsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/foreign-chunk-events': {
+      id: '/foreign-chunk-events'
+      path: '/foreign-chunk-events'
+      fullPath: '/foreign-chunk-events'
+      preLoaderRoute: typeof ForeignChunkEventsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/foreign-client-tool': {
+      id: '/foreign-client-tool'
+      path: '/foreign-client-tool'
+      fullPath: '/foreign-client-tool'
+      preLoaderRoute: typeof ForeignClientToolRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/foreign-interrupt': {
@@ -1945,11 +2086,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProviderFeatureRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/activity-test': {
+      id: '/api/activity-test'
+      path: '/api/activity-test'
+      fullPath: '/api/activity-test'
+      preLoaderRoute: typeof ApiActivityTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/anthropic-bug-test': {
       id: '/api/anthropic-bug-test'
       path: '/api/anthropic-bug-test'
       fullPath: '/api/anthropic-bug-test'
       preLoaderRoute: typeof ApiAnthropicBugTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/anthropic-max-tokens-usage': {
+      id: '/api/anthropic-max-tokens-usage'
+      path: '/api/anthropic-max-tokens-usage'
+      fullPath: '/api/anthropic-max-tokens-usage'
+      preLoaderRoute: typeof ApiAnthropicMaxTokensUsageRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/anthropic-multi-turn-structured-wire': {
@@ -1980,6 +2135,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAnthropicSkillsWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/anthropic-sonnet-5-5-wire': {
+      id: '/api/anthropic-sonnet-5-5-wire'
+      path: '/api/anthropic-sonnet-5-5-wire'
+      fullPath: '/api/anthropic-sonnet-5-5-wire'
+      preLoaderRoute: typeof ApiAnthropicSonnet55WireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/anthropic-structured-usage': {
       id: '/api/anthropic-structured-usage'
       path: '/api/anthropic-structured-usage'
@@ -1992,6 +2154,13 @@ declare module '@tanstack/react-router' {
       path: '/api/anthropic-thinking-order-wire'
       fullPath: '/api/anthropic-thinking-order-wire'
       preLoaderRoute: typeof ApiAnthropicThinkingOrderWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/anthropic-truncated-tool-input-wire': {
+      id: '/api/anthropic-truncated-tool-input-wire'
+      path: '/api/anthropic-truncated-tool-input-wire'
+      fullPath: '/api/anthropic-truncated-tool-input-wire'
+      preLoaderRoute: typeof ApiAnthropicTruncatedToolInputWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/arktype-tool-wire': {
@@ -2076,6 +2245,20 @@ declare module '@tanstack/react-router' {
       path: '/api/file-source-wire'
       fullPath: '/api/file-source-wire'
       preLoaderRoute: typeof ApiFileSourceWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/foreign-chunk-events': {
+      id: '/api/foreign-chunk-events'
+      path: '/api/foreign-chunk-events'
+      fullPath: '/api/foreign-chunk-events'
+      preLoaderRoute: typeof ApiForeignChunkEventsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/foreign-client-tool': {
+      id: '/api/foreign-client-tool'
+      path: '/api/foreign-client-tool'
+      fullPath: '/api/foreign-client-tool'
+      preLoaderRoute: typeof ApiForeignClientToolRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/foreign-interrupt': {
@@ -2659,6 +2842,7 @@ const ApiVideoRouteWithChildren = ApiVideoRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ActivityTestRoute: ActivityTestRoute,
   ByokRoute: ByokRoute,
   ChatClientDefaultBridgeRoute: ChatClientDefaultBridgeRoute,
   ChatClientStreamProcessingRoute: ChatClientStreamProcessingRoute,
@@ -2671,6 +2855,8 @@ const rootRouteChildren: RootRouteChildren = {
   DevtoolsStructuredRoute: DevtoolsStructuredRoute,
   DevtoolsSubagentsRoute: DevtoolsSubagentsRoute,
   DevtoolsToolsRoute: DevtoolsToolsRoute,
+  ForeignChunkEventsRoute: ForeignChunkEventsRoute,
+  ForeignClientToolRoute: ForeignClientToolRoute,
   ForeignInterruptRoute: ForeignInterruptRoute,
   GenerationPersistenceResumeRoute: GenerationPersistenceResumeRoute,
   GenerationPersistenceServerRoute: GenerationPersistenceServerRoute,
@@ -2691,14 +2877,19 @@ const rootRouteChildren: RootRouteChildren = {
   WebMcpToolsRoute: WebMcpToolsRoute,
   WebsocketAdapterRoute: WebsocketAdapterRoute,
   ProviderFeatureRoute: ProviderFeatureRoute,
+  ApiActivityTestRoute: ApiActivityTestRoute,
   ApiAnthropicBugTestRoute: ApiAnthropicBugTestRoute,
+  ApiAnthropicMaxTokensUsageRoute: ApiAnthropicMaxTokensUsageRoute,
   ApiAnthropicMultiTurnStructuredWireRoute:
     ApiAnthropicMultiTurnStructuredWireRoute,
   ApiAnthropicOpus5CombinedWireRoute: ApiAnthropicOpus5CombinedWireRoute,
   ApiAnthropicRedactedThinkingWireRoute: ApiAnthropicRedactedThinkingWireRoute,
   ApiAnthropicSkillsWireRoute: ApiAnthropicSkillsWireRoute,
+  ApiAnthropicSonnet55WireRoute: ApiAnthropicSonnet55WireRoute,
   ApiAnthropicStructuredUsageRoute: ApiAnthropicStructuredUsageRoute,
   ApiAnthropicThinkingOrderWireRoute: ApiAnthropicThinkingOrderWireRoute,
+  ApiAnthropicTruncatedToolInputWireRoute:
+    ApiAnthropicTruncatedToolInputWireRoute,
   ApiArktypeToolWireRoute: ApiArktypeToolWireRoute,
   ApiAudioRoute: ApiAudioRouteWithChildren,
   ApiBedrockConverseCacheRoute: ApiBedrockConverseCacheRoute,
@@ -2711,6 +2902,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiDurableTakeoverRoute: ApiDurableTakeoverRoute,
   ApiEmbeddingRoute: ApiEmbeddingRoute,
   ApiFileSourceWireRoute: ApiFileSourceWireRoute,
+  ApiForeignChunkEventsRoute: ApiForeignChunkEventsRoute,
+  ApiForeignClientToolRoute: ApiForeignClientToolRoute,
   ApiForeignInterruptRoute: ApiForeignInterruptRoute,
   ApiGeminiImageGaModelsRoute: ApiGeminiImageGaModelsRoute,
   ApiGeminiNativeImageWireRoute: ApiGeminiNativeImageWireRoute,

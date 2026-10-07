@@ -1639,8 +1639,8 @@
     "object": "model",
     "created": 1784505600,
     "released": 1784592000,
-    "expiration_date": null,
-    "deprecated": false,
+    "expiration_date": 1795046400,
+    "deprecated": true,
     "owned_by": "google",
     "name": "Gemini 3.6 Flash",
     "description": "Gemini 3.6 Flash model for fast coding, reasoning, and agentic workflows.",
@@ -4149,6 +4149,51 @@
     "data_retention_by_surface": {
       "image-edit": "zero",
       "image-generation": "zero"
+    }
+  },
+  {
+    "premium_output_modalities": [
+      "text"
+    ],
+    "id": "openai/gpt-transcribe",
+    "object": "model",
+    "created": 1789516800,
+    "released": 1785196800,
+    "expiration_date": null,
+    "deprecated": false,
+    "owned_by": "openai",
+    "name": "GPT Transcribe",
+    "description": "Latest-generation OpenAI speech-to-text model with context, keyword, and language hints for higher accuracy on names and specialist vocabulary.",
+    "context_window": 16000,
+    "max_tokens": 2000,
+    "modalities": {
+      "input": [
+        "text",
+        "audio"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "supported_surfaces": [
+      "transcription"
+    ],
+    "pricing": {
+      "input": {
+        "audio": {
+          "tiers": [
+            {
+              "cost": "0.000075",
+              "min": 0
+            }
+          ],
+          "unit": "second"
+        }
+      }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "transcription": "zero"
     }
   },
   {

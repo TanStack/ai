@@ -294,6 +294,47 @@
   box-shadow: 0 10px 30px -12px rgba(255, 122, 24, 0.7);
 }
 
+.activity {
+  max-width: 36rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  animation: rise 0.35s ease both;
+}
+.activity__type {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 0.45rem;
+}
+.activity__steps {
+  margin: 0;
+  padding-left: 1.15rem;
+}
+.activity__step {
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+.activity__step--run {
+  color: var(--text);
+}
+.activity__step--done {
+  color: var(--muted-dim);
+  text-decoration: line-through;
+}
+.activity__payload {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
 /* thinking indicator */
 .thinking {
   display: flex;

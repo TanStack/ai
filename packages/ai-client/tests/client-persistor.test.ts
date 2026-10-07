@@ -90,6 +90,42 @@ describe('ChatPersistor', () => {
       expect(adapter.getItem).toHaveBeenCalledWith(CHAT_ID)
     })
 
+    it('round-trips a mixed transcript that includes activity', () => {
+      let stored: ChatPersistedState | undefined
+      const adapter: ChatClientPersistence = {
+        getItem: vi.fn(() => stored),
+        setItem: vi.fn((_id, state) => {
+          stored = state
+        }),
+        removeItem: vi.fn(),
+      }
+      const mixed: Array<UIMessage> = [
+        { id: 'u1', role: 'user', parts: [{ type: 'text', content: 'hi' }] },
+        {
+          id: 'act-1',
+          role: 'activity',
+          parts: [
+            {
+              type: 'activity',
+              activityType: 'SEARCH',
+              content: { query: 'tanstack' },
+            },
+          ],
+        },
+        {
+          id: 'a1',
+          role: 'assistant',
+          parts: [{ type: 'text', content: 'ok' }],
+        },
+      ]
+
+      const { persistor } = createPersistor(adapter)
+      persistor.notifyMessagesChanged(mixed)
+
+      const { persistor: next } = createPersistor(adapter)
+      expect(next.readInitial()).toEqual({ messages: mixed })
+    })
+
     it('returns the promise from an asynchronous getItem', () => {
       const stored = [createUIMessage('m-1')]
       const adapter = createMockPersistence()
@@ -355,6 +391,26 @@ describe('ChatPersistor', () => {
 
       expect(persistor.shouldIgnoreChunk(textContent('late-msg'))).toBe(true)
       expect(persistor.shouldIgnoreChunk(messagesSnapshot())).toBe(true)
+    })
+
+    it.each([
+      { type: 'TEXT_MESSAGE_CHUNK', messageId: 'late-msg', delta: 'hi' },
+      { type: 'TOOL_CALL_CHUNK', toolCallId: 'tc-late', toolCallName: 'x' },
+    ])('ignores a runless $type belonging to a cleared run', (fields) => {
+      const { persistor } = createPersistor(createMockPersistence())
+      persistor.snapshotClear({
+        messages: [],
+        activeRunIds: new Set(['run-1']),
+        currentRunId: null,
+      })
+      persistor.shouldIgnoreChunk(runStarted('run-1'))
+
+      expect(
+        persistor.shouldIgnoreChunk({
+          ...fields,
+          timestamp: Date.now(),
+        } as StreamChunk),
+      ).toBe(true)
     })
 
     it('ignores tool chunks by cleared parentMessageId and remembers the toolCallId', () => {

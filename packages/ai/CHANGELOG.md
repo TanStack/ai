@@ -1,5 +1,56 @@
 # @tanstack/ai
 
+## 0.65.1
+
+### Patch Changes
+
+- [#1645](https://github.com/TanStack/ai/pull/1645) [`807c5e1`](https://github.com/TanStack/ai/commit/807c5e11dd1560e0fe47ae2dbc90f2513507f7cc) - `StructuredOutputPart.data` is no longer optional when `status` is `'complete'`. After you check `part.status === 'complete'`, TypeScript knows `part.data` is set.
+
+  Migration: if you validate messages with a schema typed as `UIMessage` (for example `z.ZodType<UIMessage>`), split the `structured-output` part by `status`. Give `'complete'` a required `data` field.
+
+  Add `isHydrating` to `useChat` (and `injectChat`, `createChat`) and an `onHydratingChange` callback plus `getIsHydrating()` to `ChatClient`. It is `true` while the chat is rebuilt from persistence (the server hydrate with `persistence: true`, or an async storage adapter). It turns `false` when the transcript is in place and any in-flight run is re-joined, or when the load fails.
+
+## 0.65.0
+
+### Minor Changes
+
+- [#1323](https://github.com/TanStack/ai/pull/1323) [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66) - Process AG-UI `ACTIVITY_SNAPSHOT` and `ACTIVITY_DELTA` events into frontend-only `role: 'activity'` messages (`ActivityPart`). `ACTIVITY_DELTA` applies an RFC 6902 patch to the activity `content`. The model never gets activity as input.
+
+- [#1541](https://github.com/TanStack/ai/pull/1541) [`30254ad`](https://github.com/TanStack/ai/commit/30254ad70161894d232d3b45e3b21f45d49f336e) - Video adapters can hand a provider's download stream to generation persistence instead of buffering it. Adapters now implement `getVideo()`. When a provider has no public URL for the finished video (OpenRouter, Lovable, Sora jobs without `url`), it returns a `VideoStreamResult` (`{ body, contentType }`), and `withGenerationPersistence` streams it into your blob store and sets `url` from `artifactUrl`.
+
+  Nothing changes without persistence: `getVideoJobStatus()` and streaming `generateVideo()` still return a base64 `data:` URL for those providers.
+
+  `VideoAdapter.getVideoUrl()` is deprecated in favor of `getVideo()`. It still works: on the built-in adapters it is `getVideo()` with a stream buffered into a `data:` URL, and custom adapters that only implement `getVideoUrl()` keep working. A custom adapter that extends `BaseVideoAdapter` with TypeScript's `noImplicitOverride` must add `override` to its `getVideoUrl()`, or rename it to `getVideo()`.
+
+### Patch Changes
+
+- [#1587](https://github.com/TanStack/ai/pull/1587) [`7b6b1a9`](https://github.com/TanStack/ai/commit/7b6b1a99d45e40165f0a1f833a04e793a09275de) - Keep a turn's thinking when an `afterModel` generic interrupt pauses a turn that has no tool calls. Before, the interrupt's `MESSAGES_SNAPSHOT` kept only the assistant text, so the client lost the thinking and its signature (signed or redacted). A turn with thinking but no text was left out of the snapshot. The interrupt now records the turn the same way a finished run does.
+
+- [#1323](https://github.com/TanStack/ai/pull/1323) [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66) - Expose AG-UI activity messages on the chat client UIMessage path without sending them to the model.
+
+  Migration: `UIMessage.role` can now be `'activity'`. If your UI renders only `'user'` and `'assistant'` rows, it skips activity rows. If your code handles every role (for example, a `switch` that must be exhaustive), add a case for `'activity'`. Read the activity payload from the part with `type: 'activity'`.
+
+- [#1323](https://github.com/TanStack/ai/pull/1323) [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66) - Emit AG-UI ActivityMessage on MESSAGES_SNAPSHOT and keep omitted activity rows when a snapshot replaces the transcript.
+
+- [#1323](https://github.com/TanStack/ai/pull/1323) [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66) - Add an optional ActivityStore sidecar so server persistence can save and reconstruct AG-UI activity without putting it in MessageStore.
+
+  Activity saves are best-effort. They run after the message, run, and interrupt writes, so a failed activity save does not fail the run. `ActivityRecord` keeps the activity `metadata`. A paged `reconstructChat` puts each activity on the one page that holds it. A reload drops the activity rows of the turn it replaces.
+
+  Migration: an adapter that runs `runPersistenceConformance` must provide an `activities` store or pass `skip: ['activities']`.
+
+- [#1543](https://github.com/TanStack/ai/pull/1543) [`82291b2`](https://github.com/TanStack/ai/commit/82291b22941d2c813ff0050fc9d41b024480153d) - Run client tools that an AG-UI server leaves pending on a success `RUN_FINISHED`. The AG-UI spec ends a run that calls a frontend tool with a success outcome, not an interrupt. Pydantic AI's `AGUIAdapter` does this, so `useChat` showed the tool call and then stopped. The client now runs each call that this run started and did not answer. If the server names calls in `outcome.pendingToolCallIds`, the client runs only the named calls that this run started. Then it continues the conversation with the results. A client tool with `needsApproval: true` does not run on this path. A call with arguments that are not complete JSON does not run.
+
+- [#1544](https://github.com/TanStack/ai/pull/1544) [`ff3a66e`](https://github.com/TanStack/ai/commit/ff3a66ed8f628d45b282316fab337d3ed19f34cd) - Read the AG-UI `TEXT_MESSAGE_CHUNK`, `TOOL_CALL_CHUNK`, and `REASONING_MESSAGE_CHUNK` events. A server can send one of these in place of the START / CONTENT / END events. The stream processor dropped them, so the text, the message id, and the metadata were lost. It now expands each chunk into those events, so both forms build the same message. A chunk with no id continues the open stream of the same kind. A different kind closes that stream. The next other event closes it, except `RAW`, `ACTIVITY_*`, `REASONING_ENCRYPTED_VALUE`, and subagent lifecycle events. A text or tool call chunk from a run that `clear()` dropped stays out of the chat, as the explicit events do.
+
+- [#1566](https://github.com/TanStack/ai/pull/1566) [`560c76f`](https://github.com/TanStack/ai/commit/560c76fd638b5691e195e1d0619fee8a78d98c20) - Log durability replay failures on the SSE and NDJSON transports. When a reconnect or a `resumeServerSentEventsResponse` / `resumeHttpResponse` join fails to replay (for example, an unknown or expired `memoryStream` run), the failure is now logged under the `errors` category, as the WebSocket resume already does. The SSE or NDJSON reader still receives the same `RUN_ERROR`.
+
+- [#1557](https://github.com/TanStack/ai/pull/1557) [`4b9dcb4`](https://github.com/TanStack/ai/commit/4b9dcb44d8fe1e7c933b79c23d8f072e7bc300f4) - Pause SSE and NDJSON response sources when their readers fall behind. Durable responses do not pause, so their runs keep writing to their logs.
+
+- [#1634](https://github.com/TanStack/ai/pull/1634) [`40fdd22`](https://github.com/TanStack/ai/commit/40fdd22ce05d55e71514b4cc80b1c28cefb4a431) - Stop the duplicate `text` part on structured output from a reasoning model. When reasoning streamed first under its own message id, the stream processor put the JSON in a `text` part and also in the `structured-output` part. The message now has the `thinking` part and the `structured-output` part only.
+
+- Updated dependencies [[`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66)]:
+  - @tanstack/ai-event-client@0.13.1
+
 ## 0.64.1
 
 ### Patch Changes
