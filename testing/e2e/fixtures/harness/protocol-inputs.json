@@ -169,6 +169,24 @@
       "response": {
         "content": "Hi, without a look."
       }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-continue] name a color",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "Red."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-continue] name a color",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Blue."
+      }
     }
   ]
 }

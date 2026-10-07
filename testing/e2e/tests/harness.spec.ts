@@ -104,6 +104,47 @@ test.describe('harness session', () => {
     })
   })
 
+  test('a turn that a deploy stopped goes on from its streamed text on the next host', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const response = await request.post('/api/harness-test', {
+      data: { scenario: 'cut-off-restart', testId, aimockPort },
+    })
+    expect(response.ok()).toBe(true)
+    const body: { transcript: Array<{ role: string; content: unknown }> } =
+      await response.json()
+    const lines = body.transcript.map(
+      (message) => `${message.role}: ${String(message.content)}`,
+    )
+    // The first host streamed only the start of the story.
+    const partial = lines[1] ?? ''
+    expect(partial).toMatch(/^assistant: Once upon a time/)
+    expect(lines).toEqual([
+      'user: [harness-cut-off] tell a long story',
+      partial,
+      'user: The previous answer was cut off. Continue exactly where it stopped, without repeating it.',
+      'assistant: The guitar was ready.',
+    ])
+
+    // The model call on the second host got the cut text and the note.
+    const journal = await request.get(
+      `http://127.0.0.1:${aimockPort}/v1/_requests`,
+    )
+    const entries: Array<{
+      headers?: Record<string, string>
+      body: { messages?: Array<{ role: string; content: unknown }> } | null
+    }> = await journal.json()
+    const last = entries
+      .filter((entry) => entry.headers?.['x-test-id'] === testId)
+      .at(-1)
+    const sent = (last?.body?.messages ?? [])
+      .filter((message) => message.role !== 'system')
+      .map((message) => `${message.role}: ${String(message.content)}`)
+    expect(sent).toEqual(lines.slice(0, 3))
+  })
+
   test('routing.router sends each turn to the picked root agents or to the main model', async ({
     request,
     testId,
