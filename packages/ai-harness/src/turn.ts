@@ -1,11 +1,19 @@
 import type { ModelMessage } from '@tanstack/ai'
 import type { LogRecord } from '@tanstack/ai-persistence'
 import type { HarnessSession } from './session'
-import type { HarnessInput, Principal, UserInput } from './types'
+import type { HarnessInput, Principal, TurnOverrides, UserInput } from './types'
 
 /** What recovery does with one input. */
 export type RecoverDecision =
-  | { action: 'run' }
+  | {
+      action: 'run'
+      /**
+       * The overrides of the turn that runs, as in `prompt()`. Not kept in
+       * the log: a later recovery asks the hook again. A steer that joins
+       * the running turn ignores them.
+       */
+      overrides?: TurnOverrides
+    }
   | {
       action: 'settle'
       outcome: 'completed' | 'failed' | 'aborted'

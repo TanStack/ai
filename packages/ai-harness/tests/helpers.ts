@@ -1,5 +1,9 @@
 import { EventType } from '@tanstack/ai'
-import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
+import type {
+  AnyChatMiddleware,
+  AnyTextAdapter,
+  StreamChunk,
+} from '@tanstack/ai'
 
 export type Reply = (
   options: any,
@@ -157,4 +161,22 @@ export function messageTexts(call: any): Array<string> {
       ? message.content
       : JSON.stringify(message.content),
   )
+}
+
+/**
+ * A middleware that sends the model `[hidden]` in place of each message
+ * `secret`, at each model call. The transcript keeps `secret`.
+ */
+export const hideSecret: AnyChatMiddleware = {
+  name: 'test/hide-secret',
+  onConfig: (ctx, config) => {
+    if (ctx.phase !== 'beforeModel') return undefined
+    return {
+      providerMessages: config.messages.map((message) =>
+        message.content === 'secret'
+          ? { ...message, content: '[hidden]' }
+          : message,
+      ),
+    }
+  },
 }

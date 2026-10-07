@@ -190,8 +190,8 @@ export async function findCrashedRuns(
  *
  * - A call in `finished` gets its finished tool message. It does not run
  *   again.
- * - A pending call with `replay: 'never'` gets
- *   {@link INTERRUPTED_TOOL_RESULT} as a tool error.
+ * - A pending call with `replay: 'never'` gets `interrupted`, else
+ *   {@link INTERRUPTED_TOOL_RESULT}, as a tool error.
  * - A pending call with `replay: 'safe'`, or a call that never started, stays
  *   without a result, so the engine runs it.
  */
@@ -202,8 +202,10 @@ export async function repairTranscript(options: {
   pending: ReadonlyArray<PendingTool>
   /** Tool messages of calls that finished before the crash, by toolCallId. */
   finished?: ReadonlyMap<string, ModelMessage>
+  /** The content and error of a cut `replay: 'never'` call. */
+  interrupted?: string
 }): Promise<void> {
-  const { messages, threadId, pending, finished } = options
+  const { messages, threadId, pending, finished, interrupted } = options
   if (pending.length === 0 && (finished?.size ?? 0) === 0) return
   const history = await messages.loadThread(threadId)
   const answered = new Set(
@@ -232,8 +234,8 @@ export async function repairTranscript(options: {
         {
           role: 'tool',
           toolCallId,
-          content: JSON.stringify(INTERRUPTED_TOOL_RESULT),
-          error: INTERRUPTED_TOOL_RESULT.note,
+          content: interrupted ?? JSON.stringify(INTERRUPTED_TOOL_RESULT),
+          error: interrupted ?? INTERRUPTED_TOOL_RESULT.note,
         },
       ]
     })

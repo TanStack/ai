@@ -91,7 +91,12 @@ it('takes a harness without an adapter, and turn plugins', () => {
 
 it('takes attempt and time limits on the harness', () => {
   expectTypeOf<HarnessConfig['durability']>().toEqualTypeOf<
-    | { maxAttempts?: number; timeoutMs?: number; recover?: RecoverHook }
+    | {
+        maxAttempts?: number
+        timeoutMs?: number
+        recover?: RecoverHook
+        interruptedToolResult?: string
+      }
     | undefined
   >()
 })

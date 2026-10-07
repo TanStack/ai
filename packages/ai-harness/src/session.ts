@@ -1011,7 +1011,10 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   /** Why the session log stopped taking writes. */
   private logFailure: Error | undefined
   private readonly log: SessionDependencies['log']
-  /** Inputs this session stored, by id, as JSON: the duplicate check. */
+  /**
+   * Inputs this session stored or recovered, by id, as JSON: the duplicate
+   * check. `recover()` skips them.
+   */
   private readonly admitted = new Map<string, string>()
   /** The receipt of each chat input this session answered, by input id. */
   private readonly receipts = new Map<string, Receipt>()
@@ -1067,6 +1070,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   private plugins: ReadonlyArray<HarnessPlugin> = []
   private sessionPlugins: MountedPlugins | undefined
   private closing: Promise<void> | undefined
+  /** The last `recover()`. The calls run one at a time. */
+  private recovery: Promise<void> = Promise.resolve()
   private readonly onClose: () => void
   private checkpoint: AnyChatMiddleware | undefined
   /** Gives each durable tool call its steps in the log. One per session. */
@@ -1447,6 +1452,31 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       this.feed.close()
       throw error
     }
+  }
+
+  /**
+   * Recover the work in the log again, as `open()` does. `open()` skips a
+   * turn while another host holds its lease. Call this after that lease
+   * expires, and the turn runs here. The work that this session runs or
+   * queues stays as it is. A session without `stores.log` does nothing.
+   *
+   * @example
+   * ```ts
+   * await session.recover()
+   * ```
+   */
+  recover(): Promise<void> {
+    const { writer } = this
+    if (!writer || this.closing) return Promise.resolve()
+    const run = this.recovery.then(async () => {
+      // First the records that other hosts wrote since this session read.
+      await writer.catchUp()
+      if (this.logFailure) throw this.logFailure
+      if (this.closing) return
+      await this.recoverFromLog(writer)
+    })
+    this.recovery = run.catch(() => {})
+    return run
   }
 
   /**
@@ -3651,7 +3681,25 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           if (list.length === config.messages.length && !synced) {
             return undefined
           }
-          return { messages: synced ?? list }
+          const next = synced ?? list
+          // An earlier middleware can change what this model call gets
+          // (`providerMessages`). Keep that change, and add the new messages
+          // after it. When the fold rewrote older messages (a compaction),
+          // the fold wins.
+          const provider = config.providerMessages
+          const isAppend =
+            provider !== undefined &&
+            (!synced ||
+              commonPrefix(config.messages, synced) === config.messages.length)
+          return isAppend
+            ? {
+                messages: next,
+                providerMessages: [
+                  ...provider,
+                  ...next.slice(config.messages.length),
+                ],
+              }
+            : { messages: next }
         } finally {
           for (const steer of steers) this.joining.delete(steer.inputId)
         }
@@ -3701,6 +3749,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         // Only now, so a save that fails leaves them waiting.
         chain.steers.splice(0, steers.length)
         for (const steer of steers) this.join(operation.id, steer)
+        // ponytail: user and agent middleware run after this one, so no
+        // earlier `providerMessages` exists to keep (unlike `steering()`).
         return { messages }
       },
     }
@@ -5100,6 +5150,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       threadId: agentThread,
       pending: newest?.checkpoint?.pendingTools ?? [],
       finished,
+      interrupted: this.harness.durability?.interruptedToolResult,
     })
     return store.loadThread(agentThread)
   }
@@ -5950,6 +6001,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       messages: this.messages,
       threadId: newest.threadId,
       pending: newest.checkpoint?.pendingTools ?? [],
+      interrupted: this.harness.durability?.interruptedToolResult,
     })
     const operation = this.createTurnOperation()
     this.feed.publish(
@@ -6081,30 +6133,43 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   /**
    * Recover a durable session from its log, input by input, in admission
    * order. A chat turn whose host stopped (its run lease expired) settles
+   * `completed` when the log already has its final answer. Else it settles
    * `aborted` when an abort was asked, settles `failed` when no attempt or no
-   * time is left, settles `completed` when the log already has its final
-   * answer, and else runs again as the next attempt. An agent run (a first
-   * run or a follow-up run) whose host stopped runs again with `resume:
-   * true`, else settles `failed` with the steers that joined it. A message
-   * that waited for such a run goes to the run again, else settles
+   * time is left, and else runs again as the next attempt. An agent run (a
+   * first run or a follow-up run) whose host stopped runs again with
+   * `resume: true`, else settles `failed` with the steers that joined it. A
+   * message that waited for such a run goes to the run again, else settles
    * `aborted`. An input that never ran runs now. One that a `setDelivery`
    * sent to `steer` joins the turn that runs, when one does. A `cancelInput`
    * or `setDelivery` that a crash cut before it was applied applies first.
-   * Other inputs are rejected with `expired_on_restart`.
+   * Other inputs are rejected with `expired_on_restart`. An input that this
+   * session stored or took already is skipped, so `recover()` can run this
+   * again.
    */
   private async recoverFromLog(writer: LogWriter): Promise<void> {
     const runs = this.persistence.stores.runs
     const maxAttempts = this.harness.durability?.maxAttempts ?? 10
+    // True for an input that this session stored or took. Else the session
+    // takes it now, so `recover()` does not take it again.
+    const isTaken = (input: InputState) => {
+      if (this.admitted.has(input.inputId)) return true
+      this.admitted.set(input.inputId, inputKey(input.input, input.principal))
+      return false
+    }
     const logged = [...writer.state.inputs.values()]
     for (const input of logged) {
-      if (input.status === 'pending') await this.recoverControl(writer, input)
+      const isControl =
+        input.status === 'pending' && CONTROL_OPS.has(input.input.op)
+      if (isControl && !isTaken(input)) await this.recoverControl(writer, input)
     }
     // Read again: the pass above changed the inputs it applied to.
     const inputs = [...writer.state.inputs.values()]
     for (const input of inputs) {
       // A reset that did not settle applies now. Its marker goes in once.
       if (input.input.op === 'reset') {
-        const isOpen = input.status === 'pending' || input.status === 'applied'
+        const isOpen =
+          (input.status === 'pending' || input.status === 'applied') &&
+          !isTaken(input)
         if (isOpen && input.abortRequested) {
           await this.settle({ inputId: input.inputId, outcome: 'aborted' })
         } else if (isOpen) {
@@ -6119,6 +6184,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       }
       const isChat = CHAT_OPS.has(input.input.op)
       if (input.status === 'pending') {
+        // The pass above handled a control input.
+        if (CONTROL_OPS.has(input.input.op) || isTaken(input)) continue
         // A message to an agent run goes to the run that recovery continues.
         // That run's input is older, so its chain exists here.
         if (input.input.op === 'agentMessage') {
@@ -6141,8 +6208,6 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           }
           continue
         }
-        // The pass above handled it.
-        if (CONTROL_OPS.has(input.input.op)) continue
         if (!isChat || !('message' in input.input)) {
           this.reject(input.inputId, 'expired_on_restart')
           continue
@@ -6168,6 +6233,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           message: input.input.message,
           principal: input.principal,
           context: input.input.context,
+          overrides: decision.overrides,
         }
         // Else it runs as its own turn, as `steer()` does when no turn runs.
         if (input.delivery === 'steer' && this.activeTurn) {
@@ -6196,7 +6262,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             run.leaseExpiresAt !== undefined &&
             run.leaseExpiresAt >= now
       // Another host still drives this turn.
-      if (isAlive) continue
+      if (isAlive || isTaken(input)) continue
       if (first) {
         // A run that ended before its settle record landed did not stop.
         if (!run || run.status === 'running') {
@@ -6251,28 +6317,32 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             ...settlement,
           })),
         )
-      const fallback: RecoverDecision = input.abortRequested
-        ? { action: 'settle', outcome: 'aborted' }
-        : input.attempt >= maxAttempts
-          ? {
-              action: 'settle',
-              outcome: 'failed',
-              error: {
-                message: `The input stopped the host ${input.attempt} times.`,
-                code: 'attempts_exhausted',
-              },
-            }
-          : input.timeoutAt !== undefined && now >= input.timeoutAt
+      // A final answer in the log comes first: the turn ended.
+      const fallback: RecoverDecision = hasFinalAnswer(
+        writer.state.messages,
+        input.appliedAt ?? 0,
+      )
+        ? { action: 'settle', outcome: 'completed' }
+        : input.abortRequested
+          ? { action: 'settle', outcome: 'aborted' }
+          : input.attempt >= maxAttempts
             ? {
                 action: 'settle',
                 outcome: 'failed',
                 error: {
-                  message: 'The input passed its time limit.',
-                  code: 'timeout',
+                  message: `The input stopped the host ${input.attempt} times.`,
+                  code: 'attempts_exhausted',
                 },
               }
-            : hasFinalAnswer(writer.state.messages, input.appliedAt ?? 0)
-              ? { action: 'settle', outcome: 'completed' }
+            : input.timeoutAt !== undefined && now >= input.timeoutAt
+              ? {
+                  action: 'settle',
+                  outcome: 'failed',
+                  error: {
+                    message: 'The input passed its time limit.',
+                    code: 'timeout',
+                  },
+                }
               : { action: 'run' }
       const decision = await this.recoverDecision(writer, input, fallback)
       if (decision.action === 'settle') {
@@ -6334,6 +6404,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           answers: this.interrupted,
           principal: input.principal,
           context: this.interrupted.context,
+          overrides: decision.overrides,
         })
         continue
       }
@@ -6345,6 +6416,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         threadId: this.threadId,
         pending: [...(run?.checkpoint?.pendingTools ?? []), ...started],
         finished: writer.state.toolResults,
+        interrupted: this.harness.durability?.interruptedToolResult,
       })
       const operation = this.createTurnOperation()
       this.bindTurn(input.inputId, operation)
@@ -6364,6 +6436,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         principal: input.principal,
         ...('message' in sent ? { sentMessage: sent.message } : {}),
         ...('context' in sent ? { context: sent.context } : {}),
+        overrides: decision.overrides,
       })
     }
   }

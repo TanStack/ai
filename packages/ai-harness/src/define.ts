@@ -81,7 +81,7 @@ export interface HarnessRouting extends Pick<
 
 /**
  * Limits for one input on a durable host (a host with `stores.log`). A host
- * without a log does not read them.
+ * without a log reads only `interruptedToolResult`.
  */
 export interface HarnessDurability {
   /**
@@ -99,9 +99,16 @@ export interface HarnessDurability {
   /**
    * Decide how an input that a crashed host left recovers: an input that
    * never ran, and a turn whose lease expired. The context has the decision
-   * the harness takes by default. Return `undefined` to keep it.
+   * the harness takes by default. Return `undefined` to keep it. Return
+   * `{ action: 'run', overrides }` to run the turn with `TurnOverrides`.
    */
   recover?: RecoverHook
+  /**
+   * The tool result that recovery gives a `replay: 'never'` tool call that
+   * a crash cut: the content and the error of its tool message. Default: a
+   * JSON note that the tool may or may not have run.
+   */
+  interruptedToolResult?: string
 }
 
 /**

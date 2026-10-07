@@ -268,7 +268,7 @@ export interface HarnessHost<TLogState = unknown> {
    * a Durable Object alarm. Resolves with the threads it opened.
    *
    * Known limit: a thread that this host has open already is claimed, but
-   * its session does not recover again.
+   * its session does not recover again. Call `host.recover(threadId)` for it.
    *
    * @example
    * ```ts
@@ -278,6 +278,17 @@ export interface HarnessHost<TLogState = unknown> {
   resumePending: (
     options: ResumePendingOptions,
   ) => Promise<Array<{ threadId: string; harness: string }>>
+  /**
+   * Run `session.recover()` on the open sessions of `threadId`, or on every
+   * open session without it. A turn that another host ran when its session
+   * opened runs here once that host's lease expires.
+   *
+   * @example
+   * ```ts
+   * await host.recover('thread-1')
+   * ```
+   */
+  recover: (threadId?: string) => Promise<void>
   /** Close every live session. */
   close: () => Promise<void>
   /**
@@ -694,6 +705,17 @@ export function createHarnessHost<TLogState = undefined>(
         opened.push({ threadId, harness: name })
       }
       return opened
+    },
+    async recover(threadId) {
+      const live = await Promise.allSettled(sessions.values())
+      await Promise.all(
+        live.flatMap((entry) =>
+          entry.status === 'fulfilled' &&
+          (threadId === undefined || entry.value.threadId === threadId)
+            ? [entry.value.recover()]
+            : [],
+        ),
+      )
     },
     async close() {
       await Promise.allSettled(closing.values())

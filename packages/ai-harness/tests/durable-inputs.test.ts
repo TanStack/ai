@@ -14,7 +14,7 @@ import {
 } from './helpers'
 import type { AnyTool, ModelMessage } from '@tanstack/ai'
 import type { LeaseStore, LogRecord } from '@tanstack/ai-persistence'
-import type { HarnessDurability, HarnessInput } from '../src'
+import type { HarnessDurability, HarnessInput, RecoverDecision } from '../src'
 import type { Reply } from './helpers'
 
 const THREAD = 't1'
@@ -245,6 +245,100 @@ describe('recovery of a durable input', () => {
     await host.close()
   })
 
+  it.each([
+    { name: 'an abort request', stopped: { attempt: 1, abort: true } },
+    { name: 'no attempt left', stopped: { attempt: 3 } },
+    {
+      name: 'a passed time limit',
+      stopped: { attempt: 1, timeoutAt: Date.now() - 1 },
+    },
+  ])(
+    'settles completed when the log has the final answer, also with $name',
+    async ({ stopped }) => {
+      const persistence = durablePersistence()
+      await seedStoppedTurn(persistence, { ...stopped, answer: 'done before' })
+      const seen: Array<RecoverDecision> = []
+
+      const { host, session, calls } = await openDurable({
+        persistence,
+        replies: [() => text('never')],
+        durability: {
+          maxAttempts: 3,
+          timeoutMs: 60_000,
+          recover: ({ decision }) => {
+            seen.push(decision)
+            return undefined
+          },
+        },
+      })
+
+      expect(await session.settled('in-1')).toMatchObject({
+        outcome: 'completed',
+      })
+      expect(seen).toEqual([{ action: 'settle', outcome: 'completed' }])
+      expect(calls).toHaveLength(0)
+      await host.close()
+    },
+  )
+
+  it('gives a cut call of a tool that must not run twice the interruptedToolResult text', async () => {
+    const interrupted = JSON.stringify({
+      type: 'interrupted',
+      message:
+        'Tool execution was interrupted before completion. The outcome is unknown.',
+    })
+    const persistence = durablePersistence()
+    const started = gate()
+    const mail = toolDefinition({
+      name: 'mail',
+      description: 'Send a mail',
+    }).server(
+      (_args, context) =>
+        new Promise<never>((_resolve, reject) => {
+          started.open()
+          // Wait like a host that stopped, until the call is aborted at close.
+          context?.abortSignal?.addEventListener(
+            'abort',
+            () => reject(new Error('stopped')),
+            { once: true },
+          )
+        }),
+    )
+    const first = await openDurable({
+      persistence,
+      replies: [() => toolCall('mail', {})],
+      tools: [mail],
+    })
+    const turn = first.session.prompt('mail it', { inputId: 'in-1' })
+    await started.opened
+    // The first host stops: its run lease expires.
+    await persistence.stores.runs.update(turn.id, {
+      leaseExpiresAt: Date.now() - 1,
+    })
+
+    const next = await openDurable({
+      persistence,
+      replies: [() => text('done')],
+      tools: [mail],
+      durability: { interruptedToolResult: interrupted },
+    })
+    await next.session.settled('in-1')
+
+    const results = (await next.session.transcript()).filter(
+      (message) => message.role === 'tool',
+    )
+    expect(results).toEqual([
+      {
+        role: 'tool',
+        toolCallId: 'call-1',
+        content: interrupted,
+        error: interrupted,
+      },
+    ])
+    await first.host.close().catch(() => {})
+    await next.host.close()
+  })
+
   it('fails a background agent whose host stopped, and wakes the thread', async () => {
     const persistence = durablePersistence()
     await persistence.stores.log.append(THREAD, 1, [
@@ -374,6 +468,114 @@ describe('recovery of a durable input', () => {
       outcome: 'aborted',
     })
     expect(calls).toHaveLength(0)
+    await host.close()
+  })
+})
+
+describe('session.recover()', () => {
+  /** A stopped turn whose run lease is alive: another host still runs it. */
+  async function seedLiveTurn(persistence: Durable) {
+    await seedStoppedTurn(persistence, { attempt: 1 })
+    await persistence.stores.runs.update('op-stopped', {
+      leaseExpiresAt: Date.now() + 60_000,
+    })
+  }
+
+  const expireLease = (persistence: Durable) =>
+    persistence.stores.runs.update('op-stopped', {
+      leaseExpiresAt: Date.now() - 1,
+    })
+
+  it('runs a turn that another host held at open, after its lease expires', async () => {
+    const persistence = durablePersistence()
+    await seedLiveTurn(persistence)
+    const { log } = persistence.stores
+    // A store that does not push new records: the session reads them only
+    // when it catches up.
+    const quiet: Durable = {
+      stores: {
+        ...persistence.stores,
+        log: {
+          append: (threadId, seq, records) =>
+            log.append(threadId, seq, records),
+          read: (threadId, options) => log.read(threadId, options),
+          subscribe: () => () => {},
+        },
+      },
+    }
+    const { host, session, calls } = await openDurable({
+      persistence: quiet,
+      replies: [() => text('one'), () => text('two')],
+    })
+    expect(calls).toHaveLength(0)
+
+    // The other host stored one more input, then stopped.
+    const head = (await log.read(THREAD)).length
+    await log.append(THREAD, head + 1, [pendingInput('in-2', 'next')])
+    await expireLease(persistence)
+    await host.recover()
+
+    expect(await session.settled('in-1')).toMatchObject({
+      outcome: 'completed',
+    })
+    expect(await session.settled('in-2')).toMatchObject({
+      outcome: 'completed',
+    })
+    expect(calls).toHaveLength(2)
+    await host.close()
+  })
+
+  it('runs the turn once when two calls run at once', async () => {
+    const persistence = durablePersistence()
+    await seedLiveTurn(persistence)
+    const { host, session, calls } = await openDurable({
+      persistence,
+      replies: [() => text('recovered'), () => text('later'), () => text('x')],
+    })
+    await expireLease(persistence)
+
+    await Promise.all([session.recover(), host.recover(THREAD)])
+    await session.settled('in-1')
+    // A second run of the turn would run before this one.
+    await session.prompt('later')
+
+    expect(calls).toHaveLength(2)
+    const applied = (await logRecords(persistence)).filter(
+      (record) =>
+        record.type === 'harness.input.applied' && record.inputId === 'in-1',
+    )
+    expect(applied.map((record) => record.attempt)).toEqual([1, 2])
+    await host.close()
+  })
+
+  it('leaves the turns that this session runs and queues alone', async () => {
+    const persistence = durablePersistence()
+    const release = gate()
+    const { host, session, calls } = await openDurable({
+      persistence,
+      replies: [
+        after(release.opened, 'first'),
+        () => text('second'),
+        () => text('third'),
+        () => text('x'),
+      ],
+    })
+    const one = session.prompt('one', { inputId: 'in-1' })
+    const two = session.prompt('two', { inputId: 'in-2' })
+    await two.receipt
+    await vi.waitFor(() => expect(calls).toHaveLength(1))
+
+    await session.recover()
+    release.open()
+    await Promise.all([one, two])
+    // A second run of `two` would run before this one.
+    await session.prompt('three')
+
+    expect(calls.map((call) => messageTexts(call).at(-1))).toEqual([
+      'one',
+      'two',
+      'three',
+    ])
     await host.close()
   })
 })

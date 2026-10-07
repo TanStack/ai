@@ -3,7 +3,14 @@ import { EventType, getLogRecords, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin } from '../src'
 import { loadLogState, sessionOf } from '../src/log'
-import { gate, messageTexts, mockAdapter, text, toolCall } from './helpers'
+import {
+  gate,
+  hideSecret,
+  messageTexts,
+  mockAdapter,
+  text,
+  toolCall,
+} from './helpers'
 import type { ChatMiddleware, ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { LogStore } from '@tanstack/ai-persistence'
 import type { HarnessSession, ProjectOptions, SessionEvent } from '../src'
@@ -333,6 +340,47 @@ describe('durable session log', () => {
     ])
     release.open()
     await Promise.resolve(turn).catch(() => {})
+    await host.close()
+  })
+
+  it('keeps the model context that an earlier middleware set, with a steer and a signal', async () => {
+    const persistence = durablePersistence()
+    let session: HarnessSession | undefined
+    const check = toolDefinition({
+      name: 'check',
+      description: 'Check the build',
+    }).server(async () => {
+      await session?.append([
+        { type: 'app.signal', text: '[signal] tests failed' },
+      ])
+      await session?.prompt('more', { busy: 'steer' }).receipt
+      return 'checked'
+    })
+    const { adapter, calls } = mockAdapter([
+      () => toolCall('check', {}),
+      () => text('done'),
+    ])
+    const host = createHarnessHost({ persistence, project })
+    session = await host.open(
+      defineHarness({
+        name: 'test/project',
+        adapter,
+        tools: [check],
+        middleware: [hideSecret],
+      }),
+      { threadId: THREAD },
+    )
+
+    await session.prompt('secret')
+
+    // The tool-call message has no text: its content is null.
+    expect(messageTexts(calls[1])).toEqual([
+      '[hidden]',
+      'null',
+      'checked',
+      'more',
+      '[signal] tests failed',
+    ])
     await host.close()
   })
 

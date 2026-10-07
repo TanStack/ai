@@ -566,6 +566,8 @@ export interface LogWriter extends EventFeed {
   }) => Promise<void>
   /** Append the pending events now. */
   flush: () => Promise<void>
+  /** Fold the records that another writer appended, after the queued writes. */
+  catchUp: () => Promise<void>
 }
 
 /**
@@ -674,6 +676,7 @@ export class SharedLog<TState = unknown> {
       stage: (records) => this.stage(threadId, records),
       commit: (options) => this.commit(threadId, options),
       flush: () => this.flush(),
+      catchUp: () => this.enqueue(() => this.catchUp()),
       head: () => this.head(),
       read: (options) =>
         this.read(threadId, { ...options, isClosed: () => closed }),
