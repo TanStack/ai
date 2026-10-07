@@ -168,7 +168,7 @@ import type {
 } from "@tanstack/ai-client";
 
 interface UseChatReturn {
-  messages: DeepReadonly<ShallowRef<UIMessage[]>>;
+  messages: Readonly<ShallowRef<ReadonlyArray<UIMessage>>>;
   sendMessage: (
     content: string | MultimodalContent,
     options?: SendMessageOptions,
@@ -193,7 +193,7 @@ interface UseChatReturn {
   isSubscribed: DeepReadonly<ShallowRef<boolean>>;
   connectionStatus: DeepReadonly<ShallowRef<ConnectionStatus>>;
   sessionGenerating: DeepReadonly<ShallowRef<boolean>>;
-  setMessages: (messages: UIMessage[]) => void;
+  setMessages: (messages: ReadonlyArray<UIMessage>) => void;
   clear: () => void;
 }
 ```

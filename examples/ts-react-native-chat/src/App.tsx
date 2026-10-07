@@ -191,7 +191,7 @@ function getRecipeSource(part?: StructuredRecipePart): RecipeValue | undefined {
 }
 
 function findLatestRecipePart(
-  messages: Array<UIMessage>,
+  messages: ReadonlyArray<UIMessage>,
 ): StructuredRecipePart | undefined {
   for (const message of [...messages].reverse()) {
     for (const part of [...message.parts].reverse()) {
@@ -417,7 +417,7 @@ function UserRequest({ message }: { message: UIMessage }) {
   )
 }
 
-function RequestHistory({ messages }: { messages: Array<UIMessage> }) {
+function RequestHistory({ messages }: { messages: ReadonlyArray<UIMessage> }) {
   const userMessages = messages.filter((message) => message.role === 'user')
 
   if (userMessages.length === 0) return null

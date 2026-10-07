@@ -1,4 +1,10 @@
 import { convertSchemaToJsonSchema } from '@tanstack/ai/client'
+import {
+  createAtom,
+  freezeSnapshotMessages,
+  subscribeAtom,
+} from './snapshot-atom'
+import type { Atom } from './snapshot-atom'
 import type {
   AnyClientTool,
   AudioVisualization,
@@ -48,6 +54,11 @@ export class RealtimeClient {
   private readonly stateChangeCallbacks: Set<RealtimeStateChangeCallback> =
     new Set()
   private unsubscribers: Array<() => void> = []
+  // Declared before `snapshotAtom`, whose initializer reads it.
+  private readonly frozenMessages = new WeakMap<
+    RealtimeMessage,
+    RealtimeMessage
+  >()
 
   private state: RealtimeClientState = {
     status: 'idle',
@@ -57,6 +68,9 @@ export class RealtimeClient {
     pendingAssistantTranscript: null,
     error: null,
   }
+  private readonly snapshotAtom: Atom<RealtimeClientState> = createAtom(
+    this.buildSnapshot(),
+  )
 
   constructor(options: RealtimeClientOptions) {
     this.options = {
@@ -88,7 +102,10 @@ export class RealtimeClient {
       return
     }
 
-    this.updateState({ status: 'connecting', error: null })
+    this.updateState({
+      status: 'connecting',
+      error: null,
+    })
 
     try {
       // Fetch token from server
@@ -119,7 +136,13 @@ export class RealtimeClient {
         await this.connection.startAudioCapture()
       }
 
-      this.updateState({ status: 'connected', mode: 'listening' })
+      this.updateState({
+        status: 'connected',
+        mode: 'listening',
+        messages: [],
+        pendingUserTranscript: null,
+        pendingAssistantTranscript: null,
+      })
       this.options.onConnect?.()
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error))
@@ -195,6 +218,7 @@ export class RealtimeClient {
       return
     }
     this.connection.interrupt()
+    this.updateState({ pendingAssistantTranscript: null })
   }
 
   // ============================================================================
@@ -260,7 +284,7 @@ export class RealtimeClient {
   }
 
   /** Get conversation messages */
-  get messages(): Array<RealtimeMessage> {
+  get messages(): ReadonlyArray<RealtimeMessage> {
     return this.state.messages
   }
 
@@ -331,6 +355,16 @@ export class RealtimeClient {
     }
   }
 
+  /**
+   * Subscribe to UI snapshot changes. Does not fire with the current value;
+   * read {@link getSnapshot} first.
+   */
+  subscribe = (listener: () => void): (() => void) =>
+    subscribeAtom(this.snapshotAtom, listener)
+
+  /** Current UI snapshot. */
+  getSnapshot = (): RealtimeClientState => this.snapshotAtom.get()
+
   // ============================================================================
   // Cleanup
   // ============================================================================
@@ -349,11 +383,28 @@ export class RealtimeClient {
   // ============================================================================
 
   private updateState(updates: Partial<RealtimeClientState>): void {
+    const changed = Object.keys(updates).some((key) => {
+      const stateKey = key as keyof RealtimeClientState
+      return !Object.is(this.state[stateKey], updates[stateKey])
+    })
+    if (!changed) return
+    const messagesChanged = !Object.is(
+      this.state.messages,
+      updates.messages ?? this.state.messages,
+    )
     this.state = { ...this.state, ...updates }
+    // A transcript or mode update keeps the same `messages` array, so UI
+    // memo keyed on it does not run again for every transcript token.
+    this.snapshotAtom.set(
+      messagesChanged
+        ? this.buildSnapshot()
+        : { ...this.state, messages: this.snapshotAtom.get().messages },
+    )
+    const snapshot = this.snapshotAtom.get()
 
     // Notify callbacks
     for (const callback of this.stateChangeCallbacks) {
-      callback(this.state)
+      callback(snapshot)
     }
 
     // Notify specific callbacks
@@ -362,6 +413,16 @@ export class RealtimeClient {
     }
     if ('mode' in updates && updates.mode !== undefined) {
       this.options.onModeChange?.(updates.mode)
+    }
+  }
+
+  private buildSnapshot(): RealtimeClientState {
+    return {
+      ...this.state,
+      messages: freezeSnapshotMessages(
+        this.frozenMessages,
+        this.state.messages,
+      ),
     }
   }
 

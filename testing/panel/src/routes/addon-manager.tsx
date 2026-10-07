@@ -137,7 +137,7 @@ function AddOnPanel({
   )
 }
 
-function Messages({ messages }: { messages: Array<UIMessage> }) {
+function Messages({ messages }: { messages: ReadonlyArray<UIMessage> }) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -250,7 +250,7 @@ function DebugPanel({
   chunks,
   onClearChunks,
 }: {
-  messages: Array<UIMessage>
+  messages: ReadonlyArray<UIMessage>
   chunks: Array<any>
   onClearChunks: () => void
 }) {

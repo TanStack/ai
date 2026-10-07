@@ -8,7 +8,7 @@ import {
 import { OpenRouterKeyForm } from '@/components/open-router-key-form'
 import { byok } from '@/lib/byok'
 
-function Messages({ messages }: { messages: Array<UIMessage> }) {
+function Messages({ messages }: { messages: ReadonlyArray<UIMessage> }) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const visibleMessages = messages.filter((message) =>
     message.parts.some((part) => part.type === 'text' && part.content.trim()),

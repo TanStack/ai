@@ -147,7 +147,7 @@ import type {
 } from "@tanstack/ai-client";
 
 interface UseChatReturn {
-  messages: UIMessage[];
+  messages: ReadonlyArray<UIMessage>;
   sendMessage: (
     content: string | MultimodalContent,
     options?: SendMessageOptions,
@@ -168,7 +168,7 @@ interface UseChatReturn {
   stop: () => void;
   isLoading: boolean;
   error: Error | undefined;
-  setMessages: (messages: UIMessage[]) => void;
+  setMessages: (messages: ReadonlyArray<UIMessage>) => void;
   clear: () => void;
 }
 ```

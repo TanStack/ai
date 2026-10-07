@@ -76,7 +76,7 @@ function Messages({
   onSpeak,
   onStopSpeaking,
 }: {
-  messages: Array<UIMessage>
+  messages: ReadonlyArray<UIMessage>
   addToolApprovalResponse: (response: {
     id: string
     approved: boolean
@@ -282,7 +282,7 @@ function DebugPanel({
   chunks,
   onClearChunks,
 }: {
-  messages: Array<UIMessage>
+  messages: ReadonlyArray<UIMessage>
   chunks: Array<any>
   onClearChunks: () => void
 }) {

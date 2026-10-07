@@ -170,7 +170,7 @@ import type {
 } from '@tanstack/ai-client'
 
 interface UseChatReturn {
-  messages: Array<UIMessage>
+  messages: ReadonlyArray<UIMessage>
   sendMessage: (
     content: string | MultimodalContent,
     options?: SendMessageOptions,
@@ -195,9 +195,9 @@ interface UseChatReturn {
   isSubscribed: boolean
   connectionStatus: ConnectionStatus
   sessionGenerating: boolean
-  setMessages: (messages: Array<UIMessage>) => void
+  setMessages: (messages: ReadonlyArray<UIMessage>) => void
   clear: () => void
-  queue: Array<QueuedMessage>
+  queue: ReadonlyArray<QueuedMessage>
   cancelQueued: (id: string) => void
   runId: string | null
 }

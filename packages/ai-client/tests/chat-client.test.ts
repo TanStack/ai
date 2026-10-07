@@ -68,6 +68,226 @@ describe('ChatClient', () => {
       expect(client.getError()).toBeUndefined()
     })
 
+    it('exposes a UI snapshot that subscribeSnapshot notifies', () => {
+      const adapter = createMockConnectionAdapter()
+      const initialMessages: Array<UIMessage> = [
+        {
+          id: 'msg-1',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Hello' }],
+          createdAt: new Date(),
+        },
+      ]
+      const client = new ChatClient({
+        connection: adapter,
+        initialMessages,
+      })
+
+      const snapshot = client.getSnapshot()
+      expect(snapshot.messages).toEqual(initialMessages)
+      expect(snapshot.status).toBe('ready')
+      expect(snapshot.isLoading).toBe(false)
+      expect(client.getSnapshot()).toBe(snapshot)
+
+      const listener = vi.fn()
+      const stop = client.subscribeSnapshot(listener)
+      client.setMessagesManually([])
+      expect(listener).toHaveBeenCalledTimes(1)
+      expect(client.getSnapshot().messages).toEqual([])
+      expect(client.getSnapshot()).not.toBe(snapshot)
+      stop()
+      client.setMessagesManually([
+        {
+          id: 'msg-2',
+          role: 'user',
+          parts: [{ type: 'text', content: 'After' }],
+        },
+      ])
+      expect(listener).toHaveBeenCalledTimes(1)
+    })
+
+    it('isolates nested message parts from callers and old snapshots', () => {
+      const adapter = createMockConnectionAdapter()
+      const source = {
+        type: 'url' as const,
+        value: 'https://example.com/a.png',
+      }
+      const client = new ChatClient({
+        connection: adapter,
+        initialMessages: [
+          {
+            id: 'msg-1',
+            role: 'user',
+            parts: [{ type: 'image', source }],
+            createdAt: new Date(),
+          },
+        ],
+      })
+      const oldSnapshot = client.getSnapshot()
+
+      source.value = 'https://example.com/changed.png'
+      expect(oldSnapshot.messages[0]?.parts[0]).toMatchObject({
+        source: { value: 'https://example.com/a.png' },
+      })
+      const publishedPart = oldSnapshot.messages[0]?.parts[0]
+      expect(Object.isFrozen(publishedPart)).toBe(true)
+      if (!publishedPart || !('source' in publishedPart)) {
+        throw new Error('Expected a message part with a source')
+      }
+      expect(Object.isFrozen(publishedPart.source)).toBe(true)
+    })
+
+    it('copies tool input, approval, and subagent transcripts', () => {
+      const input = { city: 'Paris', nested: { n: 1 } }
+      const approval = { id: 'ap-1', needsApproval: true }
+      const output = { ok: true }
+      const child = {
+        id: 'child-1',
+        role: 'assistant' as const,
+        parts: [{ type: 'text' as const, content: 'from child' }],
+      }
+      const client = new ChatClient({
+        connection: createMockConnectionAdapter(),
+        initialMessages: [
+          {
+            id: 'msg-1',
+            role: 'assistant',
+            parts: [
+              {
+                type: 'tool-call',
+                id: 'call-1',
+                name: 'lookup',
+                arguments: '{"city":"Paris"}',
+                state: 'input-complete',
+                input,
+                output,
+                approval,
+              },
+              {
+                type: 'tool-result',
+                toolCallId: 'call-1',
+                content: [{ type: 'text', content: 'done' }],
+                state: 'complete',
+              },
+              {
+                type: 'subagent',
+                subagent: {
+                  id: 'sub-1',
+                  name: 'researcher',
+                  status: 'finished',
+                  messages: [child],
+                },
+              },
+            ],
+          },
+        ],
+      })
+      const parts = client.getSnapshot().messages[0]?.parts
+      const toolCall = parts?.[0]
+      const toolResult = parts?.[1]
+      const subagentPart = parts?.[2]
+      if (
+        toolCall?.type !== 'tool-call' ||
+        toolResult?.type !== 'tool-result' ||
+        subagentPart?.type !== 'subagent' ||
+        !Array.isArray(toolResult.content)
+      ) {
+        throw new Error('Expected tool-call, tool-result, and subagent parts')
+      }
+
+      expect(Object.isFrozen(toolCall.input)).toBe(true)
+      expect(Object.isFrozen(toolCall.approval)).toBe(true)
+      expect(Object.isFrozen(toolCall.output)).toBe(true)
+      expect(Reflect.set(toolCall.input, 'city', 'London')).toBe(false)
+      if (!toolCall.approval) {
+        throw new Error('Expected tool-call approval')
+      }
+      expect(Reflect.set(toolCall.approval, 'approved', true)).toBe(false)
+      expect(input.city).toBe('Paris')
+      expect(approval).not.toHaveProperty('approved')
+      expect(Object.isFrozen(toolResult.content)).toBe(true)
+      expect(Object.isFrozen(toolResult.content[0])).toBe(true)
+
+      const publishedChild = subagentPart.subagent.messages[0]
+      expect(Object.isFrozen(subagentPart.subagent.messages)).toBe(true)
+      expect(publishedChild).not.toBe(child)
+      expect(Reflect.set(publishedChild?.parts ?? [], 'length', 0)).toBe(false)
+      expect(child.parts).toHaveLength(1)
+      const handle = client.getSubagents()[0]
+      expect(subagentPart.subagent).not.toBe(handle)
+      expect(subagentPart.subagent.stop).toBe(handle?.stop)
+    })
+
+    it('isolates messages published by normal updates', () => {
+      const client = new ChatClient({
+        connection: createMockConnectionAdapter(),
+      })
+      const oldSnapshot = client.getSnapshot()
+      const source = {
+        type: 'url' as const,
+        value: 'https://example.com/updated.png',
+      }
+
+      client.setMessagesManually([
+        {
+          id: 'updated-1',
+          role: 'user',
+          parts: [{ type: 'image', source }],
+        },
+      ])
+
+      const snapshot = client.getSnapshot()
+      const part = snapshot.messages[0]?.parts[0]
+      expect(snapshot).not.toBe(oldSnapshot)
+      expect(oldSnapshot.messages).toEqual([])
+      expect(Object.isFrozen(snapshot.messages)).toBe(true)
+      expect(Object.isFrozen(snapshot.messages[0])).toBe(true)
+      expect(Object.isFrozen(snapshot.messages[0]?.parts)).toBe(true)
+      expect(Object.isFrozen(part)).toBe(true)
+      expect(part).toMatchObject({ source })
+
+      if (!part || !('source' in part)) {
+        throw new Error('Expected a message part with a source')
+      }
+      const publishedSource = part.source
+      expect(Object.isFrozen(publishedSource)).toBe(true)
+      expect(Reflect.set(publishedSource, 'value', 'changed')).toBe(false)
+      expect(client.getMessages()[0]?.parts[0]).toMatchObject({ source })
+      expect(client.getSnapshot()).toBe(snapshot)
+    })
+
+    it('keeps the identity of unchanged messages across snapshots', async () => {
+      const client = new ChatClient({
+        connection: createMockConnectionAdapter({
+          chunks: createTextChunks('Hi there'),
+        }),
+        initialMessages: [
+          {
+            id: 'earlier-1',
+            role: 'user',
+            parts: [{ type: 'text', content: 'Earlier' }],
+          },
+        ],
+      })
+      const first = client.getSnapshot().messages[0]
+      const seen: Array<unknown> = []
+      const stop = client.subscribeSnapshot(() => {
+        seen.push(client.getSnapshot().messages[0])
+      })
+
+      await client.sendMessage('Hello')
+      stop()
+
+      const messages = client.getSnapshot().messages
+      expect(messages.length).toBeGreaterThan(2)
+      expect(seen.length).toBeGreaterThan(1)
+      for (const message of seen) {
+        expect(message).toBe(first)
+      }
+      expect(messages[0]).toBe(first)
+      expect(Object.isFrozen(first)).toBe(true)
+    })
+
     it('should initialize with provided messages', () => {
       const adapter = createMockConnectionAdapter()
       const initialMessages: Array<UIMessage> = [
@@ -2216,6 +2436,61 @@ describe('ChatClient', () => {
         { type: 'text', content: 'First' },
         { type: 'text', content: 'Second' },
       ])
+    })
+
+    it('isolates queue entries published by normal updates', async () => {
+      const client = new ChatClient({
+        connection: createMockConnectionAdapter({
+          chunks: createTextChunks('Response'),
+          chunkDelay: 100,
+        }),
+      })
+      const firstSend = client.sendMessage('First')
+      const oldSnapshot = client.getSnapshot()
+
+      await client.sendMessage({
+        content: [
+          {
+            type: 'image',
+            source: {
+              type: 'url',
+              value: 'https://example.com/queued.png',
+            },
+          },
+        ],
+      })
+
+      const snapshot = client.getSnapshot()
+      const queuedContent = snapshot.queue[0]?.content
+      expect(snapshot).not.toBe(oldSnapshot)
+      expect(oldSnapshot.queue).toEqual([])
+      expect(Object.isFrozen(snapshot.queue)).toBe(true)
+      expect(Object.isFrozen(snapshot.queue[0])).toBe(true)
+      expect(typeof queuedContent).toBe('object')
+      if (typeof queuedContent === 'object') {
+        expect(Object.isFrozen(queuedContent)).toBe(true)
+        expect(Object.isFrozen(queuedContent.content)).toBe(true)
+        const queuedPart = Array.isArray(queuedContent.content)
+          ? queuedContent.content[0]
+          : undefined
+        expect(Object.isFrozen(queuedPart)).toBe(true)
+        if (!queuedPart || !('source' in queuedPart)) {
+          throw new Error('Expected a queued content part with a source')
+        }
+        const publishedSource = queuedPart.source
+        expect(Object.isFrozen(publishedSource)).toBe(true)
+        expect(Reflect.set(publishedSource, 'value', 'changed')).toBe(false)
+      }
+      expect(client.getQueue()[0]?.content).toMatchObject({
+        content: [
+          {
+            source: { value: 'https://example.com/queued.png' },
+          },
+        ],
+      })
+      expect(client.getSnapshot()).toBe(snapshot)
+
+      await firstSend
     })
   })
 

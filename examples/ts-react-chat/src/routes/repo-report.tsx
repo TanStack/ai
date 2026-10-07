@@ -29,7 +29,7 @@ export const Route = createFileRoute('/repo-report')({
 })
 
 function reportFromMessages(
-  messages: Array<UIMessage>,
+  messages: ReadonlyArray<UIMessage>,
 ): RepoReportCard | undefined {
   for (const message of [...messages].reverse()) {
     for (const part of [...message.parts].reverse()) {

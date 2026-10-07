@@ -136,7 +136,7 @@ function ToolCallDisplay({
 }
 
 // Messages component for chat transcript
-function Messages({ messages }: { messages: Array<UIMessage> }) {
+function Messages({ messages }: { messages: ReadonlyArray<UIMessage> }) {
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
