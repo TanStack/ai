@@ -115,6 +115,7 @@ import { Route as ApiOpenrouterReasoningWireRouteImport } from './routes/api.ope
 import { Route as ApiOpenrouterRetryCodesRouteImport } from './routes/api.openrouter-retry-codes'
 import { Route as ApiOpenrouterStreamOptionsWireRouteImport } from './routes/api.openrouter-stream-options-wire'
 import { Route as ApiOpenrouterStrictToolOptionalsRouteImport } from './routes/api.openrouter-strict-tool-optionals'
+import { Route as ApiOpenrouterStructuredUsageRouteImport } from './routes/api.openrouter-structured-usage'
 import { Route as ApiOpenrouterWebToolsWireRouteImport } from './routes/api.openrouter-web-tools-wire'
 import { Route as ApiOtelMediaRouteImport } from './routes/api.otel-media'
 import { Route as ApiOtelTranscriptionRouteImport } from './routes/api.otel-transcription'
@@ -701,6 +702,12 @@ const ApiOpenrouterStrictToolOptionalsRoute =
     path: '/api/openrouter-strict-tool-optionals',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiOpenrouterStructuredUsageRoute =
+  ApiOpenrouterStructuredUsageRouteImport.update({
+    id: '/api/openrouter-structured-usage',
+    path: '/api/openrouter-structured-usage',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiOpenrouterWebToolsWireRoute =
   ApiOpenrouterWebToolsWireRouteImport.update({
     id: '/api/openrouter-web-tools-wire',
@@ -965,6 +972,7 @@ export interface FileRoutesByFullPath {
   '/api/openrouter-retry-codes': typeof ApiOpenrouterRetryCodesRoute
   '/api/openrouter-stream-options-wire': typeof ApiOpenrouterStreamOptionsWireRoute
   '/api/openrouter-strict-tool-optionals': typeof ApiOpenrouterStrictToolOptionalsRoute
+  '/api/openrouter-structured-usage': typeof ApiOpenrouterStructuredUsageRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
@@ -1103,6 +1111,7 @@ export interface FileRoutesByTo {
   '/api/openrouter-retry-codes': typeof ApiOpenrouterRetryCodesRoute
   '/api/openrouter-stream-options-wire': typeof ApiOpenrouterStreamOptionsWireRoute
   '/api/openrouter-strict-tool-optionals': typeof ApiOpenrouterStrictToolOptionalsRoute
+  '/api/openrouter-structured-usage': typeof ApiOpenrouterStructuredUsageRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
@@ -1242,6 +1251,7 @@ export interface FileRoutesById {
   '/api/openrouter-retry-codes': typeof ApiOpenrouterRetryCodesRoute
   '/api/openrouter-stream-options-wire': typeof ApiOpenrouterStreamOptionsWireRoute
   '/api/openrouter-strict-tool-optionals': typeof ApiOpenrouterStrictToolOptionalsRoute
+  '/api/openrouter-structured-usage': typeof ApiOpenrouterStructuredUsageRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
@@ -1382,6 +1392,7 @@ export interface FileRouteTypes {
     | '/api/openrouter-retry-codes'
     | '/api/openrouter-stream-options-wire'
     | '/api/openrouter-strict-tool-optionals'
+    | '/api/openrouter-structured-usage'
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
     | '/api/otel-transcription'
@@ -1520,6 +1531,7 @@ export interface FileRouteTypes {
     | '/api/openrouter-retry-codes'
     | '/api/openrouter-stream-options-wire'
     | '/api/openrouter-strict-tool-optionals'
+    | '/api/openrouter-structured-usage'
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
     | '/api/otel-transcription'
@@ -1658,6 +1670,7 @@ export interface FileRouteTypes {
     | '/api/openrouter-retry-codes'
     | '/api/openrouter-stream-options-wire'
     | '/api/openrouter-strict-tool-optionals'
+    | '/api/openrouter-structured-usage'
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
     | '/api/otel-transcription'
@@ -1797,6 +1810,7 @@ export interface RootRouteChildren {
   ApiOpenrouterRetryCodesRoute: typeof ApiOpenrouterRetryCodesRoute
   ApiOpenrouterStreamOptionsWireRoute: typeof ApiOpenrouterStreamOptionsWireRoute
   ApiOpenrouterStrictToolOptionalsRoute: typeof ApiOpenrouterStrictToolOptionalsRoute
+  ApiOpenrouterStructuredUsageRoute: typeof ApiOpenrouterStructuredUsageRoute
   ApiOpenrouterWebToolsWireRoute: typeof ApiOpenrouterWebToolsWireRoute
   ApiOtelMediaRoute: typeof ApiOtelMediaRoute
   ApiOtelTranscriptionRoute: typeof ApiOtelTranscriptionRoute
@@ -2569,6 +2583,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOpenrouterStrictToolOptionalsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/openrouter-structured-usage': {
+      id: '/api/openrouter-structured-usage'
+      path: '/api/openrouter-structured-usage'
+      fullPath: '/api/openrouter-structured-usage'
+      preLoaderRoute: typeof ApiOpenrouterStructuredUsageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/openrouter-web-tools-wire': {
       id: '/api/openrouter-web-tools-wire'
       path: '/api/openrouter-web-tools-wire'
@@ -2948,6 +2969,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOpenrouterRetryCodesRoute: ApiOpenrouterRetryCodesRoute,
   ApiOpenrouterStreamOptionsWireRoute: ApiOpenrouterStreamOptionsWireRoute,
   ApiOpenrouterStrictToolOptionalsRoute: ApiOpenrouterStrictToolOptionalsRoute,
+  ApiOpenrouterStructuredUsageRoute: ApiOpenrouterStructuredUsageRoute,
   ApiOpenrouterWebToolsWireRoute: ApiOpenrouterWebToolsWireRoute,
   ApiOtelMediaRoute: ApiOtelMediaRoute,
   ApiOtelTranscriptionRoute: ApiOtelTranscriptionRoute,
