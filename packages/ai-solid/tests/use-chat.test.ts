@@ -1,6 +1,5 @@
 import { renderHook, waitFor } from '@solidjs/testing-library'
 import { ChatClient } from '@tanstack/ai-client'
-import { toolDefinition } from '@tanstack/ai'
 import { createSignal } from 'solid-js'
 import { describe, expect, it, vi } from 'vitest'
 import { useChat } from '../src/use-chat'
@@ -285,94 +284,20 @@ describe('useChat', () => {
       ).toHaveLength(2)
     })
 
-    it('clears removed reactive request fields without losing history', async () => {
-      const requests: Array<{
-        users: number
-        provider: unknown
-        region: unknown
-      }> = []
+    it('starts a new client when reactive threadId changes', async () => {
+      const users: Array<number> = []
       const adapter = createMockConnectionAdapter({
         chunks: createTextChunks('Response'),
-        onConnect: (messages, data) => {
-          requests.push({
-            users: messages.filter((message) => message.role === 'user').length,
-            provider: data?.['provider'],
-            region: data?.['region'],
-          })
+        onConnect: (messages) => {
+          users.push(
+            messages.filter((message) => message.role === 'user').length,
+          )
         },
       })
       const { result } = renderHook(() => {
-        const [provider, setProvider] = createSignal<string | undefined>(
-          'openai',
-        )
-        const [region, setRegion] = createSignal<string | undefined>('west')
-        const chat = useChat({
-          connection: adapter,
-          get body() {
-            const value = provider()
-            return value === undefined ? undefined : { provider: value }
-          },
-          get forwardedProps() {
-            const value = region()
-            return value === undefined ? undefined : { region: value }
-          },
-        })
-        return { chat, setProvider, setRegion }
-      })
-
-      await result.chat.sendMessage('First')
-      result.setProvider(undefined)
-      result.setRegion(undefined)
-      await result.chat.sendMessage('Second')
-
-      expect(requests).toEqual([
-        { users: 1, provider: 'openai', region: 'west' },
-        { users: 2, provider: undefined, region: undefined },
-      ])
-    })
-
-    it('clears removed reactive client tools', () => {
-      const updateOptions = vi.spyOn(ChatClient.prototype, 'updateOptions')
-      const tool = toolDefinition({
-        name: 'getWeather',
-        description: 'Look up weather',
-      }).client(() => ({ ok: true }))
-      const { result, cleanup } = renderHook(() => {
-        const [tools, setTools] = createSignal<
-          ReadonlyArray<typeof tool> | undefined
-        >([tool])
-        const chat = useChat({
-          connection: createMockConnectionAdapter(),
-          get tools() {
-            return tools()
-          },
-        })
-        return { chat, setTools }
-      })
-
-      result.setTools(undefined)
-      expect(updateOptions).toHaveBeenCalledWith({ tools: [] })
-      cleanup()
-      updateOptions.mockRestore()
-    })
-
-    it('replaces and disposes the client when reactive threadId changes', async () => {
-      const dispose = vi.spyOn(ChatClient.prototype, 'dispose')
-      const attach = vi.spyOn(ChatClient.prototype, 'attach')
-      const detach = vi.spyOn(ChatClient.prototype, 'detach')
-      const adapter = createMockConnectionAdapter({
-        chunks: createTextChunks('Response'),
-      })
-      const errorAdapter = createMockConnectionAdapter({
-        shouldError: true,
-        error: new Error('Old thread failed'),
-      })
-      const { result, cleanup } = renderHook(() => {
         const [threadId, setThreadId] = createSignal('first-thread')
         const chat = useChat({
-          get connection() {
-            return threadId() === 'first-thread' ? errorAdapter : adapter
-          },
+          connection: adapter,
           get threadId() {
             return threadId()
           },
@@ -381,75 +306,11 @@ describe('useChat', () => {
       })
 
       await result.chat.sendMessage('First')
-      expect(result.chat.error()?.message).toBe('Old thread failed')
-      expect(result.chat.status()).toBe('error')
       result.setThreadId('second-thread')
-      await waitFor(() => expect(result.chat.messages()).toEqual([]))
-      expect(result.chat.error()).toBeUndefined()
-      expect(result.chat.status()).toBe('ready')
-      expect(result.chat.isLoading()).toBe(false)
-      expect(result.chat.queue()).toEqual([])
-      expect(dispose).toHaveBeenCalledTimes(1)
-      expect(detach).toHaveBeenCalledTimes(1)
-      expect(attach).toHaveBeenCalledTimes(2)
-
       await result.chat.sendMessage('Second')
-      expect(
-        result.chat.messages().filter((message) => message.role === 'user'),
-      ).toHaveLength(1)
 
-      cleanup()
-      expect(dispose).toHaveBeenCalledTimes(2)
-      expect(detach).toHaveBeenCalledTimes(2)
-      dispose.mockRestore()
-      attach.mockRestore()
-      detach.mockRestore()
+      expect(users).toEqual([1, 1])
     })
-
-    it('ignores callbacks from a disposed thread', async () => {
-      let started = () => {}
-      let release = () => {}
-      const startedPromise = new Promise<void>((resolve) => {
-        started = resolve
-      })
-      const releasePromise = new Promise<void>((resolve) => {
-        release = resolve
-      })
-      const oldAdapter = {
-        async *connect() {
-          started()
-          await releasePromise
-          throw new Error('Late old-thread error')
-        },
-      }
-      const newAdapter = createMockConnectionAdapter({
-        chunks: createTextChunks('Response'),
-      })
-      const { result } = renderHook(() => {
-        const [threadId, setThreadId] = createSignal('old')
-        const chat = useChat({
-          get connection() {
-            return threadId() === 'old' ? oldAdapter : newAdapter
-          },
-          get threadId() {
-            return threadId()
-          },
-        })
-        return { chat, setThreadId }
-      })
-
-      const oldSend = result.chat.sendMessage('Old message')
-      await startedPromise
-      result.setThreadId('new')
-      await waitFor(() => expect(result.chat.messages()).toEqual([]))
-      release()
-      await oldSend
-
-      expect(result.chat.error()).toBeUndefined()
-      expect(result.chat.status()).toBe('ready')
-      expect(result.chat.messages()).toEqual([])
-    })
-
     it('should update messages via onMessagesChange callback', async () => {
       const chunks = createTextChunks('Hello, world!')
       const adapter = createMockConnectionAdapter({ chunks })

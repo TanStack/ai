@@ -2,4 +2,4 @@
 '@tanstack/ai-solid': patch
 ---
 
-Keep Solid chat history when reactive options change, and release the old client when switching thread IDs.
+Keep the Solid `useChat` history when a reactive option such as `body` changes. Only a new `threadId` starts a new chat.

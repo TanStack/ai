@@ -161,7 +161,7 @@ Extends `ChatClientOptions` from `@tanstack/ai-client`:
 For values that change, read Solid signals through option getters:
 
 - `forwardedProps`, `body`, `context`, and `tools` update the current chat.
-- `threadId` selects another chat and releases the old connection.
+- A new `threadId` starts a new chat.
 
 **Note:** Client tools are now automatically executed - no `onToolCall` callback needed!
 
