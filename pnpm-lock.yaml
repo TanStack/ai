@@ -240,6 +240,9 @@ importers:
       '@tanstack/ai-ollaya':
         specifier: workspace:*
         version: link:../../../packages/ai-ollaya
+      '@tanstack/ai-openai':
+        specifier: workspace:*
+        version: link:../../../packages/ai-openai
       '@tanstack/ai-openrouter':
         specifier: workspace:*
         version: link:../../../packages/ai-openrouter
@@ -2029,7 +2032,7 @@ importers:
         version: 1.9.1
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       arktype:
         specifier: ^2.1.28
         version: 2.2.0
@@ -2054,7 +2057,7 @@ importers:
         version: link:../ai-sandbox-local-process
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
 
   packages/ai-angular:
     dependencies:
@@ -2131,7 +2134,7 @@ importers:
         version: link:../ai
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       zod:
         specifier: ^4.2.0
         version: 4.2.1
@@ -2160,12 +2163,12 @@ importers:
         specifier: workspace:^
         version: link:../openai-base
       openai:
-        specifier: ^6.41.0
-        version: 6.41.0(ws@8.21.0)(zod@4.3.6)
+        specifier: ^7.30.0
+        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.3.6)
     devDependencies:
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       vite:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
@@ -2179,15 +2182,15 @@ importers:
         specifier: workspace:^
         version: link:../openai-base
       openai:
-        specifier: ^6.41.0
-        version: 6.41.0(ws@8.21.0)(zod@4.3.6)
+        specifier: ^7.30.0
+        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.3.6)
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       vite:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
@@ -2205,7 +2208,7 @@ importers:
         version: link:../ai-sandbox-local-process
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
 
   packages/ai-client:
     dependencies:
@@ -2224,7 +2227,7 @@ importers:
         version: 1.1.0
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       vite:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
@@ -2244,15 +2247,15 @@ importers:
         specifier: workspace:^
         version: link:../openai-base
       openai:
-        specifier: ^6.41.0
-        version: 6.41.0(ws@8.21.0)(zod@4.3.6)
+        specifier: ^7.30.0
+        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.3.6)
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       vite:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
@@ -2268,7 +2271,7 @@ importers:
         version: link:../ai
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       zod:
         specifier: ^4.2.0
         version: 4.3.6
@@ -2296,7 +2299,7 @@ importers:
         version: link:../ai-openai
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       commander:
         specifier: ^13.1.0
         version: 13.1.0
@@ -2363,7 +2366,7 @@ importers:
         version: link:../ai-sandbox-local-process
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
 
   packages/ai-cohere:
     dependencies:
@@ -2376,7 +2379,7 @@ importers:
         version: link:../ai
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       vite:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
@@ -2388,7 +2391,7 @@ importers:
         version: link:../ai
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
 
   packages/ai-devtools:
     dependencies:
@@ -2413,7 +2416,7 @@ importers:
     devDependencies:
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       jsdom:
         specifier: ^27.4.0
         version: 27.4.0(@noble/hashes@2.3.0)
@@ -2440,7 +2443,7 @@ importers:
         version: link:../ai-sandbox
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
 
   packages/ai-elevenlabs:
     dependencies:
@@ -2459,7 +2462,7 @@ importers:
         version: link:../ai
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
 
   packages/ai-event-client:
     dependencies:
@@ -2469,7 +2472,7 @@ importers:
     devDependencies:
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
 
   packages/ai-fal:
     dependencies:
@@ -2485,7 +2488,7 @@ importers:
         version: link:../ai
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       vite:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
@@ -2507,7 +2510,7 @@ importers:
         version: link:../ai
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       vite:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
@@ -2524,15 +2527,15 @@ importers:
         specifier: workspace:^
         version: link:../openai-base
       openai:
-        specifier: ^6.41.0
-        version: 6.41.0(ws@8.21.0)(zod@4.3.6)
+        specifier: ^7.30.0
+        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.3.6)
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       google-auth-library:
         specifier: ^10.5.0
         version: 10.5.0
@@ -2557,7 +2560,7 @@ importers:
         version: link:../ai-sandbox-local-process
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
 
   packages/ai-groq:
     dependencies:
@@ -2571,12 +2574,12 @@ importers:
         specifier: workspace:^
         version: link:../openai-base
       openai:
-        specifier: ^6.41.0
-        version: 6.41.0(ws@8.21.0)(zod@4.3.6)
+        specifier: ^7.30.0
+        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.3.6)
     devDependencies:
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       vite:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
@@ -2592,7 +2595,7 @@ importers:
         version: 4.20260317.1
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       wrangler:
         specifier: ^4.103.0
         version: 4.103.0(@cloudflare/workers-types@4.20260317.1)
@@ -2601,13 +2604,13 @@ importers:
     devDependencies:
       '@daytona/sdk':
         specifier: ^0.192.0
-        version: 0.192.0(ws@8.21.0)
+        version: 0.192.0(supports-color@7.2.0)(ws@8.21.0)
       '@tanstack/ai-code-mode':
         specifier: workspace:*
         version: link:../ai-code-mode
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
 
   packages/ai-isolate-e2b:
     devDependencies:
@@ -2619,7 +2622,7 @@ importers:
         version: link:../ai-code-mode
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       e2b:
         specifier: ^2.46.1
         version: 2.51.0
@@ -2638,7 +2641,7 @@ importers:
     devDependencies:
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
 
   packages/ai-isolate-quickjs:
     dependencies:
@@ -2651,7 +2654,7 @@ importers:
     devDependencies:
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
 
   packages/ai-isolate-quickjs-bun:
     dependencies:
@@ -2670,7 +2673,7 @@ importers:
         version: 1.3.14
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
 
   packages/ai-llmgateway:
     dependencies:
@@ -2681,15 +2684,15 @@ importers:
         specifier: workspace:^
         version: link:../openai-base
       openai:
-        specifier: ^6.41.0
-        version: 6.41.0(ws@8.21.0)(zod@4.3.6)
+        specifier: ^7.30.0
+        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.3.6)
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       vite:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
@@ -2703,15 +2706,15 @@ importers:
         specifier: workspace:^
         version: link:../openai-base
       openai:
-        specifier: ^6.41.0
-        version: 6.41.0(ws@8.21.0)(zod@4.3.6)
+        specifier: ^7.30.0
+        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.3.6)
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       vite:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
@@ -2733,7 +2736,7 @@ importers:
     devDependencies:
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       jiti:
         specifier: ^2.4.2
         version: 2.6.1
@@ -2795,7 +2798,7 @@ importers:
         version: link:../ai
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       google-auth-library:
         specifier: ^10.5.0
         version: 10.5.0
@@ -2823,7 +2826,7 @@ importers:
         version: 24.10.3
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       happy-dom:
         specifier: ^20.11.2
         version: 20.11.2
@@ -2851,7 +2854,7 @@ importers:
         version: link:../ai
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       vite:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
@@ -2863,7 +2866,7 @@ importers:
         version: link:../ai
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       vite:
         specifier: ^8.2.1
         version: 8.3.0(@types/node@24.13.6)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
@@ -2877,15 +2880,15 @@ importers:
         specifier: workspace:^
         version: link:../openai-base
       openai:
-        specifier: ^6.41.0
-        version: 6.41.0(ws@8.21.0)(zod@4.3.6)
+        specifier: ^7.30.0
+        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.3.6)
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       vite:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
@@ -2907,7 +2910,7 @@ importers:
         version: link:../ai-sandbox
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
 
   packages/ai-openrouter:
     dependencies:
@@ -2923,7 +2926,7 @@ importers:
         version: link:../ai
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       vite:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
@@ -2938,7 +2941,7 @@ importers:
         version: link:../ai
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       vite:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
@@ -2979,7 +2982,7 @@ importers:
         version: 3.2.4(preact@10.28.2)
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       jsdom:
         specifier: ^27.4.0
         version: 27.4.0(@noble/hashes@2.3.0)
@@ -3016,7 +3019,7 @@ importers:
         version: 19.2.7
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       jsdom:
         specifier: ^27.4.0
         version: 27.4.0(@noble/hashes@2.3.0)
@@ -3057,7 +3060,7 @@ importers:
         version: link:../ai
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       vite:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
@@ -3126,7 +3129,7 @@ importers:
         version: link:../ai-sandbox
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
 
   packages/ai-sandbox-boxd:
     dependencies:
@@ -3139,7 +3142,7 @@ importers:
         version: link:../ai-sandbox
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
 
   packages/ai-sandbox-cloudflare:
     dependencies:
@@ -3164,7 +3167,7 @@ importers:
         version: 24.10.3
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       zod:
         specifier: ^4.2.0
         version: 4.3.6
@@ -3180,7 +3183,7 @@ importers:
         version: link:../ai-sandbox
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
 
   packages/ai-sandbox-docker:
     dependencies:
@@ -3196,7 +3199,7 @@ importers:
         version: 3.3.47
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
 
   packages/ai-sandbox-e2b:
     dependencies:
@@ -3209,7 +3212,7 @@ importers:
         version: link:../ai-sandbox
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
 
   packages/ai-sandbox-local-process:
     devDependencies:
@@ -3221,7 +3224,7 @@ importers:
         version: link:../ai-sandbox
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
 
   packages/ai-sandbox-railway:
     dependencies:
@@ -3234,7 +3237,7 @@ importers:
         version: link:../ai-sandbox
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
 
   packages/ai-sandbox-sprites:
     devDependencies:
@@ -3243,7 +3246,7 @@ importers:
         version: link:../ai-sandbox
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
 
   packages/ai-sandbox-upstash-box:
     dependencies:
@@ -3256,7 +3259,7 @@ importers:
         version: link:../ai-sandbox
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
 
   packages/ai-sandbox-vercel:
     dependencies:
@@ -3269,7 +3272,7 @@ importers:
         version: link:../ai-sandbox
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
 
   packages/ai-skills:
     dependencies:
@@ -3369,7 +3372,7 @@ importers:
         version: 24.10.3
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       jsdom:
         specifier: ^27.4.0
         version: 27.4.0(@noble/hashes@2.3.0)
@@ -3397,7 +3400,7 @@ importers:
         version: link:../ai
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       vite:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
@@ -3409,7 +3412,7 @@ importers:
         version: 24.10.3
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       vite:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
@@ -3426,12 +3429,12 @@ importers:
         specifier: workspace:^
         version: link:../openai-base
       openai:
-        specifier: ^6.41.0
-        version: 6.41.0(ws@8.21.0)(zod@4.3.6)
+        specifier: ^7.30.0
+        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.3.6)
     devDependencies:
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       vite:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
@@ -3444,13 +3447,13 @@ importers:
     devDependencies:
       '@google/genai':
         specifier: ^2.10.0
-        version: 2.10.0(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))
+        version: 2.10.0(@modelcontextprotocol/sdk@1.29.0(zod@4.6.5))
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       vite:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
@@ -3528,7 +3531,7 @@ importers:
         version: link:../ai
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       vite:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
@@ -3539,15 +3542,15 @@ importers:
         specifier: workspace:^
         version: link:../ai-utils
       openai:
-        specifier: ^6.41.0
-        version: 6.41.0(ws@8.21.0)(zod@4.3.6)
+        specifier: ^7.30.0
+        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.3.6)
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
       '@vitest/coverage-v8':
         specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        version: 4.1.10(vitest@4.1.10)
       vite:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
@@ -13099,7 +13102,6 @@ packages:
   eslint@9.39.4:
     resolution: {integrity: sha512-XoMjdBOwe/esVgEvLmNsD3IRHkm7fbKIUGvrleloJXUZgDHig2IPWNniv+GwjyJXzuNqVjlr5+4yVUZjycJwfQ==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
-    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'
@@ -15608,12 +15610,25 @@ packages:
     resolution: {integrity: sha512-7x81NCL719oNbsq/3mh+hVrAWmFuEYUqrq/Iw3kUzH8ReypT9QQ0BLoJS7/G9k6N81XjW4qHWtjWwe/9eLy1EQ==}
     engines: {node: '>=12'}
 
-  openai@6.41.0:
-    resolution: {integrity: sha512-IGWPopZq6Rjoynjfb3NSLf/z2MTw7UiOsm9TAjPGAjUESH7Uq41Trg4QWehBEn58p74i+m7uoRPV2vXcpPXhyA==}
+  openai@7.30.0:
+    resolution: {integrity: sha512-tvvcPdhS56B/79o0mJS5h4JndAov5Sz78T7CFl4gJ+C9S3GoSqHNLO6lG/8kdK+/c13zWEI97Srf66ar0V242g==}
+    engines: {node: '>=22.0.0'}
     peerDependencies:
-      ws: ^8.18.0
+      '@aws-sdk/credential-provider-node': '>=3.972.0 <4'
+      '@smithy/hash-node': '>=4.3.0 <5'
+      '@smithy/signature-v4': '>=5.4.0 <6'
+      undici: '>=5 <9'
+      ws: ^8.21.0
       zod: ^3.25 || ^4.0
     peerDependenciesMeta:
+      '@aws-sdk/credential-provider-node':
+        optional: true
+      '@smithy/hash-node':
+        optional: true
+      '@smithy/signature-v4':
+        optional: true
+      undici:
+        optional: true
       ws:
         optional: true
       zod:
@@ -15999,7 +16014,6 @@ packages:
   prebuild-install@7.1.3:
     resolution: {integrity: sha512-8Mf2cbV7x1cXPUILADGI3wuhfqWvtiLA1iclTDbFRZkgRQS0NqsPZphna9V+HyTEadheuPmjaJMsbzKQFOzLug==}
     engines: {node: '>=10'}
-    deprecated: No longer maintained. Please contact the author of the relevant native addon; alternatives are available.
     hasBin: true
 
   prelude-ls@1.2.1:
@@ -20887,7 +20901,7 @@ snapshots:
       - debug
       - supports-color
 
-  '@daytona/sdk@0.192.0(ws@8.21.0)':
+  '@daytona/sdk@0.192.0(supports-color@7.2.0)(ws@8.21.0)':
     dependencies:
       '@aws-sdk/client-s3': 3.1075.0
       '@aws-sdk/lib-storage': 3.1075.0(@aws-sdk/client-s3@3.1075.0)
@@ -20896,7 +20910,7 @@ snapshots:
       '@iarna/toml': 2.2.5
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/exporter-trace-otlp-http': 0.217.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/instrumentation-http': 0.217.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/instrumentation-http': 0.217.0(@opentelemetry/api@1.9.1)(supports-color@7.2.0)
       '@opentelemetry/otlp-exporter-base': 0.217.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/resources': 2.7.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/sdk-node': 0.217.0(@opentelemetry/api@1.9.1)
@@ -20926,7 +20940,7 @@ snapshots:
       '@iarna/toml': 2.2.5
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/exporter-trace-otlp-http': 0.217.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/instrumentation-http': 0.217.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/instrumentation-http': 0.217.0(@opentelemetry/api@1.9.1)(supports-color@7.2.0)
       '@opentelemetry/otlp-exporter-base': 0.217.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/resources': 2.7.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/sdk-node': 0.217.0(@opentelemetry/api@1.9.1)
@@ -22824,22 +22838,22 @@ snapshots:
       '@opentelemetry/sdk-trace-base': 2.7.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/semantic-conventions': 1.41.1
 
-  '@opentelemetry/instrumentation-http@0.217.0(@opentelemetry/api@1.9.1)':
+  '@opentelemetry/instrumentation-http@0.217.0(@opentelemetry/api@1.9.1)(supports-color@7.2.0)':
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
-      '@opentelemetry/instrumentation': 0.217.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/instrumentation': 0.217.0(@opentelemetry/api@1.9.1)(supports-color@7.2.0)
       '@opentelemetry/semantic-conventions': 1.41.1
       forwarded-parse: 2.1.2
     transitivePeerDependencies:
       - supports-color
 
-  '@opentelemetry/instrumentation@0.217.0(@opentelemetry/api@1.9.1)':
+  '@opentelemetry/instrumentation@0.217.0(@opentelemetry/api@1.9.1)(supports-color@7.2.0)':
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/api-logs': 0.217.0
       import-in-the-middle: 3.2.0
-      require-in-the-middle: 8.0.1
+      require-in-the-middle: 8.0.1(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -22922,7 +22936,7 @@ snapshots:
       '@opentelemetry/exporter-trace-otlp-http': 0.217.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/exporter-trace-otlp-proto': 0.217.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/exporter-zipkin': 2.7.1(@opentelemetry/api@1.9.1)
-      '@opentelemetry/instrumentation': 0.217.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/instrumentation': 0.217.0(@opentelemetry/api@1.9.1)(supports-color@7.2.0)
       '@opentelemetry/otlp-exporter-base': 0.217.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/propagator-b3': 2.7.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/propagator-jaeger': 2.7.1(@opentelemetry/api@1.9.1)
@@ -23765,12 +23779,12 @@ snapshots:
 
   '@publint/pack@0.1.2': {}
 
-  '@puppeteer/browsers@2.13.0':
+  '@puppeteer/browsers@2.13.0(supports-color@7.2.0)':
     dependencies:
       debug: 4.4.3(supports-color@7.2.0)
-      extract-zip: 2.0.1
+      extract-zip: 2.0.1(supports-color@7.2.0)
       progress: 2.0.3
-      proxy-agent: 6.5.0
+      proxy-agent: 6.5.0(supports-color@7.2.0)
       semver: 7.8.4
       tar-fs: 3.1.2
       yargs: 17.7.2
@@ -28156,20 +28170,6 @@ snapshots:
       tinyrainbow: 3.1.1
       vitest: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(@vitest/coverage-v8@4.1.10)(happy-dom@20.11.2)(jsdom@27.4.0(@noble/hashes@2.3.0))(vite@8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0))
 
-  '@vitest/coverage-v8@4.1.10(vitest@4.1.11)':
-    dependencies:
-      '@bcoe/v8-coverage': 1.0.2
-      '@vitest/utils': 4.1.10
-      ast-v8-to-istanbul: 1.0.5
-      istanbul-lib-coverage: 3.2.2
-      istanbul-lib-report: 3.0.1
-      istanbul-reports: 3.2.0
-      magicast: 0.5.2
-      obug: 2.2.1
-      std-env: 4.2.0
-      tinyrainbow: 3.1.1
-      vitest: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@24.13.6)(@vitest/coverage-v8@4.1.10)(happy-dom@20.11.2)(jsdom@27.4.0(@noble/hashes@2.3.0))(vite@8.3.0(@types/node@24.13.6)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0))
-
   '@vitest/expect@4.1.10':
     dependencies:
       '@standard-schema/spec': 1.1.0
@@ -28228,14 +28228,6 @@ snapshots:
     optionalDependencies:
       vite: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.97.3)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
     optional: true
-
-  '@vitest/mocker@4.1.11(vite@8.3.0(@types/node@24.13.6)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0))':
-    dependencies:
-      '@vitest/spy': 4.1.11
-      estree-walker: 3.0.3
-      magic-string: 0.30.21
-    optionalDependencies:
-      vite: 8.3.0(@types/node@24.13.6)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
 
   '@vitest/pretty-format@4.1.10':
     dependencies:
@@ -30570,7 +30562,7 @@ snapshots:
 
   extendable-error@0.1.7: {}
 
-  extract-zip@2.0.1:
+  extract-zip@2.0.1(supports-color@7.2.0):
     dependencies:
       debug: 4.4.3(supports-color@7.2.0)
       get-stream: 5.2.0
@@ -30904,7 +30896,7 @@ snapshots:
     dependencies:
       resolve-pkg-maps: 1.0.0
 
-  get-uri@6.0.5:
+  get-uri@6.0.5(supports-color@7.2.0):
     dependencies:
       basic-ftp: 5.2.0
       data-uri-to-buffer: 6.0.2
@@ -33725,9 +33717,12 @@ snapshots:
       is-docker: 2.2.1
       is-wsl: 2.2.0
 
-  openai@6.41.0(ws@8.21.0)(zod@4.3.6):
+  openai@7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.3.6):
     optionalDependencies:
-      ws: 8.21.0
+      '@aws-sdk/credential-provider-node': 3.972.58
+      '@smithy/signature-v4': 5.5.2
+      undici: 8.10.2
+      ws: 8.21.3
       zod: 4.3.6
 
   openapi-fetch@0.14.1:
@@ -34031,12 +34026,12 @@ snapshots:
 
   p-try@2.2.0: {}
 
-  pac-proxy-agent@7.2.0:
+  pac-proxy-agent@7.2.0(supports-color@7.2.0):
     dependencies:
       '@tootallnate/quickjs-emscripten': 0.23.0
       agent-base: 7.1.4
       debug: 4.4.3(supports-color@7.2.0)
-      get-uri: 6.0.5
+      get-uri: 6.0.5(supports-color@7.2.0)
       http-proxy-agent: 7.0.2
       https-proxy-agent: 7.0.6
       pac-resolver: 7.0.1
@@ -34444,14 +34439,14 @@ snapshots:
       forwarded: 0.2.0
       ipaddr.js: 1.9.1
 
-  proxy-agent@6.5.0:
+  proxy-agent@6.5.0(supports-color@7.2.0):
     dependencies:
       agent-base: 7.1.4
       debug: 4.4.3(supports-color@7.2.0)
       http-proxy-agent: 7.0.2
       https-proxy-agent: 7.0.6
       lru-cache: 7.18.3
-      pac-proxy-agent: 7.2.0
+      pac-proxy-agent: 7.2.0(supports-color@7.2.0)
       proxy-from-env: 1.1.0
       socks-proxy-agent: 8.0.5
     transitivePeerDependencies:
@@ -34482,7 +34477,7 @@ snapshots:
 
   puppeteer-core@24.39.1(supports-color@7.2.0):
     dependencies:
-      '@puppeteer/browsers': 2.13.0
+      '@puppeteer/browsers': 2.13.0(supports-color@7.2.0)
       chromium-bidi: 14.0.0(devtools-protocol@0.0.1581282)
       debug: 4.4.3(supports-color@7.2.0)
       devtools-protocol: 0.0.1581282
@@ -34499,7 +34494,7 @@ snapshots:
 
   puppeteer@24.39.1(supports-color@7.2.0)(typescript@5.9.3):
     dependencies:
-      '@puppeteer/browsers': 2.13.0
+      '@puppeteer/browsers': 2.13.0(supports-color@7.2.0)
       chromium-bidi: 14.0.0(devtools-protocol@0.0.1581282)
       cosmiconfig: 9.0.1(typescript@5.9.3)
       devtools-protocol: 0.0.1581282
@@ -35170,7 +35165,7 @@ snapshots:
 
   require-from-string@2.0.2: {}
 
-  require-in-the-middle@8.0.1:
+  require-in-the-middle@8.0.1(supports-color@7.2.0):
     dependencies:
       debug: 4.4.3(supports-color@7.2.0)
       module-details-from-path: 1.0.4
@@ -37281,37 +37276,6 @@ snapshots:
     transitivePeerDependencies:
       - msw
     optional: true
-
-  vitest@4.1.11(@opentelemetry/api@1.9.1)(@types/node@24.13.6)(@vitest/coverage-v8@4.1.10)(happy-dom@20.11.2)(jsdom@27.4.0(@noble/hashes@2.3.0))(vite@8.3.0(@types/node@24.13.6)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)):
-    dependencies:
-      '@vitest/expect': 4.1.11
-      '@vitest/mocker': 4.1.11(vite@8.3.0(@types/node@24.13.6)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0))
-      '@vitest/pretty-format': 4.1.11
-      '@vitest/runner': 4.1.11
-      '@vitest/snapshot': 4.1.11
-      '@vitest/spy': 4.1.11
-      '@vitest/utils': 4.1.11
-      es-module-lexer: 2.3.2
-      expect-type: 1.4.0
-      magic-string: 0.30.21
-      obug: 2.2.1
-      pathe: 2.0.3
-      picomatch: 4.0.7
-      std-env: 4.2.0
-      tinybench: 2.9.0
-      tinyexec: 1.3.1
-      tinyglobby: 0.2.17
-      tinyrainbow: 3.1.1
-      vite: 8.3.0(@types/node@24.13.6)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
-      why-is-node-running: 2.3.0
-    optionalDependencies:
-      '@opentelemetry/api': 1.9.1
-      '@types/node': 24.13.6
-      '@vitest/coverage-v8': 4.1.10(vitest@4.1.11)
-      happy-dom: 20.11.2
-      jsdom: 27.4.0(@noble/hashes@2.3.0)
-    transitivePeerDependencies:
-      - msw
 
   vlq@1.0.1: {}
 
