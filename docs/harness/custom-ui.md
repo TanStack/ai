@@ -127,7 +127,7 @@ What waits for the user:
 
 - `approvals`: tool calls that wait for a yes or a no.
 - `clientTools`: tool calls that run in your UI and wait for their output. See [Run a tool in the browser](#run-a-tool-in-the-browser).
-- `questions`: questions from a command or a plugin.
+- `questions`: questions from a command, a plugin, or an MCP server. See [Show a question](#show-a-question).
 - `signIns`: connectors that need a sign-in, with a `url` and a `userCode` when the connector gives them.
 
 The session:
@@ -209,7 +209,7 @@ Items that wait for the user:
 
 - `'approval'`: an approval. Call `approve()` or `reject()` on it.
 - `'clientTool'`: a client tool call. Call `resolve(output)` or `fail(message)` on it.
-- `'question'`: a question with a `message`, a `schema`, and `answer(value)`.
+- `'question'`: a question with a `message`, a `schema`, a `url` when the user must open a page, and `answer(value)`.
 - `'signIn'`: a connector that needs a sign-in, with `connector`, `url`, and `userCode`.
 
 Progress:
@@ -220,6 +220,71 @@ Progress:
 - `'turnEnd'`: `{ operationId }`, when a chat turn ends.
 
 The view calls your handler after the item is in the state, so the handler can read `view.store.get()` and find the item. `view.on` returns a function that removes the handler.
+
+## Show a question
+
+A command, a plugin, or an [MCP server](./mcp#answer-a-question-from-a-server) can ask the user a question. Each item of `state.questions` has:
+
+- `id` and `message`.
+- `schema`: the JSON Schema of the answer, when the question has one. Without a schema, the answer is text.
+- `secret`: the answer is a key or a password. Hide what the user types.
+- `url`: a page that the user must open before they answer, for example a payment page.
+- `answer(value)`: sends the answer.
+
+When a question has a `url`, show the link. The user opens it, then answers. The session does not open the page. This handler adds the link to the screen:
+
+```ts group=harness-custom-ui
+view.on('question', (question) => {
+  if (question.url) view.notice(`Open ${question.url}, then answer.`)
+})
+```
+
+### Show a field only when it applies
+
+A schema can make a field apply only when another field has a value. JSON Schema writes this with `if` and `then`. In this schema, `address` applies only when `delivery` is `mail`:
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "delivery": { "type": "string", "enum": ["pickup", "mail"] },
+    "address": { "type": "string" }
+  },
+  "required": ["delivery"],
+  "if": { "properties": { "delivery": { "const": "mail" } } },
+  "then": { "required": ["address"] }
+}
+```
+
+The view gives you the schema as is. Your UI reads the condition. This function returns the fields that `then` adds for the answer so far:
+
+```ts group=harness-custom-ui
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function fieldsThatApply(schema: unknown, answer: Record<string, unknown>) {
+  if (!isRecord(schema) || !isRecord(schema.if) || !isRecord(schema.then)) {
+    return []
+  }
+  const rules = isRecord(schema.if.properties)
+    ? Object.entries(schema.if.properties)
+    : []
+  const matches = rules.every(
+    ([field, rule]) => isRecord(rule) && answer[field] === rule.const,
+  )
+  const required = schema.then.required
+  return matches && Array.isArray(required) ? required : []
+}
+```
+
+Call it each time the user changes a field. Show a field from the result, and hide it again when the result no longer has it:
+
+```ts group=harness-custom-ui
+const [question] = view.store.get().questions
+const extra = fieldsThatApply(question?.schema, { delivery: 'mail' })
+// With the schema above, `extra` is ['address'].
+```
 
 ## Show media
 

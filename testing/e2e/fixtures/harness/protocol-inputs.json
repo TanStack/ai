@@ -169,6 +169,24 @@
       "response": {
         "content": "Hi, without a look."
       }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-elicit] what is the forecast",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [{ "name": "weather_ask_city", "arguments": "{}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-elicit] what is the forecast",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "The forecast for Paris is sunny."
+      }
     }
   ]
 }

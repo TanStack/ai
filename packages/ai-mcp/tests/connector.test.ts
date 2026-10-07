@@ -1,9 +1,16 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { inputRequired } from '@modelcontextprotocol/server'
 import { EventType } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
 import { mcpConnector } from '../src/connector'
-import { approveSignIns, mockTextAdapter, recorder } from './connector-helpers'
+import {
+  approveSignIns,
+  elicitServer,
+  mockTextAdapter,
+  recorder,
+  tripForm,
+} from './connector-helpers'
 import { startProtectedServer } from './protected-server'
 import type { StreamChunk } from '@tanstack/ai'
 
@@ -327,6 +334,51 @@ describe('mcpConnector', () => {
     expect(session.commands().map((command) => command.name)).toEqual([
       'connect:demo',
       'disconnect:demo',
+    ])
+  })
+
+  it('asks a form elicitation as a session question and sends the answer', async () => {
+    const trips = elicitServer(inputRequired.elicit(tripForm))
+    const persistence = memoryPersistence()
+    // A saved sign-in, so the test skips the OAuth steps.
+    await persistence.stores.credentials.set(
+      { threadId: 't', userId: 'user-1' },
+      'trips',
+      { type: 'oauth', accessToken: 'access-1' },
+    )
+    const model = recorder('trips_book')
+    const host = createHarnessHost({ persistence })
+    cleanups.push(() => host.close())
+    const session = await host.open(
+      defineHarness({
+        name: 'test/mcp-connector-elicit',
+        adapter: model.adapter,
+        plugins: () => [
+          mcpConnector({
+            id: 'trips',
+            label: 'Trips',
+            url: 'http://mcp.test/mcp',
+            needsApproval: () => false,
+            fetch: async (input, init) => trips.fetch(new Request(input, init)),
+          }),
+        ],
+      }),
+      { threadId: 't', principal: { id: 'user-1' } },
+    )
+    const turn = session.prompt('book a trip')
+    await vi.waitFor(() =>
+      expect(session.snapshot().pendingQuestions).toHaveLength(1),
+    )
+    const [question] = session.snapshot().pendingQuestions
+
+    expect(question).toMatchObject({
+      message: 'Which city?',
+      schema: tripForm.requestedSchema,
+    })
+    await session.answer(question?.questionId ?? '', { city: 'Rome' })
+    await turn
+    expect(trips.answers).toEqual([
+      { action: 'accept', content: { city: 'Rome' } },
     ])
   })
 })

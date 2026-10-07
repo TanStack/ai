@@ -585,4 +585,44 @@ test.describe('harness protocol inputs', () => {
     )
     expect(String(result?.content)).toContain(reason)
   })
+
+  test('asks an MCP elicitation as a question and sends the answer to the server', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const user = asUser(request, testId, aimockPort, 'e2e-token', {
+      'x-harness-mcp': '1',
+    })
+    const threadId = `elicit-${testId}`
+    expect(
+      await user.control(threadId, {
+        op: 'prompt',
+        message: '[harness-elicit] what is the forecast',
+      }),
+    ).toMatchObject({ status: 'accepted' })
+    await expect.poll(() => user.question(threadId)).toBeTruthy()
+    const asked = await user.question(threadId)
+    expect(asked).toMatchObject({
+      message: 'Which city?',
+      schema: { type: 'object', properties: { value: { type: 'string' } } },
+    })
+
+    expect(
+      await user.control(threadId, {
+        op: 'answer',
+        questionId: asked?.questionId,
+        value: { value: 'Paris' },
+      }),
+    ).toMatchObject({ status: 'accepted' })
+    await expect
+      .poll(() => user.answers(threadId))
+      .toContain('The forecast for Paris is sunny.')
+
+    // The server got the answer: the tool result has the city.
+    const result = (await user.transcript(threadId)).find(
+      (message) => message.role === 'tool',
+    )
+    expect(JSON.stringify(result?.content)).toContain('Forecast for Paris')
+  })
 })

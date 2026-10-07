@@ -12,6 +12,7 @@ import {
   definePlugin,
 } from '@tanstack/ai-harness'
 import { permissions, todos } from '@tanstack/ai-harness/plugins'
+import { mcp } from '@tanstack/ai-mcp/harness'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { z } from 'zod'
 import { askName, deploy, probe, whoami } from '@/lib/harness-protocol-tools'
@@ -114,6 +115,21 @@ function harnessFor(request: Request) {
           }),
         ]
       : []
+  // `x-harness-mcp: 1` connects the `api.mcp-input-server` route. Its
+  // `ask_city` tool asks the user for a city by MCP elicitation.
+  const servers =
+    request.headers.get('x-harness-mcp') === '1'
+      ? [
+          mcp({
+            servers: {
+              weather: {
+                type: 'http',
+                url: new URL('/api/mcp-input-server', request.url).href,
+              },
+            },
+          }),
+        ]
+      : []
   const harness = defineHarness({
     name: 'e2e/protocol',
     adapter,
@@ -168,6 +184,7 @@ function harnessFor(request: Request) {
     },
     plugins: () => [
       ...asks,
+      ...servers,
       todos(),
       // The sender of the running turn, as plugins see it.
       definePlugin({

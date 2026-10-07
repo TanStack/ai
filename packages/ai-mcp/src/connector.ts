@@ -8,6 +8,7 @@ import {
 } from '@tanstack/ai-harness'
 import { createMCPClient } from './client'
 import { MCPConnectionError } from './errors'
+import { askForInput, harnessClientOptions } from './harness-plugin'
 import type {
   OAuthClientProvider,
   OAuthDiscoveryState,
@@ -283,6 +284,7 @@ export function mcpConnector(options: McpConnectorOptions) {
                 needsApproval:
                   options.needsApproval ??
                   ((tool) => tool.annotations?.readOnlyHint !== true),
+                clientOptions: harnessClientOptions,
               })
             } catch (error) {
               // The server wants a new sign-in: ask the user to run /connect.
@@ -296,8 +298,10 @@ export function mcpConnector(options: McpConnectorOptions) {
               ctx.session.authRequired({ connector: id })
               throw error.cause
             }
-            connection.tools =
-              (await connection.client.tools()) as ReadonlyArray<AnyTool>
+            connection.tools = askForInput(
+              (await connection.client.tools()) as ReadonlyArray<AnyTool>,
+              ctx.session,
+            )
           }
           return connection.tools
         },

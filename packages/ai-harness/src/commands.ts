@@ -20,6 +20,11 @@ export interface Question<TSchema extends SchemaInput | undefined = undefined> {
    * it while the user types, and the session does not keep it in the inbox.
    */
   secret?: boolean
+  /**
+   * A page the user must open before they answer, for example a sign-in or a
+   * verify page. Hosts show the link. The session does not open it.
+   */
+  url?: string
 }
 
 export type AnswerOf<TSchema> = TSchema extends SchemaInput

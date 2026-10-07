@@ -444,6 +444,7 @@ export function createSessionView(source: SessionViewSource) {
       message: question.message,
       ...(question.schema ? { schema: question.schema } : {}),
       ...(question.secret ? { secret: true } : {}),
+      ...(question.url ? { url: question.url } : {}),
       answer: (value) => {
         alive()
         return source.answer(question.questionId, value)

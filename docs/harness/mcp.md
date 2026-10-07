@@ -138,6 +138,36 @@ export const careful = defineHarness({
 
 [Ask before risky tool calls](./permissions) explains the rules and the modes.
 
+## Answer a question from a server
+
+An MCP server can ask the user for input in the middle of a tool call. MCP calls this elicitation. The session asks the user, and the tool call waits for the answer.
+
+- A form request becomes a question with the `message` and the requested `schema`.
+- A URL request becomes a question with a `url`. The user opens the page, then answers. The session does not open the page.
+- `mcp()` and `mcpConnector` both ask this way, for servers on MCP spec 2026-07-28.
+
+Answer with `session.answer(questionId, value)`, or with `question.answer(value)` in [your own UI](./custom-ui#show-a-question). The value tells the server what the user did:
+
+| Value | The server gets |
+| --- | --- |
+| The form content, for example `{ city: 'Paris' }` | `accept` with that content |
+| Any other value, for a URL request | `accept` |
+| `{ action: 'decline' }` | `decline` |
+| `{ action: 'cancel' }` | `cancel` |
+
+This code answers the first open question with a city:
+
+```ts group=harness-mcp
+import type { HarnessSession } from '@tanstack/ai-harness'
+
+export async function answerCity(session: HarnessSession) {
+  const [question] = session.snapshot().pendingQuestions
+  if (question) await session.answer(question.questionId, { city: 'Paris' })
+}
+```
+
+The CLI and a [`HarnessClient`](./connect) show these questions like any other question.
+
 ## Move the tools into code mode
 
 A server with many tools fills each request with their schemas. Set `codeMode: true` on the server, and add the [`codeMode()` plugin](./code-mode). The model then calls the tools from one TypeScript program:
@@ -237,3 +267,4 @@ export const lateTools = definePlugin({
 - A status for each server, in `/mcp` and in your UI.
 - One browser sign-in per service, kept in your credential store.
 - A question before the tools that change data, and code mode for the tools that are safe.
+- Server requests for input, asked as session questions.

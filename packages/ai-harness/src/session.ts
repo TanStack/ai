@@ -244,6 +244,8 @@ export interface SessionSnapshot {
     schema?: unknown
     /** The answer is a secret (a key or a password). Hide it as the user types. */
     secret?: boolean
+    /** A page the user must open before they answer. Show the link. */
+    url?: string
   }>
   /** The state of each plugin that uses `ctx.state`, by plugin name. */
   plugins: Record<string, unknown>
@@ -1093,6 +1095,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       message: string
       schema: SchemaInput | undefined
       secret: boolean
+      url: string | undefined
       /** The operation whose events carry the question and its answer. */
       operationId: string
       resolve: (value: unknown) => void
@@ -2248,6 +2251,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             ? { schema: convertSchemaToJsonSchema(question.schema) }
             : {}),
           ...(question.secret ? { secret: true } : {}),
+          ...(question.url ? { url: question.url } : {}),
         }),
       ),
       plugins: { ...this.stateDoc },
@@ -2969,6 +2973,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         message: question.message,
         schema: question.schema,
         secret: question.secret === true,
+        url: question.url,
         operationId,
         resolve,
         reject,
@@ -2982,6 +2987,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             ? { schema: convertSchemaToJsonSchema(question.schema) }
             : {}),
           ...(question.secret ? { secret: true } : {}),
+          ...(question.url ? { url: question.url } : {}),
         }),
       )
     })
