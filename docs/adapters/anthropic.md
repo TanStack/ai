@@ -312,19 +312,36 @@ The thinking text streams back as thinking parts. Pass `summary: false` to keep 
 
 #### Change the level during a conversation
 
-A new level changes the start of the request, so Claude reads nothing from the cache. On `claude-fable-5-1`, `claude-opus-5`, and `claude-opus-5-5`, the level can go into the messages instead. Then a new level keeps the cached start.
+A new level changes the start of the request, so Claude reads nothing from the cache. On `claude-fable-5-1`, `claude-opus-5`, and `claude-opus-5-5`, the level goes into the messages instead. Then a new level keeps the cached start.
 
-Set `midConversationEffort: true` in the `reasoning` config. `modelReasoning(record)` sets it for these models in the [model catalog](../models/catalog), also for their OpenRouter ids:
+On Anthropic's own API, the adapter does this for these models by default:
 
 ```typescript
 import { chat } from "@tanstack/ai";
 import { anthropicText } from "@tanstack/ai-anthropic";
+
+const stream = chat({
+  adapter: anthropicText("claude-opus-5-5"),
+  messages: [{ role: "user", content: "Plan a database migration." }],
+  reasoning: "low",
+});
+```
+
+With a custom `baseURL`, a custom `fetch`, or a proxy in `ANTHROPIC_BASE_URL`, it is off, because the endpoint must pass the betas. To turn it on there, set `midConversationEffort: true` in the `reasoning` config. `modelReasoning(record)` sets it for these models in the [model catalog](../models/catalog), also for their OpenRouter ids:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { createAnthropicChat } from "@tanstack/ai-anthropic";
 import { getModel, modelReasoning } from "@tanstack/ai-models";
 
-const record = getModel("anthropic", "claude-opus-5-5");
+const record = getModel("openrouter", "anthropic/claude-opus-5.5");
 if (record) {
   const stream = chat({
-    adapter: anthropicText(record.id, { reasoning: modelReasoning(record) }),
+    adapter: createAnthropicChat(
+      record.id,
+      process.env.OPENROUTER_API_KEY ?? "",
+      { baseURL: record.baseUrl, reasoning: modelReasoning(record) },
+    ),
     messages: [{ role: "user", content: "Plan a database migration." }],
     reasoning: "low",
   });

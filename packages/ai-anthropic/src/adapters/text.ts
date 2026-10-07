@@ -37,6 +37,7 @@ import {
 } from '../utils/client'
 import {
   ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS,
+  ANTHROPIC_MID_CONVERSATION_EFFORT_MODELS,
   ANTHROPIC_MODEL_INPUT_MODALITIES,
   ANTHROPIC_MODEL_MID_CONVERSATION_CHANNELS,
   getAnthropicDefaultMaxTokens,
@@ -511,8 +512,6 @@ export class AnthropicTextAdapter<
   constructor(config: AnthropicTextAdapterConfig, model: TModel) {
     super({}, model)
     this.provider = config.provider ?? this.name
-    this.modelReasoning =
-      config.reasoning ?? ANTHROPIC_MODEL_REASONING[this.model]
     const credentials =
       'client' in config
         ? undefined
@@ -556,6 +555,16 @@ export class AnthropicTextAdapter<
       'client' in config ||
       Boolean(config.baseURL || config.fetch) ||
       envBaseURL
+    // Mid-conversation effort needs its betas too, so the adapter's own data
+    // turns it on only on Anthropic's own API. A `reasoning` config wins.
+    const ownReasoning = ANTHROPIC_MODEL_REASONING[this.model]
+    this.modelReasoning =
+      config.reasoning ??
+      (ownReasoning &&
+      !customEndpoint &&
+      ANTHROPIC_MID_CONVERSATION_EFFORT_MODELS.has(model)
+        ? { ...ownReasoning, midConversationEffort: true }
+        : ownReasoning)
     const table = ANTHROPIC_MODEL_MID_CONVERSATION_CHANNELS[model]
     const option = config.midConversationChannels
     if (typeof option === 'object') {
