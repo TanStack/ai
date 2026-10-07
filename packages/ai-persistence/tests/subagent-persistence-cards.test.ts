@@ -693,7 +693,7 @@ describe('subagent run recorder', () => {
     )
   })
 
-  it('starts a loaded child with the task of its first call', async () => {
+  it('starts a loaded child with the task of its first call, and names its agent', async () => {
     const { stores } = memoryPersistence()
     const recorder = createSubagentRunRecorder({
       messages: stores.messages,
@@ -716,12 +716,13 @@ describe('subagent run recorder', () => {
       ...textMessage('m1', 'Tide notes', { subagentRunId: 'child' }),
     ])
 
-    expect(
-      (await recorder.loadChild('child', { threadId: 'desk' }))?.messages,
-    ).toMatchObject([
+    const loaded = await recorder.loadChild('child', { threadId: 'desk' })
+    expect(loaded?.messages).toMatchObject([
       { role: 'user', content: '{"topic":"tides"}' },
       { role: 'assistant', content: 'Tide notes' },
     ])
+    // The `subagent` tool lets only this agent continue the child.
+    expect(loaded?.agent).toBe('writer')
   })
 
   it('loads nothing for an unknown child', async () => {

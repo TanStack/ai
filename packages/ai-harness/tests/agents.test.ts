@@ -14,12 +14,22 @@ import type { AnyTextAdapter } from '@tanstack/ai'
 import type { HarnessPlugin } from '../src'
 import type { AgentProfile } from '../src/first-party/agents'
 
+/** The names of the tools that ran, in order. */
+const ran: Array<string> = []
+
+beforeEach(() => {
+  ran.length = 0
+})
+
 const tool = (name: string) =>
   toolDefinition({
     name,
     description: `The ${name} tool`,
     inputSchema: z.object({}),
-  }).server(async () => name)
+  }).server(async () => {
+    ran.push(name)
+    return name
+  })
 
 /**
  * Open thread `t` with the tools `read_file` and `write_file`. The main
@@ -203,6 +213,42 @@ describe('agents', () => {
     ])
     expect(promptsOf(calls[1])).not.toContain('step limit')
     expect(promptsOf(calls[2])).toContain('step limit')
+    await host.close()
+  })
+
+  it('refuses a tool call at the step limit when the provider ignores toolChoice', async () => {
+    // Bedrock Converse sends `none` as `auto` after tool calls, so the model
+    // can still call a tool on the last call.
+    const { adapter, calls } = mockAdapter([
+      () => toolCall('read_file', {}, 'c1'),
+      () => toolCall('read_file', {}, 'c2'),
+      () => text('Here is what I have.'),
+    ])
+    const short: AgentProfile = {
+      name: 'short',
+      description: 'One step',
+      mode: 'primary',
+      steps: 1,
+    }
+    const { host, session } = await open(adapter, [
+      agents({ adapter: () => adapter, agents: [short], default: 'short' }),
+    ])
+
+    await session.prompt('go')
+
+    // The run ends after the last call, and only the first call ran.
+    expect(calls).toHaveLength(2)
+    expect(calls[1].toolChoice).toBe('none')
+    expect(ran).toEqual(['read_file'])
+
+    // The next turn shows the model the refusal of the last call.
+    await session.prompt('and now?')
+    const refused = calls[2].messages.find(
+      (message: { role: string; toolCallId?: string }) =>
+        message.role === 'tool' && message.toolCallId === 'c2',
+    )
+    expect(JSON.stringify(refused?.content)).toContain('Step limit reached')
+    expect(ran).toEqual(['read_file'])
     await host.close()
   })
 

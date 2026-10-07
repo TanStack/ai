@@ -176,7 +176,11 @@ An agent can call tools for a long time. `steps` sets the most model calls with 
 
 The limit counts again in each turn of a primary agent and in each run of a subagent.
 
-On Amazon Bedrock, `'none'` after a tool call goes to the model as `auto`. So the model can still call a tool on the last call. See [Provider notes](../tools/tools#provider-notes).
+Some providers do not obey `'none'`. On Amazon Bedrock, `'none'` after a tool call goes to the model as `auto`. See [Provider notes](../tools/tools#provider-notes). If the model calls a tool on the last call anyway:
+
+- The tool does not run.
+- The model gets this tool result: `{ "error": "Step limit reached. Answer without calling tools." }`
+- The run stops. That turn can end with no text answer.
 
 ## Let the model start a subagent
 
@@ -195,7 +199,7 @@ To give the model one `subagent` tool for every agent, see [Agents from plugins]
 
 - The `permissions` of a profile count only while it is the primary agent. When the profile runs as a subagent, its own rules do not apply. Put rules that must hold in every run in `permissions({ rules })`. See [Rules in subagents](./permissions#rules-in-subagents).
 - A Markdown agent cannot set `permissions`. Put those rules in a profile in code.
-- On Amazon Bedrock, the last step can still call a tool.
+- On Amazon Bedrock, the model can still call a tool on the last call. The tool does not run, but the turn can end with no text answer.
 - A subagent that starts before the first turn of the session has no tools. It also needs its own `model`.
 
 ## What you have now

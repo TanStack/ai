@@ -1133,12 +1133,20 @@ export function createSyntheticSubagentTools(
     } satisfies SubagentToolOutcome
   }
 
-  /** The stored child that a `sessionId` names. Throws a tool error. */
-  async function storedChild(sessionId: string) {
+  /**
+   * The stored child that a `sessionId` names, for `agent`. Throws a tool
+   * error, also when the child ran under another agent.
+   */
+  async function storedChild(sessionId: string, agent: string) {
     const load = parent.childLoader?.()
     if (!load) throw new Error('sessionId needs a persistence store.')
     const stored = await load(sessionId)
     if (!stored) throw new Error(`Unknown sessionId "${sessionId}".`)
+    if (stored.agent !== undefined && stored.agent !== agent) {
+      throw new Error(
+        `Session "${sessionId}" belongs to agent "${stored.agent}", not "${agent}".`,
+      )
+    }
     return { subagentRunId: sessionId, messages: stored.messages }
   }
 
@@ -1180,7 +1188,7 @@ export function createSyntheticSubagentTools(
           } satisfies SubagentToolOutcome
         }
         if (call.sessionId === undefined) return runChild(child, context)
-        const continued = await storedChild(call.sessionId)
+        const continued = await storedChild(call.sessionId, agent.name)
         return runChild({ ...child, continued }, context)
       },
     }

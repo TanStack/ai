@@ -113,7 +113,10 @@ async function callSubagent(
   return { chunks, calls, result: toolResult(chunks) }
 }
 
-/** A fake persistence middleware that provides the `loadChild` service. */
+/**
+ * A fake persistence middleware that provides the `loadChild` service. Each
+ * stored child ran under the `writer` agent.
+ */
 function storedChildren(
   stored: Map<string, Array<ModelMessage>>,
 ): ChatMiddleware {
@@ -122,7 +125,9 @@ function storedChildren(
     setup(ctx) {
       provideLoadChild(ctx, async (subagentRunId) => {
         const messages = stored.get(subagentRunId)
-        return messages === undefined ? undefined : { messages }
+        return messages === undefined
+          ? undefined
+          : { messages, agent: 'writer' }
       })
     },
   }
@@ -307,6 +312,12 @@ describe('subagents tool: single', () => {
       { agent: 'writer', sessionId: 'subagent-missing' },
       [storedChildren(oldChild)],
       'Unknown sessionId "subagent-missing".',
+    ],
+    [
+      'a sessionId of a child of another agent',
+      { agent: 'researcher', sessionId: 'subagent-old', input: { topic: 'x' } },
+      [storedChildren(oldChild)],
+      'Session "subagent-old" belongs to agent "writer", not "researcher".',
     ],
     [
       'background without a harness host',
