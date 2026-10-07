@@ -94,7 +94,7 @@ const branch = createHarnessClient<typeof assistant>({
 await branch.prompt('Try a shorter answer.')
 ```
 
-The route needs `stores.sessions` on the host. A user can fork only a thread that the user owns in the index. For another thread, the handler answers `404`.
+The route needs `stores.sessions` on the host. A user can fork only a thread that the user owns in the index. For another thread, the handler answers `404`. For a thread that another harness of the host runs, it answers `409` with `{ error: 'other_harness' }`.
 
 ## Reset with a handoff note
 

@@ -152,7 +152,8 @@ export interface HostSessions {
    * before `id`, so a fork before the first message has no messages. The new
    * thread gets its own entry, with the title of the old one plus ` (fork)`,
    * the harness, and the owner of the old one. Resolves to the new entry.
-   * Throws when the message id is not in the transcript.
+   * Throws when the message id is not in the transcript, or when the entry
+   * of the thread names another harness.
    *
    * @example
    * ```ts
@@ -620,6 +621,14 @@ export function createHarnessHost<TLogState = undefined>(
         ),
       delete: (threadId) => index.remove(threadId),
       async fork(harness, threadId, at) {
+        // Check before a session opens. Without a sessions store there is no
+        // entry, so there is nothing to check.
+        const source = await index.get(threadId)
+        if (source?.harness !== undefined && source.harness !== harness.name) {
+          throw new Error(
+            `Thread ${JSON.stringify(threadId)} belongs to harness ${JSON.stringify(source.harness)}, not ${JSON.stringify(harness.name)}.`,
+          )
+        }
         // `host.fork` takes the last message to copy, so `before` becomes
         // the message just before it, or `null` before the first one.
         let last: string | null = 'through' in at ? at.through : null
@@ -640,7 +649,6 @@ export function createHarnessHost<TLogState = undefined>(
             last = previous
           }
         }
-        const source = await index.get(threadId)
         const forked = await host.fork(harness, {
           threadId,
           newThreadId: `thread-${crypto.randomUUID()}`,

@@ -76,7 +76,8 @@ export const team = defineHarness({
 | `commands` | Run these commands with `client.command(name)`, or with `/name` in a [session view](./custom-ui) on a client. |
 
 - Any other input of these kinds gets `{ status: 'rejected', reason: 'not_exposed' }`.
-- Server code that calls the session is not limited. `session.setConfig()` and `session.command()` work for every key and command.
+- `GET describe` and `client.describe()` list only the exposed commands and config keys. A UI built from them shows only what a client can use.
+- Server code that calls the session is not limited. `session.setConfig()` and `session.command()` work for every key and command, and `session.describe()` lists all of them.
 - `defineHarness` checks the names in `agents`. Plugins add their config keys and commands when a session opens, so it does not check those names.
 
 Do not expose the `mode` of `permissions()` to clients that you do not trust. With `bypass`, every tool call runs with no question. See [Keep the mode on the server](./permissions#keep-the-mode-on-the-server).

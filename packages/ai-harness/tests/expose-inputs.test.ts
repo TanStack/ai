@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import { applyInput, createHarnessHost, defineHarness } from '../src'
+import {
+  applyInput,
+  configOption,
+  createHarnessHandler,
+  createHarnessHost,
+  defineCommand,
+  defineHarness,
+  definePlugin,
+} from '../src'
+import { createHarnessClient } from '../src/client'
 import { permissions } from '../src/first-party'
 import { mockAdapter } from './helpers'
 import type { HarnessSession } from '../src'
@@ -102,6 +111,51 @@ describe('client config and command inputs', () => {
       'Mode: acceptEdits.',
     )
     expect(modeOf(session)).toBe('acceptEdits')
+    await host.close()
+  })
+})
+
+describe('describe for a client', () => {
+  it('lists only the exposed commands and config keys over HTTP, and all of them on the server', async () => {
+    const twoOfEach = definePlugin({
+      name: 'test/two-of-each',
+      setup: () => ({
+        config: {
+          tone: configOption.text({ default: 'plain' }),
+          secret: configOption.text({ default: 'hidden' }),
+        },
+        commands: {
+          ping: defineCommand({ description: 'Ping', run: async () => 'pong' }),
+          wipe: defineCommand({ description: 'Wipe', run: async () => 'gone' }),
+        },
+      }),
+    })
+    const harness = defineHarness({
+      name: 'test/expose-describe',
+      adapter: mockAdapter([]).adapter,
+      plugins: () => [twoOfEach],
+      expose: { config: ['tone'], commands: ['ping'] },
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const handler = createHarnessHandler({
+      host,
+      harness,
+      authorize: () => ({ id: 'u' }),
+    })
+    const client = createHarnessClient({
+      url: 'http://local/api/harness',
+      threadId: 't',
+      fetch: (input, init) => handler(new Request(input, init)),
+    })
+
+    const described = await client.describe()
+
+    expect(described.commands.map(({ name }) => name)).toEqual(['ping'])
+    expect(described.config.map(({ key }) => key)).toEqual(['tone'])
+    const session = await host.open(harness, { threadId: 't' })
+    const full = session.describe()
+    expect(full.commands.map(({ name }) => name)).toEqual(['ping', 'wipe'])
+    expect(full.config.map(({ key }) => key)).toEqual(['tone', 'secret'])
     await host.close()
   })
 })

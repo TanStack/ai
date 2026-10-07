@@ -248,6 +248,27 @@ export async function applyInput(
   }
 }
 
+/**
+ * What `describe` sends a client: only the commands in `expose.commands` and
+ * the config keys in `expose.config`, so a UI shows only what `applyInput`
+ * lets through. Server code reads the full `session.describe()`.
+ */
+export function describeForClient(
+  harness: AnyHarness,
+  session: HarnessSession,
+) {
+  const description = session.describe()
+  const commands: ReadonlyArray<string> = harness.expose?.commands ?? []
+  const config: ReadonlyArray<string> = harness.expose?.config ?? []
+  return {
+    ...description,
+    commands: description.commands.filter(({ name }) =>
+      commands.includes(name),
+    ),
+    config: description.config.filter(({ key }) => config.includes(key)),
+  }
+}
+
 /** The AG-UI capabilities document of a harness. */
 export function capabilitiesOf(harness: AnyHarness) {
   const exposed = new Set<string>(harness.expose?.agents ?? [])

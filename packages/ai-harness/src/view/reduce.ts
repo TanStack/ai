@@ -150,6 +150,10 @@ function resetNotice(note: unknown) {
     : 'The context was reset. The model sees only what comes after this.'
 }
 
+/** The notice text for a refused input. */
+export const notAccepted = (reason: unknown) =>
+  `Not accepted: ${String(reason ?? 'unknown reason')}`
+
 /** Add a notice line at the end of the messages. */
 export function withNotice(
   state: SessionViewState,
@@ -479,11 +483,7 @@ export function applyEvent(
       : signedIn
   }
   if (event.name === HARNESS_EVENTS.inputRejected)
-    return withNotice(
-      state,
-      'rejected',
-      `Not accepted: ${String(value.reason ?? 'unknown reason')}`,
-    )
+    return withNotice(state, 'rejected', notAccepted(value.reason))
   if (event.name === HARNESS_EVENTS.reset)
     return withNotice(state, 'info', resetNotice(value.note))
   if (

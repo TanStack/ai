@@ -134,6 +134,7 @@ await fork.prompt('Plan a trip to Porto.')
 - `{ before: id }` copies the messages before `id`. A fork before the first message has no messages, but it keeps the settings.
 - The host picks the new thread id. The new entry has the title of the old one plus ` (fork)`, and the same owner.
 - If the transcript has no message with that id, `fork` throws.
+- If the index entry of the thread names another harness, `fork` throws. One host can run more than one harness.
 
 In the browser, call `forkSession`, then open the new thread:
 
@@ -147,6 +148,8 @@ const fork = createHarnessClient<typeof assistant>({
 })
 await fork.prompt('Make the plan shorter.')
 ```
+
+If another harness of the host runs the thread, the handler answers `409` with `{ error: 'other_harness' }`. Then `forkSession` throws.
 
 What a fork copies, and what it does not copy: [Fork and reset a thread](./fork-and-reset#fork-a-thread-at-a-message).
 
