@@ -40,17 +40,65 @@ const interruptOf = (chunks: Array<Chunk>) => {
   return interrupt
 }
 
+type Snapshot = {
+  pendingQuestions: Array<{ questionId: string; message: string }>
+  waitingInputs: Array<{ inputId: string; delivery: string }>
+}
+
+type JournalEntry = {
+  headers?: Record<string, string>
+  body: { messages?: Array<{ role: string; content: unknown }> } | null
+}
+
+/**
+ * The custom events of a session stream, from its start. It reads until
+ * `isDone` is true for the events so far.
+ */
+async function customEvents(
+  url: string,
+  headers: Record<string, string>,
+  isDone: (events: Array<{ name?: string; value?: unknown }>) => boolean,
+) {
+  const response = await fetch(url, { headers })
+  if (!response.body) throw new Error('The session stream has no body.')
+  const reader = response.body.pipeThrough(new TextDecoderStream()).getReader()
+  const events: Array<{ name?: string; value?: unknown }> = []
+  let buffer = ''
+  while (!isDone(events)) {
+    const read = await reader.read()
+    if (read.done) break
+    buffer += read.value
+    const blocks = buffer.split('\n\n')
+    buffer = blocks.pop() ?? ''
+    for (const block of blocks) {
+      // Each event has an `id:` line before its `data:` line.
+      const data = block.split('\n').find((line) => line.startsWith('data: '))
+      if (!data) continue
+      const frame: {
+        event?: { type: string; name?: string; value?: unknown }
+      } = JSON.parse(data.slice('data: '.length))
+      if (frame.event?.type === 'CUSTOM') {
+        events.push({ name: frame.event.name, value: frame.event.value })
+      }
+    }
+  }
+  await reader.cancel()
+  return events
+}
+
 /** One user of the harness protocol route: its headers and its requests. */
 function asUser(
   request: APIRequestContext,
   testId: string,
   aimockPort: number,
   token = 'e2e-token',
+  extraHeaders: Record<string, string> = {},
 ) {
   const headers = {
     authorization: `Bearer ${token}`,
     'x-test-id': testId,
     'x-aimock-port': String(aimockPort),
+    ...extraHeaders,
   }
   const json = { ...headers, 'content-type': 'application/json' }
   const run = (body: object) =>
@@ -65,18 +113,35 @@ function asUser(
         data: { threadId, input },
       })
     ).json()
-  const answers = async (threadId: string) => {
-    const response = await request.get(
-      `/api/harness-protocol/transcript?threadId=${threadId}`,
-      { headers },
-    )
-    const transcript: Array<{ role: string; content: unknown }> =
-      await response.json()
-    return transcript
+  const read = async (route: string, threadId: string) =>
+    (
+      await request.get(`/api/harness-protocol/${route}?threadId=${threadId}`, {
+        headers,
+      })
+    ).json()
+  const transcript = (
+    threadId: string,
+  ): Promise<Array<{ role: string; content: unknown }>> =>
+    read('transcript', threadId)
+  const answers = async (threadId: string) =>
+    (await transcript(threadId))
       .filter((message) => message.role === 'assistant')
       .map((message) => message.content)
+  const snapshot = (threadId: string): Promise<Snapshot> =>
+    read('snapshot', threadId)
+  /** The question that the thread waits for, or `undefined`. */
+  const question = async (threadId: string) =>
+    (await snapshot(threadId)).pendingQuestions[0]
+  return {
+    headers,
+    json,
+    run,
+    control,
+    transcript,
+    answers,
+    snapshot,
+    question,
   }
-  return { headers, json, run, control, answers }
 }
 
 const userMessage = (content: string) => [{ id: 'u1', role: 'user', content }]
@@ -353,5 +418,171 @@ test.describe('harness protocol inputs', () => {
     expect(shape(reloaded)).toEqual(shape(first))
     first.dispose()
     reloaded.dispose()
+  })
+
+  test('cancels one waiting input and moves another into the running turn', async ({
+    request,
+    baseURL,
+    testId,
+    aimockPort,
+  }) => {
+    const user = asUser(request, testId, aimockPort)
+    const threadId = `waiting-${testId}`
+    const dropped = `drop-${testId}`
+    const moved = `move-${testId}`
+    // The turn waits for an answer, so the next inputs wait too.
+    expect(
+      await user.control(threadId, {
+        op: 'prompt',
+        message: '[harness-queue] ask my name',
+      }),
+    ).toMatchObject({ status: 'accepted' })
+    await expect.poll(() => user.question(threadId)).toBeTruthy()
+    for (const [inputId, message] of [
+      [dropped, '[harness-queue-dropped] never runs'],
+      [moved, '[harness-queue-moved] say it now'],
+    ]) {
+      expect(
+        await user.control(threadId, { op: 'followUp', message, inputId }),
+      ).toMatchObject({ status: 'queued' })
+    }
+    expect((await user.snapshot(threadId)).waitingInputs).toMatchObject([
+      { inputId: dropped, delivery: 'queue' },
+      { inputId: moved, delivery: 'queue' },
+    ])
+
+    expect(
+      await user.control(threadId, { op: 'cancelInput', inputId: dropped }),
+    ).toMatchObject({ status: 'accepted' })
+    // A cancelled input does not wait any more.
+    expect(
+      await user.control(threadId, { op: 'cancelInput', inputId: dropped }),
+    ).toMatchObject({ status: 'rejected', reason: 'not_waiting' })
+    expect(
+      await user.control(threadId, {
+        op: 'setDelivery',
+        inputId: moved,
+        delivery: 'steer',
+      }),
+    ).toMatchObject({ status: 'accepted' })
+    expect((await user.snapshot(threadId)).waitingInputs).toMatchObject([
+      { inputId: moved, delivery: 'steer' },
+    ])
+
+    // The session stream tells every client about both changes.
+    const events = await customEvents(
+      `${baseURL}/api/harness-protocol/events?threadId=${threadId}&from=0`,
+      user.headers,
+      (seen) => seen.some((event) => event.name === 'harness.input.delivery'),
+    )
+    expect(events).toContainEqual({
+      name: 'harness.input.settled',
+      value: expect.objectContaining({ inputId: dropped, outcome: 'aborted' }),
+    })
+    expect(events).toContainEqual({
+      name: 'harness.input.delivery',
+      value: { inputId: moved, delivery: 'steer' },
+    })
+
+    // After the answer, the moved input joins the next model call.
+    const asked = await user.question(threadId)
+    expect(
+      await user.control(threadId, {
+        op: 'answer',
+        questionId: asked?.questionId,
+        value: 'Otto',
+      }),
+    ).toMatchObject({ status: 'accepted' })
+    await expect
+      .poll(() => user.answers(threadId))
+      .toContain('Hello, Otto. I got the moved message.')
+    const sent = (await user.transcript(threadId))
+      .filter((message) => message.role === 'user')
+      .map((message) => message.content)
+    expect(sent).toEqual([
+      '[harness-queue] ask my name',
+      '[harness-queue-moved] say it now',
+    ])
+  })
+
+  test('asks once for a tool that the user allows always', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const user = asUser(request, testId, aimockPort, 'e2e-token', {
+      'x-harness-permissions': '1',
+    })
+    const threadId = `always-${testId}`
+    expect(
+      await user.control(threadId, {
+        op: 'prompt',
+        message: '[harness-always] who am i twice',
+      }),
+    ).toMatchObject({ status: 'accepted' })
+    await expect.poll(() => user.question(threadId)).toBeTruthy()
+    const asked = await user.question(threadId)
+    expect(asked?.message).toContain('Allow whoami')
+    expect(
+      await user.control(threadId, {
+        op: 'answer',
+        questionId: asked?.questionId,
+        value: { answer: 'always' },
+      }),
+    ).toMatchObject({ status: 'accepted' })
+
+    // The model calls whoami twice, and this test answers once: the second
+    // call runs without a question.
+    await expect
+      .poll(() => user.answers(threadId))
+      .toContain('You are e2e, twice.')
+    const results = (await user.transcript(threadId)).filter(
+      (message) => message.role === 'tool',
+    )
+    expect(results).toHaveLength(2)
+    expect((await user.snapshot(threadId)).pendingQuestions).toEqual([])
+  })
+
+  test('gives the model the message of a rejected tool call', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const user = asUser(request, testId, aimockPort, 'e2e-token', {
+      'x-harness-permissions': '1',
+    })
+    const threadId = `reject-${testId}`
+    const reason = 'Do not look. Say hi.'
+    expect(
+      await user.control(threadId, {
+        op: 'prompt',
+        message: '[harness-reject] who am i',
+      }),
+    ).toMatchObject({ status: 'accepted' })
+    await expect.poll(() => user.question(threadId)).toBeTruthy()
+    const asked = await user.question(threadId)
+    expect(
+      await user.control(threadId, {
+        op: 'answer',
+        questionId: asked?.questionId,
+        value: { answer: 'reject', message: reason },
+      }),
+    ).toMatchObject({ status: 'accepted' })
+    await expect
+      .poll(() => user.answers(threadId))
+      .toContain('Hi, without a look.')
+
+    // The last model call got the message as the result of the tool call.
+    const journal = await request.get(
+      `http://127.0.0.1:${aimockPort}/v1/_requests`,
+    )
+    const entries: Array<JournalEntry> = await journal.json()
+    const last = entries
+      .filter((entry) => entry.headers?.['x-test-id'] === testId)
+      .at(-1)
+    const result = last?.body?.messages?.find(
+      (message) => message.role === 'tool',
+    )
+    expect(String(result?.content)).toContain(reason)
   })
 })

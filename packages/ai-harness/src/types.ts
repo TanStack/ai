@@ -94,6 +94,8 @@ export interface SessionEvent {
  * screen the user is on. It is stored with the input, so a turn that runs
  * again after a restart sees the same value. It is client data: do not trust
  * it. Who sent the input is the principal from `authorize`, not a field here.
+ *
+ * In `cancelInput` and `setDelivery`, `inputId` is the input that waits.
  */
 export type HarnessInput = (
 // `systemPreamble` prepends per-run system/developer messages (e.g. pod memory)
@@ -116,8 +118,18 @@ export type HarnessInput = (
       detached?: boolean
       /** Run again after a host stop. See `AgentStartOptions.resume`. */
       resume?: boolean
+      /** `'none'`: no note for the main model. See `AgentRunOptions.attach`. */
+      attach?: 'none'
+      /** The run whose agent code started this run. */
+      parentRunId?: string
     }
   | { op: 'cancel'; operationId?: string }
+  | { op: 'cancelInput'; inputId: string }
+  | {
+      op: 'setDelivery'
+      inputId: string
+      delivery: WaitingInput['delivery']
+    }
   | { op: 'command'; name: string; input?: unknown }
   | { op: 'answer'; questionId: string; value: unknown }
   | { op: 'config'; key: string; value: unknown }
@@ -126,7 +138,39 @@ export type HarnessInput = (
   | { op: 'tool'; name: string; args?: unknown; meta?: Record<string, unknown> }
   | { op: 'configure'; settings: ThreadSettingsChange }
   | { op: 'reset'; note?: string }
+  | {
+      op: 'agentMessage'
+      /** A run of the agent: any run of its chain. */
+      operationId: string
+      message: UserInput
+      /** Default `'steer'`. See `AgentRun.send`. */
+      mode?: 'steer' | 'followUp'
+      /** The input id of the chain's first run. The session sets it. */
+      run?: string
+    }
 ) & { inputId?: string }
+
+/**
+ * An input that waits to run. `session.inputs()` lists them. Change one with
+ * the `cancelInput` and `setDelivery` inputs.
+ */
+export interface WaitingInput {
+  inputId: string
+  /**
+   * - `steer`: it joins the running turn at the next model call. When the
+   *   turn makes no more model calls, it runs as the next turn.
+   * - `queue`: it runs as its own turn, after the turns before it.
+   */
+  delivery: 'steer' | 'queue'
+  /** The user message of the input. */
+  message: UserInput
+}
+
+/**
+ * Where a fork cuts the transcript, by message id. `before` keeps the
+ * messages before that message. `through` keeps that message too.
+ */
+export type ForkPoint = { before: string } | { through: string }
 
 /**
  * The stored settings of one thread. They apply from the next turn, stay
@@ -262,6 +306,22 @@ export interface Operation<TResult> extends PromiseLike<TResult> {
   cancel: (reason?: string) => Promise<Receipt>
 }
 
+/** A background agent run. `send` adds a message to it. */
+export interface AgentRun<TResult> extends Operation<TResult> {
+  /**
+   * Add a message to this run. `mode: 'steer'` (default) gives it to the
+   * run's next model call. When the run makes no further model call, it
+   * runs as a follow-up. `mode: 'followUp'` runs the agent again after the
+   * run ends, on the run's transcript with the message added, with its
+   * first input and options. A run that ended starts again at once. The
+   * receipt names the run that gets the message.
+   */
+  send: (
+    message: UserInput,
+    options?: { mode?: 'steer' | 'followUp'; inputId?: string },
+  ) => Promise<Receipt>
+}
+
 /** What a media file holds. It picks the content part a model gets. */
 export type MediaKind = 'image' | 'audio' | 'video' | 'document'
 
@@ -302,6 +362,11 @@ export const HARNESS_EVENTS = {
   inputRejected: 'harness.input.rejected',
   /** An input ended. The value is an `InputSettlement`. */
   inputSettled: 'harness.input.settled',
+  /**
+   * A `setDelivery` input moved a waiting input. The value has `inputId` and
+   * `delivery`.
+   */
+  inputDelivery: 'harness.input.delivery',
   /** A media file was stored. The value is a `MediaRecord`. */
   media: 'harness.media',
   /**

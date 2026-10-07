@@ -81,7 +81,7 @@ export interface HarnessRouting extends Pick<
 
 /**
  * Limits for one input on a durable host (a host with `stores.log`). A host
- * without a log does not read them.
+ * without a log reads only `interruptedToolResult`.
  */
 export interface HarnessDurability {
   /**
@@ -99,9 +99,16 @@ export interface HarnessDurability {
   /**
    * Decide how an input that a crashed host left recovers: an input that
    * never ran, and a turn whose lease expired. The context has the decision
-   * the harness takes by default. Return `undefined` to keep it.
+   * the harness takes by default. Return `undefined` to keep it. Return
+   * `{ action: 'run', overrides }` to run the turn with `TurnOverrides`.
    */
   recover?: RecoverHook
+  /**
+   * The tool result that recovery gives a `replay: 'never'` tool call that
+   * a crash cut: the content and the error of its tool message. Default: a
+   * JSON note that the tool may or may not have run.
+   */
+  interruptedToolResult?: string
 }
 
 /**
@@ -143,6 +150,13 @@ export interface HarnessConfig<
   middleware?: ReadonlyArray<AnyChatMiddleware>
   /** When a turn stops calling the model. Defaults to `maxIterations(50)`. */
   agentLoopStrategy?: AgentLoopStrategy
+  /**
+   * How the server tools of one model call run, the same as
+   * `chat({ toolExecution })`. `'parallel'` starts them together.
+   * `'sequential'` runs them one at a time, in call order. Default
+   * `'parallel'`.
+   */
+  toolExecution?: 'parallel' | 'sequential'
   modelOptions?: TAdapter['~types']['providerOptions']
   /**
    * Automatic prompt caching for every session, the same as
@@ -208,6 +222,25 @@ export interface HarnessConfig<
      * system prompt, so expose them only to clients you trust.
      */
     settings?: ReadonlyArray<keyof ThreadSettings>
+    /**
+     * The plugin config keys a client may set with a `config` input, for
+     * example `client.setConfig('model', 'fast')`. An input with any other
+     * key is refused with `not_exposed`. Server code that calls
+     * `session.setConfig()` can set every key. Warning: `mode` of
+     * `permissions()` lets a client turn approvals off with `bypass`. Keep
+     * `mode` on the server, or expose it only to clients you trust.
+     */
+    config?: ReadonlyArray<string>
+    /**
+     * The commands a client may run with a `command` input, for example
+     * `client.command('undo')`, or `/undo` in a session view on a client.
+     * An input with any other command is refused with `not_exposed`. Server
+     * code that calls `session.command()` can run every command. Warning:
+     * `/mode bypass` of `permissions()` turns approvals off, so expose `mode`
+     * only to clients you trust. Plugins add their commands when a session
+     * opens, so `defineHarness` does not check these names.
+     */
+    commands?: ReadonlyArray<string>
   }
 }
 

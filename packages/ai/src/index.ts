@@ -97,6 +97,8 @@ export {
 } from './activities/chat/agents/define-agent'
 export type {
   BoundActivities,
+  AgentRunHandle,
+  AgentStarter,
   AgentStep,
   SubagentBinding,
   SubagentForward,
@@ -123,6 +125,7 @@ export type {
   SubagentStep,
   SubagentStepsPlan,
   SubagentsBag,
+  SubagentToolInput,
 } from './activities/chat/agents/spawn'
 // For hosts (a harness session) that run an agent outside a parent chat turn.
 export {
@@ -275,6 +278,7 @@ export type {
   StructuredOutputMiddlewareConfig,
   ToolCallHookContext,
   BeforeToolCallDecision,
+  AfterToolCallDecision,
   AfterToolCallInfo,
   IterationInfo,
   ToolPhaseCompleteInfo,
@@ -387,6 +391,13 @@ export {
   provideLogRecords,
 } from './activities/chat/middleware/log-records'
 export type { LogRecordsWriter } from './activities/chat/middleware/log-records'
+// A persistence store gives the single `subagent` tool the stored children.
+export {
+  LoadChildCapability,
+  getLoadChild,
+  provideLoadChild,
+} from './activities/chat/middleware/load-child'
+export type { LoadChild } from './activities/chat/middleware/load-child'
 // Locks are a distributed-mutex primitive — coordination, not chat state — and
 // live behind their own subpath: `@tanstack/ai/locks` (see ./locks.ts).
 

@@ -107,6 +107,68 @@
       "response": {
         "content": "You are the sender."
       }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-queue] ask my name",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [{ "name": "askName", "arguments": "{}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-queue-moved] say it now"
+      },
+      "response": {
+        "content": "Hello, Otto. I got the moved message."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-always] who am i twice",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [{ "name": "whoami", "arguments": "{}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-always] who am i twice",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "toolCalls": [{ "name": "whoami", "arguments": "{}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-always] who am i twice",
+        "sequenceIndex": 2
+      },
+      "response": {
+        "content": "You are e2e, twice."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-reject] who am i",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [{ "name": "whoami", "arguments": "{}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-reject] who am i",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Hi, without a look."
+      }
     }
   ]
 }

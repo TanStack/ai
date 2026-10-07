@@ -12,6 +12,7 @@ import {
 } from '../src/view/reduce'
 import { at, childRun, custom, sessionSnapshot } from './view-fixtures'
 import type { SessionEvent } from '../src'
+import type { WaitingInput } from '../src/types'
 import type { ItemFactory } from '../src/view/reduce'
 import type { SessionViewState } from '../src/view/types'
 
@@ -39,6 +40,10 @@ const factory: ItemFactory = {
     id: question.questionId,
     message: question.message,
     answer: async () => ({ inputId: 'i', status: 'accepted' }),
+  }),
+  agent: (operation) => ({
+    ...operation,
+    send: async () => ({ inputId: 'i', status: 'accepted' }),
   }),
 }
 
@@ -389,7 +394,7 @@ describe('view reducer', () => {
       { id: 'int-1', tool: 'remove', args: {} },
     ])
     expect(first.questions).toMatchObject([{ id: 'q1', message: 'Sure?' }])
-    expect(first.agents).toEqual([{ id: 'op-a', name: 'pricer' }])
+    expect(first.agents).toMatchObject([{ id: 'op-a', name: 'pricer' }])
     expect(first.plugins).toEqual({ p: 1 })
     expect(assistantParts(first)[0]).toMatchObject({ status: 'needs-approval' })
 
@@ -399,6 +404,43 @@ describe('view reducer', () => {
       factory,
     )
     expect(again).toBe(first)
+  })
+
+  it('reads the waiting inputs from the snapshot, and keeps their identity', () => {
+    // Each snapshot gets a new copy, as one from the session does.
+    const later: WaitingInput = {
+      inputId: 'in-1',
+      delivery: 'queue',
+      message: 'later',
+    }
+    const first = applySnapshot(
+      emptyState(),
+      sessionSnapshot({ waitingInputs: [{ ...later }] }),
+      factory,
+    )
+    expect(first.waitingInputs).toEqual([
+      { inputId: 'in-1', delivery: 'queue', message: 'later' },
+    ])
+    expect(
+      applySnapshot(
+        first,
+        sessionSnapshot({ waitingInputs: [{ ...later }] }),
+        factory,
+      ),
+    ).toBe(first)
+
+    const moved = applySnapshot(
+      first,
+      sessionSnapshot({ waitingInputs: [{ ...later, delivery: 'steer' }] }),
+      factory,
+    )
+    expect(moved.waitingInputs).toEqual([
+      { inputId: 'in-1', delivery: 'steer', message: 'later' },
+    ])
+    // A snapshot without the list has no waiting inputs.
+    expect(
+      applySnapshot(moved, sessionSnapshot(), factory).waitingInputs,
+    ).toEqual([])
   })
 
   it('reads a client tool interrupt as a client tool, not an approval', () => {
@@ -843,7 +885,7 @@ describe('view reducer', () => {
       'tool',
       'tool',
     ])
-    expect(state.agents).toEqual([{ id: 'op-a', name: 'agent' }])
+    expect(state.agents).toMatchObject([{ id: 'op-a', name: 'agent' }])
     expect(state.messages[1]).toMatchObject({
       parts: [{ id: 'c1', status: 'needs-approval' }],
     })

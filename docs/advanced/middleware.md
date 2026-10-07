@@ -2,7 +2,7 @@
 title: Middleware
 id: middleware
 order: 1
-description: "Hook into every stage of TanStack AI's chat() lifecycle with middleware — logging, analytics, stream transforms, tool interception, and side effects."
+description: "Hook into every stage of TanStack AI's chat() lifecycle with middleware: logging, analytics, stream transforms, tool interception, and side effects."
 keywords:
   - tanstack ai
   - middleware
@@ -14,15 +14,15 @@ keywords:
   - stream transform
 ---
 
-Middleware lets you hook into every stage of the `chat()` lifecycle — from configuration to streaming, tool execution, usage tracking, and completion. You can observe, transform, or short-circuit behavior at each stage without modifying your adapter or tool implementations.
+Middleware lets you hook into every stage of the `chat()` lifecycle, from configuration to streaming, tool execution, usage tracking, and completion. You can observe, transform, or short-circuit behavior at each stage without modifying your adapter or tool implementations.
 
 Common use cases include:
 
-- **Logging and observability** — track token usage, tool execution timing, errors
-- **Configuration transforms** — inject system prompts, adjust temperature per iteration, filter tools
-- **Stream processing** — redact sensitive content, transform chunks, drop unwanted events
-- **Tool call interception** — validate arguments, cache results, abort on dangerous calls
-- **Side effects** — send analytics, update databases, trigger notifications
+- **Logging and observability**: track token usage, tool execution timing, errors
+- **Configuration transforms**: inject system prompts, adjust temperature per iteration, filter tools
+- **Stream processing**: redact sensitive content, transform chunks, drop unwanted events
+- **Tool call interception**: validate arguments, cache or replace results, abort on dangerous calls
+- **Side effects**: send analytics, update databases, trigger notifications
 
 ## Quick Start
 
@@ -50,7 +50,7 @@ const stream = chat({
 ```
 
 > **Just want to see chunks flowing through your middleware during development?**
-> Use `debug: { middleware: true }` on your `chat()` call — no custom middleware required. See [Debug Logging](./debug-logging).
+> Use `debug: { middleware: true }` on your `chat()` call. No custom middleware is required. See [Debug Logging](./debug-logging).
 
 ## Lifecycle Overview
 
@@ -113,7 +113,7 @@ The context's `phase` field tracks where you are in the lifecycle:
 
 Called once during `init` (startup) and once per iteration during `beforeModel` (before each model call). On the separate-finalization path, `onConfig` additionally re-fires at the structured-output boundary with `ctx.phase === 'structuredOutput'`, receiving the post-`onStructuredOutputConfig` view of the config. A single-iteration separate-finalization run therefore fires `onConfig` three times (`init` + `beforeModel` + `structuredOutput`). Native-combined output does not add this third call. Use `onConfig` to transform the configuration that the model receives.
 
-Return a **partial** config object with only the fields you want to change — they are shallow-merged with the current config automatically. No need to spread the existing config.
+Return a **partial** config object with only the fields you want to change. They are shallow-merged with the current config automatically. No need to spread the existing config.
 
 ```typescript
 import { type ChatMiddleware } from "@tanstack/ai";
@@ -122,7 +122,7 @@ const dynamicTemperature: ChatMiddleware = {
   name: "dynamic-temperature",
   onConfig: (ctx, config) => {
     if (ctx.phase === "init") {
-      // Add a system prompt at startup — only systemPrompts is overwritten
+      // Add a system prompt at startup. Only systemPrompts is overwritten
       return {
         systemPrompts: [
           ...config.systemPrompts,
@@ -133,7 +133,7 @@ const dynamicTemperature: ChatMiddleware = {
 
     if (ctx.phase === "beforeModel" && ctx.iteration > 0) {
       // Increase temperature on retries. Sampling params live in the
-      // provider-native modelOptions object — `temperature` is universal,
+      // provider-native modelOptions object. `temperature` is universal,
       // so it's the same key across providers. Spread the existing
       // modelOptions so other model options stay unchanged.
       const current =
@@ -151,7 +151,7 @@ const dynamicTemperature: ChatMiddleware = {
 };
 ```
 
-> Sampling parameters (`temperature`, `top_p` / `topP`, the various `max*Tokens` keys) live inside `modelOptions` under each provider's native name — they are no longer root config fields. `temperature` happens to be spelled the same across every provider, so the example above is provider-agnostic; if you mutate a token limit instead, use the provider-native key (e.g. `max_output_tokens` for OpenAI, `num_predict` nested under `modelOptions.options` for Ollama). See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
+> Sampling parameters (`temperature`, `top_p` / `topP`, the various `max*Tokens` keys) live inside `modelOptions` under each provider's native name. They are not root config fields. `temperature` happens to be spelled the same across every provider, so the example above is provider-agnostic; if you mutate a token limit instead, use the provider-native key (e.g. `max_output_tokens` for OpenAI, `num_predict` nested under `modelOptions.options` for Ollama). See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
 
 **Config fields you can transform:**
 
@@ -162,11 +162,12 @@ const dynamicTemperature: ChatMiddleware = {
 | `systemPrompts` | `string[]` | System prompts |
 | `tools` | `Tool[]` | Available tools |
 | `metadata` | `Record<string, unknown>` | Request metadata |
-| `modelOptions` | `Record<string, unknown>` | Provider-native options — this is where sampling params (`temperature`, `top_p` / `topP`, the provider's `max*Tokens` key) now live, alongside every other model-specific knob. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options). |
+| `modelOptions` | `Record<string, unknown>` | Provider-native options. Sampling params (`temperature`, `top_p` / `topP`, the provider's `max*Tokens` key) live here, next to every other model-specific option. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options). |
 | `reasoning` | `ReasoningRequest \| undefined` | How hard the model thinks at this call. See [Reasoning](../chat/reasoning#change-the-level-in-middleware). |
 | `promptCache` | `ResolvedPromptCache \| undefined` | The prompt cache of this call: its `retention` and `key`. See [Change the prompt cache of a call](#change-the-prompt-cache-of-a-call). |
+| `toolChoice` | `ToolChoice \| undefined` | How the model uses the tools at the next call. See [Change the tool choice of a call](#change-the-tool-choice-of-a-call). |
 
-When multiple middleware define `onConfig`, the config is **piped** through them in order — each receives the merged config from the previous middleware.
+When multiple middleware define `onConfig`, the config is **piped** through them in order. Each receives the merged config from the previous middleware.
 
 Return `providerMessages` when a transform must affect only the model call. For
 compatibility, returning `messages` also updates provider input unless the same
@@ -192,13 +193,54 @@ const longCacheAfterTools: ChatMiddleware = {
 - The returned value goes to the adapter on the next model call. It stays for the later calls until a middleware returns another value.
 - For the retention values and their cost, see [Prompt Caching](./prompt-caching#pick-the-retention).
 
+#### Change the tool choice of a call
+
+An agent run can reach its last model call while the model still calls tools. The run then ends after a tool result, with no answer for the user. Return `toolChoice` from `onConfig` to change how the model uses the tools at the next call:
+
+```typescript
+import { chat, maxIterations, toolDefinition, type ChatMiddleware } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { z } from "zod";
+
+const MAX_CALLS = 10;
+
+const search = toolDefinition({
+  name: "search",
+  description: "Search the docs",
+  inputSchema: z.object({ query: z.string() }),
+}).server(async ({ query }) => ({ hits: [`A page about ${query}`] }));
+
+// The last call gets no tool calls, so the model answers in text.
+const answerOnLastCall: ChatMiddleware = {
+  name: "answer-on-last-call",
+  onConfig: (ctx) => {
+    if (ctx.phase === "beforeModel" && ctx.iteration === MAX_CALLS - 1) {
+      return { toolChoice: "none" };
+    }
+  },
+};
+
+const stream = chat({
+  adapter: openaiText("gpt-6.1-sol"),
+  messages: [{ role: "user", content: "How do I add a tool?" }],
+  tools: [search],
+  agentLoopStrategy: maxIterations(MAX_CALLS),
+  middleware: [answerOnLastCall],
+});
+```
+
+- `config.toolChoice` is the `chat()` option.
+- The returned value applies to the next model call only. The call after it starts again from the `chat()` option.
+- Return it in the `beforeModel` phase. A value from the `init` phase does not reach a model call.
+- For the values, and for what each provider does with them, see [Choose when the model calls a tool](../tools/tools#choose-when-the-model-calls-a-tool).
+
 ### onStructuredOutputConfig
 
-Called once at the start of the final structured-output adapter call — only when `chat()` was invoked with `outputSchema` **and** `supportsCombinedToolsAndSchema()` does not return `true` for the current model/options. Pipes through middleware in order, like `onConfig`, but with access to the **JSON Schema** being sent to the provider. Use this hook when you need to transform the schema (e.g., inject `$defs`, strip vendor-incompatible keywords) or apply structured-output-specific behavior (e.g., suppress system prompts on the final call).
+Called once at the start of the final structured-output adapter call, only when `chat()` was invoked with `outputSchema` **and** `supportsCombinedToolsAndSchema()` does not return `true` for the current model/options. Pipes through middleware in order, like `onConfig`, but with access to the **JSON Schema** being sent to the provider. Use this hook when you need to transform the schema (e.g., inject `$defs`, strip vendor-incompatible keywords) or apply structured-output-specific behavior (e.g., suppress system prompts on the final call).
 
-> Native-combined adapters (modern OpenAI, Claude 4.5+, Gemini 3.x, Grok 4.x — see issue #605) skip the separate finalization call and never invoke this hook. The engine passes the converted schema directly to `chatStream` after `onConfig` runs, so middleware cannot transform the native-combined schema.
+> Native-combined adapters (modern OpenAI, Claude 4.5+, Gemini 3.x, and Grok 4.x, per issue #605) skip the separate finalization call and never invoke this hook. The engine passes the converted schema directly to `chatStream` after `onConfig` runs, so middleware cannot transform the native-combined schema.
 
-Return a **partial** `StructuredOutputMiddlewareConfig` with only the fields you want to change — they are shallow-merged with the current config. Return `void` to pass through.
+Return a **partial** `StructuredOutputMiddlewareConfig` with only the fields you want to change. They are shallow-merged with the current config. Return `void` to pass through.
 
 ```typescript
 import { type ChatMiddleware } from "@tanstack/ai";
@@ -226,7 +268,7 @@ const injectDefs: ChatMiddleware = {
 | `providerMessages` | `ModelMessage[]` | Temporary context sent to the final call |
 | `systemPrompts` | `SystemPrompt[]` | System prompts on the final call |
 | `metadata` | `Record<string, unknown>` | Request metadata |
-| `modelOptions` | `Record<string, unknown>` | Provider-native options — this is where sampling params (`temperature`, `top_p` / `topP`, the provider's `max*Tokens` key) now live, alongside every other model-specific knob. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options). |
+| `modelOptions` | `Record<string, unknown>` | Provider-native options. Sampling params (`temperature`, `top_p` / `topP`, the provider's `max*Tokens` key) live here, next to every other model-specific option. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options). |
 | `outputSchema` | `JSONSchema` | JSON Schema being sent to the provider for structured output |
 
 **Ordering at the structured-output boundary:**
@@ -234,7 +276,7 @@ const injectDefs: ChatMiddleware = {
 1. `onStructuredOutputConfig` fires first, piping through every middleware in array order.
 2. `onConfig` then re-fires at the same boundary with `ctx.phase === 'structuredOutput'`, receiving the post-`onStructuredOutputConfig` view of the config (minus `outputSchema`). Use `onConfig` for general-purpose transforms that apply to every adapter call; use `onStructuredOutputConfig` when you need access to the schema.
 
-When multiple middleware define `onStructuredOutputConfig`, the config is **piped** through them in order — each receives the merged config from the previous middleware.
+When multiple middleware define `onStructuredOutputConfig`, the config is **piped** through them in order. Each receives the merged config from the previous middleware.
 
 ### onStart
 
@@ -286,7 +328,7 @@ When multiple middleware define `onChunk`, chunks flow through them in order. If
 
 #### Chunk types you'll see
 
-`onChunk` receives every [AG-UI event](https://docs.ag-ui.com/introduction) the run produces — not just text. Narrow on `chunk.type` (a discriminated union) before reading type-specific fields. The common ones:
+`onChunk` receives every [AG-UI event](https://docs.ag-ui.com/introduction) the run produces, not only text. Narrow on `chunk.type` (a discriminated union) before reading type-specific fields. The common ones:
 
 | `chunk.type` | Meaning | Key fields |
 |--------------|---------|-----------|
@@ -295,18 +337,18 @@ When multiple middleware define `onChunk`, chunks flow through them in order. If
 | `TOOL_CALL_START` / `TOOL_CALL_ARGS` / `TOOL_CALL_END` | Tool invocation streaming | `toolCallId`, `toolCallName`, `delta` (args), result on end |
 | `STEP_STARTED` / `STEP_FINISHED` | Thinking / reasoning steps | `delta`, `signature` |
 | `STATE_SNAPSHOT` / `STATE_DELTA` | Agent state sync | `snapshot`, `delta` |
-| `CUSTOM` | Extensibility events (incl. structured-output — see below) | `name`, `value` |
+| `CUSTOM` | Extensibility events, including structured output (see below) | `name`, `value` |
 
 See the [AG-UI protocol docs](https://docs.ag-ui.com/introduction) for the full event catalogue and exact field shapes.
 
 #### Transforming structured-output chunks
 
-There is **no separate `onStructuredOutputChunk` hook** — and you don't need one. When `chat()` is invoked with `outputSchema`, the structured-output chunks (the JSON `TEXT_MESSAGE_CONTENT` deltas, plus the `structured-output.start` / `structured-output.complete` CUSTOM events and any finalization `RUN_ERROR`) flow through the **same `onChunk` hook** as everything else. You transform, expand, or drop them exactly like any other chunk.
+There is **no separate `onStructuredOutputChunk` hook**, and you do not need one. When `chat()` is invoked with `outputSchema`, the structured-output chunks (the JSON `TEXT_MESSAGE_CONTENT` deltas, plus the `structured-output.start` / `structured-output.complete` CUSTOM events and any finalization `RUN_ERROR`) flow through the **same `onChunk` hook** as everything else. You transform, expand, or drop them exactly like any other chunk.
 
 How you distinguish them depends on which finalization path the adapter takes:
 
 - **Separate-finalization adapters** (`supportsCombinedToolsAndSchema()` does not return `true` for the current model/options): `ctx.phase === 'structuredOutput'` during the finalization call. Discriminate on the phase.
-- **Native-combined adapters** (modern OpenAI Chat Completions / Responses, Claude 4.5+, Gemini 3.x, Grok 4.x — see issue #605): the schema-constrained JSON is produced on the model's natural final turn, so **`ctx.phase` stays `'modelStream'`** — the `'structuredOutput'` phase never fires. Discriminate on the CUSTOM event name (`structured-output.start` / `structured-output.complete`) instead.
+- **Native-combined adapters** (modern OpenAI Chat Completions / Responses, Claude 4.5+, Gemini 3.x, and Grok 4.x, per issue #605): the schema-constrained JSON is produced on the model's natural final turn, so **`ctx.phase` stays `'modelStream'`**. The `'structuredOutput'` phase never fires. Discriminate on the CUSTOM event name (`structured-output.start` / `structured-output.complete`) instead.
 
 ```typescript ignore
 import { type ChatMiddleware } from "@tanstack/ai";
@@ -316,7 +358,7 @@ const redactStructuredOutput: ChatMiddleware = {
   onChunk: (ctx, chunk) => {
     // Separate-finalization path: the JSON streams as TEXT_MESSAGE_CONTENT
     // during the 'structuredOutput' phase. Transform the delta like any
-    // other text chunk — here, redact anything that looks like an SSN before
+    // other text chunk. Here, redact anything that looks like an SSN before
     // it reaches the client.
     if (
       ctx.phase === "structuredOutput" &&
@@ -341,11 +383,11 @@ const redactStructuredOutput: ChatMiddleware = {
 };
 ```
 
-> Why is there `onStructuredOutputConfig` but no `onStructuredOutputChunk`? Because the **config** shape genuinely differs at the structured-output boundary — it carries an `outputSchema` field that plain `ChatMiddlewareConfig` doesn't (see [onStructuredOutputConfig](#onstructuredoutputconfig)). **Chunks** are all just `StreamChunk` regardless of phase, so one `onChunk` plus `ctx.phase` (or the CUSTOM event name) covers every case — a parallel chunk hook would be redundant.
+> Why is there `onStructuredOutputConfig` but no `onStructuredOutputChunk`? Because the **config** shape differs at the structured-output boundary: it carries an `outputSchema` field that plain `ChatMiddlewareConfig` doesn't (see [onStructuredOutputConfig](#onstructuredoutputconfig)). **Chunks** are all just `StreamChunk` regardless of phase, so one `onChunk` plus `ctx.phase` (or the CUSTOM event name) covers every case. A parallel chunk hook is not necessary.
 
 ### onShouldContinue
 
-Called when the engine is deciding whether to start another agent-loop iteration (after a tool phase or between model turns). Combined with AND semantics across middleware **and** with `agentLoopStrategy` — any explicit `false` stops the loop. Return `true`, `void`, or `undefined` to allow continuation.
+Called when the engine is deciding whether to start another agent-loop iteration (after a tool phase or between model turns). Combined with AND semantics across middleware **and** with `agentLoopStrategy`: any explicit `false` stops the loop. Return `true`, `void`, or `undefined` to allow continuation.
 
 Does **not** abort the run: the stream finishes normally with the current messages. Use `ctx.abort()` only for a hard abort.
 
@@ -532,7 +574,7 @@ capability, then return those fields from `onConfig` when
 | --- | --- |
 | `onInterruptBoundary` | Nothing. It can only pause. |
 | `onInterruptResolution` | Pending-tool policy (`toolResume`) |
-| `onConfig` | `messages`, `systemPrompts`, `tools`, `modelOptions`, `metadata`, `reasoning`, `promptCache` |
+| `onConfig` | `messages`, `systemPrompts`, `tools`, `modelOptions`, `metadata`, `reasoning`, `promptCache`, `toolChoice` |
 
 The full resume order, plus an example that writes a user note into the
 system prompt, is in [Apply Answers](../interrupts/apply-answers).
@@ -599,7 +641,7 @@ The `hookCtx` provides:
 
 ### onAfterToolCall
 
-Called after each tool execution (or skip). All middleware run — there is no short-circuiting.
+Called after each tool execution (or skip). Every middleware runs, in array order.
 
 ```typescript
 import { type ChatMiddleware } from "@tanstack/ai";
@@ -626,8 +668,45 @@ The `info` object provides:
 | `toolCallId` | `string` | Tool call ID |
 | `ok` | `boolean` | Whether execution succeeded |
 | `duration` | `number` | Execution time in milliseconds |
-| `result` | `unknown` | Result (when `ok` is true) |
+| `result` | `unknown` | Result (when `ok` is true). After a `replaceResult` from an earlier middleware, the new result. |
 | `error` | `unknown` | Error (when `ok` is false) |
+
+#### Replace a tool result
+
+A tool can return more than the model needs, for example 500 rows or a long log. The model reads every token of it. Return `{ type: 'replaceResult', result }` to give the model and the stream a different result:
+
+```typescript
+import { type ChatMiddleware } from "@tanstack/ai";
+
+const firstTwentyRows: ChatMiddleware = {
+  name: "first-twenty-rows",
+  onAfterToolCall: (ctx, info) => {
+    if (!info.ok || !Array.isArray(info.result)) return;
+    if (info.result.length <= 20) return;
+    return {
+      type: "replaceResult",
+      result: {
+        rows: info.result.slice(0, 20),
+        omitted: info.result.length - 20,
+      },
+    };
+  },
+};
+```
+
+**Return values:**
+
+| Return | Effect |
+|--------|--------|
+| `void` / `undefined` | The result stays the same |
+| `{ type: 'replaceResult', result }` | The model gets `result`. The stream sends it in `TOOL_CALL_RESULT`, so the client shows it too. |
+
+Several middleware can replace the same result:
+
+- Each middleware gets the result of the middleware before it as `info.result`. The last replacement wins.
+- For example, with `middleware: [firstTwentyRows, summarize]`, `summarize` gets the 20 rows.
+- A failed call stays failed. The replacement becomes the error that the model reads.
+- A `skip` result from `onBeforeToolCall` also goes through this hook. `info.result` is the parsed skip result.
 
 ### Tool hook order in one turn
 
@@ -683,10 +762,10 @@ Exactly **one** terminal hook fires per `chat()` invocation. They are mutually e
 > - `onStructuredOutputConfig` fires before the separate provider call, and `ctx.phase` is `'structuredOutput'` for its chunks.
 > - `onIteration` does **not** fire for finalization; it only fires for agent-loop iterations.
 > - `onFinish` fires after finalization completes. Its `info` object reflects the **agent loop's** terminal state.
-> - `info.content` — the agent loop's accumulated text. Separate-finalization JSON deltas are **not** included. Middleware can observe the completed result through the `structured-output.complete` CUSTOM event in `onChunk`.
-> - `info.usage` — the agent loop's last `RUN_FINISHED.usage`. For a tools-less structured-output run (no agent-loop iteration produces `RUN_FINISHED`), this is `undefined`. To capture finalization tokens, use `onUsage` — that hook fires for **every** `RUN_FINISHED` carrying usage, including the finalization call.
-> - `info.finishReason` — the agent loop's last `finishReason`. `null` when no agent-loop iteration produced `RUN_FINISHED` (e.g. a tools-less structured-output run).
-> - `info.duration` — wall-clock duration of the entire `chat()` invocation, including finalization.
+> - `info.content`: the agent loop's accumulated text. Separate-finalization JSON deltas are **not** included. Middleware can observe the completed result through the `structured-output.complete` CUSTOM event in `onChunk`.
+> - `info.usage`: the agent loop's last `RUN_FINISHED.usage`. For a tools-less structured-output run (no agent-loop iteration produces `RUN_FINISHED`), this is `undefined`. To capture finalization tokens, use `onUsage`. That hook fires for **every** `RUN_FINISHED` carrying usage, including the finalization call.
+> - `info.finishReason`: the agent loop's last `finishReason`. `null` when no agent-loop iteration produced `RUN_FINISHED` (e.g. a tools-less structured-output run).
+> - `info.duration`: wall-clock duration of the entire `chat()` invocation, including finalization.
 >
 > **Native-combined output:** Adapters with native-combined support produce the schema-constrained JSON in the regular agent-loop stream. `onStructuredOutputConfig` does not fire, `ctx.phase` remains `'modelStream'`, and `onIteration` fires for the iteration that produces the JSON. The JSON is agent-loop text, so `info.content` includes it. Middleware observes the `structured-output.complete` event in `onChunk` during the same phase.
 >
@@ -722,7 +801,7 @@ The `info` object for `onFinish` (`FinishInfo`):
 | `finishReason` | `string \| null` | The agent loop's last `finishReason`. `null` when no agent-loop iteration produced `RUN_FINISHED` (e.g. a tools-less `chat({ outputSchema })` run). |
 | `duration` | `number` | Total run duration in milliseconds, including any structured-output finalization. |
 | `content` | `string` | The agent loop's accumulated text content. Includes native-combined structured JSON; excludes separate-finalization JSON. Observe the completed result through the `structured-output.complete` CUSTOM event via `onChunk`. |
-| `usage` | `{ promptTokens; completionTokens; totalTokens } \| undefined` | **Optional.** The agent loop's last `RUN_FINISHED.usage`. **Does not include finalization tokens** — use `onUsage` to observe those. Always guard with `if (info.usage)` or `info.usage?.`. |
+| `usage` | `{ promptTokens; completionTokens; totalTokens } \| undefined` | **Optional.** The agent loop's last `RUN_FINISHED.usage`. **Does not include finalization tokens.** Use `onUsage` to observe those. Always guard with `if (info.usage)` or `info.usage?.`. |
 
 ## Context Object
 
@@ -847,13 +926,13 @@ const stream = chat({
 
 | Hook | Composition | Effect of Order |
 |------|------------|----------------|
-| `onConfig` | **Piped** — each receives previous output | Earlier middleware transforms first |
-| `onStructuredOutputConfig` | **Piped** — each receives previous output | Earlier middleware transforms first |
+| `onConfig` | **Piped**: each receives previous output | Earlier middleware transforms first |
+| `onStructuredOutputConfig` | **Piped**: each receives previous output | Earlier middleware transforms first |
 | `onStart` | Sequential | All run in order |
-| `onChunk` | **Piped** — chunks flow through each middleware | If first drops a chunk, later middleware never see it |
-| `onBeforeToolCall` | **First-win** — first non-void decision wins | Earlier middleware has priority |
-| `onShouldContinue` | **AND** — any explicit `false` stops the loop | Order only affects which middleware runs first when short-circuiting |
-| `onAfterToolCall` | Sequential | All run in order |
+| `onChunk` | **Piped**: chunks flow through each middleware | If first drops a chunk, later middleware never see it |
+| `onBeforeToolCall` | **First-win**: the first non-void decision wins | Earlier middleware has priority |
+| `onShouldContinue` | **AND**: any explicit `false` stops the loop | Order only affects which middleware runs first when short-circuiting |
+| `onAfterToolCall` | **Piped**: each receives the result of the previous `replaceResult` | The last replacement wins |
 | `onUsage` | Sequential | All run in order |
 | `onFinish/onAbort/onError` | Sequential | All run in order |
 
@@ -863,7 +942,7 @@ Middleware often need to **share state**. A provider middleware sets something u
 
 ### Creating a capability
 
-A capability is created with `createCapability<TValue>()('name')` — a **curried** call:
+A capability is created with `createCapability<TValue>()('name')`, a **curried** call:
 
 ```typescript
 import { createCapability } from "@tanstack/ai";
@@ -872,11 +951,11 @@ const counterCapability = createCapability<{ value: number }>()("counter");
 const [getCounter, provideCounter] = counterCapability;
 ```
 
-The currying is deliberate: you supply the **value type** explicitly (`<{ value: number }>`) while the **name literal** is inferred from the argument (`"counter"`). A single `createCapability<T>('name')` call can't do both — supplying `T` explicitly stops TypeScript inferring the name, collapsing it to `string` and defeating the compile-time coverage check that keys on the literal name.
+The currying is deliberate: you supply the **value type** explicitly (`<{ value: number }>`) while the **name literal** is inferred from the argument (`"counter"`). A single `createCapability<T>('name')` call cannot do both. Supplying `T` explicitly stops TypeScript inferring the name, collapsing it to `string` and defeating the compile-time coverage check that keys on the literal name.
 
 The returned `counterCapability` is a hybrid value:
 
-- It **destructures to `[get, provide]`** — the two accessors you use inside hooks.
+- It **destructures to `[get, provide]`**: the two accessors you use inside hooks.
 - It **is itself the identity** you list in `requires` / `provides`. There is no separate token to import.
 
 The accessors:
@@ -884,30 +963,30 @@ The accessors:
 | Accessor | Behavior |
 |----------|----------|
 | `getCounter(ctx)` | Returns the value. **Throws** if the capability was never provided. |
-| `getCounter(ctx, { optional: true })` | Returns `TValue \| undefined` — no throw when absent. |
+| `getCounter(ctx, { optional: true })` | Returns `TValue \| undefined`. No throw when absent. |
 | `provideCounter(ctx, value)` | Sets the value for this run. Call it from `setup`. |
 
-Equivalently, the context exposes `ctx.get(capability)`, `ctx.getOptional(capability)`, and `ctx.provide(capability, value)` — pass the capability handle directly. These are typed by the handle you pass (`ctx.get(counterCapability)` returns the value type), so `getCounter(ctx)` and `ctx.get(counterCapability)` are interchangeable — use whichever reads better in your hook.
+Equivalently, the context exposes `ctx.get(capability)`, `ctx.getOptional(capability)`, and `ctx.provide(capability, value)`. Pass the capability handle directly. These are typed by the handle you pass (`ctx.get(counterCapability)` returns the value type), so `getCounter(ctx)` and `ctx.get(counterCapability)` are interchangeable. Use whichever reads better in your hook.
 
 > **Capability names must be unique across your app.** The compile-time coverage check keys on the name literal (runtime keys on the handle reference), so two capabilities sharing a name will conflate in the type-level check.
 
 ### The `setup` hook
 
-Provisioning happens in a dedicated `setup(ctx)` hook. It **runs first** — before any `onConfig` (init), across all middleware in array order — so that by the time the rest of the lifecycle begins, every capability is in place. `setup` receives the stable `ChatMiddlewareContext` (not the mutable config), and may be async.
+Provisioning happens in a dedicated `setup(ctx)` hook. It **runs first**, before any `onConfig` (init), across all middleware in array order. So by the time the rest of the lifecycle begins, every capability is in place. `setup` receives the stable `ChatMiddlewareContext` (not the mutable config), and may be async.
 
 ### `requires` / `provides` / `optionalRequires`
 
-Three array fields on a middleware declare its capability contract. Each is a `ReadonlyArray<CapabilityHandle>` — you list the capability handles themselves:
+Three array fields on a middleware declare its capability contract. Each is a `ReadonlyArray<CapabilityHandle>`. You list the capability handles themselves:
 
 | Field | Meaning |
 |-------|---------|
 | `provides` | Capabilities this middleware sets up. Each one **must** be `provide`d inside `setup`, or `chat()` throws after the setup phase. |
 | `requires` | Capabilities this middleware reads. `chat()` validates (compile time + runtime) that some earlier middleware provides each one. |
-| `optionalRequires` | Capabilities used **if present** but not required. Non-gating — never causes a validation error. Read with `getX(ctx, { optional: true })`. |
+| `optionalRequires` | Capabilities used **if present** but not required. Non-gating: never causes a validation error. Read with `getX(ctx, { optional: true })`. |
 
 ### Array example
 
-Author middleware with `defineChatMiddleware` — it sharpens the `requires` / `provides` tuple types so the coverage check and builder can read them precisely. Here a **provider** sets up a counter in `setup`, and a **consumer** reads it in a hook:
+Author middleware with `defineChatMiddleware`. It sharpens the `requires` / `provides` tuple types so the coverage check and builder can read them precisely. Here a **provider** sets up a counter in `setup`, and a **consumer** reads it in a hook:
 
 ```typescript
 import {
@@ -950,7 +1029,7 @@ const stream = chat({
 });
 ```
 
-If you drop `withCounter` from the array, `chat()` reports a compile-time error at the `middleware` option naming the missing `"counter"` capability — and throws at runtime before the adapter is ever called.
+If you drop `withCounter` from the array, `chat()` reports a compile-time error at the `middleware` option naming the missing `"counter"` capability, and throws at runtime before the adapter is ever called.
 
 ### Builder example
 
@@ -986,7 +1065,7 @@ const countsChunks = defineChatMiddleware({
 
 const middleware = createChatMiddleware()
   .use(withCounter) // provides "counter"
-  .use(countsChunks) // requires "counter" — OK, already provided above
+  .use(countsChunks) // requires "counter": OK, already provided above
   .build();
 
 const stream = chat({
@@ -996,7 +1075,7 @@ const stream = chat({
 });
 ```
 
-Swap the two `.use()` calls (`.use(countsChunks).use(withCounter)`) and the builder rejects it at the `.use(countsChunks)` line — the consumer is ordered before its provider, so `"counter"` isn't in the provided set yet.
+Swap the two `.use()` calls (`.use(countsChunks).use(withCounter)`) and the builder rejects it at the `.use(countsChunks)` line. The consumer is ordered before its provider, so `"counter"` isn't in the provided set yet.
 
 ### Validation guarantees
 
@@ -1004,13 +1083,13 @@ The capability system fails loudly and early:
 
 - **Compile-time coverage.** A required capability that nothing provides surfaces as a type error at the `middleware` option. This is enforced two ways: an **array coverage check** on `middleware: [...]`, and the order-aware **`createChatMiddleware()` builder** (which additionally enforces ordering).
 - **Runtime coverage.** Even if types are bypassed, `chat()` validates coverage and **throws before the adapter runs** if a required capability is missing.
-- **Post-`setup` assertion.** If a middleware declares a capability in `provides` but never calls its `provide` accessor during `setup`, `chat()` throws after the setup phase — you can't silently forget to provision.
+- **Post-`setup` assertion.** If a middleware declares a capability in `provides` but never calls its `provide` accessor during `setup`, `chat()` throws after the setup phase. You cannot forget to provision without an error.
 - **Duplicate provide → last-wins + warning.** If two middleware provide the same capability, the last write wins and a development warning is emitted.
 - **Unique names.** Capability `name`s must be unique across your app; the compile-time coverage check keys on the name literal (runtime keys on the handle reference).
 
 ## Built-in Middleware
 
-TanStack AI ships ready-made middleware for common cases — caching tool results, redacting streamed text, and OpenTelemetry tracing:
+TanStack AI ships ready-made middleware for common cases: caching tool results, redacting streamed text, and OpenTelemetry tracing:
 
 | Middleware | Import | What it does |
 |------------|--------|--------------|
@@ -1119,26 +1198,32 @@ const auditTrail: ChatMiddleware = {
 
 ### Per-Iteration Tool Swapping
 
-Expose different tools at different stages of the agent loop:
+Expose different tools at different stages of the agent loop. A `tools` list that `onConfig` returns stays for the later model calls. So keep the full list from the start of the run, and give it back after the first call:
 
 ```typescript
-import { type ChatMiddleware } from "@tanstack/ai";
+import { type ChatMiddleware, type ChatMiddlewareConfig } from "@tanstack/ai";
 
-const toolSwapper: ChatMiddleware = {
-  name: "tool-swapper",
-  onConfig: (ctx, config) => {
-    if (ctx.phase !== "beforeModel") return;
-
-    if (ctx.iteration === 0) {
-      // First iteration: only allow search
-      return {
-        tools: config.tools.filter((t) => t.name === "search"),
-      };
-    }
-    // Later iterations: allow all tools
-  },
-};
+// A function, so that each chat() call keeps its own full list.
+function toolSwapper(): ChatMiddleware {
+  let allTools: ChatMiddlewareConfig["tools"] = [];
+  return {
+    name: "tool-swapper",
+    onConfig: (ctx, config) => {
+      if (ctx.phase === "init") {
+        allTools = config.tools;
+        return;
+      }
+      if (ctx.phase !== "beforeModel") return;
+      // First model call: only search. Later calls: every tool again.
+      return ctx.iteration === 0
+        ? { tools: allTools.filter((t) => t.name === "search") }
+        : { tools: allTools };
+    },
+  };
+}
 ```
+
+Pass `middleware: [toolSwapper()]` to `chat()`.
 
 ### Content Filtering
 
@@ -1195,6 +1280,7 @@ import type {
   ToolCallHookContext,
   BeforeToolCallDecision,
   AfterToolCallInfo,
+  AfterToolCallDecision,
   IterationInfo,
   ToolPhaseCompleteInfo,
   UsageInfo,
@@ -1219,8 +1305,9 @@ import type {
 
 ## Next Steps
 
-- [Built-in Middleware](./built-in-middleware) — `toolCacheMiddleware`, `contentGuardMiddleware`, `otelMiddleware`
+- [Built-in Middleware](./built-in-middleware): `toolCacheMiddleware`, `contentGuardMiddleware`, `otelMiddleware`
 - [Compaction](./compaction): keep long chats under the context limit with `withCompaction`
-- [OpenTelemetry](./otel) — emit traces and metrics via `otelMiddleware`- [Tools](../tools/tools) — Learn about the isomorphic tool system
-- [Agentic Cycle](../chat/agentic-cycle) — Understand the multi-step agent loop
-- [Streaming](../chat/streaming) — How streaming works in TanStack AI
+- [OpenTelemetry](./otel): emit traces and metrics via `otelMiddleware`
+- [Tools](../tools/tools): learn about the isomorphic tool system
+- [Agentic Cycle](../chat/agentic-cycle): understand the multi-step agent loop
+- [Streaming](../chat/streaming): how streaming works in TanStack AI

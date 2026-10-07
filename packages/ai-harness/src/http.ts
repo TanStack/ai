@@ -17,17 +17,20 @@ import {
   HARNESS_PROTOCOL_VERSION,
   applyInput,
   capabilitiesOf,
+  describeForClient,
   parseControlFrame,
   parseHarnessInput,
 } from './protocol'
+import { isRecord } from './utils'
 import type {
   ModelMessage,
   StreamChunk,
   UIMessage,
   WebSocketLike,
 } from '@tanstack/ai'
+import type { SessionIndexEntry } from '@tanstack/ai-persistence'
 import type { AnyHarness } from './define'
-import type { HarnessHost } from './host'
+import type { HarnessHost, HostEvent } from './host'
 import type { HostFrame } from './protocol'
 import type { HarnessSession } from './session'
 import type { Principal, UserInput } from './types'
@@ -88,6 +91,35 @@ const json = (body: unknown, status = 200) =>
     headers: { 'Content-Type': 'application/json' },
   })
 
+/**
+ * An SSE response: one event per frame, with `data` as JSON and `id` when
+ * the frame has one. When the client leaves, `signal` aborts.
+ */
+function sseResponse(
+  frames: (
+    signal: AbortSignal,
+  ) => AsyncIterable<{ id?: string; data: unknown }>,
+) {
+  // Not `request.signal`: some servers abort it once the body is read.
+  const reader = new AbortController()
+  const body = new ReadableStream<Uint8Array>({
+    cancel: () => reader.abort(),
+    async start(controller) {
+      try {
+        for await (const { id, data } of frames(reader.signal)) {
+          const idLine = id === undefined ? '' : `id: ${id}\n`
+          controller.enqueue(
+            encoder.encode(`${idLine}data: ${JSON.stringify(data)}\n\n`),
+          )
+        }
+      } finally {
+        if (!reader.signal.aborted) controller.close()
+      }
+    },
+  })
+  return new Response(body, { headers: SSE_HEADERS })
+}
+
 /** A handler error as JSON: a `MediaError` keeps its status, the rest is 400. */
 const failed = (error: unknown) =>
   error instanceof MediaError
@@ -112,6 +144,43 @@ function lastUserInput(messages: Array<UIMessage | ModelMessage>) {
     ? content.filter(isContentPart)
     : content
   return input
+}
+
+/** A `POST sessions` body, or `undefined` when it is not a valid one. */
+function parseSessionOp(body: unknown) {
+  if (!isRecord(body)) return undefined
+  const { op, threadId, title, before, through } = body
+  if (typeof threadId !== 'string') return undefined
+  switch (op) {
+    case 'rename':
+      return typeof title === 'string'
+        ? { op: 'rename' as const, threadId, title }
+        : undefined
+    case 'delete':
+      return { op: 'delete' as const, threadId }
+    case 'fork':
+      // Exactly one of `before` and `through`.
+      if (typeof before === 'string' && through === undefined)
+        return { op: 'fork' as const, threadId, at: { before } }
+      if (typeof through === 'string' && before === undefined)
+        return { op: 'fork' as const, threadId, at: { through } }
+      return undefined
+    default:
+      return undefined
+  }
+}
+
+/**
+ * The entry belongs to `principal`: the same id, and the same tenant when
+ * the principal has one. The same rule as the `principal` filter of the
+ * index `list`, so a user changes only the sessions the user can list.
+ */
+function isOwnedBy(entry: SessionIndexEntry, principal: Principal) {
+  const owner = entry.principal
+  if (!owner || owner.id !== principal.id) return false
+  return (
+    principal.tenantId === undefined || owner.tenantId === principal.tenantId
+  )
 }
 
 /** Base64url to bytes, or `undefined` for a value that is not base64url. */
@@ -182,7 +251,8 @@ async function mediaResponse(
  * - `POST .../control`: `{ threadId, input }`. Returns the receipt.
  * - `GET  .../snapshot?threadId=`: the session snapshot.
  * - `GET  .../transcript?threadId=`: the saved messages of the thread.
- * - `GET  .../describe?threadId=`: the commands, settings, and tools.
+ * - `GET  .../describe?threadId=`: the commands, settings, and tools. Only
+ *   the commands in `expose.commands` and the config keys in `expose.config`.
  * - `POST .../media?threadId=&name=`: store the raw body as a media file of
  *   the thread, with `Content-Type` as its type. Returns the `MediaRecord`.
  *   413 when it is over `media.maxBytes`, 415 for a type the harness does not
@@ -192,6 +262,20 @@ async function mediaResponse(
  * - `GET  .../media?threadId=&id=[&exp=&sig=]`: the bytes, with `Range`
  *   support. A signed request needs no `authorize`, and a bad or expired
  *   signature is 403.
+ * - `GET  .../sessions?limit=&cursor=&parentThreadId=`: one page of the
+ *   session index, newest first. Only the sessions of this principal that
+ *   `canAccess` lets in. Default: top-level sessions only.
+ * - `POST .../sessions`: change a session of this principal. The body is
+ *   `{ op: 'rename', threadId, title }`, `{ op: 'delete', threadId }` (it
+ *   removes the index entry only), or `{ op: 'fork', threadId, before }` or
+ *   `{ op: 'fork', threadId, through }` with a message id. Rename and fork
+ *   answer with the entry, delete with 204. 403 when `canAccess` refuses
+ *   the thread, 404 for a thread this principal does not own, and 409
+ *   (`other_harness`) for a fork of a thread that another harness runs.
+ * - `GET  .../host-events`: the `host.events()` of this principal as SSE:
+ *   status changes and session index changes. First the current status of
+ *   each open session. Only the threads that `canAccess` lets in and that
+ *   this principal owns in the session index, so it needs `stores.sessions`.
  *
  * Each chat input runs as the principal that `authorize` returned for its
  * request, not as the one that opened the session first.
@@ -378,29 +462,31 @@ export function createHarnessHandler(
           request.headers.get('Last-Event-ID') ??
           url.searchParams.get('from') ??
           undefined
-        // Stops when the client cancels the response stream.
-        const reader = new AbortController()
-        const body = new ReadableStream<Uint8Array>({
-          cancel: () => reader.abort(),
-          async start(controller) {
-            try {
-              for await (const entry of session.events({
-                ...(from ? { from } : {}),
-                signal: reader.signal,
-              })) {
-                const frame: HostFrame = { type: 'harness.event', ...entry }
-                controller.enqueue(
-                  encoder.encode(
-                    `id: ${entry.cursor}\ndata: ${JSON.stringify(frame)}\n\n`,
-                  ),
-                )
-              }
-            } finally {
-              if (!reader.signal.aborted) controller.close()
-            }
-          },
+        return sseResponse(async function* (signal) {
+          const events = session.events({ ...(from ? { from } : {}), signal })
+          for await (const entry of events) {
+            const frame: HostFrame = { type: 'harness.event', ...entry }
+            yield { id: entry.cursor, data: frame }
+          }
         })
-        return new Response(body, { headers: SSE_HEADERS })
+      }
+
+      if (request.method === 'GET' && route === 'host-events') {
+        // The same rule as `POST sessions`: `canAccess`, and the owner in
+        // the index. A deleted entry comes with the event.
+        const mayWatch = async (event: HostEvent) => {
+          if (!(await canAccess(principal, event.threadId))) return false
+          const entry =
+            event.type === 'status'
+              ? await host.sessions.get(event.threadId)
+              : event.entry
+          return entry !== undefined && isOwnedBy(entry, principal)
+        }
+        return sseResponse(async function* (signal) {
+          for await (const event of host.events({ signal })) {
+            if (await mayWatch(event)) yield { data: event }
+          }
+        })
       }
 
       if (request.method === 'POST' && route === 'control') {
@@ -434,7 +520,7 @@ export function createHarnessHandler(
         return json(
           route === 'transcript'
             ? await session.transcript()
-            : session.describe(),
+            : describeForClient(harness, session),
         )
       }
 
@@ -444,6 +530,60 @@ export function createHarnessHandler(
         const session = await openFor(principal, threadId)
         if (!session) return json({ error: 'forbidden' }, 403)
         return json(session.snapshot())
+      }
+
+      if (request.method === 'GET' && route === 'sessions') {
+        const limit = url.searchParams.get('limit')
+        const cursor = url.searchParams.get('cursor')
+        const parentThreadId = url.searchParams.get('parentThreadId')
+        const isBadLimit =
+          limit !== null &&
+          !(Number.isInteger(Number(limit)) && Number(limit) > 0)
+        if (isBadLimit)
+          return json({ error: 'limit must be a positive integer' }, 400)
+        // The store keeps only this principal's entries. `canAccess` can
+        // still refuse some of them.
+        const page = await host.sessions.list({
+          principal,
+          ...(limit ? { limit: Number(limit) } : {}),
+          ...(cursor ? { cursor } : {}),
+          ...(parentThreadId ? { parentThreadId } : {}),
+        })
+        const allowed = await Promise.all(
+          page.entries.map(async (entry) =>
+            canAccess(principal, entry.threadId),
+          ),
+        )
+        return json({
+          ...page,
+          entries: page.entries.filter((_entry, index) => allowed[index]),
+        })
+      }
+
+      if (request.method === 'POST' && route === 'sessions') {
+        const op = parseSessionOp(await request.json())
+        if (!op) return json({ error: 'not a valid sessions op' }, 400)
+        if (!(await canAccess(principal, op.threadId)))
+          return json({ error: 'forbidden' }, 403)
+        // The session of another user answers as a missing one, so its
+        // thread id tells the caller nothing.
+        const entry = await host.sessions.get(op.threadId)
+        if (!entry || !isOwnedBy(entry, principal))
+          return json({ error: 'not found' }, 404)
+        switch (op.op) {
+          case 'rename': {
+            const renamed = await host.sessions.rename(op.threadId, op.title)
+            return renamed ? json(renamed) : json({ error: 'not found' }, 404)
+          }
+          case 'delete':
+            await host.sessions.delete(op.threadId)
+            return new Response(null, { status: 204 })
+          case 'fork':
+            // The host can run more harnesses than this handler serves.
+            if (entry.harness !== undefined && entry.harness !== harness.name)
+              return json({ error: 'other_harness' }, 409)
+            return json(await host.sessions.fork(harness, op.threadId, op.at))
+        }
       }
 
       if (request.method === 'POST' && route === 'media') {

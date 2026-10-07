@@ -25,7 +25,7 @@ import { openaiText } from '@tanstack/ai-openai'
 
 export const assistant = defineHarness({
   name: 'acme/assistant',
-  adapter: openaiText('gpt-5.6'),
+  adapter: openaiText('gpt-6.1-sol'),
 })
 
 const host = createHarnessHost({ persistence: memoryPersistence() })
@@ -40,7 +40,10 @@ export async function branch(threadId: string, messageId: string) {
 }
 ```
 
-`at` is the id of the last message to copy. Without `at`, the fork copies the whole transcript. The message ids stay the same, so `at` points at the same message in both threads.
+`at` is the id of the last message to copy. The message ids stay the same, so `at` points at the same message in both threads.
+
+- Without `at`, the fork copies the whole transcript.
+- With `at: null`, the fork copies no messages. It still copies the settings and the plugin config, so the new thread starts empty with the same setup.
 
 The fork copies:
 
@@ -52,33 +55,46 @@ The fork does not copy plugin state, pending interrupts, queued inputs, running 
 
 If a thread waits for an approval, fork it at a message before the tool call. A fork of the whole transcript copies the tool call, but the fork has no interrupt to answer it.
 
-The handler has no fork route. Call `host.fork` from your own route, then open the new thread on the client:
+## Fork before or through a message
+
+A user edits an earlier message and sends it again. The fork must stop before that message. `host.sessions.fork` takes the cut as `{ before: id }` or `{ through: id }`, and it writes the new thread into the [session index](./sessions):
+
+```ts group=harness-fork-and-reset
+export async function editAndResend(threadId: string, messageId: string, text: string) {
+  const entry = await host.sessions.fork(assistant, threadId, { before: messageId })
+  const fork = await host.open(assistant, { threadId: entry.threadId })
+  await fork.prompt(text)
+  return entry.threadId
+}
+```
+
+- `{ before: id }` copies the messages before `id`. Before the first message, the fork has no messages, but it keeps the settings.
+- `{ through: id }` copies the messages up to and including `id`, as `at` does.
+- The host picks the new thread id. The new index entry has the title of the old one plus ` (fork)`, and the same owner.
+- `host.sessions.fork` calls `host.fork`, so it copies the same things as `host.fork`.
+
+## Fork from the client
+
+The handler forks with `POST sessions` and the body `{ op: 'fork', threadId, before }` or `{ op: 'fork', threadId, through }`. The client calls it with `forkSession`, then opens the new thread:
 
 ```ts group=harness-fork-and-reset-client
 import { createHarnessClient } from '@tanstack/ai-harness/client'
 import type { assistant } from './harness'
 
-// The new thread id comes from your route that calls host.fork.
-const response = await fetch('/api/branch', {
-  method: 'POST',
-  body: JSON.stringify({ threadId: 'support-1', messageId: 'msg-7' }),
+const client = createHarnessClient<typeof assistant>({
+  url: '/api/harness',
+  threadId: 'support-1',
 })
-const body: unknown = await response.json()
-if (
-  typeof body !== 'object' ||
-  body === null ||
-  !('threadId' in body) ||
-  typeof body.threadId !== 'string'
-) {
-  throw new Error('The branch route sent no thread id.')
-}
+const entry = await client.forkSession('support-1', { through: 'msg-7' })
 
 const branch = createHarnessClient<typeof assistant>({
   url: '/api/harness',
-  threadId: body.threadId,
+  threadId: entry.threadId,
 })
 await branch.prompt('Try a shorter answer.')
 ```
+
+The route needs `stores.sessions` on the host. A user can fork only a thread that the user owns in the index. For another thread, the handler answers `404`. For a thread that another harness of the host runs, it answers `409` with `{ error: 'other_harness' }`.
 
 ## Reset with a handoff note
 
@@ -114,5 +130,6 @@ What the reset does:
 ## What you have now
 
 - A branch of a thread at any message, with its settings and media.
+- A fork from the browser, before or through a message.
 - A fresh model context with a handoff note, and the whole history in the transcript.
 - A marker in the transcript that your UI can show as a line.

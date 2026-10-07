@@ -71,6 +71,23 @@ test.describe('harness session', () => {
     expect(body.text).toBe('The waiter stopped before it finished.')
   })
 
+  test('a sweep resumes the work of a stopped host, and nobody opens the thread', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const response = await request.post('/api/harness-test', {
+      data: { scenario: 'sweep-restart', testId, aimockPort },
+    })
+    expect(response.ok()).toBe(true)
+    const body = await response.json()
+    expect(body.resumed).toEqual([
+      { threadId: 'e2e-sweep', harness: 'e2e/harness-sweep' },
+    ])
+    expect(body.status).toBe('failed')
+    expect(body.text).toBe('The waiter stopped before it finished.')
+  })
+
   test('a resumable background agent continues on the next host, and its step runs once', async ({
     request,
     testId,
@@ -133,6 +150,52 @@ test.describe('harness session', () => {
     expect(await response.json()).toEqual({
       text: 'Removed b.txt after the restart.',
       removed: 1,
+    })
+  })
+
+  test('permissions() in plan mode deny the write of a subagent', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const response = await request.post('/api/harness-test', {
+      data: { scenario: 'plan-subagent', testId, aimockPort },
+    })
+    expect(response.ok()).toBe(true)
+    expect(await response.json()).toEqual({
+      writes: 0,
+      results: [{ error: 'This tool is not allowed in plan mode.' }],
+      text: 'The writer could not write in plan mode.',
+    })
+  })
+
+  test("toolExecution: 'sequential' starts the second tool after the first ends", async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const response = await request.post('/api/harness-test', {
+      data: { scenario: 'tools-sequential', testId, aimockPort },
+    })
+    expect(response.ok()).toBe(true)
+    expect(await response.json()).toEqual({
+      log: ['start:first', 'end:first', 'start:second', 'end:second'],
+      text: 'Both steps ran.',
+    })
+  })
+
+  test("toolExecution: 'parallel' starts the second tool while the first runs", async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const response = await request.post('/api/harness-test', {
+      data: { scenario: 'tools-parallel', testId, aimockPort },
+    })
+    expect(response.ok()).toBe(true)
+    expect(await response.json()).toEqual({
+      log: ['start:first', 'start:second', 'end:second', 'end:first'],
+      text: 'Both steps ran.',
     })
   })
 })

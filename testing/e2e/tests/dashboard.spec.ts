@@ -65,6 +65,39 @@ function echoAdapter(): AnyTextAdapter {
   }
 }
 
+/** Start a dashboard, and pair a host that lists no threads with it. */
+async function pairedHost(allowRemoteStart: boolean) {
+  const dashboard = await startDashboard({ port: 0 })
+  const owner = {
+    Authorization: `Bearer ${dashboard.ownerToken}`,
+    'Content-Type': 'application/json',
+  }
+  const host = createHarnessHost({ persistence: memoryPersistence() })
+  const connection = await connectDashboard({
+    host,
+    harness: defineHarness({ name: 'acme/open-demo', adapter: echoAdapter() }),
+    url: dashboard.url,
+    allowRemoteStart,
+    onPairingCode: (code) =>
+      void fetch(`${dashboard.url}/api/pair/approve`, {
+        method: 'POST',
+        headers: owner,
+        body: JSON.stringify({ code }),
+      }),
+  })
+  return {
+    host,
+    url: dashboard.url,
+    owner,
+    pageUrl: `${dashboard.url}/#token=${dashboard.ownerToken}`,
+    close: async () => {
+      connection.close()
+      await host.close()
+      await dashboard.close()
+    },
+  }
+}
+
 test.describe('dashboard', () => {
   test('a paired host shows up, and a prompt from a phone reaches it', async ({
     page,
@@ -119,6 +152,69 @@ test.describe('dashboard', () => {
       connection.close()
       await host.close()
       await dashboard.close()
+    }
+  })
+
+  test('a thread opened from a host row gets a message and answers', async ({
+    page,
+  }) => {
+    const { host, pageUrl, close } = await pairedHost(true)
+    try {
+      // The host refuses an input that comes before it attaches the thread.
+      const attached = (async () => {
+        for await (const event of host.events())
+          if (event.type === 'status' && event.threadId === 'fresh') return
+      })()
+      await page.goto(pageUrl)
+      await page.getByRole('textbox', { name: 'Thread id' }).fill('fresh')
+      await page.getByRole('button', { name: 'Open', exact: true }).click()
+      await expect(page.getByRole('heading', { name: 'fresh' })).toBeVisible()
+      await attached
+
+      await page.getByPlaceholder('Send a message').fill('hello from the view')
+      await page.getByRole('button', { name: 'Send' }).click()
+      await expect(
+        page.getByText('You said: hello from the view'),
+      ).toBeVisible()
+    } finally {
+      await close()
+    }
+  })
+
+  test('a host without allowRemoteStart has no open form, and a later view shows its refusal', async ({
+    page,
+  }) => {
+    const { url, owner, pageUrl, close } = await pairedHost(false)
+    try {
+      // The host refuses an input to a thread it did not open, before any
+      // view of the thread is open.
+      const [{ hostId }] = await (
+        await fetch(`${url}/api/hosts`, { headers: owner })
+      ).json()
+      await fetch(`${url}/api/sessions/${hostId}/fresh/input`, {
+        method: 'POST',
+        headers: owner,
+        body: JSON.stringify({ input: { op: 'prompt', message: 'hello' } }),
+      })
+      await expect
+        .poll(async () =>
+          (await fetch(`${url}/api/sessions`, { headers: owner })).json(),
+        )
+        .toMatchObject([{ threadId: 'fresh' }])
+
+      await page.goto(pageUrl)
+      await expect(
+        page.getByText('acme/open-demo (acme/open-demo)'),
+      ).toBeVisible()
+      await expect(
+        page.getByRole('textbox', { name: 'Thread id' }),
+      ).toHaveCount(0)
+      await page.getByRole('button', { name: /fresh/ }).click()
+      await expect(
+        page.getByText('Refused: remote_start_disabled'),
+      ).toBeVisible()
+    } finally {
+      await close()
     }
   })
 })

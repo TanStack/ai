@@ -16,6 +16,7 @@ import {
 import {
   after,
   gate,
+  hideSecret,
   messageTexts,
   mockAdapter,
   text,
@@ -732,6 +733,32 @@ describe('joins without a log', () => {
 
     await turn
     expect(messageTexts(calls[1]).slice(-2)).toEqual(['more', 'hook'])
+    await host.close()
+  })
+
+  it('keeps the model context that an earlier middleware set, with the steer', async () => {
+    const release = gate()
+    const { adapter, calls } = mockAdapter([
+      after(release.opened, 'first'),
+      () => text('second'),
+    ])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/steer-context',
+        adapter,
+        middleware: [hideSecret],
+      }),
+      { threadId: 't-context' },
+    )
+
+    const turn = session.prompt('secret')
+    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await session.prompt('more', { busy: 'steer' }).receipt
+    release.open()
+    await turn
+
+    expect(messageTexts(calls[1])).toEqual(['[hidden]', 'first', 'more'])
     await host.close()
   })
 

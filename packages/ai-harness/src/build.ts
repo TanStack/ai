@@ -155,7 +155,10 @@ export async function buildHarness(options: BuildHarnessOptions): Promise<{
         '{}',
     )
     const names = described.plugins.map((plugin) => plugin.name)
-    const usesWorkspace = names.includes('tanstack/workspace-tools')
+    // Snapshots run git in the workspace, like the workspace tools.
+    const usesWorkspace =
+      names.includes('tanstack/workspace-tools') ||
+      names.includes('tanstack/snapshots')
     const manifest: HarnessManifestV1 = {
       format: 'tanstack-ai-harness',
       version: 1,

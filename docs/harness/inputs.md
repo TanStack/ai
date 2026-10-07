@@ -2,7 +2,7 @@
 title: Send inputs safely
 id: harness-inputs
 order: 4
-description: "Give each prompt your own id, so a network retry does not run it twice, and ask the session how an input ended, also after a restart."
+description: "Give each prompt your own id, so a network retry does not run it twice. Ask the session how an input ended, and cancel or move a message that waits."
 keywords:
   - tanstack ai
   - harness
@@ -10,6 +10,8 @@ keywords:
   - idempotency
   - settled
   - steer
+  - cancelInput
+  - setDelivery
 ---
 
 A network retry can send the same prompt twice, and a client that reconnects does not know how its last prompt ended. Give each input your own id. A retry with the same id runs nothing again, and the session tells you how the input ended.
@@ -25,7 +27,7 @@ import { openaiText } from '@tanstack/ai-openai'
 
 const assistant = defineHarness({
   name: 'acme/assistant',
-  adapter: openaiText('gpt-5.6'),
+  adapter: openaiText('gpt-6.1-sol'),
 })
 const host = createHarnessHost({
   persistence: {
@@ -119,6 +121,45 @@ Waiting `steer` inputs join before each model call, in the order they arrived. T
 
 To choose which inputs join, or to add records when they join, see [Choose which messages join a turn](./turn-control#choose-which-messages-join-a-turn).
 
+## Cancel or move a waiting message
+
+A user sends two more messages while a turn runs. Before they run, the user wants to cancel one, and wants the other to reach the running turn now. `session.inputs()` lists the inputs that wait. `cancelInput` cancels one, and `setDelivery` moves one:
+
+```ts group=harness-inputs
+const migration = session.prompt('Plan the migration.', { inputId: 'req-45' })
+// The turn runs, so these two wait for their own turns.
+await session.followUp('Then write the tests.', { inputId: 'req-46' })
+await session.followUp('Use tabs, not spaces.', { inputId: 'req-47' })
+
+for (const input of session.inputs()) {
+  console.log(input.inputId, input.delivery, input.message)
+}
+
+await session.cancelInput('req-46')
+await session.setDelivery('req-47', 'steer')
+await migration
+```
+
+- `inputs()` lists the inputs in the order they run: first the steers for the running turn, then the queued turns.
+- `delivery: 'steer'`: the input joins the running turn at the next model call. `'queue'`: it runs as its own turn, after the turns before it.
+- A cancelled input never runs, also after a restart. It settles `aborted`.
+- On a durable host, the log keeps a new delivery, and a restart obeys it. Without a log, the delivery stays in memory.
+- If the input started, or joins the running turn now, the receipt has `status: 'rejected'` and `reason: 'not_waiting'`. To stop it, cancel its operation with `session.cancel(operationId)`.
+
+A client reads the waiting inputs from the snapshot, and sends the same two inputs:
+
+```ts group=harness-inputs-client
+const { waitingInputs = [] } = await client.snapshot()
+for (const input of waitingInputs) {
+  console.log(input.inputId, input.delivery)
+}
+
+await client.cancelInput('req-46')
+await client.setDelivery('req-47', 'steer')
+```
+
+Over `POST control`, they are `{ op: 'cancelInput', inputId }` and `{ op: 'setDelivery', inputId, delivery }`. In these two inputs, `inputId` is the id of the input that waits. A move sends a `harness.input.delivery` event with `inputId` and `delivery`, so every client can update its list.
+
 ## Send context with a message
 
 Your tools often need to know what the user looks at: the open record, the page, or the locale. Send it as the `context` of the input. The session stores it with the input, so a turn that runs again after a restart gets the same value.
@@ -144,7 +185,7 @@ const openRecord = toolDefinition({
 
 const records = defineHarness({
   name: 'acme/records',
-  adapter: openaiText('gpt-5.6'),
+  adapter: openaiText('gpt-6.1-sol'),
   tools: [openRecord],
 })
 const recordSession = await host.open(records, { threadId: 'user-1-records' })
@@ -183,4 +224,5 @@ On `POST run`, the AG-UI `forwardedProps` of the request are the `context`, for 
 - Retries that never run a prompt twice.
 - The outcome of each input by its id, also after a restart.
 - Messages that join a running turn in order.
+- Waiting messages that a user can cancel, or move into the running turn.
 - Context from the client that tools read, also after a restart.

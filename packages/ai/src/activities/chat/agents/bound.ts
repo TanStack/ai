@@ -13,8 +13,12 @@ import { rerank } from '../../rerank/index'
 import { decide } from '../../evaluate/index'
 import type { GenerationMiddleware } from '../../middleware/types'
 import type { AnyChatMiddleware } from '../middleware/types'
-import type { PromptCacheRetention, RunAgentResumeItem } from '../../../types'
-import type { SubagentRunInput } from './define-agent'
+import type {
+  ContentPart,
+  PromptCacheRetention,
+  RunAgentResumeItem,
+} from '../../../types'
+import type { DefinedAgent, SubagentRunInput } from './define-agent'
 import type { SubagentBudget } from './limits'
 import type { ProviderKeys } from '../../../byok/keyed'
 
@@ -47,6 +51,45 @@ export interface AgentStep {
 }
 
 /**
+ * An agent run that `ctx.agents.start` started in the background. Await it
+ * for the run's result.
+ */
+export interface AgentRunHandle<
+  TResult = unknown,
+> extends PromiseLike<TResult> {
+  readonly id: string
+  /**
+   * Add a message to the run: `'steer'` (default) for its next model call,
+   * or `'followUp'` to run the agent again after the run ends. The host
+   * decides the details.
+   */
+  send: (
+    message: string | Array<ContentPart>,
+    options?: { mode?: 'steer' | 'followUp'; inputId?: string },
+  ) => Promise<unknown>
+  /** Stop the run. */
+  cancel: () => Promise<unknown>
+}
+
+/** `ctx.agents`: start agents in the background. A host gives it. */
+export interface AgentStarter {
+  /**
+   * Start `agent` (a definition, or a name the host knows) in the
+   * background, and return its run at once. Throws when the host refuses
+   * it, for example over the subagent tree budget.
+   */
+  start: (
+    agent: DefinedAgent | string,
+    input?: unknown,
+    options?: {
+      wake?: boolean
+      attach?: 'reference' | 'none'
+      resume?: boolean
+    },
+  ) => AgentRunHandle
+}
+
+/**
  * What a host (for example a harness session) adds to every activity call an
  * agent makes through `ctx`. Apps using plain `chat({ subagents })` do not set
  * it.
@@ -58,6 +101,12 @@ export interface SubagentBinding {
    * time.
    */
   step?: AgentStep
+  /**
+   * What the agent reads as `ctx.agents`: it starts agents in the
+   * background. Only this agent run gets it, not the children it starts in
+   * a `ctx.chat({ subagents })`. Without it, `ctx.agents.start` throws.
+   */
+  agents?: AgentStarter
   /**
    * Added before the call's own middleware on every `ctx.chat` call. A
    * child's `ctx.chat({ subagents })` passes it down to its own children.
@@ -84,6 +133,21 @@ export interface SubagentBinding {
    * uses it when the call gives no `promptCache`.
    */
   promptCache?: PromptCacheRetention
+  /**
+   * Starts a child without waiting for it and returns its id at once. The
+   * single `subagent` tool calls it for `background: true`. With
+   * `wake: true`, the host starts a new parent turn when the child ends. A
+   * harness session sets it. It does not pass down to nested children.
+   */
+  start?: (
+    call: {
+      agent: string
+      input?: unknown
+      prompt?: string
+      parentToolCallId?: string
+    },
+    options: { wake: true },
+  ) => Promise<{ subagentRunId: string }>
 }
 
 /**

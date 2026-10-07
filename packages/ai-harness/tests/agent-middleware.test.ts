@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { EventType, defineAgent } from '@tanstack/ai'
+import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin } from '../src'
-import { usage } from '../src/first-party'
+import { permissions, usage } from '../src/first-party'
 import { mockAdapter, text, toolCall } from './helpers'
 import type { AnyChatMiddleware, StreamChunk } from '@tanstack/ai'
 import type { AnyHarness, PluginLifetime } from '../src'
@@ -204,6 +204,48 @@ describe('plugin agentMiddleware', () => {
     expect(session.snapshot().plugins['tanstack/usage']).toMatchObject({
       contextTokens: 2,
     })
+    await host.close()
+  })
+
+  it('lets permissions() deny a write a subagent tries in plan mode', async () => {
+    const writes: Array<unknown> = []
+    const writeFile = toolDefinition({
+      name: 'write_file',
+      description: 'Write a file',
+    }).server(async (args) => {
+      writes.push(args)
+      return 'written'
+    })
+    const writerModel = mockAdapter([
+      () => toolCall('write_file', { path: 'x.txt' }),
+      () => text('writer done'),
+    ])
+    const writer = defineAgent({
+      name: 'writer',
+      description: 'Writes files',
+      run: (ctx) =>
+        ctx.chat({ adapter: writerModel.adapter, tools: [writeFile] }),
+    })
+    const { host, session } = await open(
+      defineHarness({
+        name: 'test/agent-middleware',
+        adapter: leadCalling('writer'),
+        subagents: { agents: [writer] },
+        plugins: () => [
+          permissions({
+            rules: [{ tool: 'write_file', decision: 'ask', kind: 'edit' }],
+          }),
+        ],
+      }),
+    )
+    await session.command('mode', 'plan')
+
+    await session.prompt('write it')
+
+    expect(writes).toEqual([])
+    expect(JSON.stringify(writerModel.calls[1].messages)).toContain(
+      'This tool is not allowed in plan mode.',
+    )
     await host.close()
   })
 })

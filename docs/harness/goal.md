@@ -19,7 +19,8 @@ The `goal()` plugin keeps the harness working. You give the goal one time. After
 
 ```ts group=harness-goal
 import { defineHarness } from '@tanstack/ai-harness'
-import { goal, permissions, workspaceTools } from '@tanstack/ai-harness/plugins'
+import { goal, permissions } from '@tanstack/ai-harness/plugins'
+import { workspaceTools } from '@tanstack/ai-harness/plugins/coding'
 import { openaiText } from '@tanstack/ai-openai'
 
 const root = process.cwd()

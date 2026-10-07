@@ -13,6 +13,7 @@ import type {
   SessionViewState,
   SignIn,
   ToolCallPart,
+  ViewAgent,
   ViewMessage,
   ViewPart,
   ViewQuestion,
@@ -43,6 +44,7 @@ export interface ItemFactory {
   question: (
     question: SessionSnapshot['pendingQuestions'][number],
   ) => ViewQuestion
+  agent: (operation: { id: string; name: string }) => ViewAgent
 }
 
 /** The state of a view before it reads anything from its session. */
@@ -58,6 +60,7 @@ export function emptyState(): SessionViewState {
     signIns: [],
     agents: [],
     queuedTurns: 0,
+    waitingInputs: [],
     commands: [],
     config: [],
     tools: [],
@@ -148,6 +151,10 @@ function resetNotice(note: unknown) {
     ? `The context was reset. The model starts from this note: ${note}`
     : 'The context was reset. The model sees only what comes after this.'
 }
+
+/** The notice text for a refused input. */
+export const notAccepted = (reason: unknown) =>
+  `Not accepted: ${String(reason ?? 'unknown reason')}`
 
 /** Add a notice line at the end of the messages. */
 export function withNotice(
@@ -478,11 +485,7 @@ export function applyEvent(
       : signedIn
   }
   if (event.name === HARNESS_EVENTS.inputRejected)
-    return withNotice(
-      state,
-      'rejected',
-      `Not accepted: ${String(value.reason ?? 'unknown reason')}`,
-    )
+    return withNotice(state, 'rejected', notAccepted(value.reason))
   if (event.name === HARNESS_EVENTS.reset)
     return withNotice(state, 'info', resetNotice(value.note))
   if (
@@ -577,10 +580,10 @@ function signInOf(interrupt: Interrupt): SignIn | undefined {
 }
 
 /**
- * Take status, approvals, client tools, questions, and background agents
- * from a snapshot. Plugin state is taken only for the first snapshot. Later
- * changes come as `STATE_SNAPSHOT` events. Returns `state` when nothing
- * changes.
+ * Take status, approvals, client tools, questions, background agents, and
+ * waiting inputs from a snapshot. Plugin state is taken only for the first
+ * snapshot. Later changes come as `STATE_SNAPSHOT` events. Returns `state`
+ * when nothing changes.
  */
 export function applySnapshot(
   state: SessionViewState,
@@ -637,11 +640,22 @@ export function applySnapshot(
       .filter((operation) => operation.kind === 'agent')
       .map(
         (operation) =>
-          state.agents.find((item) => item.id === operation.id) ?? {
+          state.agents.find((item) => item.id === operation.id) ??
+          factory.agent({
             id: operation.id,
             name: operation.agent ?? 'agent',
-          },
+          }),
       ),
+  )
+  const waitingInputs = keep(
+    state.waitingInputs,
+    (snapshot.waitingInputs ?? []).map(
+      (input) =>
+        state.waitingInputs.find(
+          (item) =>
+            item.inputId === input.inputId && item.delivery === input.delivery,
+        ) ?? input,
+    ),
   )
   const waiting = new Set(
     approvals.flatMap((item) => (item.toolCallId ? [item.toolCallId] : [])),
@@ -652,6 +666,7 @@ export function applySnapshot(
     snapshot.threadId === state.threadId &&
     snapshot.status === state.status &&
     snapshot.queuedTurns === state.queuedTurns &&
+    waitingInputs === state.waitingInputs &&
     approvals === state.approvals &&
     clientTools === state.clientTools &&
     signIns === state.signIns &&
@@ -665,6 +680,7 @@ export function applySnapshot(
     threadId: snapshot.threadId,
     status: snapshot.status,
     queuedTurns: snapshot.queuedTurns,
+    waitingInputs,
     approvals,
     clientTools,
     signIns,

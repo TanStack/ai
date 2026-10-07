@@ -58,6 +58,9 @@
     "packages/ai-sandbox-cloudflare": {
       "ignoreDependencies": ["cloudflare"]
     },
+    "packages/ai-vertex": {
+      "ignoreDependencies": ["zod"]
+    },
     "packages/ai-react": {
       "ignoreDependencies": ["@mcp-ui/client", "react-dom"]
     },

@@ -11,6 +11,7 @@ import {
   emptyState,
   keep,
   messagesFromTranscript,
+  notAccepted,
   withNotice,
   withUserMessage,
 } from './reduce'
@@ -48,7 +49,7 @@ export {
   mediaOfMessage,
   mediaPart,
 } from '../media-ref'
-export type { MediaKind, MediaRecord } from '../types'
+export type { MediaKind, MediaRecord, WaitingInput } from '../types'
 export type {
   AgentPart,
   Approval,
@@ -59,6 +60,7 @@ export type {
   SignIn,
   ToolCallPart,
   ToolCallStatus,
+  ViewAgent,
   ViewCommand,
   ViewConfigEntry,
   ViewMessage,
@@ -78,6 +80,12 @@ export interface SessionViewSource {
   answer: (questionId: string, value: unknown) => Promise<Receipt>
   command: (name: string, input?: unknown) => unknown
   setConfig: (key: string, value: unknown) => Promise<Receipt>
+  /** Send a message to an agent run. Without it, an agent's `send` rejects. */
+  sendToAgent?: (
+    operationId: string,
+    message: UserInput,
+    options?: { mode?: 'steer' | 'followUp' },
+  ) => Promise<Receipt>
   events: (options: {
     from?: Cursor
     signal?: AbortSignal
@@ -174,6 +182,20 @@ function changesSnapshot(entry: SessionEvent) {
   )
 }
 
+/**
+ * A receipt that `applyInput` refused before the session saw the input. The
+ * session reports its own refusals with a `harness.input.rejected` event, so
+ * the view shows only this one from the receipt.
+ */
+function isNotExposed(value: unknown) {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'reason' in value &&
+    value.reason === 'not_exposed'
+  )
+}
+
 function isOperation(value: unknown): value is PromiseLike<unknown> {
   return (
     typeof value === 'object' &&
@@ -253,6 +275,13 @@ export function createSessionView(source: SessionViewSource) {
     commit(withNotice(get(), 'error', message))
     emit('error', message)
   }
+  /** Show a refused receipt that no event reports. See `isNotExposed`. */
+  const refused = (result: unknown) => {
+    if (disposed || !isNotExposed(result)) return
+    const text = notAccepted('not_exposed')
+    commit(withNotice(get(), 'rejected', text))
+    emit('error', text)
+  }
   const alive = () => {
     if (disposed) throw new Error('The session view is disposed.')
   }
@@ -262,7 +291,7 @@ export function createSessionView(source: SessionViewSource) {
       result.then(undefined, () => {})
       return
     }
-    Promise.resolve(result).then(undefined, fail)
+    Promise.resolve(result).then(refused, fail)
   }
 
   const fetchUrl = async (id: string) => {
@@ -420,6 +449,22 @@ export function createSessionView(source: SessionViewSource) {
         return source.answer(question.questionId, value)
       },
     }),
+    agent: (operation) => ({
+      ...operation,
+      send: (message, mode) => {
+        alive()
+        if (!source.sendToAgent) {
+          return Promise.reject(
+            new Error('This view source cannot send messages to agents.'),
+          )
+        }
+        return source.sendToAgent(
+          operation.id,
+          message,
+          mode ? { mode } : undefined,
+        )
+      },
+    }),
   }
 
   const takeSnapshot = (snapshot: SessionSnapshot, initial = false) => {
@@ -487,10 +532,7 @@ export function createSessionView(source: SessionViewSource) {
           : {}
       const operationId = String(value.operationId)
       if (event.name === HARNESS_EVENTS.inputRejected)
-        emit(
-          'error',
-          `Not accepted: ${String(value.reason ?? 'unknown reason')}`,
-        )
+        emit('error', notAccepted(value.reason))
       if (
         event.name === HARNESS_EVENTS.pluginEvent &&
         typeof value.name === 'string'
@@ -591,7 +633,7 @@ export function createSessionView(source: SessionViewSource) {
       commit(withUserMessage(get(), line, attachments))
       const message = userInput(line, attachments)
       if (get().status === 'running') {
-        await source.steer(message).then(undefined, fail)
+        await source.steer(message).then(refused, fail)
         return
       }
       settle(source.prompt(message))
@@ -602,7 +644,7 @@ export function createSessionView(source: SessionViewSource) {
     },
     setConfig: async (key, value) => {
       alive()
-      await source.setConfig(key, value).then(undefined, fail)
+      await source.setConfig(key, value).then(refused, fail)
     },
     cancel: async () => {
       alive()

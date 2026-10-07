@@ -176,12 +176,13 @@ withCompaction({
 | `strategy` | `CompactionStrategy` | `evictOldest()` | How to shrink the messages. |
 | `estimateTokens` | `(message: ModelMessage) => number` | characters / 4 | Per-message token estimate. Pass a real tokenizer if you need exact counts. |
 | `strategyKey` | `string` | built-in strategy identity | Stable checkpoint identity. Set it for custom strategies, custom estimators, or a custom eviction marker. Change it when your `summarize` function can change. |
-| `onCompact` | `(info: CompactionInfo) => void` | - | Runs after each compaction. `info` is `{ before, after, messagesBefore, messagesAfter, reason, usage, error }`. `error` is set only when the check after a harness turn fails. |
+| `onCompact` | `(info: CompactionInfo) => void` | - | Runs after each compaction. `info` is `{ before, after, messagesBefore, messagesAfter, reason, usage, error, stale }`. `error` is set when the check after a harness turn fails or a background summary fails. `stale` is set when a background summary no longer fits. |
 | `countTokens` | `'estimate' \| 'usage'` | `'estimate'` | `'usage'` counts with the usage the provider reported for the last call. See [Count with real usage](#count-with-real-usage). |
 | `auto` | `boolean` | `true` | `false` turns off compaction at `maxTokens`. `compactNext` and the overflow check still run. |
 | `contextWindow` | `number` | - | The model's context window. With `countTokens: 'usage'` and `durable: true` in a harness with a log, compaction also runs after a turn whose usage passed it, even with `auto: false`. |
 | `durable` | `boolean` | `false` | In a harness with a log, write the result into the session log. See [Compact a harness session](../harness/compaction). |
 | `continueOnError` | `boolean` | `false` | When the strategy fails, send the full messages and go on. By default the run fails. |
+| `background` | `{ atTokens: number }` | - | Prepare the summary when the count passes `atTokens`, and apply it at the next run. `atTokens` must be below `maxTokens`. See [Prepare the summary in the background](#prepare-the-summary-in-the-background). |
 
 ### Strategy options
 
@@ -259,6 +260,57 @@ const windowed = withCompaction({
 Some providers accept a request that is too large. They cut the input and answer without an error. In a [harness with a durable log](../harness/compaction), compaction with `countTokens: 'usage'` and `durable: true` checks once more after the last model call of a turn. If the usage passed `maxTokens` or `contextWindow`, it compacts right away, so the next turn starts small. With `auto: false`, only `contextWindow` counts. The answer is not sent again. The only extra model calls are the summary calls.
 
 Outside a durable harness, there is no check after a run. The next request compacts before its first model call.
+
+## Prepare the summary in the background
+
+A `summarizeOldest` call takes time. When compaction runs at `maxTokens`, the user waits for that call before the model answers. Set `background` to prepare the summary earlier, while the chat goes on:
+
+```ts group=compaction-background
+import { chat, summarize, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiSummarize, openaiText } from '@tanstack/ai-openai'
+import { summarizeOldest, withCompaction } from '@tanstack/ai-compaction'
+
+// Create it once, so a summary from one request reaches the next.
+const compaction = withCompaction({
+  maxTokens: 100_000,
+  background: { atTokens: 80_000 },
+  strategy: summarizeOldest({
+    summarize: (messages) =>
+      summarize({
+        adapter: openaiSummarize('gpt-6.1-sol'),
+        text: messages
+          .map((m) => `${m.role}: ${typeof m.content === 'string' ? m.content : ''}`)
+          .join('\n'),
+      }),
+  }),
+})
+
+export async function POST(request: Request) {
+  const { messages, threadId } = await request.json()
+
+  const stream = chat({
+    adapter: openaiText('gpt-6.1-sol'),
+    messages,
+    threadId,
+    middleware: [compaction],
+  })
+
+  return toServerSentEventsResponse(stream)
+}
+```
+
+- `atTokens` must be below `maxTokens`. If it is not, `withCompaction` throws.
+- When the count at a model call passes `atTokens`, the summary starts on a copy of the messages. The model call does not wait for it.
+- The ready summary waits in the [`metadata` store](#compaction-and-persistence), under the namespace `@tanstack/ai-compaction:background`. Without a store, it waits in memory.
+- The summary applies at the first model call of the next run on the same `threadId`, never in the middle of a run.
+- A model call over `maxTokens` while the summary runs waits for it and applies it. It compacts inline only when the messages are still over `maxTokens`. A cancel of the run stops the wait, not the summary.
+
+Sometimes a summary does not apply:
+
+- A newer compaction cut past the message that the summary keeps. The summary is dropped and reported with `stale: true`.
+- The summary call failed. Nothing applies, and the failure is reported with `error`. The next model call past `atTokens` starts a new summary.
+
+`onCompact` always gets these reports. A `compaction:ended` event for a failed summary reaches the stream only while the run that started the summary still runs.
 
 ## What it keeps safe
 
@@ -384,9 +436,10 @@ the strategy returns.
 
 `compaction:ended` also says why compaction ran and what it cost:
 
-- `reason`: `'threshold'` (the count passed `maxTokens`) or `'forced'` (`compactNext`).
+- `reason`: `'threshold'` (the count passed `maxTokens`), `'forced'` (`compactNext`), or `'background'` (a [background summary](#prepare-the-summary-in-the-background)).
 - `usage`: the token usage of the summary calls.
 - `error`: the message when the strategy failed. By default the run then fails. Set `continueOnError: true` to send the full messages instead.
+- `stale`: `true` when a ready background summary no longer fit the messages and was dropped.
 
 A compaction after the last model call of a harness turn has `reason: 'after-turn'`. The stream is closed by then, so only `onCompact` reports it. A failed strategy or `onCompact` there does not fail the turn, because the answer is complete. Only a failed write to the log fails it.
 

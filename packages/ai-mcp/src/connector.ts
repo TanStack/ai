@@ -31,7 +31,7 @@ export interface McpConnectorOptions {
    * See `MCPClientOptions.toolName`.
    */
   toolName?: MCPClientOptions['toolName']
-  /** Sent with tool lists, tool calls, resources, and prompts. See `MCPClientOptions.requestOptions`. */
+  /** Sent with the connect handshake, tool lists, tool calls, resources, and prompts. See `MCPClientOptions.requestOptions`. */
   requestOptions?: MCPClientOptions['requestOptions']
   /** OAuth scopes to ask for. Default: what the server offers. */
   scopes?: ReadonlyArray<string>

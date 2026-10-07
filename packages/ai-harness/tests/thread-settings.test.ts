@@ -13,7 +13,7 @@ import {
   defineHarness,
   definePlugin,
 } from '../src'
-import { workspaceTools } from '../src/first-party'
+import { workspaceTools } from '../src/first-party/coding'
 import { mockAdapter, text, toolCall } from './helpers'
 import type { AnyTool, ModelMessage } from '@tanstack/ai'
 import type { HarnessConfig, HarnessPersistence } from '../src'

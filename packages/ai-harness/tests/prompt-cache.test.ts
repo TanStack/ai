@@ -68,7 +68,7 @@ describe('prompt cache', () => {
     // The agent keeps its own thread as the key.
     expect(child.calls[0].promptCache).toEqual({
       retention: 'none',
-      key: 't:writer',
+      key: expect.stringMatching(/^t:writer:in-/),
     })
     await host.close()
   })

@@ -830,6 +830,14 @@ export const ANTHROPIC_MODEL_MID_CONVERSATION_CHANNELS: Readonly<
   [CLAUDE_FABLE_5_1.id]: { tools: true, systemPrompts: true },
 }
 
+/**
+ * The models with mid-conversation effort (pi 0.87.1 `supportsMidConvoEffort`):
+ * the level of each call goes into the messages. See
+ * `ModelReasoning.midConversationEffort`.
+ */
+export const ANTHROPIC_MID_CONVERSATION_EFFORT_MODELS: ReadonlySet<string> =
+  new Set([CLAUDE_FABLE_5_1.id, CLAUDE_OPUS_5.id, CLAUDE_OPUS_5_5.id])
+
 // const ANTHROPIC_IMAGE_MODELS = [] as const
 // const ANTHROPIC_EMBEDDING_MODELS = [] as const
 // const ANTHROPIC_AUDIO_MODELS = [] as const

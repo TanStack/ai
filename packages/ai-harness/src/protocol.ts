@@ -42,12 +42,15 @@ const INPUT_OPS = new Set([
   'resolve',
   'agent',
   'cancel',
+  'cancelInput',
+  'setDelivery',
   'command',
   'answer',
   'config',
   'tool',
   'configure',
   'reset',
+  'agentMessage',
 ])
 
 /** Check the shape of a client input. Throws with a short reason. */
@@ -60,7 +63,10 @@ export function parseHarnessInput(value: unknown): HarnessInput {
     throw new Error('Invalid input: expected { op } with a known op.')
   }
   const needsMessage =
-    value.op === 'prompt' || value.op === 'steer' || value.op === 'followUp'
+    value.op === 'prompt' ||
+    value.op === 'steer' ||
+    value.op === 'followUp' ||
+    value.op === 'agentMessage'
   if (
     needsMessage &&
     typeof value.message !== 'string' &&
@@ -73,6 +79,19 @@ export function parseHarnessInput(value: unknown): HarnessInput {
   }
   if (value.op === 'agent' && typeof value.agent !== 'string') {
     throw new Error('Invalid input: agent needs an agent name.')
+  }
+  if (value.op === 'agentMessage' && typeof value.operationId !== 'string') {
+    throw new Error('Invalid input: agentMessage needs an operationId.')
+  }
+  if (
+    value.op === 'agentMessage' &&
+    value.mode !== undefined &&
+    value.mode !== 'steer' &&
+    value.mode !== 'followUp'
+  ) {
+    throw new Error(
+      "Invalid input: the mode of agentMessage must be 'steer' or 'followUp'.",
+    )
   }
   if (value.op === 'command' && typeof value.name !== 'string') {
     throw new Error('Invalid input: command needs a name.')
@@ -95,6 +114,14 @@ export function parseHarnessInput(value: unknown): HarnessInput {
     throw new Error(
       'Invalid input: systemPreamble must be an array of strings.',
     )
+  }
+  const namesInput = value.op === 'cancelInput' || value.op === 'setDelivery'
+  if (namesInput && typeof value.inputId !== 'string') {
+    throw new Error(`Invalid input: ${value.op} needs an inputId.`)
+  }
+  const isDelivery = value.delivery === 'steer' || value.delivery === 'queue'
+  if (value.op === 'setDelivery' && !isDelivery) {
+    throw new Error("Invalid input: setDelivery needs 'steer' or 'queue'.")
   }
   // The session checks each field, and answers a bad one with a receipt.
   if (value.op === 'configure' && !isRecord(value.settings)) {
@@ -140,10 +167,12 @@ export function parseControlFrame(data: string): ControlFrame {
 }
 
 /**
- * Apply a client input to a session. Only agents in `expose.agents` can run
- * from a client. Resolves to the receipt. `principal` is who sent the input,
- * from your `authorize`, never from the input itself. A chat input runs with
- * its credentials.
+ * Apply a client input to a session. A client can run, or send messages to,
+ * only the agents in `expose.agents`. It can run only the commands in
+ * `expose.commands`, and change only the settings in `expose.settings` and the
+ * config keys in `expose.config`. Resolves to the receipt. `principal` is who
+ * sent the input, from your `authorize`, never from the input itself. A chat
+ * input runs with its credentials.
  */
 export async function applyInput(
   harness: AnyHarness,
@@ -160,6 +189,11 @@ export async function applyInput(
     ...('context' in input && input.context !== undefined
       ? { context: input.context }
       : {}),
+  }
+  const notExposed: Receipt = {
+    inputId: input.inputId ?? '',
+    status: 'rejected',
+    reason: 'not_exposed',
   }
   switch (input.op) {
     case 'prompt': {
@@ -185,7 +219,15 @@ export async function applyInput(
       return session.resolve(input.resume, id)
     case 'cancel':
       return session.cancel(input.operationId)
+    case 'cancelInput':
+      return session.cancelInput(input.inputId)
+    case 'setDelivery':
+      return session.setDelivery(input.inputId, input.delivery)
     case 'command': {
+      // A command can change the session, for example `/mode bypass`.
+      if (!(harness.expose?.commands ?? []).includes(input.name)) {
+        return notExposed
+      }
       const operation = session.command(
         input.name,
         input.input,
@@ -204,6 +246,9 @@ export async function applyInput(
     case 'answer':
       return session.answer(input.questionId, input.value)
     case 'config':
+      if (!(harness.expose?.config ?? []).includes(input.key)) {
+        return notExposed
+      }
       return session.setConfig(input.key, input.value)
     case 'tool': {
       // Only `public` tools may run out-of-band. Unknown or private → rejected.
@@ -231,13 +276,7 @@ export async function applyInput(
       const isExposed = Object.keys(input.settings).every((key) =>
         exposed.includes(key),
       )
-      if (!isExposed) {
-        return {
-          inputId: input.inputId ?? '',
-          status: 'rejected',
-          reason: 'not_exposed',
-        }
-      }
+      if (!isExposed) return notExposed
       return session.configure(input.settings, id)
     }
     case 'reset':
@@ -260,6 +299,50 @@ export async function applyInput(
         operationId: operation.id,
       }
     }
+    case 'agentMessage': {
+      const run = session.agentRun(input.operationId)
+      if (!run) {
+        return {
+          inputId: input.inputId ?? '',
+          status: 'rejected',
+          reason: 'not_running',
+        }
+      }
+      // Only a run of an exposed agent takes messages from a client.
+      const exposed: ReadonlyArray<string> = harness.expose?.agents ?? []
+      if (!exposed.includes(run.agent ?? '')) {
+        return {
+          inputId: input.inputId ?? '',
+          status: 'rejected',
+          reason: 'not_exposed',
+        }
+      }
+      return session.sendToAgent(input.operationId, input.message, {
+        ...id,
+        ...(input.mode ? { mode: input.mode } : {}),
+      })
+    }
+  }
+}
+
+/**
+ * What `describe` sends a client: only the commands in `expose.commands` and
+ * the config keys in `expose.config`, so a UI shows only what `applyInput`
+ * lets through. Server code reads the full `session.describe()`.
+ */
+export function describeForClient(
+  harness: AnyHarness,
+  session: HarnessSession,
+) {
+  const description = session.describe()
+  const commands: ReadonlyArray<string> = harness.expose?.commands ?? []
+  const config: ReadonlyArray<string> = harness.expose?.config ?? []
+  return {
+    ...description,
+    commands: description.commands.filter(({ name }) =>
+      commands.includes(name),
+    ),
+    config: description.config.filter(({ key }) => config.includes(key)),
   }
 }
 

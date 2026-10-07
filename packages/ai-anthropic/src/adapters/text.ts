@@ -37,6 +37,7 @@ import {
 } from '../utils/client'
 import {
   ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS,
+  ANTHROPIC_MID_CONVERSATION_EFFORT_MODELS,
   ANTHROPIC_MODEL_INPUT_MODALITIES,
   ANTHROPIC_MODEL_MID_CONVERSATION_CHANNELS,
   getAnthropicDefaultMaxTokens,
@@ -89,6 +90,7 @@ import type {
   ReasoningCapability,
   TextOptions,
   ToolCall,
+  ToolChoice,
 } from '@tanstack/ai'
 import type {
   AnthropicSystemPromptMetadata,
@@ -289,6 +291,30 @@ export function computeAnthropicBetas(
 }
 
 /**
+ * The models that reject a forced tool (`any` or a named `tool`) on every
+ * request, with or without thinking.
+ * ponytail: a hand list, because the model sync script writes model-meta.ts.
+ * Move it to a model-meta capability when that script can set one.
+ */
+const ANTHROPIC_NO_FORCED_TOOL_MODELS: ReadonlySet<string> = new Set<
+  (typeof ANTHROPIC_MODELS)[number]
+>(['claude-fable-5-1', 'claude-opus-5-5', 'claude-sonnet-5-5'])
+
+/**
+ * Maps `chat({ toolChoice })` to the Messages `tool_choice`. When the
+ * request cannot force a tool, a forced choice falls back to `auto`.
+ */
+function toAnthropicToolChoice(
+  choice: ToolChoice,
+  { canForceTool }: { canForceTool: boolean },
+) {
+  if (choice === 'none') return { type: 'none' as const }
+  if (choice === 'auto' || !canForceTool) return { type: 'auto' as const }
+  if (choice === 'required') return { type: 'any' as const }
+  return { type: 'tool' as const, name: choice.name }
+}
+
+/**
  * The tool placeholder of mid-conversation tool mode, copied from pi 0.87.1.
  * Anthropic adds hidden scaffolding once any tool has `defer_loading`. This
  * deferred tool is in every tool-mode request, so that scaffolding stays in
@@ -486,8 +512,6 @@ export class AnthropicTextAdapter<
   constructor(config: AnthropicTextAdapterConfig, model: TModel) {
     super({}, model)
     this.provider = config.provider ?? this.name
-    this.modelReasoning =
-      config.reasoning ?? ANTHROPIC_MODEL_REASONING[this.model]
     const credentials =
       'client' in config
         ? undefined
@@ -531,6 +555,16 @@ export class AnthropicTextAdapter<
       'client' in config ||
       Boolean(config.baseURL || config.fetch) ||
       envBaseURL
+    // Mid-conversation effort needs its betas too, so the adapter's own data
+    // turns it on only on Anthropic's own API. A `reasoning` config wins.
+    const ownReasoning = ANTHROPIC_MODEL_REASONING[this.model]
+    this.modelReasoning =
+      config.reasoning ??
+      (ownReasoning &&
+      !customEndpoint &&
+      ANTHROPIC_MID_CONVERSATION_EFFORT_MODELS.has(model)
+        ? { ...ownReasoning, midConversationEffort: true }
+        : ownReasoning)
     const table = ANTHROPIC_MODEL_MID_CONVERSATION_CHANNELS[model]
     const option = config.midConversationChannels
     if (typeof option === 'object') {
@@ -1028,8 +1062,30 @@ export class AnthropicTextAdapter<
       ...(outputConfig ?? {}),
     }
     validateTextProviderOptions(requestParams)
-    // Last step: the merged messages decide which message is last.
-    return applyAnthropicPromptCache(requestParams, options.promptCache)
+
+    // `chat({ toolChoice })` is sent only when the request has tools. It goes
+    // before the request spread, so a `tool_choice` in modelOptions wins. It
+    // is not in `requestParams`, because that type has no `none` choice.
+    // The API rejects a forced tool while thinking is on, and some models
+    // reject it on every request.
+    const isThinking =
+      thinkingFields.thinking !== undefined &&
+      thinkingFields.thinking.type !== 'disabled'
+    const canForceTool =
+      !isThinking && !ANTHROPIC_NO_FORCED_TOOL_MODELS.has(this.model)
+    const toolChoiceField =
+      tools?.length && options.toolChoice !== undefined
+        ? {
+            tool_choice: toAnthropicToolChoice(options.toolChoice, {
+              canForceTool,
+            }),
+          }
+        : undefined
+    return {
+      ...toolChoiceField,
+      // Last step: the merged messages decide which message is last.
+      ...applyAnthropicPromptCache(requestParams, options.promptCache),
+    }
   }
 
   /**

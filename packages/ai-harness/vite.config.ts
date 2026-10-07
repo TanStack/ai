@@ -33,6 +33,7 @@ export default mergeConfig(
       './src/client.ts',
       './src/view/index.ts',
       './src/first-party/index.ts',
+      './src/first-party/coding/index.ts',
       './src/build.ts',
       './src/worker.ts',
       './src/ag-ui.ts',

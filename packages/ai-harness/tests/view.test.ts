@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { toolDefinition } from '@tanstack/ai'
+import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import {
   createHarnessHandler,
@@ -13,6 +13,7 @@ import { createHarnessClient } from '../src/client'
 import { createSessionView } from '../src/view'
 import { after, gate, mockAdapter, text, toolCall } from './helpers'
 import type { Reply } from './helpers'
+import type { SessionViewSource } from '../src/view'
 
 const Pinged = createPluginEvent<{ count: number }>('test/pinged')
 
@@ -275,16 +276,26 @@ describe('createSessionView', () => {
   })
 
   it('stops after dispose', async () => {
-    const { host, session, view } = await openView([])
+    const { host, session } = await open([])
+    // The host also reads `session.snapshot()` for its status feed. Count
+    // only the reads of the view.
+    const snapshot = vi.fn(() => session.snapshot())
+    const view = createSessionView(
+      new Proxy(session, {
+        get: (target, key) =>
+          key === 'snapshot' ? snapshot : Reflect.get(target, key),
+      }),
+    )
+    await view.ready
     const before = view.store.get()
-    const slow = vi.spyOn(session, 'snapshot')
+    snapshot.mockClear()
 
     view.dispose()
     await session.command('ping')
     await new Promise((resolve) => setTimeout(resolve, 20))
 
     expect(view.store.get()).toEqual({ ...before, connection: 'closed' })
-    expect(slow).not.toHaveBeenCalled()
+    expect(snapshot).not.toHaveBeenCalled()
     await expect(view.send('hi')).rejects.toThrow('disposed')
     expect(() => view.approve('x')).toThrow('disposed')
     await host.close()
@@ -318,6 +329,137 @@ describe('createSessionView', () => {
       ),
     )
     expect(view.store.get().connection).toBe('open')
+    view.dispose()
+    await host.close()
+  })
+
+  it('shows a command or setting that a client may not use, once each', async () => {
+    const harness = defineHarness({
+      name: 'test/view-refused',
+      adapter: mockAdapter([]).adapter,
+      plugins: () => [pinger],
+      // No plugin has `missing`, so the session refuses it with an event.
+      expose: { config: ['missing'] },
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const handler = createHarnessHandler({
+      host,
+      harness,
+      authorize: () => ({ id: 'u' }),
+    })
+    const view = createSessionView(
+      createHarnessClient({
+        url: 'http://local/api/harness',
+        threadId: 't',
+        fetch: (input, init) => handler(new Request(input, init)),
+      }),
+    )
+    await view.ready
+    const errors: Array<string> = []
+    view.on('error', (message) => errors.push(message))
+
+    await view.setConfig('missing', 1)
+    await vi.waitFor(() =>
+      expect(errors).toEqual(['Not accepted: unknown_config']),
+    )
+    await view.setConfig('mode', 'bypass')
+    await view.command('ping')
+    await view.send('/ping')
+
+    const refused = 'Not accepted: not_exposed'
+    await vi.waitFor(() => expect(errors).toHaveLength(4))
+    expect(errors).toEqual([
+      'Not accepted: unknown_config',
+      refused,
+      refused,
+      refused,
+    ])
+    const notices = view.store
+      .get()
+      .messages.flatMap((message) =>
+        message.role === 'notice' ? [[message.kind, message.text]] : [],
+      )
+    expect(notices).toEqual([
+      ['rejected', 'Not accepted: unknown_config'],
+      ['rejected', refused],
+      ['rejected', refused],
+      ['rejected', refused],
+    ])
+    view.dispose()
+    await host.close()
+  })
+})
+
+describe('the agents of a session view', () => {
+  /** A session with one `writer` run that waits for `hold`. */
+  async function openWriter() {
+    const hold = gate()
+    const writer = defineAgent({
+      name: 'writer',
+      description: 'Writes when the test lets it',
+      run: async () => {
+        await hold.opened
+        return 'Draft.'
+      },
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/view-agents',
+        adapter: mockAdapter([]).adapter,
+        agents: [writer],
+      }),
+      { threadId: 't' },
+    )
+    const run = session.agents.writer.start()
+    return { hold, host, session, run }
+  }
+
+  it('sends a message to a running agent', async () => {
+    const { hold, host, session, run } = await openWriter()
+    const view = createSessionView(session)
+    await view.ready
+
+    const [agent] = view.store.get().agents
+    const receipt = await agent?.send('Add a title.', 'followUp')
+
+    expect(agent).toMatchObject({ id: run.id, name: 'writer' })
+    expect(receipt).toMatchObject({ status: 'queued' })
+    expect(session.agentRuns().map((item) => item.status)).toEqual([
+      'running',
+      'queued',
+    ])
+    hold.open()
+    await run
+    view.dispose()
+    await host.close()
+  })
+
+  it('rejects send when the view source cannot send to agents', async () => {
+    const { hold, host, session, run } = await openWriter()
+    const source: SessionViewSource = {
+      prompt: (message) => session.prompt(message),
+      steer: (message) => session.steer(message),
+      resolve: (resume) => session.resolve(resume),
+      cancel: (operationId) => session.cancel(operationId),
+      answer: (questionId, value) => session.answer(questionId, value),
+      command: (name, input) => session.command(name, input),
+      setConfig: (key, value) => session.setConfig(key, value),
+      events: (options) => session.events(options),
+      snapshot: () => session.snapshot(),
+      transcript: () => session.transcript(),
+      describe: () => session.describe(),
+    }
+    const view = createSessionView(source)
+    await view.ready
+
+    const [agent] = view.store.get().agents
+
+    await expect(agent?.send('x')).rejects.toThrow(
+      'This view source cannot send messages to agents.',
+    )
+    hold.open()
+    await run
     view.dispose()
     await host.close()
   })

@@ -63,6 +63,36 @@ const host = createHarnessHost({
 - The log only grows, so the original messages stay in the store. The fold that the model gets starts with the summary.
 - A host without a log has no place for the record. Compaction then keeps its result in the `metadata` store, the same as in a plain `chat()` call. It also skips the check after the turn.
 
+## Prepare the summary in the background
+
+A summary call takes time. When compaction runs at `maxTokens`, the user waits for that call before the model answers. Set `background` to prepare the summary earlier, while the session goes on:
+
+```ts group=harness-compaction
+const earlyCompaction = withCompaction({
+  maxTokens: 180_000,
+  contextWindow: 200_000,
+  countTokens: 'usage',
+  durable: true,
+  background: { atTokens: 150_000 },
+  strategy: summarizeOldest({
+    cut: 'turn',
+    keepRecentTokens: 8_000,
+    summarize: conversationSummarizer({ adapter: openaiText('gpt-6.1-sol') }),
+  }),
+})
+```
+
+- `atTokens` must be below `maxTokens`. If it is not, `withCompaction` throws.
+- When the count at a model call passes `atTokens`, the summary starts beside the turn. The turn does not wait for it.
+- The summary applies at the first model call of the next run, never in the middle of a run. On a durable host, it goes into the log as a `tanstack.compaction` record with `reason: 'background'`.
+- A model call over `maxTokens` while the summary runs waits for it and applies it. It compacts inline only when the messages are still over `maxTokens`.
+- If you cancel the run during that wait, the wait stops. The summary continues and applies at the next run.
+
+Sometimes a summary does not apply:
+
+- A newer compaction cut past the message that the summary keeps. The summary is dropped. `onCompact` and `compaction:ended` report it with `stale: true`.
+- The summary call failed. Nothing applies. `onCompact` and `compaction:ended` report it with `error`. The next model call past `atTokens` starts a new summary.
+
 ## Fold your own records too
 
 If your host already folds records of its own, call `projectCompaction` first:
@@ -116,4 +146,5 @@ const recovering = defineHarness({
 
 - A session that compacts before it passes the context limit, counted with the real usage of each call.
 - The same context after a restart, because the compaction is in the log.
+- With `background`, a summary that is ready before the session reaches `maxTokens`.
 - One retry after an overflow, with a compaction first.

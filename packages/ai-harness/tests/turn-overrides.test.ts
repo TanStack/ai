@@ -437,6 +437,44 @@ describe('turn overrides: queue, steer, and recovery', () => {
     await first.host.close().catch(() => {})
     await next.host.close()
   })
+
+  it('runs a recovered turn with the overrides that the recover hook returns', async () => {
+    const persistence = durablePersistence()
+    const stopped = mockAdapter([untilAborted()])
+    const first = await open([], {}, { persistence })
+    const turn = first.session.prompt('go', {
+      inputId: 'in-1',
+      overrides: { adapter: stopped.adapter },
+    })
+    await vi.waitFor(() => expect(stopped.calls).toHaveLength(1))
+    // The first host stops: its run lease expires.
+    await persistence.stores.runs.update(turn.id, {
+      leaseExpiresAt: Date.now() - 1,
+    })
+    const recovered = mockAdapter([() => text('recovered')])
+
+    const next = await open(
+      [],
+      {
+        durability: {
+          recover: () => ({
+            action: 'run',
+            overrides: { adapter: recovered.adapter, reasoning: HIGH },
+          }),
+        },
+      },
+      { persistence },
+    )
+
+    expect(await next.session.settled('in-1')).toMatchObject({
+      outcome: 'completed',
+    })
+    expect(next.calls).toHaveLength(0)
+    expect(recovered.calls).toHaveLength(1)
+    expect(recovered.calls[0].reasoning).toEqual(HIGH)
+    await first.host.close().catch(() => {})
+    await next.host.close()
+  })
 })
 
 describe('turn overrides: plugin adapter picker', () => {

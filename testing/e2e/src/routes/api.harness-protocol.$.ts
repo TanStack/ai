@@ -11,7 +11,7 @@ import {
   defineHarness,
   definePlugin,
 } from '@tanstack/ai-harness'
-import { todos } from '@tanstack/ai-harness/plugins'
+import { permissions, todos } from '@tanstack/ai-harness/plugins'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { z } from 'zod'
 import { askName, deploy, probe, whoami } from '@/lib/harness-protocol-tools'
@@ -42,6 +42,26 @@ const authorize = (req: Request) => {
   if (token === 'Bearer e2e-token') return { id: 'e2e' }
   if (token === 'Bearer e2e-token-bob') return { id: 'bob' }
   return null
+}
+
+// The `drafter` of each test waits until the test sends the `release`
+// command, so the test can steer it before its model call.
+// ponytail: one gate per test id, kept for the life of the server.
+const drafterGates = new Map<
+  string,
+  { open: () => void; opened: Promise<void> }
+>()
+function drafterGate(testId: string) {
+  let entry = drafterGates.get(testId)
+  if (!entry) {
+    let open = () => {}
+    const opened = new Promise<void>((resolve) => {
+      open = resolve
+    })
+    entry = { open, opened }
+    drafterGates.set(testId, entry)
+  }
+  return entry
 }
 
 function harnessFor(request: Request) {
@@ -82,6 +102,18 @@ function harnessFor(request: Request) {
           maxRetries: 0,
         })
       : createTextAdapter('openai', undefined, port, testId).adapter
+  // `x-harness-permissions: 1` asks the user before each `whoami` call. An
+  // `always` answer is saved for the root, and the host is shared, so each
+  // test gets its own root.
+  const asks =
+    request.headers.get('x-harness-permissions') === '1'
+      ? [
+          permissions({
+            root: `/e2e/${testId}`,
+            rules: [{ tool: 'whoami', decision: 'ask' }],
+          }),
+        ]
+      : []
   const harness = defineHarness({
     name: 'e2e/protocol',
     adapter,
@@ -107,9 +139,35 @@ function harnessFor(request: Request) {
         inputSchema: z.object({ text: z.string() }),
         run: async (ctx) => ctx.input.text,
       }),
+      defineAgent({
+        name: 'drafter',
+        description: 'Drafts a post when the test releases it',
+        inputSchema: z.object({ topic: z.string() }),
+        run: async (ctx) => {
+          await drafterGate(testId).opened
+          // A first run starts from the topic. A follow-up run continues the
+          // drafter's own transcript, which ends with the follow-up.
+          return ctx.chat({
+            adapter: createTextAdapter('openai', undefined, port, testId)
+              .adapter,
+            messages:
+              ctx.messages.length > 0
+                ? ctx.messages
+                : [{ role: 'user', content: ctx.input.topic }],
+          })
+        },
+      }),
     ],
-    expose: { agents: ['echo'], settings: ['model', 'instructions'] },
+    // `mode` of `permissions()` stays on the server, so a client cannot pick
+    // `bypass`.
+    expose: {
+      agents: ['echo', 'drafter'],
+      settings: ['model', 'instructions'],
+      config: ['tone'],
+      commands: ['greet', 'release'],
+    },
     plugins: () => [
+      ...asks,
       todos(),
       // The sender of the running turn, as plugins see it.
       definePlugin({
@@ -153,6 +211,21 @@ function harnessFor(request: Request) {
           },
         }),
       }),
+      // Lets the `drafter` of this test make its model call.
+      definePlugin({
+        name: 'e2e/drafter',
+        setup: () => ({
+          commands: {
+            release: defineCommand({
+              description: 'Let the drafter go on',
+              run: () => {
+                drafterGate(testId).open()
+                return 'released'
+              },
+            }),
+          },
+        }),
+      }),
     ],
   })
   return {
@@ -176,7 +249,8 @@ function handlerFor(request: Request) {
 /**
  * Test only: `POST .../fork` with `{ threadId, newThreadId, at? }` forks a
  * thread with `host.fork` and answers with the transcript of the new thread.
- * The handler has no fork route.
+ * The handler forks with `POST .../sessions`, which picks the new thread id.
+ * Here the test picks it, so a test can fork onto a thread that has messages.
  */
 async function forkThread(request: Request) {
   const principal = authorize(request)

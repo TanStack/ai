@@ -59,6 +59,60 @@ describe('extension points', () => {
     ])
     await host.close()
   })
+
+  it('gives a view that works with every array method', async () => {
+    // Array methods like `filter` and `some` check that an index exists.
+    // A view that hides its indexes makes them skip every item.
+    const Rules = createExtensionPoint<{ tool: string }>('test/rules')
+    let seen: unknown
+    const reader = definePlugin({
+      name: 'test/reader',
+      setup: (ctx) => {
+        const rules = ctx.collect(Rules)
+        return {
+          commands: {
+            rules: defineCommand({
+              description: 'Read the rules',
+              run: () => {
+                seen = {
+                  has: 0 in rules,
+                  filter: rules.filter((rule) => rule.tool === 'bash'),
+                  some: rules.some((rule) => rule.tool === 'bash'),
+                  map: rules.map((rule) => rule.tool),
+                  keys: Object.keys(rules),
+                }
+              },
+            }),
+          },
+        }
+      },
+    })
+    const writer = definePlugin({
+      name: 'test/writer',
+      setup: () => ({ contribute: [Rules.item({ tool: 'bash' })] }),
+    })
+    const { adapter } = mockAdapter([])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/ext-view',
+        adapter,
+        plugins: () => [reader, writer],
+      }),
+      { threadId: 't' },
+    )
+
+    await session.command('rules')
+
+    expect(seen).toEqual({
+      has: true,
+      filter: [{ tool: 'bash' }],
+      some: true,
+      map: ['bash'],
+      keys: ['0'],
+    })
+    await host.close()
+  })
 })
 
 describe('events and state', () => {

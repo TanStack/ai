@@ -48,6 +48,7 @@ import type {
   ModelMessage,
   AdapterYieldChunk,
   TextOptions,
+  ToolChoice,
 } from '@tanstack/ai'
 import type {
   OPENROUTER_CHAT_MODELS,
@@ -104,6 +105,14 @@ type ResolveReasoning<TModel extends string> =
         budget: false
       }
     : never
+
+/** Maps `chat({ toolChoice })` to the OpenRouter chat `toolChoice`. */
+function toOpenRouterChatToolChoice(
+  choice: ToolChoice,
+): NonNullable<ChatRequest['toolChoice']> {
+  if (typeof choice === 'string') return choice
+  return { type: 'function', function: { name: choice.name } }
+}
 
 /**
  * OpenRouter Text (Chat) Adapter — standalone implementation that talks to
@@ -1642,6 +1651,13 @@ export class OpenRouterTextAdapter<
           )
         : undefined
 
+    // `chat({ toolChoice })` is sent only when the request has tools. It goes
+    // before the `modelOptions` spread, so a `toolChoice` there wins.
+    const toolChoiceField =
+      tools?.length && options.toolChoice !== undefined
+        ? { toolChoice: toOpenRouterChatToolChoice(options.toolChoice) }
+        : undefined
+
     // `modelOptions` is the sole wire surface: callers set provider-native
     // names (`temperature`, `topP`, `maxCompletionTokens`, `metadata`, etc.)
     // there and they flow through the spread below. Root `metadata` is
@@ -1649,6 +1665,7 @@ export class OpenRouterTextAdapter<
     // forwarded here — it may carry arbitrarily structured values while the
     // SDK validates `chatRequest.metadata` as `Record<string, string>` (#735).
     const request: Omit<ChatRequest, 'stream'> = {
+      ...toolChoiceField,
       ...restModelOptions,
       ...(effort && { reasoning: { effort: effort as ChatRequestEffort } }),
       model: options.model + variantSuffix,

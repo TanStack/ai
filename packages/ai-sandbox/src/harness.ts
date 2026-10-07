@@ -11,6 +11,8 @@ import type {
 import type { SandboxMiddlewareOptions } from './middleware'
 import type { SandboxDefinition } from './sandbox'
 
+export { sandboxWorkspaceBackend } from './workspace-backend'
+
 export interface CodingAgentConfig {
   /** A coding-agent adapter: `claudeCodeText`, `codexText`, `grokBuildText`, `acpCompatibleText`, and more. */
   adapter: AnyTextAdapter

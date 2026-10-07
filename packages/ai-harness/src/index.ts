@@ -42,12 +42,19 @@ export type {
 
 export { createExtensionPoint, createPluginEvent } from './extensions'
 // Portable (no Node imports), so edge-safe plugins such as code mode can read
-// the permission rules without the Node-only `./plugins` entry.
-export { PermissionRules, decidePermission } from './first-party/permissions'
+// the permission rules and resources without the Node-only `./plugins` entry.
+export {
+  PermissionDecisionCapability,
+  PermissionResources,
+  PermissionRules,
+  decidePermission,
+} from './first-party/permissions'
 export type {
+  CallResources,
   PermissionDecision,
   PermissionMode,
   PermissionRule,
+  ToolResources,
 } from './first-party/permissions'
 export type { ExtensionItem, ExtensionPoint, PluginEvent } from './extensions'
 
@@ -80,13 +87,26 @@ export type {
   HarnessHost,
   HarnessHostOptions,
   HarnessPersistence,
+  HostEvent,
+  HostSessionDeletedEvent,
+  HostSessionEvent,
+  HostSessions,
+  HostStatusEvent,
   OpenSessionOptions,
+  ResumePendingOptions,
 } from './host'
+export type {
+  SessionIndexEntry,
+  SessionIndexListOptions,
+  SessionIndexPage,
+  SessionIndexStore,
+} from '@tanstack/ai-persistence'
 
 export { HarnessSession } from './session'
 export type {
   AgentHandle,
   AgentHandles,
+  AgentRunInfo,
   AgentRunOptions,
   AgentStartOptions,
   DynamicAgentHandle,
@@ -111,9 +131,11 @@ export { isTransientModelError, retryTransientErrors } from './turn'
 
 export { HARNESS_EVENTS, InputRejectedError } from './types'
 export type {
+  AgentRun,
   BusyPolicy,
   ChatTurnResult,
   Cursor,
+  ForkPoint,
   HarnessInput,
   InputSettlement,
   MediaKind,
@@ -129,6 +151,7 @@ export type {
   TurnInfo,
   TurnOverrides,
   UserInput,
+  WaitingInput,
 } from './types'
 
 export {

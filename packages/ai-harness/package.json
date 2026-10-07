@@ -42,6 +42,10 @@
       "types": "./dist/esm/first-party/index.d.ts",
       "import": "./dist/esm/first-party/index.js"
     },
+    "./plugins/coding": {
+      "types": "./dist/esm/first-party/coding/index.d.ts",
+      "import": "./dist/esm/first-party/coding/index.js"
+    },
     "./build": {
       "types": "./dist/esm/build.d.ts",
       "import": "./dist/esm/build.js"
@@ -76,11 +80,23 @@
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-persistence": "workspace:*",
     "@vitest/coverage-v8": "4.1.10",
+    "@vscode/ripgrep": "^1.18.0",
+    "turndown": "^7.2.4",
     "zod": "^4.2.0"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
-    "@tanstack/ai-persistence": "workspace:^"
+    "@tanstack/ai-persistence": "workspace:^",
+    "@vscode/ripgrep": "^1.15.0",
+    "turndown": "^7.2.0"
+  },
+  "peerDependenciesMeta": {
+    "@vscode/ripgrep": {
+      "optional": true
+    },
+    "turndown": {
+      "optional": true
+    }
   },
   "nx": {
     "targets": {

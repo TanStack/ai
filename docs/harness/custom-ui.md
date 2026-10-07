@@ -133,7 +133,7 @@ What waits for the user:
 The session:
 
 - `threadId`: the id of the conversation.
-- `agents`: the background agents that run now.
+- `agents`: the background agents that run now. Each one has an `id`, a `name`, and `send`.
 - `queuedTurns`: the number of messages that wait for their turn.
 - `commands`, `config`, and `tools`: what the session has, for a help screen or a settings panel.
 - `plugins`: the saved state of each plugin, by plugin name.
@@ -163,14 +163,36 @@ Start and stop work:
 - `view.cancel()`: cancels the running turn.
 - `view.dispose()`: stops the view when your screen closes. After that, each action throws an error.
 
+On a view with a [`HarnessClient`](#a-ui-in-the-browser), two actions need `expose` in the harness:
+
+- `view.command`, and a `/command` in `view.send`, run only the commands in `expose.commands`.
+- `view.setConfig` sets only the keys in `expose.config`.
+
+For any other command or key, the view adds a `rejected` notice with the text `Not accepted: not_exposed`. It also calls your `'error'` handler with that text. On a client, `commands` and `config` in the state list only the exposed items.
+
+See [Choose what clients can change](./connect#choose-what-clients-can-change).
+
 Answer what waits:
 
 - `approval.approve()` and `approval.reject()`: answer one approval. `view.approve(id)` and `view.reject(id)` do the same by id.
 - `view.approveAll()` and `view.rejectAll()`: answer all open approvals.
 - `call.resolve(output)` and `call.fail(message)`: answer one client tool call.
-- `question.answer(value)`: answers a question.
+- `question.answer(value)`: answers a question. For the answers to a permission question, see [Answer a question](./permissions#answer-a-question).
 
 If a turn waits for more than one approval or client tool, the turn continues after you answer all of them.
+
+Message a background agent:
+
+- `agent.send(text, mode)`: sends a message to one item of `state.agents`. `mode` is `'steer'` (the default) or `'followUp'`. See [Message a running agent](./subagents#message-a-running-agent).
+
+```ts group=harness-custom-ui
+const [agent] = view.store.get().agents
+if (agent) {
+  await agent.send('Add a title.', 'followUp')
+}
+```
+
+`send` needs a source that can message agents. A session and a `HarnessClient` both can. If you give `createSessionView` your own `SessionViewSource` without `sendToAgent`, `send` rejects with an error.
 
 ## 4. Listen for events
 

@@ -185,7 +185,7 @@ Tests are included in typecheck. `vite.config.ts` / `vitest.config.ts` are not â
 | New provider adapter                   | Add provider to `feature-support.ts` + `test-matrix.ts`. Tests auto-run. |
 | New feature (e.g. new generation type) | Add to types, feature config, support matrix, fixture, spec file.        |
 | Chat / streaming bug fix               | Test case in `chat.spec.ts` or `tools-test/`.                            |
-| Tool system change                     | Scenario in `tools-test-scenarios.ts` + spec.                            |
+| Tool system change                     | Scenario in `src/lib/tools-test-tools.ts` + spec.                        |
 | Middleware change                      | Test in `middleware.spec.ts`.                                            |
 | Client-side change (useChat etc.)      | Test covering the observable behavior change.                            |
 

@@ -190,6 +190,19 @@ const stream = chat({
 
 **Client-side and approval-gated tools are not supported.** The harness executes tools inside a live subprocess, which cannot pause across HTTP requests to wait for a browser round-trip or a human approval. Passing a tool without a server `execute()` implementation — or one marked `needsApproval` — fails fast with a descriptive error. Run those tools outside the harness with a regular provider adapter.
 
+## Tool choice
+
+`chat({ toolChoice })` limits only the tools that the adapter bridges into Codex. The built-in Codex tools always stay on, and Codex decides when it calls a tool. For the values, see [Choose when the model calls a tool](../tools/tools#choose-when-the-model-calls-a-tool).
+
+| Value | What the adapter does |
+| --- | --- |
+| `'auto'` | Bridges all of your tools. |
+| `'none'` | Bridges none of your tools. |
+| `{ type: 'tool', name }` | Bridges only the named tool. Codex does not have to call it. |
+| `'required'` | Bridges all of your tools. Codex does not have to call one. |
+
+Each value except `'auto'` logs a warning the first time an adapter instance gets it.
+
 ## Structured Output
 
 Pass `outputSchema` on `chat()`. Codex runs one harness turn and constrains the last message with `--output-schema`. Tool activity and assistant text stream as Codex writes them. The last message is also parsed as the schema object and arrives as `structured-output.complete`.

@@ -20,7 +20,7 @@ describe('prepareTools', () => {
       name: 'test/bundle',
       setup: () => ({
         prompts: [{ id: 'test/bundle', text: () => described }],
-        prepareTools: (tools) => {
+        prepareTools: ({ tools }) => {
           described = `Bundled: ${tools.map((entry) => entry.name).join(', ')}`
           return [tool('bundled')]
         },
@@ -29,7 +29,7 @@ describe('prepareTools', () => {
     const extra = definePlugin({
       name: 'test/extra',
       setup: () => ({
-        prepareTools: async (tools) => [...tools, tool('extra')],
+        prepareTools: async ({ tools }) => [...tools, tool('extra')],
       }),
     })
     const broken = definePlugin({

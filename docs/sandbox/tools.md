@@ -19,6 +19,10 @@ secrets, the closures you captured when you defined a tool. For that, the
 > [Provisioning](./provisioning). For server tools in general, see the main
 > [server tools](../tools/server-tools) doc.
 
+> The file and shell tools of a harness (`read_file`, `bash`, and more) can
+> also work in a sandbox, with no agent CLI in it. See
+> [Run the tools in a sandbox](../harness/coding-tools-backends#run-the-tools-in-a-sandbox).
+
 ## Native vs bridged tools
 
 When you pass `tools` to `chat()` with a sandbox in the middleware, each tool is

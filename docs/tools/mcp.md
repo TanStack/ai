@@ -253,7 +253,7 @@ const mcp = await createMCPClient({
 
 A slow MCP server can hold a request for a long time. By default, each request waits up to 60 seconds, then fails. A tool that runs longer, such as a report or a build, fails at that limit too.
 
-Set `requestOptions` to change the limit for tool lists, tool calls, resource requests, and prompt requests:
+Set `requestOptions` to change the limit for the connect handshake, tool lists, tool calls, resource requests, and prompt requests:
 
 ```ts
 import { createMCPClient } from '@tanstack/ai-mcp'
@@ -271,7 +271,8 @@ const mcp = await createMCPClient({
 
 - `timeout`: the limit in milliseconds. The SDK default is 60,000.
 - `resetTimeoutOnProgress`: start the timeout again when the server sends a progress notification. A tool call on protocol `2026-07-28` gets no progress notifications, so there only `timeout` applies.
-- The connect handshake, the `subscriptions/listen` stream, and task status polls keep the SDK defaults.
+- On a `stdio` server, connect can take up to two times `timeout`. When the version check runs out of time, the SDK tries the older handshake, with its own `timeout`.
+- The `subscriptions/listen` stream and task status polls keep the SDK defaults.
 - A request that runs out of time throws an `SdkError` from `@modelcontextprotocol/client`, with the code `SdkErrorCode.RequestTimeout`.
 
 Each server in [`createMCPClients`](#multi-server-pool) can have its own `requestOptions`. [MCP Apps](../mcp/apps) widget calls use the options of the same client.
