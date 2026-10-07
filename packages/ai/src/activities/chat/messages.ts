@@ -1435,7 +1435,8 @@ export function aguiContentToContentParts(
 /**
  * Convert an array of ModelMessages to UIMessages
  *
- * This handles merging tool result messages with their corresponding assistant messages
+ * This handles merging tool result messages with their corresponding assistant
+ * messages, and assistant segments that share the same stable message ID.
  *
  * @param modelMessages - Array of ModelMessages to convert
  * @returns Array of UIMessages
@@ -1503,7 +1504,8 @@ export function modelMessagesToUIMessages(
       if (
         msg.role === 'assistant' &&
         currentAssistantMessage &&
-        isAssistantSegmentOf(msg.id, currentAssistantMessage.id)
+        (msg.id === currentAssistantMessage.id ||
+          isAssistantSegmentOf(msg.id, currentAssistantMessage.id))
       ) {
         currentAssistantMessage.parts.push(...uiMessage.parts)
         continue

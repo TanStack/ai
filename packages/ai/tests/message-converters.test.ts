@@ -2260,11 +2260,9 @@ describe('Message Converters', () => {
       const modelMessages = uiMessageToModelMessages(original)
       const uiMessages = modelMessagesToUIMessages(modelMessages)
 
-      // Multi-round should produce multiple UIMessages (one per segment)
-      // but when recombined, the structure should match segments
-      expect(uiMessages.length).toBe(2)
-
-      // First segment: text + tool-call + tool-result
+      // The segments share the original UI message id and should merge back.
+      expect(uiMessages).toHaveLength(1)
+      expect(uiMessages[0]?.id).toBe(original.id)
       expect(uiMessages[0]?.parts).toEqual([
         { type: 'text', content: 'Checking inventory.' },
         {
@@ -2281,10 +2279,6 @@ describe('Message Converters', () => {
           content: '[{"id":7}]',
           state: 'complete',
         },
-      ])
-
-      // Second segment: text + tool-call + tool-result
-      expect(uiMessages[1]?.parts).toEqual([
         { type: 'text', content: 'Found one!' },
         {
           type: 'tool-call',

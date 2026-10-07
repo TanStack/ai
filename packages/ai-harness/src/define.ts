@@ -111,10 +111,11 @@ export interface HarnessDurability {
   interruptedToolResult?: string
   /**
    * The tool result that recovery gives each tool call of an answer that
-   * stopped at the output limit (finish reason `length`): the content and the
-   * error of its tool message. Such a call never runs, also with
-   * `replay: 'safe'`. Default: `'The answer was cut off at the output limit
-   * before this tool call was complete. The call did not run.'`
+   * stopped at the output limit (finish reason `length`) and has no result in
+   * the log: the content and the error of its tool message. Such a call never
+   * runs, also with `replay: 'safe'`. During a turn, `chat()` gives these
+   * calls the default text at once. Default: `'The answer was cut off at the
+   * output limit before this tool call was complete. The call did not run.'`
    */
   truncatedToolResult?: string
   /**

@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { chat } from '../src/activities/chat'
+import { defineChatMiddleware } from '../src/activities/chat/middleware/define'
 import {
   convertMessagesToModelMessages,
   modelMessagesToUIMessages,
@@ -16,7 +17,7 @@ import {
   serverTool,
 } from './test-utils'
 import { EventType } from '../src/types'
-import type { StreamChunk, UIMessage } from '../src/types'
+import type { ModelMessage, StreamChunk, UIMessage } from '../src/types'
 
 /**
  * Anthropic runs web_search / web_fetch inside one provider response and
@@ -438,6 +439,64 @@ describe('provider-executed tools interleaved with signed thinking', () => {
       expect(history.filter((message) => message.role === 'tool')).toHaveLength(
         1,
       )
+    })
+
+    it('gives the calls of an answer cut at the output limit an error result, so a later run does not run them', async () => {
+      const lookup = vi.fn(() => ({ found: true }))
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ...reasoning('step-1', 'plan', 'sig-a'),
+            providerToolStart('srvtoolu_1', 'one'),
+            ev.toolEnd('srvtoolu_1'),
+            ...reasoning('step-2', 'refine', 'sig-b'),
+            ev.toolStart('call_1', 'lookup'),
+            ev.toolArgs('call_1', '{"id":'),
+            ev.runFinished('length'),
+          ],
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Done.'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+      let transcript: Array<ModelMessage> = []
+      const keep = defineChatMiddleware({
+        onFinish(ctx) {
+          transcript = [...ctx.messages]
+        },
+      })
+      const tools = [serverTool('lookup', lookup)]
+
+      await collectChunks(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'Research' }],
+          tools,
+          middleware: [keep],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      const text =
+        'The answer was cut off at the output limit before this tool call was complete. The call did not run.'
+      expect(transcript.filter((message) => message.role === 'tool')).toEqual([
+        { role: 'tool', toolCallId: 'call_1', content: text, error: text },
+      ])
+
+      // The next run from this transcript, as a harness `beforeFinish` cycle.
+      await collectChunks(
+        chat({
+          adapter,
+          messages: transcript,
+          tools,
+        }) as AsyncIterable<StreamChunk>,
+      )
+      expect(lookup).not.toHaveBeenCalled()
+      expect(calls).toHaveLength(2)
     })
   })
 })
