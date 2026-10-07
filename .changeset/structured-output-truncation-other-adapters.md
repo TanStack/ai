@@ -6,4 +6,4 @@
 '@tanstack/ai-bedrock': patch
 ---
 
-Report a structured-output response cut off at the output token limit as truncation instead of a JSON parse or schema error, as `openai-base` and `ai-openrouter` already do (#1426).
+Structured output now reports a truncation error when the response stops at the output token limit. Before, you got a JSON parse error, or the partial result came back as valid data. `openai-base` and `ai-openrouter` already do this (#1426).
