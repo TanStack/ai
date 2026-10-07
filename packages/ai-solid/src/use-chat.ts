@@ -73,6 +73,7 @@ export function useChat<
   const [connectionStatus, setConnectionStatus] =
     createSignal<ConnectionStatus>('disconnected')
   const [sessionGenerating, setSessionGenerating] = createSignal(false)
+  const [isHydrating, setIsHydrating] = createSignal(false)
   const [queue, setQueue] = createSignal<Array<QueuedMessage>>([])
   const [runId, setRunId] = createSignal<string | null>(null)
   const [interruptState, setInterruptState] = createSignal<
@@ -194,6 +195,9 @@ export function useChat<
       onSessionGeneratingChange: (isGenerating: boolean) => {
         setSessionGenerating(isGenerating)
       },
+      onHydratingChange: (nextIsHydrating: boolean) => {
+        setIsHydrating(nextIsHydrating)
+      },
       ...(options.queue !== undefined && { queue: options.queue }),
       onQueueChange: (nextQueue: Array<QueuedMessage>) => {
         setQueue(nextQueue)
@@ -220,6 +224,7 @@ export function useChat<
 
   setMessages(client().getMessages())
   setHasOlderMessages(client().getHasOlderMessages())
+  setIsHydrating(client().getIsHydrating())
   syncResumeState()
 
   // Sync body / forwardedProps changes to the client.
@@ -452,6 +457,7 @@ export function useChat<
     isSubscribed,
     connectionStatus,
     sessionGenerating,
+    isHydrating,
     setMessages: setMessagesManually,
     clear,
     addToolResult,
