@@ -2679,6 +2679,33 @@ describe('background compaction', () => {
     expect(gated.calls).toHaveLength(1)
   })
 
+  it('reports the usage of a background summary when the next run applies it', async () => {
+    const usage = tokenUsage(120, 30)
+    const onCompact = vi.fn()
+    const store = memoryStore()
+    const mw = backgroundCompaction(
+      async () => ({ summary: 'the gist', usage }),
+      { onCompact },
+    )
+    await runOnConfig(mw, list(4), runContext('r1', { store }).ctx)
+    await vi.waitFor(async () =>
+      expect(await store.get(BACKGROUND, 'thread-1')).not.toBeNull(),
+    )
+
+    const { ctx, events } = runContext('r2', { store })
+    const result = await runOnConfig(mw, list(4), ctx)
+    expect(result?.providerMessages?.[0]).toEqual(summaryOf('the gist'))
+    expect(onCompact.mock.calls[0]?.[0]).toMatchObject({
+      reason: 'background',
+      usage: { promptTokens: 120, completionTokens: 30, totalTokens: 150 },
+    })
+    expect(events.at(-1)?.name).toBe(COMPACTION_ENDED_EVENT)
+    expect(events.at(-1)?.value).toMatchObject({
+      reason: 'background',
+      usage: { promptTokens: 120, completionTokens: 30, totalTokens: 150 },
+    })
+  })
+
   it('drops a ready summary whose kept message is gone, and reports it', async () => {
     const onCompact = vi.fn()
     const store = memoryStore()
