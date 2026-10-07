@@ -1198,26 +1198,32 @@ const auditTrail: ChatMiddleware = {
 
 ### Per-Iteration Tool Swapping
 
-Expose different tools at different stages of the agent loop:
+Expose different tools at different stages of the agent loop. A `tools` list that `onConfig` returns stays for the later model calls. So keep the full list from the start of the run, and give it back after the first call:
 
 ```typescript
-import { type ChatMiddleware } from "@tanstack/ai";
+import { type ChatMiddleware, type ChatMiddlewareConfig } from "@tanstack/ai";
 
-const toolSwapper: ChatMiddleware = {
-  name: "tool-swapper",
-  onConfig: (ctx, config) => {
-    if (ctx.phase !== "beforeModel") return;
-
-    if (ctx.iteration === 0) {
-      // First iteration: only allow search
-      return {
-        tools: config.tools.filter((t) => t.name === "search"),
-      };
-    }
-    // Later iterations: allow all tools
-  },
-};
+// A function, so that each chat() call keeps its own full list.
+function toolSwapper(): ChatMiddleware {
+  let allTools: ChatMiddlewareConfig["tools"] = [];
+  return {
+    name: "tool-swapper",
+    onConfig: (ctx, config) => {
+      if (ctx.phase === "init") {
+        allTools = config.tools;
+        return;
+      }
+      if (ctx.phase !== "beforeModel") return;
+      // First model call: only search. Later calls: every tool again.
+      return ctx.iteration === 0
+        ? { tools: allTools.filter((t) => t.name === "search") }
+        : { tools: allTools };
+    },
+  };
+}
 ```
+
+Pass `middleware: [toolSwapper()]` to `chat()`.
 
 ### Content Filtering
 
