@@ -72,6 +72,8 @@ const config: Omit<GroqTextConfig, 'apiKey'> = {
 const adapter = createGroqText("llama-3.3-70b-versatile", process.env.GROQ_API_KEY!, config);
 ```
 
+The chat adapters on this page support `wrapFetch`. A middleware can use it to change the HTTP requests of a model call. See [Change the HTTP requests of a call](../advanced/middleware#change-the-http-requests-of-a-call).
+
 ## Example: Chat Completion
 
 ```typescript

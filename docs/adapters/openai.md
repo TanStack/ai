@@ -315,6 +315,8 @@ const config: Omit<OpenAITextConfig, "apiKey"> = {
 const adapter = createOpenaiChat("gpt-5.5", process.env.OPENAI_API_KEY!, config);
 ```
 
+The chat adapters on this page support `wrapFetch`. A middleware can use it to change the HTTP requests of a model call. See [Change the HTTP requests of a call](../advanced/middleware#change-the-http-requests-of-a-call).
+
 ### Tools that cannot use strict mode
 
 OpenAI holds tool arguments to the schema only when the tool is sent with `strict: true`. Some schemas cannot be strict, for example a schema that uses `$ref`, `z.any()`, or `z.record()`. The adapter sends these tools with `strict: false`, so the tool still works. The model can then return arguments that do not match the schema.

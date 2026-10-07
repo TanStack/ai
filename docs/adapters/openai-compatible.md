@@ -181,6 +181,8 @@ const provider = openaiCompatible({
 });
 ```
 
+The chat adapters on this page support `wrapFetch`. A middleware can use it to change the HTTP requests of a model call. See [Change the HTTP requests of a call](../advanced/middleware#change-the-http-requests-of-a-call).
+
 ## Chat Completions vs Responses
 
 By default the adapter targets the **Chat Completions** API (`/chat/completions`). For providers that implement the **Responses** API, select `api: "responses"`. This API choice also controls how `ChatStreamSummarizeAdapter` forwards `maxLength`, regardless of the wrapper name:

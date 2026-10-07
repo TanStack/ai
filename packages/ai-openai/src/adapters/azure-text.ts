@@ -87,12 +87,16 @@ export class AzureOpenAITextAdapter<
         : undefined)
     if (!selectedURL)
       throw new Error('Azure OpenAI needs baseURL or resourceName')
-    const client = new AzureOpenAI({
+    const azureOptions = {
       ...clientOptions,
       apiKey: apiKey ?? env.AZURE_OPENAI_API_KEY,
       baseURL: normalizeAzureBaseURL(selectedURL),
       apiVersion: apiVersion || env.AZURE_OPENAI_API_VERSION || 'v1',
-    })
+    }
+    const client = new AzureOpenAI(azureOptions)
+    // The SDK copy drops apiVersion. `wrapFetch` only sets the fetch.
+    client.withOptions = ({ fetch }) =>
+      new AzureOpenAI({ ...azureOptions, fetch })
     super(model, 'azure-openai-responses', client, config)
     this.configReasoning = reasoning
     const envMap = new Map<string, string>()

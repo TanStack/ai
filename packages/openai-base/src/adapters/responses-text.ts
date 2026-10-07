@@ -18,7 +18,7 @@ import {
   toRunErrorRawEvent,
 } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
-import { extractRequestOptions } from '../utils/request-options'
+import { clientFor, extractRequestOptions } from '../utils/request-options'
 import {
   makeStructuredOutputCompatibleWithMap,
   warnStrictFallback,
@@ -375,7 +375,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         `activity=chat provider=${this.name} model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
         { provider: this.name, model: this.model },
       )
-      const response = await this.client.responses.create(
+      const response = await clientFor(this.client, options).responses.create(
         {
           ...requestParams,
           stream: true,
@@ -481,7 +481,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         `activity=structuredOutput provider=${this.name} model=${this.model} messages=${chatOptions.messages.length}`,
         { provider: this.name, model: this.model },
       )
-      const response = await this.client.responses.create(
+      const response = await clientFor(
+        this.client,
+        chatOptions,
+      ).responses.create(
         {
           ...(cleanParams as Omit<ResponseCreateParams, 'stream'>),
           stream: false,
@@ -665,7 +668,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
       const stream: AsyncIterable<
         ResponseStreamEvent | LegacyReasoningDeltaEvent
-      > = await this.client.responses.create(
+      > = await clientFor(this.client, chatOptions).responses.create(
         {
           ...cleanParams,
           stream: true,

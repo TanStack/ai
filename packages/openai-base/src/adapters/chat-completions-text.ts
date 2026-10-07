@@ -15,7 +15,7 @@ import {
   toRunErrorRawEvent,
 } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
-import { extractRequestOptions } from '../utils/request-options'
+import { clientFor, extractRequestOptions } from '../utils/request-options'
 import {
   makeStructuredOutputCompatibleWithMap,
   warnStrictFallback,
@@ -165,7 +165,10 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         `activity=chat provider=${this.name} model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
         { provider: this.name, model: this.model },
       )
-      const stream = await this.client.chat.completions.create(
+      const stream = await clientFor(
+        this.client,
+        options,
+      ).chat.completions.create(
         {
           ...requestParams,
           stream: true,
@@ -333,7 +336,10 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         `activity=structuredOutput provider=${this.name} model=${this.model} messages=${chatOptions.messages.length}`,
         { provider: this.name, model: this.model },
       )
-      const response = await this.client.chat.completions.create(
+      const response = await clientFor(
+        this.client,
+        chatOptions,
+      ).chat.completions.create(
         {
           ...cleanParams,
           stream: false,
@@ -497,7 +503,10 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         { provider: this.name, model: this.model },
       )
 
-      const stream = await this.client.chat.completions.create(
+      const stream = await clientFor(
+        this.client,
+        chatOptions,
+      ).chat.completions.create(
         {
           ...cleanParams,
           stream: true,

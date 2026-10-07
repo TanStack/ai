@@ -70,6 +70,8 @@ const config: Omit<GrokTextConfig, "apiKey"> = {
 const adapter = createGrokText("grok-build-0.1", process.env.XAI_API_KEY!, config);
 ```
 
+The chat adapters on this page support `wrapFetch`. A middleware can use it to change the HTTP requests of a model call. See [Change the HTTP requests of a call](../advanced/middleware#change-the-http-requests-of-a-call).
+
 ## Grok on Vertex
 
 Use `@tanstack/ai-grok/vertex` when Grok must run on Vertex AI. That path

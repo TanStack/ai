@@ -60,6 +60,8 @@ const adapter = createLLMGatewayText(
 
 LLM Gateway is open source and self-hostable; point `baseURL` at your own deployment to keep the same adapter surface.
 
+The chat adapters on this page support `wrapFetch`. A middleware can use it to change the HTTP requests of a model call. See [Change the HTTP requests of a call](../advanced/middleware#change-the-http-requests-of-a-call).
+
 ## Available Models
 
 Any model listed at [llmgateway.io/models](https://llmgateway.io/models) works — pass its id as the model name. A bare model id lets the gateway route to the best available provider; prefix it with `provider/` to pin routing to a specific provider:
