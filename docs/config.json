@@ -166,7 +166,7 @@
           "label": "Subagents",
           "to": "chat/subagents",
           "addedAt": "2026-09-21",
-          "updatedAt": "2026-10-06"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Agentic Cycle",
@@ -243,7 +243,7 @@
           "label": "Tools",
           "to": "tools/tools",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-06"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Server Tools",
@@ -899,7 +899,7 @@
           "label": "Connect clients",
           "to": "harness/connect",
           "addedAt": "2026-09-26",
-          "updatedAt": "2026-10-06"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Send and show media",
@@ -921,7 +921,8 @@
         {
           "label": "List, rename, and fork sessions",
           "to": "harness/sessions",
-          "addedAt": "2026-10-06"
+          "addedAt": "2026-10-06",
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Send inputs safely",
@@ -961,7 +962,7 @@
           "label": "Fork and reset a thread",
           "to": "harness/fork-and-reset",
           "addedAt": "2026-10-05",
-          "updatedAt": "2026-10-06"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Share one log between sessions",
@@ -983,7 +984,8 @@
         {
           "label": "Give your agent coding tools",
           "to": "harness/coding-tools",
-          "addedAt": "2026-10-06"
+          "addedAt": "2026-10-06",
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Sandbox and extend the coding tools",
@@ -993,17 +995,20 @@
         {
           "label": "Ask before risky tool calls",
           "to": "harness/permissions",
-          "addedAt": "2026-10-06"
+          "addedAt": "2026-10-06",
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Undo a turn",
           "to": "harness/snapshots",
-          "addedAt": "2026-10-06"
+          "addedAt": "2026-10-06",
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Switch between agent profiles",
           "to": "harness/agents",
-          "addedAt": "2026-10-06"
+          "addedAt": "2026-10-06",
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Connect model providers",
@@ -1032,7 +1037,7 @@
           "label": "Use MCP servers",
           "to": "harness/mcp",
           "addedAt": "2026-09-26",
-          "updatedAt": "2026-10-06"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Use from any MCP client",
@@ -1065,7 +1070,7 @@
           "label": "Build your own UI",
           "to": "harness/custom-ui",
           "addedAt": "2026-09-28",
-          "updatedAt": "2026-10-06"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Run agents from a harness",
@@ -1082,7 +1087,7 @@
           "label": "Self-host the dashboard",
           "to": "harness/dashboard",
           "addedAt": "2026-09-26",
-          "updatedAt": "2026-10-06"
+          "updatedAt": "2026-10-07"
         }
       ]
     },
@@ -1505,37 +1510,37 @@
           "label": "Claude Code",
           "to": "adapters/claude-code",
           "addedAt": "2026-06-12",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Codex",
           "to": "adapters/codex",
           "addedAt": "2026-06-12",
-          "updatedAt": "2026-09-30"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "OpenCode",
           "to": "adapters/opencode",
           "addedAt": "2026-06-12",
-          "updatedAt": "2026-08-17"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Grok Build",
           "to": "adapters/grok-build",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-18"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "ACP-Compatible",
           "to": "adapters/acp-compatible",
           "addedAt": "2026-06-30",
-          "updatedAt": "2026-08-18"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Amazon Bedrock",
           "to": "adapters/bedrock",
           "addedAt": "2026-06-25",
-          "updatedAt": "2026-10-04"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "BytePlus",
