@@ -7,6 +7,8 @@ import {
   PermissionResources,
   PermissionRules,
   decidePermission,
+  deleteSavedPermission,
+  listSavedPermissions,
   permissions,
 } from '../src/first-party/permissions'
 import { mockAdapter, text, toolCall } from './helpers'
@@ -608,6 +610,105 @@ describe('permissions()', () => {
     await session.prompt('read the secret')
 
     expect(tools.ran).toEqual([])
+    await host.close()
+  })
+
+  it('lists the saved rules of a project, and deletes one by its fields', async () => {
+    const persistence = memoryPersistence()
+    const tools = fakeTools()
+    const { host, session } = await open(
+      persistence,
+      [permissions({ root: ROOT }), tools.plugin],
+      [
+        () => toolCall('read_file', { path: '.env' }, 'c1'),
+        () => toolCall('bash', { command: 'git status' }, 'c2'),
+      ],
+    )
+
+    const turn = session.prompt('read, then run')
+    await answer(session, { answer: 'always' })
+    await answer(session, { answer: 'always' })
+    await turn
+    await host.close()
+
+    expect(await listSavedPermissions(persistence.stores, ROOT)).toEqual([
+      { tool: 'read_file', resource: '.env', decision: 'allow' },
+      { tool: 'bash', resource: 'git status', decision: 'allow' },
+    ])
+    expect(await listSavedPermissions(persistence.stores, '/other')).toEqual([])
+
+    await deleteSavedPermission(persistence.stores, ROOT, {
+      tool: 'bash',
+      resource: 'git *',
+      decision: 'allow',
+    })
+    await deleteSavedPermission(persistence.stores, ROOT, {
+      tool: 'read_file',
+      resource: '.env',
+      decision: 'allow',
+    })
+    expect(await listSavedPermissions(persistence.stores, ROOT)).toEqual([
+      { tool: 'bash', resource: 'git status', decision: 'allow' },
+    ])
+  })
+
+  it('lists saved rules with /permissions, and forgets one with /permissions forget', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.metadata.set(
+      'tanstack/permissions',
+      'permissions:saved:/work/repo',
+      [
+        { tool: 'bash', resource: 'git status', decision: 'allow' },
+        { tool: 'deploy', decision: 'allow' },
+      ],
+    )
+    const tools = fakeTools()
+    const { host, session } = await open(
+      persistence,
+      [permissions({ root: ROOT }), tools.plugin],
+      [],
+    )
+
+    expect(await session.command('permissions')).toBe(
+      'Saved rules:\n1. bash git status\n2. deploy',
+    )
+    expect(await session.command('permissions', 'forget 3')).toBe(
+      'No saved rule 3. Run /permissions to see the list.',
+    )
+    expect(await session.command('permissions', 'forget 1')).toBe(
+      'Forgot rule 1: bash git status.',
+    )
+    expect(await listSavedPermissions(persistence.stores, ROOT)).toEqual([
+      { tool: 'deploy', decision: 'allow' },
+    ])
+    await session.command('permissions', 'forget 1')
+    expect(await session.command('permissions')).toBe('No saved rules.')
+    await host.close()
+  })
+
+  it('asks again in the open session after /permissions forget', async () => {
+    const tools = fakeTools()
+    const { host, session } = await open(
+      memoryPersistence(),
+      [permissions({ root: ROOT }), tools.plugin],
+      [
+        () => toolCall('bash', { command: 'git status' }, 'c1'),
+        () => text('ran'),
+        () => toolCall('bash', { command: 'git status' }, 'c2'),
+      ],
+    )
+
+    const first = session.prompt('run it')
+    await answer(session, { answer: 'always' })
+    await first
+    expect(await session.command('permissions', 'forget 1')).toBe(
+      'Forgot rule 1: bash git status.',
+    )
+
+    const second = session.prompt('run it again')
+    expect(await answer(session, { answer: 'once' })).toContain('git status')
+    await second
+    expect(tools.ran).toEqual(['bash', 'bash'])
     await host.close()
   })
 })

@@ -159,12 +159,12 @@ function harnessFor(request: Request) {
       }),
     ],
     // `mode` of `permissions()` stays on the server, so a client cannot pick
-    // `bypass`.
+    // `bypass`. A client can list and forget saved rules with `permissions`.
     expose: {
       agents: ['echo', 'drafter'],
       settings: ['model', 'instructions'],
       config: ['tone'],
-      commands: ['greet', 'release'],
+      commands: ['greet', 'release', 'permissions'],
     },
     plugins: () => [
       ...asks,

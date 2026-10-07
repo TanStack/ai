@@ -33,7 +33,7 @@ import {
 import { createMediaStore, mediaCapture, mediaMiddleware } from './media'
 import { mediaIdOf, mediaOfMessage, mediaPart } from './media-ref'
 import { OperationImpl } from './operation'
-import { mountPlugins } from './plugins'
+import { CapabilityValues, SessionMetadata, mountPlugins } from './plugins'
 import {
   LEASE,
   checkpointMiddleware,
@@ -1413,6 +1413,14 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     return chain
   }
 
+  /** The stores that first-party plugins read as capabilities. */
+  private storeCapabilities() {
+    const values = new CapabilityValues()
+    const { metadata } = this.persistence.stores
+    if (metadata) values.provide(SessionMetadata, metadata)
+    return values
+  }
+
   /** @internal Mount session plugins and replay inputs left in the inbox. */
   async open(): Promise<void> {
     // First: plugins publish events while they mount.
@@ -1431,6 +1439,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             (middleware) => middleware.provides ?? [],
           ),
           services: this.services,
+          inherited: this.storeCapabilities(),
         },
       )
       await this.loadConfig()

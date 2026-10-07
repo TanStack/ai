@@ -1,4 +1,4 @@
-import { CapabilityRegistry } from '@tanstack/ai'
+import { CapabilityRegistry, createCapability } from '@tanstack/ai'
 import { ResourceScope, disposeAll } from './resources'
 import type {
   AgentProduces,
@@ -9,6 +9,7 @@ import type {
   Capability,
   CapabilityHandle,
   KeyedAdapter,
+  MetadataStore,
   ProviderKeys,
 } from '@tanstack/ai'
 import type {
@@ -433,6 +434,14 @@ const NO_SERVICES: PluginServices = {
     group: unavailable('ctx.agents.group'),
   },
 }
+
+/**
+ * @internal The metadata store of the session, for first-party plugins that
+ * need it outside a chat run (in a command). The package does not export it.
+ */
+export const SessionMetadata = createCapability<MetadataStore>()(
+  'tanstack/session-metadata',
+)
 
 /** Capability values provided by plugins, keyed by handle. */
 export class CapabilityValues {

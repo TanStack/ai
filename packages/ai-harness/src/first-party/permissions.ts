@@ -2,7 +2,7 @@ import { createCapability, getMetadata } from '@tanstack/ai'
 import { defineCommand } from '../commands'
 import { configOption } from '../config'
 import { createExtensionPoint } from '../extensions'
-import { definePlugin } from '../plugins'
+import { SessionMetadata, definePlugin } from '../plugins'
 import { isRecord } from '../utils'
 import { globToRegExp } from './glob'
 import type { AnyChatMiddleware, JSONSchema, MetadataStore } from '@tanstack/ai'
@@ -371,6 +371,68 @@ function projectId(root: string) {
   return foldsCase(root) ? path.toLowerCase() : path
 }
 
+/** Where the metadata store keeps the saved rules of `project`. */
+function savedKeyOf(project: string | undefined) {
+  return project === undefined
+    ? 'permissions:saved'
+    : `permissions:saved:${projectId(project)}`
+}
+
+async function readSaved(metadata: MetadataStore, key: string) {
+  const stored = await metadata.get(METADATA_NAMESPACE, key)
+  return Array.isArray(stored) ? stored.filter(isSavedRule) : []
+}
+
+function isSameRule(a: PermissionRule, b: PermissionRule) {
+  return (
+    a.tool === b.tool &&
+    a.resource === b.resource &&
+    a.decision === b.decision &&
+    a.kind === b.kind
+  )
+}
+
+/**
+ * The rules that `always` answers saved for `project`, in the saved order.
+ * `project` is the `root` of `permissions()`. `stores` is the persistence
+ * of the host, for example `persistence.stores`. Without a metadata store,
+ * it resolves to an empty list.
+ */
+export async function listSavedPermissions(
+  stores: { metadata?: MetadataStore },
+  project: string | undefined,
+) {
+  return stores.metadata ? readSaved(stores.metadata, savedKeyOf(project)) : []
+}
+
+/**
+ * Delete one saved rule of `project`. The rule matches by its fields, as
+ * `listSavedPermissions` gives them. An unknown rule does nothing. New
+ * sessions stop using the rule. Open sessions can keep it until they open
+ * again.
+ */
+export async function deleteSavedPermission(
+  stores: { metadata?: MetadataStore },
+  project: string | undefined,
+  rule: PermissionRule,
+) {
+  const { metadata } = stores
+  if (!metadata) return
+  const key = savedKeyOf(project)
+  const rules = await readSaved(metadata, key)
+  const index = rules.findIndex((saved) => isSameRule(saved, rule))
+  if (index === -1) return
+  rules.splice(index, 1)
+  await metadata.set(METADATA_NAMESPACE, key, rules)
+}
+
+/** A saved rule as one line: the tool, then the resource. */
+function describeRule(rule: PermissionRule) {
+  return rule.resource === undefined
+    ? rule.tool
+    : `${rule.tool} ${rule.resource}`
+}
+
 const PLAN_PROMPT =
   'You are in plan mode. Do not change files or run commands. Read what you need, then describe your plan.'
 
@@ -393,7 +455,8 @@ const PLAN_PROMPT =
  * A question takes `once`, `always`, or `reject` with a `message` for the
  * model. `always` saves an allow rule for each path or command part of the
  * call, for the project (`root`), in the metadata store, else in memory for
- * the session.
+ * the session. `/permissions` lists the saved rules, and
+ * `/permissions forget <n>` deletes one.
  */
 export function permissions(
   options: {
@@ -428,17 +491,11 @@ export function permissions(
         )
       }
       const root = options.root
-      const savedKey =
-        root === undefined
-          ? 'permissions:saved'
-          : `permissions:saved:${projectId(root)}`
+      const savedKey = savedKeyOf(root)
       // Answers saved in this session. Runs without a metadata store use them.
       const memory: Array<PermissionRule> = []
       const loadSaved = async (metadata: MetadataStore | undefined) => {
-        const stored = metadata
-          ? await metadata.get(METADATA_NAMESPACE, savedKey)
-          : null
-        const rules = Array.isArray(stored) ? stored.filter(isSavedRule) : []
+        const rules = metadata ? await readSaved(metadata, savedKey) : []
         return [...rules, ...memory]
       }
       // ponytail: get + set, a parallel save can drop a rule. It then asks again.
@@ -448,9 +505,24 @@ export function permissions(
       ) => {
         memory.push(...rules)
         if (!metadata || rules.length === 0) return
-        const stored = await metadata.get(METADATA_NAMESPACE, savedKey)
-        const current = Array.isArray(stored) ? stored.filter(isSavedRule) : []
+        const current = await readSaved(metadata, savedKey)
         await metadata.set(METADATA_NAMESPACE, savedKey, [...current, ...rules])
+      }
+      // The session's store, for commands. A chat run reads its own.
+      const sessionMetadata = ctx.getOptional(SessionMetadata)
+      const savedRules = async () =>
+        sessionMetadata ? readSaved(sessionMetadata, savedKey) : [...memory]
+      const forget = async (arg: string) => {
+        const rules = await savedRules()
+        const rule = /^\d+$/.test(arg) ? rules[Number(arg) - 1] : undefined
+        if (!rule) {
+          return `No saved rule ${arg}. Run /permissions to see the list.`
+        }
+        await deleteSavedPermission({ metadata: sessionMetadata }, root, rule)
+        // This session stops using the rule at once.
+        const kept = memory.filter((saved) => !isSameRule(saved, rule))
+        memory.splice(0, memory.length, ...kept)
+        return `Forgot rule ${arg}: ${describeRule(rule)}.`
       }
       const resourcesOf = (tool: string, input: unknown) => {
         const entry = declared.findLast((item) => Object.hasOwn(item, tool))?.[
@@ -571,6 +643,24 @@ export function permissions(
               return receipt.status === 'rejected'
                 ? `Unknown mode "${next}". Modes: ${PERMISSION_MODES.join(', ')}.`
                 : `Mode: ${next}.`
+            },
+          }),
+          permissions: defineCommand({
+            description:
+              'List the saved "always" rules: /permissions. Delete one: /permissions forget <n>',
+            run: async (input: unknown) => {
+              const arg = typeof input === 'string' ? input.trim() : ''
+              const forgetArg = /^forget\s+(.+)$/.exec(arg)?.[1]
+              if (forgetArg !== undefined) return forget(forgetArg.trim())
+              if (arg !== '') {
+                return 'Use /permissions, or /permissions forget <n>.'
+              }
+              const rules = await savedRules()
+              if (rules.length === 0) return 'No saved rules.'
+              const lines = rules.map(
+                (rule, index) => `${index + 1}. ${describeRule(rule)}`,
+              )
+              return ['Saved rules:', ...lines].join('\n')
             },
           }),
         },

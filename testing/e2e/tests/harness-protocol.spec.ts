@@ -121,6 +121,65 @@ test.describe('harness protocol', () => {
     ).toMatchObject({ status: 'rejected', reason: 'not_exposed' })
   })
 
+  test('lists saved permissions with the permissions command', async ({
+    request,
+    baseURL,
+    testId,
+    aimockPort,
+  }) => {
+    // `x-harness-permissions: 1` adds `permissions()`, with its own root.
+    const auth = {
+      ...headers(testId, aimockPort),
+      'x-harness-permissions': '1',
+    }
+    const threadId = `saved-${testId}`
+    const command = async (input: string) =>
+      (
+        await request.post('/api/harness-protocol/control', {
+          headers: { ...auth, 'content-type': 'application/json' },
+          data: {
+            threadId,
+            input: { op: 'command', name: 'permissions', input },
+          },
+        })
+      ).json()
+
+    expect(await command('')).toMatchObject({ status: 'accepted' })
+    expect(await command('forget 1')).toMatchObject({ status: 'accepted' })
+
+    // The session stream has the result of each command.
+    const feed = await fetch(
+      `${baseURL}/api/harness-protocol/events?threadId=${threadId}&from=0`,
+      { headers: auth },
+    )
+    if (!feed.body) throw new Error('The session stream has no body.')
+    const reader = feed.body.pipeThrough(new TextDecoderStream()).getReader()
+    const results: Array<unknown> = []
+    let buffer = ''
+    while (results.length < 2) {
+      const read = await reader.read()
+      if (read.done) break
+      buffer += read.value
+      const blocks = buffer.split('\n\n')
+      buffer = blocks.pop() ?? ''
+      for (const block of blocks) {
+        const data = block.split('\n').find((line) => line.startsWith('data: '))
+        if (!data) continue
+        const frame: {
+          event?: { type: string; name?: string; value?: { result?: unknown } }
+        } = JSON.parse(data.slice('data: '.length))
+        if (frame.event?.name === 'harness.command.result') {
+          results.push(frame.event.value?.result)
+        }
+      }
+    }
+    await reader.cancel()
+    expect(results).toEqual([
+      'No saved rules.',
+      'No saved rule 1. Run /permissions to see the list.',
+    ])
+  })
+
   test('runs a retried prompt with the same inputId once on a durable host', async ({
     request,
     testId,

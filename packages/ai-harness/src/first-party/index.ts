@@ -7,7 +7,9 @@ export {
   PermissionResources,
   PermissionRules,
   decidePermission,
+  deleteSavedPermission,
   isUnsplittableCommand,
+  listSavedPermissions,
   permissions,
 } from './permissions'
 export type {
