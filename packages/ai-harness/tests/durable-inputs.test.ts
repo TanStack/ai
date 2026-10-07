@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { toolDefinition } from '@tanstack/ai'
+import { EventType, toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { InputRejectedError, createHarnessHost, defineHarness } from '../src'
@@ -336,6 +336,109 @@ describe('recovery of a durable input', () => {
       },
     ])
     await first.host.close().catch(() => {})
+    await next.host.close()
+  })
+
+  it('never runs a call of an answer cut at the output limit, also after a crash', async () => {
+    const lookup = vi.fn(async () => 'found')
+    const tools = [
+      toolDefinition({
+        name: 'lookup',
+        description: 'Look up a fact',
+        inputSchema: z.object({ q: z.string() }),
+        replay: 'safe',
+      }).server(lookup),
+    ]
+    // A provider search, then thinking, so the engine keeps the answer as
+    // two segments with their tool calls. The output limit cuts the answer.
+    const cutAnswer: Reply = () => [
+      { type: EventType.RUN_STARTED, runId: 'r', threadId: 't', timestamp: 1 },
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: 'call-search',
+        toolCallName: 'web_search',
+        timestamp: 1,
+        metadata: { providerExecuted: true },
+      },
+      {
+        type: EventType.TOOL_CALL_END,
+        toolCallId: 'call-search',
+        timestamp: 1,
+      },
+      {
+        type: EventType.REASONING_MESSAGE_CONTENT,
+        messageId: 'r1',
+        delta: 'Now look it up.',
+        timestamp: 1,
+      },
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: 'call-lookup',
+        toolCallName: 'lookup',
+        timestamp: 1,
+      },
+      {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId: 'call-lookup',
+        delta: '{"q":"x"}',
+        timestamp: 1,
+      },
+      {
+        type: EventType.TOOL_CALL_END,
+        toolCallId: 'call-lookup',
+        timestamp: 1,
+      },
+      {
+        type: EventType.RUN_FINISHED,
+        runId: 'r',
+        threadId: 't',
+        timestamp: 1,
+        finishReason: 'length',
+      },
+    ]
+    const persistence = durablePersistence()
+    const first = await openDurable({
+      persistence,
+      replies: [cutAnswer],
+      tools,
+    })
+    await first.session.prompt('look it up', { inputId: 'in-1' })
+    await first.host.close()
+    // The host stopped after it saved the answer, before the turn settled.
+    const entries = await persistence.stores.log.read(THREAD)
+    const settledAt = entries.findIndex(
+      (entry) => entry.record.type === 'harness.input.settled',
+    )
+    const stopped = durablePersistence()
+    await stopped.stores.log.append(
+      THREAD,
+      1,
+      entries.slice(0, settledAt).map((entry) => entry.record),
+    )
+
+    const next = await openDurable({
+      persistence: stopped,
+      replies: [() => text('done')],
+      tools,
+      durability: { truncatedToolResult: 'Cut off. Not run.' },
+    })
+
+    expect(await next.session.settled('in-1')).toMatchObject({
+      outcome: 'completed',
+    })
+    expect(lookup).not.toHaveBeenCalled()
+    const results = (await next.session.transcript()).filter(
+      (message) => message.role === 'tool',
+    )
+    expect(results).toEqual([
+      {
+        role: 'tool',
+        toolCallId: 'call-lookup',
+        content: 'Cut off. Not run.',
+        error: 'Cut off. Not run.',
+      },
+    ])
+    expect(next.calls).toHaveLength(1)
     await next.host.close()
   })
 

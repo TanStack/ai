@@ -714,6 +714,11 @@ export interface TanStackMessageMetadata {
    * sends it again before this message on the next turn.
    */
   reasoningEffort?: string
+  /**
+   * Why the model call of this assistant message ended. A `'length'` message
+   * stopped at the output limit, so its tool calls are not complete.
+   */
+  finishReason?: TanStackRunMetadata['finishReason']
   /** Parent chat run that produced this assistant message. */
   runId?: string
   /**

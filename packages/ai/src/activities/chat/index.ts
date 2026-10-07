@@ -2072,8 +2072,10 @@ class TextEngine<
     if (chunk.type === EventType.RUN_FINISHED) {
       const model = chunk.model ?? incoming?.model
       const responseId = chunk.responseId ?? incoming?.responseId
+      const finishReason = chunk.finishReason ?? incoming?.finishReason
       if (model !== undefined) metadata.model = model
       if (responseId !== undefined) metadata.responseId = responseId
+      if (finishReason) metadata.finishReason = finishReason
       if (incoming?.responseItems !== undefined)
         metadata.responseItems = incoming.responseItems
       if (incoming?.reasoningEffort !== undefined)

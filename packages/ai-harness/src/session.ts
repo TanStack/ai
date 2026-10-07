@@ -36,6 +36,7 @@ import { mediaIdOf, mediaOfMessage, mediaPart } from './media-ref'
 import { OperationImpl } from './operation'
 import { mountPlugins } from './plugins'
 import {
+  CUT_OFF_NOTE,
   LEASE,
   checkpointMiddleware,
   findCrashedRuns,
@@ -3454,6 +3455,9 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       await Promise.allSettled(
         running.map((operation) => Promise.resolve(operation)),
       )
+      // The events from before the close land first, so the next host has
+      // the text of a cut answer.
+      if (options?.recoverable) await this.writer?.flush().catch(() => {})
       try {
         await this.sessionPlugins?.dispose()
       } finally {
@@ -5355,6 +5359,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       pending: newest?.checkpoint?.pendingTools ?? [],
       finished,
       interrupted: this.harness.durability?.interruptedToolResult,
+      truncated: this.harness.durability?.truncatedToolResult,
     })
     return store.loadThread(agentThread)
   }
@@ -6213,6 +6218,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       threadId: newest.threadId,
       pending: newest.checkpoint?.pendingTools ?? [],
       interrupted: this.harness.durability?.interruptedToolResult,
+      truncated: this.harness.durability?.truncatedToolResult,
     })
     const operation = this.createTurnOperation()
     this.feed.publish(
@@ -6313,6 +6319,30 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       decision,
     })
     return answer ?? decision
+  }
+
+  /**
+   * The answer text that operation `operationId` streamed after the last
+   * transcript record: the part of a cut answer that the log has. Thinking,
+   * tool call arguments, and agent text are not in it.
+   */
+  private async cutOffText(writer: LogWriter, operationId: string) {
+    const from = writer.state.transcriptSeq
+    if (from === undefined) return ''
+    let text = ''
+    for await (const { event } of writer.read({
+      from: String(from),
+      filter: (entry) => entry.operationId === operationId,
+      until: () => true,
+    })) {
+      if (
+        event.type === EventType.TEXT_MESSAGE_CONTENT &&
+        !('subagentRunId' in event && event.subagentRunId)
+      ) {
+        text += event.delta
+      }
+    }
+    return text
   }
 
   /**
@@ -6640,13 +6670,32 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       const started = [...writer.state.started]
         .filter(([toolCallId]) => !writer.state.toolResults.has(toolCallId))
         .map(([toolCallId, tool]) => ({ toolCallId, ...tool }))
+      // Before the repair, which can write a transcript record.
+      const cutOff = this.harness.durability?.continueCutOff
+      const partial =
+        cutOff && operationId ? await this.cutOffText(writer, operationId) : ''
       await repairTranscript({
         messages: this.messages,
         threadId: this.threadId,
         pending: [...(run?.checkpoint?.pendingTools ?? []), ...started],
         finished: writer.state.toolResults,
         interrupted: this.harness.durability?.interruptedToolResult,
+        truncated: this.harness.durability?.truncatedToolResult,
       })
+      if (partial !== '') {
+        const history = await this.messages.loadThread(this.threadId)
+        // One append, so the transcript never ends with the cut answer.
+        await this.messages.saveThread(this.threadId, [
+          ...history,
+          { id: createMessageId(), role: 'assistant', content: partial },
+          {
+            id: createMessageId(),
+            role: 'user',
+            content:
+              (typeof cutOff === 'object' && cutOff.note) || CUT_OFF_NOTE,
+          },
+        ])
+      }
       const operation = this.createTurnOperation()
       this.bindTurn(input.inputId, operation)
       this.feed.publish(

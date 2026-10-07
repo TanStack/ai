@@ -144,6 +144,11 @@ export interface LogState {
   /** The position of the last folded record. */
   seq: number
   messages: Array<ModelMessage>
+  /**
+   * The position of the last transcript record. The events after it are not
+   * in the transcript. Unknown after a fold checkpoint from before this field.
+   */
+  transcriptSeq?: number
   /** In admission order. */
   inputs: Map<string, InputState>
   toolResults: Map<string, ModelMessage>
@@ -159,6 +164,7 @@ export function emptyLogState() {
   const state: LogState = {
     seq: 0,
     messages: [],
+    transcriptSeq: 0,
     inputs: new Map(),
     toolResults: new Map(),
     started: new Map(),
@@ -241,6 +247,7 @@ export function foldEntry(
         ...state.messages.slice(0, record.keep),
         ...record.add.map(revive),
       ]
+      state.transcriptSeq = entry.seq
       return
     case 'harness.input':
       if (state.inputs.has(record.inputId)) return
@@ -424,6 +431,7 @@ function serialize(state: SharedLogState, versions: CheckpointVersions) {
       thread,
       {
         messages: session.messages,
+        transcriptSeq: session.transcriptSeq,
         inputs: [...session.inputs.values()],
         toolResults: [...session.toolResults.entries()],
         started: [...session.started.entries()],
@@ -449,6 +457,10 @@ function parseSession(value: unknown, seq: number) {
   const session: LogState = {
     seq,
     messages: (messages as Array<ModelMessage>).map(revive),
+    // A checkpoint from before `transcriptSeq` has none.
+    ...(typeof value.transcriptSeq === 'number'
+      ? { transcriptSeq: value.transcriptSeq }
+      : {}),
     inputs: new Map(
       (inputs as Array<InputState>).map((input) => [input.inputId, input]),
     ),

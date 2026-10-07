@@ -3,7 +3,7 @@ import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
 import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
-import { INTERRUPTED_TOOL_RESULT } from '../src/resume'
+import { CUT_OFF_NOTE, INTERRUPTED_TOOL_RESULT } from '../src/resume'
 import {
   after,
   gate,
@@ -17,10 +17,11 @@ import type { AnyTool, StreamChunk } from '@tanstack/ai'
 import { EventType } from '@tanstack/ai'
 import type {
   LeaseStore,
+  LogStore,
   TurnLease,
   TurnLeaseKey,
 } from '@tanstack/ai-persistence'
-import type { AnyAgent } from '../src'
+import type { AnyAgent, HarnessConfig } from '../src'
 import type { Reply } from './helpers'
 
 const THREAD = 't1'
@@ -83,6 +84,14 @@ async function openLeased(
   return { host, session, calls }
 }
 
+/** Resolves when the model call is aborted. */
+const aborted = (options: any) =>
+  new Promise<void>((resolve) =>
+    options.request?.signal?.addEventListener('abort', () => resolve(), {
+      once: true,
+    }),
+  )
+
 /** A model call that waits until the call is aborted, like a host that stopped. */
 const hangs: Reply = (options: any) =>
   (async function* (): AsyncGenerator<StreamChunk> {
@@ -92,12 +101,40 @@ const hangs: Reply = (options: any) =>
       threadId: 't',
       timestamp: 1,
     }
-    await new Promise<void>((resolve) =>
-      options.request?.signal?.addEventListener('abort', () => resolve(), {
-        once: true,
-      }),
-    )
+    await aborted(options)
   })()
+
+/**
+ * A model call that streams `content`, then waits until it is aborted.
+ * `onStreamed` runs after the session took the text.
+ */
+const cutAfter =
+  (content: string, onStreamed = () => {}): Reply =>
+  (options: any) =>
+    (async function* (): AsyncGenerator<StreamChunk> {
+      // RUN_STARTED, TEXT_MESSAGE_START, TEXT_MESSAGE_CONTENT.
+      yield* text(content).slice(0, 3)
+      onStreamed()
+      await aborted(options)
+    })()
+
+async function openCutOff(
+  persistence: ReturnType<typeof leasedPersistence>,
+  replies: Array<Reply>,
+  options: Partial<HarnessConfig> = {},
+) {
+  const { adapter, calls } = mockAdapter(replies)
+  const host = createHarnessHost({ persistence })
+  const session = await host.open(
+    defineHarness({ name: 'test/leases', adapter, ...options }),
+    { threadId: THREAD },
+  )
+  return { host, session, calls }
+}
+
+/** Each message as `[role, content]`. */
+const roles = (messages: ReadonlyArray<{ role: string; content: unknown }>) =>
+  messages.map((message) => [message.role, message.content])
 
 describe('a durable host with a lease store and no run store', () => {
   it('takes, renews, and releases the lease of a turn', async () => {
@@ -502,6 +539,42 @@ describe('close({ recoverable: true })', () => {
     await next.host.close()
   })
 
+  it('keeps the text that a model call streamed before the close, for the next host', async () => {
+    const log = memoryLogStore()
+    // A store over the network: each append lands a little later.
+    const slow: LogStore = {
+      append: async (...args) => {
+        await new Promise((resolve) => setTimeout(resolve, 20))
+        return log.append(...args)
+      },
+      read: (...args) => log.read(...args),
+      subscribe: (...args) => log.subscribe(...args),
+    }
+    const persistence = { stores: { log: slow, leases: memoryLeases().store } }
+    const streamed = gate()
+    const first = await openCutOff(persistence, [
+      cutAfter('The answer is ', streamed.open),
+    ])
+    void first.session.prompt('go', { inputId: 'in-1' }).then(
+      () => {},
+      () => {},
+    )
+    await streamed.opened
+
+    await first.host.close({ recoverable: true })
+    const next = await openCutOff(persistence, [() => text('42.')], {
+      durability: { continueCutOff: true },
+    })
+    await next.session.settled('in-1')
+
+    expect(roles(next.calls[0].messages)).toEqual([
+      ['user', 'go'],
+      ['assistant', 'The answer is '],
+      ['user', CUT_OFF_NOTE],
+    ])
+    await next.host.close()
+  })
+
   it('resumes an agent run on the next host', async () => {
     const persistence = durableStores()
     let started = 0
@@ -530,6 +603,152 @@ describe('close({ recoverable: true })', () => {
     expect(await next.session.settled(String(input?.inputId))).toMatchObject({
       outcome: 'completed',
     })
+    await next.host.close()
+  })
+})
+
+describe('durability.continueCutOff', () => {
+  const lookup = toolDefinition({
+    name: 'lookup',
+    description: 'Look up a fact',
+  }).server(async () => 'found')
+
+  /** A host that stops in a model call after `streamed` reached the log. */
+  async function crashAfterText(
+    replies: Array<Reply>,
+    options: Partial<HarnessConfig> = { tools: [lookup] },
+    streamed = 'The answer is ',
+  ) {
+    const leases = memoryLeases()
+    const persistence = leasedPersistence(leases.store)
+    const first = await openCutOff(persistence, replies, options)
+    void first.session.prompt('go', { inputId: 'in-1' }).then(
+      () => {},
+      () => {},
+    )
+    await vi.waitFor(async () =>
+      expect(
+        JSON.stringify(await persistence.stores.log.read(THREAD)),
+      ).toContain(streamed),
+    )
+    leases.expire()
+    return { persistence, first }
+  }
+
+  it.each([
+    { option: true, note: CUT_OFF_NOTE },
+    { option: { note: 'Go on.' }, note: 'Go on.' },
+  ])(
+    'continues an answer that a crash cut (continueCutOff: $option)',
+    async ({ option, note }) => {
+      // The text of the first model call is in the transcript already.
+      const { persistence, first } = await crashAfterText([
+        () => [
+          ...text('Let me look.').slice(0, 4),
+          ...toolCall('lookup', {}).slice(1),
+        ],
+        cutAfter('The answer is '),
+      ])
+
+      const next = await openCutOff(persistence, [() => text('42.')], {
+        durability: { continueCutOff: option },
+        tools: [lookup],
+      })
+      expect(await next.session.settled('in-1')).toMatchObject({
+        outcome: 'completed',
+      })
+
+      const before = [
+        ['user', 'go'],
+        ['assistant', 'Let me look.'],
+        ['tool', 'found'],
+        ['assistant', 'The answer is '],
+        ['user', note],
+      ]
+      expect(roles(next.calls[0].messages)).toEqual(before)
+      expect(roles(await next.session.transcript())).toEqual([
+        ...before,
+        ['assistant', '42.'],
+      ])
+      // One append, so the transcript never ends with the cut answer.
+      const added = (await persistence.stores.log.read(THREAD)).find(
+        (entry) =>
+          entry.record.type === 'harness.transcript' &&
+          JSON.stringify(entry.record).includes(note),
+      )
+      expect(added?.record).toMatchObject({
+        add: [
+          { role: 'assistant', content: 'The answer is ' },
+          { role: 'user', content: note },
+        ],
+      })
+      await first.host.close().catch(() => {})
+      await next.host.close()
+    },
+  )
+
+  it('runs a cut answer again with no note when the option is off', async () => {
+    const { persistence, first } = await crashAfterText([
+      cutAfter('The answer is '),
+    ])
+
+    const next = await openCutOff(persistence, [() => text('42.')])
+    await next.session.settled('in-1')
+
+    expect(roles(next.calls[0].messages)).toEqual([['user', 'go']])
+    expect(roles(await next.session.transcript())).toEqual([
+      ['user', 'go'],
+      ['assistant', '42.'],
+    ])
+    await first.host.close().catch(() => {})
+    await next.host.close()
+  })
+
+  it('does not keep the text of an agent that the crash cut', async () => {
+    const child = mockAdapter([cutAfter('Agent notes ')])
+    const writer = defineAgent({
+      name: 'writer',
+      description: 'Writes notes',
+      run: (ctx) => ctx.chat({ adapter: child.adapter }),
+    })
+    const subagents = { agents: [writer], tool: 'single' as const }
+    const { persistence, first } = await crashAfterText(
+      [() => toolCall('subagent', { agent: 'writer', prompt: 'Notes' })],
+      { subagents },
+      'Agent notes ',
+    )
+
+    const next = await openCutOff(persistence, [() => text('42.')], {
+      durability: { continueCutOff: true },
+      subagents,
+    })
+    await next.session.settled('in-1')
+
+    const sent = JSON.stringify(next.calls[0].messages)
+    expect(sent).not.toContain('Agent notes')
+    expect(sent).not.toContain(CUT_OFF_NOTE)
+    await first.host.close().catch(() => {})
+    await next.host.close()
+  })
+
+  it('runs a call cut before any text again with no note', async () => {
+    const leases = memoryLeases()
+    const persistence = leasedPersistence(leases.store)
+    const first = await openCutOff(persistence, [hangs])
+    void first.session.prompt('go', { inputId: 'in-1' }).then(
+      () => {},
+      () => {},
+    )
+    await vi.waitFor(() => expect(first.calls).toHaveLength(1))
+    leases.expire()
+
+    const next = await openCutOff(persistence, [() => text('42.')], {
+      durability: { continueCutOff: true },
+    })
+    await next.session.settled('in-1')
+
+    expect(roles(next.calls[0].messages)).toEqual([['user', 'go']])
+    await first.host.close().catch(() => {})
     await next.host.close()
   })
 })

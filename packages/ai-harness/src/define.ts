@@ -81,7 +81,7 @@ export interface HarnessRouting extends Pick<
 
 /**
  * Limits for one input on a durable host (a host with `stores.log`). A host
- * without a log reads only `interruptedToolResult`.
+ * without a log reads only `interruptedToolResult` and `truncatedToolResult`.
  */
 export interface HarnessDurability {
   /**
@@ -109,6 +109,24 @@ export interface HarnessDurability {
    * JSON note that the tool may or may not have run.
    */
   interruptedToolResult?: string
+  /**
+   * The tool result that recovery gives each tool call of an answer that
+   * stopped at the output limit (finish reason `length`): the content and the
+   * error of its tool message. Such a call never runs, also with
+   * `replay: 'safe'`. Default: `'The answer was cut off at the output limit
+   * before this tool call was complete. The call did not run.'`
+   */
+  truncatedToolResult?: string
+  /**
+   * Continue an answer that a crash cut. Before the recovered attempt runs,
+   * recovery adds the answer text that the log has as an assistant message,
+   * then a user message with `note`, in one append. The model goes on after
+   * the note. Partial thinking and tool calls are not kept. An attempt that
+   * streamed no answer text runs again with no note. Default `false`. The
+   * default note: `'The previous answer was cut off. Continue exactly where
+   * it stopped, without repeating it.'`
+   */
+  continueCutOff?: boolean | { note?: string }
 }
 
 /**

@@ -544,6 +544,28 @@ describe('fold checkpoints', () => {
       .toMatchObject({ v: 2, seq: 50, version: 'v1' })
   })
 
+  it('keeps the position of the last transcript record', async () => {
+    const store = memoryLogStore()
+    const { metadata } = memoryPersistence().stores
+    const writer = newWriter(store, { metadata, project })
+    await writer.commit({ messages: [user('u1', 'one')] })
+    for (let index = 1; index < 50; index += 1) {
+      await writer.append([{ type: 'app.tick', index }])
+    }
+    await expect
+      .poll(() => metadata.get(NAMESPACE, THREAD))
+      .toMatchObject({ seq: 50 })
+
+    expect(
+      (await loadSession({ store, metadata, project })).transcriptSeq,
+    ).toBe(1)
+    // A checkpoint from before the field does not know it.
+    await metadata.set(NAMESPACE, THREAD, checkpoint({ seq: 2 }))
+    expect(
+      (await loadSession({ store, metadata, project })).transcriptSeq,
+    ).toBeUndefined()
+  })
+
   /** Counts the host records of the log. */
   const countRecords: ReduceOptions<number> = {
     initial: 0,
