@@ -53,7 +53,7 @@ import { Route as ApiAnthropicMultiTurnStructuredWireRouteImport } from './route
 import { Route as ApiAnthropicOpus5CombinedWireRouteImport } from './routes/api.anthropic-opus-5-combined-wire'
 import { Route as ApiAnthropicRedactedThinkingWireRouteImport } from './routes/api.anthropic-redacted-thinking-wire'
 import { Route as ApiAnthropicSkillsWireRouteImport } from './routes/api.anthropic-skills-wire'
-import { Route as ApiAnthropicSonnet55WireRouteImport } from './routes/api.anthropic-skills-wire'
+import { Route as ApiAnthropicSonnet55WireRouteImport } from './routes/api.anthropic-sonnet-5-5-wire'
 import { Route as ApiAnthropicStructuredUsageRouteImport } from './routes/api.anthropic-structured-usage'
 import { Route as ApiAnthropicThinkingOrderWireRouteImport } from './routes/api.anthropic-thinking-order-wire'
 import { Route as ApiAnthropicTruncatedToolInputWireRouteImport } from './routes/api.anthropic-truncated-tool-input-wire'
@@ -2980,9 +2980,7 @@ export const routeTree = rootRouteImport
   ._addFileTypes<FileRouteTypes>()
 
 import type { getRouter } from './router.tsx'
-
 import type { createStart } from '@tanstack/react-start'
-
 declare module '@tanstack/react-start' {
   interface Register {
     ssr: true

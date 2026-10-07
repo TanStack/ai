@@ -768,7 +768,7 @@
           "label": "Image Generation",
           "to": "media/image-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-27"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Video Generation",
@@ -1152,7 +1152,7 @@
           "label": "Google Gemini",
           "to": "adapters/gemini",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-24"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Google Vertex AI",

@@ -157,7 +157,8 @@ function ImageGenerator() {
 
 Supported adapters: `openaiImage` (dall-e-2, dall-e-3, gpt-image-1,
 gpt-image-1-mini, gpt-image-2), `geminiImage` (gemini-3.1-flash-image,
-gemini-3.1-flash-lite-image, gemini-3-pro-image, imagen-4.0-generate-001, etc.)
+gemini-3.1-flash-lite-image, gemini-nano-banana-2.1, gemini-3-pro-image,
+imagen-4.0-generate-001, etc.)
 and `byteplusImage` (Seedream — `seedream-4-0-250828`, `seedream-4-5-251128`,
 the 5.0 family).
 
