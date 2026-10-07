@@ -2394,6 +2394,42 @@ describe('useChat', () => {
       )
     })
 
+    it('is true on the first render after a thread switch', async () => {
+      const pending = createDeferred<{
+        messages: Array<UIMessage>
+        activeRun: null
+        interrupts: null
+      }>()
+      const connection: ResumableConnectConnectionAdapter = {
+        connect: async function* () {},
+        joinRun: async function* () {},
+        hydrate: (threadId) =>
+          threadId === 't1'
+            ? Promise.resolve({
+                messages: [],
+                activeRun: null,
+                interrupts: null,
+              })
+            : pending.promise,
+      }
+      const renders: Array<{ threadId: string; isHydrating: boolean }> = []
+      const { result, rerender } = renderHook(
+        ({ threadId }: { threadId: string }) => {
+          const chat = useChat({ connection, threadId, persistence: true })
+          renders.push({ threadId, isHydrating: chat.isHydrating })
+          return chat
+        },
+        { initialProps: { threadId: 't1' } },
+      )
+      await waitFor(() => expect(result.current.isHydrating).toBe(false))
+
+      rerender({ threadId: 't2' })
+      expect(renders.find((r) => r.threadId === 't2')).toEqual({
+        threadId: 't2',
+        isHydrating: true,
+      })
+    })
+
     it('is false without persistence', () => {
       const { result } = renderUseChat({
         connection: createMockConnectionAdapter({ chunks: [] }),

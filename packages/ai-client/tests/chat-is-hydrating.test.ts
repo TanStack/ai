@@ -150,6 +150,53 @@ describe('ChatClient isHydrating', () => {
     client.dispose()
   })
 
+  it('turns off when a send takes over, and the late transcript is dropped', async () => {
+    const gate = gated()
+    const client = new ChatClient({
+      threadId: 't1',
+      connection: {
+        connect: async function* () {},
+        joinRun: async function* () {},
+        hydrate: () => gate.promise,
+      },
+      persistence: true,
+    })
+    client.attach()
+    expect(client.getIsHydrating()).toBe(true)
+
+    const send = client.sendMessage('new turn')
+    expect(client.getIsHydrating()).toBe(false)
+    await send
+
+    gate.resolve({ messages: [message], activeRun: null, interrupts: null })
+    // Let the hydrate continuation run.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(client.getIsHydrating()).toBe(false)
+    expect(client.getMessages().map((m) => m.id)).not.toContain(message.id)
+
+    client.dispose()
+  })
+
+  it('turns off when clear() drops a pending load', () => {
+    const gate = gated()
+    const client = new ChatClient({
+      threadId: 't1',
+      connection: {
+        connect: async function* () {},
+        joinRun: async function* () {},
+        hydrate: () => gate.promise,
+      },
+      persistence: true,
+    })
+    client.attach()
+    expect(client.getIsHydrating()).toBe(true)
+
+    client.clear()
+    expect(client.getIsHydrating()).toBe(false)
+
+    client.dispose()
+  })
+
   it('is always false without persistence', () => {
     const client = new ChatClient({
       connection: { connect: async function* () {} },

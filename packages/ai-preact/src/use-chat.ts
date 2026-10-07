@@ -262,7 +262,7 @@ export function useChat<
       },
       onHydratingChange: (nextIsHydrating: boolean) => {
         runOrQueueForActiveInstance(() => {
-          setIsHydrating(nextIsHydrating)
+          setHydration({ client: instance, value: nextIsHydrating })
         })
       },
       ...(optionsRef.current.queue !== undefined && {
@@ -302,8 +302,15 @@ export function useChat<
   }, [clientId, syncResumeState])
 
   // Seeded from the client so the first render already shows hydrating, not an
-  // empty chat. The constructor sets it without firing a callback.
-  const [isHydrating, setIsHydrating] = useState(() => client.getIsHydrating())
+  // empty chat. The constructor sets it without firing a callback. Tagged with
+  // its client: after a thread switch, the new client's value shows on the
+  // first render, before the effects sync it.
+  const [hydration, setHydration] = useState(() => ({
+    client,
+    value: client.getIsHydrating(),
+  }))
+  const isHydrating =
+    hydration.client === client ? hydration.value : client.getIsHydrating()
 
   useEffect(() => {
     activeClientRef.current = client
@@ -329,7 +336,7 @@ export function useChat<
       setMessages(clientMessages)
     }
     setHasOlderMessages(client.getHasOlderMessages())
-    setIsHydrating(client.getIsHydrating())
+    setHydration({ client, value: client.getIsHydrating() })
   }, [client])
 
   // Sync body / forwardedProps changes to the client.

@@ -1198,19 +1198,26 @@ export class ChatClient<
       const generation = this.historyGeneration
       this.hydrationInFlight = generation
       this.syncIsHydrating()
+      // A send, a clear, or a newer load clears or replaces `hydrationInFlight`
+      // (see `supersedeHydration`). Then this result is stale.
+      const isCurrent = () =>
+        this.hydrationInFlight === generation &&
+        generation === this.historyGeneration
+      let current: boolean
       try {
         result = await hydrate(this.threadId, hydrateOptions)
       } catch (cause) {
         // Same staleness guard as the success path below: a failure from an
         // older attempt must not touch the state of a newer one.
-        if (generation === this.historyGeneration) this.failHydration(cause)
+        if (isCurrent()) this.failHydration(cause)
         return
       } finally {
+        current = isCurrent()
         if (this.hydrationInFlight === generation) {
           this.hydrationInFlight = undefined
         }
       }
-      if (generation !== this.historyGeneration) return
+      if (!current) return
       // NO VIEW IS WATCHING ANY MORE (it unmounted while this fetch was in
       // flight). Applying anything now is pointless, and one thing is actively
       // harmful: the branch below calls `maybeRejoinInFlight`, which opens a TAIL.
@@ -1763,6 +1770,18 @@ export class ChatClient<
     this.isLoading = isLoading
     this.callbacksRef.current.onLoadingChange(isLoading)
     this.events.loadingChanged(isLoading)
+    if (isLoading) this.supersedeHydration()
+  }
+
+  /**
+   * A send or a clear now owns the transcript. A load that is still pending can
+   * no longer paint it (the generation guards drop its result), so it no longer
+   * counts as hydrating.
+   */
+  private supersedeHydration(): void {
+    this.hydrationInFlight = undefined
+    this.storeHydrating = false
+    this.syncIsHydrating()
   }
 
   private setStatus(status: ChatClientState): void {
@@ -2932,6 +2951,7 @@ export class ChatClient<
     this.persistor?.beginClear()
     this.processor.clearMessages()
     this.resetHistoryPaging()
+    this.supersedeHydration()
     this.discardPendingSends()
     this.persistor?.remove()
     this.stoppedSubagentIds.clear()
