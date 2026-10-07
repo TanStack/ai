@@ -71,6 +71,8 @@ const config: Omit<AnthropicTextConfig, "apiKey"> = {
 const adapter = createAnthropicChat("claude-sonnet-4-6", process.env.ANTHROPIC_API_KEY!, config);
 ```
 
+The adapter supports [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call). An adapter with an injected `client`, such as Claude on Vertex, ignores it, because the adapter cannot reach that fetch.
+
 ## Bearer and OAuth tokens
 
 Use `authToken` for a Bearer token. The adapter sends `Authorization: Bearer` and omits `x-api-key`:
