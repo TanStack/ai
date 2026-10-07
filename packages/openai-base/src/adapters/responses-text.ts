@@ -67,6 +67,7 @@ import type {
   ProviderExecutedToolSource,
   ReasoningCapability,
   TanStackMessageMetadata,
+  TextCompactOptions,
   TextOptions,
   AnyTool,
   NormalizedSystemPrompt,
@@ -195,6 +196,118 @@ function readReasoningItem(
     ...(id ? { id } : {}),
     ...(encrypted_content ? { encrypted_content } : {}),
   }
+}
+
+/** The compaction item packed in a thinking signature, or `undefined`. */
+function readCompactionSignature(
+  signature: string,
+): { type: 'compaction'; id?: string; encrypted_content: string } | undefined {
+  try {
+    const parsed: unknown = JSON.parse(signature)
+    if (
+      !isRecord(parsed) ||
+      parsed.type !== 'compaction' ||
+      typeof parsed.encrypted_content !== 'string'
+    )
+      return undefined
+    return {
+      type: 'compaction',
+      ...(typeof parsed.id === 'string' ? { id: parsed.id } : {}),
+      encrypted_content: parsed.encrypted_content,
+    }
+  } catch {
+    return undefined
+  }
+}
+
+/** The texts of a list of output parts. */
+function partTexts(content: Array<unknown>): Array<string> {
+  return content.flatMap((part) =>
+    isRecord(part) && typeof part.text === 'string' ? [part.text] : [],
+  )
+}
+
+/**
+ * Map one item of a `/responses/compact` output to a message. The
+ * compaction item and reasoning items go in thinking signatures, so they
+ * go back to the same model as they are.
+ */
+function fromCompactedItem(
+  item: unknown,
+  metadata: { tanstack: TanStackMessageMetadata },
+): ModelMessage {
+  if (isRecord(item) && item.type === 'compaction') {
+    return {
+      role: 'assistant',
+      content: null,
+      thinking: [
+        {
+          content: '',
+          redacted: true,
+          signature: JSON.stringify({
+            type: 'compaction',
+            id: item.id,
+            encrypted_content: item.encrypted_content,
+          }),
+        },
+      ],
+      metadata,
+    }
+  }
+  const reasoning = readReasoningItem(item)
+  if (reasoning && isRecord(item)) {
+    const summary = Array.isArray(item.summary) ? partTexts(item.summary) : []
+    return {
+      role: 'assistant',
+      content: null,
+      thinking: [
+        {
+          content: summary.join('\n'),
+          signature: packResponsesReasoningSignature(
+            reasoning.id,
+            reasoning.encrypted_content,
+          ),
+        },
+      ],
+      metadata,
+    }
+  }
+  if (
+    isRecord(item) &&
+    item.type === 'message' &&
+    Array.isArray(item.content) &&
+    (item.role === 'user' || item.role === 'assistant')
+  ) {
+    if (item.role === 'assistant') {
+      return {
+        role: 'assistant',
+        content: partTexts(item.content).join(''),
+        metadata,
+      }
+    }
+    return {
+      role: 'user',
+      content: item.content.map((part): ContentPart => {
+        if (isRecord(part) && typeof part.text === 'string')
+          return { type: 'text', content: part.text }
+        if (
+          isRecord(part) &&
+          part.type === 'input_image' &&
+          typeof part.image_url === 'string'
+        )
+          return {
+            type: 'image',
+            source: { type: 'url', value: part.image_url },
+          }
+        // ponytail: text and image urls only. Map files here when a
+        // compacted history holds them.
+        throw new Error(
+          `Cannot map a compacted ${isRecord(part) ? String(part.type) : 'part'} part.`,
+        )
+      }),
+    }
+  }
+  throw new Error('Cannot map a compacted output item.')
 }
 
 /**
@@ -967,6 +1080,34 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         source: `${this.name}.structuredOutputStream`,
       })
     }
+  }
+
+  /**
+   * Compact the history with `POST /responses/compact`. The result holds
+   * the user messages and one encrypted compaction item.
+   */
+  async compact(options: TextCompactOptions): Promise<Array<ModelMessage>> {
+    const response = await clientFor(this.client, options).responses.compact(
+      {
+        model: options.model,
+        input: this.convertMessagesToInput(
+          options.messages,
+          undefined,
+          options.model,
+        ),
+      },
+      options.signal ? { signal: options.signal } : {},
+    )
+    const metadata = {
+      tanstack: {
+        source: {
+          provider: this.provider ?? this.name,
+          api: this.api,
+          model: options.model,
+        },
+      },
+    }
+    return response.output.map((item) => fromCompactedItem(item, metadata))
   }
 
   /**
@@ -2685,6 +2826,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         if (message.thinking) {
           for (const thinking of message.thinking) {
             if (!thinking.signature) continue
+            const compaction = readCompactionSignature(thinking.signature)
+            if (compaction) {
+              result.push(compaction)
+              continue
+            }
             const packed = unpackResponsesReasoningSignature(thinking.signature)
             if (!packed?.id) continue
             reasoningCandidates++

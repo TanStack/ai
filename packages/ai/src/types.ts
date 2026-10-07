@@ -1455,6 +1455,16 @@ export interface TextOptions<
   approvals?: ReadonlyMap<string, boolean>
 }
 
+/** What `TextAdapter.compact` receives. */
+export interface TextCompactOptions {
+  /** The history to compact. */
+  messages: Array<ModelMessage>
+  model: string
+  signal?: AbortSignal
+  /** Wraps the fetch of the compaction request. */
+  wrapFetch?: FetchWrapper
+}
+
 // ============================================================================
 // AG-UI Protocol Event Types
 // ============================================================================

@@ -30,7 +30,10 @@ export function extractRequestOptions(
  * The client of one call. With `wrapFetch`, it is a copy of the client whose
  * fetch goes through the wrapper. Without it, it is the same client.
  */
-export function clientFor(client: OpenAI, options: TextOptions): OpenAI {
+export function clientFor(
+  client: OpenAI,
+  options: Pick<TextOptions, 'wrapFetch'>,
+): OpenAI {
   const { wrapFetch } = options
   if (!wrapFetch) return client
   // The SDK falls back to the global fetch the same way.
