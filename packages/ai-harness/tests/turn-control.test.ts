@@ -199,13 +199,13 @@ describe('turn.onModelError', () => {
     await host.close()
   })
 
-  it('retries an error that the adapter throws, and drops the failed text', async () => {
+  it('continues after an error that the adapter throws, and keeps the partial text', async () => {
     const { host, session } = await open({
       replies: [throws('fetch failed'), () => text('second try')],
       turn: { onModelError: retryTransientErrors({ baseDelayMs: 1 }) },
     })
 
-    expect(await session.prompt('go')).toEqual({ text: 'second try' })
+    expect(await session.prompt('go')).toEqual({ text: 'partial second try' })
     await host.close()
   })
 
@@ -348,6 +348,114 @@ describe('turn.onModelError', () => {
     expect(record?.error).toBeUndefined()
     await host.close()
   })
+
+  it('drops the partial text on a retry', async () => {
+    const seen: Array<boolean> = []
+    const { host, session, calls } = await open({
+      replies: [
+        failsWith('overloaded', 'Hello wor'),
+        () => text('Hello world'),
+      ],
+      turn: {
+        onModelError: ({ partial }) => {
+          seen.push(partial)
+          return 'retry'
+        },
+      },
+    })
+
+    expect(await session.prompt('go')).toEqual({ text: 'Hello world' })
+    expect(seen).toEqual([true])
+    expect(messageTexts(calls[1])).toEqual(['go'])
+    await host.close()
+  })
+
+  it('continues a partial answer: the next call gets it and a note', async () => {
+    const { host, session, calls } = await open({
+      replies: [failsWith('overloaded', 'Hello wor'), () => text('ld')],
+      turn: { onModelError: () => 'continue' },
+    })
+
+    const turn = session.prompt('go')
+    expect(await turn).toEqual({ text: 'Hello world' })
+    const sent = calls[1].messages
+    expect(sent).toHaveLength(3)
+    expect(sent[1]).toMatchObject({ role: 'assistant', content: 'Hello wor' })
+    expect(sent[2].role).toBe('user')
+    expect(sent[2].content).toContain('Continue from the exact point')
+    expect(
+      (await session.transcript())
+        .filter((message) => message.role === 'assistant')
+        .map((message) => message.content),
+    ).toEqual(['Hello wor', 'ld'])
+    expect(await eventsOf(session, turn.id)).toContain(
+      'CUSTOM:harness.turn.retry',
+    )
+    await host.close()
+  })
+
+  it('sends the retry event with continued set', async () => {
+    const { host, session } = await open({
+      replies: [
+        failsWith('overloaded', 'Hello wor'),
+        failsWith('overloaded'),
+        () => text('ld'),
+      ],
+      turn: { onModelError: () => 'continue' },
+    })
+
+    const turn = session.prompt('go')
+    await turn
+    const retries: Array<unknown> = []
+    for await (const entry of session.events({
+      signal: AbortSignal.timeout(200),
+    })) {
+      if (
+        entry.operationId === turn.id &&
+        entry.event.type === EventType.CUSTOM &&
+        entry.event.name === 'harness.turn.retry'
+      ) {
+        retries.push(entry.event.value)
+      }
+    }
+    expect(retries).toMatchObject([
+      { retries: 1, continued: true },
+      { retries: 2, continued: false },
+    ])
+    await host.close()
+  })
+
+  it('acts as a retry for a continue with no partial text', async () => {
+    const { host, session, calls } = await open({
+      replies: [failsWith('overloaded'), () => text('ok')],
+      turn: { onModelError: () => 'continue' },
+    })
+
+    expect(await session.prompt('go')).toEqual({ text: 'ok' })
+    expect(messageTexts(calls[1])).toEqual(['go'])
+    await host.close()
+  })
+
+  it.each([
+    [true, 'continue'],
+    [false, 'retry'],
+  ])(
+    'retryTransientErrors answers for partial: %s',
+    async (partial, expected) => {
+      const { host, session } = await open({ replies: [], turn: {} })
+      const policy = retryTransientErrors({ baseDelayMs: 1 })
+      const answer = await policy({
+        session,
+        operationId: 'op',
+        error: { message: 'overloaded' },
+        retries: 0,
+        partial,
+        signal: new AbortController().signal,
+      })
+      expect(answer).toBe(expected)
+      await host.close()
+    },
+  )
 
   it('keeps today behavior without the hook', async () => {
     const { host, session, calls } = await open({

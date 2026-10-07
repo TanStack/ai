@@ -2,7 +2,7 @@
 title: Control how a turn ends
 id: harness-turn-control
 order: 4
-description: "Send the model back to work when it stops too soon, retry model errors, choose which waiting messages join a running turn, run tools one at a time, and give one prompt its own model and tools."
+description: "Send the model back to work when it stops too soon, retry model errors or continue a partial answer, choose which waiting messages join a running turn, run tools one at a time, and give one prompt its own model and tools."
 keywords:
   - tanstack ai
   - harness
@@ -96,7 +96,36 @@ const picky = defineHarness({
 })
 ```
 
-Clients get a `harness.turn.retry` event for each retry. The text of the failed call is not in the turn result.
+- When the failed call streamed no text, the policy answers `'retry'`. The model runs the call again from the start.
+- When the failed call streamed some text, the policy answers `'continue'`. The model continues that text. See [Continue a partial answer](#continue-a-partial-answer).
+- The delay is always the backoff. The harness does not read a `retry-after` header from the provider.
+
+Clients get a `harness.turn.retry` event for each retry. Its value has `operationId`, `retries`, `error`, and `continued`.
+
+### Continue a partial answer
+
+A stream can fail after the model wrote half of its answer. A retry drops that half, and the model writes the full answer again. Answer `'continue'` from `onModelError` to keep it:
+
+```ts group=harness-turn-control
+const continuing = defineHarness({
+  name: 'acme/continuing',
+  adapter: openaiText('gpt-5.6'),
+  turn: {
+    onModelError: ({ error, retries, partial }) => {
+      if (retries >= 3 || !isTransientModelError(error)) return undefined
+      return partial ? 'continue' : 'retry'
+    },
+  },
+})
+```
+
+When the hook answers `'continue'`:
+
+- The partial text stays in the turn result and in the transcript.
+- The next model call gets the partial assistant message, then a short user note. The note asks the model to continue from where it stopped, without repeating its text.
+- The `harness.turn.retry` event has `continued: true`.
+
+`partial` is true when the failed call streamed text before the error. With no partial text, `'continue'` acts as `'retry'`, and the text of the failed call is not in the turn result.
 
 ### Compact after a context overflow
 
@@ -278,7 +307,7 @@ To keep a model or instructions for every turn of a thread, also after a restart
 ## What you have now
 
 - A turn that goes back to work until the job is done, with a limit.
-- Model errors that retry with a backoff, and a policy of your own for a context overflow.
+- Model errors that retry with a backoff, a partial answer that the model continues, and a policy of your own for a context overflow.
 - Waiting messages that join a turn only when you allow it.
 - Tools that run one at a time when they must not overlap.
 - A prompt that runs with its own model, reasoning, prompt cache, and tools.

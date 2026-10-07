@@ -359,7 +359,8 @@ export const HARNESS_EVENTS = {
   media: 'harness.media',
   /**
    * A turn runs the model again after an error. The value has `operationId`,
-   * `retries`, and `error`.
+   * `retries`, `error`, and `continued`. `continued` is true when the model
+   * continues a partial answer.
    */
   turnRetry: 'harness.turn.retry',
   /**

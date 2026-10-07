@@ -887,6 +887,10 @@ const CONTROL_OPS = new Set<string>(['cancelInput', 'setDelivery'])
 /** Why a turn stops when its input passes its time limit. */
 const TIMEOUT_REASON = 'harness:input-timeout'
 
+/** What the model gets after its partial answer, on a `'continue'`. */
+const CONTINUE_NOTE =
+  'Your last answer stopped early because of an error. Continue from the exact point where it stopped. Do not repeat the text you already wrote.'
+
 /** Why a turn fails when no option gives it an adapter. */
 const NO_MODEL =
   'This turn has no model. Set `adapter` in defineHarness, return one from a plugin `adapter()`, or pass `overrides.adapter` to the turn.'
@@ -4318,6 +4322,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       let routedFrom = turn.answers?.routed?.messages
       /** Retries since the last finished tool phase. */
       let retries = 0
+      /** The partial answer and the note that a `'continue'` adds. */
+      let continued: Array<ModelMessage> = []
       /** How many times `turn.beforeFinish` continued this turn. */
       let cycle = 0
       // One chat() run, and one more each time steers wait after a final
@@ -4338,7 +4344,14 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             routed && !routedFrom
               ? await this.messages.loadThread(this.threadId)
               : []
-          const turnMessages = [...history, ...(message ? [message] : [])]
+          const turnMessages = [
+            ...history,
+            ...(message ? [message] : []),
+            ...continued,
+          ]
+          // withPersistence saves them at the start of the call, so a later
+          // call finds them in the thread.
+          continued = []
           // The store keeps each agent in its own thread, and chat() finds a
           // stopped agent in the cards that a client sends back. So the
           // harness keeps the cards of a routed run, as a client does.
@@ -4506,6 +4519,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           }
         }
         if (runError && turnHooks?.onModelError) {
+          const partial = text !== textBefore
           const answer =
             signal.aborted || this.logFailure
               ? undefined
@@ -4515,17 +4529,32 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
                   ...(turn.inputId ? { inputId: turn.inputId } : {}),
                   error: runError,
                   retries,
+                  partial,
                   signal,
                 })
-          if (answer === 'retry' && !signal.aborted) {
+          if (
+            (answer === 'retry' || answer === 'continue') &&
+            !signal.aborted
+          ) {
             retries += 1
-            // The turn result has only the text of the calls that counted.
-            text = textBefore
+            const isContinued = answer === 'continue' && partial
+            if (isContinued) {
+              // The partial answer stays in the turn result and in the
+              // transcript. The model continues it.
+              continued = [
+                { role: 'assistant', content: text.slice(textBefore.length) },
+                { role: 'user', content: CONTINUE_NOTE },
+              ]
+            } else {
+              // The turn result has only the text of the calls that counted.
+              text = textBefore
+            }
             operation.publish(
               customEvent(HARNESS_EVENTS.turnRetry, {
                 operationId: operation.id,
                 retries,
                 error: runError,
+                continued: isContinued,
               }),
             )
             // The resume stays: withPersistence commits it only when a call
