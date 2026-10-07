@@ -421,8 +421,8 @@ calls and file activity live.
   - `VERCEL_TEAM_ID` + `VERCEL_PROJECT_ID`. (Token alone falls back to OIDC and
     fails.) OIDC tokens are short-lived — re-pull when they expire.
 - **Daytona** — `DAYTONA_API_KEY`.
-- **Railway** — a project token in `RAILWAY_TOKEN`, **or** an account or
-  workspace token in `RAILWAY_API_TOKEN` + `RAILWAY_ENVIRONMENT_ID`.
+- **Railway** — `RAILWAY_ENVIRONMENT_ID`, plus a project token in
+  `RAILWAY_TOKEN` **or** an account or workspace token in `RAILWAY_API_TOKEN`.
 
 ### Harness keys
 
