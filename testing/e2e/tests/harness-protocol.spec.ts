@@ -407,6 +407,55 @@ test.describe('harness protocol', () => {
     })
   })
 
+  test('searches the session list by title, without case', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const auth = headers(testId, aimockPort)
+    const json = { ...auth, 'content-type': 'application/json' }
+    const titles = {
+      [`search-a-${testId}`]: `Plan the trip ${testId}`,
+      [`search-b-${testId}`]: `Write the docs ${testId}`,
+      [`search-c-${testId}`]: `Trip budget ${testId}`,
+    }
+    for (const [threadId, title] of Object.entries(titles)) {
+      const opened = await request.get(
+        `/api/harness-protocol/snapshot?threadId=${threadId}`,
+        { headers: auth },
+      )
+      expect(opened.status()).toBe(200)
+      const renamed = await request.post('/api/harness-protocol/sessions', {
+        headers: json,
+        data: { op: 'rename', threadId, title },
+      })
+      expect(renamed.status()).toBe(200)
+    }
+
+    // The test id keeps out the threads of other tests on the shared host.
+    const query = new URLSearchParams({ search: `TRIP ${testId}` })
+    const response = await request.get(
+      `/api/harness-protocol/sessions?${query}`,
+      { headers: auth },
+    )
+    const listed: { entries: Array<{ threadId: string }> } =
+      await response.json()
+    expect(listed.entries.map((entry) => entry.threadId)).toEqual([
+      `search-a-${testId}`,
+    ])
+    const budget = await request.get(
+      `/api/harness-protocol/sessions?${new URLSearchParams({ search: 'trip' })}`,
+      { headers: auth },
+    )
+    const found: { entries: Array<{ threadId: string }> } = await budget.json()
+    expect(found.entries.map((entry) => entry.threadId)).toEqual(
+      expect.arrayContaining([`search-a-${testId}`, `search-c-${testId}`]),
+    )
+    expect(found.entries.map((entry) => entry.threadId)).not.toContain(
+      `search-b-${testId}`,
+    )
+  })
+
   test('shows running, then idle, on the host status feed', async ({
     request,
     baseURL,

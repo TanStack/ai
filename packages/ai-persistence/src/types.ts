@@ -643,6 +643,18 @@ export interface SessionIndexListOptions {
    * tenant must match too. An entry without a principal never matches.
    */
   principal?: { id: string; tenantId?: string }
+  /**
+   * Only the entries whose `title` contains this text, without case. An entry
+   * without a title never matches.
+   */
+  search?: string
+  /** Only the entries whose `harness` is exactly this name. */
+  harness?: string
+  /**
+   * Only the entries whose `metadata` has each key with exactly this string
+   * value.
+   */
+  metadata?: Record<string, string>
 }
 
 /**

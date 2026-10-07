@@ -2098,6 +2098,177 @@ export function runPersistenceConformance(
         ).toEqual([parent])
       })
 
+      it('filters by title search, without case', async (ctx) => {
+        const store = persistence.stores.sessions
+        if (!store) return ctx.skip('sessions store not provided')
+        const owner = { id: newId() }
+        const build = `${owner.id}-build`
+        const docs = `${owner.id}-docs`
+        const untitled = `${owner.id}-untitled`
+        await store.upsert(
+          sessionEntry(build, 10, { principal: owner, title: 'Fix the Build' }),
+        )
+        await store.upsert(
+          sessionEntry(docs, 20, { principal: owner, title: 'Write docs' }),
+        )
+        await store.upsert(sessionEntry(untitled, 30, { principal: owner }))
+
+        expect(
+          threadIds(await store.list({ principal: owner, search: 'BUILD' })),
+        ).toEqual([build])
+        // An entry with no title never matches.
+        expect(
+          threadIds(await store.list({ principal: owner, search: '' })),
+        ).toEqual([docs, build])
+      })
+
+      it('filters by harness name', async (ctx) => {
+        const store = persistence.stores.sessions
+        if (!store) return ctx.skip('sessions store not provided')
+        const owner = { id: newId() }
+        const coder = `${owner.id}-coder`
+        const writer = `${owner.id}-writer`
+        const none = `${owner.id}-none`
+        await store.upsert(
+          sessionEntry(coder, 10, { principal: owner, harness: 'coder' }),
+        )
+        await store.upsert(
+          sessionEntry(writer, 20, { principal: owner, harness: 'writer' }),
+        )
+        await store.upsert(sessionEntry(none, 30, { principal: owner }))
+
+        expect(
+          threadIds(await store.list({ principal: owner, harness: 'coder' })),
+        ).toEqual([coder])
+      })
+
+      it('filters by exact metadata values', async (ctx) => {
+        const store = persistence.stores.sessions
+        if (!store) return ctx.skip('sessions store not provided')
+        const owner = { id: newId() }
+        const both = `${owner.id}-both`
+        const projectOnly = `${owner.id}-project-only`
+        const other = `${owner.id}-other`
+        const none = `${owner.id}-none`
+        await store.upsert(
+          sessionEntry(both, 10, {
+            principal: owner,
+            metadata: { project: 'p-1', branch: 'main' },
+          }),
+        )
+        await store.upsert(
+          sessionEntry(projectOnly, 20, {
+            principal: owner,
+            metadata: { project: 'p-1' },
+          }),
+        )
+        await store.upsert(
+          sessionEntry(other, 30, {
+            principal: owner,
+            metadata: { project: 'p-2', branch: 'main' },
+          }),
+        )
+        await store.upsert(sessionEntry(none, 40, { principal: owner }))
+
+        expect(
+          threadIds(
+            await store.list({
+              principal: owner,
+              metadata: { project: 'p-1' },
+            }),
+          ),
+        ).toEqual([projectOnly, both])
+        expect(
+          threadIds(
+            await store.list({
+              principal: owner,
+              metadata: { project: 'p-1', branch: 'main' },
+            }),
+          ),
+        ).toEqual([both])
+      })
+
+      it('combines search, harness, and metadata with AND', async (ctx) => {
+        const store = persistence.stores.sessions
+        if (!store) return ctx.skip('sessions store not provided')
+        const owner = { id: newId() }
+        const match = `${owner.id}-match`
+        const wrongTitle = `${owner.id}-wrong-title`
+        const wrongHarness = `${owner.id}-wrong-harness`
+        const wrongProject = `${owner.id}-wrong-project`
+        const base = {
+          principal: owner,
+          title: 'Fix the build',
+          harness: 'coder',
+          metadata: { project: 'p-1' },
+        }
+        await store.upsert(sessionEntry(match, 10, base))
+        await store.upsert(
+          sessionEntry(wrongTitle, 20, { ...base, title: 'Write docs' }),
+        )
+        await store.upsert(
+          sessionEntry(wrongHarness, 30, { ...base, harness: 'writer' }),
+        )
+        await store.upsert(
+          sessionEntry(wrongProject, 40, {
+            ...base,
+            metadata: { project: 'p-2' },
+          }),
+        )
+
+        expect(
+          threadIds(
+            await store.list({
+              principal: owner,
+              search: 'build',
+              harness: 'coder',
+              metadata: { project: 'p-1' },
+            }),
+          ),
+        ).toEqual([match])
+      })
+
+      it('pages the filtered list with a cursor', async (ctx) => {
+        const store = persistence.stores.sessions
+        if (!store) return ctx.skip('sessions store not provided')
+        const owner = { id: newId() }
+        const a = `${owner.id}-a`
+        const b = `${owner.id}-b`
+        const c = `${owner.id}-c`
+        await store.upsert(
+          sessionEntry(a, 50, { principal: owner, title: 'build a' }),
+        )
+        await store.upsert(
+          sessionEntry(`${owner.id}-skip`, 40, {
+            principal: owner,
+            title: 'docs',
+          }),
+        )
+        await store.upsert(
+          sessionEntry(b, 30, { principal: owner, title: 'build b' }),
+        )
+        await store.upsert(
+          sessionEntry(c, 20, { principal: owner, title: 'build c' }),
+        )
+
+        const first = await store.list({
+          principal: owner,
+          search: 'build',
+          limit: 2,
+        })
+        expect(threadIds(first)).toEqual([a, b])
+        expect(first.truncated).toBe(true)
+
+        const second = await store.list({
+          principal: owner,
+          search: 'build',
+          limit: 2,
+          cursor: required(first.cursor, 'the cursor of a truncated page'),
+        })
+        expect(threadIds(second)).toEqual([c])
+        expect(second.truncated).toBeFalsy()
+      })
+
       it('deletes an entry, and ignores an unknown thread', async (ctx) => {
         const store = persistence.stores.sessions
         if (!store) return ctx.skip('sessions store not provided')

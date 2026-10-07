@@ -760,8 +760,11 @@ class MemorySessionIndexStore implements SessionIndexStore {
     return Promise.resolve(entry && structuredClone(entry))
   }
   list(options: SessionIndexListOptions = {}) {
-    const { limit, cursor, parentThreadId, principal } = options
+    const { limit, cursor, parentThreadId, principal, search, harness } =
+      options
     const after = cursor === undefined ? undefined : parseSessionCursor(cursor)
+    const needle = search?.toLowerCase()
+    const metadata = Object.entries(options.metadata ?? {})
     const matching = [...this.entries.values()]
       .filter((entry) => {
         // `null` asks for the entries with no parent.
@@ -776,7 +779,21 @@ class MemorySessionIndexStore implements SessionIndexStore {
           (entry.principal?.id === principal.id && isSameTenant)
         const isAfterCursor =
           after === undefined || bySessionOrder(after, entry) < 0
-        return isChild && isOwned && isAfterCursor
+        const isFound =
+          needle === undefined ||
+          (entry.title?.toLowerCase().includes(needle) ?? false)
+        const isHarness = harness === undefined || entry.harness === harness
+        const hasMetadata = metadata.every(
+          ([key, value]) => entry.metadata?.[key] === value,
+        )
+        return (
+          isChild &&
+          isOwned &&
+          isFound &&
+          isHarness &&
+          hasMetadata &&
+          isAfterCursor
+        )
       })
       .sort(bySessionOrder)
     const page = limit === undefined ? matching : matching.slice(0, limit)

@@ -97,7 +97,22 @@ if (page.truncated) {
 - With `limit`, a page that has more entries after it has `truncated: true` and a `cursor`. Pass the `cursor` to get the next page.
 - If `principal` has a `tenantId`, the tenant of the entry must match too.
 
-In the browser, call `listSessions`. The handler lists only the sessions of the user that `authorize` returns, and only the threads that `canAccess` lets in:
+To find sessions, add filters. All filters must match, and `limit` and `cursor` page the filtered list:
+
+```ts group=harness-sessions
+const found = await host.sessions.list({
+  principal: { id: 'ada' },
+  search: 'trip',
+  harness: 'acme/assistant',
+  metadata: { project: 'p-1' },
+})
+```
+
+- `search` keeps the sessions whose title contains the text, without case. A session with no title never matches.
+- `harness` keeps the sessions of the harness with this `name`.
+- `metadata` keeps the sessions that have each key with exactly this string value. A plugin sets `metadata` with `ctx.session.updateEntry`.
+
+In the browser, call `listSessions`. The handler lists only the sessions of its own harness and of the user that `authorize` returns. It also drops the threads that `canAccess` refuses:
 
 ```ts group=harness-sessions-client
 import { createHarnessClient } from '@tanstack/ai-harness/client'
@@ -113,7 +128,14 @@ const page = await client.listSessions({ limit: 20 })
 const next = page.truncated
   ? await client.listSessions({ limit: 20, cursor: page.cursor })
   : undefined
+
+const found = await client.listSessions({
+  search: 'trip',
+  metadata: { project: 'p-1' },
+})
 ```
+
+`listSessions` sends `search` and `metadata` as query parameters: `?search=trip&metadata.project=p-1`.
 
 The session calls of the client do not use its `threadId`. Each call names its thread in its own arguments.
 

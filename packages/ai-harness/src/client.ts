@@ -162,12 +162,16 @@ export interface HarnessClient<THarness extends AnyHarness> {
   /**
    * One page of your sessions, newest first. Default: top-level sessions.
    * Pass `parentThreadId` to get the child sessions of a thread, and the
-   * `cursor` of a page to get the next page.
+   * `cursor` of a page to get the next page. `search` keeps the sessions
+   * whose title contains the text, without case. `metadata` keeps the
+   * sessions with each exact metadata value.
    */
   listSessions: (options?: {
     limit?: number
     cursor?: string
     parentThreadId?: string
+    search?: string
+    metadata?: Record<string, string>
   }) => Promise<SessionIndexPage>
   /** Set the title of one of your sessions. Resolves to the changed entry. */
   renameSession: (threadId: string, title: string) => Promise<SessionIndexEntry>
@@ -489,11 +493,20 @@ export function createHarnessClient<THarness extends AnyHarness>(
     upload,
     mediaUrl,
     loadMedia,
-    listSessions: async ({ limit, cursor, parentThreadId } = {}) => {
+    listSessions: async ({
+      limit,
+      cursor,
+      parentThreadId,
+      search,
+      metadata = {},
+    } = {}) => {
       const query = new URLSearchParams()
       if (limit !== undefined) query.set('limit', String(limit))
       if (cursor) query.set('cursor', cursor)
       if (parentThreadId) query.set('parentThreadId', parentThreadId)
+      if (search) query.set('search', search)
+      for (const [key, value] of Object.entries(metadata))
+        query.set(`metadata.${key}`, value)
       const response = await checked(
         'sessions',
         await doFetch(`${base}/sessions?${query}`, { headers: headers() }),

@@ -814,6 +814,9 @@ interface SessionIndexListOptions {
   cursor?: string
   parentThreadId?: string | null
   principal?: { id: string; tenantId?: string }
+  search?: string
+  harness?: string
+  metadata?: Record<string, string>
 }
 
 interface SessionIndexPage {
@@ -847,6 +850,12 @@ Rules for `list`:
   only the entries with no parent. Without it, the parent does not filter.
 - `principal` returns only the entries of that owner id. With a `tenantId`, the
   tenant must match too. An entry without a `principal` never matches.
+- `search` returns only the entries whose `title` contains the text, without case.
+  An entry without a `title` never matches.
+- `harness` returns only the entries whose `harness` is exactly this name.
+- `metadata` returns only the entries where `entry.metadata[key]` is exactly the
+  string of each key.
+- All filters must match. `limit` and `cursor` page the filtered list.
 - Without `limit`, return every entry that matches. With `limit`, when more entries
   match, return `truncated: true` and a `cursor`. The last page has no `cursor`.
 - With the `cursor` of a page, return the entries after the last entry of that page.
@@ -895,6 +904,8 @@ there. The suite checks that:
   `cursor`.
 - `list` filters by `parentThreadId` (also `null`) and by `principal`, with the
   tenant rule.
+- `list` filters by `search`, `harness`, and `metadata`, alone and together, and
+  pages the filtered list.
 - `delete` removes one entry, and does nothing for an unknown thread.
 
 To see how an app lists, renames, and forks sessions with this store, read

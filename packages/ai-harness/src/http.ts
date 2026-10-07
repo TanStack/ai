@@ -541,13 +541,23 @@ export function createHarnessHandler(
           !(Number.isInteger(Number(limit)) && Number(limit) > 0)
         if (isBadLimit)
           return json({ error: 'limit must be a positive integer' }, 400)
-        // The store keeps only this principal's entries. `canAccess` can
-        // still refuse some of them.
+        const search = url.searchParams.get('search')
+        // `metadata.<key>=<value>` asks for that exact metadata value.
+        const metadata = Object.fromEntries(
+          [...url.searchParams]
+            .filter(([key]) => key.startsWith('metadata.'))
+            .map(([key, value]) => [key.slice('metadata.'.length), value]),
+        )
+        // The store keeps only this principal's entries of this harness.
+        // `canAccess` can still refuse some of them.
         const page = await host.sessions.list({
           principal,
+          harness: harness.name,
+          metadata,
           ...(limit ? { limit: Number(limit) } : {}),
           ...(cursor ? { cursor } : {}),
           ...(parentThreadId ? { parentThreadId } : {}),
+          ...(search ? { search } : {}),
         })
         const allowed = await Promise.all(
           page.entries.map(async (entry) =>

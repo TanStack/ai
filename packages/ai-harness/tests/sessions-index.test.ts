@@ -386,7 +386,8 @@ describe('sessions over HTTP', () => {
       name: 'test/sessions-http',
       adapter: mockAdapter(() => text('hello')).adapter,
     })
-    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const persistence = memoryPersistence()
+    const host = createHarnessHost({ persistence })
     const handler = createHarnessHandler({
       host,
       harness,
@@ -413,8 +414,61 @@ describe('sessions over HTTP', () => {
       )
       return client.transcript()
     }
-    return { host, harness, handler, clientOf, chat }
+    return { persistence, host, harness, handler, clientOf, chat }
   }
+
+  it('lists only the sessions of the harness of the handler', async () => {
+    const { host, harness, clientOf } = setup()
+    const other = defineHarness({
+      name: 'test/other',
+      adapter: mockAdapter(() => text('other')).adapter,
+    })
+    await host.open(other, { threadId: 'other', principal: { id: 'alice' } })
+    await host.open(harness, { threadId: 'own', principal: { id: 'alice' } })
+
+    expect(threadIds(await clientOf('alice').listSessions())).toEqual(['own'])
+    await host.close()
+  })
+
+  it('sends search and metadata to the store', async () => {
+    const { persistence, host, clientOf } = setup()
+    const sessions = persistence.stores.sessions
+    if (!sessions) throw new Error('The memory persistence has no sessions.')
+    const entry = (threadId: string, title: string, project: string) =>
+      sessions.upsert({
+        threadId,
+        harness: 'test/sessions-http',
+        title,
+        principal: { id: 'alice' },
+        metadata: { project, branch: 'main' },
+        createdAt: 1,
+        updatedAt: 1,
+      })
+    await entry('a', 'Fix the Build', 'p-1')
+    await entry('b', 'Write docs', 'p-1')
+    await entry('c', 'Build the site', 'p-2')
+    const alice = clientOf('alice')
+
+    expect(
+      threadIds(await alice.listSessions({ search: 'build' })).sort(),
+    ).toEqual(['a', 'c'])
+    expect(
+      threadIds(
+        await alice.listSessions({
+          metadata: { project: 'p-1', branch: 'main' },
+        }),
+      ).sort(),
+    ).toEqual(['a', 'b'])
+    expect(
+      threadIds(
+        await alice.listSessions({
+          search: 'BUILD',
+          metadata: { project: 'p-1' },
+        }),
+      ),
+    ).toEqual(['a'])
+    await host.close()
+  })
 
   it('lists, renames, forks, and deletes the sessions of the user', async () => {
     const { host, harness, clientOf, chat } = setup()
