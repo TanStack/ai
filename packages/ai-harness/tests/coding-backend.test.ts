@@ -80,9 +80,12 @@ describe('hostBackend', () => {
   it('starts a background command, then gives its exit code and output', async () => {
     // --no-warnings: a runner that sets NO_COLOR and FORCE_COLOR makes node
     // print a warning to the output.
-    const job = hostBackend.spawn(`node --no-warnings -e "console.log('done')"`, {
-      cwd: dir,
-    })
+    const job = hostBackend.spawn(
+      `node --no-warnings -e "console.log('done')"`,
+      {
+        cwd: dir,
+      },
+    )
     expect(await job.wait()).toEqual({ exitCode: 0 })
     expect(job.output()).toBe('done\n')
   })
