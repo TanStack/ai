@@ -584,9 +584,10 @@ const railway = railwaySandbox({
   [run journal](./journal) owns run identity. Blocking `exec` runs without a
   durable session and is killed if the connection drops. `spawn()` reports
   `pid: -1` because the exec bridge exposes no remote pid. `kill()` and an
-  aborted `signal` send `TERM` to the process group, escalate to `KILL` after
-  2 s, and settle on the confirmed remote exit; an aborted `exec` resolves
-  with the signalled exit code.
+  aborted `exec` send `TERM` to the process group and escalate to `KILL` after
+  2 s. An aborted `spawn` sends `KILL` at once. All of them settle on the
+  confirmed remote exit. An aborted `exec` resolves with the signalled exit
+  code.
 - **Cancellation:** if create fails or times out after Railway minted the
   sandbox, or the caller aborts while it boots, the provider tries to destroy
   it. Both are best effort.
@@ -669,7 +670,7 @@ merely slower while a wrong `follow` is a leak.
 | E2B | `true` | **Measured.** The SDK's own kill is a SIGKILL to the shell pid, and a backgrounded `( … ) & wait` child survived it. Every command therefore runs as a `setsid` group leader and `kill()` runs `kill -KILL -- -<pid>` inside the sandbox. The shared journal conformance kill case passes against a real sandbox. Needs `E2B_API_KEY`. |
 | Cloudflare | `false` | `kill()` is a no-op, and the caller's `AbortSignal` reaches neither `exec` nor `spawn`, because Workers RPC cannot serialize one. |
 | boxd | `true` | **Measured.** The spawn wrapper runs under `setsid`, so the pid it records leads its own process group. `kill()` runs a shell inside the machine that signals that group, escalates to `KILL`, and checks with `kill -0`. Closing the stream alone is not a kill: the process survived it. Verified against production: a spawned `sleep 5 && touch <marker>` was killed and the marker never appeared. Needs `BOXD_API_KEY`. |
-| Railway | `true` | **Measured.** `kill()` and an aborted `signal` send `TERM` to the command's process group, escalate to `KILL` after 2 s, and settle only when the remote exit is confirmed. Verified against production: the shared journal conformance kill case passes, and spawned `sleep 5 && touch <marker>` commands (including a backgrounded child) were killed before the marker appeared, for `kill()`, an aborted `exec`, and an aborted `spawn`. Needs `RAILWAY_API_TOKEN` or `RAILWAY_TOKEN` + `RAILWAY_ENVIRONMENT_ID`. |
+| Railway | `true` | **Measured.** `kill()` and an aborted `exec` send `TERM` to the command's process group and escalate to `KILL` after 2 s. An aborted `spawn` sends `KILL` at once. Each settles only when the remote exit is confirmed. Verified against production: the shared journal conformance kill case passes, and spawned `sleep 5 && touch <marker>` commands (including a backgrounded child) were killed before the marker appeared, for `kill()`, an aborted `exec`, and an aborted `spawn`. Needs `RAILWAY_API_TOKEN` or `RAILWAY_TOKEN` + `RAILWAY_ENVIRONMENT_ID`. |
 
 Each of the remote providers registers the shared journal conformance suite, so
 the claim is falsifiable rather than asserted: with credentials present the suite
