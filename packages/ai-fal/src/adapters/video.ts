@@ -104,7 +104,7 @@ interface FalVideoResultData {
  *
  * Note: fal.ai does not return a FAILED queue status. Errors surface
  * as exceptions when fetching results from a COMPLETED job (e.g. 422
- * validation errors). Those are handled in getVideoUrl().
+ * validation errors). Those are handled in getVideo().
  */
 function mapFalStatusToVideoStatus(
   falStatus: FalQueueStatus,
@@ -229,7 +229,7 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
     }
   }
 
-  async getVideoUrl(jobId: string): Promise<VideoUrlResult> {
+  override async getVideo(jobId: string): Promise<VideoUrlResult> {
     let result
     try {
       result = await fal.queue.result(this.model, {

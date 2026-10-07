@@ -79,6 +79,7 @@ export type InjectChatOptions<
   | 'onSubscriptionChange'
   | 'onConnectionStatusChange'
   | 'onSessionGeneratingChange'
+  | 'onHydratingChange'
   | 'onQueueChange'
   | 'onResumeStateChange'
   | 'onRunIdChange'
@@ -228,4 +229,6 @@ interface BaseInjectChatResult<
   connectionStatus: Signal<ConnectionStatus>
   /** Whether the shared session is actively generating. */
   sessionGenerating: Signal<boolean>
+  /** Whether the chat is being rebuilt from persistence. */
+  isHydrating: Signal<boolean>
 }

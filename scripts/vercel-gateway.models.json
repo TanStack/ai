@@ -4509,7 +4509,7 @@
     ],
     "pricing": {
       "input": "0.00000025",
-      "output": "0.0000009"
+      "output": "0.0000008"
     }
   },
   {
@@ -4616,6 +4616,51 @@
       "output": ["image"]
     },
     "pricing": {}
+  },
+  {
+    "id": "bfl/flux-3-image",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1791158400,
+    "owned_by": "bfl",
+    "name": "FLUX 3 Image",
+    "description": "FLUX 3 Image is Black Forest Labs’ image generation and editing model. It supports text-to-image generation, editing with up to 10 reference images, and layouts specified with bounding boxes, across five resolution classes from 768 × 768 to 4K.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "type": "image",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["image-generation"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["image"]
+    },
+    "pricing": {
+      "image": "0.024",
+      "image_dimension_quality_pricing": [
+        {
+          "size": "768x768",
+          "cost": "0.0205"
+        },
+        {
+          "size": "1024x1024",
+          "cost": "0.024"
+        },
+        {
+          "size": "1536x1536",
+          "cost": "0.035"
+        },
+        {
+          "size": "2048x2048",
+          "cost": "0.05"
+        },
+        {
+          "size": "4096x4096",
+          "cost": "0.3035"
+        }
+      ]
+    }
   },
   {
     "id": "bfl/flux-3-video",
@@ -5715,6 +5760,50 @@
           "input": "0.00000012"
         }
       }
+    }
+  },
+  {
+    "id": "cohere/embed-v5.0-fast",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790726400,
+    "owned_by": "cohere",
+    "name": "Embed 5 Fast",
+    "description": "Cohere's lightweight embedding model optimized for low latency and high throughput in interactive search, agent loops, and high-volume retrieval. Embed 5 Fast supports text, images, and mixed content, over 100 languages, and a 128,000-token context window, with output dimensions from 256 to 2,048. It shares an embedding space with Embed 5 Pro.",
+    "context_window": 128000,
+    "max_tokens": 0,
+    "type": "embedding",
+    "zdr": "none",
+    "no_training": "all",
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": "0.00000008"
+    }
+  },
+  {
+    "id": "cohere/embed-v5.0-pro",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790726400,
+    "owned_by": "cohere",
+    "name": "Embed 5 Pro",
+    "description": "Cohere's most capable embedding model for quality-critical enterprise retrieval across text, images, and mixed content such as PDFs. Embed 5 Pro supports over 100 languages and a 128,000-token context window, with output dimensions from 256 to 2,048. It shares an embedding space with Embed 5 Fast, enabling Pro indexing with Fast querying.",
+    "context_window": 128000,
+    "max_tokens": 0,
+    "type": "embedding",
+    "zdr": "none",
+    "no_training": "all",
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": "0.00000012"
     }
   },
   {
@@ -8255,6 +8344,77 @@
     }
   },
   {
+    "id": "google/gemini-nano-banana-2.1",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1791244800,
+    "owned_by": "google",
+    "name": "Gemini Nano Banana 2.1",
+    "description": "Gemini Nano Banana 2.1 is optimized for image understanding and generation and offers a balance of price and performance.",
+    "context_window": 131072,
+    "max_tokens": 32768,
+    "type": "language",
+    "zdr": "some",
+    "no_training": "all",
+    "tags": [
+      "image-generation",
+      "implicit-caching",
+      "reasoning",
+      "vision",
+      "web-search",
+      "structured-output"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text", "image"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["minimal", "medium", "high"]
+      }
+    ],
+    "pricing": {
+      "input": "0.0000015",
+      "output": "0.0000075",
+      "input_cache_read": "0.00000015",
+      "image_dimension_quality_pricing": [
+        {
+          "size": "1K",
+          "cost": "0.0336"
+        },
+        {
+          "size": "2K",
+          "cost": "0.0504"
+        },
+        {
+          "size": "4K",
+          "cost": "0.1134"
+        },
+        {
+          "size": "default",
+          "cost": "0.0336"
+        }
+      ],
+      "web_search": "14",
+      "maps_search": "14"
+    }
+  },
+  {
     "id": "google/gemini-omni-flash-preview",
     "object": "model",
     "created": 1755815280,
@@ -8998,7 +9158,7 @@
     "type": "language",
     "zdr": "none",
     "no_training": "none",
-    "tags": ["free", "reasoning", "tool-use"],
+    "tags": ["reasoning", "tool-use", "implicit-caching"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9024,51 +9184,9 @@
       }
     ],
     "pricing": {
-      "input": "0",
-      "output": "0"
-    }
-  },
-  {
-    "id": "inclusionai/ling-3.0-flash-sante-free",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1788480000,
-    "owned_by": "inclusionai",
-    "name": "Ling 3.0 Flash Sante (Free)",
-    "description": "Ling-3.0-Flash-Sante is inclusionAI’s language model specialized for health and medicine, built on a Mixture-of-Experts architecture with 124 billion total parameters and approximately 5.1 billion active per token. With a 256K context window and function calling, it supports medical knowledge reasoning, evidence-based retrieval, and complex medical workflows while retaining general reasoning, coding, and agentic capabilities.",
-    "context_window": 256000,
-    "max_tokens": 32000,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "none",
-    "tags": ["free", "reasoning", "tool-use"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
-    "pricing": {
-      "input": "0",
-      "output": "0"
+      "input": "0.000000075",
+      "output": "0.00000022",
+      "input_cache_read": "0.000000015"
     }
   },
   {
@@ -10439,27 +10557,6 @@
     }
   },
   {
-    "id": "microsoft/mai-transcribe-1.5",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1780272000,
-    "owned_by": "microsoft",
-    "name": "MAI-Transcribe-1.5",
-    "description": "Microsoft AI's multilingual speech-to-text model for file transcription, with automatic language detection and keyword biasing. Returns the transcript, audio duration, and a timed segment. ",
-    "type": "transcription",
-    "zdr": "all",
-    "no_training": "all",
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["audio"],
-      "output": ["text"]
-    },
-    "pricing": {
-      "input": "0.0000000001",
-      "transcription_duration_cost_per_second": "0.0001"
-    }
-  },
-  {
     "id": "microsoft/mai-transcribe-2",
     "object": "model",
     "created": 1755815280,
@@ -11356,6 +11453,52 @@
       "input": "0.0000005",
       "output": "0.0000015",
       "input_cache_read": "0.00000005"
+    }
+  },
+  {
+    "id": "mistral/mistral-large-4",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1791244800,
+    "owned_by": "mistral",
+    "name": "Mistral Large 4",
+    "description": "Mistral Large 4 is Mistral AI's open-weight, natively multimodal model, available in public preview with 1.05 trillion total parameters and 49 billion active parameters. It leads aggregated benchmarks among open-weight models from the US and Europe, with strengths in cyber defense, manufacturing, finance, and visual grounding.",
+    "context_window": 524288,
+    "max_tokens": 262144,
+    "type": "language",
+    "zdr": "all",
+    "no_training": "all",
+    "tags": ["reasoning", "structured-output", "tool-use", "vision"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
+    "pricing": {
+      "input": "0.00000068",
+      "output": "0.00000209",
+      "input_cache_read": "0.00000007"
     }
   },
   {
@@ -15656,15 +15799,15 @@
               "min": 272000
             }
           ],
-          "input_cache_write": "0.00000275",
+          "input_cache_write": "0.0000055",
           "input_cache_write_tiers": [
             {
-              "cost": "0.00000275",
+              "cost": "0.0000055",
               "min": 0,
               "max": 272000
             },
             {
-              "cost": "0.0000055",
+              "cost": "0.000011",
               "min": 272000
             }
           ]
@@ -15706,15 +15849,15 @@
               "min": 272000
             }
           ],
-          "input_cache_write": "0.00000275",
+          "input_cache_write": "0.0000055",
           "input_cache_write_tiers": [
             {
-              "cost": "0.00000275",
+              "cost": "0.0000055",
               "min": 0,
               "max": 272000
             },
             {
-              "cost": "0.0000055",
+              "cost": "0.000011",
               "min": 272000
             }
           ],
@@ -15755,15 +15898,15 @@
                 "min": 272000
               }
             ],
-            "input_cache_write": "0.0000055",
+            "input_cache_write": "0.000011",
             "input_cache_write_tiers": [
               {
-                "cost": "0.0000055",
+                "cost": "0.000011",
                 "min": 0,
                 "max": 272000
               },
               {
-                "cost": "0.000011",
+                "cost": "0.000022",
                 "min": 272000
               }
             ]
@@ -15962,15 +16105,15 @@
               "min": 272000
             }
           ],
-          "input_cache_write": "0.0000055",
+          "input_cache_write": "0.000011",
           "input_cache_write_tiers": [
             {
-              "cost": "0.0000055",
+              "cost": "0.000011",
               "min": 0,
               "max": 272000
             },
             {
-              "cost": "0.000011",
+              "cost": "0.000022",
               "min": 272000
             }
           ]
@@ -19818,9 +19961,9 @@
       }
     ],
     "pricing": {
-      "input": "0.0000001",
-      "output": "0.0000002",
-      "input_cache_read": "0.00000001"
+      "input": "0.00000009",
+      "output": "0.00000018",
+      "input_cache_read": "0.000000009"
     }
   },
   {
@@ -22538,6 +22681,66 @@
     }
   },
   {
+    "id": "topaz/proteus",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1791244800,
+    "owned_by": "topaz",
+    "name": "Proteus",
+    "description": "Proteus is Topaz Labs’ video enhancement model for detail-preserving upscaling, denoising, and restoration. It enhances an existing video with automatic adjustments or fine control over detail recovery, compression artifacts, noise, blur, and grain. An input video and output resolution are required, supporting workflows that improve footage quality while preserving its source characteristics.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "type": "video",
+    "zdr": "none",
+    "no_training": "none",
+    "supported_specifications": ["v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["video"]
+    },
+    "pricing": {}
+  },
+  {
+    "id": "topaz/starlight-precise-2.6",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1791244800,
+    "owned_by": "topaz",
+    "name": "Starlight Precise 2.6",
+    "description": "Starlight Precise 2.6 is Topaz Labs’ generative video enhancement model for upscaling and restoration with high fidelity. It improves faces, textures, and fine details while maintaining temporal consistency across frames. An input video and accurate source metadata are required, making it suited to refining generated footage and restoring archival video for higher-resolution delivery.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "type": "video",
+    "zdr": "none",
+    "no_training": "none",
+    "supported_specifications": ["v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["video"]
+    },
+    "pricing": {}
+  },
+  {
+    "id": "topaz/wonder-3.5",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1791244800,
+    "owned_by": "topaz",
+    "name": "Wonder 3.5",
+    "description": "Wonder 3.5 is Topaz Labs’ image enhancement model for generative upscaling and detail recovery. It repairs and enhances an existing JPEG, PNG, or TIFF image, with controls for enhancement strength, output dimensions, and grain. An input image is required, making it suited to restoring low-quality photos and refining images for larger displays or print.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "type": "image",
+    "zdr": "none",
+    "no_training": "none",
+    "supported_specifications": ["v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["image"]
+    },
+    "pricing": {}
+  },
+  {
     "id": "typesafe-ai/jev",
     "object": "model",
     "created": 1755815280,
@@ -22548,7 +22751,7 @@
     "context_window": 32000,
     "max_tokens": 0,
     "type": "evaluation",
-    "zdr": "none",
+    "zdr": "some",
     "no_training": "all",
     "supported_specifications": ["v4"],
     "modalities": {

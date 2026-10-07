@@ -3,7 +3,7 @@ id: SubagentStep
 title: SubagentStep
 ---
 
-Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:44](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L44)
+Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:45](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L45)
 
 ## Properties
 
@@ -13,7 +13,7 @@ Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:44](https://github.
 names: readonly string[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:45](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L45)
+Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:46](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L46)
 
 ***
 
@@ -23,6 +23,6 @@ Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:45](https://github.
 optional order?: SubagentOrder;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:47](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L47)
+Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:48](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L48)
 
 Overrides `subagents.order` for this step.

@@ -3,7 +3,7 @@ id: ImagePart
 title: ImagePart
 ---
 
-Defined in: [packages/ai/src/types.ts:274](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L274)
+Defined in: [packages/ai/src/types.ts:287](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L287)
 
 Image content part for multimodal messages. AG-UI `ImagePart` with typed metadata.
 
@@ -27,7 +27,7 @@ Provider-specific metadata type (e.g., OpenAI's detail level)
 optional metadata?: TMetadata;
 ```
 
-Defined in: [packages/ai/src/types.ts:276](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L276)
+Defined in: [packages/ai/src/types.ts:289](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L289)
 
 Provider-specific metadata (e.g., OpenAI's detail: 'auto' | 'low' | 'high')
 

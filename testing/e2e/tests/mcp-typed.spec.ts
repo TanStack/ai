@@ -165,6 +165,41 @@ test.describe('mcp: createMCPServer with auth, output schema, and a task', () =>
     expect(res.status()).toBe(401)
   })
 
+  test('a spec 2026 listen request ends with method not found', async ({
+    request,
+  }) => {
+    const res = await request.post('/api/mcp-typed-server', {
+      headers: {
+        authorization: 'Bearer alice',
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+        'mcp-protocol-version': '2026-07-28',
+        'mcp-method': 'subscriptions/listen',
+      },
+      data: {
+        jsonrpc: '2.0',
+        id: 7,
+        method: 'subscriptions/listen',
+        params: {
+          notifications: { toolsListChanged: true },
+          _meta: {
+            'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+            'io.modelcontextprotocol/clientInfo': {
+              name: 'e2e',
+              version: '1.0.0',
+            },
+            'io.modelcontextprotocol/clientCapabilities': {},
+          },
+        },
+      },
+    })
+    expect(res.headers()['content-type']).toContain('application/json')
+    expect(await res.json()).toMatchObject({
+      id: 7,
+      error: { code: -32601 },
+    })
+  })
+
   test('a spec 2025 session belongs to the token that opened it', async ({
     request,
   }) => {

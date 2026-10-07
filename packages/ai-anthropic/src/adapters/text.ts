@@ -857,7 +857,7 @@ export class AnthropicTextAdapter<
               : {}
             parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
           } catch {
-            parsedInput = toolCall.function.arguments
+            parsedInput = {}
           }
 
           // Provider-executed server tools (e.g. web_search) replay as the
@@ -1013,6 +1013,22 @@ export class AnthropicTextAdapter<
       } else {
         merged.push({ ...msg })
       }
+    }
+
+    // Anthropic rejects a request that ends in a thinking-only assistant
+    // message ("The final block in an assistant message cannot be `thinking`").
+    // An interrupt can pause a turn that has thinking but no text. Drop it so
+    // the request ends in the user message and the model answers again.
+    const last = merged.at(-1)
+    if (
+      last?.role === 'assistant' &&
+      Array.isArray(last.content) &&
+      last.content.every(
+        (block) =>
+          block.type === 'thinking' || block.type === 'redacted_thinking',
+      )
+    ) {
+      merged.pop()
     }
 
     // De-duplicate tool_result blocks with the same tool_use_id.
