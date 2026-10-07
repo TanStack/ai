@@ -139,6 +139,7 @@ type ChatClientUpdateOptionsWithoutContext<
   onSubscriptionChange?: (isSubscribed: boolean) => void
   onConnectionStatusChange?: (status: ConnectionStatus) => void
   onSessionGeneratingChange?: (isGenerating: boolean) => void
+  onHydratingChange?: (isHydrating: boolean) => void
   onQueueChange?: (queue: Array<QueuedMessage>) => void
   onResumeStateChange?: (
     resumeState: ChatResumeState | null,
@@ -546,6 +547,10 @@ export class ChatClient<
   private tailing = false
   /** `historyGeneration` of the mount hydration GET still in flight, if any. */
   private hydrationInFlight: number | undefined
+  /** An async storage adapter is still reading the persisted transcript. */
+  private storeHydrating = false
+  /** See {@link getIsHydrating}. */
+  private isHydrating = false
   /** Constructor inputs `attach()` needs on every re-attach, not just the first. */
   private readonly rejoinRunId: string | null | undefined
   private readonly cachesMessages: boolean
@@ -574,6 +579,7 @@ export class ChatClient<
       onSubscriptionChange: (isSubscribed: boolean) => void
       onConnectionStatusChange: (status: ConnectionStatus) => void
       onSessionGeneratingChange: (isGenerating: boolean) => void
+      onHydratingChange: (isHydrating: boolean) => void
       onQueueChange: (queue: Array<QueuedMessage>) => void
       onResumeStateChange: (
         resumeState: ChatResumeState | null,
@@ -677,6 +683,7 @@ export class ChatClient<
           options.onConnectionStatusChange || (() => {}),
         onSessionGeneratingChange:
           options.onSessionGeneratingChange || (() => {}),
+        onHydratingChange: options.onHydratingChange || (() => {}),
         onQueueChange: options.onQueueChange || (() => {}),
         onResumeStateChange: options.onResumeStateChange || (() => {}),
         onRunIdChange: options.onRunIdChange || (() => {}),
@@ -993,10 +1000,21 @@ export class ChatClient<
     // `initialMessages` do not fire a change event. Give their cards handles.
     this.syncSubagentHandles()
 
-    this.persistor?.hydrateAsync(persistedState)
+    const storeHydration = this.persistor?.hydrateAsync(persistedState)
+    if (storeHydration) {
+      this.storeHydrating = true
+      void storeHydration.finally(() => {
+        this.storeHydrating = false
+        this.syncIsHydrating()
+      })
+    }
 
     this.rejoinRunId = rejoinRunId
     this.cachesMessages = cachesMessages
+    // Server-authoritative mode loads the thread on the first `attach()`.
+    // Start as hydrating so the first render shows loading, not an empty thread.
+    this.isHydrating =
+      this.storeHydrating || (!cachesMessages && !!this.connection.hydrate)
     // NO TAILING HERE, deliberately. Constructing a client must not open a
     // connection.
     //
@@ -1162,9 +1180,10 @@ export class ChatClient<
    */
   private hydrateFromServer(): void {
     const hydrate = this.connection.hydrate
-    if (!hydrate) return
-    if (this.isLoading || this.abortController) return
-    if (this.disposed) return
+    if (!hydrate || this.isLoading || this.abortController || this.disposed) {
+      this.syncIsHydrating()
+      return
+    }
     // A re-attach while the last GET is still out reuses that GET. React Strict
     // Mode runs mount effects twice (attach, detach, attach), and the GET
     // applies its result because a view is attached again when it returns.
@@ -1172,10 +1191,13 @@ export class ChatClient<
     const pageSize = this.historyPageSize
     const hydrateOptions: ChatHydrateOptions | undefined =
       pageSize === undefined ? undefined : { limit: pageSize }
+    // Settles only after the transcript is applied and any in-flight run is
+    // re-joined, so `isLoading` turns on before `isHydrating` turns off.
     void (async () => {
       let result: ChatHydrationResult
       const generation = this.historyGeneration
       this.hydrationInFlight = generation
+      this.syncIsHydrating()
       try {
         result = await hydrate(this.threadId, hydrateOptions)
       } catch (cause) {
@@ -1242,7 +1264,7 @@ export class ChatClient<
       } else if (result.activeRun?.runId) {
         this.maybeRejoinInFlight(result.activeRun.runId)
       }
-    })()
+    })().finally(() => this.syncIsHydrating())
   }
 
   /**
@@ -1759,6 +1781,14 @@ export class ChatClient<
     this.connectionStatus = status
     this.callbacksRef.current.onConnectionStatusChange(status)
     this.devtoolsBridge.emitSnapshot()
+  }
+
+  private syncIsHydrating(): void {
+    const isHydrating =
+      this.hydrationInFlight !== undefined || this.storeHydrating
+    if (this.isHydrating === isHydrating) return
+    this.isHydrating = isHydrating
+    this.callbacksRef.current.onHydratingChange(isHydrating)
   }
 
   private setSessionGenerating(isGenerating: boolean): void {
@@ -3515,6 +3545,16 @@ export class ChatClient<
   }
 
   /**
+   * Whether the client is rebuilding the chat from persistence: the server
+   * hydrate (`persistence: true`) or an async storage adapter. Turns false once
+   * the transcript is applied and any in-flight run is re-joined (from then on
+   * `isLoading` covers the stream), or when the load fails.
+   */
+  getIsHydrating(): boolean {
+    return this.isHydrating
+  }
+
+  /**
    * Get current error
    */
   getError(): Error | undefined {
@@ -3621,6 +3661,9 @@ export class ChatClient<
     if (options.onSessionGeneratingChange !== undefined) {
       this.callbacksRef.current.onSessionGeneratingChange =
         options.onSessionGeneratingChange
+    }
+    if (options.onHydratingChange !== undefined) {
+      this.callbacksRef.current.onHydratingChange = options.onHydratingChange
     }
     if (options.onQueueChange !== undefined) {
       this.callbacksRef.current.onQueueChange = options.onQueueChange

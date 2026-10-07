@@ -195,6 +195,7 @@ interface CreateChatReturn<TContext = unknown> {
   readonly isSubscribed: boolean;
   readonly connectionStatus: ConnectionStatus;
   readonly sessionGenerating: boolean;
+  readonly isHydrating: boolean;
   setMessages: (messages: UIMessage[]) => void;
   clear: () => void;
   /** @deprecated Use `updateForwardedProps` instead. */
@@ -207,7 +208,7 @@ interface CreateChatReturn<TContext = unknown> {
 **Key differences from React/Vue:**
 
 - **`create*` naming** -- factory functions, not hooks. Call outside of any lifecycle.
-- **Reactive getters** -- state properties (`messages`, `isLoading`, `error`, `status`, `isSubscribed`, `connectionStatus`, `sessionGenerating`) are Svelte 5 `$state` via getters. Access directly (e.g., `chat.messages`, not `chat.messages.value`).
+- **Reactive getters** -- state properties (`messages`, `isLoading`, `error`, `status`, `isSubscribed`, `connectionStatus`, `sessionGenerating`, `isHydrating`) are Svelte 5 `$state` via getters. Access directly (e.g., `chat.messages`, not `chat.messages.value`).
 - **No automatic cleanup** -- unlike React/Vue/Solid, `createChat` does not auto-dispose. Call `chat.stop()` manually when the component unmounts (e.g., in `onDestroy` or an `$effect` return).
 - **`updateForwardedProps()`** -- update AG-UI `forwardedProps` dynamically (e.g., for model selection). In Vue, changes to the `forwardedProps` option are synced via `watch`; in Svelte, call this method explicitly. The legacy `updateBody()` is still available but deprecated.
 - **`.svelte.ts` files** -- source files use the `.svelte.ts` extension for Svelte 5 rune support.

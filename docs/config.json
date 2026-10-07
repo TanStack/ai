@@ -213,7 +213,7 @@
           "label": "Multi-Turn Chat",
           "to": "structured-outputs/multi-turn",
           "addedAt": "2026-05-19",
-          "updatedAt": "2026-08-19"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "With Tools",
@@ -643,7 +643,7 @@
           "label": "Client Persistence",
           "to": "persistence/client-persistence",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Generation Persistence",
@@ -1410,55 +1410,55 @@
           "label": "@tanstack/ai-client",
           "to": "api/ai-client",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-03"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "@tanstack/ai-react",
           "to": "api/ai-react",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-23"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "@tanstack/ai-solid",
           "to": "api/ai-solid",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-23"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "@tanstack/ai-preact",
           "to": "api/ai-preact",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-23"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "@tanstack/ai-vue",
           "to": "api/ai-vue",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-23"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "@tanstack/ai-svelte",
           "to": "api/ai-svelte",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-23"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "@tanstack/ai-angular",
           "to": "api/ai-angular",
           "addedAt": "2026-06-15",
-          "updatedAt": "2026-09-23"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "@tanstack/ai-octane",
           "to": "api/ai-octane",
           "addedAt": "2026-08-21",
-          "updatedAt": "2026-09-23"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "@tanstack/ai-remix",
           "to": "api/ai-remix",
           "addedAt": "2026-09-01",
-          "updatedAt": "2026-09-23"
+          "updatedAt": "2026-10-07"
         }
       ]
     },

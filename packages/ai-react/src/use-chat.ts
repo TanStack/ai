@@ -266,6 +266,11 @@ export function useChat<
           setSessionGenerating(isGenerating)
         })
       },
+      onHydratingChange: (nextIsHydrating: boolean) => {
+        runOrQueueForActiveInstance(() => {
+          setIsHydrating(nextIsHydrating)
+        })
+      },
       ...(optionsRef.current.queue !== undefined && {
         queue: optionsRef.current.queue,
       }),
@@ -302,6 +307,10 @@ export function useChat<
     return { client: instance, initialization: initializationState }
   }, [clientId, syncResumeState])
 
+  // Seeded from the client so the first render already shows hydrating, not an
+  // empty chat. The constructor sets it without firing a callback.
+  const [isHydrating, setIsHydrating] = useState(() => client.getIsHydrating())
+
   useEffect(() => {
     activeClientRef.current = client
     try {
@@ -326,6 +335,7 @@ export function useChat<
       setMessages(clientMessages)
     }
     setHasOlderMessages(client.getHasOlderMessages())
+    setIsHydrating(client.getIsHydrating())
   }, [client])
 
   // Sync each wire-payload slot in its own effect so an unrelated option
@@ -634,6 +644,7 @@ export function useChat<
     isSubscribed,
     connectionStatus,
     sessionGenerating,
+    isHydrating,
     setMessages: setMessagesManually,
     clear,
     addToolResult,

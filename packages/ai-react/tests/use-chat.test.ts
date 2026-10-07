@@ -2348,6 +2348,60 @@ describe('useChat', () => {
     })
   })
 
+  describe('isHydrating', () => {
+    it('is true on the first render and false once the server transcript is in', async () => {
+      const hydration = createDeferred<{
+        messages: Array<UIMessage>
+        activeRun: null
+        interrupts: null
+      }>()
+      const connection: ResumableConnectConnectionAdapter = {
+        connect: async function* () {},
+        joinRun: async function* () {},
+        hydrate: () => hydration.promise,
+      }
+      const renders: Array<{ isHydrating: boolean; messages: number }> = []
+      const { result } = renderHook(() => {
+        const chat = useChat({ connection, threadId: 't1', persistence: true })
+        renders.push({
+          isHydrating: chat.isHydrating,
+          messages: chat.messages.length,
+        })
+        return chat
+      })
+
+      expect(renders[0]).toEqual({ isHydrating: true, messages: 0 })
+
+      await act(async () => {
+        hydration.resolve({
+          messages: [
+            {
+              id: 'm1',
+              role: 'user',
+              parts: [{ type: 'text', content: 'hi' }],
+            },
+          ],
+          activeRun: null,
+          interrupts: null,
+        })
+      })
+
+      await waitFor(() => expect(result.current.isHydrating).toBe(false))
+      expect(result.current.messages).toHaveLength(1)
+      // No render shows "done hydrating" with an empty thread.
+      expect(renders.some((r) => !r.isHydrating && r.messages === 0)).toBe(
+        false,
+      )
+    })
+
+    it('is false without persistence', () => {
+      const { result } = renderUseChat({
+        connection: createMockConnectionAdapter({ chunks: [] }),
+      })
+      expect(result.current.isHydrating).toBe(false)
+    })
+  })
+
   describe('sessionGenerating', () => {
     it('updates resume state from live interrupt chunks without a wrapper call', async () => {
       const chunks: Array<StreamChunk> = [

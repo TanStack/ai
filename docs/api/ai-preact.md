@@ -167,6 +167,7 @@ interface UseChatReturn {
   reload: () => Promise<void>;
   stop: () => void;
   isLoading: boolean;
+  isHydrating: boolean;
   error: Error | undefined;
   setMessages: (messages: UIMessage[]) => void;
   clear: () => void;

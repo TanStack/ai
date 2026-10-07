@@ -1217,17 +1217,20 @@ function snapshotStructuredOutput(
   ) {
     return undefined
   }
-  return {
-    type: 'structured-output',
-    status: value.status,
+  const base = {
+    type: 'structured-output' as const,
     raw: value.raw,
     ...(value.partial !== undefined ? { partial: value.partial } : {}),
-    ...(value.data !== undefined ? { data: value.data } : {}),
     ...(value.reasoning ? { reasoning: value.reasoning } : {}),
     ...(value.errorMessage !== undefined
       ? { errorMessage: value.errorMessage }
       : {}),
   }
+  if (value.status !== 'complete') return { ...base, status: value.status }
+  // A complete part must carry `data`. Drop a malformed snapshot so the
+  // message falls back to plain text.
+  if (value.data === undefined) return undefined
+  return { ...base, status: 'complete', data: value.data }
 }
 
 /**

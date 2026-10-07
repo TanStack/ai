@@ -193,12 +193,13 @@ interface UseChatReturn {
   isSubscribed: DeepReadonly<ShallowRef<boolean>>;
   connectionStatus: DeepReadonly<ShallowRef<ConnectionStatus>>;
   sessionGenerating: DeepReadonly<ShallowRef<boolean>>;
+  isHydrating: DeepReadonly<ShallowRef<boolean>>;
   setMessages: (messages: UIMessage[]) => void;
   clear: () => void;
 }
 ```
 
-**Note:** Reactive state (`messages`, `isLoading`, `error`, `status`, `isSubscribed`, `connectionStatus`, `sessionGenerating`) is wrapped in `DeepReadonly<ShallowRef<T>>`. In `<script setup>` read the underlying value with `.value` (e.g., `messages.value`); in `<template>` Vue auto-unwraps the ref, so use the bare name (e.g., `v-for="m in messages"`). Cleanup is automatic via `onScopeDispose`.
+**Note:** Reactive state (`messages`, `isLoading`, `error`, `status`, `isSubscribed`, `connectionStatus`, `sessionGenerating`, `isHydrating`) is wrapped in `DeepReadonly<ShallowRef<T>>`. In `<script setup>` read the underlying value with `.value` (e.g., `messages.value`); in `<template>` Vue auto-unwraps the ref, so use the bare name (e.g., `v-for="m in messages"`). Cleanup is automatic via `onScopeDispose`.
 
 ## `useByok(client)`
 
