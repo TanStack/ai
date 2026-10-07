@@ -4685,27 +4685,35 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   }
 
   /**
-   * Run again an agent run with `resume: true` whose host stopped. The new
-   * run applies the same input, so its attempt counts up, and it continues
-   * the saved transcript of its chain.
+   * Run again an agent run with `resume: true` whose host stopped: a first
+   * run, or a follow-up run of the chain of `first`. The new run applies the
+   * same input, so its attempt counts up, and it continues the chain's saved
+   * transcript.
    */
-  private resumeAgent(first: AgentInputState) {
+  private resumeAgent(input: InputState, first: AgentInputState) {
     const operation = this.agentOperation(first.input.agent)
     this.markBusy()
-    const chain = this.createChain(chainFields(first), {
-      operation,
-      ...(first.principal ? { principal: first.principal } : {}),
-    })
+    const sender = input.principal ? { principal: input.principal } : {}
+    const chain = this.createChain(chainFields(first), { operation, ...sender })
     this.feed.publish(
       operation.id,
       customEvent(HARNESS_EVENTS.operationResumed, {
         operationId: operation.id,
-        ...(first.operationId ? { resumedFrom: first.operationId } : {}),
+        ...(input.operationId ? { resumedFrom: input.operationId } : {}),
       }),
     )
     void this.executeAgent(operation, chain, {
-      inputId: first.inputId,
+      inputId: input.inputId,
       resumed: true,
+      ...(input.input.op === 'agentMessage'
+        ? {
+            message: {
+              inputId: input.inputId,
+              message: input.input.message,
+              ...sender,
+            },
+          }
+        : {}),
     })
   }
 
@@ -5175,7 +5183,15 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       error,
     })
     if (inputId) {
-      await this.settle({ inputId, operationId, outcome: 'failed', error })
+      // The steers that joined the run settle with it.
+      await this.settle(
+        ...[inputId, ...this.joinedInputs(operationId, inputId)].map((id) => ({
+          inputId: id,
+          operationId,
+          outcome: 'failed' as const,
+          error,
+        })),
+      )
     }
     this.feed.publish(operationId, {
       type: EventType.RUN_ERROR,
@@ -5670,10 +5686,12 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
    * order. A chat turn whose host stopped (its run lease expired) settles
    * `aborted` when an abort was asked, settles `failed` when no attempt or no
    * time is left, settles `completed` when the log already has its final
-   * answer, and else runs again as the next attempt. An agent run whose host
-   * stopped settles `failed` and does not run again: it has no checkpoints.
-   * An input that never ran runs now. Other inputs are rejected with
-   * `expired_on_restart`.
+   * answer, and else runs again as the next attempt. An agent run (a first
+   * run or a follow-up run) whose host stopped runs again with `resume:
+   * true`, else settles `failed` with the steers that joined it. A message
+   * that waited for such a run goes to the run again, else settles
+   * `aborted`. An input that never ran runs now. Other inputs are rejected
+   * with `expired_on_restart`.
    */
   private async recoverFromLog(writer: LogWriter): Promise<void> {
     const runs = this.persistence.stores.runs
@@ -5697,13 +5715,29 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       }
       const isChat = CHAT_OPS.has(input.input.op)
       if (input.status === 'pending') {
-        // ponytail: a message to an agent run does not survive a restart.
-        // Run it again on its chain if that matters.
-        if (
-          !isChat ||
-          !('message' in input.input) ||
-          input.input.op === 'agentMessage'
-        ) {
+        // A message to an agent run goes to the run that recovery continues.
+        // That run's input is older, so its chain exists here.
+        if (input.input.op === 'agentMessage') {
+          const chain = this.agentChains.get(input.input.run ?? '')
+          if (chain) {
+            this.deliver(
+              chain,
+              {
+                inputId: input.inputId,
+                message: input.input.message,
+                ...(input.principal ? { principal: input.principal } : {}),
+              },
+              input.input.mode ?? 'steer',
+            )
+          } else {
+            // ponytail: a follow-up that waited for a run that had ended when
+            // the host stopped settles aborted too. Start it from the chain
+            // in the log if an app needs it.
+            await this.settle({ inputId: input.inputId, outcome: 'aborted' })
+          }
+          continue
+        }
+        if (!isChat || !('message' in input.input)) {
           this.reject(input.inputId, 'expired_on_restart')
           continue
         }
@@ -5734,8 +5768,9 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         })
         continue
       }
-      const isAgent = input.input.op === 'agent'
-      if (input.status !== 'applied' || !(isChat || isAgent)) continue
+      // An agent run: a first run, or a follow-up run of its chain.
+      const first = chainInputOf(writer.state.inputs, input)
+      if (input.status !== 'applied' || !(isChat || first)) continue
       const leases = this.persistence.stores.leases
       const run = input.operationId ? await runs?.get(input.operationId) : null
       const now = Date.now()
@@ -5753,10 +5788,10 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             run.leaseExpiresAt >= now
       // Another host still drives this turn.
       if (isAlive) continue
-      if (input.input.op === 'agent') {
+      if (first) {
         // A run that ended before its settle record landed did not stop.
         if (!run || run.status === 'running') {
-          const isResumable = input.input.resume === true
+          const isResumable = first.input.resume === true
           if (isResumable && input.attempt < maxAttempts) {
             if (input.operationId) {
               await runs?.update(input.operationId, {
@@ -5768,14 +5803,14 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
                 },
               })
             }
-            this.resumeAgent({ ...input, input: input.input })
+            this.resumeAgent(input, first)
             continue
           }
           await this.failStoppedAgent({
             operationId: input.operationId ?? '',
-            agent: input.input.agent,
+            agent: first.input.agent,
             inputId: input.inputId,
-            wake: input.input.detached,
+            wake: first.input.detached,
             ...(input.principal ? { principal: input.principal } : {}),
             ...(isResumable
               ? {

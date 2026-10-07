@@ -10,9 +10,10 @@ import {
   mockAdapter,
   text,
   toolCall,
+  untilAborted,
 } from './helpers'
 import type { AnyTextAdapter } from '@tanstack/ai'
-import type { AnyHarness } from '../src'
+import type { AnyHarness, HarnessSession, Operation } from '../src'
 
 const THREAD = 't1'
 const alice = { id: 'alice' }
@@ -510,5 +511,151 @@ describe('agents that agent code starts', () => {
       run.id,
     ])
     await host.close()
+  })
+})
+
+/**
+ * Two hosts on one durable store. `stop` makes host A stop during `run`:
+ * its log refuses writes, and the run's lease expires.
+ */
+function durable() {
+  const stores = memoryPersistence().stores
+  const log = memoryLogStore()
+  const persistence = {
+    stores: { log, runs: stores.runs, metadata: stores.metadata },
+  }
+  const stop = async (
+    session: Pick<HarnessSession, 'append'>,
+    run: Operation<unknown>,
+  ) => {
+    const refuse = vi
+      .spyOn(log, 'append')
+      .mockRejectedValue(new Error('the host is gone'))
+    await expect(session.append([{ type: 'app.ping' }])).rejects.toThrow()
+    await expect(run).rejects.toThrow()
+    refuse.mockRestore()
+    await stores.runs.update(run.id, { leaseExpiresAt: Date.now() - 1000 })
+  }
+  return { persistence, stop }
+}
+
+describe('messages to an agent run after its host stopped', () => {
+  it('gives a resumed run the steer it had not taken', async () => {
+    const { persistence, stop } = durable()
+    const first = mockAdapter([untilAborted()])
+    const hostA = createHarnessHost({ persistence })
+    const sessionA = await hostA.open(writing(first.adapter), {
+      threadId: THREAD,
+      principal: alice,
+    })
+    const run = sessionA.agents.writer.start(undefined, { resume: true })
+    await vi.waitFor(() => expect(first.calls).toHaveLength(1))
+    await run.send('Cite the source.', { inputId: 'steer-1' })
+    await stop(sessionA, run)
+
+    const next = mockAdapter([() => text('Cited.')])
+    const hostB = createHarnessHost({ persistence })
+    const sessionB = await hostB.open(writing(next.adapter), {
+      threadId: THREAD,
+      principal: alice,
+    })
+
+    expect(await sessionB.settled('steer-1')).toMatchObject({
+      outcome: 'completed',
+    })
+    expect(messageTexts(next.calls[0])).toContain('Cite the source.')
+    await hostB.close()
+  })
+
+  it('settles the waiting messages of a run that cannot resume as aborted', async () => {
+    const { persistence, stop } = durable()
+    const first = mockAdapter([untilAborted()])
+    const hostA = createHarnessHost({ persistence })
+    const sessionA = await hostA.open(writing(first.adapter), {
+      threadId: THREAD,
+      principal: alice,
+    })
+    const run = sessionA.agents.writer.start()
+    await vi.waitFor(() => expect(first.calls).toHaveLength(1))
+    await run.send('Cite the source.', { inputId: 'steer-1' })
+    await stop(sessionA, run)
+
+    const next = mockAdapter([])
+    const hostB = createHarnessHost({ persistence })
+    const sessionB = await hostB.open(writing(next.adapter), {
+      threadId: THREAD,
+      principal: alice,
+    })
+
+    expect(await sessionB.settled('steer-1')).toMatchObject({
+      outcome: 'aborted',
+    })
+    expect(next.calls).toHaveLength(0)
+    await hostB.close()
+  })
+
+  it('fails a steer that joined a run that cannot resume', async () => {
+    const { persistence, stop } = durable()
+    const { release, model, harness } = researching([
+      () => toolCall('lookup', {}),
+      untilAborted(),
+    ])
+    const hostA = createHarnessHost({ persistence })
+    const sessionA = await hostA.open(harness, {
+      threadId: THREAD,
+      principal: alice,
+    })
+    const run = sessionA.agents.researcher.start()
+    await vi.waitFor(() => expect(model.calls).toHaveLength(1))
+    await run.send('Only primary sources.', { inputId: 'steer-2' })
+    release.open()
+    await vi.waitFor(() => expect(model.calls).toHaveLength(2))
+    await stop(sessionA, run)
+
+    const hostB = createHarnessHost({ persistence })
+    const sessionB = await hostB.open(harness, {
+      threadId: THREAD,
+      principal: alice,
+    })
+
+    expect(await sessionB.settled('steer-2')).toMatchObject({
+      outcome: 'failed',
+    })
+    await hostB.close()
+  })
+
+  it('continues a follow-up run whose host stopped, with its message once', async () => {
+    const { persistence, stop } = durable()
+    const first = mockAdapter([() => text('Draft one.'), untilAborted()])
+    const hostA = createHarnessHost({ persistence })
+    const sessionA = await hostA.open(writing(first.adapter), {
+      threadId: THREAD,
+      principal: alice,
+    })
+    const run = sessionA.agents.writer.start(undefined, { resume: true })
+    await run
+    const receipt = await run.send('Add a title.', {
+      mode: 'followUp',
+      inputId: 'follow-1',
+    })
+    await vi.waitFor(() => expect(first.calls).toHaveLength(2))
+    const followUp = sessionA.agentRun(receipt.operationId ?? '')
+    if (!followUp) throw new Error('No follow-up run.')
+    await stop(sessionA, followUp)
+
+    const next = mockAdapter([() => text('Titled.')])
+    const hostB = createHarnessHost({ persistence })
+    const sessionB = await hostB.open(writing(next.adapter), {
+      threadId: THREAD,
+      principal: alice,
+    })
+
+    expect(await sessionB.settled('follow-1')).toMatchObject({
+      outcome: 'completed',
+    })
+    const texts = messageTexts(next.calls[0])
+    expect(texts).toContain('Draft one.')
+    expect(texts.filter((item) => item === 'Add a title.')).toHaveLength(1)
+    await hostB.close()
   })
 })
