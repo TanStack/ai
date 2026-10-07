@@ -184,7 +184,10 @@ export function injectGeneration<
     ...(options.reconstructResult
       ? { reconstructResult: options.reconstructResult }
       : {}),
-    devtoolsBridgeFactory: createGenerationDevtoolsBridge,
+    devtoolsBridgeFactory:
+      process.env.NODE_ENV === 'production'
+        ? undefined
+        : createGenerationDevtoolsBridge,
     devtools: {
       ...options.devtools,
       framework: 'angular',

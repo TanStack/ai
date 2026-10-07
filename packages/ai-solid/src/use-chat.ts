@@ -112,7 +112,10 @@ export function useChat<
       ? { connection: options.connection }
       : { fetcher: options.fetcher }
     const instance = new ChatClient<TTools, TContext, TInterrupts>({
-      devtoolsBridgeFactory: createChatDevtoolsBridge,
+      devtoolsBridgeFactory:
+        process.env.NODE_ENV === 'production'
+          ? undefined
+          : createChatDevtoolsBridge,
       ...transport,
       ...(options.initialMessages !== undefined && {
         initialMessages: options.initialMessages,

@@ -138,7 +138,10 @@ export function useChat<
       callback()
     }
     const instance = new ChatClient<TTools, TContext, TInterrupts>({
-      devtoolsBridgeFactory: createChatDevtoolsBridge,
+      devtoolsBridgeFactory:
+        process.env.NODE_ENV === 'production'
+          ? undefined
+          : createChatDevtoolsBridge,
       ...transport,
       initialMessages: messagesToUse,
       ...(typeof initialOptions.threadId === 'string' &&

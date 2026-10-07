@@ -135,7 +135,10 @@ export function useGeneration<
     const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
       id: clientId,
       body: opts.body,
-      devtoolsBridgeFactory: createGenerationDevtoolsBridge,
+      devtoolsBridgeFactory:
+        process.env.NODE_ENV === 'production'
+          ? undefined
+          : createGenerationDevtoolsBridge,
       devtools: {
         ...opts.devtools,
         // OCTANE DIVERGENCE: identify this binding as Octane (not 'react') in TanStack AI Devtools.

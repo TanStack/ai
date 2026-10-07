@@ -206,7 +206,10 @@ export function useGenerateVideo<TTransformed = void>(
       ...(opts.joinRun !== undefined && { joinRun: opts.joinRun }),
       ...(opts.byok !== undefined && { byok: opts.byok }),
       byokProvider: () => optionsRef.current.byokProvider?.(),
-      devtoolsBridgeFactory: createVideoDevtoolsBridge,
+      devtoolsBridgeFactory:
+        process.env.NODE_ENV === 'production'
+          ? undefined
+          : createVideoDevtoolsBridge,
       devtools: {
         ...opts.devtools,
         framework: 'react',

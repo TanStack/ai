@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test'
 
-// The framework hooks always pass the real devtools bridge factory, so this
-// is the only scenario in the suite that exercises the no-op bridge that
-// vanilla `ChatClient` consumers get by default.
+// The framework hooks pass the real devtools bridge factory outside
+// production, so this is the only scenario in the suite that exercises the
+// no-op bridge that vanilla `ChatClient` consumers get by default.
 test.describe('vanilla ChatClient with default no-op devtools bridge', () => {
   test('first sendMessage appends the user message and streams a reply', async ({
     page,

@@ -37,6 +37,12 @@ import type {
   UseChatReturn,
 } from './types'
 
+declare const process: {
+  env: {
+    NODE_ENV?: string
+  }
+}
+
 const EMPTY_INTERRUPTS = Object.freeze([])
 const EMPTY_INTERRUPT_ERRORS = Object.freeze([])
 
@@ -104,7 +110,10 @@ export function useChat<
   // client mints one after mount, so an ephemeral chat still works but is not
   // restored on reload.
   const client = new ChatClient<TTools, TContext, TInterrupts>({
-    devtoolsBridgeFactory: createChatDevtoolsBridge,
+    devtoolsBridgeFactory:
+      process.env.NODE_ENV === 'production'
+        ? undefined
+        : createChatDevtoolsBridge,
     ...transport,
     ...(options.initialMessages !== undefined && {
       initialMessages: options.initialMessages,

@@ -234,7 +234,10 @@ export function useGenerationWithDevtoolsIdentity<
       ...(opts.reconstructResult
         ? { reconstructResult: opts.reconstructResult }
         : {}),
-      devtoolsBridgeFactory: createGenerationDevtoolsBridge,
+      devtoolsBridgeFactory:
+        process.env.NODE_ENV === 'production'
+          ? undefined
+          : createGenerationDevtoolsBridge,
       devtools: {
         ...opts.devtools,
         framework: 'react',

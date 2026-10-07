@@ -116,7 +116,10 @@ export function createChat<
   // client mints one after mount, so an ephemeral chat still works but is not
   // restored on reload.
   const client = new ChatClient<TTools, TContext, TInterrupts>({
-    devtoolsBridgeFactory: createChatDevtoolsBridge,
+    devtoolsBridgeFactory:
+      process.env.NODE_ENV === 'production'
+        ? undefined
+        : createChatDevtoolsBridge,
     ...transport,
     ...(options.initialMessages !== undefined && {
       initialMessages: options.initialMessages,

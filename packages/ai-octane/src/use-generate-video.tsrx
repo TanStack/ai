@@ -142,7 +142,10 @@ export function useGenerateVideo<TTransformed = void>(
     const baseOptions = {
       id: clientId,
       body: opts.body,
-      devtoolsBridgeFactory: createVideoDevtoolsBridge,
+      devtoolsBridgeFactory:
+        process.env.NODE_ENV === 'production'
+          ? undefined
+          : createVideoDevtoolsBridge,
       devtools: {
         ...opts.devtools,
         // OCTANE DIVERGENCE: identify this binding as Octane (not 'react') in TanStack AI Devtools.
