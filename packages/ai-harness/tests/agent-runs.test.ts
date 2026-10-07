@@ -363,3 +363,152 @@ describe('agentRuns() and agentRun(id)', () => {
     await host.close()
   })
 })
+
+describe('agents that agent code starts', () => {
+  const helper = defineAgent({
+    name: 'helper',
+    description: 'Helps',
+    run: async () => 'helped',
+  })
+
+  it('starts a child that records its parent run', async () => {
+    let childId = ''
+    const lead = defineAgent({
+      name: 'lead',
+      description: 'Starts a helper',
+      run: async (ctx) => {
+        const child = ctx.agents.start('helper')
+        childId = child.id
+        return await child
+      },
+    })
+    const { host, session } = await open(
+      defineHarness({
+        name: 'test/agent-runs',
+        adapter: mockAdapter([]).adapter,
+        agents: [lead, helper],
+      }),
+    )
+
+    const run = session.agents.lead.start()
+
+    await expect(run).resolves.toBe('helped')
+    expect(session.agentRuns()).toEqual([
+      {
+        operationId: run.id,
+        agent: 'lead',
+        status: 'completed',
+        principal: alice,
+      },
+      {
+        operationId: childId,
+        agent: 'helper',
+        status: 'completed',
+        parentRunId: run.id,
+        principal: alice,
+      },
+    ])
+    await host.close()
+  })
+
+  it('refuses a child over the tree budget, so nothing starts', async () => {
+    const lead = defineAgent({
+      name: 'lead',
+      description: 'Starts a helper',
+      run: async (ctx) => {
+        try {
+          ctx.agents.start('helper')
+          return 'started'
+        } catch (error) {
+          return String(error)
+        }
+      },
+    })
+    const { host, session } = await open(
+      defineHarness({
+        name: 'test/agent-runs',
+        adapter: mockAdapter([]).adapter,
+        agents: [lead, helper],
+        subagents: { agents: [], limits: { maxDepth: 1 } },
+      }),
+    )
+
+    await expect(session.agents.lead.start()).resolves.toContain(
+      'subagent limit reached (maxDepth 1)',
+    )
+    expect(session.agentRuns().map((item) => item.agent)).toEqual(['lead'])
+    await host.close()
+  })
+
+  it('cancels the children of a run before the run', async () => {
+    const listening: Array<string> = []
+    const stopped: Array<string> = []
+    const waitForAbort = (name: string, signal: AbortSignal | undefined) =>
+      new Promise<string>((resolve) => {
+        listening.push(name)
+        signal?.addEventListener('abort', () => {
+          stopped.push(name)
+          resolve('stopped')
+        })
+      })
+    const waiter = defineAgent({
+      name: 'waiter',
+      description: 'Waits',
+      run: (ctx) => waitForAbort('waiter', ctx.abortSignal),
+    })
+    const lead = defineAgent({
+      name: 'lead',
+      description: 'Starts a waiter, then waits',
+      run: (ctx) => {
+        void ctx.agents.start('waiter')
+        return waitForAbort('lead', ctx.abortSignal)
+      },
+    })
+    const { host, session } = await open(
+      defineHarness({
+        name: 'test/agent-runs',
+        adapter: mockAdapter([]).adapter,
+        agents: [lead, waiter],
+      }),
+    )
+    const run = session.agents.lead.start()
+    await vi.waitFor(() => expect(listening).toEqual(['lead', 'waiter']))
+
+    await run.cancel()
+
+    await vi.waitFor(() => expect(stopped).toEqual(['waiter', 'lead']))
+    await vi.waitFor(() =>
+      expect(session.agentRuns().map((item) => item.status)).toEqual([
+        'cancelled',
+        'cancelled',
+      ]),
+    )
+    await host.close()
+  })
+
+  it('cancels a follow-up that waits, so it never runs', async () => {
+    const release = gate()
+    const model = mockAdapter([after(release.opened, 'Draft one.')])
+    const { host, session } = await open(writing(model.adapter))
+    const run = session.agents.writer.start()
+    await vi.waitFor(() => expect(model.calls).toHaveLength(1))
+    const queued = await run.send('Add a title.', { mode: 'followUp' })
+
+    const cancelled = await session.cancel(queued.operationId)
+    release.open()
+    await run
+
+    expect(cancelled).toMatchObject({
+      status: 'accepted',
+      operationId: queued.operationId,
+    })
+    expect(await session.settled(queued.inputId)).toMatchObject({
+      outcome: 'aborted',
+    })
+    expect(model.calls).toHaveLength(1)
+    expect(session.agentRuns().map((item) => item.operationId)).toEqual([
+      run.id,
+    ])
+    await host.close()
+  })
+})

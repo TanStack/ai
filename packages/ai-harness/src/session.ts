@@ -44,6 +44,7 @@ import {
 import { HARNESS_EVENTS, InputRejectedError } from './types'
 import { addUsage, callUsage, emptyUsage, isSessionUsage } from './usage'
 import type {
+  AgentStarter,
   AnyChatMiddleware,
   AnyTextAdapter,
   AnyTool,
@@ -371,6 +372,8 @@ interface AgentChain {
   options: AgentStartOptions
   /** Who started the chain. */
   principal?: Principal
+  /** The run whose agent code started this chain. */
+  parentRunId?: string
   budget: SubagentBudget
   /** The newest run that started. */
   current: AgentRunEntry
@@ -380,6 +383,8 @@ interface AgentChain {
   steers: Array<AgentMessage>
   /** Follow-ups that run after the current run ends, in order. */
   followUps: Array<AgentMessage & { operation: AgentRunImpl }>
+  /** The chains that agent code of this chain started. */
+  children: Set<AgentChain>
 }
 
 /** What one run of a chain applies. */
@@ -420,6 +425,7 @@ const chainFields = (first: AgentInputState) => ({
     ...(first.input.attach ? { attach: first.input.attach } : {}),
   },
   ...(first.principal ? { principal: first.principal } : {}),
+  ...(first.input.parentRunId ? { parentRunId: first.input.parentRunId } : {}),
 })
 
 /** A message to an agent run as a user message. Its id is its input id. */
@@ -1256,6 +1262,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           operationId: operation.id,
           agent: chain.agent,
           status: runStatus(operation.status()),
+          ...(chain.parentRunId ? { parentRunId: chain.parentRunId } : {}),
           ...(principal ? { principal } : {}),
         }),
       ),
@@ -1279,6 +1286,9 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           operationId: input.operationId,
           agent: first.input.agent,
           status: loggedStatus(input),
+          ...(first.input.parentRunId
+            ? { parentRunId: first.input.parentRunId }
+            : {}),
           ...(input.principal ? { principal: input.principal } : {}),
         },
       ]
@@ -1864,6 +1874,31 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     if (waitingSteer) {
       await this.markApplied(inputId, target.id)
       return { inputId, status: 'accepted', operationId: target.id }
+    }
+    const chain = this.chainOf.get(target.id)
+    const waiting =
+      chain?.followUps.findIndex((item) => item.operation === target) ?? -1
+    if (chain && waiting >= 0) {
+      // A follow-up that did not start never runs.
+      const [item] = chain.followUps.splice(waiting, 1)
+      if (item) {
+        await this.settle({
+          inputId: item.inputId,
+          outcome: 'aborted',
+          operationId: target.id,
+        })
+      }
+      target.fail('cancelled', new Error('Cancelled before it started.'))
+      this.publishFinished(target)
+      await this.markApplied(inputId, target.id)
+      this.checkIdle()
+      return { inputId, status: 'accepted', operationId: target.id }
+    }
+    // A run's children stop first, bottom-up.
+    for (const child of chain?.children ?? []) {
+      if (!child.current.operation.isSettled()) {
+        await this.cancel(child.current.operation.id)
+      }
     }
     const queued = this.queue.findIndex((turn) => turn.operation === target)
     if (queued >= 0) {
@@ -4544,6 +4579,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     target: string | AnyAgent,
     input: unknown,
     options: AgentStartOptions,
+    parent?: AgentChain,
   ): AgentRunImpl {
     const name = typeof target === 'string' ? target : target.name
     if (options.resume && !this.writer) {
@@ -4554,15 +4590,48 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     const operation = this.agentOperation(name)
     this.markBusy()
     // The agent runs for the sender of the turn that starts it, also after
-    // that turn ends.
-    const principal = this.sender()
+    // that turn ends. A child of agent code runs for its parent run's sender.
+    const principal = parent ? parent.current.principal : this.sender()
     const sender = principal ? { principal } : {}
+    const fromParent = parent
+      ? {
+          parentRunId: parent.current.operation.id,
+          budget: parent.budget.child(),
+        }
+      : {}
     const chain = this.createChain(
-      { runInputId: createInputId(), target, input, options, ...sender },
+      {
+        runInputId: createInputId(),
+        target,
+        input,
+        options,
+        ...sender,
+        ...fromParent,
+      },
       { operation, ...sender },
     )
+    parent?.children.add(chain)
     void this.executeAgent(operation, chain, { inputId: chain.runInputId })
     return operation
+  }
+
+  /**
+   * `ctx.agents` in the runs of `chain`: start a child in the background.
+   * The child counts against the chain's tree budget, and over it `start`
+   * throws. The child records the run that started it, and runs for that
+   * run's sender.
+   */
+  private agentStarter(chain: AgentChain): AgentStarter {
+    return {
+      start: (target, input, options) => {
+        const active = [...chain.children].filter(
+          (child) => !child.current.operation.isSettled(),
+        ).length
+        const refusal = chain.budget.reserve(active)
+        if (refusal !== undefined) throw new Error(refusal)
+        return this.runAgent(target, input, options ?? {}, chain)
+      },
+    }
   }
 
   /** A new agent run operation. `id`: a stored one, after a restart. */
@@ -4588,8 +4657,13 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   private createChain(
     fields: Pick<
       AgentChain,
-      'runInputId' | 'target' | 'input' | 'options' | 'principal'
-    >,
+      | 'runInputId'
+      | 'target'
+      | 'input'
+      | 'options'
+      | 'principal'
+      | 'parentRunId'
+    > & { budget?: SubagentBudget },
     first: AgentRunEntry,
   ): AgentChain {
     const agent =
@@ -4598,11 +4672,12 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       ...fields,
       agent,
       thread: `${this.threadId}:${agent}:${fields.runInputId}`,
-      budget: this.codeBudget(),
+      budget: fields.budget ?? this.codeBudget(),
       current: first,
       runs: [first],
       steers: [],
       followUps: [],
+      children: new Set<AgentChain>(),
     }
     this.agentChains.set(chain.runInputId, chain)
     this.chainOf.set(first.operation.id, chain)
@@ -4848,6 +4923,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           ...(options.wake ? { detached: true } : {}),
           ...(options.resume ? { resume: true } : {}),
           ...(options.attach === 'none' ? { attach: 'none' as const } : {}),
+          ...(chain.parentRunId ? { parentRunId: chain.parentRunId } : {}),
         },
         principal,
       )
@@ -4960,6 +5036,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           ...(durable ? { step: durable.step } : {}),
           keys: this.keysOf(principal),
           budget: chain.budget,
+          agents: this.agentStarter(chain),
         },
       )
       for await (const chunk of stream) {

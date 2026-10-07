@@ -109,6 +109,8 @@ export type HarnessInput = (
       resume?: boolean
       /** `'none'`: no note for the main model. See `AgentRunOptions.attach`. */
       attach?: 'none'
+      /** The run whose agent code started this run. */
+      parentRunId?: string
     }
   | { op: 'cancel'; operationId?: string }
   | { op: 'command'; name: string; input?: unknown }
