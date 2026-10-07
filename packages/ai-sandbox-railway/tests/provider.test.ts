@@ -402,6 +402,19 @@ describe('railwaySandbox resume', () => {
     await vi.advanceTimersByTimeAsync(61_000)
     await assertion
   })
+
+  it('stops waiting when the signal aborts while connect is in flight', async () => {
+    const controller = new AbortController()
+    const { sandbox } = fakeSandbox({ status: 'CREATING' })
+    connectMock.mockImplementation(async () => {
+      controller.abort(new Error('caller gave up'))
+      return sandbox
+    })
+    await expect(
+      railwaySandbox().resume({ id: 'sbx_123', signal: controller.signal }),
+    ).rejects.toThrow('caller gave up')
+    expect(sandbox.refresh).not.toHaveBeenCalled()
+  })
 })
 
 describe('railwaySandbox destroy', () => {

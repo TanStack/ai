@@ -38,8 +38,9 @@ export interface RailwaySandboxConfig {
    */
   authType?: CreateOptions['authType']
   /**
-   * Environment the sandboxes, checkpoints and forks live in. Omit with a
-   * project token (scope is inferred) or set `RAILWAY_ENVIRONMENT_ID`.
+   * Environment the sandboxes, checkpoints and forks live in. Defaults to
+   * `RAILWAY_ENVIRONMENT_ID`; one of the two is required, with either kind of
+   * token.
    */
   environmentId?: string
   /** GraphQL endpoint override (defaults to Railway's public API). */
@@ -205,6 +206,11 @@ async function raceCreate(
 
 function sleep(ms: number, signal: AbortSignal | undefined): Promise<void> {
   return new Promise((resolve, reject) => {
+    // A listener added to an already-aborted signal never fires.
+    if (signal?.aborted) {
+      reject(signal.reason)
+      return
+    }
     const timer = setTimeout(() => {
       signal?.removeEventListener('abort', onAbort)
       resolve()
