@@ -253,6 +253,10 @@ export const triage = defineHarness({
   // tools are public too, but they're excluded from the run-now registry (see
   // `api.tools.ts`) — they're plumbing, not scheduled automations.
   toolVisibility: { fetch_stats: 'public', ...podVisibility },
+  // The config form and the meta-chat `set_agent_config` tool write these.
+  expose: {
+    config: ['tone', 'signature', 'max_drafts', 'auto_send_low_risk'],
+  },
 })
 
 let persistence: ReturnType<typeof filePersistence> | undefined
