@@ -133,7 +133,7 @@ What waits for the user:
 The session:
 
 - `threadId`: the id of the conversation.
-- `agents`: the background agents that run now.
+- `agents`: the background agents that run now. Each one has an `id`, a `name`, and `send`.
 - `queuedTurns`: the number of messages that wait for their turn.
 - `commands`, `config`, and `tools`: what the session has, for a help screen or a settings panel.
 - `plugins`: the saved state of each plugin, by plugin name.
@@ -180,6 +180,19 @@ Answer what waits:
 - `question.answer(value)`: answers a question. For the answers to a permission question, see [Answer a question](./permissions#answer-a-question).
 
 If a turn waits for more than one approval or client tool, the turn continues after you answer all of them.
+
+Message a background agent:
+
+- `agent.send(text, mode)`: sends a message to one item of `state.agents`. `mode` is `'steer'` (the default) or `'followUp'`. See [Message a running agent](./subagents#message-a-running-agent).
+
+```ts group=harness-custom-ui
+const [agent] = view.store.get().agents
+if (agent) {
+  await agent.send('Add a title.', 'followUp')
+}
+```
+
+`send` needs a source that can message agents. A session and a `HarnessClient` both can. If you give `createSessionView` your own `SessionViewSource` without `sendToAgent`, `send` rejects with an error.
 
 ## 4. Listen for events
 

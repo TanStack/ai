@@ -1,5 +1,5 @@
 import type { ConfigOption } from '../config'
-import type { MediaKind, Receipt, WaitingInput } from '../types'
+import type { MediaKind, Receipt, UserInput, WaitingInput } from '../types'
 
 export type ToolCallStatus = 'running' | 'done' | 'failed' | 'needs-approval'
 
@@ -123,6 +123,18 @@ export interface ViewConfigEntry {
   option: ConfigOption
 }
 
+/** A background agent that runs now. */
+export interface ViewAgent {
+  id: string
+  name: string
+  /**
+   * Send a message to this run. `mode` is `'steer'` (default) or
+   * `'followUp'`, as in `AgentRun.send`. Rejects when the view's source
+   * cannot send messages to agents.
+   */
+  send: (message: UserInput, mode?: 'steer' | 'followUp') => Promise<Receipt>
+}
+
 /** Everything a UI can show about a session. */
 export interface SessionViewState {
   threadId: string
@@ -135,7 +147,7 @@ export interface SessionViewState {
   questions: Array<ViewQuestion>
   signIns: Array<SignIn>
   /** Background agents that run now. */
-  agents: Array<{ id: string; name: string }>
+  agents: Array<ViewAgent>
   queuedTurns: number
   /** The inputs that wait, in the order they run. */
   waitingInputs: Array<WaitingInput>

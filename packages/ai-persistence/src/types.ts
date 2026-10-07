@@ -542,6 +542,46 @@ export function defineLogStore(store: LogStore): LogStore {
 }
 
 /**
+ * Claims on threads that have pending work, for a harness host. A host
+ * claims a thread while it works on it and renews the claim. When the host
+ * stops, the claim expires, and another host's sweep finds the thread with
+ * `listExpired` and takes it over with `claim`. Optional store: only harness
+ * hosts read it.
+ */
+export interface WorkClaimStore {
+  /**
+   * Claim `threadId` for `ownerId` until `until` (epoch ms). Renews when the
+   * owner already holds it. Returns false when another owner holds a claim
+   * that has not expired. Atomic: two callers never both get true for one
+   * thread and one moment.
+   */
+  claim: (entry: {
+    threadId: string
+    harness: string
+    ownerId: string
+    until: number
+  }) => Promise<boolean>
+  /** The thread is idle: remove the claim. Only its owner can. */
+  release: (threadId: string, ownerId: string) => Promise<void>
+  /** Claims that expired before `now`: their host stopped. Oldest first. */
+  listExpired: (options: {
+    now: number
+    limit?: number
+  }) => Promise<Array<{ threadId: string; harness: string }>>
+}
+
+/**
+ * Type a {@link WorkClaimStore} implementation inline.
+ *
+ * @param store - The store implementation.
+ * @example
+ * const workClaims = defineWorkClaimStore({ claim, release, listExpired })
+ */
+export function defineWorkClaimStore(store: WorkClaimStore): WorkClaimStore {
+  return store
+}
+
+/**
  * One entry of the session index: what a list of sessions shows for one
  * thread. The index holds no messages. The thread data stays in the stores
  * that hold it.
@@ -991,6 +1031,8 @@ export interface AIPersistenceStores {
   log?: LogStore
   /** Turn leases. Optional: only durable harness hosts read it. */
   leases?: LeaseStore
+  /** Claims on busy threads. Optional: only harness hosts read it. */
+  workClaims?: WorkClaimStore
   /** The session index. Optional: only harness hosts read it. */
   sessions?: SessionIndexStore
 }
@@ -1175,6 +1217,7 @@ const storeKeys = [
   'credentials',
   'log',
   'leases',
+  'workClaims',
   'sessions',
 ] satisfies Array<StoreKey>
 

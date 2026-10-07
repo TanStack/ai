@@ -44,6 +44,26 @@ const authorize = (req: Request) => {
   return null
 }
 
+// The `drafter` of each test waits until the test sends the `release`
+// command, so the test can steer it before its model call.
+// ponytail: one gate per test id, kept for the life of the server.
+const drafterGates = new Map<
+  string,
+  { open: () => void; opened: Promise<void> }
+>()
+function drafterGate(testId: string) {
+  let entry = drafterGates.get(testId)
+  if (!entry) {
+    let open = () => {}
+    const opened = new Promise<void>((resolve) => {
+      open = resolve
+    })
+    entry = { open, opened }
+    drafterGates.set(testId, entry)
+  }
+  return entry
+}
+
 function harnessFor(request: Request) {
   const testId = request.headers.get('x-test-id') ?? 'default'
   const port = Number(request.headers.get('x-aimock-port') ?? '4010')
@@ -119,14 +139,32 @@ function harnessFor(request: Request) {
         inputSchema: z.object({ text: z.string() }),
         run: async (ctx) => ctx.input.text,
       }),
+      defineAgent({
+        name: 'drafter',
+        description: 'Drafts a post when the test releases it',
+        inputSchema: z.object({ topic: z.string() }),
+        run: async (ctx) => {
+          await drafterGate(testId).opened
+          // A first run starts from the topic. A follow-up run continues the
+          // drafter's own transcript, which ends with the follow-up.
+          return ctx.chat({
+            adapter: createTextAdapter('openai', undefined, port, testId)
+              .adapter,
+            messages:
+              ctx.messages.length > 0
+                ? ctx.messages
+                : [{ role: 'user', content: ctx.input.topic }],
+          })
+        },
+      }),
     ],
     // `mode` of `permissions()` stays on the server, so a client cannot pick
     // `bypass`.
     expose: {
-      agents: ['echo'],
+      agents: ['echo', 'drafter'],
       settings: ['model', 'instructions'],
       config: ['tone'],
-      commands: ['greet'],
+      commands: ['greet', 'release'],
     },
     plugins: () => [
       ...asks,
@@ -169,6 +207,21 @@ function harnessFor(request: Request) {
             greet: defineCommand({
               description: 'Say hello',
               run: () => 'hello',
+            }),
+          },
+        }),
+      }),
+      // Lets the `drafter` of this test make its model call.
+      definePlugin({
+        name: 'e2e/drafter',
+        setup: () => ({
+          commands: {
+            release: defineCommand({
+              description: 'Let the drafter go on',
+              run: () => {
+                drafterGate(testId).open()
+                return 'released'
+              },
             }),
           },
         }),

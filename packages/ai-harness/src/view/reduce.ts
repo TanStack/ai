@@ -13,6 +13,7 @@ import type {
   SessionViewState,
   SignIn,
   ToolCallPart,
+  ViewAgent,
   ViewMessage,
   ViewPart,
   ViewQuestion,
@@ -43,6 +44,7 @@ export interface ItemFactory {
   question: (
     question: SessionSnapshot['pendingQuestions'][number],
   ) => ViewQuestion
+  agent: (operation: { id: string; name: string }) => ViewAgent
 }
 
 /** The state of a view before it reads anything from its session. */
@@ -638,10 +640,11 @@ export function applySnapshot(
       .filter((operation) => operation.kind === 'agent')
       .map(
         (operation) =>
-          state.agents.find((item) => item.id === operation.id) ?? {
+          state.agents.find((item) => item.id === operation.id) ??
+          factory.agent({
             id: operation.id,
             name: operation.agent ?? 'agent',
-          },
+          }),
       ),
   )
   const waitingInputs = keep(

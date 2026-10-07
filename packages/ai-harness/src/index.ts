@@ -93,6 +93,7 @@ export type {
   HostSessions,
   HostStatusEvent,
   OpenSessionOptions,
+  ResumePendingOptions,
 } from './host'
 export type {
   SessionIndexEntry,
@@ -105,6 +106,7 @@ export { HarnessSession } from './session'
 export type {
   AgentHandle,
   AgentHandles,
+  AgentRunInfo,
   AgentRunOptions,
   AgentStartOptions,
   DynamicAgentHandle,
@@ -129,6 +131,7 @@ export { isTransientModelError, retryTransientErrors } from './turn'
 
 export { HARNESS_EVENTS, InputRejectedError } from './types'
 export type {
+  AgentRun,
   BusyPolicy,
   ChatTurnResult,
   Cursor,

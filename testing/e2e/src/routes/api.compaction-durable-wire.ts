@@ -11,7 +11,7 @@ import {
 } from '@tanstack/ai-compaction'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { z } from 'zod'
-import type { AnyTextAdapter, ModelMessage } from '@tanstack/ai'
+import type { AnyTextAdapter, MetadataStore, ModelMessage } from '@tanstack/ai'
 
 /**
  * Durable compaction in a harness session, end to end, with the real
@@ -31,6 +31,9 @@ import type { AnyTextAdapter, ModelMessage } from '@tanstack/ai'
  * - `empty-summary-overflow`: like `error-overflow`, but the summary is empty.
  *   The compaction fails, the history stays, and with `continueOnError` the
  *   retry overflows again, so the turn fails with the overflow error: 4 calls.
+ * - `background`: `background: { atTokens }`. The second turn passes
+ *   `atTokens`, so the summary runs beside it, on its own script. The third
+ *   turn applies it at its first call: 3 calls and 1 summary call.
  *
  * Each case then opens a second host on the same log and returns its
  * transcript, so the spec can check that a rebuild gives the same context.
@@ -42,6 +45,11 @@ const CONTEXT_WINDOW = 32_768
 const MAX_OUTPUT = 4_096
 const LONG_PROMPT = 'x'.repeat(70_000)
 const OVERFLOW = 'Your input exceeds the context window of this model.'
+/** About 4,000 tokens: under `atTokens` alone, over it with the second prompt. */
+const BACKGROUND_FIRST = `OLD_DETAIL ${'x'.repeat(16_000)}`
+const BACKGROUND_SUMMARY = 'Earlier: a long first prompt.'
+/** Where `withCompaction` keeps a ready background summary. */
+const BACKGROUND_NAMESPACE = '@tanstack/ai-compaction:background'
 
 type Case =
   | 'silent-overflow'
@@ -49,6 +57,7 @@ type Case =
   | 'turn-control'
   | 'parallel-tools'
   | 'empty-summary-overflow'
+  | 'background'
 type Step = { text: string } | { error: string } | { tools: number }
 
 const SCRIPTS: Record<Case, Array<Step>> = {
@@ -76,6 +85,11 @@ const SCRIPTS: Record<Case, Array<Step>> = {
     { text: '' },
     { error: OVERFLOW },
   ],
+  background: [
+    { text: 'First response.' },
+    { text: 'Second response.' },
+    { text: 'Third response.' },
+  ],
 }
 
 const PROMPTS: Record<Case, Array<string>> = {
@@ -84,6 +98,7 @@ const PROMPTS: Record<Case, Array<string>> = {
   'turn-control': ['first question OLD_DETAIL', 'second question'],
   'parallel-tools': ['Read parts 1 to 4.'],
   'empty-summary-overflow': [LONG_PROMPT, LONG_PROMPT],
+  background: [BACKGROUND_FIRST, 'y'.repeat(8_000), 'third question'],
 }
 
 /** Each result is about 500 tokens, so 4 of them are over `maxTokens`. */
@@ -102,7 +117,8 @@ function caseOf(body: unknown): Case | undefined {
     value === 'error-overflow' ||
     value === 'turn-control' ||
     value === 'parallel-tools' ||
-    value === 'empty-summary-overflow'
+    value === 'empty-summary-overflow' ||
+    value === 'background'
     ? value
     : undefined
 }
@@ -257,6 +273,17 @@ function compactionFor(testCase: Case, adapter: AnyTextAdapter) {
     })
   }
   const summarize = summarizeWith(adapter)
+  if (testCase === 'background') {
+    // The second turn is about 6,000 tokens: over atTokens, under maxTokens.
+    // The summary keeps the last 2,500 tokens, so it cuts after the first
+    // prompt, and the applied list is under atTokens.
+    return withCompaction({
+      maxTokens: 10_000,
+      background: { atTokens: 5_000 },
+      durable: true,
+      strategy: summarizeOldest({ summarize, keepRecentTokens: 2_500 }),
+    })
+  }
   if (testCase === 'turn-control') {
     return withCompaction({
       maxTokens: 100_000,
@@ -288,6 +315,15 @@ async function recordReasons(log: ReturnType<typeof memoryLogStore>) {
     .map((entry) => entry.record.reason)
 }
 
+/** Wait until the background summary of the thread is ready. */
+async function readyIn(metadata: MetadataStore) {
+  for (let tries = 0; tries < 100; tries += 1) {
+    if (await metadata.get(BACKGROUND_NAMESPACE, THREAD)) return
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+  throw new Error('The background summary was not ready.')
+}
+
 export const Route = createFileRoute('/api/compaction-durable-wire')({
   server: {
     handlers: {
@@ -298,7 +334,15 @@ export const Route = createFileRoute('/api/compaction-durable-wire')({
         }
         const { fetch, bodies } = scriptedFetch(SCRIPTS[testCase])
         const adapter = createOpenaiChat('gpt-5.2', DUMMY_KEY, { fetch })
-        const compaction = compactionFor(testCase, adapter)
+        // The background summary runs beside a turn, so it gets its own
+        // script. One shared script would make the order of the calls a race.
+        const summary = scriptedFetch([{ text: BACKGROUND_SUMMARY }])
+        const compaction = compactionFor(
+          testCase,
+          testCase === 'background'
+            ? createOpenaiChat('gpt-5.2', DUMMY_KEY, { fetch: summary.fetch })
+            : adapter,
+        )
         const harness = defineHarness({
           name: 'e2e/compaction-durable-wire',
           adapter,
@@ -326,8 +370,13 @@ export const Route = createFileRoute('/api/compaction-durable-wire')({
         const first = createHarnessHost({ persistence, project })
         try {
           const session = await first.open(harness, { threadId: THREAD })
-          for (const prompt of PROMPTS[testCase]) {
+          for (const [index, prompt] of PROMPTS[testCase].entries()) {
             texts.push((await session.prompt(prompt)).text)
+            // The second turn starts the summary beside it. Wait until it is
+            // ready, so the third turn applies it at its first call.
+            if (testCase === 'background' && index === 1) {
+              await readyIn(persistence.stores.metadata)
+            }
           }
           transcript = await session.transcript()
         } catch (error) {
@@ -355,6 +404,7 @@ export const Route = createFileRoute('/api/compaction-durable-wire')({
         return Response.json({
           ok: true,
           calls: bodies.length,
+          summaryCalls: summary.bodies.length,
           texts,
           transcript,
           rebuilt,

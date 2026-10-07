@@ -1,8 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { chat } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { createAnthropicChat } from '../src'
 import type { ChatMiddleware, ModelMessage, ModelReasoning } from '@tanstack/ai'
+import type { AnthropicTextConfig } from '../src/adapters/text'
 
 const mocks = vi.hoisted(() => ({ create: vi.fn() }))
 
@@ -186,5 +187,64 @@ describe('Anthropic mid-conversation effort', () => {
       },
       effortMessage('medium'),
     ])
+  })
+})
+
+describe('Anthropic mid-conversation effort from the adapter data', () => {
+  // A proxy in ANTHROPIC_BASE_URL on this machine would turn the default off.
+  beforeEach(() => {
+    vi.stubEnv('ANTHROPIC_BASE_URL', '')
+    mocks.create.mockReset()
+    mocks.create.mockImplementation(() => Promise.resolve(textStream()))
+  })
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  /** One call without a level and without a `reasoning` config. */
+  async function send(
+    model: string,
+    config: Omit<AnthropicTextConfig, 'apiKey'> = {},
+  ) {
+    mocks.create.mockClear()
+    for await (const _chunk of createAnthropicChat(
+      model,
+      'test-key',
+      config,
+    ).chatStream({
+      logger,
+      model,
+      messages: [{ role: 'user', content: 'Hi' }],
+    })) {
+      // Drain the stream.
+    }
+    const [body] = mocks.create.mock.calls[0] ?? []
+    return body as Record<string, any>
+  }
+
+  it("is on for claude-fable-5-1, claude-opus-5, and claude-opus-5-5 on Anthropic's own API", async () => {
+    for (const model of [
+      'claude-fable-5-1',
+      'claude-opus-5',
+      'claude-opus-5-5',
+    ]) {
+      const body = await send(model)
+      expect(body.thinking?.block_binding).toEqual({
+        prefix_mismatch_behavior: 'drop_block',
+      })
+      expect(body.output_config).toEqual({ effort: 'high' })
+      expect(body.messages.at(-1)).toEqual(effortMessage('high'))
+    }
+  })
+
+  it('is off on a custom endpoint and for the other models', async () => {
+    const gateway = await send('claude-opus-5-5', {
+      baseURL: 'https://gateway.example.com',
+    })
+    expect(gateway).not.toHaveProperty('thinking')
+    expect(gateway.messages).toEqual([{ role: 'user', content: 'Hi' }])
+    const other = await send('claude-opus-4-8')
+    expect(other).not.toHaveProperty('thinking')
+    expect(other.messages).toEqual([{ role: 'user', content: 'Hi' }])
   })
 })

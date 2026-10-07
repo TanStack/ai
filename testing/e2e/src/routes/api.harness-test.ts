@@ -304,6 +304,67 @@ async function agentRestart(
 }
 
 /**
+ * A durable host with work claims stops while a background agent runs. The
+ * next host does not open the thread itself: `resumePending` finds the
+ * expired claim and opens the thread, and recovery fails the agent and wakes
+ * the thread. Returns what the sweep opened, the run status, and the text of
+ * the wake turn.
+ */
+async function sweepRestart(
+  openai: () => ReturnType<typeof createTextAdapter>['adapter'],
+) {
+  const { runs, metadata, workClaims } = memoryPersistence().stores
+  const persistence = {
+    stores: { log: memoryLogStore(), runs, metadata, workClaims },
+  }
+  const waiter = defineAgent({
+    name: 'waiter',
+    description: 'Waits until it is cancelled',
+    run: (ctx) =>
+      new Promise<string>((resolve) =>
+        ctx.abortSignal?.addEventListener('abort', () => resolve('stopped')),
+      ),
+  })
+  const harness = defineHarness({
+    name: 'e2e/harness-sweep',
+    adapter: openai(),
+    agents: [waiter],
+  })
+  // The claim and the run lease of this host expire after 50 ms.
+  const stopped = createHarnessHost({
+    persistence,
+    lease: { ttlMs: 50, renewMs: 60_000 },
+  })
+  const next = createHarnessHost({ persistence })
+  try {
+    const first = await stopped.open(harness, { threadId: 'e2e-sweep' })
+    const run = first.agents.waiter.start(undefined, { wake: true })
+    await new Promise((resolve) => setTimeout(resolve, 200))
+
+    const resumed = await next.resumePending({
+      harnesses: [harness],
+      close: 'never',
+    })
+    const session = await next.open(harness, { threadId: 'e2e-sweep' })
+    let text = ''
+    for await (const { event, operationId } of session.events({ from: '0' })) {
+      if (operationId === run.id) continue
+      if (event.type === 'TEXT_MESSAGE_CONTENT') text += event.delta
+      if (
+        event.type === 'CUSTOM' &&
+        event.name === HARNESS_EVENTS.operationFinished
+      )
+        break
+    }
+    return { resumed, status: (await runs.get(run.id))?.status, text }
+  } finally {
+    await next.close()
+    // The first host sees the writes of the second host, and stops.
+    await stopped.close().catch(() => {})
+  }
+}
+
+/**
  * A background agent with `resume: true` on a durable host that stops. Its
  * step runs on the first host only, then the agent waits there. The next
  * host takes over, runs the agent again without the step, and the agent
@@ -761,6 +822,8 @@ async function sessionTitle(
  *   the transcript, then a prompt runs.
  * - `agent-restart`: a background agent runs on a durable host that stops.
  *   The next host fails the run and wakes the thread.
+ * - `sweep-restart`: as `agent-restart`, but `resumePending` on the next
+ *   host opens the thread.
  * - `routing`: `routing.router` sends each of four turns to root agents or
  *   to the main model.
  */
@@ -1196,6 +1259,9 @@ export const Route = createFileRoute('/api/harness-test')({
           }
           if (body.scenario === 'agent-restart') {
             return Response.json(await agentRestart(openai))
+          }
+          if (body.scenario === 'sweep-restart') {
+            return Response.json(await sweepRestart(openai))
           }
           if (body.scenario === 'agent-resume') {
             return Response.json(await agentResume(openai))

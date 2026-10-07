@@ -1,6 +1,7 @@
 import { EventType } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { SharedLog, loadLogState } from './log'
+import { LEASE } from './resume'
 import { HarnessSession } from './session'
 import { HARNESS_EVENTS } from './types'
 import { isRecord } from './utils'
@@ -17,6 +18,7 @@ import type {
   LeaseStore,
   LogStore,
   MetadataStore,
+  WorkClaimStore,
   SessionIndexEntry,
   SessionIndexListOptions,
   SessionIndexPage,
@@ -32,6 +34,8 @@ type SharedStores = {
   artifacts?: ArtifactStore
   blobs?: BlobStore
   generationRuns?: GenerationRunStore
+  /** Claims on busy threads, for `resumePending`. */
+  workClaims?: WorkClaimStore
   /** The session index that `host.sessions` reads. */
   sessions?: SessionIndexStore
 }
@@ -218,6 +222,19 @@ export interface ForkSessionOptions {
   principal?: Principal
 }
 
+export interface ResumePendingOptions {
+  /** The harnesses whose threads this sweep may open, matched by name. */
+  harnesses: ReadonlyArray<AnyHarness>
+  /**
+   * What happens to a session that the sweep opened. `'whenIdle'`
+   * (default): it closes when its pending work ends, unless the app opened
+   * the thread too. `'never'`: it stays open, like any opened session.
+   */
+  close?: 'whenIdle' | 'never'
+  /** How many expired claims one call reads. Default 100. */
+  limit?: number
+}
+
 /** Runs sessions for one or more harnesses in this process. */
 export interface HarnessHost<TLogState = unknown> {
   /**
@@ -244,6 +261,24 @@ export interface HarnessHost<TLogState = unknown> {
     harness: THarness,
     options: ForkSessionOptions,
   ) => Promise<HarnessSession<THarness>>
+  /**
+   * Continue the work of hosts that stopped. Needs `stores.workClaims`. It
+   * opens each thread whose claim expired, for a harness in `harnesses`, and
+   * the session recovers its pending work. Two hosts can call it at once:
+   * each thread goes to one of them. Call it at boot, and from a cron job or
+   * a Durable Object alarm. Resolves with the threads it opened.
+   *
+   * Known limit: a thread that this host has open already is claimed, but
+   * its session does not recover again.
+   *
+   * @example
+   * ```ts
+   * await host.resumePending({ harnesses: [assistant] })
+   * ```
+   */
+  resumePending: (
+    options: ResumePendingOptions,
+  ) => Promise<Array<{ threadId: string; harness: string }>>
   /** Close every live session. */
   close: () => Promise<void>
   /**
@@ -502,12 +537,22 @@ export function createHarnessHost<TLogState = undefined>(
     return loaded
   }
   const sessions = new Map<string, Promise<HarnessSession>>()
+  /**
+   * The keys of sessions that only a `resumePending` sweep opened. With
+   * `close: 'whenIdle'`, the sweep closes only these. An open by the app
+   * takes a key out.
+   */
+  const sweptOnly = new Set<string>()
+  /** The closes of swept sessions that left the cache, by key. */
+  const closing = new Map<string, Promise<void>>()
   const hostId = `host-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
 
   const host: HarnessHost<TLogState> = {
     open(harness, { threadId, principal, logId: openLogId, promptCache }) {
       const key = `${harness.name}\u0000${threadId}`
       let session = sessions.get(key)
+      // The app opened a thread that a sweep opened: it stays open.
+      if (session) sweptOnly.delete(key)
       if (!session) {
         const logId = openLogId ?? threadId
         const created = new HarnessSession({
@@ -543,22 +588,30 @@ export function createHarnessHost<TLogState = undefined>(
             if (status) setStatus(key, threadId, status)
           },
           onClose: () => {
-            sessions.delete(key)
+            // A sweep may have put a new session under this key already. It
+            // opens only after this one closed, so its status is not set yet.
+            if (sessions.get(key) === session) sessions.delete(key)
             statuses.delete(key)
           },
         })
-        session = created.open().then(
-          () => {
-            // A recovered turn can run already. Else the new session is idle.
-            if (!statuses.has(key)) setStatus(key, threadId, 'idle')
-            return created
-          },
-          (error: unknown) => {
-            sessions.delete(key)
-            statuses.delete(key)
-            throw error
-          },
-        )
+        // A swept session under this key may still close: it lets go of
+        // the thread first.
+        const closed = closing.get(key) ?? Promise.resolve()
+        session = closed
+          .then(() => created.open())
+          .then(
+            () => {
+              // A recovered turn can run already. Else the new session is
+              // idle.
+              if (!statuses.has(key)) setStatus(key, threadId, 'idle')
+              return created
+            },
+            (error: unknown) => {
+              sessions.delete(key)
+              statuses.delete(key)
+              throw error
+            },
+          )
         sessions.set(key, session)
       }
       return session as Promise<HarnessSession<typeof harness>>
@@ -596,7 +649,55 @@ export function createHarnessHost<TLogState = undefined>(
       await fork.adoptFork(source, transcript.slice(0, end))
       return fork
     },
+    async resumePending({ harnesses, close = 'whenIdle', limit = 100 }) {
+      const claims = persistence.stores.workClaims
+      if (!claims) throw new Error('resumePending needs stores.workClaims.')
+      const ttlMs = options.lease?.ttlMs ?? LEASE.ttlMs
+      const byName = new Map(
+        harnesses.map((harness) => [harness.name, harness]),
+      )
+      const expired = await claims.listExpired({ now: Date.now(), limit })
+      const opened: Array<{ threadId: string; harness: string }> = []
+      for (const { threadId, harness: name } of expired) {
+        const harness = byName.get(name)
+        if (!harness) continue
+        // Compare-and-set: of two hosts that sweep at once, one gets it.
+        const isMine = await claims.claim({
+          threadId,
+          harness: name,
+          ownerId: hostId,
+          until: Date.now() + ttlMs,
+        })
+        if (!isMine) continue
+        const key = `${name}\u0000${threadId}`
+        // Only a session that this sweep opens closes when idle. A session
+        // that the app has open stays open.
+        const isOwn = close === 'whenIdle' && !sessions.has(key)
+        if (isOwn) sweptOnly.add(key)
+        const session = await host.open(harness, { threadId })
+        if (isOwn) {
+          const stop = session.onIdle(() => {
+            stop()
+            // The app opened it since: it stays open.
+            if (!sweptOnly.delete(key)) return
+            // From here on, an open gets a new session, so a new prompt
+            // never reaches this one while it closes.
+            sessions.delete(key)
+            // ponytail: a failed close is dropped, as an idle session has no
+            // work to lose.
+            const closed = session.close().catch(() => {})
+            closing.set(key, closed)
+            void closed.then(() => {
+              if (closing.get(key) === closed) closing.delete(key)
+            })
+          })
+        }
+        opened.push({ threadId, harness: name })
+      }
+      return opened
+    },
     async close() {
+      await Promise.allSettled(closing.values())
       const live = await Promise.allSettled(sessions.values())
       await Promise.all(
         live

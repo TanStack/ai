@@ -247,6 +247,8 @@ describe('Anthropic mid-conversation channels', () => {
   })
 })
 
+// claude-opus-4-8 has both channels and no mid-conversation effort, so these
+// requests show the channels alone (`mid-conversation-effort.test.ts` has the effort).
 describe('Anthropic mid-conversation request', () => {
   beforeEach(() => {
     mocks.betaMessagesCreate.mockReset()
@@ -256,7 +258,7 @@ describe('Anthropic mid-conversation request', () => {
   })
 
   it('sends the beta and the placeholder from the first call', async () => {
-    const body = await send('claude-opus-5-5', {
+    const body = await send('claude-opus-4-8', {
       messages: [{ role: 'user', content: 'Find the page' }],
       tools: [lookup],
       midConversationChanges: {
@@ -274,7 +276,7 @@ describe('Anthropic mid-conversation request', () => {
   })
 
   it('defers an added tool and announces it with a tool_addition block', async () => {
-    const body = await send('claude-opus-5-5', {
+    const body = await send('claude-opus-4-8', {
       messages: toolTurn,
       tools: [lookup, fetchPage],
       systemPrompts: ['Be brief.', 'Cite sources.'],
@@ -303,7 +305,7 @@ describe('Anthropic mid-conversation request', () => {
 
   it('with { systemPrompts: true } on a custom baseURL: the prompt in place, the tools as the full list', async () => {
     const body = await send(
-      'claude-opus-5-5',
+      'claude-opus-4-8',
       {
         messages: toolTurn,
         tools: [lookup, fetchPage],
@@ -329,7 +331,7 @@ describe('Anthropic mid-conversation request', () => {
   })
 
   it('puts an added prompt in a system message before the next assistant message', async () => {
-    const body = await send('claude-opus-5-5', {
+    const body = await send('claude-opus-4-8', {
       messages: [
         ...toolTurn,
         { role: 'assistant', content: 'Here it is.' },
@@ -361,7 +363,7 @@ describe('Anthropic mid-conversation request', () => {
   })
 
   it('keeps cache_control on the start prompts', async () => {
-    const body = await send('claude-opus-5-5', {
+    const body = await send('claude-opus-4-8', {
       messages: toolTurn,
       tools: [lookup],
       systemPrompts: [
@@ -399,7 +401,7 @@ describe('Anthropic mid-conversation request', () => {
       name: 'web_search',
       type: 'web_search_20250305',
     })
-    const body = await send('claude-opus-5-5', {
+    const body = await send('claude-opus-4-8', {
       messages: toolTurn,
       tools: [lookup, webSearch, fetchPage],
       systemPrompts: ['Be brief.', 'Cite sources.'],
@@ -427,8 +429,8 @@ describe('Anthropic mid-conversation request', () => {
       systemPrompts: ['Be brief.', 'Cite sources.'],
     }
     const cases = [
-      ['claude-opus-5-5', { midConversationChannels: false }],
-      ['claude-opus-5-5', { baseURL: 'https://gateway.example.com' }],
+      ['claude-opus-4-8', { midConversationChannels: false }],
+      ['claude-opus-4-8', { baseURL: 'https://gateway.example.com' }],
       ['claude-sonnet-5-5', {}],
     ] as const
     for (const [model, config] of cases) {
@@ -446,7 +448,7 @@ describe('Anthropic mid-conversation request', () => {
   })
 
   it('puts the automatic tool cache marker on the last start tool', async () => {
-    const body = await send('claude-opus-5-5', {
+    const body = await send('claude-opus-4-8', {
       messages: [
         ...toolTurn,
         { role: 'assistant', content: 'Here it is.' },
@@ -485,7 +487,7 @@ describe('Anthropic mid-conversation request', () => {
   })
 
   it('puts the message cache marker on the last block of a system message at the end', async () => {
-    const body = await send('claude-opus-5-5', {
+    const body = await send('claude-opus-4-8', {
       messages: toolTurn,
       tools: [lookup, fetchPage],
       systemPrompts: ['Be brief.', 'Cite sources.'],
@@ -518,7 +520,7 @@ describe('Anthropic mid-conversation request', () => {
   })
 
   it("adds no cache marker in tool mode with promptCache: 'none'", async () => {
-    const body = await send('claude-opus-5-5', {
+    const body = await send('claude-opus-4-8', {
       messages: toolTurn,
       tools: [lookup, fetchPage],
       systemPrompts: ['Be brief.', 'Cite sources.'],
@@ -538,7 +540,7 @@ describe('Anthropic mid-conversation request', () => {
     }
     const body = applyAnthropicPromptCache(
       {
-        model: 'claude-opus-5-5',
+        model: 'claude-opus-4-8',
         max_tokens: 1024,
         messages: [{ role: 'user', content: 'hi' }],
         tools: [...convertToolsToProviderFormat([lookup]), lastTool],

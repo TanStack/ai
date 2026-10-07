@@ -13,6 +13,7 @@ export {
   defineInboxStore,
   defineCredentialStore,
   defineLogStore,
+  defineWorkClaimStore,
   defineSessionIndexStore,
   LogConflictError,
   // Run lifecycle helpers owned by @tanstack/ai, transiting through ./types so
@@ -48,6 +49,8 @@ export type {
   LeaseStore,
   TurnLease,
   TurnLeaseKey,
+  // Harness work claims (startup sweep)
+  WorkClaimStore,
   // Harness session index
   SessionIndexEntry,
   SessionIndexListOptions,

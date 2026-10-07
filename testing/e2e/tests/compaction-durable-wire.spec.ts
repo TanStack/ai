@@ -13,6 +13,7 @@ const Message = z.object({
 const Result = z.object({
   ok: z.literal(true),
   calls: z.number(),
+  summaryCalls: z.number(),
   texts: z.array(z.string()),
   transcript: z.array(Message),
   rebuilt: z.array(Message),
@@ -117,5 +118,28 @@ test.describe('compaction: durable records in a harness session', () => {
       'call_part_4',
     ])
     expect(String(outputs[0]?.output)).toContain(STUB)
+  })
+
+  test('a background summary is ready before the hard limit, and the next turn sends it', async ({
+    request,
+  }) => {
+    const result = await run(request, 'background')
+    expect(result.texts).toEqual([
+      'First response.',
+      'Second response.',
+      'Third response.',
+    ])
+    expect(result.calls).toBe(3)
+    // One summary call, beside the second turn. No turn went over maxTokens,
+    // so there is no inline (threshold) record.
+    expect(result.summaryCalls).toBe(1)
+    expect(result.records).toEqual(['background'])
+    expect(result.rebuilt).toEqual(result.transcript)
+
+    // The third turn's request carries the summary, not the first prompt.
+    const sent = JSON.stringify(result.lastRequest)
+    expect(sent).toContain('untrusted-conversation-summary')
+    expect(sent).toContain('Earlier: a long first prompt.')
+    expect(sent).not.toContain('OLD_DETAIL')
   })
 })

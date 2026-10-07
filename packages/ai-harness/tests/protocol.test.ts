@@ -245,6 +245,55 @@ describe('HTTP handler', () => {
     await host.close()
   })
 
+  it('sends messages to runs of exposed agents only', async () => {
+    const { handler, host, harness } = setup()
+    const control = async (input: unknown) =>
+      (
+        await handler(
+          new Request('http://x/api/harness/control', {
+            method: 'POST',
+            headers: { ...auth, 'content-type': 'application/json' },
+            body: JSON.stringify({ threadId: 'user-1-m', input }),
+          }),
+        )
+      ).json()
+
+    const started = await control({
+      op: 'agent',
+      agent: 'pricer',
+      input: { vendor: 'x' },
+    })
+    expect(
+      await control({
+        op: 'agentMessage',
+        operationId: started.operationId,
+        message: 'In euros.',
+        mode: 'followUp',
+      }),
+    ).toMatchObject({ status: expect.stringMatching(/^(accepted|queued)$/) })
+
+    const session = await host.open(harness, { threadId: 'user-1-m' })
+    const hidden = session.agent('secret')?.start()
+    expect(
+      await control({
+        op: 'agentMessage',
+        operationId: hidden?.id,
+        message: 'Hello.',
+      }),
+    ).toMatchObject({ status: 'rejected', reason: 'not_exposed' })
+    expect(
+      await control({
+        op: 'agentMessage',
+        operationId: 'op-agent-none',
+        message: 'Hello.',
+      }),
+    ).toMatchObject({ status: 'rejected', reason: 'not_running' })
+    expect(await control({ op: 'agentMessage', message: 'Hello.' })).toEqual({
+      error: 'Invalid input: agentMessage needs an operationId.',
+    })
+    await host.close()
+  })
+
   it('moves and cancels a waiting input, and the snapshot lists it', async () => {
     const release = gate()
     const { handler, host, calls } = setup([after(release.opened, 'hello')])

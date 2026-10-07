@@ -41,6 +41,10 @@ const factory: ItemFactory = {
     message: question.message,
     answer: async () => ({ inputId: 'i', status: 'accepted' }),
   }),
+  agent: (operation) => ({
+    ...operation,
+    send: async () => ({ inputId: 'i', status: 'accepted' }),
+  }),
 }
 
 function assistantParts(state: SessionViewState) {
@@ -390,7 +394,7 @@ describe('view reducer', () => {
       { id: 'int-1', tool: 'remove', args: {} },
     ])
     expect(first.questions).toMatchObject([{ id: 'q1', message: 'Sure?' }])
-    expect(first.agents).toEqual([{ id: 'op-a', name: 'pricer' }])
+    expect(first.agents).toMatchObject([{ id: 'op-a', name: 'pricer' }])
     expect(first.plugins).toEqual({ p: 1 })
     expect(assistantParts(first)[0]).toMatchObject({ status: 'needs-approval' })
 
@@ -881,7 +885,7 @@ describe('view reducer', () => {
       'tool',
       'tool',
     ])
-    expect(state.agents).toEqual([{ id: 'op-a', name: 'agent' }])
+    expect(state.agents).toMatchObject([{ id: 'op-a', name: 'agent' }])
     expect(state.messages[1]).toMatchObject({
       parts: [{ id: 'c1', status: 'needs-approval' }],
     })

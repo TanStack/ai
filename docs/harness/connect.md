@@ -109,6 +109,84 @@ for await (const entry of client.events()) {
 
 To upload files and show the media that your agents make, read [Send and show media](./media).
 
+## Send a message to a running agent
+
+A background agent runs for minutes, and the user wants to correct it from the page, or ask for one more change after it ends. The browser sends the run a message with `client.sendToAgent`.
+
+1. On the server, list the agent in `expose.agents`. A client can start and message only those agents:
+
+```ts group=harness-connect-agents
+import { defineAgent } from '@tanstack/ai'
+import { createHarnessHandler, createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import { memoryPersistence } from '@tanstack/ai-persistence'
+import { openaiText } from '@tanstack/ai-openai'
+
+const drafter = defineAgent({
+  name: 'drafter',
+  description: 'Drafts a blog post',
+  run: (ctx) => ctx.chat({ adapter: openaiText('gpt-5.6'), stream: false }),
+})
+
+export const studio = defineHarness({
+  name: 'acme/studio',
+  adapter: openaiText('gpt-5.6'),
+  agents: [drafter],
+  expose: { agents: ['drafter'] },
+})
+
+export const handler = createHarnessHandler({
+  host: createHarnessHost({ persistence: memoryPersistence() }),
+  harness: studio,
+  authorize: (request) =>
+    request.headers.get('authorization') === `Bearer ${process.env.HARNESS_TOKEN}`
+      ? { id: 'user-1' }
+      : null,
+  canAccess: (principal, threadId) => threadId.startsWith(principal.id),
+})
+```
+
+2. In the browser, send the message to the id of the run:
+
+```ts group=harness-connect-agents-client
+import { createHarnessClient } from '@tanstack/ai-harness/client'
+import type { studio } from './harness'
+
+const client = createHarnessClient<typeof studio>({
+  url: '/api/harness',
+  threadId: 'user-1-thread',
+  headers: { authorization: 'Bearer my-token' },
+})
+
+export async function correct(operationId: string) {
+  const receipt = await client.sendToAgent(operationId, 'Cite papers, not blogs.')
+  if (receipt.status === 'rejected') {
+    console.warn(receipt.reason)
+  }
+}
+
+export function addTitle(operationId: string) {
+  return client.sendToAgent(operationId, 'Add a title.', { mode: 'followUp' })
+}
+```
+
+The id of the run is the `operationId` in the receipt of `client.agents.drafter.start()`. A [session view](./custom-ui#3-act-on-the-session) also lists the running agents with their ids.
+
+- `mode: 'steer'` (the default): the message joins the next model call of the run.
+- `mode: 'followUp'`: the agent runs again after the run ends. `receipt.operationId` is the id of the new run.
+
+`sendToAgent` posts an `agentMessage` input to `POST control`. It runs as the user that `authorize` returned. The input looks like this:
+
+```json
+{ "op": "agentMessage", "operationId": "op-agent-m1x2-3", "message": "Add a title.", "mode": "followUp" }
+```
+
+The session rejects the message with a `reason` in these cases:
+
+- `not_running`: the session does not know the run. Another host can run it, or the id is wrong.
+- `not_exposed`: the agent of the run is not in `expose.agents`.
+
+For how steers and follow-ups run on the server, see [Message a running agent](./subagents#message-a-running-agent).
+
 ## Use it from useChat
 
 Your app already uses `useChat`. You want the same chat screen on a harness, with approvals, tools that run in the browser, and the thread after a reload. Point `useChat` at the `run` path of the handler.
@@ -267,6 +345,7 @@ If a plugin picks the model of the harness, the harness has no adapter to read i
 - Clients that can change only what you expose.
 - A `useChat` screen on the harness, with approvals, tools that run in the browser, and a reload that joins the running turn.
 - A typed web client that reconnects and resumes from a cursor.
+- Messages from the browser to a running agent.
 - A WebSocket, an ACP agent for editors, and a harness you can call from `chat()`.
 
 Next: run the same harness in a terminal with the [CLI](./cli).

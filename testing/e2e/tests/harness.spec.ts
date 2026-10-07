@@ -71,6 +71,23 @@ test.describe('harness session', () => {
     expect(body.text).toBe('The waiter stopped before it finished.')
   })
 
+  test('a sweep resumes the work of a stopped host, and nobody opens the thread', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const response = await request.post('/api/harness-test', {
+      data: { scenario: 'sweep-restart', testId, aimockPort },
+    })
+    expect(response.ok()).toBe(true)
+    const body = await response.json()
+    expect(body.resumed).toEqual([
+      { threadId: 'e2e-sweep', harness: 'e2e/harness-sweep' },
+    ])
+    expect(body.status).toBe('failed')
+    expect(body.text).toBe('The waiter stopped before it finished.')
+  })
+
   test('a resumable background agent continues on the next host, and its step runs once', async ({
     request,
     testId,

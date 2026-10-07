@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { toolDefinition } from '@tanstack/ai'
+import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import {
   createHarnessHandler,
@@ -13,6 +13,7 @@ import { createHarnessClient } from '../src/client'
 import { createSessionView } from '../src/view'
 import { after, gate, mockAdapter, text, toolCall } from './helpers'
 import type { Reply } from './helpers'
+import type { SessionViewSource } from '../src/view'
 
 const Pinged = createPluginEvent<{ count: number }>('test/pinged')
 
@@ -384,6 +385,81 @@ describe('createSessionView', () => {
       ['rejected', refused],
       ['rejected', refused],
     ])
+    view.dispose()
+    await host.close()
+  })
+})
+
+describe('the agents of a session view', () => {
+  /** A session with one `writer` run that waits for `hold`. */
+  async function openWriter() {
+    const hold = gate()
+    const writer = defineAgent({
+      name: 'writer',
+      description: 'Writes when the test lets it',
+      run: async () => {
+        await hold.opened
+        return 'Draft.'
+      },
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/view-agents',
+        adapter: mockAdapter([]).adapter,
+        agents: [writer],
+      }),
+      { threadId: 't' },
+    )
+    const run = session.agents.writer.start()
+    return { hold, host, session, run }
+  }
+
+  it('sends a message to a running agent', async () => {
+    const { hold, host, session, run } = await openWriter()
+    const view = createSessionView(session)
+    await view.ready
+
+    const [agent] = view.store.get().agents
+    const receipt = await agent?.send('Add a title.', 'followUp')
+
+    expect(agent).toMatchObject({ id: run.id, name: 'writer' })
+    expect(receipt).toMatchObject({ status: 'queued' })
+    expect(session.agentRuns().map((item) => item.status)).toEqual([
+      'running',
+      'queued',
+    ])
+    hold.open()
+    await run
+    view.dispose()
+    await host.close()
+  })
+
+  it('rejects send when the view source cannot send to agents', async () => {
+    const { hold, host, session, run } = await openWriter()
+    const source: SessionViewSource = {
+      prompt: (message) => session.prompt(message),
+      steer: (message) => session.steer(message),
+      resolve: (resume) => session.resolve(resume),
+      cancel: (operationId) => session.cancel(operationId),
+      answer: (questionId, value) => session.answer(questionId, value),
+      command: (name, input) => session.command(name, input),
+      setConfig: (key, value) => session.setConfig(key, value),
+      events: (options) => session.events(options),
+      snapshot: () => session.snapshot(),
+      transcript: () => session.transcript(),
+      describe: () => session.describe(),
+    }
+    const view = createSessionView(source)
+    await view.ready
+
+    const [agent] = view.store.get().agents
+
+    await expect(agent?.send('x')).rejects.toThrow(
+      'This view source cannot send messages to agents.',
+    )
+    hold.open()
+    await run
     view.dispose()
     await host.close()
   })

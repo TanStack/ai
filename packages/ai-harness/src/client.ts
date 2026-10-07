@@ -109,6 +109,15 @@ export interface HarnessClient<THarness extends AnyHarness> {
    */
   reset: (note?: string, options?: { inputId?: string }) => Promise<Receipt>
   /**
+   * Send a message to the agent run `operationId`, as `AgentRun.send`
+   * does. The harness must list the run's agent in `expose.agents`.
+   */
+  sendToAgent: (
+    operationId: string,
+    message: UserInput,
+    options?: { mode?: 'steer' | 'followUp'; inputId?: string },
+  ) => Promise<Receipt>
+  /**
    * The session events from `from` (exclusive). Reconnects after a network
    * error and resumes from the last cursor. Ends when `signal` aborts.
    * `onConnection` reports `'open'` for each connection and `'reconnecting'`
@@ -463,6 +472,14 @@ export function createHarnessClient<THarness extends AnyHarness>(
         op: 'reset',
         ...(note !== undefined ? { note } : {}),
         ...(resetOptions?.inputId ? { inputId: resetOptions.inputId } : {}),
+      }),
+    sendToAgent: (operationId, message, sendOptions) =>
+      send({
+        op: 'agentMessage',
+        operationId,
+        message,
+        ...(sendOptions?.mode ? { mode: sendOptions.mode } : {}),
+        ...(sendOptions?.inputId ? { inputId: sendOptions.inputId } : {}),
       }),
     events,
     hostEvents,

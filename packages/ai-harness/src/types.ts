@@ -109,6 +109,10 @@ export type HarnessInput = (
       detached?: boolean
       /** Run again after a host stop. See `AgentStartOptions.resume`. */
       resume?: boolean
+      /** `'none'`: no note for the main model. See `AgentRunOptions.attach`. */
+      attach?: 'none'
+      /** The run whose agent code started this run. */
+      parentRunId?: string
     }
   | { op: 'cancel'; operationId?: string }
   | { op: 'cancelInput'; inputId: string }
@@ -122,6 +126,16 @@ export type HarnessInput = (
   | { op: 'config'; key: string; value: unknown }
   | { op: 'configure'; settings: ThreadSettingsChange }
   | { op: 'reset'; note?: string }
+  | {
+      op: 'agentMessage'
+      /** A run of the agent: any run of its chain. */
+      operationId: string
+      message: UserInput
+      /** Default `'steer'`. See `AgentRun.send`. */
+      mode?: 'steer' | 'followUp'
+      /** The input id of the chain's first run. The session sets it. */
+      run?: string
+    }
 ) & { inputId?: string }
 
 /**
@@ -278,6 +292,22 @@ export interface Operation<TResult> extends PromiseLike<TResult> {
   /** This operation's raw AG-UI chunks, for existing transports. */
   stream: (options?: { signal?: AbortSignal }) => AsyncIterable<StreamChunk>
   cancel: (reason?: string) => Promise<Receipt>
+}
+
+/** A background agent run. `send` adds a message to it. */
+export interface AgentRun<TResult> extends Operation<TResult> {
+  /**
+   * Add a message to this run. `mode: 'steer'` (default) gives it to the
+   * run's next model call. When the run makes no further model call, it
+   * runs as a follow-up. `mode: 'followUp'` runs the agent again after the
+   * run ends, on the run's transcript with the message added, with its
+   * first input and options. A run that ended starts again at once. The
+   * receipt names the run that gets the message.
+   */
+  send: (
+    message: UserInput,
+    options?: { mode?: 'steer' | 'followUp'; inputId?: string },
+  ) => Promise<Receipt>
 }
 
 /** What a media file holds. It picks the content part a model gets. */

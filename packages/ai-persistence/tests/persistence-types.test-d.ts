@@ -30,6 +30,7 @@ import type {
   MessageStore,
   MetadataStore,
   RunStore,
+  WorkClaimStore,
   SessionIndexStore,
 } from '../src'
 
@@ -148,6 +149,7 @@ expectTypeOf(memoryPersistence()).toEqualTypeOf<
     blobs: BlobStore
     inbox: InboxStore
     credentials: CredentialStore
+    workClaims: WorkClaimStore
     sessions: SessionIndexStore
   }>
 >()

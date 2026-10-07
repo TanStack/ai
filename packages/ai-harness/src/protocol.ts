@@ -49,6 +49,7 @@ const INPUT_OPS = new Set([
   'config',
   'configure',
   'reset',
+  'agentMessage',
 ])
 
 /** Check the shape of a client input. Throws with a short reason. */
@@ -61,7 +62,10 @@ export function parseHarnessInput(value: unknown): HarnessInput {
     throw new Error('Invalid input: expected { op } with a known op.')
   }
   const needsMessage =
-    value.op === 'prompt' || value.op === 'steer' || value.op === 'followUp'
+    value.op === 'prompt' ||
+    value.op === 'steer' ||
+    value.op === 'followUp' ||
+    value.op === 'agentMessage'
   if (
     needsMessage &&
     typeof value.message !== 'string' &&
@@ -74,6 +78,19 @@ export function parseHarnessInput(value: unknown): HarnessInput {
   }
   if (value.op === 'agent' && typeof value.agent !== 'string') {
     throw new Error('Invalid input: agent needs an agent name.')
+  }
+  if (value.op === 'agentMessage' && typeof value.operationId !== 'string') {
+    throw new Error('Invalid input: agentMessage needs an operationId.')
+  }
+  if (
+    value.op === 'agentMessage' &&
+    value.mode !== undefined &&
+    value.mode !== 'steer' &&
+    value.mode !== 'followUp'
+  ) {
+    throw new Error(
+      "Invalid input: the mode of agentMessage must be 'steer' or 'followUp'.",
+    )
   }
   if (value.op === 'command' && typeof value.name !== 'string') {
     throw new Error('Invalid input: command needs a name.')
@@ -136,12 +153,12 @@ export function parseControlFrame(data: string): ControlFrame {
 }
 
 /**
- * Apply a client input to a session. A client can run only the agents in
- * `expose.agents` and the commands in `expose.commands`, and change only the
- * settings in `expose.settings` and the config keys in `expose.config`.
- * Resolves to the receipt. `principal` is who sent the input, from your
- * `authorize`, never from the input itself. A chat input runs with its
- * credentials.
+ * Apply a client input to a session. A client can run, or send messages to,
+ * only the agents in `expose.agents`. It can run only the commands in
+ * `expose.commands`, and change only the settings in `expose.settings` and the
+ * config keys in `expose.config`. Resolves to the receipt. `principal` is who
+ * sent the input, from your `authorize`, never from the input itself. A chat
+ * input runs with its credentials.
  */
 export async function applyInput(
   harness: AnyHarness,
@@ -244,6 +261,29 @@ export async function applyInput(
         status: 'accepted',
         operationId: operation.id,
       }
+    }
+    case 'agentMessage': {
+      const run = session.agentRun(input.operationId)
+      if (!run) {
+        return {
+          inputId: input.inputId ?? '',
+          status: 'rejected',
+          reason: 'not_running',
+        }
+      }
+      // Only a run of an exposed agent takes messages from a client.
+      const exposed: ReadonlyArray<string> = harness.expose?.agents ?? []
+      if (!exposed.includes(run.agent ?? '')) {
+        return {
+          inputId: input.inputId ?? '',
+          status: 'rejected',
+          reason: 'not_exposed',
+        }
+      }
+      return session.sendToAgent(input.operationId, input.message, {
+        ...id,
+        ...(input.mode ? { mode: input.mode } : {}),
+      })
     }
   }
 }
