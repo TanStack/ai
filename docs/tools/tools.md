@@ -557,6 +557,7 @@ Some providers change or ignore some values:
   - The Anthropic rule applies to the Claude models, and also to `claude-mythos-5-1`.
   - Converse has no `none` value, so `'none'` sends no tools.
   - After a tool call in the history, Bedrock needs the tools. Then `'none'` sends them with `auto`, and the model can still call a tool.
+  - A request with no tools sends the tool calls and tool results of the history as text.
   - AWS documents a named tool for Claude and Nova models only.
 - **Gemini**: the value becomes `functionCallingConfig`.
   - The modes are `AUTO`, `NONE`, and `ANY`. A named tool is `ANY` with `allowedFunctionNames`.

@@ -233,6 +233,17 @@ Tools take the same metadata. Pass `metadata: { cachePoint: { type: 'default' } 
 
 `onUsage` and `RUN_FINISHED.usage` report Bedrock's counts as `promptTokens`, `completionTokens`, and `totalTokens`. `promptTokens` is the full input size, cached tokens included. When a request hits or writes a prompt cache, the cache counts arrive on `promptTokensDetails.cachedTokens` and `promptTokensDetails.cacheWriteTokens`.
 
+### Structured output
+
+Pass `outputSchema` to `chat()` to get an object that matches your schema. For the full steps, see [One-Shot Extraction](../structured-outputs/one-shot).
+
+Converse gets the object in one of two ways:
+
+- **Forced tool**: most models. The adapter forces a `structured_output` tool that takes your schema.
+- **Native JSON schema output** (`outputConfig.textFormat`): the Claude models that do not take a forced tool. These are `claude-fable-5-1`, `claude-mythos-5-1`, `claude-opus-5-5`, `claude-sonnet-5-5`, and all Claude models with thinking on.
+
+If the native answer is not valid JSON, the call fails with an error that names the model.
+
 ## Chat Completions API (`api: 'chat'`)
 
 Set `api: 'chat'` to use Bedrock's OpenAI-compatible Chat Completions endpoint. Returns a `bedrock` adapter.
@@ -367,6 +378,8 @@ Readable `reasoningText.signature` replay applies to Claude models. Same-source 
 Keep assistant metadata and reasoning parts when you save history. Converse records source provider `amazon-bedrock` and API `bedrock-converse-stream`. The Chat Completions and Responses adapters use `openai-completions` and `openai-responses` API identities.
 
 Converse tool results preserve images as image blocks and send `status: 'error'` for tool errors. With a text-only model, image results use a text placeholder. The Chat Completions path places supported tool-result images in a following user message.
+
+Converse accepts tool calls and tool results in the history only when the request has tools. If a request has no tools, the adapter sends them as text, for example `[Tool call lookup_weather({"location":"Paris"})]`. Images in a tool result stay images. Your saved messages do not change.
 
 An AWS HTTP request ID is a transport ID. It does not become `responseId`. See [Read the provider response identity](../chat/stream-events#read-the-provider-response-identity).
 
