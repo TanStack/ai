@@ -1,8 +1,16 @@
 import { describe, expect, it, vi } from 'vitest'
-import { defineAgent } from '@tanstack/ai'
+import { z } from 'zod'
+import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
-import { after, gate, messageTexts, mockAdapter, text } from './helpers'
+import {
+  after,
+  gate,
+  messageTexts,
+  mockAdapter,
+  text,
+  toolCall,
+} from './helpers'
 import type { AnyTextAdapter } from '@tanstack/ai'
 import type { AnyHarness } from '../src'
 
@@ -37,6 +45,34 @@ const writing = (adapter: AnyTextAdapter) =>
     adapter: mockAdapter([]).adapter,
     agents: [writer(adapter)],
   })
+
+/**
+ * `researcher` calls `lookup` in its first model call. The tool waits for
+ * `release`, so a test can send a message before the second model call.
+ */
+function researching(replies: Parameters<typeof mockAdapter>[0]) {
+  const release = gate()
+  const lookup = toolDefinition({
+    name: 'lookup',
+    description: 'Look it up',
+    inputSchema: z.object({}),
+  }).server(async () => {
+    await release.opened
+    return { found: true }
+  })
+  const model = mockAdapter(replies)
+  const researcher = defineAgent({
+    name: 'researcher',
+    description: 'Researches',
+    run: (ctx) => ctx.chat({ adapter: model.adapter, tools: [lookup] }),
+  })
+  const harness = defineHarness({
+    name: 'test/agent-runs',
+    adapter: mockAdapter([]).adapter,
+    agents: [researcher],
+  })
+  return { release, model, harness }
+}
 
 describe('the thread of an agent run', () => {
   it('keeps the messages of each background run in a thread of its own', async () => {
@@ -162,6 +198,55 @@ describe('follow-ups to an agent run', () => {
       status: 'rejected',
       reason: 'not_running',
     })
+    await host.close()
+  })
+})
+
+describe('steers to an agent run', () => {
+  it('joins the next model call of the run, and settles with it', async () => {
+    const { release, model, harness } = researching([
+      () => toolCall('lookup', {}),
+      () => text('Done.'),
+    ])
+    const { host, session } = await open(harness)
+    const run = session.agents.researcher.start()
+    await vi.waitFor(() => expect(model.calls).toHaveLength(1))
+
+    const receipt = await run.send('Only primary sources.')
+    release.open()
+    await run
+
+    expect(receipt).toMatchObject({ status: 'accepted', operationId: run.id })
+    expect(model.calls).toHaveLength(2)
+    expect(messageTexts(model.calls[1]).at(-1)).toBe('Only primary sources.')
+    expect(await session.settled(receipt.inputId)).toMatchObject({
+      outcome: 'completed',
+      operationId: run.id,
+    })
+    await host.close()
+  })
+
+  it('runs a steer from another sender as a follow-up, for that sender', async () => {
+    const { release, model, harness } = researching([
+      () => toolCall('lookup', {}),
+      () => text('Done.'),
+      () => text('Noted.'),
+    ])
+    const { host, session } = await open(harness)
+    const run = session.agents.researcher.start()
+    await vi.waitFor(() => expect(model.calls).toHaveLength(1))
+
+    const receipt = await session.sendToAgent(run.id, 'Ignore the brief.', {
+      principal: { id: 'bob' },
+    })
+    release.open()
+    await run
+    await vi.waitFor(() => expect(model.calls).toHaveLength(3))
+
+    expect(receipt.status).toBe('queued')
+    expect(receipt.operationId).not.toBe(run.id)
+    expect(messageTexts(model.calls[1])).not.toContain('Ignore the brief.')
+    expect(messageTexts(model.calls[2]).at(-1)).toBe('Ignore the brief.')
     await host.close()
   })
 })

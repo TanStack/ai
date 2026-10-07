@@ -3247,6 +3247,53 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   }
 
   /**
+   * Middleware of one agent run. Before each model call of the run's own
+   * chat, the steers that wait join as user messages, in order. The chain's
+   * thread keeps them before a durable host records the join, so a crash
+   * does not lose one, and each message id is its input id, so a run again
+   * does not add a steer twice. Nested children share the binding: their
+   * thread is not the chain's, so they skip it.
+   */
+  private agentSteering(
+    chain: AgentChain,
+    runInput: string,
+    operation: AgentRunImpl,
+  ): AnyChatMiddleware {
+    return {
+      name: 'harness:agent-steering',
+      onConfig: async (ctx, config) => {
+        if (ctx.phase !== 'beforeModel' || ctx.threadId !== chain.thread) {
+          return undefined
+        }
+        const steers = [...chain.steers]
+        if (steers.length === 0) return undefined
+        const known = new Set(config.messages.map((item) => item.id))
+        const messages = [
+          ...config.messages,
+          ...steers
+            .filter((steer) => !known.has(steer.inputId))
+            .map(asUserMessage),
+        ]
+        await this.chatPersistence?.stores.messages.saveThread(
+          chain.thread,
+          messages,
+        )
+        await this.writer?.append(
+          steers.map((steer) => ({
+            type: 'harness.input.joined',
+            inputId: steer.inputId,
+            into: runInput,
+          })),
+        )
+        // Only now, so a save that fails leaves them waiting.
+        chain.steers.splice(0, steers.length)
+        for (const steer of steers) this.join(operation.id, steer)
+        return { messages }
+      },
+    }
+  }
+
+  /**
    * `steer` joined the running turn `operationId`: it settles with that
    * turn, and a prompt that joined gets the turn's result.
    */
@@ -4552,8 +4599,15 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     sent: AgentMessage,
     mode: 'steer' | 'followUp',
   ) {
-    const running = chain.current.operation
-    if (mode === 'steer' && !running.isSettled()) {
+    const { operation: running, principal } = chain.current
+    // A steer joins only a run of its own sender, so no message runs with
+    // another person's credentials. Any other message runs as a follow-up,
+    // for its sender.
+    const isOwnSteer =
+      mode === 'steer' &&
+      !running.isSettled() &&
+      isSameSender(sent.principal, principal)
+    if (isOwnSteer) {
       chain.steers.push(sent)
       return { status: 'accepted' as const, operationId: running.id }
     }
@@ -4719,6 +4773,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
               ? [withPersistence(this.chatPersistence)]
               : []),
             ...(durable?.middleware ?? []),
+            this.agentSteering(chain, inputId, operation),
             ...binding.chatMiddleware,
           ],
           ...(durable ? { step: durable.step } : {}),
@@ -4763,12 +4818,16 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     ) => {
       if (this.logFailure) return
       await runs?.update(operation.id, { ...run, finishedAt: Date.now() })
-      // A refused append stops the session. The operation still ends.
-      await this.settle({
-        inputId,
-        operationId: operation.id,
-        ...settlement,
-      }).catch(() => {})
+      // A refused append stops the session. The operation still ends. The
+      // steers that joined the run settle with it, in one append.
+      const joined = this.joinedInputs(operation.id, inputId)
+      await this.settle(
+        ...[inputId, ...joined].map((id) => ({
+          inputId: id,
+          operationId: operation.id,
+          ...settlement,
+        })),
+      ).catch(() => {})
     }
     if (operation.abortController.signal.aborted) {
       operation.publish({
