@@ -151,9 +151,34 @@ export class CodexTextAdapter<
 
   private readonly adapterConfig: CodexTextConfig
 
+  /** `toolChoice` warnings that this instance already logged. */
+  private readonly toolChoiceWarnings = new Set<string>()
+
   constructor(config: CodexTextConfig, model: TModel) {
     super({}, model)
     this.adapterConfig = config
+  }
+
+  /**
+   * The chat() tools to bridge for `toolChoice`: none for `'none'`, and only
+   * the named tool for `{ type: 'tool', name }`. Codex cannot turn off its
+   * built-in tools or force a tool call, so every value except `'auto'` logs
+   * a warning once.
+   */
+  private toolsForChoice(options: TextOptions<CodexTextProviderOptions>) {
+    const { toolChoice, tools = [] } = options
+    if (toolChoice === undefined || toolChoice === 'auto') return tools
+    const warning =
+      toolChoice === 'required'
+        ? "codex: toolChoice 'required' is not supported. The agent decides which tools to call."
+        : 'codex: toolChoice limits only the chat() tools. The built-in Codex tools stay on.'
+    if (!this.toolChoiceWarnings.has(warning)) {
+      this.toolChoiceWarnings.add(warning)
+      options.logger.warn(warning)
+    }
+    if (toolChoice === 'none') return []
+    if (toolChoice === 'required') return tools
+    return tools.filter((tool) => tool.name === toolChoice.name)
   }
 
   private sandboxFrom(
@@ -315,6 +340,7 @@ export class CodexTextAdapter<
       runId,
     })
     try {
+      const tools = this.toolsForChoice(options)
       const sandbox = this.sandboxFrom(options)
       cleanupSandbox = sandbox
       const cwd = this.workdir(options)
@@ -327,12 +353,12 @@ export class CodexTextAdapter<
         : undefined
       if (projection) await projectCodexWorkspace(sandbox, projection)
 
-      if (options.tools && options.tools.length > 0) {
+      if (tools.length > 0) {
         const provisioner =
           (options.capabilities
             ? getToolBridgeProvisioner(options.capabilities, { optional: true })
             : undefined) ?? nodeHttpBridgeProvisioner
-        bridge = await provisioner.provision(options.tools, {
+        bridge = await provisioner.provision(tools, {
           provider: sandbox.provider,
           context: options.context,
           emitCustomEvent: channel.emitCustomEvent,

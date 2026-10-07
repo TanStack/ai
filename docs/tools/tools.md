@@ -563,6 +563,11 @@ Some providers change or ignore some values:
   - The modes are `AUTO`, `NONE`, and `ANY`. A named tool is `ANY` with `allowedFunctionNames`.
   - With only provider tools, such as Google Search, Gemini gets no tool config.
 - **Ollama**: Ollama has no tool choice, so the adapter ignores `toolChoice`. See [Ollama](../adapters/ollama#tool-choice).
+- **Claude Code**: `'none'` and a named tool turn off the built-in tools. The adapter then bridges none of your tools, or only the named one. `'required'` logs a warning. See [Claude Code](../adapters/claude-code#tool-choice).
+- **Codex**: `'none'` and a named tool limit only your bridged tools. The built-in Codex tools stay on. These values and `'required'` log a warning. See [Codex](../adapters/codex#tool-choice).
+- **OpenCode**: the Codex rule applies to the built-in OpenCode tools. See [OpenCode](../adapters/opencode#tool-choice).
+- **Grok Build**: the Codex rule applies to the built-in Grok Build tools. See [Grok Build](../adapters/grok-build#tool-choice).
+- **ACP-compatible adapters**: the Codex rule applies to the built-in tools of the agent. See [ACP-compatible](../adapters/acp-compatible#tool-choice).
 
 ## Progress Events and Runtime Context
 
