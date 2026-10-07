@@ -47,6 +47,7 @@
     "@tanstack/ai-sandbox-daytona": "workspace:*",
     "@tanstack/ai-sandbox-docker": "workspace:*",
     "@tanstack/ai-sandbox-local-process": "workspace:*",
+    "@tanstack/ai-sandbox-railway": "workspace:*",
     "@tanstack/ai-sandbox-vercel": "workspace:*",
     "@tanstack/react-devtools": "^0.9.10",
     "@tanstack/react-router": "^1.170.41",
