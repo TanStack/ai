@@ -412,6 +412,24 @@ describe('agents from Markdown files', () => {
     await host.close()
   })
 
+  it('reads the folder again on session.reload()', async () => {
+    const { adapter } = mockAdapter([])
+    const { host, session } = await open(adapter, [
+      agents({ adapter: () => adapter, dirs: [root] }),
+    ])
+    expect(await session.command('agent')).toBe(
+      'Agent: build. Agents: build, plan.',
+    )
+
+    await writeFile(join(root, 'writer.md'), 'You write docs.')
+    await session.reload()
+
+    expect(await session.command('agent')).toBe(
+      'Agent: build. Agents: build, plan, writer.',
+    )
+    await host.close()
+  })
+
   it('refuses an agent file with an unknown mode', async () => {
     await writeFile(join(root, 'bad.md'), '---\nmode: sometimes\n---\nText')
     const { adapter } = mockAdapter([])

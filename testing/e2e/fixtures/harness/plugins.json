@@ -120,6 +120,26 @@
       "response": {
         "content": "Here is a plan for Rome."
       }
+    },
+    {
+      "match": { "userMessage": "[harness-reload] before" },
+      "response": { "content": "No stamp yet." }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-reload] after",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [{ "name": "stamp", "arguments": "{}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-reload] after",
+        "sequenceIndex": 1
+      },
+      "response": { "content": "Stamped it." }
     }
   ]
 }

@@ -343,6 +343,12 @@ export const HARNESS_EVENTS = {
   settingsChanged: 'harness.settings.changed',
   /** A plugin added or removed a command with `ctx.commands`. */
   commandsChanged: 'harness.commands.changed',
+  /**
+   * `session.reload()` set the plugins up again. The value is empty, or has
+   * the `error` message when the new setup failed. Read the commands, the
+   * config, and the agents again.
+   */
+  reloaded: 'harness.reloaded',
   question: 'harness.question',
   questionAnswered: 'harness.question.answered',
   pluginEvent: 'harness.plugin.event',

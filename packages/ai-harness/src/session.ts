@@ -1082,6 +1082,12 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   private activeResume = false
   private plugins: ReadonlyArray<HarnessPlugin> = []
   private sessionPlugins: MountedPlugins | undefined
+  /** The last `reload()`. The calls run one at a time. */
+  private reloads: Promise<void> = Promise.resolve()
+  /** A reload waits for the running turn, so no new turn starts. */
+  private holdTurns = false
+  /** Called when the running turn ends. A reload waits for it. */
+  private readonly turnEnds = new Set<() => void>()
   private closing: Promise<void> | undefined
   /** The last `recover()`. The calls run one at a time. */
   private recovery: Promise<void> = Promise.resolve()
@@ -1442,25 +1448,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     // First: plugins publish events while they mount.
     await this.openLog()
     try {
-      this.plugins = this.harness.plugins?.() ?? []
-      this.sessionPlugins = await mountPlugins(
-        this.plugins.filter(
-          (plugin) => (plugin.lifetime ?? 'session') === 'session',
-        ),
-        {
-          threadId: this.threadId,
-          registry: this.agentRegistry,
-          harnessTools: this.harness.tools ?? [],
-          harnessProvides: (this.harness.middleware ?? []).flatMap(
-            (middleware) => middleware.provides ?? [],
-          ),
-          services: this.services,
-          inherited: this.storeCapabilities(),
-        },
-      )
-      await this.loadConfig()
+      await this.mountSessionPlugins()
       await this.loadSettings()
-      await this.loadPluginState()
       this.reverted = this.writer
         ? this.writer.state.revert
         : revertOf(
@@ -1484,6 +1473,79 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       // can open again.
       this.feed.close()
       throw error
+    }
+  }
+
+  /** Read `harness.plugins()` and set up its session plugins. */
+  private async mountSessionPlugins(): Promise<void> {
+    this.plugins = this.harness.plugins?.() ?? []
+    this.sessionPlugins = await mountPlugins(
+      this.plugins.filter(
+        (plugin) => (plugin.lifetime ?? 'session') === 'session',
+      ),
+      {
+        threadId: this.threadId,
+        registry: this.agentRegistry,
+        harnessTools: this.harness.tools ?? [],
+        harnessProvides: (this.harness.middleware ?? []).flatMap(
+          (middleware) => middleware.provides ?? [],
+        ),
+        services: this.services,
+        inherited: this.storeCapabilities(),
+      },
+    )
+    await this.loadConfig()
+    await this.loadPluginState()
+  }
+
+  /**
+   * Tear the plugins down and set them up again, with the list that
+   * `harness.plugins()` gives now. It waits for the running turn, and no new
+   * turn starts until it ends. The transcript, the log, the thread settings,
+   * and the inbox stay. Clients get a `harness.reloaded` event.
+   *
+   * When the new setup throws, the session keeps working with no plugins,
+   * and the promise rejects with the error. Call `reload()` again after a
+   * fix.
+   *
+   * @example
+   * ```ts
+   * await session.reload()
+   * ```
+   */
+  reload(): Promise<void> {
+    const run = this.reloads.then(() => this.runReload())
+    this.reloads = run.catch(() => {})
+    return run
+  }
+
+  private async runReload(): Promise<void> {
+    if (this.closing) return
+    this.holdTurns = true
+    try {
+      while (this.activeTurn) {
+        await new Promise<void>((resolve) => this.turnEnds.add(resolve))
+      }
+      const old = this.sessionPlugins
+      // No plugins until the new setup works, so a failed setup leaves none.
+      this.sessionPlugins = undefined
+      this.plugins = []
+      this.agentRegistry.deletePluginAgents()
+      await old?.dispose()
+      await this.mountSessionPlugins()
+      this.feed.publish('session', customEvent(HARNESS_EVENTS.reloaded, {}))
+    } catch (error) {
+      this.sessionPlugins = undefined
+      this.plugins = []
+      this.agentRegistry.deletePluginAgents()
+      this.feed.publish(
+        'session',
+        customEvent(HARNESS_EVENTS.reloaded, { error: errorText(error) }),
+      )
+      throw error
+    } finally {
+      this.holdTurns = false
+      this.drain()
     }
   }
 
@@ -3527,7 +3589,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   }
 
   private drain(): void {
-    if (this.activeTurn || this.closing) return
+    if (this.activeTurn || this.closing || this.holdTurns) return
     const next = this.queue.shift()
     if (!next) return this.checkIdle()
     this.activeTurn = next.operation
@@ -3537,6 +3599,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       this.activeResume = false
       this.activeTurn = undefined
       this.turnPrincipal = undefined
+      for (const end of this.turnEnds) end()
+      this.turnEnds.clear()
       this.drain()
     })
   }

@@ -223,8 +223,19 @@ export interface PluginSetupContext {
   /**
    * The agents of this session (harness agents plus earlier plugins'
    * agents): find them, and run them from commands, tools, and hooks.
+   * `set` and `delete` change this plugin's agents while the session runs,
+   * like `ctx.commands`.
    */
-  agents: AgentRegistryView & PluginAgentActions
+  agents: AgentRegistryView &
+    PluginAgentActions & {
+      /**
+       * Add this plugin's agent, or replace the one with the same name. A
+       * name that another plugin or the harness owns throws.
+       */
+      set: (agent: AnyAgent) => void
+      /** Remove this plugin's agent `name`. Another owner's name does nothing. */
+      delete: (name: string) => void
+    }
   /**
    * The items other plugins contributed to `point`. The list fills while
    * plugins set up, so read it at run time (in a tool, a command, or a
@@ -630,6 +641,18 @@ export async function mountPlugins(
           run: services.agents.run,
           start: services.agents.start,
           group: services.agents.group,
+          set: (agent) => {
+            env.registry.set(agent, plugin.name)
+            const at = agents.findIndex((item) => item.name === agent.name)
+            agents.splice(at < 0 ? agents.length : at, 1, agent)
+          },
+          delete: (name) => {
+            env.registry.delete(name, plugin.name)
+            // Still there: another owner has it.
+            if (env.registry.get(name)) return
+            const at = agents.findIndex((item) => item.name === name)
+            if (at >= 0) agents.splice(at, 1)
+          },
         },
         collect: <T>(point: ExtensionPoint<T>): ReadonlyArray<T> => {
           let items = extensions.get(point.name)

@@ -128,6 +128,36 @@ export const greetings = definePlugin({
 
 The [skills plugin](./skills) works this way: one command for each skill in a folder.
 
+## Change agents while the session runs
+
+Agents can come from data that changes too. `ctx.agents.set` and `ctx.agents.delete` work like `ctx.commands`. Here `/helper` adds an agent that the session can run at once:
+
+```ts group=harness-plugins
+import { defineAgent } from '@tanstack/ai'
+
+export const helpers = definePlugin({
+  name: 'acme/helpers',
+  setup: (ctx) => ({
+    commands: {
+      helper: defineCommand({
+        description: 'Add an agent: /helper <name>',
+        run: (input: unknown) => {
+          const name = String(input ?? '').trim()
+          ctx.agents.set(
+            defineAgent({ name, description: `The ${name} agent`, run: async () => 'Done.' }),
+          )
+          return `Added the ${name} agent.`
+        },
+      }),
+    },
+  }),
+})
+```
+
+- `ctx.agents.set(agent)` adds an agent of this plugin, or replaces the one with the same name. A name that another plugin or the harness owns throws.
+- `ctx.agents.delete(name)` removes an agent of this plugin. Another owner's name does nothing.
+- `session.agent(name)`, `ctx.agents.list()`, and `routing` see the change at once.
+
 ## Keep state
 
 `ctx.state(initial)` gives a plugin its own state, saved in the metadata store. Clients see each change as an AG-UI `STATE_SNAPSHOT` event.
@@ -319,6 +349,37 @@ Open resources with `ctx.resources.acquire(open, close)`. They close when the se
 
 Set `lifetime: 'turn'` to set a plugin up again for each turn.
 
+## Reload plugins
+
+You changed a plugin, an agent file, or the list that `plugins()` returns, and an open session still runs the old setup. `session.reload()` sets the plugins up again:
+
+```ts group=harness-plugins
+import { watch } from 'node:fs'
+import { createHarnessHost } from '@tanstack/ai-harness'
+
+const host = createHarnessHost()
+const session = await host.open(assistant, { threadId: 'thread-1' })
+
+// One session.
+await session.reload()
+
+// Every open session of the harness, each time an agent file changes.
+watch('.agents/agents', () => void host.reload(assistant))
+```
+
+A reload works like this:
+
+1. It waits for the running turn to end. No new turn starts until the reload ends.
+2. It cleans up the resources of the session plugins, newest first.
+3. It calls `plugins()` again and runs `setup` of each session plugin.
+4. Clients get a `harness.reloaded` event. Read the commands, the settings, and the agents again.
+
+The transcript, the log, the thread settings, and the inbox stay. The next turn gets the new tools, prompts, and middleware.
+
+The harness does not watch files. Your host decides when to reload, as the `watch` call above does. The [`agents()` plugin](./agents) reads its `dirs` again at each reload, so a new agent file shows up.
+
+If a `setup` throws, the session keeps working with no plugins. The promise rejects with the error, and the `harness.reloaded` event has its `error` message. Fix the plugin and call `reload()` again.
+
 ## See the plan
 
 `session.inspect()` lists the plugins in order, and who owns each tool, prompt, command, setting, and extension point item.
@@ -329,5 +390,6 @@ Set `lifetime: 'turn'` to set a plugin up again for each turn.
 - Middleware that sees every model call, in the lead turn and in every agent.
 - A picker that chooses the model of each turn from its message, context, and sender.
 - Plugins that share services, lists, and events without knowing each other.
+- Commands, agents, and whole plugins that change while the session runs.
 
 Next: see the [first-party plugins](./coding-agent) that turn a harness into a coding agent.

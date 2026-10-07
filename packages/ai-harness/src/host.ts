@@ -290,6 +290,16 @@ export interface HarnessHost<TLogState = unknown> {
    * ```
    */
   recover: (threadId?: string) => Promise<void>
+  /**
+   * Run `session.reload()` on every open session of `harness`. Rejects when
+   * one of them fails. The other sessions still reload.
+   *
+   * @example
+   * ```ts
+   * await host.reload(assistant)
+   * ```
+   */
+  reload: (harness: AnyHarness) => Promise<void>
   /** Close every live session. */
   close: () => Promise<void>
   /**
@@ -717,6 +727,22 @@ export function createHarnessHost<TLogState = undefined>(
             : [],
         ),
       )
+    },
+    async reload(harness) {
+      const prefix = `${harness.name}\u0000`
+      const live = await Promise.allSettled(
+        [...sessions].flatMap(([key, session]) =>
+          key.startsWith(prefix) ? [session] : [],
+        ),
+      )
+      const results = await Promise.allSettled(
+        live.flatMap((entry) =>
+          entry.status === 'fulfilled' ? [entry.value.reload()] : [],
+        ),
+      )
+      for (const result of results) {
+        if (result.status === 'rejected') throw result.reason
+      }
     },
     async close() {
       await Promise.allSettled(closing.values())
