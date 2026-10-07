@@ -332,7 +332,7 @@
           "label": "Compaction",
           "to": "advanced/compaction",
           "addedAt": "2026-08-24",
-          "updatedAt": "2026-10-03"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Prompt Caching",
@@ -727,7 +727,7 @@
           "label": "Store Reference",
           "to": "persistence/store-reference",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-10-06"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "How Persistence Works",
@@ -899,7 +899,7 @@
           "label": "Connect clients",
           "to": "harness/connect",
           "addedAt": "2026-09-26",
-          "updatedAt": "2026-10-06"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Send and show media",
@@ -916,7 +916,7 @@
           "label": "Durable sessions",
           "to": "harness/durable-sessions",
           "addedAt": "2026-09-26",
-          "updatedAt": "2026-10-05"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "List, rename, and fork sessions",
@@ -955,7 +955,8 @@
         {
           "label": "Compact a long session",
           "to": "harness/compaction",
-          "addedAt": "2026-10-03"
+          "addedAt": "2026-10-03",
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Fork and reset a thread",
@@ -1065,13 +1066,13 @@
           "label": "Build your own UI",
           "to": "harness/custom-ui",
           "addedAt": "2026-09-28",
-          "updatedAt": "2026-10-06"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Run agents from a harness",
           "to": "harness/subagents",
           "addedAt": "2026-09-26",
-          "updatedAt": "2026-10-06"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Deploy a harness",
