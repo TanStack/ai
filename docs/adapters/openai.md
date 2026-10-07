@@ -560,6 +560,59 @@ for (const segment of result.segments ?? []) {
 
 When no response format is specified, `gpt-4o-transcribe-diarize` requests default to `response_format: "diarized_json"` and `chunking_strategy: "auto"`; passing a top-level `responseFormat` of `"json"` or `"text"` opts out of speaker segments. `known_speaker_names` and `known_speaker_references` must be provided together (up to 4, matching lengths). OpenAI does not support `prompt`, `include`, or `timestamp_granularities` with diarized transcription.
 
+## Evaluate
+
+Sometimes you need an answer that your code can branch on, not chat text. Examples are a queue name, an urgency level, or a yes or no.
+Use `openaiDecider` with `decide()` to ask typed questions about one shared `state`. The adapter calls the OpenAI Decisions API (`/v1/decisions`):
+
+```typescript
+import { decide, choice, score, boolean } from "@tanstack/ai";
+import { openaiDecider } from "@tanstack/ai-openai";
+
+const ticket = {
+  subject: "Charged twice for the same invoice",
+  body: "Please refund the extra payment.",
+};
+
+const result = await decide({
+  adapter: openaiDecider("gpt-6-luna"),
+  state: ticket,
+  questions: {
+    queue: choice({
+      instructions: "Which team should handle this ticket?",
+      options: {
+        billing: "Payments, invoices, refunds",
+        tech: "Bugs, outages, integrations",
+        sales: "Pricing, upgrades, new accounts",
+      },
+    }),
+    urgency: score({
+      instructions: "How urgent is this ticket?",
+      levels: ["low", "medium", "high"],
+    }),
+    refund: boolean({
+      instructions: "Is the customer asking for a refund?",
+    }),
+  },
+});
+
+console.log(result.queue.value); // "billing"
+console.log(result.urgency.value); // "medium"
+console.log(result.refund.value); // true
+console.log(result.meta.usage);
+```
+
+`openaiDecider` reads `OPENAI_API_KEY` from the environment. To pass a key yourself, use `createOpenaiDecider("gpt-6-luna", "sk-...")`.
+
+Good to know:
+
+- `gpt-6-luna` is the only Decisions model.
+- An object `state` goes to OpenAI as JSON text.
+- If OpenAI refuses to answer a question, `decide()` throws an error with the name of that question.
+- `boolean()` criteria work. The adapter adds the true and false meanings to the instructions.
+
+See the [Evaluate guide](../evaluate/evaluate) for question helpers, the result shape, abort, and middleware.
+
 ## Environment Variables
 
 Set your API key in environment variables:
@@ -613,6 +666,10 @@ Creates an OpenAI transcription adapter for Whisper, GPT-4o transcription, and G
 ### `openaiVideo(model, config?)` / `createOpenaiVideo(model, apiKey, config?)`
 
 Creates an OpenAI video generation adapter (Sora). _Experimental._
+
+### `openaiDecider(model, config?)` / `createOpenaiDecider(model, apiKey, config?)`
+
+Creates an OpenAI evaluate adapter for `decide()`. See [Evaluate](#evaluate) for usage.
 
 ### `openaiRealtime(...)` / `openaiRealtimeToken(...)`
 

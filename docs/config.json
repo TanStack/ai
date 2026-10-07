@@ -874,7 +874,7 @@
           "label": "Evaluate",
           "to": "evaluate/evaluate",
           "addedAt": "2026-09-18",
-          "updatedAt": "2026-09-29"
+          "updatedAt": "2026-10-07"
         }
       ],
       "tab": "guides"
@@ -1186,7 +1186,7 @@
           "label": "OpenAI",
           "to": "adapters/openai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-30"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Anthropic",
