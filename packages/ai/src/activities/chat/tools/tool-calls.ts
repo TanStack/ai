@@ -708,8 +708,8 @@ export async function* executeServerTool<TContext = unknown>(
         return
       }
       const modelResult = outcome.error
-        ? { subagentRunId: outcome.subagentRunId, error: outcome.error }
-        : { subagentRunId: outcome.subagentRunId, result: outcome.text }
+        ? { error: outcome.error }
+        : { result: outcome.text }
       results.push({
         toolCallId: toolCall.id,
         toolName,
