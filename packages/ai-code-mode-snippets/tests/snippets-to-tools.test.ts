@@ -3,7 +3,11 @@ import { z } from 'zod'
 import { toolDefinition } from '@tanstack/ai'
 import { snippetToTool, snippetsToTools } from '../src/snippets-to-tools'
 import { createMemorySnippetStorage } from '../src/storage/memory-storage'
-import type { IsolateContext, IsolateDriver } from '@tanstack/ai-code-mode'
+import type {
+  IsolateContext,
+  IsolateDriver,
+  ToolBinding,
+} from '@tanstack/ai-code-mode'
 import type { Snippet } from '../src/types'
 
 function makeSnippet(overrides: Partial<Snippet> = {}): Snippet {
@@ -98,6 +102,55 @@ describe('snippetToTool', () => {
     expect(result).toBe(84)
     expect(executeSpy).toHaveBeenCalledOnce()
     expect(disposeSpy).toHaveBeenCalledOnce()
+  })
+
+  it('passes the abort signal and runtime context to external_* calls', async () => {
+    const external = vi.fn().mockResolvedValue('ok')
+    let bindings: Record<string, ToolBinding> = {}
+    const driver: IsolateDriver = {
+      createContext: async (config) => {
+        bindings = config.bindings
+        return {
+          execute: vi.fn().mockImplementation(async () => ({
+            success: true,
+            value: await bindings['external_fetch']!.execute({}),
+            logs: [],
+          })),
+          dispose: async () => {},
+        }
+      },
+    }
+    const tool = snippetToTool({
+      snippet: makeSnippet(),
+      driver,
+      bindings: {
+        external_fetch: {
+          name: 'external_fetch',
+          description: 'fetch',
+          inputSchema: {},
+          execute: external,
+        },
+      },
+      storage: createMemorySnippetStorage([]),
+    })
+    const controller = new AbortController()
+
+    await tool.execute!(
+      { value: 1 },
+      {
+        emitCustomEvent: vi.fn(),
+        abortSignal: controller.signal,
+        context: { userId: 'u1' },
+      },
+    )
+
+    expect(external).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({
+        abortSignal: controller.signal,
+        context: { userId: 'u1' },
+      }),
+    )
   })
 
   it('disposes the isolate context even if execution throws', async () => {

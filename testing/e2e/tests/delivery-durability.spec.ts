@@ -111,6 +111,45 @@ test.describe('delivery durability', () => {
   })
 })
 
+test.describe('delivery durability (live text)', () => {
+  test('streams text while the run is still going, with the default batch', async ({
+    page,
+  }) => {
+    // The `slow` run sends 5 text chunks 300ms apart. Chunks reach the client
+    // only after they are appended to the log, and a batch of 32 never fills
+    // here. So the batch must flush on its own while the run waits, not hold
+    // every chunk until RUN_FINISHED.
+    await page.goto('/')
+    const timing = await page.evaluate(async () => {
+      const startedAt = performance.now()
+      const response = await fetch('/api/durable-delivery?scenario=slow', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{}',
+      })
+      if (!response.body) throw new Error('Expected a response body')
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let body = ''
+      let firstTextAt = -1
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        body += decoder.decode(value, { stream: true })
+        if (firstTextAt < 0 && body.includes('"TEXT_MESSAGE_CONTENT"')) {
+          firstTextAt = performance.now() - startedAt
+        }
+      }
+      return { firstTextAt, endAt: performance.now() - startedAt }
+    })
+
+    expect(timing.firstTextAt).toBeGreaterThan(0)
+    // The first chunk comes about 1.2s before the end. Held until the end, the
+    // gap would be about 0.
+    expect(timing.endAt - timing.firstTextAt).toBeGreaterThan(800)
+  })
+})
+
 test.describe('delivery durability (agent loop)', () => {
   test('delivers a full tool-calling run, not truncated at the first RUN_FINISHED', async ({
     request,

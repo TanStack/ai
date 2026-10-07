@@ -65,6 +65,7 @@ export function useChat<
   const isSubscribed = shallowRef(false)
   const connectionStatus = shallowRef<ConnectionStatus>('disconnected')
   const sessionGenerating = shallowRef(false)
+  const isHydrating = shallowRef(false)
   const queue = shallowRef<Array<QueuedMessage>>([])
   const runId = shallowRef<string | null>(null)
   const interruptState = shallowRef<ChatInterruptState<TTools, TInterrupts>>({
@@ -184,6 +185,9 @@ export function useChat<
     onSessionGeneratingChange: (isGenerating: boolean) => {
       sessionGenerating.value = isGenerating
     },
+    onHydratingChange: (nextIsHydrating: boolean) => {
+      isHydrating.value = nextIsHydrating
+    },
     ...(options.queue !== undefined && { queue: options.queue }),
     onQueueChange: (nextQueue: Array<QueuedMessage>) => {
       queue.value = nextQueue
@@ -203,6 +207,7 @@ export function useChat<
   }
 
   messages.value = client.getMessages()
+  isHydrating.value = client.getIsHydrating()
   interruptState.value = client.getInterruptState()
 
   // Sync body / forwardedProps changes to the client.
@@ -446,6 +451,7 @@ export function useChat<
     isSubscribed: readonly(isSubscribed),
     connectionStatus: readonly(connectionStatus),
     sessionGenerating: readonly(sessionGenerating),
+    isHydrating: readonly(isHydrating),
     setMessages: setMessagesManually,
     clear,
     addToolResult,

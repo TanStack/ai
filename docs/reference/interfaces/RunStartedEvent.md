@@ -3,7 +3,7 @@ id: RunStartedEvent
 title: RunStartedEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1230](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1230)
+Defined in: [packages/ai/src/types.ts:1324](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1324)
 
 Emitted when a run starts.
 This is the first event in any streaming response.

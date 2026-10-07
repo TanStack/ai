@@ -1,5 +1,22 @@
 # @tanstack/ai-anthropic
 
+## 0.19.5
+
+### Patch Changes
+
+- [#1609](https://github.com/TanStack/ai/pull/1609) [`507ecd6`](https://github.com/TanStack/ai/commit/507ecd674317058077aeeddb16891e4c20aa83b3) - Report token usage when a streamed response stops at `max_tokens`. The `RUN_ERROR` with `code: 'max_tokens'` now carries `usage`, the same as `RUN_FINISHED` does for the other stop reasons. Anthropic bills these tokens, so code that counts `usage` no longer misses them.
+
+  Keep the input, cache, and server tool counts of a stream when its closing `message_delta` leaves them out. Some Anthropic-compatible servers send only `output_tokens` there, so `usage` reported 0 input tokens. The adapter now takes each missing count from `message_start`, the same as the Anthropic SDK does.
+
+- [#1594](https://github.com/TanStack/ai/pull/1594) [`02a998f`](https://github.com/TanStack/ai/commit/02a998f9c4dbfee9f831a1b366913f4729fe5173) - Match `claude-sonnet-5-5` to what the Claude API accepts. `modelOptions.output_config` (with `effort`) is now typed for this model. `temperature`, `top_p`, and `top_k` are no longer accepted, because the API rejects non-default values with a 400. `computerUseTool()` is no longer accepted either, because on the Claude API this model takes only the `computer_toolset_20260801` toolset. The other provider tools are unchanged.
+
+- [#1587](https://github.com/TanStack/ai/pull/1587) [`7b6b1a9`](https://github.com/TanStack/ai/commit/7b6b1a99d45e40165f0a1f833a04e793a09275de) - Do not end a request in an assistant message that holds only thinking. Claude rejects it with `The final block in an assistant message cannot be thinking`. This happened when a run resumed after an `afterModel` interrupt paused a turn with thinking but no text. The adapter now leaves that message out, and Claude answers again.
+
+- [#1583](https://github.com/TanStack/ai/pull/1583) [`d07f0b6`](https://github.com/TanStack/ai/commit/d07f0b6c396afdecbbd6401233f9c83f2d00f99d) - Send `{}` as `tool_use.input` when a replayed tool call's arguments are not valid JSON. A stream that stopped mid tool call used to replay the raw string, and Anthropic rejected every later turn with "Input should be an object".
+
+- Updated dependencies [[`7b6b1a9`](https://github.com/TanStack/ai/commit/7b6b1a99d45e40165f0a1f833a04e793a09275de), [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66), [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66), [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66), [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66), [`82291b2`](https://github.com/TanStack/ai/commit/82291b22941d2c813ff0050fc9d41b024480153d), [`ff3a66e`](https://github.com/TanStack/ai/commit/ff3a66ed8f628d45b282316fab337d3ed19f34cd), [`560c76f`](https://github.com/TanStack/ai/commit/560c76fd638b5691e195e1d0619fee8a78d98c20), [`4b9dcb4`](https://github.com/TanStack/ai/commit/4b9dcb44d8fe1e7c933b79c23d8f072e7bc300f4), [`30254ad`](https://github.com/TanStack/ai/commit/30254ad70161894d232d3b45e3b21f45d49f336e), [`40fdd22`](https://github.com/TanStack/ai/commit/40fdd22ce05d55e71514b4cc80b1c28cefb4a431)]:
+  - @tanstack/ai@0.65.0
+
 ## 0.19.4
 
 ### Patch Changes

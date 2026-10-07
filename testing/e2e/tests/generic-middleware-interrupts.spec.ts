@@ -196,6 +196,19 @@ for (const boundaryCase of boundaryCases) {
   })
 }
 
+test('keeps the afterModel turn thinking in the interrupt snapshot', async ({
+  page,
+  testId,
+  aimockPort,
+}) => {
+  await startScenario(page, testId, aimockPort, 'generic-after-model')
+  // The client loads the interrupt's MESSAGES_SNAPSHOT. It must still hold
+  // the thinking of the turn that the interrupt paused.
+  await expect(page.locator('#mw-messages-json')).toContainText(
+    'AFTER_MODEL_REASONING',
+  )
+})
+
 test('cancels a typed generic interrupt and records the cancellation', async ({
   page,
   testId,

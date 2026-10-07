@@ -239,6 +239,7 @@ interface CreateChatReturn {
   isSubscribed: boolean
   connectionStatus: ConnectionStatus
   sessionGenerating: boolean
+  isHydrating: boolean
   setMessages: (messages: Array<UIMessage>) => void
   clear: () => void
   queue: Array<QueuedMessage>

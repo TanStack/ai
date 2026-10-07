@@ -70,9 +70,9 @@ export const IMAGE_MODELS = [
     provider: 'fal' as const,
   },
   {
-    id: 'gemini-3.1-flash-image',
-    name: 'NanoBanana 2 (Gemini 3.1 Flash)',
-    description: 'Latest and fastest Gemini native image generation',
+    id: 'gemini-nano-banana-2.1',
+    name: 'NanoBanana 2.1',
+    description: 'Latest Gemini native image generation',
     defaultSize: '16:9_4K' as const,
     sizeType: 'native' as const,
     provider: 'gemini' as const,

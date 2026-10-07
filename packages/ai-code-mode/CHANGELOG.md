@@ -1,5 +1,26 @@
 # @tanstack/ai-code-mode
 
+## 0.4.21
+
+### Patch Changes
+
+- [#1569](https://github.com/TanStack/ai/pull/1569) [`24ea50e`](https://github.com/TanStack/ai/commit/24ea50e2f139eabe775516275ca14d25439004f4) - Pass the chat run's `abortSignal` and runtime `context` to the tools that Code Mode calls as `external_*` functions. A tool that listens to the signal now stops its in-flight work when the run stops, for example MCP tools. A call does not start when the run is already aborted. `toolCallId` and `inputResponse` of the `execute_typescript` call are not passed on.
+
+- Updated dependencies [[`7b6b1a9`](https://github.com/TanStack/ai/commit/7b6b1a99d45e40165f0a1f833a04e793a09275de), [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66), [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66), [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66), [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66), [`82291b2`](https://github.com/TanStack/ai/commit/82291b22941d2c813ff0050fc9d41b024480153d), [`ff3a66e`](https://github.com/TanStack/ai/commit/ff3a66ed8f628d45b282316fab337d3ed19f34cd), [`560c76f`](https://github.com/TanStack/ai/commit/560c76fd638b5691e195e1d0619fee8a78d98c20), [`4b9dcb4`](https://github.com/TanStack/ai/commit/4b9dcb44d8fe1e7c933b79c23d8f072e7bc300f4), [`30254ad`](https://github.com/TanStack/ai/commit/30254ad70161894d232d3b45e3b21f45d49f336e), [`40fdd22`](https://github.com/TanStack/ai/commit/40fdd22ce05d55e71514b4cc80b1c28cefb4a431)]:
+  - @tanstack/ai@0.65.0
+
+## 0.4.20
+
+### Patch Changes
+
+- [#1600](https://github.com/TanStack/ai/pull/1600) [`b8bab43`](https://github.com/TanStack/ai/commit/b8bab43b98ac91e201dc1dae8a3811b348d34504) - Keep `enum` and `const` values and property descriptions in the generated
+  Code Mode type stubs. A typed schema such as `{ type: 'string', enum: ['a', 'b'] }`
+  now renders as `'a' | 'b'` instead of `string`, and property `description`s are
+  emitted as JSDoc, as the `includeDescriptions` option of `generateTypeStubs`
+  already documented.
+- Updated dependencies [[`4c57d04`](https://github.com/TanStack/ai/commit/4c57d04f0f5dd98e176386f3208b68daf9e7d929)]:
+  - @tanstack/ai@0.64.1
+
 ## 0.4.19
 
 ### Patch Changes

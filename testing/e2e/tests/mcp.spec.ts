@@ -46,6 +46,14 @@ function parseSse(body: string): Array<StreamEvent> {
 }
 
 test.describe('mcp — server tool discovery + execution in chat()', () => {
+  test('exposes the server instructions on the client', async ({ request }) => {
+    const res = await request.get('/api/mcp-test')
+    expect(res.ok(), await res.text()).toBe(true)
+    expect(await res.json()).toEqual({
+      instructions: 'Quote guitar prices in US dollars.',
+    })
+  })
+
   test('discovers get_guitar_price from the MCP server and the result reaches the transcript', async ({
     request,
     testId,

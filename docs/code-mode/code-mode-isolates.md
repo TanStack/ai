@@ -2,7 +2,7 @@
 title: Code Mode Isolate Drivers
 id: code-mode-isolates
 order: 4
-description: "Compare Code Mode sandbox drivers — Node isolated-vm, QuickJS WASM, QuickJS Bun (bun:ffi), Cloudflare Workers, and Daytona sandboxes — and choose the right runtime for your deployment."
+description: "Compare Code Mode sandbox drivers and choose the right runtime for your deployment: Node isolated-vm, QuickJS WASM, QuickJS Bun (bun:ffi), Cloudflare Workers, Daytona sandboxes, and E2B sandboxes."
 keywords:
   - tanstack ai
   - code mode
@@ -14,6 +14,7 @@ keywords:
   - bun:ffi
   - cloudflare workers
   - daytona
+  - e2b
   - sandbox
   - secure execution
 ---
@@ -23,15 +24,15 @@ Isolate drivers provide the secure sandbox runtimes that [Code Mode](./code-mode
 ## Choosing a Driver
 
 
-|                      | Node (`isolated-vm`)     | QuickJS (WASM)              | QuickJS Bun (`bun:ffi`)  | Cloudflare Workers             | Daytona                            |
-| -------------------- | ------------------------ | --------------------------- | ------------------------ | ------------------------------ | ---------------------------------- |
-| **Best for**         | Server-side Node.js apps | Browsers, edge, portability | Bun servers              | Edge deployments on Cloudflare | Full remote Linux sandboxes        |
-| **Performance**      | Fast (V8 JIT)            | Slower (interpreted)        | Fast (native QuickJS)    | Fast (V8 on Cloudflare edge)   | Fast (native runtime; remote call) |
-| **Native deps**      | Yes (C++ addon)          | None                        | None (TinyCC on the fly) | None                           | None                               |
-| **Browser support**  | No                       | Yes                         | No (Bun only)            | N/A                            | Yes                                |
-| **Memory limit**     | Configurable             | Configurable                | Configurable             | N/A                            | Configurable                       |
-| **Stack size limit** | N/A                      | Configurable                | Configurable             | N/A                            | N/A                                |
-| **Setup**            | `pnpm add`               | `pnpm add`                  | `bun add`                | Deploy a Worker first          | Create or pass a Daytona sandbox   |
+|                      | Node (`isolated-vm`)     | QuickJS (WASM)              | QuickJS Bun (`bun:ffi`)  | Cloudflare Workers             | Daytona                            | E2B |
+| -------------------- | ------------------------ | --------------------------- | ------------------------ | ------------------------------ | ---------------------------------- | --- |
+| **Best for**         | Server-side Node.js apps | Browsers, edge, portability | Bun servers              | Edge deployments on Cloudflare | Full remote Linux sandboxes        | Remote E2B sandboxes |
+| **Performance**      | Fast (V8 JIT)            | Slower (interpreted)        | Fast (native QuickJS)    | Fast (V8 on Cloudflare edge)   | Fast (native runtime; remote call) | Fast (native Node, remote call) |
+| **Native deps**      | Yes (C++ addon)          | None                        | None (TinyCC on the fly) | None                           | None                               | None |
+| **Browser support**  | No                       | Yes                         | No (Bun only)            | N/A                            | Yes                                | No |
+| **Memory limit**     | Configurable             | Configurable                | Configurable             | N/A                            | Configurable                       | Configurable |
+| **Stack size limit** | N/A                      | Configurable                | Configurable             | N/A                            | N/A                                | N/A |
+| **Setup**            | `pnpm add`               | `pnpm add`                  | `bun add`                | Deploy a Worker first          | Create or pass a Daytona sandbox   | Create or pass an E2B sandbox |
 
 
 ---
@@ -363,6 +364,72 @@ Replay with toolResults   ──────▶  Continue execution
 ```
 
 Use this driver when you want Code Mode execution in a full Daytona sandbox instead of an in-process isolate, QuickJS WASM runtime, or Cloudflare Worker. The sandbox should use a language/runtime capable of executing the JavaScript emitted by Code Mode, and your application remains responsible for sandbox lifecycle, filesystem, network, cleanup, and secret policy. Creating a Code Mode context does not create or delete a Daytona sandbox.
+
+## E2B Driver (`@tanstack/ai-isolate-e2b`)
+
+Runs generated code as a `node` process in an E2B sandbox that your application creates. Tool implementations stay in your server process. When the code calls a tool, the call goes to your server, and the result goes back to the same process. The code runs once, from start to finish.
+
+### Installation
+
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-isolate-e2b e2b
+vue: @tanstack/ai-isolate-e2b e2b
+solid: @tanstack/ai-isolate-e2b e2b
+svelte: @tanstack/ai-isolate-e2b e2b
+preact: @tanstack/ai-isolate-e2b e2b
+angular: @tanstack/ai-isolate-e2b e2b
+vanilla: @tanstack/ai-isolate-e2b e2b
+octane: @tanstack/ai-isolate-e2b e2b
+
+<!-- ::end:tabs -->
+
+### Usage
+
+Set `E2B_API_KEY` in your server environment. Then create a sandbox and pass it to the driver:
+
+```typescript
+import { Sandbox } from 'e2b'
+import { createE2BIsolateDriver } from '@tanstack/ai-isolate-e2b'
+
+const sandbox = await Sandbox.create()
+
+const driver = createE2BIsolateDriver({
+  sandbox,
+  timeout: 30_000,
+})
+```
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `sandbox` | `E2BSandboxLike` | none | **Required.** The E2B sandbox that runs the code, for example from `Sandbox.create()`. A sandbox from `@e2b/code-interpreter` also works. |
+| `timeout` | `number` | `30000` | Maximum time for one execution, tool calls included, in milliseconds. |
+
+The `memoryLimit` of `createCodeMode` sets the heap limit of the `node` process.
+
+### How it works
+
+```text
+Driver (your server)                 E2B sandbox
+--------------------                 -----------
+Start one node process    --------->  Run the generated code
+                          <---------  Tool call request (stdout)
+Run the tool locally
+Send the result (stdin)   --------->  Continue from the same point
+                          <---------  Final result
+```
+
+Side effects in the sandbox happen one time, also when the code calls many tools. A file write or an HTTP request is an example of such a side effect.
+
+Your application owns these parts:
+
+- **The sandbox lifecycle.** Creating a context does not create, pause, or kill the sandbox.
+- **Who shares a sandbox.** Executions in one sandbox see the same files and network. Use one sandbox for each user or trusted scope.
+- **Secrets.** The driver sends no API key or server environment into the sandbox.
+
+The driver kills the process group on timeout, on `dispose()`, and after each execution. This includes processes that the code started, unless they moved to a process group of their own (`detached: true`). If the driver does not confirm the kill after an execution, the result log records it. The process can still run in the sandbox. `dispose()` does not throw. The sandbox template must have `node`, `setsid`, and `timeout`. The default E2B templates have them.
 
 ---
 

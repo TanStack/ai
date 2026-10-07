@@ -281,6 +281,7 @@ export function makeMiddlewareCtx(input: {
     currentMessageId: null,
     accumulatedContent: '',
     messages: [],
+    activities: [],
     createId: (prefix: string) =>
       `${prefix}-${Math.random().toString(36).slice(2)}`,
     capabilities:

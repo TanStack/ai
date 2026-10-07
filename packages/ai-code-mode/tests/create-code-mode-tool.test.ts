@@ -297,6 +297,73 @@ describe('createCodeModeTool', () => {
     expect(contextConfig.bindings).toHaveProperty('external_fetchWeather')
   })
 
+  it('passes the run abort signal and context to external_* calls', async () => {
+    const seen: Array<ToolExecutionContext | undefined> = []
+    const slowTool = toolDefinition({
+      name: 'slow',
+      description: 'Waits until the run aborts',
+      inputSchema: z.object({}),
+    }).server(
+      (_input, ctx) =>
+        new Promise((_resolve, reject) => {
+          seen.push(ctx)
+          ctx?.abortSignal?.addEventListener('abort', () =>
+            reject(new Error('aborted')),
+          )
+        }),
+    )
+
+    const mockContext: IsolateContext = {
+      execute: vi.fn().mockImplementation(async () => {
+        const bindings = vi.mocked(driver.createContext).mock.calls[0]![0]
+          .bindings
+        try {
+          await bindings['external_slow']!.execute({})
+          return { success: true, value: 'finished', logs: [] }
+        } catch (error) {
+          return {
+            success: false,
+            error: { name: 'Error', message: String(error) },
+            logs: [],
+          }
+        }
+      }),
+      dispose: vi.fn().mockResolvedValue(undefined),
+    }
+    const driver: IsolateDriver = {
+      createContext: vi.fn().mockResolvedValue(mockContext),
+    }
+
+    const tool = createCodeModeTool({ driver, tools: [slowTool] })
+    const controller = new AbortController()
+    const emitCustomEvent = vi.fn()
+    const pending = tool.execute!(
+      { typescriptCode: 'return await external_slow({})' },
+      {
+        toolCallId: 'parent-call',
+        abortSignal: controller.signal,
+        context: { userId: 'u1' },
+        inputResponse: { status: 'cancelled' },
+        emitCustomEvent,
+      },
+    )
+
+    await vi.waitFor(() => expect(seen).toHaveLength(1))
+    controller.abort()
+    const result = await pending
+
+    expect(result.success).toBe(false)
+    expect(result.error?.message).toBe('Error: aborted')
+    expect(seen[0]?.abortSignal).toBe(controller.signal)
+    expect(seen[0]?.context).toEqual({ userId: 'u1' })
+    expect(seen[0]?.toolCallId).toBeUndefined()
+    expect(seen[0]?.inputResponse).toBeUndefined()
+    expect(emitCustomEvent).toHaveBeenCalledWith(
+      'code_mode:external_error',
+      expect.objectContaining({ function: 'external_slow', error: 'aborted' }),
+    )
+  })
+
   it('returns validation error for empty/non-string input', async () => {
     const { driver } = createMockDriver()
     const tool = createCodeModeTool({

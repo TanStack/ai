@@ -24,6 +24,9 @@
         "text"
       ]
     },
+    "supported_surfaces": [
+      "chat-completions"
+    ],
     "pricing": {
       "input": {
         "audio": {
@@ -154,6 +157,10 @@
         "image"
       ]
     },
+    "supported_surfaces": [
+      "chat-completions",
+      "image-generation"
+    ],
     "pricing": {
       "input": {
         "image": {
@@ -226,6 +233,9 @@
         "text"
       ]
     },
+    "supported_surfaces": [
+      "chat-completions"
+    ],
     "pricing": {
       "input": {
         "audio": {
@@ -352,6 +362,9 @@
         "audio"
       ]
     },
+    "supported_surfaces": [
+      "speech"
+    ],
     "pricing": {
       "input": {
         "text": {
@@ -401,6 +414,9 @@
         "audio"
       ]
     },
+    "supported_surfaces": [
+      "speech"
+    ],
     "pricing": {
       "input": {
         "text": {
@@ -453,6 +469,9 @@
         "text"
       ]
     },
+    "supported_surfaces": [
+      "chat-completions"
+    ],
     "pricing": {
       "input": {
         "audio": {
@@ -632,6 +651,9 @@
         "audio"
       ]
     },
+    "supported_surfaces": [
+      "speech"
+    ],
     "pricing": {
       "input": {
         "text": {
@@ -684,6 +706,9 @@
         "text"
       ]
     },
+    "supported_surfaces": [
+      "chat-completions"
+    ],
     "pricing": {
       "input": {
         "audio": {
@@ -817,6 +842,10 @@
         "image"
       ]
     },
+    "supported_surfaces": [
+      "chat-completions",
+      "image-generation"
+    ],
     "pricing": {
       "input": {
         "image": {
@@ -897,6 +926,10 @@
         "image"
       ]
     },
+    "supported_surfaces": [
+      "chat-completions",
+      "image-generation"
+    ],
     "pricing": {
       "input": {
         "image": {
@@ -977,6 +1010,9 @@
         "text"
       ]
     },
+    "supported_surfaces": [
+      "chat-completions"
+    ],
     "pricing": {
       "input": {
         "audio": {
@@ -1107,6 +1143,9 @@
         "image"
       ]
     },
+    "supported_surfaces": [
+      "image-generation"
+    ],
     "pricing": {
       "input": {
         "image": {
@@ -1185,6 +1224,9 @@
         "audio"
       ]
     },
+    "supported_surfaces": [
+      "speech"
+    ],
     "pricing": {
       "input": {
         "text": {
@@ -1237,6 +1279,9 @@
         "text"
       ]
     },
+    "supported_surfaces": [
+      "chat-completions"
+    ],
     "pricing": {
       "input": {
         "audio": {
@@ -1418,6 +1463,9 @@
         "text"
       ]
     },
+    "supported_surfaces": [
+      "chat-completions"
+    ],
     "pricing": {
       "input": {
         "audio": {
@@ -1547,6 +1595,9 @@
         "text"
       ]
     },
+    "supported_surfaces": [
+      "transcription"
+    ],
     "pricing": {
       "input": {
         "audio": {
@@ -1588,8 +1639,8 @@
     "object": "model",
     "created": 1784505600,
     "released": 1784592000,
-    "expiration_date": null,
-    "deprecated": false,
+    "expiration_date": 1795046400,
+    "deprecated": true,
     "owned_by": "google",
     "name": "Gemini 3.6 Flash",
     "description": "Gemini 3.6 Flash model for fast coding, reasoning, and agentic workflows.",
@@ -1607,6 +1658,9 @@
         "text"
       ]
     },
+    "supported_surfaces": [
+      "chat-completions"
+    ],
     "pricing": {
       "input": {
         "audio": {
@@ -1738,6 +1792,9 @@
         "text"
       ]
     },
+    "supported_surfaces": [
+      "chat-completions"
+    ],
     "pricing": {
       "input": {
         "audio": {
@@ -1868,6 +1925,9 @@
         "text"
       ]
     },
+    "supported_surfaces": [
+      "chat-completions"
+    ],
     "pricing": {
       "input": {
         "audio": {
@@ -1996,6 +2056,9 @@
         "text"
       ]
     },
+    "supported_surfaces": [
+      "embeddings"
+    ],
     "pricing": {
       "input": {
         "text": {
@@ -2040,6 +2103,9 @@
         "text"
       ]
     },
+    "supported_surfaces": [
+      "embeddings"
+    ],
     "pricing": {
       "input": {
         "audio": {
@@ -2107,6 +2173,9 @@
         "video"
       ]
     },
+    "supported_surfaces": [
+      "videos"
+    ],
     "pricing": {
       "input": {
         "audio": {
@@ -2177,6 +2246,9 @@
         "video"
       ]
     },
+    "supported_surfaces": [
+      "videos"
+    ],
     "pricing": {
       "video_duration": {
         "1080p": {
@@ -2217,6 +2289,9 @@
         "video"
       ]
     },
+    "supported_surfaces": [
+      "videos"
+    ],
     "pricing": {
       "video_duration": {
         "1080p": {
@@ -2257,6 +2332,9 @@
         "video"
       ]
     },
+    "supported_surfaces": [
+      "videos"
+    ],
     "pricing": {
       "video_duration": {
         "1080p": {
@@ -2294,6 +2372,10 @@
         "text"
       ]
     },
+    "supported_surfaces": [
+      "chat-completions",
+      "responses"
+    ],
     "pricing": {
       "input": {
         "image": {
@@ -2355,6 +2437,9 @@
         "text"
       ]
     },
+    "supported_surfaces": [
+      "transcription"
+    ],
     "pricing": {
       "input": {
         "audio": {
@@ -2411,6 +2496,9 @@
         "audio"
       ]
     },
+    "supported_surfaces": [
+      "speech"
+    ],
     "pricing": {
       "input": {
         "text": {
@@ -2462,6 +2550,9 @@
         "text"
       ]
     },
+    "supported_surfaces": [
+      "transcription"
+    ],
     "pricing": {
       "input": {
         "audio": {
@@ -2520,6 +2611,10 @@
         "text"
       ]
     },
+    "supported_surfaces": [
+      "chat-completions",
+      "responses"
+    ],
     "pricing": {
       "input": {
         "image": {
@@ -2617,6 +2712,10 @@
         "text"
       ]
     },
+    "supported_surfaces": [
+      "chat-completions",
+      "responses"
+    ],
     "pricing": {
       "input": {
         "image": {
@@ -2714,6 +2813,10 @@
         "text"
       ]
     },
+    "supported_surfaces": [
+      "chat-completions",
+      "responses"
+    ],
     "pricing": {
       "input": {
         "image": {
@@ -2776,6 +2879,10 @@
         "text"
       ]
     },
+    "supported_surfaces": [
+      "chat-completions",
+      "responses"
+    ],
     "pricing": {
       "input": {
         "image": {
@@ -2873,6 +2980,10 @@
         "text"
       ]
     },
+    "supported_surfaces": [
+      "chat-completions",
+      "responses"
+    ],
     "pricing": {
       "input": {
         "image": {
@@ -2985,6 +3096,10 @@
         "text"
       ]
     },
+    "supported_surfaces": [
+      "chat-completions",
+      "responses"
+    ],
     "pricing": {
       "input": {
         "image": {
@@ -3082,6 +3197,10 @@
         "text"
       ]
     },
+    "supported_surfaces": [
+      "chat-completions",
+      "responses"
+    ],
     "pricing": {
       "input": {
         "image": {
@@ -3144,6 +3263,9 @@
         "text"
       ]
     },
+    "supported_surfaces": [
+      "responses"
+    ],
     "pricing": {
       "input": {
         "image": {
@@ -3222,6 +3344,10 @@
         "text"
       ]
     },
+    "supported_surfaces": [
+      "chat-completions",
+      "responses"
+    ],
     "pricing": {
       "input": {
         "image": {
@@ -3334,6 +3460,9 @@
         "text"
       ]
     },
+    "supported_surfaces": [
+      "responses"
+    ],
     "pricing": {
       "input": {
         "image": {
@@ -3410,6 +3539,10 @@
         "text"
       ]
     },
+    "supported_surfaces": [
+      "chat-completions",
+      "responses"
+    ],
     "pricing": {
       "input": {
         "image": {
@@ -3524,6 +3657,10 @@
         "text"
       ]
     },
+    "supported_surfaces": [
+      "chat-completions",
+      "responses"
+    ],
     "pricing": {
       "input": {
         "image": {
@@ -3636,6 +3773,10 @@
         "text"
       ]
     },
+    "supported_surfaces": [
+      "chat-completions",
+      "responses"
+    ],
     "pricing": {
       "input": {
         "image": {
@@ -3750,6 +3891,10 @@
         "text"
       ]
     },
+    "supported_surfaces": [
+      "chat-completions",
+      "responses"
+    ],
     "pricing": {
       "input": {
         "image": {
@@ -3902,6 +4047,10 @@
         "image"
       ]
     },
+    "supported_surfaces": [
+      "image-generation",
+      "image-edit"
+    ],
     "pricing": {
       "input": {
         "image": {
@@ -3962,6 +4111,10 @@
         "image"
       ]
     },
+    "supported_surfaces": [
+      "image-generation",
+      "image-edit"
+    ],
     "pricing": {
       "input": {
         "image": {
@@ -4002,6 +4155,51 @@
     "premium_output_modalities": [
       "text"
     ],
+    "id": "openai/gpt-transcribe",
+    "object": "model",
+    "created": 1789516800,
+    "released": 1785196800,
+    "expiration_date": null,
+    "deprecated": false,
+    "owned_by": "openai",
+    "name": "GPT Transcribe",
+    "description": "Latest-generation OpenAI speech-to-text model with context, keyword, and language hints for higher accuracy on names and specialist vocabulary.",
+    "context_window": 16000,
+    "max_tokens": 2000,
+    "modalities": {
+      "input": [
+        "text",
+        "audio"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "supported_surfaces": [
+      "transcription"
+    ],
+    "pricing": {
+      "input": {
+        "audio": {
+          "tiers": [
+            {
+              "cost": "0.000075",
+              "min": 0
+            }
+          ],
+          "unit": "second"
+        }
+      }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "transcription": "zero"
+    }
+  },
+  {
+    "premium_output_modalities": [
+      "text"
+    ],
     "id": "openai/text-embedding-3-large",
     "object": "model",
     "created": 1779667200,
@@ -4021,6 +4219,9 @@
         "text"
       ]
     },
+    "supported_surfaces": [
+      "embeddings"
+    ],
     "pricing": {
       "input": {
         "text": {
@@ -4059,6 +4260,9 @@
         "text"
       ]
     },
+    "supported_surfaces": [
+      "embeddings"
+    ],
     "pricing": {
       "input": {
         "text": {
