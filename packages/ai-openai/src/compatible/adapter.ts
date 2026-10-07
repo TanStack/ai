@@ -161,8 +161,8 @@ export class OpenAICompatibleChatAdapter<
   /**
    * OpenAI-compatible reasoning providers stream their thinking outside the
    * OpenAI wire format, on `delta.reasoning_content` (DeepSeek, Qwen, GLM,
-   * Kimi, most vLLM/SGLang deployments) or `delta.reasoning` (a smaller set of
-   * gateways). The base adapter has no reasoning hook by default because plain
+   * Kimi, most vLLM/SGLang deployments), `delta.reasoning` (a smaller set of
+   * gateways), or `delta.reasoning_text` (GitHub Copilot). The base adapter has no reasoning hook by default because plain
    * Chat Completions carries none, so without this the thinking was dropped
    * silently and the only way to see it was to monkey-patch the prototype.
    *
@@ -174,9 +174,14 @@ export class OpenAICompatibleChatAdapter<
     chunk: OpenAI.Chat.Completions.ChatCompletionChunk,
   ): { text: string } | undefined {
     const delta = chunk.choices[0]?.delta as
-      | { reasoning?: unknown; reasoning_content?: unknown }
+      | {
+          reasoning?: unknown
+          reasoning_content?: unknown
+          reasoning_text?: unknown
+        }
       | undefined
-    const raw = delta?.reasoning_content ?? delta?.reasoning
+    const raw =
+      delta?.reasoning_content ?? delta?.reasoning ?? delta?.reasoning_text
     return typeof raw === 'string' && raw.length > 0 ? { text: raw } : undefined
   }
 }

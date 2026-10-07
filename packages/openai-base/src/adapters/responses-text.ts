@@ -1463,6 +1463,21 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       accumulatedReasoning = ''
     }
 
+    // A stateless GitHub Copilot stream gives a new item id on each event of
+    // one output item. The output index stays, so a new id joins the call
+    // that already has that index.
+    const trackedCall = (id: string, outputIndex: number | undefined) => {
+      const tracked =
+        toolCallMetadata.get(id) ??
+        (outputIndex === undefined
+          ? undefined
+          : [...toolCallMetadata.values()].find(
+              (metadata) => metadata.index === outputIndex,
+            ))
+      if (tracked) toolCallMetadata.set(id, tracked)
+      return tracked
+    }
+
     const userToolChunks = (
       item: unknown,
       outputIndex: number,
@@ -1856,7 +1871,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             // name would propagate into TOOL_CALL_END (which reads the same
             // metadata) and route the tool call to whatever name happens to
             // match `''` downstream — a silent misroute.
-            let metadata = toolCallMetadata.get(item.id)
+            let metadata = trackedCall(item.id, chunk.output_index)
             if (!metadata) {
               metadata = {
                 callId: item.call_id || item.id,
@@ -1907,11 +1922,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           chunk.type === 'response.function_call_arguments.delta' &&
           typeof chunk.delta === 'string'
         ) {
-          let metadata = toolCallMetadata.get(chunk.item_id)
+          let metadata = trackedCall(chunk.item_id, chunk.output_index)
           if (!metadata) {
             metadata = {
               callId: chunk.item_id,
-              index: 0,
+              index: chunk.output_index,
               name: '',
               started: false,
             }
@@ -1945,9 +1960,14 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           const { item_id } = chunk
 
           // Get the function name from metadata (captured in output_item.added)
-          let metadata = toolCallMetadata.get(item_id)
+          let metadata = trackedCall(item_id, chunk.output_index)
           if (!metadata) {
-            metadata = { callId: item_id, index: 0, name: '', started: false }
+            metadata = {
+              callId: item_id,
+              index: chunk.output_index,
+              name: '',
+              started: false,
+            }
             toolCallMetadata.set(item_id, metadata)
           }
           metadata.pendingArguments = chunk.arguments
@@ -2031,7 +2051,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             yield* openReasoning()
           }
           if (item.type === 'function_call' && item.id) {
-            const metadata = toolCallMetadata.get(item.id) ?? {
+            const metadata = trackedCall(item.id, chunk.output_index) ?? {
               callId: item.call_id || item.id,
               index: chunk.output_index,
               name: item.name || '',
@@ -2198,7 +2218,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           // leaving consumers waiting for tool results they never saw start.
           for (const [outputIndex, item] of responseOutput.entries()) {
             if (item.type !== 'function_call' || !item.id) continue
-            const metadata = toolCallMetadata.get(item.id) ?? {
+            const metadata = trackedCall(item.id, outputIndex) ?? {
               callId: item.call_id || item.id,
               index: outputIndex,
               name: item.name || '',
