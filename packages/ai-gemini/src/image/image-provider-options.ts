@@ -281,6 +281,15 @@ export type Gemini31FlashImageSize =
 export type Gemini31FlashLiteImageSize = `${GeminiExtendedImageAspectRatio}_1K`
 
 /**
+ * Sizes for `gemini-nano-banana-2.1`: all 14 aspect ratios at 1K / 2K / 4K.
+ * The API rejects the 512 tier on this model.
+ *
+ * @see https://ai.google.dev/gemini-api/docs/models/gemini-nano-banana-2.1
+ */
+export type GeminiNanoBanana21ImageSize =
+  `${GeminiExtendedImageAspectRatio}_${'1K' | '2K' | '4K'}`
+
+/**
  * Sizes for `gemini-3-pro-image` (and its shut-down `-preview` alias): the ten
  * standard aspect ratios at 1K / 2K / 4K. Pro has no 512 tier and none of the
  * extreme banner ratios on the Gemini API.
@@ -313,6 +322,7 @@ export type GeminiNativeImageConfig = {
  * possible set and accepts combinations no single model supports.
  */
 export type GeminiNativeImageSize =
+  | GeminiNanoBanana21ImageSize
   | Gemini31FlashImageSize
   | Gemini31FlashLiteImageSize
   | Gemini3ProImageSize
@@ -337,6 +347,7 @@ export type GeminiNativeImageSize =
  * shape.
  */
 export const GEMINI_NATIVE_IMAGE_MODELS = [
+  'gemini-nano-banana-2.1',
   'gemini-3.1-flash-image',
   'gemini-3.1-flash-image-preview',
   'gemini-3.1-flash-lite-image',
@@ -371,6 +382,7 @@ export function isGeminiNativeImageModel(model: string): boolean {
  * resolution set (they genuinely differ); Imagen models use pixel sizes.
  */
 export type GeminiImageModelSizeByName = {
+  'gemini-nano-banana-2.1': GeminiNanoBanana21ImageSize
   'gemini-3.1-flash-image': Gemini31FlashImageSize
   'gemini-3.1-flash-image-preview': Gemini31FlashImageSize
   'gemini-3.1-flash-lite-image': Gemini31FlashLiteImageSize

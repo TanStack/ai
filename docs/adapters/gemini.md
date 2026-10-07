@@ -552,6 +552,7 @@ The accepted set differs per model, and each model's `size` is narrowed to its o
 |-------|---------------|-------------|
 | `gemini-3.1-flash-image` | `1:1`, `2:3`, `3:2`, `3:4`, `4:3`, `4:5`, `5:4`, `9:16`, `16:9`, `21:9`, `1:4`, `4:1`, `1:8`, `8:1` | `512`, `1K`, `2K`, `4K` |
 | `gemini-3.1-flash-lite-image` | same 14 as above (see note) | `1K` only |
+| `gemini-nano-banana-2.1` | same 14 as above | `1K`, `2K`, `4K` |
 | `gemini-3-pro-image` | `1:1`, `2:3`, `3:2`, `3:4`, `4:3`, `4:5`, `5:4`, `9:16`, `16:9`, `21:9` | `1K`, `2K`, `4K` |
 | `gemini-2.5-flash-image` | same 10 as above | none — pass the bare ratio, e.g. `size: "16:9"` |
 
@@ -692,6 +693,7 @@ These models use the `generateContent` API and support per-model resolution tier
 |-------|-------------|
 | `gemini-3.1-flash-image` | Nano Banana 2 — latest and fastest Gemini native image generation (512/1K/2K/4K) |
 | `gemini-3.1-flash-lite-image` | Nano Banana 2 Lite — ultra-low-latency, low-cost image generation (1K only) |
+| `gemini-nano-banana-2.1` | Nano Banana 2.1 (1K/2K/4K, no 512 tier) |
 | `gemini-3-pro-image` | Nano Banana Pro — higher quality Gemini native image generation (1K/2K/4K) |
 | `gemini-2.5-flash-image` | Nano Banana — legacy; shuts down 2026-10-02. Takes a bare aspect ratio |
 

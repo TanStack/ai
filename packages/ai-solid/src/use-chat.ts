@@ -68,6 +68,7 @@ export function useChat<
   const [connectionStatus, setConnectionStatus] =
     createSignal<ConnectionStatus>('disconnected')
   const [sessionGenerating, setSessionGenerating] = createSignal(false)
+  const [isHydrating, setIsHydrating] = createSignal(false)
   const [queue, setQueue] = createSignal<Array<QueuedMessage>>([])
   const [runId, setRunId] = createSignal<string | null>(null)
   const [interruptState, setInterruptState] = createSignal<
@@ -197,6 +198,9 @@ export function useChat<
           onSessionGeneratingChange: (isGenerating: boolean) => {
             if (active) setSessionGenerating(isGenerating)
           },
+          onHydratingChange: (nextIsHydrating: boolean) => {
+            if (active) setIsHydrating(nextIsHydrating)
+          },
           ...(options.queue !== undefined && { queue: options.queue }),
           onQueueChange: (nextQueue: Array<QueuedMessage>) => {
             if (active) setQueue(nextQueue)
@@ -227,6 +231,7 @@ export function useChat<
 
   setMessages(client().getMessages())
   setHasOlderMessages(client().getHasOlderMessages())
+  setIsHydrating(client().getIsHydrating())
   syncResumeState()
 
   // Sync body / forwardedProps changes to the client.
@@ -275,6 +280,7 @@ export function useChat<
     setIsSubscribed(instance.getIsSubscribed())
     setConnectionStatus(instance.getConnectionStatus())
     setSessionGenerating(instance.getSessionGenerating())
+    setIsHydrating(instance.getIsHydrating())
     setQueue(instance.getQueue())
     // START TAILING HERE, not in the constructor. A client is idle until a view
     // attaches it, so a client that gets built and thrown away never opens a
@@ -463,6 +469,7 @@ export function useChat<
     isSubscribed,
     connectionStatus,
     sessionGenerating,
+    isHydrating,
     setMessages: setMessagesManually,
     clear,
     addToolResult,

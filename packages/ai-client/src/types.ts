@@ -1,4 +1,5 @@
 import type {
+  ActivityPart,
   AnyClientTool,
   ApprovalCapabilityOf,
   ApprovalSchemaOf,
@@ -33,7 +34,7 @@ import type { ConnectionAdapter } from './connection-adapters'
 import type { AIDevtoolsClientMetadata } from './devtools'
 import type { ChatDevtoolsBridgeFactory } from './devtools-noop'
 
-export type { StructuredOutputPart }
+export type { ActivityPart, StructuredOutputPart }
 
 export interface ChatResumeState {
   threadId: string
@@ -731,6 +732,7 @@ export type MessagePart<
   | ToolCallPart<TTools>
   | ToolResultPart
   | ThinkingPart
+  | ActivityPart
   | StructuredOutputPart<TData>
   | UIResourcePart
   | SubagentPartOf<TSubagents>
@@ -753,7 +755,7 @@ export interface UIMessage<
   TSubagents extends ReadonlyArray<SubagentClientAgent> | undefined = undefined,
 > {
   id: string
-  role: 'system' | 'user' | 'assistant'
+  role: 'system' | 'user' | 'assistant' | 'activity'
   name?: string
   parts: Array<MessagePart<TTools, TData, TSubagents>>
   createdAt?: Date
@@ -1089,6 +1091,13 @@ export interface ChatClientBaseOptions<
    * activity visible to all subscribers (e.g. across tabs/devices).
    */
   onSessionGeneratingChange?: (isGenerating: boolean) => void
+
+  /**
+   * Callback when the client starts or stops rebuilding the chat from
+   * persistence (the server hydrate, or an async storage adapter). It turns
+   * false once the transcript is applied and any in-flight run is re-joined.
+   */
+  onHydratingChange?: (isHydrating: boolean) => void
 
   /**
    * Policy for messages sent while the client is busy (streaming, claiming

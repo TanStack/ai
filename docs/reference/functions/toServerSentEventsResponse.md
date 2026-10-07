@@ -7,7 +7,7 @@ title: toServerSentEventsResponse
 function toServerSentEventsResponse<TOffset>(stream, init?): Response;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:712](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L712)
+Defined in: [packages/ai/src/stream-to-response.ts:863](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L863)
 
 Convert a StreamChunk async iterable to a Response in Server-Sent Events format
 
@@ -20,7 +20,8 @@ Pass a `durability` sink (`memoryStream(request)` / `durableStream(request)`)
 to make the stream resumable: fresh runs are appended to the log and each SSE
 event is tagged with an `id:` offset; a reconnect (native `Last-Event-ID`) or
 a `?offset` join replays from the log without re-running the producer. `batch`
-controls how many chunks are buffered per `append` (default 32).
+controls how many chunks are buffered per `append` (default 32), and
+`batchWaitMs` how long a buffered chunk waits for more (default 50).
 
 ## Type Parameters
 
@@ -40,7 +41,7 @@ AsyncIterable of StreamChunks from chat()
 
 `ResponseInit` & `object`
 
-Optional Response initialization options (including `abortController`, `durability` with its optional `batch`, and `debug`)
+Optional Response initialization options (including `abortController`, `durability` with its optional `batch` and `batchWaitMs`, and `debug`)
 
 ## Returns
 

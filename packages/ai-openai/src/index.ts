@@ -52,8 +52,10 @@ export {
 export type {
   OpenAIVideoProviderOptions,
   OpenAIVideoModelProviderOptionsByName,
+  OpenAIVideoModelDurationByName,
   OpenAIVideoSize,
-  // OpenAIVideoDuration,
+  OpenAIVideoSeconds,
+  OpenAIVideoDuration,
 } from './video/video-provider-options'
 
 // TTS adapter - for text-to-speech

@@ -1,5 +1,99 @@
 # @tanstack/ai
 
+## 0.65.1
+
+### Patch Changes
+
+- [#1645](https://github.com/TanStack/ai/pull/1645) [`807c5e1`](https://github.com/TanStack/ai/commit/807c5e11dd1560e0fe47ae2dbc90f2513507f7cc) - `StructuredOutputPart.data` is no longer optional when `status` is `'complete'`. After you check `part.status === 'complete'`, TypeScript knows `part.data` is set.
+
+  Migration: if you validate messages with a schema typed as `UIMessage` (for example `z.ZodType<UIMessage>`), split the `structured-output` part by `status`. Give `'complete'` a required `data` field.
+
+  Add `isHydrating` to `useChat` (and `injectChat`, `createChat`) and an `onHydratingChange` callback plus `getIsHydrating()` to `ChatClient`. It is `true` while the chat is rebuilt from persistence (the server hydrate with `persistence: true`, or an async storage adapter). It turns `false` when the transcript is in place and any in-flight run is re-joined, or when the load fails.
+
+## 0.65.0
+
+### Minor Changes
+
+- [#1323](https://github.com/TanStack/ai/pull/1323) [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66) - Process AG-UI `ACTIVITY_SNAPSHOT` and `ACTIVITY_DELTA` events into frontend-only `role: 'activity'` messages (`ActivityPart`). `ACTIVITY_DELTA` applies an RFC 6902 patch to the activity `content`. The model never gets activity as input.
+
+- [#1541](https://github.com/TanStack/ai/pull/1541) [`30254ad`](https://github.com/TanStack/ai/commit/30254ad70161894d232d3b45e3b21f45d49f336e) - Video adapters can hand a provider's download stream to generation persistence instead of buffering it. Adapters now implement `getVideo()`. When a provider has no public URL for the finished video (OpenRouter, Lovable, Sora jobs without `url`), it returns a `VideoStreamResult` (`{ body, contentType }`), and `withGenerationPersistence` streams it into your blob store and sets `url` from `artifactUrl`.
+
+  Nothing changes without persistence: `getVideoJobStatus()` and streaming `generateVideo()` still return a base64 `data:` URL for those providers.
+
+  `VideoAdapter.getVideoUrl()` is deprecated in favor of `getVideo()`. It still works: on the built-in adapters it is `getVideo()` with a stream buffered into a `data:` URL, and custom adapters that only implement `getVideoUrl()` keep working. A custom adapter that extends `BaseVideoAdapter` with TypeScript's `noImplicitOverride` must add `override` to its `getVideoUrl()`, or rename it to `getVideo()`.
+
+### Patch Changes
+
+- [#1587](https://github.com/TanStack/ai/pull/1587) [`7b6b1a9`](https://github.com/TanStack/ai/commit/7b6b1a99d45e40165f0a1f833a04e793a09275de) - Keep a turn's thinking when an `afterModel` generic interrupt pauses a turn that has no tool calls. Before, the interrupt's `MESSAGES_SNAPSHOT` kept only the assistant text, so the client lost the thinking and its signature (signed or redacted). A turn with thinking but no text was left out of the snapshot. The interrupt now records the turn the same way a finished run does.
+
+- [#1323](https://github.com/TanStack/ai/pull/1323) [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66) - Expose AG-UI activity messages on the chat client UIMessage path without sending them to the model.
+
+  Migration: `UIMessage.role` can now be `'activity'`. If your UI renders only `'user'` and `'assistant'` rows, it skips activity rows. If your code handles every role (for example, a `switch` that must be exhaustive), add a case for `'activity'`. Read the activity payload from the part with `type: 'activity'`.
+
+- [#1323](https://github.com/TanStack/ai/pull/1323) [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66) - Emit AG-UI ActivityMessage on MESSAGES_SNAPSHOT and keep omitted activity rows when a snapshot replaces the transcript.
+
+- [#1323](https://github.com/TanStack/ai/pull/1323) [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66) - Add an optional ActivityStore sidecar so server persistence can save and reconstruct AG-UI activity without putting it in MessageStore.
+
+  Activity saves are best-effort. They run after the message, run, and interrupt writes, so a failed activity save does not fail the run. `ActivityRecord` keeps the activity `metadata`. A paged `reconstructChat` puts each activity on the one page that holds it. A reload drops the activity rows of the turn it replaces.
+
+  Migration: an adapter that runs `runPersistenceConformance` must provide an `activities` store or pass `skip: ['activities']`.
+
+- [#1543](https://github.com/TanStack/ai/pull/1543) [`82291b2`](https://github.com/TanStack/ai/commit/82291b22941d2c813ff0050fc9d41b024480153d) - Run client tools that an AG-UI server leaves pending on a success `RUN_FINISHED`. The AG-UI spec ends a run that calls a frontend tool with a success outcome, not an interrupt. Pydantic AI's `AGUIAdapter` does this, so `useChat` showed the tool call and then stopped. The client now runs each call that this run started and did not answer. If the server names calls in `outcome.pendingToolCallIds`, the client runs only the named calls that this run started. Then it continues the conversation with the results. A client tool with `needsApproval: true` does not run on this path. A call with arguments that are not complete JSON does not run.
+
+- [#1544](https://github.com/TanStack/ai/pull/1544) [`ff3a66e`](https://github.com/TanStack/ai/commit/ff3a66ed8f628d45b282316fab337d3ed19f34cd) - Read the AG-UI `TEXT_MESSAGE_CHUNK`, `TOOL_CALL_CHUNK`, and `REASONING_MESSAGE_CHUNK` events. A server can send one of these in place of the START / CONTENT / END events. The stream processor dropped them, so the text, the message id, and the metadata were lost. It now expands each chunk into those events, so both forms build the same message. A chunk with no id continues the open stream of the same kind. A different kind closes that stream. The next other event closes it, except `RAW`, `ACTIVITY_*`, `REASONING_ENCRYPTED_VALUE`, and subagent lifecycle events. A text or tool call chunk from a run that `clear()` dropped stays out of the chat, as the explicit events do.
+
+- [#1566](https://github.com/TanStack/ai/pull/1566) [`560c76f`](https://github.com/TanStack/ai/commit/560c76fd638b5691e195e1d0619fee8a78d98c20) - Log durability replay failures on the SSE and NDJSON transports. When a reconnect or a `resumeServerSentEventsResponse` / `resumeHttpResponse` join fails to replay (for example, an unknown or expired `memoryStream` run), the failure is now logged under the `errors` category, as the WebSocket resume already does. The SSE or NDJSON reader still receives the same `RUN_ERROR`.
+
+- [#1557](https://github.com/TanStack/ai/pull/1557) [`4b9dcb4`](https://github.com/TanStack/ai/commit/4b9dcb44d8fe1e7c933b79c23d8f072e7bc300f4) - Pause SSE and NDJSON response sources when their readers fall behind. Durable responses do not pause, so their runs keep writing to their logs.
+
+- [#1634](https://github.com/TanStack/ai/pull/1634) [`40fdd22`](https://github.com/TanStack/ai/commit/40fdd22ce05d55e71514b4cc80b1c28cefb4a431) - Stop the duplicate `text` part on structured output from a reasoning model. When reasoning streamed first under its own message id, the stream processor put the JSON in a `text` part and also in the `structured-output` part. The message now has the `thinking` part and the `structured-output` part only.
+
+- Updated dependencies [[`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66)]:
+  - @tanstack/ai-event-client@0.13.1
+
+## 0.64.1
+
+### Patch Changes
+
+- [#1620](https://github.com/TanStack/ai/pull/1620) [`4c57d04`](https://github.com/TanStack/ai/commit/4c57d04f0f5dd98e176386f3208b68daf9e7d929) - Stream durable responses live again. With `durability` set, a chunk waited in the append batch until 32 chunks arrived or the run finished, so a short reply showed up all at once at the end. Now the batch also flushes when the model sends no new chunk for 50ms. You do not need `batch: 1` for live text any more. `batch` stays the largest number of chunks in one append.
+
+  Set the wait with the new `batchWaitMs` option on `durability` (`toServerSentEventsResponse`, `toHttpResponse`) and on `toWebSocketStream` / `toWebSocketResponse`. A higher value means fewer writes to the log but slower live text. `0` appends every chunk on its own.
+
+## 0.64.0
+
+### Minor Changes
+
+- [#1578](https://github.com/TanStack/ai/pull/1578) [`a5fce7f`](https://github.com/TanStack/ai/commit/a5fce7f95b8b9c6eb57697aa1e3f587bf27483b9) - Run the server tools of one model turn at the same time. `chat()` used to run them one after another, so a turn with several slow tools took as long as all of them together.
+  - Every call is still prepared in call order (argument parse, input schema check, approval check, `onBeforeToolCall`). Then the server tools start together.
+  - `onBeforeToolCall` runs for every call before any tool of the turn starts. `onAfterToolCall` fires for each tool when it finishes. The model still gets the results in the order of its calls.
+  - If the run aborts before the tools start, no tool starts. Each call gets the error result "Operation aborted".
+  - If a tool or a hook throws, the other tools of the turn finish first. Then the error is thrown.
+  - `toolCacheMiddleware` no longer dedupes identical calls in one turn, because they run at the same time.
+  - Opt out with `chat({ toolExecution: 'sequential' })`.
+
+- [#1539](https://github.com/TanStack/ai/pull/1539) [`94116ad`](https://github.com/TanStack/ai/commit/94116ad137015b6f62fe62b4c06a335dbde36a49) - `snapDuration` and `snapToDurationOption` accept seconds (`6`), a numeric string (`"6"`), a seconds template (`"6s"`), or a keyword the model lists (`"auto"`). `durationToSeconds` reads the numeric forms. Sora (`sora-2`, `sora-2-pro`) accepts `4 | 8 | 12`, `"4" | "8" | "12"`, or `"4s" | "8s" | "12s"` and sends `"4" | "8" | "12"`. Lovable Veo accepts the same three spellings for 4, 6, and 8 seconds.
+
+### Patch Changes
+
+- [#1579](https://github.com/TanStack/ai/pull/1579) [`3a09cf0`](https://github.com/TanStack/ai/commit/3a09cf04431a45810051ea5df6bb3935af421ddb) - Send Claude's thinking and tool errors back the way Claude sent them.
+  - A tool message with `error` now sends `tool_result.is_error: true`, so Claude sees that the tool failed.
+  - A `redacted_thinking` block is no longer dropped. It becomes a thinking part with `redacted: true`, an empty `content`, and the encrypted data in `signature`. The flag survives the stream, the UI messages, the wire, and stored threads, and the next request sends the block back as `{ type: 'redacted_thinking', data }`.
+  - On the AG-UI wire, a redacted block is its own reasoning message. Its id starts with `redacted_thinking-`, and the `REASONING_ENCRYPTED_VALUE` event's `entityId` points to that id. An AG-UI client keeps message ids, so it sends the block back as redacted data, not as a signature.
+  - A thinking block's signature now names its reasoning message in `entityId`, not the step. An AG-UI client attaches the signature to that message, so it can send it back.
+  - `ThinkingPart` and `ModelMessage['thinking']` have the new optional `redacted` field.
+
+- [#1595](https://github.com/TanStack/ai/pull/1595) [`ee726f5`](https://github.com/TanStack/ai/commit/ee726f537dbb036d5edb756b92739afaa7573824) - `createMCPServer` from `@tanstack/ai-mcp/server`:
+  - A resource `read(uri, variables, ctx)` now gets the requested URI, the template variables, and `ctx.context` (the `handle` context plus `authInfo`). A template resource can take `list(ctx)` for `resources/list`.
+  - `metadata._meta` on a tool definition is sent as the MCP tool `_meta`, so a tool can link an MCP Apps view with `_meta.ui.resourceUri`.
+  - New `sessions: 'stateless'` serves spec 2025 clients without a session store, so it works on Cloudflare Workers and other multi-instance hosts. It is now the default. In that mode, `ctx.context.requestInput` throws a clear error for a spec 2025 client, and `ctx.context.sample` uses the `sample` option. Set `sessions: 'memory'` to keep the old spec 2025 sessions. `serveMCPStdio` still uses `'memory'` when `sessions` is not set.
+  - New `onerror` option receives SDK transport and protocol errors, including the `serveMCPStdio` transport errors.
+  - Tool and prompt schemas are converted and compiled once at `createMCPServer`, not on every request.
+  - Output schemas are advertised from the output view, and tool results are parsed with the output schema, so a transform or pipe no longer fails the structured-content check. Async output schemas work. Output that fails its schema returns a tool error that names the tool. An output schema with a bare transform advertises no output schema.
+  - `createMCPClient({ server })` parses tool output the same way, and `readResource(uri, context)` takes a context for the resource.
+  - `MCPResourceContext`, `MCPResourceRead`, and `MCPResourceList` are exported. `resourceDefinition` accepts `list` only with `uriTemplate`.
+
+  `convertSchemaToJsonSchema` from `@tanstack/ai` takes a new `io: 'input' | 'output'` option.
+
 ## 0.63.0
 
 ### Minor Changes

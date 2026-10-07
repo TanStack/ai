@@ -63,7 +63,7 @@ const [best] = designed.voices
 if (!best) throw new Error('The provider returned no voices.')
 
 const speech = await generateSpeech({
-  adapter: elevenlabsSpeech('eleven_v3'),
+  adapter: elevenlabsSpeech('eleven_v4'),
   text: 'Once upon a time, in a village at the edge of the sea...',
   voice: best.voiceId,
 })
@@ -137,7 +137,7 @@ import { listVoices } from '@tanstack/ai'
 import { elevenlabsSpeech } from '@tanstack/ai-elevenlabs'
 
 const { voices } = await listVoices({
-  adapter: elevenlabsSpeech('eleven_v3'),
+  adapter: elevenlabsSpeech('eleven_v4'),
   origins: ['generated', 'cloned'],
 })
 

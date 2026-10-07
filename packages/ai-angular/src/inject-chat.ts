@@ -75,6 +75,7 @@ export function injectChat<
   const isSubscribed = signal(false)
   const connectionStatus = signal<ConnectionStatus>('disconnected')
   const sessionGenerating = signal(false)
+  const isHydrating = signal(false)
   const queue = signal<Array<QueuedMessage>>([])
   const runId = signal<string | null>(null)
   const interruptState = signal<ChatInterruptState<TTools, TInterrupts>>({
@@ -174,6 +175,7 @@ export function injectChat<
     onSubscriptionChange: (v: boolean) => isSubscribed.set(v),
     onConnectionStatusChange: (v: ConnectionStatus) => connectionStatus.set(v),
     onSessionGeneratingChange: (v: boolean) => sessionGenerating.set(v),
+    onHydratingChange: (v: boolean) => isHydrating.set(v),
     ...(options.queue !== undefined && { queue: options.queue }),
     onQueueChange: (nextQueue: Array<QueuedMessage>) => queue.set(nextQueue),
   })
@@ -181,6 +183,7 @@ export function injectChat<
   messages.set(client.getMessages())
   interruptState.set(client.getInterruptState())
   hasOlderMessages.set(client.getHasOlderMessages())
+  isHydrating.set(client.getIsHydrating())
 
   // START TAILING HERE, not in the constructor. A client is idle until something
   // attaches it, so a client that gets built and thrown away never opens a
@@ -362,6 +365,7 @@ export function injectChat<
     isSubscribed: isSubscribed.asReadonly(),
     connectionStatus: connectionStatus.asReadonly(),
     sessionGenerating: sessionGenerating.asReadonly(),
+    isHydrating: isHydrating.asReadonly(),
     setMessages,
     clear,
     addToolResult,

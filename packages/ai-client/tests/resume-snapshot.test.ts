@@ -247,6 +247,61 @@ describe('ChatClient auto-rejoin after reload', () => {
     void client
   })
 
+  it('drops the hydrated assistant when the rejoin stream is chunk events', async () => {
+    const { adapter } = memoryAdapter({
+      messages: [
+        createUIMessage('user-1', 'hi', 'user'),
+        createUIMessage('partial-1', 'old', 'assistant'),
+      ],
+      resume: {
+        resumeState: { threadId: 't1', runId: 'r1' },
+      },
+    })
+    const joinRun = vi.fn(async function* () {
+      yield {
+        type: 'RUN_STARTED',
+        runId: 'r1',
+        threadId: 't1',
+        timestamp: 1,
+      } as StreamChunk
+      yield {
+        type: 'TEXT_MESSAGE_CHUNK',
+        messageId: 'assistant-1',
+        delta: 'world',
+        timestamp: 2,
+      } as StreamChunk
+      yield {
+        type: 'RUN_FINISHED',
+        runId: 'r1',
+        threadId: 't1',
+        timestamp: 3,
+        metadata: { tanstack: { finishReason: 'stop' } },
+      } as StreamChunk
+    })
+    const connection: ResumableConnectConnectionAdapter = {
+      connect: async function* () {},
+      joinRun,
+    }
+    let latest: Array<UIMessage> = []
+    const client = mountedChatClient({
+      threadId: 't1',
+      connection,
+      persistence: adapter,
+      onMessagesChange: (messages) => {
+        latest = messages
+      },
+    })
+
+    await vi.waitFor(() => {
+      const assistant = latest.find((message) => message.id === 'assistant-1')
+      const text = assistant?.parts.find((part) => part.type === 'text')
+      expect(text && 'content' in text && text.content).toBe('world')
+    })
+    expect(latest.some((message) => message.id === 'partial-1')).toBe(false)
+    expect(latest.some((message) => message.id === 'user-1')).toBe(true)
+    void client
+  })
+
   it('applies a replay in one batch without yielding', async () => {
     const schedulerYield = vi.fn(() => Promise.resolve())
     vi.stubGlobal('scheduler', { yield: schedulerYield })

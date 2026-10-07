@@ -9,6 +9,14 @@ import {
 import { z } from 'zod'
 import type { UIMessage } from '@tanstack/ai'
 
+const structuredOutputFields = {
+  type: z.literal('structured-output'),
+  partial: z.unknown().optional(),
+  raw: z.string(),
+  reasoning: z.string().optional(),
+  errorMessage: z.string().optional(),
+}
+
 const sourceSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('data'),
@@ -81,15 +89,19 @@ const messagePartSchema = z.discriminatedUnion('type', [
     stepId: z.string().optional(),
     signature: z.string().optional(),
   }),
-  z.object({
-    type: z.literal('structured-output'),
-    status: z.enum(['streaming', 'complete', 'error']),
-    partial: z.unknown().optional(),
-    data: z.unknown().optional(),
-    raw: z.string(),
-    reasoning: z.string().optional(),
-    errorMessage: z.string().optional(),
-  }),
+  // A complete part must carry `data`. The other statuses have none.
+  z.discriminatedUnion('status', [
+    z.object({
+      ...structuredOutputFields,
+      status: z.enum(['streaming', 'error']),
+      data: z.undefined().optional(),
+    }),
+    z.object({
+      ...structuredOutputFields,
+      status: z.literal('complete'),
+      data: z.json(),
+    }),
+  ]),
   z.object({
     type: z.literal('ui-resource'),
     resource: z.object({

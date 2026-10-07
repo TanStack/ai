@@ -164,6 +164,7 @@ goes away. Users of the framework hooks need no change.
 - `onInterruptStateChange?` - Callback when interrupt state changes; context source is `hydrate` for restored state and `live` for streamed or client-initiated updates
 - `onMessagesChange?` - Callback when messages change
 - `onLoadingChange?` - Callback when loading state changes
+- `onHydratingChange?` - Callback when the client starts or stops loading the chat from persistence
 - `onErrorChange?` - Callback when error state changes
 - `streamProcessor?` - Stream processing configuration
 
@@ -341,6 +342,7 @@ await client.addToolApprovalResponse({
 
 - `messages: UIMessage[]` - Current messages
 - `isLoading: boolean` - Whether a response is being generated
+- `isHydrating: boolean` - Whether the chat is loading from persistence. Read it with `getIsHydrating()`
 - `error: Error | undefined` - Current error, if any
 
 ## Connection Adapters

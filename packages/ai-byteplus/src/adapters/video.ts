@@ -3,7 +3,7 @@ import {
   resolveMediaPrompt,
   unsupportedFileSourceError,
 } from '@tanstack/ai'
-import { BaseVideoAdapter, snapToDurationOption } from '@tanstack/ai/adapters'
+import { BaseVideoAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import {
   bytePlusArkError,
@@ -548,7 +548,7 @@ export class BytePlusVideoAdapter<
     }
   }
 
-  async getVideoUrl(jobId: string): Promise<VideoUrlResult> {
+  override async getVideo(jobId: string): Promise<VideoUrlResult> {
     let task: BytePlusVideoTask
     try {
       task = await this.retrieveTask(jobId)
@@ -644,14 +644,6 @@ export class BytePlusVideoAdapter<
    */
   override availableDurations(): DurationOptions<number> {
     return getBytePlusVideoDurationOptions(this.model)
-  }
-
-  /**
-   * Coerce a raw seconds value to the closest duration this model accepts
-   * (clamped to its range and rounded to whole seconds).
-   */
-  override snapDuration(seconds: number): number | undefined {
-    return snapToDurationOption(seconds, this.availableDurations())
   }
 }
 

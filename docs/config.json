@@ -13,7 +13,7 @@
           "label": "Overview",
           "to": "getting-started/overview",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-18"
+          "updatedAt": "2026-09-29"
         },
         {
           "label": "Quick Start",
@@ -135,7 +135,7 @@
           "label": "TanStack AI vs Vercel AI SDK",
           "to": "comparison/vercel-ai-sdk",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-19"
+          "updatedAt": "2026-09-29"
         }
       ],
       "tab": "get-started"
@@ -147,7 +147,7 @@
           "label": "Streaming",
           "to": "chat/streaming",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-09-28"
         },
         {
           "label": "Connection Adapters",
@@ -159,7 +159,7 @@
           "label": "Stream Events",
           "to": "chat/stream-events",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-09-23"
+          "updatedAt": "2026-09-27"
         },
         {
           "label": "Subagents",
@@ -177,7 +177,7 @@
           "label": "Thinking & Reasoning",
           "to": "chat/thinking-content",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-21"
+          "updatedAt": "2026-09-30"
         },
         {
           "label": "Message Queue",
@@ -213,7 +213,7 @@
           "label": "Multi-Turn Chat",
           "to": "structured-outputs/multi-turn",
           "addedAt": "2026-05-19",
-          "updatedAt": "2026-08-19"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "With Tools",
@@ -236,7 +236,7 @@
           "label": "Tools",
           "to": "tools/tools",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-21"
+          "updatedAt": "2026-09-30"
         },
         {
           "label": "Server Tools",
@@ -248,7 +248,7 @@
           "label": "Client Tools",
           "to": "tools/client-tools",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-10-02"
         },
         {
           "label": "WebMCP Tools",
@@ -289,7 +289,7 @@
           "label": "Tool Architecture",
           "to": "tools/tool-architecture",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-17"
+          "updatedAt": "2026-09-30"
         }
       ],
       "tab": "guides"
@@ -301,18 +301,19 @@
           "label": "Middleware",
           "to": "advanced/middleware",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-09-30"
         },
         {
           "label": "Built-in Middleware",
           "to": "advanced/built-in-middleware",
           "addedAt": "2026-06-03",
-          "updatedAt": "2026-07-21"
+          "updatedAt": "2026-10-01"
         },
         {
           "label": "Locks",
           "to": "advanced/locks",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-09-29"
         },
         {
           "label": "OpenTelemetry",
@@ -502,7 +503,7 @@
           "label": "Manual MCP",
           "to": "tools/mcp-manual",
           "addedAt": "2026-06-05",
-          "updatedAt": "2026-07-17"
+          "updatedAt": "2026-09-29"
         },
         {
           "label": "MCP Type Generation",
@@ -525,18 +526,19 @@
           "label": "Serve Tools over HTTP",
           "to": "mcp/server",
           "addedAt": "2026-09-22",
-          "updatedAt": "2026-09-27"
+          "updatedAt": "2026-10-06"
         },
         {
           "label": "Serve Resources and Prompts",
           "to": "mcp/server-content",
-          "addedAt": "2026-09-22"
+          "addedAt": "2026-09-22",
+          "updatedAt": "2026-10-02"
         },
         {
           "label": "Ask for Input",
           "to": "mcp/server-input",
           "addedAt": "2026-09-22",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-10-02"
         },
         {
           "label": "Draft Text from a Tool",
@@ -560,7 +562,7 @@
           "label": "MCP Server Sessions",
           "to": "mcp/server-sessions",
           "addedAt": "2026-09-22",
-          "updatedAt": "2026-09-27"
+          "updatedAt": "2026-10-02"
         },
         {
           "label": "MCP Server on stdio",
@@ -600,13 +602,13 @@
           "label": "Overview",
           "to": "resumable-streams/overview",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-18"
+          "updatedAt": "2026-09-29"
         },
         {
           "label": "Advanced",
           "to": "resumable-streams/advanced",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-20"
+          "updatedAt": "2026-10-06"
         },
         {
           "label": "WebSockets",
@@ -616,7 +618,8 @@
         {
           "label": "Custom Durability Adapter",
           "to": "resumable-streams/custom-adapter",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-09-29"
         }
       ]
     },
@@ -628,19 +631,19 @@
           "label": "Overview",
           "to": "persistence/overview",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-09-29"
         },
         {
           "label": "Chat Persistence",
           "to": "persistence/chat-persistence",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-09-23"
+          "updatedAt": "2026-09-25"
         },
         {
           "label": "Client Persistence",
           "to": "persistence/client-persistence",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Generation Persistence",
@@ -657,7 +660,7 @@
           "label": "Build Your Own Adapter",
           "to": "persistence/build-your-own-adapter",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-09-29"
         },
         {
           "label": "Migrations",
@@ -681,7 +684,8 @@
         {
           "label": "Keep Generated Files",
           "to": "persistence/keep-generated-files",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-03"
         },
         {
           "label": "Build a Chat Adapter",
@@ -746,7 +750,7 @@
           "label": "Voice Creation",
           "to": "media/voice-creation",
           "addedAt": "2026-09-16",
-          "updatedAt": "2026-09-16"
+          "updatedAt": "2026-09-29"
         },
         {
           "label": "Audio Recording",
@@ -764,13 +768,13 @@
           "label": "Image Generation",
           "to": "media/image-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-27"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Video Generation",
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-04"
+          "updatedAt": "2026-10-03"
         },
         {
           "label": "Live Generation",
@@ -823,7 +827,8 @@
         {
           "label": "Evaluate",
           "to": "evaluate/evaluate",
-          "addedAt": "2026-09-18"
+          "addedAt": "2026-09-18",
+          "updatedAt": "2026-09-29"
         }
       ],
       "tab": "guides"
@@ -835,7 +840,7 @@
           "label": "Code Mode",
           "to": "code-mode/code-mode",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-06-11"
+          "updatedAt": "2026-09-29"
         },
         {
           "label": "Showing Code Mode in the UI",
@@ -852,7 +857,7 @@
           "label": "Code Mode Isolate Drivers",
           "to": "code-mode/code-mode-isolates",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-13"
+          "updatedAt": "2026-09-29"
         },
         {
           "label": "Lazy Tools",
@@ -882,7 +887,7 @@
           "label": "Providers",
           "to": "sandbox/providers",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-09-24"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Harnesses",
@@ -1043,7 +1048,8 @@
         {
           "label": "Adapters",
           "to": "memory/adapters",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-09-29"
         },
         {
           "label": "Custom Adapter",
@@ -1071,7 +1077,7 @@
           "label": "Bring Your Own Key",
           "to": "advanced/byok",
           "addedAt": "2026-08-18",
-          "updatedAt": "2026-09-04"
+          "updatedAt": "2026-09-30"
         },
         {
           "label": "Debug Logging",
@@ -1134,19 +1140,19 @@
           "label": "OpenAI",
           "to": "adapters/openai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-09-30"
         },
         {
           "label": "Anthropic",
           "to": "adapters/anthropic",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-19"
+          "updatedAt": "2026-10-06"
         },
         {
           "label": "Google Gemini",
           "to": "adapters/gemini",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-24"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Google Vertex AI",
@@ -1190,10 +1196,15 @@
           "addedAt": "2026-09-18"
         },
         {
+          "label": "Ollaya",
+          "to": "adapters/ollaya",
+          "addedAt": "2026-09-29"
+        },
+        {
           "label": "ElevenLabs",
           "to": "adapters/elevenlabs",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-16"
+          "updatedAt": "2026-09-29"
         },
         {
           "label": "fal.ai",
@@ -1217,7 +1228,7 @@
           "label": "OpenRouter Adapter",
           "to": "adapters/openrouter",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-10-03"
         },
         {
           "label": "Perplexity Search",
@@ -1234,7 +1245,7 @@
           "label": "Lovable AI Gateway",
           "to": "adapters/lovable",
           "addedAt": "2026-08-24",
-          "updatedAt": "2026-08-25"
+          "updatedAt": "2026-09-28"
         },
         {
           "label": "OpenAI-Compatible",
@@ -1333,6 +1344,11 @@
           "label": "Mynth",
           "to": "community-adapters/mynth",
           "addedAt": "2026-04-15"
+        },
+        {
+          "label": "Upstash",
+          "to": "community-adapters/upstash",
+          "addedAt": "2026-09-29"
         }
       ]
     },
@@ -1394,55 +1410,55 @@
           "label": "@tanstack/ai-client",
           "to": "api/ai-client",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-03"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "@tanstack/ai-react",
           "to": "api/ai-react",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-23"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "@tanstack/ai-solid",
           "to": "api/ai-solid",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-28"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "@tanstack/ai-preact",
           "to": "api/ai-preact",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-23"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "@tanstack/ai-vue",
           "to": "api/ai-vue",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-23"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "@tanstack/ai-svelte",
           "to": "api/ai-svelte",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-23"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "@tanstack/ai-angular",
           "to": "api/ai-angular",
           "addedAt": "2026-06-15",
-          "updatedAt": "2026-09-23"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "@tanstack/ai-octane",
           "to": "api/ai-octane",
           "addedAt": "2026-08-21",
-          "updatedAt": "2026-09-23"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "@tanstack/ai-remix",
           "to": "api/ai-remix",
           "addedAt": "2026-09-01",
-          "updatedAt": "2026-09-23"
+          "updatedAt": "2026-10-07"
         }
       ]
     },

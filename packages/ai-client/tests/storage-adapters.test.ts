@@ -68,6 +68,53 @@ describe('localStoragePersistence createdAt revival', () => {
     expect(read.messages[0]?.createdAt).toBeInstanceOf(Date)
   })
 
+  it('round-trips role activity as a UIMessage with the same id and content', () => {
+    restore = installMemoryLocalStorage()
+    const record: ChatPersistedState = {
+      messages: [
+        { id: 'u1', role: 'user', parts: [{ type: 'text', content: 'hi' }] },
+        {
+          id: 'act-1',
+          role: 'activity',
+          parts: [
+            {
+              type: 'activity',
+              activityType: 'SEARCH',
+              content: { query: 'tanstack' },
+            },
+          ],
+        },
+        {
+          id: 'a1',
+          role: 'assistant',
+          parts: [{ type: 'text', content: 'ok' }],
+        },
+      ],
+    }
+
+    localStoragePersistence().setItem('chat-activity', record)
+    const raw = globalThis.localStorage?.getItem('tanstack-ai:chat-activity')
+    expect(raw).toContain('"role":"activity"')
+    expect(raw).toContain('"activityType":"SEARCH"')
+
+    const read = localStoragePersistence().getItem('chat-activity')
+    if (read == null || read instanceof Promise) {
+      throw new Error('expected a sync persisted record')
+    }
+    expect(read.messages.map((m) => m.role)).toEqual([
+      'user',
+      'activity',
+      'assistant',
+    ])
+    const activity = read.messages[1]
+    expect(activity?.id).toBe('act-1')
+    expect(activity?.parts[0]).toEqual({
+      type: 'activity',
+      activityType: 'SEARCH',
+      content: { query: 'tanstack' },
+    })
+  })
+
   it('revives tool-result createdAt values inside message parts', () => {
     restore = installMemoryLocalStorage()
     const record: ChatPersistedState = {

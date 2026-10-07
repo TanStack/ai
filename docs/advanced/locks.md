@@ -157,6 +157,11 @@ backend. The Cloudflare Durable Object recipe lives in the
 `ai-persistence/build-cloudflare-adapter` agent skill (app-owned file,
 not a shipped package).
 
+On Redis, `upstashLocks()` from `@upstash/agentkit-tanstack-ai` is a published
+third-party `LockStore` backed by Upstash Redis. It renews its lease while `fn`
+runs and aborts `signal` if renewal fails. See
+[Upstash](../community-adapters/upstash#locks).
+
 ## Consume in custom middleware
 
 ```ts
