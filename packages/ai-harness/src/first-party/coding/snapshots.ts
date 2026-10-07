@@ -117,15 +117,50 @@ function shadowRepo(options: SnapshotsOptions) {
         return { files: await changed(from, target), patch }
       }),
     /**
-     * Make the workspace files match `tree`. Files that are not in `tree`
-     * are removed.
+     * Make the files that differ between `from` and `tree` match `tree`, and
+     * give their count. Of these files, the ones that are not in `tree` are
+     * removed. All other files stay as they are.
      */
-    restore: (tree: string) =>
+    restore: (tree: string, from: string) =>
       serial(async () => {
-        // The index must list the files on disk, so the reset sees them.
-        await exec(
-          `${git} add -A && ${git} read-tree --reset -u ${quote(tree)}`,
-        )
+        // Pairs of a status letter and a path. `D`: the path is not in `tree`.
+        const status = (
+          await run(
+            `diff --name-status -z --no-renames ${quote(from)} ${quote(tree)}`,
+          )
+        ).split('\0')
+        const removed: Array<string> = []
+        const restored: Array<string> = []
+        for (let i = 1; i < status.length; i += 2) {
+          const path = status[i]
+          if (!path) continue
+          if (status[i - 1] === 'D') removed.push(path)
+          else restored.push(path)
+        }
+        // The paths go to git in a file, so no list is too long for the
+        // command line. `--literal-pathspecs`: `[x].txt` is a name, not a glob.
+        const paths = async (name: string, list: Array<string>) => {
+          const file = `${gitDir}/${name}`
+          await backend.writeFile(file, list.join('\0'))
+          return `--pathspec-from-file ${quote(file)} --pathspec-file-nul`
+        }
+        const commands: Array<string> = []
+        if (removed.length > 0) {
+          // `git rm` removes only the files in the index, so first the index
+          // gets the files on disk.
+          commands.push(
+            `${git} add -A`,
+            `${git} --literal-pathspecs rm -q -f --ignore-unmatch ${await paths('restore-removed', removed)}`,
+          )
+        }
+        if (restored.length > 0) {
+          commands.push(
+            `${git} --literal-pathspecs checkout ${quote(tree)} ${await paths('restore-restored', restored)}`,
+          )
+        }
+        // One shell runs all of them: each shell start is slow on Windows.
+        if (commands.length > 0) await exec(commands.join(' && '))
+        return removed.length + restored.length
       }),
   }
 }
@@ -137,8 +172,9 @@ const messageOf = (error: unknown) =>
  * Snapshots of the workspace files at the start and the end of each model
  * step, in a shadow git repository in `dataDir`. Adds two commands:
  *
- * - `/undo`: put the files back as they were before the last turn, and
- *   remove that turn from the transcript.
+ * - `/undo`: put the files that the last turn changed back as they were
+ *   before it, and remove that turn from the transcript. Other files stay
+ *   as they are.
  * - `/redo`: bring back what the last `/undo` removed. A new turn clears it.
  *
  * The changed files of each step go to the session log as a
@@ -188,8 +224,10 @@ export function snapshots(options: SnapshotsOptions) {
       let stepStart: string | undefined
       /** The tree at the start of the last turn: what `/undo` restores. */
       let turnStart: string | undefined
-      /** What the last `/undo` removed. */
-      let redo: { tree: string; messages: Array<ModelMessage> } | undefined
+      /** What the last `/undo` removed: the trees of the turn, and its messages. */
+      let redo:
+        | { start: string; end: string; messages: Array<ModelMessage> }
+        | undefined
 
       // A failed snapshot must not fail the turn. It only says so.
       const guard = async <T>(fn: () => Promise<T>) => {
@@ -246,16 +284,27 @@ export function snapshots(options: SnapshotsOptions) {
               const start = messages.findLastIndex(
                 (message) => message.role === 'user',
               )
-              if (turnStart === undefined || start === -1) {
+              // When the session is idle, the step start is the tree at the
+              // end of the last turn.
+              const turnEnd = stepStart
+              if (
+                turnStart === undefined ||
+                turnEnd === undefined ||
+                start === -1
+              ) {
                 return 'Nothing to undo.'
               }
-              const now = await repo.track()
-              const files = await repo.changed(turnStart, now)
-              await repo.restore(turnStart)
-              redo = { tree: now, messages: messages.slice(start) }
+              // Only the files that the turn changed go back. A later edit of
+              // the user in one of them is lost. Other files stay as they are.
+              const count = await repo.restore(turnStart, turnEnd)
+              redo = {
+                start: turnStart,
+                end: turnEnd,
+                messages: messages.slice(start),
+              }
               turnStart = undefined
               await session.replaceTranscript(messages.slice(0, start))
-              return `Undid the last turn. Files restored: ${files.length}.`
+              return `Undid the last turn. Files restored: ${count}.`
             },
           }),
           redo: defineCommand({
@@ -263,9 +312,10 @@ export function snapshots(options: SnapshotsOptions) {
             run: async (_input, { session }) => {
               if (session.snapshot().status !== 'idle') return BUSY
               if (!redo) return 'Nothing to redo.'
-              const { tree, messages } = redo
-              turnStart = await repo.track()
-              await repo.restore(tree)
+              const { start, end, messages } = redo
+              await repo.restore(end, start)
+              // The same turn can be undone again. `stepStart` is still `end`.
+              turnStart = start
               redo = undefined
               const transcript = await session.transcript()
               await session.replaceTranscript([...transcript, ...messages])

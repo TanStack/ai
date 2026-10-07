@@ -42,16 +42,19 @@ process.exitCode = await runCli(coder)
 
 - `root` is the workspace folder, an absolute path.
 - `dataDir` is a folder for the snapshot repositories, an absolute path. Put it outside `root`. Each workspace gets its own repository in it.
-- The plugin needs the `git` command. Your project does not need to be a git repository, and the plugin never uses the `.git` folder of your project.
+- The plugin needs the `git` command. `/undo` and `/redo` need git 2.26 or later.
+- Your project does not need to be a git repository, and the plugin never uses the `.git` folder of your project.
 
 ## 2. Undo and redo a turn
 
 1. Run `npx tsx coder.ts`, and ask for a change.
 2. Run `/undo`. The CLI prints the number of files that it put back, for example `Undid the last turn. Files restored: 3.`
-3. Look at your files: they are as they were before the turn. The turn is gone from the conversation too.
+3. Look at the files that the turn changed: they are as they were before the turn. The turn is gone from the conversation too.
 4. To bring back the files and the turn, run `/redo`. The CLI prints `Redid the last turn.`
 
-- `/undo` restores every change in `root` during the turn: the edits of the file tools, and the changes of `bash` commands.
+- `/undo` puts back each file that the turn changed in `root`. This includes the edits of the file tools and the changes of `bash` commands.
+- `/undo` and `/redo` do not touch other files. This is also true for a file that you add or edit after the turn.
+- If you edit a file that the turn changed, `/undo` and `/redo` still write over it, and your edit is lost.
 - The snapshots skip the files that `.gitignore` names, like `node_modules`. `/undo` does not touch them.
 - A new turn clears `/redo`.
 
