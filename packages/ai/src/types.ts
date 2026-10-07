@@ -1239,6 +1239,13 @@ export type ToolChoice =
   | { type: 'tool'; name: string }
 
 /**
+ * Wraps the fetch of a model call. It gets the next fetch and gives back a
+ * new fetch. A wrapper can change the URL, the headers, the request, or the
+ * response.
+ */
+export type FetchWrapper = (next: typeof fetch) => typeof fetch
+
+/**
  * Options passed into the SDK and further piped to the AI provider.
  */
 export interface TextOptions<
@@ -1377,6 +1384,12 @@ export interface TextOptions<
    * the request has tools. A provider value in `modelOptions` wins over it.
    */
   toolChoice?: ToolChoice
+  /**
+   * Wraps the fetch of this request. The engine composes the `chat()` option
+   * and the middleware wrappers into one function. An adapter that supports
+   * it calls `wrapFetch(baseFetch)` and sends the request with the result.
+   */
+  wrapFetch?: FetchWrapper
   /**
    * The tools and system prompts that changed between model calls. The
    * engine sets it only when `adapter.midConversationChannels` has a channel

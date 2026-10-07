@@ -17,6 +17,7 @@ import type {
   Tool,
   ToolCall,
   ToolChoice,
+  FetchWrapper,
 } from '../../../types'
 import type { SystemPrompt } from '../../../system-prompts'
 import type { ToolApprovalResolution } from '../../../interrupts'
@@ -366,6 +367,12 @@ export interface ChatMiddlewareConfig {
    * option. A call with no tools sends no tool choice.
    */
   toolChoice?: ToolChoice | undefined
+  /**
+   * Wraps the fetch of the next model call. A returned wrapper chains inside
+   * the wrappers before it, so it does not replace them. It applies to that
+   * call only. The next call starts again from the `chat()` option.
+   */
+  wrapFetch?: FetchWrapper | undefined
 }
 
 /**

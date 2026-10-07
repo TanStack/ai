@@ -166,6 +166,7 @@ const dynamicTemperature: ChatMiddleware = {
 | `reasoning` | `ReasoningRequest \| undefined` | How hard the model thinks at this call. See [Reasoning](../chat/reasoning#change-the-level-in-middleware). |
 | `promptCache` | `ResolvedPromptCache \| undefined` | The prompt cache of this call: its `retention` and `key`. See [Change the prompt cache of a call](#change-the-prompt-cache-of-a-call). |
 | `toolChoice` | `ToolChoice \| undefined` | How the model uses the tools at the next call. See [Change the tool choice of a call](#change-the-tool-choice-of-a-call). |
+| `wrapFetch` | `FetchWrapper \| undefined` | Wraps the HTTP fetch of the next call. See [Change the HTTP requests of a call](#change-the-http-requests-of-a-call). |
 
 When multiple middleware define `onConfig`, the config is **piped** through them in order. Each receives the merged config from the previous middleware.
 
@@ -233,6 +234,33 @@ const stream = chat({
 - The returned value applies to the next model call only. The call after it starts again from the `chat()` option.
 - Return it in the `beforeModel` phase. A value from the `init` phase does not reach a model call.
 - For the values, and for what each provider does with them, see [Choose when the model calls a tool](../tools/tools#choose-when-the-model-calls-a-tool).
+
+#### Change the HTTP requests of a call
+
+Some providers or gateways need a header on each request, such as a trace ID or a token that changes. Return `wrapFetch` from `onConfig` to wrap the fetch of the next model call:
+
+```typescript
+import { type ChatMiddleware } from "@tanstack/ai";
+
+const traceHeader: ChatMiddleware = {
+  name: "trace-header",
+  onConfig: (ctx) => {
+    if (ctx.phase !== "beforeModel") return;
+    return {
+      wrapFetch: (next) => (input, init) => {
+        const headers = new Headers(init?.headers);
+        headers.set("x-trace-id", `${ctx.requestId}-${ctx.iteration}`);
+        return next(input, { ...init, headers });
+      },
+    };
+  },
+};
+```
+
+- A wrapper gets the next fetch and gives back a new fetch. It can change the URL, the headers, the request, or the response.
+- The returned wrapper applies to the next model call only. The call after it starts again from the `chat()` option.
+- Wrappers chain. A request goes through the `wrapFetch` option of `chat()` first, then the middleware wrappers in middleware order, then the fetch of the adapter.
+- Each adapter page says if that adapter supports `wrapFetch`.
 
 ### onStructuredOutputConfig
 
