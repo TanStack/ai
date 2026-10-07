@@ -42,6 +42,7 @@ const INPUT_OPS = new Set([
   'resolve',
   'agent',
   'cancel',
+  'background',
   'cancelInput',
   'setDelivery',
   'command',
@@ -125,6 +126,15 @@ export function parseHarnessInput(value: unknown): HarnessInput {
   if (value.op === 'revert' && typeof value.messageId !== 'string') {
     throw new Error('Invalid input: revert needs a messageId.')
   }
+  if (
+    value.op === 'background' &&
+    value.toolCallId !== undefined &&
+    typeof value.toolCallId !== 'string'
+  ) {
+    throw new Error(
+      'Invalid input: the toolCallId of background must be a string.',
+    )
+  }
   if (value.inputId !== undefined && typeof value.inputId !== 'string') {
     throw new Error('Invalid input: inputId must be a string.')
   }
@@ -207,6 +217,9 @@ export async function applyInput(
       return session.resolve(input.resume, id)
     case 'cancel':
       return session.cancel(input.operationId)
+    // It runs no new code, so it needs no `expose` entry, like `cancel`.
+    case 'background':
+      return session.background(input.toolCallId)
     case 'cancelInput':
       return session.cancelInput(input.inputId)
     case 'setDelivery':

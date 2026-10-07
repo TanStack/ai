@@ -68,6 +68,7 @@ import type {
   SubagentBinding,
   SubagentRouterPick,
   SubagentsBag,
+  ToolExecutionContext,
   UIMessage,
 } from '@tanstack/ai'
 import type {
@@ -1058,6 +1059,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   /** The ids of the waiting steers that a join took. A cancel of one is refused. */
   private readonly joining = new Set<string>()
   private readonly pendingNotes: Array<string> = []
+  /** Running tool calls that support `detach`: id to the move. */
+  private readonly detachable = new Map<string, () => void>()
   private activeTurn: OperationImpl<ChatTurnResult> | undefined
   /** Renews this host's claim on the thread while the thread has work. */
   private claimTimer: ReturnType<typeof setInterval> | undefined
@@ -2047,6 +2050,31 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
    * abort request is stored first, so a turn that a crash stops later settles
    * `aborted` and does not run again.
    */
+  /**
+   * Move a running tool call to the background: the call returns at once,
+   * and the job keeps running. When it ends, a note tells the model and
+   * wakes an idle session. Without `toolCallId`, it moves every running
+   * call that supports it, such as `bash` and the single `subagent` tool.
+   * With no such call, the receipt is rejected with `not_running`.
+   *
+   * @example
+   * ```ts
+   * await session.background()
+   * ```
+   */
+  async background(toolCallId?: string): Promise<Receipt> {
+    const inputId = createInputId()
+    const ids =
+      toolCallId === undefined ? [...this.detachable.keys()] : [toolCallId]
+    const moves = ids.flatMap((id) => this.detachable.get(id) ?? [])
+    if (moves.length === 0) {
+      return { inputId, status: 'rejected', reason: 'not_running' }
+    }
+    for (const id of ids) this.detachable.delete(id)
+    for (const move of moves) move()
+    return { inputId, status: 'accepted' }
+  }
+
   async cancel(operationId?: string): Promise<Receipt> {
     const inputId = createInputId()
     await this.accept(inputId, { op: 'cancel', operationId })
@@ -3685,6 +3713,57 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   }
 
   /**
+   * Middleware that gives each tool call of a turn `detach` in its context,
+   * so `background()` can move the call to the background. A tool that
+   * calls `detach` supports it.
+   */
+  private detachTools(): AnyChatMiddleware {
+    // Each model call gets the tools of the last one. Wrap each tool once.
+    const wrapped = new WeakSet<AnyTool>()
+    const wrap = (tool: AnyTool): AnyTool => {
+      const { execute } = tool
+      if (!execute || wrapped.has(tool)) return tool
+      const next: AnyTool = {
+        ...tool,
+        execute: (args: unknown, context?: ToolExecutionContext) => {
+          const id = context?.toolCallId
+          if (!context || id === undefined) return execute(args, context)
+          context.detach = (work) =>
+            new Promise((moved) => {
+              this.detachable.set(id, () => {
+                moved(
+                  `The job moved to the background. Its id is ${id}. You get a note when it ends.`,
+                )
+                // Like other background jobs: a note that wakes the session.
+                work
+                  .then(
+                    (result) =>
+                      `Background job ${id} ended.\n${typeof result === 'string' ? result : JSON.stringify(result)}`,
+                    (error: unknown) =>
+                      `Background job ${id} failed: ${error instanceof Error ? error.message : String(error)}`,
+                  )
+                  .then((text) => this.pluginApi().note(text, { wake: true }))
+                  .catch(() => undefined)
+              })
+            })
+          return Promise.resolve(execute(args, context)).finally(() =>
+            this.detachable.delete(id),
+          )
+        },
+      }
+      wrapped.add(next)
+      return next
+    }
+    return {
+      name: 'harness:detach-tools',
+      onConfig: (ctx, config) => {
+        if (ctx.phase !== 'init' && ctx.phase !== 'beforeModel') return
+        return { tools: config.tools.map(wrap) }
+      },
+    }
+  }
+
+  /**
    * On a durable host, each turn's chat run gets `LogRecordsCapability`. A
    * middleware, for example a durable compaction, appends host records with
    * it. They land in the log at once and fold, with the checks of
@@ -4603,6 +4682,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
               ...(runPlugins?.middleware ?? []),
               ...(keepTools ? [keepTools] : []),
               ...(durableTools ? [durableTools] : []),
+              this.detachTools(),
               ...(rootBag ? [] : [this.steering()]),
               // Again: a middleware that returns `messages` (as steering
               // does) resets what the model gets to the whole transcript.

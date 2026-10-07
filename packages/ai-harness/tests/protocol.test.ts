@@ -331,6 +331,19 @@ describe('HTTP handler', () => {
 })
 
 describe('parseHarnessInput', () => {
+  it('lets a client send background without an expose entry', async () => {
+    const { handler, host } = setup()
+    const control = controlOf(handler, 'user-1-bg')
+    expect(await control({ op: 'background' })).toMatchObject({
+      status: 'rejected',
+      reason: 'not_running',
+    })
+    expect(() =>
+      parseHarnessInput({ op: 'background', toolCallId: 1 }),
+    ).toThrow('Invalid input: the toolCallId of background must be a string.')
+    await host.close()
+  })
+
   it('checks the fields of cancelInput and setDelivery', () => {
     expect(() => parseHarnessInput({ op: 'cancelInput' })).toThrow(
       'Invalid input: cancelInput needs an inputId.',

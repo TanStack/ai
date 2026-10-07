@@ -1,6 +1,26 @@
 {
   "fixtures": [
     {
+      "match": {
+        "userMessage": "[harness-background] build it",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [{ "name": "slowBuild", "arguments": "{}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-background] build it",
+        "sequenceIndex": 1
+      },
+      "response": { "content": "The build runs in the background." }
+    },
+    {
+      "match": { "userMessage": "[harness-background-done]" },
+      "response": { "content": "The build is done." }
+    },
+    {
       "match": { "userMessage": "[harness-revert] first" },
       "response": { "content": "First answer." }
     },

@@ -115,6 +115,8 @@ export type HarnessInput = (
       parentRunId?: string
     }
   | { op: 'cancel'; operationId?: string }
+  /** Move a running tool call to the background. See `session.background`. */
+  | { op: 'background'; toolCallId?: string }
   | { op: 'cancelInput'; inputId: string }
   | {
       op: 'setDelivery'

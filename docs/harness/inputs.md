@@ -12,6 +12,7 @@ keywords:
   - steer
   - cancelInput
   - setDelivery
+  - background
 ---
 
 A network retry can send the same prompt twice, and a client that reconnects does not know how its last prompt ended. Give each input your own id. A retry with the same id runs nothing again, and the session tells you how the input ended.
@@ -160,6 +161,53 @@ await client.setDelivery('req-47', 'steer')
 
 Over `POST control`, they are `{ op: 'cancelInput', inputId }` and `{ op: 'setDelivery', inputId, delivery }`. In these two inputs, `inputId` is the id of the input that waits. A move sends a `harness.input.delivery` event with `inputId` and `delivery`, so every client can update its list.
 
+## Move a running tool call to the background
+
+A long command or a subagent blocks the turn, and the user wants to go on. `session.background()` moves the running tool call to the background:
+
+```ts group=harness-inputs
+const build = session.prompt('Run the full test suite.', { inputId: 'req-48' })
+// Later, while the `bash` call of that turn runs:
+const moved = await session.background()
+console.log(moved.status) // 'accepted', or 'rejected' with 'not_running'
+await build
+```
+
+- The tool call returns at once. The model gets a short note with the job id, and the turn goes on.
+- The job keeps running. When it ends, the model gets its result as a note, and an idle session starts a new turn.
+- Without an argument, it moves every running call that supports it. Pass a `toolCallId` to move one call.
+- `bash` and the single `subagent` tool support it. Other tools keep running as before.
+- With no running call that supports it, the receipt has `status: 'rejected'` and `reason: 'not_running'`.
+
+A client sends `{ op: 'background' }` over `POST control`. It runs no new code, so it needs no `expose` entry:
+
+```ts group=harness-inputs-client
+await fetch('/api/harness/control', {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({
+    threadId: 'user-1-thread',
+    input: { op: 'background' },
+  }),
+})
+```
+
+Your own tool can support it too. Pass its work to `detach` from the tool context, and race the two promises:
+
+```ts group=harness-inputs
+const longReport = toolDefinition({
+  name: 'longReport',
+  description: 'Build the monthly report',
+  inputSchema: z.object({}),
+}).server((_input, toolContext) => {
+  const work = new Promise<string>((resolve) => {
+    setTimeout(() => resolve('The report is ready.'), 60_000)
+  })
+  const detach = toolContext?.detach
+  return detach ? Promise.race([work, detach(work)]) : work
+})
+```
+
 ## Send context with a message
 
 Your tools often need to know what the user looks at: the open record, the page, or the locale. Send it as the `context` of the input. The session stores it with the input, so a turn that runs again after a restart gets the same value.
@@ -224,5 +272,5 @@ On `POST run`, the AG-UI `forwardedProps` of the request are the `context`, for 
 - Retries that never run a prompt twice.
 - The outcome of each input by its id, also after a restart.
 - Messages that join a running turn in order.
-- Waiting messages that a user can cancel, or move into the running turn.
+- Waiting messages that a user can cancel, or move into the running turn, and running jobs that a user can move to the background.
 - Context from the client that tools read, also after a restart.

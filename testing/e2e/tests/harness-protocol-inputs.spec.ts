@@ -505,6 +505,49 @@ test.describe('harness protocol inputs', () => {
     ])
   })
 
+  test('moves a running tool call to the background', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const user = asUser(request, testId, aimockPort)
+    const threadId = `background-${testId}`
+    // Before the tool runs, there is nothing to move.
+    expect(await user.control(threadId, { op: 'background' })).toMatchObject({
+      status: 'rejected',
+      reason: 'not_running',
+    })
+    expect(
+      await user.control(threadId, {
+        op: 'prompt',
+        message: '[harness-background] build it',
+      }),
+    ).toMatchObject({ status: 'accepted' })
+    // `slowBuild` waits for `release`. A client needs no `expose` entry.
+    await expect
+      .poll(
+        async () => (await user.control(threadId, { op: 'background' })).status,
+      )
+      .toBe('accepted')
+
+    // The tool call answers at once, and the turn ends.
+    await expect
+      .poll(() => user.answers(threadId))
+      .toContain('The build runs in the background.')
+    const results = (await user.transcript(threadId))
+      .filter((message) => message.role === 'tool')
+      .map((message) => message.content)
+    expect(String(results[0])).toContain('The job moved to the background.')
+
+    // When the job ends, a note wakes the session.
+    expect(
+      await user.control(threadId, { op: 'command', name: 'release' }),
+    ).toMatchObject({ status: 'accepted' })
+    await expect
+      .poll(() => user.answers(threadId))
+      .toContain('The build is done.')
+  })
+
   test('asks once for a tool that the user allows always', async ({
     request,
     testId,

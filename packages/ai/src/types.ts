@@ -873,6 +873,19 @@ export type ToolExecutionContext<TContext = unknown> =
      */
     inputResponse?: ToolInputResponse
     /**
+     * Set when the host can move this call to the background. Pass it the
+     * work of the call, and race the two promises. It resolves to a short
+     * note for the model when the user moves the call. The work keeps
+     * running, and the host tells the model its result when it ends.
+     *
+     * @example
+     * ```ts
+     * const work = runJob(args)
+     * return context?.detach ? Promise.race([work, context.detach(work)]) : work
+     * ```
+     */
+    detach?: (work: Promise<unknown>) => Promise<string>
+    /**
      * Emit a custom event during tool execution.
      * Events are streamed to the client in real-time as AG-UI CUSTOM events.
      *
