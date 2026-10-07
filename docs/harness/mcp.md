@@ -167,7 +167,7 @@ export const coded = defineHarness({
 
 ## Set a time limit
 
-`timeoutMs` limits the tool list and each tool call of one server:
+`timeoutMs` limits how long one server can take to connect, to send its tool list, and to answer each tool call:
 
 ```ts group=harness-mcp
 export const quick = mcp({
@@ -178,8 +178,15 @@ export const quick = mcp({
 ```
 
 - The default is the MCP SDK default, 60 seconds.
-- A server that does not send its tool list in time gets the status `failed`.
-- `timeoutMs` does not limit the connect step. A server that does not answer while it connects can keep the first turn waiting for longer than `timeoutMs`.
+- A server that is too slow gets the status `failed`. The tools of the other servers still work.
+- If a server does not connect in time, the plugin closes its open request or stops its child process.
+- With `oauth: true`, `timeoutMs` does not limit the time to connect.
+
+A server that does not connect in time shows this in `/mcp`:
+
+```text
+docs: failed: MCP server "docs" did not connect within 10000 ms.
+```
 
 ## One OAuth server with more options
 

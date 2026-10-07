@@ -1,5 +1,7 @@
 import { defineCommand, definePlugin } from '@tanstack/ai-harness'
 import { createMCPClient } from './client'
+import { resolveTransport } from './transport'
+import type { MCPClient } from './client'
 import type { AnyTool } from '@tanstack/ai'
 import type { AnyCommand, PluginPrompt } from '@tanstack/ai-harness'
 import type { HttpTransportConfig, StdioTransportConfig } from './transport'
@@ -18,8 +20,9 @@ export type McpServerConfig = (
     })
 ) & {
   /**
-   * The time in milliseconds that a tool list or a tool call of this server
-   * can take. Default: the MCP SDK default, 60,000.
+   * The time in milliseconds that this server can take to connect, to send
+   * its tool list, or to answer a tool call. Default: the MCP SDK default,
+   * 60,000. With `oauth: true`, it does not limit the time to connect.
    */
   timeoutMs?: number
   /**
@@ -102,15 +105,21 @@ export function mcp(options: {
           .acquire(
             async () => {
               // Loaded here: the stdio transport needs node:child_process.
+              // The plugin makes the transport, so a timeout can close it.
               const transport =
                 server.type === 'stdio'
                   ? (await import('./stdio')).stdioTransport(server)
-                  : server
-              const client = await createMCPClient({
+                  : await resolveTransport(server)
+              const client = await connectWithin(
+                name,
+                server.timeoutMs,
                 transport,
-                prefix: name,
-                requestOptions: requestOptionsOf(server),
-              })
+                createMCPClient({
+                  transport,
+                  prefix: name,
+                  requestOptions: requestOptionsOf(server),
+                }),
+              )
               try {
                 const tools = forCodeMode(server, await client.tools())
                 return { client, tools }
@@ -202,6 +211,34 @@ export function mcp(options: {
       }
     },
   })
+}
+
+/**
+ * Waits for `connecting` for at most `timeoutMs`. After that time, it closes
+ * the transport, so no request or child process stays open, and throws.
+ * Without `timeoutMs`, it only waits.
+ */
+async function connectWithin(
+  name: string,
+  timeoutMs: number | undefined,
+  transport: { close: () => Promise<void> },
+  connecting: Promise<MCPClient>,
+) {
+  if (timeoutMs === undefined) return connecting
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timedOut = new Promise<'timeout'>((resolve) => {
+    timer = setTimeout(() => resolve('timeout'), timeoutMs)
+  })
+  const first = await Promise.race([connecting, timedOut]).finally(() =>
+    clearTimeout(timer),
+  )
+  if (first !== 'timeout') return first
+  await transport.close().catch(() => undefined)
+  // A client that connects after the timeout is closed too.
+  connecting.then((client) => client.close()).catch(() => undefined)
+  throw new Error(
+    `MCP server "${name}" did not connect within ${timeoutMs} ms.`,
+  )
 }
 
 /** The SDK request options for `timeoutMs`. */
