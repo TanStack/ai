@@ -597,6 +597,31 @@ describe('StreamProcessor', () => {
       ])
     })
 
+    it('MESSAGES_SNAPSHOT drops a complete structured-output without data and keeps the text', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(
+        chunk(EventType.MESSAGES_SNAPSHOT, {
+          messages: [
+            {
+              id: 'a1',
+              role: 'assistant',
+              content: '{"ok":true}',
+              metadata: {
+                tanstack: {
+                  structuredOutput: { status: 'complete', raw: '{"ok":true}' },
+                },
+              },
+            },
+          ],
+        }),
+      )
+
+      expect(processor.getMessages()[0]?.parts).toEqual([
+        { type: 'text', content: '{"ok":true}' },
+      ])
+    })
+
     it('MESSAGES_SNAPSHOT ignores a malformed ui-resource without throwing', () => {
       const processor = new StreamProcessor()
 

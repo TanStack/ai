@@ -81,6 +81,7 @@ export function createChat<
   let isSubscribed = $state(false)
   let connectionStatus = $state<ConnectionStatus>('disconnected')
   let sessionGenerating = $state(false)
+  let isHydrating = $state(false)
   let queue = $state<Array<QueuedMessage>>([])
   let runId = $state<string | null>(null)
   let interruptState = $state.raw<ChatInterruptState<TTools, TInterrupts>>({
@@ -197,6 +198,9 @@ export function createChat<
     onSessionGeneratingChange: (isGenerating: boolean) => {
       sessionGenerating = isGenerating
     },
+    onHydratingChange: (nextIsHydrating: boolean) => {
+      isHydrating = nextIsHydrating
+    },
     ...(options.queue !== undefined && { queue: options.queue }),
     onQueueChange: (nextQueue: Array<QueuedMessage>) => {
       queue = nextQueue
@@ -216,6 +220,7 @@ export function createChat<
   }
 
   messages = client.getMessages()
+  isHydrating = client.getIsHydrating()
   interruptState = client.getInterruptState()
 
   if (options.live) {
@@ -451,6 +456,9 @@ export function createChat<
     },
     get sessionGenerating() {
       return sessionGenerating
+    },
+    get isHydrating() {
+      return isHydrating
     },
     get queue() {
       return queue

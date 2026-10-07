@@ -595,14 +595,26 @@ export type DeepPartial<T> =
  * consumers can thread `useChat({ outputSchema })`'s schema all the way down
  * to `messages[i].parts[j].data`. Defaults to `unknown` so untyped consumers
  * (e.g. internal codepaths that don't know about TSchema) keep working.
+ *
+ * Discriminated on `status`: checking `status === 'complete'` narrows `data`
+ * to `TData`.
  */
-export interface StructuredOutputPart<TData = unknown> {
+export type StructuredOutputPart<TData = unknown> =
+  | (StructuredOutputPartBase<TData> & {
+      status: 'streaming' | 'error'
+      /** Not set until `status === 'complete'`. */
+      data?: undefined
+    })
+  | (StructuredOutputPartBase<TData> & {
+      status: 'complete'
+      /** Validated final object. */
+      data: TData
+    })
+
+interface StructuredOutputPartBase<TData> {
   type: 'structured-output'
-  status: 'streaming' | 'complete' | 'error'
   /** Progressive parse of `raw` via parsePartialJSON — populated while streaming and after complete. */
   partial?: DeepPartial<TData>
-  /** Validated final object — only set when `status === 'complete'`. */
-  data?: TData
   /** Accumulating JSON buffer. Source of truth for wire round-trip. */
   raw: string
   /** Optional chain-of-thought surfaced by reasoning models alongside the structured output. */
