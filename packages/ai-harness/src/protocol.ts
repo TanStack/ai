@@ -39,6 +39,7 @@ const INPUT_OPS = new Set([
   'prompt',
   'steer',
   'followUp',
+  'continue',
   'resolve',
   'agent',
   'cancel',
@@ -188,6 +189,14 @@ export async function applyInput(
         ...sent,
       })
       // Nobody may await a turn a client started. Its receipt is the answer.
+      operation.then(
+        () => {},
+        () => {},
+      )
+      return operation.receipt
+    }
+    case 'continue': {
+      const operation = session.continue(sent)
       operation.then(
         () => {},
         () => {},

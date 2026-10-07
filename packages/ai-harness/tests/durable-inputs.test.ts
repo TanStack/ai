@@ -928,6 +928,130 @@ describe('input ids', () => {
   })
 })
 
+describe('session.continue()', () => {
+  const user: ModelMessage = { id: 'u1', role: 'user', content: 'go' }
+  const transcript = (...add: Array<ModelMessage>): LogRecord => ({
+    type: 'harness.transcript',
+    keep: 0,
+    add,
+  })
+
+  it.each([
+    ['a user message', [user]],
+    [
+      'a tool message',
+      [
+        user,
+        {
+          id: 'a1',
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'call-1',
+              type: 'function',
+              function: { name: 'lookup', arguments: '{}' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call-1', content: 'found' },
+      ],
+    ],
+  ] satisfies Array<[string, Array<ModelMessage>]>)(
+    'runs the model on a stored transcript that ends with %s',
+    async (_name, messages) => {
+      const persistence = durablePersistence()
+      await persistence.stores.log.append(THREAD, 1, [transcript(...messages)])
+      const { host, session, calls } = await openDurable({
+        persistence,
+        replies: [() => text('went')],
+      })
+
+      expect(await session.continue({ inputId: 'c-1' })).toEqual({
+        text: 'went',
+      })
+      // The stored transcript, and no new message.
+      expect(
+        calls[0].messages.map((message: ModelMessage) => message.role),
+      ).toEqual(messages.map((message) => message.role))
+      expect(await session.settled('c-1')).toMatchObject({
+        outcome: 'completed',
+      })
+      await host.close()
+    },
+  )
+
+  it('returns the first operation for a duplicate inputId, and runs once', async () => {
+    const persistence = durablePersistence()
+    await persistence.stores.log.append(THREAD, 1, [transcript(user)])
+    const { host, session, calls } = await openDurable({
+      persistence,
+      replies: [() => text('once'), () => text('twice')],
+    })
+
+    const first = session.continue({ inputId: 'c-1' })
+    const again = session.continue({ inputId: 'c-1' })
+
+    expect(again).toBe(first)
+    await first
+    expect(calls).toHaveLength(1)
+    await host.close()
+  })
+
+  it('runs a continue that a stopped host left pending', async () => {
+    const persistence = durablePersistence()
+    await persistence.stores.log.append(THREAD, 1, [
+      transcript(user),
+      {
+        type: 'harness.input',
+        inputId: 'c-1',
+        input: { op: 'continue' },
+        at: 1,
+      },
+    ])
+
+    const { host, session, calls } = await openDurable({
+      persistence,
+      replies: [() => text('went')],
+    })
+
+    expect(await session.settled('c-1')).toMatchObject({
+      outcome: 'completed',
+    })
+    expect(messageTexts(calls[0])).toEqual(['go'])
+    await host.close()
+  })
+
+  it.each([
+    ['an empty transcript', []],
+    [
+      'a transcript that ends with an answer',
+      [transcript(user, { id: 'a1', role: 'assistant', content: 'done' })],
+    ],
+  ] satisfies Array<[string, Array<LogRecord>]>)(
+    'rejects a continue on %s',
+    async (_name, records) => {
+      const persistence = durablePersistence()
+      if (records.length > 0) {
+        await persistence.stores.log.append(THREAD, 1, records)
+      }
+      const { host, session, calls } = await openDurable({
+        persistence,
+        replies: [() => text('never')],
+      })
+
+      const turn = session.continue({ inputId: 'c-1' })
+
+      await expect(turn).rejects.toBeInstanceOf(InputRejectedError)
+      await expect(session.settled('c-1')).rejects.toMatchObject({
+        receipt: { status: 'rejected', reason: 'nothing_to_continue' },
+      })
+      expect(calls).toHaveLength(0)
+      await host.close()
+    },
+  )
+})
+
 describe('settled() without a log', () => {
   it('gives the outcome of a live input, and refuses an unknown id', async () => {
     const { adapter } = mockAdapter([() => text('fine')])

@@ -481,6 +481,29 @@ describe('the join rule', () => {
     await host.close()
   })
 
+  it('gives the onJoin ephemeral messages to the model call of the join only', async () => {
+    const { persistence, inner } = durablePersistence()
+    const wait = waitTool()
+    const { host, session, calls } = await openDurable(
+      persistence,
+      [() => toolCall('wait', {}), () => text('done')],
+      [wait.tool],
+      {
+        onJoin: () => ({ ephemeral: [{ role: 'user', content: 'only now' }] }),
+      },
+    )
+
+    const turn = session.prompt('start', { inputId: 'host' })
+    await wait.started.opened
+    await session.prompt('more', { busy: 'steer', inputId: 'join-1' }).receipt
+    wait.done.open()
+
+    await turn
+    expect(messageTexts(calls[1]).slice(-2)).toEqual(['more', 'only now'])
+    expect(JSON.stringify(await inner.read(THREAD))).not.toContain('only now')
+    await host.close()
+  })
+
   it('refuses a cancel that lands while onJoin runs, and logs no abort for it', async () => {
     const { persistence, inner } = durablePersistence()
     const wait = waitTool()

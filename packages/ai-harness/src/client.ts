@@ -79,6 +79,11 @@ export interface HarnessClient<THarness extends AnyHarness> {
     message: UserInput,
     options?: { inputId?: string },
   ) => Promise<Receipt>
+  /**
+   * Start a turn from the stored transcript, with no new message. See
+   * `session.continue`.
+   */
+  continue: (options?: { inputId?: string }) => Promise<Receipt>
   resolve: (resume: Array<RunAgentResumeItem>) => Promise<Receipt>
   cancel: (operationId?: string) => Promise<Receipt>
   /**
@@ -455,6 +460,13 @@ export function createHarnessClient<THarness extends AnyHarness>(
         op: 'followUp',
         message,
         ...(followOptions?.inputId ? { inputId: followOptions.inputId } : {}),
+      }),
+    continue: (continueOptions) =>
+      send({
+        op: 'continue',
+        ...(continueOptions?.inputId
+          ? { inputId: continueOptions.inputId }
+          : {}),
       }),
     resolve: (resume) => send({ op: 'resolve', resume }),
     cancel: (operationId) =>

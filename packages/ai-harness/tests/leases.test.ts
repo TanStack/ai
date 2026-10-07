@@ -11,6 +11,7 @@ import {
   mockAdapter,
   text,
   toolCall,
+  untilAborted,
 } from './helpers'
 import type { AnyTool, StreamChunk } from '@tanstack/ai'
 import { EventType } from '@tanstack/ai'
@@ -19,6 +20,7 @@ import type {
   TurnLease,
   TurnLeaseKey,
 } from '@tanstack/ai-persistence'
+import type { AnyAgent } from '../src'
 import type { Reply } from './helpers'
 
 const THREAD = 't1'
@@ -380,5 +382,154 @@ describe('a durable host with runs and leases', () => {
     expect((await runs.get(run.id))?.status).toBe('failed')
     await first.close().catch(() => {})
     await next.close()
+  })
+})
+
+describe('close({ recoverable: true })', () => {
+  /** A durable store set with a run store, and a lease store when asked. */
+  function durableStores(withLeases = true) {
+    const { runs } = memoryPersistence().stores
+    const log = memoryLogStore()
+    const leases = memoryLeases().store
+    return { stores: { log, runs, ...(withLeases ? { leases } : {}) } }
+  }
+
+  async function openOn(
+    persistence: ReturnType<typeof durableStores>,
+    replies: Array<Reply>,
+    options: { tools?: Array<AnyTool>; agents?: Array<AnyAgent> } = {},
+  ) {
+    const { adapter, calls } = mockAdapter(replies)
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(
+      defineHarness({ name: 'test/leases', adapter, ...options }),
+      { threadId: THREAD },
+    )
+    return { host, session, calls }
+  }
+
+  const logRecords = async (persistence: ReturnType<typeof durableStores>) =>
+    (await persistence.stores.log.read(THREAD)).map((entry) => entry.record)
+
+  it.each([true, false])(
+    'runs a turn stopped in a model call again on the next host, with no settlement (lease store: %s)',
+    async (withLeases) => {
+      const persistence = durableStores(withLeases)
+      const first = await openOn(persistence, [untilAborted()])
+      const turn = first.session.prompt('go', { inputId: 'in-1' })
+      await vi.waitFor(() => expect(first.calls).toHaveLength(1))
+
+      await first.host.close({ recoverable: true })
+
+      await expect(turn).rejects.toThrow('Session closed.')
+      expect(
+        (await logRecords(persistence)).map((record) => record.type),
+      ).not.toContain('harness.input.settled')
+      expect((await persistence.stores.runs.get(turn.id))?.status).toBe(
+        'running',
+      )
+      const next = await openOn(persistence, [() => text('recovered')])
+      expect(await next.session.settled('in-1')).toMatchObject({
+        outcome: 'completed',
+      })
+      const applied = (await logRecords(persistence)).filter(
+        (record) => record.type === 'harness.input.applied',
+      )
+      expect(applied.map((record) => record.attempt)).toEqual([1, 2])
+      expect(messageTexts(next.calls[0])).toEqual(['go'])
+      await next.host.close()
+    },
+  )
+
+  it('gives a cut call of a tool that must not run twice the interrupted result', async () => {
+    const persistence = durableStores()
+    const started = gate()
+    const mail = toolDefinition({ name: 'mail', description: 'Mail' }).server(
+      (_args, context) =>
+        new Promise<never>((_resolve, reject) => {
+          started.open()
+          context?.abortSignal?.addEventListener(
+            'abort',
+            () => reject(new Error('stopped')),
+            { once: true },
+          )
+        }),
+    )
+    const first = await openOn(persistence, [() => toolCall('mail', {})], {
+      tools: [mail],
+    })
+    void first.session.prompt('mail it', { inputId: 'in-1' }).then(
+      () => {},
+      () => {},
+    )
+    await started.opened
+
+    await first.host.close({ recoverable: true })
+    const next = await openOn(persistence, [() => text('done')], {
+      tools: [mail],
+    })
+    await next.session.settled('in-1')
+
+    const results = (await next.session.transcript()).filter(
+      (message) => message.role === 'tool',
+    )
+    expect(results).toEqual([
+      {
+        role: 'tool',
+        toolCallId: 'call-1',
+        content: JSON.stringify(INTERRUPTED_TOOL_RESULT),
+        error: INTERRUPTED_TOOL_RESULT.note,
+      },
+    ])
+    await next.host.close()
+  })
+
+  it('still settles a turn aborted at a plain close', async () => {
+    const persistence = durableStores()
+    const first = await openOn(persistence, [untilAborted()])
+    const turn = first.session.prompt('go', { inputId: 'in-1' })
+    await vi.waitFor(() => expect(first.calls).toHaveLength(1))
+
+    await first.host.close()
+
+    await expect(turn).rejects.toThrow('Cancelled.')
+    expect((await persistence.stores.runs.get(turn.id))?.status).toBe('aborted')
+    const next = await openOn(persistence, [() => text('never')])
+    expect(await next.session.settled('in-1')).toMatchObject({
+      outcome: 'aborted',
+    })
+    expect(next.calls).toHaveLength(0)
+    await next.host.close()
+  })
+
+  it('resumes an agent run on the next host', async () => {
+    const persistence = durableStores()
+    let started = 0
+    const worker = defineAgent({
+      name: 'worker',
+      description: 'Waits on its first run, then finishes',
+      run: (ctx) => {
+        started += 1
+        if (started > 1) return Promise.resolve('done')
+        return new Promise<string>((resolve) =>
+          ctx.abortSignal?.addEventListener('abort', () => resolve('stopped')),
+        )
+      },
+    })
+    const first = await openOn(persistence, [], { agents: [worker] })
+    first.session.agent('worker')?.start(undefined, { resume: true })
+    await vi.waitFor(() => expect(started).toBe(1))
+
+    await first.host.close({ recoverable: true })
+    const next = await openOn(persistence, [], { agents: [worker] })
+
+    await vi.waitFor(() => expect(started).toBe(2))
+    const input = (await logRecords(persistence)).find(
+      (record) => record.type === 'harness.input',
+    )
+    expect(await next.session.settled(String(input?.inputId))).toMatchObject({
+      outcome: 'completed',
+    })
+    await next.host.close()
   })
 })
