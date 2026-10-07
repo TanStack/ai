@@ -7,4 +7,4 @@ title: SubagentOrder
 type SubagentOrder = "parallel" | "sequence";
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:36](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L36)
+Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:37](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L37)

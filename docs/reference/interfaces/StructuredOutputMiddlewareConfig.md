@@ -3,7 +3,7 @@ id: StructuredOutputMiddlewareConfig
 title: StructuredOutputMiddlewareConfig
 ---
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:375](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L375)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:388](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L388)
 
 Config passed to onStructuredOutputConfig.
 
@@ -20,6 +20,23 @@ vendor-incompatible keywords) by returning a partial that includes
 
 ## Properties
 
+### activities?
+
+```ts
+optional activities?: ActivityRecord[];
+```
+
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:340](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L340)
+
+Frontend-only AG-UI activity sidecar. Persistence loads and saves this
+when an ActivityStore is configured. Never model input.
+
+#### Inherited from
+
+[`ChatMiddlewareConfig`](ChatMiddlewareConfig.md).[`activities`](ChatMiddlewareConfig.md#activities)
+
+***
+
 ### messages
 
 ```ts
@@ -29,7 +46,7 @@ messages: ModelMessage<
   | null>[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:328](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L328)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:335](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L335)
 
 Canonical conversation history. Middleware and persistence read this.
 
@@ -45,7 +62,7 @@ Canonical conversation history. Middleware and persistence read this.
 optional metadata?: Record<string, unknown>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:335](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L335)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:347](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L347)
 
 #### Inherited from
 
@@ -59,7 +76,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:335](https://gi
 optional modelOptions?: Record<string, unknown>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:336](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L336)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:348](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L348)
 
 #### Inherited from
 
@@ -73,7 +90,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:336](https://gi
 outputSchema: JSONSchema;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:380](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L380)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:393](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L393)
 
 JSON Schema being sent to the provider for structured output.
 
@@ -88,7 +105,7 @@ optional providerMessages?: ModelMessage<
   | null>[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:330](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L330)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:342](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L342)
 
 Provider-only context. Defaults to `messages` when it is not set.
 
@@ -104,7 +121,7 @@ Provider-only context. Defaults to `messages` when it is not set.
 optional resume?: RunAgentResumeItem[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:333](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L333)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:345](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L345)
 
 #### Inherited from
 
@@ -118,7 +135,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:333](https://gi
 optional resumeToolState?: ChatResumeToolState;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:334](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L334)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:346](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L346)
 
 #### Inherited from
 
@@ -132,7 +149,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:334](https://gi
 systemPrompts: SystemPrompt[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:331](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L331)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:343](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L343)
 
 #### Inherited from
 
