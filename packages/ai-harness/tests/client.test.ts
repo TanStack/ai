@@ -4,7 +4,7 @@ import { defineAgent } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHandler, createHarnessHost, defineHarness } from '../src'
 import { createHarnessClient } from '../src/client'
-import { mockAdapter, text } from './helpers'
+import { gate, mockAdapter, text } from './helpers'
 import type { SessionEvent } from '../src'
 
 describe('createHarnessClient', () => {
@@ -109,6 +109,58 @@ describe('createHarnessClient', () => {
     await expect(async () => {
       for await (const _ of client.events()) break
     }).rejects.toThrow('401')
+    await host.close()
+  })
+})
+
+describe('client.sendToAgent', () => {
+  it('sends a message to an agent run, as the request principal', async () => {
+    const hold = gate()
+    const drafter = defineAgent({
+      name: 'drafter',
+      description: 'Drafts when the test lets it',
+      inputSchema: z.object({ topic: z.string() }),
+      run: async (ctx) => {
+        await hold.opened
+        return `a draft about ${ctx.input.topic}`
+      },
+    })
+    const studio = defineHarness({
+      name: 'test/client-agent-messages',
+      adapter: mockAdapter([]).adapter,
+      agents: [drafter],
+      expose: { agents: ['drafter'] },
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const handler = createHarnessHandler({
+      host,
+      harness: studio,
+      authorize: () => ({ id: 'u' }),
+    })
+    const client = createHarnessClient<typeof studio>({
+      url: 'http://local/api/harness',
+      threadId: 'thread-m',
+      fetch: (input, init) => handler(new Request(input, init)),
+    })
+
+    const started = await client.agents.drafter.start({ topic: 'tea' })
+    const receipt = await client.sendToAgent(
+      started.operationId ?? '',
+      'Add a title.',
+      { mode: 'followUp', inputId: 'm-1' },
+    )
+
+    expect(receipt).toMatchObject({ inputId: 'm-1', status: 'queued' })
+    const session = await host.open(studio, { threadId: 'thread-m' })
+    expect(session.agentRuns()).toMatchObject([
+      { operationId: started.operationId, agent: 'drafter' },
+      {
+        operationId: receipt.operationId,
+        status: 'queued',
+        principal: { id: 'u' },
+      },
+    ])
+    hold.open()
     await host.close()
   })
 })

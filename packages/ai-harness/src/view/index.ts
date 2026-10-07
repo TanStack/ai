@@ -59,6 +59,7 @@ export type {
   SignIn,
   ToolCallPart,
   ToolCallStatus,
+  ViewAgent,
   ViewCommand,
   ViewConfigEntry,
   ViewMessage,
@@ -78,6 +79,12 @@ export interface SessionViewSource {
   answer: (questionId: string, value: unknown) => Promise<Receipt>
   command: (name: string, input?: unknown) => unknown
   setConfig: (key: string, value: unknown) => Promise<Receipt>
+  /** Send a message to an agent run. Without it, an agent's `send` rejects. */
+  sendToAgent?: (
+    operationId: string,
+    message: UserInput,
+    options?: { mode?: 'steer' | 'followUp' },
+  ) => Promise<Receipt>
   events: (options: {
     from?: Cursor
     signal?: AbortSignal
@@ -418,6 +425,22 @@ export function createSessionView(source: SessionViewSource) {
       answer: (value) => {
         alive()
         return source.answer(question.questionId, value)
+      },
+    }),
+    agent: (operation) => ({
+      ...operation,
+      send: (message, mode) => {
+        alive()
+        if (!source.sendToAgent) {
+          return Promise.reject(
+            new Error('This view source cannot send messages to agents.'),
+          )
+        }
+        return source.sendToAgent(
+          operation.id,
+          message,
+          mode ? { mode } : undefined,
+        )
       },
     }),
   }
