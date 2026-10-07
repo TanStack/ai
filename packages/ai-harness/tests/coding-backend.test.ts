@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -9,6 +9,7 @@ import {
   hostBackend,
   workspaceTools,
 } from '../src/first-party/coding'
+import { commandEnv } from '../src/first-party/coding/backend'
 import { mockAdapter, text, toolCall } from './helpers'
 
 let dir = ''
@@ -80,9 +81,12 @@ describe('hostBackend', () => {
   it('starts a background command, then gives its exit code and output', async () => {
     // --no-warnings: a runner that sets NO_COLOR and FORCE_COLOR makes node
     // print a warning to the output.
-    const job = hostBackend.spawn(`node --no-warnings -e "console.log('done')"`, {
-      cwd: dir,
-    })
+    const job = hostBackend.spawn(
+      `node --no-warnings -e "console.log('done')"`,
+      {
+        cwd: dir,
+      },
+    )
     expect(await job.wait()).toEqual({ exitCode: 0 })
     expect(job.output()).toBe('done\n')
   })
@@ -91,6 +95,45 @@ describe('hostBackend', () => {
     const job = hostBackend.spawn(`node -e "setTimeout(function () {}, 60000)"`)
     job.kill()
     expect((await job.wait()).exitCode).not.toBe(0)
+  })
+
+  // cmd.exe looks in the current folder before the PATH. A cloned repo can
+  // put an `rg.cmd` there, and grep runs `rg` with no question.
+  it.runIf(process.platform === 'win32')(
+    'does not run a program from the working folder by its name',
+    async () => {
+      // A host can set the variable already. Test the host that does not.
+      const before = process.env.NoDefaultCurrentDirectoryInExePath
+      delete process.env.NoDefaultCurrentDirectoryInExePath
+      try {
+        await writeFile(join(dir, 'rg.cmd'), '@echo ran> "%~dp0ran.txt"\r\n')
+        await hostBackend.exec('rg --version', { cwd: dir })
+        await hostBackend.spawn('rg --version', { cwd: dir }).wait()
+        expect(await hostBackend.stat(join(dir, 'ran.txt'))).toBeUndefined()
+      } finally {
+        if (before !== undefined) {
+          process.env.NoDefaultCurrentDirectoryInExePath = before
+        }
+      }
+    },
+  )
+
+  it('sets NoDefaultCurrentDirectoryInExePath in the env of commands on Windows only', () => {
+    expect(commandEnv(undefined, 'win32')).toMatchObject({
+      NoDefaultCurrentDirectoryInExePath: '1',
+    })
+    expect(
+      commandEnv(
+        { AGENT: '1', NoDefaultCurrentDirectoryInExePath: '' },
+        'win32',
+      ),
+    ).toMatchObject({ AGENT: '1', NoDefaultCurrentDirectoryInExePath: '1' })
+    // Off Windows, only `env` is added to the environment of this process.
+    expect(commandEnv(undefined, 'linux')).toBeUndefined()
+    expect(commandEnv({ AGENT: '1' }, 'linux')).toEqual({
+      ...process.env,
+      AGENT: '1',
+    })
   })
 })
 

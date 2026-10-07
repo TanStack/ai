@@ -96,6 +96,15 @@ export interface ToolEnv {
   ) => Promise<string>
   /** A path for the model: from the workspace, or the full path outside it. */
   shown: (full: string) => string
+  /**
+   * A test for the files in `folder`, a path from `reach`. It takes a path
+   * from `folder` with `/`, and is true when the permission rules protect
+   * the file: a `read_file` of it, by its path or its real path, would ask
+   * or be denied. `undefined` without `permissions()`.
+   */
+  protectedIn?: (
+    folder: string,
+  ) => Promise<((path: string) => boolean) | undefined>
 }
 
 /**
@@ -114,9 +123,21 @@ export function pathsOf(backend: WorkspaceBackend) {
   }
 }
 
-/** `env` added to the environment of this process. */
-const withEnv = (env: Record<string, string> | undefined) =>
-  env && { ...process.env, ...env }
+/**
+ * The environment of a command: the environment of this process, plus
+ * `env`. Without `env` off Windows: `undefined`, so the command gets the
+ * environment of this process. On Windows it sets
+ * `NoDefaultCurrentDirectoryInExePath`. Then `cmd.exe` takes a program
+ * name like `rg` from the PATH only, and not from the current folder, where
+ * a cloned repo can put an `rg.cmd`.
+ */
+export function commandEnv(
+  env: Record<string, string> | undefined,
+  platform: NodeJS.Platform,
+) {
+  if (platform !== 'win32') return env && { ...process.env, ...env }
+  return { ...process.env, ...env, NoDefaultCurrentDirectoryInExePath: '1' }
+}
 
 /** True for the error of a path that is not there. */
 const isMissing = (error: unknown) =>
@@ -139,15 +160,21 @@ function startShell(
   // stop the commands it started too.
   const child = childProcess.spawn(command, {
     cwd: options.cwd,
-    env: withEnv(options.env),
+    env: commandEnv(options.env, process.platform),
     shell: true,
     detached: !isWindows,
   })
   const kill = () => {
     if (child.pid === undefined) return
     if (isWindows) {
+      // The full path: Node looks for a bare name in the current folder
+      // first, and that folder can be a cloned repo.
+      const system = nodePath.join(
+        process.env.SystemRoot ?? 'C:\\Windows',
+        'System32',
+      )
       childProcess.execFile(
-        'taskkill',
+        nodePath.join(system, 'taskkill.exe'),
         ['/pid', String(child.pid), '/T', '/F'],
         () => undefined,
       )

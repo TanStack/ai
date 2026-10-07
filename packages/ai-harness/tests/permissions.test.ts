@@ -12,6 +12,7 @@ import {
 import { mockAdapter, text, toolCall } from './helpers'
 import type { HarnessPersistence, HarnessPlugin, HarnessSession } from '../src'
 import type {
+  CallResources,
   PermissionDecision,
   PermissionMode,
   PermissionRule,
@@ -542,6 +543,43 @@ describe('permissions()', () => {
     )
     expect(decide?.('lookup', 'plan')).toBe('allow')
     expect(decide?.('deploy', 'plan')).toBe('deny')
+    await host.close()
+  })
+
+  it('tells other plugins the decision for a call that touches resources, from the root', async () => {
+    let decide:
+      | ((
+          tool: string,
+          mode: PermissionMode,
+          resources?: CallResources,
+        ) => PermissionDecision)
+      | undefined
+    const reader = definePlugin({
+      name: 'test/reader',
+      optionalRequires: [PermissionDecisionCapability],
+      setup: (ctx) => {
+        decide = ctx.getOptional(PermissionDecisionCapability)
+        return {}
+      },
+    })
+    const rules: Array<PermissionRule> = [
+      ...readAllowed,
+      { tool: 'read_file', resource: 'secrets/**', decision: 'deny' },
+    ]
+    const { host } = await open(
+      memoryPersistence(),
+      [permissions({ root: ROOT, rules }), reader],
+      [],
+    )
+    const read = (mode: PermissionMode, ...paths: Array<string>) =>
+      decide?.('read_file', mode, { paths })
+
+    expect(read('default', `${ROOT}/src/a.ts`)).toBe('allow')
+    expect(read('default', `${ROOT}/.env`)).toBe('ask')
+    expect(read('plan', `${ROOT}/.env`)).toBe('deny')
+    expect(read('default', `${ROOT}/src/a.ts`, `${ROOT}/secrets/key`)).toBe(
+      'deny',
+    )
     await host.close()
   })
 
