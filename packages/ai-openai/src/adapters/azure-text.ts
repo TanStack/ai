@@ -16,9 +16,20 @@ import type { Tool as ResponsesTool } from 'openai/resources/responses/responses
 import type { ExternalTextProviderOptions } from '../text/text-provider-options'
 import type { OpenAIClientConfig } from '../utils/client'
 
+/** The client options that `AzureOpenAI` refuses, or types more narrowly. */
+type NotForAzure =
+  | 'provider'
+  | 'dataResidency'
+  | 'credential'
+  | 'x509Transport'
+  | 'workloadIdentity'
+
 export interface AzureOpenAITextConfig
-  extends Omit<OpenAIClientConfig, 'apiKey'>, OpenAIBaseTextAdapterOptions {
+  extends
+    Omit<OpenAIClientConfig, 'apiKey' | NotForAzure>,
+    OpenAIBaseTextAdapterOptions {
   apiKey?: string
+  workloadIdentity?: AzureClientOptions['workloadIdentity']
   resourceName?: string
   apiVersion?: string
   deploymentName?: string
