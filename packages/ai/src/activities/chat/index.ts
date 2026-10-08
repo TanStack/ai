@@ -587,6 +587,25 @@ export interface TextActivityOptions<
   /** How the server tools of one model turn run. Default `'parallel'`. */
   toolExecution?: TextOptions['toolExecution']
   /**
+   * Continue after a model answer with tool calls that stopped at the output
+   * limit (finish reason `length`). Each call that the provider did not run
+   * gets this text as an error result and does not run. Then the model is
+   * called again, so it can send the calls again with complete arguments.
+   * The function form gets the call. Not set: the answer ends the run.
+   *
+   * @example
+   * ```ts
+   * chat({
+   *   adapter,
+   *   messages,
+   *   tools,
+   *   truncatedToolResult: (call) =>
+   *     `Tool call "${call.toolName}" was cut off. Send it again.`,
+   * })
+   * ```
+   */
+  truncatedToolResult?: TextOptions['truncatedToolResult']
+  /**
    * Optional configuration for lazy-tool discovery (tools marked `lazy: true`).
    * Tunes how much of each lazy tool's description appears in the discovery
    * catalog. Optional — defaults to `{ includeDescription: 'none' }`.
@@ -2664,6 +2683,47 @@ class TextEngine<
 
     this.addAssistantToolCallMessage(toolCalls)
 
+    // The output limit cut this answer. Each call that the provider did not
+    // run has its error result now (closeTruncatedToolCalls). No call runs,
+    // and the loop goes on, so the model can call again.
+    if (this.lastFinishReason === 'length') {
+      // A client reads it as a tool turn, so it waits for the next call.
+      this.deferredToolCallRunFinishedChunks =
+        this.deferredToolCallRunFinishedChunks.map((chunk) =>
+          chunk.type === EventType.RUN_FINISHED
+            ? { ...chunk, finishReason: 'tool_calls' }
+            : chunk,
+        )
+      yield* this.flushDeferredToolCallRunFinishedChunks()
+      const results = toolCalls.flatMap((call): Array<ToolResult> => {
+        const result = this.messages.find(
+          (message) =>
+            message.role === 'tool' && message.toolCallId === call.id,
+        )
+        return result
+          ? [
+              {
+                toolCallId: call.id,
+                toolName: call.function.name,
+                result: result.content,
+                state: 'output-error',
+              },
+            ]
+          : []
+      })
+      for (const chunk of this.buildToolResultChunks(
+        results,
+        finishEvent,
+        undefined,
+        true,
+      )) {
+        yield* this.pipeThroughMiddleware(chunk)
+      }
+      this.toolCallManager.clear()
+      this.setToolPhase('continue')
+      return
+    }
+
     // Handle undiscovered lazy tool calls with self-correcting error messages
     const undiscoveredLazyResults: Array<ToolResult> = []
     const executableToolCalls = toolCalls.filter((tc) => {
@@ -2943,7 +3003,9 @@ class TextEngine<
 
   private shouldExecuteToolPhase(): boolean {
     return (
-      this.lastFinishReason === 'tool_calls' &&
+      (this.lastFinishReason === 'tool_calls' ||
+        (this.lastFinishReason === 'length' &&
+          this.params.truncatedToolResult !== undefined)) &&
       this.tools.length > 0 &&
       this.toolCallManager.hasToolCalls()
     )
@@ -3112,16 +3174,16 @@ class TextEngine<
             )
           : [],
       )
+    const option = this.params.truncatedToolResult
     this.messages = [
       ...this.messages,
-      ...cut.map(
-        (call): ModelMessage => ({
-          role: 'tool',
-          toolCallId: call.id,
-          content: TRUNCATED_TOOL_RESULT,
-          error: TRUNCATED_TOOL_RESULT,
-        }),
-      ),
+      ...cut.map((call): ModelMessage => {
+        const text =
+          typeof option === 'function'
+            ? option({ toolCallId: call.id, toolName: call.function.name })
+            : (option ?? TRUNCATED_TOOL_RESULT)
+        return { role: 'tool', toolCallId: call.id, content: text, error: text }
+      }),
     ]
   }
 

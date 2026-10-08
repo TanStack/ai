@@ -69,7 +69,9 @@ export interface ModelErrorContext {
   error: { message: string; code?: string; retryAfterMs?: number }
   /**
    * Retries since the last finished tool phase of this turn. A durable host
-   * keeps the count, so an attempt that recovery runs goes on from it.
+   * keeps the count, so an attempt that recovery runs goes on from it. The
+   * log has the count with this failed call before the hook runs, so a host
+   * that stops during a backoff loses no retry.
    */
   retries: number
   /**

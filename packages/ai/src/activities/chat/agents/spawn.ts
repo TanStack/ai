@@ -1140,6 +1140,8 @@ export function createSyntheticSubagentTools(
       ...(result !== undefined ? { result } : {}),
       ...(error !== undefined ? { error } : {}),
       ...(sink.interrupts.length > 0 ? { interrupts: sink.interrupts } : {}),
+      // Only a stored child can be continued with `sessionId`.
+      ...(parent.childLoader?.() ? { keepRunId: true as const } : {}),
     } satisfies SubagentToolOutcome
   }
 
@@ -1195,6 +1197,7 @@ export function createSyntheticSubagentTools(
             subagentRunId,
             text: '',
             result: { status: 'started' },
+            keepRunId: true,
           } satisfies SubagentToolOutcome
         }
         const { sessionId } = call

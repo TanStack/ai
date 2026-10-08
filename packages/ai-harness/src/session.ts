@@ -4939,6 +4939,13 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             ...(this.harness.toolExecution !== undefined
               ? { toolExecution: this.harness.toolExecution }
               : {}),
+            // The same text as the recovery repair.
+            ...(this.harness.durability?.truncatedToolResult !== undefined
+              ? {
+                  truncatedToolResult:
+                    this.harness.durability.truncatedToolResult,
+                }
+              : {}),
             ...(this.harness.modelOptions !== undefined
               ? { modelOptions: this.harness.modelOptions }
               : {}),
@@ -5047,24 +5054,35 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         }
         if (runError && turnHooks?.onModelError) {
           const partial = streamed
-          const answer =
-            signal.aborted || this.logFailure
-              ? undefined
-              : await turnHooks.onModelError({
-                  session: this,
-                  operationId: operation.id,
-                  ...(turn.inputId ? { inputId: turn.inputId } : {}),
-                  error: runError,
-                  retries,
-                  partial,
-                  signal,
-                })
+          const isStopped = signal.aborted || this.logFailure !== undefined
+          // The count with this failed call is in the log before the hook
+          // waits, so a host that stops in the backoff loses no retry.
+          if (!isStopped && turn.inputId !== undefined) {
+            await this.writer?.append([
+              {
+                type: 'harness.turn.retry',
+                inputId: turn.inputId,
+                operationId: operation.id,
+                retries: retries + 1,
+              },
+            ])
+          }
+          const answer = isStopped
+            ? undefined
+            : await turnHooks.onModelError({
+                session: this,
+                operationId: operation.id,
+                ...(turn.inputId ? { inputId: turn.inputId } : {}),
+                error: runError,
+                retries,
+                partial,
+                signal,
+              })
           if (
             (answer === 'retry' || answer === 'continue') &&
             !signal.aborted
           ) {
             retries += 1
-            this.stageRetries(turn, operation, retries)
             const isContinued = answer === 'continue' && partial
             if (isContinued) {
               // The partial answer stays in the turn result and in the
@@ -5453,8 +5471,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
 
   /**
    * Keep the retry count of a turn in the log, so a recovered attempt starts
-   * from it. It lands with the next append of the turn: the commit of the
-   * model call that runs next.
+   * from it. It lands with the next transcript commit of the turn. A failed
+   * model call appends its count at once, before `turn.onModelError` runs.
    */
   private stageRetries(
     turn: QueuedTurn,

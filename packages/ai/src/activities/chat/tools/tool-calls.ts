@@ -102,6 +102,12 @@ export interface SubagentToolOutcome {
   error?: string
   /** Set when the child stopped for outside input. The tool call stays open. */
   interrupts?: Array<Interrupt>
+  /**
+   * The model gets `subagentRunId` in the result: it can continue the child
+   * (`sessionId`, with a persistence store) or a background child. Else the
+   * id stays in the subagent events only.
+   */
+  keepRunId?: true
 }
 
 function isSubagentTool(tool: AnyTool): boolean {
@@ -786,10 +792,13 @@ export async function* executeServerTool<TContext = unknown>(
         subagentInterrupts?.push(...outcome.interrupts)
         return
       }
+      const runId = outcome.keepRunId
+        ? { subagentRunId: outcome.subagentRunId }
+        : {}
       const modelResult = outcome.error
-        ? { subagentRunId: outcome.subagentRunId, error: outcome.error }
+        ? { ...runId, error: outcome.error }
         : {
-            subagentRunId: outcome.subagentRunId,
+            ...runId,
             result:
               outcome.result !== undefined
                 ? compactForModel(outcome.result)

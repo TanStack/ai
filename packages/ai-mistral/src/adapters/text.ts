@@ -432,6 +432,14 @@ export class MistralTextAdapter<
       },
     })
 
+    // A response cut off at the output cap is a truncated JSON document;
+    // report it before the parse error (issue #1426).
+    if (response.choices[0]?.finishReason === 'length') {
+      throw new Error(
+        'mistral.structuredOutput: the response was cut off because the maximum token limit was reached (finish_reason=length); raise modelOptions.max_tokens',
+      )
+    }
+
     const rawText = response.choices[0]?.message?.content
     const textContent = typeof rawText === 'string' ? rawText : ''
 

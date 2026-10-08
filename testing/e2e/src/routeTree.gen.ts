@@ -9,6 +9,8 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ApiOpenrouterStructuredUsageRouteImport } from './routes/api.openrouter-structured-usage'
+import { Route as ApiChatCompletionsIncompleteStreamRouteImport } from './routes/api.chat-completions-incomplete-stream'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ActivityTestRouteImport } from './routes/activity-test'
 import { Route as ByokRouteImport } from './routes/byok'
@@ -61,6 +63,7 @@ import { Route as ApiAnthropicTruncatedToolInputWireRouteImport } from './routes
 import { Route as ApiArktypeToolWireRouteImport } from './routes/api.arktype-tool-wire'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
 import { Route as ApiBedrockConverseCacheRouteImport } from './routes/api.bedrock-converse-cache'
+import { Route as ApiBedrockConverseTruncatedToolCallRouteImport } from './routes/api.bedrock-converse-truncated-tool-call'
 import { Route as ApiByokChatRouteImport } from './routes/api.byok-chat'
 import { Route as ApiByteplusSeedance1080pWireRouteImport } from './routes/api.byteplus-seedance-1080p-wire'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
@@ -161,6 +164,34 @@ import { Route as ApiTranscriptionStreamRouteImport } from './routes/api.transcr
 import { Route as ApiTtsStreamRouteImport } from './routes/api.tts.stream'
 import { Route as ApiVideoStreamRouteImport } from './routes/api.video.stream'
 
+const ApiOpenrouterStructuredUsageRoute =
+  ApiOpenrouterStructuredUsageRouteImport.update({
+    id: '/api/openrouter-structured-usage',
+    path: '/api/openrouter-structured-usage',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiOpenrouterWebToolsWireRoute =
+  ApiOpenrouterWebToolsWireRouteImport.update({
+    id: '/api/openrouter-web-tools-wire',
+    path: '/api/openrouter-web-tools-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiOtelMediaRoute = ApiOtelMediaRouteImport.update({
+  id: '/api/otel-media',
+  path: '/api/otel-media',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiChatCompletionsIncompleteStreamRoute =
+  ApiChatCompletionsIncompleteStreamRouteImport.update({
+    id: '/api/chat-completions-incomplete-stream',
+    path: '/api/chat-completions-incomplete-stream',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiCompactionWireRoute = ApiCompactionWireRouteImport.update({
+  id: '/api/compaction-wire',
+  path: '/api/compaction-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -433,6 +464,12 @@ const ApiBedrockConverseCacheRoute = ApiBedrockConverseCacheRouteImport.update({
   path: '/api/bedrock-converse-cache',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiBedrockConverseTruncatedToolCallRoute =
+  ApiBedrockConverseTruncatedToolCallRouteImport.update({
+    id: '/api/bedrock-converse-truncated-tool-call',
+    path: '/api/bedrock-converse-truncated-tool-call',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiByokChatRoute = ApiByokChatRouteImport.update({
   id: '/api/byok-chat',
   path: '/api/byok-chat',
@@ -954,6 +991,8 @@ const ApiVideoStreamRoute = ApiVideoStreamRouteImport.update({
 } as any)
 
 export interface FileRoutesByFullPath {
+  '/api/openrouter-structured-usage': typeof ApiOpenrouterStructuredUsageRoute
+  '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   '/': typeof IndexRoute
   '/activity-test': typeof ActivityTestRoute
   '/byok': typeof ByokRoute
@@ -1005,6 +1044,7 @@ export interface FileRoutesByFullPath {
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/bedrock-converse-cache': typeof ApiBedrockConverseCacheRoute
+  '/api/bedrock-converse-truncated-tool-call': typeof ApiBedrockConverseTruncatedToolCallRoute
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
@@ -1107,6 +1147,8 @@ export interface FileRoutesByFullPath {
   '/api/video/stream': typeof ApiVideoStreamRoute
 }
 export interface FileRoutesByTo {
+  '/api/openrouter-structured-usage': typeof ApiOpenrouterStructuredUsageRoute
+  '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   '/': typeof IndexRoute
   '/activity-test': typeof ActivityTestRoute
   '/byok': typeof ByokRoute
@@ -1158,6 +1200,7 @@ export interface FileRoutesByTo {
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/bedrock-converse-cache': typeof ApiBedrockConverseCacheRoute
+  '/api/bedrock-converse-truncated-tool-call': typeof ApiBedrockConverseTruncatedToolCallRoute
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
@@ -1260,6 +1303,8 @@ export interface FileRoutesByTo {
   '/api/video/stream': typeof ApiVideoStreamRoute
 }
 export interface FileRoutesById {
+  '/api/openrouter-structured-usage': typeof ApiOpenrouterStructuredUsageRoute
+  '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/activity-test': typeof ActivityTestRoute
@@ -1312,6 +1357,7 @@ export interface FileRoutesById {
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/bedrock-converse-cache': typeof ApiBedrockConverseCacheRoute
+  '/api/bedrock-converse-truncated-tool-call': typeof ApiBedrockConverseTruncatedToolCallRoute
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
@@ -1416,6 +1462,8 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
+    | '/api/openrouter-structured-usage'
+    | '/api/chat-completions-incomplete-stream'
     | '/'
     | '/activity-test'
     | '/byok'
@@ -1467,6 +1515,7 @@ export interface FileRouteTypes {
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/bedrock-converse-cache'
+    | '/api/bedrock-converse-truncated-tool-call'
     | '/api/byok-chat'
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
@@ -1569,6 +1618,8 @@ export interface FileRouteTypes {
     | '/api/video/stream'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/api/openrouter-structured-usage'
+    | '/api/chat-completions-incomplete-stream'
     | '/'
     | '/activity-test'
     | '/byok'
@@ -1620,6 +1671,7 @@ export interface FileRouteTypes {
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/bedrock-converse-cache'
+    | '/api/bedrock-converse-truncated-tool-call'
     | '/api/byok-chat'
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
@@ -1721,6 +1773,8 @@ export interface FileRouteTypes {
     | '/api/tts/stream'
     | '/api/video/stream'
   id:
+    | '/api/openrouter-structured-usage'
+    | '/api/chat-completions-incomplete-stream'
     | '__root__'
     | '/'
     | '/activity-test'
@@ -1773,6 +1827,7 @@ export interface FileRouteTypes {
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/bedrock-converse-cache'
+    | '/api/bedrock-converse-truncated-tool-call'
     | '/api/byok-chat'
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
@@ -1876,6 +1931,8 @@ export interface FileRouteTypes {
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
+  ApiOpenrouterStructuredUsageRoute: typeof ApiOpenrouterStructuredUsageRoute
+  ApiChatCompletionsIncompleteStreamRoute: typeof ApiChatCompletionsIncompleteStreamRoute
   IndexRoute: typeof IndexRoute
   ActivityTestRoute: typeof ActivityTestRoute
   ByokRoute: typeof ByokRoute
@@ -1927,6 +1984,7 @@ export interface RootRouteChildren {
   ApiArktypeToolWireRoute: typeof ApiArktypeToolWireRoute
   ApiAudioRoute: typeof ApiAudioRouteWithChildren
   ApiBedrockConverseCacheRoute: typeof ApiBedrockConverseCacheRoute
+  ApiBedrockConverseTruncatedToolCallRoute: typeof ApiBedrockConverseTruncatedToolCallRoute
   ApiByokChatRoute: typeof ApiByokChatRoute
   ApiByteplusSeedance1080pWireRoute: typeof ApiByteplusSeedance1080pWireRoute
   ApiChatRoute: typeof ApiChatRoute
@@ -2026,6 +2084,20 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/api/openrouter-structured-usage': {
+      id: '/api/openrouter-structured-usage'
+      path: '/api/openrouter-structured-usage'
+      fullPath: '/api/openrouter-structured-usage'
+      preLoaderRoute: typeof ApiOpenrouterStructuredUsageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/chat-completions-incomplete-stream': {
+      id: '/api/chat-completions-incomplete-stream'
+      path: '/api/chat-completions-incomplete-stream'
+      fullPath: '/api/chat-completions-incomplete-stream'
+      preLoaderRoute: typeof ApiChatCompletionsIncompleteStreamRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -2388,6 +2460,13 @@ declare module '@tanstack/react-router' {
       path: '/api/bedrock-converse-cache'
       fullPath: '/api/bedrock-converse-cache'
       preLoaderRoute: typeof ApiBedrockConverseCacheRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/bedrock-converse-truncated-tool-call': {
+      id: '/api/bedrock-converse-truncated-tool-call'
+      path: '/api/bedrock-converse-truncated-tool-call'
+      fullPath: '/api/bedrock-converse-truncated-tool-call'
+      preLoaderRoute: typeof ApiBedrockConverseTruncatedToolCallRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/byok-chat': {
@@ -3145,6 +3224,9 @@ const ApiVideoRouteWithChildren = ApiVideoRoute._addFileChildren(
 )
 
 const rootRouteChildren: RootRouteChildren = {
+  ApiOpenrouterStructuredUsageRoute: ApiOpenrouterStructuredUsageRoute,
+  ApiChatCompletionsIncompleteStreamRoute:
+    ApiChatCompletionsIncompleteStreamRoute,
   IndexRoute: IndexRoute,
   ActivityTestRoute: ActivityTestRoute,
   ByokRoute: ByokRoute,
@@ -3198,6 +3280,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiArktypeToolWireRoute: ApiArktypeToolWireRoute,
   ApiAudioRoute: ApiAudioRouteWithChildren,
   ApiBedrockConverseCacheRoute: ApiBedrockConverseCacheRoute,
+  ApiBedrockConverseTruncatedToolCallRoute:
+    ApiBedrockConverseTruncatedToolCallRoute,
   ApiByokChatRoute: ApiByokChatRoute,
   ApiByteplusSeedance1080pWireRoute: ApiByteplusSeedance1080pWireRoute,
   ApiChatRoute: ApiChatRoute,

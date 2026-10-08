@@ -234,6 +234,28 @@ describe('Mistral adapters', () => {
       )
     })
 
+    it('reports a length stop as truncation in structured output', async () => {
+      mockComplete.mockReset().mockResolvedValue({
+        choices: [
+          { message: { content: '{"value":' }, finishReason: 'length' },
+        ],
+      })
+      const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+
+      await expect(
+        adapter.structuredOutput({
+          chatOptions: chatOpts({
+            model: 'mistral-large-latest',
+            messages: [{ role: 'user', content: 'Return structured output' }],
+          }),
+          outputSchema: {
+            type: 'object',
+            properties: { value: { type: 'string' } },
+          },
+        }),
+      ).rejects.toThrow(/maximum token limit was reached/)
+    })
+
     it('throws if MISTRAL_API_KEY is not set when using mistralText', () => {
       vi.stubEnv('MISTRAL_API_KEY', '')
 

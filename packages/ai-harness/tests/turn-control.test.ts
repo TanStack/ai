@@ -716,6 +716,49 @@ describe('turn.onModelError', () => {
       await first.host.close().catch(() => {})
       await next.host.close()
     })
+
+    it('keeps the count of a failed call when the host stops in the backoff', async () => {
+      const { runs, metadata } = memoryPersistence().stores
+      const persistence = { stores: { log: memoryLogStore(), runs, metadata } }
+      const openOn = async (replies: Array<Reply>, baseDelayMs: number) => {
+        const seen: Array<number> = []
+        const backoff = retryTransientErrors({ baseDelayMs })
+        const host = createHarnessHost({ persistence })
+        const session = await host.open(
+          defineHarness({
+            name: 'test/turn-control',
+            adapter: mockAdapter(replies).adapter,
+            turn: {
+              onModelError: (ctx) => {
+                seen.push(ctx.retries)
+                return backoff(ctx)
+              },
+            },
+          }),
+          { threadId: THREAD },
+        )
+        return { host, session, seen }
+      }
+      const first = await openOn([failsWith('503 Service Unavailable')], 60_000)
+      void first.session.prompt('go', { inputId: 'in-1' }).then(
+        () => {},
+        () => {},
+      )
+      await vi.waitFor(() => expect(first.seen).toEqual([0]))
+      // The host stops while the hook waits for the backoff.
+      await first.host.close({ recoverable: true })
+
+      const next = await openOn(
+        [failsWith('503 Service Unavailable'), () => text('ok')],
+        1,
+      )
+
+      expect(await next.session.settled('in-1')).toMatchObject({
+        outcome: 'completed',
+      })
+      expect(next.seen).toEqual([1])
+      await next.host.close()
+    })
   })
 })
 

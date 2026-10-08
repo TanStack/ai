@@ -506,6 +506,17 @@ fields are simply absent and the stream completes normally. Both
 `openRouterText` and `openRouterResponsesText` populate cost when OpenRouter
 returns it.
 
+The `openRouterText` adapter's `structuredOutputStream()` method includes
+received usage on its terminal `RUN_ERROR` event. This covers parse failures,
+truncated responses, empty responses, and SDK errors. When `chat()` uses this
+path, middleware `onChunk` receives the error event even if the promise rejects.
+The `onUsage` hook reports successful calls. Each adapter call reports usage on
+one terminal event.
+
+A reported `completionTokensDetails.reasoningTokens` value of `0` stays zero.
+A missing count stays absent. Errors before any usage arrives have no `usage`
+field. If the consumer stops reading the stream, it cannot receive later events.
+
 ## Reranking
 
 OpenRouter exposes rerank models through its unified `/v1/rerank` endpoint

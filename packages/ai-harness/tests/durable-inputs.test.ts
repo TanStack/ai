@@ -452,6 +452,59 @@ describe('recovery of a durable input', () => {
     await next.host.close()
   })
 
+  it('with truncatedToolResult, never runs a cut call and calls the model again', async () => {
+    const lookup = vi.fn(async () => 'found')
+    const tools = [
+      toolDefinition({
+        name: 'lookup',
+        description: 'Look up a fact',
+        inputSchema: z.object({ q: z.string() }),
+        replay: 'safe',
+      }).server(lookup),
+    ]
+    const truncatedToolResult = (call: { toolName: string }) =>
+      `Tool call "${call.toolName}" was not executed: the response hit the output token limit, so its arguments may be truncated. Re-issue the tool call with complete arguments.`
+    // A plain answer with one tool call. The output limit cuts it.
+    const cutAnswer: Reply = () => [
+      ...toolCall('lookup', { q: 'x' }, 'call-lookup').slice(0, -1),
+      {
+        type: EventType.RUN_FINISHED,
+        runId: 'r',
+        threadId: 't',
+        timestamp: 1,
+        finishReason: 'length',
+      },
+    ]
+    const { host, session, calls } = await openDurable({
+      persistence: durablePersistence(),
+      replies: [cutAnswer, () => text('done')],
+      tools,
+      durability: { truncatedToolResult },
+    })
+
+    expect(await session.prompt('look it up')).toEqual({ text: 'done' })
+
+    const result = truncatedToolResult({ toolName: 'lookup' })
+    expect(lookup).not.toHaveBeenCalled()
+    expect(calls).toHaveLength(2)
+    expect(calls[1].messages.at(-1)).toMatchObject({
+      role: 'tool',
+      toolCallId: 'call-lookup',
+      content: result,
+    })
+    expect(
+      (await session.transcript()).filter((message) => message.role === 'tool'),
+    ).toEqual([
+      {
+        role: 'tool',
+        toolCallId: 'call-lookup',
+        content: result,
+        error: result,
+      },
+    ])
+    await host.close()
+  })
+
   it('fails a background agent whose host stopped, and wakes the thread', async () => {
     const persistence = durablePersistence()
     await persistence.stores.log.append(THREAD, 1, [

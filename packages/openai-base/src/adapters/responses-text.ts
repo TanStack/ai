@@ -2065,6 +2065,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           if (item.type === 'reasoning') {
             captureReasoningItem(item)
             yield* openReasoning()
+            // One response can carry several reasoning items (reason, search,
+            // reason again). Close each one at its end, so the next item opens
+            // its own step and does not overwrite this id and encrypted_content.
+            yield* closeReasoning()
           }
           if (item.type === 'function_call' && item.id) {
             const metadata = trackedCall(item.id, chunk.output_index) ?? {
