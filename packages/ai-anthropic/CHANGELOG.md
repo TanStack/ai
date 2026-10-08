@@ -1,5 +1,20 @@
 # @tanstack/ai-anthropic
 
+## 0.20.0
+
+### Minor Changes
+
+- [#1654](https://github.com/TanStack/ai/pull/1654) [`13805ab`](https://github.com/TanStack/ai/commit/13805ab31b5be0085c79bf3de8bf149adb2a20c8) - Add `claude-haiku-5-5` to `ANTHROPIC_MODELS`. The model takes adaptive thinking (or an explicit `thinking: { type: 'disabled' }`) and `output_config.effort`, and its types reject `budget_tokens`, the sampling parameters, and `computerUseTool()`.
+
+### Patch Changes
+
+- [#1654](https://github.com/TanStack/ai/pull/1654) [`13805ab`](https://github.com/TanStack/ai/commit/13805ab31b5be0085c79bf3de8bf149adb2a20c8) - Correct the `claude-sonnet-5-5` and `claude-sonnet-5` model metadata: neither supports Priority Tier, `claude-sonnet-5-5` cache reads cost $0.10 per MTok, and `claude-sonnet-5` is priced at the standard $2 / $10 per MTok.
+
+- [#1548](https://github.com/TanStack/ai/pull/1548) [`68aeada`](https://github.com/TanStack/ai/commit/68aeadad200425f7e40fadaa86922941a9e25624) - Structured output now reports a truncation error when the response stops at the output token limit. Before, you got a JSON parse error, or the partial result came back as valid data. `openai-base` and `ai-openrouter` already do this ([#1426](https://github.com/TanStack/ai/issues/1426)).
+
+- Updated dependencies [[`f687c54`](https://github.com/TanStack/ai/commit/f687c54ae4b8a67f2154ff9dea0319b8d2712856), [`fb55bcb`](https://github.com/TanStack/ai/commit/fb55bcba5193d4465f43006505918a2dc4472ec4), [`630ec86`](https://github.com/TanStack/ai/commit/630ec86e9997fabe046cae1a491060d72cbc71ea)]:
+  - @tanstack/ai@0.66.0
+
 ## 0.19.5
 
 ### Patch Changes

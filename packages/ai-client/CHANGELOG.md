@@ -1,5 +1,20 @@
 # @tanstack/ai-client
 
+## 0.39.0
+
+### Minor Changes
+
+- [#1658](https://github.com/TanStack/ai/pull/1658) [`f687c54`](https://github.com/TanStack/ai/commit/f687c54ae4b8a67f2154ff9dea0319b8d2712856) - Breaking: `chat({ stream: false })` and `streamToText()` now return a `ChatResult` with `text` and `chunks`, not a string. The chunks keep the tool calls and interrupt outcomes that the string lost. To migrate, change `const text = await chat({ stream: false })` to `const { text } = await chat({ stream: false })`.
+
+  Add a JSON transport for hosts that cannot stream a response. On the server, `toJsonResponse()` sends a run as one JSON body, and `resumeJsonResponse()` sends the rest of a durable run. On the client, the `fetchJson()` connection adapter reads that body and asks again until the run is done. Each framework package re-exports `fetchJson`.
+
+### Patch Changes
+
+- [#1650](https://github.com/TanStack/ai/pull/1650) [`2fc2315`](https://github.com/TanStack/ai/commit/2fc2315a3cd5cc0870b2b8a095be6dad0fa53c30) - Skip the devtools bridge in production builds. `createChatDevtoolsBridge`, `createGenerationDevtoolsBridge` and `createVideoDevtoolsBridge` now return the no-op bridge when `NODE_ENV` is `production`. Before, every framework hook deep-copied the whole conversation on each streamed chunk for a devtools snapshot, even with no devtools panel open.
+
+- Updated dependencies [[`f687c54`](https://github.com/TanStack/ai/commit/f687c54ae4b8a67f2154ff9dea0319b8d2712856), [`fb55bcb`](https://github.com/TanStack/ai/commit/fb55bcba5193d4465f43006505918a2dc4472ec4), [`630ec86`](https://github.com/TanStack/ai/commit/630ec86e9997fabe046cae1a491060d72cbc71ea)]:
+  - @tanstack/ai@0.66.0
+
 ## 0.38.0
 
 ### Minor Changes

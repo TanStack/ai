@@ -1,5 +1,14 @@
 # @tanstack/ai-openrouter
 
+## 0.21.2
+
+### Patch Changes
+
+- [#1563](https://github.com/TanStack/ai/pull/1563) [`0100d56`](https://github.com/TanStack/ai/commit/0100d5621ad82a943f9d1232dee5f74b5c5495df) - Keep a reported reasoning token count of `0` in the usage. `structuredOutputStream()` now also puts the received token usage and cost on its `RUN_ERROR` event.
+
+- Updated dependencies [[`f687c54`](https://github.com/TanStack/ai/commit/f687c54ae4b8a67f2154ff9dea0319b8d2712856), [`fb55bcb`](https://github.com/TanStack/ai/commit/fb55bcba5193d4465f43006505918a2dc4472ec4), [`630ec86`](https://github.com/TanStack/ai/commit/630ec86e9997fabe046cae1a491060d72cbc71ea)]:
+  - @tanstack/ai@0.66.0
+
 ## 0.21.1
 
 ### Patch Changes
