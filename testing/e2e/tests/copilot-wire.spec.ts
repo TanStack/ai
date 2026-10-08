@@ -41,3 +41,31 @@ for (const api of ['chat-completions', 'responses'] as const) {
     }
   })
 }
+
+test('github copilot -- claude sends the bearer token and the Copilot headers', async ({
+  request,
+  testId,
+}) => {
+  const response = await request.post('/api/copilot-wire', {
+    data: { testId, api: 'anthropic' },
+  })
+  expect(response.ok()).toBe(true)
+  const result: {
+    text: string
+    url: string
+    headers: Record<string, string>
+  } = await response.json()
+  expect(result.text).toContain('Stratocaster')
+  expect(new URL(result.url).pathname).toBe('/v1/messages')
+  expect(result.headers['authorization']).toBe('Bearer copilot-token')
+  expect(result.headers['x-api-key']).toBeUndefined()
+  expect(result.headers['user-agent']).toBe('e2e/1.0.0')
+  expect(result.headers['openai-intent']).toBe('conversation-edits')
+  expect(result.headers['x-github-api-version']).toBe('2026-08-01')
+  expect(result.headers['x-interaction-type']).toBe('conversation-agent')
+  expect(result.headers['x-interaction-id']).toBe('session-1')
+  expect(result.headers['x-initiator']).toBe('user')
+  expect(result.headers['anthropic-beta']).toBe(
+    'interleaved-thinking-2025-05-14',
+  )
+})

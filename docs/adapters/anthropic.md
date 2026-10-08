@@ -105,6 +105,8 @@ OAuth tokens containing `sk-ant-oat` are detected automatically. An environment 
 
 OAuth requests include the Claude Code identity system block, CLI identity headers, and the `claude-code-20250219` and `oauth-2025-04-20` betas. A Bearer token alone does not select OAuth. An injected SDK client owns its credentials. Adapter OAuth options still control the request identity.
 
+To call Claude models through a GitHub Copilot plan, see [GitHub Copilot](./openai-compatible#claude-models).
+
 ## Replay unsigned gateway thinking
 
 Some Anthropic-protocol gateways return readable thinking without a signature. Enable replay for those replies with `allowEmptySignature`:

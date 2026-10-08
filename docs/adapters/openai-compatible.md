@@ -312,7 +312,101 @@ See [Azure OpenAI](./openai#azure-openai) for environment variables and configur
 
 ## GitHub Copilot
 
-Your users can pay for model calls with their GitHub Copilot plan. Your sign-in code gets a GitHub token for the user. Pass that token as `apiKey`:
+Your users can pay for model calls with their GitHub Copilot plan. Your sign-in code gets a GitHub token for the user. The adapters send that token as `Authorization: Bearer`.
+
+Copilot serves each model on one of three APIs. `GET {baseURL}/models` lists the `supported_endpoints` of each model. Choose the adapter in this order:
+
+1. `/v1/messages`: use `anthropicText` from `@tanstack/ai-anthropic`, with the token as `authToken`.
+2. `/responses`: use `openaiCompatible` with `api: "responses"`.
+3. `/chat/completions`: use `openaiCompatible` without `api` and without `modelOptions`.
+
+Copilot reads a set of headers on every request. One `wrapFetch` in `copilot-headers.ts` sets all of them for each route:
+
+```typescript
+import type { FetchWrapper } from "@tanstack/ai";
+
+/** The Copilot interaction types: the main loop, a subagent, a title, or a compaction. */
+type Interaction =
+  | "conversation-agent"
+  | "conversation-subagent"
+  | "conversation-background"
+  | "conversation-compaction";
+
+export function copilotHeaders(
+  sessionId: string,
+  interaction: Interaction = "conversation-agent",
+): FetchWrapper {
+  return (next) => (input, init) => {
+    const body = typeof init?.body === "string" ? JSON.parse(init.body) : {};
+    const items = body.input ?? body.messages ?? [];
+    const last = items.at(-1);
+    // A user turn has text from the user. A tool result alone is an agent turn.
+    const userTurn =
+      last?.role === "user" &&
+      (!Array.isArray(last.content) ||
+        last.content.some(
+          (part: { type?: string }) => part.type !== "tool_result",
+        ));
+    const url = input instanceof Request ? input.url : String(input);
+    const headers = new Headers(init?.headers);
+    headers.set("User-Agent", "my-app/1.0.0");
+    headers.set("Openai-Intent", "conversation-edits");
+    headers.set("X-GitHub-Api-Version", "2026-08-01");
+    headers.set("X-Interaction-Type", interaction);
+    headers.set("X-Interaction-Id", sessionId);
+    headers.set(
+      "x-initiator",
+      interaction === "conversation-agent" && userTurn ? "user" : "agent",
+    );
+    if (/"type":"(image|image_url|input_image)"/.test(JSON.stringify(items))) {
+      headers.set("Copilot-Vision-Request", "true");
+    }
+    if (url.includes("/v1/messages")) {
+      headers.set("anthropic-beta", "interleaved-thinking-2025-05-14");
+    }
+    return next(input, { ...init, headers });
+  };
+}
+```
+
+- `x-initiator`: Copilot bills the requests that a user starts (`user`). Tool loop requests and the other interaction types are `agent`.
+- `X-Interaction-Id`: use one stable id for each chat session.
+- `X-Interaction-Type`: use `conversation-subagent` in a subagent, `conversation-background` for a title, and `conversation-compaction` for a summary of old messages.
+- `Copilot-Vision-Request`: set it when a request has images.
+
+### Claude models
+
+Set the Copilot host as `baseURL`. The Anthropic SDK adds `/v1/messages`. Do not set `oauth`, because it adds the Claude Code headers:
+
+```typescript
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { anthropicText } from "@tanstack/ai-anthropic";
+import { copilotHeaders } from "./copilot-headers";
+import { getCopilotToken } from "./copilot-auth"; // your sign-in code
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request);
+  const stream = chat({
+    adapter: anthropicText("claude-sonnet-5-5", {
+      baseURL: "https://api.githubcopilot.com",
+      authToken: await getCopilotToken(request),
+    }),
+    messages: params.messages,
+    wrapFetch: copilotHeaders(params.threadId),
+  });
+  return toServerSentEventsResponse(stream);
+}
+```
+
+`authToken` sends `Authorization: Bearer` and no `x-api-key`. With a custom `baseURL`, the adapter sends no mid-conversation betas. It adds cache markers only when you set `promptCache`.
+
+### OpenAI models
+
+Pass the token as `apiKey`:
 
 ```typescript
 import {
@@ -321,17 +415,8 @@ import {
   toServerSentEventsResponse,
 } from "@tanstack/ai";
 import { openaiCompatible } from "@tanstack/ai-openai/compatible";
-import type { FetchWrapper } from "@tanstack/ai";
+import { copilotHeaders } from "./copilot-headers";
 import { getCopilotToken } from "./copilot-auth"; // your sign-in code
-
-/** Copilot bills the requests that a user starts. Tool loop requests are "agent". */
-const initiator: FetchWrapper = (next) => (input, init) => {
-  const body = typeof init?.body === "string" ? JSON.parse(init.body) : {};
-  const last = (body.input ?? body.messages ?? []).at(-1);
-  const headers = new Headers(init?.headers);
-  headers.set("x-initiator", last?.role === "user" ? "user" : "agent");
-  return next(input, { ...init, headers });
-};
 
 export async function POST(request: Request) {
   const params = await chatParamsFromRequest(request);
@@ -341,28 +426,28 @@ export async function POST(request: Request) {
     apiKey: await getCopilotToken(request),
     api: "responses",
     models: ["gpt-5.5"],
-    defaultHeaders: {
-      "Openai-Intent": "conversation-edits",
-      "X-GitHub-Api-Version": "2026-08-01",
-    },
   });
 
   const stream = chat({
     adapter: copilot("gpt-5.5"),
     messages: params.messages,
     modelOptions: { store: false, include: ["reasoning.encrypted_content"] },
-    wrapFetch: initiator,
+    wrapFetch: copilotHeaders(params.threadId),
   });
   return toServerSentEventsResponse(stream);
 }
 ```
 
-- `baseURL`: use `endpoints.api` from `GET https://api.github.com/copilot_internal/user` when it is set. Business and enterprise accounts get a different host.
-- `api`: each entry of `GET {baseURL}/models` lists its `supported_endpoints`. Use `api: "responses"` for a model with `/responses`. Leave out `api` and `modelOptions` for a model with only `/chat/completions`.
 - `store: false`: Copilot keeps no responses. With `include`, the stream gives the encrypted reasoning. The adapter sends it back on the next turn when your history keeps it.
-- `wrapFetch`: add `Copilot-Vision-Request: true` in the same wrapper when a request has images.
+- The Chat Completions adapter reads the thinking that Copilot streams on `delta.reasoning_text`.
 
-The Chat Completions adapter reads the thinking that Copilot streams on `delta.reasoning_text`.
+### Business and enterprise hosts
+
+Business and enterprise accounts can get a different host. Find the `baseURL` in this order:
+
+1. `endpoints.api` from `GET https://api.github.com/copilot_internal/user`, when it is set. For GitHub Enterprise, call `https://api.<your-domain>/copilot_internal/user`.
+2. `https://copilot-api.<your-domain>` for GitHub Enterprise.
+3. `https://api.githubcopilot.com` for all other accounts.
 
 ## ChatGPT plan
 
