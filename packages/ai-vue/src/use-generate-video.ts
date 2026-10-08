@@ -17,12 +17,6 @@ import type { ByokClient } from '@tanstack/ai-client/byok'
 import type { ProviderId } from '@tanstack/ai/byok'
 import type { DeepReadonly, ShallowRef } from 'vue'
 
-declare const process: {
-  env: {
-    NODE_ENV?: string
-  }
-}
-
 /**
  * Options for the useGenerateVideo composable.
  *
@@ -209,10 +203,7 @@ export function useGenerateVideo<TTransformed = void>(
     ...(options.joinRun !== undefined && { joinRun: options.joinRun }),
     ...(options.byok !== undefined && { byok: options.byok }),
     byokProvider: () => options.byokProvider?.(),
-    devtoolsBridgeFactory:
-      process.env.NODE_ENV === 'production'
-        ? undefined
-        : createVideoDevtoolsBridge,
+    devtoolsBridgeFactory: createVideoDevtoolsBridge,
     devtools: {
       ...options.devtools,
       framework: 'vue',

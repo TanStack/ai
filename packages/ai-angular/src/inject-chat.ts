@@ -104,10 +104,7 @@ export function injectChat<
     : { fetcher: options.fetcher }
 
   const client = new ChatClient<TTools, TContext, TInterrupts>({
-    devtoolsBridgeFactory:
-      process.env.NODE_ENV === 'production'
-        ? undefined
-        : createChatDevtoolsBridge,
+    devtoolsBridgeFactory: createChatDevtoolsBridge,
     ...transport,
     ...(options.initialMessages !== undefined && {
       initialMessages: options.initialMessages,

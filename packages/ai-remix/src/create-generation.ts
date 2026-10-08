@@ -220,10 +220,7 @@ export function createGeneration<
     ...(options.reconstructResult
       ? { reconstructResult: options.reconstructResult }
       : {}),
-    devtoolsBridgeFactory:
-      process.env.NODE_ENV === 'production'
-        ? undefined
-        : createGenerationDevtoolsBridge,
+    devtoolsBridgeFactory: createGenerationDevtoolsBridge,
     devtools: {
       hookName: 'createGeneration',
       ...options.devtools,

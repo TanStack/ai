@@ -5,6 +5,11 @@ import {
 } from '@tanstack/ai-event-client'
 import { convertSchemaToJsonSchema } from '@tanstack/ai/client'
 import { DefaultChatClientEventEmitter } from './events'
+import {
+  createNoOpChatDevtoolsBridge,
+  createNoOpGenerationDevtoolsBridge,
+  createNoOpVideoDevtoolsBridge,
+} from './devtools-noop'
 import type { AnyClientTool, StreamChunk } from '@tanstack/ai/client'
 import type {
   AIDevtoolsEventVisibility,
@@ -2221,20 +2226,31 @@ class ChatDevtoolsAwareEventEmitter extends DefaultChatClientEventEmitter {
   }
 }
 
+// No devtools panel runs in production, so the real bridges would only build
+// snapshots (a deep copy of every message per streamed chunk) that nobody reads.
 export function createChatDevtoolsBridge(
   options: ChatDevtoolsBridgeOptions,
 ): ChatDevtoolsBridge {
+  if (process.env.NODE_ENV === 'production') {
+    return createNoOpChatDevtoolsBridge(options)
+  }
   return new ChatDevtoolsBridge(options)
 }
 
 export function createGenerationDevtoolsBridge<TOutput>(
   options: GenerationDevtoolsBridgeOptions<TOutput>,
 ): GenerationDevtoolsBridge<TOutput> {
+  if (process.env.NODE_ENV === 'production') {
+    return createNoOpGenerationDevtoolsBridge(options)
+  }
   return new GenerationDevtoolsBridge<TOutput>(options)
 }
 
 export function createVideoDevtoolsBridge<TOutput>(
   options: VideoDevtoolsBridgeOptions<TOutput>,
 ): VideoDevtoolsBridge<TOutput> {
+  if (process.env.NODE_ENV === 'production') {
+    return createNoOpVideoDevtoolsBridge(options)
+  }
   return new VideoDevtoolsBridge<TOutput>(options)
 }

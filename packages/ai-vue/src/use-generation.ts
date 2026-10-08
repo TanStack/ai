@@ -16,12 +16,6 @@ import type { ByokClient } from '@tanstack/ai-client/byok'
 import type { ProviderId } from '@tanstack/ai/byok'
 import type { DeepReadonly, ShallowRef } from 'vue'
 
-declare const process: {
-  env: {
-    NODE_ENV?: string
-  }
-}
-
 /**
  * Options for the useGeneration hook.
  *
@@ -205,10 +199,7 @@ export function useGeneration<
     ...(options.reconstructResult
       ? { reconstructResult: options.reconstructResult }
       : {}),
-    devtoolsBridgeFactory:
-      process.env.NODE_ENV === 'production'
-        ? undefined
-        : createGenerationDevtoolsBridge,
+    devtoolsBridgeFactory: createGenerationDevtoolsBridge,
     devtools: {
       ...options.devtools,
       framework: 'vue',
