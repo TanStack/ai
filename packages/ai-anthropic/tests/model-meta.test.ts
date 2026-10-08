@@ -75,6 +75,7 @@ type AdaptiveEraModel =
   | 'claude-opus-4-7'
   | 'claude-opus-4-8'
   | 'claude-sonnet-5'
+  | 'claude-haiku-5-5'
 
 describe('Anthropic Model Provider Options Type Assertions', () => {
   describe('Pre-4.6 models — budget-based extended thinking + sampling', () => {
@@ -125,7 +126,7 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
     })
   })
 
-  describe('Adaptive-era models (Opus 4.7/4.8, Sonnet 5) — no budget thinking, no sampling', () => {
+  describe('Adaptive-era models (Opus 4.7/4.8, Sonnet 5, Haiku 5.5) — no budget thinking, no sampling', () => {
     it('expose adaptive-or-disabled thinking, output_config, and base options', () => {
       expectTypeOf<
         AnthropicChatModelProviderOptionsByName[AdaptiveEraModel]
@@ -184,6 +185,7 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
       expectTypeOf<'claude-opus-4-8'>().toExtend<Keys>()
       expectTypeOf<'claude-fable-5'>().toExtend<Keys>()
       expectTypeOf<'claude-sonnet-5'>().toExtend<Keys>()
+      expectTypeOf<'claude-haiku-5-5'>().toExtend<Keys>()
     })
   })
 })
@@ -340,6 +342,7 @@ describe('getAnthropicDefaultMaxTokens (#849)', () => {
     expect(getAnthropicDefaultMaxTokens('claude-sonnet-4-6')).toBe(64_000)
     expect(getAnthropicDefaultMaxTokens('claude-sonnet-4-5')).toBe(64_000)
     expect(getAnthropicDefaultMaxTokens('claude-opus-4-5')).toBe(32_000)
+    expect(getAnthropicDefaultMaxTokens('claude-haiku-5-5')).toBe(128_000)
   })
 
   it('falls back to the safe constant for unknown models', () => {

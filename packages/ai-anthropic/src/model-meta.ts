@@ -696,7 +696,60 @@ const CLAUDE_SONNET_5_5 = {
     AnthropicOutputConfigOptions
 >
 
+// Claude Haiku 5.5: adaptive thinking is the default. `{type: 'enabled',
+// budget_tokens}` returns a 400, and so does a non-default `temperature`,
+// `top_p` or `top_k`. Unlike Sonnet 5.5, `{type: 'disabled'}` is accepted at
+// `low`, `medium` and `high` effort; the API returns a 400 for it at `xhigh`
+// and `max`, which these types cannot express. A forced `tool_choice` (`any`
+// or a named tool) is accepted. Priority Tier is not supported, so there is no
+// `priority_tier` flag. The 1M-token context window is priced by prompt
+// length: the rates below apply to prompts up to 100,000 tokens, and prompts
+// over 100,000 tokens cost five times as much ($0.50 input, $0.05 cached,
+// $2.50 output per MTok).
+const CLAUDE_HAIKU_5_5 = {
+  name: 'claude-haiku-5-5',
+  id: 'claude-haiku-5-5',
+  context_window: 1_000_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['text', 'image', 'document'],
+    extended_thinking: false,
+    adaptive_thinking: true,
+    // No 'computer_use': this model accepts only `computer_toolset_20260801`,
+    // and `computerUseTool()` sends the older versions, which return a 400.
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 0.1,
+      cached: 0.01,
+    },
+    output: {
+      normal: 0.5,
+    },
+  },
+} as const satisfies ModelMeta<
+  AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicAdaptiveOrDisabledThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicMaxTokensOptions &
+    AnthropicOutputConfigOptions
+>
+
 export const ANTHROPIC_MODELS = [
+  CLAUDE_HAIKU_5_5.id,
   CLAUDE_SONNET_5_5.id,
   CLAUDE_OPUS_5_5.id,
   CLAUDE_FABLE_5_1.id,
@@ -778,6 +831,7 @@ const ANTHROPIC_MODEL_MAX_OUTPUT_TOKENS: Record<string, number> = {
   [CLAUDE_FABLE_5_1.id]: CLAUDE_FABLE_5_1.max_output_tokens,
   [CLAUDE_OPUS_5_5.id]: CLAUDE_OPUS_5_5.max_output_tokens,
   [CLAUDE_SONNET_5_5.id]: CLAUDE_SONNET_5_5.max_output_tokens,
+  [CLAUDE_HAIKU_5_5.id]: CLAUDE_HAIKU_5_5.max_output_tokens,
 }
 
 /**
@@ -826,6 +880,7 @@ export function getAnthropicDefaultMaxTokens(
  * in `structuredOutput`.
  */
 export const ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS = new Set<string>([
+  CLAUDE_HAIKU_5_5.id,
   CLAUDE_SONNET_5_5.id,
   CLAUDE_OPUS_4_5.id,
   CLAUDE_OPUS_4_6.id,
@@ -1007,6 +1062,19 @@ export type AnthropicChatModelProviderOptionsByName = {
     AnthropicToolChoiceOptions &
     AnthropicMaxTokensOptions &
     AnthropicOutputConfigOptions
+  // Claude Haiku 5.5: adaptive thinking with an explicit opt-out (accepted at
+  // `high` effort or below), no budget_tokens, no sampling parameters — see
+  // the CLAUDE_HAIKU_5_5 constant above.
+  [CLAUDE_HAIKU_5_5.id]: AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicAdaptiveOrDisabledThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicMaxTokensOptions &
+    AnthropicOutputConfigOptions
 }
 
 export type AnthropicChatModelToolCapabilitiesByName = {
@@ -1025,6 +1093,7 @@ export type AnthropicChatModelToolCapabilitiesByName = {
   [CLAUDE_FABLE_5_1.id]: typeof CLAUDE_FABLE_5_1.supports.tools
   [CLAUDE_OPUS_5_5.id]: typeof CLAUDE_OPUS_5_5.supports.tools
   [CLAUDE_SONNET_5_5.id]: typeof CLAUDE_SONNET_5_5.supports.tools
+  [CLAUDE_HAIKU_5_5.id]: typeof CLAUDE_HAIKU_5_5.supports.tools
 }
 
 /**
@@ -1054,4 +1123,5 @@ export type AnthropicModelInputModalitiesByName = {
   [CLAUDE_FABLE_5_1.id]: typeof CLAUDE_FABLE_5_1.supports.input
   [CLAUDE_OPUS_5_5.id]: typeof CLAUDE_OPUS_5_5.supports.input
   [CLAUDE_SONNET_5_5.id]: typeof CLAUDE_SONNET_5_5.supports.input
+  [CLAUDE_HAIKU_5_5.id]: typeof CLAUDE_HAIKU_5_5.supports.input
 }
