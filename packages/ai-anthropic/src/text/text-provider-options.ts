@@ -263,7 +263,8 @@ export interface AnthropicOutputConfigOptions {
     /**
      * `'xhigh'` is accepted on Claude Opus 4.7+, Claude Sonnet 5, Claude
      * Sonnet 5.5, Claude Haiku 5.5, Claude Fable 5, and Claude Fable 5.1;
-     * older models support `'low'`, `'medium'`, `'high'` and `'max'` only.
+     * older models support `'low'`, `'medium'`, `'high'` and, except
+     * Claude Opus 4.5, `'max'`.
      */
     effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max' | null
   }
