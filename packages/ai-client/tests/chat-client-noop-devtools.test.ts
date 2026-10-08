@@ -39,6 +39,21 @@ describe('createChatDevtoolsBridge by NODE_ENV', () => {
     vi.stubEnv('NODE_ENV', 'development')
     expect(await streamWithRealFactory()).toHaveBeenCalled()
   })
+
+  it('does not throw when there is no process global', () => {
+    vi.stubGlobal('process', undefined)
+    try {
+      expect(
+        () =>
+          new ChatClient({
+            connection: createMockConnectionAdapter(),
+            devtoolsBridgeFactory: createChatDevtoolsBridge,
+          }),
+      ).not.toThrow()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
 })
 
 describe('ChatClient with default no-op devtools bridge', () => {

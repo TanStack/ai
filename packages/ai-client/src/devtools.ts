@@ -2228,10 +2228,22 @@ class ChatDevtoolsAwareEventEmitter extends DefaultChatClientEventEmitter {
 
 // No devtools panel runs in production, so the real bridges would only build
 // snapshots (a deep copy of every message per streamed chunk) that nobody reads.
+// Bundlers replace the `process.env.NODE_ENV` literal. Without a bundler and
+// without a `process` global, the read throws, so fall back to the real bridge.
+// Do not add a `typeof process` guard: Vite replaces the literal but does not
+// define `process`, so the guard would turn the check off in production.
+function isProduction(): boolean {
+  try {
+    return process.env.NODE_ENV === 'production'
+  } catch {
+    return false
+  }
+}
+
 export function createChatDevtoolsBridge(
   options: ChatDevtoolsBridgeOptions,
 ): ChatDevtoolsBridge {
-  if (process.env.NODE_ENV === 'production') {
+  if (isProduction()) {
     return createNoOpChatDevtoolsBridge(options)
   }
   return new ChatDevtoolsBridge(options)
@@ -2240,7 +2252,7 @@ export function createChatDevtoolsBridge(
 export function createGenerationDevtoolsBridge<TOutput>(
   options: GenerationDevtoolsBridgeOptions<TOutput>,
 ): GenerationDevtoolsBridge<TOutput> {
-  if (process.env.NODE_ENV === 'production') {
+  if (isProduction()) {
     return createNoOpGenerationDevtoolsBridge(options)
   }
   return new GenerationDevtoolsBridge<TOutput>(options)
@@ -2249,7 +2261,7 @@ export function createGenerationDevtoolsBridge<TOutput>(
 export function createVideoDevtoolsBridge<TOutput>(
   options: VideoDevtoolsBridgeOptions<TOutput>,
 ): VideoDevtoolsBridge<TOutput> {
-  if (process.env.NODE_ENV === 'production') {
+  if (isProduction()) {
     return createNoOpVideoDevtoolsBridge(options)
   }
   return new VideoDevtoolsBridge<TOutput>(options)
