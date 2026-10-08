@@ -130,7 +130,7 @@ chat({
     // it opts out of thinking.
     thinking: { type: 'adaptive', display: 'summarized' },
     // Effort lives under output_config; 'xhigh' is available on
-    // Opus 4.7+, Sonnet 5, Sonnet 5.5, Haiku 5.5, and Fable 5.
+    // Opus 4.7+, Sonnet 5, Sonnet 5.5, Haiku 5.5, Fable 5, and Fable 5.1.
     output_config: { effort: 'xhigh' },
     max_tokens: 64_000,
     // NO temperature / top_p / top_k — the API rejects them on these models

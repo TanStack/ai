@@ -299,7 +299,8 @@ Per-model rules (enforced by the adapter's types):
   models — set `"summarized"` to stream the reasoning text.
 - **`effort`** accepts `"low" | "medium" | "high" | "xhigh" | "max"`;
   `"xhigh"` is available on Claude Opus 4.7+, Claude Sonnet 5, Claude
-  Sonnet 5.5, Claude Haiku 5.5, and Claude Fable 5.
+  Sonnet 5.5, Claude Haiku 5.5, Claude Fable 5, and Claude Fable 5.1.
+  Older models take `"low"`, `"medium"`, `"high"`, and `"max"`.
 - **`output_config`** is accepted on Claude Opus 4.7, Opus 4.8, Sonnet 5,
   Fable 5, Opus 5, Fable 5.1, Opus 5.5, Sonnet 5.5, and Haiku 5.5. When you
   also pass an `outputSchema`, the adapter adds `output_config.format` and
