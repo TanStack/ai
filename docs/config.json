@@ -992,13 +992,14 @@
         {
           "label": "Sandbox and extend the coding tools",
           "to": "harness/coding-tools-backends",
-          "addedAt": "2026-10-06"
+          "addedAt": "2026-10-06",
+          "updatedAt": "2026-10-08"
         },
         {
           "label": "Ask before risky tool calls",
           "to": "harness/permissions",
           "addedAt": "2026-10-06",
-          "updatedAt": "2026-10-07"
+          "updatedAt": "2026-10-08"
         },
         {
           "label": "Undo a turn",
@@ -1383,13 +1384,13 @@
           "label": "OpenAI",
           "to": "adapters/openai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-07"
+          "updatedAt": "2026-10-08"
         },
         {
           "label": "Anthropic",
           "to": "adapters/anthropic",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-07"
+          "updatedAt": "2026-10-08"
         },
         {
           "label": "Google Gemini",
