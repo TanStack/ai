@@ -68,7 +68,7 @@
     "@cloudflare/workers-types": "^4.20260317.1",
     "@tanstack/ai-utils": "workspace:^",
     "@tanstack/openai-base": "workspace:^",
-    "openai": "^6.41.0"
+    "openai": "^7.30.0"
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
