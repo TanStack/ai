@@ -475,7 +475,7 @@ export async function POST(request: Request) {
 
 The ChatGPT route requires `store: false`. Do not set `max_output_tokens`. [Sign in with ChatGPT](./openai#sign-in-with-chatgpt-byok) has the browser sign-in helpers and the other limits.
 
-Native compaction does not work when the ChatGPT token calls the default OpenAI URL. That route does not accept `/responses/compact`. Do not pass this adapter as `native` to `withCompaction`. Use a [compaction strategy](../advanced/compaction) instead. The [ChatGPT Codex backend](#chatgpt-codex-backend) accepts native compaction.
+Native compaction does not work when the ChatGPT token calls the default OpenAI URL. That route does not accept `/responses/compact`. Do not pass this adapter as `native` to `withCompaction`. Use a [compaction strategy](../advanced/compaction) instead. The same is true for the [ChatGPT Codex backend](#chatgpt-codex-backend).
 
 ## ChatGPT Codex backend
 
@@ -524,7 +524,7 @@ export async function POST(request: Request) {
 The headers:
 
 - `originator`: the name of your app.
-- `x-codex-beta-features`: `remote_compaction_v2` turns on the remote compaction of the backend.
+- `x-codex-beta-features`: the beta features of the backend, here `remote_compaction_v2`.
 - `chatgpt-account-id`: the ChatGPT account of the user. The token claims have it as `chatgpt_account_id`, at the top level or under `https://api.openai.com/auth`.
 - `session-id`: a stable id for the conversation. Each request of the conversation sends the same id. Give a child session the id of its parent, so they share the cache.
 
@@ -534,7 +534,7 @@ The request:
 - Do not set `max_output_tokens`. The backend rejects an output limit. The adapter sends none unless you set it in `modelOptions`.
 - Use a model that the user's ChatGPT plan includes for Codex.
 
-Native compaction works on this backend. Pass the adapter as `native` to `withCompaction`. The adapter sends `POST /responses/compact` to the Codex base URL, with the same headers. See [Native compaction](./openai#native-compaction).
+Native compaction does not work on this backend. It does not accept `POST /responses/compact`. Do not pass this adapter as `native` to `withCompaction`. Use a [compaction strategy](../advanced/compaction) instead.
 
 ## Example: With Tools
 
