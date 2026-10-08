@@ -104,6 +104,9 @@ export function bashResources(input: unknown) {
   return splitCommand(stringArg(input, 'command'))
 }
 
+/** The number of background jobs started, by the signal that stops them. */
+const jobCounts = new WeakMap<AbortSignal, { started: number }>()
+
 /**
  * `bash`: run a shell command in the workspace folder. Every command gets
  * `AGENT=1` in its environment. The model gets the exit code and the last
@@ -144,7 +147,10 @@ export function bashTools(
   // A restart cannot reach these processes. `options.jobs` lets a durable
   // session note the jobs that a crash stopped.
   const jobs = new Set<{ kill: () => void }>()
-  let started = 0
+  // The count belongs to the signal. A session signal outlives a reload, so a
+  // job after a reload does not reuse the id of a job that still runs.
+  const count = (signal && jobCounts.get(signal)) || { started: 0 }
+  if (signal) jobCounts.set(signal, count)
   signal?.addEventListener('abort', () => {
     for (const job of jobs) job.kill()
   })
@@ -178,8 +184,8 @@ export function bashTools(
       throw new Error('This workspace cannot run commands in the background.')
     }
     const job = env.backend.spawn(command, { cwd, env: AGENT_ENV })
-    started += 1
-    const jobId = `bash-${started}`
+    count.started += 1
+    const jobId = `bash-${count.started}`
     jobs.add(job)
     options.jobs?.started(jobId)
     const tell = async () => {

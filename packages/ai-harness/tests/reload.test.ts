@@ -273,6 +273,30 @@ describe('reload keeps session work', () => {
     )
   })
 
+  it('gives a job after a reload a new id', async () => {
+    const backend: WorkspaceBackend = {
+      ...hostBackend,
+      spawn: () => ({
+        wait: () => new Promise<{ exitCode: number }>(() => undefined),
+        kill: () => undefined,
+        output: () => '',
+      }),
+    }
+    const { plugins, calls, harness, host } = setup([
+      () => toolCall('bash', { command: 'serve', background: true }, 'c1'),
+      () => text('started'),
+      () => toolCall('bash', { command: 'watch', background: true }, 'c2'),
+      () => text('started too'),
+    ])
+    plugins.push(workspaceTools({ root: process.cwd(), backend }))
+    const session = await host.open(harness, { threadId: 't' })
+    await session.prompt('serve')
+    await session.reload()
+    await session.prompt('watch')
+
+    expect(JSON.stringify(calls[3].messages)).toContain('bash-2')
+  })
+
   it('removes the ctx.on listeners of the old plugins', async () => {
     const { plugins, harness, host } = setup()
     let heard = 0

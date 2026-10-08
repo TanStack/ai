@@ -157,7 +157,7 @@ When the hook answers `'continue'`:
 - The note stays in the transcript as a user message. It has `metadata: { tanstack: { synthetic: true } }`, so a UI can hide it.
 - The `harness.turn.retry` event has `continued: true`.
 
-`partial` is true when the failed call streamed text, reasoning, or a tool call before the error. When `partial` is false, `'continue'` acts as `'retry'`, and the text of the failed call is not in the turn result.
+`partial` is true when the failed call streamed text, reasoning, or a tool call before the error. Only text can be continued. When no text streamed, `'continue'` acts as `'retry'`, and the failed call adds nothing to the turn result.
 
 ### Compact after a context overflow
 

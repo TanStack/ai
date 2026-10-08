@@ -5083,20 +5083,15 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             !signal.aborted
           ) {
             retries += 1
-            const isContinued = answer === 'continue' && partial
+            // Only streamed text can be continued. Reasoning and a cut tool
+            // call do not stay, so with no text, 'continue' acts as 'retry'.
+            const isContinued = answer === 'continue' && text !== textBefore
             if (isContinued) {
               // The partial answer stays in the turn result and in the
               // transcript. The model continues it. The note stays in the
               // transcript too, and its flag lets a UI hide it.
               continued = [
-                ...(text !== textBefore
-                  ? [
-                      {
-                        role: 'assistant' as const,
-                        content: text.slice(textBefore.length),
-                      },
-                    ]
-                  : []),
+                { role: 'assistant', content: text.slice(textBefore.length) },
                 {
                   role: 'user',
                   content: CONTINUE_NOTE,

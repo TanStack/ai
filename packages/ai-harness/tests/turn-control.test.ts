@@ -606,6 +606,39 @@ describe('turn.onModelError', () => {
     await host.close()
   })
 
+  it('acts as a retry for a continue after reasoning only', async () => {
+    const { host, session, calls } = await open({
+      replies: [
+        () => [
+          {
+            type: EventType.RUN_STARTED,
+            runId: 'r',
+            threadId: 't',
+            timestamp: Date.now(),
+          },
+          {
+            type: EventType.REASONING_MESSAGE_CONTENT,
+            messageId: 'r1',
+            delta: 'Let me think',
+            timestamp: Date.now(),
+          },
+          {
+            type: EventType.RUN_ERROR,
+            message: 'overloaded',
+            timestamp: Date.now(),
+          },
+        ],
+        () => text('ok'),
+      ],
+      turn: { onModelError: () => 'continue' },
+    })
+
+    expect(await session.prompt('go')).toEqual({ text: 'ok' })
+    // No continue note: the model never wrote text to continue.
+    expect(messageTexts(calls[1])).toEqual(['go'])
+    await host.close()
+  })
+
   it('counts a streamed tool call before the error as partial', async () => {
     const seen: Array<boolean> = []
     const { host, session } = await open({

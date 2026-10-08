@@ -126,7 +126,7 @@ export interface HarnessTurnOptions {
    * Return `'retry'` to run the model again in the same operation, after any
    * work (a backoff, a compaction record). The text of the failed call is
    * dropped. Return `'continue'` to keep that text: the model gets it and a
-   * note to continue from where it stopped. When `partial` is false,
+   * note to continue from where it stopped. When no text streamed,
    * `'continue'` acts as `'retry'`. See `retryTransientErrors`.
    */
   onModelError?: (
