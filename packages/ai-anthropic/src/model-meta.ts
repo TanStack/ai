@@ -449,8 +449,7 @@ const CLAUDE_FABLE_5 = {
 // runs adaptive); `{type: 'disabled'}` opts out, but the manual
 // `{type: 'enabled', budget_tokens}` shape and non-default sampling
 // parameters (`temperature`, `top_p`, `top_k`) are rejected with a 400.
-// Pricing below is the sticker $3/$15 per MTok (an introductory $2/$10
-// applies through 2026-08-31).
+// No Priority Tier. $2/$10 per MTok is the standard price.
 const CLAUDE_SONNET_5 = {
   name: 'claude-sonnet-5',
   id: 'claude-sonnet-5',
@@ -460,7 +459,6 @@ const CLAUDE_SONNET_5 = {
     input: ['text', 'image', 'document'],
     extended_thinking: false,
     adaptive_thinking: true,
-    priority_tier: true,
     tools: [
       'web_search',
       'web_fetch',
@@ -473,11 +471,11 @@ const CLAUDE_SONNET_5 = {
   },
   pricing: {
     input: {
-      normal: 3,
-      cached: 0.3,
+      normal: 2,
+      cached: 0.2,
     },
     output: {
-      normal: 15,
+      normal: 10,
     },
   },
 } as const satisfies ModelMeta<
@@ -662,7 +660,6 @@ const CLAUDE_SONNET_5_5 = {
     input: ['text', 'image', 'document'],
     extended_thinking: false,
     adaptive_thinking: true,
-    priority_tier: true,
     // No 'computer_use': this model accepts only `computer_toolset_20260801`,
     // and `computerUseTool()` sends the older versions, which return a 400.
     tools: [
@@ -677,7 +674,7 @@ const CLAUDE_SONNET_5_5 = {
   pricing: {
     input: {
       normal: 2,
-      cached: 0.2,
+      cached: 0.1,
     },
     output: {
       normal: 10,

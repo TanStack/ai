@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import {
   ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS,
@@ -426,4 +427,62 @@ describe('ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS', () => {
       expect(ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(model)).toBe(false)
     }
   })
+})
+
+describe('model metadata matches the Anthropic docs', () => {
+  // `pricing` and `supports.priority_tier` are not exported, so read them from
+  // the source. Docs: https://platform.claude.com/docs/en/about-claude/pricing
+  // and https://platform.claude.com/docs/en/api/service-tiers (checked 2026-10-08).
+  const source = readFileSync(
+    new URL('../src/model-meta.ts', import.meta.url),
+    'utf8',
+  )
+
+  function entryFor(id: string): string {
+    const start = source.indexOf(`  id: '${id}',`)
+    expect(start, `no model-meta entry for ${id}`).toBeGreaterThan(-1)
+    return source.slice(start, source.indexOf('} as const satisfies', start))
+  }
+
+  // Priority Tier "is supported on all available Claude models except ...".
+  const NO_PRIORITY_TIER = [
+    'claude-fable-5-1',
+    'claude-haiku-5-5',
+    'claude-opus-5-5',
+    'claude-opus-5',
+    'claude-sonnet-5-5',
+    'claude-sonnet-5',
+  ]
+
+  it.each(NO_PRIORITY_TIER)('%s does not advertise priority_tier', (id) => {
+    expect(entryFor(id)).not.toContain('priority_tier')
+  })
+
+  it('still advertises priority_tier on claude-fable-5, which the docs do not exclude', () => {
+    expect(entryFor('claude-fable-5')).toContain('priority_tier: true')
+  })
+
+  // USD per MTok: [input, cached input, output].
+  const PRICING: Array<[string, number, number, number]> = [
+    ['claude-fable-5', 10, 1, 50],
+    ['claude-fable-5-1', 10, 0.25, 50],
+    ['claude-opus-5', 5, 0.5, 25],
+    ['claude-opus-5-5', 4, 0.2, 20],
+    ['claude-sonnet-5', 2, 0.2, 10],
+    ['claude-sonnet-5-5', 2, 0.1, 10],
+    ['claude-haiku-5-5', 0.1, 0.01, 0.5],
+  ]
+
+  it.each(PRICING)(
+    '%s is priced $%s input / $%s cached / $%s output',
+    (id, input, cached, output) => {
+      const entry = entryFor(id)
+      const pricing =
+        /input: \{\s*normal: ([\d.]+),\s*cached: ([\d.]+),\s*\},\s*output: \{\s*normal: ([\d.]+),/.exec(
+          entry,
+        )
+      expect(pricing, `no pricing block for ${id}`).not.toBeNull()
+      expect(pricing!.slice(1).map(Number)).toEqual([input, cached, output])
+    },
+  )
 })
