@@ -131,6 +131,8 @@ export function bashTools(
     spillDir?: string
     /** Kills the background jobs that still run, for example on plugin cleanup. */
     signal?: AbortSignal
+    /** Told when a background job starts and ends. A durable session logs it. */
+    jobs?: { started: (jobId: string) => void; ended: (jobId: string) => void }
   } = {},
 ) {
   const {
@@ -139,7 +141,8 @@ export function bashTools(
     spillDir,
     signal,
   } = options
-  // ponytail: jobs live in memory only. A restart forgets them.
+  // A restart cannot reach these processes. `options.jobs` lets a durable
+  // session note the jobs that a crash stopped.
   const jobs = new Set<{ kill: () => void }>()
   let started = 0
   signal?.addEventListener('abort', () => {
@@ -178,12 +181,14 @@ export function bashTools(
     started += 1
     const jobId = `bash-${started}`
     jobs.add(job)
+    options.jobs?.started(jobId)
     const tell = async () => {
       const { exitCode } = await job.wait()
       jobs.delete(job)
       if (note === undefined || signal?.aborted) return
       const result = await report(exitCode, job.output())
       await note(`Background job ${jobId} ended.\n${result}`)
+      options.jobs?.ended(jobId)
     }
     // No one waits for the job, so a failed note must not crash the process.
     tell().catch(() => undefined)

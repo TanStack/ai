@@ -71,6 +71,22 @@ test.describe('harness session', () => {
     expect(body.text).toBe('The waiter stopped before it finished.')
   })
 
+  test('a bash background job that a stopped host left running gets a note', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const response = await request.post('/api/harness-test', {
+      data: { scenario: 'job-restart', testId, aimockPort },
+    })
+    expect(response.ok()).toBe(true)
+    const body = await response.json()
+    expect(body.texts).toEqual([
+      'The dev server runs in the background.',
+      'Background job bash-1 stopped when the host restarted.',
+    ])
+  })
+
   test('a sweep resumes the work of a stopped host, and nobody opens the thread', async ({
     request,
     testId,

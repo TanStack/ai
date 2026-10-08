@@ -1,4 +1,4 @@
-import { SessionSignal, definePlugin } from '../../plugins'
+import { BackgroundJobs, SessionSignal, definePlugin } from '../../plugins'
 import {
   PERMISSION_MODES,
   PermissionDecisionCapability,
@@ -117,6 +117,7 @@ export function createWorkspaceTools(
     hooks?: () => ReadonlyArray<WorkspaceHooks>
     note?: (text: string) => Promise<void>
     signal?: AbortSignal
+    jobs?: { started: (jobId: string) => void; ended: (jobId: string) => void }
   } = {},
 ) {
   const backend = options.backend ?? hostBackend
@@ -304,6 +305,7 @@ export function createWorkspaceTools(
       note: session.note,
       spillDir: options.spillDir,
       signal: session.signal,
+      jobs: session.jobs,
     }),
     ...(options.web === false ? [] : webTools(options.web)),
   ]
@@ -377,6 +379,7 @@ export function workspaceTools(options: WorkspaceToolsOptions) {
         // Kills the background `bash` jobs when the session closes. A reload
         // keeps them. Without a session, the plugin cleanup kills them.
         signal: ctx.getOptional(SessionSignal) ?? ctx.resources.signal,
+        jobs: ctx.getOptional(BackgroundJobs),
       })
       const paths = pathsOf(options.backend ?? hostBackend)
       const folder = () => {

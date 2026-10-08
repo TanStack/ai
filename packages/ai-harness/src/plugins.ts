@@ -505,6 +505,16 @@ export const SessionSignal = createCapability<AbortSignal>()(
   'tanstack/session-signal',
 )
 
+/**
+ * @internal Tells the session that a background job, like a `bash` job,
+ * started or ended. A durable session logs it, so recovery can note a job
+ * that a crash stopped. The package does not export it.
+ */
+export const BackgroundJobs = createCapability<{
+  started: (jobId: string) => void
+  ended: (jobId: string) => void
+}>()('tanstack/background-jobs')
+
 /** Capability values provided by plugins, keyed by handle. */
 export class CapabilityValues {
   readonly context = { capabilities: new CapabilityRegistry() }

@@ -143,7 +143,7 @@ When `cwd` changes, the model gets a short note before its next call. So it stop
 - The same `cwd` again adds no note.
 - A thread with no messages yet gets no note. The workspace tools prompt tells the model the folder.
 
-The note is an assistant message in the transcript, so it stays after a restart. A change while a turn runs adds the note before the next turn.
+The note is an assistant message in the transcript, so it stays after a restart. A change while a turn runs adds the note before the next turn. On a durable host (one with `stores.log`), the log keeps that waiting note, and the next host adds it once after a crash. Without `stores.log`, a crash loses a note that waits.
 
 ## What you have now
 

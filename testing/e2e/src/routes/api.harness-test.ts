@@ -304,6 +304,53 @@ async function agentRestart(
 }
 
 /**
+ * A `bash` background job runs on a durable host that stops. The job never
+ * ends. A second host opens the same log, and recovery notes the job that
+ * stopped. Returns the assistant texts of the transcript.
+ */
+async function jobRestart(
+  openai: () => ReturnType<typeof createTextAdapter>['adapter'],
+) {
+  const { runs, metadata } = memoryPersistence().stores
+  const persistence = { stores: { log: memoryLogStore(), runs, metadata } }
+  const root = await mkdtemp(join(tmpdir(), 'e2e-job-restart-'))
+  const backend = {
+    ...hostBackend,
+    // The job runs until the host stops.
+    spawn: () => ({
+      wait: () => new Promise<{ exitCode: number }>(() => {}),
+      kill: () => {},
+      output: () => '',
+    }),
+  }
+  const harness = defineHarness({
+    name: 'e2e/harness-job-restart',
+    adapter: openai(),
+    plugins: () => [workspaceTools({ root, backend })],
+  })
+  const stopped = createHarnessHost({ persistence })
+  const next = createHarnessHost({ persistence })
+  try {
+    const first = await stopped.open(harness, { threadId: 'e2e-job-restart' })
+    await first.prompt('[harness-job-restart] start the dev server')
+
+    // The first host never closes, like a process that stopped.
+    const session = await next.open(harness, { threadId: 'e2e-job-restart' })
+    const messages = await session.transcript()
+    return {
+      texts: messages
+        .filter((message) => message.role === 'assistant')
+        .map((message) => message.content)
+        .filter((content) => typeof content === 'string'),
+    }
+  } finally {
+    await next.close()
+    await stopped.close().catch(() => {})
+    await rm(root, { recursive: true, force: true })
+  }
+}
+
+/**
  * A durable host with work claims stops while a background agent runs. The
  * next host does not open the thread itself: `resumePending` finds the
  * expired claim and opens the thread, and recovery fails the agent and wakes
@@ -956,6 +1003,8 @@ async function sessionTitle(
  *   The next host fails the run and wakes the thread.
  * - `sweep-restart`: as `agent-restart`, but `resumePending` on the next
  *   host opens the thread.
+ * - `job-restart`: a `bash` background job runs on a durable host that
+ *   stops. The next host notes the job that stopped.
  * - `routing`: `routing.router` sends each of four turns to root agents or
  *   to the main model.
  */
@@ -1394,6 +1443,9 @@ export const Route = createFileRoute('/api/harness-test')({
           }
           if (body.scenario === 'sweep-restart') {
             return Response.json(await sweepRestart(openai))
+          }
+          if (body.scenario === 'job-restart') {
+            return Response.json(await jobRestart(openai))
           }
           if (body.scenario === 'agent-resume') {
             return Response.json(await agentResume(openai))

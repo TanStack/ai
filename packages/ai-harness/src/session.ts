@@ -36,6 +36,7 @@ import { createMediaStore, mediaCapture, mediaMiddleware } from './media'
 import { mediaIdOf, mediaOfMessage, mediaPart } from './media-ref'
 import { OperationImpl } from './operation'
 import {
+  BackgroundJobs,
   CapabilityValues,
   RevertFiles,
   RevertStanding,
@@ -1105,7 +1106,10 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   private readonly abortedSteers = new Set<string>()
   /** The ids of the waiting steers that a join took. A cancel of one is refused. */
   private readonly joining = new Set<string>()
-  private readonly pendingNotes: Array<string> = []
+  /** Notes that wait for the transcript. A durable host logged each one. */
+  private readonly pendingNotes: Array<ModelMessage> = []
+  /** Background jobs that run on this host. Recovery skips them. */
+  private readonly jobs = new Set<string>()
   /** Running tool calls that support `detach`: id to the move. */
   private readonly detachable = new Map<string, () => void>()
   private activeTurn: OperationImpl<ChatTurnResult> | undefined
@@ -1497,6 +1501,10 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     if (metadata) values.provide(SessionMetadata, metadata)
     values.provide(RevertStanding, () => this.reverted !== undefined)
     values.provide(SessionSignal, this.lifetime.signal)
+    values.provide(BackgroundJobs, {
+      started: (jobId) => this.logJob(jobId, false),
+      ended: (jobId) => this.logJob(jobId, true),
+    })
     return values
   }
 
@@ -3898,6 +3906,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           context.detach = (work) =>
             new Promise((moved) => {
               this.detachable.set(id, () => {
+                this.logJob(id, false)
                 moved(
                   `The job moved to the background. Its id is ${id}. You get a note when it ends.`,
                 )
@@ -3910,6 +3919,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
                       `Background job ${id} failed: ${error instanceof Error ? error.message : String(error)}`,
                   )
                   .then((text) => this.pluginApi().note(text, { wake: true }))
+                  .then(() => this.logJob(id, true))
                   .catch(() => undefined)
               })
             })
@@ -6241,7 +6251,10 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
    * before the next turn starts.
    */
   private async addNote(note: string) {
-    this.pendingNotes.push(note)
+    const id = createMessageId()
+    this.pendingNotes.push({ id, role: 'assistant', content: note })
+    // A durable host logs the note first, so a crash does not lose it.
+    await this.writer?.append([{ type: 'harness.note', noteId: id, note }])
     // While a revert stands, a note waits: the next turn or unrevert adds it.
     if (!this.activeTurn && !this.reverted) await this.flushNotes()
   }
@@ -6252,16 +6265,44 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     if (this.pendingNotes.length === 0) return
     const notes = this.pendingNotes.splice(0)
     const history = await messages.loadThread(this.threadId)
-    await messages.saveThread(this.threadId, [
-      ...history,
-      ...notes.map(
-        (note): ModelMessage => ({
-          id: createMessageId(),
-          role: 'assistant',
-          content: note,
-        }),
-      ),
-    ])
+    await messages.saveThread(this.threadId, [...history, ...notes])
+  }
+
+  /**
+   * Track a background job of this host. A durable host also logs its start
+   * and end, so recovery can note a job that a crash stopped.
+   */
+  private logJob(jobId: string, ended: boolean) {
+    if (ended) this.jobs.delete(jobId)
+    else this.jobs.add(jobId)
+    // No one waits for a job record. A failed log write fails the session.
+    this.writer
+      ?.append([{ type: 'harness.job', jobId, ended }])
+      .catch(() => undefined)
+  }
+
+  /**
+   * After a crash: queue the logged notes that are not in the transcript,
+   * and note each logged job that no host runs now.
+   */
+  private async recoverBackground(writer: LogWriter) {
+    const queued = new Set(this.pendingNotes.map((message) => message.id))
+    for (const [id, note] of writer.state.notes) {
+      if (queued.has(id)) continue
+      this.pendingNotes.push({ id, role: 'assistant', content: note })
+    }
+    for (const jobId of [...writer.state.jobs]) {
+      if (this.jobs.has(jobId)) continue
+      const id = createMessageId()
+      const note = `Background job ${jobId} stopped when the host restarted.`
+      this.pendingNotes.push({ id, role: 'assistant', content: note })
+      // One batch: a crash keeps both records or neither.
+      await writer.append([
+        { type: 'harness.note', noteId: id, note },
+        { type: 'harness.job', jobId, ended: true },
+      ])
+    }
+    if (!this.activeTurn && !this.reverted) await this.flushNotes()
   }
 
   // ===========================
@@ -6796,6 +6837,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       this.admitted.set(input.inputId, inputKey(input.input, input.principal))
       return false
     }
+    await this.recoverBackground(writer)
     const logged = [...writer.state.inputs.values()]
     for (const input of logged) {
       const isControl =

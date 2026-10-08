@@ -198,6 +198,8 @@ await build
 - Without an argument, it moves every running call that supports it. Pass a `toolCallId` to move one call.
 - `bash` and the single `subagent` tool support it. Other tools keep running as before.
 - With no running call that supports it, the receipt has `status: 'rejected'` and `reason: 'not_running'`.
+- On a durable host (one with `stores.log`), the log keeps each job until it ends. When a crash stops a job, the next host adds the note "Background job call-1 stopped when the host restarted."
+- Without `stores.log`, the job lives in memory only. A crash stops it, and no note comes.
 
 A client sends `{ op: 'background' }` over `POST control`. It runs no new code, so it needs no `expose` entry:
 

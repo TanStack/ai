@@ -75,6 +75,10 @@ export type HarnessRecord =
   | ({ type: 'harness.usage' } & UsageCall)
   /** A revert that stands, or `null` when it ended. */
   | { type: 'harness.revert'; revert: RevertState | null }
+  /** A background job started, or it ended. */
+  | { type: 'harness.job'; jobId: string; ended: boolean }
+  /** A note for the transcript. `noteId` is the id of its message. */
+  | { type: 'harness.note'; noteId: string; note: string }
 
 /**
  * A revert that stands: the transcript hides the messages after
@@ -111,6 +115,8 @@ const HARNESS_RECORD_TYPES = new Set<string>([
   'harness.tool.step',
   'harness.usage',
   'harness.revert',
+  'harness.job',
+  'harness.note',
 ])
 
 // The harness wrote every record of these types, so the fields are its own.
@@ -182,6 +188,10 @@ export interface LogState {
   usage: SessionUsage
   /** The revert that stands, if any. */
   revert?: RevertState
+  /** Background jobs that started and did not end. */
+  jobs: Set<string>
+  /** Notes that are not in the transcript yet, by message id. */
+  notes: Map<string, string>
 }
 
 export function emptyLogState() {
@@ -194,6 +204,8 @@ export function emptyLogState() {
     started: new Map(),
     steps: new Map(),
     usage: emptyUsage(),
+    jobs: new Set(),
+    notes: new Map(),
   }
   return state
 }
@@ -272,6 +284,9 @@ export function foldEntry(
         ...record.add.map(revive),
       ]
       state.transcriptSeq = entry.seq
+      for (const message of record.add) {
+        if (message.id) state.notes.delete(message.id)
+      }
       return
     case 'harness.input':
       if (state.inputs.has(record.inputId)) return
@@ -361,6 +376,13 @@ export function foldEntry(
     case 'harness.revert':
       if (record.revert) state.revert = record.revert
       else delete state.revert
+      return
+    case 'harness.job':
+      if (record.ended) state.jobs.delete(record.jobId)
+      else state.jobs.add(record.jobId)
+      return
+    case 'harness.note':
+      state.notes.set(record.noteId, record.note)
       return
   }
 }
@@ -466,6 +488,8 @@ function serialize(state: SharedLogState, versions: CheckpointVersions) {
         steps: [...session.steps.entries()],
         usage: session.usage,
         revert: session.revert ?? null,
+        jobs: [...session.jobs],
+        notes: [...session.notes.entries()],
       },
     ]),
     reduced: state.reduced ?? null,
@@ -508,6 +532,15 @@ function parseSession(value: unknown, seq: number) {
     usage: isSessionUsage(value.usage) ? value.usage : emptyUsage(),
     // A checkpoint from before reverts has none.
     ...(revert ? { revert } : {}),
+    // A checkpoint from before jobs and notes has none.
+    jobs: new Set(
+      Array.isArray(value.jobs) ? (value.jobs as Array<string>) : [],
+    ),
+    notes: new Map(
+      Array.isArray(value.notes)
+        ? (value.notes as Array<[string, string]>)
+        : [],
+    ),
   }
   return session
 }

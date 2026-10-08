@@ -129,6 +129,7 @@ For `bash`:
 - With `background: true`, the call returns at once with a job id. When the job ends, the model gets a note with the output, and a new turn starts. A user can also [move a running command to the background](./inputs#move-a-running-tool-call-to-the-background). Its time limit still applies.
 - With `spillDir`, long output goes to a file in that folder, and the model gets the path. `spillDir` is relative to `root`, or absolute.
 - When the session closes, the background jobs stop.
+- On a durable host (one with `stores.log`), the log keeps each background job until it ends. When a crash stops a job, the next host adds the note "Background job bash-1 stopped when the host restarted." Without `stores.log`, a crash stops the job, and no note comes.
 
 On Windows, the default backend runs commands in `cmd.exe`. A program name like `rg` or `gradlew` comes from the `PATH` only, not from the working folder. So a cloned repo cannot put its own `rg.cmd` in place of `rg`. To run a script in the working folder, give its path: `.\gradlew build`.
 
