@@ -147,6 +147,8 @@ export function mcpContentToTanstack(
  * @param signal - Stops the wait when the caller aborts
  * @param inputResponse - The user's answer from an `mcp_input` interrupt
  * @param requestOptions - The client `requestOptions`, sent with tools/call
+ * @param askInput - Asks the user for each elicitation round on spec 2026.
+ *   The harness sets it. Without it, a call answers one round.
  */
 export async function callMcpTool(
   client: Client,
@@ -156,6 +158,7 @@ export async function callMcpTool(
   signal?: AbortSignal,
   inputResponse?: ToolInputResponse,
   requestOptions?: MCPClientOptions['requestOptions'],
+  askInput?: AskInput,
 ) {
   signal?.throwIfAborted()
   const isModern = client.getProtocolEra() === 'modern'
@@ -194,15 +197,43 @@ export async function callMcpTool(
     // ponytail: one input round per call. The next resume starts with no
     // requestState, so a second pause would ask round 1 again forever.
     // Carry requestState through the interrupt if servers need more rounds.
-    if (isInputRequiredResult(raw)) {
+    if (isInputRequiredResult(raw) && askInput === undefined) {
       throw new Error(
         `The MCP tool "${mcpName}" asked for input a second time. ` +
           'This client answers one input request per tool call.',
       )
     }
   }
+  // The harness asks the user for each elicitation round, up to a cap.
+  for (
+    let round = 1;
+    isModern && askInput && isInputRequiredResult(raw);
+    round++
+  ) {
+    const entry = firstInputRequest(raw.inputRequests)
+    if (entry?.method !== 'elicitation/create') break
+    if (round > maxInputRounds) {
+      throw new Error(
+        `The MCP tool "${mcpName}" asked for input more than ` +
+          `${maxInputRounds} times in one call.`,
+      )
+    }
+    const answer = await askInput(isRecord(entry.params) ? entry.params : entry)
+    raw = await rawRequest(
+      client,
+      'tools/call',
+      { ...params, ...retryParams(raw, answer) },
+      signal,
+      requestOptions,
+    )
+  }
   return finishToolCall(client, mcpName, raw, signal)
 }
+
+/** Asks the user for one MCP elicitation request body. */
+export type AskInput = (request: unknown) => Promise<ToolInputResponse>
+
+const maxInputRounds = 5
 
 // Answers only the first input request. That is the one the interrupt shows.
 function retryParams(
@@ -684,7 +715,11 @@ export function makeMcpExecute(
 ) {
   return async (
     args: unknown,
-    ctx?: { abortSignal?: AbortSignal; inputResponse?: ToolInputResponse },
+    ctx?: {
+      abortSignal?: AbortSignal
+      inputResponse?: ToolInputResponse
+      askInput?: AskInput
+    },
   ) => {
     const result = await callMcpTool(
       client,
@@ -694,6 +729,7 @@ export function makeMcpExecute(
       ctx?.abortSignal,
       ctx?.inputResponse,
       requestOptions,
+      ctx?.askInput,
     )
     if (result.isError) {
       const text = Array.isArray(result.content)

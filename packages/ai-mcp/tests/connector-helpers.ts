@@ -1,12 +1,17 @@
 import { z } from 'zod'
 import {
   McpServer,
+  WebStandardStreamableHTTPServerTransport,
   createMcpHandler,
   inputRequired,
 } from '@modelcontextprotocol/server'
 import { EventType } from '@tanstack/ai'
 import { HARNESS_EVENTS } from '@tanstack/ai-harness'
-import type { InputRequest } from '@modelcontextprotocol/server'
+import type {
+  ElicitRequestFormParams,
+  ElicitRequestURLParams,
+  InputRequest,
+} from '@modelcontextprotocol/server'
 import type { AnyTextAdapter, StreamChunk, TextOptions } from '@tanstack/ai'
 import type { HarnessSession } from '@tanstack/ai-harness'
 
@@ -169,4 +174,73 @@ export const tripForm = {
     properties: { city: { type: 'string' as const } },
     required: ['city'],
   },
+}
+
+/**
+ * A spec 2025 server with one `book` tool. The tool sends each of `asks` to
+ * the client as an `elicitation/create` request, and records each answer in
+ * `answers`.
+ */
+export async function legacyElicitServer(
+  asks: Array<ElicitRequestFormParams | ElicitRequestURLParams>,
+) {
+  const answers: Array<unknown> = []
+  const server = new McpServer({ name: 'trips', version: '1.0.0' })
+  server.registerTool(
+    'book',
+    {
+      description: 'Book a trip',
+      inputSchema: z.object({ text: z.string() }),
+    },
+    async (_args, ctx) => {
+      for (const ask of asks) answers.push(await ctx.mcpReq.elicitInput(ask))
+      return { content: [{ type: 'text', text: 'booked' }] }
+    },
+  )
+  const transport = new WebStandardStreamableHTTPServerTransport({
+    sessionIdGenerator: () => crypto.randomUUID(),
+  })
+  await server.connect(transport)
+  return {
+    answers,
+    fetch: (request: Request) => transport.handleRequest(request),
+  }
+}
+
+/**
+ * A spec 2026 server with one `book` tool that asks for each of `inputs` in
+ * turn, one round each. `requestState` carries the round. The retries record
+ * the answers in `answers`.
+ */
+export function roundsServer(inputs: Array<InputRequest>) {
+  const answers: Array<unknown> = []
+  const handler = createMcpHandler(
+    () => {
+      const server = new McpServer({ name: 'trips', version: '1.0.0' })
+      server.registerTool(
+        'book',
+        {
+          description: 'Book a trip',
+          inputSchema: z.object({ text: z.string() }),
+        },
+        (_args, ctx) => {
+          const state: unknown = ctx.mcpReq.requestState()
+          const round = typeof state === 'string' ? Number(state) : 0
+          const responses = ctx.mcpReq.inputResponses
+          if (responses !== undefined) answers.push(responses[`r${round - 1}`])
+          const input = inputs[round]
+          if (input === undefined) {
+            return { content: [{ type: 'text', text: 'booked' }] }
+          }
+          return inputRequired({
+            inputRequests: { [`r${round}`]: input },
+            requestState: String(round + 1),
+          })
+        },
+      )
+      return server
+    },
+    { legacy: 'reject', keepAliveMs: 0 },
+  )
+  return { answers, fetch: (request: Request) => handler.fetch(request) }
 }

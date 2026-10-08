@@ -218,6 +218,24 @@
     },
     {
       "match": {
+        "userMessage": "[harness-elicit-2025] book a trip",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [{ "name": "trips_book_trip", "arguments": "{}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-elicit-2025] book a trip",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Your trip to Paris is booked, seat 12A."
+      }
+    },
+    {
+      "match": {
         "userMessage": "[harness-continue] name a color",
         "sequenceIndex": 0
       },

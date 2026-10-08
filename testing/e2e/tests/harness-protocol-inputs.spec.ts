@@ -669,6 +669,48 @@ test.describe('harness protocol inputs', () => {
     expect(JSON.stringify(result?.content)).toContain('Forecast for Paris')
   })
 
+  test('asks each elicitation/create request of a spec 2025 server, two in one tool call', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const user = asUser(request, testId, aimockPort, 'e2e-token', {
+      'x-harness-mcp': '2025',
+    })
+    const threadId = `elicit-2025-${testId}`
+    expect(
+      await user.control(threadId, {
+        op: 'prompt',
+        message: '[harness-elicit-2025] book a trip',
+      }),
+    ).toMatchObject({ status: 'accepted' })
+    for (const [message, value] of [
+      ['Which city?', 'Paris'],
+      ['Which seat?', '12A'],
+    ]) {
+      await expect
+        .poll(async () => (await user.question(threadId))?.message)
+        .toBe(message)
+      const asked = await user.question(threadId)
+      expect(
+        await user.control(threadId, {
+          op: 'answer',
+          questionId: asked?.questionId,
+          value: { value },
+        }),
+      ).toMatchObject({ status: 'accepted' })
+    }
+    await expect
+      .poll(() => user.answers(threadId))
+      .toContain('Your trip to Paris is booked, seat 12A.')
+
+    // The server got both answers in the same tool call.
+    const result = (await user.transcript(threadId)).find(
+      (message) => message.role === 'tool',
+    )
+    expect(JSON.stringify(result?.content)).toContain('Booked Paris, seat 12A')
+  })
+
   test('answers the stored user message on continue, with no new message', async ({
     request,
     testId,

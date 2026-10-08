@@ -37,6 +37,8 @@ import type {
 } from './types'
 import type {
   ClientOptions,
+  ElicitRequest,
+  ElicitResult,
   GetPromptResult,
   McpSubscription,
   Prompt,
@@ -190,6 +192,7 @@ class MCPClientImpl<
     transport?: TransportConfig,
     clientOptions?: ClientOptions,
     policy: ToolPolicy = {},
+    onElicit?: OnElicit,
   ) {
     this.prefix = prefix
     this.#transport = transport
@@ -216,6 +219,12 @@ class MCPClientImpl<
         },
       },
     )
+    // A spec 2025 server asks for input with a request to the client.
+    if (onElicit) {
+      this.#client.setRequestHandler('elicitation/create', (request) =>
+        onElicit(request.params),
+      )
+    }
   }
 
   getInfo(): {
@@ -591,9 +600,18 @@ export async function createMCPClient(
   return connectTransport(options)
 }
 
-async function connectTransport<
+/** Answers a spec 2025 `elicitation/create` request. */
+export type OnElicit = (
+  params: ElicitRequest['params'],
+) => Promise<ElicitResult>
+
+/**
+ * Connects a client to a transport. The harness passes `onElicit` to answer
+ * the `elicitation/create` requests of spec 2025 servers.
+ */
+export async function connectTransport<
   TServer extends ServerDescriptor = AutomaticDescriptor,
->(options: MCPClientOptions) {
+>(options: MCPClientOptions, onElicit?: OnElicit) {
   const transport = await resolveTransport(options.transport)
   const impl = new MCPClientImpl<TServer>(
     options.prefix,
@@ -609,6 +627,7 @@ async function connectTransport<
       toolName: options.toolName,
       requestOptions: options.requestOptions,
     },
+    onElicit,
   )
   await impl.connect(transport)
   return impl
