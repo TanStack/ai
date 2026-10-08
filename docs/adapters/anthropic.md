@@ -284,6 +284,13 @@ Per-model rules (enforced by the adapter's types):
   Both `disabled` and `budget_tokens` return a 400, and so do non-default
   sampling values. To turn off up-front thinking, the API takes
   `{ type: "between_tools" }`, which the adapter does not type yet.
+- **`claude-haiku-5-5`** — adaptive thinking is the default, and the
+  types accept `{ type: "adaptive" }` or `{ type: "disabled" }`. The API
+  accepts `disabled` at `high` effort or below and returns a 400 at `xhigh`
+  and `max`; the types cannot express that, so pair it with `low`,
+  `medium`, or `high`. `{ type: "enabled", budget_tokens }` and non-default
+  sampling values return a 400. `effort` defaults to `medium` on this
+  model, and it takes a forced `tool_choice`.
 - **`claude-opus-4-6` / `claude-sonnet-4-6`** — accept
   `{ type: "adaptive" }` alongside the deprecated
   `{ type: "enabled", budget_tokens }` shape, and still accept sampling
@@ -292,11 +299,13 @@ Per-model rules (enforced by the adapter's types):
   models — set `"summarized"` to stream the reasoning text.
 - **`effort`** accepts `"low" | "medium" | "high" | "xhigh" | "max"`;
   `"xhigh"` is available on Claude Opus 4.7+, Claude Sonnet 5, Claude
-  Sonnet 5.5, and Claude Fable 5.
+  Sonnet 5.5, Claude Haiku 5.5, Claude Fable 5, and Claude Fable 5.1.
+  Older models take `"low"`, `"medium"`, `"high"`, and, except Claude Opus
+  4.5, `"max"`.
 - **`output_config`** is accepted on Claude Opus 4.7, Opus 4.8, Sonnet 5,
-  Fable 5, Opus 5, Fable 5.1, Opus 5.5, and Sonnet 5.5. When you also pass
-  an `outputSchema`, the adapter adds `output_config.format` and keeps the
-  `effort` you set.
+  Fable 5, Opus 5, Fable 5.1, Opus 5.5, Sonnet 5.5, and Haiku 5.5. When you
+  also pass an `outputSchema`, the adapter adds `output_config.format` and
+  keeps the `effort` you set.
 
 ### Prompt Caching
 
@@ -536,7 +545,7 @@ const stream = chat({
 });
 ```
 
-**Supported models:** Claude Sonnet 3.5 and above, with two exceptions. `claude-opus-5-fast` takes no provider tools. Claude Opus 5.5 and Claude Sonnet 5.5 accept only the `computer_toolset_20260801` toolset, which the adapter does not offer yet. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+**Supported models:** Claude Sonnet 3.5 and above, with two exceptions. `claude-opus-5-fast` takes no provider tools. Claude Opus 5.5, Claude Sonnet 5.5, and Claude Haiku 5.5 accept only the `computer_toolset_20260801` toolset, which the adapter does not offer yet. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
 
 ### `bashTool`
 
