@@ -530,7 +530,12 @@ async function* revertTurns(
       defineHarness({
         name: 'e2e/tools-test-revert',
         adapter,
-        plugins: () => [workspaceTools({ root }), snapshots({ root, dataDir })],
+        plugins: () => [
+          // The fixtures call `edit_file`, so the edit style must not depend
+          // on the model.
+          workspaceTools({ root, editStyle: 'edit' }),
+          snapshots({ root, dataDir }),
+        ],
       }),
       { threadId },
     )

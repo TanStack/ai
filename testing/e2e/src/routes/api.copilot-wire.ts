@@ -24,6 +24,9 @@ export const Route = createFileRoute('/api/copilot-wire')({
             : undefined
         const testId = field('testId')
         const responses = field('api') === 'responses'
+        // aimock logs a converted body for /v1/responses, with no `store` or
+        // `include`. So the route keeps the body that the adapter sent.
+        let sent: unknown
         const text = await chat({
           adapter: openaiCompatibleText('gpt-5.6', {
             name: 'github-copilot',
@@ -53,11 +56,12 @@ export const Route = createFileRoute('/api/copilot-wire')({
           wrapFetch: (next) => (input, init) => {
             const headers = new Headers(init?.headers)
             headers.set('x-initiator', 'user')
+            if (typeof init?.body === 'string') sent = JSON.parse(init.body)
             return next(input, { ...init, headers })
           },
           stream: false,
         })
-        return Response.json({ text })
+        return Response.json({ text, sent })
       },
     },
   },
