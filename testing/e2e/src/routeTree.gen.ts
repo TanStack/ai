@@ -70,6 +70,7 @@ import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiCloudflareBindingWireRouteImport } from './routes/api.cloudflare-binding-wire'
 import { Route as ApiCompactionDurableWireRouteImport } from './routes/api.compaction-durable-wire'
 import { Route as ApiCompactionWireRouteImport } from './routes/api.compaction-wire'
+import { Route as ApiCodexWireRouteImport } from './routes/api.codex-wire'
 import { Route as ApiCopilotWireRouteImport } from './routes/api.copilot-wire'
 import { Route as ApiDevtoolsMemoryRouteImport } from './routes/api.devtools-memory'
 import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-delivery'
@@ -501,6 +502,11 @@ const ApiCompactionDurableWireRoute =
 const ApiCompactionWireRoute = ApiCompactionWireRouteImport.update({
   id: '/api/compaction-wire',
   path: '/api/compaction-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCodexWireRoute = ApiCodexWireRouteImport.update({
+  id: '/api/codex-wire',
+  path: '/api/codex-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCopilotWireRoute = ApiCopilotWireRouteImport.update({
@@ -1051,6 +1057,7 @@ export interface FileRoutesByFullPath {
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
   '/api/compaction-durable-wire': typeof ApiCompactionDurableWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
+  '/api/codex-wire': typeof ApiCodexWireRoute
   '/api/copilot-wire': typeof ApiCopilotWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
@@ -1207,6 +1214,7 @@ export interface FileRoutesByTo {
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
   '/api/compaction-durable-wire': typeof ApiCompactionDurableWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
+  '/api/codex-wire': typeof ApiCodexWireRoute
   '/api/copilot-wire': typeof ApiCopilotWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
@@ -1364,6 +1372,7 @@ export interface FileRoutesById {
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
   '/api/compaction-durable-wire': typeof ApiCompactionDurableWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
+  '/api/codex-wire': typeof ApiCodexWireRoute
   '/api/copilot-wire': typeof ApiCopilotWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
@@ -1522,6 +1531,7 @@ export interface FileRouteTypes {
     | '/api/cloudflare-binding-wire'
     | '/api/compaction-durable-wire'
     | '/api/compaction-wire'
+    | '/api/codex-wire'
     | '/api/copilot-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
@@ -1678,6 +1688,7 @@ export interface FileRouteTypes {
     | '/api/cloudflare-binding-wire'
     | '/api/compaction-durable-wire'
     | '/api/compaction-wire'
+    | '/api/codex-wire'
     | '/api/copilot-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
@@ -1834,6 +1845,7 @@ export interface FileRouteTypes {
     | '/api/cloudflare-binding-wire'
     | '/api/compaction-durable-wire'
     | '/api/compaction-wire'
+    | '/api/codex-wire'
     | '/api/copilot-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
@@ -1991,6 +2003,7 @@ export interface RootRouteChildren {
   ApiCloudflareBindingWireRoute: typeof ApiCloudflareBindingWireRoute
   ApiCompactionDurableWireRoute: typeof ApiCompactionDurableWireRoute
   ApiCompactionWireRoute: typeof ApiCompactionWireRoute
+  ApiCodexWireRoute: typeof ApiCodexWireRoute
   ApiCopilotWireRoute: typeof ApiCopilotWireRoute
   ApiDevtoolsMemoryRoute: typeof ApiDevtoolsMemoryRoute
   ApiDurableDeliveryRoute: typeof ApiDurableDeliveryRoute
@@ -2509,6 +2522,13 @@ declare module '@tanstack/react-router' {
       path: '/api/compaction-wire'
       fullPath: '/api/compaction-wire'
       preLoaderRoute: typeof ApiCompactionWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/codex-wire': {
+      id: '/api/codex-wire'
+      path: '/api/codex-wire'
+      fullPath: '/api/codex-wire'
+      preLoaderRoute: typeof ApiCodexWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/copilot-wire': {
@@ -3288,6 +3308,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCloudflareBindingWireRoute: ApiCloudflareBindingWireRoute,
   ApiCompactionDurableWireRoute: ApiCompactionDurableWireRoute,
   ApiCompactionWireRoute: ApiCompactionWireRoute,
+  ApiCodexWireRoute: ApiCodexWireRoute,
   ApiCopilotWireRoute: ApiCopilotWireRoute,
   ApiDevtoolsMemoryRoute: ApiDevtoolsMemoryRoute,
   ApiDurableDeliveryRoute: ApiDurableDeliveryRoute,

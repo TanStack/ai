@@ -183,3 +183,48 @@ describe('ChatGPT plan wire', () => {
     expect(sent[0]?.body).not.toHaveProperty('max_output_tokens')
   })
 })
+
+describe('ChatGPT Codex backend wire', () => {
+  it('sends the Codex headers and a stateless body with no output limit', async () => {
+    const { sent, fetch } = recorder(responsesDone)
+    const session: FetchWrapper = (next) => (input, init) => {
+      const headers = new Headers(init?.headers)
+      headers.set('session-id', 'thread-1')
+      return next(input, { ...init, headers })
+    }
+    await drain(
+      createOpenaiChat('gpt-5.6-terra', 'chatgpt-access-token', {
+        baseURL: 'https://chatgpt.com/backend-api/codex',
+        defaultHeaders: {
+          originator: 'my-app',
+          'x-codex-beta-features': 'remote_compaction_v2',
+          'chatgpt-account-id': 'account-1',
+        },
+        fetch,
+      }).chatStream({
+        logger,
+        model: 'gpt-5.6-terra',
+        messages: hi,
+        wrapFetch: session,
+        modelOptions: {
+          store: false,
+          include: ['reasoning.encrypted_content'],
+        },
+      }),
+    )
+    expect(sent).toHaveLength(1)
+    expect(sent[0]?.url).toBe('https://chatgpt.com/backend-api/codex/responses')
+    expect(sent[0]?.headers.get('authorization')).toBe(
+      'Bearer chatgpt-access-token',
+    )
+    expect(sent[0]?.headers.get('originator')).toBe('my-app')
+    expect(sent[0]?.headers.get('x-codex-beta-features')).toBe(
+      'remote_compaction_v2',
+    )
+    expect(sent[0]?.headers.get('chatgpt-account-id')).toBe('account-1')
+    expect(sent[0]?.headers.get('session-id')).toBe('thread-1')
+    expect(sent[0]?.body.store).toBe(false)
+    expect(sent[0]?.body.include).toStrictEqual(['reasoning.encrypted_content'])
+    expect(sent[0]?.body).not.toHaveProperty('max_output_tokens')
+  })
+})
