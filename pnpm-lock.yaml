@@ -1288,8 +1288,8 @@ importers:
   examples/ts-react-media:
     dependencies:
       '@fal-ai/client':
-        specifier: 1.11.0-alpha.2
-        version: 1.11.0-alpha.2
+        specifier: 1.11.0-alpha.5
+        version: 1.11.0-alpha.5
       '@reactor-team/js-sdk':
         specifier: ^3.0.1
         version: 3.0.1(react@19.2.3)(supports-color@7.2.0)
@@ -6072,9 +6072,14 @@ packages:
     resolution: {integrity: sha512-c3AVeH31OioiI2J1BfW8Cryi1DhUYldnY3X35nv6xLMq3fU2NQOo+eYaR5mL2O8MoHHh+HzXdQuIyanIyeq+ug==}
     engines: {node: '>=18.0.0'}
 
-  '@fal-ai/client@1.11.0-alpha.2':
-    resolution: {integrity: sha512-KnDWHzuQfZG5Lmlm3apNrzW4I7u3lIIMLYwcjESUiLlTcwcyMt+qrcyD66a7iBw6/CaG59RPgu8+SoqmG5qAwQ==}
+  '@fal-ai/client@1.11.0-alpha.5':
+    resolution: {integrity: sha512-L3oVFIh07KZmp77luipw6/+CxUMlSeEOI2zgTamvIvIFQs578oZ2jAAfVUbOtgqLKmp4F4fpuVjDrkSOH2VPkQ==}
     engines: {node: '>=18.0.0'}
+    peerDependencies:
+      '@happy-oyster/js-sdk': 0.1.4
+    peerDependenciesMeta:
+      '@happy-oyster/js-sdk':
+        optional: true
 
   '@floating-ui/core@1.7.5':
     resolution: {integrity: sha512-1Ih4WTWyw0+lKyFMcBHGbb5U5FtuHJuujoyyr5zTaWS5EYMeT6Jb2AuDeftsCsEuchO+mM2ij5+q9crhydzLhQ==}
@@ -21778,7 +21783,7 @@ snapshots:
       eventsource-parser: 1.1.2
       robot3: 0.4.1
 
-  '@fal-ai/client@1.11.0-alpha.2':
+  '@fal-ai/client@1.11.0-alpha.5':
     dependencies:
       '@msgpack/msgpack': 3.1.3
       eventsource-parser: 1.1.2

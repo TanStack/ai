@@ -89,24 +89,32 @@ describe('usage', () => {
 })
 
 describe('compare', () => {
-  it('passes a 0.4pp drop and a 0.5pp drop, fails 0.51pp', () => {
+  it('fails only when a metric falls from 60% or more to under 60%', () => {
     const base = tmp()
     const head = tmp()
-    writeSnapshot(base, 'ok', 90)
-    writeSnapshot(head, 'ok', 89.5)
+    writeSnapshot(base, 'pkg', 90)
+    writeSnapshot(head, 'pkg', 60)
     expect(run(['--base', base, '--head', head]).status).toBe(0)
 
-    writeSnapshot(head, 'ok', 89.6)
-    expect(run(['--base', base, '--head', head]).status).toBe(0)
-
-    writeSnapshot(head, 'ok', 89.49)
+    writeSnapshot(base, 'pkg', 60)
+    writeSnapshot(head, 'pkg', 59.99)
     const r = run(['--base', base, '--head', head])
     expect(r.status).toBe(1)
-    expect(r.stderr).toMatch(/ok statements: 90\.00% -> 89\.49%/)
-    expect(r.stdout).toMatch(/DROP/)
+    expect(r.stderr).toMatch(/pkg statements: 60\.00% -> 59\.99%/)
+    expect(r.stdout).toMatch(/FAIL/)
   })
 
-  it('fails when only branches drop more than 0.5pp', () => {
+  it('passes a package that is already under 60%, even when it drops', () => {
+    const base = tmp()
+    const head = tmp()
+    writeSnapshot(base, 'low', 59)
+    writeSnapshot(head, 'low', 20)
+    const r = run(['--base', base, '--head', head])
+    expect(r.status).toBe(0)
+    expect(r.stdout).toMatch(/low +20\.00% \(-39\.00\)/)
+  })
+
+  it('fails when only branches fall under 60%', () => {
     const base = tmp()
     const head = tmp()
     mkdirSync(base, { recursive: true })
@@ -115,7 +123,7 @@ describe('compare', () => {
       join(base, 'pkg.json'),
       JSON.stringify({
         statements: 90,
-        branches: 80,
+        branches: 61,
         functions: 90,
         lines: 90,
       }),
@@ -123,15 +131,15 @@ describe('compare', () => {
     writeFileSync(
       join(head, 'pkg.json'),
       JSON.stringify({
-        statements: 90,
-        branches: 79,
+        statements: 70,
+        branches: 59,
         functions: 90,
         lines: 90,
       }),
     )
     const r = run(['--base', base, '--head', head])
     expect(r.status).toBe(1)
-    expect(r.stderr).toMatch(/pkg branches: 80\.00% -> 79\.00%/)
+    expect(r.stderr).toMatch(/pkg branches: 61\.00% -> 59\.00%/)
     expect(r.stderr).not.toMatch(/statements/)
   })
 
@@ -172,14 +180,27 @@ describe('compare', () => {
     const head = tmp()
     const summary = join(tmp(), 'summary.md')
     writeSnapshot(base, 'pkg', 90)
-    writeSnapshot(head, 'pkg', 80)
+    writeSnapshot(head, 'pkg', 50)
     const r = run(['--base', base, '--head', head], {
       env: { ...process.env, GITHUB_STEP_SUMMARY: summary },
     })
     expect(r.status).toBe(1)
     const md = readFileSync(summary, 'utf8')
-    expect(md).toMatch(/Coverage dropped/)
+    expect(md).toMatch(/Coverage fell under 60%/)
     expect(md).toMatch(/pkg/)
+  })
+
+  it('writes the same table to --report, with the comment marker first', () => {
+    const base = tmp()
+    const head = tmp()
+    const report = join(tmp(), 'report.md')
+    writeSnapshot(base, 'pkg', 90)
+    writeSnapshot(head, 'pkg', 85)
+    const r = run(['--base', base, '--head', head, '--report', report])
+    expect(r.status).toBe(0)
+    const md = readFileSync(report, 'utf8')
+    expect(md.split('\n')[0]).toBe('<!-- coverage-report -->')
+    expect(md).toMatch(/\| pkg \| 85\.00% \(-5\.00\) \|/)
   })
 })
 

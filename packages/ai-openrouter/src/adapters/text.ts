@@ -387,7 +387,7 @@ export class OpenRouterTextAdapter<
     let stepId: string | undefined
     let lastModel: string | undefined
     let finishReason: string | null | undefined
-    let lastUsage: ChatStreamChunk['usage'] | undefined
+    let lastUsage: ReturnType<typeof buildOpenRouterUsage>
 
     const closeReasoningLifecycle = function* (this: {
       name: string
@@ -473,7 +473,11 @@ export class OpenRouterTextAdapter<
         )
 
         if (chunk.model) lastModel = chunk.model
-        if (chunk.usage) lastUsage = chunk.usage
+        // Keep received usage for either terminal outcome, including parse and SDK errors.
+        const usage = buildOpenRouterUsage(chunk.usage)
+        if (usage) {
+          lastUsage = { ...usage, ...extractUsageCost(chunk.usage) }
+        }
 
         if (!aguiState.hasEmittedRunStarted) {
           aguiState.hasEmittedRunStarted = true
@@ -573,6 +577,7 @@ export class OpenRouterTextAdapter<
         const message = `${this.name}.structuredOutputStream: the response was cut off because the maximum token limit was reached (finish_reason=length); raise maxCompletionTokens`
         yield {
           type: EventType.RUN_ERROR,
+          ...(lastUsage && { usage: lastUsage }),
           runId: aguiState.runId,
           model: lastModel || chatOptions.model,
           timestamp: Date.now(),
@@ -586,6 +591,7 @@ export class OpenRouterTextAdapter<
       if (accumulatedContent.length === 0) {
         yield {
           type: EventType.RUN_ERROR,
+          ...(lastUsage && { usage: lastUsage }),
           runId: aguiState.runId,
           model: lastModel || chatOptions.model,
           timestamp: Date.now(),
@@ -605,6 +611,7 @@ export class OpenRouterTextAdapter<
       } catch {
         yield {
           type: EventType.RUN_ERROR,
+          ...(lastUsage && { usage: lastUsage }),
           runId: aguiState.runId,
           model: lastModel || chatOptions.model,
           timestamp: Date.now(),
@@ -632,8 +639,6 @@ export class OpenRouterTextAdapter<
         timestamp: Date.now(),
       }
 
-      const finalUsage = buildOpenRouterUsage(lastUsage)
-
       yield {
         type: EventType.RUN_FINISHED,
         runId: aguiState.runId,
@@ -641,9 +646,7 @@ export class OpenRouterTextAdapter<
         model: lastModel || chatOptions.model,
         timestamp: Date.now(),
         finishReason: 'stop',
-        ...(finalUsage && {
-          usage: { ...finalUsage, ...extractUsageCost(lastUsage) },
-        }),
+        ...(lastUsage && { usage: lastUsage }),
       }
     } catch (error: unknown) {
       if (!aguiState.hasEmittedRunStarted) {
@@ -677,6 +680,7 @@ export class OpenRouterTextAdapter<
       const rawEvent = isAbort ? undefined : toRunErrorRawEvent(error)
       yield {
         type: EventType.RUN_ERROR,
+        ...(lastUsage && { usage: lastUsage }),
         runId: aguiState.runId,
         model: lastModel || chatOptions.model,
         timestamp: Date.now(),
