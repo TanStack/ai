@@ -1,5 +1,16 @@
 # @tanstack/ai-gemini
 
+## 0.36.1
+
+### Patch Changes
+
+- [#1655](https://github.com/TanStack/ai/pull/1655) [`3e1c5ad`](https://github.com/TanStack/ai/commit/3e1c5ad5707cff9dbcdedd1122309d4508811655) - Gemini-native image calls now use the Interactions API, return the interaction id as result.id, and reject thinkingConfig.thinkingBudget. ThinkingLevel is exported from @tanstack/ai-gemini.
+
+- [#1548](https://github.com/TanStack/ai/pull/1548) [`68aeada`](https://github.com/TanStack/ai/commit/68aeadad200425f7e40fadaa86922941a9e25624) - Structured output now reports a truncation error when the response stops at the output token limit. Before, you got a JSON parse error, or the partial result came back as valid data. `openai-base` and `ai-openrouter` already do this ([#1426](https://github.com/TanStack/ai/issues/1426)).
+
+- Updated dependencies [[`f687c54`](https://github.com/TanStack/ai/commit/f687c54ae4b8a67f2154ff9dea0319b8d2712856), [`fb55bcb`](https://github.com/TanStack/ai/commit/fb55bcba5193d4465f43006505918a2dc4472ec4), [`630ec86`](https://github.com/TanStack/ai/commit/630ec86e9997fabe046cae1a491060d72cbc71ea)]:
+  - @tanstack/ai@0.66.0
+
 ## 0.36.0
 
 ### Minor Changes

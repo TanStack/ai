@@ -1,5 +1,16 @@
 # @tanstack/openai-base
 
+## 0.12.5
+
+### Patch Changes
+
+- [#1625](https://github.com/TanStack/ai/pull/1625) [`e14a0f0`](https://github.com/TanStack/ai/commit/e14a0f0af3db5b0d0a61cf5f30688bb97bc5f202) - Keep each Responses reasoning item as its own thinking step. A response that reasoned, ran a hosted `web_search`, then reasoned again stored only the last reasoning item, so replaying the turn failed with `Item 'ws_…' of type 'web_search_call' was provided without its required 'reasoning' item`.
+
+- [#1604](https://github.com/TanStack/ai/pull/1604) [`077c96a`](https://github.com/TanStack/ai/commit/077c96a1611c7528adcbb4e9b1918ce29cf66f29) - Report `incomplete-stream` when a started Chat Completions stream ends without a finish reason or a final usage-only chunk. Keep partial text and close open lifecycles without reporting success or executing pending server tools. Preserve trailing usage and the existing usage-only completion fallback.
+
+- Updated dependencies [[`f687c54`](https://github.com/TanStack/ai/commit/f687c54ae4b8a67f2154ff9dea0319b8d2712856), [`fb55bcb`](https://github.com/TanStack/ai/commit/fb55bcba5193d4465f43006505918a2dc4472ec4), [`630ec86`](https://github.com/TanStack/ai/commit/630ec86e9997fabe046cae1a491060d72cbc71ea)]:
+  - @tanstack/ai@0.66.0
+
 ## 0.12.4
 
 ### Patch Changes
