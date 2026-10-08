@@ -180,12 +180,14 @@ export {
   toHttpStream,
   toHttpResponse,
   resumeHttpResponse,
+  toJsonResponse,
+  resumeJsonResponse,
   resolveResumeRunId,
   RUN_ACCEPTED_EVENT,
 } from './stream-to-response'
 // `ResumeResponseOptions` is deliberately not exported (it is a local type
 // alias), so the driver block reaches consumers as its own named type.
-export type { RunDriverOptions } from './stream-to-response'
+export type { ChatResult, RunDriverOptions } from './stream-to-response'
 
 // Delivery durability (transport layer)
 export { memoryStream, replayRunStream } from './stream-durability'
@@ -478,6 +480,7 @@ export {
   modelMessagesToUIMessages,
   normalizeToUIMessage,
 } from './activities/chat/messages'
+export { interleaveActivityRecords } from './activities/chat/activity-records'
 
 // Stream processing (unified for server and client)
 export {

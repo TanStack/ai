@@ -14,8 +14,11 @@ test.describe('structured output — finish_reason=length', () => {
     }
 
     expect(Object.keys(errors).sort()).toEqual([
+      'anthropic-truncated',
       'compatible-empty',
       'compatible-truncated',
+      'mistral-truncated',
+      'ollama-truncated',
       'openrouter-empty',
       'openrouter-truncated',
     ])

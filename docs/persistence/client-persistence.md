@@ -55,9 +55,9 @@ The client stores one record per `threadId`, the transcript plus a small resume
 pointer. On the next load `useChat` reads it and:
 
 - **Repaints the transcript** from storage with no network. Sync adapters
-  (`localStorage` / `sessionStorage`) hydrate during construction; IndexedDB
-  hydrates asynchronously after the database opens (so the first paint may be
-  empty for a tick).
+  (`localStorage` / `sessionStorage`) hydrate during construction. IndexedDB
+  hydrates asynchronously after the database opens. Until then, `isHydrating`
+  is `true`, so you can show a loading state instead of an empty chat.
 - **Rehydrates a pending interrupt**, so an approval prompt comes back exactly as
   it was.
 - **Rejoins an in-flight run**, if a reply was still streaming when the page
@@ -66,6 +66,17 @@ pointer. On the next load `useChat` reads it and:
   replay handler); see [Resumable streams](../resumable-streams/overview).
 
 Replay rebuilds reasoning, tool activity, and text from the durable log, including runs that emit reasoning before their first tool or text event. The completed activity remains in the transcript sent with the next message.
+
+### AG-UI activity rows
+
+AG-UI activity events show as `role: 'activity'` rows in `messages`.
+
+- A client storage adapter keeps each row with the same `id` and content.
+- `persistence: true` restores the rows from the server only when the server
+  has an `activities` store. See
+  [AG-UI activity rows on reload](./chat-persistence#ag-ui-activity-rows-on-reload).
+
+The next `sendMessage` does not send activity rows as model input.
 
 ### Handle restored client tools
 
@@ -154,13 +165,19 @@ import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 const connection = fetchServerSentEvents('/api/chat')
 
 function Chat({ threadId }: { threadId: string }) {
-  const { messages, hasOlderMessages, loadOlderMessages, sendMessage } =
-    useChat({
-      threadId,
-      connection,
-      persistence: true,
-      history: { pageSize: 50 },
-    })
+  const {
+    messages,
+    isHydrating,
+    hasOlderMessages,
+    loadOlderMessages,
+    sendMessage,
+  } = useChat({
+    threadId,
+    connection,
+    persistence: true,
+    history: { pageSize: 50 },
+  })
+  if (isHydrating) return <p>Loading conversation...</p>
   return (
     <div>
       {hasOlderMessages ? (
@@ -189,6 +206,10 @@ function Chat({ threadId }: { threadId: string }) {
 Call `loadOlderMessages()` from your scroll handler. The library does not watch
 the scrollbar.
 
+- `isHydrating` is `true` from the first render until the transcript is in
+  place. If a run is still generating, `isLoading` is already `true` when
+  `isHydrating` turns `false`. If the load fails, `isHydrating` turns `false`
+  and `error` is set.
 - `hasOlderMessages` follows `page.truncated` on the last hydrate or older-page
   response.
 - Without `history`, hydrate loads the full thread.

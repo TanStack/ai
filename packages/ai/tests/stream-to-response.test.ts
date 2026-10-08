@@ -1,10 +1,20 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, expectTypeOf, vi } from 'vitest'
 import {
+  resumeJsonResponse,
   streamToText,
+  toHttpResponse,
+  toHttpStream,
+  toJsonResponse,
   toServerSentEventsStream,
   toServerSentEventsResponse,
 } from '../src/stream-to-response'
+import { InMemoryRunStore } from '../src/activities/chat/middleware/run-store'
+import { publishRunDisconnectHandler } from '../src/delivery-disconnect'
+import { InMemoryLockStore } from '../src/locks'
+import { memoryStream } from '../src/stream-durability'
 import { EventType } from '../src/types'
+import { ev } from './test-utils'
+import type { ChatResult, RunDriverOptions } from '../src/stream-to-response'
 import type { StreamChunk } from '../src/types'
 
 // Helper to create mock async iterable
@@ -35,7 +45,93 @@ async function readStream(stream: ReadableStream<Uint8Array>): Promise<string> {
   return result
 }
 
+async function* streamOf(
+  chunks: Array<StreamChunk>,
+): AsyncGenerator<StreamChunk> {
+  yield* chunks
+}
+
 describe('streamToText', () => {
+  it('returns the joined text and every chunk in order', async () => {
+    const chunks: Array<StreamChunk> = [
+      {
+        type: EventType.RUN_STARTED,
+        threadId: 'thread-1',
+        runId: 'run-1',
+        timestamp: 1,
+      },
+      {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: 'msg-1',
+        timestamp: 2,
+        delta: 'Hello, ',
+      },
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: 'call-1',
+        toolCallName: 'lookup',
+        toolName: 'lookup',
+        timestamp: 3,
+      },
+      {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: 'msg-1',
+        timestamp: 4,
+        delta: 'world',
+      },
+      {
+        type: EventType.RUN_FINISHED,
+        threadId: 'thread-1',
+        runId: 'run-1',
+        timestamp: 5,
+      },
+    ]
+
+    const result = await streamToText(streamOf(chunks))
+
+    expect(result.text).toBe('Hello, world')
+    expect(result.chunks.map((chunk) => chunk.type)).toEqual([
+      'RUN_STARTED',
+      'TEXT_MESSAGE_CONTENT',
+      'TOOL_CALL_START',
+      'TEXT_MESSAGE_CONTENT',
+      'RUN_FINISHED',
+    ])
+  })
+
+  it('keeps an interrupt RUN_FINISHED in chunks', async () => {
+    const result = await streamToText(
+      streamOf([
+        {
+          type: EventType.RUN_FINISHED,
+          threadId: 'thread-1',
+          runId: 'run-1',
+          timestamp: 1,
+          outcome: {
+            type: 'interrupt',
+            interrupts: [{ id: 'approval-1', reason: 'needs approval' }],
+          },
+        },
+      ]),
+    )
+
+    expect(result).toEqual({
+      text: '',
+      chunks: [
+        {
+          type: 'RUN_FINISHED',
+          threadId: 'thread-1',
+          runId: 'run-1',
+          timestamp: 1,
+          outcome: {
+            type: 'interrupt',
+            interrupts: [{ id: 'approval-1', reason: 'needs approval' }],
+          },
+        },
+      ],
+    })
+  })
+
   it('rejects on RUN_ERROR instead of returning accumulated text', async () => {
     const rawEvent = {
       provider_name: 'test-provider',
@@ -62,6 +158,68 @@ describe('streamToText', () => {
       code: 'rate_limit_exceeded',
       rawEvent,
     })
+  })
+})
+
+describe.each([
+  ['SSE', toServerSentEventsStream],
+  ['NDJSON', toHttpStream],
+] as const)('%s response backpressure', (_format, encode) => {
+  it('pauses the source while the response is not being read', async () => {
+    let produced = 0
+    let cleanedUp = false
+    async function* source(): AsyncGenerator<StreamChunk> {
+      try {
+        for (let i = 0; i < 100; i++) {
+          produced++
+          yield {
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId: 'msg-1',
+            timestamp: Date.now(),
+            delta: String(i),
+          }
+        }
+      } finally {
+        cleanedUp = true
+      }
+    }
+
+    const stream = encode(source())
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(produced).toBe(1)
+
+    const reader = stream.getReader()
+    await reader.read()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(produced).toBe(2)
+
+    await reader.cancel()
+    expect(cleanedUp).toBe(true)
+    expect(produced).toBe(2)
+  })
+
+  it('delivers a source error after a slow reader resumes', async () => {
+    let reachedError = false
+    async function* source(): AsyncGenerator<StreamChunk> {
+      yield {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: 'msg-1',
+        timestamp: Date.now(),
+        delta: 'first',
+      }
+      reachedError = true
+      throw new Error('source failed')
+    }
+
+    const reader = encode(source()).getReader()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(reachedError).toBe(false)
+
+    await reader.read()
+    const error = await reader.read()
+    expect(new TextDecoder().decode(error.value)).toContain('source failed')
+    expect(reachedError).toBe(true)
+    expect((await reader.read()).done).toBe(true)
   })
 })
 
@@ -881,5 +1039,431 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
     expect((parsedChunks[0] as any)?.delta).toBe(
       'Hello 世界! 🌍 Special chars: <>&"\'\n\t',
     )
+  })
+})
+
+interface ParsedJsonRunBody {
+  chunks: Array<Record<string, unknown>>
+  offset?: string
+  done: boolean
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+/** Parse a `toJsonResponse` body, failing loudly on a bad shape. */
+async function readJsonBody(response: Response): Promise<ParsedJsonRunBody> {
+  const value: unknown = await response.json()
+  if (
+    !isRecord(value) ||
+    !Array.isArray(value.chunks) ||
+    typeof value.done !== 'boolean'
+  ) {
+    throw new Error(`Not a JSON run body: ${JSON.stringify(value)}`)
+  }
+  const chunks = value.chunks.filter(isRecord)
+  return typeof value.offset === 'string'
+    ? { chunks, offset: value.offset, done: value.done }
+    : { chunks, done: value.done }
+}
+
+/** A text delta as itself, any other chunk as `[TYPE]`. */
+function label(chunk: Record<string, unknown> | StreamChunk): string {
+  return chunk.type === EventType.TEXT_MESSAGE_CONTENT
+    ? String(chunk.delta)
+    : `[${String(chunk.type)}]`
+}
+
+function uniqueRunId(name: string): string {
+  return `${name}-${crypto.randomUUID()}`
+}
+
+/** The producer side of a run's memory log (a POST with `?runId`). */
+function producerLog(runId: string) {
+  return memoryStream(
+    new Request(`https://example.test/api/chat?runId=${runId}`, {
+      method: 'POST',
+    }),
+  )
+}
+
+/** A resume request for a run's memory log (a GET with `?runId&offset`). */
+function resumeLog(runId: string, offset: string) {
+  return memoryStream(
+    new Request(
+      `https://example.test/api/chat?runId=${runId}&offset=${encodeURIComponent(offset)}`,
+    ),
+  )
+}
+
+function gate(): { promise: Promise<void>; release: () => void } {
+  let release!: () => void
+  const promise = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  return { promise, release }
+}
+
+/** `RUN_STARTED`, `a`, then waits on `opened` before the rest. */
+async function* runPausedAfterA(
+  opened: Promise<void>,
+  rest: { then: Array<StreamChunk>; error?: Error },
+): AsyncGenerator<StreamChunk> {
+  yield ev.runStarted()
+  yield ev.textContent('a')
+  await opened
+  yield* rest.then
+  if (rest.error) throw rest.error
+}
+
+async function loggedLabels(
+  adapter: ReturnType<typeof producerLog>,
+): Promise<Array<string>> {
+  return (await adapter.snapshot()).map((entry) => label(entry.chunk))
+}
+
+describe('toJsonResponse', () => {
+  it('sends a ChatResult as one done body, encoded like the NDJSON stream', async () => {
+    const chunks: Array<StreamChunk> = [
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: 'call-1',
+        toolCallName: 'lookup',
+        toolName: 'lookup',
+        timestamp: 1,
+      },
+      {
+        type: EventType.RUN_FINISHED,
+        threadId: 'thread-1',
+        runId: 'run-1',
+        timestamp: 2,
+        finishReason: 'stop',
+        usage: {
+          promptTokens: 3,
+          completionTokens: 4,
+          totalTokens: 7,
+          cost: 0.01,
+        },
+      },
+    ]
+
+    const body = await readJsonBody(await toJsonResponse({ text: '', chunks }))
+
+    expect(body.done).toBe(true)
+    expect(body.offset).toBeUndefined()
+    expect(body.chunks[0]).toEqual({
+      type: 'TOOL_CALL_START',
+      toolCallId: 'call-1',
+      toolCallName: 'lookup',
+      timestamp: 1,
+    })
+    expect(body.chunks[1]).not.toHaveProperty('finishReason')
+    expect(body.chunks[1]).toMatchObject({
+      metadata: { tanstack: { finishReason: 'stop', usage: { cost: 0.01 } } },
+    })
+    const ndjson = (await toHttpResponse(streamOf(chunks)).text())
+      .trim()
+      .split('\n')
+      .map((line): unknown => JSON.parse(line))
+    expect(body.chunks).toEqual(ndjson)
+  })
+
+  it('sets JSON headers that the caller can override', async () => {
+    const response = await toJsonResponse(
+      { text: '', chunks: [] },
+      {
+        status: 201,
+        headers: { 'Cache-Control': 'private', 'X-Custom': 'yes' },
+      },
+    )
+
+    expect(response.status).toBe(201)
+    expect(response.headers.get('Content-Type')).toBe('application/json')
+    expect(response.headers.get('Cache-Control')).toBe('private')
+    expect(response.headers.get('X-Custom')).toBe('yes')
+  })
+
+  it('reads a stream to its end without durability', async () => {
+    const body = await readJsonBody(
+      await toJsonResponse(
+        streamOf([ev.textContent('Hello'), ev.runFinished('stop')]),
+      ),
+    )
+
+    expect(body.chunks.map(label)).toEqual(['Hello', '[RUN_FINISHED]'])
+    expect(body.done).toBe(true)
+    expect(body.offset).toBeUndefined()
+  })
+
+  it('turns a thrown error into a trailing RUN_ERROR', async () => {
+    async function* failing(): AsyncGenerator<StreamChunk> {
+      yield ev.textContent('partial')
+      throw new Error('provider down')
+    }
+
+    const body = await readJsonBody(await toJsonResponse(failing()))
+
+    expect(body.chunks.map(label)).toEqual(['partial', '[RUN_ERROR]'])
+    expect(body.chunks[1]?.message).toBe('provider down')
+    expect(body.done).toBe(true)
+  })
+
+  it('stops a run without durability when the request signal aborts', async () => {
+    const opened = gate()
+    const abortController = new AbortController()
+    const request = new AbortController()
+
+    const pending = toJsonResponse(
+      runPausedAfterA(opened.promise, { then: [ev.textContent('b')] }),
+      { abortController, signal: request.signal },
+    )
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    request.abort()
+    const body = await readJsonBody(await pending)
+    opened.release()
+
+    expect(abortController.signal.aborted).toBe(true)
+    expect(body.chunks.map(label)).toEqual(['[RUN_STARTED]', 'a'])
+    expect(body.done).toBe(true)
+  })
+
+  it('rejects stream-only options for a ChatResult at compile time', () => {
+    const result: ChatResult = { text: '', chunks: [] }
+    const adapter = producerLog(uniqueRunId('json-types'))
+
+    expectTypeOf(toJsonResponse(result)).toEqualTypeOf<Promise<Response>>()
+    // @ts-expect-error durability needs a stream input
+    void toJsonResponse(result, { durability: { adapter } })
+  })
+})
+
+describe('toJsonResponse with durability', () => {
+  it('appends a fresh run to the log and replies with the last offset', async () => {
+    const adapter = producerLog(uniqueRunId('json-fresh'))
+
+    const body = await readJsonBody(
+      await toJsonResponse(
+        streamOf([ev.runStarted(), ev.textContent('Hello'), ev.runFinished()]),
+        { durability: { adapter } },
+      ),
+    )
+    const logged = await adapter.snapshot()
+
+    expect(body.chunks.map(label)).toEqual([
+      '[CUSTOM]',
+      '[RUN_STARTED]',
+      'Hello',
+      '[RUN_FINISHED]',
+    ])
+    expect(logged.map((entry) => label(entry.chunk))).toEqual([
+      '[CUSTOM]',
+      '[RUN_STARTED]',
+      'Hello',
+      '[RUN_FINISHED]',
+    ])
+    expect(body.offset).toBe(logged[3]?.offset)
+    expect(body.done).toBe(true)
+  })
+
+  it('replies early after maxWaitMs, keeps the run going, and a resume returns the rest', async () => {
+    const runId = uniqueRunId('json-partial')
+    const adapter = producerLog(runId)
+    const opened = gate()
+
+    const first = await readJsonBody(
+      await toJsonResponse(
+        runPausedAfterA(opened.promise, {
+          then: [ev.textContent('b')],
+          error: new Error('late failure'),
+        }),
+        { durability: { adapter, batch: 1 }, maxWaitMs: 50 },
+      ),
+    )
+    opened.release()
+    await vi.waitFor(async () => {
+      expect(await loggedLabels(adapter)).toEqual([
+        '[CUSTOM]',
+        '[RUN_STARTED]',
+        'a',
+        'b',
+        '[RUN_ERROR]',
+      ])
+    })
+    const logged = await adapter.snapshot()
+
+    expect(first.chunks.map(label)).toEqual(['[CUSTOM]', '[RUN_STARTED]', 'a'])
+    expect(first.offset).toBe(logged[2]?.offset)
+    expect(first.done).toBe(false)
+
+    const rest = await readJsonBody(
+      await resumeJsonResponse({
+        adapter: resumeLog(runId, first.offset ?? ''),
+      }),
+    )
+
+    expect(rest.chunks.map(label)).toEqual(['b', '[RUN_ERROR]'])
+    expect(rest.chunks[1]?.message).toBe('late failure')
+    expect(rest.offset).toBe(logged[4]?.offset)
+    expect(rest.done).toBe(true)
+  })
+
+  it('tells the run its viewer left on a signal abort, without stopping it', async () => {
+    const adapter = producerLog(uniqueRunId('json-detach'))
+    const opened = gate()
+    const request = new AbortController()
+    let disconnects = 0
+    const stream = runPausedAfterA(opened.promise, {
+      then: [ev.textContent('b'), ev.runFinished()],
+    })
+    publishRunDisconnectHandler(stream, () => {
+      disconnects += 1
+    })
+
+    const pending = toJsonResponse(stream, {
+      durability: { adapter, batch: 1 },
+      signal: request.signal,
+    })
+    await vi.waitFor(async () => {
+      expect(await loggedLabels(adapter)).toHaveLength(3)
+    })
+    request.abort()
+    const body = await readJsonBody(await pending)
+    opened.release()
+
+    expect(body.done).toBe(false)
+    expect(disconnects).toBe(1)
+    await vi.waitFor(async () => {
+      expect(await loggedLabels(adapter)).toEqual([
+        '[CUSTOM]',
+        '[RUN_STARTED]',
+        'a',
+        'b',
+        '[RUN_FINISHED]',
+      ])
+    })
+  })
+})
+
+describe('resumeJsonResponse', () => {
+  it('returns 400 when the request has no resume offset', async () => {
+    const response = await resumeJsonResponse({
+      adapter: producerLog(uniqueRunId('json-no-offset')),
+    })
+
+    expect(response.status).toBe(400)
+  })
+
+  it('replies done: false after maxWaitMs while the run is still going', async () => {
+    const runId = uniqueRunId('json-open')
+    const adapter = producerLog(runId)
+    const opened = gate()
+    const producing = toJsonResponse(
+      runPausedAfterA(opened.promise, { then: [ev.runFinished()] }),
+      { durability: { adapter, batch: 1 } },
+    )
+    await vi.waitFor(async () => {
+      expect(await loggedLabels(adapter)).toHaveLength(3)
+    })
+    const lastOffset = (await adapter.snapshot())[2]?.offset ?? ''
+
+    const fromStart = await readJsonBody(
+      await resumeJsonResponse({
+        adapter: resumeLog(runId, '-1'),
+        maxWaitMs: 20,
+      }),
+    )
+    const caughtUp = await readJsonBody(
+      await resumeJsonResponse({
+        adapter: resumeLog(runId, lastOffset),
+        maxWaitMs: 20,
+      }),
+    )
+    opened.release()
+    const produced = await readJsonBody(await producing)
+
+    expect(fromStart.offset).toBe(lastOffset)
+    expect(fromStart.done).toBe(false)
+    expect(fromStart.chunks.map(label)).toEqual([
+      '[CUSTOM]',
+      '[RUN_STARTED]',
+      'a',
+    ])
+    expect(caughtUp).toEqual({ chunks: [], offset: lastOffset, done: false })
+    expect(produced.done).toBe(true)
+  })
+
+  it('starts the run driver and keeps it out of the Response init', async () => {
+    const runId = uniqueRunId('json-driver')
+    const request = new Request(
+      `https://example.test/api/chat?runId=${runId}&offset=-1`,
+    )
+    const waitUntil = vi.fn()
+    const driver: RunDriverOptions = {
+      request,
+      runs: new InMemoryRunStore(),
+      locks: new InMemoryLockStore(),
+      drive: () => streamOf([]),
+      claim: (input, fn) =>
+        fn({
+          runId: input.runId,
+          epoch: 1,
+          signal: new AbortController().signal,
+        }),
+      pipe: () => Promise.resolve(),
+      waitUntil,
+    }
+    const inits: Array<ResponseInit | undefined> = []
+    const RealResponse = globalThis.Response
+    class SpyResponse extends RealResponse {
+      constructor(body?: BodyInit | null, init?: ResponseInit) {
+        inits.push(init)
+        super(body, init)
+      }
+    }
+
+    globalThis.Response = SpyResponse
+    try {
+      await resumeJsonResponse({
+        adapter: memoryStream(request),
+        driver,
+        maxWaitMs: 20,
+      })
+    } finally {
+      globalThis.Response = RealResponse
+    }
+
+    expect(waitUntil).toHaveBeenCalledTimes(1)
+    expect(inits).toHaveLength(1)
+    expect(inits[0]).not.toHaveProperty('driver')
+  })
+})
+
+describe('JSON maxWaitMs validation', () => {
+  it('rejects an invalid maxWaitMs before reading the run', async () => {
+    const runId = uniqueRunId('json-invalid-wait')
+    let started = false
+    async function* run(): AsyncGenerator<StreamChunk> {
+      started = true
+      yield ev.runFinished()
+    }
+
+    await expect(
+      toJsonResponse(run(), {
+        durability: { adapter: producerLog(runId) },
+        maxWaitMs: -1,
+      }),
+    ).rejects.toThrow(
+      'Invalid maxWaitMs: -1. Must be a number from 0 to 2147483647.',
+    )
+    await expect(
+      resumeJsonResponse({
+        adapter: resumeLog(runId, '-1'),
+        maxWaitMs: Number.POSITIVE_INFINITY,
+      }),
+    ).rejects.toThrow(
+      'Invalid maxWaitMs: Infinity. Must be a number from 0 to 2147483647.',
+    )
+    expect(started).toBe(false)
   })
 })

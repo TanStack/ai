@@ -7,6 +7,6 @@ title: AnyChatMiddleware
 type AnyChatMiddleware = ChatMiddleware<any, any>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:843](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L843)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:856](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L856)
 
 A permissive middleware constraint that retains the definition parameter.

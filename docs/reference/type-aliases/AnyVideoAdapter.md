@@ -7,7 +7,7 @@ title: AnyVideoAdapter
 type AnyVideoAdapter = VideoAdapter<any, any, any, any, any, any>;
 ```
 
-Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:139](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L139)
+Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:193](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L193)
 
 A VideoAdapter with any/unknown type parameters.
 Useful as a constraint in generic functions and interfaces.

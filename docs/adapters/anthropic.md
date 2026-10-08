@@ -229,6 +229,8 @@ const stream = chat({
 
 Anthropic's Messages API _requires_ `max_tokens` on every request, so the adapter always sends a value. When you don't set `modelOptions.max_tokens`, it defaults to the selected model's full output ceiling (`max_output_tokens` from the model metadata — e.g. 64K for Sonnet, 128K for Opus), falling back to a safe constant for unrecognized models. `max_tokens` is a ceiling, not a reservation — billing is on tokens actually generated — so this default costs nothing extra and avoids the silent mid-response truncation (`stop_reason: "max_tokens"`) that a low default would cause. Set `max_tokens` explicitly only when you want to _cap_ output below the model ceiling. If a response is truncated while using the default cap, the adapter logs a warning (visible with [debug logging](../advanced/debug-logging) enabled).
 
+A streamed response that stops at `max_tokens` ends in a `RUN_ERROR` with `code: 'max_tokens'`. Anthropic bills the tokens of that call, so this `RUN_ERROR` carries the `usage` of the call. The `onUsage` middleware hook fires only for `RUN_FINISHED`. To count these tokens too, read `usage` from the `RUN_ERROR` chunk, in the stream or in an `onChunk` middleware.
+
 One exception: structured output (`chat({ outputSchema })`) on models that use the non-streaming finalization path clamps this default to ~21K tokens. The Anthropic SDK rejects a non-streaming request whose `max_tokens` could exceed its 10-minute timeout, so the full ceiling can't be used there. Streaming chat is unaffected. To raise the structured-output ceiling toward a model's true max, stream the response.
 
 ### Thinking (Extended Thinking)
@@ -278,6 +280,17 @@ Per-model rules (enforced by the adapter's types):
 - **`claude-fable-5`** — thinking is always on. The only accepted explicit
   config is `{ type: "adaptive" }` (both `disabled` and `budget_tokens`
   return a 400), and sampling parameters are rejected.
+- **`claude-sonnet-5-5`** — the types accept only `{ type: "adaptive" }`.
+  Both `disabled` and `budget_tokens` return a 400, and so do non-default
+  sampling values. To turn off up-front thinking, the API takes
+  `{ type: "between_tools" }`, which the adapter does not type yet.
+- **`claude-haiku-5-5`** — adaptive thinking is the default, and the
+  types accept `{ type: "adaptive" }` or `{ type: "disabled" }`. The API
+  accepts `disabled` at `high` effort or below and returns a 400 at `xhigh`
+  and `max`; the types cannot express that, so pair it with `low`,
+  `medium`, or `high`. `{ type: "enabled", budget_tokens }` and non-default
+  sampling values return a 400. `effort` defaults to `medium` on this
+  model, and it takes a forced `tool_choice`.
 - **`claude-opus-4-6` / `claude-sonnet-4-6`** — accept
   `{ type: "adaptive" }` alongside the deprecated
   `{ type: "enabled", budget_tokens }` shape, and still accept sampling
@@ -285,11 +298,14 @@ Per-model rules (enforced by the adapter's types):
 - **`display`** defaults to `"omitted"` on Opus 4.7+ and the 5-generation
   models — set `"summarized"` to stream the reasoning text.
 - **`effort`** accepts `"low" | "medium" | "high" | "xhigh" | "max"`;
-  `"xhigh"` is available on Claude Opus 4.7+, Claude Sonnet 5, and
-  Claude Fable 5.
+  `"xhigh"` is available on Claude Opus 4.7+, Claude Sonnet 5, Claude
+  Sonnet 5.5, Claude Haiku 5.5, Claude Fable 5, and Claude Fable 5.1.
+  Older models take `"low"`, `"medium"`, `"high"`, and, except Claude Opus
+  4.5, `"max"`.
 - **`output_config`** is accepted on Claude Opus 4.7, Opus 4.8, Sonnet 5,
-  Fable 5, Opus 5, Fable 5.1 and Opus 5.5. When you also pass an `outputSchema`, the
-  adapter adds `output_config.format` and keeps the `effort` you set.
+  Fable 5, Opus 5, Fable 5.1, Opus 5.5, Sonnet 5.5, and Haiku 5.5. When you
+  also pass an `outputSchema`, the adapter adds `output_config.format` and
+  keeps the `effort` you set.
 
 ### Prompt Caching
 
@@ -529,7 +545,7 @@ const stream = chat({
 });
 ```
 
-**Supported models:** Claude Sonnet 3.5 and above. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+**Supported models:** Claude Sonnet 3.5 and above, with two exceptions. `claude-opus-5-fast` takes no provider tools. Claude Opus 5.5, Claude Sonnet 5.5, and Claude Haiku 5.5 accept only the `computer_toolset_20260801` toolset, which the adapter does not offer yet. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
 
 ### `bashTool`
 

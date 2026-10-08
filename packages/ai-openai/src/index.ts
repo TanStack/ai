@@ -52,8 +52,10 @@ export {
 export type {
   OpenAIVideoProviderOptions,
   OpenAIVideoModelProviderOptionsByName,
+  OpenAIVideoModelDurationByName,
   OpenAIVideoSize,
-  // OpenAIVideoDuration,
+  OpenAIVideoSeconds,
+  OpenAIVideoDuration,
 } from './video/video-provider-options'
 
 // TTS adapter - for text-to-speech
@@ -86,6 +88,16 @@ export {
   type OpenAIEmbeddingConfig,
 } from './adapters/embedding'
 export type { OpenAIEmbeddingProviderOptions } from './embedding/embedding-provider-options'
+
+// Evaluate adapter - for decide() via the Decisions API
+export {
+  OpenAIEvaluateAdapter,
+  createOpenaiDecider,
+  openaiDecider,
+  OPENAI_EVALUATE_MODELS,
+  type OpenAIEvaluateConfig,
+  type OpenAIEvaluateModel,
+} from './adapters/evaluate'
 
 // Files adapter - upload media to the OpenAI Files API and reference by file_id
 export {

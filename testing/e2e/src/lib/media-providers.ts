@@ -93,7 +93,12 @@ export function createImageAdapter(
       }),
     gemini: () =>
       createGeminiImage('gemini-2.5-flash-image', DUMMY_KEY, {
-        httpOptions: { baseUrl: llmockBase(aimockPort), headers },
+        // Dedicated prefix: native image calls are Interactions API POSTs.
+        // aimock's own /v1beta/interactions handler stays free for text tests.
+        httpOptions: {
+          baseUrl: `${llmockBase(aimockPort)}/gemini-image`,
+          headers,
+        },
       }),
     grok: () =>
       createGrokImage('grok-imagine-image', DUMMY_KEY, {

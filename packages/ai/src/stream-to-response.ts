@@ -28,13 +28,24 @@ import type { StreamChunk } from './types'
 export { resolveResumeRunId } from './stream-durability'
 
 /**
- * Collect all text content from a StreamChunk async iterable and return as a string.
+ * The result of a run that was read to the end, such as `chat({ stream: false })`.
+ */
+export interface ChatResult {
+  /** Concatenated TEXT_MESSAGE_CONTENT deltas. */
+  text: string
+  /** Every chunk the run produced, in order. */
+  chunks: Array<StreamChunk>
+}
+
+/**
+ * Read a StreamChunk async iterable to the end and return its text and chunks.
  *
- * This function consumes the entire stream, accumulating content from TEXT_MESSAGE_CONTENT events,
- * and returns the final concatenated text.
+ * `text` joins the deltas of every TEXT_MESSAGE_CONTENT event. `chunks` keeps
+ * every chunk in order, so tool calls and interrupt outcomes are not lost.
  *
  * @param stream - AsyncIterable of StreamChunks from chat()
- * @returns Promise<string> - The accumulated text content
+ * @returns A {@link ChatResult} with the joined text and every chunk.
+ * @throws The error from the first RUN_ERROR chunk.
  *
  * @example
  * ```typescript
@@ -42,26 +53,33 @@ export { resolveResumeRunId } from './stream-durability'
  *   adapter: openaiText('gpt-5.5'),
  *   messages: [{ role: 'user', content: 'Hello!' }]
  * });
- * const text = await streamToText(stream);
+ * const { text } = await streamToText(stream);
  * console.log(text); // "Hello! How can I help you today?"
  * ```
  */
-export async function streamToText(
-  stream: AsyncIterable<StreamChunk>,
-): Promise<string> {
-  let accumulatedContent = ''
+export async function streamToText(stream: AsyncIterable<StreamChunk>) {
+  let text = ''
+  const chunks: Array<StreamChunk> = []
 
   for await (const chunk of stream) {
     if (chunk.type === 'RUN_ERROR') {
       throw runErrorEventToError(chunk)
     }
 
+    chunks.push(chunk)
     if (chunk.type === 'TEXT_MESSAGE_CONTENT' && chunk.delta) {
-      accumulatedContent += chunk.delta
+      text += chunk.delta
     }
   }
 
-  return accumulatedContent
+  const result: ChatResult = { text, chunks }
+  return result
+}
+
+function isChatResult(
+  input: ChatResult | AsyncIterable<StreamChunk>,
+): input is ChatResult {
+  return !(Symbol.asyncIterator in input)
 }
 
 interface RecordedFailure {
@@ -147,6 +165,12 @@ function toEncodedStream(
   let pumpPromise: Promise<void> = Promise.resolve()
   let pumpFailure: RecordedFailure | undefined
   let cancelled = false
+  let resumePump: (() => void) | undefined
+
+  const wakePump = (): void => {
+    resumePump?.()
+    resumePump = undefined
+  }
 
   const recordPumpFailure = (error: unknown, phase: string): void => {
     pumpFailure = {
@@ -167,12 +191,27 @@ function toEncodedStream(
   return new ReadableStream({
     start(controller) {
       iterator = stream[Symbol.asyncIterator]()
+      cancellation.signal.addEventListener('abort', wakePump)
       pumpPromise = (async () => {
         let index = 0
         let iteratorDone = false
 
         try {
           while (!isAborted(cancellation.signal)) {
+            // Keep at most the stream's high-water mark queued for a slow
+            // reader. A fresh durable run never waits: its log is the real
+            // destination, so a stalled viewer must not stall the run.
+            while (
+              !detachOnCancel &&
+              !cancelled &&
+              !isAborted(cancellation.signal) &&
+              (controller.desiredSize ?? 0) <= 0
+            ) {
+              await new Promise<void>((resolve) => {
+                resumePump = resolve
+              })
+            }
+            if (isAborted(cancellation.signal)) break
             const result = await iterator.next()
             if (result.done) {
               iteratorDone = true
@@ -188,6 +227,7 @@ function toEncodedStream(
         } catch (error) {
           recordPumpFailure(error, 'stream iteration failed')
         } finally {
+          cancellation.signal.removeEventListener('abort', wakePump)
           if (!iteratorDone) {
             try {
               await closeIterator()
@@ -209,8 +249,12 @@ function toEncodedStream(
         recordPumpFailure(error, 'stream pump failed')
       })
     },
+    pull() {
+      wakePump()
+    },
     async cancel(reason) {
       cancelled = true
+      wakePump()
       // Detached durable delivery: the client is gone (e.g. a page reload), but
       // the run must finish into the durable log so a rejoining client can tail
       // it to the real terminal. Do NOT abort the producer (that would kill the
@@ -252,6 +296,113 @@ function toEncodedStream(
       if (cancellationFailure !== undefined) throw cancellationFailure.error
     },
   })
+}
+
+/** The body `toJsonResponse` and `resumeJsonResponse` send, and `fetchJson` reads. */
+interface JsonRunBody {
+  /** Wire chunks (`toWireChunk` applied), in order. */
+  chunks: Array<StreamChunk>
+  /** Durable offset of the last chunk. Durable routes only. */
+  offset?: string
+  /** `false`: the run is still going; ask again from `offset`. */
+  done: boolean
+}
+
+/**
+ * Read `source` into one {@link JsonRunBody}.
+ *
+ * The body is `done: true` when `source` ends. A thrown error adds a trailing
+ * `RUN_ERROR` chunk and is also `done: true`. The body is `done: false` when
+ * `maxWaitMs` passes or `signal` aborts first; `onEarlyReply` then decides what
+ * happens to the run.
+ *
+ * After an early reply, `source` is still pulled to its end (a fresh durable
+ * run must keep filling its log), unless `stopAfterReply` is set. The pull
+ * never rejects, so a background drain cannot become an unhandled rejection.
+ */
+function collectJsonRunBody(
+  source: AsyncIterable<StreamChunk>,
+  options: {
+    /** Durable offset of a chunk. */
+    getId?: (chunk: StreamChunk) => string | undefined
+    /** Offset to report while no collected chunk has one (a resume read). */
+    offset?: string
+    /**
+     * Reply early after this many ms. The clock starts once an offset is
+     * known, so a `done: false` body always carries the offset to ask from.
+     */
+    maxWaitMs?: number
+    /** Reply early when this aborts. */
+    signal?: AbortSignal
+    /** Stop pulling `source` after the reply. */
+    stopAfterReply: boolean
+    onEarlyReply?: (cause: 'timeout' | 'signal') => void
+  },
+): Promise<JsonRunBody> {
+  const { getId, maxWaitMs, signal, stopAfterReply, onEarlyReply } = options
+  const chunks: Array<StreamChunk> = []
+  let offset = options.offset
+  let replied = false
+  let timer: ReturnType<typeof setTimeout> | undefined
+
+  return new Promise<JsonRunBody>((resolve) => {
+    const reply = (done: boolean): void => {
+      replied = true
+      clearTimeout(timer)
+      signal?.removeEventListener('abort', onSignal)
+      resolve({ chunks, ...(offset === undefined ? {} : { offset }), done })
+    }
+    const replyEarly = (cause: 'timeout' | 'signal'): void => {
+      if (replied) return
+      reply(false)
+      onEarlyReply?.(cause)
+    }
+    const onSignal = (): void => replyEarly('signal')
+    const armTimer = (): void => {
+      const canArm =
+        maxWaitMs !== undefined && timer === undefined && offset !== undefined
+      if (canArm) timer = setTimeout(() => replyEarly('timeout'), maxWaitMs)
+    }
+
+    armTimer()
+    signal?.addEventListener('abort', onSignal, { once: true })
+
+    void (async () => {
+      try {
+        for await (const chunk of source) {
+          if (replied) {
+            if (stopAfterReply) break
+            continue
+          }
+          chunks.push(toWireChunk(chunk))
+          offset = getId?.(chunk) ?? offset
+          armTimer()
+        }
+      } catch (error) {
+        if (!replied) chunks.push(toWireChunk(runErrorChunk(error)))
+      }
+      if (!replied) reply(true)
+    })()
+
+    if (signal?.aborted) onSignal()
+  })
+}
+
+/**
+ * Default headers overridden by the caller's headers. Accepts every
+ * `HeadersInit` form: a `Headers` instance, `string[][]`, or a plain object.
+ */
+function mergeResponseHeaders(
+  defaults: Record<string, string>,
+  headers: HeadersInit | undefined,
+): Headers {
+  const merged = new Headers(defaults)
+  if (headers) {
+    new Headers(headers).forEach((value, key) => {
+      merged.set(key, value)
+    })
+  }
+  return merged
 }
 
 /**
@@ -304,6 +455,82 @@ function sseEncoders(
 
 /** Default number of chunks buffered before a durability `append`. */
 const DEFAULT_DURABILITY_BATCH = 32
+
+/**
+ * Default `batchWaitMs`: the longest a buffered chunk waits for the producer's
+ * next chunk before its batch flushes anyway. Chunks are forwarded only AFTER
+ * they are appended, so a size-only batch held live text until 32 chunks
+ * arrived: a short reply showed up all at once at `RUN_FINISHED`. This bounds
+ * that wait and keeps bursts in one `append`, so a remote log still does not
+ * pay one write per token.
+ */
+const DEFAULT_DURABILITY_BATCH_WAIT_MS = 50
+
+/** Largest delay `setTimeout` honors; a larger one fires at once. */
+const MAX_TIMER_DELAY_MS = 2_147_483_647
+
+/**
+ * Resolve and validate `batchWaitMs`. `NaN`, a negative value, `Infinity`, and
+ * anything past the timer limit are rejected: `setTimeout` would turn each of
+ * them into an immediate flush, the opposite of what a large value asks for.
+ */
+function resolveBatchWaitMs(batchWaitMs: number | undefined): number {
+  if (batchWaitMs === undefined) return DEFAULT_DURABILITY_BATCH_WAIT_MS
+  if (
+    !Number.isFinite(batchWaitMs) ||
+    batchWaitMs < 0 ||
+    batchWaitMs > MAX_TIMER_DELAY_MS
+  ) {
+    throw new Error(
+      `Invalid durability batchWaitMs: ${batchWaitMs}. Must be a number from 0 to ${MAX_TIMER_DELAY_MS}.`,
+    )
+  }
+  return batchWaitMs
+}
+
+/**
+ * Validate `maxWaitMs` for the JSON helpers. `undefined` means no limit. The
+ * same values as {@link resolveBatchWaitMs} are rejected, for the same reason:
+ * `setTimeout` would reply at once instead of waiting.
+ */
+function resolveMaxWaitMs(maxWaitMs: number | undefined): number | undefined {
+  if (maxWaitMs === undefined) return undefined
+  if (
+    !Number.isFinite(maxWaitMs) ||
+    maxWaitMs < 0 ||
+    maxWaitMs > MAX_TIMER_DELAY_MS
+  ) {
+    throw new Error(
+      `Invalid maxWaitMs: ${maxWaitMs}. Must be a number from 0 to ${MAX_TIMER_DELAY_MS}.`,
+    )
+  }
+  return maxWaitMs
+}
+
+/**
+ * True when `promise` settles within `ms`. The promise is observed either way,
+ * so a rejection that loses the race is not reported as unhandled.
+ */
+async function settlesWithin(
+  promise: Promise<unknown>,
+  ms: number,
+): Promise<boolean> {
+  if (ms <= 0) return false
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      promise.then(
+        () => true,
+        () => true,
+      ),
+      new Promise<boolean>((resolve) => {
+        timer = setTimeout(() => resolve(false), ms)
+      }),
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
+}
 
 /**
  * Resolve and validate the durability batch size. A non-positive-integer (0,
@@ -378,8 +605,9 @@ export const RUN_ACCEPTED_EVENT = 'run.accepted'
  *   so `chat()`'s lazy iterator never fires the provider — the untouched
  *   generator is simply GC'd. This is what makes resume free of re-invocation.
  * - **Fresh** (`resumeFrom()` null): iterate `stream`, buffering up to `batch`
- *   chunks (flushing early at terminal / tool-call boundaries), `append` each
- *   batch to the log, then forward. Appending BEFORE forwarding guarantees a
+ *   chunks (flushing early at terminal / tool-call boundaries, or once the
+ *   oldest buffered chunk has waited `batchWaitMs`), `append` each batch to
+ *   the log, then forward. Appending BEFORE forwarding guarantees a
  *   reconnecting client can always replay exactly what it already saw.
  *
  * The returned `getId` maps each forwarded chunk to the exact opaque offset
@@ -391,6 +619,7 @@ export function durableStreamSource<TOffset extends string>(
   options: {
     abortController: AbortController
     batch?: number
+    batchWaitMs?: number
     logger?: InternalLogger
   },
 ): {
@@ -399,6 +628,7 @@ export function durableStreamSource<TOffset extends string>(
 } {
   const resumeOffset = durability.resumeFrom()
   const batchSize = resolveBatchSize(options.batch)
+  const batchWaitMs = resolveBatchWaitMs(options.batchWaitMs)
   const abortController = options.abortController
   const logger = options.logger
   const idByChunk = new WeakMap<object, string>()
@@ -502,11 +732,64 @@ export function durableStreamSource<TOffset extends string>(
         timestamp: Date.now(),
       })
       yield* flush()
-      for await (const chunk of stream) {
-        if (isAborted(abortController.signal)) break
-        batch.push(chunk)
-        if (batch.length >= batchSize || isDurabilityFlushBoundary(chunk)) {
-          yield* flush()
+      // Iterated by hand, not with `for await`, so the batch can flush while
+      // the next chunk is still pending. The `finally` does what `for await`
+      // would: close the producer on an early exit, but not after it finished
+      // or threw. After a failed timed flush it closes it in the background.
+      const iterator = stream[Symbol.asyncIterator]()
+      let iteratorFinished = false
+      // A timed flush failed while `next` was still pending.
+      let pullPending = false
+      let flushBy = 0
+      try {
+        for (;;) {
+          const next = iterator.next()
+          if (
+            batch.length > 0 &&
+            !(await settlesWithin(next, flushBy - Date.now()))
+          ) {
+            try {
+              yield* flush()
+            } catch (error) {
+              pullPending = true
+              throw error
+            }
+          }
+          let result: IteratorResult<StreamChunk>
+          try {
+            result = await next
+          } catch (error) {
+            iteratorFinished = true
+            throw error
+          }
+          if (result.done) {
+            iteratorFinished = true
+            break
+          }
+          if (isAborted(abortController.signal)) break
+          const chunk = result.value
+          if (batch.length === 0) {
+            flushBy = Date.now() + batchWaitMs
+          }
+          batch.push(chunk)
+          if (batch.length >= batchSize || isDurabilityFlushBoundary(chunk)) {
+            yield* flush()
+          }
+        }
+      } finally {
+        if (pullPending) {
+          // An async generator runs `return()` only after its pending pull,
+          // so awaiting it here waits for the model's next chunk, maybe
+          // forever. Close it in the background: the failure path below must
+          // persist RUN_ERROR now, and a failure is never a detach, so nothing
+          // below needs the producer's `onAbort` chain to finish first.
+          Promise.resolve(iterator.return?.()).catch((error: unknown) => {
+            logger?.errors('closing the producer after a failed flush failed', {
+              error,
+            })
+          })
+        } else if (!iteratorFinished) {
+          await iterator.return?.()
         }
       }
       if (!isAborted(abortController.signal)) yield* flush()
@@ -663,17 +946,28 @@ export function durableStreamSource<TOffset extends string>(
   }
 
   async function* replay(offset: TOffset): AsyncIterable<StreamChunk> {
-    // Thread the consumer's abort signal into the read so a live-tailing join
-    // (a mid-stream reconnect) that is aborted — or that hit a runId with no
-    // in-process producer — stops parking and ends instead of hanging forever.
-    for await (const { offset: eventOffset, chunk } of durability.read(
-      offset,
-      abortController.signal,
-    )) {
-      if (isAborted(abortController.signal)) break
-      validateOffset(eventOffset)
-      idByChunk.set(chunk, eventOffset)
-      yield chunk
+    try {
+      // Thread the consumer's abort signal into the read so a live-tailing join
+      // (a mid-stream reconnect) that is aborted — or that hit a runId with no
+      // in-process producer — stops parking and ends instead of hanging forever.
+      for await (const { offset: eventOffset, chunk } of durability.read(
+        offset,
+        abortController.signal,
+      )) {
+        if (isAborted(abortController.signal)) break
+        validateOffset(eventOffset)
+        idByChunk.set(chunk, eventOffset)
+        yield chunk
+      }
+    } catch (error) {
+      // The HTTP transports send this to the reader as a RUN_ERROR, but a
+      // replay has no producer to log it (`chat()` logs its own failures), so
+      // an expired run or a failed backend read would leave no server-side
+      // trace. An aborted read is expected teardown, not a failure.
+      if (!isAborted(abortController.signal)) {
+        logger?.errors('replaying durability stream failed', { error })
+      }
+      throw error
     }
   }
 
@@ -695,10 +989,11 @@ export function durableStreamSource<TOffset extends string>(
  * to make the stream resumable: fresh runs are appended to the log and each SSE
  * event is tagged with an `id:` offset; a reconnect (native `Last-Event-ID`) or
  * a `?offset` join replays from the log without re-running the producer. `batch`
- * controls how many chunks are buffered per `append` (default 32).
+ * controls how many chunks are buffered per `append` (default 32), and
+ * `batchWaitMs` how long a buffered chunk waits for more (default 50).
  *
  * @param stream - AsyncIterable of StreamChunks from chat()
- * @param init - Optional Response initialization options (including `abortController`, `durability` with its optional `batch`, and `debug`)
+ * @param init - Optional Response initialization options (including `abortController`, `durability` with its optional `batch` and `batchWaitMs`, and `debug`)
  * @returns Response in Server-Sent Events format
  *
  * @example
@@ -713,14 +1008,26 @@ export function toServerSentEventsResponse<TOffset extends string = string>(
   stream: AsyncIterable<StreamChunk>,
   init?: ResponseInit & {
     abortController?: AbortController
-    durability?: { adapter: StreamDurability<TOffset>; batch?: number }
+    durability?: {
+      adapter: StreamDurability<TOffset>
+      /** Most chunks in one `append` (default 32). */
+      batch?: number
+      /**
+       * Most ms a chunk waits in the batch for the next one before the batch
+       * is appended and sent anyway (default 50). Chunks reach the client only
+       * after their append, so a higher value means fewer writes but slower
+       * live text, and `0` appends every chunk on its own.
+       */
+      batchWaitMs?: number
+    }
     /**
-     * Customize logging for durability failure paths (terminal-append and
-     * close). These failures are always logged server-side by default (the
+     * Customize logging for durability failure paths (replay, terminal-append,
+     * and close). These failures are always logged server-side by default (the
      * `errors` category is on even without `debug`, via a `ConsoleLogger`);
      * pass `debug` to route them to a custom `Logger` or raise verbosity. A
-     * joiner replaying the log only ever sees a generic incomplete error, so
-     * server-side logging is where the real cause is recoverable.
+     * joiner never learns why a terminal-append or close failed, and a replay
+     * failure reaches only its reader, so server-side logging is where the real
+     * cause is recoverable.
      */
     debug?: DebugOption
   },
@@ -728,21 +1035,14 @@ export function toServerSentEventsResponse<TOffset extends string = string>(
   const { headers, abortController, durability, debug, ...responseInit } =
     init ?? {}
 
-  // Start with default SSE headers
-  const mergedHeaders = new Headers({
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    Connection: 'keep-alive',
-  })
-
-  // Override with user headers if provided, handling all HeadersInit forms:
-  // Headers instance, string[][], or plain object
-  if (headers) {
-    const userHeaders = new Headers(headers)
-    userHeaders.forEach((value, key) => {
-      mergedHeaders.set(key, value)
-    })
-  }
+  const mergedHeaders = mergeResponseHeaders(
+    {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    },
+    headers,
+  )
 
   let body: ReadableStream<Uint8Array>
   if (durability) {
@@ -761,6 +1061,7 @@ export function toServerSentEventsResponse<TOffset extends string = string>(
     const { source, getId } = durableStreamSource(stream, durability.adapter, {
       abortController: producerAbortController,
       batch: durability.batch,
+      batchWaitMs: durability.batchWaitMs,
       // `errors` category is on by default even when `debug` is undefined, so
       // durability terminal-append / close failures always surface server-side —
       // including on the client-disconnect path where there is no live consumer.
@@ -1109,12 +1410,13 @@ function ndjsonEncoders(
  * NDJSON line is emitted as an `{ id, chunk }` envelope carrying an opaque
  * offset; a reconnect (native `Last-Event-ID` header) or a `?offset` join
  * replays from the log without re-running the producer. `batch` controls how
- * many chunks are buffered per `append` (default 32). This shares the exact
+ * many chunks are buffered per `append` (default 32), and `batchWaitMs` how
+ * long a buffered chunk waits for more (default 50). This shares the exact
  * `durableStreamSource` used by `toServerSentEventsResponse` — only the wire
  * encoding differs.
  *
  * @param stream - AsyncIterable of StreamChunks from chat()
- * @param init - Optional Response initialization options (including `abortController`, `durability` with its optional `batch`, and `debug`)
+ * @param init - Optional Response initialization options (including `abortController`, `durability` with its optional `batch` and `batchWaitMs`, and `debug`)
  * @returns Response in HTTP stream format (newline-delimited JSON)
  *
  * @example
@@ -1129,14 +1431,26 @@ export function toHttpResponse<TOffset extends string = string>(
   stream: AsyncIterable<StreamChunk>,
   init?: ResponseInit & {
     abortController?: AbortController
-    durability?: { adapter: StreamDurability<TOffset>; batch?: number }
+    durability?: {
+      adapter: StreamDurability<TOffset>
+      /** Most chunks in one `append` (default 32). */
+      batch?: number
+      /**
+       * Most ms a chunk waits in the batch for the next one before the batch
+       * is appended and sent anyway (default 50). Chunks reach the client only
+       * after their append, so a higher value means fewer writes but slower
+       * live text, and `0` appends every chunk on its own.
+       */
+      batchWaitMs?: number
+    }
     /**
-     * Customize logging for durability failure paths (terminal-append and
-     * close). These failures are always logged server-side by default (the
+     * Customize logging for durability failure paths (replay, terminal-append,
+     * and close). These failures are always logged server-side by default (the
      * `errors` category is on even without `debug`, via a `ConsoleLogger`);
      * pass `debug` to route them to a custom `Logger` or raise verbosity. A
-     * joiner replaying the log only ever sees a generic incomplete error, so
-     * server-side logging is where the real cause is recoverable.
+     * joiner never learns why a terminal-append or close failed, and a replay
+     * failure reaches only its reader, so server-side logging is where the real
+     * cause is recoverable.
      */
     debug?: DebugOption
   },
@@ -1147,16 +1461,10 @@ export function toHttpResponse<TOffset extends string = string>(
   // Default to a streaming NDJSON content type (with no-cache), overridable by
   // user headers. Without an explicit streaming type some intermediaries buffer
   // the response, defeating incremental delivery. Mirrors the SSE helper.
-  const mergedHeaders = new Headers({
-    'Content-Type': 'application/x-ndjson',
-    'Cache-Control': 'no-cache',
-  })
-  if (headers) {
-    const userHeaders = new Headers(headers)
-    userHeaders.forEach((value, key) => {
-      mergedHeaders.set(key, value)
-    })
-  }
+  const mergedHeaders = mergeResponseHeaders(
+    { 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-cache' },
+    headers,
+  )
 
   let body: ReadableStream<Uint8Array>
   if (durability) {
@@ -1172,6 +1480,7 @@ export function toHttpResponse<TOffset extends string = string>(
     const { source, getId } = durableStreamSource(stream, durability.adapter, {
       abortController: producerAbortController,
       batch: durability.batch,
+      batchWaitMs: durability.batchWaitMs,
       // Errors-on-by-default logger (see toServerSentEventsResponse).
       logger: resolveDebugOption(debug),
     })
@@ -1221,5 +1530,229 @@ export function resumeHttpResponse<TOffset extends string = string>(
     ...responseInit,
     durability: { adapter, batch },
     debug,
+  })
+}
+
+/** Stream options for {@link toJsonResponse}. */
+type JsonResponseInit<TOffset extends string> = ResponseInit & {
+  /**
+   * Stops the run. Without `durability`, it is also aborted when `signal`
+   * aborts. With `durability`, only an explicit `abort()` stops the run.
+   */
+  abortController?: AbortController
+  /**
+   * The request's signal (`request.signal`). Without `durability`, an abort
+   * stops the run. With `durability`, an abort tells the run its viewer is gone
+   * and the run keeps filling its log.
+   */
+  signal?: AbortSignal
+  /**
+   * Most ms to wait before replying with the chunks collected so far and
+   * `done: false`. The client then asks again from `offset`. Only used with
+   * `durability`: without a log there is no way to fetch the rest, so the
+   * stream is always read to its end. Default: no limit. A value outside 0 to
+   * 2147483647 (or `NaN`) rejects the call.
+   */
+  maxWaitMs?: number
+  durability?: {
+    adapter: StreamDurability<TOffset>
+    /** Most chunks in one `append` (default 32). */
+    batch?: number
+    /**
+     * Most ms a chunk waits in the batch for the next one before the batch is
+     * appended anyway (default 50).
+     */
+    batchWaitMs?: number
+  }
+  /**
+   * Customize logging for durability failure paths (replay, terminal-append,
+   * and close). See {@link toHttpResponse}.
+   */
+  debug?: DebugOption
+}
+
+/** Default `maxWaitMs` for {@link resumeJsonResponse}. */
+const DEFAULT_RESUME_JSON_MAX_WAIT_MS = 1000
+
+/**
+ * Send a chat run as one JSON body, for hosts that cannot stream a response.
+ * Pair it with the `fetchJson` connection adapter.
+ *
+ * The body is `{ chunks, offset?, done }`:
+ * - `chunks`: every chunk, encoded for the wire like the SSE and NDJSON helpers.
+ * - `offset`: the durable offset of the last chunk (durable routes only).
+ * - `done`: `false` when the run is still going. The client asks again with
+ *   `GET ?runId=<id>&offset=<offset>`, served by {@link resumeJsonResponse}.
+ *
+ * Pass a `ChatResult` from `chat({ stream: false })` to send it as is. Pass a
+ * stream to read it here. Without `durability` the stream is read to its end.
+ * With `durability`, a fresh run fills the log, and the reply goes out when the
+ * run ends or when `maxWaitMs` passes, whichever is first. The run keeps going
+ * after an early reply. A request with a resume offset reads the log instead.
+ *
+ * @param input - A `ChatResult`, or a StreamChunk async iterable from chat()
+ * @param init - Response init. For a stream, also `abortController`, `signal`, `maxWaitMs`, `durability`, and `debug`.
+ * @returns A promise of a JSON Response
+ *
+ * @example
+ * ```typescript
+ * // A finished result
+ * export async function POST(request: Request) {
+ *   const result = await chat({
+ *     adapter: openaiText('gpt-5.5'),
+ *     messages: [...],
+ *     stream: false,
+ *   });
+ *   return toJsonResponse(result);
+ * }
+ *
+ * // A durable stream that replies at least once a second
+ * export async function POST(request: Request) {
+ *   const stream = chat({ adapter: openaiText('gpt-5.5'), messages: [...] });
+ *   return toJsonResponse(stream, {
+ *     durability: { adapter: memoryStream(request) },
+ *     signal: request.signal,
+ *     maxWaitMs: 1000,
+ *   });
+ * }
+ * ```
+ */
+export function toJsonResponse(
+  result: ChatResult,
+  init?: ResponseInit,
+): Promise<Response>
+export function toJsonResponse<TOffset extends string = string>(
+  stream: AsyncIterable<StreamChunk>,
+  init?: JsonResponseInit<TOffset>,
+): Promise<Response>
+export async function toJsonResponse<TOffset extends string = string>(
+  input: ChatResult | AsyncIterable<StreamChunk>,
+  init?: JsonResponseInit<TOffset>,
+) {
+  const {
+    abortController,
+    signal,
+    maxWaitMs: rawMaxWaitMs,
+    durability,
+    debug,
+    headers,
+    ...responseInit
+  } = init ?? {}
+  const maxWaitMs = resolveMaxWaitMs(rawMaxWaitMs)
+  const body = isChatResult(input)
+    ? { chunks: input.chunks.map(toWireChunk), done: true }
+    : await collectStreamBody(input, {
+        abortController,
+        signal,
+        maxWaitMs,
+        durability,
+        debug,
+      })
+  return new Response(JSON.stringify(body), {
+    ...responseInit,
+    headers: mergeResponseHeaders(
+      { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
+      headers,
+    ),
+  })
+}
+
+/** The stream half of {@link toJsonResponse}. */
+async function collectStreamBody<TOffset extends string>(
+  stream: AsyncIterable<StreamChunk>,
+  options: Pick<
+    JsonResponseInit<TOffset>,
+    'abortController' | 'signal' | 'maxWaitMs' | 'durability' | 'debug'
+  >,
+) {
+  const { abortController, signal, maxWaitMs, durability, debug } = options
+
+  if (!durability) {
+    // No log to fetch the rest from, so read to the end. Like toHttpResponse,
+    // the run stops when the client goes away.
+    const cancellation = abortController ?? new AbortController()
+    const stop = (): void => cancellation.abort(signal?.reason)
+    signal?.addEventListener('abort', stop, { once: true })
+    if (signal?.aborted) stop()
+    const body = await collectJsonRunBody(stream, {
+      signal: cancellation.signal,
+      stopAfterReply: true,
+    })
+    signal?.removeEventListener('abort', stop)
+    const result: JsonRunBody = { chunks: body.chunks, done: true }
+    return result
+  }
+
+  // See toServerSentEventsResponse: a fresh run drains into the durable log
+  // under its own producer controller, so a gone client does not kill the run.
+  // A resume request is a reader, so an early reply stops the read.
+  const resumeOffset = durability.adapter.resumeFrom()
+  const isFresh = resumeOffset === null
+  const producerAbortController = abortController ?? new AbortController()
+  const { source, getId } = durableStreamSource(stream, durability.adapter, {
+    abortController: producerAbortController,
+    batch: durability.batch,
+    batchWaitMs: durability.batchWaitMs,
+    logger: resolveDebugOption(debug),
+  })
+  return collectJsonRunBody(source, {
+    getId,
+    offset: resumeOffset ?? undefined,
+    maxWaitMs,
+    signal,
+    stopAfterReply: !isFresh,
+    onEarlyReply: (cause) => {
+      if (!isFresh) {
+        producerAbortController.abort()
+        return
+      }
+      // Fresh runs only: the client left while the request was open. Tell the
+      // run, and keep it going. A timeout is not a disconnect: the client asks
+      // again from `offset`.
+      if (cause === 'signal') notifyRunDisconnected(stream)
+    },
+  })
+}
+
+/**
+ * Serve a resumable run from its durability log as one JSON body, without
+ * re-running the model. The JSON counterpart of
+ * {@link resumeServerSentEventsResponse}; pair it with a `toJsonResponse`
+ * producer. `fetchJson` calls it with `?runId=<id>&offset=<offset>` while a
+ * reply says `done: false`, and with `offset=-1` to join a run from the start.
+ *
+ * The reply holds every chunk strictly after the offset. It is `done: true`
+ * once the log is closed, or `done: false` after `maxWaitMs` (default 1000) on a
+ * run that is still going. Returns a 400 when the request carries no resume
+ * offset (no `Last-Event-ID` header and no `?offset`).
+ *
+ * @example
+ * ```typescript
+ * export async function GET(request: Request) {
+ *   return resumeJsonResponse({ adapter: memoryStream(request) });
+ * }
+ * ```
+ */
+export async function resumeJsonResponse<TOffset extends string = string>(
+  options: ResumeResponseOptions<TOffset> & {
+    /**
+     * Most ms to wait for the log to close before replying (default 1000). A
+     * value outside 0 to 2147483647 (or `NaN`) rejects the call.
+     */
+    maxWaitMs?: number
+  },
+) {
+  // See `resumeServerSentEventsResponse`: `driver` must not reach `responseInit`.
+  const { adapter, batch, debug, driver, maxWaitMs, ...responseInit } = options
+  const waitMs = resolveMaxWaitMs(maxWaitMs) ?? DEFAULT_RESUME_JSON_MAX_WAIT_MS
+  if (adapter.resumeFrom() === null) {
+    return new Response(NO_RESUME_OFFSET, { status: 400 })
+  }
+  maybeStartRunDriver(driver)
+  return toJsonResponse(emptyDurableSource(), {
+    ...responseInit,
+    durability: { adapter, batch },
+    debug,
+    maxWaitMs: waitMs,
   })
 }

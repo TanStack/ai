@@ -105,6 +105,150 @@ const stream = chat({
 });
 ```
 
+## Sign in with ChatGPT (BYOK)
+
+Many of your users have a ChatGPT plan but no API key. Let them sign in with ChatGPT. The token bills their ChatGPT plan, not your account.
+
+The helpers in `@tanstack/ai-openai/siwc` put the access token into the `openai` [BYOK](../advanced/byok) slot. Your relay reads it like a pasted key.
+
+Before you start, check these limits:
+
+- OpenAI allows this sign-in only for open-source and locally hosted apps. For a hosted app, fill in the [interest form](https://openai.com/form/sign-in-with-chatgpt-interest/).
+- OpenAI redirects only to `127.0.0.1`. Something must answer on that address. Vite listens on `::1` by default. The `ts-react-chat` example runs a small script on `127.0.0.1:3000` that redirects to `localhost:3000`.
+- Keep the app on `localhost`, because passkey storage does not work on an IP address. The callback lands on `127.0.0.1`, then `completeChatGptSignIn` sends the browser back to `localhost`.
+- The callback page must be at `/auth/callback`.
+
+### 1. Add the sign-in button
+
+Call `startChatGptSignIn` from a click. `agentName` is your app name. OpenAI shows it on the consent screen.
+
+```tsx
+import { startChatGptSignIn } from "@tanstack/ai-openai/siwc";
+
+export function ChatGptButton() {
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        void startChatGptSignIn({ agentName: "My App" });
+      }}
+    >
+      Continue with ChatGPT
+    </button>
+  );
+}
+```
+
+### 2. Finish on `/auth/callback`
+
+Render this component on the `/auth/callback` route. It exchanges the code when the page loads. Then the user clicks to save.
+
+```tsx
+import { useEffect, useRef, useState } from "react";
+import {
+  completeChatGptSignIn,
+  saveChatGptSignIn,
+} from "@tanstack/ai-openai/siwc";
+import type { ChatGptSignIn } from "@tanstack/ai-openai/siwc";
+import { byok } from "./byok";
+
+export function ChatGptCallback() {
+  const started = useRef(false);
+  const [signIn, setSignIn] = useState<ChatGptSignIn | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    // The code works one time. Strict Mode runs effects two times.
+    if (started.current) return;
+    started.current = true;
+    completeChatGptSignIn().then(setSignIn, (caught: unknown) => {
+      setError(caught instanceof Error ? caught.message : "Sign-in failed");
+    });
+  }, []);
+
+  if (error) return <p>{error}</p>;
+  if (!signIn) return <p>Finishing sign-in...</p>;
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        void saveChatGptSignIn(byok, signIn);
+      }}
+    >
+      Save ChatGPT sign-in
+    </button>
+  );
+}
+```
+
+The save needs a click because passkey storage shows a browser prompt. The refresh token goes into a second keyring slot. No send attaches that slot, so the refresh token stays in the browser.
+
+### 3. Refresh the token
+
+The access token lasts one hour. Call `refreshChatGptSignIn` on a timer:
+
+```tsx
+import { useEffect } from "react";
+import { refreshChatGptSignIn } from "@tanstack/ai-openai/siwc";
+import { byok } from "./byok";
+
+export function useChatGptRefresh() {
+  useEffect(() => {
+    const refresh = () => {
+      refreshChatGptSignIn(byok).catch(console.error);
+    };
+    refresh();
+    const timer = setInterval(refresh, 60_000);
+    return () => clearInterval(timer);
+  }, []);
+}
+```
+
+The call does nothing until the token has less than five minutes left. If OpenAI rejects the refresh token, the call clears the sign-in. Then the user must sign in again.
+
+### 4. Read the token on the relay
+
+The relay code is the same as for a pasted key. Add `store: false`, because the ChatGPT route requires it.
+
+```typescript
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { createOpenaiChat } from "@tanstack/ai-openai";
+import { openaiByok } from "@tanstack/ai-openai/byok";
+import { byokMissing, getByokKey } from "@tanstack/ai/byok/server";
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request);
+  const apiKey = getByokKey(request, openaiByok);
+  if (!apiKey) return byokMissing(openaiByok);
+
+  const stream = chat({
+    adapter: createOpenaiChat("gpt-6-astra", apiKey),
+    messages: params.messages,
+    threadId: params.threadId,
+    runId: params.runId,
+    modelOptions: { store: false },
+  });
+  return toServerSentEventsResponse(stream);
+}
+```
+
+`store: false` also works with an API key. A ChatGPT token does not start with `sk-`, so use that test if you must send different options.
+
+The ChatGPT route has these limits:
+
+- Use a model that the user's ChatGPT plan includes.
+- Do not send `temperature`, `top_p`, `max_output_tokens`, `metadata`, or `previous_response_id`.
+- Hosted tools do not work. This includes image generation, file search, code interpreter, computer use, and hosted MCP.
+- Audio input and transcription do not work.
+
+Click **Continue with ChatGPT**, approve, save, then send a message. The relay calls OpenAI on the user's ChatGPT plan.
+
+The `ts-react-chat` example has this flow in its key dialog.
+
 ## Configuration
 
 ```typescript
@@ -416,6 +560,59 @@ for (const segment of result.segments ?? []) {
 
 When no response format is specified, `gpt-4o-transcribe-diarize` requests default to `response_format: "diarized_json"` and `chunking_strategy: "auto"`; passing a top-level `responseFormat` of `"json"` or `"text"` opts out of speaker segments. `known_speaker_names` and `known_speaker_references` must be provided together (up to 4, matching lengths). OpenAI does not support `prompt`, `include`, or `timestamp_granularities` with diarized transcription.
 
+## Evaluate
+
+Sometimes you need an answer that your code can branch on, not chat text. Examples are a queue name, an urgency level, or a yes or no.
+Use `openaiDecider` with `decide()` to ask typed questions about one shared `state`. The adapter calls the OpenAI Decisions API (`/v1/decisions`):
+
+```typescript
+import { decide, choice, score, boolean } from "@tanstack/ai";
+import { openaiDecider } from "@tanstack/ai-openai";
+
+const ticket = {
+  subject: "Charged twice for the same invoice",
+  body: "Please refund the extra payment.",
+};
+
+const result = await decide({
+  adapter: openaiDecider("gpt-6-luna"),
+  state: ticket,
+  questions: {
+    queue: choice({
+      instructions: "Which team should handle this ticket?",
+      options: {
+        billing: "Payments, invoices, refunds",
+        tech: "Bugs, outages, integrations",
+        sales: "Pricing, upgrades, new accounts",
+      },
+    }),
+    urgency: score({
+      instructions: "How urgent is this ticket?",
+      levels: ["low", "medium", "high"],
+    }),
+    refund: boolean({
+      instructions: "Is the customer asking for a refund?",
+    }),
+  },
+});
+
+console.log(result.queue.value); // "billing"
+console.log(result.urgency.value); // "medium"
+console.log(result.refund.value); // true
+console.log(result.meta.usage);
+```
+
+`openaiDecider` reads `OPENAI_API_KEY` from the environment. To pass a key yourself, use `createOpenaiDecider("gpt-6-luna", "sk-...")`.
+
+Good to know:
+
+- `gpt-6-luna` is the only Decisions model.
+- An object `state` goes to OpenAI as JSON text.
+- If OpenAI refuses to answer a question, `decide()` throws an error with the name of that question.
+- `boolean()` criteria work. The adapter adds the true and false meanings to the instructions.
+
+See the [Evaluate guide](../evaluate/evaluate) for question helpers, the result shape, abort, and middleware.
+
 ## Environment Variables
 
 Set your API key in environment variables:
@@ -469,6 +666,10 @@ Creates an OpenAI transcription adapter for Whisper, GPT-4o transcription, and G
 ### `openaiVideo(model, config?)` / `createOpenaiVideo(model, apiKey, config?)`
 
 Creates an OpenAI video generation adapter (Sora). _Experimental._
+
+### `openaiDecider(model, config?)` / `createOpenaiDecider(model, apiKey, config?)`
+
+Creates an OpenAI evaluate adapter for `decide()`. See [Evaluate](#evaluate) for usage.
 
 ### `openaiRealtime(...)` / `openaiRealtimeToken(...)`
 
@@ -817,7 +1018,7 @@ const patchResult = {
 };
 ```
 
-If the patch fails, set `status` to `"failed"`. Put the error text in `output`. Keep `applyPatchTool()` in `tools` on the next request. Use the stream. `chat({ stream: false })` returns only text. A patch-only turn then looks empty.
+If the patch fails, set `status` to `"failed"`. Put the error text in `output`. Keep `applyPatchTool()` in `tools` on the next request. A patch-only turn has no text. If you use `chat({ stream: false })`, `text` is empty. Read the `apply_patch` tool call from `chunks` with the same checks as the loop above.
 
 **Supported models:** GPT-5.x and other agent-capable models. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
 

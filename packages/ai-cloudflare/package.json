@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-cloudflare",
-  "version": "0.2.1",
+  "version": "0.2.3",
   "description": "Cloudflare adapter for TanStack AI — Workers AI chat, embeddings, images, speech, transcription, and summarization over the AI binding or REST, with AI Gateway routing for any provider.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -68,7 +68,7 @@
     "@cloudflare/workers-types": "^4.20260317.1",
     "@tanstack/ai-utils": "workspace:^",
     "@tanstack/openai-base": "workspace:^",
-    "openai": "^6.41.0"
+    "openai": "^7.30.0"
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",

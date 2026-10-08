@@ -244,6 +244,7 @@ export function createCodeModeTool(
         const eventAwareBindings = createEventAwareBindings(
           allBindings,
           emitCustomEvent,
+          toolContext,
         )
 
         // Step 4: Create sandbox context with event-aware bindings

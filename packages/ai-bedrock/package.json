@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-bedrock",
-  "version": "0.4.1",
+  "version": "0.4.3",
   "type": "module",
   "description": "Amazon Bedrock adapter for TanStack AI — OpenAI-compatible chat, responses, tools, and reasoning.",
   "author": "",
@@ -63,6 +63,6 @@
     "@smithy/signature-v4": "^5.4.5",
     "@smithy/types": "^4.14.2",
     "@tanstack/openai-base": "workspace:^",
-    "openai": "^6.41.0"
+    "openai": "^7.30.0"
   }
 }
