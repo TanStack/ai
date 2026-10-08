@@ -1,5 +1,34 @@
 import { expect, type Page } from '@playwright/test'
 
+declare global {
+  interface Window {
+    __e2eLoadingSeen?: boolean
+    __e2eLoadingObserver?: MutationObserver
+  }
+}
+
+/** Call right before an action that starts a run. Records in the page whether
+ *  the loading indicator showed after this call, so `waitForResponse` also
+ *  sees a run that started and ended before Playwright looked. */
+async function markRunStart(page: Page) {
+  await page.evaluate(() => {
+    window.__e2eLoadingSeen = false
+    if (window.__e2eLoadingObserver) return
+    window.__e2eLoadingObserver = new MutationObserver(() => {
+      if (
+        !window.__e2eLoadingSeen &&
+        document.querySelector('[data-testid="loading-indicator"]')
+      ) {
+        window.__e2eLoadingSeen = true
+      }
+    })
+    window.__e2eLoadingObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+    })
+  })
+}
+
 export function featureUrl(
   provider: string,
   feature: string,
@@ -24,6 +53,7 @@ export async function sendMessage(page: Page, text: string) {
     await input.fill(text)
     await expect(button).toBeEnabled({ timeout: 500 })
   }).toPass({ timeout: 15_000 })
+  await markRunStart(page)
   await button.click()
 }
 
@@ -49,6 +79,7 @@ export async function sendMessageWithImage(
   // retrying both the typing and the attach until the send actually fires with
   // the full prompt. A redundant re-attach is harmless: the client ignores a
   // second send while the first is still streaming.
+  await markRunStart(page)
   await expect(async () => {
     await input.click()
     await input.fill('')
@@ -75,6 +106,7 @@ export async function sendMessageWithDocument(
   const userMessages = page.getByTestId('user-message')
 
   // Same retry-to-observable-outcome pattern as sendMessageWithImage above.
+  await markRunStart(page)
   await expect(async () => {
     await input.click()
     await input.fill('')
@@ -87,13 +119,20 @@ export async function sendMessageWithDocument(
 }
 
 export async function waitForResponse(page: Page, timeout = 15_000) {
-  try {
-    await page
-      .getByTestId('loading-indicator')
-      .waitFor({ state: 'visible', timeout: 5_000 })
-  } catch {
-    // Loading may have already finished
-  }
+  // Wait for the run to start. A fast mocked run can start and end before
+  // Playwright looks, so also accept the markRunStart record. Without that
+  // record (for example after a reload), this waits up to 5s as before.
+  await page
+    .waitForFunction(
+      () =>
+        window.__e2eLoadingSeen === true ||
+        document.querySelector('[data-testid="loading-indicator"]') !== null,
+      undefined,
+      { timeout: 5_000 },
+    )
+    .catch(() => {
+      // Loading may have already finished
+    })
   await page
     .getByTestId('loading-indicator')
     .waitFor({ state: 'hidden', timeout })
@@ -142,10 +181,12 @@ export async function getStructuredOutput(page: Page): Promise<string> {
 }
 
 export async function approveToolCall(page: Page, toolName: string) {
+  await markRunStart(page)
   await page.getByTestId(`approve-button-${toolName}`).click()
 }
 
 export async function denyToolCall(page: Page, toolName: string) {
+  await markRunStart(page)
   await page.getByTestId(`deny-button-${toolName}`).click()
 }
 
