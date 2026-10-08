@@ -44,20 +44,20 @@ console.log(result.images[0]?.url); // URL to the generated image
 
 ### Gemini Image Generation
 
-Gemini supports two types of image generation: Gemini native models (NanoBanana) and Imagen models. The adapter automatically routes to the correct API based on the model name.
+Gemini has two image model groups. Gemini native models (NanoBanana) use the Interactions API. Imagen models use `generateImages`.
 
 ```typescript
 import { generateImage } from "@tanstack/ai";
 import { geminiImage } from "@tanstack/ai-gemini";
 
-// Gemini native model (NanoBanana) — uses generateContent API
+// Gemini native model (NanoBanana). Uses the Interactions API.
 const result = await generateImage({
   adapter: geminiImage("gemini-3.1-flash-image"),
   prompt: "A futuristic cityscape at night",
   size: "16:9_4K",
 });
 
-// Imagen model — uses generateImages API
+// Imagen model. Uses the generateImages API.
 const result2 = await generateImage({
   adapter: geminiImage("imagen-4.0-generate-001"),
   prompt: "A futuristic cityscape at night",
@@ -65,6 +65,51 @@ const result2 = await generateImage({
 
 console.log(result.images[0]?.b64Json); // Base64 encoded image
 ```
+
+#### Edit a Gemini native image
+
+You have an image from a Gemini native model. You want to change that image without a second upload of that image.
+
+Pass the last `id` back. Write only the change in `prompt`:
+
+```typescript
+import { generateImage } from "@tanstack/ai";
+import { geminiImage } from "@tanstack/ai-gemini";
+
+const adapter = geminiImage("gemini-3.1-flash-image");
+
+const first = await generateImage({
+  adapter,
+  prompt: "A red bicycle on a quiet street",
+});
+
+const edited = await generateImage({
+  adapter,
+  prompt: "Make the bicycle blue",
+  modelOptions: { previous_interaction_id: first.id },
+});
+```
+
+1. Generate the first image.
+2. Call `generateImage` again with `previous_interaction_id` set to `first.id`.
+3. Read `edited.images` for the new picture.
+
+Keep the interaction so the next edit can run:
+
+1. Leave `store` unset.
+2. If you set `store` to `false`, a later call cannot use that id.
+
+The API default for `store` is `true`.
+
+A free tier keeps a stored interaction for 1 day. A paid tier keeps it for 55 days.
+
+If the model is Imagen, do not pass `previous_interaction_id`. The call throws.
+
+If this edit needs a new reference image, add that image part on this call. Do not send the image from `first`.
+
+The Interactions API is in Beta.
+
+`edited.images` holds the new picture. `edited.id` is the id for the next edit.
 
 ### BytePlus Image Generation
 
@@ -265,11 +310,11 @@ base64 data — pass whichever you have:
 { type: 'image', source: { type: 'data', value: base64String, mimeType: 'image/png' } }
 ```
 
-Gemini's native image generation never fetches URL sources locally — they pass
-through as `fileData.fileUri` and Gemini retrieves them server-side, so public
-HTTPS URLs, [Files API](https://ai.google.dev/gemini-api/docs/files) URIs, and
-`gs://` references all work without buffering the image in your runtime's
-memory.
+Gemini native image generation does not download a URL in your runtime. The adapter sends the URL as `uri`. Gemini reads that URL. These sources work:
+
+- A public HTTPS URL
+- A [Files API](https://ai.google.dev/gemini-api/docs/files) URI
+- A `gs://` reference
 
 Two paths have no URL passthrough and must upload real bytes:
 
@@ -367,7 +412,7 @@ await generateImage({
 | Provider       | Behavior                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **OpenAI**     | `gpt-image-2.5-flare` / `gpt-image-2.5-sunburst` / `gpt-image-2` / `gpt-image-1` / `gpt-image-1-mini` → routes to `images.edit()`, up to 16 source images plus optional mask.<br>`dall-e-2` → `images.edit()` with 1 source image only.<br>`dall-e-3` → throws (no edit support).                                                                                                                                                                                                                        |
-| **Gemini**     | Native models (`gemini-*-flash-image`, "nano-banana", etc.) → prompt parts map 1:1 onto multimodal `contents`, preserving interleaved order. Up to ~14 input images (provider limit, not enforced by the SDK).<br>Imagen models → throws (text-to-image only).                                                                                                                                                                                        |
+| **Gemini**     | Native models send each prompt part as an Interactions content block, in the same order. Up to 14 input images. The SDK does not enforce that limit.<br>To edit the last image, pass `result.id` as `modelOptions.previous_interaction_id`. Do not send that image again. A new image part on that call is an extra reference. See [Edit a Gemini native image](#edit-a-gemini-native-image).<br>Imagen throws on an image part. Imagen does not chain. |
 | **fal.ai**     | Field names resolve per endpoint from a map generated from the fal SDK's endpoint types (e.g. nano-banana edit gets `image_urls`, Fooocus masks get `mask_image_url`). Defaults for unknown endpoints: 1 input → `image_url`; multiple → `image_urls`; `role: 'mask'` → `mask_url`; `role: 'control'` → `control_image_url`; `role: 'reference'` / `'character'` → `reference_image_urls`. Override with `modelOptions` for endpoint-specific fields. |
 | **Grok**       | grok-imagine models → xAI's `/v1/images/edits` (up to 3 source images, addressed by xAI in request order; prompt sent verbatim). `role: 'mask'` / `'control'` throw (no Imagine API equivalent).                                                                                                                                                                                                     |
 | **OpenRouter** | Prompt parts map 1:1 onto multimodal `image_url` / `text` content parts, preserving interleaved order, and are forwarded to the underlying image model. `modelOptions.strength` (0.0–1.0) controls image-to-image influence on models that document it (e.g. Recraft). One image per request — `numberOfImages > 1` throws (the gateway ignores count keys).                                                                                          |
@@ -647,11 +692,11 @@ const result = await generateImage({
 
 #### Gemini Native Model Options (NanoBanana)
 
-Gemini native image models are served by `generateContent`, so their `modelOptions` are `GenerateContentConfig` fields — a different shape from the Imagen options above:
+Set native image options on `modelOptions`:
 
 ```typescript
 import { generateImage } from "@tanstack/ai";
-import { geminiImage } from "@tanstack/ai-gemini";
+import { geminiImage, ThinkingLevel } from "@tanstack/ai-gemini";
 
 const result = await generateImage({
   adapter: geminiImage("gemini-3.1-flash-image"),
@@ -659,16 +704,27 @@ const result = await generateImage({
   size: "16:9_4K",
   modelOptions: {
     seed: 42,
-    thinkingConfig: { thinkingBudget: 512 },
+    thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
     systemInstruction: "Always render in watercolor.",
-    // Merged over the imageConfig derived from `size`, per field. This keeps
-    // the 16:9 aspect ratio and overrides only the resolution tier.
-    // imageConfig accepts only aspectRatio and imageSize on the Gemini
-    // Developer API.
+    // imageConfig replaces one field from size. The 16:9 ratio from size stays.
+    // imageConfig accepts only aspectRatio and imageSize.
     imageConfig: { imageSize: "2K" },
   },
 });
 ```
+
+Set `thinkingConfig.thinkingLevel` to one of these values:
+
+- `ThinkingLevel.MINIMAL`
+- `ThinkingLevel.LOW`
+- `ThinkingLevel.MEDIUM`
+- `ThinkingLevel.HIGH`
+
+`thinkingConfig.thinkingBudget` throws.
+
+If `systemInstruction` contains an image, a file, or a tool call, the call throws.
+
+Pass the last result `id` as `previous_interaction_id`. Read [Edit a Gemini native image](#edit-a-gemini-native-image) for the edit steps.
 
 `safetySettings` takes the SDK's `HarmCategory` / `HarmBlockThreshold` enums, so plain strings won't type-check. Both are re-exported from `@tanstack/ai-gemini` — you don't need `@google/genai` in your own dependencies:
 
@@ -681,7 +737,7 @@ import {
 } from "@tanstack/ai-gemini";
 
 const result = await generateImage({
-  adapter: geminiImage("gemini-3.1-flash-image-preview"),
+  adapter: geminiImage("gemini-3.1-flash-image"),
   prompt: "A beautiful garden",
   modelOptions: {
     safetySettings: [
@@ -694,7 +750,7 @@ const result = await generateImage({
 });
 ```
 
-`responseModalities` is not accepted — the adapter always requests `['TEXT', 'IMAGE']`, so nothing can silently disable image output.
+The adapter always requests an image.
 
 ### Response Format
 
@@ -720,6 +776,8 @@ interface GeneratedImage {
   revisedPrompt?: string; // Revised prompt (OpenAI only)
 }
 ```
+
+On a Gemini native image model, `id` is the interaction id. Pass that id as `previous_interaction_id` on the next edit.
 
 > **Cost tracking (fal):** fal bills by usage-based units rather than tokens. The
 > fal image adapter surfaces the real billed quantity as `usage.billed` —
