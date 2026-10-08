@@ -1,5 +1,11 @@
 # @tanstack/ai-code-mode
 
+## 0.5.0
+
+### Minor Changes
+
+- [#1584](https://github.com/TanStack/ai/pull/1584) [`80ae825`](https://github.com/TanStack/ai/commit/80ae825b0f226d65312e2986aeb2e7d94e5b2def) - Add a `debug` option to `createCodeMode` / `createCodeModeTool`. Failed executions and secret-parameter warnings now go through the `@tanstack/ai` debug logger instead of hard-coded `console.error` / `console.warn`, so `debug: { logger }` routes them to your own `Logger` and `debug: false` silences them. Errors still reach the console by default. The success line previously behind `CODE_MODE_DEBUG=1` now logs under the `tools` category.
+
 ## 0.4.22
 
 ### Patch Changes

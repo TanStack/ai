@@ -1,5 +1,14 @@
 # @tanstack/ai-groq
 
+## 0.8.5
+
+### Patch Changes
+
+- [#1652](https://github.com/TanStack/ai/pull/1652) [`13a5c4c`](https://github.com/TanStack/ai/commit/13a5c4c03333499b4cb8d88e5678161f81c39842) - Update the `openai` SDK dependency to `^7.30.0`. `openai` 7 requires Node.js 22 or later.
+
+- Updated dependencies [[`13a5c4c`](https://github.com/TanStack/ai/commit/13a5c4c03333499b4cb8d88e5678161f81c39842)]:
+  - @tanstack/openai-base@0.12.6
+
 ## 0.8.4
 
 ### Patch Changes
