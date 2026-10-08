@@ -2164,7 +2164,7 @@ importers:
         version: link:../openai-base
       openai:
         specifier: ^7.30.0
-        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.6.5)
+        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.3.6)
     devDependencies:
       '@vitest/coverage-v8':
         specifier: 4.1.10
@@ -2183,7 +2183,7 @@ importers:
         version: link:../openai-base
       openai:
         specifier: ^7.30.0
-        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.6.5)
+        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.3.6)
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -2248,7 +2248,7 @@ importers:
         version: link:../openai-base
       openai:
         specifier: ^7.30.0
-        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.6.5)
+        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.3.6)
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -2528,7 +2528,7 @@ importers:
         version: link:../openai-base
       openai:
         specifier: ^7.30.0
-        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.6.5)
+        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.3.6)
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -2575,7 +2575,7 @@ importers:
         version: link:../openai-base
       openai:
         specifier: ^7.30.0
-        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.6.5)
+        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.3.6)
     devDependencies:
       '@vitest/coverage-v8':
         specifier: 4.1.10
@@ -2685,7 +2685,7 @@ importers:
         version: link:../openai-base
       openai:
         specifier: ^7.30.0
-        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.6.5)
+        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.3.6)
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -2707,7 +2707,7 @@ importers:
         version: link:../openai-base
       openai:
         specifier: ^7.30.0
-        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.6.5)
+        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.3.6)
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -3430,7 +3430,7 @@ importers:
         version: link:../openai-base
       openai:
         specifier: ^7.30.0
-        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.6.5)
+        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.3.6)
     devDependencies:
       '@vitest/coverage-v8':
         specifier: 4.1.10
@@ -3447,7 +3447,7 @@ importers:
     devDependencies:
       '@google/genai':
         specifier: ^2.10.0
-        version: 2.10.0(@modelcontextprotocol/sdk@1.29.0(zod@4.6.5))
+        version: 2.10.0(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
@@ -33748,14 +33748,6 @@ snapshots:
       undici: 8.10.2
       ws: 8.21.3
       zod: 4.3.6
-
-  openai@7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.6.5):
-    optionalDependencies:
-      '@aws-sdk/credential-provider-node': 3.972.58
-      '@smithy/signature-v4': 5.5.2
-      undici: 8.10.2
-      ws: 8.21.3
-      zod: 4.6.5
 
   openapi-fetch@0.14.1:
     dependencies:
