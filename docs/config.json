@@ -172,7 +172,7 @@
           "label": "Agentic Cycle",
           "to": "chat/agentic-cycle",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-30"
+          "updatedAt": "2026-10-08"
         },
         {
           "label": "Thinking & Reasoning",
@@ -916,7 +916,7 @@
           "label": "Durable sessions",
           "to": "harness/durable-sessions",
           "addedAt": "2026-09-26",
-          "updatedAt": "2026-10-07"
+          "updatedAt": "2026-10-08"
         },
         {
           "label": "List, rename, and fork sessions",
@@ -928,7 +928,7 @@
           "label": "Send inputs safely",
           "to": "harness/inputs",
           "addedAt": "2026-09-30",
-          "updatedAt": "2026-10-07"
+          "updatedAt": "2026-10-08"
         },
         {
           "label": "Run side effects once",
@@ -946,7 +946,7 @@
           "label": "Control how a turn ends",
           "to": "harness/turn-control",
           "addedAt": "2026-10-01",
-          "updatedAt": "2026-10-07"
+          "updatedAt": "2026-10-08"
         },
         {
           "label": "Store settings per thread",

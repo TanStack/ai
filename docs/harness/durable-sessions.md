@@ -183,15 +183,16 @@ const resilient = defineHarness({
 
 Other errors fail the turn. To set the limits, see [Control how a turn ends](./turn-control#retry-model-errors).
 
-The log keeps the retry count. A turn that a crash stopped goes on with the count that it had, so a crash does not give it new retries. The count starts again at 0 after a finished tool phase and at a new turn.
+The log keeps the retry count. The host writes it when a model call fails, before the backoff starts. So a turn that a crash stopped, also during the backoff, goes on with the count that it had, and a crash does not give it new retries. The count starts again at 0 after a finished tool phase and at a new turn.
 
 ## Decide recovery yourself
 
 The steps above are the default. To change them for one input, add `durability.recover`. It runs for each input that a crashed host left. It gets `{ session, input, messages, decision }`:
 
-- `input`: the input, with `inputId`, `attempt`, `timeoutAt`, `abortRequested`, and `retries` (the model-error retries so far).
+- `input`: the input, with `inputId`, `attempt`, `timeoutAt`, `abortRequested`, and `retries` (the model calls that failed so far).
 - `messages`: the transcript from the log.
 - `decision`: what the harness does by default. It is one of the 5 steps above, or `run` for an input that never ran.
+- `interruptedTools`: the tool calls that recovery closes with a result text (see [Set the texts that the model gets](#set-the-texts-that-the-model-gets)). Each one has `toolCallId`, `toolName`, and `reason`: `'interrupted'` for a cut `replay: 'never'` call, `'truncated'` for a call of an answer that stopped at the output limit. Finished calls and `replay: 'safe'` calls are not in it. The list is there also when you settle the input, for example to name the cut calls in your error.
 
 Return `undefined` to keep the decision. Or return one of these:
 
@@ -251,16 +252,16 @@ const worded = defineHarness({
   durability: {
     interruptedToolResult:
       'The tool stopped before it finished. Check the result before you call it again.',
-    truncatedToolResult:
-      'Your answer was cut off before this call was complete. Call the tool again.',
+    truncatedToolResult: (call) =>
+      `Tool call "${call.toolName}" did not run: your answer hit the output limit. Call it again with the complete input.`,
   },
 })
 ```
 
 - `interruptedToolResult`: the result of a `replay: 'never'` call that a crash stopped.
-- `truncatedToolResult`: the result that recovery gives a call in an answer that stopped at the output limit (finish reason `length`), when the log has no result for that call. The input of such a call can be incomplete, so it never runs, also with `replay: 'safe'`.
+- `truncatedToolResult`: the result of each call in an answer that stopped at the output limit (finish reason `length`). It is a string, or a function that gets the call (`{ toolCallId, toolName }`). The input of such a call can be incomplete, so it never runs, also with `replay: 'safe'`.
 
-A call in an answer that stops at the output limit during a turn gets its result at once, with the text `The answer was cut off at the output limit before this tool call was complete. The call did not run.` So recovery only fills the calls that have no result.
+With `truncatedToolResult`, a turn uses the same text live: the cut calls get their results, and the model runs again, so it can call the tool again. Recovery gives the text to a cut call that has no result in the log. See [When the output limit cuts a tool call](../chat/agentic-cycle#when-the-output-limit-cuts-a-tool-call). Without it, a cut answer ends the turn, and a cut call gets the default text `The answer was cut off at the output limit before this tool call was complete. The call did not run.`
 
 ## Continue an answer that a crash cut
 
@@ -276,13 +277,30 @@ const continuing = defineHarness({
 
 When a turn runs again after a crash, the host adds two messages to the transcript, in one log write:
 
-1. An assistant message with the text that the model wrote before the crash.
+1. An assistant message with the text that the model wrote before the crash, and its finished reasoning.
 2. A user message with a note: `The previous answer was cut off. Continue exactly where it stopped, without repeating it.`
 
-Then the model continues after the note. To use your own note, set `continueCutOff: { note: 'Go on from where you stopped.' }`.
+Then the model continues after the note. To use your own note, set `continueCutOff: { note: 'Go on from where you stopped.' }`. To send more than one, give a list. Each note is a user message, in that order:
 
-- The host keeps only the answer text. Reasoning and the input of a cut tool call are left out.
-- A crash before any answer text runs the model call again, with no note.
+```ts group=harness-durable
+const twoNotes = defineHarness({
+  name: 'acme/two-notes',
+  adapter: openaiText('gpt-6.1-sol'),
+  durability: {
+    continueCutOff: {
+      note: [
+        'The previous assistant stream was interrupted.',
+        'Continue from the partial answer.',
+      ],
+    },
+  },
+})
+```
+
+- The host keeps the answer text and the reasoning blocks that have a signature (finished blocks), so the provider can replay them. A partial with only signed reasoning also continues.
+- A reasoning block with no signature (the crash cut it) is left out, because providers reject it. A partial with only such reasoning runs the model call again, with no note.
+- The input of a cut tool call is left out.
+- A crash before any answer text or finished reasoning runs the model call again, with no note.
 - It also works after a [stop for a deploy](#stop-a-host-for-a-deploy).
 
 ## One host drives a thread
