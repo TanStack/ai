@@ -11,6 +11,7 @@ import type {
   TextOptions,
 } from '@tanstack/ai'
 import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
+import type { AzureClientOptions } from 'openai/azure'
 import type { Tool as ResponsesTool } from 'openai/resources/responses/responses'
 import type { ExternalTextProviderOptions } from '../text/text-provider-options'
 import type { OpenAIClientConfig } from '../utils/client'
@@ -61,6 +62,7 @@ export class AzureOpenAITextAdapter<
   override readonly api = 'azure-openai-responses'
   private readonly deploymentName: string
   private readonly configReasoning: ModelReasoning | undefined
+  private readonly azureOptions: AzureClientOptions
 
   constructor(config: AzureOpenAITextConfig, model: string) {
     const {
@@ -93,11 +95,13 @@ export class AzureOpenAITextAdapter<
       baseURL: normalizeAzureBaseURL(selectedURL),
       apiVersion: apiVersion || env.AZURE_OPENAI_API_VERSION || 'v1',
     }
-    const client = new AzureOpenAI(azureOptions)
-    // The SDK copy drops apiVersion. `wrapFetch` only sets the fetch.
-    client.withOptions = ({ fetch }) =>
-      new AzureOpenAI({ ...azureOptions, fetch })
-    super(model, 'azure-openai-responses', client, config)
+    super(
+      model,
+      'azure-openai-responses',
+      new AzureOpenAI(azureOptions),
+      config,
+    )
+    this.azureOptions = azureOptions
     this.configReasoning = reasoning
     const envMap = new Map<string, string>()
     for (const entry of (env.AZURE_OPENAI_DEPLOYMENT_NAME_MAP ?? '').split(
@@ -116,6 +120,13 @@ export class AzureOpenAITextAdapter<
           : undefined
         : envMap.get(model)) ||
       model
+  }
+
+  // The SDK copy drops apiVersion, so make a new client.
+  protected override withFetch(
+    fetch: NonNullable<AzureClientOptions['fetch']>,
+  ) {
+    return new AzureOpenAI({ ...this.azureOptions, fetch })
   }
 
   protected override modelReasoning(_model: string) {

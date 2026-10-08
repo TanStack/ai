@@ -17,6 +17,7 @@ import {
 } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
 import { clientFor, extractRequestOptions } from '../utils/request-options'
+import type { Fetch } from '../utils/request-options'
 import {
   makeStructuredOutputCompatibleWithMap,
   warnStrictFallback,
@@ -131,16 +132,24 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   /** See {@link OpenAIBaseTextAdapterOptions.strictFallbackWarning}. */
   protected readonly strictFallbackWarning: boolean
 
+  /** The fetch that the adapter gave the client. */
+  private readonly baseFetch: Fetch | undefined
+
+  /**
+   * `options.fetch` must be the fetch that the client uses. A `wrapFetch`
+   * call wraps it.
+   */
   constructor(
     model: TModel,
     name: string,
     client: OpenAI,
-    options: OpenAIBaseTextAdapterOptions = {},
+    options: OpenAIBaseTextAdapterOptions & { fetch?: Fetch | undefined } = {},
   ) {
     super({}, model)
     this.name = name
     this.client = client
     this.strictFallbackWarning = options.strictFallbackWarning ?? true
+    this.baseFetch = options.fetch
   }
 
   async *chatStream(
@@ -169,6 +178,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       const stream = await clientFor(
         this.client,
         options,
+        this.baseFetch,
       ).chat.completions.create(
         {
           ...requestParams,
@@ -342,6 +352,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       const response = await clientFor(
         this.client,
         chatOptions,
+        this.baseFetch,
       ).chat.completions.create(
         {
           ...cleanParams,
@@ -509,6 +520,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       const stream = await clientFor(
         this.client,
         chatOptions,
+        this.baseFetch,
       ).chat.completions.create(
         {
           ...cleanParams,

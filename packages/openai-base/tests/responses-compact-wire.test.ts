@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import OpenAI from 'openai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { OpenAIBaseResponsesTextAdapter } from '../src/adapters/responses-text'
+import type { ClientOptions } from 'openai'
 
 const logger = resolveDebugOption(false)
 const model = 'gpt-5.5'
@@ -42,24 +43,24 @@ const done = {
 /** A client that records each request and answers it with `reply`. */
 function recordingClient(reply: (url: string) => Response) {
   const sent: Array<{ url: string; body: unknown; headers: Headers }> = []
-  const client = new OpenAI({
-    apiKey: 'test-key',
-    fetch: async (url, init) => {
-      sent.push({
-        url: String(url),
-        body: JSON.parse(String(init?.body)),
-        headers: new Headers(init?.headers),
-      })
-      return reply(String(url))
-    },
-  })
-  return { client, sent }
+  const fetch: NonNullable<ClientOptions['fetch']> = async (url, init) => {
+    sent.push({
+      url: String(url),
+      body: JSON.parse(String(init?.body)),
+      headers: new Headers(init?.headers),
+    })
+    return reply(String(url))
+  }
+  const client = new OpenAI({ apiKey: 'test-key', fetch })
+  return { client, fetch, sent }
 }
 
 describe('Responses adapter compact', () => {
   it('posts the history to /responses/compact and maps the output', async () => {
-    const { client, sent } = recordingClient(() => Response.json(compacted))
-    const adapter = new Responses(model, 'openai', client)
+    const { client, fetch, sent } = recordingClient(() =>
+      Response.json(compacted),
+    )
+    const adapter = new Responses(model, 'openai', client, { fetch })
 
     const messages = await adapter.compact({
       model,

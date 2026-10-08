@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import type { ClientOptions } from 'openai'
 import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
 import { resolveReasoning } from '@tanstack/ai/adapter-internals'
 import { CLOUDFLARE_MODEL_REASONING } from '../model-reasoning'
@@ -57,30 +58,30 @@ export interface CloudflareTextProviderOptions {
   }
 }
 
-function createClient(config: CloudflareTextConfig): OpenAI {
+function clientOptions(config: CloudflareTextConfig): ClientOptions {
   if (isBindingConfig(config)) {
-    return new OpenAI({
+    return {
       // The binding authenticates by itself; the SDK only requires a value.
       apiKey: 'cloudflare-binding',
       fetch: createBindingFetch(config.binding, config.gateway),
-    })
+    }
   }
   const {
     accountId: _accountId,
     binding: _binding,
     gateway,
     reasoning: _reasoning,
-    ...clientOptions
+    ...options
   } = config
-  return new OpenAI({
-    ...clientOptions,
+  return {
+    ...options,
     baseURL: restChatBaseURL(config),
     defaultHeaders: {
       ...gatewayHeaders(gateway),
-      ...clientOptions.defaultHeaders,
+      ...options.defaultHeaders,
     },
-    fetch: createRestFetch(clientOptions.fetch),
-  })
+    fetch: createRestFetch(options.fetch),
+  }
 }
 
 /**
@@ -110,7 +111,11 @@ export class CloudflareTextAdapter<
   private readonly configReasoning: ModelReasoning | undefined
 
   constructor(config: CloudflareTextConfig, model: TModel) {
-    super(model, 'cloudflare', createClient(config), config)
+    const options = clientOptions(config)
+    super(model, 'cloudflare', new OpenAI(options), {
+      ...config,
+      fetch: options.fetch,
+    })
     this.configReasoning = config.reasoning
   }
 

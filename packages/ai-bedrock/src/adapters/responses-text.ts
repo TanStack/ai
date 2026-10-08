@@ -69,12 +69,11 @@ export class BedrockResponsesTextAdapter<
   constructor(config: BedrockResponsesConfig, model: TModel) {
     // Responses is mantle-only — force the mantle base URL (an explicit
     // config.baseURL still wins, e.g. E2E pointing at aimock).
-    super(
-      model,
-      'bedrock-responses',
-      new OpenAI(withBedrockDefaults(config, 'mantle', model)),
-      config,
-    )
+    const options = withBedrockDefaults(config, 'mantle', model)
+    super(model, 'bedrock-responses', new OpenAI(options), {
+      ...config,
+      fetch: options.fetch,
+    })
     this.provider = 'amazon-bedrock'
   }
 

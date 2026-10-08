@@ -70,6 +70,24 @@ describe('anthropic wrapFetch', () => {
     expect(await streamTag()).toBe(null)
   })
 
+  it('sends no header of the wrapper on a later call without one', async () => {
+    const tags: Array<string | null> = []
+    const adapter = createAnthropicChat(model, 'test-key', { fetch: baseFetch })
+    for (const wrapFetch of [addTag, undefined]) {
+      sentTag = null
+      for await (const _ of adapter.chatStream({
+        logger,
+        model,
+        messages,
+        wrapFetch,
+      })) {
+        // drain
+      }
+      tags.push(sentTag)
+    }
+    expect(tags).toStrictEqual(['yes', null])
+  })
+
   it('sends the structured output request through the wrapper', async () => {
     sentTag = null
     const adapter = createAnthropicChat(model, 'test-key', { fetch: baseFetch })

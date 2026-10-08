@@ -1,5 +1,9 @@
 import type OpenAI from 'openai'
+import type { ClientOptions } from 'openai'
 import type { TextOptions } from '@tanstack/ai'
+
+/** The fetch type of the OpenAI SDK. */
+export type Fetch = NonNullable<ClientOptions['fetch']>
 
 /**
  * Extract `headers` and `signal` from a `Request | RequestInit` for the OpenAI
@@ -29,14 +33,16 @@ export function extractRequestOptions(
 /**
  * The client of one call. With `wrapFetch`, it is a copy of the client whose
  * fetch goes through the wrapper. Without it, it is the same client.
+ * `baseFetch` is the fetch that the adapter gave the client.
  */
 export function clientFor(
   client: OpenAI,
   options: Pick<TextOptions, 'wrapFetch'>,
+  baseFetch: Fetch | undefined,
+  withFetch = (fetch: Fetch) => client.withOptions({ fetch }),
 ): OpenAI {
   const { wrapFetch } = options
   if (!wrapFetch) return client
   // The SDK falls back to the global fetch the same way.
-  const baseFetch = client['_options'].fetch ?? globalThis.fetch
-  return client.withOptions({ fetch: wrapFetch(baseFetch) })
+  return withFetch(wrapFetch(baseFetch ?? globalThis.fetch))
 }
