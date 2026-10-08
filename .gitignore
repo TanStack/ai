@@ -42,6 +42,7 @@ stats.html
 .idea
 .nx/cache
 .nx/workspace-data
+.nx/pr-artifacts
 .pnpm-store
 .svelte-kit
 .tsup

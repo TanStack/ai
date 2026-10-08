@@ -2,6 +2,8 @@ name: PR
 
 on:
   pull_request:
+  push:
+    branches: [main, alpha, beta, rc]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
@@ -9,6 +11,7 @@ concurrency:
 
 env:
   NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
+  NX_CLOUD_CONTINUOUS_ASSIGNMENT: true
 
 permissions:
   contents: read
@@ -17,6 +20,13 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      NX_CI_EXECUTION_ENV: agents
+      VITEST_MAX_WORKERS: 1
+      # PRs run all checks; branch pushes retain the E2E trigger while Release
+      # runs its existing package checks. Both use one distributed task graph.
+      TARGETS: ${{ github.event_name == 'pull_request' && 'test:sherif,test:knip,test:docs,test:kiira,test:maintainer,test:ai-review,test:oxlint,test:lib,test:types,test:build,build,test:react-native,test:dts,test:e2e:ci,test:coverage:ci,build:preview' || 'test:e2e:ci' }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -26,102 +36,103 @@ jobs:
       - name: Setup Tools
         uses: TanStack/config/.github/setup@190f659075ff0845850e330883eb26d7ffd0671f # main
       - name: Get base and head commits for `nx affected`
+        if: github.event_name == 'pull_request'
         uses: nrwl/nx-set-shas@3e9ad7370203c1e93d109be57f3b72eb0eb511b1 # v4.4.0
         with:
           main-branch-name: main
+      - name: Start Nx Agents
+        id: agents
+        run: >-
+          pnpm exec nx start-ci-run
+          --distribute-on=".nx/workflows/dynamic-changesets.yaml"
+          --with-env-vars=VITEST_MAX_WORKERS
+          --require-explicit-completion
+          --stop-agents-after="$TARGETS"
+          --stop-agents-on-failure=false
       - name: Run Checks
-        run: pnpm run test:pr
+        run: pnpm exec nx run-many --targets="$TARGETS"
+      - name: Upload Video Recordings
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: e2e-videos
+          path: testing/e2e/test-results/**/*.webm
+          retention-days: 14
+      - name: Upload Playwright Reports
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: e2e-report
+          path: testing/e2e/playwright-report/
+          retention-days: 14
+      - name: Upload Traces (on failure)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: failure()
+        with:
+          name: e2e-traces
+          path: testing/e2e/test-results/**/*.zip
+          retention-days: 14
+      - name: Upload Coverage Result
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: coverage-result
+          path: .nx/pr-artifacts/coverage/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload Preview Builds
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: preview-builds
+          path: .nx/pr-artifacts/preview-builds.tar.gz
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
+      - name: Complete Nx CI run
+        if: ${{ always() && steps.agents.outcome == 'success' }}
+        run: pnpm exec nx complete-ci-run
+  e2e-result:
+    name: E2E Tests
+    needs: test
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check distributed results
+        env:
+          RESULT: ${{ needs.test.result }}
+        run: test "$RESULT" = success
   coverage:
     name: Coverage
+    needs: test
+    if: ${{ !cancelled() && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: write # the last step posts the table as a PR comment; only it reads the token
+      pull-requests: write # only the report step reads the token
     steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Download Coverage Result
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Setup Tools
-        uses: TanStack/config/.github/setup@190f659075ff0845850e330883eb26d7ffd0671f # main
-      - name: Get base and head commits for `nx affected`
-        uses: nrwl/nx-set-shas@3e9ad7370203c1e93d109be57f3b72eb0eb511b1 # v4.4.0
-        with:
-          main-branch-name: main
-      # Stashed outside the working tree because checking out the merge base
-      # would otherwise remove it — the script may be added or changed by the
-      # very PR under test. Both runs and the comparison use this copy, so all
-      # three agree on the version.
-      - name: Stage the coverage script
-        run: cp scripts/coverage-check.mjs "$RUNNER_TEMP/coverage-check.mjs"
-      # The set of packages to measure is decided once, here, so that the base
-      # run measures exactly what the head run does. `--with-target` keeps out
-      # projects that have no test:coverage script, so a docs-only PR resolves
-      # to an empty list rather than erroring in run-many.
-      - name: Resolve affected packages
-        id: affected
+          name: coverage-result
+          path: ${{ runner.temp }}/coverage
+      - name: Check Coverage Result
         run: |
-          list=$(pnpm exec nx show projects --affected --with-target=test:coverage --exclude='examples/**,testing/**' --json | jq -r 'sort | join(",")')
-          echo "list=$list" >> "$GITHUB_OUTPUT"
-          echo "Measuring: ${list:-<none>}"
-      - name: Coverage for this PR
-        if: steps.affected.outputs.list != ''
-        # Via env, not `${{ }}` inside run: project names come from the PR's own
-        # files, so interpolating them into the shell would be injectable.
-        env:
-          PROJECTS: ${{ steps.affected.outputs.list }}
-        run: |
-          rm -rf packages/*/coverage
-          pnpm exec nx run-many --targets=test:coverage --projects="$PROJECTS" --outputStyle=static -- --coverage.reporter=json-summary --coverage.include='src/**'
-          node "$RUNNER_TEMP/coverage-check.mjs" --collect "$RUNNER_TEMP/cov-head" --expect "$PROJECTS"
-      # Re-measuring the merge-base is normally a set of Nx Cloud cache
-      # restores seeded by the Coverage workflow on main: the task hashes are
-      # identical, and `test:coverage` declares its coverage dir as an output,
-      # so the summaries come back without the tests re-running.
-      - name: Coverage for the merge base
-        if: steps.affected.outputs.list != ''
-        env:
-          PROJECTS: ${{ steps.affected.outputs.list }}
-        run: |
-          git checkout --force --detach "$NX_BASE"
-          # coverage/ is gitignored, so the checkout leaves this PR's results in
-          # place — without this the base collection silently re-reads head's
-          # numbers and every delta comes out as 0.00.
-          rm -rf packages/*/coverage
-          pnpm install --frozen-lockfile
-          # Intersect with projects that have test:coverage on the base commit
-          # (added packages, or packages that gained the script in this PR).
-          printf '%s\n' "$PROJECTS" | tr ',' '\n' | sort > /tmp/wanted
-          pnpm exec nx show projects --with-target=test:coverage --json | jq -r '.[]' | sort > /tmp/available
-          base_list=$(comm -12 /tmp/wanted /tmp/available | paste -sd, -)
-          if [ -z "$base_list" ]; then
-            echo "No affected package has test:coverage on the base commit; treating all as new."
-            mkdir -p "$RUNNER_TEMP/cov-base"
-            exit 0
-          fi
-          # Extra reporters/include so a merge-base whose scripts are still
-          # `vitest run --coverage` still writes coverage-summary.json.
-          pnpm exec nx run-many --targets=test:coverage --projects="$base_list" --outputStyle=static -- --coverage.reporter=json-summary --coverage.include='src/**'
-          node "$RUNNER_TEMP/coverage-check.mjs" --collect "$RUNNER_TEMP/cov-base" --expect "$base_list"
-      - name: Compare
-        if: steps.affected.outputs.list != ''
-        run: |
-          node "$RUNNER_TEMP/coverage-check.mjs" \
-            --base "$RUNNER_TEMP/cov-base" \
-            --head "$RUNNER_TEMP/cov-head" \
-            --report "$RUNNER_TEMP/coverage-report.md"
+          report="$RUNNER_TEMP/coverage/report.md"
+          if [ -f "$report" ]; then cat "$report" >> "$GITHUB_STEP_SUMMARY"; fi
+          node -e 'const fs = require("node:fs"); const result = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + "/coverage/result.json", "utf8")); if (result.status !== 0) process.exit(1)'
       # One comment per PR, updated on each push. Runs when Compare fails too.
       # A fork's token cannot write comments, so fork PRs skip this step; the
       # table is in the job summary either way.
       - name: Post the coverage report
-        if: ${{ !cancelled() && steps.affected.outputs.list != '' && github.event.pull_request.head.repo.full_name == github.repository }}
+        if: ${{ !cancelled() && github.event.pull_request.head.repo.full_name == github.repository }}
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          report="$RUNNER_TEMP/coverage-report.md"
+          report="$RUNNER_TEMP/coverage/report.md"
           [ -f "$report" ] || exit 0
           ids=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" --paginate \
             --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- coverage-report -->"))) | .id')
@@ -133,6 +144,8 @@ jobs:
           fi
   preview:
     name: Preview
+    needs: test
+    if: ${{ !cancelled() && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -144,7 +157,12 @@ jobs:
           persist-credentials: false
       - name: Setup Tools
         uses: TanStack/config/.github/setup@190f659075ff0845850e330883eb26d7ffd0671f # main
-      - name: Build Packages
-        run: pnpm run build:all
+      - name: Download Preview Builds
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: preview-builds
+          path: ${{ runner.temp }}/preview
+      - name: Restore Package Builds
+        run: tar -xzf "$RUNNER_TEMP/preview/preview-builds.tar.gz"
       - name: Publish Previews
         run: pnpx pkg-pr-new publish --pnpm './packages/*'

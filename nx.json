@@ -89,10 +89,20 @@
     },
     "test:dts": {
       "cache": true,
+      "dependsOn": [
+        {
+          "projects": ["directory:packages/*"],
+          "target": "build"
+        }
+      ],
       "inputs": [
         "{workspaceRoot}/scripts/scan-dangling-dts.mjs",
-        "{workspaceRoot}/packages/*/dist/**/*.d.ts"
-      ]
+        {
+          "dependentTasksOutputFiles": "**/*.d.ts",
+          "transitive": true
+        }
+      ],
+      "outputs": []
     }
   }
 }

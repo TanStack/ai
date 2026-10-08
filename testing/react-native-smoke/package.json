@@ -1,6 +1,24 @@
 {
   "name": "@tanstack/ai-react-native-smoke",
   "private": true,
+  "nx": {
+    "targets": {
+      "smoke": {
+        "cache": true,
+        "dependsOn": [
+          "^build"
+        ],
+        "inputs": [
+          "default",
+          "^production"
+        ],
+        "outputs": [
+          "{projectRoot}/.expo-smoke-dist",
+          "{projectRoot}/.esbuild-smoke-dist"
+        ]
+      }
+    }
+  },
   "type": "module",
   "main": "index.ts",
   "expo": {

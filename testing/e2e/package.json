@@ -77,5 +77,124 @@
     "miniflare": "^4.20260609.0",
     "typescript": "5.9.3",
     "vite": "^8.2.1"
+  },
+  "nx": {
+    "targets": {
+      "test:e2e:ci": {
+        "executor": "nx:noop",
+        "cache": true,
+        "outputs": [],
+        "dependsOn": [
+          "test:e2e--shard-1-of-4",
+          "test:e2e--shard-2-of-4",
+          "test:e2e--shard-3-of-4",
+          "test:e2e--shard-4-of-4"
+        ]
+      },
+      "test:e2e--shard-1-of-4": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "parallelism": false,
+        "dependsOn": [
+          "^build"
+        ],
+        "inputs": [
+          "default",
+          "^production",
+          {
+            "env": "CI"
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/test-results/shard-1",
+          "{projectRoot}/playwright-report/shard-1"
+        ],
+        "options": {
+          "command": "pnpm exec playwright test --shard=1/4 --output=test-results/shard-1",
+          "cwd": "testing/e2e",
+          "env": {
+            "PLAYWRIGHT_HTML_OUTPUT_DIR": "playwright-report/shard-1"
+          }
+        }
+      },
+      "test:e2e--shard-2-of-4": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "parallelism": false,
+        "dependsOn": [
+          "^build"
+        ],
+        "inputs": [
+          "default",
+          "^production",
+          {
+            "env": "CI"
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/test-results/shard-2",
+          "{projectRoot}/playwright-report/shard-2"
+        ],
+        "options": {
+          "command": "pnpm exec playwright test --shard=2/4 --output=test-results/shard-2",
+          "cwd": "testing/e2e",
+          "env": {
+            "PLAYWRIGHT_HTML_OUTPUT_DIR": "playwright-report/shard-2"
+          }
+        }
+      },
+      "test:e2e--shard-3-of-4": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "parallelism": false,
+        "dependsOn": [
+          "^build"
+        ],
+        "inputs": [
+          "default",
+          "^production",
+          {
+            "env": "CI"
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/test-results/shard-3",
+          "{projectRoot}/playwright-report/shard-3"
+        ],
+        "options": {
+          "command": "pnpm exec playwright test --shard=3/4 --output=test-results/shard-3",
+          "cwd": "testing/e2e",
+          "env": {
+            "PLAYWRIGHT_HTML_OUTPUT_DIR": "playwright-report/shard-3"
+          }
+        }
+      },
+      "test:e2e--shard-4-of-4": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "parallelism": false,
+        "dependsOn": [
+          "^build"
+        ],
+        "inputs": [
+          "default",
+          "^production",
+          {
+            "env": "CI"
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/test-results/shard-4",
+          "{projectRoot}/playwright-report/shard-4"
+        ],
+        "options": {
+          "command": "pnpm exec playwright test --shard=4/4 --output=test-results/shard-4",
+          "cwd": "testing/e2e",
+          "env": {
+            "PLAYWRIGHT_HTML_OUTPUT_DIR": "playwright-report/shard-4"
+          }
+        }
+      }
+    }
   }
 }
