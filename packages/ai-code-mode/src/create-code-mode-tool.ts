@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { toolDefinition } from '@tanstack/ai'
+import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import {
   createEventAwareBindings,
   toolsToBindings,
@@ -97,7 +98,10 @@ export function createCodeModeTool(
     getSnippetBindings,
     onSecretParameter,
     transpile = stripTypeScript,
+    debug,
   } = config
+
+  const logger = resolveDebugOption(debug)
 
   // Validate tools
   if (tools.length === 0) {
@@ -114,6 +118,7 @@ export function createCodeModeTool(
   warnIfBindingsExposeSecrets(Object.values(staticBindings), {
     handler: onSecretParameter,
     dedupCache: secretDedupCache,
+    logger,
   })
 
   // Create the tool definition
@@ -162,12 +167,9 @@ export function createCodeModeTool(
         }
         emitCustomEvent('code_mode:execution_finished', payload)
         if (!result.success) {
-          console.error('[code-mode] execute_typescript failed', payload)
-        } else if (
-          typeof process !== 'undefined' &&
-          process.env?.CODE_MODE_DEBUG === '1'
-        ) {
-          console.info('[code-mode] execute_typescript ok', {
+          logger.errors('code-mode execute_typescript failed', payload)
+        } else {
+          logger.tools('code-mode execute_typescript ok', {
             durationMs,
             phase,
             logCount: payload.logCount,
@@ -233,6 +235,7 @@ export function createCodeModeTool(
           warnIfBindingsExposeSecrets(snippetBindingValues, {
             handler: onSecretParameter,
             dedupCache: secretDedupCache,
+            logger,
           })
         }
 
