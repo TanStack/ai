@@ -139,6 +139,8 @@ const adapter = createBedrockText("us.amazon.nova-pro-v1:0", process.env.BEDROCK
 
 All three Bedrock APIs accept these options. On the Converse API the headers are added before SigV4 signing, so a signed request still includes them.
 
+The Converse API ignores [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call), because the AWS SDK sends its requests through a request handler, not `fetch`. The Chat Completions API (`api: 'chat'`) and the Responses API (`api: 'responses'`) support `wrapFetch`.
+
 ## Converse API (default)
 
 `bedrockText(model)` or `bedrockText(model, { api: 'converse' })` returns a `bedrock-converse` adapter backed by `@aws-sdk/client-bedrock-runtime`. This is Bedrock's model-agnostic conversational API and is the recommended path for most use cases.
@@ -179,7 +181,9 @@ const adapter = createBedrockText(
 
 ### Prompt caching
 
-Add a `cachePoint` to make a prompt prefix eligible for caching. Later requests can read matching tokens at the reduced cache rate. Bedrock bills cache misses at the standard input rate.
+`chat()` adds cache points for Claude models by default: one after the system prompt and one at the end of the last user message. Other models get no automatic cache point. To turn this off, pass `promptCache: 'none'`. For the retention and the cost, see [Prompt Caching](../advanced/prompt-caching).
+
+To choose the places yourself, set `metadata.cachePoint`. A cache point of your own turns the automatic cache points off for that request. Later requests can read matching tokens at the reduced cache rate. Bedrock bills cache misses at the standard input rate.
 
 Explicit prompt caching is model-dependent. Use `cachePoint` only with a model that AWS lists as supporting it. The minimum checkpoint size and the TTL options also vary by model.
 
@@ -229,7 +233,18 @@ Tools take the same metadata. Pass `metadata: { cachePoint: { type: 'default' } 
 
 ### Token usage
 
-`onUsage` and `RUN_FINISHED.usage` report Bedrock's counts as `promptTokens`, `completionTokens`, and `totalTokens`. When a request hits or writes a prompt cache, the cache counts arrive on `promptTokensDetails.cachedTokens` and `promptTokensDetails.cacheWriteTokens`. Bedrock counts only the uncached part of the input in `promptTokens`, so add the two cache counts to it to get the full input size.
+`onUsage` and `RUN_FINISHED.usage` report Bedrock's counts as `promptTokens`, `completionTokens`, and `totalTokens`. `promptTokens` is the full input size, cached tokens included. When a request hits or writes a prompt cache, the cache counts arrive on `promptTokensDetails.cachedTokens` and `promptTokensDetails.cacheWriteTokens`.
+
+### Structured output
+
+Pass `outputSchema` to `chat()` to get an object that matches your schema. For the full steps, see [One-Shot Extraction](../structured-outputs/one-shot).
+
+Converse gets the object in one of two ways:
+
+- **Forced tool**: most models. The adapter forces a `structured_output` tool that takes your schema.
+- **Native JSON schema output** (`outputConfig.textFormat`): the Claude models that do not take a forced tool. These are `claude-fable-5-1`, `claude-mythos-5-1`, `claude-opus-5-5`, `claude-sonnet-5-5`, and all Claude models with thinking on.
+
+If the native answer is not valid JSON, the call fails with an error that names the model.
 
 ## Chat Completions API (`api: 'chat'`)
 
@@ -355,6 +370,20 @@ The adapter ships with a hand-seeded snapshot catalog (`src/model-catalog.genera
 **Actual model availability depends on your AWS account's model access configuration and the region you are targeting.** Enable model access in the [Amazon Bedrock console](https://console.aws.amazon.com/bedrock/home#/modelaccess) before use.
 
 For the full list of models and which API endpoints they support, see the [AWS API compatibility matrix](https://docs.aws.amazon.com/bedrock/latest/userguide/models-api-compatibility.html).
+
+## Replay thinking and tool results
+
+A Claude conversation with thinking and tools needs its signed thinking on the next request. Converse preserves the reasoning text, signature, and order before the matching `toolUse` blocks.
+
+Readable `reasoningText.signature` replay applies to Claude models. Same-source redacted encrypted reasoning can replay for other Converse models that support it. Foreign history drops redacted thinking and signatures, and converts readable thinking to text.
+
+Keep assistant metadata and reasoning parts when you save history. Converse records source provider `amazon-bedrock` and API `bedrock-converse-stream`. The Chat Completions and Responses adapters use `openai-completions` and `openai-responses` API identities.
+
+Converse tool results preserve images as image blocks and send `status: 'error'` for tool errors. With a text-only model, image results use a text placeholder. The Chat Completions path places supported tool-result images in a following user message.
+
+Converse accepts tool calls and tool results in the history only when the request has tools. If a request has no tools, the adapter sends them as text, for example `[Tool call lookup_weather({"location":"Paris"})]`. Images in a tool result stay images. Your saved messages do not change.
+
+An AWS HTTP request ID is a transport ID. It does not become `responseId`. See [Read the provider response identity](../chat/stream-events#read-the-provider-response-identity).
 
 ## Supported Capabilities
 

@@ -189,6 +189,19 @@ const stream = chat({
 
 **Client-side and approval-gated tools are not supported.** The harness executes tools inside a live subprocess, which cannot pause across HTTP requests to wait for a browser round-trip or a human approval. Passing a tool without a server `execute()` implementation — or one marked `needsApproval` — fails fast with a descriptive error. Run those tools outside the harness with a regular provider adapter.
 
+## Tool choice
+
+`chat({ toolChoice })` sets which tools Claude Code can call. For the values, see [Choose when the model calls a tool](../tools/tools#choose-when-the-model-calls-a-tool).
+
+| Value | What the adapter does |
+| --- | --- |
+| `'auto'` | No change. Claude Code can call every tool. |
+| `'none'` | Turns off the built-in tools and bridges none of your tools. Claude Code answers in text. |
+| `{ type: 'tool', name }` | Turns off the built-in tools and bridges only the named tool. Claude Code can call only this tool, but it does not have to. |
+| `'required'` | No change. Claude Code cannot force a tool call, so the adapter logs a warning the first time. |
+
+For `'none'` and a named tool, the adapter passes `--tools ""` and `--strict-mcp-config`. Then other MCP servers, for example from the workspace or a settings file, do not load.
+
 ## Structured Output
 
 Pass `outputSchema` on `chat()`. Claude Code runs one harness turn, uses its native tools, and returns a typed object. The schema JSON is passed to `--json-schema` as inline JSON (the CLI rejects a file path). Tool activity and prose stream as usual. The object arrives as `structured-output.complete`, including when Claude delivers it through its built-in `StructuredOutput` tool.
@@ -253,6 +266,7 @@ Full walkthrough, including the client: [Harness Agents](../structured-outputs/h
 
 ## Limitations
 
+- **No `wrapFetch`.** The adapter ignores [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call), because the harness process sends the model requests.
 - **Server-only (Node).** The harness spawns a subprocess; Windows support is untested.
 - **The harness owns the agent loop.** TanStack's agent-loop strategies and per-iteration middleware don't apply inside a harness turn; `maxTurns` is the equivalent control.
 - **No sampling controls.** `temperature`-style options don't exist here.

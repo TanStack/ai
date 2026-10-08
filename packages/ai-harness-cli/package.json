@@ -1,0 +1,99 @@
+{
+  "name": "@tanstack/ai-harness-cli",
+  "version": "0.0.0",
+  "description": "Run a TanStack AI harness from the terminal: line mode or your own screen, print mode, NDJSON, ACP, MCP, and an HTTP server",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-harness-cli"
+  },
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "oxlint src --type-aware --fix",
+    "test:build": "publint --strict",
+    "test:oxlint": "oxlint src --type-aware",
+    "test:coverage": "vitest run --passWithNoTests --coverage --coverage.include='src/**' --coverage.reporter=text-summary --coverage.reporter=json-summary",
+    "test:lib": "vitest --passWithNoTests",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "nx": {
+    "targets": {
+      "test:lib": {
+        "dependsOn": [
+          "build",
+          "^build"
+        ]
+      },
+      "test:coverage": {
+        "dependsOn": [
+          "build",
+          "^build"
+        ]
+      },
+      "test:types": {
+        "dependsOn": [
+          "build",
+          "^build"
+        ]
+      }
+    }
+  },
+  "keywords": [
+    "ai",
+    "tanstack",
+    "harness",
+    "agent",
+    "cli",
+    "terminal",
+    "acp",
+    "mcp"
+  ],
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:^",
+    "@tanstack/ai-acp": "workspace:^",
+    "@tanstack/ai-dashboard": "workspace:^",
+    "@tanstack/ai-harness": "workspace:^",
+    "@tanstack/ai-mcp": "workspace:^",
+    "@tanstack/ai-persistence": "workspace:^"
+  },
+  "peerDependenciesMeta": {
+    "@tanstack/ai-acp": {
+      "optional": true
+    },
+    "@tanstack/ai-dashboard": {
+      "optional": true
+    },
+    "@tanstack/ai-mcp": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-acp": "workspace:*",
+    "@tanstack/ai-dashboard": "workspace:*",
+    "@tanstack/ai-harness": "workspace:*",
+    "@tanstack/ai-mcp": "workspace:*",
+    "@tanstack/ai-persistence": "workspace:*",
+    "@tanstack/ai-sandbox": "workspace:*",
+    "@vitest/coverage-v8": "4.1.10",
+    "zod": "^4.2.0"
+  }
+}

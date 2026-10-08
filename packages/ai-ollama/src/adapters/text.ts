@@ -5,6 +5,8 @@ import {
   unsupportedFileSourceError,
 } from '@tanstack/ai'
 import {
+  resolveReasoning,
+  tanstackMetadata,
   toRunErrorPayload,
   toRunErrorRawEvent,
 } from '@tanstack/ai/adapter-internals'
@@ -12,6 +14,8 @@ import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { buildOllamaUsage } from '../usage'
 import { createOllamaClient, generateId, getOllamaHostFromEnv } from '../utils'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
+import { OLLAMA_MODEL_REASONING } from '../model-reasoning'
+import type { OllamaModelReasoningByName } from '../model-reasoning'
 import type { OllamaClientConfig } from '../utils/client'
 
 import type {
@@ -32,7 +36,14 @@ import type {
   Tool as OllamaTool,
   ToolCall,
 } from 'ollama'
-import type { AdapterYieldChunk, TextOptions, Tool } from '@tanstack/ai'
+import type {
+  AdapterYieldChunk,
+  FetchWrapper,
+  ModelReasoning,
+  ReasoningRequest,
+  TextOptions,
+  Tool,
+} from '@tanstack/ai'
 
 export type OllamaTextModel =
   | (typeof OLLAMA_TEXT_MODELS)[number]
@@ -45,7 +56,53 @@ export type OllamaTextModel =
 type ResolveModelOptions<TModel extends string> =
   TModel extends keyof OllamaChatModelOptionsByName
     ? OllamaChatModelOptionsByName[TModel]
-    : ChatRequest
+    : Omit<ChatRequest, 'think'>
+
+/**
+ * The reasoning levels of a model, for `chat({ reasoning })`. A model name
+ * that this package does not list gets the common on/off toggle. `never`: a
+ * listed model that does not reason.
+ */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof OllamaModelReasoningByName
+    ? OllamaModelReasoningByName[TModel]
+    : TModel extends keyof OllamaChatModelOptionsByName
+      ? never
+      : { levels: 'off' | 'high'; budget: false }
+
+/** The on/off toggle for a model name this package does not list. */
+const UNLISTED_MODEL_REASONING: ModelReasoning = {
+  map: {
+    off: 'false',
+    minimal: null,
+    low: null,
+    medium: null,
+    high: 'true',
+    xhigh: null,
+    max: null,
+  },
+  budget: false,
+}
+
+/**
+ * Ollama's `think` for `chat({ reasoning })`: `true` or `false` for a model
+ * with the on/off toggle, the level name for gpt-oss.
+ */
+function ollamaThink(
+  request: ReasoningRequest | undefined,
+  model: string,
+): { think?: boolean | 'low' | 'medium' | 'high' } {
+  const reasoning =
+    model in OLLAMA_MODEL_REASONING
+      ? OLLAMA_MODEL_REASONING[model]
+      : UNLISTED_MODEL_REASONING
+  const value = resolveReasoning(request, reasoning)?.value
+  if (value === 'true' || value === 'false') return { think: value === 'true' }
+  if (value === 'low' || value === 'medium' || value === 'high') {
+    return { think: value }
+  }
+  return {}
+}
 
 export interface OllamaTextAdapterOptions {
   model?: OllamaTextModel
@@ -79,12 +136,19 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
   TModel,
   ResolveModelOptions<TModel>,
   OllamaInputModalities,
-  OllamaMessageMetadataByModality
+  OllamaMessageMetadataByModality,
+  ReadonlyArray<string>,
+  unknown,
+  never,
+  ResolveReasoning<TModel>
 > {
   override readonly kind = 'text' as const
   readonly name = 'ollama' as const
+  override readonly api = 'ollama' as const
 
   private readonly client: Ollama
+  /** The config of the adapter's own client. An injected client has none. */
+  private readonly clientConfig: OllamaClientConfig | undefined
 
   constructor(
     hostOrClientOrConfig: string | Ollama | OllamaClientConfig | undefined,
@@ -95,31 +159,53 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
       typeof hostOrClientOrConfig === 'string' ||
       hostOrClientOrConfig === undefined
     ) {
-      this.client = createOllamaClient({ host: hostOrClientOrConfig })
+      this.clientConfig = { host: hostOrClientOrConfig }
+      this.client = createOllamaClient(this.clientConfig)
     } else if ('chat' in hostOrClientOrConfig) {
       // Ollama client instance (has a chat method)
       this.client = hostOrClientOrConfig
     } else {
       // OllamaClientConfig object
+      this.clientConfig = hostOrClientOrConfig
       this.client = createOllamaClient(hostOrClientOrConfig)
     }
+  }
+
+  /** Use a client whose fetch goes through `wrapFetch` for one call. */
+  private clientFor(wrapFetch: FetchWrapper | undefined) {
+    return wrapFetch && this.clientConfig
+      ? createOllamaClient(this.clientConfig, wrapFetch(fetch))
+      : this.client
   }
 
   async *chatStream(
     options: TextOptions<ResolveModelOptions<TModel>>,
   ): AsyncIterable<AdapterYieldChunk> {
-    const mappedOptions = this.mapCommonOptionsToOllama(options)
     const { logger } = options
+    const source = { provider: 'ollama', api: this.api, model: options.model }
     try {
+      const mappedOptions = this.mapCommonOptionsToOllama(options)
       logger.request(
         `activity=chat provider=ollama model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
         { provider: 'ollama', model: this.model },
       )
-      const response = await this.client.chat({
+      const response = await this.clientFor(options.wrapFetch).chat({
         ...mappedOptions,
         stream: true,
       })
-      yield* this.processOllamaStreamChunks(response, options, logger)
+      for await (const chunk of this.processOllamaStreamChunks(
+        response,
+        options,
+        logger,
+      )) {
+        yield {
+          ...chunk,
+          metadata: {
+            ...chunk.metadata,
+            tanstack: { ...tanstackMetadata(chunk), source },
+          },
+        }
+      }
     } catch (error: unknown) {
       const errorPayload = toRunErrorPayload(
         error,
@@ -132,6 +218,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
       })
       yield {
         type: EventType.RUN_ERROR,
+        metadata: { tanstack: { source } },
         model: options.model,
         timestamp: Date.now(),
         message: errorPayload.message,
@@ -164,7 +251,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
         { provider: 'ollama', model: this.model },
       )
       // Make non-streaming request with JSON format
-      const response = await this.client.chat({
+      const response = await this.clientFor(chatOptions.wrapFetch).chat({
         ...mappedOptions,
         stream: false,
         format: outputSchema,
@@ -267,16 +354,15 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
         }
 
         // Serialize arguments to a string for the TOOL_CALL_ARGS event
-        let parsedInput: unknown = {}
+        let parsedInput: unknown
         const argsStr =
           typeof actualToolCall.function.arguments === 'string'
             ? actualToolCall.function.arguments
             : JSON.stringify(actualToolCall.function.arguments)
         try {
-          const parsed = JSON.parse(argsStr)
-          parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
+          parsedInput = JSON.parse(argsStr)
         } catch {
-          parsedInput = actualToolCall.function.arguments
+          parsedInput = undefined
         }
 
         // Emit TOOL_CALL_ARGS with full args (Ollama doesn't stream args incrementally)
@@ -297,7 +383,8 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
           toolName: actualToolCall.function.name || '',
           model: chunk.model,
           timestamp: Date.now(),
-          input: parsedInput,
+          args: argsStr,
+          ...(parsedInput !== undefined && { input: parsedInput }),
         })
 
         return events
@@ -565,10 +652,10 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
       // object avoids aliasing the caller's modelOptions.options.
       options: { ...modelOptions?.options },
       // Request-level fields the nested modelOptions surface exposes
-      // (OllamaChatRequest): format / keep_alive / logprobs / top_logprobs, plus
-      // `think` for models whose options type includes OllamaChatRequestThinking.
+      // (OllamaChatRequest): format / keep_alive / logprobs / top_logprobs.
       // Read structurally and only forwarded when present. `stream` is set by
       // the call sites (chatStream / structuredOutput), so it is not forwarded.
+      // `think` comes from `chat({ reasoning })`.
       ...(modelOptions?.format !== undefined && {
         format: modelOptions.format,
       }),
@@ -581,11 +668,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
       ...(modelOptions?.top_logprobs !== undefined && {
         top_logprobs: modelOptions.top_logprobs,
       }),
-      ...(modelOptions &&
-      'think' in modelOptions &&
-      modelOptions.think !== undefined
-        ? { think: modelOptions.think }
-        : {}),
+      ...ollamaThink(options.reasoning, model),
       ...(convertedTools !== undefined && { tools: convertedTools }),
     }
   }

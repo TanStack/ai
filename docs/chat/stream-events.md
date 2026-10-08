@@ -39,12 +39,14 @@ Later:
 
 On `RUN_FINISHED`, in-process `chat()` still uses TanStack `TokenUsage` (`promptTokens`). The SSE and HTTP wires use the spec `usage` array (`inputTokens`). Read `finishReason` from `metadata.tanstack.finishReason`. Custom servers: see [Event metadata](../protocol/metadata).
 
+`usage.promptTokens` is the full input, cached tokens included. Cache reads are on `usage.promptTokensDetails.cachedTokens`, and cache writes are on `usage.promptTokensDetails.cacheWriteTokens`. On the wire, they are `cachedInputTokens` and `cacheWriteInputTokens`. See [Prompt Caching](../advanced/prompt-caching#track-cached-tokens-and-cost).
+
 ```typescript
 import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
-  adapter: openaiText("gpt-5.6"),
+  adapter: openaiText("gpt-5.5"),
   messages: [{ role: "user", content: "Hello!" }],
 });
 
@@ -58,6 +60,34 @@ for await (const chunk of stream) {
   }
 }
 ```
+
+## Read the provider response identity
+
+You can correlate a finished reply with the provider's generation. Read its identity from `metadata.tanstack` on the `chat()` stream:
+
+```typescript
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
+for await (const chunk of chat({
+  adapter: openaiText('gpt-5.5'),
+  messages: [{ role: 'user', content: 'Hello!' }],
+})) {
+  if (chunk.type !== 'RUN_FINISHED') continue
+  const metadata = chunk.metadata?.tanstack
+  console.log(metadata?.responseId, metadata?.model, metadata?.source)
+}
+```
+
+- `responseId`: the provider's generation ID, when supplied.
+- `model`: the provider-reported response model, when supplied.
+- `source`: the provider, wire API, and requested logical model for that call.
+
+`source` also identifies provider error events. Assistant messages retain these fields through client conversion and persistence. An Azure deployment can report a different model from `source.model`.
+
+Direct adapter iterators expose terminal `responseId` and `model` fields at the top level. `chat()` and the wire use `metadata.tanstack`. When the provider supplies no generation ID, the adapter omits `responseId`. An HTTP request ID does not fill that field.
+
+A direct adapter's `structuredOutput()` result can also supply `responseId` and `model`. The structured-output fallback forwards those fields to its terminal event. The parsed object returned by `chat()` with `outputSchema` stays the schema's data.
 
 ## Threads and runs
 
@@ -118,7 +148,7 @@ const weatherTool = toolDefinition({
 });
 
 const stream = chat({
-  adapter: openaiText("gpt-5.6"),
+  adapter: openaiText("gpt-5.5"),
   messages: [{ role: "user", content: "What is the weather in Paris?" }],
   tools: [weatherTool],
 });

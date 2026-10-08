@@ -46,8 +46,17 @@ test.describe('sandbox portable file snapshots', () => {
           content: 'automatic conversation',
           createdAt: expect.any(String),
           id: 'automatic-message',
-          // withPersistence records the run that produced the message.
-          metadata: { tanstack: { run: { id: 'recover' } } },
+          // withPersistence records the run that produced the message. The
+          // chat run records its id, the provider, API and model it used, and
+          // why the model stopped.
+          metadata: {
+            tanstack: {
+              finishReason: 'stop',
+              run: { id: 'recover' },
+              runId: 'recover',
+              source: { provider: 'fixed', api: 'text', model: 'test-model' },
+            },
+          },
           role: 'assistant',
         },
       ],

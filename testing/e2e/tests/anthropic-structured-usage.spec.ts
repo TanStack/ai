@@ -38,10 +38,12 @@ test.describe('anthropic — structured-output fallback', () => {
 
     expect(error ?? null).toBeNull()
     expect(ok).toBe(true)
+    // promptTokens is the total input: 125 uncached + 5760 cache read. The
+    // mount sends no cache write.
     expect(usage).toMatchObject({
-      promptTokens: 125,
+      promptTokens: 5885,
       completionTokens: 1346,
-      totalTokens: 1471,
+      totalTokens: 7231,
       promptTokensDetails: { cachedTokens: 5760 },
     })
     expect(timestamps.structuredOutputStart).toBeGreaterThanOrEqual(

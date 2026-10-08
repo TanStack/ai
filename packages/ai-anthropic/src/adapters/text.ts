@@ -6,7 +6,13 @@ import {
 } from '@tanstack/ai'
 import {
   REDACTED_THINKING_ID_PREFIX,
+  orderedAssistantBlocks,
+  splitMidConversationChanges,
+  toRetryAfterMs,
   toRunErrorRawEvent,
+  transformMessagesForReplay,
+  sanitizeUnicode,
+  sanitizeJsonArguments,
 } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
@@ -16,14 +22,25 @@ import {
   readCodeExecutionSkills,
 } from '../tools/code-execution-tool'
 import { validateTextProviderOptions } from '../text/text-provider-options'
+import {
+  ANTHROPIC_DEFERRED_TOOL_PLACEHOLDER_NAME,
+  applyAnthropicPromptCache,
+} from '../prompt-cache'
+import { anthropicThinking, isAnthropicEffort } from '../text/reasoning'
+import type { AnthropicEffort } from '../text/reasoning'
+import { ANTHROPIC_MODEL_REASONING } from '../model-reasoning'
+import type { AnthropicModelReasoningByName } from '../model-reasoning'
 import { buildAnthropicUsage } from '../usage'
 import {
   createAnthropicClient,
   generateId,
-  getAnthropicApiKeyFromEnv,
+  resolveAnthropicCredentials,
 } from '../utils/client'
 import {
   ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS,
+  ANTHROPIC_MID_CONVERSATION_EFFORT_MODELS,
+  ANTHROPIC_MODEL_INPUT_MODALITIES,
+  ANTHROPIC_MODEL_MID_CONVERSATION_CHANNELS,
   getAnthropicDefaultMaxTokens,
 } from '../model-meta'
 import type {
@@ -52,8 +69,10 @@ import type {
   BetaFileDocumentSource,
   BetaFileImageSource,
   BetaImageBlockParam,
+  BetaMessageParam,
   BetaRequestDocumentBlock,
   BetaTextBlockParam,
+  BetaTool,
   BetaURLImageSource,
   BetaURLPDFSource,
 } from '@anthropic-ai/sdk/resources/beta/messages'
@@ -61,11 +80,19 @@ import type Anthropic_SDK from '@anthropic-ai/sdk'
 import type { AnthropicBeta } from '@anthropic-ai/sdk/resources/beta/beta'
 import type {
   AnyTool,
+  ConfigReasoning,
   ContentPart,
+  FetchWrapper,
+  MidConversationChannels,
   Modality,
   ModelMessage,
+  ModelReasoning,
   AdapterYieldChunk,
+  NormalizedSystemPrompt,
+  ReasoningCapability,
   TextOptions,
+  ToolCall,
+  ToolChoice,
 } from '@tanstack/ai'
 import type {
   AnthropicSystemPromptMetadata,
@@ -180,7 +207,11 @@ export function messagesHaveFileSource(messages: Array<ModelMessage>): boolean {
  * - `code-execution-2025-08-25` when a `code_execution` tool is present,
  * - `skills-2025-10-02` when that tool carries skills,
  * - `context-management-2025-06-27` when `context_management` is set,
- * - `files-api-2025-04-14` when a message references an uploaded file handle.
+ * - `files-api-2025-04-14` when a message references an uploaded file handle,
+ * - `mid-conversation-tool-changes-2026-07-01` in mid-conversation tool mode,
+ * - `mid-conversation-output-config-2026-07-01` and
+ *   `thinking-binding-controls-2026-08-01` with mid-conversation effort
+ *   (`thinking.block_binding`).
  * Returns `undefined` when none apply (so the call site omits `betas`).
  */
 export function computeAnthropicBetas(
@@ -190,22 +221,31 @@ export function computeAnthropicBetas(
         thinking?: {
           type?: 'enabled' | 'disabled' | 'adaptive'
           budget_tokens?: number
+          block_binding?: unknown
         }
         context_management?: unknown | null
         mcp_servers?: ReadonlyArray<unknown>
       }
     | undefined,
   hasFileSource = false,
+  midConversationToolChanges = false,
 ): Array<AnthropicBeta> | undefined {
   const betas = new Set<AnthropicBeta>()
 
   if (hasFileSource) betas.add('files-api-2025-04-14')
+  if (midConversationToolChanges) {
+    betas.add('mid-conversation-tool-changes-2026-07-01')
+  }
 
   const useInterleavedThinking =
     modelOptions?.thinking?.type === 'enabled' &&
     typeof modelOptions.thinking.budget_tokens === 'number' &&
     modelOptions.thinking.budget_tokens > 0
   if (useInterleavedThinking) betas.add('interleaved-thinking-2025-05-14')
+  if (modelOptions?.thinking?.block_binding) {
+    betas.add('mid-conversation-output-config-2026-07-01')
+    betas.add('thinking-binding-controls-2026-08-01')
+  }
 
   // Context editing requires the beta header; the body field alone is not
   // enough (issue #1074). `null` is a typed "unset" — do not enable the beta.
@@ -253,13 +293,106 @@ export function computeAnthropicBetas(
 }
 
 /**
+ * The models that reject a forced tool (`any` or a named `tool`) on every
+ * request, with or without thinking.
+ * ponytail: a hand list, because the model sync script writes model-meta.ts.
+ * Move it to a model-meta capability when that script can set one.
+ */
+const ANTHROPIC_NO_FORCED_TOOL_MODELS: ReadonlySet<string> = new Set<
+  (typeof ANTHROPIC_MODELS)[number]
+>(['claude-fable-5-1', 'claude-opus-5-5', 'claude-sonnet-5-5'])
+
+/**
+ * Maps `chat({ toolChoice })` to the Messages `tool_choice`. When the
+ * request cannot force a tool, a forced choice falls back to `auto`.
+ */
+function toAnthropicToolChoice(
+  choice: ToolChoice,
+  { canForceTool }: { canForceTool: boolean },
+) {
+  if (choice === 'none') return { type: 'none' as const }
+  if (choice === 'auto' || !canForceTool) return { type: 'auto' as const }
+  if (choice === 'required') return { type: 'any' as const }
+  return { type: 'tool' as const, name: choice.name }
+}
+
+/**
+ * The tool placeholder of mid-conversation tool mode, copied from pi 0.87.1.
+ * Anthropic adds hidden scaffolding once any tool has `defer_loading`. This
+ * deferred tool is in every tool-mode request, so that scaffolding stays in
+ * the cached prefix. The model never sees it.
+ */
+const DEFERRED_TOOL_PLACEHOLDER: BetaTool = {
+  name: ANTHROPIC_DEFERRED_TOOL_PLACEHOLDER_NAME,
+  description: 'Reserved placeholder. Never available. Never call this.',
+  input_schema: { type: 'object', properties: {}, required: [] },
+  defer_loading: true,
+}
+
+/**
+ * A mid-conversation `system` message. SDK 0.97.1 types only `user` and
+ * `assistant` messages and has no `tool_addition` block, so this type is local.
+ */
+interface AnthropicMidConversationSystemMessage {
+  role: 'system'
+  content: Array<
+    | TextBlockParam
+    | { type: 'tool_addition'; tool: { type: 'tool_reference'; name: string } }
+  >
+}
+
+/** pi's effort message: a `system` message with no content that sets the effort. */
+function effortMessage(effort: AnthropicEffort): BetaMessageParam {
+  const message = { role: 'system', content: [], output_config: { effort } }
+  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- SDK 0.97.1 types no `system` message in `messages`; the models with mid-conversation effort accept one (pi 0.87.1).
+  return message as unknown as BetaMessageParam
+}
+
+/**
  * Configuration for Anthropic text adapter
  */
-export interface AnthropicTextConfig extends AnthropicClientConfig {}
+export interface AnthropicTextConfig extends AnthropicClientConfig {
+  /** Add the Claude Code identity and OAuth headers. */
+  oauth?: boolean
+  /** Replay ordinary thinking without a signature. The default is false. */
+  allowEmptySignature?: boolean
+  /** Identify a gateway separately from the direct Anthropic API. */
+  provider?: string
+  /**
+   * The model's reasoning data, for example `modelReasoning(record)` from a
+   * `@tanstack/ai-models` record. It wins over the adapter's own table, for
+   * the thinking fields and for the levels `chat({ reasoning })` takes.
+   * `false`: the model does not reason, so no thinking field goes out.
+   */
+  reasoning?: ModelReasoning
+  /**
+   * The mid-conversation channels (the
+   * `mid-conversation-tool-changes-2026-07-01` beta and mid-conversation
+   * `system` messages) of the models in
+   * `ANTHROPIC_MODEL_MID_CONVERSATION_CHANNELS`. When absent, they are on
+   * only for Anthropic's own API: a `baseURL`, a `fetch`, an injected
+   * `client`, or the SDK's `ANTHROPIC_BASE_URL` env var turns the default off. `true` turns them on anyway, for a
+   * gateway that passes the changes. `false` turns them off, so every
+   * request is built as before. An object turns on only the channels it
+   * names, for a gateway that passes one of them:
+   * `{ systemPrompts: true }` sends a system prompt change in place and a
+   * tool change as the full tool list.
+   */
+  midConversationChannels?: boolean | Partial<MidConversationChannels>
+}
 
 export type AnthropicTextAdapterConfig =
   | AnthropicTextConfig
-  | { client: AnthropicMessagesClient }
+  | {
+      client: AnthropicMessagesClient
+      /** See {@link AnthropicTextConfig.midConversationChannels}. */
+      midConversationChannels?: AnthropicTextConfig['midConversationChannels']
+      oauth?: boolean
+      allowEmptySignature?: boolean
+      provider?: string
+      /** See {@link AnthropicTextConfig.reasoning}. */
+      reasoning?: ModelReasoning
+    }
 
 /**
  * Anthropic-specific provider options for text/chat
@@ -287,6 +420,18 @@ type ResolveInputModalities<TModel extends string> =
   TModel extends keyof AnthropicModelInputModalitiesByName
     ? AnthropicModelInputModalitiesByName[TModel]
     : readonly ['text', 'image', 'document']
+
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof AnthropicModelReasoningByName
+    ? AnthropicModelReasoningByName[TModel]
+    : never
+
+/**
+ * A model id: a known Anthropic model, or any other id, for example a
+ * gateway or catalog id such as `anthropic/claude-sonnet-4.6`.
+ */
+export type AnthropicModelId = (typeof ANTHROPIC_MODELS)[number] | (string & {})
 
 type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof AnthropicChatModelToolCapabilitiesByName
@@ -322,12 +467,13 @@ function asSdkAnthropicMessagesClient(
  * Import only what you need for smaller bundle sizes.
  */
 export class AnthropicTextAdapter<
-  TModel extends (typeof ANTHROPIC_MODELS)[number],
+  TModel extends AnthropicModelId,
   TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
   TInputModalities extends ReadonlyArray<Modality> =
     ResolveInputModalities<TModel>,
   TToolCapabilities extends ReadonlyArray<string> =
     ResolveToolCapabilities<TModel>,
+  TReasoning extends ReasoningCapability = ResolveReasoning<TModel>,
 > extends BaseTextAdapter<
   TModel,
   TProviderOptions,
@@ -338,21 +484,114 @@ export class AnthropicTextAdapter<
   unknown,
   // TSystemPromptMetadata — narrows `systemPrompts[i].metadata` at the
   // chat() call site so users get `cache_control` autocomplete.
-  AnthropicSystemPromptMetadata
+  AnthropicSystemPromptMetadata,
+  TReasoning
 > {
   override readonly kind = 'text' as const
   readonly name = 'anthropic' as const
+  override readonly api = 'anthropic-messages'
+  override readonly provider: string
   // Consumes `file_id` sources issued by anthropicFiles() (Files API beta).
   override readonly supportsFileSources = true
+  override readonly inputModalities =
+    ANTHROPIC_MODEL_INPUT_MODALITIES[this.model]
+  /** Set from `ANTHROPIC_MODEL_MID_CONVERSATION_CHANNELS` in the constructor. */
+  override readonly midConversationChannels:
+    | MidConversationChannels
+    | undefined = undefined
 
   private readonly client: SdkAnthropicMessagesClient
+  /** The adapter's own SDK client. An injected client cannot take a fetch. */
+  private readonly sdkClient: Anthropic_SDK | undefined
+  private readonly baseFetch: typeof fetch | undefined
+  /** `config.reasoning`, which wins over `ANTHROPIC_MODEL_REASONING`. */
+  private readonly modelReasoning: ModelReasoning | undefined
+  private readonly oauth: boolean
+  private readonly allowEmptySignature: boolean
+  private readonly tokenAuthentication: boolean
+  private readonly oauthHeaders = new Headers({
+    'user-agent': 'claude-cli/2.1.280',
+    'x-app': 'cli',
+  })
 
   constructor(config: AnthropicTextAdapterConfig, model: TModel) {
     super({}, model)
-    this.client =
+    this.provider = config.provider ?? this.name
+    const credentials =
       'client' in config
-        ? asSdkAnthropicMessagesClient(config.client)
-        : createAnthropicClient(config)
+        ? undefined
+        : resolveAnthropicCredentials(config, config.oauth)
+    this.oauth = config.oauth ?? credentials?.oauth ?? false
+    this.tokenAuthentication = Boolean(credentials?.authToken) || this.oauth
+    if (!('client' in config)) {
+      for (const [name, value] of Object.entries(config.defaultHeaders ?? {})) {
+        if (
+          value != null &&
+          (name.toLowerCase() === 'x-app' ||
+            name.toLowerCase() === 'user-agent' ||
+            name.toLowerCase() === 'anthropic-beta')
+        )
+          this.oauthHeaders.set(name, value)
+      }
+    }
+    this.allowEmptySignature = config.allowEmptySignature ?? false
+    if ('client' in config) {
+      this.client = asSdkAnthropicMessagesClient(config.client)
+    } else {
+      this.sdkClient = createAnthropicClient(
+        {
+          ...config,
+          ...(this.oauth && {
+            defaultHeaders: {
+              'user-agent': 'claude-cli/2.1.280',
+              'x-app': 'cli',
+              ...config.defaultHeaders,
+            },
+          }),
+        },
+        this.oauth,
+      )
+      this.client = this.sdkClient
+      this.baseFetch = config.fetch
+    }
+    // On by default only on Anthropic's own API: a proxy, a gateway, Vertex,
+    // or Bedrock (a `baseURL`, a `fetch`, an injected client, or the SDK's
+    // ANTHROPIC_BASE_URL env var) may not pass the changes. The option wins.
+    const envBaseURL =
+      typeof process !== 'undefined' && Boolean(process.env.ANTHROPIC_BASE_URL)
+    const customEndpoint =
+      'client' in config ||
+      Boolean(config.baseURL || config.fetch) ||
+      envBaseURL
+    // Mid-conversation effort needs its betas too, so the adapter's own data
+    // turns it on only on Anthropic's own API. A `reasoning` config wins.
+    const ownReasoning = ANTHROPIC_MODEL_REASONING[this.model]
+    this.modelReasoning =
+      config.reasoning ??
+      (ownReasoning &&
+      !customEndpoint &&
+      ANTHROPIC_MID_CONVERSATION_EFFORT_MODELS.has(model)
+        ? { ...ownReasoning, midConversationEffort: true }
+        : ownReasoning)
+    const table = ANTHROPIC_MODEL_MID_CONVERSATION_CHANNELS[model]
+    const option = config.midConversationChannels
+    if (typeof option === 'object') {
+      if (table)
+        this.midConversationChannels = {
+          tools: table.tools && option.tools === true,
+          systemPrompts: table.systemPrompts && option.systemPrompts === true,
+        }
+    } else if (option ?? !customEndpoint) {
+      this.midConversationChannels = table
+    }
+  }
+
+  /** Use a client whose fetch goes through `wrapFetch` for one call. */
+  private clientFor(wrapFetch: FetchWrapper | undefined) {
+    if (!wrapFetch || !this.sdkClient) return this.client
+    return this.sdkClient.withOptions({
+      fetch: wrapFetch(this.baseFetch ?? globalThis.fetch),
+    })
   }
 
   async *chatStream(
@@ -369,11 +608,26 @@ export class AnthropicTextAdapter<
 
       // `betas` is attached at the call site rather than in the shared mapper
       // because the beta set depends on both the tools and the modelOptions.
+      // The request, not modelOptions: `reasoning` can turn budget
+      // thinking (and so the interleaved-thinking beta) on.
       const betas = computeAnthropicBetas(
         options.tools,
-        options.modelOptions,
+        requestParams,
         messagesHaveFileSource(options.messages),
+        // Mid-conversation tool mode puts the deferred placeholder in `tools`.
+        requestParams.tools?.some(
+          (tool) => tool.name === DEFERRED_TOOL_PLACEHOLDER.name,
+        ),
       )
+      const requestBetas = this.oauth
+        ? [
+            ...new Set<AnthropicBeta>([
+              'claude-code-20250219',
+              'oauth-2025-04-20',
+              ...(betas ?? []),
+            ]),
+          ]
+        : betas
 
       // `client.beta.messages` is Anthropic's permanent staging surface, not a
       // sunset path: it's a superset of `client.messages` that additionally
@@ -381,15 +635,17 @@ export class AnthropicTextAdapter<
       // thinking) plus richer `container` (skills) and `context_management`
       // shapes that `InternalTextProviderOptions` carries. We route every
       // Messages call through it so the request mapper stays single-shape.
-      const stream = await this.client.beta.messages.create(
+      const stream = await this.clientFor(
+        options.wrapFetch,
+      ).beta.messages.create(
         {
           ...requestParams,
           stream: true,
-          ...(betas && { betas }),
+          ...(requestBetas && { betas: requestBetas }),
         },
         {
           signal: options.request?.signal,
-          headers: options.request?.headers,
+          headers: this.requestHeaders(options.request?.headers, requestBetas),
         },
       )
 
@@ -402,6 +658,7 @@ export class AnthropicTextAdapter<
     } catch (error: unknown) {
       const err = error as Error & { status?: number; code?: string }
       const rawEvent = toRunErrorRawEvent(error)
+      const retryAfterMs = toRetryAfterMs(error)
       logger.errors('anthropic.chatStream fatal', {
         error,
         source: 'anthropic.chatStream',
@@ -415,9 +672,19 @@ export class AnthropicTextAdapter<
         // Forward the Anthropic SDK error's `.error` response body (e.g.
         // `{ type, message }`) when present; never the raw exception object.
         ...(rawEvent !== undefined && { rawEvent }),
+        ...(retryAfterMs !== undefined && { retryAfterMs }),
         error: {
           message: err.message || 'Unknown error occurred',
           code: err.code || String(err.status),
+        },
+        metadata: {
+          tanstack: {
+            source: {
+              provider: this.provider,
+              api: this.api,
+              model: options.model,
+            },
+          },
         },
       }
     }
@@ -462,21 +729,35 @@ export class AnthropicTextAdapter<
       )
       const betas = computeAnthropicBetas(
         chatOptions.tools,
-        chatOptions.modelOptions,
+        requestParams,
         messagesHaveFileSource(chatOptions.messages),
       )
+      const requestBetas = this.oauth
+        ? [
+            ...new Set<AnthropicBeta>([
+              'claude-code-20250219',
+              'oauth-2025-04-20',
+              ...(betas ?? []),
+            ]),
+          ]
+        : betas
       // Make non-streaming request with tool_choice forced to our structured output tool
-      const response = await this.client.beta.messages.create(
+      const response = await this.clientFor(
+        chatOptions.wrapFetch,
+      ).beta.messages.create(
         {
           ...requestParams,
           stream: false,
           tools: [structuredOutputTool],
           tool_choice: { type: 'tool', name: 'structured_output' },
-          ...(betas && { betas }),
+          ...(requestBetas && { betas: requestBetas }),
         },
         {
           signal: chatOptions.request?.signal,
-          headers: chatOptions.request?.headers,
+          headers: this.requestHeaders(
+            chatOptions.request?.headers,
+            requestBetas,
+          ),
         },
       )
 
@@ -523,6 +804,8 @@ export class AnthropicTextAdapter<
         data: parsed,
         rawText,
         usage: buildAnthropicUsage(response.usage),
+        responseId: response.id,
+        model: response.model,
       }
     } catch (error: unknown) {
       const err = error as Error
@@ -536,15 +819,108 @@ export class AnthropicTextAdapter<
     }
   }
 
+  private requestHeaders(
+    headers: HeadersInit | undefined,
+    betas: Array<AnthropicBeta> | undefined,
+  ) {
+    if (!this.tokenAuthentication) return headers
+    const requestHeaders = new Headers(
+      this.oauth ? this.oauthHeaders : undefined,
+    )
+    new Headers(headers).forEach((value, name) =>
+      requestHeaders.set(name, value),
+    )
+    if (this.oauth) {
+      const configured = (requestHeaders.get('anthropic-beta') ?? '')
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean)
+      requestHeaders.set(
+        'anthropic-beta',
+        [...new Set([...(betas ?? []), ...configured])].join(','),
+      )
+    }
+    return { ...Object.fromEntries(requestHeaders), 'x-api-key': null }
+  }
+
   private mapCommonOptionsToAnthropic(
     options: TextOptions<AnthropicTextProviderOptions>,
     { stream = true }: { stream?: boolean } = {},
   ) {
     const modelOptions = options.modelOptions
 
-    const formattedMessages = this.formatMessages(options.messages)
+    const replay = transformMessagesForReplay(
+      options.messages,
+      {
+        provider: this.provider,
+        api: this.api,
+        model: options.model,
+      },
+      (id, { attempt }) => {
+        const clean = id.replace(/[^a-zA-Z0-9_-]/g, '_')
+        const suffix = attempt === 0 ? '' : `_${attempt}`
+        return clean.slice(0, 64 - suffix.length) + suffix
+      },
+    )
+    const originalChanges = options.midConversationChanges?.changes ?? []
+    const mappedChanges = originalChanges.map((change) => ({
+      ...change,
+      before: replay.boundaryMap[change.before] ?? change.before,
+    }))
+    const grouped = new Map<number, (typeof mappedChanges)[number]>()
+    for (const change of mappedChanges) {
+      const previous = grouped.get(change.before)
+      grouped.set(
+        change.before,
+        previous
+          ? {
+              before: change.before,
+              ...(previous.tools || change.tools
+                ? {
+                    tools: [...(previous.tools ?? []), ...(change.tools ?? [])],
+                  }
+                : {}),
+              ...(previous.systemPrompts !== undefined ||
+              change.systemPrompts !== undefined
+                ? {
+                    systemPrompts:
+                      (previous.systemPrompts ?? 0) +
+                      (change.systemPrompts ?? 0),
+                  }
+                : {}),
+            }
+          : change,
+      )
+    }
+    const uniqueOriginalBoundaries =
+      new Set(originalChanges.map((change) => change.before)).size ===
+      originalChanges.length
+    options = {
+      ...options,
+      messages: replay.messages,
+      ...(options.midConversationChanges && {
+        midConversationChanges: {
+          ...options.midConversationChanges,
+          changes: uniqueOriginalBoundaries
+            ? [...grouped.values()]
+            : mappedChanges,
+        },
+      }),
+    }
+    const mid = this.midConversationRequest(options)
+    // `chat({ reasoning })`, as this model's thinking fields.
+    const {
+      output_config: reasoningOutputConfig,
+      messageEffort,
+      ...thinkingFields
+    } = anthropicThinking(this.model, options.reasoning, this.modelReasoning)
+    const formattedMessages = this.formatMessages(
+      options.messages,
+      mid?.systemMessages,
+      messageEffort,
+    )
     const tools = options.tools
-      ? convertToolsToProviderFormat(options.tools)
+      ? (mid?.tools ?? convertToolsToProviderFormat(options.tools))
       : undefined
 
     const validProviderOptions: Partial<InternalTextProviderOptions> = {}
@@ -553,12 +929,9 @@ export class AnthropicTextAdapter<
         'cache_control',
         'container',
         'context_management',
-        'effort',
         'mcp_servers',
-        'output_config',
         'service_tier',
         'stop_sequences',
-        'thinking',
         'tool_choice',
         'top_k',
         'temperature',
@@ -604,9 +977,11 @@ export class AnthropicTextAdapter<
       }
     }
 
+    // pi sends no `temperature` with mid-conversation effort.
+    if (messageEffort !== undefined) delete validProviderOptions.temperature
     const thinkingBudget =
-      validProviderOptions.thinking?.type === 'enabled'
-        ? validProviderOptions.thinking.budget_tokens
+      thinkingFields.thinking?.type === 'enabled'
+        ? thinkingFields.thinking.budget_tokens
         : undefined
     // Anthropic's Messages API *requires* `max_tokens`, so we must always send a
     // value. When the caller doesn't specify one, default to the resolved
@@ -630,19 +1005,32 @@ export class AnthropicTextAdapter<
     // outside the literal and spread it conditionally rather than
     // assigning `undefined` under exactOptionalPropertyTypes.
     const systemBlocks = ((): Array<TextBlockParam> | undefined => {
-      const normalized = normalizeSystemPrompts<AnthropicSystemPromptMetadata>(
-        options.systemPrompts,
-      )
-      if (normalized.length === 0) return undefined
-      return normalized.map(
+      // With a prompt channel, `system` holds only the start prompts. They
+      // keep their own `cache_control` metadata.
+      const normalized =
+        mid?.systemPrompts ??
+        normalizeSystemPrompts<AnthropicSystemPromptMetadata>(
+          options.systemPrompts,
+        )
+      if (normalized.length === 0 && !this.oauth) return undefined
+      const blocks = normalized.map(
         (p): TextBlockParam => ({
           type: 'text',
-          text: p.content,
+          text: sanitizeUnicode(p.content),
           ...(p.metadata?.cache_control && {
             cache_control: p.metadata.cache_control,
           }),
         }),
       )
+      return this.oauth
+        ? [
+            {
+              type: 'text',
+              text: "You are Claude Code, Anthropic's official CLI for Claude.",
+            },
+            ...blocks,
+          ]
+        : blocks
     })()
     // Wire engine-threaded outputSchema into Messages `output_config.format`
     // alongside any `tools` so the model emits tool calls during the agent
@@ -652,17 +1040,22 @@ export class AnthropicTextAdapter<
     const combinedSchema = options.outputSchema as
       | Record<string, unknown>
       | undefined
-    const outputConfig = combinedSchema
-      ? {
-          output_config: {
-            ...(validProviderOptions.output_config ?? {}),
-            format: {
-              type: 'json_schema' as const,
-              schema: combinedSchema,
+    const outputConfig =
+      combinedSchema || reasoningOutputConfig
+        ? {
+            output_config: {
+              ...reasoningOutputConfig,
+              ...(combinedSchema
+                ? {
+                    format: {
+                      type: 'json_schema' as const,
+                      schema: combinedSchema,
+                    },
+                  }
+                : {}),
             },
-          },
-        }
-      : undefined
+          }
+        : undefined
 
     // Lift skills attached to a `code_execution` tool into the top-level
     // `container.skills` request param (Anthropic's required shape). Preserve any
@@ -695,10 +1088,113 @@ export class AnthropicTextAdapter<
       ...(systemBlocks !== undefined && { system: systemBlocks }),
       ...(tools !== undefined && { tools }),
       ...validProviderOptions,
+      ...thinkingFields,
       ...(outputConfig ?? {}),
     }
     validateTextProviderOptions(requestParams)
-    return requestParams
+
+    // `chat({ toolChoice })` is sent only when the request has tools. It goes
+    // before the request spread, so a `tool_choice` in modelOptions wins. It
+    // is not in `requestParams`, because that type has no `none` choice.
+    // The API rejects a forced tool while thinking is on, and some models
+    // reject it on every request.
+    const isThinking =
+      thinkingFields.thinking !== undefined &&
+      thinkingFields.thinking.type !== 'disabled'
+    const canForceTool =
+      !isThinking && !ANTHROPIC_NO_FORCED_TOOL_MODELS.has(this.model)
+    const toolChoiceField =
+      tools?.length && options.toolChoice !== undefined
+        ? {
+            tool_choice: toAnthropicToolChoice(options.toolChoice, {
+              canForceTool,
+            }),
+          }
+        : undefined
+    return {
+      ...toolChoiceField,
+      // Last step: the merged messages decide which message is last.
+      ...applyAnthropicPromptCache(requestParams, options.promptCache),
+    }
+  }
+
+  /**
+   * Mid-conversation changes: the start prompts for `system`, the tool-mode
+   * `tools`, and a `system` message for each change by message index.
+   * Undefined when the request stays as today: the adapter has no channels,
+   * the engine passed no changes, or the changes do not fit the current lists.
+   */
+  private midConversationRequest(
+    options: TextOptions<AnthropicTextProviderOptions>,
+  ):
+    | {
+        systemPrompts?: Array<
+          NormalizedSystemPrompt<AnthropicSystemPromptMetadata>
+        >
+        tools?: InternalTextProviderOptions['tools']
+        systemMessages: Map<number, BetaMessageParam>
+      }
+    | undefined {
+    const channels = this.midConversationChannels
+    if (!channels || !options.midConversationChanges) return undefined
+    const split = splitMidConversationChanges({
+      changes: options.midConversationChanges,
+      tools: options.tools ?? [],
+      systemPrompts: normalizeSystemPrompts<AnthropicSystemPromptMetadata>(
+        options.systemPrompts,
+      ),
+    })
+    if (!split) return undefined
+    // Tool mode needs a start tool (Anthropic rejects a list where every
+    // tool is deferred), and a provider tool cannot be deferred by name.
+    const toolMode =
+      channels.tools &&
+      split.startTools.length > 0 &&
+      ![...split.startTools, ...split.addedTools].some(
+        (tool) => getAnthropicProviderToolKind(tool) !== undefined,
+      )
+    const systemMessages = new Map<number, BetaMessageParam>()
+    for (const [before, change] of split.at) {
+      const content: AnthropicMidConversationSystemMessage['content'] = [
+        ...(channels.systemPrompts
+          ? change.systemPrompts.map(
+              (p): TextBlockParam => ({
+                type: 'text',
+                text: sanitizeUnicode(p.content),
+              }),
+            )
+          : []),
+        ...(toolMode
+          ? change.tools.map((tool) => ({
+              type: 'tool_addition' as const,
+              tool: { type: 'tool_reference' as const, name: tool.name },
+            }))
+          : []),
+      ]
+      if (content.length === 0) continue
+      const message: AnthropicMidConversationSystemMessage = {
+        role: 'system',
+        content,
+      }
+      // oxlint-disable-next-line eslint-js/no-restricted-syntax -- SDK 0.97.1 types no `system` message in `messages`; the models in the channel map accept one (pi 0.87.1).
+      systemMessages.set(before, message as unknown as BetaMessageParam)
+    }
+    return {
+      ...(channels.systemPrompts && {
+        systemPrompts: split.startSystemPrompts,
+      }),
+      ...(toolMode && {
+        tools: [
+          ...convertToolsToProviderFormat(split.startTools),
+          DEFERRED_TOOL_PLACEHOLDER,
+          ...convertToolsToProviderFormat(split.addedTools).map((tool) => ({
+            ...tool,
+            defer_loading: true,
+          })),
+        ],
+      }),
+      systemMessages,
+    }
   }
 
   /**
@@ -719,7 +1215,7 @@ export class AnthropicTextAdapter<
         const metadata = part.metadata as AnthropicTextMetadata | undefined
         return {
           type: 'text',
-          text: part.content,
+          text: sanitizeUnicode(part.content),
           ...metadata,
         }
       }
@@ -814,11 +1310,29 @@ export class AnthropicTextAdapter<
 
   private formatMessages(
     messages: Array<ModelMessage>,
+    /** Mid-conversation `system` messages by message index (`before`). */
+    systemMessages?: ReadonlyMap<number, BetaMessageParam>,
+    /**
+     * Mid-conversation effort: this turn's effort. Each earlier assistant
+     * message of this provider gets its own effort message before it, and
+     * this one goes at the end (pi's `insertThinkingLevelMessages`).
+     */
+    messageEffort?: AnthropicEffort,
   ): InternalTextProviderOptions['messages'] {
     const formattedMessages: InternalTextProviderOptions['messages'] = []
+    // A system message waits for the next assistant message (or the end),
+    // so a `tool_result` still follows its `tool_use` directly.
+    const pendingSystemMessages: InternalTextProviderOptions['messages'] = []
 
-    for (const message of messages) {
+    for (const [index, message] of messages.entries()) {
       const role = message.role
+      const systemMessage = systemMessages?.get(index)
+      if (systemMessage) pendingSystemMessages.push(systemMessage)
+      if (role === 'assistant') {
+        formattedMessages.push(...pendingSystemMessages.splice(0))
+        const stored = messageEffort && this.storedEffort(message)
+        if (stored) formattedMessages.push(effortMessage(stored))
+      }
 
       if (role === 'tool' && message.toolCallId) {
         const toolContent = message.content
@@ -833,11 +1347,36 @@ export class AnthropicTextAdapter<
                     this.convertContentPartToAnthropic(part),
                   )
                 : typeof toolContent === 'string'
-                  ? toolContent
+                  ? sanitizeUnicode(toolContent)
                   : '',
               ...(message.error !== undefined && { is_error: true }),
             },
           ],
+        })
+        continue
+      }
+
+      // A valid block order map: send the blocks in the order the model
+      // sent them. Unsigned thinking is still skipped at its place.
+      const ordered =
+        role === 'assistant' ? orderedAssistantBlocks(message) : undefined
+      if (ordered) {
+        const contentBlocks: Array<BetaContentBlockParam> = []
+        for (const block of ordered) {
+          if (block.type === 'thinking') {
+            this.appendThinkingBlocks(contentBlocks, [block.thinking])
+          } else if (block.type === 'tool-call') {
+            this.appendToolCallBlocks(contentBlocks, block.toolCall)
+          } else {
+            contentBlocks.push({
+              type: 'text',
+              text: sanitizeUnicode(block.text),
+            })
+          }
+        }
+        formattedMessages.push({
+          role: 'assistant',
+          content: contentBlocks.length > 0 ? contentBlocks : '',
         })
         continue
       }
@@ -852,48 +1391,13 @@ export class AnthropicTextAdapter<
             typeof message.content === 'string' ? message.content : ''
           const textBlock: TextBlockParam = {
             type: 'text',
-            text: content,
+            text: sanitizeUnicode(content),
           }
           contentBlocks.push(textBlock)
         }
 
         for (const toolCall of message.toolCalls) {
-          let parsedInput: unknown = {}
-          try {
-            const parsed = toolCall.function.arguments
-              ? JSON.parse(toolCall.function.arguments)
-              : {}
-            parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
-          } catch {
-            parsedInput = {}
-          }
-
-          // Provider-executed server tools (e.g. web_search) replay as the
-          // original `server_tool_use` + result blocks so the model still sees
-          // the prior evidence. Their result was captured verbatim during
-          // streaming (see processAnthropicStream).
-          const serverMeta = readAnthropicServerToolMetadata(toolCall.metadata)
-          if (serverMeta) {
-            const serverToolUseBlock: ServerToolUseBlockParam = {
-              type: 'server_tool_use',
-              id: toolCall.id,
-              name: serverMeta.serverToolType,
-              input: parsedInput,
-            }
-            contentBlocks.push(serverToolUseBlock)
-            contentBlocks.push(
-              buildServerToolResultBlock(toolCall.id, serverMeta),
-            )
-            continue
-          }
-
-          const toolUseBlock: ToolUseBlockParam = {
-            type: 'tool_use',
-            id: toolCall.id,
-            name: toolCall.function.name,
-            input: parsedInput,
-          }
-          contentBlocks.push(toolUseBlock)
+          this.appendToolCallBlocks(contentBlocks, toolCall)
         }
 
         formattedMessages.push({
@@ -915,7 +1419,7 @@ export class AnthropicTextAdapter<
         } else if (message.content) {
           contentBlocks.push({
             type: 'text',
-            text: message.content,
+            text: sanitizeUnicode(message.content),
           })
         }
 
@@ -941,7 +1445,7 @@ export class AnthropicTextAdapter<
         role: 'user',
         content:
           typeof message.content === 'string'
-            ? message.content
+            ? sanitizeUnicode(message.content)
             : message.content
               ? message.content.map((c) =>
                   this.convertContentPartToAnthropic(c),
@@ -950,10 +1454,27 @@ export class AnthropicTextAdapter<
       })
     }
 
+    // A change with `before === messages.length` goes at the end.
+    const endSystemMessage = systemMessages?.get(messages.length)
+    if (endSystemMessage) pendingSystemMessages.push(endSystemMessage)
+    formattedMessages.push(...pendingSystemMessages)
+
     // Post-process: Anthropic requires strictly alternating user/assistant roles.
     // Tool results are sent as role:'user' messages, which can create consecutive
     // user messages when followed by a new user message. Merge them.
-    return this.mergeConsecutiveSameRoleMessages(formattedMessages)
+    const merged = this.mergeConsecutiveSameRoleMessages(formattedMessages)
+    return messageEffort ? [...merged, effortMessage(messageEffort)] : merged
+  }
+
+  /** The effort an assistant message of this provider was made with. */
+  private storedEffort(message: ModelMessage): AnthropicEffort | undefined {
+    const tanstack = message.metadata?.tanstack
+    const effort = tanstack?.reasoningEffort
+    return tanstack?.source?.provider === this.provider &&
+      tanstack.source.api === this.api &&
+      isAnthropicEffort(effort)
+      ? effort
+      : undefined
   }
 
   private appendThinkingBlocks(
@@ -963,8 +1484,13 @@ export class AnthropicTextAdapter<
     if (!thinkingParts?.length) return
 
     for (const thinking of thinkingParts) {
-      if (!thinking.signature) continue
+      if (
+        !thinking.signature &&
+        (thinking.redacted || !this.allowEmptySignature)
+      )
+        continue
       if (thinking.redacted) {
+        if (!thinking.signature) continue
         contentBlocks.push({
           type: 'redacted_thinking',
           data: thinking.signature,
@@ -973,11 +1499,53 @@ export class AnthropicTextAdapter<
       }
       const block: ThinkingBlockParam = {
         type: 'thinking',
-        thinking: thinking.content,
-        signature: thinking.signature,
+        thinking: sanitizeUnicode(thinking.content),
+        signature: thinking.signature ?? '',
       }
       contentBlocks.push(block)
     }
+  }
+
+  /** A tool call as a `tool_use` block, or a server tool as its two blocks. */
+  private appendToolCallBlocks(
+    contentBlocks: Array<BetaContentBlockParam>,
+    toolCall: ToolCall,
+  ): void {
+    let parsedInput: unknown = {}
+    try {
+      const parsed = toolCall.function.arguments
+        ? JSON.parse(sanitizeJsonArguments(toolCall.function.arguments))
+        : {}
+      parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
+    } catch {
+      // Anthropic needs an object input. Truncated or invalid JSON replays as {}.
+      parsedInput = {}
+    }
+
+    // Provider-executed server tools (e.g. web_search) replay as the
+    // original `server_tool_use` + result blocks so the model still sees
+    // the prior evidence. Their result was captured verbatim during
+    // streaming (see processAnthropicStream).
+    const serverMeta = readAnthropicServerToolMetadata(toolCall.metadata)
+    if (serverMeta) {
+      const serverToolUseBlock: ServerToolUseBlockParam = {
+        type: 'server_tool_use',
+        id: toolCall.id,
+        name: serverMeta.serverToolType,
+        input: parsedInput,
+      }
+      contentBlocks.push(serverToolUseBlock)
+      contentBlocks.push(buildServerToolResultBlock(toolCall.id, serverMeta))
+      return
+    }
+
+    const toolUseBlock: ToolUseBlockParam = {
+      type: 'tool_use',
+      id: toolCall.id,
+      name: toolCall.function.name,
+      input: parsedInput,
+    }
+    contentBlocks.push(toolUseBlock)
   }
 
   /**
@@ -1005,7 +1573,13 @@ export class AnthropicTextAdapter<
       }
 
       const prev = merged[merged.length - 1]
-      if (prev && prev.role === msg.role) {
+      // An effort message stays a message of its own.
+      if (
+        prev &&
+        prev.role === msg.role &&
+        !('output_config' in prev) &&
+        !('output_config' in msg)
+      ) {
         // Normalize both contents to arrays and concatenate
         const prevBlocks = Array.isArray(prev.content)
           ? prev.content
@@ -1066,13 +1640,34 @@ export class AnthropicTextAdapter<
     genId: () => string,
     logger: InternalLogger,
   ): AsyncIterable<AdapterYieldChunk> {
-    const model = options.model
+    let model = options.model
+    let responseId: string | undefined
+    const source = {
+      provider: this.provider,
+      api: this.api,
+      model: options.model,
+    }
+    // Mid-conversation effort: the message keeps its effort for the next turn.
+    const { messageEffort } = anthropicThinking(
+      this.model,
+      options.reasoning,
+      this.modelReasoning,
+    )
+    const effortMetadata = messageEffort
+      ? { metadata: { tanstack: { reasoningEffort: messageEffort } } }
+      : {}
     let accumulatedContent = ''
     let accumulatedThinking = ''
     let accumulatedSignature = ''
     const toolCallsMap = new Map<
       number,
-      { id: string; name: string; input: string; started: boolean }
+      {
+        id: string
+        name: string
+        input: string
+        started: boolean
+        hasInputDelta: boolean
+      }
     >()
     let currentToolIndex = -1
     // Server-side tools share the `input_json_delta` wire format with client
@@ -1107,6 +1702,10 @@ export class AnthropicTextAdapter<
 
     try {
       for await (const event of stream) {
+        if (event.type === 'message_start') {
+          responseId = event.message.id
+          model = event.message.model
+        }
         logger.provider(`provider=anthropic type=${event.type}`, {
           chunk: event,
         })
@@ -1120,6 +1719,7 @@ export class AnthropicTextAdapter<
             model,
             timestamp: Date.now(),
             parentRunId: options.parentRunId,
+            metadata: { tanstack: { source } },
           }
         }
 
@@ -1132,8 +1732,9 @@ export class AnthropicTextAdapter<
             toolCallsMap.set(currentToolIndex, {
               id: event.content_block.id,
               name: event.content_block.name,
-              input: '',
+              input: JSON.stringify(event.content_block.input) ?? '',
               started: false,
+              hasInputDelta: false,
             })
           } else if (event.content_block.type === 'server_tool_use') {
             currentServerTool = {
@@ -1226,6 +1827,7 @@ export class AnthropicTextAdapter<
           } else if (event.content_block.type === 'thinking') {
             accumulatedThinking = ''
             accumulatedSignature = ''
+            hasClosedReasoning = false
             // Emit REASONING and STEP_STARTED for thinking
             stepId = genId()
             reasoningMessageId = genId()
@@ -1405,6 +2007,10 @@ export class AnthropicTextAdapter<
                   }
                 }
 
+                if (!existing.hasInputDelta) {
+                  existing.input = ''
+                  existing.hasInputDelta = true
+                }
                 existing.input += event.delta.partial_json
 
                 yield {
@@ -1451,6 +2057,23 @@ export class AnthropicTextAdapter<
                 timestamp: Date.now(),
               }
             }
+            // End this block's reasoning message here, so the next thinking
+            // block gets its own end events.
+            if (reasoningMessageId && !hasClosedReasoning) {
+              hasClosedReasoning = true
+              yield {
+                type: EventType.REASONING_MESSAGE_END,
+                messageId: reasoningMessageId,
+                model,
+                timestamp: Date.now(),
+              }
+              yield {
+                type: EventType.REASONING_END,
+                messageId: reasoningMessageId,
+                model,
+                timestamp: Date.now(),
+              }
+            }
           } else if (currentBlockType === 'tool_use') {
             const existing = toolCallsMap.get(currentToolIndex)
             if (existing) {
@@ -1470,12 +2093,11 @@ export class AnthropicTextAdapter<
               }
 
               // Emit TOOL_CALL_END
-              let parsedInput: unknown = {}
+              let parsedInput: unknown
               try {
-                const parsed = existing.input ? JSON.parse(existing.input) : {}
-                parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
+                parsedInput = JSON.parse(existing.input)
               } catch {
-                parsedInput = {}
+                // Keep invalid JSON so validation can reject the call.
               }
 
               yield {
@@ -1485,7 +2107,8 @@ export class AnthropicTextAdapter<
                 toolName: existing.name,
                 model,
                 timestamp: Date.now(),
-                input: parsedInput,
+                args: existing.input,
+                ...(parsedInput === undefined ? {} : { input: parsedInput }),
               }
 
               // Reset so a new TEXT_MESSAGE_START is emitted if text follows tool calls
@@ -1550,6 +2173,8 @@ export class AnthropicTextAdapter<
           if (!hasEmittedRunFinished) {
             yield {
               type: EventType.RUN_FINISHED,
+              ...(responseId !== undefined && { responseId }),
+              ...effortMetadata,
               runId,
               threadId,
               model,
@@ -1583,6 +2208,8 @@ export class AnthropicTextAdapter<
               case 'tool_use': {
                 yield {
                   type: EventType.RUN_FINISHED,
+                  ...(responseId !== undefined && { responseId }),
+                  ...effortMetadata,
                   runId,
                   threadId,
                   model,
@@ -1638,6 +2265,8 @@ export class AnthropicTextAdapter<
                 // shape is identical.
                 yield {
                   type: EventType.RUN_FINISHED,
+                  ...(responseId !== undefined && { responseId }),
+                  ...effortMetadata,
                   runId,
                   threadId,
                   model,
@@ -1653,6 +2282,7 @@ export class AnthropicTextAdapter<
     } catch (error: unknown) {
       const err = error as Error & { status?: number; code?: string }
       const rawEvent = toRunErrorRawEvent(error)
+      const retryAfterMs = toRetryAfterMs(error)
 
       logger.errors('anthropic.processAnthropicStream fatal', {
         error,
@@ -1661,11 +2291,13 @@ export class AnthropicTextAdapter<
       yield {
         type: EventType.RUN_ERROR,
         model,
+        metadata: { tanstack: { source } },
         timestamp: Date.now(),
         message: err.message || 'Unknown error occurred',
         code: err.code || String(err.status),
         // Forward the Anthropic SDK error's `.error` response body when present.
         ...(rawEvent !== undefined && { rawEvent }),
+        ...(retryAfterMs !== undefined && { retryAfterMs }),
         error: {
           message: err.message || 'Unknown error occurred',
           code: err.code || String(err.status),
@@ -1676,20 +2308,35 @@ export class AnthropicTextAdapter<
 }
 
 /**
+ * The adapter type for a model and a config. A config with `reasoning` sets
+ * the levels `chat({ reasoning })` takes; see {@link ConfigReasoning}.
+ */
+export type AnthropicTextAdapterFor<
+  TModel extends AnthropicModelId,
+  TConfig = AnthropicTextConfig,
+> = AnthropicTextAdapter<
+  TModel,
+  ResolveProviderOptions<TModel>,
+  ResolveInputModalities<TModel>,
+  ResolveToolCapabilities<TModel>,
+  ConfigReasoning<TConfig, ResolveReasoning<TModel>>
+>
+
+/**
  * Creates an Anthropic chat adapter with explicit API key.
  * Type resolution happens here at the call site.
  */
 export function createAnthropicChat<
-  TModel extends (typeof ANTHROPIC_MODELS)[number],
+  TModel extends AnthropicModelId,
+  TConfig extends Omit<AnthropicTextConfig, 'apiKey'> = Omit<
+    AnthropicTextConfig,
+    'apiKey'
+  >,
 >(
   model: TModel,
   apiKey: string,
-  config?: Omit<AnthropicTextConfig, 'apiKey'>,
-): AnthropicTextAdapter<
-  TModel,
-  ResolveProviderOptions<TModel>,
-  ResolveInputModalities<TModel>
-> {
+  config?: TConfig,
+): AnthropicTextAdapterFor<TModel, TConfig> {
   return new AnthropicTextAdapter({ apiKey, ...config }, model)
 }
 
@@ -1697,9 +2344,7 @@ export function createAnthropicChat<
  * Creates an Anthropic chat adapter with an injected Messages client.
  * Type resolution happens here at the call site.
  */
-export function createAnthropicChatWithClient<
-  TModel extends (typeof ANTHROPIC_MODELS)[number],
->(
+export function createAnthropicChatWithClient<TModel extends AnthropicModelId>(
   model: TModel,
   client: AnthropicMessagesClient,
 ): AnthropicTextAdapter<
@@ -1714,14 +2359,9 @@ export function createAnthropicChatWithClient<
  * Creates an Anthropic text adapter with automatic API key detection.
  * Type resolution happens here at the call site.
  */
-export function anthropicText<TModel extends (typeof ANTHROPIC_MODELS)[number]>(
-  model: TModel,
-  config?: Omit<AnthropicTextConfig, 'apiKey'>,
-): AnthropicTextAdapter<
-  TModel,
-  ResolveProviderOptions<TModel>,
-  ResolveInputModalities<TModel>
-> {
-  const apiKey = getAnthropicApiKeyFromEnv()
-  return createAnthropicChat(model, apiKey, config)
+export function anthropicText<
+  TModel extends AnthropicModelId,
+  TConfig extends AnthropicTextConfig = AnthropicTextConfig,
+>(model: TModel, config?: TConfig): AnthropicTextAdapterFor<TModel, TConfig> {
+  return new AnthropicTextAdapter(config ?? {}, model)
 }

@@ -1,0 +1,268 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[harness-background] build it",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [{ "name": "slowBuild", "arguments": "{}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-background] build it",
+        "sequenceIndex": 1
+      },
+      "response": { "content": "The build runs in the background." }
+    },
+    {
+      "match": { "userMessage": "[harness-background-done]" },
+      "response": { "content": "The build is done." }
+    },
+    {
+      "match": { "userMessage": "[harness-revert] first" },
+      "response": { "content": "First answer." }
+    },
+    {
+      "match": { "userMessage": "[harness-revert] second" },
+      "response": { "content": "Second answer." }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-rejoin] ask my name",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [{ "name": "askName", "arguments": "{}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-rejoin] ask my name",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Hello, Otto."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-runid] deploy prod",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [{ "name": "deploy", "arguments": "{\"env\":\"prod\"}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-runid] deploy prod",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Deployed to prod."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-fast-resolve] deploy stage",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [{ "name": "deploy", "arguments": "{\"env\":\"stage\"}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-fast-resolve] deploy stage",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Deployed to stage."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-chatclient] deploy dev",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [{ "name": "deploy", "arguments": "{\"env\":\"dev\"}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-chatclient] deploy dev",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Deployed to dev."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-context] probe",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [{ "name": "probe", "arguments": "{}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-context] probe",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Probed the context."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-sender] who am i",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [{ "name": "whoami", "arguments": "{}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-sender] who am i",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "You are the sender."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-queue] ask my name",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [{ "name": "askName", "arguments": "{}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-queue-moved] say it now"
+      },
+      "response": {
+        "content": "Hello, Otto. I got the moved message."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-always] who am i twice",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [{ "name": "whoami", "arguments": "{}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-always] who am i twice",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "toolCalls": [{ "name": "whoami", "arguments": "{}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-always] who am i twice",
+        "sequenceIndex": 2
+      },
+      "response": {
+        "content": "You are e2e, twice."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-reject] who am i",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [{ "name": "whoami", "arguments": "{}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-reject] who am i",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Hi, without a look."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-elicit] what is the forecast",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [{ "name": "weather_ask_city", "arguments": "{}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-elicit] what is the forecast",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "The forecast for Paris is sunny."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-elicit-2025] book a trip",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [{ "name": "trips_book_trip", "arguments": "{}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-elicit-2025] book a trip",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Your trip to Paris is booked, seat 12A."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-continue] name a color",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "Red."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-continue] name a color",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Blue."
+      }
+    },
+    {
+      "match": { "userMessage": "[harness-ephemeral-prompt] note" },
+      "response": { "content": "Apple." }
+    },
+    {
+      "match": { "userMessage": "[harness-ephemeral-continue] name a color" },
+      "response": { "content": "Red." }
+    },
+    {
+      "match": { "userMessage": "[harness-ephemeral-continue] note" },
+      "response": { "content": "Green." }
+    }
+  ]
+}

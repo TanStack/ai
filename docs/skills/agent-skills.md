@@ -243,3 +243,5 @@ skills that run in a provider's own sandbox instead, see
   or a registry, and prove it with the conformance suite.
 - [Provider Skills](../tools/provider-skills) — hosted skills that run in a
   provider sandbox, and when to use them instead.
+- [Add skills to a harness](../harness/skills): give a harness the skills of a
+  list of folders, each one as a slash command.

@@ -26,6 +26,10 @@
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
+    },
+    "./agent": {
+      "types": "./dist/esm/agent/index.d.ts",
+      "import": "./dist/esm/agent/index.js"
     }
   },
   "files": [
@@ -44,14 +48,22 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@agentclientprotocol/sdk": "^0.25.0"
+    "@agentclientprotocol/sdk": "^1.5.0"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
+    "@tanstack/ai-harness": "workspace:^",
     "@tanstack/ai-sandbox": "workspace:^"
+  },
+  "peerDependenciesMeta": {
+    "@tanstack/ai-harness": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-harness": "workspace:*",
+    "@tanstack/ai-persistence": "workspace:*",
     "@tanstack/ai-sandbox": "workspace:*",
     "@tanstack/ai-sandbox-local-process": "workspace:*",
     "@vitest/coverage-v8": "4.1.10"

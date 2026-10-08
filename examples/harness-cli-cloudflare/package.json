@@ -1,0 +1,46 @@
+{
+  "name": "harness-cli-cloudflare-example",
+  "private": true,
+  "type": "module",
+  "description": "The harness CLI example with its state, keys, media, and code mode in a Cloudflare Worker, and every model through AI Gateway",
+  "scripts": {
+    "start": "tsx src/cli.ts",
+    "dashboard": "tanstack-ai-dashboard",
+    "worker:dev": "wrangler dev -c worker/wrangler.jsonc",
+    "worker:deploy": "wrangler deploy -c worker/wrangler.jsonc",
+    "test": "vitest run",
+    "test:types": "tsc --noEmit && tsc -p worker/tsconfig.json"
+  },
+  "dependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-acp": "workspace:*",
+    "@tanstack/ai-claude-code": "workspace:*",
+    "@tanstack/ai-cloudflare": "workspace:*",
+    "@tanstack/ai-code-mode": "workspace:*",
+    "@tanstack/ai-codex": "workspace:*",
+    "@tanstack/ai-dashboard": "workspace:*",
+    "@tanstack/ai-harness": "workspace:*",
+    "@tanstack/ai-harness-cli": "workspace:*",
+    "@tanstack/ai-isolate-cloudflare": "workspace:*",
+    "@tanstack/ai-mcp": "workspace:*",
+    "@tanstack/ai-models": "workspace:*",
+    "@tanstack/ai-persistence": "workspace:*",
+    "@tanstack/ai-sandbox": "workspace:*",
+    "@tanstack/ai-sandbox-local-process": "workspace:*",
+    "@tanstack/ai-skills": "workspace:*",
+    "@tanstack/react-store": "^0.11.1",
+    "beautiful-mermaid": "^1.1.3",
+    "ink": "^7.1.1",
+    "marked": "^15.0.6",
+    "marked-terminal": "^7.3.0",
+    "react": "^19.2.3",
+    "zod": "^4.2.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260317.1",
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.7",
+    "tsx": "^4.23.12",
+    "wrangler": "^4.103.0"
+  }
+}

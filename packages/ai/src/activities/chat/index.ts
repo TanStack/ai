@@ -1,3 +1,4 @@
+import { isToolInputJsonLossless } from '../../utilities/tool-call-arguments'
 /**
  * Text Activity
  *
@@ -8,6 +9,7 @@
 import { devtoolsMiddleware } from '@tanstack/ai-event-client'
 import { undoNullWidening } from '@tanstack/ai-utils'
 import { streamToText } from '../../stream-to-response.js'
+import { normalizeReasoning } from '../../reasoning'
 import { resolveDebugOption } from '../../logger/resolve'
 import { EventType } from '../../types'
 import {
@@ -51,11 +53,17 @@ import {
   toolResultErrorText,
 } from '../../utilities/tool-result'
 import { isProviderExecutedToolCall } from '../../utilities/provider-executed'
+import { buildBlockOrder } from '../../utilities/block-order'
+import type { BlockOrderEntry } from '../../utilities/block-order'
 import { assertMessagesFileSourceSupport } from '../../utilities/content-source'
+import { planMidConversationChanges } from '../../utilities/mid-conversation'
+import { transformMessagesForReplay } from '../../utilities/replay-messages'
+import { normalizeSystemPrompts } from '../../system-prompts'
 import { LazyToolManager } from './tools/lazy-tool-manager'
 import { assertUniqueToolNames } from './tools/unique-tool-names'
 import type { DefinedAgent } from './agents/define-agent'
 import {
+  SINGLE_SUBAGENT_TOOL,
   collectNamedText,
   createSubagentSink,
   createSyntheticSubagentTools,
@@ -66,10 +74,9 @@ import {
   withChildUsage,
 } from './agents/spawn'
 import type {
+  RoutedPlan,
   SpawnEntry,
   SubagentSink,
-  SubagentStep,
-  SubagentStepsPlan,
   SubagentsBag,
 } from './agents/spawn'
 import { SUBAGENT_PLAN_KEY, readSubagentTurn } from './agents/turn'
@@ -83,6 +90,7 @@ import {
   convertSchemaToJsonSchema,
   isStandardSchema,
   parseWithStandardSchema,
+  validateWithStandardSchema,
 } from './tools/schema-converter'
 import {
   hashSchemaInput,
@@ -142,14 +150,19 @@ import type {
   Interrupt,
   JSONSchema,
   LazyToolsConfig,
+  MidConversationChange,
   ModelMessage,
+  ModelMessageBlock,
+  PromptCacheOptions,
   ProviderTool,
+  ResolvedPromptCache,
   RunFinishedEvent,
   SchemaInput,
   StreamChunk,
   StructuredOutputCompleteEvent,
   StructuredOutputPart,
   StructuredOutputStream,
+  TanStackMessageMetadata,
   TextMessageContentEvent,
   TextOptions,
   ToolCall,
@@ -158,6 +171,8 @@ import type {
   ToolCallEndEvent,
   ToolCallResultEvent,
   ToolCallStartEvent,
+  ToolChoice,
+  FetchWrapper,
   ToolInputResponse,
   UIMessage,
 } from '../../types'
@@ -185,12 +200,43 @@ import type {
   UnionToIntersection,
 } from './runtime-context-types'
 import type { ChatMCPOptions } from './mcp/types'
+import type {
+  AdapterReasoning,
+  ReasoningOption,
+  ReasoningOptionFor,
+} from '../../reasoning'
 
 /** One entry of the per-iteration arrival order (see `turnParts`). */
 type TurnPart =
   | { type: 'thinking'; index: number }
   | { type: 'text'; content: string }
   | { type: 'call'; id: string; providerExecuted: boolean }
+
+/**
+ * The order map for one assistant message built from `parts`. Calls that are
+ * not in `toolCalls` are left out, because the message does not carry them.
+ * Calls that the stream did not report go last, their default place.
+ */
+function turnBlockOrder(
+  parts: ReadonlyArray<TurnPart>,
+  toolCalls: ReadonlyArray<ToolCall>,
+): Array<ModelMessageBlock> | undefined {
+  const unplaced = new Set(toolCalls.map((toolCall) => toolCall.id))
+  const entries = parts.flatMap((part): Array<BlockOrderEntry> => {
+    if (part.type === 'thinking') return [{ type: 'thinking' }]
+    if (part.type === 'text') return [{ type: 'text', text: part.content }]
+    return unplaced.delete(part.id) ? [{ type: 'tool-call', id: part.id }] : []
+  })
+  for (const id of unplaced) entries.push({ type: 'tool-call', id })
+  return buildBlockOrder(entries)
+}
+
+/**
+ * The tool result of a call in an answer that stopped at the output limit.
+ * The harness default is the same text.
+ */
+const TRUNCATED_TOOL_RESULT =
+  'The answer was cut off at the output limit before this tool call was complete. The call did not run.'
 
 // ===========================
 // Activity Kind
@@ -528,12 +574,38 @@ export interface TextActivityOptions<
   metadata?: TextOptions['metadata']
   /** Model-specific provider options (type comes from adapter) */
   modelOptions?: TAdapter['~types']['providerOptions']
+  /**
+   * How hard the model thinks: a level (`'low'`, `'high'`, ...) or
+   * `{ level, summary?, budgetTokens? }`. The types allow only the model's own
+   * levels. Not set: the provider default applies. `'off'` turns thinking off.
+   * A level the model does not support at runtime moves to the nearest one.
+   */
+  reasoning?: ReasoningOptionFor<AdapterReasoning<TAdapter>>
   /** AbortController for cancellation */
   abortController?: TextOptions['abortController']
   /** Strategy for controlling the agent loop */
   agentLoopStrategy?: TextOptions['agentLoopStrategy']
   /** How the server tools of one model turn run. Default `'parallel'`. */
   toolExecution?: TextOptions['toolExecution']
+  /**
+   * Continue after a model answer with tool calls that stopped at the output
+   * limit (finish reason `length`). Each call that the provider did not run
+   * gets this text as an error result and does not run. Then the model is
+   * called again, so it can send the calls again with complete arguments.
+   * The function form gets the call. Not set: the answer ends the run.
+   *
+   * @example
+   * ```ts
+   * chat({
+   *   adapter,
+   *   messages,
+   *   tools,
+   *   truncatedToolResult: (call) =>
+   *     `Tool call "${call.toolName}" was cut off. Send it again.`,
+   * })
+   * ```
+   */
+  truncatedToolResult?: TextOptions['truncatedToolResult']
   /**
    * Optional configuration for lazy-tool discovery (tools marked `lazy: true`).
    * Tunes how much of each lazy tool's description appears in the discovery
@@ -544,12 +616,51 @@ export interface TextActivityOptions<
   conversationId?: TextOptions['conversationId']
   /** Thread/conversation ID for AG-UI protocol. Auto-generated if not provided. */
   threadId?: TextOptions['threadId']
+  /**
+   * Automatic prompt caching. Default `'short'`. `'none'` turns it off.
+   * The key defaults to the `threadId` or `conversationId` that you give.
+   *
+   * @example
+   * ```ts
+   * chat({ adapter, messages, threadId, promptCache: 'long' })
+   * chat({ adapter, messages, promptCache: { retention: 'long', key: 'k-1' } })
+   * ```
+   */
+  promptCache?: PromptCacheOptions
+  /**
+   * How the model uses the tools: `'auto'`, `'none'`, `'required'`, or
+   * `{ type: 'tool', name }`. It applies to every model call of this
+   * `chat()`. A middleware `onConfig` can change it for one call. A call with
+   * no tools sends no tool choice. A provider value in `modelOptions` wins.
+   *
+   * @example
+   * ```ts
+   * chat({ adapter, messages, tools, toolChoice: 'required' })
+   * ```
+   */
+  toolChoice?: ToolChoice
+  /**
+   * Wraps the fetch of each model call. It can change the base URL, the
+   * headers, the request, or the response. A middleware `onConfig` can add
+   * a wrapper for one call. It chains inside this one. The adapter must
+   * support it.
+   *
+   * @example
+   * ```ts
+   * chat({ adapter, messages, wrapFetch: (next) => (input, init) => next(input, init) })
+   * ```
+   */
+  wrapFetch?: FetchWrapper
   /** Run ID override for AG-UI protocol. Auto-generated by adapter if not provided. */
   runId?: TextOptions['runId']
   /** Parent run ID for AG-UI protocol nested run correlation. */
   parentRunId?: TextOptions['parentRunId']
   /** Subagent run id when this chat runs as a child. See `defineAgent`. */
   subagentRunId?: TextOptions['subagentRunId']
+  /** The agent name when this chat runs as a subagent. Middleware reads `ctx.subagentName`. */
+  subagentName?: TextOptions['subagentName']
+  /** The subagentRunId of the child that started this one, for a nested child. */
+  parentSubagentRunId?: TextOptions['parentSubagentRunId']
   /** Application state mirrored in a STATE_SNAPSHOT before an interrupt terminal. */
   state?: TextOptions['state']
   /**
@@ -836,6 +947,13 @@ class TextEngine<
     InterruptDefinition<any, any, any, any>
   >
   private params: TParams
+  /**
+   * The tool choice of the next model call. `params.toolChoice` keeps the
+   * `chat()` option, so a middleware value lasts for one call only.
+   */
+  private callToolChoice: ToolChoice | undefined = undefined
+  /** The composed fetch wrapper of the next model call. */
+  private callWrapFetch: FetchWrapper | undefined = undefined
   private systemPrompts: Array<SystemPrompt>
   private tools: Array<AnyRuntimeTool>
   private readonly loopStrategy: AgentLoopStrategy
@@ -876,12 +994,31 @@ class TextEngine<
    * the order could no longer be tracked (callers fall back to one message).
    */
   private turnParts: Array<TurnPart> | null = []
-  private currentThinkingContent = ''
-  private currentThinkingSignature = ''
-  private currentThinkingRedacted = false
+  /**
+   * The mid-conversation record of the current model call. The first
+   * assistant message that the call produces takes it. A call that produces
+   * none (an error, an abort) saves nothing, and the next call plans again.
+   */
+  private pendingMidConversationChange: MidConversationChange | undefined =
+    undefined
+  private readonly thinkingBlocks = new Map<
+    string,
+    {
+      content: string
+      signature: string
+      redacted: boolean
+      part: Extract<TurnPart, { type: 'thinking' }>
+    }
+  >()
+  private readonly reasoningStepAliases = new Map<string, string>()
+  private currentThinkingStepId: string | undefined
+  private pendingReasoningMessageId: string | undefined
+  private pendingThinkingStepId: string | undefined
   private eventOptions?: Record<string, unknown> | undefined
   private eventToolNames?: Array<string>
   private finishedEvent: RunFinishedEvent | null = null
+  private currentCallMetadata: TanStackMessageMetadata = {}
+  private structuredCallMetadata: TanStackMessageMetadata = {}
   private readonly streamedToolErrorResults = new Map<string, ToolResult>()
   private deferredToolCallRunFinishedChunks: Array<StreamChunk> = []
   /** The model terminal is held until afterModel can choose an interrupt. */
@@ -998,7 +1135,13 @@ class TextEngine<
       ).map((definition) => [definition.id, definition]),
     )
     this.finalStructuredOutput = config.finalStructuredOutput
-    this.params = config.params
+    this.params = {
+      ...config.params,
+      // `chat()` takes a level or an object. Adapters read one shape.
+      reasoning: normalizeReasoning(
+        config.params.reasoning as ReasoningOption | undefined,
+      ),
+    }
     this.systemPrompts = config.params.systemPrompts || []
     this.loopStrategy =
       config.params.agentLoopStrategy || maxIterationsStrategy(5)
@@ -1066,6 +1209,8 @@ class TextEngine<
       runId: this.runIdOverride ?? this.requestId,
       parentRunId: this.parentRunIdOverride,
       subagentRunId: this.subagentRunIdOverride,
+      subagentName: config.params.subagentName,
+      parentSubagentRunId: config.params.parentSubagentRunId,
       threadId: this.threadId,
       // Legacy alias kept on the ctx so middleware that reads
       // `ctx.conversationId` keeps working. Always equals `threadId`.
@@ -1285,6 +1430,8 @@ class TextEngine<
         this.middlewareRunner.runOnStart(this.middlewareCtx),
       )
 
+      yield* this.checkCompletedResumedClientTools()
+
       if (this.earlyTermination) {
         yield* this.emitSuccessfulEarlyTermination()
         if (!this.terminalHookCalled) {
@@ -1361,6 +1508,7 @@ class TextEngine<
               yield* this.emitBoundaryInterrupts(
                 'afterModel',
                 this.finishedEvent ?? this.createSyntheticFinishedEvent(),
+                this.toolCallManager.getToolCalls(),
               )
             ) {
               this.setToolPhase('wait')
@@ -1531,15 +1679,24 @@ class TextEngine<
   }
 
   private async beginIteration(): Promise<void> {
+    this.currentCallMetadata = {
+      source: {
+        provider: this.adapter.provider ?? this.adapter.name,
+        api: this.adapter.api ?? this.adapter.kind,
+        model: this.params.model,
+      },
+    }
     this.currentMessageId = this.createId('msg')
     this.currentMessageCreatedAt = new Date()
     this.streamIdentityCaptured = false
     this.accumulatedContent = ''
     this.accumulatedThinking = []
     this.turnParts = []
-    this.currentThinkingContent = ''
-    this.currentThinkingSignature = ''
-    this.currentThinkingRedacted = false
+    this.thinkingBlocks.clear()
+    this.reasoningStepAliases.clear()
+    this.currentThinkingStepId = undefined
+    this.pendingReasoningMessageId = undefined
+    this.pendingThinkingStepId = undefined
 
     this.finishedEvent = null
     this.streamedToolErrorResults.clear()
@@ -1556,7 +1713,7 @@ class TextEngine<
   }
 
   private async *streamModelResponse(): AsyncGenerator<StreamChunk> {
-    const { metadata, modelOptions } = this.params
+    const { metadata, modelOptions, reasoning } = this.params
     const tools = this.tools
 
     // Convert tool schemas to JSON Schema before passing to adapter
@@ -1612,16 +1769,89 @@ class TextEngine<
     // covered too.
     assertMessagesFileSourceSupport(this.adapter, this.messages)
 
-    for await (const raw of this.adapter.chatStream({
+    // Mid-conversation changes, only for an adapter with a channel that is
+    // on. Every other adapter gets today's request and no new field.
+    const channels = this.adapter.midConversationChannels
+    const midConversation =
+      channels?.tools || channels?.systemPrompts
+        ? planMidConversationChanges({
+            messages: this.providerMessages,
+            toolNames: tools.map((tool) => tool.name),
+            systemPrompts: normalizeSystemPrompts(this.systemPrompts).map(
+              (prompt) => prompt.content,
+            ),
+          })
+        : undefined
+    this.pendingMidConversationChange = midConversation?.record
+    // The adapter chooses the actual wire API before source-sensitive replay.
+    const replay = transformMessagesForReplay(this.providerMessages)
+    if (midConversation) {
+      const originalChanges = midConversation.changes.changes
+      const mappedChanges = originalChanges.map((change) => ({
+        ...change,
+        before: replay.boundaryMap[change.before] ?? replay.messages.length,
+      }))
+      const grouped = new Map<number, (typeof mappedChanges)[number]>()
+      for (const change of mappedChanges) {
+        const previous = grouped.get(change.before)
+        grouped.set(
+          change.before,
+          previous
+            ? {
+                before: change.before,
+                ...(previous.tools || change.tools
+                  ? {
+                      tools: [
+                        ...(previous.tools ?? []),
+                        ...(change.tools ?? []),
+                      ],
+                    }
+                  : {}),
+                ...(previous.systemPrompts !== undefined ||
+                change.systemPrompts !== undefined
+                  ? {
+                      systemPrompts:
+                        (previous.systemPrompts ?? 0) +
+                        (change.systemPrompts ?? 0),
+                    }
+                  : {}),
+              }
+            : change,
+        )
+      }
+      // Only cleanup-created collisions merge. Invalid original duplicates stay invalid.
+      const uniqueOriginalBoundaries =
+        new Set(originalChanges.map((change) => change.before)).size ===
+        originalChanges.length
+      midConversation.changes = {
+        ...midConversation.changes,
+        changes: uniqueOriginalBoundaries
+          ? [...grouped.values()]
+          : mappedChanges,
+      }
+    }
+
+    // Providers reject a tool choice on a request with no tools.
+    const toolChoice =
+      toolsWithJsonSchemas.length > 0 ? this.callToolChoice : undefined
+
+    for await (const adapterChunk of this.adapter.chatStream({
       model: this.params.model,
-      messages: this.providerMessages,
+      messages: replay.messages,
       tools: toolsWithJsonSchemas,
       metadata,
       request: this.effectiveRequest,
       modelOptions,
+      ...(reasoning ? { reasoning } : {}),
       systemPrompts: this.systemPrompts,
       logger: this.logger,
       threadId: this.threadId,
+      promptCache: this.params.promptCache,
+      ...(toolChoice ? { toolChoice } : {}),
+      ...(this.callWrapFetch ? { wrapFetch: this.callWrapFetch } : {}),
+      ...(midConversation
+        ? { midConversationChanges: midConversation.changes }
+        : {}),
       runId: this.runIdOverride,
       parentRunId: this.parentRunIdOverride,
       // Expose provided capabilities (e.g. sandbox) to harness adapters.
@@ -1630,6 +1860,7 @@ class TextEngine<
       approvals: adapterApprovals,
       ...(combinedSchema ? { outputSchema: combinedSchema } : {}),
     })) {
+      const raw = this.withCallMetadata(adapterChunk, this.currentCallMetadata)
       if (this.isCancelled()) {
         break
       }
@@ -1807,7 +2038,7 @@ class TextEngine<
         this.handleRunErrorEvent(chunk)
         break
       case 'STEP_STARTED':
-        this.handleStepStartedEvent()
+        this.handleStepStartedEvent(chunk)
         break
       case 'STEP_FINISHED':
         this.handleStepFinishedEvent(chunk)
@@ -1821,8 +2052,10 @@ class TextEngine<
         this.handleReasoningEncryptedValueEvent(chunk)
         break
 
-      case 'REASONING_START':
       case 'REASONING_MESSAGE_START':
+        this.handleReasoningMessageStartEvent(chunk)
+        break
+      case 'REASONING_START':
       case 'REASONING_MESSAGE_END':
       case 'REASONING_END':
         // No special handling needed
@@ -1855,6 +2088,55 @@ class TextEngine<
         // - no special handling needed in chat activity
         break
     }
+  }
+
+  private withCallMetadata(
+    chunk: AdapterYieldChunk,
+    metadata: TanStackMessageMetadata,
+  ) {
+    if ('subagentRunId' in chunk && typeof chunk.subagentRunId === 'string')
+      return chunk
+    // Activity records keep their own metadata. The call metadata is for the
+    // assistant message.
+    if (
+      chunk.type === EventType.ACTIVITY_SNAPSHOT ||
+      chunk.type === EventType.ACTIVITY_DELTA
+    )
+      return chunk
+    const incoming = tanstackMetadata(chunk)
+    if (incoming?.source !== undefined) metadata.source = incoming.source
+    if (incoming?.stopReason !== undefined)
+      metadata.stopReason = incoming.stopReason
+    if (
+      chunk.type === EventType.RUN_STARTED ||
+      chunk.type === EventType.RUN_FINISHED
+    ) {
+      metadata.runId = chunk.runId
+    }
+    if (chunk.type === EventType.RUN_FINISHED) {
+      const model = chunk.model ?? incoming?.model
+      const responseId = chunk.responseId ?? incoming?.responseId
+      const finishReason = chunk.finishReason ?? incoming?.finishReason
+      if (model !== undefined) metadata.model = model
+      if (responseId !== undefined) metadata.responseId = responseId
+      if (finishReason) metadata.finishReason = finishReason
+      if (incoming?.responseItems !== undefined)
+        metadata.responseItems = incoming.responseItems
+      if (incoming?.reasoningEffort !== undefined)
+        metadata.reasoningEffort = incoming.reasoningEffort
+    }
+    if (chunk.type === EventType.RUN_ERROR) {
+      metadata.stopReason ??= 'error'
+    }
+    const merged = withTanstackMetadata(chunk, {
+      ...metadata,
+      ...(incoming ?? {}),
+      ...(metadata.source !== undefined ? { source: metadata.source } : {}),
+      ...(metadata.stopReason !== undefined
+        ? { stopReason: metadata.stopReason }
+        : {}),
+    })
+    return { ...chunk, metadata: merged.metadata }
   }
 
   private setActivities(activities: Array<ActivityRecord>): void {
@@ -1959,6 +2241,24 @@ class TextEngine<
   private handleToolCallEndEvent(chunk: ToolCallEndEvent): void {
     this.toolCallManager.completeToolCall(chunk)
     const end = chunk as AdapterYieldChunk
+    const call = this.toolCallManager
+      .getToolCalls()
+      .find((candidate) => candidate.id === chunk.toolCallId)
+    if (call) {
+      end.args = call.function.arguments
+      end.metadata = withTanstackMetadata(end, {
+        args: call.function.arguments,
+      }).metadata
+      try {
+        const projection: unknown = JSON.parse(call.function.arguments)
+        if (isToolInputJsonLossless(projection)) end.input = projection
+        else delete end.input
+      } catch {
+        delete end.input
+      }
+      const metadata = tanstackMetadata(end)
+      if (metadata) delete metadata.input
+    }
     const state = end.state ?? tanstackMetadata(end)?.state
     if (state !== 'output-error' || end.result === undefined) return
     this.handleToolCallResultEvent({
@@ -2029,67 +2329,99 @@ class TextEngine<
   }
 
   private finalizeCurrentThinkingStep(): void {
-    if (this.currentThinkingContent || this.currentThinkingSignature) {
+    this.accumulatedThinking = []
+    for (const block of this.thinkingBlocks.values()) {
+      block.part.index = -1
+      if (!block.content && !block.signature) continue
+      block.part.index = this.accumulatedThinking.length
       this.accumulatedThinking.push({
-        content: this.currentThinkingContent,
-        ...(this.currentThinkingSignature && {
-          signature: this.currentThinkingSignature,
-        }),
-        ...(this.currentThinkingRedacted && { redacted: true }),
+        content: block.redacted ? '' : block.content,
+        ...(block.signature && { signature: block.signature }),
+        ...(block.redacted && { redacted: true }),
       })
-      if (this.turnParts) {
-        const placeholder = [...this.turnParts]
-          .reverse()
-          .find(
-            (part): part is Extract<TurnPart, { type: 'thinking' }> =>
-              part.type === 'thinking' && part.index === -1,
-          )
-        const index = this.accumulatedThinking.length - 1
-        if (placeholder) {
-          placeholder.index = index
-        } else {
-          this.turnParts.push({ type: 'thinking', index })
-        }
+    }
+    if (this.turnParts)
+      this.turnParts = this.turnParts.filter(
+        (part) => part.type !== 'thinking' || part.index >= 0,
+      )
+  }
+
+  private thinkingBlock(id?: string) {
+    const key =
+      (id && this.reasoningStepAliases.get(id)) ??
+      (id && this.thinkingBlocks.has(id) ? id : undefined) ??
+      this.currentThinkingStepId ??
+      id ??
+      this.createId('thinking')
+    let block = this.thinkingBlocks.get(key)
+    if (!block) {
+      const part: Extract<TurnPart, { type: 'thinking' }> = {
+        type: 'thinking',
+        index: -1,
       }
-      this.currentThinkingContent = ''
-      this.currentThinkingSignature = ''
-      this.currentThinkingRedacted = false
+      block = {
+        content: '',
+        signature: '',
+        redacted: isRedactedThinkingId(key),
+        part,
+      }
+      this.thinkingBlocks.set(key, block)
+      this.turnParts?.push(part)
+    }
+    this.currentThinkingStepId = key
+    if (id && (id === key || this.pendingReasoningMessageId === id))
+      this.reasoningStepAliases.set(id, key)
+    return block
+  }
+
+  private handleReasoningMessageStartEvent(
+    chunk: Extract<AdapterYieldChunk, { type: 'REASONING_MESSAGE_START' }>,
+  ): void {
+    if (typeof chunk.messageId !== 'string') return
+    const known = this.reasoningStepAliases.get(chunk.messageId)
+    if (known) {
+      this.currentThinkingStepId = known
+      if (this.pendingThinkingStepId === known)
+        this.pendingThinkingStepId = undefined
+      return
+    }
+    if (this.pendingThinkingStepId) {
+      this.reasoningStepAliases.set(chunk.messageId, this.pendingThinkingStepId)
+      this.currentThinkingStepId = this.pendingThinkingStepId
+      this.pendingThinkingStepId = undefined
+    } else {
+      this.pendingReasoningMessageId = chunk.messageId
+      this.currentThinkingStepId = undefined
     }
   }
 
-  /**
-   * Record where the current thinking step sits among this turn's parts. A
-   * step is finalized only when the next step starts (or the turn ends), by
-   * which time later tool calls have already arrived, so the position has to
-   * be noted when the step's first content or signature shows up.
-   */
-  private noteThinkingStepPosition(): void {
-    if (
-      this.turnParts &&
-      this.currentThinkingContent === '' &&
-      this.currentThinkingSignature === ''
-    ) {
-      this.turnParts.push({ type: 'thinking', index: -1 })
-    }
+  private handleStepStartedEvent(
+    chunk: Extract<AdapterYieldChunk, { type: 'STEP_STARTED' }>,
+  ): void {
+    const id = chunk.stepName || chunk.stepId || this.createId('thinking')
+    this.currentThinkingStepId = id
+    this.reasoningStepAliases.set(id, id)
+    if (chunk.stepId) this.reasoningStepAliases.set(chunk.stepId, id)
+    if (this.pendingReasoningMessageId) {
+      this.reasoningStepAliases.set(this.pendingReasoningMessageId, id)
+      this.pendingReasoningMessageId = undefined
+    } else this.pendingThinkingStepId = id
+    this.thinkingBlock(id)
   }
 
-  private handleStepStartedEvent(): void {
-    this.finalizeCurrentThinkingStep()
-  }
-
-  private handleStepFinishedEvent(chunk: AdapterYieldChunk): void {
-    if (typeof chunk.signature === 'string' && chunk.signature !== '') {
-      this.noteThinkingStepPosition()
-      this.currentThinkingSignature = chunk.signature
-      this.currentThinkingRedacted = isRedactedThinkingId(chunk.stepId)
-    }
+  private handleStepFinishedEvent(
+    chunk: Extract<AdapterYieldChunk, { type: 'STEP_FINISHED' }>,
+  ): void {
+    if (typeof chunk.signature !== 'string' || chunk.signature === '') return
+    const block = this.thinkingBlock(chunk.stepId ?? chunk.stepName)
+    if (!block.redacted) block.signature = chunk.signature
   }
 
   private handleReasoningMessageContentEvent(
     chunk: Extract<StreamChunk, { type: 'REASONING_MESSAGE_CONTENT' }>,
   ): void {
-    this.noteThinkingStepPosition()
-    this.currentThinkingContent += chunk.delta
+    const block = this.thinkingBlock(chunk.messageId)
+    if (!block.redacted) block.content += chunk.delta
   }
 
   private handleReasoningEncryptedValueEvent(
@@ -2099,19 +2431,26 @@ class TextEngine<
       const call = this.messages
         .flatMap((message) => message.toolCalls ?? [])
         .find((toolCall) => toolCall.id === chunk.entityId)
-      if (call) {
+      if (call)
         call.metadata = {
           ...(call.metadata != null && typeof call.metadata === 'object'
             ? call.metadata
             : {}),
           thoughtSignature: chunk.encryptedValue,
         }
-      }
       return
     }
-    this.noteThinkingStepPosition()
-    this.currentThinkingSignature = chunk.encryptedValue
-    this.currentThinkingRedacted = isRedactedThinkingId(chunk.entityId)
+    const extra = chunk as AdapterYieldChunk
+    const redacted =
+      isRedactedThinkingId(extra.stepId) || isRedactedThinkingId(chunk.entityId)
+    const block = this.thinkingBlock(chunk.entityId)
+    if (block.redacted && !redacted) return
+    if (redacted) {
+      block.redacted = true
+      block.content = ''
+      block.signature = ''
+    }
+    block.signature = chunk.encryptedValue
   }
 
   /**
@@ -2235,7 +2574,7 @@ class TextEngine<
             name: info.toolName,
             result: info.result,
           })
-          await this.middlewareRunner.runOnAfterToolCall(
+          return this.middlewareRunner.runOnAfterToolCall(
             this.middlewareCtx,
             info,
           )
@@ -2253,7 +2592,19 @@ class TextEngine<
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
+    const rawEdits = this.captureApprovedArgumentEdits(pendingToolCalls)
     const executionResult = yield* this.drainToolCallGenerator(generator)
+    this.retainApprovedArgumentEdits(
+      [
+        ...executionResult.results
+          .filter((entry) => entry.state !== 'output-error')
+          .map((entry) => entry.toolCallId),
+        ...executionResult.needsClientExecution.map(
+          (entry) => entry.toolCallId,
+        ),
+      ],
+      rawEdits,
+    )
 
     // Check if middleware aborted during pending tool execution
     if (this.isMiddlewareAborted()) {
@@ -2333,6 +2684,47 @@ class TextEngine<
     this.recordToolCalls(toolCalls)
 
     this.addAssistantToolCallMessage(toolCalls)
+
+    // The output limit cut this answer. Each call that the provider did not
+    // run has its error result now (closeTruncatedToolCalls). No call runs,
+    // and the loop goes on, so the model can call again.
+    if (this.lastFinishReason === 'length') {
+      // A client reads it as a tool turn, so it waits for the next call.
+      this.deferredToolCallRunFinishedChunks =
+        this.deferredToolCallRunFinishedChunks.map((chunk) =>
+          chunk.type === EventType.RUN_FINISHED
+            ? { ...chunk, finishReason: 'tool_calls' }
+            : chunk,
+        )
+      yield* this.flushDeferredToolCallRunFinishedChunks()
+      const results = toolCalls.flatMap((call): Array<ToolResult> => {
+        const result = this.messages.find(
+          (message) =>
+            message.role === 'tool' && message.toolCallId === call.id,
+        )
+        return result
+          ? [
+              {
+                toolCallId: call.id,
+                toolName: call.function.name,
+                result: result.content,
+                state: 'output-error',
+              },
+            ]
+          : []
+      })
+      for (const chunk of this.buildToolResultChunks(
+        results,
+        finishEvent,
+        undefined,
+        true,
+      )) {
+        yield* this.pipeThroughMiddleware(chunk)
+      }
+      this.toolCallManager.clear()
+      this.setToolPhase('continue')
+      return
+    }
 
     // Handle undiscovered lazy tool calls with self-correcting error messages
     const undiscoveredLazyResults: Array<ToolResult> = []
@@ -2424,7 +2816,7 @@ class TextEngine<
             name: info.toolName,
             result: info.result,
           })
-          await this.middlewareRunner.runOnAfterToolCall(
+          return this.middlewareRunner.runOnAfterToolCall(
             this.middlewareCtx,
             info,
           )
@@ -2442,7 +2834,19 @@ class TextEngine<
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
+    const rawEdits = this.captureApprovedArgumentEdits(toolCalls)
     const executionResult = yield* this.drainToolCallGenerator(generator)
+    this.retainApprovedArgumentEdits(
+      [
+        ...executionResult.results
+          .filter((entry) => entry.state !== 'output-error')
+          .map((entry) => entry.toolCallId),
+        ...executionResult.needsClientExecution.map(
+          (entry) => entry.toolCallId,
+        ),
+      ],
+      rawEdits,
+    )
 
     this.middlewareCtx.phase = 'afterTools'
 
@@ -2601,7 +3005,9 @@ class TextEngine<
 
   private shouldExecuteToolPhase(): boolean {
     return (
-      this.lastFinishReason === 'tool_calls' &&
+      (this.lastFinishReason === 'tool_calls' ||
+        (this.lastFinishReason === 'length' &&
+          this.params.truncatedToolResult !== undefined)) &&
       this.tools.length > 0 &&
       this.toolCallManager.hasToolCalls()
     )
@@ -2611,7 +3017,8 @@ class TextEngine<
    * Split this iteration into assistant ModelMessages that keep the provider's
    * block order: a new segment starts at every thinking step that follows a
    * provider-executed tool call (the rule buildAssistantMessages applies to
-   * UIMessages). Segments after the first get `${id}-segment-${n}` ids.
+   * UIMessages). Segments after the first get `${id}-segment-${n}` ids. A
+   * segment whose own blocks leave the default order gets a `blockOrder` map.
    * Returns null when no split is needed or the order could not be tracked,
    * so callers fall back to the single-message shape.
    */
@@ -2631,8 +3038,9 @@ class TextEngine<
       thinking: NonNullable<ModelMessage['thinking']>
       text: string
       callIds: Array<string>
+      parts: Array<TurnPart>
     }
-    let current: Segment = { thinking: [], text: '', callIds: [] }
+    let current: Segment = { thinking: [], text: '', callIds: [], parts: [] }
     const segments: Array<Segment> = [current]
     let split = false
     for (const part of parts) {
@@ -2640,7 +3048,7 @@ class TextEngine<
         const thinking = this.accumulatedThinking[part.index]
         if (!thinking) return null
         if (current.callIds.some((callId) => providerCallIds.has(callId))) {
-          current = { thinking: [thinking], text: '', callIds: [] }
+          current = { thinking: [thinking], text: '', callIds: [], parts: [] }
           segments.push(current)
           split = true
         } else {
@@ -2651,6 +3059,7 @@ class TextEngine<
       } else {
         current.callIds.push(part.id)
       }
+      current.parts.push(part)
     }
     if (!split) return null
     if (
@@ -2673,9 +3082,11 @@ class TextEngine<
       const segmentCalls = toolCalls.filter((toolCall) =>
         segment.callIds.includes(toolCall.id),
       )
+      const blockOrder = turnBlockOrder(segment.parts, segmentCalls)
       return {
         role: 'assistant',
         content: segment.text || null,
+        metadata: { tanstack: { ...this.currentCallMetadata } },
         ...(segmentCalls.length > 0 && { toolCalls: segmentCalls }),
         id:
           id === undefined
@@ -2685,12 +3096,43 @@ class TextEngine<
               : `${id}-segment-${index}`,
         createdAt,
         ...(segment.thinking.length > 0 && { thinking: segment.thinking }),
+        ...(blockOrder && { blockOrder }),
       }
     })
   }
 
+  /**
+   * `{ blockOrder }` for this iteration kept as one assistant message that
+   * carries `toolCalls`, or `{}` when the order is the default one or was not
+   * tracked. This is the fallback when `buildOrderedAssistantSegments` does
+   * not split, so it is the common client-tool case.
+   */
+  private singleMessageBlockOrder(toolCalls: ReadonlyArray<ToolCall>): {
+    blockOrder?: Array<ModelMessageBlock>
+  } {
+    const parts = this.turnParts
+    if (!parts) return {}
+    const thinking = parts.filter(
+      (part): part is Extract<TurnPart, { type: 'thinking' }> =>
+        part.type === 'thinking',
+    )
+    const text = parts
+      .map((part) => (part.type === 'text' ? part.content : ''))
+      .join('')
+    if (
+      text !== this.accumulatedContent ||
+      thinking.length !== this.accumulatedThinking.length ||
+      thinking.some((part, index) => part.index !== index)
+    ) {
+      return {}
+    }
+    const blockOrder = turnBlockOrder(parts, toolCalls)
+    return blockOrder ? { blockOrder } : {}
+  }
+
   private addAssistantToolCallMessage(toolCalls: Array<ToolCall>): void {
     this.finalizeCurrentThinkingStep()
+    const from = this.messages.length
 
     const segments = this.buildOrderedAssistantSegments(
       toolCalls,
@@ -2703,16 +3145,48 @@ class TextEngine<
         {
           role: 'assistant' as const,
           content: this.accumulatedContent || null,
+          metadata: { tanstack: { ...this.currentCallMetadata } },
           toolCalls,
           id: this.currentMessageId ?? undefined,
           createdAt: this.currentMessageCreatedAt ?? undefined,
           ...(this.accumulatedThinking.length > 0 && {
             thinking: this.accumulatedThinking,
           }),
+          ...this.singleMessageBlockOrder(toolCalls),
         },
       ]),
     ]
+    this.closeTruncatedToolCalls(from)
+    this.saveMidConversationChange(from)
     this.middlewareCtx.messages = this.messages
+  }
+
+  /**
+   * Give each call of the assistant messages from index `from` an error result
+   * when the output limit cut their answer. Such a call is not complete, so it
+   * never runs and asks for nothing. A provider-executed call has its result.
+   */
+  private closeTruncatedToolCalls(from: number): void {
+    const cut = this.messages
+      .slice(from)
+      .flatMap((message) =>
+        tanstackMetadata(message)?.finishReason === 'length'
+          ? (message.toolCalls ?? []).filter(
+              (call) => !isProviderExecutedToolCall(call),
+            )
+          : [],
+      )
+    const option = this.params.truncatedToolResult
+    this.messages = [
+      ...this.messages,
+      ...cut.map((call): ModelMessage => {
+        const text =
+          typeof option === 'function'
+            ? option({ toolCallId: call.id, toolName: call.function.name })
+            : (option ?? TRUNCATED_TOOL_RESULT)
+        return { role: 'tool', toolCallId: call.id, content: text, error: text }
+      }),
+    ]
   }
 
   private addTerminalAssistantMessages(): void {
@@ -2765,7 +3239,12 @@ class TextEngine<
       const existing = messages[existingStructuredIndex]
       if (existing) {
         messages[existingStructuredIndex] = {
-          ...existing,
+          ...withTanstackMetadata(
+            existing,
+            this.finalStructuredOutput?.nativeCombined
+              ? this.currentCallMetadata
+              : this.structuredCallMetadata,
+          ),
           content: raw || existing.content,
           structuredOutput,
         }
@@ -2775,6 +3254,13 @@ class TextEngine<
         messages.push({
           role: 'assistant',
           content: this.accumulatedContent || raw || null,
+          metadata: {
+            tanstack: {
+              ...(nativeCombined
+                ? this.currentCallMetadata
+                : this.structuredCallMetadata),
+            },
+          },
           id: structuredId,
           createdAt:
             this.currentMessageCreatedAt ??
@@ -2800,9 +3286,12 @@ class TextEngine<
             {
               role: 'assistant',
               content: this.accumulatedContent || null,
+              metadata: { tanstack: { ...this.currentCallMetadata } },
               id,
               createdAt,
               ...(thinking ? { thinking } : {}),
+              // This message carries no tool calls, so its map has none.
+              ...this.singleMessageBlockOrder([]),
             },
           ]),
         )
@@ -2811,6 +3300,7 @@ class TextEngine<
         messages.push({
           role: 'assistant',
           content: raw || null,
+          metadata: { tanstack: { ...this.structuredCallMetadata } },
           id: structuredId,
           createdAt: this.structuredOutputMessageCreatedAt ?? new Date(),
           structuredOutput,
@@ -2823,6 +3313,8 @@ class TextEngine<
     }
 
     this.messages = messages
+    this.closeTruncatedToolCalls(startedLength)
+    this.saveMidConversationChange(startedLength)
     this.middlewareCtx.messages = this.messages
   }
 
@@ -3050,7 +3542,7 @@ class TextEngine<
       const id = `mcp_input_${pendingInput.toolCallId}`
       interrupts.push({
         id,
-        reason: 'mcp_input',
+        reason: pendingInput.reason ?? 'mcp_input',
         message: `Input required to run ${pendingInput.toolName}`,
         toolCallId: pendingInput.toolCallId,
         metadata: {
@@ -3347,7 +3839,15 @@ class TextEngine<
         this.addTerminalAssistantMessages()
       }
     }
-    const actionable = this.getBoundaryActionableToolRequests(toolCalls)
+    const actionable = yield* this.runWhileYielding(
+      this.getBoundaryActionableToolRequests(toolCalls),
+    )
+    for (const chunk of this.buildToolResultChunks(
+      actionable.results,
+      finishEvent,
+    )) {
+      yield* this.pipeThroughMiddleware(chunk)
+    }
     yield* this.emitActionableInterruptBoundary(
       finishEvent,
       actionable.approvals,
@@ -3358,51 +3858,98 @@ class TextEngine<
     return true
   }
 
-  private getBoundaryActionableToolRequests(
+  /**
+   * Save the pending mid-conversation record on the first assistant message
+   * at index `from` or later. The record is a field of the message, so it
+   * goes wherever the transcript goes: a message store, a harness log, a
+   * restart.
+   */
+  private saveMidConversationChange(from: number): void {
+    const record = this.pendingMidConversationChange
+    if (!record) return
+    const index = this.messages.findIndex(
+      (message, at) => at >= from && message.role === 'assistant',
+    )
+    if (index < 0) return
+    this.pendingMidConversationChange = undefined
+    this.messages = this.messages.map((message, at) =>
+      at === index ? { ...message, midConversationChange: record } : message,
+    )
+  }
+
+  private async getBoundaryActionableToolRequests(
     toolCalls: ReadonlyArray<ToolCall>,
-  ): {
+  ): Promise<{
     approvals: Array<ApprovalRequest>
     clientRequests: Array<ClientToolRequest>
-  } {
+    results: Array<ToolResult>
+  }> {
     const { approvals, clientToolResults } = this.collectClientState()
-    const approvalRequests: Array<ApprovalRequest> = []
-    const clientRequests: Array<ClientToolRequest> = []
-    for (const toolCall of toolCalls) {
-      // Provider-executed calls are complete; never surface them as client work.
-      if (isProviderExecutedToolCall(toolCall)) continue
+    const pendingCalls = toolCalls.filter((toolCall) => {
+      if (isProviderExecutedToolCall(toolCall)) return false
       const tool = this.resolveExecutableTools([toolCall]).find(
         (candidate) => candidate.name === toolCall.function.name,
-      ) as RuntimeToolWithApproval | undefined
-      if (!tool) continue
-      let input: unknown = {}
-      try {
-        const parsed = JSON.parse(toolCall.function.arguments.trim() || '{}')
-        input = parsed && typeof parsed === 'object' ? parsed : {}
-      } catch {
-        input = {}
-      }
-      const approvalId = `approval_${toolCall.id}`
-      if (tool.needsApproval && !approvals.has(approvalId)) {
-        approvalRequests.push({
-          toolCallId: toolCall.id,
-          toolName: toolCall.function.name,
-          input,
-          approvalId,
-        })
-      } else if (
-        !tool.execute &&
-        !clientToolResults.has(toolCall.id) &&
-        !this.resumeClientToolErrors.has(toolCall.id) &&
-        !this.resumeCancelledToolCallIds.has(toolCall.id)
-      ) {
-        clientRequests.push({
-          toolCallId: toolCall.id,
-          toolName: toolCall.function.name,
-          input,
-        })
+      )
+      if (
+        !tool ||
+        clientToolResults.has(toolCall.id) ||
+        this.resumeClientToolErrors.has(toolCall.id) ||
+        this.resumeCancelledToolCallIds.has(toolCall.id)
+      )
+        return false
+      if (!tool.execute) return true
+      const resolution =
+        approvals.get(toolCall.id) ?? approvals.get(`approval_${toolCall.id}`)
+      return (
+        tool.needsApproval === true &&
+        (resolution === undefined ||
+          resolution === false ||
+          (typeof resolution === 'object' && !resolution.approved))
+      )
+    })
+    // Reuse the final execution boundary for previews and client descriptors.
+    // Approved server tools stay in the ordinary execution phase.
+    const generator = executeToolCalls(
+      pendingCalls,
+      this.resolveExecutableTools(pendingCalls),
+      approvals,
+      clientToolResults,
+      undefined,
+      {
+        onBeforeToolCall: (toolCall, tool, args) =>
+          this.middlewareRunner.runOnBeforeToolCall(this.middlewareCtx, {
+            toolCall,
+            tool,
+            args,
+            toolName: toolCall.function.name,
+            toolCallId: toolCall.id,
+          }),
+        onAfterToolCall: (info) =>
+          this.middlewareRunner.runOnAfterToolCall(this.middlewareCtx, info),
+      },
+      this.middlewareCtx.context,
+      this.toolAbortSignal,
+    )
+    const rawEdits = this.captureApprovedArgumentEdits(pendingCalls)
+    while (true) {
+      const next = await generator.next()
+      if (next.done) {
+        this.retainApprovedArgumentEdits(
+          [
+            ...next.value.results
+              .filter((entry) => entry.state !== 'output-error')
+              .map((entry) => entry.toolCallId),
+            ...next.value.needsClientExecution.map((entry) => entry.toolCallId),
+          ],
+          rawEdits,
+        )
+        return {
+          approvals: next.value.needsApproval,
+          clientRequests: next.value.needsClientExecution,
+          results: next.value.results,
+        }
       }
     }
-    return { approvals: approvalRequests, clientRequests }
   }
 
   private completeEphemeralInterruptBindings(chunk: StreamChunk): StreamChunk {
@@ -3449,6 +3996,7 @@ class TextEngine<
     results: Array<ToolResult>,
     _finishEvent: RunFinishedEvent,
     argsMap?: Map<string, string>,
+    replaceExisting = false,
   ): Array<AdapterYieldChunk> {
     const chunks: Array<AdapterYieldChunk> = []
 
@@ -3530,18 +4078,19 @@ class TextEngine<
         }
       })
       const isDeniedResult = result.outcome === 'denied'
-      const existingToolResultIdx = isDeniedResult
-        ? this.messages.findIndex(
-            (message) =>
-              message.role === 'tool' &&
-              message.toolCallId === result.toolCallId,
-          )
-        : -1
+      const existingToolResultIdx =
+        isDeniedResult || replaceExisting
+          ? this.messages.findIndex(
+              (message) =>
+                message.role === 'tool' &&
+                message.toolCallId === result.toolCallId,
+            )
+          : -1
       const resultMessageIdx =
         existingToolResultIdx >= 0 ? existingToolResultIdx : placeholderIdx
 
-      // Only a denied result keeps the old message's fields. A replaced
-      // pendingExecution placeholder must not leak into the real result.
+      // Denied and checked resumed results keep the existing row's metadata.
+      // A pendingExecution placeholder must not leak into the real result.
       const existingToolMessage =
         existingToolResultIdx >= 0
           ? this.messages[existingToolResultIdx]
@@ -3627,8 +4176,47 @@ class TextEngine<
 
     const pending: Array<ToolCall> = []
 
+    // A later user or assistant closes the previous execution batch.
+    // Old orphan calls remain in history for request-local replay cleanup.
+    const activeCallIds = new Set<string>()
+    let assistantId: string | undefined
+    for (const message of this.messages) {
+      if (message.role === 'tool') continue
+      const segmentSuffix =
+        assistantId === undefined || message.id === undefined
+          ? undefined
+          : message.id.slice(assistantId.length)
+      const sameAssistant =
+        message.role === 'assistant' &&
+        assistantId !== undefined &&
+        message.id?.startsWith(assistantId) &&
+        /^-segment-[1-9]\d*$/.test(segmentSuffix ?? '')
+      if (!sameAssistant) {
+        activeCallIds.clear()
+        assistantId = message.role === 'assistant' ? message.id : undefined
+      }
+      const stopReason = tanstackMetadata(message)?.stopReason
+      if (
+        message.role === 'assistant' &&
+        stopReason !== 'error' &&
+        stopReason !== 'aborted'
+      ) {
+        for (const call of message.toolCalls ?? []) activeCallIds.add(call.id)
+      }
+    }
+    const { approvals } = this.collectClientState()
+
     for (const message of this.messages) {
       if (message.role === 'assistant' && message.toolCalls) {
+        const metadata = tanstackMetadata(message)
+        // The calls of a failed answer, or of an answer that the output limit
+        // cut, are not complete. They never run.
+        if (
+          metadata?.stopReason === 'error' ||
+          metadata?.stopReason === 'aborted' ||
+          metadata?.finishReason === 'length'
+        )
+          continue
         for (const toolCall of message.toolCalls) {
           // Provider-executed tool calls (e.g. Anthropic `web_search`) were
           // already run by the provider; they carry no client result, so they
@@ -3637,7 +4225,16 @@ class TextEngine<
           if (isProviderExecutedToolCall(toolCall)) {
             continue
           }
-          if (!completedToolIds.has(toolCall.id)) {
+          const explicitlyResumed =
+            approvals.has(toolCall.id) ||
+            approvals.has(`approval_${toolCall.id}`) ||
+            this.resumeClientToolResults.has(toolCall.id) ||
+            this.resumeClientToolErrors.has(toolCall.id) ||
+            this.resumeCancelledToolCallIds.has(toolCall.id)
+          if (
+            !completedToolIds.has(toolCall.id) &&
+            (activeCallIds.has(toolCall.id) || explicitlyResumed)
+          ) {
             pending.push(toolCall)
           }
         }
@@ -3693,6 +4290,76 @@ class TextEngine<
       }
     }
     return pending
+  }
+
+  /** Check resumed client calls whose UI result already makes them look complete. */
+  private async *checkCompletedResumedClientTools(): AsyncGenerator<
+    StreamChunk,
+    void,
+    void
+  > {
+    const pendingIds = new Set(
+      this.getPendingToolCallsFromMessages().map((call) => call.id),
+    )
+    const completedCalls: Array<ToolCall> = []
+    const resumedIds = new Set([
+      ...this.resumeClientToolResults.keys(),
+      ...this.resumeClientToolErrors.keys(),
+    ])
+    for (const id of resumedIds) {
+      if (pendingIds.has(id)) continue
+      const call = this.findToolCallInMessages(id)
+      if (!call) continue
+      const tool = this.tools.find(
+        (candidate) => candidate.name === call.function.name,
+      )
+      if (tool && !tool.execute && !isProviderExecutedToolCall(call))
+        completedCalls.push(call)
+    }
+    if (completedCalls.length === 0) return
+    const { approvals, clientToolResults } = this.collectClientState()
+    const rawEdits = this.captureApprovedArgumentEdits(completedCalls)
+    const result = yield* this.drainToolCallGenerator(
+      executeToolCalls(
+        completedCalls,
+        this.resolveExecutableTools(completedCalls),
+        approvals,
+        clientToolResults,
+        undefined,
+        {
+          onBeforeToolCall: (toolCall, tool, args) =>
+            this.middlewareRunner.runOnBeforeToolCall(this.middlewareCtx, {
+              toolCall,
+              tool,
+              args,
+              toolName: toolCall.function.name,
+              toolCallId: toolCall.id,
+            }),
+          onAfterToolCall: (info) =>
+            this.middlewareRunner.runOnAfterToolCall(this.middlewareCtx, info),
+        },
+        this.middlewareCtx.context,
+        this.toolAbortSignal,
+        {
+          clientToolErrors: this.resumeClientToolErrors,
+          cancelledToolCallIds: this.resumeCancelledToolCallIds,
+        },
+      ),
+    )
+    this.retainApprovedArgumentEdits(
+      result.results
+        .filter((entry) => entry.state !== 'output-error')
+        .map((entry) => entry.toolCallId),
+      rawEdits,
+    )
+    for (const chunk of this.buildToolResultChunks(
+      result.results,
+      this.createSyntheticFinishedEvent(),
+      undefined,
+      true,
+    )) {
+      yield* this.pipeThroughMiddleware(chunk)
+    }
   }
 
   private createSyntheticFinishedEvent(
@@ -3882,11 +4549,15 @@ class TextEngine<
 
     this.middlewareCtx.phase = 'structuredOutput'
 
-    // Build the structured-output config view. `tools` is intentionally
-    // excluded from the type because it isn't forwarded to the structured-
-    // output adapter call — including it here would be misleading API.
+    // Build the structured-output config view. `tools` and `toolChoice` are
+    // intentionally excluded from the type because they aren't forwarded to
+    // the structured-output adapter call — including them would be misleading.
     const baseConfig = this.buildMiddlewareConfig()
-    const { tools: _omitTools, ...baseWithoutTools } = baseConfig
+    const {
+      tools: _omitTools,
+      toolChoice: _omitToolChoice,
+      ...baseWithoutTools
+    } = baseConfig
     let structuredConfig: StructuredOutputMiddlewareConfig = {
       ...baseWithoutTools,
       outputSchema: this.finalStructuredOutput.jsonSchema,
@@ -3928,15 +4599,20 @@ class TextEngine<
     const structuredCallOptions = {
       chatOptions: {
         model: this.params.model,
-        messages: this.providerMessages,
+        messages: transformMessagesForReplay(this.providerMessages).messages,
         metadata: postOnConfig.metadata,
         modelOptions: postOnConfig.modelOptions,
+        ...(postOnConfig.reasoning
+          ? { reasoning: postOnConfig.reasoning }
+          : {}),
         systemPrompts: postOnConfig.systemPrompts,
         logger: this.logger,
         threadId: this.threadId,
+        promptCache: this.params.promptCache,
         runId: this.runIdOverride,
         parentRunId: this.parentRunIdOverride,
         ...(this.effectiveRequest ? { request: this.effectiveRequest } : {}),
+        ...(this.callWrapFetch ? { wrapFetch: this.callWrapFetch } : {}),
       },
       outputSchema: pinnedSchema,
     }
@@ -3946,6 +4622,13 @@ class TextEngine<
     // attach it as `finalizationError.cause` (the RUN_ERROR wire shape only
     // carries `message` and `code`, losing stack/cause/provider properties).
     let fallbackAdapterError: unknown = undefined
+    this.structuredCallMetadata = {
+      source: {
+        provider: this.adapter.provider ?? this.adapter.name,
+        api: this.adapter.api ?? this.adapter.kind,
+        model: structuredCallOptions.chatOptions.model,
+      },
+    }
     const providerStream = this.adapter.structuredOutputStream
       ? this.adapter.structuredOutputStream(structuredCallOptions)
       : fallbackStructuredOutputStream(
@@ -4019,7 +4702,7 @@ class TextEngine<
       }
 
       {
-        const chunk = raw
+        const chunk = this.withCallMetadata(raw, this.structuredCallMetadata)
         // Detect adapter-emitted structured-output.start so we don't duplicate
         if (
           !startEmitted &&
@@ -4436,6 +5119,10 @@ class TextEngine<
       },
       metadata: this.params.metadata,
       modelOptions: this.params.modelOptions,
+      reasoning: this.params.reasoning,
+      promptCache: this.params.promptCache,
+      toolChoice: this.params.toolChoice,
+      wrapFetch: this.params.wrapFetch,
     }
   }
 
@@ -4500,10 +5187,14 @@ class TextEngine<
       toolsByCallId.set(toolCall.id, tool)
       let input: unknown = {}
       try {
-        const parsed = JSON.parse(toolCall.function.arguments.trim() || '{}')
-        input = parsed && typeof parsed === 'object' ? parsed : {}
+        input = JSON.parse(
+          toolCall.function.arguments.trim() ||
+            (tool.inputSchema === undefined ? '{}' : ''),
+        )
       } catch {
-        input = {}
+        throw new Error(
+          `Failed to parse tool arguments as JSON: ${toolCall.function.arguments}`,
+        )
       }
       toolInputs.set(toolCall.id, input)
       if (
@@ -4524,7 +5215,7 @@ class TextEngine<
         approvalRequests.push({
           toolCallId: toolCall.id,
           toolName: toolCall.function.name,
-          input: toolInputs.get(toolCall.id) ?? {},
+          input: toolInputs.get(toolCall.id),
           approvalId: `approval_${toolCall.id}`,
         })
       }
@@ -4540,7 +5231,7 @@ class TextEngine<
         clientRequests.push({
           toolCallId: toolCall.id,
           toolName: toolCall.function.name,
-          input: toolInputs.get(toolCall.id) ?? {},
+          input: toolInputs.get(toolCall.id),
         })
       }
     }
@@ -4899,7 +5590,10 @@ class TextEngine<
     if (config.activities !== undefined) {
       this.setActivities(config.activities)
     }
-    this.providerMessages = config.providerMessages ?? config.messages
+    this.providerMessages =
+      config.providerMessages === undefined
+        ? this.messages
+        : config.providerMessages
     this.systemPrompts = config.systemPrompts
     assertUniqueToolNames(config.tools)
     this.tools = config.tools
@@ -4907,7 +5601,13 @@ class TextEngine<
       ...this.params,
       metadata: config.metadata,
       modelOptions: config.modelOptions,
+      reasoning: config.reasoning,
+      promptCache: config.promptCache ?? this.params.promptCache,
     }
+    // Not stored in params: the next call starts from the chat() option.
+    this.callToolChoice = config.toolChoice ?? this.params.toolChoice
+    // It already holds the chat() option, since the config starts from it.
+    this.callWrapFetch = config.wrapFetch
 
     // Sync context fields that depend on config
     this.middlewareCtx.messages = this.messages
@@ -4915,6 +5615,150 @@ class TextEngine<
     this.middlewareCtx.hasTools = this.tools.length > 0
     this.middlewareCtx.toolNames = this.tools.map((t) => t.name)
     this.middlewareCtx.modelOptions = config.modelOptions
+  }
+
+  /** Copy only lossless JSON raw edits. Opaque execution inputs stay untouched. */
+  private captureApprovedArgumentEdits(
+    calls: ReadonlyArray<ToolCall>,
+  ): Map<ToolCall, unknown> {
+    const unsupported = Symbol('unsupported')
+    const copy = (value: unknown, ancestors = new Set<object>()): unknown => {
+      if (
+        value === null ||
+        typeof value === 'string' ||
+        typeof value === 'boolean'
+      )
+        return value
+      if (typeof value === 'number')
+        return Number.isFinite(value) && !Object.is(value, -0)
+          ? value
+          : unsupported
+      if (typeof value !== 'object' || ancestors.has(value)) return unsupported
+      const array = Array.isArray(value)
+      const prototype = Object.getPrototypeOf(value)
+      if (
+        array
+          ? prototype !== Array.prototype
+          : prototype !== Object.prototype && prototype !== null
+      )
+        return unsupported
+      const properties = Object.getOwnPropertyDescriptors(value)
+      const keys = Reflect.ownKeys(properties)
+      if (array && keys.length !== properties.length?.value + 1)
+        return unsupported
+      ancestors.add(value)
+      const result: Record<string, unknown> | Array<unknown> = array
+        ? []
+        : Object.create(null)
+      for (const key of keys) {
+        if (array && key === 'length') continue
+        const property = typeof key === 'string' ? properties[key] : undefined
+        if (
+          !property ||
+          !property.enumerable ||
+          !('value' in property) ||
+          (array && !/^(0|[1-9]\d*)$/.test(String(key)))
+        )
+          return unsupported
+        const copied = copy(property.value, ancestors)
+        if (copied === unsupported) return unsupported
+        Object.defineProperty(result, key, {
+          value: copied,
+          enumerable: true,
+          configurable: true,
+          writable: true,
+        })
+      }
+      ancestors.delete(value)
+      return result
+    }
+    const snapshots = new Map<ToolCall, unknown>()
+    for (const call of calls) {
+      const resolution =
+        this.resumeApprovals.get(call.id) ??
+        this.resumeApprovals.get(`approval_${call.id}`) ??
+        this.initialApprovals.get(call.id) ??
+        this.initialApprovals.get(`approval_${call.id}`)
+      if (
+        typeof resolution !== 'object' ||
+        !resolution.approved ||
+        resolution.editedArgs === undefined
+      )
+        continue
+      try {
+        const snapshot = copy(resolution.editedArgs)
+        if (snapshot !== unsupported) {
+          const historyCalls = this.messages.flatMap((message) =>
+            message.role === 'assistant' ? (message.toolCalls ?? []) : [],
+          )
+          const selected = historyCalls.includes(call)
+            ? call
+            : historyCalls
+                .slice()
+                .reverse()
+                .find(
+                  (candidate) =>
+                    candidate.id === call.id &&
+                    candidate.function.name === call.function.name &&
+                    candidate.function.arguments === call.function.arguments,
+                )
+          if (selected) snapshots.set(selected, snapshot)
+        }
+      } catch {
+        // An opaque value can execute without changing its JSON history.
+      }
+    }
+    return snapshots
+  }
+
+  /** Keep checked raw edits in the selected history occurrence. */
+  private retainApprovedArgumentEdits(
+    checkedIds: Array<string>,
+    snapshots: Map<ToolCall, unknown>,
+  ): void {
+    const selectedIds = new Set(checkedIds)
+    const historyCalls = this.messages.flatMap((message) =>
+      message.role === 'assistant' ? (message.toolCalls ?? []) : [],
+    )
+    const update = (messages: Array<ModelMessage>): Array<ModelMessage> => {
+      const selected = new Map<ToolCall, unknown>()
+      const calls = messages.flatMap((message) =>
+        message.role === 'assistant' ? (message.toolCalls ?? []) : [],
+      )
+      for (const [call, snapshot] of snapshots) {
+        if (!selectedIds.has(call.id)) continue
+        if (calls.includes(call)) {
+          selected.set(call, snapshot)
+          continue
+        }
+        const sameCall = (candidate: ToolCall) =>
+          candidate.id === call.id &&
+          candidate.function.name === call.function.name &&
+          candidate.function.arguments === call.function.arguments
+        const occurrence = historyCalls.filter(sameCall).indexOf(call)
+        const equivalent = calls.filter(sameCall)[occurrence]
+        if (equivalent) selected.set(equivalent, snapshot)
+      }
+      return messages.map((message) => {
+        if (message.role !== 'assistant' || !message.toolCalls) return message
+        let changed = false
+        const toolCalls = message.toolCalls.map((call) => {
+          if (!selected.has(call)) return call
+          const argumentsJson = JSON.stringify(selected.get(call))
+          if (argumentsJson === undefined) return call
+          if (argumentsJson === call.function.arguments) return call
+          changed = true
+          return {
+            ...call,
+            function: { ...call.function, arguments: argumentsJson },
+          }
+        })
+        return changed ? { ...message, toolCalls } : message
+      })
+    }
+    this.messages = update(this.messages)
+    this.providerMessages = update(this.providerMessages)
+    this.middlewareCtx.messages = this.messages
   }
 
   private setToolPhase(phase: ToolPhaseResult): void {
@@ -5201,6 +6045,17 @@ export function chat<
     )
   }
 
+  const singleToolNameTaken =
+    options.subagents?.tool === 'single' &&
+    [...options.subagents.agents, ...(options.tools ?? [])].some(
+      (entry) => entry.name === SINGLE_SUBAGENT_TOOL,
+    )
+  if (singleToolNameTaken) {
+    throw new Error(
+      `subagents.tool 'single' adds a tool named "${SINGLE_SUBAGENT_TOOL}". Rename the agent or tool that uses this name.`,
+    )
+  }
+
   if (outputSchema && stream === true) {
     return runStreamingStructuredOutput(
       toRuntimeTextActivityOptions(options, {
@@ -5242,9 +6097,32 @@ type RuntimeTextActivityOptions<
   TStream extends boolean,
 > = Omit<
   TextActivityOptions<TAdapter, TSchema, TStream, any, any>,
-  'middleware'
+  'middleware' | 'promptCache'
 > & {
   middleware?: Array<AnyChatMiddleware>
+  promptCache: ResolvedPromptCache
+}
+
+/**
+ * Resolve the `promptCache` option once, before chat() makes up any ids. The
+ * key is the option key, else the caller's threadId or conversationId. A
+ * made-up threadId is never the key: a random key splits OpenAI cache routing.
+ */
+function resolvePromptCache(options: {
+  promptCache?: PromptCacheOptions
+  threadId?: string
+  conversationId?: string
+}) {
+  const option: Exclude<PromptCacheOptions, string> | undefined =
+    typeof options.promptCache === 'string'
+      ? { retention: options.promptCache }
+      : options.promptCache
+  // `||` on purpose: an empty string is no key.
+  const key = option?.key || options.threadId || options.conversationId
+  return {
+    retention: option?.retention ?? 'short',
+    ...(key ? { key } : {}),
+  }
 }
 
 function readRuntimeMiddleware(
@@ -5290,6 +6168,7 @@ function toRuntimeTextActivityOptions<
   return {
     ...rest,
     ...overrides,
+    promptCache: resolvePromptCache(rest),
     ...(middleware === undefined
       ? {}
       : { middleware: readRuntimeMiddleware(middleware) }),
@@ -5419,10 +6298,18 @@ async function* streamTextChunks(
   options: RuntimeTextActivityOptions<AnyTextAdapter, undefined, boolean>,
   engineRef: DeliveryEngineRef,
 ): AsyncIterable<StreamChunk> {
-  const bag = options.subagents
+  // Children inherit the retention of this call. Their key is their own
+  // threadId.
+  const bag = options.subagents && {
+    ...options.subagents,
+    binding: {
+      ...options.subagents.binding,
+      promptCache: options.promptCache.retention,
+    },
+  }
   const agents = bag?.agents ?? []
   if (bag && agents.length > 0 && bag.router) {
-    yield* runRoutedSubagents(options, engineRef)
+    yield* runRoutedSubagents({ ...options, subagents: bag }, engineRef)
     return
   }
   if (bag && agents.length > 0) {
@@ -5434,15 +6321,23 @@ async function* streamTextChunks(
     const turn = readSubagentTurn(messages, options.resume)
     const sink = createSubagentSink()
     const calls = subagentCallMessages(
-      new Set(bag.agents.map((agent: DefinedAgent) => agent.name)),
+      new Set(
+        bag.tool === 'single'
+          ? [SINGLE_SUBAGENT_TOOL]
+          : bag.agents.map((agent: DefinedAgent) => agent.name),
+      ),
     )
     const synthetic = createSyntheticSubagentTools(bag, {
       messages: turn?.before ?? messages,
       messagesFor: calls.messagesFor,
+      childLoader: calls.childLoader,
       threadId,
       runId,
       ...(options.parentRunId !== undefined && {
         interruptedRunId: options.parentRunId,
+      }),
+      ...(options.subagentRunId !== undefined && {
+        parentSubagentRunId: options.subagentRunId,
       }),
       ...(options.abortController && {
         abortSignal: options.abortController.signal,
@@ -5496,16 +6391,6 @@ async function* runRoutedSubagents(
     yield* runChatEngine(options, engineRef)
     return
   }
-  // ponytail: a router cannot write input yet. Add it to the router pick if
-  // someone needs it.
-  const withInput = bag.agents.find(
-    (agent: DefinedAgent) => agent.inputSchema !== undefined,
-  )
-  if (withInput) {
-    throw new Error(
-      `Subagent "${withInput.name}" has an inputSchema. inputSchema needs tool mode: remove subagents.router so the model writes the input.`,
-    )
-  }
   const threadId = options.threadId ?? `thread-${Date.now()}`
   const runId = options.runId ?? `run-${Date.now()}`
   const messages = options.messages ?? []
@@ -5556,6 +6441,9 @@ async function* runRoutedSubagents(
       await subagentPersistence?.abort({ threadId, runId, error })
       return
     }
+    // Check every input before a child starts, so a bad input in a later
+    // step fails the turn like a bad pick.
+    const checked = await checkRoutedInputs(plan, bag.agents)
     const onlyStep = plan.steps.length === 1 ? plan.steps[0] : undefined
     if (onlyStep?.names.length === 1 && onlyStep.names[0] === 'main') {
       // Earlier children own answers in this resume. Commit them first.
@@ -5591,7 +6479,7 @@ async function* runRoutedSubagents(
     let failure:
       | Extract<StreamChunk, { type: EventType.SUBAGENT_ERROR }>
       | undefined
-    for (const step of plan.steps) {
+    for (const step of checked.steps) {
       const entries: Array<SpawnEntry> = []
       const textByName = new Map<string, string>()
       for (const name of step.names) {
@@ -5600,19 +6488,20 @@ async function* runRoutedSubagents(
           textByName.set(name, prior.text)
           continue
         }
-        entries.push(
-          prior?.status === 'suspended'
-            ? {
-                name,
-                resume: {
-                  subagentRunId: prior.subagentRunId,
-                  messages: prior.messages,
-                  entries: prior.resume,
-                  text: prior.text,
-                },
-              }
-            : { name },
-        )
+        // A suspended child gets its input again, like a tool-mode child.
+        const input = step.inputs?.[name]
+        entries.push({
+          name,
+          ...(input !== undefined && { input }),
+          ...(prior?.status === 'suspended' && {
+            resume: {
+              subagentRunId: prior.subagentRunId,
+              messages: prior.messages,
+              entries: prior.resume,
+              text: prior.text,
+            },
+          }),
+        })
       }
       const stepChunks: Array<StreamChunk> = []
       if (entries.length > 0) {
@@ -5626,6 +6515,9 @@ async function* runRoutedSubagents(
             parentRunId: runId,
             ...(options.parentRunId !== undefined && {
               interruptedRunId: options.parentRunId,
+            }),
+            ...(options.subagentRunId !== undefined && {
+              parentSubagentRunId: options.subagentRunId,
             }),
           },
           sink,
@@ -5716,6 +6608,47 @@ async function* runRoutedSubagents(
 
     const strategy = bag.strategy ?? 'exclusive'
     if (strategy === 'handoff') {
+      const markedHosts = turnMessages.filter((message) => {
+        const metadata = message.metadata
+        if (
+          message.role !== 'assistant' ||
+          metadata === null ||
+          typeof metadata !== 'object' ||
+          !Object.hasOwn(metadata, 'tanstack:subagentHost')
+        )
+          return false
+        const marker = Reflect.get(metadata, 'tanstack:subagentHost')
+        if (
+          marker === null ||
+          typeof marker !== 'object' ||
+          Array.isArray(marker) ||
+          Object.keys(marker).length !== 2 ||
+          !Object.hasOwn(marker, 'version') ||
+          !Object.hasOwn(marker, 'runId')
+        )
+          return false
+        const tanstack = Reflect.get(metadata, 'tanstack')
+        const genericRunId =
+          tanstack !== null && typeof tanstack === 'object'
+            ? Reflect.get(tanstack, 'runId')
+            : undefined
+        return (
+          Reflect.get(marker, 'version') === 1 &&
+          Reflect.get(marker, 'runId') === runId &&
+          (genericRunId === undefined || genericRunId === runId)
+        )
+      })
+      const existingHost = markedHosts.length === 1 ? markedHosts[0] : undefined
+      const hostBaseId = subagentHostMessageId(runId)
+      let hostId = existingHost?.id ?? hostBaseId
+      for (
+        let attempt = 1;
+        turnMessages.some(
+          (message) => message !== existingHost && message.id === hostId,
+        );
+        attempt++
+      )
+        hostId = hostBaseId + ':' + attempt
       const childText = stepTexts.join('\n\n')
       // The children are done. Commit their answers and settle their records
       // before main runs. Main's own persistence takes over from here.
@@ -5729,14 +6662,18 @@ async function* runRoutedSubagents(
             subagents: undefined,
             ...(turn && { resume: turn.rest }),
             messages: [
-              ...turnMessages,
+              ...turnMessages.filter((message) => message !== existingHost),
               {
                 // Same id as the recorder's parent row, so the stored thread
                 // keeps one host message for the cards.
-                id: subagentHostMessageId(runId),
+                id: hostId,
                 role: 'assistant',
                 content: childText || 'Subagent finished.',
-                metadata: { tanstack: { runId } },
+                metadata: {
+                  ...existingHost?.metadata,
+                  tanstack: { ...existingHost?.metadata?.tanstack, runId },
+                  'tanstack:subagentHost': { version: 1, runId },
+                },
               },
             ],
           },
@@ -5776,13 +6713,26 @@ function savedPlan(
     interruptedRunId: string
     interruptIds: ReadonlyArray<string>
   },
-): { steps: ReadonlyArray<SubagentStep> } | undefined {
+) {
   if (typeof plan !== 'object' || plan === null || !('steps' in plan)) {
     return undefined
   }
   try {
-    // The plan comes back from the client. Check it like a router pick.
-    return normalizeRouterPick(plan as SubagentStepsPlan, agents)
+    // The plan comes back from the client. Put each input back on its name
+    // and check it like a router pick.
+    const saved = plan as RoutedPlan
+    return normalizeRouterPick(
+      {
+        steps: saved.steps.map((step) => ({
+          names: step.names.map((name) => {
+            const input = step.inputs?.[name]
+            return input === undefined ? name : { name, input }
+          }),
+          order: step.order,
+        })),
+      },
+      agents,
+    )
   } catch (error) {
     throw new InterruptResumeValidationError([
       {
@@ -5802,11 +6752,41 @@ function savedPlan(
   }
 }
 
+/**
+ * Check the input of each picked agent that has `inputSchema`, and return the
+ * plan with the checked inputs. The saved plan keeps the raw inputs, so a
+ * resume checks the same values again.
+ */
+async function checkRoutedInputs(
+  plan: RoutedPlan,
+  agents: ReadonlyArray<DefinedAgent>,
+) {
+  const steps: Array<RoutedPlan['steps'][number]> = []
+  for (const step of plan.steps) {
+    const inputs: Record<string, unknown> = {}
+    for (const name of step.names) {
+      const schema = agents.find((agent) => agent.name === name)?.inputSchema
+      if (schema === undefined) continue
+      const input = step.inputs?.[name]
+      if (input === undefined) {
+        throw new Error(
+          `Agent "${name}" needs input. Return { name: '${name}', input } from the router.`,
+        )
+      }
+      const result = await validateWithStandardSchema(schema, input)
+      if (!result.success) {
+        const issues = result.issues.map((issue) => issue.message).join(', ')
+        throw new Error(`Input validation failed for agent ${name}: ${issues}`)
+      }
+      inputs[name] = result.data
+    }
+    steps.push({ ...step, inputs })
+  }
+  return { steps }
+}
+
 /** Put the router plan on a direct child's SUBAGENT_STARTED metadata. */
-function withPlan(
-  chunk: StreamChunk,
-  plan: { steps: ReadonlyArray<SubagentStep> },
-): StreamChunk {
+function withPlan(chunk: StreamChunk, plan: RoutedPlan): StreamChunk {
   if (
     chunk.type !== EventType.SUBAGENT_STARTED ||
     chunk.parentSubagentRunId !== undefined
@@ -6107,7 +7087,10 @@ async function* fallbackStructuredOutputStream(
     type: EventType.RUN_FINISHED,
     runId,
     threadId,
-    model,
+    model: result.model ?? model,
+    ...(result.responseId !== undefined
+      ? { responseId: result.responseId }
+      : {}),
     timestamp: Date.now(),
     finishReason: 'stop',
     // Forward adapter-reported token usage so consumers reading

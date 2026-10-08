@@ -79,7 +79,8 @@
         {
           "label": "Persisted subagents",
           "to": "tutorials/subagents-persisted",
-          "addedAt": "2026-09-22"
+          "addedAt": "2026-09-22",
+          "updatedAt": "2026-09-30"
         },
         {
           "label": "Build an MCP Server",
@@ -154,25 +155,31 @@
           "label": "Stream Events",
           "to": "chat/stream-events",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-09-27"
+          "updatedAt": "2026-10-04"
         },
         {
           "label": "Subagents",
           "to": "chat/subagents",
           "addedAt": "2026-09-21",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-10-08"
         },
         {
           "label": "Agentic Cycle",
           "to": "chat/agentic-cycle",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-21"
+          "updatedAt": "2026-10-08"
         },
         {
           "label": "Thinking & Reasoning",
           "to": "chat/thinking-content",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-30"
+          "updatedAt": "2026-10-02"
+        },
+        {
+          "label": "Reasoning",
+          "to": "chat/reasoning",
+          "addedAt": "2026-09-30",
+          "updatedAt": "2026-10-06"
         },
         {
           "label": "Message Queue",
@@ -282,7 +289,7 @@
           "label": "Tools",
           "to": "tools/tools",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-30"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Server Tools",
@@ -347,7 +354,7 @@
           "label": "Middleware",
           "to": "advanced/middleware",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-30"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Built-in Middleware",
@@ -371,7 +378,18 @@
           "label": "Compaction",
           "to": "advanced/compaction",
           "addedAt": "2026-08-24",
-          "updatedAt": "2026-08-27"
+          "updatedAt": "2026-10-08"
+        },
+        {
+          "label": "Prompt Caching",
+          "to": "advanced/prompt-caching",
+          "addedAt": "2026-10-02",
+          "updatedAt": "2026-10-06"
+        },
+        {
+          "label": "Mid-Conversation Changes",
+          "to": "advanced/mid-conversation-changes",
+          "addedAt": "2026-10-02"
         }
       ],
       "tab": "guides"
@@ -497,7 +515,7 @@
           "label": "Tool Approval",
           "to": "interrupts/tool-approval",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-10-05"
         },
         {
           "label": "Multiple Interrupts",
@@ -537,13 +555,13 @@
           "label": "MCP Server Tools",
           "to": "tools/mcp",
           "addedAt": "2026-06-05",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Managed MCP with chat()",
           "to": "tools/mcp-managed",
           "addedAt": "2026-06-05",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-10-03"
         },
         {
           "label": "Manual MCP",
@@ -560,7 +578,7 @@
           "label": "MCP Client Input",
           "to": "tools/mcp-input",
           "addedAt": "2026-09-22",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-10-04"
         },
         {
           "label": "MCP Apps",
@@ -625,7 +643,7 @@
           "label": "Portable Agent Skills",
           "to": "skills/agent-skills",
           "addedAt": "2026-08-22",
-          "updatedAt": "2026-08-23"
+          "updatedAt": "2026-10-01"
         },
         {
           "label": "Skill Sources",
@@ -706,7 +724,7 @@
           "label": "Build Your Own Adapter",
           "to": "persistence/build-your-own-adapter",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-09-29"
+          "updatedAt": "2026-09-30"
         },
         {
           "label": "Migrations",
@@ -749,13 +767,13 @@
           "label": "Build a Sandbox Adapter",
           "to": "persistence/build-a-sandbox-adapter",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-10-05"
         },
         {
           "label": "Store Reference",
           "to": "persistence/store-reference",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-09-24"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "How Persistence Works",
@@ -914,6 +932,215 @@
       "tab": "guides"
     },
     {
+      "label": "Harness",
+      "tab": "guides",
+      "children": [
+        {
+          "label": "Build your first harness",
+          "to": "harness/overview",
+          "addedAt": "2026-09-26",
+          "updatedAt": "2026-10-05"
+        },
+        {
+          "label": "Connect clients",
+          "to": "harness/connect",
+          "addedAt": "2026-09-26",
+          "updatedAt": "2026-10-07"
+        },
+        {
+          "label": "Send and show media",
+          "to": "harness/media",
+          "addedAt": "2026-09-29"
+        },
+        {
+          "label": "Run in the terminal",
+          "to": "harness/cli",
+          "addedAt": "2026-09-26",
+          "updatedAt": "2026-10-06"
+        },
+        {
+          "label": "Durable sessions",
+          "to": "harness/durable-sessions",
+          "addedAt": "2026-09-26",
+          "updatedAt": "2026-10-08"
+        },
+        {
+          "label": "List, rename, and fork sessions",
+          "to": "harness/sessions",
+          "addedAt": "2026-10-06",
+          "updatedAt": "2026-10-07"
+        },
+        {
+          "label": "Send inputs safely",
+          "to": "harness/inputs",
+          "addedAt": "2026-09-30",
+          "updatedAt": "2026-10-08"
+        },
+        {
+          "label": "Run side effects once",
+          "to": "harness/durable-tools",
+          "addedAt": "2026-09-30",
+          "updatedAt": "2026-10-01"
+        },
+        {
+          "label": "Build on the session log",
+          "to": "harness/session-log",
+          "addedAt": "2026-09-30",
+          "updatedAt": "2026-10-03"
+        },
+        {
+          "label": "Control how a turn ends",
+          "to": "harness/turn-control",
+          "addedAt": "2026-10-01",
+          "updatedAt": "2026-10-08"
+        },
+        {
+          "label": "Store settings per thread",
+          "to": "harness/thread-settings",
+          "addedAt": "2026-10-05",
+          "updatedAt": "2026-10-08"
+        },
+        {
+          "label": "Compact a long session",
+          "to": "harness/compaction",
+          "addedAt": "2026-10-03",
+          "updatedAt": "2026-10-07"
+        },
+        {
+          "label": "Fork and reset a thread",
+          "to": "harness/fork-and-reset",
+          "addedAt": "2026-10-05",
+          "updatedAt": "2026-10-07"
+        },
+        {
+          "label": "Share one log between sessions",
+          "to": "harness/shared-logs",
+          "addedAt": "2026-10-01"
+        },
+        {
+          "label": "Write a plugin",
+          "to": "harness/plugins",
+          "addedAt": "2026-09-26",
+          "updatedAt": "2026-10-08"
+        },
+        {
+          "label": "Build a coding agent",
+          "to": "harness/coding-agent",
+          "addedAt": "2026-09-26",
+          "updatedAt": "2026-10-06"
+        },
+        {
+          "label": "Give your agent coding tools",
+          "to": "harness/coding-tools",
+          "addedAt": "2026-10-06",
+          "updatedAt": "2026-10-08"
+        },
+        {
+          "label": "Sandbox and extend the coding tools",
+          "to": "harness/coding-tools-backends",
+          "addedAt": "2026-10-06",
+          "updatedAt": "2026-10-08"
+        },
+        {
+          "label": "Ask before risky tool calls",
+          "to": "harness/permissions",
+          "addedAt": "2026-10-06",
+          "updatedAt": "2026-10-08"
+        },
+        {
+          "label": "Undo a turn",
+          "to": "harness/snapshots",
+          "addedAt": "2026-10-06",
+          "updatedAt": "2026-10-08"
+        },
+        {
+          "label": "Switch between agent profiles",
+          "to": "harness/agents",
+          "addedAt": "2026-10-06",
+          "updatedAt": "2026-10-07"
+        },
+        {
+          "label": "Connect model providers",
+          "to": "harness/provider-keys",
+          "addedAt": "2026-09-29",
+          "updatedAt": "2026-10-04"
+        },
+        {
+          "label": "Auth and connectors",
+          "to": "harness/auth",
+          "addedAt": "2026-09-26",
+          "updatedAt": "2026-10-06"
+        },
+        {
+          "label": "Share a thread between people",
+          "to": "harness/shared-threads",
+          "addedAt": "2026-10-05"
+        },
+        {
+          "label": "Track usage and cost",
+          "to": "harness/usage",
+          "addedAt": "2026-10-05",
+          "updatedAt": "2026-10-06"
+        },
+        {
+          "label": "Use MCP servers",
+          "to": "harness/mcp",
+          "addedAt": "2026-09-26",
+          "updatedAt": "2026-10-08"
+        },
+        {
+          "label": "Use from any MCP client",
+          "to": "harness/mcp-server",
+          "addedAt": "2026-09-28",
+          "updatedAt": "2026-10-06"
+        },
+        {
+          "label": "Code mode in a harness",
+          "to": "harness/code-mode",
+          "addedAt": "2026-09-26",
+          "updatedAt": "2026-10-06"
+        },
+        {
+          "label": "Add skills",
+          "to": "harness/skills",
+          "addedAt": "2026-10-01"
+        },
+        {
+          "label": "Delegate to coding agents",
+          "to": "harness/coding-agents",
+          "addedAt": "2026-09-28"
+        },
+        {
+          "label": "Work until a goal is met",
+          "to": "harness/goal",
+          "addedAt": "2026-09-28"
+        },
+        {
+          "label": "Build your own UI",
+          "to": "harness/custom-ui",
+          "addedAt": "2026-09-28",
+          "updatedAt": "2026-10-07"
+        },
+        {
+          "label": "Run agents from a harness",
+          "to": "harness/subagents",
+          "addedAt": "2026-09-26",
+          "updatedAt": "2026-10-07"
+        },
+        {
+          "label": "Deploy a harness",
+          "to": "harness/deploy",
+          "addedAt": "2026-09-26"
+        },
+        {
+          "label": "Self-host the dashboard",
+          "to": "harness/dashboard",
+          "addedAt": "2026-09-26",
+          "updatedAt": "2026-10-07"
+        }
+      ]
+    },
+    {
       "label": "Sandboxes",
       "tab": "guides",
       "children": [
@@ -956,7 +1183,7 @@
           "label": "Tools",
           "to": "sandbox/tools",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-12"
+          "updatedAt": "2026-10-06"
         },
         {
           "label": "Policy",
@@ -1074,6 +1301,11 @@
           "to": "sandbox/cloudflare",
           "addedAt": "2026-06-29",
           "updatedAt": "2026-08-20"
+        },
+        {
+          "label": "Build a Provider",
+          "to": "sandbox/build-a-provider",
+          "addedAt": "2026-10-05"
         }
       ]
     },
@@ -1151,7 +1383,7 @@
           "label": "Runtime Adapter Switching",
           "to": "advanced/runtime-adapter-switching",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-10-05"
         },
         {
           "label": "Tree-Shaking",
@@ -1162,13 +1394,25 @@
         {
           "label": "Extend Adapter",
           "to": "advanced/extend-adapter",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-02"
+        },
+        {
+          "label": "Model Catalog",
+          "to": "models/catalog",
+          "addedAt": "2026-09-30",
+          "updatedAt": "2026-10-06"
         },
         {
           "label": "Typed Pre-Configured Options",
           "to": "advanced/typed-options",
           "addedAt": "2026-05-25",
-          "updatedAt": "2026-09-14"
+          "updatedAt": "2026-09-30"
+        },
+        {
+          "label": "Test with a Fake Model",
+          "to": "advanced/testing",
+          "addedAt": "2026-09-30"
         },
         {
           "label": "Approval Flow Processing",
@@ -1192,7 +1436,7 @@
           "label": "Anthropic",
           "to": "adapters/anthropic",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-07"
+          "updatedAt": "2026-10-08"
         },
         {
           "label": "Google Gemini",
@@ -1210,25 +1454,25 @@
           "label": "Ollama",
           "to": "adapters/ollama",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-03"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Grok (xAI)",
           "to": "adapters/grok",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-19"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Groq",
           "to": "adapters/groq",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-07"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Mistral",
           "to": "adapters/mistral",
           "addedAt": "2026-06-30",
-          "updatedAt": "2026-09-03"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Cohere",
@@ -1285,72 +1529,73 @@
           "label": "Vercel AI Gateway",
           "to": "adapters/vercel-gateway",
           "addedAt": "2026-08-12",
-          "updatedAt": "2026-09-18"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Lovable AI Gateway",
           "to": "adapters/lovable",
           "addedAt": "2026-08-24",
-          "updatedAt": "2026-09-28"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "OpenAI-Compatible",
           "to": "adapters/openai-compatible",
           "addedAt": "2026-06-01",
-          "updatedAt": "2026-09-27"
+          "updatedAt": "2026-10-08"
         },
         {
           "label": "LLM Gateway",
           "to": "adapters/llmgateway",
-          "addedAt": "2026-07-29"
+          "addedAt": "2026-07-29",
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Cloudflare",
           "to": "adapters/cloudflare",
           "addedAt": "2026-09-03",
-          "updatedAt": "2026-09-18"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Claude Code",
           "to": "adapters/claude-code",
           "addedAt": "2026-06-12",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Codex",
           "to": "adapters/codex",
           "addedAt": "2026-06-12",
-          "updatedAt": "2026-08-18"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "OpenCode",
           "to": "adapters/opencode",
           "addedAt": "2026-06-12",
-          "updatedAt": "2026-08-17"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Grok Build",
           "to": "adapters/grok-build",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-18"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "ACP-Compatible",
           "to": "adapters/acp-compatible",
           "addedAt": "2026-06-30",
-          "updatedAt": "2026-08-18"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "Amazon Bedrock",
           "to": "adapters/bedrock",
           "addedAt": "2026-06-25",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-10-07"
         },
         {
           "label": "BytePlus",
           "to": "adapters/byteplus",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-09-16"
+          "updatedAt": "2026-10-07"
         }
       ],
       "tab": "adapters"
@@ -1363,7 +1608,7 @@
           "label": "Community Adapters Guide",
           "to": "community-adapters/guide",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-21"
+          "updatedAt": "2026-10-04"
         },
         {
           "label": "Decart",
@@ -1429,6 +1674,11 @@
           "label": "Sampling \u00e2\u2020\u2019 modelOptions",
           "to": "migration/sampling-options-to-model-options",
           "addedAt": "2026-06-03"
+        },
+        {
+          "label": "Reasoning option",
+          "to": "migration/reasoning-option",
+          "addedAt": "2026-09-30"
         },
         {
           "label": "TextPart markdown",

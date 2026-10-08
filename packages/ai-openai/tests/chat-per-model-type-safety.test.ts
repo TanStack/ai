@@ -9,7 +9,8 @@
  */
 import { beforeAll, describe, expectTypeOf, it } from 'vitest'
 import { chat } from '@tanstack/ai'
-import { openaiText } from '../src'
+import { azureOpenaiText, openaiText } from '../src'
+import type { ModelReasoning } from '@tanstack/ai'
 import type { OpenAIChatModelProviderOptionsByName } from '../src'
 
 // Set a dummy API key so adapter construction does not throw at runtime.
@@ -24,11 +25,11 @@ describe('OpenAI per-model chat modelOptions gating', () => {
       chat({
         adapter: openaiText('gpt-5.2'),
         messages: [{ role: 'user', content: 'hi' }],
+        reasoning: { level: 'medium', summary: true },
         modelOptions: {
           background: false,
           service_tier: 'auto',
           verbosity: 'medium',
-          reasoning: { effort: 'medium', summary: 'auto' },
           text: { format: { type: 'text' } },
           tool_choice: 'auto',
           max_tool_calls: 5,
@@ -39,16 +40,23 @@ describe('OpenAI per-model chat modelOptions gating', () => {
       })
     })
 
-    it('rejects the computer-use-preview-only "concise" summary', () => {
+    it('takes reasoning only as the chat() option, not in modelOptions', () => {
       chat({
         adapter: openaiText('gpt-5.2'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
-          reasoning: {
-            // @ts-expect-error - 'concise' is only valid on computer-use-preview
-            summary: 'concise',
-          },
+          // @ts-expect-error - reasoning is the top-level `reasoning` option now
+          reasoning: { effort: 'low' },
         },
+      })
+    })
+
+    it('rejects a level the model does not have', () => {
+      chat({
+        adapter: openaiText('gpt-5.2'),
+        messages: [{ role: 'user', content: 'hi' }],
+        // @ts-expect-error - gpt-5.2 has no `max` level
+        reasoning: 'max',
       })
     })
 
@@ -69,8 +77,8 @@ describe('OpenAI per-model chat modelOptions gating', () => {
       chat({
         adapter: openaiText('gpt-5.2-pro'),
         messages: [{ role: 'user', content: 'hi' }],
+        reasoning: 'high',
         modelOptions: {
-          reasoning: { effort: 'high' },
           tool_choice: 'required',
           stream_options: { include_obfuscation: true },
           metadata: { run: '1' },
@@ -156,8 +164,8 @@ describe('OpenAI per-model chat modelOptions gating', () => {
       chat({
         adapter: openaiText('o3'),
         messages: [{ role: 'user', content: 'hi' }],
+        reasoning: 'high',
         modelOptions: {
-          reasoning: { effort: 'high', summary: 'auto' },
           metadata: { case: 'reasoning-only' },
         },
       })
@@ -197,18 +205,6 @@ describe('OpenAI per-model chat modelOptions gating', () => {
     })
   })
 
-  describe('computer-use-preview — accepts "concise" reasoning summary', () => {
-    it('accepts the concise summary value', () => {
-      chat({
-        adapter: openaiText('computer-use-preview'),
-        messages: [{ role: 'user', content: 'hi' }],
-        modelOptions: {
-          reasoning: { summary: 'concise' },
-        },
-      })
-    })
-  })
-
   describe('chatgpt-4o-latest — base + streaming + metadata only', () => {
     it('rejects tools options', () => {
       chat({
@@ -234,9 +230,59 @@ describe('OpenAI per-model chat modelOptions gating', () => {
   })
 
   describe('Model name type safety', () => {
-    it('rejects unknown model names at the factory', () => {
-      // @ts-expect-error - 'gpt-unknown-9000' is not a valid OpenAI chat model
-      openaiText('gpt-unknown-9000')
+    it('accepts any model id, such as a catalog id', () => {
+      openaiText('gpt-5.3-codex')
+      const id: string = 'gpt-unknown-9000'
+      openaiText(id)
+    })
+  })
+})
+
+describe('OpenAI chat reasoning from the config', () => {
+  const messages = [{ role: 'user' as const, content: 'hi' }]
+
+  it('a config with reasoning takes every level, for any model id', () => {
+    const reasoning: ModelReasoning = { budget: false }
+    chat({
+      adapter: openaiText('gpt-5.3-codex', { reasoning }),
+      messages,
+      reasoning: 'high',
+    })
+  })
+
+  it('an id with no table and no config takes no reasoning', () => {
+    chat({
+      adapter: openaiText('gpt-5.3-codex'),
+      messages,
+      // @ts-expect-error - no reasoning data for this id
+      reasoning: 'high',
+    })
+  })
+
+  it('reasoning: false takes no reasoning', () => {
+    chat({
+      adapter: openaiText('gpt-5.3-codex', { reasoning: false }),
+      messages,
+      // @ts-expect-error - the config says the model does not reason
+      reasoning: 'high',
+    })
+  })
+
+  it('azureOpenaiText takes reasoning only from the config', () => {
+    chat({
+      adapter: azureOpenaiText('gpt-5.5', {
+        resourceName: 'r',
+        apiKey: 'k',
+        reasoning: { budget: false },
+      }),
+      messages,
+      reasoning: 'medium',
+    })
+    chat({
+      adapter: azureOpenaiText('gpt-5.5', { resourceName: 'r', apiKey: 'k' }),
+      messages,
+      // @ts-expect-error - no reasoning data without the config
+      reasoning: 'medium',
     })
   })
 })
@@ -245,8 +291,8 @@ describe('OpenAI provider options shape assertions', () => {
   describe('gpt-5.2 — full feature set', () => {
     type Options = OpenAIChatModelProviderOptionsByName['gpt-5.2']
 
-    it('has reasoning', () => {
-      expectTypeOf<Options>().toHaveProperty('reasoning')
+    it('has no reasoning (it is the chat() option now)', () => {
+      expectTypeOf<Options>().not.toHaveProperty('reasoning')
     })
     it('has text (structured output)', () => {
       expectTypeOf<Options>().toHaveProperty('text')
@@ -265,8 +311,8 @@ describe('OpenAI provider options shape assertions', () => {
   describe('o3 — reasoning + metadata only', () => {
     type Options = OpenAIChatModelProviderOptionsByName['o3']
 
-    it('has reasoning', () => {
-      expectTypeOf<Options>().toHaveProperty('reasoning')
+    it('has no reasoning (it is the chat() option now)', () => {
+      expectTypeOf<Options>().not.toHaveProperty('reasoning')
     })
     it('has metadata', () => {
       expectTypeOf<Options>().toHaveProperty('metadata')

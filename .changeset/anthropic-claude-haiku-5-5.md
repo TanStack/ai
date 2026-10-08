@@ -2,4 +2,4 @@
 '@tanstack/ai-anthropic': minor
 ---
 
-Add `claude-haiku-5-5` to `ANTHROPIC_MODELS`. The model takes adaptive thinking (or an explicit `thinking: { type: 'disabled' }`) and `output_config.effort`, and its types reject `budget_tokens`, the sampling parameters, and `computerUseTool()`.
+Add `claude-haiku-5-5` to `ANTHROPIC_MODELS`. With `chat({ reasoning })`, the model takes adaptive thinking with the levels `low` to `max`, or `off`, and no token budget. Its types reject the sampling parameters and `computerUseTool()`.

@@ -66,7 +66,7 @@ Every hook receives a `ChatMiddlewareContext` as its first argument, which provi
 | `onShouldContinue`         | Whether to start another agent-loop iteration (AND with strategy; `false` stops)                         | `AgentLoopState`                                    |
 | `onChunk`                  | Every streamed chunk                                                                                     | `StreamChunk` (return void/chunk/chunk[]/null)      |
 | `onBeforeToolCall`         | Before each tool executes                                                                                | `ToolCallHookContext` (return decision or void)     |
-| `onAfterToolCall`          | After each tool executes                                                                                 | `AfterToolCallInfo`                                 |
+| `onAfterToolCall`          | After each tool executes                                                                                 | `AfterToolCallInfo` (return decision or void)       |
 | `onToolPhaseComplete`      | After all tool calls in an iteration                                                                     | `ToolPhaseCompleteInfo`                             |
 | `onUsage`                  | When `RUN_FINISHED` includes usage data                                                                  | `UsageInfo`                                         |
 | `onFinish`                 | Run completed normally                                                                                   | `FinishInfo`                                        |
@@ -235,7 +235,7 @@ export async function POST(request: Request) {
 ### Pattern 2: Tool Interception Middleware
 
 Use `onBeforeToolCall` to validate, gate, or transform tool arguments before execution.
-Use `onAfterToolCall` to log results and timing. The first middleware that returns a
+Use `onAfterToolCall` to log results and timing, or to replace the result. The first middleware that returns a
 non-void decision from `onBeforeToolCall` short-circuits remaining middleware for that call.
 
 ```typescript
@@ -284,6 +284,35 @@ const toolGuard: ChatMiddleware = {
 | `{ type: 'transformArgs', args }` | Replace tool arguments before execution                             |
 | `{ type: 'skip', result }`        | Skip execution, use provided result (used by `toolCacheMiddleware`) |
 | `{ type: 'abort', reason? }`      | Abort the entire chat run                                           |
+
+**`onAfterToolCall` decision:** return `{ type: 'replaceResult', result }` to
+change the result that the model and the stream see. Return void to keep it.
+
+- Middleware run in order. Each one gets the result of the one before it as
+  `info.result`.
+- A replaced error result stays an error.
+- On a failed call, `info.result` is unset until a middleware replaces it.
+  Read `info.error`.
+
+```typescript
+import type { ChatMiddleware } from '@tanstack/ai'
+
+const MAX_CHARS = 2000
+
+const shortToolOutput: ChatMiddleware = {
+  name: 'short-tool-output',
+  onAfterToolCall: (ctx, info) => {
+    if (typeof info.result !== 'string' || info.result.length <= MAX_CHARS) {
+      return
+    }
+    const cut = info.result.length - MAX_CHARS
+    return {
+      type: 'replaceResult',
+      result: `${info.result.slice(0, MAX_CHARS)}\n[${cut} more characters cut]`,
+    }
+  },
+}
+```
 
 ### Pattern 3: Structured-Output Middleware
 
@@ -416,7 +445,7 @@ export async function POST(request: Request) {
 | `onStart`                  | Sequential                                    | All run in order                           |
 | `onChunk`                  | **Piped** -- chunks flow through each         | If first drops a chunk, later never see it |
 | `onBeforeToolCall`         | **First-win** -- first non-void decision wins | Earlier middleware has priority            |
-| `onAfterToolCall`          | Sequential                                    | All run in order                           |
+| `onAfterToolCall`          | **Piped** -- each receives previous result    | Earlier middleware replaces first          |
 | `onUsage`                  | Sequential                                    | All run in order                           |
 | `onFinish/onAbort/onError` | Sequential                                    | All run in order                           |
 

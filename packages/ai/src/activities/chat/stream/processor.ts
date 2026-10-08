@@ -1,3 +1,5 @@
+import { isRedactedThinkingId } from '../../../utilities/reasoning-encrypted-value'
+import { reconcileToolCallArguments } from '../../../utilities/tool-call-arguments'
 /**
  * Unified Stream Processor
  *
@@ -32,6 +34,7 @@ import {
 import {
   mergeMetadata,
   tanstackMetadata,
+  withTanstackMetadata,
 } from '../../../utilities/merge-metadata'
 import { getChunkRunId } from '../../../utilities/chunk-ids'
 import type { AdapterYieldChunk } from '../../../utilities/adapter-yield-chunk'
@@ -214,23 +217,6 @@ function interruptBatchHasGeneric(interrupts: Array<Interrupt>): boolean {
 }
 
 /**
- * The canonical arguments string for a `TOOL_CALL_END.input`, or `undefined`
- * when JSON cannot carry it: `JSON.stringify` returns `undefined` (despite
- * its declared type) for a top-level function or symbol and throws on BigInt
- * and circular references. `null` is not tool arguments either, so it also
- * keeps the streamed value instead of writing `arguments = "null"`.
- */
-function serializeToolInput(input: unknown): string | undefined {
-  if (input === undefined || input === null) return undefined
-  try {
-    const serialized: unknown = JSON.stringify(input)
-    return typeof serialized === 'string' ? serialized : undefined
-  } catch {
-    return undefined
-  }
-}
-
-/**
  * The input of a tool call from its raw arguments: `{}` for an empty string,
  * `undefined` when the arguments are not complete JSON (for example cut off)
  * or are `null`.
@@ -275,7 +261,12 @@ export class StreamProcessor {
   private readonly activeMessageIds: Set<string> = new Set()
   private readonly toolCallToMessage: Map<string, string> = new Map()
   private pendingManualMessageId: string | null = null
+  private provisionalMessageId: string | null = null
+  private legacyManualMessage = false
   private pendingThinkingStepId: string | null = null
+  private pendingReasoningMessageId: string | null = null
+  private unboundThinkingStepId: string | null = null
+  private readonly pendingReasoningAliases = new Map<string, string>()
   // The stream a run of *_CHUNK events is building. See expandChunk().
   private openChunk: { family: ChunkFamily; id: string } | null = null
 
@@ -290,6 +281,8 @@ export class StreamProcessor {
 
   // Run tracking (for concurrent run safety)
   private readonly activeRuns = new Set<string>()
+  private readonly callMessageIds = new Map<string, Set<string>>()
+  private readonly unassignedCallMessageIds = new Set<string>()
   // Tool calls started since a RUN_STARTED that found no other run active, in
   // order. A success RUN_FINISHED hands the unanswered ones to the client.
   private runToolCallIds: Array<string> = []
@@ -336,7 +329,9 @@ export class StreamProcessor {
    */
   setMessages(messages: Array<UIMessage>): void {
     this.messages = [...messages]
-    this.emitMessagesChange()
+    for (const state of this.messageStates.values())
+      this.hydrateThinkingState(state)
+    this.removeMessagesAfter(this.messages.length - 1)
   }
 
   /**
@@ -442,6 +437,7 @@ export class StreamProcessor {
     this.prepareAssistantMessage()
     const { messageId: id } = this.ensureAssistantMessage(messageId)
     this.pendingManualMessageId = id
+    this.legacyManualMessage = true
     return id
   }
 
@@ -599,6 +595,10 @@ export class StreamProcessor {
    */
   removeMessagesAfter(index: number): void {
     const keptIds = new Set(this.messages.slice(0, index + 1).map((m) => m.id))
+    this.pendingThinkingStepId = null
+    this.pendingReasoningMessageId = null
+    this.unboundThinkingStepId = null
+    this.pendingReasoningAliases.clear()
     // Drop routing state for messages that no longer exist; otherwise a
     // resumed stream (`reload()` or a server that reuses messageIds across
     // runs) could land deltas / tool args on stale map entries and corrupt
@@ -622,6 +622,19 @@ export class StreamProcessor {
     for (const id of this.activeMessageIds) {
       if (!keptIds.has(id)) this.activeMessageIds.delete(id)
     }
+    if (this.provisionalMessageId && !keptIds.has(this.provisionalMessageId))
+      this.provisionalMessageId = null
+    if (
+      this.pendingManualMessageId &&
+      !keptIds.has(this.pendingManualMessageId)
+    )
+      this.pendingManualMessageId = null
+    for (const ids of this.callMessageIds.values()) {
+      for (const id of ids) if (!keptIds.has(id)) ids.delete(id)
+    }
+    for (const id of this.unassignedCallMessageIds) {
+      if (!keptIds.has(id)) this.unassignedCallMessageIds.delete(id)
+    }
     this.messages = this.messages.slice(0, index + 1)
     this.emitMessagesChange()
   }
@@ -630,6 +643,8 @@ export class StreamProcessor {
    * Clear all messages
    */
   clearMessages(): void {
+    for (const ids of this.callMessageIds.values()) ids.clear()
+    this.unassignedCallMessageIds.clear()
     this.messages = []
     this.messageStates.clear()
     this.activeMessageIds.clear()
@@ -637,9 +652,15 @@ export class StreamProcessor {
     this.structuredMessageIds.clear()
     this.structuredOutputUpdateBatches.clear()
     this.pendingManualMessageId = null
+    this.provisionalMessageId = null
+    this.legacyManualMessage = false
     this.openChunk = null
     this.childProcessors.clear()
     this.childToolCalls.clear()
+    this.pendingThinkingStepId = null
+    this.pendingReasoningMessageId = null
+    this.unboundThinkingStepId = null
+    this.pendingReasoningAliases.clear()
     this.emitMessagesChange()
   }
 
@@ -789,8 +810,12 @@ export class StreamProcessor {
         )
         break
 
-      case 'REASONING_START':
       case 'REASONING_MESSAGE_START':
+        this.handleReasoningMessageStartEvent(
+          chunk as Extract<StreamChunk, { type: 'REASONING_MESSAGE_START' }>,
+        )
+        break
+      case 'REASONING_START':
       case 'REASONING_MESSAGE_END':
       case 'REASONING_END':
         // No special handling needed
@@ -1070,6 +1095,8 @@ export class StreamProcessor {
       hasSeenReasoningEvents: false,
       thinkingSteps: new Map(),
       thinkingStepSignatures: new Map(),
+      reasoningStepAliases: new Map(),
+      redactedThinkingSteps: new Set(),
       thinkingStepOrder: [],
       currentThinkingStepId: null,
       toolCalls: new Map(),
@@ -1077,8 +1104,35 @@ export class StreamProcessor {
       hasToolCallsSinceTextStart: false,
       isComplete: false,
     }
+    this.hydrateThinkingState(state)
     this.messageStates.set(messageId, state)
     return state
+  }
+
+  private hydrateThinkingState(state: MessageStreamState): void {
+    const aliases = new Map(state.reasoningStepAliases)
+    const currentStep = state.currentThinkingStepId
+    state.thinkingSteps.clear()
+    state.thinkingStepSignatures.clear()
+    state.reasoningStepAliases.clear()
+    state.redactedThinkingSteps.clear()
+    state.thinkingStepOrder = []
+    state.currentThinkingStepId = null
+    const existing = this.messages.find((message) => message.id === state.id)
+    for (const part of existing?.parts ?? []) {
+      if (part.type !== 'thinking' || !part.stepId) continue
+      state.thinkingSteps.set(part.stepId, part.redacted ? '' : part.content)
+      if (part.signature !== undefined)
+        state.thinkingStepSignatures.set(part.stepId, part.signature)
+      if (part.redacted) state.redactedThinkingSteps.add(part.stepId)
+      state.reasoningStepAliases.set(part.stepId, part.stepId)
+      state.thinkingStepOrder.push(part.stepId)
+    }
+    for (const [alias, step] of aliases)
+      if (state.thinkingSteps.has(step))
+        state.reasoningStepAliases.set(alias, step)
+    if (currentStep && state.thinkingSteps.has(currentStep))
+      state.currentThinkingStepId = currentStep
   }
 
   /**
@@ -1095,6 +1149,14 @@ export class StreamProcessor {
    * to the correct step.
    */
   private consumePendingThinkingStep(state: MessageStreamState): void {
+    for (const [id, step] of this.pendingReasoningAliases) {
+      state.reasoningStepAliases.set(id, step)
+      if (!state.thinkingSteps.has(step)) {
+        state.thinkingSteps.set(step, '')
+        state.thinkingStepOrder.push(step)
+      }
+    }
+    this.pendingReasoningAliases.clear()
     if (!this.pendingThinkingStepId) return
     const stepId = this.pendingThinkingStepId
     state.currentThinkingStepId = stepId
@@ -1111,10 +1173,18 @@ export class StreamProcessor {
    */
   private getActiveAssistantMessageId(): string | null {
     // Set iteration is insertion-order; reverse-iterate to search from the end
+    const belongsToCurrentCall = (id: string) =>
+      this.activeRuns.size === 0 ||
+      [...this.activeRuns].some((runId) =>
+        this.callMessageIds.get(runId)?.has(id),
+      ) ||
+      (this.pendingManualMessageId === id &&
+        !this.messageStates.get(id)?.isComplete &&
+        !this.isDone)
     const ids = Array.from(this.activeMessageIds).reverse()
     for (const id of ids) {
       const state = this.messageStates.get(id)
-      if (state && state.role === 'assistant') {
+      if (state && state.role === 'assistant' && belongsToCurrentCall(id)) {
         return id
       }
     }
@@ -1123,7 +1193,7 @@ export class StreamProcessor {
     // assistant. A new user turn calls prepareAssistantMessage(), which
     // clears messageStates first.
     for (const [id, state] of [...this.messageStates].reverse()) {
-      if (state.role === 'assistant') {
+      if (state.role === 'assistant' && belongsToCurrentCall(id)) {
         return id
       }
     }
@@ -1147,12 +1217,53 @@ export class StreamProcessor {
    * MESSAGES_SNAPSHOT) but whose transient state was cleared. In that case we
    * hydrate state from the existing message rather than creating a duplicate.
    */
+  /** Give a generated current-call row its first provider message ID. */
+  private remapProvisionalMessage(messageId: string) {
+    const previousId = this.provisionalMessageId
+    if (
+      !previousId ||
+      previousId === messageId ||
+      this.messages.some((message) => message.id === messageId)
+    )
+      return
+    const state = this.messageStates.get(previousId)
+    if (!state || state.isComplete) return
+    this.messages = this.messages.map((message) =>
+      message.id === previousId ? { ...message, id: messageId } : message,
+    )
+    state.id = messageId
+    this.messageStates.delete(previousId)
+    this.messageStates.set(messageId, state)
+    if (this.activeMessageIds.delete(previousId))
+      this.activeMessageIds.add(messageId)
+    for (const [toolId, targetId] of this.toolCallToMessage) {
+      if (targetId === previousId) this.toolCallToMessage.set(toolId, messageId)
+    }
+    for (const ids of this.callMessageIds.values()) {
+      if (ids.delete(previousId)) ids.add(messageId)
+    }
+    if (this.unassignedCallMessageIds.delete(previousId))
+      this.unassignedCallMessageIds.add(messageId)
+    if (this.structuredMessageIds.delete(previousId))
+      this.structuredMessageIds.add(messageId)
+    const batch = this.structuredOutputUpdateBatches.get(previousId)
+    if (batch) {
+      this.structuredOutputUpdateBatches.delete(previousId)
+      this.structuredOutputUpdateBatches.set(messageId, batch)
+    }
+    if (this.pendingManualMessageId === previousId)
+      this.pendingManualMessageId = messageId
+    this.provisionalMessageId = null
+    this.legacyManualMessage = false
+  }
+
   private ensureAssistantMessage(preferredId?: string): {
     messageId: string
     state: MessageStreamState
   } {
     // Try to find state by preferred ID
     if (preferredId) {
+      this.remapProvisionalMessage(preferredId)
       const state = this.getMessageState(preferredId)
       if (state) {
         this.resumeAssistantState(preferredId, state)
@@ -1162,7 +1273,7 @@ export class StreamProcessor {
 
     // Try active assistant message
     const activeId = this.getActiveAssistantMessageId()
-    if (activeId) {
+    if (activeId && (preferredId === undefined || preferredId === activeId)) {
       const state = this.getMessageState(activeId)
       if (state) {
         this.resumeAssistantState(activeId, state)
@@ -1210,6 +1321,7 @@ export class StreamProcessor {
     const state = this.createMessageState(id, 'assistant')
     this.activeMessageIds.add(id)
     this.pendingManualMessageId = id
+    if (!preferredId) this.provisionalMessageId = id
     this.events.onStreamStart?.()
     this.emitMessagesChange()
     return { messageId: id, state }
@@ -1226,6 +1338,21 @@ export class StreamProcessor {
    * Rebuilds `createdAt` when `tanstack.createdAt` is an ISO string.
    */
   private mergeMessageMetadata(messageId: string, incoming: unknown): void {
+    const runId =
+      tanstackMetadata({
+        metadata:
+          incoming !== null && typeof incoming === 'object'
+            ? { ...incoming }
+            : undefined,
+      })?.runId ??
+      (this.activeRuns.size === 1 ? [...this.activeRuns][0] : undefined)
+    if (runId !== undefined) {
+      const ids = this.callMessageIds.get(runId) ?? new Set<string>()
+      ids.add(messageId)
+      this.callMessageIds.set(runId, ids)
+    } else {
+      this.unassignedCallMessageIds.add(messageId)
+    }
     if (
       incoming == null ||
       typeof incoming !== 'object' ||
@@ -1531,45 +1658,16 @@ export class StreamProcessor {
     const uiRole: 'system' | 'user' | 'assistant' =
       role === 'user' || role === 'system' ? role : 'assistant'
 
-    // Case 1: A manual message was created via startAssistantMessage()
-    if (this.pendingManualMessageId) {
-      const pendingId = this.pendingManualMessageId
+    // Only generated provisional IDs can take a different provider ID.
+    if (
+      this.pendingManualMessageId &&
+      (this.pendingManualMessageId === messageId ||
+        this.pendingManualMessageId === this.provisionalMessageId)
+    ) {
+      this.remapProvisionalMessage(messageId)
       this.pendingManualMessageId = null
-
-      if (pendingId !== messageId) {
-        // Update the message's ID in the messages array
-        this.messages = this.messages.map((msg) =>
-          msg.id === pendingId ? { ...msg, id: messageId } : msg,
-        )
-
-        // Move state to the new key
-        const existingState = this.messageStates.get(pendingId)
-        if (existingState) {
-          existingState.id = messageId
-          this.messageStates.delete(pendingId)
-          this.messageStates.set(messageId, existingState)
-        }
-
-        // Update activeMessageIds
-        this.activeMessageIds.delete(pendingId)
-        this.activeMessageIds.add(messageId)
-
-        // TOOL_CALL_ARGS/END route through toolCallToMessage. Keep those
-        // entries on the remapped id so later args still accumulate
-        // (interleaved text can arrive as a full START/CONTENT/END block).
-        for (const [toolCallId, mappedMessageId] of this.toolCallToMessage) {
-          if (mappedMessageId === pendingId) {
-            this.toolCallToMessage.set(toolCallId, messageId)
-          }
-        }
-
-        // `structured-output.start` can arrive before this event and mark
-        // the pending id. Keep the mark on the remapped id so the JSON deltas
-        // go into the structured-output part, not a text part.
-        if (this.structuredMessageIds.delete(pendingId)) {
-          this.structuredMessageIds.add(messageId)
-        }
-      }
+      this.provisionalMessageId = null
+      this.legacyManualMessage = false
 
       // Ensure state exists
       let pendingState = this.messageStates.get(messageId)
@@ -1594,6 +1692,8 @@ export class StreamProcessor {
       this.emitMessagesChange()
       return
     }
+
+    this.pendingManualMessageId = null
 
     // Case 2: Message already exists (dedup)
     const existingMsg = this.messages.find((m) => m.id === messageId)
@@ -1864,6 +1964,8 @@ export class StreamProcessor {
    * message. Fold leading thinking-only messages into the next real
    * assistant. Do not fold into a tool-result-only message (`role: 'tool'`
    * on the wire). `reconcileSnapshotToolCalls` anchors those results.
+   * A `<id>-segment-<n>` row folds into its message, together with the
+   * tool-result rows between them (a tool result ends a wire segment).
    */
   private mergeReasoningFanOut(messages: Array<UIMessage>): Array<UIMessage> {
     const out: Array<UIMessage> = []
@@ -1903,13 +2005,27 @@ export class StreamProcessor {
       } else {
         flushPending()
       }
-      const prev = out.at(-1)
+      // Look back past tool-result rows to the message this segment is of.
+      let parentIndex = out.length - 1
+      while (parentIndex >= 0) {
+        const candidate = out[parentIndex]
+        if (!candidate || !isToolResultOnly(candidate)) break
+        parentIndex--
+      }
+      const parent = out[parentIndex]
       if (
-        prev?.role === 'assistant' &&
+        parent?.role === 'assistant' &&
         next.role === 'assistant' &&
-        isAssistantSegmentOf(next.id, prev.id)
+        isAssistantSegmentOf(next.id, parent.id)
       ) {
-        out[out.length - 1] = { ...prev, parts: [...prev.parts, ...next.parts] }
+        // The parent, the tool results after it, then the segment: row order.
+        const folded = out
+          .slice(parentIndex)
+          .flatMap((message) => message.parts)
+        out.splice(parentIndex, out.length - parentIndex, {
+          ...parent,
+          parts: [...folded, ...next.parts],
+        })
         continue
       }
       out.push(next)
@@ -2127,7 +2243,11 @@ export class StreamProcessor {
       )
       return
     }
-    const { messageId, state } = this.ensureAssistantMessage(chunk.messageId)
+    const preferredId =
+      this.legacyManualMessage && this.pendingManualMessageId
+        ? this.pendingManualMessageId
+        : chunk.messageId
+    const { messageId, state } = this.ensureAssistantMessage(preferredId)
     this.mergeMessageMetadata(messageId, chunk.metadata)
 
     if (this.structuredMessageIds.has(messageId)) {
@@ -2210,6 +2330,11 @@ export class StreamProcessor {
       chunk.parentMessageId ?? this.getActiveAssistantMessageId()
     const { messageId, state } = this.ensureAssistantMessage(
       targetMessageId ?? undefined,
+    )
+    const tanstack = tanstackMetadata(chunk)
+    this.mergeMessageMetadata(
+      messageId,
+      tanstack === undefined ? undefined : { tanstack },
     )
 
     // Mark that we've seen tool calls since the last text segment
@@ -2353,52 +2478,37 @@ export class StreamProcessor {
   ): void {
     const messageId = this.toolCallToMessage.get(chunk.toolCallId)
     if (!messageId) return
-
     const msgState = this.getMessageState(messageId)
-    if (!msgState) return
-
-    // The parsed input can ride on the spec `input` field or, for adapters
-    // that only stamp it into TanStack metadata, on `metadata.tanstack.input`.
-    const input =
-      chunk.input !== undefined
-        ? chunk.input
-        : (tanstackMetadata(chunk)?.input as unknown)
-
-    // Transition the tool call to input-complete (the authoritative completion signal)
-    const existingToolCall = msgState.toolCalls.get(chunk.toolCallId)
-    if (existingToolCall && existingToolCall.state !== 'input-complete') {
-      // The parsed input replaces the accumulated arguments string, so
-      // completeToolCall's strict parse surfaces the canonical value on the
-      // ToolCallPart even when the streamed deltas carried a provider-side
-      // reshaping of it. An input JSON cannot carry is not canonical: both
-      // `arguments` and `input` then stay with the streamed value, so the
-      // two never disagree.
-      const serializedInput = serializeToolInput(input)
-      if (serializedInput !== undefined) {
-        existingToolCall.arguments = serializedInput
+    const toolCall = msgState?.toolCalls.get(chunk.toolCallId)
+    if (!msgState || !toolCall) return
+    const extra = chunk as AdapterYieldChunk
+    const metadata = tanstackMetadata(chunk)
+    const storedArgs =
+      metadata && 'args' in metadata ? metadata.args : undefined
+    const input = chunk.input !== undefined ? chunk.input : metadata?.input
+    if (typeof extra.args !== 'string' && typeof storedArgs === 'string') {
+      toolCall.arguments = storedArgs
+    } else {
+      const snapshot = typeof extra.args === 'string' ? extra.args : undefined
+      let raw: string | undefined = snapshot ?? toolCall.arguments
+      if (snapshot === undefined && input !== undefined) {
+        try {
+          JSON.parse(raw)
+        } catch {
+          raw = undefined
+        }
       }
-
-      const index = msgState.toolCallOrder.indexOf(chunk.toolCallId)
-      this.completeToolCall(messageId, index, existingToolCall)
-
-      // Canonicalize on the parsed input: overrides the accumulated-args parse
-      // that completeToolCall wrote (adapters may coerce values differently
-      // between streamed args and the final structured input).
-      if (serializedInput !== undefined) {
-        existingToolCall.parsedArguments = input
-        this.messages = updateToolCallPart(this.messages, messageId, {
-          id: existingToolCall.id,
-          name: existingToolCall.name,
-          arguments: existingToolCall.arguments,
-          state: 'input-complete',
-          input,
-          ...(existingToolCall.metadata !== undefined && {
-            metadata: existingToolCall.metadata,
-          }),
-        })
-        this.emitMessagesChange()
+      try {
+        toolCall.arguments = reconcileToolCallArguments(raw, input)
+      } catch {
+        if (raw !== undefined) toolCall.arguments = raw
       }
     }
+    this.completeToolCall(
+      messageId,
+      msgState.toolCallOrder.indexOf(chunk.toolCallId),
+      toolCall,
+    )
   }
 
   /**
@@ -2481,6 +2591,12 @@ export class StreamProcessor {
   private handleRunStartedEvent(
     chunk: Extract<StreamChunk, { type: 'RUN_STARTED' }>,
   ): void {
+    if (!this.activeRuns.has(chunk.runId)) {
+      this.pendingThinkingStepId = null
+      this.pendingReasoningMessageId = null
+      this.unboundThinkingStepId = null
+      this.pendingReasoningAliases.clear()
+    }
     // A run that overlaps another keeps the calls both runs started.
     if (this.activeRuns.size === 0) {
       this.runToolCallIds = []
@@ -2503,6 +2619,29 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'RUN_FINISHED' }>,
   ): void {
     const extra = chunk as AdapterYieldChunk
+    const incoming = tanstackMetadata(chunk)
+    const model = chunk.model ?? incoming?.model
+    const responseId = chunk.responseId ?? incoming?.responseId
+    const ids =
+      this.callMessageIds.get(chunk.runId) ??
+      (this.activeRuns.has(chunk.runId)
+        ? new Set<string>()
+        : new Set(this.unassignedCallMessageIds))
+    for (const messageId of ids) {
+      this.mergeMessageMetadata(
+        messageId,
+        withTanstackMetadata(chunk, {
+          ...(model !== undefined ? { model } : {}),
+          ...(responseId !== undefined ? { responseId } : {}),
+        }).metadata,
+      )
+    }
+    if (this.pendingManualMessageId && ids.has(this.pendingManualMessageId))
+      this.pendingManualMessageId = null
+    if (this.provisionalMessageId && ids.has(this.provisionalMessageId))
+      this.provisionalMessageId = null
+    this.callMessageIds.delete(chunk.runId)
+    for (const id of ids) this.unassignedCallMessageIds.delete(id)
     this.finishReason =
       extra.finishReason !== undefined
         ? extra.finishReason
@@ -2686,13 +2825,44 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
   ): void {
     this.hasError = true
-    const runId = getChunkRunId(chunk)
+    const runId =
+      getChunkRunId(chunk) ??
+      (this.activeRuns.size === 1 ? [...this.activeRuns][0] : undefined)
+    const currentIds =
+      runId !== undefined
+        ? (this.callMessageIds.get(runId) ?? this.unassignedCallMessageIds)
+        : this.unassignedCallMessageIds
     if (runId) {
       this.activeRuns.delete(runId)
     } else {
       this.activeRuns.clear()
     }
-    const { messageId } = this.ensureAssistantMessage()
+    const lastMessageId =
+      currentIds === undefined ? undefined : [...currentIds].at(-1)
+    const discardedCall =
+      runId !== undefined &&
+      this.callMessageIds.has(runId) &&
+      currentIds.size === 0
+    const messageId = discardedCall
+      ? undefined
+      : this.ensureAssistantMessage(lastMessageId ?? generateMessageId())
+          .messageId
+    const ids = new Set(currentIds)
+    if (messageId !== undefined) ids.add(messageId)
+    for (const id of ids) {
+      this.mergeMessageMetadata(
+        id,
+        withTanstackMetadata(chunk, {
+          stopReason: tanstackMetadata(chunk)?.stopReason ?? 'error',
+        }).metadata,
+      )
+    }
+    if (this.pendingManualMessageId && ids.has(this.pendingManualMessageId))
+      this.pendingManualMessageId = null
+    if (this.provisionalMessageId && ids.has(this.provisionalMessageId))
+      this.provisionalMessageId = null
+    if (runId !== undefined) this.callMessageIds.delete(runId)
+    for (const id of ids) this.unassignedCallMessageIds.delete(id)
     // Prefer spec field `message`; fall back to deprecated `error.message`.
     // If neither is set, the chunk still carries debug context (provider
     // error codes, request ids, etc.) — log it so the failure isn't silent.
@@ -2704,7 +2874,7 @@ export class StreamProcessor {
       )
     }
 
-    if (this.structuredMessageIds.has(messageId)) {
+    if (messageId !== undefined && this.structuredMessageIds.has(messageId)) {
       this.flushStructuredOutputUpdate(messageId)
       this.messages = errorStructuredOutputPart(
         this.messages,
@@ -2730,31 +2900,151 @@ export class StreamProcessor {
    * into their own ThinkingPart. Does not create a message — the message
    * is lazily created when the first REASONING_MESSAGE_CONTENT arrives.
    */
+  private knownThinkingTarget(
+    id: string | undefined,
+  ):
+    | { messageId: string; state: MessageStreamState; stepId: string }
+    | undefined {
+    if (!id) return undefined
+    for (const [messageId, state] of [...this.messageStates].reverse()) {
+      if (
+        this.activeRuns.size > 0 &&
+        ![...this.activeRuns].some((run) =>
+          this.callMessageIds.get(run)?.has(messageId),
+        ) &&
+        messageId !== this.pendingManualMessageId
+      )
+        continue
+      const stepId =
+        state.reasoningStepAliases.get(id) ??
+        (state.thinkingSteps.has(id) ? id : undefined) ??
+        (messageId === id
+          ? (state.currentThinkingStepId ?? state.thinkingStepOrder.at(-1))
+          : undefined)
+      if (stepId) return { messageId, state, stepId }
+    }
+    for (const message of [...this.messages].reverse()) {
+      // An activity message holds no thinking parts.
+      if (message.role === 'activity') continue
+      if (
+        this.activeRuns.size > 0 &&
+        ![...this.activeRuns].some((run) =>
+          this.callMessageIds.get(run)?.has(message.id),
+        ) &&
+        message.id !== this.pendingManualMessageId
+      )
+        continue
+      if (
+        !message.parts.some(
+          (part) => part.type === 'thinking' && part.stepId === id,
+        )
+      )
+        continue
+      const state =
+        this.getMessageState(message.id) ??
+        this.createMessageState(message.id, message.role)
+      return { messageId: message.id, state, stepId: id }
+    }
+    return undefined
+  }
+
+  private thinkingTarget(id: string | undefined) {
+    const known = this.knownThinkingTarget(id)
+    if (known) return known
+    const { messageId, state } = this.ensureAssistantMessage(
+      this.getActiveAssistantMessageId() ?? undefined,
+    )
+    this.consumePendingThinkingStep(state)
+    const stepId =
+      (id && state.reasoningStepAliases.get(id)) ??
+      (this.pendingReasoningMessageId === id ? id : undefined) ??
+      state.currentThinkingStepId ??
+      id ??
+      generateMessageId()
+    if (id && (id === stepId || this.pendingReasoningMessageId === id))
+      state.reasoningStepAliases.set(id, stepId)
+    const existingPart =
+      this.messages
+        .find((message) => message.id === messageId)
+        ?.parts.find(
+          (part) => part.type === 'thinking' && part.stepId === stepId,
+        ) ??
+      this.messages
+        .find((message) => message.id === messageId)
+        ?.parts.find(
+          (part) => part.type === 'thinking' && part.stepId === undefined,
+        )
+    if (existingPart?.type === 'thinking') {
+      state.thinkingSteps.set(
+        stepId,
+        existingPart.redacted ? '' : existingPart.content,
+      )
+      if (existingPart.signature !== undefined)
+        state.thinkingStepSignatures.set(stepId, existingPart.signature)
+      if (existingPart.redacted) state.redactedThinkingSteps.add(stepId)
+    }
+    if (!state.thinkingSteps.has(stepId)) state.thinkingSteps.set(stepId, '')
+    if (!state.thinkingStepOrder.includes(stepId))
+      state.thinkingStepOrder.push(stepId)
+    state.currentThinkingStepId = stepId
+    this.pendingReasoningMessageId = null
+    return { messageId, state, stepId }
+  }
+
+  private handleReasoningMessageStartEvent(
+    chunk: Extract<StreamChunk, { type: 'REASONING_MESSAGE_START' }>,
+  ): void {
+    const known = this.knownThinkingTarget(chunk.messageId)
+    if (known) {
+      known.state.currentThinkingStepId = known.stepId
+      if (this.unboundThinkingStepId === known.stepId)
+        this.unboundThinkingStepId = null
+      if (this.pendingThinkingStepId === known.stepId)
+        this.pendingThinkingStepId = null
+      return
+    }
+    const active = this.getActiveAssistantMessageId()
+    const state = active ? this.getMessageState(active) : undefined
+    if (this.unboundThinkingStepId) {
+      const aliases =
+        state?.reasoningStepAliases ?? this.pendingReasoningAliases
+      aliases.set(chunk.messageId, this.unboundThinkingStepId)
+      this.unboundThinkingStepId = null
+    } else {
+      this.pendingReasoningMessageId = chunk.messageId
+      if (state) state.currentThinkingStepId = null
+    }
+  }
+
   private handleStepStartedEvent(
     chunk: Extract<StreamChunk, { type: 'STEP_STARTED' }>,
   ): void {
-    const stepId = chunk.stepName || generateMessageId()
-    const activeId = this.getActiveAssistantMessageId()
-    if (activeId) {
-      const state = this.getMessageState(activeId)
-      if (state) {
-        state.currentThinkingStepId = stepId
-        if (!state.thinkingSteps.has(stepId)) {
-          state.thinkingSteps.set(stepId, '')
-          state.thinkingStepOrder.push(stepId)
-        }
-        // Clear any pending stepId from a prior STEP_STARTED that fired
-        // before the assistant message existed. Now that we're tracking
-        // the step directly on message state, the pending value is stale
-        // and must not leak into the next REASONING_MESSAGE_CONTENT.
-        this.pendingThinkingStepId = null
-        return
+    const extra = chunk as AdapterYieldChunk
+    const incoming = tanstackMetadata(chunk)
+    const rawId =
+      extra.stepId ??
+      (incoming && 'stepId' in incoming && typeof incoming.stepId === 'string'
+        ? incoming.stepId
+        : undefined)
+    const stepId = chunk.stepName || rawId || generateMessageId()
+    const active = this.getActiveAssistantMessageId()
+    const state = active ? this.getMessageState(active) : undefined
+    const aliases = state?.reasoningStepAliases ?? this.pendingReasoningAliases
+    aliases.set(stepId, stepId)
+    if (rawId) aliases.set(rawId, stepId)
+    if (this.pendingReasoningMessageId) {
+      aliases.set(this.pendingReasoningMessageId, stepId)
+      this.pendingReasoningMessageId = null
+      this.unboundThinkingStepId = null
+    } else this.unboundThinkingStepId = stepId
+    if (state) {
+      state.currentThinkingStepId = stepId
+      if (!state.thinkingSteps.has(stepId)) {
+        state.thinkingSteps.set(stepId, '')
+        state.thinkingStepOrder.push(stepId)
       }
-    }
-
-    // No active message yet — defer until ensureAssistantMessage in
-    // REASONING_MESSAGE_CONTENT
-    this.pendingThinkingStepId = stepId
+      this.pendingThinkingStepId = null
+    } else this.pendingThinkingStepId = stepId
   }
 
   /**
@@ -2793,14 +3083,23 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'STEP_FINISHED' }>,
   ): void {
     const extra = chunk as AdapterYieldChunk
-    const signature = extra.signature
+    const incoming = tanstackMetadata(chunk)
+    const signature =
+      extra.signature ??
+      (incoming &&
+      'signature' in incoming &&
+      typeof incoming.signature === 'string'
+        ? incoming.signature
+        : undefined)
     if (!signature) return
-
-    const { messageId, state } = this.ensureAssistantMessage(
-      this.getActiveAssistantMessageId() ?? undefined,
-    )
-    const stepId = state.currentThinkingStepId ?? extra.stepId
-    if (!stepId) return
+    const exact =
+      extra.stepId ??
+      (incoming && 'stepId' in incoming && typeof incoming.stepId === 'string'
+        ? incoming.stepId
+        : undefined) ??
+      chunk.stepName
+    const { messageId, state, stepId } = this.thinkingTarget(exact)
+    if (state.redactedThinkingSteps.has(stepId)) return
     const thinking = state.thinkingSteps.get(stepId)
     if (thinking === undefined) return
 
@@ -2811,6 +3110,8 @@ export class StreamProcessor {
       stepId,
       thinking,
       signature,
+      false,
+      state.thinkingStepOrder,
     )
     this.emitMessagesChange()
   }
@@ -2824,25 +3125,40 @@ export class StreamProcessor {
   private handleReasoningMessageContentEvent(
     chunk: Extract<StreamChunk, { type: 'REASONING_MESSAGE_CONTENT' }>,
   ): void {
-    const { messageId, state } = this.ensureAssistantMessage(
-      this.getActiveAssistantMessageId() ?? undefined,
-    )
+    const { messageId, state, stepId } = this.thinkingTarget(chunk.messageId)
     this.mergeMessageMetadata(messageId, chunk.metadata)
 
     state.hasSeenReasoningEvents = true
     const delta = chunk.delta || ''
 
-    this.consumePendingThinkingStep(state)
-
-    const stepId = state.currentThinkingStepId ?? chunk.messageId
-    if (!state.thinkingSteps.has(stepId)) {
-      state.thinkingSteps.set(stepId, '')
-      state.thinkingStepOrder.push(stepId)
-      state.currentThinkingStepId = stepId
-    }
-
-    const nextThinking = (state.thinkingSteps.get(stepId) ?? '') + delta
+    const nextThinking = state.redactedThinkingSteps.has(stepId)
+      ? ''
+      : (state.thinkingSteps.get(stepId) ?? '') + delta
     state.thinkingSteps.set(stepId, nextThinking)
+
+    // A new thinking block after text ends that text segment, so the text
+    // after the block starts its own part ("A", then "B", not "AB"). The part
+    // lookup is the one updateThinkingPart uses: a block that already has a
+    // part (this step, or a hydrated part with no stepId) is updated in
+    // place, and the text segment goes on.
+    // ponytail: only reasoning content ends the segment. A redacted block
+    // that sends only REASONING_ENCRYPTED_VALUE still joins the two texts.
+    if (
+      state.currentSegmentText !== '' &&
+      !this.messages
+        .find((message) => message.id === messageId)
+        ?.parts.some(
+          (part) =>
+            part.type === 'thinking' &&
+            (part.stepId === stepId || part.stepId === undefined),
+        )
+    ) {
+      if (state.currentSegmentText !== state.lastEmittedText) {
+        this.emitTextUpdateForMessage(messageId)
+      }
+      state.currentSegmentText = ''
+      state.lastEmittedText = ''
+    }
 
     this.messages = updateThinkingPart(
       this.messages,
@@ -2850,6 +3166,8 @@ export class StreamProcessor {
       stepId,
       nextThinking,
       state.thinkingStepSignatures.get(stepId),
+      state.redactedThinkingSteps.has(stepId),
+      state.thinkingStepOrder,
     )
     this.emitMessagesChange()
 
@@ -2872,10 +3190,22 @@ export class StreamProcessor {
       return
     }
 
-    const { messageId, state } = this.ensureAssistantMessage(
-      this.getActiveAssistantMessageId() ?? undefined,
-    )
-    const stepId = state.currentThinkingStepId ?? chunk.entityId
+    const { messageId, state, stepId } = this.thinkingTarget(chunk.entityId)
+    const extra = chunk as AdapterYieldChunk
+    const incoming = tanstackMetadata(chunk)
+    const alias =
+      extra.stepId ??
+      (incoming && 'stepId' in incoming && typeof incoming.stepId === 'string'
+        ? incoming.stepId
+        : undefined)
+    const redacted =
+      isRedactedThinkingId(alias) || isRedactedThinkingId(chunk.entityId)
+    if (state.redactedThinkingSteps.has(stepId) && !redacted) return
+    if (redacted) {
+      state.redactedThinkingSteps.add(stepId)
+      state.thinkingSteps.set(stepId, '')
+    }
+    this.mergeMessageMetadata(messageId, chunk.metadata)
     state.thinkingStepSignatures.set(stepId, encryptedValue)
     const content = state.thinkingSteps.get(stepId) ?? ''
     if (!state.thinkingSteps.has(stepId)) {
@@ -2888,6 +3218,8 @@ export class StreamProcessor {
       stepId,
       content,
       encryptedValue,
+      redacted,
+      state.thinkingStepOrder,
     )
     this.emitMessagesChange()
   }
@@ -2947,7 +3279,9 @@ export class StreamProcessor {
     if (chunk.name === 'structured-output.start' && chunk.value) {
       const v = chunk.value as { messageId?: string }
       const { messageId: targetId } = this.ensureAssistantMessage(
-        v.messageId ?? messageId ?? undefined,
+        v.messageId && this.getMessageState(v.messageId)
+          ? v.messageId
+          : (messageId ?? v.messageId),
       )
       if (targetId) {
         this.structuredMessageIds.add(targetId)
@@ -2970,7 +3304,9 @@ export class StreamProcessor {
         messageId?: string
       }
       const { messageId: targetId } = this.ensureAssistantMessage(
-        v.messageId ?? messageId ?? undefined,
+        v.messageId && this.getMessageState(v.messageId)
+          ? v.messageId
+          : (messageId ?? v.messageId),
       )
       if (targetId) {
         this.flushStructuredOutputUpdate(targetId)
@@ -3159,20 +3495,15 @@ export class StreamProcessor {
       toolCall.parsedArguments = undefined
     }
 
-    // Don't downgrade the rendered part of a call that already reached a
-    // terminal 'error' or 'complete' state (e.g. a tool result arrived
-    // without a preceding TOOL_CALL_END). The RUN_FINISHED / finalizeStream
-    // safety net must not clobber a finished call back to 'input-complete'.
-    if (this.isToolCallPartTerminal(toolCall.id)) {
-      return
-    }
-
-    // RUN_FINISHED interrupt handling can mark the rendered part as waiting on
-    // user action before the completion safety net runs. Keep the parsed
-    // argument bookkeeping above, but do not downgrade that visible state.
-    if (this.isToolCallPartAwaitingUserAction(toolCall.id)) {
-      return
-    }
+    const preserveState =
+      this.isToolCallPartTerminal(toolCall.id) ||
+      this.isToolCallPartAwaitingUserAction(toolCall.id)
+    const currentPart = this.messages
+      .find((message) => message.id === messageId)
+      ?.parts?.find(
+        (part): part is ToolCallPart =>
+          part.type === 'tool-call' && part.id === toolCall.id,
+      )
 
     // Update UIMessage. The arguments are complete now, so surface the parsed
     // input on the part from the accumulated TOOL_CALL_ARGS deltas.
@@ -3180,11 +3511,14 @@ export class StreamProcessor {
       id: toolCall.id,
       name: toolCall.name,
       arguments: toolCall.arguments,
-      state: 'input-complete',
-      ...(strictParseSucceeded && { input: toolCall.parsedArguments }),
+      state:
+        preserveState && currentPart ? currentPart.state : 'input-complete',
+      input: strictParseSucceeded ? toolCall.parsedArguments : undefined,
       ...(toolCall.metadata !== undefined && { metadata: toolCall.metadata }),
     })
     this.emitMessagesChange()
+
+    if (preserveState) return
 
     // Emit granular event
     this.events.onToolCallStateChange?.(
@@ -3500,13 +3834,20 @@ export class StreamProcessor {
    */
   private resetStreamState(): void {
     this.messageStates.clear()
+    this.callMessageIds.clear()
+    this.unassignedCallMessageIds.clear()
     this.activeMessageIds.clear()
     this.activeRuns.clear()
     this.toolCallToMessage.clear()
     this.structuredMessageIds.clear()
     this.structuredOutputUpdateBatches.clear()
     this.pendingManualMessageId = null
+    this.provisionalMessageId = null
+    this.legacyManualMessage = false
     this.pendingThinkingStepId = null
+    this.pendingReasoningMessageId = null
+    this.unboundThinkingStepId = null
+    this.pendingReasoningAliases.clear()
     this.openChunk = null
     this.finishReason = null
     this.hasError = false

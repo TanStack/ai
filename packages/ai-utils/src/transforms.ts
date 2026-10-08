@@ -45,7 +45,12 @@ export function transformNullsToUndefined<T>(obj: T): T {
     if (value === null) {
       continue
     }
-    result[key] = transformNullsToUndefined(value)
+    Object.defineProperty(result, key, {
+      value: transformNullsToUndefined(value),
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    })
   }
   return result as T
 }
@@ -94,12 +99,20 @@ function walk(value: unknown, map: NullWideningMap | undefined): unknown {
   if (!properties) return value
   const result: Record<string, unknown> = {}
   for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-    const next = walk(child, properties[key])
+    const next = walk(
+      child,
+      Object.hasOwn(properties, key) ? properties[key] : undefined,
+    )
     // A synthesized null collapsed to undefined → omit the key so the field
     // reads as absent (`key in result === false`), matching how `.optional()`
     // treats absence.
     if (next === undefined) continue
-    result[key] = next
+    Object.defineProperty(result, key, {
+      value: next,
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    })
   }
   return result
 }

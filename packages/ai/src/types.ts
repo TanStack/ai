@@ -6,6 +6,7 @@ import type { InternalLogger } from './logger/internal-logger'
 import type { SystemPrompt } from './system-prompts'
 import type { CapabilityContext } from './activities/chat/middleware/capabilities'
 import type { InterruptSubmissionError } from './interrupts'
+import type { ReasoningRequest } from './reasoning'
 // The canonical usage types live in the leaf `@tanstack/ai-event-client`
 // package (which `@tanstack/ai` already depends on) so there is a single source
 // of truth without a dependency cycle. They are re-exported below.
@@ -371,6 +372,59 @@ export type ConstrainedContent<
   | null
   | Array<ContentPartForInputModalitiesTypes<TInputModalitiesTypes>>
 
+/**
+ * One block of an assistant `ModelMessage`, in the order the model sent it.
+ * Each entry points into a field of the message. See `ModelMessage.blockOrder`.
+ */
+export type ModelMessageBlock =
+  | { type: 'thinking'; index: number }
+  | { type: 'text'; length: number }
+  | { type: 'tool-call'; id: string }
+
+/**
+ * The mid-conversation record that `chat()` saves on the first assistant
+ * message of a model call. It holds tool names and prompt hashes only, so it
+ * does not depend on a provider.
+ */
+export interface MidConversationChange {
+  /** A start point: the names of every tool. */
+  tools?: Array<string>
+  /** Tool names added since the last record. */
+  toolsAdded?: Array<string>
+  /** Short prompt hashes: every prompt on a start point, the added prompts otherwise. */
+  systemPrompts?: Array<string>
+}
+
+/**
+ * What changed in the tools and system prompts between model calls.
+ * `chat()` passes it in `TextOptions.midConversationChanges`.
+ */
+export interface MidConversationChanges {
+  /**
+   * The tool names of the start point, in start order, and how many entries
+   * at the front of `systemPrompts` belong to it.
+   */
+  start: { tools: Array<string>; systemPrompts: number }
+  /**
+   * Each change goes directly before `messages[before]`, or at the end when
+   * `before === messages.length`. `tools` are the added names.
+   * `systemPrompts` is how many of the next entries of `systemPrompts` it adds.
+   */
+  changes: Array<{
+    before: number
+    tools?: Array<string>
+    systemPrompts?: number
+  }>
+}
+
+/** The mid-conversation channels of a model. */
+export interface MidConversationChannels {
+  /** Added tools can go out without a change to the tools of the start point. */
+  tools: boolean
+  /** Added system prompts can go out as a message at their place. */
+  systemPrompts: boolean
+}
+
 export interface ModelMessage<
   TContent extends string | null | Array<ContentPart> =
     | string
@@ -388,8 +442,22 @@ export interface ModelMessage<
    * opaque data. See `ThinkingPart.signature` for the planned rename.
    */
   thinking?: Array<{ content: string; signature?: string; redacted?: boolean }>
+  /**
+   * The order of the blocks of an assistant message, when it is not the
+   * default order (all thinking, then the text, then the tool calls). Each
+   * entry points into `thinking`, into `content` (a string, by UTF-16 length),
+   * or into `toolCalls`. The library writes and reads this field. A reader
+   * that finds a map that does not match the message uses the default order.
+   */
+  blockOrder?: Array<ModelMessageBlock>
   /** Error reported by an AG-UI tool message. */
   error?: string
+  /**
+   * The tools and system prompts that changed before this assistant message.
+   * `chat()` writes it when the adapter has a mid-conversation channel.
+   * Providers ignore it: adapters read `TextOptions.midConversationChanges`.
+   */
+  midConversationChange?: MidConversationChange
   /** Optional AG-UI message metadata. TanStack-owned fields live under `tanstack`. */
   metadata?: Record<string, any>
   /**
@@ -621,9 +689,36 @@ export type MessagePart<TData = unknown> =
  * Shape of `metadata.tanstack` on a message.
  * `createdAt` is an ISO-8601 string.
  */
+/** Provider, wire API, and requested model of an assistant message. */
+export interface MessageSource {
+  provider: string
+  api: string
+  model: string
+}
+
 export interface TanStackMessageMetadata {
   createdAt?: string
   model?: string
+  source?: MessageSource
+  stopReason?: 'error' | 'aborted'
+  responseId?: string
+  /**
+   * The provider's answer items of this assistant message, in order, for a
+   * same-model replay. The OpenAI Responses adapter keeps each output
+   * message item's `id` and `phase` (`commentary` or `final_answer`).
+   */
+  responseItems?: Array<{ id: string; phase?: string }>
+  /**
+   * The provider effort of this assistant message's model call. The
+   * Anthropic adapter keeps it for a model with mid-conversation effort and
+   * sends it again before this message on the next turn.
+   */
+  reasoningEffort?: string
+  /**
+   * Why the model call of this assistant message ended. A `'length'` message
+   * stopped at the output limit, so its tool calls are not complete.
+   */
+  finishReason?: TanStackRunMetadata['finishReason']
   /** Parent chat run that produced this assistant message. */
   runId?: string
   /**
@@ -654,13 +749,25 @@ export interface TanStackMessageMetadata {
     errorMessage?: string
   }
   uiResources?: Array<UIResourcePart>
+  /**
+   * On an assistant wire row that exists only to keep the block order: the
+   * id of the assistant row before it. Our server joins the two rows into
+   * one message with a `blockOrder` map. See `uiMessagesToWire`.
+   */
+  continues?: string
 }
 
 /**
  * Shape of `metadata.tanstack` on run events.
  */
 export interface TanStackRunMetadata {
+  source?: MessageSource
   model?: string
+  responseId?: string
+  /** The answer items of this model call. See `TanStackMessageMetadata.responseItems`. */
+  responseItems?: TanStackMessageMetadata['responseItems']
+  /** The effort of this model call. See `TanStackMessageMetadata.reasoningEffort`. */
+  reasoningEffort?: string
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
   /** TokenUsage fields that have no AG-UI `usage[]` equivalent. */
   usage?: TokenUsageLeftover
@@ -669,6 +776,8 @@ export interface TanStackRunMetadata {
   runId?: string
   sessionId?: string
   index?: number
+  /** On a `RUN_ERROR`. See `RunErrorEvent.retryAfterMs`. */
+  retryAfterMs?: number
   state?: ToolOutputState
   /** Parsed `TOOL_CALL_END` input. Spec `TOOL_CALL_END` has no top-level `input`. */
   input?: unknown
@@ -782,6 +891,19 @@ export type ToolExecutionContext<TContext = unknown> =
      * interrupt for this tool call.
      */
     inputResponse?: ToolInputResponse
+    /**
+     * Set when the host can move this call to the background. Pass it the
+     * work of the call, and race the two promises. It resolves to a short
+     * note for the model when the user moves the call. The work keeps
+     * running, and the host tells the model its result when it ends.
+     *
+     * @example
+     * ```ts
+     * const work = runJob(args)
+     * return context?.detach ? Promise.race([work, context.detach(work)]) : work
+     * ```
+     */
+    detach?: (work: Promise<unknown>) => Promise<string>
     /**
      * Emit a custom event during tool execution.
      * Events are streamed to the client in real-time as AG-UI CUSTOM events.
@@ -948,6 +1070,13 @@ export interface Tool<
   /** If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Works with both chat() (the synthetic discovery tool) and Code Mode (kept out of the system prompt and revealed via discover_tools). */
   lazy?: boolean
 
+  /**
+   * Whether a harness may run this tool again after a crash cut the run
+   * between the call and its result. `'safe'` runs it again. `'never'`
+   * (default) gives the model a note that the tool may or may not have run.
+   */
+  replay?: 'safe' | 'never'
+
   /** Additional metadata for adapters or custom extensions */
   metadata?: Record<string, any> | undefined
 }
@@ -1109,6 +1238,46 @@ export interface AgentLoopState {
 export type AgentLoopStrategy = (state: AgentLoopState) => boolean
 
 /**
+ * How long the provider keeps the cached start of a request.
+ * `'none'` turns automatic prompt caching off.
+ */
+export type PromptCacheRetention = 'none' | 'short' | 'long'
+
+/**
+ * The `promptCache` option of `chat()`: a retention, or an object with a
+ * retention and a cache key.
+ */
+export type PromptCacheOptions =
+  | PromptCacheRetention
+  | { retention?: PromptCacheRetention; key?: string }
+
+/** What chat() gives the adapter. */
+export interface ResolvedPromptCache {
+  retention: PromptCacheRetention
+  key?: string
+}
+
+/**
+ * How the model uses the tools of a call.
+ * - `'auto'`: the model decides.
+ * - `'none'`: the model calls no tool.
+ * - `'required'`: the model must call a tool.
+ * - `{ type: 'tool', name }`: the model must call that tool.
+ */
+export type ToolChoice =
+  | 'auto'
+  | 'none'
+  | 'required'
+  | { type: 'tool'; name: string }
+
+/**
+ * Wraps the fetch of a model call. It gets the next fetch and gives back a
+ * new fetch. A wrapper can change the URL, the headers, the request, or the
+ * response.
+ */
+export type FetchWrapper = (next: typeof fetch) => typeof fetch
+
+/**
  * Options passed into the SDK and further piped to the AI provider.
  */
 export interface TextOptions<
@@ -1146,6 +1315,17 @@ export interface TextOptions<
    */
   toolExecution?: 'parallel' | 'sequential'
   /**
+   * The tool result of a call in a model answer that stopped at the output
+   * limit (finish reason `length`). The function form gets the call. When
+   * set, such an answer keeps its tool calls. Each call that the provider did
+   * not run gets this text as an error result and does not run. Then the
+   * loop calls the model again, as after a tool phase. Not set: the answer
+   * ends the run, and only a segmented answer keeps its calls.
+   */
+  truncatedToolResult?:
+    | string
+    | ((call: { toolCallId: string; toolName: string }) => string)
+  /**
    * Optional configuration for lazy-tool discovery (tools marked `lazy: true`).
    * Tunes how much of each lazy tool's description appears in the discovery
    * catalog. Optional — defaults to `{ includeDescription: 'none' }`.
@@ -1163,6 +1343,13 @@ export interface TextOptions<
    */
   metadata?: Record<string, any> | undefined
   modelOptions?: TProviderOptionsForModel
+  /**
+   * How hard the model thinks, normalized by `chat()`. `undefined`: the user
+   * did not ask, so the adapter sends nothing and the provider default applies.
+   * The adapter clamps the level to the model's levels and writes its own
+   * wire field.
+   */
+  reasoning?: ReasoningRequest
   request?: Request | RequestInit
 
   /**
@@ -1231,6 +1418,30 @@ export interface TextOptions<
    */
   threadId?: string
   /**
+   * Automatic prompt caching for this request. `chat()` sets it. When it is
+   * absent, the adapter adds no automatic cache fields.
+   */
+  promptCache?: ResolvedPromptCache
+  /**
+   * How the model uses the tools of this request. `chat()` sets it only when
+   * the request has tools. A provider value in `modelOptions` wins over it.
+   */
+  toolChoice?: ToolChoice
+  /**
+   * Wraps the fetch of this request. The engine composes the `chat()` option
+   * and the middleware wrappers into one function. An adapter that supports
+   * it calls `wrapFetch(baseFetch)` and sends the request with the result.
+   */
+  wrapFetch?: FetchWrapper
+  /**
+   * The tools and system prompts that changed between model calls. The
+   * engine sets it only when `adapter.midConversationChannels` has a channel
+   * that is on. `tools` and `systemPrompts` stay the full current lists, so
+   * an adapter that ignores this field sends the same request as before.
+   * Adapters resolve it with `splitMidConversationChanges`.
+   */
+  midConversationChanges?: MidConversationChanges
+  /**
    * Run ID for AG-UI protocol run correlation.
    * When provided, this will be used in RunStartedEvent and RunFinishedEvent.
    * If not provided, a unique ID will be generated.
@@ -1247,6 +1458,16 @@ export interface TextOptions<
    * `ctx.subagentRunId`. Absent on a top-level run.
    */
   subagentRunId?: string
+  /**
+   * The agent name when this chat runs as a subagent. Middleware reads it as
+   * `ctx.subagentName`.
+   */
+  subagentName?: string
+  /**
+   * The subagentRunId of the child that started this one, for a nested child.
+   * Middleware reads it as `ctx.parentSubagentRunId`.
+   */
+  parentSubagentRunId?: string
 
   /** Application state mirrored in a STATE_SNAPSHOT before an interrupt terminal. */
   state?: unknown
@@ -1275,6 +1496,20 @@ export interface TextOptions<
    * here). Undefined for direct adapter usage outside the chat engine.
    */
   approvals?: ReadonlyMap<string, boolean>
+}
+
+/** What `TextAdapter.compact` receives. */
+export interface TextCompactOptions {
+  /** The history to compact. */
+  messages: Array<ModelMessage>
+  model: string
+  signal?: AbortSignal
+  /** Wraps the fetch of the compaction request. */
+  wrapFetch?: FetchWrapper
+  /** The system prompts of the chat call. */
+  systemPrompts?: Array<SystemPrompt>
+  /** The tools of the chat call. */
+  tools?: Array<AnyTool>
 }
 
 // ============================================================================
@@ -1366,6 +1601,8 @@ export interface RunFinishedEvent extends Pick<
   usage?: Array<SpecTokenUsage> | TokenUsage
   /** Restored on the client from `metadata.tanstack`. */
   model?: string
+  /** Provider generation ID. Restored from `metadata.tanstack`. */
+  responseId?: string
   /** Restored on the client from `metadata.tanstack`. */
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
   metadata?: { tanstack?: TanStackRunMetadata } & Record<string, any>
@@ -1392,6 +1629,12 @@ export interface RunErrorEvent extends Pick<
   model?: string
   /** Nested payload kept for in-process / durability consumers. */
   error?: { message: string; code?: string }
+  /**
+   * How long the provider asks you to wait before a retry, in milliseconds.
+   * Adapters read it from the `retry-after-ms` or `retry-after` header.
+   * `chat()` moves it to `metadata.tanstack.retryAfterMs`.
+   */
+  retryAfterMs?: number
   metadata?: { tanstack?: TanStackRunMetadata } & Record<string, any>
 }
 

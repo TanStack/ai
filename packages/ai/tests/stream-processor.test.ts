@@ -486,7 +486,7 @@ describe('StreamProcessor', () => {
       expect(Number.isNaN(msg.createdAt!.getTime())).toBe(false)
     })
 
-    it('RUN_FINISHED metadata does not merge onto the assistant message', () => {
+    it('merges terminal metadata onto the current assistant message', () => {
       const processor = new StreamProcessor()
 
       processor.processChunk({
@@ -505,7 +505,10 @@ describe('StreamProcessor', () => {
       })
 
       const msg = processor.getMessages()[0]!
-      expect(msg.metadata).toEqual({ tanstack: { model: 'gpt-5.5' } })
+      expect(msg.metadata).toEqual({
+        author: { id: 'run' },
+        tanstack: { model: 'gpt-5.5', finishReason: 'stop' },
+      })
     })
 
     it('MESSAGES_SNAPSHOT keeps per-message metadata and ignores event-level metadata', () => {
@@ -1306,12 +1309,23 @@ describe('StreamProcessor', () => {
       expect(part?.input).toEqual(JSON.parse(WIRE_ARGS))
     })
 
+    it('uses explicit null as the final tool input', () => {
+      const { part, processor } = runToolCall(
+        chunk(EventType.TOOL_CALL_END, { toolCallId: 'tc-1', input: null }),
+      )
+      expect(part?.state).toBe('input-complete')
+      expect(part?.arguments).toBe('null')
+      expect(part?.input).toBeNull()
+      expect(
+        processor.getState().toolCalls.get('tc-1')?.parsedArguments,
+      ).toBeNull()
+    })
+
     // An input JSON cannot carry is not canonical: `arguments` and `input`
     // both stay with the streamed value rather than disagreeing.
     it.each([
       ['throws on serialization', { task: 'list', count: 1n }],
       ['serializes to undefined', () => 'list'],
-      ['is null', null],
     ])(
       'keeps the streamed arguments and input when TOOL_CALL_END.input %s',
       (_case, input) => {
@@ -1748,6 +1762,62 @@ describe('StreamProcessor', () => {
       expect(thinkingParts).toHaveLength(1)
       expect((thinkingParts[0] as any).stepId).toBe('step-b')
       expect((thinkingParts[0] as any).content).toBe('contentB')
+    })
+
+    it('starts a new text part for text after a second thinking block', () => {
+      const processor = new StreamProcessor()
+      processor.prepareAssistantMessage()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.stepStarted('step-1'))
+      processor.processChunk(ev.reasoningContent('First thought'))
+      processor.processChunk(ev.textStart())
+      processor.processChunk(ev.textContent('A'))
+      processor.processChunk(ev.textEnd())
+      processor.processChunk(ev.stepStarted('step-2'))
+      processor.processChunk(ev.reasoningContent('Second thought'))
+      processor.processChunk(ev.textStart())
+      processor.processChunk(ev.textContent('B'))
+      processor.processChunk(ev.textEnd())
+      processor.processChunk(ev.runFinished('stop'))
+      processor.finalizeStream()
+
+      const parts = processor.getMessages()[0]!.parts
+      expect(
+        parts.map((part) =>
+          part.type === 'text' || part.type === 'thinking'
+            ? `${part.type}:${part.content}`
+            : part.type,
+        ),
+      ).toEqual([
+        'thinking:First thought',
+        'text:A',
+        'thinking:Second thought',
+        'text:B',
+      ])
+      expect(processor.getState().content).toBe('AB')
+    })
+
+    it('keeps one text part when reasoning of the same step arrives between text deltas', () => {
+      const processor = new StreamProcessor()
+      processor.prepareAssistantMessage()
+
+      processor.processChunk(ev.stepStarted('step-1'))
+      processor.processChunk(ev.reasoningContent('Thinking'))
+      processor.processChunk(ev.textStart())
+      processor.processChunk(ev.textContent('A'))
+      processor.processChunk(ev.reasoningContent(' more'))
+      processor.processChunk(ev.textContent('B'))
+      processor.processChunk(ev.textEnd())
+
+      const parts = processor.getMessages()[0]!.parts
+      expect(
+        parts.map((part) =>
+          part.type === 'text' || part.type === 'thinking'
+            ? `${part.type}:${part.content}`
+            : part.type,
+        ),
+      ).toEqual(['thinking:Thinking more', 'text:AB'])
     })
   })
 
@@ -5659,7 +5729,11 @@ describe('StreamProcessor', () => {
           ev.runFinished(),
         ),
       )
-      expect(chunked[0]?.metadata).toEqual({ note: 'last chunk' })
+      // RUN_FINISHED adds its finish reason to the message metadata.
+      expect(chunked[0]?.metadata).toEqual({
+        note: 'last chunk',
+        tanstack: { finishReason: 'stop' },
+      })
     })
 
     it('keeps the parent message and the metadata of a tool call chunk', () => {
@@ -5725,7 +5799,11 @@ describe('StreamProcessor', () => {
         }),
         ev.runFinished(),
       )
-      expect(reasoning[0]?.metadata).toEqual({ note: 'r' })
+      // RUN_FINISHED adds its finish reason to the message metadata.
+      expect(reasoning[0]?.metadata).toEqual({
+        note: 'r',
+        tanstack: { finishReason: 'stop' },
+      })
     })
 
     it.each([
@@ -7117,4 +7195,45 @@ describe('StreamProcessor', () => {
       expect((textPart as { content: string }).content).toBe('resumed')
     })
   })
+})
+
+it('keeps legacy no-start thinking steps separate through an actual tool loop', async () => {
+  const { adapter, calls } = createMockAdapter({
+    iterations: [
+      [
+        chatEv.runStarted(),
+        ev.stepStarted('s1'),
+        ev.reasoningContent('First', 'r1'),
+        ev.stepStarted('s2'),
+        ev.reasoningContent('Second', 'r1'),
+        chatEv.toolStart('tool', 'lookup'),
+        chatEv.toolArgs('tool', '{}'),
+        chatEv.toolEnd('tool'),
+        chatEv.runFinished('tool_calls'),
+      ],
+      [
+        chatEv.runStarted('next'),
+        chatEv.textContent('Answer'),
+        chatEv.runFinished('stop', 'next'),
+      ],
+    ],
+  })
+  let executions = 0
+  for await (const _chunk of chat({
+    adapter,
+    messages: [{ role: 'user', content: 'Hello' }],
+    tools: [
+      serverTool('lookup', () => {
+        executions++
+        return 'Result'
+      }),
+    ],
+  })) {
+  }
+  expect(executions).toBe(1)
+  expect(calls).toHaveLength(2)
+  expect(
+    calls[1]?.messages.find((message) => message.role === 'assistant')
+      ?.thinking,
+  ).toEqual([{ content: 'First' }, { content: 'Second' }])
 })

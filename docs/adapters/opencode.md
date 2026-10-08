@@ -196,6 +196,19 @@ const stream = chat({
 
 **Client-side and approval-gated tools are not supported.** The harness executes tools inside a live process, which cannot pause across HTTP requests to wait for a browser round-trip or a human approval. Passing a tool without a server `execute()` implementation — or one marked `needsApproval` — fails fast with a descriptive error. Run those tools outside the harness with a regular provider adapter.
 
+## Tool choice
+
+`chat({ toolChoice })` limits only the tools that the adapter bridges into OpenCode. The built-in OpenCode tools (`bash`, `edit`, and the others) always stay on, and OpenCode decides when it calls a tool. For the values, see [Choose when the model calls a tool](../tools/tools#choose-when-the-model-calls-a-tool).
+
+| Value | What the adapter does |
+| --- | --- |
+| `'auto'` | Bridges all of your tools. |
+| `'none'` | Bridges none of your tools. |
+| `{ type: 'tool', name }` | Bridges only the named tool. OpenCode does not have to call it. |
+| `'required'` | Bridges all of your tools. OpenCode does not have to call one. |
+
+Each value except `'auto'` logs a warning the first time an adapter instance gets it.
+
 ## Structured Output
 
 Pass `outputSchema` on `chat()`. OpenCode has no native schema flag. The adapter adds the JSON Schema to the prompt and parses the last assistant text (markdown fences are stripped). Tool activity still streams. The object arrives as `structured-output.complete`.
@@ -256,6 +269,7 @@ Full walkthrough, including the client: [Harness Agents](../structured-outputs/h
 
 ## Limitations
 
+- **No `wrapFetch`.** The adapter ignores [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call), because the harness process sends the model requests.
 - **Server-only (Node).** The adapter spawns or attaches to an `opencode serve` process.
 - **The harness owns the agent loop.** TanStack's agent-loop strategies and per-iteration middleware don't apply inside a harness turn.
 - **No sampling controls.** `temperature`-style options don't exist here.

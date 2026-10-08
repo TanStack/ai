@@ -1,6 +1,9 @@
+import { GENERATED_BEDROCK_MODELS } from '../model-catalog.generated'
 import OpenAI from 'openai'
 import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
 import { withBedrockDefaults } from '../utils/client'
+import { BEDROCK_MODEL_REASONING } from '../model-reasoning'
+import type { BedrockModelReasoningByName } from '../model-reasoning'
 import type { Modality } from '@tanstack/ai'
 import type { BedrockClientConfig } from '../utils/client'
 import type { BedrockMessageMetadataByModality } from '../message-types'
@@ -16,6 +19,12 @@ export interface BedrockTextConfig
   extends BedrockClientConfig, OpenAIBaseTextAdapterOptions {}
 
 export type { ExternalTextProviderOptions as BedrockTextProviderOptions } from '../text/text-provider-options'
+
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof BedrockModelReasoningByName
+    ? BedrockModelReasoningByName[TModel]
+    : never
 
 type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof BedrockChatModelToolCapabilitiesByName
@@ -47,19 +56,28 @@ export class BedrockTextAdapter<
   TProviderOptions,
   TInputModalities,
   BedrockMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  ResolveReasoning<TModel>
 > {
   override readonly kind = 'text' as const
   override readonly name = 'bedrock' as const
+  override readonly provider: string
+  override readonly inputModalities: ReadonlyArray<Modality> =
+    GENERATED_BEDROCK_MODELS.find((entry) => entry.id === this.model)
+      ?.input ?? ['text']
 
   constructor(config: BedrockTextConfig, model: TModel) {
     // No `forced` -> honors config.endpoint ('runtime' default, 'mantle' allowed).
-    super(
-      model,
-      'bedrock',
-      new OpenAI(withBedrockDefaults(config, undefined, model)),
-      config,
-    )
+    const options = withBedrockDefaults(config, undefined, model)
+    super(model, 'bedrock', new OpenAI(options), {
+      ...config,
+      fetch: options.fetch,
+    })
+    this.provider = 'amazon-bedrock'
+  }
+
+  protected override modelReasoning(model: string) {
+    return BEDROCK_MODEL_REASONING[model]
   }
 
   /**

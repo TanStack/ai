@@ -59,6 +59,8 @@ const adapter = createOpenRouterText(
 );
 ```
 
+Both text adapters support [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call). The wrapped fetch sends each request through your `httpClient` when you set one.
+
 ### Retry rate limits
 
 A busy upstream provider can reply with HTTP 429. The adapter retries only 5XX errors by default. Add `"429"` to `retryCodes` to retry rate limits too:
@@ -387,7 +389,7 @@ Plugin ids include `web`, `file-parser`, `response-healing`, `moderation`, and `
 
 ### Reasoning
 
-`reasoning` is OpenRouter's unified reasoning configuration:
+Set how hard the routed model thinks with `reasoning` on `chat()`:
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -396,13 +398,11 @@ import { openRouterText } from "@tanstack/ai-openrouter";
 const stream = chat({
   adapter: openRouterText("anthropic/claude-sonnet-5"),
   messages: [{ role: "user", content: "Hello!" }],
-  modelOptions: {
-    reasoning: { effort: "high" },
-  },
+  reasoning: "high",
 });
 ```
 
-`effort` accepts `"none"`, `"minimal"`, `"low"`, `"medium"`, `"high"`, `"xhigh"`, and `"max"`. To switch reasoning off for a request, pass `reasoning: { enabled: false }`; the adapter sends it as `effort: "none"` because the SDK's request schema drops `enabled`.
+The adapter sends the level as OpenRouter's `reasoning.effort`. `off` sends `effort: "none"`. The Responses adapter (`openRouterResponsesText`) also takes `budgetTokens` and sends it as `reasoning.max_tokens`. See [Reasoning](../chat/reasoning).
 
 ### Session and metadata
 

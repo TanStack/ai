@@ -190,6 +190,24 @@ tools inside a live process and can't pause across an HTTP round-trip. A tool
 without a server `execute()` (or marked `needsApproval`) fails fast; run those
 with a regular provider adapter.
 
+## Tool choice
+
+`chat({ toolChoice })` limits only the tools that the adapter bridges into
+Grok Build. The built-in Grok Build tools always stay on, and Grok Build
+decides when it calls a tool. The rules are the same on both protocols. For
+the values, see
+[Choose when the model calls a tool](../tools/tools#choose-when-the-model-calls-a-tool).
+
+| Value | What the adapter does |
+| --- | --- |
+| `'auto'` | Bridges all of your tools. |
+| `'none'` | Bridges none of your tools. |
+| `{ type: 'tool', name }` | Bridges only the named tool. Grok Build does not have to call it. |
+| `'required'` | Bridges all of your tools. Grok Build does not have to call one. |
+
+Each value except `'auto'` logs a warning the first time an adapter instance
+gets it.
+
 ## Durable runs
 
 A durable sandbox run (you pass `runs` and `durability` to `withSandbox`)
@@ -267,6 +285,7 @@ Full walkthrough, including the client: [Harness Agents](../structured-outputs/h
 
 ## Limitations
 
+- **No `wrapFetch`.** The adapter ignores [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call), because the harness process sends the model requests.
 - **Requires a sandbox.** Always run it under `withSandbox(...)`; see the
   [Sandboxes overview](../sandbox/overview).
 - **Server-only (Node).** The harness spawns the `grok` CLI in a sandbox.

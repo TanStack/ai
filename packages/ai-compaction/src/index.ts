@@ -12,12 +12,46 @@
  * The system prompt is never touched — `chat()` keeps it separate from
  * `messages`.
  */
-import { MetadataCapability, getMetadata } from '@tanstack/ai'
+import {
+  LogRecordsCapability,
+  MetadataCapability,
+  getLogRecords,
+  getMetadata,
+} from '@tanstack/ai'
+import {
+  COMPACTION_RECORD_TYPE,
+  compactionRecord,
+  projectCompaction,
+} from './record'
+import {
+  readSummary,
+  splitDetails,
+  summaryBody,
+  summaryContent,
+} from './summarizer'
+import {
+  USAGE_NAMESPACE,
+  countFromUsage,
+  hashMessages,
+  memoryMetadata,
+  sumUsage,
+  toUsageCount,
+} from './usage-count'
 import type {
+  AnyTextAdapter,
   ChatMiddleware,
+  ChatMiddlewareConfig,
   ChatMiddlewareContext,
   ModelMessage,
+  TokenUsage,
 } from '@tanstack/ai'
+import type { CompactionRecord } from './record'
+import type { SummarizeInput, Summarizer } from './summarizer'
+
+export { COMPACTION_RECORD_TYPE, projectCompaction } from './record'
+export type { CompactionRecord } from './record'
+export { conversationSummarizer } from './summarizer'
+export type { SummarizeInput, Summarizer } from './summarizer'
 
 /** CUSTOM stream event: compaction is about to run. */
 export const COMPACTION_STARTED_EVENT = 'compaction:started'
@@ -41,6 +75,13 @@ export interface CompactionMessagePreview {
   text: string
 }
 
+/** Why a compaction ran. */
+export type CompactionReason =
+  | 'threshold'
+  | 'forced'
+  | 'after-turn'
+  | 'background'
+
 /** Payload of {@link COMPACTION_STARTED_EVENT}. */
 export interface CompactionStartedEventValue {
   before: number
@@ -48,6 +89,7 @@ export interface CompactionStartedEventValue {
   reusedCheckpoint: boolean
   maxTokens: number
   strategyKey?: string
+  reason: CompactionReason
 }
 
 /** Payload of {@link COMPACTION_STATE_EVENT}. */
@@ -73,7 +115,23 @@ export interface CompactionEndedEventValue {
   maxTokens: number
   durationMs: number
   strategyKey?: string
+  reason: CompactionReason
+  /** The sum of the strategy's `addUsage` calls, for example its summary call. */
+  usage?: TokenUsage
+  /**
+   * Set when the strategy threw, or when the adapter's `compact` failed and
+   * the strategy ran in its place.
+   */
+  error?: { message: string }
+  /** `true`: a ready background summary no longer fit the messages, and was dropped. */
+  stale?: boolean
 }
+
+/**
+ * The models whose native compaction failed, by adapter. They use the
+ * strategy for the rest of the process.
+ */
+const failedNative = new WeakMap<object, Set<string>>()
 
 function emitCompactionStarted(
   ctx: ChatMiddlewareContext,
@@ -115,16 +173,6 @@ function identifyStrategy(
   return strategy
 }
 
-async function hashMessages(
-  messages: ReadonlyArray<ModelMessage>,
-): Promise<string> {
-  const bytes = new TextEncoder().encode(JSON.stringify(messages))
-  const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes)
-  return Array.from(new Uint8Array(digest), (byte) =>
-    byte.toString(16).padStart(2, '0'),
-  ).join('')
-}
-
 function isModelMessage(value: unknown): value is ModelMessage {
   return (
     typeof value === 'object' &&
@@ -155,6 +203,53 @@ function isCompactionCheckpoint(value: unknown): value is CompactionCheckpoint {
     Array.isArray(value.compactedMessages) &&
     value.compactedMessages.every(isModelMessage)
   )
+}
+
+/** The metadata namespace of a ready background summary. The key is the thread. */
+const BACKGROUND_NAMESPACE = '@tanstack/ai-compaction:background'
+
+/** The memory namespace of the run of the last call of each thread. */
+const RUN_NAMESPACE = '@tanstack/ai-compaction:run'
+
+/** A ready background summary: the record of its result, built on its snapshot. */
+interface BackgroundReady {
+  record: CompactionRecord
+  /** The hash of the snapshot before `record.from`, for a record with no `firstKeptId`. */
+  prefixHash: string
+}
+
+function isBackgroundReady(value: unknown): value is BackgroundReady {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'prefixHash' in value &&
+    typeof value.prefixHash === 'string' &&
+    'record' in value &&
+    typeof value.record === 'object' &&
+    value.record !== null &&
+    'type' in value.record &&
+    value.record.type === COMPACTION_RECORD_TYPE &&
+    'from' in value.record &&
+    typeof value.record.from === 'number'
+  )
+}
+
+/** Wait for `job`. Throw the signal's reason when it aborts first. */
+function abortable(job: Promise<void>, signal: AbortSignal | undefined) {
+  if (!signal) return job
+  return new Promise<void>((resolve, reject) => {
+    const stop = () => reject(signal.reason)
+    if (signal.aborted) {
+      stop()
+      return
+    }
+    signal.addEventListener('abort', stop, { once: true })
+    // A job never rejects: it reports its own failure.
+    void job.then(() => {
+      signal.removeEventListener('abort', stop)
+      resolve()
+    })
+  })
 }
 
 function messagePreviewText(message: ModelMessage): string {
@@ -238,10 +333,15 @@ export interface CompactionContext {
   maxTokens: number
   /** The shared token estimator (default {@link estimateMessageTokens}). */
   estimate: (message: ModelMessage) => number
+  /** Report the usage of a model call the strategy made, for example a summary. */
+  addUsage: (usage: TokenUsage) => void
+  /** Aborted when the run is cancelled. Pass it to a model call. */
+  signal?: AbortSignal
 }
 
 /**
- * Shrinks a message list. Called only when the estimate is over budget.
+ * Shrinks a message list. Called when the count is over `maxTokens`, or when
+ * `compactNext` forces it.
  * Return the rewritten messages, or `null` to leave them unchanged.
  */
 export type CompactionStrategy = (
@@ -259,10 +359,23 @@ export interface CompactionInfo {
   messagesBefore: number
   /** Message count after compaction (unchanged for {@link clearToolResults}). */
   messagesAfter: number
+  /** Why the compaction ran. */
+  reason: CompactionReason
+  /** The usage the strategy reported with `addUsage`. */
+  usage?: TokenUsage
+  /**
+   * Set when the after-turn check failed (the strategy, the store, or
+   * `onCompact` threw), or when a background summary failed. The run goes
+   * on. When the strategy failed, a later check tries again. Also set when
+   * the adapter's `compact` failed and the strategy ran in its place.
+   */
+  error?: { message: string }
+  /** `true`: a ready background summary no longer fit the messages, and was dropped. */
+  stale?: boolean
 }
 
 export interface CompactionOptions {
-  /** Compact when estimated tokens across `messages` exceed this. */
+  /** Compact when the token count of `messages` passes this (see `countTokens` and `auto`). */
   maxTokens: number
   /** How to shrink the messages. Default: {@link evictOldest}. */
   strategy?: CompactionStrategy
@@ -275,6 +388,69 @@ export interface CompactionOptions {
   strategyKey?: string
   /** Observe each compaction (logging, metrics). */
   onCompact?: (info: CompactionInfo) => void
+  /**
+   * How to count the tokens of the list. `'usage'`: the usage the provider
+   * reported for the last model call, plus the estimate of each message after
+   * its reply. The estimate counts when no saved usage fits the list. The
+   * strategies still use the estimate to choose the cut. Default
+   * `'estimate'`.
+   */
+  countTokens?: 'estimate' | 'usage'
+  /**
+   * `false`: do not compact when the count passes `maxTokens`.
+   * `compactNext` and the after-turn overflow check still compact. Default
+   * `true`.
+   */
+  auto?: boolean
+  /**
+   * The model's context window in tokens. With `countTokens: 'usage'` and
+   * `durable: true` on a host with a log, the check after the last model call
+   * of a run compacts when the usage is over it, even with `auto: false`. A
+   * failed after-turn compaction never fails the run: `onCompact` gets
+   * `error`. Only a failed log append fails it.
+   */
+  contextWindow?: number
+  /**
+   * Write each compaction as a log record when the host provides
+   * `LogRecordsCapability` (a durable harness session). Fold the record with
+   * {@link projectCompaction}. Without the capability, the checkpoint is
+   * used, and there is no after-turn check. When an earlier middleware set
+   * `providerMessages`, the result stays provider-only. Default `false`.
+   */
+  durable?: boolean
+  /**
+   * `true`: when the strategy throws in the check before a model call, report
+   * the error in `compaction:ended` and send the list without compaction.
+   * Default `false`: the run fails. The after-turn check never fails the run.
+   */
+  continueOnError?: boolean
+  /**
+   * Prepare the summary before the list is over `maxTokens`. When the count
+   * at a model call is over `atTokens` and not over `maxTokens`, the strategy
+   * runs on a copy of the messages, and the call does not wait for it. The
+   * result applies at the first model call of the next run. A call over
+   * `maxTokens` while it runs waits for it. A ready result waits in the
+   * metadata store, or in memory without one. `atTokens` must be below
+   * `maxTokens`. Default: off.
+   */
+  background?: { atTokens: number }
+  /**
+   * Compact with the provider's own endpoint. Pass the adapter of the
+   * `chat()` call. When the adapter has `compact`, it runs in place of
+   * `strategy`. Else, or when `compact` fails, `strategy` runs. A failure
+   * sets `error` in `onCompact` and `compaction:ended`. Then that adapter
+   * and model use `strategy` for the rest of the process. Default: off.
+   */
+  native?: Pick<AnyTextAdapter, 'compact'>
+}
+
+/** What {@link withCompaction} returns: a chat middleware with `compactNext`. */
+export interface CompactionMiddleware extends ChatMiddleware {
+  /**
+   * Compact at the next model call on `threadId`, even when the count is
+   * under `maxTokens` or `auto` is `false`. That call clears the flag.
+   */
+  compactNext: (threadId: string) => void
 }
 
 const sum = (
@@ -348,33 +524,137 @@ export function evictOldest(
 }
 
 /**
+ * The start of the turn that holds index `cut`: its user message. When no
+ * user message comes after an earlier summary at index 0, the turn started
+ * before the summary. Then the cut is not a split turn: it returns `cut`, and
+ * one update call merges the messages into the summary.
+ */
+function turnStart(messages: ReadonlyArray<ModelMessage>, cut: number) {
+  let start = cut
+  // The walk stops at index 0 also when the summary has the role 'user'.
+  while (start > 0 && messages[start]?.role !== 'user') start -= 1
+  return start === 0 && readSummary(messages[0]) ? cut : start
+}
+
+/**
  * Drop the oldest messages and replace them with an LLM summary. Keeps the gist
  * of old turns at the cost of one summarization call. Wire `summarize` to
- * `summarize()` or any model call.
+ * {@link conversationSummarizer}, `summarize()`, or any model call.
+ *
+ * When the messages start with an earlier summary, `summarize` gets its text
+ * as `previousSummary`, so it can merge the new messages into it.
  */
 export function summarizeOldest(options: {
-  summarize: (messages: Array<ModelMessage>) => Promise<string>
+  /** Returns the summary text, or the text and the usage of its model call. */
+  summarize: Summarizer
   /** Tokens of recent messages to keep verbatim. Default `floor(maxTokens/2)`. */
   keepRecentTokens?: number
   /** Role of the injected summary message. Default `'assistant'`. */
   summaryRole?: 'user' | 'assistant'
+  /**
+   * `'turn'`: when the kept tail starts inside a turn, summarize the history
+   * before the turn and the first part of the turn, in two parallel calls.
+   * When the user message of the turn comes right after an earlier summary,
+   * only the second call runs. When no user message comes after an earlier
+   * summary, the turn started before it: one update call runs, as with
+   * `'message'`. Default `'message'`.
+   */
+  cut?: 'message' | 'turn'
 }): CompactionStrategy {
   const strategy: CompactionStrategy = async (messages, ctx) => {
     const keep = options.keepRecentTokens ?? Math.floor(ctx.maxTokens / 2)
     const cut = splitAtRecent(messages, ctx.estimate, keep)
     if (cut <= 0) return null
-    const summary = await options.summarize(messages.slice(0, cut))
+    // Follows the signal of the run. When one call fails, it aborts the other
+    // call, so that call stops and adds no usage after the end event.
+    const controller = new AbortController()
+    const stop = () => controller.abort(ctx.signal?.reason)
+    if (ctx.signal?.aborted) stop()
+    ctx.signal?.addEventListener('abort', stop, { once: true })
+    const summarize = async (
+      part: Array<ModelMessage>,
+      input: SummarizeInput,
+    ) => {
+      try {
+        const result = await options.summarize(part, {
+          ...input,
+          signal: controller.signal,
+        })
+        const summary = typeof result === 'string' ? result : result.summary
+        if (typeof result !== 'string' && result.usage) {
+          ctx.addUsage(result.usage)
+        }
+        // An empty summary would replace the history with nothing. Fail the
+        // compaction instead, so the history stays as it is.
+        if (summary.trim() === '') {
+          throw new Error('The summarizer returned an empty summary.')
+        }
+        return summary
+      } catch (error) {
+        controller.abort(error)
+        throw error
+      }
+    }
+    const earlier = readSummary(messages[0])
+    const start =
+      options.cut === 'turn' && messages[cut]?.role !== 'user'
+        ? turnStart(messages, cut)
+        : cut
+    const prefix = messages.slice(start, cut)
+    // With a turn prefix, an earlier summary right before the turn is the
+    // whole history. Keep its text, and make no history call.
+    const historyCall =
+      start > 0 && !(earlier && start === 1 && prefix.length > 0)
+    const previousDetails =
+      earlier?.details !== undefined ? { previousDetails: earlier.details } : {}
+    const [history, turn] = await Promise.all([
+      historyCall
+        ? summarize(messages.slice(0, start), {
+            ...(earlier ? { previousSummary: earlier.summary } : {}),
+            ...previousDetails,
+            ...(prefix.length > 0 ? { turnPrefixMessages: prefix } : {}),
+          })
+        : undefined,
+      prefix.length > 0
+        ? summarize(prefix, {
+            turnPrefix: true,
+            // With no history call, this call writes the details.
+            ...(historyCall
+              ? {}
+              : { turnPrefixMessages: prefix, ...previousDetails }),
+          })
+        : undefined,
+    ]).finally(() => ctx.signal?.removeEventListener('abort', stop))
+    let historyText = history
+    let turnText = turn
+    if (!historyCall && turn !== undefined) {
+      // The details of the turn-prefix call go with the history, before the
+      // turn context. When the call gives details, they replace the details
+      // of the earlier summary. Otherwise the earlier details stay.
+      const split = splitDetails(turn)
+      historyText = summaryBody(
+        earlier?.summary ?? '',
+        split.details ?? earlier?.details,
+      )
+      turnText = split.summary
+    }
+    const body = [
+      historyText,
+      turnText === undefined ? undefined : `## Turn context\n\n${turnText}`,
+    ]
+      .filter((part) => part !== undefined && part !== '')
+      .join('\n\n')
     return [
       {
         role: options.summaryRole ?? 'assistant',
-        content: `<untrusted-conversation-summary>\n${summary}\n</untrusted-conversation-summary>`,
+        content: summaryContent(body),
       },
       ...messages.slice(cut),
     ]
   }
   return identifyStrategy(
     strategy,
-    `summarize-oldest:${options.keepRecentTokens ?? 'half'}:${options.summaryRole ?? 'assistant'}`,
+    `summarize-oldest:${options.keepRecentTokens ?? 'half'}:${options.summaryRole ?? 'assistant'}${options.cut === 'turn' ? ':turn' : ''}`,
   )
 }
 
@@ -464,36 +744,322 @@ export function composeStrategies(
  * })
  * ```
  */
-export function withCompaction(options: CompactionOptions): ChatMiddleware {
+export function withCompaction(
+  options: CompactionOptions,
+): CompactionMiddleware {
+  const background = options.background
+  if (background && background.atTokens >= options.maxTokens) {
+    throw new Error(
+      'withCompaction: background.atTokens must be below maxTokens.',
+    )
+  }
   const estimate = options.estimateTokens ?? estimateMessageTokens
-  const strategy = options.strategy ?? evictOldest()
+  const configured = options.strategy ?? evictOldest()
+  const native = options.native
+  const nativeCompact = native?.compact?.bind(native)
+  /**
+   * The strategy of a call: the adapter's `compact` when `native` has it.
+   * When `compact` fails, the configured strategy runs, and `spent.error`
+   * gets the failure. An adapter can get `compact` from a shared base and
+   * point at a provider with no such endpoint.
+   */
+  const strategyOf = (
+    ctx: ChatMiddlewareContext,
+    spent: { error?: { message: string } },
+    config?: ChatMiddlewareConfig,
+  ): CompactionStrategy =>
+    native && nativeCompact
+      ? async (messages, compaction) => {
+          if (failedNative.get(native)?.has(ctx.model)) {
+            return configured(messages, compaction)
+          }
+          try {
+            return await nativeCompact({
+              messages: [...messages],
+              model: ctx.model,
+              ...(compaction.signal ? { signal: compaction.signal } : {}),
+              ...(config?.wrapFetch ? { wrapFetch: config.wrapFetch } : {}),
+              ...(config ? { systemPrompts: config.systemPrompts } : {}),
+              ...(config ? { tools: config.tools } : {}),
+            })
+          } catch (error) {
+            if (compaction.signal?.aborted) throw error
+            const models = failedNative.get(native) ?? new Set<string>()
+            failedNative.set(native, models.add(ctx.model))
+            spent.error = {
+              message: error instanceof Error ? error.message : String(error),
+            }
+            return configured(messages, compaction)
+          }
+        }
+      : configured
   const strategyKey =
     options.strategyKey ??
-    (options.estimateTokens ? undefined : strategyKeys.get(strategy))
+    (nativeCompact
+      ? 'native'
+      : options.estimateTokens
+        ? undefined
+        : strategyKeys.get(configured))
   const checkpointStrategyKey = strategyKey
     ? `${strategyKey}:maxTokens=${options.maxTokens}`
     : undefined
+  const countUsage = options.countTokens === 'usage'
+  const auto = options.auto !== false
+  const memory = memoryMetadata()
+  // The store of the checkpoint and of the usage. With countTokens: 'usage',
+  // a run with no store, or a strategy with no key, uses the memory of this
+  // middleware. Then the next call reuses the compacted list, and the saved
+  // usage fits that list.
+  const storeOf = (ctx: ChatMiddlewareContext) => {
+    const shared = getMetadata(ctx, { optional: true })
+    if (shared && checkpointStrategyKey) return shared
+    return countUsage ? memory : undefined
+  }
+  // True when the last model call of a run got a compacted view. The usage of
+  // that view fits a later call only when that call reuses the checkpoint.
+  const compactedViews = new WeakMap<ChatMiddlewareContext, boolean>()
+  /** The threads whose next model call compacts. */
+  const forced = new Set<string>()
+  /** The running background summary of each thread. */
+  const jobs = new Map<string, Promise<void>>()
+  /** Where a ready background summary waits: the metadata store, else memory. */
+  const backgroundStore = (ctx: ChatMiddlewareContext) =>
+    getMetadata(ctx, { optional: true }) ?? memory
+
+  /**
+   * Run the strategy on `snapshot`, apart from the run: the run's signal does
+   * not stop it, and the model call does not wait for it. The result waits in
+   * the store until the first model call of a later run applies it.
+   */
+  function startBackground(
+    ctx: ChatMiddlewareContext,
+    snapshot: Array<ModelMessage>,
+    before: number,
+    reusedCheckpoint: boolean,
+    config: ChatMiddlewareConfig,
+  ) {
+    const startedAt = Date.now()
+    const store = backgroundStore(ctx)
+    const strategyField = checkpointStrategyKey
+      ? { strategyKey: checkpointStrategyKey }
+      : {}
+    emitCompactionStarted(ctx, {
+      before,
+      messagesBefore: snapshot.length,
+      reusedCheckpoint,
+      maxTokens: options.maxTokens,
+      ...strategyField,
+      reason: 'background',
+    })
+    const spent: { usage?: TokenUsage; error?: { message: string } } = {}
+    // This event reaches the stream only while the run that started the job
+    // still runs. onCompact always gets a failure.
+    const end = (error?: { message: string }) =>
+      emitCompactionEnded(ctx, {
+        after: before,
+        messagesAfter: snapshot.length,
+        reusedCheckpoint,
+        maxTokens: options.maxTokens,
+        durationMs: Date.now() - startedAt,
+        ...strategyField,
+        reason: 'background',
+        ...(spent.usage ? { usage: spent.usage } : {}),
+        ...(error ? { error } : {}),
+      })
+    const report = (error: { message: string }) => {
+      end(error)
+      try {
+        options.onCompact?.({
+          before,
+          after: before,
+          messagesBefore: snapshot.length,
+          messagesAfter: snapshot.length,
+          reason: 'background',
+          ...(spent.usage ? { usage: spent.usage } : {}),
+          error,
+        })
+      } catch {
+        // An onCompact that throws must not reject the job.
+      }
+    }
+    // The job starts after `jobs.set`, so a strategy that throws at once
+    // still removes its entry.
+    const done = Promise.resolve().then(async () => {
+      try {
+        const next = await strategyOf(
+          ctx,
+          spent,
+          config,
+        )(snapshot, {
+          maxTokens: options.maxTokens,
+          estimate,
+          addUsage: (usage) => {
+            spent.usage = sumUsage(spent.usage, usage)
+          },
+        })
+        if (!next || next === snapshot) {
+          end(spent.error)
+          return
+        }
+        const record = compactionRecord({
+          reason: 'background',
+          before: snapshot,
+          after: next,
+          tokensBefore: before,
+          tokensAfter: sum(next, estimate),
+          ...(spent.usage ? { usage: spent.usage } : {}),
+        })
+        const ready: BackgroundReady = {
+          record,
+          prefixHash: await hashMessages(snapshot.slice(0, record.from)),
+        }
+        await store.set(BACKGROUND_NAMESPACE, ctx.threadId, ready)
+        // The summary is ready, but the adapter's compact failed first.
+        if (spent.error) report(spent.error)
+      } catch (failure) {
+        report({
+          message: failure instanceof Error ? failure.message : String(failure),
+        })
+      } finally {
+        jobs.delete(ctx.threadId)
+      }
+    })
+    jobs.set(ctx.threadId, done)
+  }
+
+  /**
+   * After the last model call of a run on a durable host: compact when the
+   * usage is over the context window, or over `maxTokens` with `auto` on, and
+   * write the record. Custom events from `onFinish` do not reach the stream,
+   * so only `onCompact` reports it.
+   */
+  async function afterTurn(ctx: ChatMiddlewareContext) {
+    // Without a log the result could go only to a checkpoint, and that can
+    // miss on the next run. The next call's own check covers it.
+    const logRecords = getLogRecords(ctx, { optional: true })
+    const store = storeOf(ctx)
+    if (!logRecords || !store) return
+    const messages = [...ctx.messages]
+    const spent: { usage?: TokenUsage; error?: { message: string } } = {}
+    let tokens = 0
+    const info = (after: number, messagesAfter: number): CompactionInfo => ({
+      before: tokens,
+      after,
+      messagesBefore: messages.length,
+      messagesAfter,
+      reason: 'after-turn',
+      ...(spent.usage ? { usage: spent.usage } : {}),
+      ...(spent.error ? { error: spent.error } : {}),
+    })
+    // The answer already streamed, so only a failed log append fails the run.
+    // Other errors go to onCompact.
+    const fail = (error: unknown, done = info(tokens, messages.length)) => {
+      try {
+        options.onCompact?.({
+          ...done,
+          error: {
+            message: error instanceof Error ? error.message : String(error),
+          },
+        })
+      } catch {
+        // An onCompact that throws here must not fail the run either.
+      }
+    }
+
+    let next: Array<ModelMessage> | null
+    let tokensAfter: number
+    try {
+      // A durable run never reuses a checkpoint. So this is true only when
+      // the last call of this run compacted, and the list here is the folded
+      // view that the saved usage counted.
+      const counted = await countFromUsage(
+        await store.get(USAGE_NAMESPACE, ctx.threadId),
+        messages,
+        estimate,
+        compactedViews.get(ctx) === true,
+      )
+      if (counted === undefined) return
+      tokens = counted
+      const isOverflow =
+        options.contextWindow !== undefined && tokens > options.contextWindow
+      if (!isOverflow && !(auto && tokens > options.maxTokens)) return
+      next = await strategyOf(ctx, spent)(messages, {
+        maxTokens: options.maxTokens,
+        estimate,
+        signal: ctx.signal,
+        addUsage: (usage) => {
+          spent.usage = sumUsage(spent.usage, usage)
+        },
+      })
+      if (!next || next === messages || ctx.signal?.aborted) {
+        if (spent.error) fail(spent.error.message)
+        return
+      }
+      tokensAfter = sum(next, estimate)
+    } catch (error) {
+      // The saved usage stays, and the next call's own check tries again.
+      fail(error)
+      return
+    }
+    const record = compactionRecord({
+      reason: 'after-turn',
+      before: messages,
+      after: next,
+      tokensBefore: tokens,
+      tokensAfter,
+      ...(spent.usage ? { usage: spent.usage } : {}),
+    })
+    // Append first, so a failed append is never reported as a success.
+    // withPersistence saved the reply before this hook: it is earlier in the
+    // middleware list. If it was not, firstKeptId finds the kept tail, or the
+    // fold skips the record.
+    await logRecords.append([record])
+    const done = info(tokensAfter, next.length)
+    try {
+      // The saved usage counted the list before this compaction.
+      await store.delete(USAGE_NAMESPACE, ctx.threadId)
+      options.onCompact?.(done)
+    } catch (error) {
+      fail(error, done)
+    }
+  }
 
   return {
     name: 'compaction',
-    optionalRequires: [MetadataCapability],
+    optionalRequires: options.durable
+      ? [MetadataCapability, LogRecordsCapability]
+      : [MetadataCapability],
+    compactNext: (threadId) => {
+      forced.add(threadId)
+    },
     async onConfig(ctx, config) {
       // init is discarded by the engine rebuild and can run before persistence
       // hydrates the thread. Compact only on model-bound phases.
       if (ctx.phase === 'init') return
+      const force = forced.delete(ctx.threadId)
+      const reason: CompactionReason = force ? 'forced' : 'threshold'
 
       const startedAt = Date.now()
       const { messages } = config
       const inputMessages = config.providerMessages ?? messages
-      const metadata = getMetadata(ctx, { optional: true })
+      const store = storeOf(ctx)
+      // A durable compaction goes to the log, and the fold gives the next
+      // call the compacted list, so it needs no checkpoint. A list that an
+      // earlier middleware made provider-only cannot be recorded.
+      const logRecords =
+        options.durable && inputMessages === messages
+          ? getLogRecords(ctx, { optional: true })
+          : undefined
+      const metadata = logRecords ? undefined : store
+      const checkpointKey = checkpointStrategyKey ?? 'memory'
       let workingMessages = inputMessages
       let reusedCheckpoint = false
 
-      if (metadata && checkpointStrategyKey && inputMessages === messages) {
+      if (metadata && inputMessages === messages) {
         const stored = await metadata.get(CHECKPOINT_NAMESPACE, ctx.threadId)
         if (
           isCompactionCheckpoint(stored) &&
-          stored.strategyKey === checkpointStrategyKey &&
+          stored.strategyKey === checkpointKey &&
           stored.sourceMessageCount <= messages.length &&
           stored.sourceHash ===
             (await hashMessages(messages.slice(0, stored.sourceMessageCount)))
@@ -505,8 +1071,218 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
           reusedCheckpoint = true
         }
       }
+      // A reused checkpoint is always given to the model. A new compaction
+      // sets this again below.
+      compactedViews.set(ctx, reusedCheckpoint)
 
-      const before = sum(workingMessages, estimate)
+      const fromUsage =
+        countUsage && store
+          ? await countFromUsage(
+              await store.get(USAGE_NAMESPACE, ctx.threadId),
+              messages,
+              estimate,
+              reusedCheckpoint,
+            )
+          : undefined
+      let before = fromUsage ?? sum(workingMessages, estimate)
+
+      /**
+       * Give the model `next` in place of `from`, and keep it: the record on
+       * a durable host, else the checkpoint. Returns the count of `next`.
+       */
+      const commit = async (
+        from: Array<ModelMessage>,
+        next: Array<ModelMessage>,
+        tokensBefore: number,
+        why: CompactionReason,
+        usage: TokenUsage | undefined,
+        error?: { message: string },
+      ) => {
+        const info: CompactionInfo = {
+          before: tokensBefore,
+          after: sum(next, estimate),
+          messagesBefore: from.length,
+          messagesAfter: next.length,
+          reason: why,
+          ...(usage ? { usage } : {}),
+          ...(error ? { error } : {}),
+        }
+        options.onCompact?.(info)
+        emitCompactionState(
+          ctx,
+          compactionStateValue({
+            before: info.before,
+            after: info.after,
+            messagesBefore: info.messagesBefore,
+            messagesAfter: info.messagesAfter,
+            reusedCheckpoint,
+            maxTokens: options.maxTokens,
+            strategyKey: checkpointStrategyKey,
+            beforeMessages: from,
+            afterMessages: next,
+            estimate,
+          }),
+        )
+        emitCompactionEnded(ctx, {
+          after: info.after,
+          messagesAfter: info.messagesAfter,
+          reusedCheckpoint,
+          maxTokens: options.maxTokens,
+          durationMs: Date.now() - startedAt,
+          ...(checkpointStrategyKey
+            ? { strategyKey: checkpointStrategyKey }
+            : {}),
+          reason: why,
+          ...(usage ? { usage } : {}),
+          ...(error ? { error } : {}),
+        })
+
+        if (countUsage) {
+          // The saved usage counted the list before this compaction.
+          await store?.delete(USAGE_NAMESPACE, ctx.threadId)
+        }
+
+        if (logRecords) {
+          // The model gets `next` now. The record makes the log fold the same.
+          if (!ctx.signal?.aborted) {
+            await logRecords.append([
+              compactionRecord({
+                reason: why,
+                before: from,
+                after: next,
+                tokensBefore,
+                tokensAfter: info.after,
+                ...(usage ? { usage } : {}),
+              }),
+            ])
+          }
+        } else if (metadata && inputMessages === messages) {
+          const checkpoint: CompactionCheckpoint = {
+            schemaVersion: 1,
+            sourceMessageCount: messages.length,
+            sourceHash: await hashMessages(messages),
+            strategyKey: checkpointKey,
+            compactedMessages: next,
+          }
+          if (!ctx.signal?.aborted) {
+            await metadata.set(CHECKPOINT_NAMESPACE, ctx.threadId, checkpoint)
+          }
+        }
+
+        compactedViews.set(ctx, true)
+        return info.after
+      }
+
+      /**
+       * Apply the ready background summary of the thread, or drop it when it
+       * no longer fits: a newer compaction cut past its kept message, or,
+       * without a kept id, the messages before the cut changed. Returns the
+       * new list, or `undefined`.
+       */
+      const applyReady = async () => {
+        const readyStore = backgroundStore(ctx)
+        const ready = await readyStore.get(BACKGROUND_NAMESPACE, ctx.threadId)
+        if (!isBackgroundReady(ready)) return undefined
+        await readyStore.delete(BACKGROUND_NAMESPACE, ctx.threadId)
+        const { record, prefixHash } = ready
+        // Without a kept id, the messages before the cut must be the ones
+        // that the summary read.
+        const fits =
+          record.firstKeptId !== undefined ||
+          (record.from <= workingMessages.length &&
+            (await hashMessages(workingMessages.slice(0, record.from))) ===
+              prefixHash)
+        const next = fits
+          ? projectCompaction({ messages: workingMessages, record })
+          : undefined
+        if (next) {
+          await commit(
+            workingMessages,
+            next,
+            before,
+            'background',
+            record.usage,
+          )
+          return next
+        }
+        const usageField = record.usage ? { usage: record.usage } : {}
+        options.onCompact?.({
+          before,
+          after: before,
+          messagesBefore: workingMessages.length,
+          messagesAfter: workingMessages.length,
+          reason: 'background',
+          stale: true,
+          ...usageField,
+        })
+        emitCompactionEnded(ctx, {
+          after: before,
+          messagesAfter: workingMessages.length,
+          reusedCheckpoint,
+          maxTokens: options.maxTokens,
+          durationMs: Date.now() - startedAt,
+          ...(checkpointStrategyKey
+            ? { strategyKey: checkpointStrategyKey }
+            : {}),
+          reason: 'background',
+          stale: true,
+          ...usageField,
+        })
+        return undefined
+      }
+
+      // Set when a background summary was applied at this call.
+      let applied = false
+      if (background) {
+        // ponytail: the run of the last call of each thread, in the memory
+        // store (its newest 1000 threads). A forgotten thread counts as a
+        // first call.
+        const firstCall =
+          (await memory.get(RUN_NAMESPACE, ctx.threadId)) !== ctx.runId
+        if (firstCall) await memory.set(RUN_NAMESPACE, ctx.threadId, ctx.runId)
+        // Over maxTokens while a summary runs: wait for it and apply it, so
+        // the summary runs once, not twice. The run's signal stops the wait.
+        const running =
+          !force && auto && before > options.maxTokens
+            ? jobs.get(ctx.threadId)
+            : undefined
+        if (running) await abortable(running, ctx.signal)
+        // A ready summary applies at the first model call of a run, and
+        // after the wait. Never in the middle of a run otherwise.
+        const checked = firstCall || running !== undefined
+        if (checked) {
+          const next = await applyReady()
+          if (next) {
+            workingMessages = next
+            before = sum(next, estimate)
+            applied = true
+          }
+        }
+        if (
+          !force &&
+          auto &&
+          before > background.atTokens &&
+          before <= options.maxTokens &&
+          !jobs.has(ctx.threadId) &&
+          // A checked call took the ready summary already.
+          (checked ||
+            !isBackgroundReady(
+              await backgroundStore(ctx).get(
+                BACKGROUND_NAMESPACE,
+                ctx.threadId,
+              ),
+            ))
+        ) {
+          // The model call goes on at once, with the messages as they are.
+          startBackground(
+            ctx,
+            [...workingMessages],
+            before,
+            reusedCheckpoint,
+            config,
+          )
+        }
+      }
       const startedValue: CompactionStartedEventValue = {
         before,
         messagesBefore: workingMessages.length,
@@ -515,9 +1291,12 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
         ...(checkpointStrategyKey
           ? { strategyKey: checkpointStrategyKey }
           : {}),
+        reason,
       }
 
-      if (before <= options.maxTokens) {
+      if (!force && (!auto || before <= options.maxTokens)) {
+        // A background summary was applied above, and its events went out.
+        if (applied) return { providerMessages: workingMessages }
         if (reusedCheckpoint) {
           emitCompactionStarted(ctx, startedValue)
           const stateValue = compactionStateValue({
@@ -541,6 +1320,7 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
             ...(checkpointStrategyKey
               ? { strategyKey: checkpointStrategyKey }
               : {}),
+            reason,
           })
           return { providerMessages: workingMessages }
         }
@@ -548,10 +1328,44 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
       }
 
       emitCompactionStarted(ctx, startedValue)
-      const next = await strategy(workingMessages, {
-        maxTokens: options.maxTokens,
-        estimate,
-      })
+      // An object, so the closure below can write it and TypeScript reads it.
+      const spent: { usage?: TokenUsage; error?: { message: string } } = {}
+      let next: Array<ModelMessage> | null
+      try {
+        next = await strategyOf(
+          ctx,
+          spent,
+          config,
+        )(workingMessages, {
+          maxTokens: options.maxTokens,
+          estimate,
+          signal: ctx.signal,
+          addUsage: (usage) => {
+            spent.usage = sumUsage(spent.usage, usage)
+          },
+        })
+      } catch (error) {
+        emitCompactionEnded(ctx, {
+          after: before,
+          messagesAfter: workingMessages.length,
+          reusedCheckpoint,
+          maxTokens: options.maxTokens,
+          durationMs: Date.now() - startedAt,
+          ...(checkpointStrategyKey
+            ? { strategyKey: checkpointStrategyKey }
+            : {}),
+          reason,
+          ...(spent.usage ? { usage: spent.usage } : {}),
+          error: {
+            message: error instanceof Error ? error.message : String(error),
+          },
+        })
+        // An aborted run must stop. Do not call the adapter with its signal.
+        if (!options.continueOnError || ctx.signal?.aborted) throw error
+        return reusedCheckpoint
+          ? { providerMessages: workingMessages }
+          : undefined
+      }
       if (!next || next === workingMessages) {
         emitCompactionEnded(ctx, {
           after: before,
@@ -562,6 +1376,9 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
           ...(checkpointStrategyKey
             ? { strategyKey: checkpointStrategyKey }
             : {}),
+          reason,
+          ...(spent.usage ? { usage: spent.usage } : {}),
+          ...(spent.error ? { error: spent.error } : {}),
         })
         if (reusedCheckpoint) {
           return { providerMessages: workingMessages }
@@ -569,50 +1386,30 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
         return
       }
 
-      const info = {
+      await commit(
+        workingMessages,
+        next,
         before,
-        after: sum(next, estimate),
-        messagesBefore: workingMessages.length,
-        messagesAfter: next.length,
-      }
-      options.onCompact?.(info)
-      emitCompactionState(
-        ctx,
-        compactionStateValue({
-          ...info,
-          reusedCheckpoint,
-          maxTokens: options.maxTokens,
-          strategyKey: checkpointStrategyKey,
-          beforeMessages: workingMessages,
-          afterMessages: next,
-          estimate,
-        }),
+        reason,
+        spent.usage,
+        spent.error,
       )
-      emitCompactionEnded(ctx, {
-        after: info.after,
-        messagesAfter: info.messagesAfter,
-        reusedCheckpoint,
-        maxTokens: options.maxTokens,
-        durationMs: Date.now() - startedAt,
-        ...(checkpointStrategyKey
-          ? { strategyKey: checkpointStrategyKey }
-          : {}),
-      })
-
-      if (metadata && checkpointStrategyKey && inputMessages === messages) {
-        const checkpoint: CompactionCheckpoint = {
-          schemaVersion: 1,
-          sourceMessageCount: messages.length,
-          sourceHash: await hashMessages(messages),
-          strategyKey: checkpointStrategyKey,
-          compactedMessages: next,
-        }
-        if (!ctx.signal?.aborted) {
-          await metadata.set(CHECKPOINT_NAMESPACE, ctx.threadId, checkpoint)
-        }
-      }
-
       return { providerMessages: next }
     },
+    onUsage: countUsage
+      ? async (ctx, usage) => {
+          const saved = await toUsageCount(
+            ctx.messages,
+            usage,
+            compactedViews.get(ctx) ?? false,
+          )
+          // A cancelled call keeps the last good usage.
+          if (!saved || ctx.signal?.aborted) return
+          await storeOf(ctx)?.set(USAGE_NAMESPACE, ctx.threadId, saved)
+        }
+      : undefined,
+    // Only a durable run checks after the turn (orchestrator decision).
+    onFinish:
+      countUsage && options.durable ? (ctx) => afterTurn(ctx) : undefined,
   }
 }

@@ -1,0 +1,28 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[truncated-tool-call] weather in Paris",
+        "hasToolResult": false
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "lookup_weather",
+            "arguments": "{\"location\":\"Paris\"}"
+          }
+        ],
+        "finishReason": "length"
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[truncated-tool-call] weather in Paris",
+        "hasToolResult": true
+      },
+      "response": {
+        "content": "Let me look again."
+      }
+    }
+  ]
+}

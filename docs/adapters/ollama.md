@@ -87,6 +87,8 @@ const adapter = createOllamaChat("llama3", {
 
 `host` and `headers` are aliases of the same two options. If you set both forms, `baseURL` and `defaultHeaders` win.
 
+The adapter supports [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call). An adapter with an injected `Ollama` client ignores it, because the adapter cannot reach that fetch.
+
 ## Available Models
 
 To see available models on your Ollama instance:
@@ -159,9 +161,13 @@ export async function POST(request: Request) {
 
 **Note:** Tool support varies by model. Models like `llama3`, `mistral`, and `qwen2` generally have good tool calling support.
 
+## Tool choice
+
+Ollama has no tool choice. The adapter ignores `chat({ toolChoice })`, so the model decides to call a tool or not, also with `'none'` or `'required'`. To stop tool calls for a request, do not pass tools. For the other providers, see [Choose when the model calls a tool](../tools/tools#choose-when-the-model-calls-a-tool).
+
 ## Model Options
 
-Ollama supports various provider-specific options. Unlike the other providers, Ollama nests its sampling and runner parameters inside an `options` object **within** `modelOptions` — `temperature`, `top_p`, and `num_predict` (the token-limit key) all live under `modelOptions.options`:
+Ollama supports various provider-specific options. Unlike the other providers, Ollama nests its sampling and runner parameters inside an `options` object **within** `modelOptions`. `temperature`, `top_p`, and `num_predict` (the token-limit key) all live under `modelOptions.options`:
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -258,7 +264,7 @@ const result = await embed({
 console.log(result.embeddings[0]?.vector);
 ```
 
-Known models (`nomic-embed-text`, `mxbai-embed-large`, `all-minilm`, `snowflake-arctic-embed`, `bge-m3`, `embeddinggemma`) get autocomplete, and any other model name is accepted. Pull the model first with `ollama pull nomic-embed-text`. Output dimensions are fixed per model — the top-level `dimensions` option is not supported.
+Known models (`nomic-embed-text`, `mxbai-embed-large`, `all-minilm`, `snowflake-arctic-embed`, `bge-m3`, `embeddinggemma`) get autocomplete, and any other model name is accepted. Pull the model first with `ollama pull nomic-embed-text`. Output dimensions are fixed per model, so the top-level `dimensions` option is not supported.
 
 See the [Embeddings guide](../embeddings.md) for the full API.
 
@@ -334,7 +340,7 @@ Creates an Ollama text/chat adapter with an explicit host or client config.
 
 ### `ollamaSummarize(model)` / `createOllamaSummarize(model, hostOrConfig?)`
 
-Creates an Ollama summarization adapter — same signature shape as the chat adapter.
+Creates an Ollama summarization adapter, with the same signature shape as the chat adapter.
 
 ## Benefits of Ollama
 

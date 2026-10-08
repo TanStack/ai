@@ -91,7 +91,53 @@ const inputSchema: JSONSchema = {
 };
 ```
 
-> **Note:** When using JSON Schema, TypeScript infers `unknown` for input/output types (it cannot derive types from a JSON Schema at compile time), so you must narrow or cast `args` before use. Zod schemas are recommended for full type safety.
+> **Note:** JSON Schema input and output types are `unknown`. Narrow the values before use. Standard Schema libraries such as Zod provide inferred types.
+
+### Validate input before execution
+
+A model can send arguments that do not match your tool. `chat()` validates the final input after `onBeforeToolCall` middleware. Invalid input becomes a tool error that the model can read. The tool does not execute.
+
+Raw JSON Schema input uses schema-guided coercion. For example, a number field can accept `"5"` and pass `5` to the tool. Missing required fields and values that still fail the schema produce an error.
+
+```typescript
+import { chat, toolDefinition } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
+const double = toolDefinition({
+  name: 'double',
+  description: 'Double a number',
+  inputSchema: {
+    type: 'object',
+    properties: { value: { type: 'number' } },
+    required: ['value'],
+    additionalProperties: false,
+  },
+}).server((input) => {
+  if (
+    typeof input !== 'object' || input === null ||
+    !('value' in input) || typeof input.value !== 'number'
+  ) {
+    throw new Error('Expected a number in value')
+  }
+  return input.value * 2
+})
+
+for await (const chunk of chat({
+  adapter: openaiText('gpt-5.5'),
+  messages: [{ role: 'user', content: 'Double 5 with the double tool' }],
+  tools: [double],
+})) {
+  if (chunk.type === 'TEXT_MESSAGE_CONTENT') console.log(chunk.delta)
+}
+```
+
+Standard Schema validates the authored input first and preserves its transformed output. If that fails, coercion needs a safe Standard JSON Schema **input** export. The converted value must then pass the authored validator. Without that export, the original validation error is returned.
+
+Each accepted execution boundary uses one successful authored transform. A failed first check can still require a second authored check after coercion.
+
+The execution input can differ from the provider's raw JSON. Validation and middleware do not rewrite the provider's saved arguments. A human's approved argument edit can update history. See [Tool Approval](../interrupts/tool-approval).
+
+Empty or whitespace-only arguments fail for a tool with an input schema. Valid JSON values such as `null`, arrays, and numbers are checked against that schema. Malformed JSON produces a tool error.
 
 > **Tip:** Type safety from Zod schemas extends beyond tool execution. When you pass `.client()` tools to `useChat`, a check on `part.name` narrows `part.input` and `part.output`. See [Type-safe tool call events](../chat/stream-events#type-safe-tool-call-events).
 
@@ -176,7 +222,7 @@ const getWeatherDef = toolDefinition({
   outputSchema,
 });
 
-// With a raw JSON Schema, `args` is `unknown` — narrow it before use
+// With a raw JSON Schema, `args` is `unknown`. Narrow it before use
 // (prefer a Zod schema for automatic typing).
 const getWeatherServer = getWeatherDef.server(async (args) => {
   if (typeof args !== "object" || args === null || !("location" in args)) {
@@ -337,7 +383,7 @@ const addToCartClient = addToCartDef.client((input) => {
 });
 ```
 
-On the server, pass either the definition (for client execution) or the server implementation — in separate `chat()` calls:
+On the server, pass either the definition (for client execution) or the server implementation, in separate `chat()` calls:
 
 ```typescript group=tools
 const messages = [{ role: 'user' as const, content: 'Add item abc to my cart' }]
@@ -421,7 +467,7 @@ const runTests = toolDefinition({
 }).server(async () => ({ passed: true }))
 
 const stream = chat({
-  adapter: openaiText('gpt-6.1-sol'),
+  adapter: openaiText('gpt-5.5'),
   messages: [{ role: 'user', content: 'Fix the bug, then run the tests.' }],
   tools: [writeFile, runTests],
   toolExecution: 'sequential',
@@ -430,9 +476,102 @@ const stream = chat({
 
 Client tools do not change: the client runs them as their calls arrive.
 
+## Choose when the model calls a tool
+
+By default, the model decides to call a tool or not. Sometimes a tool call must come first, for example a weather lookup before the model gives advice. Sometimes the model must answer in text. `toolChoice` sets this for a model call.
+
+`toolChoice` on `chat()` applies to every model call of the run. With `'required'` or a named tool, the model calls a tool on each call and never writes a text answer. The run then stops at the loop limit, after a tool result. Use a forced value in one of these two ways.
+
+**Force a tool on the first call only.** Return `toolChoice` from a middleware:
+
+```ts group=tool-choice
+import { chat, toolDefinition, type ChatMiddleware } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { z } from 'zod'
+
+const getWeather = toolDefinition({
+  name: 'get_weather',
+  description: 'Get the current weather for a city',
+  inputSchema: z.object({ city: z.string() }),
+}).server(async ({ city }) => ({ city, temperature: 21 }))
+
+const weatherFirst: ChatMiddleware = {
+  name: 'weather-first',
+  onConfig: (ctx) => {
+    if (ctx.phase === 'beforeModel' && ctx.iteration === 0) {
+      return { toolChoice: { type: 'tool', name: 'get_weather' } }
+    }
+  },
+}
+
+const stream = chat({
+  adapter: openaiText('gpt-6.1-sol'),
+  messages: [{ role: 'user', content: 'What should I wear in Paris today?' }],
+  tools: [getWeather],
+  middleware: [weatherFirst],
+})
+```
+
+The first call must call `get_weather`. A value from middleware applies to that call only, so the next call uses the `chat()` option again. Here that is the provider default, and the model answers with the forecast.
+
+**Run one step only.** Set `agentLoopStrategy: maxIterations(1)`. The model makes one call, the tool runs, and the run ends:
+
+```ts group=tool-choice
+import { maxIterations } from '@tanstack/ai'
+
+const oneLookup = chat({
+  adapter: openaiText('gpt-6.1-sol'),
+  messages: [{ role: 'user', content: 'Weather in Oslo?' }],
+  tools: [getWeather],
+  toolChoice: 'required',
+  agentLoopStrategy: maxIterations(1),
+})
+```
+
+To end a run with a text answer, return `{ toolChoice: 'none' }` on its last call. See [Change the tool choice of a call](../advanced/middleware#change-the-tool-choice-of-a-call).
+
+The values:
+
+| Value | What the model does |
+| --- | --- |
+| `'auto'` | It decides. |
+| `'none'` | It calls no tool. |
+| `'required'` | It must call a tool. |
+| `{ type: 'tool', name }` | It must call the tool with this name. |
+
+The rules for every adapter:
+
+- If the request has no tools, the adapter sends no tool choice.
+- A provider tool choice in `modelOptions` wins over `toolChoice`, for example `tool_choice` on OpenAI.
+- The adapter sends the name in `{ type: 'tool', name }` as you give it. It does not check that a tool has this name.
+
+### Provider notes
+
+Some providers change or ignore some values:
+
+- **OpenAI, Grok, Groq, Mistral, OpenRouter, and the other OpenAI-compatible adapters**: the adapter sends the value as the provider tool choice.
+- **Anthropic**: if the request cannot force a tool, `'required'` and a named tool become `'auto'`.
+  - `claude-fable-5-1`, `claude-opus-5-5`, and `claude-sonnet-5-5` never take a forced tool.
+  - No Claude model takes a forced tool while thinking is on.
+- **Amazon Bedrock (Converse API)**:
+  - The Anthropic rule applies to the Claude models, and also to `claude-mythos-5-1`.
+  - Converse has no `none` value, so `'none'` sends no tools.
+  - After a tool call in the history, Bedrock needs the tools. Then `'none'` sends them with `auto`, and the model can still call a tool.
+  - A request with no tools sends the tool calls and tool results of the history as text.
+  - AWS documents a named tool for Claude and Nova models only.
+- **Gemini**: the value becomes `functionCallingConfig`.
+  - The modes are `AUTO`, `NONE`, and `ANY`. A named tool is `ANY` with `allowedFunctionNames`.
+  - With only provider tools, such as Google Search, Gemini gets no tool config.
+- **Ollama**: Ollama has no tool choice, so the adapter ignores `toolChoice`. See [Ollama](../adapters/ollama#tool-choice).
+- **Claude Code**: `'none'` and a named tool turn off the built-in tools. The adapter then bridges none of your tools, or only the named one. `'required'` logs a warning. See [Claude Code](../adapters/claude-code#tool-choice).
+- **Codex**: `'none'` and a named tool limit only your bridged tools. The built-in Codex tools stay on. These values and `'required'` log a warning. See [Codex](../adapters/codex#tool-choice).
+- **OpenCode**: the Codex rule applies to the built-in OpenCode tools. See [OpenCode](../adapters/opencode#tool-choice).
+- **Grok Build**: the Codex rule applies to the built-in Grok Build tools. See [Grok Build](../adapters/grok-build#tool-choice).
+- **ACP-compatible adapters**: the Codex rule applies to the built-in tools of the agent. See [ACP-compatible](../adapters/acp-compatible#tool-choice).
+
 ## Progress Events and Runtime Context
 
-A server tool's `.server()` implementation receives a second argument, the `ToolExecutionContext` — `{ context, toolCallId, emitCustomEvent }`. Use `emitCustomEvent` to stream typed progress to the client while the tool runs, and `context` to read request-scoped dependencies (auth, DB clients, etc.):
+A server tool's `.server()` implementation receives a second argument, the `ToolExecutionContext`: `{ context, toolCallId, emitCustomEvent }`. Use `emitCustomEvent` to stream typed progress to the client while the tool runs, and `context` to read request-scoped dependencies (auth, DB clients, etc.):
 
 ```typescript
 import { toolDefinition } from "@tanstack/ai";
@@ -482,7 +621,7 @@ Tools go through different states during execution:
 
 Once arguments (and approval, if required) are in, the result appears as `part.output` on the tool-call part and as a separate sibling `tool-result` part whose `state` is `complete` or `error`. See [Tool Architecture](./tool-architecture) for the full state model.
 
-> **Tip:** If your use case involves calling multiple tools with complex logic (filtering, aggregation, parallel calls), consider [Code Mode](../code-mode/code-mode) — it lets the LLM write a TypeScript program that orchestrates tools in a single execution instead of one tool call at a time.
+> **Tip:** If your use case involves calling multiple tools with complex logic (filtering, aggregation, parallel calls), consider [Code Mode](../code-mode/code-mode). It lets the LLM write a TypeScript program that orchestrates tools in a single execution instead of one tool call at a time.
 
 ## Next Steps
 

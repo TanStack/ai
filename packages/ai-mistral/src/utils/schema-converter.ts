@@ -244,10 +244,15 @@ function coerceMistralStrictSchema(
 
       properties[propName] = prop
       if (childMap || widenedHere) {
-        propertyMaps[propName] = {
-          ...(childMap ?? {}),
-          ...(widenedHere ? { widened: true } : {}),
-        }
+        Object.defineProperty(propertyMaps, propName, {
+          value: {
+            ...(childMap ?? {}),
+            ...(widenedHere ? { widened: true } : {}),
+          },
+          enumerable: true,
+          writable: true,
+          configurable: true,
+        })
       }
     }
 

@@ -189,6 +189,40 @@ export async function POST(request: Request) {
 }
 ```
 
+### When the output limit cuts a tool call
+
+A model can run out of output tokens in the middle of a tool call, for example while it writes a long file. The provider stops with the finish reason `length`, and the input of the call is incomplete. By default, `chat()` does not run that call, and the run ends.
+
+Set `truncatedToolResult`, and the model can try again:
+
+```typescript
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { writeFile } from "./tools";
+
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+  const stream = chat({
+    adapter: openaiText("gpt-6.1-sol"),
+    messages,
+    tools: [writeFile],
+    truncatedToolResult: (call) =>
+      `Tool call "${call.toolName}" did not run: your answer hit the output limit, so its input can be incomplete. Call it again with the complete input.`,
+  });
+  return toServerSentEventsResponse(stream);
+}
+```
+
+What happens when an answer with tool calls stops at the output limit:
+
+1. The answer keeps its tool calls in the transcript.
+2. Each call gets an error tool result with your text. The call does not run, and it asks for no approval and no client tool.
+3. The loop calls the model again. This counts as one iteration, so `maxIterations` still stops a model that hits the limit every time.
+
+- `truncatedToolResult` is a string, or a function that gets the call (`{ toolCallId, toolName }`).
+- A tool with an `outputSchema` gets the error result the same way as a tool that throws. The schema checks only a successful result.
+- The `RUN_FINISHED` event of that model call has the finish reason `tool_calls`, so a client keeps the stream open. `metadata.tanstack.finishReason` keeps `length`.
+
 ### Tool-call budgets (middleware recipe)
 
 > **Iterations ≠ tool calls.** One model turn can emit many parallel tool calls. `maxIterations` only bounds **model turns**. Strategies run *between* turns, so without a per-turn cap a single runaway turn can still fan out unbounded.
@@ -264,3 +298,56 @@ export async function POST(request: Request) {
 ```
 
 Place this **before** `toolCacheMiddleware` so over-budget skips win over cache hits. See [`onShouldContinue`](../advanced/middleware#onshouldcontinue) for the hook contract.
+
+### Stop the loop from a tool (middleware recipe)
+
+Some tools end the work, for example a `final_answer` tool. After the model calls it, the model must not get another turn. Stop the loop with middleware:
+
+- **`onToolPhaseComplete`** sees every result of the turn.
+- **`onShouldContinue`** returns `false` to stop after the tool results.
+
+```typescript
+import {
+  chat,
+  toolDefinition,
+  toServerSentEventsResponse,
+  type ChatMiddleware,
+} from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { z } from "zod";
+
+const finalAnswer = toolDefinition({
+  name: "final_answer",
+  description: "Give the final answer to the user",
+  inputSchema: z.object({ answer: z.string() }),
+}).server(async ({ answer }) => ({ answer }));
+
+/** App-owned policy: stop when every result of a turn comes from a stop tool. */
+function stopAfter(toolNames: Array<string>): ChatMiddleware {
+  let stop = false;
+  return {
+    name: "stop-after-tool",
+    onToolPhaseComplete(_ctx, info) {
+      stop =
+        info.results.length > 0 &&
+        info.results.every((result) => toolNames.includes(result.toolName));
+    },
+    onShouldContinue() {
+      return stop ? false : undefined;
+    },
+  };
+}
+
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+  const stream = chat({
+    adapter: openaiText("gpt-6.1-sol"),
+    messages,
+    tools: [finalAnswer],
+    middleware: [stopAfter(["final_answer"])],
+  });
+  return toServerSentEventsResponse(stream);
+}
+```
+
+A turn that also calls other tools goes on, so the model can still use their results.

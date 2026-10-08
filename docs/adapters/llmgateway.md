@@ -60,6 +60,8 @@ const adapter = createLLMGatewayText(
 
 LLM Gateway is open source and self-hostable; point `baseURL` at your own deployment to keep the same adapter surface.
 
+The chat adapters on this page support `wrapFetch`. A middleware can use it to change the HTTP requests of a model call. See [Change the HTTP requests of a call](../advanced/middleware#change-the-http-requests-of-a-call).
+
 ## Available Models
 
 Any model listed at [llmgateway.io/models](https://llmgateway.io/models) works — pass its id as the model name. A bare model id lets the gateway route to the best available provider; prefix it with `provider/` to pin routing to a specific provider:
@@ -137,12 +139,12 @@ const stream = chat({
   modelOptions: {
     temperature: 0.7,
     max_completion_tokens: 4096,
-    reasoning_effort: "high",
   },
+  reasoning: "high",
 });
 ```
 
-`reasoning_effort` accepts the extended scale `none` / `minimal` / `low` / `medium` / `high` / `xhigh` / `max` in addition to OpenAI's standard tiers — which tiers a model honors depends on the model and provider it is routed to (see the model's page on [llmgateway.io/models](https://llmgateway.io/models)).
+`reasoning` goes out as `reasoning_effort`. The types list the levels each model has, from the model catalog. See [Reasoning](../chat/reasoning).
 
 Reasoning models stream their thinking as `reasoning_content` deltas, which the adapter surfaces as AG-UI `REASONING_*` events.
 

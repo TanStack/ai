@@ -1,11 +1,13 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { chat } from '../src/activities/chat'
+import { defineChatMiddleware } from '../src/activities/chat/middleware/define'
 import {
   convertMessagesToModelMessages,
   modelMessagesToUIMessages,
 } from '../src/activities/chat/messages'
 import { StreamProcessor } from '../src/activities/chat/stream/processor'
 import { uiMessagesToWire } from '../src/utilities/ag-ui-wire'
+import { tanstackMetadata } from '../src/utilities/merge-metadata'
 import {
   chunk,
   clientTool,
@@ -15,7 +17,7 @@ import {
   serverTool,
 } from './test-utils'
 import { EventType } from '../src/types'
-import type { StreamChunk, UIMessage } from '../src/types'
+import type { ModelMessage, StreamChunk, UIMessage } from '../src/types'
 
 /**
  * Anthropic runs web_search / web_fetch inside one provider response and
@@ -122,9 +124,11 @@ describe('provider-executed tools interleaved with signed thinking', () => {
         {
           role: 'assistant',
           id: 'm1-segment-1',
-          content: 'Searching again.Done.',
+          content: 'Searching again.',
           toolCalls: ['srvtoolu_2'],
         },
+        // Text after a tool call gets its own row. Our server joins it back.
+        { role: 'assistant', id: 'm1-segment-2', content: 'Done.' },
       ])
 
       // Every anchor carries the metadata for its own tool calls.
@@ -135,7 +139,12 @@ describe('provider-executed tools interleaved with signed thinking', () => {
             (anchor.metadata as any)?.tanstack?.toolCallMetadata ?? {},
           ),
         ),
-      ).toEqual([['srvtoolu_1'], ['srvtoolu_2']])
+      ).toEqual([['srvtoolu_1'], ['srvtoolu_2'], []])
+      // Only the row split for the order continues a row. The row split for
+      // the provider tool keeps today's shape.
+      expect(
+        anchors.map((anchor) => tanstackMetadata(anchor)?.continues),
+      ).toEqual([undefined, undefined, 'm1-segment-1'])
 
       // The server-side converter attaches each reasoning message to the
       // anchor that follows it, so the model history keeps the signed order.
@@ -160,7 +169,7 @@ describe('provider-executed tools interleaved with signed thinking', () => {
       ])
     })
 
-    it('keeps a single anchor when thinking never follows a provider tool', () => {
+    it('starts an ordered row at thinking that follows a local tool call', () => {
       const uiMessage: UIMessage = {
         id: 'm1',
         role: 'assistant',
@@ -182,11 +191,20 @@ describe('provider-executed tools interleaved with signed thinking', () => {
 
       expect(wire.map((message) => message.role)).toEqual([
         'reasoning',
+        'assistant',
         'reasoning',
         'assistant',
       ])
-      expect(wire.filter((message) => message.role === 'assistant')).toEqual([
-        expect.objectContaining({ id: 'm1', content: 'Hello' }),
+      expect(
+        wire
+          .filter((message) => message.role === 'assistant')
+          .map((anchor) => ({
+            id: anchor.id,
+            continues: tanstackMetadata(anchor)?.continues,
+          })),
+      ).toEqual([
+        { id: 'm1', continues: undefined },
+        { id: 'm1-segment-1', continues: 'm1' },
       ])
     })
   })
@@ -421,6 +439,115 @@ describe('provider-executed tools interleaved with signed thinking', () => {
       expect(history.filter((message) => message.role === 'tool')).toHaveLength(
         1,
       )
+    })
+
+    it('gives the calls of an answer cut at the output limit an error result, so a later run does not run them', async () => {
+      const lookup = vi.fn(() => ({ found: true }))
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ...reasoning('step-1', 'plan', 'sig-a'),
+            providerToolStart('srvtoolu_1', 'one'),
+            ev.toolEnd('srvtoolu_1'),
+            ...reasoning('step-2', 'refine', 'sig-b'),
+            ev.toolStart('call_1', 'lookup'),
+            ev.toolArgs('call_1', '{"id":'),
+            ev.runFinished('length'),
+          ],
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Done.'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+      let transcript: Array<ModelMessage> = []
+      const keep = defineChatMiddleware({
+        onFinish(ctx) {
+          transcript = [...ctx.messages]
+        },
+      })
+      const tools = [serverTool('lookup', lookup)]
+
+      await collectChunks(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'Research' }],
+          tools,
+          middleware: [keep],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      const text =
+        'The answer was cut off at the output limit before this tool call was complete. The call did not run.'
+      expect(transcript.filter((message) => message.role === 'tool')).toEqual([
+        { role: 'tool', toolCallId: 'call_1', content: text, error: text },
+      ])
+
+      // The next run from this transcript, as a harness `beforeFinish` cycle.
+      await collectChunks(
+        chat({
+          adapter,
+          messages: transcript,
+          tools,
+        }) as AsyncIterable<StreamChunk>,
+      )
+      expect(lookup).not.toHaveBeenCalled()
+      expect(calls).toHaveLength(2)
+    })
+
+    it('with truncatedToolResult, gives the cut call that text and calls the model again', async () => {
+      const lookup = vi.fn(() => ({ found: true }))
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ...reasoning('step-1', 'plan', 'sig-a'),
+            providerToolStart('srvtoolu_1', 'one'),
+            ev.toolEnd('srvtoolu_1'),
+            ...reasoning('step-2', 'refine', 'sig-b'),
+            ev.toolStart('call_1', 'lookup'),
+            ev.toolArgs('call_1', '{"id":'),
+            ev.runFinished('length'),
+          ],
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Done.'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      await collectChunks(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'Research' }],
+          tools: [serverTool('lookup', lookup)],
+          truncatedToolResult: 'Cut off. Not run.',
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect(lookup).not.toHaveBeenCalled()
+      expect(calls).toHaveLength(2)
+      const history = calls[1]!.messages as Array<ModelMessage>
+      expect(
+        history.map((message) =>
+          message.role === 'tool'
+            ? { tool: message.toolCallId, content: message.content }
+            : { [message.role]: message.toolCalls?.map((call) => call.id) },
+        ),
+      ).toEqual([
+        { user: undefined },
+        { assistant: ['srvtoolu_1'] },
+        { assistant: ['call_1'] },
+        // The provider-executed call keeps its own result.
+        { tool: 'call_1', content: 'Cut off. Not run.' },
+      ])
     })
   })
 })

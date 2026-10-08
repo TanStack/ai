@@ -55,6 +55,11 @@ export {
 
 export { cloudflareGateway, type CloudflareGatewayTarget } from './gateway'
 
+export {
+  cloudflareBindingFetch,
+  type CloudflareBindingFetchOptions,
+} from './utils/fetch'
+
 export type {
   CloudflareBindingConfig,
   CloudflareConfig,
@@ -62,6 +67,7 @@ export type {
   CloudflareGatewayOptions,
   CloudflareRestConfig,
   CloudflareTextConfig,
+  CloudflareTextReasoningConfig,
   CloudflareTextRestConfig,
 } from './utils/config'
 

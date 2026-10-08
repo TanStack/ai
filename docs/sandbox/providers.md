@@ -646,6 +646,9 @@ Use the flags to write provider-agnostic code: branch on the capability rather
 than the concrete provider, and your sandbox definition keeps working when you
 swap one provider for another.
 
+To run sandboxes on a platform that is not in this list, write your own provider.
+See [Build a Sandbox Provider](./build-a-provider).
+
 ### `killableProcesses` across the bundled providers
 
 This flag is **measured, not asserted**. A wrong `true` hands the journal reader

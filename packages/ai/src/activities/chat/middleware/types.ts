@@ -9,15 +9,19 @@ import type {
   Interrupt,
   JSONSchema,
   ModelMessage,
+  ResolvedPromptCache,
   UIMessage,
   RunAgentResumeItem,
   StreamChunk,
   TokenUsage,
   Tool,
   ToolCall,
+  ToolChoice,
+  FetchWrapper,
 } from '../../../types'
 import type { SystemPrompt } from '../../../system-prompts'
 import type { ToolApprovalResolution } from '../../../interrupts'
+import type { ReasoningRequest } from '../../../reasoning'
 import type {
   GenericInterruptRequest,
   InterruptDefinition,
@@ -199,6 +203,10 @@ export interface ChatMiddlewareContext<TContext = unknown> {
    * and on every chunk it streams. Absent on a top-level run.
    */
   subagentRunId?: string
+  /** The agent name when this run is a subagent. */
+  subagentName?: string
+  /** The subagentRunId of the child that started this one, for a nested child. */
+  parentSubagentRunId?: string
   /**
    * AG-UI thread identifier — a stable per-conversation ID used to
    * correlate client and server devtools events. Resolves to the
@@ -346,6 +354,25 @@ export interface ChatMiddlewareConfig {
   resumeToolState?: ChatResumeToolState | undefined
   metadata?: Record<string, unknown> | undefined
   modelOptions?: Record<string, unknown> | undefined
+  /** How hard the model thinks at this call. A middleware can set or change it. */
+  reasoning?: ReasoningRequest | undefined
+  /**
+   * The prompt cache of the next model call. A returned value stays until a
+   * middleware changes it.
+   */
+  promptCache?: ResolvedPromptCache | undefined
+  /**
+   * How the model uses the tools of the next model call. A returned value
+   * applies to that call only. The next call starts again from the `chat()`
+   * option. A call with no tools sends no tool choice.
+   */
+  toolChoice?: ToolChoice | undefined
+  /**
+   * Wraps the fetch of the next model call. A returned wrapper chains inside
+   * the wrappers before it, so it does not replace them. It applies to that
+   * call only. The next call starts again from the `chat()` option.
+   */
+  wrapFetch?: FetchWrapper | undefined
 }
 
 /**
@@ -378,16 +405,17 @@ export type ChatResumeGenericResolution =
 /**
  * Config passed to onStructuredOutputConfig.
  *
- * Mirrors ChatMiddlewareConfig minus `tools` (the final structured-output call
- * is a single typed-response request, not an agentic loop — tools cannot be
- * forwarded to it), plus the `outputSchema` being sent to the provider.
+ * Mirrors ChatMiddlewareConfig minus `tools` and `toolChoice` (the final
+ * structured-output call is a single typed-response request, not an agentic
+ * loop — tools cannot be forwarded to it), plus the `outputSchema` being sent
+ * to the provider.
  * Middleware may transform the schema (e.g., inject $defs, strip
  * vendor-incompatible keywords) by returning a partial that includes
  * `outputSchema`.
  */
 export interface StructuredOutputMiddlewareConfig extends Omit<
   ChatMiddlewareConfig,
-  'tools'
+  'tools' | 'toolChoice'
 > {
   /** JSON Schema being sent to the provider for structured output. */
   outputSchema: JSONSchema
@@ -405,7 +433,7 @@ export interface ToolCallHookContext {
   toolCall: ToolCall
   /** The resolved tool definition, if found */
   tool: Tool | undefined
-  /** Parsed arguments for the tool call */
+  /** Raw parsed arguments, or approved editedArgs, before the final schema check. */
   args: unknown
   /** Name of the tool */
   toolName: string
@@ -447,6 +475,18 @@ export interface AfterToolCallInfo {
   /** The result (if ok) or error (if not ok) */
   result?: unknown
   error?: unknown
+}
+
+/**
+ * Decision returned from onAfterToolCall.
+ * - undefined/void: keep the current result
+ * - { type: 'replaceResult', result }: use this result instead. The model and
+ *   the stream see it. The next middleware gets it as `info.result`. An error
+ *   result stays an error.
+ */
+export type AfterToolCallDecision = void | {
+  type: 'replaceResult'
+  result: unknown
 }
 
 // ===========================
@@ -783,8 +823,10 @@ export interface ChatMiddleware<
     | Promise<void | StreamChunk | Array<StreamChunk> | null>
 
   /**
-   * Called before a tool is executed.
+   * Called with raw parsed arguments or approved editedArgs.
    * Can observe, transform args, skip execution, or abort the run.
+   * The final schema check runs after this hook, before server execution or client dispatch.
+   * This hook does not run while approval is outstanding or when approval is denied.
    */
   onBeforeToolCall?: (
     ctx: ChatMiddlewareContext<TContext>,
@@ -793,11 +835,14 @@ export interface ChatMiddleware<
 
   /**
    * Called after a tool execution completes (success or failure).
+   * Return `{ type: 'replaceResult', result }` to change the result that the
+   * model and the stream see. Middleware run in order. Each one sees the
+   * result of the one before it.
    */
   onAfterToolCall?: (
     ctx: ChatMiddlewareContext<TContext>,
     info: AfterToolCallInfo,
-  ) => void | Promise<void>
+  ) => AfterToolCallDecision | Promise<AfterToolCallDecision>
 
   /**
    * Called after all tool calls in an iteration have been processed.

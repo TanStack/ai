@@ -63,7 +63,24 @@ const stream = chat({
 });
 ```
 
-`deepseek("deepseek-reasoner")` is valid; `deepseek("gpt-4o")` is a type error — only declared models are accepted.
+`deepseek("deepseek-reasoner")` is valid. `deepseek("gpt-5.5")` is a type error. Only declared models are accepted.
+
+## Replay and stream errors
+
+Your provider can receive history from a different model or API. The configured `name` identifies the source provider. Chat Completions uses the `openai-completions` API identity. A compatible Responses adapter uses `openai-responses`.
+
+Keep the assistant's `metadata.tanstack.source` when you save history. The target adapter removes foreign signatures and remaps tool IDs together with their results. See [Keep saved history when you switch](../advanced/runtime-adapter-switching#keep-saved-history-when-you-switch).
+
+The Chat Completions adapter handles tool history and output as follows:
+
+- With tool history and no active tools, it sends `tools: []`.
+- Tool-result text stays in the tool message. Supported images follow in a user message.
+- Image-only results use `(see attached image)`. An empty result uses `(no tool output)`.
+- A text-only model receives an image-omission placeholder without the images.
+
+`delta.content` can be a string, `null`, or absent. An object or array produces `RUN_ERROR`. Unknown finish reasons also produce `RUN_ERROR` with `Provider finish_reason: <reason>`.
+
+Outgoing text removes lone UTF-16 surrogates. These are broken halves of a Unicode character. Valid pairs, such as emoji, stay intact.
 
 ## One-Shot Usage
 
@@ -108,6 +125,46 @@ const provider = openaiCompatible({
 
 > Capabilities are enforced at the type level. If a provider rejects a feature at runtime (e.g. tools on a model that doesn't support them), declare that model with `createModel` and omit the unsupported feature so the types stop you from calling it.
 
+## Reasoning Models
+
+Reasoning models on OpenAI-compatible endpoints do not agree on the wire format. DeepSeek wants `thinking: { type }`, Qwen wants `enable_thinking`, and some servers reject the `developer` role. Tell the adapter what the provider expects with `compat`, and give each reasoning model its levels:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiCompatible } from "@tanstack/ai-openai/compatible";
+
+const deepseek = openaiCompatible({
+  baseURL: "https://api.deepseek.com",
+  apiKey: process.env.DEEPSEEK_API_KEY!,
+  compat: {
+    thinkingFormat: "deepseek",
+    maxTokensField: "max_tokens",
+    requiresReasoningContentOnAssistantMessages: true,
+  },
+  models: [
+    {
+      name: "deepseek-v4-flash",
+      // Each level and the value the provider takes. `null`: no such level.
+      reasoning: { off: "none", minimal: null, medium: null, high: "high", max: "max" },
+    },
+    { name: "deepseek-chat", reasoning: false },
+  ],
+});
+
+const stream = chat({
+  adapter: deepseek("deepseek-v4-flash"),
+  messages: [{ role: "user", content: "Prove that the square root of 2 is irrational." }],
+  reasoning: "max",
+});
+```
+
+- `reasoning` on a model takes a level map, `true` for every level up to `high`, or `false` for a model that does not reason. The `reasoning` option on `chat()` is then typed to those levels.
+- `thinkingFormat` picks the request shape: `openai`, `deepseek`, `zai`, `qwen`, `qwen-chat-template`, `chat-template`, `baseten`, `openrouter`, `together`, `string-thinking`, or `ant-ling`.
+- `compat` on a model entry overrides the provider's `compat` for that model.
+- `requiresReasoningContentOnAssistantMessages` sends the earlier thinking back on each assistant turn, which DeepSeek needs.
+
+The [model catalog](../models/catalog) has the levels and `compat` for many providers, from the same data these fields use.
+
 ## Configuration
 
 `openaiCompatible` accepts every OpenAI SDK `ClientOptions` field besides `apiKey`/`baseURL` (which are required and promoted to the top level). The most useful are `defaultHeaders` and `defaultQuery`, for providers that need extra auth or routing parameters:
@@ -124,6 +181,8 @@ const provider = openaiCompatible({
 });
 ```
 
+The chat adapters on this page support `wrapFetch`. A middleware can use it to change the HTTP requests of a model call. See [Change the HTTP requests of a call](../advanced/middleware#change-the-http-requests-of-a-call).
+
 ## Chat Completions vs Responses
 
 By default the adapter targets the **Chat Completions** API (`/chat/completions`). For providers that implement the **Responses** API, select `api: "responses"`. This API choice also controls how `ChatStreamSummarizeAdapter` forwards `maxLength`, regardless of the wrapper name:
@@ -139,7 +198,7 @@ import { openaiCompatible } from "@tanstack/ai-openai/compatible";
 const provider = openaiCompatible({
   baseURL: "https://my-resource.openai.azure.com/openai/v1",
   apiKey: process.env.AZURE_OPENAI_API_KEY!,
-  models: ["gpt-4o"],
+  models: ["gpt-5.5"],
   api: "responses", // default is "chat-completions"
 });
 ```
@@ -167,6 +226,14 @@ Any provider implementing the OpenAI Chat Completions API works. Common ones are
 | Baseten | `https://inference.baseten.co/v1` | model-dependent |
 | Hugging Face (router) | `https://router.huggingface.co/v1` | `meta-llama/Llama-3.3-70B-Instruct` |
 | NVIDIA NIM | `https://integrate.api.nvidia.com/v1` | `meta/llama-3.3-70b-instruct` |
+| Kilo Gateway | `https://api.kilo.ai/api/gateway` | `anthropic/claude-opus-5.5` |
+| ZenMux | `https://zenmux.ai/api/v1` | `openai/gpt-5.5` |
+| Poe | `https://api.poe.com/v1` | `openai/gpt-5.5` |
+| DigitalOcean | `https://inference.do-ai.run/v1` | `openai-gpt-5.5` |
+| Modal | `https://inference.us-west.modal.direct/v1` | `moonshotai/Kimi-K3` |
+| Snowflake Cortex | `https://<account>.snowflakecomputing.com/api/v2/cortex/v1` | `claude-opus-5` |
+
+Some providers sign the user in with OAuth instead of an API key. For Poe, DigitalOcean, and Snowflake Cortex, pass the access token from your sign-in code as `apiKey`.
 
 On Chat Completions, `RUN_FINISHED.usage` carries the prompt cache counts that the provider reports. Cache reads arrive on `promptTokensDetails.cachedTokens`, and cache writes arrive on `promptTokensDetails.cacheWriteTokens`. Moonshot / Kimi reports both.
 
@@ -229,22 +296,245 @@ const litellm = openaiCompatible({
 
 ## Azure OpenAI
 
-Azure uses a resource-scoped URL and a separate API-version. Use the `/openai/v1` endpoint with `defaultQuery` for the version and `defaultHeaders` for the `api-key` header:
+Use `azureOpenaiText` for Azure's Responses API. It configures the `api-key` header, endpoint, API version, and deployment mapping:
 
 ```typescript
-import { openaiCompatible } from "@tanstack/ai-openai/compatible";
+import { azureOpenaiText } from '@tanstack/ai-openai'
 
-const azure = openaiCompatible({
-  name: "azure",
-  baseURL: "https://YOUR_RESOURCE.openai.azure.com/openai/v1",
-  apiKey: process.env.AZURE_OPENAI_API_KEY!, // also sent as Bearer; Azure accepts the api-key header below
-  models: ["gpt-4o"], // your Azure deployment name
-  defaultQuery: { "api-version": "2026-01-01-preview" },
-  defaultHeaders: { "api-key": process.env.AZURE_OPENAI_API_KEY! },
-});
+const azure = azureOpenaiText('gpt-5.5', {
+  resourceName: 'my-resource',
+  apiKey: process.env.AZURE_OPENAI_API_KEY,
+  deploymentName: 'production-chat',
+})
 ```
 
-> Confirm the current `api-version` and endpoint shape in Azure's documentation — Azure's API surface evolves independently of OpenAI's.
+See [Azure OpenAI](./openai#azure-openai) for environment variables and configuration precedence.
+
+## GitHub Copilot
+
+Your users can pay for model calls with their GitHub Copilot plan. Your sign-in code gets a GitHub token for the user. The adapters send that token as `Authorization: Bearer`.
+
+Copilot serves each model on one of three APIs. `GET {baseURL}/models` lists the `supported_endpoints` of each model. Choose the adapter in this order:
+
+1. `/v1/messages`: use `anthropicText` from `@tanstack/ai-anthropic`, with the token as `authToken`.
+2. `/responses`: use `openaiCompatible` with `api: "responses"`.
+3. `/chat/completions`: use `openaiCompatible` without `api` and without `modelOptions`.
+
+Copilot reads a set of headers on every request. One `wrapFetch` in `copilot-headers.ts` sets all of them for each route:
+
+```typescript
+import type { FetchWrapper } from "@tanstack/ai";
+
+/** The Copilot interaction types: the main loop, a subagent, a title, or a compaction. */
+type Interaction =
+  | "conversation-agent"
+  | "conversation-subagent"
+  | "conversation-background"
+  | "conversation-compaction";
+
+export function copilotHeaders(
+  sessionId: string,
+  interaction: Interaction = "conversation-agent",
+): FetchWrapper {
+  return (next) => (input, init) => {
+    const body = typeof init?.body === "string" ? JSON.parse(init.body) : {};
+    const items = body.input ?? body.messages ?? [];
+    const last = items.at(-1);
+    // A user turn has text from the user. A tool result alone is an agent turn.
+    const userTurn =
+      last?.role === "user" &&
+      (!Array.isArray(last.content) ||
+        last.content.some(
+          (part: { type?: string }) => part.type !== "tool_result",
+        ));
+    const url = input instanceof Request ? input.url : String(input);
+    const headers = new Headers(init?.headers);
+    headers.set("User-Agent", "my-app/1.0.0");
+    headers.set("Openai-Intent", "conversation-edits");
+    headers.set("X-GitHub-Api-Version", "2026-08-01");
+    headers.set("X-Interaction-Type", interaction);
+    headers.set("X-Interaction-Id", sessionId);
+    headers.set(
+      "x-initiator",
+      interaction === "conversation-agent" && userTurn ? "user" : "agent",
+    );
+    if (/"type":"(image|image_url|input_image)"/.test(JSON.stringify(items))) {
+      headers.set("Copilot-Vision-Request", "true");
+    }
+    if (url.includes("/v1/messages")) {
+      headers.set("anthropic-beta", "interleaved-thinking-2025-05-14");
+    }
+    return next(input, { ...init, headers });
+  };
+}
+```
+
+- `x-initiator`: Copilot bills the requests that a user starts (`user`). Tool loop requests and the other interaction types are `agent`.
+- `X-Interaction-Id`: use one stable id for each chat session.
+- `X-Interaction-Type`: use `conversation-subagent` in a subagent, `conversation-background` for a title, and `conversation-compaction` for a summary of old messages.
+- `Copilot-Vision-Request`: set it when a request has images.
+
+### Claude models
+
+Set the Copilot host as `baseURL`. The Anthropic SDK adds `/v1/messages`. Do not set `oauth`, because it adds the Claude Code headers:
+
+```typescript
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { anthropicText } from "@tanstack/ai-anthropic";
+import { copilotHeaders } from "./copilot-headers";
+import { getCopilotToken } from "./copilot-auth"; // your sign-in code
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request);
+  const stream = chat({
+    adapter: anthropicText("claude-sonnet-5-5", {
+      baseURL: "https://api.githubcopilot.com",
+      authToken: await getCopilotToken(request),
+    }),
+    messages: params.messages,
+    wrapFetch: copilotHeaders(params.threadId),
+  });
+  return toServerSentEventsResponse(stream);
+}
+```
+
+`authToken` sends `Authorization: Bearer` and no `x-api-key`. With a custom `baseURL`, the adapter sends no mid-conversation betas. It adds cache markers only when you set `promptCache`.
+
+### OpenAI models
+
+Pass the token as `apiKey`:
+
+```typescript
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { openaiCompatible } from "@tanstack/ai-openai/compatible";
+import { copilotHeaders } from "./copilot-headers";
+import { getCopilotToken } from "./copilot-auth"; // your sign-in code
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request);
+  const copilot = openaiCompatible({
+    name: "github-copilot",
+    baseURL: "https://api.githubcopilot.com",
+    apiKey: await getCopilotToken(request),
+    api: "responses",
+    models: ["gpt-5.5"],
+  });
+
+  const stream = chat({
+    adapter: copilot("gpt-5.5"),
+    messages: params.messages,
+    modelOptions: { store: false, include: ["reasoning.encrypted_content"] },
+    wrapFetch: copilotHeaders(params.threadId),
+  });
+  return toServerSentEventsResponse(stream);
+}
+```
+
+- `store: false`: Copilot keeps no responses. With `include`, the stream gives the encrypted reasoning. The adapter sends it back on the next turn when your history keeps it.
+- The Chat Completions adapter reads the thinking that Copilot streams on `delta.reasoning_text`.
+
+### Business and enterprise hosts
+
+Business and enterprise accounts can get a different host. Find the `baseURL` in this order:
+
+1. `endpoints.api` from `GET https://api.github.com/copilot_internal/user`, when it is set. For GitHub Enterprise, call `https://api.<your-domain>/copilot_internal/user`.
+2. `https://copilot-api.<your-domain>` for GitHub Enterprise.
+3. `https://api.githubcopilot.com` for all other accounts.
+
+## ChatGPT plan
+
+A user with a ChatGPT plan can sign in with ChatGPT instead of an API key. The access token works with `createOpenaiChat` on the default OpenAI URL:
+
+```typescript
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { createOpenaiChat } from "@tanstack/ai-openai";
+import { getChatGptToken } from "./chatgpt-auth"; // your sign-in code
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request);
+  const stream = chat({
+    adapter: createOpenaiChat("gpt-5.5", await getChatGptToken(request)),
+    messages: params.messages,
+    modelOptions: { store: false },
+  });
+  return toServerSentEventsResponse(stream);
+}
+```
+
+The ChatGPT route requires `store: false`. Do not set `max_output_tokens`. [Sign in with ChatGPT](./openai#sign-in-with-chatgpt-byok) has the browser sign-in helpers and the other limits.
+
+Native compaction does not work when the ChatGPT token calls the default OpenAI URL. That route does not accept `/responses/compact`. Do not pass this adapter as `native` to `withCompaction`. Use a [compaction strategy](../advanced/compaction) instead. The same is true for the [ChatGPT Codex backend](#chatgpt-codex-backend).
+
+## ChatGPT Codex backend
+
+Your app can also send a ChatGPT sign-in to the ChatGPT Codex backend at `https://chatgpt.com/backend-api/codex`. Your sign-in code gets the access token and the account id.
+
+This backend is not a public OpenAI API. OpenAI can change it at any time.
+
+```typescript
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { createOpenaiChat } from "@tanstack/ai-openai";
+import type { FetchWrapper } from "@tanstack/ai";
+import { getChatGptSignIn } from "./chatgpt-auth"; // your sign-in code
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request);
+  const { token, accountId } = await getChatGptSignIn(request);
+
+  /** ChatGPT routes its prompt cache on the session id. */
+  const session: FetchWrapper = (next) => (input, init) => {
+    const headers = new Headers(init?.headers);
+    headers.set("session-id", params.threadId);
+    return next(input, { ...init, headers });
+  };
+
+  const stream = chat({
+    adapter: createOpenaiChat("gpt-5.6-terra", token, {
+      baseURL: "https://chatgpt.com/backend-api/codex",
+      defaultHeaders: {
+        originator: "my-app",
+        "x-codex-beta-features": "remote_compaction_v2",
+        "chatgpt-account-id": accountId,
+      },
+    }),
+    messages: params.messages,
+    modelOptions: { store: false, include: ["reasoning.encrypted_content"] },
+    wrapFetch: session,
+  });
+  return toServerSentEventsResponse(stream);
+}
+```
+
+The headers:
+
+- `originator`: the name of your app.
+- `x-codex-beta-features`: the beta features of the backend, here `remote_compaction_v2`.
+- `chatgpt-account-id`: the ChatGPT account of the user. The token claims have it as `chatgpt_account_id`, at the top level or under `https://api.openai.com/auth`.
+- `session-id`: a stable id for the conversation. Each request of the conversation sends the same id. Give a child session the id of its parent, so they share the cache.
+
+The request:
+
+- `store: false`: the backend keeps no responses. With `include`, the stream gives the encrypted reasoning for the next turn.
+- Do not set `max_output_tokens`. The backend rejects an output limit. The adapter sends none unless you set it in `modelOptions`.
+- Use a model that the user's ChatGPT plan includes for Codex.
+
+Native compaction does not work on this backend. It does not accept `POST /responses/compact`. Do not pass this adapter as `native` to `withCompaction`. Use a [compaction strategy](../advanced/compaction) instead.
 
 ## Example: With Tools
 

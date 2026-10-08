@@ -1,7 +1,9 @@
+import { reconcileToolCallArguments } from '../../../utilities/tool-call-arguments'
 import { normalizeToolResult } from '../../../utilities/tool-result'
 import { tanstackMetadata } from '../../../utilities/merge-metadata'
 import { isProviderExecutedToolCall } from '../../../utilities/provider-executed'
 import { mergeStreams } from '../../../utilities/merge-streams'
+import { validateToolInput } from './input-validation'
 import type { AdapterYieldChunk } from '../../../utilities/adapter-yield-chunk'
 import {
   StandardSchemaValidationError,
@@ -31,6 +33,7 @@ import type {
   ToolOutputState,
 } from '../../../types'
 import type {
+  AfterToolCallDecision,
   AfterToolCallInfo,
   BeforeToolCallDecision,
 } from '../middleware/types'
@@ -50,6 +53,36 @@ function safeJsonParse(value: string): unknown {
   }
 }
 
+/**
+ * Parse tool call arguments. A model can send no input for a tool with no
+ * required fields (an empty tool_use block, issue #265): that is `{}`.
+ */
+function parseToolArguments(raw: string): unknown {
+  const text = raw.trim()
+  return text === '' ? {} : JSON.parse(text)
+}
+
+/**
+ * The final check of a tool input. A literal `null` from the model is also an
+ * empty tool_use block (issue #265): when the schema rejects `null`, the input
+ * is `{}`. Other values must fit the schema as they are.
+ */
+async function checkToolInput(
+  tool: Pick<Tool, 'inputSchema' | 'name'>,
+  input: unknown,
+) {
+  try {
+    return await validateToolInput(tool.inputSchema, input, tool.name)
+  } catch (error) {
+    if (input !== null) throw error
+    try {
+      return await validateToolInput(tool.inputSchema, {}, tool.name)
+    } catch {
+      throw error
+    }
+  }
+}
+
 /** Marks the synthetic tool that runs a subagent. */
 export const SUBAGENT_TOOL = Symbol.for('tanstack.ai.subagentTool')
 
@@ -60,13 +93,52 @@ export const EMIT_STREAM_CHUNK = Symbol.for('tanstack.ai.emitStreamChunk')
 export interface SubagentToolOutcome {
   subagentRunId: string
   text: string
+  /**
+   * The child's typed result: the value a promise `run` resolved to, or the
+   * `RUN_FINISHED.result` of a child stream. When set, the parent model gets
+   * this instead of the child's text.
+   */
+  result?: unknown
   error?: string
   /** Set when the child stopped for outside input. The tool call stays open. */
   interrupts?: Array<Interrupt>
+  /**
+   * The model gets `subagentRunId` in the result: it can continue the child
+   * (`sessionId`, with a persistence store) or a background child. Else the
+   * id stays in the subagent events only.
+   */
+  keepRunId?: true
 }
 
 function isSubagentTool(tool: AnyTool): boolean {
   return (tool as { [SUBAGENT_TOOL]?: true })[SUBAGENT_TOOL] === true
+}
+
+/** Longest string a subagent result sends to the parent model unchanged. */
+const MODEL_RESULT_MAX_STRING = 2048
+
+/**
+ * A copy of a subagent result that is safe to send to the parent model.
+ * A string longer than {@link MODEL_RESULT_MAX_STRING} (for example a base64
+ * image) becomes a short note, so one image result cannot fill the context.
+ * The full result still travels on `SUBAGENT_FINISHED` for the UI.
+ */
+export function compactForModel(value: unknown, depth = 0): unknown {
+  if (typeof value === 'string') {
+    return value.length > MODEL_RESULT_MAX_STRING
+      ? `[omitted ${value.length} characters]`
+      : value
+  }
+  if (depth > 20 || typeof value !== 'object' || value === null) return value
+  if (Array.isArray(value)) {
+    return value.map((item) => compactForModel(item, depth + 1))
+  }
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [
+      key,
+      compactForModel(item, depth + 1),
+    ]),
+  )
 }
 
 /**
@@ -165,7 +237,7 @@ export interface ToolExecutionMiddlewareHooks {
     tool: Tool | undefined,
     args: unknown,
   ) => Promise<BeforeToolCallDecision>
-  onAfterToolCall?: (info: AfterToolCallInfo) => Promise<void>
+  onAfterToolCall?: (info: AfterToolCallInfo) => Promise<AfterToolCallDecision>
 }
 
 /**
@@ -311,10 +383,21 @@ export class ToolCallManager<
   completeToolCall(event: ToolCallEndEvent): void {
     for (const toolCall of this.toolCallsMap.values()) {
       if (toolCall.id !== event.toolCallId) continue
-      if (event.input === undefined) return
-      const normalized =
-        event.input && typeof event.input === 'object' ? event.input : {}
-      toolCall.function.arguments = JSON.stringify(normalized)
+      const extra = event as AdapterYieldChunk
+      const metadata = tanstackMetadata(extra)
+      const storedArgs =
+        metadata && 'args' in metadata ? metadata.args : undefined
+      const snapshot = typeof extra.args === 'string' ? extra.args : storedArgs
+      let raw: string | undefined =
+        typeof snapshot === 'string' ? snapshot : toolCall.function.arguments
+      if (typeof snapshot !== 'string' && event.input !== undefined) {
+        try {
+          JSON.parse(raw)
+        } catch {
+          raw = undefined
+        }
+      }
+      toolCall.function.arguments = reconcileToolCallArguments(raw, event.input)
       return
     }
   }
@@ -360,32 +443,17 @@ export class ToolCallManager<
       let toolOutput: unknown
       if (tool?.execute) {
         try {
-          // Parse arguments (normalize null/non-object to {} for empty tool_use blocks)
+          // Keep the parsed value so the schema can check its type.
           let args: unknown
           try {
-            const argsString = toolCall.function.arguments.trim() || '{}'
-            const parsed = JSON.parse(argsString)
-            args = parsed && typeof parsed === 'object' ? parsed : {}
+            args = parseToolArguments(toolCall.function.arguments)
           } catch (parseError) {
             throw new Error(
               `Failed to parse tool arguments as JSON: ${toolCall.function.arguments}`,
             )
           }
 
-          // Validate input against inputSchema (for Standard Schema compliant schemas)
-          if (tool.inputSchema && isStandardSchema(tool.inputSchema)) {
-            try {
-              args = parseWithStandardSchema(tool.inputSchema, args)
-            } catch (validationError: unknown) {
-              const message =
-                validationError instanceof Error
-                  ? validationError.message
-                  : 'Validation failed'
-              throw new Error(
-                `Input validation failed for tool ${tool.name}: ${message}`,
-              )
-            }
-          }
+          args = await checkToolInput(tool, args)
 
           // Execute the tool
           const executionContext = {
@@ -507,12 +575,15 @@ export interface McpInputRequest {
   toolName: string
   kind: 'form' | 'sampling'
   request: unknown
+  /** The interrupt reason. Default: `'mcp_input'`. */
+  reason?: string
 }
 
 interface McpInputRequiredThrow {
   name: 'MCPInputRequiredError'
   kind: 'form' | 'sampling'
   request: unknown
+  reason?: unknown
 }
 
 function isMcpInputRequired(value: unknown): value is McpInputRequiredThrow {
@@ -614,6 +685,22 @@ async function* executeWithEventPolling<T>(
 }
 
 /**
+ * Push a tool result, then run the onAfterToolCall hook. A `replaceResult`
+ * decision sets the pushed result, so the model and the stream see it.
+ * The state does not change: an error result stays an error.
+ */
+async function pushResultAndRunAfterHook(
+  results: Array<ToolResult>,
+  entry: ToolResult,
+  info: AfterToolCallInfo,
+  middlewareHooks?: ToolExecutionMiddlewareHooks,
+) {
+  results.push(entry)
+  const decision = await middlewareHooks?.onAfterToolCall?.(info)
+  if (decision) entry.result = decision.result
+}
+
+/**
  * Apply a middleware onBeforeToolCall decision.
  * Returns the (possibly transformed) input if execution should proceed,
  * or undefined if the tool call was skipped (result already pushed).
@@ -636,23 +723,20 @@ async function applyBeforeToolCallDecision(
     return { proceed: true, input }
   }
 
-  if (decision.type === 'abort') {
+  if (decision?.type === 'abort') {
     throw new MiddlewareAbortError(decision.reason || 'Aborted by middleware')
   }
 
-  if (decision.type === 'skip') {
-    const skipResult = decision.result
-    results.push({
-      toolCallId: toolCall.id,
-      toolName,
-      result:
-        typeof skipResult === 'string'
-          ? safeJsonParse(skipResult)
-          : (skipResult ?? null),
-      duration: 0,
-    })
-    if (middlewareHooks.onAfterToolCall) {
-      await middlewareHooks.onAfterToolCall({
+  if (decision?.type === 'skip') {
+    // One parsed value: the hook sees the same value that is pushed.
+    const skipResult =
+      typeof decision.result === 'string'
+        ? safeJsonParse(decision.result)
+        : (decision.result ?? null)
+    await pushResultAndRunAfterHook(
+      results,
+      { toolCallId: toolCall.id, toolName, result: skipResult, duration: 0 },
+      {
         toolCall,
         tool,
         toolName,
@@ -660,8 +744,9 @@ async function applyBeforeToolCallDecision(
         ok: true,
         duration: 0,
         result: skipResult,
-      })
-    }
+      },
+      middlewareHooks,
+    )
     return { proceed: false }
   }
 
@@ -707,28 +792,41 @@ export async function* executeServerTool<TContext = unknown>(
         subagentInterrupts?.push(...outcome.interrupts)
         return
       }
+      const runId = outcome.keepRunId
+        ? { subagentRunId: outcome.subagentRunId }
+        : {}
       const modelResult = outcome.error
-        ? { error: outcome.error }
-        : { result: outcome.text }
-      results.push({
-        toolCallId: toolCall.id,
-        toolName,
-        result: modelResult,
-        input,
-        output: modelResult,
-        duration,
-        ...(outcome.error ? { state: 'output-error' as const } : {}),
-      })
-      await middlewareHooks?.onAfterToolCall?.({
-        toolCall,
-        tool,
-        toolName,
-        toolCallId: toolCall.id,
-        duration,
-        ...(outcome.error
-          ? { ok: false as const, error: new Error(outcome.error) }
-          : { ok: true as const, result: modelResult }),
-      })
+        ? { ...runId, error: outcome.error }
+        : {
+            ...runId,
+            result:
+              outcome.result !== undefined
+                ? compactForModel(outcome.result)
+                : outcome.text,
+          }
+      await pushResultAndRunAfterHook(
+        results,
+        {
+          toolCallId: toolCall.id,
+          toolName,
+          result: modelResult,
+          input,
+          output: modelResult,
+          duration,
+          ...(outcome.error ? { state: 'output-error' as const } : {}),
+        },
+        {
+          toolCall,
+          tool,
+          toolName,
+          toolCallId: toolCall.id,
+          duration,
+          ...(outcome.error
+            ? { ok: false as const, error: new Error(outcome.error) }
+            : { ok: true as const, result: modelResult }),
+        },
+        middlewareHooks,
+      )
       return
     }
 
@@ -754,17 +852,17 @@ export async function* executeServerTool<TContext = unknown>(
     const finalResult =
       typeof result === 'string' ? safeJsonParse(result) : (result ?? null)
 
-    results.push({
-      toolCallId: toolCall.id,
-      toolName,
-      result: finalResult,
-      input,
-      output: finalResult,
-      duration,
-    })
-
-    if (middlewareHooks?.onAfterToolCall) {
-      await middlewareHooks.onAfterToolCall({
+    await pushResultAndRunAfterHook(
+      results,
+      {
+        toolCallId: toolCall.id,
+        toolName,
+        result: finalResult,
+        input,
+        output: finalResult,
+        duration,
+      },
+      {
         toolCall,
         tool,
         toolName,
@@ -772,8 +870,9 @@ export async function* executeServerTool<TContext = unknown>(
         ok: true,
         duration,
         result: finalResult,
-      })
-    }
+      },
+      middlewareHooks,
+    )
   } catch (error: unknown) {
     const duration = Date.now() - startTime
 
@@ -795,22 +894,23 @@ export async function* executeServerTool<TContext = unknown>(
         toolName,
         kind: error.kind,
         request: error.request,
+        ...(typeof error.reason === 'string' ? { reason: error.reason } : {}),
       })
       return
     }
 
     const message = error instanceof Error ? error.message : 'Unknown error'
-    results.push({
-      toolCallId: toolCall.id,
-      toolName,
-      result: { error: message },
-      input,
-      state: 'output-error',
-      duration,
-    })
-
-    if (middlewareHooks?.onAfterToolCall) {
-      await middlewareHooks.onAfterToolCall({
+    await pushResultAndRunAfterHook(
+      results,
+      {
+        toolCallId: toolCall.id,
+        toolName,
+        result: { error: message },
+        input,
+        state: 'output-error',
+        duration,
+      },
+      {
         toolCall,
         tool,
         toolName,
@@ -818,8 +918,9 @@ export async function* executeServerTool<TContext = unknown>(
         ok: false,
         duration,
         error,
-      })
-    }
+      },
+      middlewareHooks,
+    )
   }
 }
 
@@ -942,23 +1043,27 @@ export async function* executeToolCalls<TContext = unknown>(
   ): AsyncGenerator<CustomEvent | StreamChunk, void, void> {
     try {
       if (abortSignal?.aborted) {
-        results.push({
-          toolCallId: toolCall.id,
-          toolName,
-          result: { error: 'Operation aborted' },
-          input,
-          state: 'output-error',
-          duration: 0,
-        })
-        await middlewareHooks?.onAfterToolCall?.({
-          toolCall,
-          tool,
-          toolName,
-          toolCallId: toolCall.id,
-          ok: false,
-          duration: 0,
-          error: new Error('Operation aborted'),
-        })
+        await pushResultAndRunAfterHook(
+          results,
+          {
+            toolCallId: toolCall.id,
+            toolName,
+            result: { error: 'Operation aborted' },
+            input,
+            state: 'output-error',
+            duration: 0,
+          },
+          {
+            toolCall,
+            tool,
+            toolName,
+            toolCallId: toolCall.id,
+            ok: false,
+            duration: 0,
+            error: new Error('Operation aborted'),
+          },
+          middlewareHooks,
+        )
         return
       }
       const interrupts: Array<Interrupt> = []
@@ -1035,47 +1140,103 @@ export async function* executeToolCalls<TContext = unknown>(
 
     // Parse arguments
     let input: unknown = {}
-    const argsStr = toolCall.function.arguments.trim() || '{}'
-    if (argsStr) {
-      try {
-        const parsed = JSON.parse(argsStr)
-        // Normalize null/non-object to {} (e.g. Anthropic empty tool_use blocks)
-        input = parsed && typeof parsed === 'object' ? parsed : {}
-      } catch {
-        results.push({
-          toolCallId: toolCall.id,
-          toolName,
-          result: {
-            error: `Failed to parse tool arguments as JSON: ${argsStr}`,
-          },
-          input,
-          state: 'output-error',
-        })
-        continue
-      }
+    const argsStr = toolCall.function.arguments.trim()
+    try {
+      input = parseToolArguments(argsStr)
+    } catch {
+      results.push({
+        toolCallId: toolCall.id,
+        toolName,
+        result: {
+          error: `Failed to parse tool arguments as JSON: ${argsStr}`,
+        },
+        input,
+        state: 'output-error',
+      })
+      continue
     }
 
-    // Validate input against inputSchema (for Standard Schema compliant schemas)
-    if (tool.inputSchema && isStandardSchema(tool.inputSchema)) {
+    const resolution = tool.needsApproval
+      ? approvalResolution(approvals, toolCall.id)
+      : undefined
+    const needsPreview = tool.needsApproval && resolution === undefined
+    if (
+      tool.needsApproval &&
+      resolution !== undefined &&
+      !isApproved(resolution)
+    ) {
+      results.push({
+        toolCallId: toolCall.id,
+        toolName,
+        result:
+          resumeState?.deniedToolResults?.get(toolCall.id) ??
+          deniedApprovalResult(resolution),
+        input,
+        state: 'output-error',
+        outcome: 'denied',
+      })
+      continue
+    }
+    const editedInput =
+      resolution === undefined ? undefined : editedApprovalArgs(resolution)
+    if (editedInput !== undefined) input = editedInput
+
+    // Middleware receives parsed input. The schema checks its final edits.
+    if (!needsPreview && middlewareHooks) {
+      let decision: Awaited<ReturnType<typeof applyBeforeToolCallDecision>>
       try {
-        input = parseWithStandardSchema(tool.inputSchema, input)
-      } catch (validationError: unknown) {
-        const message =
-          validationError instanceof Error
-            ? validationError.message
-            : 'Validation failed'
-        results.push({
+        decision = await applyBeforeToolCallDecision(
+          toolCall,
+          tool,
+          input,
+          toolName,
+          middlewareHooks,
+          results,
+        )
+      } catch (error) {
+        failures.push(error)
+        break
+      }
+      if (!decision.proceed) continue
+      input = decision.input
+    }
+    try {
+      input = await checkToolInput(tool, input)
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Validation failed'
+      await pushResultAndRunAfterHook(
+        results,
+        {
           toolCallId: toolCall.id,
           toolName,
-          result: {
-            error: `Input validation failed for tool ${tool.name}: ${message}`,
-          },
-          // raw parse may have failed validation — still attach best-effort input
+          result: { error: message },
           input,
           state: 'output-error',
-        })
-        continue
-      }
+        },
+        {
+          toolCall,
+          tool,
+          toolName,
+          toolCallId: toolCall.id,
+          ok: false,
+          duration: 0,
+          error,
+        },
+        // A preview call runs no hooks.
+        needsPreview ? undefined : middlewareHooks,
+      )
+      continue
+    }
+    if (needsPreview) {
+      // This checked preview is not stored as the next execution's raw input.
+      needsApproval.push({
+        toolCallId: toolCall.id,
+        toolName,
+        input,
+        approvalId: `approval_${toolCall.id}`,
+      })
+      continue
     }
 
     // Create a ToolExecutionContext for this tool call with event emission
@@ -1106,140 +1267,27 @@ export async function* executeToolCalls<TContext = unknown>(
       },
     } as ToolExecutionContext<TContext>
 
-    // CASE 1: Client-side tool (no execute function)
     if (!tool.execute) {
-      // Check if tool needs approval
-      if (tool.needsApproval) {
-        const approvalId = `approval_${toolCall.id}`
-        const resolution = approvalResolution(approvals, toolCall.id)
-
-        // Check if approval decision exists
-        if (resolution !== undefined) {
-          const approved = isApproved(resolution)
-
-          if (approved) {
-            input = editedApprovalArgs(resolution) ?? input
-            // Approved - check if client has executed
-            const clientError = resumeState?.clientToolErrors?.get(toolCall.id)
-            if (clientResults.has(toolCall.id) || clientError !== undefined) {
-              results.push(
-                await buildClientToolResult(
-                  toolCall.id,
-                  toolName,
-                  tool,
-                  clientResults.get(toolCall.id),
-                  input,
-                  clientError,
-                ),
-              )
-            } else {
-              // Approved but not executed yet - request client execution
-              needsClientExecution.push({
-                toolCallId: toolCall.id,
-                toolName,
-                input,
-              })
-            }
-          } else {
-            // User declined
-            results.push({
-              toolCallId: toolCall.id,
-              toolName,
-              result:
-                resumeState?.deniedToolResults?.get(toolCall.id) ??
-                deniedApprovalResult(resolution),
-              input,
-              state: 'output-error',
-              outcome: 'denied',
-            })
-          }
-        } else {
-          // Need approval first
-          needsApproval.push({
-            toolCallId: toolCall.id,
-            toolName: toolCall.function.name,
-            input,
-            approvalId,
-          })
-        }
-      } else {
-        // No approval needed - check if client has executed
-        const clientError = resumeState?.clientToolErrors?.get(toolCall.id)
-        if (clientResults.has(toolCall.id) || clientError !== undefined) {
-          results.push(
-            await buildClientToolResult(
-              toolCall.id,
-              toolName,
-              tool,
-              clientResults.get(toolCall.id),
-              input,
-              clientError,
-            ),
-          )
-        } else {
-          // Request client execution
-          needsClientExecution.push({
-            toolCallId: toolCall.id,
+      const clientError = resumeState?.clientToolErrors?.get(toolCall.id)
+      if (clientResults.has(toolCall.id) || clientError !== undefined) {
+        results.push(
+          await buildClientToolResult(
+            toolCall.id,
             toolName,
+            tool,
+            clientResults.get(toolCall.id),
             input,
-          })
-        }
+            clientError,
+          ),
+        )
+      } else {
+        needsClientExecution.push({
+          toolCallId: toolCall.id,
+          toolName,
+          input,
+        })
       }
       continue
-    }
-
-    // CASE 2: Server tool with approval required
-    if (tool.needsApproval) {
-      const approvalId = `approval_${toolCall.id}`
-      const resolution = approvalResolution(approvals, toolCall.id)
-
-      if (resolution === undefined) {
-        // Need approval
-        needsApproval.push({
-          toolCallId: toolCall.id,
-          toolName,
-          input,
-          approvalId,
-        })
-        continue
-      }
-      if (!isApproved(resolution)) {
-        // User declined
-        results.push({
-          toolCallId: toolCall.id,
-          toolName,
-          result:
-            resumeState?.deniedToolResults?.get(toolCall.id) ??
-            deniedApprovalResult(resolution),
-          input,
-          state: 'output-error',
-          outcome: 'denied',
-        })
-        continue
-      }
-      // Approved: run it like any other server tool below.
-      input = editedApprovalArgs(resolution) ?? input
-    }
-
-    // CASE 3: Server tool, approved or with no approval
-    if (middlewareHooks) {
-      let decision: Awaited<ReturnType<typeof applyBeforeToolCallDecision>>
-      try {
-        decision = await applyBeforeToolCallDecision(
-          toolCall,
-          tool,
-          input,
-          toolName,
-          middlewareHooks,
-          results,
-        )
-      } catch (error) {
-        // The calls prepared so far still run, as they would one at a time.
-        failures.push(error)
-        break
-      }
-      if (!decision.proceed) continue
-      input = decision.input
     }
 
     const run = runServerTool(

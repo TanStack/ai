@@ -21,9 +21,17 @@ export type AnthropicProviderUsageDetails = {
 
 /**
  * Build normalized TokenUsage from Anthropic's usage object.
- * Handles cache tokens and server tool use metrics. Returns `undefined` when
- * the provider reported no usage object, so callers omit the field rather than
- * fabricating zeroed totals.
+ *
+ * `promptTokens` is the total input: uncached + cache read + cache write.
+ * Anthropic's `input_tokens` counts only the uncached part, so this function
+ * adds the cache parts. The cache parts are also in `promptTokensDetails`:
+ * `cachedTokens` (read), `cacheWriteTokens` (write), and `cacheWrite1hTokens`
+ * (the 1-hour part of the write). `totalTokens` is
+ * `promptTokens + completionTokens`.
+ *
+ * Also handles server tool use metrics. Returns `undefined` when the provider
+ * reported no usage object, so callers omit the field rather than fabricating
+ * zeroed totals.
  */
 export function buildAnthropicUsage(
   usage:
@@ -40,23 +48,34 @@ export function buildAnthropicUsage(
   // against a runtime-absent count without tripping no-unnecessary-condition
   // (the SDK types output_tokens as a required number).
   const outputTokens = usage.output_tokens || 0
+  // The SDK types these as `number | null`. A closing message_delta can leave
+  // them out: then the message_start counts apply.
+  const cacheWrite =
+    usage.cache_creation_input_tokens ?? start?.cache_creation_input_tokens ?? 0
+  const cacheRead =
+    usage.cache_read_input_tokens ?? start?.cache_read_input_tokens ?? 0
+  // The 1-hour part of the cache write (`promptCache: 'long'`). A closing
+  // message_delta has no `cache_creation`, so a stream takes message_start's.
+  const cacheCreation =
+    ('cache_creation' in usage ? usage.cache_creation : null) ??
+    start?.cache_creation
+  const cacheWrite1h = cacheCreation?.ephemeral_1h_input_tokens ?? 0
+  // `input_tokens` is only the uncached part. Add the cache parts so
+  // promptTokens is the total input, the same as the other adapters.
+  const promptTokens = inputTokens + cacheRead + cacheWrite
 
   const result = buildBaseUsage<AnthropicProviderUsageDetails>({
-    promptTokens: inputTokens,
+    promptTokens,
     completionTokens: outputTokens,
-    totalTokens: inputTokens + outputTokens,
+    totalTokens: promptTokens + outputTokens,
   })
 
   // Add prompt token details for cache tokens. Only attach the details object
   // when at least one field is present so we don't emit an empty `{}` (every
   // other adapter guards with the same Object.keys check).
-  const cacheCreation =
-    usage.cache_creation_input_tokens ?? start?.cache_creation_input_tokens
-  const cacheRead =
-    usage.cache_read_input_tokens ?? start?.cache_read_input_tokens
-
   const promptTokensDetails = {
-    ...(cacheCreation ? { cacheWriteTokens: cacheCreation } : {}),
+    ...(cacheWrite ? { cacheWriteTokens: cacheWrite } : {}),
+    ...(cacheWrite1h ? { cacheWrite1hTokens: cacheWrite1h } : {}),
     ...(cacheRead ? { cachedTokens: cacheRead } : {}),
   }
   if (Object.keys(promptTokensDetails).length > 0) {

@@ -8,6 +8,7 @@ export type {
   StructuredOutputMiddlewareConfig,
   ToolCallHookContext,
   BeforeToolCallDecision,
+  AfterToolCallDecision,
   AfterToolCallInfo,
   IterationInfo,
   ToolPhaseCompleteInfo,
@@ -80,6 +81,9 @@ export type {
   RunStatus,
   TerminalRunStatus,
   RunRecord,
+  RunKind,
+  RunArtifactRef,
+  RunCheckpoint,
   RunError,
   RunStore,
 } from './run-store'

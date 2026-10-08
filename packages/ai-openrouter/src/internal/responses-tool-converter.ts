@@ -85,10 +85,19 @@ function diffNullWidening(
     const properties: Record<string, NullWideningMap> = {}
     for (const key of Object.keys(wire.properties)) {
       const child = diffNullWidening(
-        original.properties[key],
+        Object.hasOwn(original.properties, key)
+          ? original.properties[key]
+          : undefined,
         wire.properties[key],
       )
-      if (child) properties[key] = child
+      if (child) {
+        Object.defineProperty(properties, key, {
+          value: child,
+          enumerable: true,
+          writable: true,
+          configurable: true,
+        })
+      }
     }
     if (Object.keys(properties).length > 0) map.properties = properties
   }

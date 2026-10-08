@@ -6,8 +6,7 @@ import { makeServerWithResource } from './helpers/in-memory-server'
 describe('mcpResourceToContentPart', () => {
   it('converts a text content block to a TextPart', () => {
     const part = mcpResourceToContentPart({ uri: 'file:///x', text: 'hello' })
-    expect(part.type).toBe('text')
-    expect((part as { type: 'text'; content: string }).content).toBe('hello')
+    expect(part).toEqual({ type: 'text', content: 'hello' })
   })
 
   it('converts a blob content block to a TextPart with binary placeholder', () => {
@@ -15,22 +14,27 @@ describe('mcpResourceToContentPart', () => {
       uri: 'file:///img.png',
       blob: 'abc123',
     })
-    expect(part.type).toBe('text')
-    expect((part as { type: 'text'; content: string }).content).toBe(
-      '[binary resource file:///img.png]',
-    )
+    expect(part).toEqual({
+      type: 'text',
+      content: '[binary resource file:///img.png]',
+    })
+  })
+
+  it('leaves the uri out of the placeholder for a blob without a uri', () => {
+    const part = mcpResourceToContentPart({ blob: 'abc123' })
+    expect(part).toEqual({ type: 'text', content: '[binary resource ]' })
   })
 
   it('falls back to JSON.stringify for unknown content', () => {
-    const input = {
+    const part = mcpResourceToContentPart({
       uri: 'file:///unknown',
       mimeType: 'application/octet-stream',
-    }
-    const part = mcpResourceToContentPart(input)
-    expect(part.type).toBe('text')
-    expect((part as { type: 'text'; content: string }).content).toBe(
-      JSON.stringify(input),
-    )
+    })
+    expect(part).toEqual({
+      type: 'text',
+      content:
+        '{"uri":"file:///unknown","mimeType":"application/octet-stream"}',
+    })
   })
 })
 
@@ -40,11 +44,15 @@ describe('MCPClient resource methods (connected)', () => {
       (await makeServerWithResource()).clientTransport,
     )
 
-    const list = await client.resources()
-    expect(list.length).toBeGreaterThan(0)
+    const [listed] = await client.resources()
+    if (listed === undefined) throw new Error('The server listed no resource')
 
-    const read = await client.readResource(list[0]!.uri)
-    const part = mcpResourceToContentPart(read.contents[0]!)
-    expect(part.type).toBe('text')
+    const read = await client.readResource(listed.uri)
+    const [contents] = read.contents
+    if (contents === undefined) throw new Error('The resource has no contents')
+    expect(mcpResourceToContentPart(contents)).toEqual({
+      type: 'text',
+      content: 'hello from resource',
+    })
   })
 })

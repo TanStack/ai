@@ -61,7 +61,7 @@ export function createBlogAgents(apiKey: string) {
     run: (ctx) =>
       chat({
         adapter: createOpenRouterText('openai/gpt-5.5', apiKey),
-        modelOptions: { reasoning: { effort: 'medium' } },
+        reasoning: 'medium',
         tools: [lookupWikipediaTool],
         messages: ctx.messages,
         threadId: ctx.threadId,

@@ -33,7 +33,7 @@ const config = defineConfig({
 // Put package test settings last so they win over the shared build config.
 export default mergeConfig(
   tanstackViteConfig({
-    entry: ['./src/index.ts'],
+    entry: ['./src/index.ts', './src/agent/index.ts'],
     srcDir: './src',
     cjs: false,
   }),

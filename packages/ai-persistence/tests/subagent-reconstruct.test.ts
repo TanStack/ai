@@ -446,3 +446,139 @@ describe('reconstruct subagent cards', () => {
     ).toBe(true)
   })
 })
+
+describe('routed host identity', () => {
+  it.each([
+    'canonical',
+    'marked-manual',
+    'legacy-manual',
+    'ambiguous',
+    'mixed-summary',
+    'canonical-extra',
+    'canonical-foreign-run',
+    'duplicate-canonical',
+    'missing-user',
+    'conflicting-turn',
+    'foreign-marker',
+    'malformed-marker',
+  ])(
+    'keeps ordinary replies and projects routed cards once: %s',
+    async (kind) => {
+      const persistence = memoryPersistence()
+      await runChat({
+        persistence,
+        runId: 'run-1',
+        messages: [{ id: 'user-1', role: 'user', content: 'Research' }],
+        agents: [noteAgent('researcher', 'Research', 'Octopus notes')],
+        router: () => ['researcher'],
+      })
+      const saved = await persistence.stores.messages.loadThread('blog-desk')
+      const host = saved.find((message) => message.role === 'assistant')
+      if (!host) throw new Error('The routed host is missing.')
+      const selected: ModelMessage = {
+        ...host,
+        ...(!kind.startsWith('canonical') && kind !== 'duplicate-canonical'
+          ? { id: 'manual-host' }
+          : {}),
+        metadata: {
+          tanstack: {
+            runId: kind === 'canonical-foreign-run' ? 'foreign-run' : 'run-1',
+          },
+          ...(kind === 'marked-manual' ||
+          kind === 'foreign-marker' ||
+          kind === 'malformed-marker'
+            ? {
+                'tanstack:subagentHost': {
+                  version: kind === 'malformed-marker' ? 2 : 1,
+                  runId: kind === 'foreign-marker' ? 'foreign-run' : 'run-1',
+                },
+              }
+            : {}),
+        },
+      }
+      const ordinary: Array<ModelMessage> = [
+        {
+          id: 'main-before',
+          role: 'assistant',
+          content: 'Ordinary before.',
+          metadata: { tanstack: { runId: 'run-1' } },
+        },
+        {
+          id: 'main-after',
+          role: 'assistant',
+          content: 'All clean.',
+          metadata: { tanstack: { runId: 'run-1' } },
+        },
+      ]
+      const candidates =
+        kind === 'ambiguous' || kind === 'duplicate-canonical'
+          ? [
+              selected,
+              {
+                ...selected,
+                id:
+                  kind === 'duplicate-canonical'
+                    ? selected.id
+                    : 'other-manual-host',
+              },
+            ]
+          : [
+              kind === 'mixed-summary' || kind === 'canonical-extra'
+                ? {
+                    ...selected,
+                    content: String(selected.content) + '\nMain extra text.',
+                  }
+                : selected,
+            ]
+      await persistence.stores.messages.saveThread(
+        'blog-desk',
+        JSON.parse(
+          JSON.stringify([
+            ...(kind === 'missing-user' ? [] : [saved[0]]),
+            ordinary[0],
+            ...candidates,
+            ...(kind === 'conflicting-turn'
+              ? [{ id: 'user-foreign', role: 'user', content: 'Another turn' }]
+              : []),
+            ordinary[1],
+          ]),
+        ),
+      )
+      const before = JSON.stringify(
+        await persistence.stores.messages.loadThread('blog-desk'),
+      )
+      const desk = await loadDesk(persistence)
+      const texts = desk.messages.flatMap((message) =>
+        message.parts.flatMap((part) =>
+          part.type === 'text' ? [part.content] : [],
+        ),
+      )
+      expect(texts).toContain('Ordinary before.')
+      expect(texts).toContain('All clean.')
+      expect(desk.messages.flatMap((message) => cardsOf(message))).toHaveLength(
+        1,
+      )
+      if (kind === 'ambiguous' || kind === 'duplicate-canonical')
+        expect(texts.filter((text) => text === selected.content)).toHaveLength(
+          2,
+        )
+      if (kind === 'mixed-summary' || kind === 'canonical-extra')
+        expect(texts).toContain(String(selected.content) + '\nMain extra text.')
+      if (
+        [
+          'canonical-foreign-run',
+          'missing-user',
+          'conflicting-turn',
+          'foreign-marker',
+          'malformed-marker',
+        ].includes(kind)
+      )
+        expect(texts).toContain(selected.content)
+      expect(
+        JSON.stringify(
+          await persistence.stores.messages.loadThread('blog-desk'),
+        ),
+      ).toBe(before)
+    },
+  )
+})

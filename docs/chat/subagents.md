@@ -90,6 +90,8 @@ The router can return:
 - `{ names, order }`
 - `{ steps }`
 
+Anywhere a name goes, `{ name, input }` can go too, for example `{ name: 'pricer', input: { vendor: 'Acme' } }`. An agent with `inputSchema` needs it.
+
 `subagents.order` is the default for an array. `parallel` starts the names together. `sequence` runs them one after another, and each later child reads the earlier child text. Omit `order` to get `parallel`.
 
 `subagentRoute` asks Jev for the order. Jev picks `parallel` when no agent must read text from another agent. The same topic is not a reason to wait. Jev picks `sequence` only when a later agent must read the earlier text, such as research notes and then a draft.
@@ -154,7 +156,70 @@ const stream = chat({
 })
 ```
 
-**Without a router.** The library adds one synthetic server tool per agent. The main model calls that tool. The public stream still emits `SUBAGENT_STARTED` / `SUBAGENT_FINISHED` (or `SUBAGENT_ERROR`) and nested parts. The UI does not treat spawn as a normal tool card. The child's events stream while the tool runs, and the child's text becomes the tool result. The child reads the conversation as it is at that tool call.
+**Give a routed agent its input.** An agent with `inputSchema` gets its input from the router. `route.needsInput(result)` lists the picked agents that need one, each with its schema. Make each input. Then pass them to `route.pick(result, { inputs })`. Here the model writes each input, with the schema as `outputSchema`:
+
+```ts
+import { chat, decide, defineAgent, subagentRoute } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { typesafeDecider } from '@tanstack/ai-typesafe'
+import { z } from 'zod'
+
+const writer = defineAgent({
+  name: 'writer',
+  description: 'Writes the post',
+  run: async function* () {},
+})
+const pricer = defineAgent({
+  name: 'pricer',
+  description: 'Compares the plans and prices of one vendor',
+  inputSchema: z.object({ vendor: z.string() }),
+  run: (ctx) =>
+    ctx.chat({
+      adapter: openaiText('gpt-5.6'),
+      messages: [{ role: 'user', content: `Compare the plans of ${ctx.input.vendor}` }],
+      stream: false,
+    }),
+})
+const messages = [
+  { role: 'user' as const, content: 'What does Acme cost? Write a post about it.' },
+]
+
+const stream = chat({
+  adapter: openaiText('gpt-5.6'),
+  messages,
+  subagents: {
+    agents: [pricer, writer],
+    router: async ({ messages: turnMessages, agents }) => {
+      const route = subagentRoute(agents, { then: ['writer'] })
+      const result = await decide({
+        adapter: typesafeDecider('jev-latest'),
+        state: turnMessages,
+        questions: route.questions,
+      })
+      const inputs = Object.fromEntries(
+        await Promise.all(
+          route.needsInput(result).map(async ({ name, inputSchema }) => [
+            name,
+            await chat({
+              adapter: openaiText('gpt-5.6'),
+              messages: turnMessages,
+              outputSchema: inputSchema,
+            }),
+          ]),
+        ),
+      )
+      return route.pick(result, { inputs })
+    },
+  },
+})
+```
+
+- `inputs` is typed. Each key is the name of an agent with `inputSchema`, and the value has the type of that schema.
+- If a picked agent with a schema has no input, `pick` throws `Agent "pricer" needs input. Pass it in inputs.`
+- `chat()` checks each input against the schema before the child starts. If an input does not match, `chat()` throws, and the child does not start.
+- `run` reads the input as `ctx.input`. A resumed child gets the same input.
+
+**Without a router.** The library adds one synthetic server tool per agent. The main model calls that tool. The public stream still emits `SUBAGENT_STARTED` / `SUBAGENT_FINISHED` (or `SUBAGENT_ERROR`) and nested parts. The UI does not treat spawn as a normal tool card. The child's events stream while the tool runs, and the child's text becomes the tool result. The child reads the conversation as it is at that tool call. For one tool that can start every agent, see [Give the model one subagent tool](#give-the-model-one-subagent-tool).
 
 ## Let the model write the brief
 
@@ -202,9 +267,167 @@ const stream = chat({
 - If the input does not match the schema, the model gets a tool error and can call the tool again. The child does not start.
 - `ctx.messages` still holds the parent conversation. Add parts of it when the child needs more context.
 - A resumed child gets the same `ctx.input` as the first run.
-- `inputSchema` needs tool mode. If `subagents.router` is set and an agent has `inputSchema`, `chat()` throws.
+- With `subagents.router`, the router gives the input. See [Route, or let the model pick](#route-or-let-the-model-pick).
 
 To show the brief in the UI, see [Show the brief on a card](#show-the-brief-on-a-card).
+
+## Give the model one subagent tool
+
+Without a router, the model gets one tool per agent, and each call starts a new child. The model cannot send a follow-up to a child that already answered. Set `tool: 'single'`. The model then gets one tool, `subagent`, and names the agent in each call. A call can also continue a child from an earlier turn.
+
+```ts
+import {
+  chat,
+  chatParamsFromRequest,
+  defineAgent,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { memoryPersistence, withPersistence } from '@tanstack/ai-persistence'
+import { z } from 'zod'
+
+const researcher = defineAgent({
+  name: 'researcher',
+  description: 'Researches one question and returns sourced findings',
+  inputSchema: z.object({ question: z.string() }),
+  run: (ctx) =>
+    ctx.chat({
+      adapter: openaiText('gpt-6.1-sol'),
+      messages: [{ role: 'user', content: ctx.input.question }],
+    }),
+})
+
+const writer = defineAgent({
+  name: 'writer',
+  description: 'Writes and edits drafts',
+  run: (ctx) => ctx.chat({ adapter: openaiText('gpt-6.1-sol') }),
+})
+
+// A continued child loads from this store. Use a durable backend in production.
+const persistence = memoryPersistence()
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request)
+  const stream = chat({
+    adapter: openaiText('gpt-6.1-sol'),
+    messages: params.messages,
+    threadId: params.threadId,
+    runId: params.runId,
+    middleware: [withPersistence(persistence)],
+    subagents: { agents: [researcher, writer], tool: 'single' },
+  })
+  return toServerSentEventsResponse(stream)
+}
+```
+
+The model fills these fields of the tool input:
+
+- `agent`: the agent name. Each call needs it.
+- `input`: the input of an agent with `inputSchema`. That agent needs it.
+- `prompt`: the task as text, for an agent without `inputSchema`. The child gets it as the last user message.
+- `sessionId`: the `subagentRunId` of an earlier result. The call continues that child.
+- `background`: `true` starts the child and returns at once. Only a harness can do this. See [Run agents from a harness](../harness/subagents#give-the-model-one-subagent-tool).
+
+On the client, each child is a `type: 'subagent'` part, the same as with one tool per agent. `part.subagent.name` is the agent name.
+
+### Continue a child
+
+With `withPersistence` on the parent `chat()`, each result gives the model the `subagentRunId` of the child. The model uses it in a later turn:
+
+1. The model calls `{ "agent": "writer", "prompt": "Draft a post about tides" }`.
+2. It gets `{ "subagentRunId": "subagent-1767225600000-x7k2m9q", "result": "Tides rise twice a day..." }`.
+3. In the next turn, it calls `{ "agent": "writer", "sessionId": "subagent-1767225600000-x7k2m9q", "prompt": "Make it shorter" }`.
+
+The writer gets its stored transcript, then `Make it shorter` as the last user message.
+
+- `sessionId` needs `withPersistence` on the parent `chat()`. The stored child comes from that store.
+- A thread can continue only its own children. An id from another thread gives the tool error `Unknown sessionId "..."`.
+- The call must name the agent that the child ran under. Another agent gives the tool error `Session "..." belongs to agent "writer", not "researcher".`
+- The stream uses the same `subagentRunId`, so the client shows the new work on the card with that id.
+
+### Wrong calls
+
+A wrong call returns to the model as a tool error, and the run continues. For example:
+
+- `Agent "researcher" takes input, not prompt.`
+- `Agent "researcher" needs input.`
+- `sessionId needs a persistence store.`
+- `background needs a harness host.`
+
+If an agent or a tool already has the name `subagent`, `chat()` throws before the run starts.
+
+## Return a value, or call any activity
+
+A child does not have to be a chat. It can make an image, or return a plain value that the parent model reads as the tool result. Call the activity on `ctx` and return what it gives you:
+
+```ts group=subagent-values
+import { chat, defineAgent } from '@tanstack/ai'
+import { openaiImage, openaiText } from '@tanstack/ai-openai'
+import { z } from 'zod'
+
+const heroImage = defineAgent({
+  name: 'heroImage',
+  description: 'Makes a hero image for a post',
+  produces: 'image',
+  inputSchema: z.object({ prompt: z.string() }),
+  run: (ctx) =>
+    ctx.generateImage({
+      adapter: openaiImage('gpt-image-2'),
+      prompt: `${ctx.input.prompt}. Brand colors: blue and white.`,
+      size: '1536x1024',
+    }),
+})
+
+const stream = chat({
+  adapter: openaiText('gpt-5.6'),
+  messages: [{ role: 'user', content: 'Make a hero image about squids' }],
+  subagents: { agents: [heroImage] },
+})
+```
+
+- `ctx.chat`, `ctx.generateImage`, `ctx.generateVideo`, `ctx.generateSpeech`, and the other activities on `ctx` take the same options as the plain functions. They fill in the thread id, a run id, and the abort signal.
+- `ctx.chat` also uses the parent conversation (`ctx.messages`) when you do not pass `messages`.
+- `run` can return a promise of any value. The value arrives on `SUBAGENT_FINISHED.result`, and the parent model gets it as the tool result.
+- A string result also streams as the child's text, so the card shows it. The result of `ctx.chat({ stream: false })` counts as its text.
+- A very long string in the result (for example a base64 image) reaches the parent model as a short note, `[omitted 5000 characters]`. The full value stays on `SUBAGENT_FINISHED.result`.
+- `produces` says what the agent makes (`'image'`, `'text'`, and so on). It does not change how the agent runs.
+
+When you call the plain `chat()` instead, spread `ctx.forward` to pass the child's ids and abort controller in one line:
+
+```ts group=subagent-values
+const researcher = defineAgent({
+  name: 'researcher',
+  description: 'Looks up facts',
+  run: (ctx) =>
+    chat({
+      adapter: openaiText('gpt-5.6'),
+      messages: ctx.messages,
+      ...ctx.forward,
+    }),
+})
+```
+
+## Limit the tree
+
+A child can have children of its own, and a model can call a child many times. Set `limits` so one request cannot start an unbounded tree:
+
+```ts group=subagent-values
+const limited = chat({
+  adapter: openaiText('gpt-5.6'),
+  messages: [{ role: 'user', content: 'Research squids in depth' }],
+  subagents: {
+    agents: [researcher],
+    limits: { maxDepth: 2, maxConcurrent: 3, maxCalls: 12, timeoutMs: 120_000 },
+  },
+})
+```
+
+- `maxDepth`: how deep the tree may grow. The first chat is depth 0.
+- `maxCalls`: how many children the whole tree may start.
+- `maxConcurrent`: how many children one run may have running at once.
+- `timeoutMs`: how long one child may run. A child never gets more time than its parent has left.
+
+The whole tree shares one budget. A child that calls `ctx.chat({ subagents })` passes it on, so a child cannot reset it. A refused start reaches the model as a tool error, for example `subagent limit reached (maxCalls 12)`.
 
 ## Strategy
 
@@ -306,13 +529,15 @@ export function CleanupPanel() {
 
 The resume uses the plan that the router picked in the first run. It does not call the router again. While the child waits, its card has `status: 'suspended'` and `interruptIds`. After you approve, the card shows the tool result and the child's reply. Client tools in a child work the same way.
 
-The same flow works without a router. The child's tool call stays open until the resume, then the parent model reads the child's result. The result content carries the child's output or error; `subagentRunId` stays in subagent tracking events.
+The same flow works without a router. The child's tool call stays open until the resume, then the parent model reads the child's result. The result content carries the child's output or error. It carries `subagentRunId` only when the model can continue the child: with a persistence store, or for a background child. Else the id stays in the subagent events.
 
 ## Middleware
 
 A child is its own `chat()` call. Put the child's middleware in that call. The parent's middleware list does not reach the child.
 
 Inside a child, the middleware context has `subagentRunId`. Use it to tell a child run from a top-level run, and to link a child trace to its card.
+
+When the child calls `ctx.chat`, the context also has `subagentName`, the name of the agent. For a nested child, `parentSubagentRunId` is the id of the child that started it.
 
 On a routed turn where a child runs and main does not, the parent's middleware does not run. Only `withPersistence` records that turn. A turn where main runs, including a handoff, runs the parent's middleware as usual.
 
@@ -580,7 +805,9 @@ function Briefs({ message }: { message: UIMessage }) {
 }
 ```
 
-A child that a router started has no `parentToolCallId`, so it has no brief.
+A child that a router started has no `parentToolCallId`, so `briefOf` finds no brief for it.
+
+With `tool: 'single'`, that tool call is a call of the `subagent` tool. The brief is in the `input` field or the `prompt` field of its input.
 
 ### Style one child's parts
 

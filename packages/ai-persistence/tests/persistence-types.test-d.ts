@@ -23,11 +23,15 @@ import type {
   ChatTranscriptPersistence,
   ChatTranscriptStores,
   GenerationRunStore,
+  InboxStore,
+  CredentialStore,
   InterruptStore,
   MessagePage,
   MessageStore,
   MetadataStore,
   RunStore,
+  WorkClaimStore,
+  SessionIndexStore,
 } from '../src'
 
 declare const messages: MessageStore
@@ -143,6 +147,10 @@ expectTypeOf(memoryPersistence()).toEqualTypeOf<
     metadata: MetadataStore
     artifacts: ArtifactStore
     blobs: BlobStore
+    inbox: InboxStore
+    credentials: CredentialStore
+    workClaims: WorkClaimStore
+    sessions: SessionIndexStore
   }>
 >()
 const transcript: ChatTranscriptPersistence = messagesOnly

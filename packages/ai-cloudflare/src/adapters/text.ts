@@ -1,5 +1,8 @@
 import OpenAI from 'openai'
+import type { ClientOptions } from 'openai'
 import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
+import { resolveReasoning } from '@tanstack/ai/adapter-internals'
+import { CLOUDFLARE_MODEL_REASONING } from '../model-reasoning'
 import {
   gatewayHeaders,
   isBindingConfig,
@@ -14,15 +17,31 @@ import type {
 import type {
   CloudflareConfigInput,
   CloudflareTextConfig,
+  CloudflareTextReasoningConfig,
   CloudflareTextRestConfig,
 } from '../utils/config'
 import type { CloudflareTextModel } from '../utils/models'
-import type { ModelMessage } from '@tanstack/ai'
+import type {
+  ConfigReasoning,
+  DefaultMessageMetadataByModality,
+  Modality,
+  ModelMessage,
+  ModelReasoning,
+  ReasoningCapability,
+  TextOptions,
+} from '@tanstack/ai'
+import type { CloudflareModelReasoningByName } from '../model-reasoning'
+
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof CloudflareModelReasoningByName
+    ? CloudflareModelReasoningByName[TModel]
+    : never
 
 /**
  * Chat Completions parameters forwarded verbatim to Workers AI. Reasoning
- * models (GLM, Kimi, gpt-oss, QwQ) read `reasoning_effort` and
- * `chat_template_kwargs`; `null` for `reasoning_effort` turns reasoning off.
+ * effort is set with `chat({ reasoning })`; reasoning models (GLM, Kimi,
+ * gpt-oss, QwQ) also read `chat_template_kwargs`.
  */
 export interface CloudflareTextProviderOptions {
   temperature?: number
@@ -33,36 +52,36 @@ export interface CloudflareTextProviderOptions {
   repetition_penalty?: number
   frequency_penalty?: number
   presence_penalty?: number
-  reasoning_effort?: 'low' | 'medium' | 'high' | null
   chat_template_kwargs?: {
     enable_thinking?: boolean
     clear_thinking?: boolean
   }
 }
 
-function createClient(config: CloudflareTextConfig): OpenAI {
+function clientOptions(config: CloudflareTextConfig): ClientOptions {
   if (isBindingConfig(config)) {
-    return new OpenAI({
+    return {
       // The binding authenticates by itself; the SDK only requires a value.
       apiKey: 'cloudflare-binding',
       fetch: createBindingFetch(config.binding, config.gateway),
-    })
+    }
   }
   const {
     accountId: _accountId,
     binding: _binding,
     gateway,
-    ...clientOptions
+    reasoning: _reasoning,
+    ...options
   } = config
-  return new OpenAI({
-    ...clientOptions,
+  return {
+    ...options,
     baseURL: restChatBaseURL(config),
     defaultHeaders: {
       ...gatewayHeaders(gateway),
-      ...clientOptions.defaultHeaders,
+      ...options.defaultHeaders,
     },
-    fetch: createRestFetch(clientOptions.fetch),
-  })
+    fetch: createRestFetch(options.fetch),
+  }
 }
 
 /**
@@ -77,12 +96,46 @@ function createClient(config: CloudflareTextConfig): OpenAI {
 export class CloudflareTextAdapter<
   TModel extends CloudflareTextModel,
   TProviderOptions extends Record<string, any> = CloudflareTextProviderOptions,
-> extends OpenAIBaseChatCompletionsTextAdapter<TModel, TProviderOptions> {
+  TReasoning extends ReasoningCapability = ResolveReasoning<TModel>,
+> extends OpenAIBaseChatCompletionsTextAdapter<
+  TModel,
+  TProviderOptions,
+  ReadonlyArray<Modality>,
+  DefaultMessageMetadataByModality,
+  ReadonlyArray<string>,
+  TReasoning
+> {
   override readonly kind = 'text' as const
   override readonly name = 'cloudflare' as const
+  /** `config.reasoning`, which wins over `CLOUDFLARE_MODEL_REASONING`. */
+  private readonly configReasoning: ModelReasoning | undefined
 
   constructor(config: CloudflareTextConfig, model: TModel) {
-    super(model, 'cloudflare', createClient(config), config)
+    const options = clientOptions(config)
+    super(model, 'cloudflare', new OpenAI(options), {
+      ...config,
+      fetch: options.fetch,
+    })
+    this.configReasoning = config.reasoning
+  }
+
+  /**
+   * `chat({ reasoning })` as `reasoning_effort`. Workers AI turns reasoning
+   * off with `null`, so `off` sends `null`, not the model's off value.
+   */
+  protected override mapOptionsToRequest(options: TextOptions) {
+    const request = super.mapOptionsToRequest(options)
+    const resolved = resolveReasoning(
+      options.reasoning,
+      this.configReasoning ?? CLOUDFLARE_MODEL_REASONING[options.model],
+    )
+    if (resolved) {
+      Object.assign(request, {
+        reasoning_effort:
+          resolved.level === 'off' ? null : (resolved.value ?? resolved.level),
+      })
+    }
+    return request
   }
 
   /**
@@ -131,10 +184,17 @@ export class CloudflareTextAdapter<
  * const adapter = createCloudflareText('@cf/zai-org/glm-5.3-flash', { accountId, apiKey })
  * ```
  */
-export function createCloudflareText<TModel extends CloudflareTextModel>(
+export function createCloudflareText<
+  TModel extends CloudflareTextModel,
+  TConfig extends CloudflareTextConfig = CloudflareTextConfig,
+>(
   model: TModel,
-  config: CloudflareTextConfig,
-): CloudflareTextAdapter<TModel> {
+  config: TConfig,
+): CloudflareTextAdapter<
+  TModel,
+  CloudflareTextProviderOptions,
+  ConfigReasoning<TConfig, ResolveReasoning<TModel>>
+> {
   return new CloudflareTextAdapter(config, model)
 }
 
@@ -142,9 +202,18 @@ export function createCloudflareText<TModel extends CloudflareTextModel>(
  * Creates a Cloudflare text adapter, reading `CLOUDFLARE_ACCOUNT_ID` and
  * `CLOUDFLARE_API_TOKEN` from the environment unless a binding is passed.
  */
-export function cloudflareText<TModel extends CloudflareTextModel>(
+export function cloudflareText<
+  TModel extends CloudflareTextModel,
+  TConfig extends CloudflareConfigInput<CloudflareTextRestConfig> &
+    CloudflareTextReasoningConfig =
+    CloudflareConfigInput<CloudflareTextRestConfig>,
+>(
   model: TModel,
-  config?: CloudflareConfigInput<CloudflareTextRestConfig>,
-): CloudflareTextAdapter<TModel> {
+  config?: TConfig,
+): CloudflareTextAdapter<
+  TModel,
+  CloudflareTextProviderOptions,
+  ConfigReasoning<TConfig, ResolveReasoning<TModel>>
+> {
   return new CloudflareTextAdapter(resolveConfigFromEnv(config), model)
 }

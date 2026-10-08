@@ -10,7 +10,7 @@ import type {
   TerminalRunStatus,
   UIMessage,
 } from '@tanstack/ai'
-import { storedSubagentInfo } from './subagent-runs'
+import { selectSubagentHost, storedSubagentInfo } from './subagent-runs'
 import { validateReconstructChatStores } from './types'
 import type {
   AIPersistence,
@@ -408,10 +408,7 @@ async function attachSubagentCards(
     const runId = messageRunId(message)
     if (runId) parentRunIds.add(runId)
   }
-  const hasToolCalls = messages.some((message) =>
-    message.parts.some((part) => part.type === 'tool-call'),
-  )
-  if (hasToolCalls && runs.listByThread && threadId !== '') {
+  if (runs.listByThread && threadId !== '') {
     for (const run of await runs.listByThread(threadId)) {
       parentRunIds.add(run.runId)
     }
@@ -430,24 +427,65 @@ async function attachSubagentCards(
   }
   if (cardsByRun.size === 0 && cardsByToolCall.size === 0) return messages
 
-  return messages.map((message) => {
+  const result = messages.map((message) => {
     if (message.role !== 'assistant') return message
-    const runId = messageRunId(message)
-    const routed = runId !== undefined ? cardsByRun.get(runId) : undefined
     const started = message.parts.flatMap((part) =>
       part.type === 'tool-call' ? (cardsByToolCall.get(part.id) ?? []) : [],
     )
-    if (!routed && started.length === 0) return message
-    // A routed parent message holds only the children's text. The cards
-    // replace it.
-    const parts = routed
-      ? message.parts.filter((part) => part.type !== 'text')
-      : message.parts
-    return {
-      ...message,
-      parts: [...(routed ?? []), ...parts, ...started],
-    }
+    return started.length === 0
+      ? message
+      : { ...message, parts: [...message.parts, ...started] }
   })
+  const text = (message: UIMessage) =>
+    message.parts
+      .flatMap((part) => (part.type === 'text' ? [part.content] : []))
+      .join('')
+  for (const [runId, cards] of cardsByRun) {
+    const blocks = cards.map((card) => ({
+      name: card.subagent.name,
+      text: card.subagent.messages
+        .filter((message) => message.role === 'assistant')
+        .flatMap((message) =>
+          message.parts.flatMap((part) =>
+            part.type === 'text' && part.content.trim() !== ''
+              ? [part.content.trim()]
+              : [],
+          ),
+        )
+        .join('\n\n'),
+    }))
+    const named = blocks
+      .filter((block) => block.text !== '')
+      .map((block) => block.name + ':\n' + block.text)
+      .join('\n\n')
+    const bare = blocks
+      .map((block) => block.text)
+      .filter(Boolean)
+      .join('\n\n')
+    const index = selectSubagentHost(result, runId, text, [named, bare])
+    const host = result[index]
+    if (host) {
+      result[index] = {
+        ...host,
+        parts: [...cards, ...host.parts.filter((part) => part.type !== 'text')],
+      }
+    } else {
+      const baseId = 'subagent-cards:' + runId
+      let id = baseId
+      for (
+        let attempt = 1;
+        result.some((message) => message.id === id);
+        attempt++
+      )
+        id = baseId + ':' + attempt
+      result.push({
+        id,
+        role: 'assistant',
+        parts: cards,
+      })
+    }
+  }
+  return result
 }
 
 function parsePageSize(raw: string | null) {

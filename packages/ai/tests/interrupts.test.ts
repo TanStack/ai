@@ -34,6 +34,59 @@ import type {
 } from '../src/types'
 
 describe('first-party interrupt definitions', () => {
+  it('keeps own JSON keys in interrupt bindings and hashes', () => {
+    const raw =
+      '{"type":"object","__proto__":{"description":"authored"},"constructor":"authored","properties":{}}'
+    const exported = JSON.parse(raw)
+    const standard = (jsonSchema: typeof exported) => ({
+      '~standard': {
+        version: 1 as const,
+        vendor: 'own-keys',
+        validate: (value: unknown) => ({ value }),
+        jsonSchema: { input: () => jsonSchema, output: () => jsonSchema },
+      },
+    })
+    const bind = (schema: ReturnType<typeof standard>) => {
+      const definition = defineInterrupt({
+        id: 'own-keys',
+        payloadSchema: schema,
+        responseSchema: schema,
+      })
+      return createInterruptBinding(
+        definition.interrupt({
+          key: 'key',
+          payload: {},
+          reason: 'tool_call',
+          message: 'Review',
+        }),
+      )
+    }
+    const binding = bind(standard(exported))
+    const without = bind(
+      standard({ type: 'object', constructor: 'authored', properties: {} }),
+    )
+    for (const canonical of [
+      binding.descriptor.payloadSchemaCanonicalJson,
+      binding.descriptor.responseSchemaCanonicalJson,
+    ]) {
+      expect(canonical).toBeDefined()
+      if (!canonical) throw new Error('Expected a canonical schema')
+      const schema = JSON.parse(canonical)
+      expect(Object.hasOwn(schema, '__proto__')).toBe(true)
+      expect(
+        Object.getOwnPropertyDescriptor(schema, '__proto__')?.enumerable,
+      ).toBe(true)
+      expect(Object.getPrototypeOf(schema)).toBe(Object.prototype)
+      expect(schema['__proto__']).toEqual({ description: 'authored' })
+    }
+    expect(binding.descriptor.payloadSchemaHash).not.toBe(
+      without.descriptor.payloadSchemaHash,
+    )
+    expect(binding.descriptor.responseSchemaHash).not.toBe(
+      without.descriptor.responseSchemaHash,
+    )
+    expect(JSON.stringify(exported)).toBe(raw)
+  })
   const approval = defineInterrupt({
     id: 'approval',
     payloadSchema: z.object({ amount: z.number() }),

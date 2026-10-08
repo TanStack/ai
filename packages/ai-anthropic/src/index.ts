@@ -8,7 +8,9 @@ export {
   anthropicText,
   createAnthropicChat,
   createAnthropicChatWithClient,
+  type AnthropicModelId,
   type AnthropicTextAdapterConfig,
+  type AnthropicTextAdapterFor,
   type AnthropicTextConfig,
   type AnthropicTextProviderOptions,
 } from './adapters/text'

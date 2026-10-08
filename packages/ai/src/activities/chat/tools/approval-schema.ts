@@ -86,7 +86,12 @@ function isApprovalBranchMap(
 function toJsonSchema(value: Record<string, unknown>): JSONSchema {
   const result: JSONSchema = {}
   for (const [key, item] of Object.entries(value)) {
-    result[key] = item
+    Object.defineProperty(result, key, {
+      value: item,
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    })
   }
   return result
 }

@@ -244,12 +244,9 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: geminiText('gemini-3.8-flash'),
     messages,
-    modelOptions: {
-      thinkingConfig: {
-        includeThoughts: true,
-        thinkingLevel: 'HIGH', // Gemini 3.x; Gemini 2.x uses thinkingBudget
-      },
-    },
+    // Every provider takes the same option; the adapter sends Gemini's
+    // thinkingConfig with the thinking text included.
+    reasoning: 'high',
   })
 
   return toServerSentEventsResponse(stream)

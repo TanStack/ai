@@ -96,7 +96,8 @@ Drop `stream: false` to get the default streaming form, which yields
 
 Seed models reason by default. Reasoning arrives as a separate stream of
 `reasoning_content` deltas and is surfaced as reasoning content, not answer
-text. Pass `thinking: { type: 'disabled' }` in provider options to turn it off.
+text. Pass `reasoning: 'off'` to `chat()` to turn it off on a model that can
+stop thinking.
 
 ### Video (Seedance)
 

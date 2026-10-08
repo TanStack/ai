@@ -5,6 +5,8 @@ import {
   withVercelGatewayDefaults,
 } from '../utils/client'
 import { mapGatewayModelOptions } from '../utils/map-gateway-options'
+import { VERCEL_GATEWAY_MODEL_REASONING } from '../model-reasoning'
+import type { VercelGatewayModelReasoningByName } from '../model-reasoning'
 import type { Modality, TextOptions } from '@tanstack/ai'
 import type { ResponseCreateParams } from 'openai/resources/responses/responses'
 import type {
@@ -23,6 +25,19 @@ export interface VercelGatewayResponsesTextConfig
 
 export type VercelGatewayResponsesTextProviderOptions =
   ExternalResponsesProviderOptions
+
+/**
+ * The reasoning levels of a model, for `chat({ reasoning })`. This API has
+ * no token budget field, so no model takes `budgetTokens` here. `never`:
+ * the model does not reason.
+ */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof VercelGatewayModelReasoningByName
+    ? {
+        levels: VercelGatewayModelReasoningByName[TModel]['levels']
+        budget: false
+      }
+    : never
 
 type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof VercelGatewayChatModelToolCapabilitiesByName
@@ -47,7 +62,8 @@ export class VercelGatewayResponsesTextAdapter<
   TProviderOptions,
   TInputModalities,
   VercelGatewayMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  ResolveReasoning<TModel>
 > {
   override readonly kind = 'text' as const
   override readonly name = 'vercel-gateway' as const
@@ -59,6 +75,10 @@ export class VercelGatewayResponsesTextAdapter<
       new OpenAI(withVercelGatewayDefaults(config)),
       config,
     )
+  }
+
+  protected override modelReasoning(model: string) {
+    return VERCEL_GATEWAY_MODEL_REASONING[model]
   }
 
   protected override mapOptionsToRequest(

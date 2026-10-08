@@ -2,6 +2,8 @@ import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import {
   appendOutputSchemaInstruction,
   parseJsonFromAssistantText,
+  reasoningBudget,
+  resolveReasoning,
   structuredOutputCompleteChunk,
   structuredOutputStartChunk,
   toRunErrorRawEvent,
@@ -27,6 +29,7 @@ import { resolveInteractivePermission } from '../process/permissions'
 import { AsyncQueue } from '../stream/queue'
 import { translateOpencodeStream } from '../stream/translate'
 import { projectOpencodeWorkspace } from './projection'
+import { OPENCODE_MODEL_REASONING } from '../model-reasoning'
 import type { HostToolBridge, SandboxHandle } from '@tanstack/ai-sandbox'
 import type {
   StructuredOutputOptions,
@@ -35,7 +38,9 @@ import type {
 import type {
   DefaultMessageMetadataByModality,
   Modality,
+  ModelReasoning,
   AdapterYieldChunk,
+  ReasoningRequest,
   TextOptions,
 } from '@tanstack/ai'
 import type { OpencodeSessionHandle } from '../process/server'
@@ -46,6 +51,7 @@ import type {
 import type { OpencodeStreamEvent } from '../stream/sdk-types'
 import type { OpencodeModel } from '../model-meta'
 import type { OpencodeTextProviderOptions } from '../provider-options'
+import type { OpenCodeModelReasoningByName } from '../model-reasoning'
 
 const DEFAULT_WORKDIR = '/workspace'
 const DEFAULT_PORT = 4096
@@ -82,6 +88,49 @@ function splitModel(model: string): { providerID: string; modelID: string } {
   return { providerID: model.slice(0, slash), modelID: model.slice(slash + 1) }
 }
 
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof OpenCodeModelReasoningByName
+    ? OpenCodeModelReasoningByName[TModel]
+    : never
+
+/**
+ * OpenCode's per-model `options` for `chat({ reasoning })`, as its config docs
+ * show them: Claude takes `thinking` with a token budget (pi's table when the
+ * request sets none), other models take `reasoningEffort` and
+ * `reasoningSummary`.
+ */
+export function opencodeReasoningOptions(
+  modelID: string,
+  request: ReasoningRequest | undefined,
+  reasoning: ModelReasoning | undefined,
+): Record<string, unknown> | undefined {
+  const resolved = resolveReasoning(request, reasoning)
+  if (!resolved) return undefined
+  if (modelID.includes('claude')) {
+    if (resolved.level === 'off') return { thinking: { type: 'disabled' } }
+    return {
+      thinking: {
+        type: 'enabled',
+        budgetTokens: reasoningBudget({
+          level: resolved.level,
+          summary: resolved.summary,
+          ...(resolved.budgetTokens !== undefined
+            ? { budgetTokens: resolved.budgetTokens }
+            : {}),
+        }),
+      },
+    }
+  }
+  if (resolved.value === null) return undefined
+  return {
+    reasoningEffort: resolved.value,
+    ...(resolved.summary && resolved.level !== 'off'
+      ? { reasoningSummary: 'auto' }
+      : {}),
+  }
+}
+
 export class OpencodeTextAdapter<
   TModel extends OpencodeModel,
 > extends BaseTextAdapter<
@@ -91,7 +140,8 @@ export class OpencodeTextAdapter<
   DefaultMessageMetadataByModality,
   ReadonlyArray<string>,
   unknown,
-  never
+  never,
+  ResolveReasoning<TModel>
 > {
   readonly name = 'opencode' as const
 
@@ -99,9 +149,38 @@ export class OpencodeTextAdapter<
 
   private readonly adapterConfig: OpencodeTextConfig
 
+  /** `toolChoice` warnings that this instance already logged. */
+  private readonly toolChoiceWarnings = new Set<string>()
+
   constructor(config: OpencodeTextConfig, model: TModel) {
     super({}, model)
     this.adapterConfig = config
+  }
+
+  /**
+   * The chat() tools to bridge for `toolChoice`: none for `'none'`, and only
+   * the named tool for `{ type: 'tool', name }`. OpenCode cannot force a tool
+   * call, so every value except `'auto'` logs a warning once.
+   *
+   * ponytail: the built-in tools stay on. The `tools` field of
+   * `session.prompt` is deprecated in opencode, and the server stores it as
+   * the permission rules of the session, so a later call on a resumed session
+   * keeps the limit. Use session permissions if this must change.
+   */
+  private toolsForChoice(options: TextOptions<OpencodeTextProviderOptions>) {
+    const { toolChoice, tools = [] } = options
+    if (toolChoice === undefined || toolChoice === 'auto') return tools
+    const warning =
+      toolChoice === 'required'
+        ? "opencode: toolChoice 'required' is not supported. The agent decides which tools to call."
+        : 'opencode: toolChoice limits only the chat() tools. The built-in OpenCode tools stay on.'
+    if (!this.toolChoiceWarnings.has(warning)) {
+      this.toolChoiceWarnings.add(warning)
+      options.logger.warn(warning)
+    }
+    if (toolChoice === 'none') return []
+    if (toolChoice === 'required') return tools
+    return tools.filter((tool) => tool.name === toolChoice.name)
   }
 
   private sandboxFrom(
@@ -165,6 +244,7 @@ export class OpencodeTextAdapter<
     })
 
     try {
+      const tools = this.toolsForChoice(options)
       const sandbox = this.sandboxFrom(options)
       const directory =
         options.modelOptions?.directory ??
@@ -228,15 +308,13 @@ export class OpencodeTextAdapter<
 
       // Bridge chat()-provided tools into the in-sandbox server over MCP
       // (configured via OPENCODE_CONFIG_CONTENT at server spawn).
-      const bridgedToolNames = new Set(
-        (options.tools ?? []).map((tool) => tool.name),
-      )
-      if (options.tools && options.tools.length > 0) {
+      const bridgedToolNames = new Set(tools.map((tool) => tool.name))
+      if (tools.length > 0) {
         const provisioner =
           (options.capabilities
             ? getToolBridgeProvisioner(options.capabilities, { optional: true })
             : undefined) ?? nodeHttpBridgeProvisioner
-        bridge = await provisioner.provision(options.tools, {
+        bridge = await provisioner.provision(tools, {
           provider: sandbox.provider,
           context: options.context,
           emitCustomEvent: channel.emitCustomEvent,
@@ -281,20 +359,36 @@ export class OpencodeTextAdapter<
         { provider: 'opencode', model: this.model },
       )
 
-      const serverEnv = bridge
-        ? {
-            OPENCODE_CONFIG_CONTENT: JSON.stringify({
-              mcp: {
-                [bridge.name]: {
-                  type: 'remote',
-                  url: bridge.url,
-                  enabled: true,
-                  headers: { Authorization: `Bearer ${bridge.token}` },
-                },
-              },
-            }),
-          }
-        : undefined
+      // `chat({ reasoning })` goes on the model's config entry.
+      const reasoningOptions = opencodeReasoningOptions(
+        modelID,
+        options.reasoning,
+        OPENCODE_MODEL_REASONING[this.model],
+      )
+      const serverEnv =
+        bridge || reasoningOptions
+          ? {
+              OPENCODE_CONFIG_CONTENT: JSON.stringify({
+                ...(bridge && {
+                  mcp: {
+                    [bridge.name]: {
+                      type: 'remote',
+                      url: bridge.url,
+                      enabled: true,
+                      headers: { Authorization: `Bearer ${bridge.token}` },
+                    },
+                  },
+                }),
+                ...(reasoningOptions && {
+                  provider: {
+                    [providerID]: {
+                      models: { [modelID]: { options: reasoningOptions } },
+                    },
+                  },
+                }),
+              }),
+            }
+          : undefined
 
       server = await startOpencodeServerInSandbox(sandbox, {
         port: this.adapterConfig.port ?? DEFAULT_PORT,
@@ -478,7 +572,7 @@ export class OpencodeTextAdapter<
  * the `@opencode-ai/sdk` HTTP client to it. OpenCode owns the agent loop and
  * executes its native tools against the sandbox workspace. The sandbox image
  * must provide the `opencode` executable (Docker: also publish the server port
- * via `publishPorts`). chat()-provided tools aren't bridged yet.
+ * via `publishPorts`). The chat() tools reach OpenCode through an MCP bridge.
  */
 export function opencodeText<TModel extends OpencodeModel>(
   model: TModel,

@@ -3,6 +3,7 @@ import type { AgentLoopState, StreamChunk } from '../../../types'
 import type { InternalLogger } from '../../../logger/internal-logger'
 import type {
   AbortInfo,
+  AfterToolCallDecision,
   AfterToolCallInfo,
   BeforeToolCallDecision,
   ChatMiddleware,
@@ -29,6 +30,30 @@ import type {
 interface HookFailure {
   middleware: string
   error: unknown
+}
+
+/**
+ * Merge one onConfig result into the config. A new `wrapFetch` chains inside
+ * the current one. The same function (a spread config) does not wrap twice.
+ */
+function mergeConfig<
+  T extends ChatMiddlewareConfig | StructuredOutputMiddlewareConfig,
+>(current: T, result: Partial<T>): T {
+  const outer = current.wrapFetch
+  const inner = result.wrapFetch
+  // `undefined` or the same function keeps the wrappers before it.
+  const wrapFetch =
+    outer && inner && inner !== outer
+      ? (next: typeof fetch) => outer(inner(next))
+      : (inner ?? outer)
+  return {
+    ...current,
+    ...result,
+    ...('messages' in result && !('providerMessages' in result)
+      ? { providerMessages: result.messages }
+      : {}),
+    ...(wrapFetch ? { wrapFetch } : {}),
+  }
 }
 
 /** Check if a middleware should be skipped for instrumentation events. */
@@ -166,13 +191,7 @@ export class MiddlewareRunner<
         const result = await mw.onConfig(ctx, current)
         const hasTransform = result !== undefined && result !== null
         if (hasTransform) {
-          current = {
-            ...current,
-            ...result,
-            ...('messages' in result && !('providerMessages' in result)
-              ? { providerMessages: result.messages }
-              : {}),
-          }
+          current = mergeConfig(current, result)
           if (!skip) {
             this.logger.config(
               `middleware=${mw.name ?? 'unnamed'} keys=${Object.keys(result).join(',')}`,
@@ -227,13 +246,7 @@ export class MiddlewareRunner<
         const result = await mw.onStructuredOutputConfig(ctx, current)
         const hasTransform = result !== undefined && result !== null
         if (hasTransform) {
-          current = {
-            ...current,
-            ...result,
-            ...('messages' in result && !('providerMessages' in result)
-              ? { providerMessages: result.messages }
-              : {}),
-          }
+          current = mergeConfig(current, result)
           if (!skip) {
             this.logger.config(
               `middleware=${mw.name ?? 'unnamed'} keys=${Object.keys(result).join(',')}`,
@@ -524,16 +537,24 @@ export class MiddlewareRunner<
 
   /**
    * Run onAfterToolCall on all middleware in order.
+   * A `replaceResult` decision changes `info.result` for the next middleware.
+   * Returns the last replacement, or undefined when no middleware replaced it.
    */
   async runOnAfterToolCall(
     ctx: ChatMiddlewareContext<TContext>,
     info: AfterToolCallInfo,
-  ): Promise<void> {
+  ): Promise<AfterToolCallDecision> {
+    let current = info
+    let replacement: AfterToolCallDecision = undefined
     for (const mw of this.middlewares) {
       if (mw.onAfterToolCall) {
         const skip = shouldSkipInstrumentation(mw)
         const start = Date.now()
-        await mw.onAfterToolCall(ctx, info)
+        const decision = await mw.onAfterToolCall(ctx, current)
+        if (decision) {
+          current = { ...current, result: decision.result }
+          replacement = decision
+        }
         if (!skip) {
           this.logger.middleware(
             `hook=onAfterToolCall middleware=${mw.name ?? 'unnamed'}`,
@@ -545,11 +566,12 @@ export class MiddlewareRunner<
             hookName: 'onAfterToolCall',
             iteration: ctx.iteration,
             duration: Date.now() - start,
-            hasTransform: false,
+            hasTransform: Boolean(decision),
           })
         }
       }
     }
+    return replacement
   }
 
   /**

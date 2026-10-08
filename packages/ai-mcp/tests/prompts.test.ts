@@ -5,45 +5,46 @@ import { makeServerWithPrompt } from './helpers/in-memory-server'
 
 describe('mcpPromptToMessages', () => {
   it('converts a user text message correctly', () => {
-    const prompt = {
+    const messages = mcpPromptToMessages({
       messages: [{ role: 'user', content: { type: 'text', text: 'review x' } }],
-    }
-    const messages = mcpPromptToMessages(prompt)
+    })
 
-    expect(messages).toHaveLength(1)
-    expect(messages[0]!.role).toBe('user')
-    expect(messages[0]!.content).toBe('review x')
+    expect(messages).toEqual([{ role: 'user', content: 'review x' }])
   })
 
   it('maps assistant role correctly', () => {
-    const prompt = {
+    const messages = mcpPromptToMessages({
       messages: [
         { role: 'assistant', content: { type: 'text', text: 'looks good' } },
       ],
-    }
-    const messages = mcpPromptToMessages(prompt)
+    })
 
-    expect(messages[0]!.role).toBe('assistant')
-    expect(messages[0]!.content).toBe('looks good')
+    expect(messages).toEqual([{ role: 'assistant', content: 'looks good' }])
   })
 
   it('falls back to JSON.stringify for non-text content', () => {
     const content = { type: 'image', data: 'base64...' }
-    const prompt = {
+    const messages = mcpPromptToMessages({
       messages: [{ role: 'user', content }],
-    }
-    const messages = mcpPromptToMessages(prompt)
+    })
 
-    expect(messages[0]!.content).toBe(JSON.stringify(content))
+    expect(messages).toEqual([
+      { role: 'user', content: '{"type":"image","data":"base64..."}' },
+    ])
+  })
+
+  it('gives the text null for a message without content', () => {
+    const messages = mcpPromptToMessages({ messages: [{ role: 'user' }] })
+
+    expect(messages).toEqual([{ role: 'user', content: 'null' }])
   })
 
   it('treats unknown roles as user', () => {
-    const prompt = {
+    const messages = mcpPromptToMessages({
       messages: [{ role: 'system', content: { type: 'text', text: 'hi' } }],
-    }
-    const messages = mcpPromptToMessages(prompt)
+    })
 
-    expect(messages[0]!.role).toBe('user')
+    expect(messages).toEqual([{ role: 'user', content: 'hi' }])
   })
 })
 
@@ -53,13 +54,12 @@ describe('MCPClient prompts integration', () => {
       (await makeServerWithPrompt()).clientTransport,
     )
 
-    const list = await client.prompts()
-    expect(list.length).toBeGreaterThan(0)
+    const [listed] = await client.prompts()
+    if (listed === undefined) throw new Error('The server listed no prompt')
 
-    const prompt = await client.getPrompt(list[0]!.name, { code: 'x = 1' })
-    const messages = mcpPromptToMessages(prompt)
-
-    expect(messages[0]).toHaveProperty('role')
-    expect(messages[0]).toHaveProperty('content')
+    const prompt = await client.getPrompt(listed.name, { code: 'x = 1' })
+    expect(mcpPromptToMessages(prompt)).toEqual([
+      { role: 'user', content: 'Please review: x = 1' },
+    ])
   })
 })

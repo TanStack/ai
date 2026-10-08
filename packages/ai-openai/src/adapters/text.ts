@@ -1,21 +1,36 @@
 import OpenAI from 'openai'
-import {
-  OpenAIBaseResponsesTextAdapter,
-  warnStrictFallback,
-} from '@tanstack/openai-base'
+import { OpenAIBaseResponsesTextAdapter } from '@tanstack/openai-base'
+import { OPENAI_MODEL_REASONING } from '../model-reasoning'
 import { validateTextProviderOptions } from '../text/text-provider-options'
 import { convertToolsToProviderFormat } from '../tools'
 import { getOpenAIApiKeyFromEnv } from '../utils/client'
-import { openAIModelRejectsSamplingParams } from '../model-meta'
+import {
+  OPENAI_MODEL_INPUT_MODALITIES,
+  OPENAI_MODEL_MID_CONVERSATION_CHANNELS,
+  openAIModelRejectsSamplingParams,
+  openAIModelUsesExplicitPromptCache,
+} from '../model-meta'
+import { responsesPromptCacheFields } from '../prompt-cache'
 import type {
   OPENAI_CHAT_MODELS,
-  OpenAIChatModel,
   OpenAIChatModelProviderOptionsByName,
   OpenAIChatModelToolCapabilitiesByName,
   OpenAIModelInputModalitiesByName,
 } from '../model-meta'
-import type { ResponseCreateParams } from 'openai/resources/responses/responses'
-import type { Modality, TextOptions } from '@tanstack/ai'
+import type {
+  ResponseCreateParams,
+  Tool as ResponsesTool,
+} from 'openai/resources/responses/responses'
+import type {
+  AnyTool,
+  ConfigReasoning,
+  MidConversationChannels,
+  Modality,
+  ModelReasoning,
+  ReasoningCapability,
+  TextOptions,
+} from '@tanstack/ai'
+import type { OpenAIModelReasoningByName } from '../model-reasoning'
 import type {
   ExternalTextProviderOptions,
   InternalTextProviderOptions,
@@ -28,7 +43,31 @@ import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
  * Configuration for OpenAI text adapter
  */
 export interface OpenAITextConfig
-  extends OpenAIClientConfig, OpenAIBaseTextAdapterOptions {}
+  extends OpenAIClientConfig, OpenAIBaseTextAdapterOptions {
+  /**
+   * The mid-conversation channels (`additional_tools` and a mid-conversation
+   * `developer` message) of the models in
+   * `OPENAI_MODEL_MID_CONVERSATION_CHANNELS`. When absent, they are on only
+   * for OpenAI's own API: a `baseURL`, a `fetch`, or the SDK's
+   * `OPENAI_BASE_URL` env var turns the default off.
+   * `true` turns them on anyway, for a gateway that passes the changes.
+   * `false` turns them off, so every request is built as before.
+   */
+  midConversationChannels?: boolean
+  /**
+   * The model's reasoning data, for example `modelReasoning(record)` from a
+   * `@tanstack/ai-models` record. It wins over the adapter's own table, for
+   * `reasoning.effort` and for the levels `chat({ reasoning })` takes.
+   * `false`: the model does not reason, so no reasoning field goes out.
+   */
+  reasoning?: ModelReasoning
+}
+
+/**
+ * A model id: a known OpenAI model, or any other id, for example a catalog
+ * id that this package does not list yet.
+ */
+export type OpenAIModelId = (typeof OPENAI_CHAT_MODELS)[number] | (string & {})
 
 /**
  * Alias for TextProviderOptions
@@ -52,6 +91,12 @@ type ResolveProviderOptions<TModel extends string> =
  * Resolve input modalities for a specific model.
  * If the model has explicit modalities in the map, use those; otherwise use all modalities.
  */
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof OpenAIModelReasoningByName
+    ? OpenAIModelReasoningByName[TModel]
+    : never
+
 type ResolveInputModalities<TModel extends string> =
   TModel extends keyof OpenAIModelInputModalitiesByName
     ? OpenAIModelInputModalitiesByName[TModel]
@@ -76,24 +121,26 @@ type ResolveToolCapabilities<TModel extends string> =
  * Tree-shakeable adapter for OpenAI chat/text completion functionality.
  * Delegates implementation to {@link OpenAIBaseResponsesTextAdapter} from
  * `@tanstack/openai-base`. The base calls `openai.responses.create`
- * directly; this subclass just hands it a configured client and overrides
- * `mapOptionsToRequest` to route through OpenAI's full tool converter
- * (supporting file_search, web_search, etc.) and to apply provider option
- * validation.
+ * directly; this subclass hands it a configured client, overrides
+ * `convertTools` to use OpenAI's full tool converter (supporting
+ * file_search, web_search, etc.), and overrides `mapOptionsToRequest` to
+ * apply provider option validation.
  */
 export class OpenAITextAdapter<
-  TModel extends OpenAIChatModel,
+  TModel extends OpenAIModelId,
   TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
   TInputModalities extends ReadonlyArray<Modality> =
     ResolveInputModalities<TModel>,
   TToolCapabilities extends ReadonlyArray<string> =
     ResolveToolCapabilities<TModel>,
+  TReasoning extends ReasoningCapability = ResolveReasoning<TModel>,
 > extends OpenAIBaseResponsesTextAdapter<
   TModel,
   TProviderOptions,
   TInputModalities,
   OpenAIMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  TReasoning
 > {
   override readonly kind = 'text' as const
   override readonly name = 'openai' as const
@@ -102,16 +149,45 @@ export class OpenAITextAdapter<
   // compatible subclasses of the openai-base adapter (Grok, Bedrock, custom)
   // — which have no such surface — fail closed in preflight.
   override readonly supportsFileSources = true
+  override readonly inputModalities = OPENAI_MODEL_INPUT_MODALITIES[this.model]
+  /** Set from `OPENAI_MODEL_MID_CONVERSATION_CHANNELS` in the constructor. */
+  override readonly midConversationChannels:
+    | MidConversationChannels
+    | undefined = undefined
+
+  /** `config.reasoning`, which wins over `OPENAI_MODEL_REASONING`. */
+  private readonly configReasoning: ModelReasoning | undefined
 
   constructor(config: OpenAITextConfig, model: TModel) {
     super(model, 'openai', new OpenAI(config), config)
+    this.configReasoning = config.reasoning
+    // On by default only on OpenAI's own API: a proxy or a gateway (a
+    // `baseURL`, a `fetch`, or the SDK's OPENAI_BASE_URL env var) may not
+    // pass the changes. The option wins.
+    const envBaseURL =
+      typeof process !== 'undefined' && Boolean(process.env.OPENAI_BASE_URL)
+    if (
+      config.midConversationChannels ??
+      !(config.baseURL || config.fetch || envBaseURL)
+    ) {
+      this.midConversationChannels =
+        OPENAI_MODEL_MID_CONVERSATION_CHANNELS[model]
+    }
+  }
+
+  protected override modelReasoning(model: string) {
+    return this.configReasoning ?? OPENAI_MODEL_REASONING[model]
+  }
+
+  /** OpenAI's full tool converter (file_search, web_search, etc.). */
+  protected override convertTools(tools: Array<AnyTool>): Array<ResponsesTool> {
+    return convertToolsToProviderFormat(tools)
   }
 
   /**
    * Maps common options to OpenAI-specific format.
-   * Overrides the base class to use OpenAI's full tool converter
-   * (supporting special tool types like file_search, web_search, etc.)
-   * and to apply OpenAI-specific provider option validation.
+   * Overrides the base class to apply OpenAI-specific provider option
+   * validation and request fields. The tools go through `convertTools`.
    */
   protected override mapOptionsToRequest(
     options: TextOptions<TProviderOptions>,
@@ -130,26 +206,33 @@ export class OpenAITextAdapter<
       })
     }
 
-    // Delegate to the base for input mapping, system prompts, modelOptions
-    // precedence, and native combined-mode `text.format` wiring (#605). We
-    // hand it a tools-less view of `options` so the base doesn't run its
-    // narrower tool converter — we re-run them through OpenAI's full
-    // converter (file_search, web_search, etc.) and layer the result on top.
-    const { tools: _baseTools, ...baseRequest } = super.mapOptionsToRequest({
-      ...options,
-      tools: undefined,
+    // Delegate to the base for input mapping, system prompts, tools,
+    // modelOptions precedence, and native combined-mode `text.format` wiring
+    // (#605). The base converts the tools with `convertTools` (OpenAI's full
+    // converter), so a mid-conversation change sends the start set and its
+    // `additional_tools` items in this format too. The base also gives the
+    // strict-fallback warning.
+    const { tools: baseTools, ...baseRequest } = super.mapOptionsToRequest(
+      options,
+    )
+    const tools = options.tools?.length
+      ? baseTools
+      : options.messages.some(
+            (message) => message.role === 'tool' || !!message.toolCalls?.length,
+          )
+        ? []
+        : undefined
+
+    // `chat({ promptCache })` fields go first, so a value the caller set in
+    // `modelOptions` (already on `baseRequest`) wins.
+    const promptCacheFields = responsesPromptCacheFields(options.promptCache, {
+      explicitMode: openAIModelUsesExplicitPromptCache(options.model),
+      longRetention: true,
     })
-
-    if (this.strictFallbackWarning) {
-      warnStrictFallback(options.tools, options.logger)
-    }
-    const tools = options.tools
-      ? convertToolsToProviderFormat(options.tools)
-      : undefined
-
     const request: Omit<ResponseCreateParams, 'stream'> = {
+      ...promptCacheFields,
       ...baseRequest,
-      ...(tools && tools.length > 0 && { tools }),
+      ...(tools !== undefined && { tools }),
     }
 
     // Reasoning models 400 on `temperature`/`top_p`. Callers (and the summarize
@@ -194,6 +277,21 @@ export class OpenAITextAdapter<
 }
 
 /**
+ * The adapter type for a model and a config. A config with `reasoning` sets
+ * the levels `chat({ reasoning })` takes; see {@link ConfigReasoning}.
+ */
+export type OpenAITextAdapterFor<
+  TModel extends OpenAIModelId,
+  TConfig = OpenAITextConfig,
+> = OpenAITextAdapter<
+  TModel,
+  ResolveProviderOptions<TModel>,
+  ResolveInputModalities<TModel>,
+  ResolveToolCapabilities<TModel>,
+  ConfigReasoning<TConfig, ResolveReasoning<TModel>>
+>
+
+/**
  * Creates an OpenAI chat adapter with explicit API key.
  * Type resolution happens here at the call site.
  *
@@ -209,12 +307,16 @@ export class OpenAITextAdapter<
  * ```
  */
 export function createOpenaiChat<
-  TModel extends (typeof OPENAI_CHAT_MODELS)[number],
+  TModel extends OpenAIModelId,
+  TConfig extends Omit<OpenAITextConfig, 'apiKey'> = Omit<
+    OpenAITextConfig,
+    'apiKey'
+  >,
 >(
   model: TModel,
   apiKey: string,
-  config?: Omit<OpenAITextConfig, 'apiKey'>,
-): OpenAITextAdapter<TModel> {
+  config?: TConfig,
+): OpenAITextAdapterFor<TModel, TConfig> {
   return new OpenAITextAdapter({ apiKey, ...config }, model)
 }
 
@@ -242,10 +344,13 @@ export function createOpenaiChat<
  * });
  * ```
  */
-export function openaiText<TModel extends (typeof OPENAI_CHAT_MODELS)[number]>(
-  model: TModel,
-  config?: Omit<OpenAITextConfig, 'apiKey'>,
-): OpenAITextAdapter<TModel> {
+export function openaiText<
+  TModel extends OpenAIModelId,
+  TConfig extends Omit<OpenAITextConfig, 'apiKey'> = Omit<
+    OpenAITextConfig,
+    'apiKey'
+  >,
+>(model: TModel, config?: TConfig): OpenAITextAdapterFor<TModel, TConfig> {
   const apiKey = getOpenAIApiKeyFromEnv()
   return createOpenaiChat(model, apiKey, config)
 }

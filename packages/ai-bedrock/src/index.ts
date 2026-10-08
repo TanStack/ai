@@ -181,6 +181,7 @@ export {
   BedrockConverseTextAdapter,
   createBedrockConverse,
   type BedrockConverseConfig,
+  type BedrockConverseModelId,
 } from './adapters/converse-text'
 export {
   BedrockEmbeddingAdapter,

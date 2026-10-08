@@ -2,6 +2,22 @@ import { describe, expect, it } from 'vitest'
 import { makeMistralStructuredOutputCompatibleWithMap } from './schema-converter'
 
 describe('makeMistralStructuredOutputCompatibleWithMap', () => {
+  it('records optional JSON keys without changing the widening-map prototype', () => {
+    const raw =
+      '{"type":"object","properties":{"__proto__":{"type":"string"},"constructor":{"type":["string","null"]}},"required":[]}'
+    const input = JSON.parse(raw)
+    const result = makeMistralStructuredOutputCompatibleWithMap(input, [])
+    expect(
+      Object.hasOwn(result.nullWideningMap?.properties ?? {}, '__proto__'),
+    ).toBe(true)
+    expect(result.nullWideningMap?.properties?.['__proto__']).toEqual({
+      widened: true,
+    })
+    expect(Object.getPrototypeOf(result.nullWideningMap?.properties)).toBe(
+      Object.prototype,
+    )
+    expect(JSON.stringify(input)).toBe(raw)
+  })
   it('widens optional enum and const constraints to admit the omission marker', () => {
     const { schema, nullWideningMap } =
       makeMistralStructuredOutputCompatibleWithMap(

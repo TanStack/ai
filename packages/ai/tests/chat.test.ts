@@ -1244,6 +1244,65 @@ describe('chat()', () => {
   // Approval flow
   // ==========================================================================
   describe('approval flow', () => {
+    it('keeps own JSON keys in the approval schema on the real interrupt', async () => {
+      const raw =
+        '{"type":"object","__proto__":{"description":"authored"},"constructor":"authored","properties":{}}'
+      const exported = JSON.parse(raw)
+      const approvalSchema = {
+        '~standard': {
+          version: 1 as const,
+          vendor: 'own-keys',
+          validate: (value: unknown) => ({ value }),
+          jsonSchema: { input: () => exported, output: () => exported },
+        },
+      }
+      const execute = vi.fn()
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('call', 'inspect'),
+            ev.toolArgs('call', '{}'),
+            ev.runFinished('tool_calls'),
+          ],
+        ],
+      })
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'Go' }],
+          tools: [
+            {
+              ...serverTool('inspect', execute),
+              needsApproval: true,
+              inputSchema: { type: 'object', properties: {} },
+              approvalSchema,
+            },
+          ],
+        }),
+      )
+      const finished = chunks.find(
+        (value) => value.type === EventType.RUN_FINISHED,
+      )
+      if (
+        finished?.type !== EventType.RUN_FINISHED ||
+        finished.outcome?.type !== 'interrupt'
+      )
+        throw new Error('Expected an approval interrupt')
+      const payloadSchema =
+        finished.outcome.interrupts[0]?.responseSchema?.oneOf?.[0]?.properties
+          ?.payload
+      expect(Object.hasOwn(payloadSchema, '__proto__')).toBe(true)
+      expect(
+        Object.getOwnPropertyDescriptor(payloadSchema, '__proto__')?.enumerable,
+      ).toBe(true)
+      expect(Object.getPrototypeOf(payloadSchema)).toBe(Object.prototype)
+      expect(JSON.stringify(payloadSchema)).toContain(
+        '"__proto__":{"description":"authored"}',
+      )
+      expect(JSON.stringify(exported)).toBe(raw)
+      expect(execute).not.toHaveBeenCalled()
+    })
     it('applies approved argument edits and emits only a result for a resumed tool call', async () => {
       const execute = vi.fn().mockImplementation((input) => input)
       const { adapter } = createMockAdapter({
@@ -1513,19 +1572,19 @@ describe('chat()', () => {
     })
 
     it('validates an entire ephemeral batch before executing any tool', async () => {
+      const beforeTool = vi.fn()
       const firstExecute = vi.fn().mockReturnValue({ ok: true })
       const secondExecute = vi.fn().mockReturnValue({ ok: true })
       const { adapter, calls } = createMockAdapter({
         iterations: [[ev.runStarted(), ev.runFinished('stop')]],
       })
-      // A Standard Schema input so the library validates the edited args. Raw
-      // JSON Schema is intentionally not validated by the library (the app owns
-      // that), so the invalid `editedArgs` below is caught via this path.
+      // Reject the malformed decision before tool middleware or execution.
       const inputSchema = z.object({ action: z.string() })
 
       const chunks = await collectChunks(
         chat({
           adapter,
+          middleware: [{ name: 'batch-check', onBeforeToolCall: beforeTool }],
           threadId: 'thread-1',
           runId: 'continuation-run',
           parentRunId: 'interrupted-run',
@@ -1572,21 +1631,22 @@ describe('chat()', () => {
               status: 'resolved',
               payload: {
                 approved: true,
-                editedArgs: { action: 1 },
+                editedArgs: { action: 'first-edit' },
               },
             },
             {
               interruptId: 'approval_call_2',
               status: 'resolved',
               payload: {
-                approved: true,
-                editedArgs: { action: 2 },
+                approved: 'yes',
+                editedArgs: { action: 'second-edit' },
               },
             },
           ],
         }) as AsyncIterable<StreamChunk>,
       )
 
+      expect(beforeTool).not.toHaveBeenCalled()
       expect(firstExecute).not.toHaveBeenCalled()
       expect(secondExecute).not.toHaveBeenCalled()
       expect(calls).toHaveLength(0)
@@ -1597,12 +1657,8 @@ describe('chat()', () => {
             tanstack: expect.objectContaining({
               interruptErrors: expect.arrayContaining([
                 expect.objectContaining({
-                  interruptId: 'approval_call_1',
-                  code: 'invalid-edited-args',
-                }),
-                expect.objectContaining({
                   interruptId: 'approval_call_2',
-                  code: 'invalid-edited-args',
+                  code: 'invalid-payload',
                 }),
                 expect.objectContaining({
                   scope: 'batch',
@@ -2813,6 +2869,57 @@ describe('chat()', () => {
       expect(calls).toHaveLength(1)
     })
 
+    it('does not run or ask for the calls of an answer cut at the output limit', async () => {
+      const executeSpy = vi.fn().mockReturnValue({ ok: true })
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Going on.'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+      const call = (id: string, name: string) => ({
+        id,
+        type: 'function' as const,
+        function: { name, arguments: '{}' },
+      })
+
+      // A client history, or one from before the cut calls got results.
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          messages: [
+            { role: 'user', content: 'Look up, remove, and ask' },
+            {
+              role: 'assistant',
+              content: null,
+              metadata: { tanstack: { finishReason: 'length' } },
+              toolCalls: [
+                call('call_1', 'lookup'),
+                call('call_2', 'remove'),
+                call('call_3', 'ask'),
+              ],
+            },
+          ],
+          tools: [
+            serverTool('lookup', executeSpy),
+            { ...serverTool('remove', executeSpy), needsApproval: true },
+            clientTool('ask'),
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect(executeSpy).not.toHaveBeenCalled()
+      expect(expectSingleRunFinished(chunks).outcome?.type).not.toBe(
+        'interrupt',
+      )
+      expect(calls).toHaveLength(1)
+    })
+
     it('should emit only TOOL_CALL_RESULT for pending tool calls', async () => {
       const executeSpy = vi.fn().mockReturnValue({ temp: 72 })
 
@@ -3047,6 +3154,191 @@ describe('chat()', () => {
       )
       expect(toolMessages).toHaveLength(1)
       expect(toolMessages[0]!.content).toBe(JSON.stringify({ status: 'ok' }))
+    })
+  })
+
+  // ==========================================================================
+  // Answers cut at the output limit
+  // ==========================================================================
+  describe('answers cut at the output limit', () => {
+    const truncatedToolResult = (call: { toolName: string }) =>
+      `Tool call "${call.toolName}" was not executed: the response hit the output token limit, so its arguments may be truncated. Re-issue the tool call with complete arguments.`
+    const done = [
+      ev.runStarted(),
+      ev.textStart('msg-2'),
+      ev.textContent('Done.', 'msg-2'),
+      ev.textEnd('msg-2'),
+      ev.runFinished('stop'),
+    ]
+
+    it('gives a cut call the text, does not run it, and calls the model again', async () => {
+      const lookup = vi.fn(() => ({ found: true }))
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('call_1', 'lookup'),
+            ev.toolArgs('call_1', '{"q":'),
+            ev.runFinished('length'),
+          ],
+          done,
+        ],
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'Look it up' }],
+          tools: [serverTool('lookup', lookup)],
+          truncatedToolResult,
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      const text = truncatedToolResult({ toolName: 'lookup' })
+      expect(lookup).not.toHaveBeenCalled()
+      expect(calls).toHaveLength(2)
+      expect((calls[1]!.messages as Array<ModelMessage>).slice(1)).toEqual([
+        expect.objectContaining({
+          role: 'assistant',
+          toolCalls: [expect.objectContaining({ id: 'call_1' })],
+        }),
+        { role: 'tool', toolCallId: 'call_1', content: text, error: text },
+      ])
+      expect(chunks).toContainEqual(
+        expect.objectContaining({
+          type: EventType.TOOL_CALL_RESULT,
+          toolCallId: 'call_1',
+          content: text,
+        }),
+      )
+    })
+
+    it('gives each call of a cut answer its text, and asks nothing', async () => {
+      const remove = vi.fn(() => ({ ok: true }))
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('call_1', 'remove'),
+            ev.toolArgs('call_1', '{"path":"a.txt"}'),
+            ev.toolEnd('call_1'),
+            ev.toolStart('call_2', 'ask'),
+            ev.toolArgs('call_2', '{"q":'),
+            ev.runFinished('length'),
+          ],
+          done,
+        ],
+      })
+      const onToolCall = vi.fn()
+      const onStreamEnd = vi.fn()
+      const processor = new StreamProcessor({
+        events: { onToolCall, onStreamEnd },
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'Remove and ask' }],
+          tools: [
+            { ...serverTool('remove', remove), needsApproval: true },
+            clientTool('ask'),
+          ],
+          truncatedToolResult,
+        }) as AsyncIterable<StreamChunk>,
+      )
+      for (const item of chunks) processor.processChunk(item)
+
+      expect(remove).not.toHaveBeenCalled()
+      expect(calls).toHaveLength(2)
+      expect(
+        (calls[1]!.messages as Array<ModelMessage>).filter(
+          (message) => message.role === 'tool',
+        ),
+      ).toEqual(
+        ['remove', 'ask'].map((toolName, index) => {
+          const text = truncatedToolResult({ toolName })
+          return {
+            role: 'tool',
+            toolCallId: `call_${index + 1}`,
+            content: text,
+            error: text,
+          }
+        }),
+      )
+      expect(
+        chunks.some(
+          (item) =>
+            item.type === EventType.RUN_FINISHED &&
+            item.outcome?.type === 'interrupt',
+        ),
+      ).toBe(false)
+      // The client waits through the cut call, and runs no tool.
+      expect(onToolCall).not.toHaveBeenCalled()
+      expect(onStreamEnd).toHaveBeenCalledTimes(1)
+    })
+
+    it('counts each cut answer as an iteration of the loop strategy', async () => {
+      const cut = (id: string) => [
+        ev.runStarted(),
+        ev.toolStart(id, 'lookup'),
+        ev.toolArgs(id, '{"q":'),
+        ev.runFinished('length'),
+      ]
+      const { adapter, calls } = createMockAdapter({
+        iterations: [cut('call_1'), cut('call_2'), cut('call_3')],
+      })
+
+      await collectChunks(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'Look it up' }],
+          tools: [serverTool('lookup', () => ({ found: true }))],
+          agentLoopStrategy: (state) => state.iterationCount < 2,
+          truncatedToolResult,
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect(calls).toHaveLength(2)
+    })
+
+    it('without the option, ends the run and keeps no calls of a plain cut answer', async () => {
+      const lookup = vi.fn(() => ({ found: true }))
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Let me look.'),
+            ev.textEnd(),
+            ev.toolStart('call_1', 'lookup'),
+            ev.toolArgs('call_1', '{"q":'),
+            ev.runFinished('length'),
+          ],
+          done,
+        ],
+      })
+      let transcript: Array<ModelMessage> = []
+      const keep = defineChatMiddleware({
+        onFinish(ctx) {
+          transcript = [...ctx.messages]
+        },
+      })
+
+      await collectChunks(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'Look it up' }],
+          tools: [serverTool('lookup', lookup)],
+          middleware: [keep],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect(lookup).not.toHaveBeenCalled()
+      expect(calls).toHaveLength(1)
+      expect(transcript.slice(1)).toEqual([
+        expect.objectContaining({ role: 'assistant', content: 'Let me look.' }),
+      ])
+      expect(transcript[1]).not.toHaveProperty('toolCalls')
     })
   })
 
@@ -5181,6 +5473,90 @@ describe('chat()', () => {
     })
 
     it.each([
+      [
+        'the default text',
+        undefined,
+        'The answer was cut off at the output limit before this tool call was complete. The call did not run.',
+      ],
+      ['truncatedToolResult', 'Cut off. Not run.', 'Cut off. Not run.'],
+    ])(
+      'asks nothing for the calls of an answer cut at the output limit (%s)',
+      async (_label, truncatedToolResult, text) => {
+        const review = defineInterrupt({
+          id: 'after-model-cut',
+          responseSchema: z.object({ approved: z.boolean() }),
+        })
+        const { adapter } = createMockAdapter({
+          iterations: [
+            [
+              ev.runStarted(),
+              ev.toolStart('call-draft', 'saveDraft'),
+              ev.toolArgs('call-draft', '{}'),
+              ev.toolEnd('call-draft'),
+              ev.toolStart('call-remove', 'remove'),
+              ev.toolArgs('call-remove', '{"path":'),
+              ev.runFinished('length'),
+            ],
+          ],
+        })
+
+        const chunks = await collectChunks(
+          chat({
+            adapter,
+            interrupts: [review],
+            middleware: [
+              defineChatMiddleware({
+                onInterruptBoundary(ctx) {
+                  if (ctx.phase !== 'afterModel') return
+                  return {
+                    interrupts: [
+                      review.interrupt({
+                        key: 'after-model',
+                        reason: 'review',
+                        message: 'Review the answer',
+                      }),
+                    ],
+                  }
+                },
+              }),
+            ],
+            messages: [{ role: 'user', content: 'Save and remove' }],
+            tools: [
+              clientTool('saveDraft'),
+              {
+                ...serverTool('remove', () => ({ ok: true })),
+                needsApproval: true,
+              },
+            ],
+            ...(truncatedToolResult ? { truncatedToolResult } : {}),
+          }) as AsyncIterable<StreamChunk>,
+        )
+
+        const terminal = expectSingleRunFinished(chunks)
+        if (terminal.outcome?.type !== 'interrupt') {
+          throw new Error('Expected afterModel interrupt')
+        }
+        expect(terminal.outcome.interrupts).toEqual([
+          expect.objectContaining({ reason: 'review' }),
+        ])
+        const snapshot = chunks.find(
+          (chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT,
+        )
+        if (!snapshot || snapshot.type !== EventType.MESSAGES_SNAPSHOT) {
+          throw new Error('Expected messages snapshot')
+        }
+        expect(
+          snapshot.messages
+            .filter((message) => message.role === 'tool')
+            .map((message) => [message.toolCallId, message.content]),
+        ).toEqual([
+          ['call-draft', text],
+          ['call-remove', text],
+        ])
+      },
+    )
+
+    it.each([
       ['with text', 'Plan'],
       ['thinking only', ''],
     ])(
@@ -5490,4 +5866,89 @@ describe('chat()', () => {
       ).toBe(true)
     })
   })
+})
+
+describe('approved edited input final validation', () => {
+  it.each([
+    { action: 1, executes: true },
+    { action: [], executes: false },
+  ])(
+    'checks edited input after middleware: %j',
+    async ({ action, executes }) => {
+      const editedArgs = { action }
+      const order: Array<string> = []
+      const execute = vi.fn((input: unknown) => {
+        order.push('execute')
+        return input
+      })
+      const { adapter, calls } = createMockAdapter({
+        iterations: [[ev.runStarted(), ev.runFinished('stop')]],
+      })
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          threadId: 'thread',
+          runId: 'resume',
+          parentRunId: 'old-run',
+          messages: [
+            { role: 'user', content: 'Check' },
+            {
+              role: 'assistant',
+              content: '',
+              toolCalls: [
+                {
+                  id: 'edited',
+                  type: 'function',
+                  function: {
+                    name: 'check',
+                    arguments: '{"action":"original"}',
+                  },
+                },
+              ],
+            },
+          ],
+          tools: [
+            {
+              name: 'check',
+              description: 'Check',
+              needsApproval: true,
+              inputSchema: z.object({ action: z.string() }),
+              execute,
+            },
+          ],
+          middleware: [
+            {
+              name: 'edited-input-order',
+              onBeforeToolCall(_ctx, hook) {
+                order.push('middleware')
+                expect(hook.args).toBe(editedArgs)
+              },
+            },
+          ],
+          resume: [
+            {
+              interruptId: 'approval_edited',
+              status: 'resolved',
+              payload: { approved: true, editedArgs },
+            },
+          ],
+        }),
+      )
+      expect(order).toEqual(
+        executes ? ['middleware', 'execute'] : ['middleware'],
+      )
+      expect(execute).toHaveBeenCalledTimes(executes ? 1 : 0)
+      expect(calls).toHaveLength(1)
+      expect(chunks.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
+        false,
+      )
+      if (executes) expect(execute.mock.calls[0]?.[0]).toEqual({ action: '1' })
+      else
+        expect(
+          calls[0]?.messages.find((message) => message.role === 'tool')
+            ?.content,
+        ).toContain('Input validation failed')
+      expect(editedArgs).toEqual({ action })
+    },
+  )
 })

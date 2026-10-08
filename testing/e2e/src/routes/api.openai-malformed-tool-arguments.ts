@@ -22,7 +22,7 @@ export const Route = createFileRoute('/api/openai-malformed-tool-arguments')({
           return 'tool ran'
         })
         const adapter = createOpenaiChatCompletions(
-          'gpt-4o',
+          'gpt-5.5',
           'sk-e2e-dummy-key',
           {
             maxRetries: 0,
@@ -37,7 +37,7 @@ export const Route = createFileRoute('/api/openai-malformed-tool-arguments')({
                 id: 'completion-malformed-tool',
                 object: 'chat.completion.chunk',
                 created: 1,
-                model: 'gpt-4o',
+                model: 'gpt-5.5',
                 choices: [{ index: 0, delta, finish_reason }],
               })
               const events =

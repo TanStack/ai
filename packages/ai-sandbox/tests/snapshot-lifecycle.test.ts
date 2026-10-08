@@ -7,20 +7,10 @@ import {
   memoryPersistence,
   withPersistence,
 } from '@tanstack/ai-persistence'
-import type {
-  AIPersistence,
-  ActivityStore,
-  ArtifactStore,
-  BlobStore,
-  GenerationRunStore,
-  InterruptStore,
-  MessageStore,
-  MetadataStore,
-  RunStore,
-} from '@tanstack/ai-persistence'
 import { defineSandbox } from '../src/sandbox'
 import { withSandbox } from '../src/middleware'
 import { memorySandboxSnapshots } from '../src/memory-snapshots'
+import type { MemorySnapshotPersistence } from '../src/memory-snapshot-types'
 import { SandboxCapability } from '../src/capabilities'
 import { InMemorySandboxInstanceStore } from '../src/instance-store'
 import { InMemorySandboxCheckpointStore } from '../src/checkpoint-store'
@@ -82,18 +72,8 @@ type Event = { method: string; id?: string; order: number }
 type WorkspaceSeed =
   | { path: string; type: 'dir' }
   | { path: string; type: 'file'; data: Uint8Array }
-type FixturePersistence = AIPersistence<{
-  messages: MessageStore
-  activities?: ActivityStore
-  runs: RunStore
-  generationRuns: GenerationRunStore
-  interrupts: InterruptStore
-  metadata: MetadataStore
-  artifacts: ArtifactStore
-  blobs: BlobStore
-}>
 type FixtureOptions = {
-  persistence?: FixturePersistence
+  persistence?: MemorySnapshotPersistence
   checkpoints?: SandboxCheckpointStore
   workspace?: Array<WorkspaceSeed>
   onWorkspaceList?: (path: string) => void | Promise<void>
@@ -109,7 +89,7 @@ type Fixture = {
   events: Array<Event>
   instances: InMemorySandboxInstanceStore
   checkpoints: SandboxCheckpointStore
-  persistence: FixturePersistence
+  persistence: MemorySnapshotPersistence
   definition: ReturnType<typeof defineSandbox>
   resumed?: SandboxHandle
 }

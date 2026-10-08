@@ -231,6 +231,234 @@ const approvalClientTool = (name: string): Tool => ({
 })
 
 describe('interrupt persistence', () => {
+  it('rechecks resolved approval schema identity in the later client-result phase', async () => {
+    const persistence = memoryPersistence()
+    const tool: Tool = {
+      ...approvalClientTool('clientSearch'),
+      inputSchema: {
+        type: 'object',
+        properties: { query: { type: 'string' } },
+      },
+    }
+    await persistClientToolTurn(persistence, [tool])
+    const phaseTwo = mockAdapter([])
+    await collect(
+      chat({
+        adapter: phaseTwo.adapter,
+        messages: [],
+        tools: [tool],
+        runId: 'r1',
+        threadId: 't1',
+        resume: [
+          {
+            interruptId: 'approval_tool-call-1',
+            status: 'resolved',
+            payload: true,
+          },
+        ],
+        middleware: [withPersistence(persistence)],
+      }),
+    )
+    const phaseThree = mockAdapter([[runStarted(), runFinished()]])
+    let hooks = 0
+    const changed: Tool = {
+      ...tool,
+      inputSchema: {
+        type: 'object',
+        properties: { query: { type: 'number' } },
+      },
+    }
+    const chunks = await collect(
+      chat({
+        adapter: phaseThree.adapter,
+        messages: [],
+        tools: [changed],
+        runId: 'r1',
+        threadId: 't1',
+        resume: [
+          {
+            interruptId: 'client_tool_tool-call-1',
+            status: 'resolved',
+            payload: { ok: true },
+          },
+        ],
+        middleware: [
+          withPersistence(persistence),
+          {
+            onBeforeToolCall() {
+              hooks++
+            },
+          },
+        ],
+      }),
+    )
+    expect(hooks).toBe(0)
+    expect(phaseThree.calls).toHaveLength(0)
+    expect(chunks.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
+      true,
+    )
+    expect(
+      (await persistence.stores.interrupts!.get('client_tool_tool-call-1'))
+        ?.status,
+    ).toBe('pending')
+  })
+  it.each(['coerce', 'repair', 'reject'])(
+    'checks durable approved edits after middleware: %s',
+    async (mode) => {
+      let transforms = 0
+      const schema = {
+        '~standard': {
+          version: 1 as const,
+          vendor: 'durable-input',
+          validate(value: unknown) {
+            if (
+              value &&
+              typeof value === 'object' &&
+              'query' in value &&
+              typeof value.query === 'number'
+            ) {
+              transforms++
+              return { value: { query: value.query + 1 } }
+            }
+            return { issues: [{ message: 'query must be a number' }] }
+          },
+          jsonSchema: {
+            input: () => ({
+              type: 'object',
+              required: ['query'],
+              properties: { query: { type: 'number' } },
+            }),
+          },
+        },
+      }
+      const tool: Tool = {
+        ...approvalClientTool('clientSearch'),
+        inputSchema: schema,
+      }
+      const persistence = memoryPersistence()
+      await persistClientToolTurn(
+        persistence,
+        [tool],
+        [
+          runStarted(),
+          toolStart(),
+          {
+            type: EventType.TOOL_CALL_ARGS,
+            toolCallId: 'tool-call-1',
+            delta: '{"query":1}',
+            timestamp: 1,
+          },
+          toolCallFinished(),
+        ],
+      )
+      transforms = 0
+      const continuation = mockAdapter([[runStarted(), runFinished()]])
+      const seen: Array<string> = []
+      const editedArgs = { query: mode === 'coerce' ? '2' : 'wrong' }
+      const chunks = await collect(
+        chat({
+          adapter: continuation.adapter,
+          messages: [],
+          tools: [tool],
+          runId: 'r1',
+          threadId: 't1',
+          resume: [
+            {
+              interruptId: 'approval_tool-call-1',
+              status: 'resolved',
+              payload: { approved: true, editedArgs },
+            },
+          ],
+          middleware: [
+            withPersistence(persistence),
+            {
+              onBeforeToolCall(_ctx, hook) {
+                seen.push(JSON.stringify(hook.args))
+                if (mode === 'repair')
+                  return { type: 'transformArgs', args: { query: 3 } }
+                return undefined
+              },
+            },
+          ],
+        }),
+      )
+      expect(seen).toEqual([JSON.stringify(editedArgs)])
+      const descriptors = chunks.flatMap((chunk) =>
+        chunk.type === EventType.RUN_FINISHED &&
+        chunk.outcome?.type === 'interrupt'
+          ? chunk.outcome.interrupts
+          : [],
+      )
+      const execution = descriptors.find(
+        (entry) => entry.id === 'client_tool_tool-call-1',
+      )
+      if (mode === 'reject') {
+        expect(execution).toBeUndefined()
+        expect(transforms).toBe(0)
+        expect(
+          chunks.some(
+            (chunk) =>
+              chunk.type === EventType.TOOL_CALL_RESULT &&
+              typeof chunk.content === 'string' &&
+              chunk.content.includes('query must be a number'),
+          ),
+        ).toBe(true)
+      } else {
+        expect(execution?.metadata?.input).toEqual({
+          query: mode === 'coerce' ? 3 : 4,
+        })
+        expect(transforms).toBe(1)
+        expect(continuation.calls).toHaveLength(0)
+        const saved = threadMessages(
+          await persistence.stores.messages!.loadThread('t1'),
+        )
+        const savedCall = saved
+          .flatMap((message) => message.toolCalls ?? [])
+          .find((call) => call.id === 'tool-call-1')
+        expect(savedCall?.function.arguments).toBe(JSON.stringify(editedArgs))
+        transforms = 0
+        const phaseThree = mockAdapter([[runStarted(), runFinished()]])
+        const phaseThreeSeen: Array<string> = []
+        const finalChunks = await collect(
+          chat({
+            adapter: phaseThree.adapter,
+            messages: [],
+            tools: [tool],
+            runId: 'r1',
+            threadId: 't1',
+            resume: [
+              {
+                interruptId: 'client_tool_tool-call-1',
+                status: 'resolved',
+                payload: { ok: true },
+              },
+            ],
+            middleware: [
+              withPersistence(persistence),
+              {
+                onBeforeToolCall(_ctx, hook) {
+                  phaseThreeSeen.push(JSON.stringify(hook.args))
+                  if (mode === 'repair')
+                    return { type: 'transformArgs', args: { query: 3 } }
+                  return undefined
+                },
+              },
+            ],
+          }),
+        )
+        expect(phaseThreeSeen).toEqual([JSON.stringify(editedArgs)])
+        expect(transforms).toBe(1)
+        expect(
+          finalChunks.some(
+            (chunk) =>
+              chunk.type === EventType.RUN_FINISHED &&
+              chunk.outcome?.type === 'interrupt',
+          ),
+        ).toBe(false)
+        expect(phaseThree.calls).toHaveLength(1)
+      }
+    },
+  )
   it('persists RUN_FINISHED interrupt outcomes as pending interrupt records', async () => {
     const persistence = memoryPersistence()
     const { adapter } = mockAdapter([[runStarted(), interruptFinished()]])
@@ -560,7 +788,7 @@ describe('interrupt persistence', () => {
       chat({
         adapter: afterClientTool.adapter,
         messages: [],
-        tools: [clientTool('clientSearch')],
+        tools: [approvalClientTool('clientSearch')],
         runId: 'r1',
         threadId: 't1',
         resume: [
@@ -2039,4 +2267,507 @@ describe('interrupt persistence', () => {
     expect((await store.get('resolved-1'))?.status).toBe('resolved')
     expect((await store.get('cancelled-1'))?.status).toBe('cancelled')
   })
+})
+
+describe('portable raw arguments across durable client phases', () => {
+  it('retains lexical JSON through approval and client-result reload', async () => {
+    const raw =
+      '{"query":"test","overflow":1e999,"integer":9007199254740993,"zero":-0}'
+    const persistence = memoryPersistence()
+    const tool = approvalClientTool('clientSearch')
+    const first = mockAdapter([
+      [
+        runStarted(),
+        toolStart(),
+        {
+          type: EventType.TOOL_CALL_ARGS,
+          toolCallId: 'tool-call-1',
+          delta: raw,
+          timestamp: 1,
+        },
+        {
+          type: EventType.TOOL_CALL_END,
+          toolCallId: 'tool-call-1',
+          input: JSON.parse(raw),
+          timestamp: 1,
+        },
+        toolCallFinished(),
+      ],
+    ])
+    await collect(
+      chat({
+        adapter: first.adapter,
+        messages: [{ role: 'user', content: 'Check' }],
+        tools: [tool],
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [withPersistence(persistence)],
+      }),
+    )
+    const savedArguments = async () => {
+      const copied = JSON.parse(
+        JSON.stringify(
+          threadMessages(await persistence.stores.messages!.loadThread('t1')),
+        ),
+      )
+      return copied
+        .flatMap(
+          (message: {
+            toolCalls?: Array<{ id: string; function: { arguments: string } }>
+          }) => message.toolCalls ?? [],
+        )
+        .find((call: { id: string }) => call.id === 'tool-call-1')?.function
+        .arguments
+    }
+    expect(await savedArguments()).toBe(raw)
+    const approved = mockAdapter([])
+    await collect(
+      chat({
+        adapter: approved.adapter,
+        messages: [],
+        tools: [tool],
+        runId: 'r1',
+        threadId: 't1',
+        resume: [
+          {
+            interruptId: 'approval_tool-call-1',
+            status: 'resolved',
+            payload: true,
+          },
+        ],
+        middleware: [withPersistence(persistence)],
+      }),
+    )
+    expect(await savedArguments()).toBe(raw)
+    const resumed = mockAdapter([[runStarted(), runFinished()]])
+    await collect(
+      chat({
+        adapter: resumed.adapter,
+        messages: [],
+        tools: [tool],
+        runId: 'r1',
+        threadId: 't1',
+        resume: [
+          {
+            interruptId: 'client_tool_tool-call-1',
+            status: 'resolved',
+            payload: { ok: true },
+          },
+        ],
+        middleware: [withPersistence(persistence)],
+      }),
+    )
+    expect(await savedArguments()).toBe(raw)
+    expect(resumed.calls).toHaveLength(1)
+  })
+})
+
+describe('server approval context across separate client phases', () => {
+  async function clientPhase(clientRun = 'client-run') {
+    const persistence = memoryPersistence()
+    const tool = approvalClientTool('clientSearch')
+    await collect(
+      chat({
+        adapter: mockAdapter([
+          [runStarted(), toolStart(), toolArgs(), toolCallFinished()],
+        ]).adapter,
+        messages: [{ role: 'user', content: 'Check' }],
+        tools: [tool],
+        runId: 'approval-run',
+        threadId: 't1',
+        middleware: [withPersistence(persistence)],
+      }),
+    )
+    const original = JSON.parse(
+      JSON.stringify(
+        await persistence.stores.interrupts!.get('approval_tool-call-1'),
+      ),
+    )
+    await collect(
+      chat({
+        adapter: mockAdapter([]).adapter,
+        messages: [],
+        tools: [tool],
+        runId: clientRun,
+        threadId: 't1',
+        resume: [
+          {
+            interruptId: 'approval_tool-call-1',
+            status: 'resolved',
+            payload: true,
+          },
+        ],
+        middleware: [withPersistence(persistence)],
+      }),
+    )
+    return { persistence, tool, original }
+  }
+
+  it('copies the server approval reference before committing the previous phase', async () => {
+    const { persistence, tool, original } = await clientPhase()
+    const store = persistence.stores.interrupts!
+    const client = await store.get('client_tool_tool-call-1')
+    expect(client?.payload).toMatchObject({
+      metadata: {
+        'tanstack:approvalContext': {
+          v: 1,
+          approvalInterruptId: 'approval_tool-call-1',
+          approvalRunId: 'approval-run',
+          toolCallId: 'tool-call-1',
+          toolName: 'clientSearch',
+          generation: 0,
+        },
+      },
+    })
+    expect((await store.get('approval_tool-call-1'))?.payload).toEqual(
+      original.payload,
+    )
+    const resumed = mockAdapter([[runStarted(), text('Done'), runFinished()]])
+    const chunks = await collect(
+      chat({
+        adapter: resumed.adapter,
+        messages: [],
+        tools: [tool],
+        runId: 'output-run',
+        threadId: 't1',
+        resume: [
+          {
+            interruptId: 'client_tool_tool-call-1',
+            status: 'resolved',
+            payload: { ok: true },
+          },
+        ],
+        middleware: [withPersistence(persistence)],
+      }),
+    )
+    expect(chunks.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
+      false,
+    )
+    expect(resumed.calls).toHaveLength(1)
+    expect(await store.listPending('t1')).toEqual([])
+  })
+
+  it.each([
+    'absent',
+    'null',
+    'array',
+    'version',
+    'extra',
+    'id',
+    'run',
+    'generation',
+    'toolCallId',
+    'toolName',
+    'inputSchemaHash',
+    'approvalSchemaHash',
+    'responseSchemaHash',
+    'pending',
+    'cancelled',
+    'denied',
+    'missing',
+    'thread',
+    'descriptor',
+    'bindingRun',
+    'bindingId',
+  ])(
+    'rejects %s association without consuming the client phase',
+    async (kind) => {
+      const { persistence, tool } = await clientPhase()
+      const store = persistence.stores.interrupts!
+      const get = store.get.bind(store)
+      const read = vi.spyOn(store, 'get').mockImplementation(async (id) => {
+        const record = await get(id)
+        if (!record) return record
+        if (id === 'client_tool_tool-call-1') {
+          const payload = JSON.parse(JSON.stringify(record.payload))
+          const metadata = payload.metadata
+          const context = metadata['tanstack:approvalContext']
+          if (kind === 'absent') delete metadata['tanstack:approvalContext']
+          else if (kind === 'null') metadata['tanstack:approvalContext'] = null
+          else if (kind === 'array') metadata['tanstack:approvalContext'] = []
+          else if (kind === 'version') context.v = 2
+          else if (kind === 'extra') context.extra = true
+          else if (kind === 'id') context.approvalInterruptId = 'missing'
+          else if (kind === 'run') context.approvalRunId = 'wrong'
+          else if (kind === 'generation') context.generation = 1
+          else if (
+            [
+              'toolCallId',
+              'toolName',
+              'inputSchemaHash',
+              'approvalSchemaHash',
+              'responseSchemaHash',
+            ].includes(kind)
+          )
+            context[kind] = 'wrong'
+          return { ...record, payload }
+        }
+        if (id !== 'approval_tool-call-1') return record
+        if (kind === 'missing') return null
+        if (kind === 'pending') return { ...record, status: 'pending' }
+        if (kind === 'cancelled') return { ...record, status: 'cancelled' }
+        if (kind === 'denied') return { ...record, response: false }
+        if (kind === 'thread') return { ...record, threadId: 'other-thread' }
+        const payload = JSON.parse(JSON.stringify(record.payload))
+        if (kind === 'descriptor') payload.id = 'wrong'
+        if (kind === 'bindingRun')
+          payload.metadata['tanstack:interruptBinding'].interruptedRunId =
+            'wrong'
+        if (kind === 'bindingId')
+          payload.metadata['tanstack:interruptBinding'].interruptId = 'wrong'
+        return { ...record, payload }
+      })
+      // Pending descriptors are loaded through listPending, not get.
+      const list = store.listPending.bind(store)
+      const pendingRead = vi
+        .spyOn(store, 'listPending')
+        .mockImplementation(async (thread) => {
+          const records = await list(thread)
+          return Promise.all(
+            records.map(
+              async (record) => (await store.get(record.interruptId)) ?? record,
+            ),
+          )
+        })
+      const resumed = mockAdapter([
+        [runStarted(), text('Must not run'), runFinished()],
+      ])
+      let hooks = 0
+      const chunks = await collect(
+        chat({
+          adapter: resumed.adapter,
+          messages: [],
+          tools: [tool],
+          runId: 'output-run',
+          threadId: 't1',
+          resume: [
+            {
+              interruptId: 'client_tool_tool-call-1',
+              status: 'resolved',
+              payload: { ok: true },
+            },
+          ],
+          middleware: [
+            withPersistence(persistence),
+            {
+              onBeforeToolCall() {
+                hooks++
+              },
+            },
+          ],
+        }),
+      )
+      expect(chunks.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
+        true,
+      )
+      expect(hooks).toBe(0)
+      expect(resumed.calls).toHaveLength(0)
+      expect((await get('client_tool_tool-call-1'))?.status).toBe('pending')
+      pendingRead.mockRestore()
+      read.mockRestore()
+      const retry = mockAdapter([
+        [runStarted(), text('Retried'), runFinished()],
+      ])
+      const valid = await collect(
+        chat({
+          adapter: retry.adapter,
+          messages: [],
+          tools: [tool],
+          runId: 'retry-run',
+          threadId: 't1',
+          resume: [
+            {
+              interruptId: 'client_tool_tool-call-1',
+              status: 'resolved',
+              payload: { ok: true },
+            },
+          ],
+          middleware: [withPersistence(persistence)],
+        }),
+      )
+      expect(valid.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
+        false,
+      )
+      expect(retry.calls).toHaveLength(1)
+    },
+  )
+
+  it.each([false, true])(
+    'rejects a malformed present context in same-run mode: %s',
+    async (malformed) => {
+      const { persistence, tool } = await clientPhase('approval-run')
+      const store = persistence.stores.interrupts!
+      const list = store.listPending.bind(store)
+      const read = vi
+        .spyOn(store, 'listPending')
+        .mockImplementation(async (thread) =>
+          (await list(thread)).map((record) => {
+            const payload = JSON.parse(JSON.stringify(record.payload))
+            if (malformed)
+              payload.metadata['tanstack:approvalContext'] = { v: 2 }
+            else delete payload.metadata['tanstack:approvalContext']
+            return { ...record, payload }
+          }),
+        )
+      const adapter = mockAdapter([[runStarted(), text('Done'), runFinished()]])
+      const chunks = await collect(
+        chat({
+          adapter: adapter.adapter,
+          messages: [],
+          tools: [tool],
+          runId: 'approval-run',
+          threadId: 't1',
+          resume: [
+            {
+              interruptId: 'client_tool_tool-call-1',
+              status: 'resolved',
+              payload: { ok: true },
+            },
+          ],
+          middleware: [withPersistence(persistence)],
+        }),
+      )
+      expect(chunks.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
+        malformed,
+      )
+      expect(adapter.calls).toHaveLength(malformed ? 0 : 1)
+      read.mockRestore()
+    },
+  )
+
+  it('preserves the approval context through a JSON-copy store reload', async () => {
+    const { persistence, tool } = await clientPhase()
+    const restored = memoryPersistence()
+    for (const record of await persistence.stores.interrupts!.list('t1')) {
+      const copy = JSON.parse(JSON.stringify(record))
+      await restored.stores.interrupts!.create({
+        interruptId: copy.interruptId,
+        runId: copy.runId,
+        threadId: copy.threadId,
+        requestedAt: copy.requestedAt,
+        payload: copy.payload,
+      })
+      if (copy.status === 'resolved')
+        await restored.stores.interrupts!.resolve(
+          copy.interruptId,
+          copy.response,
+        )
+    }
+    await restored.stores.messages!.saveThread(
+      't1',
+      JSON.parse(
+        JSON.stringify(
+          threadMessages(await persistence.stores.messages!.loadThread('t1')),
+        ),
+      ),
+    )
+    const adapter = mockAdapter([
+      [runStarted(), text('Reloaded'), runFinished()],
+    ])
+    const chunks = await collect(
+      chat({
+        adapter: adapter.adapter,
+        messages: [],
+        tools: [tool],
+        runId: 'reload-run',
+        threadId: 't1',
+        resume: [
+          {
+            interruptId: 'client_tool_tool-call-1',
+            status: 'resolved',
+            payload: { ok: true },
+          },
+        ],
+        middleware: [withPersistence(restored)],
+      }),
+    )
+    expect(chunks.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
+      false,
+    )
+    expect(adapter.calls).toHaveLength(1)
+    expect(await restored.stores.interrupts!.listPending('t1')).toEqual([])
+    expect(
+      (await persistence.stores.interrupts!.get('client_tool_tool-call-1'))
+        ?.status,
+    ).toBe('pending')
+  })
+
+  it.each(['commit', 'create'])(
+    'does not revive a consumed approval after a %s write failure',
+    async (failure) => {
+      const persistence = memoryPersistence()
+      const store = persistence.stores.interrupts!
+      const tool = approvalClientTool('clientSearch')
+      await persistClientToolTurn(persistence, [tool])
+      const before = JSON.parse(
+        JSON.stringify((await store.get('approval_tool-call-1'))?.payload),
+      )
+      const commit = vi.spyOn(store, 'commitBatch')
+      const create = vi.spyOn(store, 'create')
+      if (failure === 'commit')
+        commit.mockRejectedValueOnce(new Error('approval commit failed'))
+      else
+        create.mockRejectedValueOnce(
+          new Error('client checkpoint create failed'),
+        )
+      const failed = await collect(
+        chat({
+          adapter: mockAdapter([]).adapter,
+          messages: [],
+          tools: [tool],
+          runId: 'next-run',
+          threadId: 't1',
+          resume: [
+            {
+              interruptId: 'approval_tool-call-1',
+              status: 'resolved',
+              payload: true,
+            },
+          ],
+          middleware: [withPersistence(persistence)],
+        }),
+      )
+      expect(failed).toContainEqual(
+        expect.objectContaining({
+          type: EventType.RUN_ERROR,
+          message:
+            failure === 'commit'
+              ? 'approval commit failed'
+              : 'client checkpoint create failed',
+        }),
+      )
+      const approval = await store.get('approval_tool-call-1')
+      expect(approval?.status).toBe(
+        failure === 'commit' ? 'pending' : 'resolved',
+      )
+      expect(approval?.payload).toEqual(before)
+      expect(await store.get('client_tool_tool-call-1')).toBeNull()
+      commit.mockRestore()
+      create.mockRestore()
+      if (failure === 'commit') {
+        await collect(
+          chat({
+            adapter: mockAdapter([]).adapter,
+            messages: [],
+            tools: [tool],
+            runId: 'retry-client-run',
+            threadId: 't1',
+            resume: [
+              {
+                interruptId: 'approval_tool-call-1',
+                status: 'resolved',
+                payload: true,
+              },
+            ],
+            middleware: [withPersistence(persistence)],
+          }),
+        )
+        expect(
+          (await store.get('client_tool_tool-call-1'))?.payload,
+        ).toMatchObject({
+          metadata: { 'tanstack:approvalContext': { approvalRunId: 'r1' } },
+        })
+      } else expect(await store.listPending('t1')).toEqual([])
+    },
+  )
 })

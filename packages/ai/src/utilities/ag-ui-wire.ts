@@ -91,7 +91,10 @@ export type WireMessage =
  * on assistant messages are additionally emitted as fan-out
  * `{role:'tool',...}` and `{role:'reasoning',...}` entries for strict AG-UI
  * server consumers. Set `includeSnapshotStructuredOutput` to retain complete
- * structured-output metadata for UI snapshots. Set `includeActivity` to emit
+ * structured-output metadata for UI snapshots. An assistant message whose
+ * parts leave the default block order goes out as several rows in the real
+ * order (see `TanStackMessageMetadata.continues`). A tool result also ends a
+ * row, and its tool row follows that row. Set `includeActivity` to emit
  * AG-UI `ActivityMessage` rows (MESSAGES_SNAPSHOT only — default omit so
  * RunAgentInput never carries activity).
  */
@@ -225,29 +228,145 @@ export function uiMessagesToWire(
     // buildAssistantMessages applies, so the wire keeps the signed order.
     // Segments after the first get derived anchor ids; strict AG-UI consumers
     // still see plain anchors.
+    //
+    // A tool result also ends a segment, the same as in
+    // buildAssistantMessages: the parts after it come from the next model
+    // call. That segment's tool rows go out right after it, and the next
+    // segment becomes its own message on our server.
+    // ponytail: only thinking, text, or a tool call opens that next segment.
+    // Other parts after a tool result (ui-resource, structured output, media)
+    // stay on the ended segment, as today.
+    //
+    // Inside one model call, the message is also split where its parts leave
+    // the default order (all thinking, then text, then tool calls): at
+    // thinking after text or a tool call, and at text after a tool call.
+    // Those rows exist only for the order, so they carry
+    // `metadata.tanstack.continues` with the id of the assistant row before
+    // them. Our server joins them back into one message with a `blockOrder`
+    // map. A provider split keeps today's shape.
     type Segment = {
       thinking: Array<Extract<MessagePart, { type: 'thinking' }>>
       parts: Array<MessagePart>
+      continues: boolean
+      /** A tool result ended this segment. */
+      closed: boolean
     }
-    let current: Segment = { thinking: [], parts: [] }
+    const newSegment = (continues: boolean): Segment => ({
+      thinking: [],
+      parts: [],
+      continues,
+      closed: false,
+    })
+    let current = newSegment(false)
     const segments: Array<Segment> = [current]
     for (const part of parts) {
+      if (
+        current.closed &&
+        (part.type === 'thinking' ||
+          part.type === 'text' ||
+          part.type === 'tool-call')
+      ) {
+        current = newSegment(false)
+        segments.push(current)
+      }
+      const afterCall = current.parts.some((p) => p.type === 'tool-call')
       if (part.type === 'thinking') {
         if (
           current.parts.some(
             (p) => p.type === 'tool-call' && isProviderExecutedToolCall(p),
           )
         ) {
-          current = { thinking: [part], parts: [] }
+          current = newSegment(false)
           segments.push(current)
-        } else {
-          current.thinking.push(part)
+        } else if (afterCall || current.parts.some((p) => p.type === 'text')) {
+          current = newSegment(true)
+          segments.push(current)
         }
+        current.thinking.push(part)
+      } else if (part.type === 'text' && afterCall) {
+        current = newSegment(true)
+        segments.push(current)
+        current.parts.push(part)
       } else {
         current.parts.push(part)
+        if (part.type === 'tool-result') current.closed = true
       }
     }
 
+    const explicitToolResults = new Set(
+      parts.flatMap((part) =>
+        part.type === 'tool-result' ? [part.toolCallId] : [],
+      ),
+    )
+    // The tool rows for `rowParts`, in parts order.
+    const pushToolRows = (rowParts: ReadonlyArray<MessagePart>): void => {
+      for (const part of rowParts) {
+        if (part.type === 'tool-result') {
+          const id = uniqueToolWireId(
+            part.id ?? deriveToolMessageId(part.toolCallId),
+            usedWireIds,
+          )
+          const metadata = rebuiltToolMetadata(
+            part.metadata,
+            part.createdAt,
+            part.id,
+            part.content,
+            true,
+            part.outcome,
+          )
+          wire.push({
+            role: 'tool',
+            id,
+            toolCallId: part.toolCallId,
+            ...(part.name !== undefined && { name: part.name }),
+            content:
+              typeof part.content === 'string'
+                ? part.content
+                : JSON.stringify(part.content),
+            ...(part.error !== undefined && { error: part.error }),
+            ...(metadata !== undefined && { metadata }),
+          })
+        } else if (part.type === 'tool-call') {
+          const approved = part.approval?.approved
+          if (
+            explicitToolResults.has(part.id) ||
+            (part.output === undefined &&
+              (part.state !== 'approval-responded' || approved === undefined))
+          ) {
+            continue
+          }
+          const result =
+            part.output !== undefined
+              ? normalizeToolResult(part.output)
+              : JSON.stringify({
+                  approved,
+                  ...(approved && { pendingExecution: true }),
+                  message: approved
+                    ? 'User approved this action'
+                    : 'User denied this action',
+                })
+          const content =
+            typeof result === 'string' ? result : JSON.stringify(result)
+          wire.push({
+            role: 'tool',
+            id: uniqueToolWireId(deriveToolMessageId(part.id), usedWireIds),
+            toolCallId: part.id,
+            content,
+            metadata: rebuiltToolMetadata(
+              undefined,
+              undefined,
+              undefined,
+              result,
+              false,
+              part.approval?.approved === false ? 'denied' : undefined,
+            ),
+          })
+        }
+      }
+    }
+
+    let previousAnchorId = uiMessage.id
+    let toolParts: Array<MessagePart> = []
     segments.forEach((segment, index) => {
       for (const part of segment.thinking) {
         const reasoning: WireReasoningMessage = {
@@ -270,88 +389,37 @@ export function uiMessagesToWire(
               ...uiMessage,
               id: uniqueWireId(`${uiMessage.id}-segment-${index}`, usedWireIds),
             }
-      wire.push(
-        toAnchor(
-          anchorMessage,
-          'assistant',
-          {
-            ...(text !== '' && { content: text }),
-            ...(toolCalls && { toolCalls }),
-          },
-          segment.parts,
-          includeSnapshotStructuredOutput,
-        ),
+      const anchor = toAnchor(
+        anchorMessage,
+        'assistant',
+        {
+          ...(text !== '' && { content: text }),
+          ...(toolCalls && { toolCalls }),
+        },
+        segment.parts,
+        includeSnapshotStructuredOutput,
       )
-    })
-
-    const explicitToolResults = new Set(
-      parts.flatMap((part) =>
-        part.type === 'tool-result' ? [part.toolCallId] : [],
-      ),
-    )
-    for (const part of parts) {
-      if (part.type === 'tool-result') {
-        const id = uniqueToolWireId(
-          part.id ?? deriveToolMessageId(part.toolCallId),
-          usedWireIds,
-        )
-        const metadata = rebuiltToolMetadata(
-          part.metadata,
-          part.createdAt,
-          part.id,
-          part.content,
-          true,
-          part.outcome,
-        )
-        wire.push({
-          role: 'tool',
-          id,
-          toolCallId: part.toolCallId,
-          ...(part.name !== undefined && { name: part.name }),
-          content:
-            typeof part.content === 'string'
-              ? part.content
-              : JSON.stringify(part.content),
-          ...(part.error !== undefined && { error: part.error }),
-          ...(metadata !== undefined && { metadata }),
-        })
-      } else if (part.type === 'tool-call') {
-        const approved = part.approval?.approved
-        if (
-          explicitToolResults.has(part.id) ||
-          (part.output === undefined &&
-            (part.state !== 'approval-responded' || approved === undefined))
-        ) {
-          continue
+      if (segment.continues) {
+        const metadata = anchor.metadata ?? {}
+        anchor.metadata = {
+          ...metadata,
+          tanstack: {
+            ...(isRecord(metadata.tanstack) ? metadata.tanstack : {}),
+            continues: previousAnchorId,
+          },
         }
-        const result =
-          part.output !== undefined
-            ? normalizeToolResult(part.output)
-            : JSON.stringify({
-                approved,
-                ...(approved && { pendingExecution: true }),
-                message: approved
-                  ? 'User approved this action'
-                  : 'User denied this action',
-              })
-        const content =
-          typeof result === 'string' ? result : JSON.stringify(result)
-        wire.push({
-          role: 'tool',
-          id: uniqueToolWireId(deriveToolMessageId(part.id), usedWireIds),
-          toolCallId: part.id,
-          content,
-          metadata: rebuiltToolMetadata(
-            undefined,
-            undefined,
-            undefined,
-            result,
-            false,
-            part.approval?.approved === false ? 'denied' : undefined,
-          ),
-        })
       }
-    }
+      wire.push(anchor)
+      previousAnchorId = anchor.id
+
+      // A tool row never sits between the rows of one model call: it goes
+      // out after a segment that a tool result ended, or after the last one.
+      toolParts.push(...segment.parts)
+      if (segment.closed || index === segments.length - 1) {
+        pushToolRows(toolParts)
+        toolParts = []
+      }
+    })
 
     for (const part of parts) {
       if (part.type === 'subagent') wire.push(...subagentToWire(part, options))
@@ -422,15 +490,20 @@ function messageMetadata(
 ): MetadataRecord | undefined {
   const base: MetadataRecord = { ...(msg.metadata ?? {}) }
   const previousTanstack = tanstackMetadata(msg)
-  const tanstack: TanStackMessageMetadata = {}
-  if (previousTanstack?.model !== undefined)
-    tanstack.model = previousTanstack.model
-  if (previousTanstack?.runId !== undefined)
-    tanstack.runId = previousTanstack.runId
-  if (previousTanstack?.run?.id !== undefined)
-    tanstack.run = { id: previousTanstack.run.id }
-  if (previousTanstack?.signature !== undefined)
-    tanstack.signature = previousTanstack.signature
+  const tanstack: TanStackMessageMetadata = { ...previousTanstack }
+  if (tanstack.run) {
+    tanstack.run = { ...tanstack.run }
+    delete tanstack.run.startedAt
+    delete tanstack.run.finishedAt
+  }
+  // Rebuild fields that describe the current wire row from its parts.
+  delete tanstack.createdAt
+  delete tanstack.continues
+  delete tanstack.structuredOutput
+  delete tanstack.toolCallMetadata
+  delete tanstack.toolResult
+  delete tanstack.toolResultOutcome
+  delete tanstack.uiResources
   const createdAt = coerceCreatedAt(msg.createdAt)
   if (createdAt !== undefined) tanstack.createdAt = createdAt.toISOString()
 

@@ -50,11 +50,11 @@ chat({
 
 Pass `strategy` to change how the history shrinks. Three are built in.
 
-| Strategy                | What it does                                            | Cost                |
-| ----------------------- | ------------------------------------------------------- | ------------------- |
-| `evictOldest` (default) | Drop the oldest messages, leave a marker                | No extra model call |
-| `summarizeOldest`       | Replace the oldest messages with an LLM summary         | One summarize call  |
-| `clearToolResults`      | Stub the content of old tool results, keep the messages | No extra model call |
+| Strategy                | What it does                                            | Cost                                        |
+| ----------------------- | ------------------------------------------------------- | ------------------------------------------- |
+| `evictOldest` (default) | Drop the oldest messages, leave a marker                | No extra model call                         |
+| `summarizeOldest`       | Replace the oldest messages with an LLM summary         | One summarize call (two with `cut: 'turn'`) |
+| `clearToolResults`      | Stub the content of old tool results, keep the messages | No extra model call                         |
 
 ```ts
 import {
@@ -106,8 +106,7 @@ withCompaction({
 ### Write your own
 
 A strategy gets the messages and the budget, and returns the rewritten messages
-(or `null` to change nothing). It runs only when the estimate is over
-`maxTokens`.
+(or `null` to change nothing). It runs when the count is over `maxTokens`, and when `compactNext` forces it. Then the count can be under `maxTokens`.
 
 ```ts
 import type { CompactionStrategy } from '@tanstack/ai-compaction'
@@ -126,21 +125,30 @@ withCompaction({
 
 ### `withCompaction`
 
-| Option           | Default         | What it does                                                                 |
-| ---------------- | --------------- | ---------------------------------------------------------------------------- |
-| `maxTokens`      | (required)      | Compact when estimated tokens exceed this.                                   |
-| `strategy`       | `evictOldest()` | How to shrink the messages.                                                  |
-| `estimateTokens` | chars / 4       | Per-message token estimate. Swap in a real tokenizer for accuracy.           |
-| `strategyKey`    | built-in key    | Stable checkpoint identity. Set it for custom strategies or estimators.      |
-| `onCompact`      | —               | Observe each compaction (`before`/`after`/`messagesBefore`/`messagesAfter`). |
+| Option            | Default         | What it does                                                                                                                                                                 |
+| ----------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `maxTokens`       | (required)      | Compact when the token count passes this.                                                                                                                                    |
+| `strategy`        | `evictOldest()` | How to shrink the messages.                                                                                                                                                  |
+| `estimateTokens`  | chars / 4       | Per-message token estimate. Swap in a real tokenizer for accuracy.                                                                                                           |
+| `strategyKey`     | built-in key    | Stable checkpoint identity. Set it for custom strategies or estimators.                                                                                                      |
+| `onCompact`       | (none)          | Observe each compaction (`before`, `after`, `messagesBefore`, `messagesAfter`, `reason`, `usage`, `error`).                                                                  |
+| `countTokens`     | `'estimate'`    | `'usage'`: count with the usage the provider reported for the last call, plus an estimate of the messages after it.                                                          |
+| `auto`            | `true`          | `false`: do not compact when the count passes `maxTokens`. `compactNext` and the `contextWindow` check still compact.                                                        |
+| `contextWindow`   | (none)          | The model's context window. With `countTokens: 'usage'` and `durable: true` in a harness with a log, the check after the last model call compacts when the usage is over it. |
+| `durable`         | `false`         | In a durable harness session, write each compaction as a session log record.                                                                                                 |
+| `continueOnError` | `false`         | When the strategy throws, send the messages without compaction instead of failing the run.                                                                                   |
+
+`withCompaction` returns a middleware with `compactNext(threadId)`. Call it to compact at the next model call on that thread, for example after a context overflow.
 
 ### Strategy options
 
-| Strategy           | Options                                                                         |
-| ------------------ | ------------------------------------------------------------------------------- |
-| `evictOldest`      | `keepRecentTokens` (default `maxTokens / 2`), `marker`                          |
-| `summarizeOldest`  | `summarize` (required), `keepRecentTokens`, `summaryRole` (default `assistant`) |
-| `clearToolResults` | `keepRecentToolResults` (default `3`), `stub`                                   |
+| Strategy           | Options                                                                                                      |
+| ------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `evictOldest`      | `keepRecentTokens` (default `maxTokens / 2`), `marker`                                                       |
+| `summarizeOldest`  | `summarize` (required), `keepRecentTokens`, `summaryRole` (default `assistant`), `cut` (default `'message'`) |
+| `clearToolResults` | `keepRecentToolResults` (default `3`), `stub`                                                                |
+
+`conversationSummarizer({ adapter })` gives a ready `summarize` function with a structured prompt. When an older summary exists, it updates that summary.
 
 The token estimate is a rough `chars / 4` heuristic, good enough to trigger on,
 not exact. Pass `estimateTokens` if you need provider-accurate counts.

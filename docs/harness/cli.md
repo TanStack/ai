@@ -1,0 +1,180 @@
+---
+title: Run a harness in the terminal
+id: harness-cli
+order: 3
+description: "Run your harness in a terminal with line mode or your own screen, a print mode for scripts and CI, NDJSON output, an ACP mode for editors, and an HTTP server."
+keywords:
+  - tanstack ai
+  - harness
+  - cli
+  - terminal
+  - ink
+---
+
+You built a harness and want to use it like Claude Code: type in a terminal, watch it work, approve tools. You also want to run it in CI. `runCli` gives one harness all of these modes.
+
+## Install
+
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-harness-cli
+vue: @tanstack/ai-harness-cli
+solid: @tanstack/ai-harness-cli
+svelte: @tanstack/ai-harness-cli
+preact: @tanstack/ai-harness-cli
+angular: @tanstack/ai-harness-cli
+vanilla: @tanstack/ai-harness-cli
+octane: @tanstack/ai-harness-cli
+
+<!-- ::end:tabs -->
+
+## 1. Write the entry file
+
+```ts group=harness-cli
+import { defineHarness } from '@tanstack/ai-harness'
+import { runCli } from '@tanstack/ai-harness-cli'
+import { openaiText } from '@tanstack/ai-openai'
+
+const assistant = defineHarness({
+  name: 'acme/assistant',
+  adapter: openaiText('gpt-5.6'),
+})
+
+process.exitCode = await runCli(assistant)
+```
+
+## 2. Pick a mode
+
+To use the harness yourself:
+
+- No flags: line mode. Type a message and press Enter. With a `ui`, your own screen starts in its place (see [Run your own screen](#run-your-own-screen)).
+- `-p "prompt"`: run one prompt, print the answer, and exit.
+- `-p "prompt" --output ndjson`: print every AG-UI event as one JSON line.
+
+To use the harness from another program:
+
+- `--acp`: serve the harness as an ACP v2 agent over stdio, for editors. Needs `@tanstack/ai-acp`.
+- `--mcp`: serve the harness as an MCP server over stdio, for Claude Code, Cursor, and other MCP clients. Needs `@tanstack/ai-mcp`. Add `--yes` to approve every tool call. Read [Use a harness from any MCP client](./mcp-server).
+- `--serve`: serve the session protocol over HTTP on `127.0.0.1:8787`. Every request needs the bearer token. Pass `--token`, set `HARNESS_TOKEN`, or copy the token the CLI prints. With `@tanstack/ai-mcp`, it also serves MCP at `/mcp`.
+
+`--mcp` and `--serve` run only the commands in `expose.commands` of the harness. `--serve` also sets only the config keys in `expose.config`. Add the names to `expose` in `defineHarness`, for example `expose: { commands: ['connect:github'] }`. Line mode and `-p` run every command. See [Choose what clients can change](./connect#choose-what-clients-can-change).
+
+Line mode reads one message or command per line and waits for each turn. It works the same in a terminal and with piped input. In a terminal, it also opens sign-in links in the browser.
+
+## 3. Use it in CI
+
+`-p` exits with a code your script can check:
+
+| Code | Meaning |
+|---|---|
+| 0 | The turn finished. |
+| 1 | The turn failed. |
+| 2 | The turn waits for an approval. |
+| 130 | The turn was cancelled. |
+
+## Use your own host and user
+
+By default, the CLI builds its own host in memory and opens sessions with no user. Your server already has a durable host with leases, recovery, and stores, and each person has their own credentials. Give the CLI that host and the user:
+
+```ts group=harness-cli-host
+import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import { runCli } from '@tanstack/ai-harness-cli'
+import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
+import { openaiText } from '@tanstack/ai-openai'
+
+const assistant = defineHarness({
+  name: 'acme/assistant',
+  adapter: openaiText('gpt-5.6'),
+})
+
+const { runs, metadata, credentials } = memoryPersistence().stores
+const host = createHarnessHost({
+  persistence: { stores: { log: memoryLogStore(), runs, metadata, credentials } },
+})
+
+process.exitCode = await runCli(assistant, { host, principal: { id: 'ada' } })
+await host.close()
+```
+
+- You own the host, so the CLI does not close it. Close it yourself when `runCli` returns. Without `host`, the CLI builds a host and closes it.
+- Give `host` or `persistence`, not both. With both, `runCli` writes `Give runCli a host or persistence, not both.` and returns code 1.
+- Line mode, `-p`, and your own `ui` open the session as `principal`, so `/connect` saves keys for that user.
+- `--serve` gives the same principal to each request with the token.
+- `--acp`, `--mcp`, and `--dashboard` open their sessions without the principal.
+
+## Commands in line mode
+
+For the session:
+
+- `/agents`: list the agents.
+- `/agent <name> {"json":"input"}`: run an agent in the background. When it is done, a new turn starts with its result.
+- `/config`: show the settings. `/config <key> <value>` changes one.
+- `/connect <id>` and `/disconnect <id>`: sign in to a connector, or out. With [`providerKeys`](./provider-keys), they also connect a model provider, for example `/connect openai`.
+
+For the running work:
+
+- `/cancel`: cancel the running turn.
+- `/status`: show what runs and what waits.
+- `/exit`: quit.
+
+Plugin commands (for example `/model` or `/todos`) show up in `/help`. When a turn stops for an approval or a plugin asks a question, type your answer. For yes-or-no questions, `y` approves and `n` refuses.
+
+## Send files and save media
+
+To send a file with a message, write `@` and the path of the file:
+
+```text
+what is wrong in @./bug.png
+compare @"old logo.png" with @./new-logo.png
+```
+
+- The path is relative to the working folder. Put quotes around a path with spaces.
+- `@path` works in line mode, with `-p`, with piped input, and in your own `ui`.
+- A `@word` that is not a file stays in the text, for example `@types/node`.
+- If the CLI does not know the type of the file, it does not send the message. To send the path as text, remove the `@`.
+
+The CLI saves the media that a turn makes in a folder. The default folder is `./<harness name>-media` in the working folder, for example `./acme-assistant-media`. To use another folder, add `--media-dir <dir>`:
+
+```bash
+npx tsx cli.ts -p "Draw a logo for acme" --media-dir ./out
+```
+
+- Line mode prints `[image saved: <path>]` for each file.
+- `-p` prints the same line on stderr, so stdout keeps only the answer.
+- `-p --output ndjson` adds the saved `path` to the value of the `harness.media` event.
+
+The CLI never replaces a file. If the name is taken, it adds `-1`, `-2`, and so on to the new name.
+
+## Run your own screen
+
+Line mode prints plain lines. For a full screen with your own layout, pass `ui` to `runCli`. It works with any TUI library, for example Ink, OpenTUI, or blessed.
+
+`ui` gets a ready [session view](./custom-ui) and resolves when the user quits. This entry file starts an Ink screen:
+
+```tsx ignore
+import { render } from 'ink'
+import { runCli } from '@tanstack/ai-harness-cli'
+import { assistant } from './harness'
+import { Screen } from './screen'
+
+process.exitCode = await runCli(assistant, {
+  ui: async (view) => {
+    await render(<Screen view={view} />).waitUntilExit()
+  },
+})
+```
+
+- `ui` runs only in an interactive terminal. Piped input uses line mode. `-p`, `--acp`, `--mcp`, `--serve`, and `--dashboard` do not use `ui`.
+- When `ui` resolves, the CLI disposes the view and `runCli` returns.
+- To write `Screen`, read [Build your own UI](./custom-ui).
+
+For a full Ink screen with approvals, questions, sign-ins, and child agents, copy [`examples/harness-cli/src/tui.tsx`](https://github.com/TanStack/ai/blob/main/examples/harness-cli/src/tui.tsx).
+
+## What you have now
+
+- One entry file that runs your harness as a terminal app, a script step, an editor agent, an MCP server, or an HTTP server.
+- A CLI that uses your durable host and runs as your user.
+- Your own terminal screen on the same session, with any TUI library.
+- Files that you send with `@path`, and a folder with the media that your agents make.
+
+Next: keep long turns alive through crashes with [durable sessions](./durable-sessions).

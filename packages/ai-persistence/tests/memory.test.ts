@@ -17,11 +17,15 @@ describe('memoryPersistence', () => {
       'activities',
       'artifacts',
       'blobs',
+      'credentials',
       'generationRuns',
+      'inbox',
       'interrupts',
       'messages',
       'metadata',
       'runs',
+      'sessions',
+      'workClaims',
     ])
   })
 

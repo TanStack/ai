@@ -73,7 +73,7 @@ const stream = chat({
 | `cwd`                  | Working directory for the harness session. Defaults to `process.cwd()`.                                                                       |
 | `sandboxMode`          | Codex sandbox: `'read-only'`, `'workspace-write'`, or `'danger-full-access'`. Default is `'workspace-write'` on local-process and Docker. Default is `'danger-full-access'` on Daytona and Cloudflare, because those providers cannot create a nested bubblewrap namespace. Isolation is then the outer VM plus `defineSandboxPolicy`. |
 | `approvalPolicy`       | Codex approval policy. Defaults to `'never'` — headless runs have no approval UI, so anything else can stall a turn.                           |
-| `modelReasoningEffort` | `'minimal'` \| `'low'` \| `'medium'` \| `'high'` \| `'xhigh'`.                                                                                 |
+| `modelReasoningEffort` | The default effort when a call sets no `reasoning`: `'minimal'` \| `'low'` \| `'medium'` \| `'high'`.                                  |
 | `skipGitRepoCheck`     | Skip the harness's git-repo safety check. Defaults to `true` (server adapters routinely point at scratch directories).                         |
 | `networkAccessEnabled` | Allow network access inside the `workspace-write` sandbox.                                                                                     |
 | `webSearchMode`        | `'disabled'` \| `'cached'` \| `'live'`.                                                                                                        |
@@ -86,8 +86,9 @@ const stream = chat({
 | `config`               | Extra `--config key=value` overrides passed to the Codex CLI (e.g. additional `mcp_servers` entries).                                          |
 
 Per-call overrides go through `modelOptions`: `sessionId`, `sandboxMode`,
-`approvalPolicy`, `modelReasoningEffort`, `workingDirectory`,
-`skipGitRepoCheck`, and `authMode`.
+`approvalPolicy`, `workingDirectory`, `skipGitRepoCheck`, and `authMode`.
+Set the effort per call with `reasoning` on `chat()`; the adapter sends it as
+`model_reasoning_effort`.
 
 ## Stateful Sessions
 
@@ -189,6 +190,19 @@ const stream = chat({
 
 **Client-side and approval-gated tools are not supported.** The harness executes tools inside a live subprocess, which cannot pause across HTTP requests to wait for a browser round-trip or a human approval. Passing a tool without a server `execute()` implementation — or one marked `needsApproval` — fails fast with a descriptive error. Run those tools outside the harness with a regular provider adapter.
 
+## Tool choice
+
+`chat({ toolChoice })` limits only the tools that the adapter bridges into Codex. The built-in Codex tools always stay on, and Codex decides when it calls a tool. For the values, see [Choose when the model calls a tool](../tools/tools#choose-when-the-model-calls-a-tool).
+
+| Value | What the adapter does |
+| --- | --- |
+| `'auto'` | Bridges all of your tools. |
+| `'none'` | Bridges none of your tools. |
+| `{ type: 'tool', name }` | Bridges only the named tool. Codex does not have to call it. |
+| `'required'` | Bridges all of your tools. Codex does not have to call one. |
+
+Each value except `'auto'` logs a warning the first time an adapter instance gets it.
+
 ## Structured Output
 
 Pass `outputSchema` on `chat()`. Codex runs one harness turn and constrains the last message with `--output-schema`. Tool activity and assistant text stream as Codex writes them. The last message is also parsed as the schema object and arrives as `structured-output.complete`.
@@ -249,6 +263,7 @@ Full walkthrough, including the client: [Harness Agents](../structured-outputs/h
 
 ## Limitations
 
+- **No `wrapFetch`.** The adapter ignores [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call), because the harness process sends the model requests.
 - **No token-level text streaming.** The Codex SDK reports assistant text and reasoning only as completed items, so text arrives message-at-a-time. Tool activity (commands starting/finishing) still streams live, which keeps the UI feeling alive during long turns.
 - **Server-only (Node).** The harness spawns a subprocess.
 - **The harness owns the agent loop.** TanStack's agent-loop strategies and per-iteration middleware don't apply inside a harness turn.

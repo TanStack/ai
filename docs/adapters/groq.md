@@ -72,6 +72,8 @@ const config: Omit<GroqTextConfig, 'apiKey'> = {
 const adapter = createGroqText("llama-3.3-70b-versatile", process.env.GROQ_API_KEY!, config);
 ```
 
+The chat adapters on this page support `wrapFetch`. A middleware can use it to change the HTTP requests of a model call. See [Change the HTTP requests of a call](../advanced/middleware#change-the-http-requests-of-a-call).
+
 ## Example: Chat Completion
 
 ```typescript
@@ -170,13 +172,20 @@ const stream = chat({
 
 ### Reasoning
 
-Enable reasoning for models that support it (e.g., `openai/gpt-oss-120b`, `qwen/qwen3-32b`). This allows the model to show its reasoning process, which is streamed as `thinking` chunks:
+Set how hard a reasoning model (`openai/gpt-oss-120b`, `qwen/qwen3-32b`) thinks with `reasoning` on `chat()`:
 
-```typescript ignore
-modelOptions: {
-  reasoning_effort: "medium", // "none" | "default" | "low" | "medium" | "high"
-}
+```typescript
+import { chat } from "@tanstack/ai";
+import { groqText } from "@tanstack/ai-groq";
+
+const stream = chat({
+  adapter: groqText("openai/gpt-oss-120b"),
+  messages: [{ role: "user", content: "Hello!" }],
+  reasoning: "medium",
+});
 ```
+
+The adapter sends `reasoning_effort`. Qwen 3 only turns thinking on or off: `high` sends `default`, and `off` sends `none`. To pick how the reasoning text comes back, set `reasoning_format` in `modelOptions`. See [Reasoning](../chat/reasoning).
 
 ## Summarization
 

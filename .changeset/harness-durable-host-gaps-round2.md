@@ -1,0 +1,11 @@
+---
+'@tanstack/ai': minor
+'@tanstack/ai-harness': minor
+---
+
+- A model answer with tool calls that stops at the output limit can continue. With the new `chat({ truncatedToolResult })` option (a string, or a function that gets `{ toolCallId, toolName }`), the answer keeps its tool calls. Each call that the provider did not run gets that text as an error result and does not run. Then the model is called again, and the call counts as an iteration. Without the option, nothing changes. `durability.truncatedToolResult` of the harness takes the same string or function. When it is set, the harness passes it to each `chat()` call of a turn, and recovery uses the same text.
+- On a durable host, a failed model call writes its retry count to the log before `turn.onModelError` runs. Before, the count landed with the next model call, so a host that stopped during the backoff lost it, and the next host could retry one time too many.
+- Steers that join a model call now go through the change that your middleware makes in `onConfig` for that call. Before, the harness added them after the middleware ran, so a middleware that changes each model request (for example, an image to a text placeholder for a model that cannot read images) did not see them. The transcript keeps the messages as they were sent.
+- `session.prompt(message, { ephemeral })` and `session.continue({ ephemeral })` take messages that each model call of that turn gets, after the transcript and the new user message, and before the messages that the turn adds. No store keeps them, and the `inputId` duplicate check does not read them. A turn that recovery runs again has none. `client.prompt`, `client.continue`, and the `prompt` and `continue` inputs of the protocol take `ephemeral` too.
+- `durability.continueCutOff` keeps the signed thinking blocks of a cut answer in the partial assistant message, so the provider can replay them. Signed thinking alone is enough to continue. Thinking with no signature is not kept. `note` can be a list of strings: each note becomes one user message, in order, in the same append.
+- The `durability.recover` hook gets `interruptedTools`: the tool calls of the input that recovery closes with an error result, with `toolCallId`, `toolName`, and `reason` (`'interrupted'` or `'truncated'`). The list is there also when the hook settles the input.

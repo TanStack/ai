@@ -1,0 +1,178 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[coding-read] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          { "name": "read_file", "arguments": "{\"path\":\"notes.txt\"}" }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[coding-read] run test",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "notes.txt has two lines."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[coding-edit] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "edit_file",
+            "arguments": "{\"path\":\"notes.txt\",\"old\":\"alpha\\nbeta\",\"new\":\"gamma\\nbeta\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[coding-edit] run test",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Edited notes.txt."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[coding-patch] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "patch",
+            "arguments": "{\"patch\":\"*** Begin Patch\\n*** Update File: notes.txt\\n-alpha\\n+delta\\n beta\\n*** Add File: added.txt\\n+added by patch\\n*** End Patch\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[coding-patch] run test",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Patched notes.txt and added added.txt."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[coding-grep] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [{ "name": "grep", "arguments": "{\"pattern\":\"beta\"}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[coding-grep] run test",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "beta is in two files."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[coding-bash] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "bash",
+            "arguments": "{\"command\":\"node -e \\\"require('fs').writeFileSync('bash.txt', 'AGENT=' + process.env.AGENT); console.log('done')\\\"\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[coding-bash] run test",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "The command ran."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[coding-revert] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "edit_file",
+            "arguments": "{\"path\":\"notes.txt\",\"old\":\"alpha\",\"new\":\"gamma\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[coding-revert] run test",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Edited notes.txt."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[coding-revert-2] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "edit_file",
+            "arguments": "{\"path\":\"notes.txt\",\"old\":\"gamma\",\"new\":\"delta\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[coding-revert-2] run test",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Edited notes.txt again."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[coding-format-ask] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "write_file",
+            "arguments": "{\"path\":\"a.ts\",\"content\":\"let a=1\\n\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[coding-format-ask] run test",
+        "sequenceIndex": 1
+      },
+      "response": { "content": "Wrote a.ts." }
+    }
+  ]
+}

@@ -506,7 +506,7 @@ describe('BytePlus text adapter', () => {
   })
 
   describe('provider options', () => {
-    it('forwards Ark-only and sampling options into the request body', async () => {
+    it('forwards Ark-only options, sampling options, and chat({ reasoning })', async () => {
       const mockCreate = setupMockSdkClient([
         {
           id: 'chatcmpl-opts',
@@ -517,8 +517,6 @@ describe('BytePlus text adapter', () => {
       const adapter = createBytePlusText('seed-2-0-lite-260428', 'ark-test-key')
 
       const modelOptions: BytePlusTextProviderOptions = {
-        thinking: { type: 'enabled' },
-        reasoning_effort: 'high',
         repetition_penalty: 1.05,
         service_tier: 'flex',
         temperature: 0.4,
@@ -530,6 +528,7 @@ describe('BytePlus text adapter', () => {
           model: 'seed-2-0-lite-260428',
           messages: [{ role: 'user', content: 'Hello' }],
           modelOptions,
+          reasoning: { level: 'high', summary: true },
           logger: testLogger,
         }),
       )
@@ -544,6 +543,42 @@ describe('BytePlus text adapter', () => {
         stream: true,
         stream_options: { include_usage: true },
       })
+    })
+  })
+
+  describe('chat({ reasoning })', () => {
+    async function requestFor(
+      model: 'glm-4-7-251222' | 'glm-5-2-260617',
+      level: 'off' | 'high',
+    ) {
+      const mockCreate = setupMockSdkClient([
+        {
+          id: 'chatcmpl-reasoning',
+          model,
+          choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+        },
+      ])
+      await collect(
+        createBytePlusText(model, 'ark-test-key').chatStream({
+          model,
+          messages: [{ role: 'user', content: 'Hello' }],
+          reasoning: { level, summary: true },
+          logger: testLogger,
+        }),
+      )
+      return mockCreate.mock.calls[0]?.[0] as Record<string, unknown>
+    }
+
+    it('off sends thinking disabled and no effort', async () => {
+      const body = await requestFor('glm-5-2-260617', 'off')
+      expect(body.thinking).toEqual({ type: 'disabled' })
+      expect(body).not.toHaveProperty('reasoning_effort')
+    })
+
+    it('an on/off model sends thinking enabled and no effort', async () => {
+      const body = await requestFor('glm-4-7-251222', 'high')
+      expect(body.thinking).toEqual({ type: 'enabled' })
+      expect(body).not.toHaveProperty('reasoning_effort')
     })
   })
 
@@ -1124,4 +1159,178 @@ describe('reasoning delta round-trip through StreamProcessor', () => {
       signature: ENCRYPTED_BLOB,
     })
   })
+})
+
+describe('inherited SDK replay contract', () => {
+  const wrapperModel = 'seed-2-0-lite-260428'
+  async function wireAdapter() {
+    const actual = await vi.importActual<typeof import('openai')>('openai')
+    const bodies: Array<Record<string, unknown>> = []
+    const headers: Array<Headers> = []
+    const fetcher: typeof fetch = async (input, init) => {
+      const request = new Request(input, init)
+      headers.push(request.headers)
+      bodies.push(JSON.parse(await request.text()))
+      const event = {
+        id: 'generation-real',
+        object: 'chat.completion.chunk',
+        model: 'reported-model',
+        choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+      }
+      return new Response(
+        'data: ' + JSON.stringify(event) + '\n\ndata: [DONE]\n\n',
+        { headers: { 'content-type': 'text/event-stream' } },
+      )
+    }
+    const adapter = _realCreateBytePlusText('seed-2-0-lite-260428', 'key')
+    Object.assign(adapter, {
+      client: new actual.default({
+        apiKey: 'key',
+        baseURL: 'https://wrapper.invalid/v1',
+        fetch: fetcher,
+      }),
+    })
+    return { adapter, bodies, headers }
+  }
+
+  it.each([false, true])(
+    'keeps the full ordinary SDK body for sameSource=%s',
+    async (sameSource) => {
+      const mock = await wireAdapter()
+      const messages: Array<import('@tanstack/ai').ModelMessage> = [
+        { role: 'user', content: 'Hello' },
+        {
+          role: 'assistant',
+          content: 'Prior',
+          ...(sameSource && {
+            metadata: {
+              tanstack: {
+                source: {
+                  provider: 'byteplus',
+                  api: 'openai-completions',
+                  model: wrapperModel,
+                },
+              },
+            },
+          }),
+        },
+      ]
+      const original = JSON.stringify(messages)
+      const chunks = []
+      for await (const chunk of mock.adapter.chatStream({
+        logger: resolveDebugOption(false),
+        model: wrapperModel,
+        messages,
+        systemPrompts: ['System'],
+        modelOptions: { temperature: 0.2, top_p: 0.7 },
+        request: { headers: { 'x-request': 'kept' } },
+      }))
+        chunks.push(chunk)
+      expect(mock.bodies).toEqual([
+        {
+          temperature: 0.2,
+          top_p: 0.7,
+          model: wrapperModel,
+          messages: [
+            { role: 'system', content: 'System' },
+            { role: 'user', content: 'Hello' },
+            { role: 'assistant', content: 'Prior' },
+          ],
+          stream: true,
+          stream_options: { include_usage: true },
+        },
+      ])
+      expect(mock.headers[0]?.get('x-request')).toBe('kept')
+      expect(chunks[0]).toMatchObject({
+        metadata: {
+          tanstack: {
+            source: {
+              provider: 'byteplus',
+              api: 'openai-completions',
+              model: wrapperModel,
+            },
+          },
+        },
+      })
+      expect(chunks.at(-1)).toMatchObject({
+        responseId: 'generation-real',
+        model: 'reported-model',
+      })
+      expect(JSON.stringify(messages)).toBe(original)
+    },
+  )
+
+  it('prepares foreign history before wrapper hooks and keeps tools[]', async () => {
+    const mock = await wireAdapter()
+    const messages: Array<import('@tanstack/ai').ModelMessage> = [
+      {
+        role: 'assistant',
+        content: 'Visible',
+        thinking: [{ content: 'Readable', signature: 'foreign-opaque' }],
+        metadata: {
+          tanstack: {
+            source: { provider: 'foreign', api: 'foreign', model: 'foreign' },
+          },
+        },
+        toolCalls: [
+          {
+            id: 'call|fc/item',
+            type: 'function',
+            function: { name: 'inspect', arguments: '{}' },
+          },
+        ],
+      },
+      { role: 'tool', toolCallId: 'call|fc/item', content: 'done' },
+    ]
+    const original = JSON.stringify(messages)
+    for await (const _chunk of mock.adapter.chatStream({
+      logger: resolveDebugOption(false),
+      model: wrapperModel,
+      messages,
+    })) {
+    }
+    expect(mock.bodies[0]?.tools).toEqual([])
+    expect(JSON.stringify(mock.bodies)).toContain('Readable')
+    expect(JSON.stringify(mock.bodies)).not.toContain('foreign-opaque')
+    expect(JSON.stringify(mock.bodies)).not.toContain('call|fc/item')
+    expect(JSON.stringify(messages)).toBe(original)
+  })
+  it.each(['source-free', 'same', 'foreign'])(
+    'keeps encrypted thinking only for %s history',
+    async (origin) => {
+      const mock = await wireAdapter()
+      const messages: Array<ModelMessage> = [
+        {
+          role: 'assistant',
+          content: 'Visible',
+          thinking: [{ content: 'Readable', signature: 'opaque-signature' }],
+          ...(origin !== 'source-free' && {
+            metadata: {
+              tanstack: {
+                source: {
+                  provider: origin === 'same' ? 'byteplus' : 'other',
+                  api: 'openai-completions',
+                  model: wrapperModel,
+                },
+              },
+            },
+          }),
+        },
+      ]
+      const original = JSON.stringify(messages)
+      for await (const _chunk of mock.adapter.chatStream({
+        logger: testLogger,
+        model: wrapperModel,
+        messages,
+      })) {
+      }
+      if (origin === 'foreign')
+        expect(JSON.stringify(mock.bodies)).not.toContain('opaque-signature')
+      else
+        expect(mock.bodies[0]).toMatchObject({
+          messages: [{ encrypted_content: 'opaque-signature' }],
+        })
+      expect(JSON.stringify(messages)).toBe(original)
+    },
+  )
 })

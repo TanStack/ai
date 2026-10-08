@@ -1,16 +1,25 @@
+import { GENERATED_BEDROCK_MODELS } from '../model-catalog.generated'
 import { EventType, convertSchemaToJsonSchema } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { resolveBedrockAuth } from '../utils/auth'
-import { toConverseMessages } from '../converse/message-converter'
+import {
+  toConverseMessages,
+  toolBlocksToText,
+} from '../converse/message-converter'
 import { toToolConfig } from '../converse/tool-converter'
 import {
   processConverseStream,
   throwIfConverseStreamError,
 } from '../converse/stream-processor'
 import { buildConverseUsage } from '../converse/usage'
+import { converseThinking } from '../converse/reasoning'
+import { addPromptCachePoints } from '../converse/prompt-cache'
+import { BEDROCK_MODEL_REASONING } from '../model-reasoning'
+import type { BedrockModelReasoningByName } from '../model-reasoning'
 import {
   STRUCTURED_TOOL_NAME,
+  buildStructuredOutputConfig,
   buildStructuredToolConfig,
 } from '../converse/structured-output'
 import type { ResolvedBedrockAuth } from '../utils/auth'
@@ -26,9 +35,12 @@ import type {
   ConverseStreamOutput,
 } from '@aws-sdk/client-bedrock-runtime'
 import type {
+  ConfigReasoning,
   JSONSchema,
   Modality,
+  ModelReasoning,
   AdapterYieldChunk,
+  ReasoningCapability,
   TextOptions,
   TokenUsage,
   Tool,
@@ -49,8 +61,36 @@ import type {
   ResolveInputModalities,
 } from '../model-meta'
 
+/**
+ * The Claude models that reject a forced tool (`any` or a named `tool`) on
+ * every request, with or without thinking. A Bedrock id has the family name
+ * inside it, for example `us.anthropic.claude-opus-5-5-...`.
+ * ponytail: a hand list, the same as the Anthropic adapter. Move it to the
+ * model catalog when the catalog script can set it.
+ */
+const CLAUDE_NO_FORCED_TOOL_MODELS = [
+  'claude-fable-5-1',
+  'claude-mythos-5-1',
+  'claude-opus-5-5',
+  'claude-sonnet-5-5',
+]
+
 /** Config for the Converse adapter — same client config as the chat adapter. */
-export interface BedrockConverseConfig extends BedrockClientConfig {}
+export interface BedrockConverseConfig extends BedrockClientConfig {
+  /**
+   * The model's reasoning data, for example `modelReasoning(record)` from a
+   * `@tanstack/ai-models` record. It wins over the adapter's own table, for
+   * the Claude thinking fields in `additionalModelRequestFields` and for the
+   * levels `chat({ reasoning })` takes. `false`: no thinking fields go out.
+   */
+  reasoning?: ModelReasoning
+}
+
+/**
+ * A model id: a known Converse model, or any other id, for example a
+ * catalog id or an inference profile id that this package does not list.
+ */
+export type BedrockConverseModelId = BedrockConverseModels | (string & {})
 
 /**
  * Bedrock Converse text adapter. Wires the Converse translation modules (message
@@ -66,8 +106,14 @@ export interface BedrockConverseConfig extends BedrockClientConfig {}
  * so tests can subclass and inject canned Converse SDK shapes without a real
  * AWS request.
  */
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof BedrockModelReasoningByName
+    ? BedrockModelReasoningByName[TModel]
+    : never
+
 export class BedrockConverseTextAdapter<
-  TModel extends BedrockConverseModels,
+  TModel extends BedrockConverseModelId,
   // Constraint mirrors the chat adapter (text.ts): the base parameterises
   // `TProviderOptions extends Record<string, any>`, and our default
   // `ResolveConverseProviderOptions<TModel>` resolves to an interface lacking an
@@ -78,6 +124,7 @@ export class BedrockConverseTextAdapter<
     ResolveConverseProviderOptions<TModel>,
   TInputModalities extends ReadonlyArray<Modality> =
     ResolveInputModalities<TModel>,
+  TReasoning extends ReasoningCapability = ResolveReasoning<TModel>,
 > extends BaseTextAdapter<
   TModel,
   TProviderOptions,
@@ -90,10 +137,16 @@ export class BedrockConverseTextAdapter<
   unknown,
   // TSystemPromptMetadata — narrows `systemPrompts[i].metadata` at the chat()
   // call site so users get `cachePoint` autocomplete.
-  BedrockSystemPromptMetadata
+  BedrockSystemPromptMetadata,
+  TReasoning
 > {
   override readonly kind = 'text' as const
   override readonly name = 'bedrock-converse' as const
+  override readonly api = 'bedrock-converse-stream'
+  override readonly provider = 'amazon-bedrock'
+  override readonly inputModalities: ReadonlyArray<Modality> =
+    GENERATED_BEDROCK_MODELS.find((entry) => entry.id === this.model)
+      ?.input ?? ['text']
   private clientPromise?: Promise<BedrockRuntimeClient>
   private readonly clientConfig: BedrockConverseConfig
 
@@ -212,7 +265,15 @@ export class BedrockConverseTextAdapter<
   ): Promise<AsyncIterable<ConverseStreamOutput>> {
     const { ConverseStreamCommand } = await this.importBedrockRuntime()
     const client = await this.getClient()
-    const res = await client.send(new ConverseStreamCommand(input))
+    const command = new ConverseStreamCommand(input)
+    command.middlewareStack.add(
+      (next) => async (args) => {
+        this.restoreDocumentInputs(args.request, input)
+        return next(args)
+      },
+      { step: 'build', name: 'tanstackDocumentInputs', priority: 'high' },
+    )
+    const res = await client.send(command)
     if (!res.stream) {
       throw new Error('Bedrock Converse: empty stream response')
     }
@@ -224,7 +285,120 @@ export class BedrockConverseTextAdapter<
   ): Promise<ConverseCommandOutput> {
     const { ConverseCommand } = await this.importBedrockRuntime()
     const client = await this.getClient()
-    return client.send(new ConverseCommand(input))
+    const command = new ConverseCommand(input)
+    command.middlewareStack.add(
+      (next) => async (args) => {
+        this.restoreDocumentInputs(args.request, input)
+        return next(args)
+      },
+      { step: 'build', name: 'tanstackDocumentInputs', priority: 'high' },
+    )
+    return client.send(command)
+  }
+
+  private restoreDocumentInputs(
+    request: unknown,
+    input: ConverseCommandInput,
+  ): void {
+    if (
+      typeof request !== 'object' ||
+      request === null ||
+      !('body' in request) ||
+      typeof request.body !== 'string'
+    )
+      return
+    const body: unknown = JSON.parse(request.body)
+    if (
+      typeof body !== 'object' ||
+      body === null ||
+      !('messages' in body) ||
+      !Array.isArray(body.messages)
+    )
+      return
+    let changed = false
+    const restore = (
+      target: unknown,
+      key: 'input' | 'json',
+      value: unknown,
+    ) => {
+      if (value === undefined || typeof target !== 'object' || target === null)
+        return
+      const previous = key in target ? Reflect.get(target, key) : undefined
+      if (
+        Object.hasOwn(target, key) &&
+        JSON.stringify(previous) === JSON.stringify(value)
+      )
+        return
+      Object.defineProperty(target, key, {
+        value,
+        enumerable: true,
+        configurable: true,
+        writable: true,
+      })
+      changed = true
+    }
+    for (const [messageIndex, message] of (input.messages ?? []).entries()) {
+      const wireMessage: unknown = body.messages[messageIndex]
+      if (
+        typeof wireMessage !== 'object' ||
+        wireMessage === null ||
+        !('content' in wireMessage) ||
+        !Array.isArray(wireMessage.content)
+      )
+        continue
+      for (const [blockIndex, block] of (message.content ?? []).entries()) {
+        const wireBlock: unknown = wireMessage.content[blockIndex]
+        if (typeof wireBlock !== 'object' || wireBlock === null) continue
+        if (block.toolUse && 'toolUse' in wireBlock)
+          restore(wireBlock.toolUse, 'input', block.toolUse.input)
+        if (!block.toolResult || !('toolResult' in wireBlock)) continue
+        const wireResult = wireBlock.toolResult
+        if (
+          typeof wireResult !== 'object' ||
+          wireResult === null ||
+          !('content' in wireResult) ||
+          !Array.isArray(wireResult.content)
+        )
+          continue
+        for (const [resultIndex, result] of (
+          block.toolResult.content ?? []
+        ).entries())
+          if ('json' in result)
+            restore(wireResult.content[resultIndex], 'json', result.json)
+      }
+    }
+    if (
+      'toolConfig' in body &&
+      typeof body.toolConfig === 'object' &&
+      body.toolConfig !== null &&
+      'tools' in body.toolConfig &&
+      Array.isArray(body.toolConfig.tools)
+    ) {
+      for (const [index, tool] of (input.toolConfig?.tools ?? []).entries()) {
+        if (
+          !('toolSpec' in tool) ||
+          !tool.toolSpec?.inputSchema ||
+          !('json' in tool.toolSpec.inputSchema)
+        )
+          continue
+        const wireTool: unknown = body.toolConfig.tools[index]
+        if (
+          typeof wireTool !== 'object' ||
+          wireTool === null ||
+          !('toolSpec' in wireTool)
+        )
+          continue
+        const wireSpec = wireTool.toolSpec
+        if (
+          typeof wireSpec !== 'object' ||
+          wireSpec === null ||
+          !('inputSchema' in wireSpec)
+        )
+          continue
+        restore(wireSpec.inputSchema, 'json', tool.toolSpec.inputSchema.json)
+      }
+    }
+    if (changed) request.body = JSON.stringify(body)
   }
 
   // ---------------------------------------------------------------------------
@@ -241,11 +415,31 @@ export class BedrockConverseTextAdapter<
       )
       const input = this.buildInput(options)
       const stream = await this.sendStream(input)
-      yield* processConverseStream(stream, () => this.generateId(), {
-        threadId: options.threadId,
-        parentRunId: options.parentRunId,
-        model: options.model,
-      })
+      for await (const chunk of processConverseStream(
+        stream,
+        () => this.generateId(),
+        {
+          threadId: options.threadId,
+          parentRunId: options.parentRunId,
+          model: options.model,
+        },
+      )) {
+        yield chunk.type === EventType.RUN_STARTED ||
+        chunk.type === EventType.RUN_FINISHED
+          ? {
+              ...chunk,
+              metadata: {
+                tanstack: {
+                  source: {
+                    provider: this.provider,
+                    api: this.api,
+                    model: options.model,
+                  },
+                },
+              },
+            }
+          : chunk
+      }
     } catch (error: unknown) {
       const errorPayload = toRunErrorPayload(
         error,
@@ -259,6 +453,15 @@ export class BedrockConverseTextAdapter<
       // `exactOptionalPropertyTypes` (AG-UI's `RunErrorEvent.code` is optional).
       yield {
         type: EventType.RUN_ERROR,
+        metadata: {
+          tanstack: {
+            source: {
+              provider: this.provider,
+              api: this.api,
+              model: options.model,
+            },
+          },
+        },
         model: options.model,
         timestamp: Date.now(),
         message: errorPayload.message,
@@ -272,10 +475,10 @@ export class BedrockConverseTextAdapter<
   }
 
   /**
-   * Structured output via the forced-tool strategy. Converse has no native
-   * json_schema response_format, so we force a single tool whose input schema
-   * is the requested output schema and read the model's `toolUse.input` back as
-   * the structured result.
+   * Structured output. A model that takes a forced tool gets a single forced
+   * tool whose input schema is the requested output schema, and its
+   * `toolUse.input` is the result. A model that rejects a forced tool gets
+   * Converse's native JSON schema output, and its text answer is the result.
    */
   async structuredOutput(
     options: StructuredOutputOptions<TProviderOptions>,
@@ -286,19 +489,18 @@ export class BedrockConverseTextAdapter<
         `activity=structuredOutput provider=${this.name} model=${this.model} messages=${chatOptions.messages.length}`,
         { provider: this.name, model: this.model },
       )
-      const input: ConverseCommandInput = {
-        ...this.buildInput(chatOptions),
-        toolConfig: buildStructuredToolConfig(outputSchema),
-      }
+      const input = this.buildInput(chatOptions, outputSchema)
       const res = await this.send(input)
-      // A forced tool call cut off at the output cap carries partial input,
-      // which would read like a schema failure (issue #1426).
+      // An answer cut off at the output cap carries partial JSON or a partial
+      // forced tool input, which would read like a schema failure (#1426).
       if (res.stopReason === 'max_tokens') {
         throw new Error(
           `${this.name}.structuredOutput: the response was cut off because the maximum token limit was reached (stopReason=max_tokens); raise modelOptions.max_completion_tokens`,
         )
       }
-      const structured = extractStructuredToolInput(res)
+      const structured = input.outputConfig
+        ? parseJsonAnswer(res, `${this.name}.structuredOutput: ${this.model}`)
+        : extractStructuredToolInput(res)
       if (structured === undefined) {
         throw new Error(
           `${this.name}.structuredOutput: response contained no forced-tool output`,
@@ -320,11 +522,12 @@ export class BedrockConverseTextAdapter<
   }
 
   /**
-   * Streaming structured output. Same forced-tool strategy as
-   * `structuredOutput`, but streamed: the forced tool's `toolUse.input` JSON
-   * fragments are accumulated from the Converse stream and a terminal
-   * `CUSTOM 'structured-output.complete'` event carries `{ object, raw }`,
-   * mirroring openai-base's `structuredOutputStream` contract exactly.
+   * Streaming structured output. Same strategy as `structuredOutput`, but
+   * streamed: the JSON fragments (the forced tool's `toolUse.input`, or the
+   * text of the native JSON schema output) are accumulated from the Converse
+   * stream and a terminal `CUSTOM 'structured-output.complete'` event carries
+   * `{ object, raw }`, mirroring openai-base's `structuredOutputStream`
+   * contract exactly.
    */
   async *structuredOutputStream(
     options: StructuredOutputOptions<TProviderOptions>,
@@ -347,21 +550,29 @@ export class BedrockConverseTextAdapter<
         `activity=structuredOutputStream provider=${this.name} model=${this.model} messages=${chatOptions.messages.length}`,
         { provider: this.name, model: this.model },
       )
-      const input: ConverseStreamCommandInput = {
-        ...this.buildInput(chatOptions),
-        toolConfig: buildStructuredToolConfig(outputSchema),
-      }
+      const input = this.buildInput(chatOptions, outputSchema)
+      const native = input.outputConfig !== undefined
       const stream = await this.sendStream(input)
 
       // The forced tool streams its `input` as partial-JSON fragments inside
-      // `contentBlockDelta.delta.toolUse.input`. We surface them as
-      // TEXT_MESSAGE_CONTENT deltas (raw JSON text), matching openai-base which
-      // carries the structured JSON as text deltas.
+      // `contentBlockDelta.delta.toolUse.input`. The native output streams
+      // them as `delta.text` (reasoning deltas are not part of the JSON). We
+      // surface them as TEXT_MESSAGE_CONTENT deltas (raw JSON text), matching
+      // openai-base which carries the structured JSON as text deltas.
       for await (const ev of stream) {
         if (!hasEmittedRunStarted) {
           hasEmittedRunStarted = true
           yield {
             type: EventType.RUN_STARTED,
+            metadata: {
+              tanstack: {
+                source: {
+                  provider: this.provider,
+                  api: this.api,
+                  model: chatOptions.model,
+                },
+              },
+            },
             runId,
             threadId,
             model: chatOptions.model,
@@ -376,8 +587,7 @@ export class BedrockConverseTextAdapter<
 
         if ('contentBlockDelta' in ev) {
           const delta = ev.contentBlockDelta?.delta
-          const fragment =
-            delta && 'toolUse' in delta ? delta.toolUse?.input : undefined
+          const fragment = native ? delta?.text : delta?.toolUse?.input
           if (fragment !== undefined) {
             if (!hasEmittedTextMessageStart) {
               hasEmittedTextMessageStart = true
@@ -429,6 +639,15 @@ export class BedrockConverseTextAdapter<
         hasEmittedRunStarted = true
         yield {
           type: EventType.RUN_STARTED,
+          metadata: {
+            tanstack: {
+              source: {
+                provider: this.provider,
+                api: this.api,
+                model: chatOptions.model,
+              },
+            },
+          },
           runId,
           threadId,
           model: chatOptions.model,
@@ -465,6 +684,15 @@ export class BedrockConverseTextAdapter<
       if (accumulatedRaw.length === 0) {
         yield {
           type: EventType.RUN_ERROR,
+          metadata: {
+            tanstack: {
+              source: {
+                provider: this.provider,
+                api: this.api,
+                model: chatOptions.model,
+              },
+            },
+          },
           runId,
           model: chatOptions.model,
           timestamp: Date.now(),
@@ -484,6 +712,15 @@ export class BedrockConverseTextAdapter<
       } catch {
         yield {
           type: EventType.RUN_ERROR,
+          metadata: {
+            tanstack: {
+              source: {
+                provider: this.provider,
+                api: this.api,
+                model: chatOptions.model,
+              },
+            },
+          },
           runId,
           model: chatOptions.model,
           timestamp: Date.now(),
@@ -510,6 +747,15 @@ export class BedrockConverseTextAdapter<
 
       yield {
         type: EventType.RUN_FINISHED,
+        metadata: {
+          tanstack: {
+            source: {
+              provider: this.provider,
+              api: this.api,
+              model: chatOptions.model,
+            },
+          },
+        },
         runId,
         threadId,
         model: chatOptions.model,
@@ -522,6 +768,15 @@ export class BedrockConverseTextAdapter<
         hasEmittedRunStarted = true
         yield {
           type: EventType.RUN_STARTED,
+          metadata: {
+            tanstack: {
+              source: {
+                provider: this.provider,
+                api: this.api,
+                model: chatOptions.model,
+              },
+            },
+          },
           runId,
           threadId,
           model: chatOptions.model,
@@ -539,6 +794,15 @@ export class BedrockConverseTextAdapter<
       })
       yield {
         type: EventType.RUN_ERROR,
+        metadata: {
+          tanstack: {
+            source: {
+              provider: this.provider,
+              api: this.api,
+              model: chatOptions.model,
+            },
+          },
+        },
         runId,
         model: chatOptions.model,
         timestamp: Date.now(),
@@ -568,20 +832,22 @@ export class BedrockConverseTextAdapter<
 
   /**
    * Translate `TextOptions` into a `ConverseCommandInput`. Shared by chatStream,
-   * structuredOutput, and structuredOutputStream (the latter two override
-   * `toolConfig` with the forced structured tool afterwards).
+   * structuredOutput, and structuredOutputStream (the latter two pass the
+   * `outputSchema`, which replaces the tools of `options`).
    */
   protected buildInput(
     options: TextOptions<TProviderOptions>,
+    outputSchema?: JSONSchema,
   ): ConverseCommandInput {
     const { system, messages } = toConverseMessages(
       options.messages,
       options.systemPrompts,
+      {
+        model: options.model,
+        provider: this.provider,
+        inputModalities: this.inputModalities,
+      },
     )
-
-    const toolConfig = options.tools
-      ? toToolConfig(convertTools(options.tools), 'auto')
-      : undefined
 
     // Sampling options live on `modelOptions` (typed as the narrowed
     // `BedrockConverseProviderOptions`, which surfaces the OpenAI Chat
@@ -590,7 +856,60 @@ export class BedrockConverseTextAdapter<
     const modelOptions = options.modelOptions
     const temperature = modelOptions?.temperature
     const topP = modelOptions?.top_p
-    const maxTokens = modelOptions?.max_completion_tokens
+    // `chat({ reasoning })`: Claude's thinking fields. Budget thinking needs
+    // `maxTokens` above the budget, so a smaller or missing value grows.
+    const { additionalModelRequestFields, minMaxTokens } = converseThinking(
+      this.model,
+      options.reasoning,
+      this.clientConfig.reasoning ?? BEDROCK_MODEL_REASONING[this.model],
+    )
+
+    // `chat({ toolChoice })`. Converse has no `none` choice, so `none` sends
+    // no tool config. But Bedrock rejects `toolUse` or `toolResult` blocks
+    // without a tool config, so with tool blocks in the history `none` sends
+    // the tools with auto (the model can still call one). Claude rejects a
+    // forced tool while thinking is on (only Claude gets thinking fields), and
+    // some Claude models reject it on every request. Then a forced choice
+    // falls back to auto.
+    const canForceTool =
+      additionalModelRequestFields === undefined &&
+      !CLAUDE_NO_FORCED_TOOL_MODELS.some((name) => this.model.includes(name))
+    const hasToolBlocks = messages.some((message) =>
+      message.content?.some((block) => block.toolUse || block.toolResult),
+    )
+    const toolChoice =
+      options.toolChoice === 'none'
+        ? hasToolBlocks
+          ? 'auto'
+          : 'none'
+        : canForceTool
+          ? options.toolChoice
+          : 'auto'
+    // Structured output forces the `structured_output` tool. A model that
+    // rejects a forced tool gets the native JSON schema output, with no tools.
+    // ponytail: native output only where a forced tool fails, because not
+    // every Bedrock model takes `outputConfig`. A model that takes neither
+    // (for example an older Claude with thinking on) still fails. Add the
+    // `structured_output` tool with auto plus an instruction if that matters.
+    const toolConfig =
+      outputSchema === undefined
+        ? options.tools
+          ? toToolConfig(convertTools(options.tools), toolChoice)
+          : undefined
+        : canForceTool
+          ? buildStructuredToolConfig(outputSchema)
+          : undefined
+    const outputConfig =
+      outputSchema !== undefined && !canForceTool
+        ? buildStructuredOutputConfig(outputSchema)
+        : undefined
+
+    const requestedMaxTokens = modelOptions?.max_completion_tokens
+    const maxTokens =
+      minMaxTokens !== undefined &&
+      (requestedMaxTokens == null || requestedMaxTokens < minMaxTokens)
+        ? minMaxTokens
+        : requestedMaxTokens
     const stop = modelOptions?.stop
     const stopSequences =
       stop == null ? undefined : Array.isArray(stop) ? stop : [stop]
@@ -608,13 +927,20 @@ export class BedrockConverseTextAdapter<
           }
         : undefined
 
-    return {
+    const input: ConverseCommandInput = {
       modelId: this.model,
-      messages,
+      // Bedrock rejects toolUse and toolResult blocks without a tool config.
+      // So a request with no tools sends its tool history as text. Only this
+      // provider input changes, the transcript stays the same.
+      messages:
+        hasToolBlocks && !toolConfig ? toolBlocksToText(messages) : messages,
       ...(system.length > 0 && { system }),
       ...(toolConfig && { toolConfig }),
+      ...(outputConfig && { outputConfig }),
       ...(inferenceConfig && { inferenceConfig }),
+      ...(additionalModelRequestFields && { additionalModelRequestFields }),
     }
+    return addPromptCachePoints(this.model, input, options.promptCache)
   }
 }
 
@@ -667,11 +993,40 @@ function extractStructuredToolInput(
   return undefined
 }
 
+/**
+ * Parse the text answer of the native JSON schema output. A text that is not
+ * JSON fails with `source` (the model name) and the text, so no unchecked
+ * text becomes the structured result.
+ */
+function parseJsonAnswer(res: ConverseCommandOutput, source: string): unknown {
+  const text = (res.output?.message?.content ?? [])
+    .map((block) => block.text ?? '')
+    .join('')
+  try {
+    return JSON.parse(text)
+  } catch {
+    throw new Error(
+      `${source} did not answer with JSON for the output schema. Content: ${text.slice(0, 200)}`,
+    )
+  }
+}
+
 /** Converse adapter with an explicit API key (low-level; mirrors createBedrockChat). */
-export function createBedrockConverse<TModel extends BedrockConverseModels>(
+export function createBedrockConverse<
+  TModel extends BedrockConverseModelId,
+  TConfig extends Omit<BedrockConverseConfig, 'apiKey'> = Omit<
+    BedrockConverseConfig,
+    'apiKey'
+  >,
+>(
   model: TModel,
   apiKey: string,
-  config?: Omit<BedrockConverseConfig, 'apiKey'>,
-): BedrockConverseTextAdapter<TModel> {
+  config?: TConfig,
+): BedrockConverseTextAdapter<
+  TModel,
+  ResolveConverseProviderOptions<TModel>,
+  ResolveInputModalities<TModel>,
+  ConfigReasoning<TConfig, ResolveReasoning<TModel>>
+> {
   return new BedrockConverseTextAdapter({ ...config, apiKey }, model)
 }

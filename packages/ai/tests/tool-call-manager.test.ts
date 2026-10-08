@@ -1100,8 +1100,7 @@ describe('executeToolCalls', () => {
     it('should normalize empty arguments to empty object', async () => {
       const tool: Tool = {
         name: 'simple_tool',
-        description: 'A tool with no required args',
-        inputSchema: z.object({}),
+        description: 'A tool without an input schema',
         execute: vi.fn(() => ({ done: true })),
       }
 
