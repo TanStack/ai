@@ -774,6 +774,28 @@ describe('single subagent tool with persistence', () => {
     })
   })
 
+  it('gives a child entry the harness and owner of its parent entry', async () => {
+    const persistence = memoryPersistence()
+    const sessions = persistence.stores.sessions
+    await sessions.upsert({
+      threadId: 'desk',
+      harness: 'notes/desk',
+      principal: { id: 'alice' },
+      createdAt: 1,
+      updatedAt: 1,
+    })
+    const { agent } = noteTaker()
+    const chunks = await subagentTurn(withPersistence(persistence), agent, {
+      runId: 'run-1',
+      toolCallId: 'call_1',
+      args: { agent: 'writer', prompt: 'Take notes' },
+    })
+
+    const entry = await sessions.get(`subagent:${startedId(chunks)}`)
+    expect(entry?.harness).toBe('notes/desk')
+    expect(entry?.principal).toEqual({ id: 'alice' })
+  })
+
   const setups: Array<[string, () => ChatMiddleware]> = [
     ['with', () => withPersistence(memoryPersistence())],
     [

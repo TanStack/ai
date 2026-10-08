@@ -6065,8 +6065,9 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
 
   /**
    * The index entry of an agent run: thread `subagent:<subagentRunId>`, with
-   * this thread as its parent. `upsert` replaces the whole entry, so the
-   * fields of other writers stay. A failed write does not fail the run.
+   * this thread as its parent and the harness of this thread. `upsert`
+   * replaces the whole entry, so the fields of other writers stay. A failed
+   * write does not fail the run.
    */
   private async indexAgent(
     operation: OperationImpl<unknown>,
@@ -6083,6 +6084,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         ...(child.parentToolCallId !== undefined && {
           parentToolCallId: child.parentToolCallId,
         }),
+        harness: this.harness.name,
         createdAt: entry?.createdAt ?? now,
         updatedAt: now,
         ...storedPrincipal(entry?.principal ?? principal),

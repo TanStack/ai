@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { EventType } from '@tanstack/ai'
+import { EventType, defineAgent } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import {
   createHarnessHandler,
@@ -8,7 +8,7 @@ import {
   definePlugin,
 } from '../src'
 import { createHarnessClient } from '../src/client'
-import { mockAdapter, text } from './helpers'
+import { mockAdapter, text, toolCall } from './helpers'
 import type { ModelMessage, StreamChunk, TokenUsage } from '@tanstack/ai'
 import type { SessionIndexPage } from '@tanstack/ai-persistence'
 import type { HarnessPersistence, PluginSessionApi } from '../src'
@@ -332,6 +332,79 @@ describe('host.sessions', () => {
     expect(turnsOf(await messages.loadThread(fork.threadId))).toEqual([
       ['user', 'hi'],
       ['assistant', 'answer'],
+    ])
+    await host.close()
+  })
+})
+
+describe('child sessions', () => {
+  it('gives an agent run child the harness of its parent', async () => {
+    const writer = defineAgent({
+      name: 'writer',
+      description: 'Writes',
+      run: (ctx) =>
+        ctx.chat({ adapter: mockAdapter(() => text('ok')).adapter }),
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/agent-child',
+        adapter: mockAdapter([]).adapter,
+        agents: [writer],
+      }),
+      { threadId: 't1' },
+    )
+
+    await session.agents.writer.start()
+
+    const page = await host.sessions.list({ parentThreadId: 't1' })
+    expect(page.entries.map((entry) => entry.harness)).toEqual([
+      'test/agent-child',
+    ])
+    await host.close()
+  })
+
+  it('lists a subagent child over HTTP with parentThreadId', async () => {
+    const writer = defineAgent({
+      name: 'writer',
+      description: 'Writes notes',
+      run: (ctx) =>
+        ctx.chat({ adapter: mockAdapter(() => text('Note 1')).adapter }),
+    })
+    const harness = defineHarness({
+      name: 'test/subagent-http',
+      adapter: mockAdapter([
+        () =>
+          toolCall('subagent', { agent: 'writer', prompt: 'Notes' }, 'call-1'),
+        () => text('Done.'),
+      ]).adapter,
+      subagents: { agents: [writer], tool: 'single' },
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const handler = createHarnessHandler({
+      host,
+      harness,
+      authorize: () => ({ id: 'alice' }),
+    })
+    const client = createHarnessClient({
+      url: 'http://local/api/harness',
+      threadId: 'lead',
+      fetch: (input, init) => handler(new Request(input, init)),
+    })
+    const session = await host.open(harness, {
+      threadId: 'lead',
+      principal: { id: 'alice' },
+    })
+
+    await session.prompt('Notes, please')
+
+    const page = await client.listSessions({ parentThreadId: 'lead' })
+    expect(page.entries).toEqual([
+      expect.objectContaining({
+        parentThreadId: 'lead',
+        parentToolCallId: 'call-1',
+        harness: 'test/subagent-http',
+      }),
     ])
     await host.close()
   })

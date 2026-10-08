@@ -89,6 +89,7 @@ describe('subagent children of a harness session', () => {
       threadId,
       parentThreadId: 't',
       parentToolCallId: 'call-1',
+      harness: 'test/subagent-children',
       createdAt: expect.any(Number),
       updatedAt: expect.any(Number),
     })
@@ -148,6 +149,7 @@ describe('subagent children of a harness session', () => {
       threadId,
       parentThreadId: 't',
       parentToolCallId: 'call-1',
+      harness: 'test/subagent-children',
       createdAt: expect.any(Number),
       updatedAt: expect.any(Number),
     })
