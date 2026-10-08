@@ -14,21 +14,17 @@ export function featureUrl(
 
 export async function sendMessage(page: Page, text: string) {
   const input = page.getByTestId('chat-input')
-  await input.click()
-  await input.fill(text)
-  // Dispatch an input event to trigger React's onChange for controlled inputs
-  await input.dispatchEvent('input', { bubbles: true })
-  await page
-    .getByTestId('send-button')
-    .click({ timeout: 5000 })
-    .catch(async (err) => {
-      // Only retry if button was disabled (fill() didn't trigger React onChange)
-      const isDisabled = await page.getByTestId('send-button').isDisabled()
-      if (!isDisabled) throw err
-      await input.clear()
-      await input.pressSequentially(text, { delay: 30 })
-      await page.getByTestId('send-button').click()
-    })
+  const button = page.getByTestId('send-button')
+  // A fill that lands before hydration never reaches React state, so the send
+  // button stays disabled. Clear and refill until the button turns on. Do not
+  // wait on one long click timeout: that cost ~5s on the first send of almost
+  // every test in CI.
+  await expect(async () => {
+    await input.fill('')
+    await input.fill(text)
+    await expect(button).toBeEnabled({ timeout: 500 })
+  }).toPass({ timeout: 15_000 })
+  await button.click()
 }
 
 /** Types a prompt and attaches an image; attaching auto-sends. Retries until
