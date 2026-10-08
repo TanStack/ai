@@ -61,14 +61,14 @@
       "test:coverage:ci": {
         "executor": "nx:run-commands",
         "cache": true,
-        "parallelism": false,
         "dependsOn": [
           {
             "projects": [
               "directory:packages/*"
             ],
-            "target": "build"
-          }
+            "target": "test:coverage"
+          },
+          "test:coverage:base"
         ],
         "inputs": [
           "default",
@@ -83,7 +83,7 @@
           "{workspaceRoot}/.nx/pr-artifacts/coverage"
         ],
         "options": {
-          "command": "node scripts/coverage-ci.mjs"
+          "command": "node scripts/coverage-ci.mjs compare"
         }
       },
       "build:preview": {
@@ -123,6 +123,26 @@
             "target": "smoke"
           }
         ]
+      },
+      "test:coverage:base": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "parallelism": false,
+        "inputs": [
+          "default",
+          {
+            "env": "NX_BASE"
+          },
+          {
+            "env": "NX_HEAD"
+          }
+        ],
+        "outputs": [
+          "{workspaceRoot}/.nx/pr-artifacts/coverage-base"
+        ],
+        "options": {
+          "command": "node scripts/coverage-ci.mjs base"
+        }
       }
     },
     "includedScripts": [

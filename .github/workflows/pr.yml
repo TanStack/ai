@@ -26,15 +26,13 @@ jobs:
       VITEST_MAX_WORKERS: 1
       # PRs run all checks; branch pushes retain the E2E trigger while Release
       # runs its existing package checks. Both use one distributed task graph.
-      TARGETS: ${{ github.event_name == 'pull_request' && 'test:sherif,test:knip,test:docs,test:kiira,test:maintainer,test:ai-review,test:oxlint,test:lib,test:types,test:build,build,test:react-native,test:dts,test:e2e:ci--merge-reports,test:coverage:ci,build:preview' || 'test:e2e:ci--merge-reports' }}
+      TARGETS: ${{ github.event_name == 'pull_request' && 'test:sherif,test:knip,test:docs,test:kiira,test:maintainer,test:ai-review,test:oxlint,test:lib:ci,test:types,test:build,build,test:react-native,test:dts,test:e2e:ci--merge-reports,test:coverage:ci,build:preview' || 'test:e2e:ci--merge-reports' }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Setup Tools
-        uses: TanStack/config/.github/setup@190f659075ff0845850e330883eb26d7ffd0671f # main
       - name: Get base and head commits for `nx affected`
         if: github.event_name == 'pull_request'
         uses: nrwl/nx-set-shas@3e9ad7370203c1e93d109be57f3b72eb0eb511b1 # v4.4.0
@@ -43,12 +41,14 @@ jobs:
       - name: Start Nx Agents
         id: agents
         run: >-
-          pnpm exec nx start-ci-run
+          npx --yes nx-cloud@19.1.3 start-ci-run
           --distribute-on=".nx/workflows/dynamic-changesets.yaml"
           --with-env-vars=VITEST_MAX_WORKERS
           --require-explicit-completion
           --stop-agents-after="$TARGETS"
           --stop-agents-on-failure=false
+      - name: Setup Tools
+        uses: TanStack/config/.github/setup@190f659075ff0845850e330883eb26d7ffd0671f # main
       - name: Run Checks
         run: pnpm exec nx run-many --targets="$TARGETS"
       - name: Upload Video Recordings
@@ -92,7 +92,7 @@ jobs:
           retention-days: 14
       - name: Complete Nx CI run
         if: ${{ always() && steps.agents.outcome == 'success' }}
-        run: pnpm exec nx complete-ci-run
+        run: npx --yes nx-cloud@19.1.3 complete-ci-run
   e2e-result:
     name: E2E Tests
     needs: test

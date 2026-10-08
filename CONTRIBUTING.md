@@ -117,9 +117,9 @@ Playwright does not retry or record video locally. CI retries twice and keeps th
 
 **Coverage runs in CI only. It is not part of `pnpm test`, `pnpm test:pr`, or any git hook, and you are not expected to run it locally.**
 
-An Nx Agent task on every PR measures each affected package that has a `test:coverage` target twice: once on your branch and once on its merge-base with `main`. The job fails only when a metric (statements, branches, functions, lines) is at or above 60% on the merge-base and under 60% on your branch. Other drops are listed, but they do not fail the job. A package that is already under 60% on `main` cannot fail it. Packages your PR didn't affect, and packages without that target, are never measured.
+On every PR, Nx Agents run package unit tests with coverage once on your branch. A separate task measures affected packages on the merge-base with `main`, using cached results when available. A final task compares only affected packages with a coverage target. The job fails only when a metric (statements, branches, functions, lines) is at or above 60% on the merge-base and under 60% on your branch. Other drops are listed, but they do not fail the job. A package that is already under 60% on `main` cannot fail it.
 
-There is no baseline file to keep in sync, and nothing to update when a package is added or removed: both numbers come from the same task on the same agent.
+There is no baseline file to keep in sync, and nothing to update when a package is added or removed: both numbers come from CI executions of the same package coverage command.
 
 Read the numbers in the PR comment that the `Coverage` job posts. It shows a per-package table with deltas, and the job updates the same comment on each push. A PR from a fork gets no comment, because its token cannot write one. The same table is in the job summary: open the `Coverage` job from the PR's Checks tab.
 
