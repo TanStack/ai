@@ -1313,6 +1313,17 @@ export interface TextOptions<
    */
   toolExecution?: 'parallel' | 'sequential'
   /**
+   * The tool result of a call in a model answer that stopped at the output
+   * limit (finish reason `length`). The function form gets the call. When
+   * set, such an answer keeps its tool calls. Each call that the provider did
+   * not run gets this text as an error result and does not run. Then the
+   * loop calls the model again, as after a tool phase. Not set: the answer
+   * ends the run, and only a segmented answer keeps its calls.
+   */
+  truncatedToolResult?:
+    | string
+    | ((call: { toolCallId: string; toolName: string }) => string)
+  /**
    * Optional configuration for lazy-tool discovery (tools marked `lazy: true`).
    * Tunes how much of each lazy tool's description appears in the discovery
    * catalog. Optional — defaults to `{ includeDescription: 'none' }`.

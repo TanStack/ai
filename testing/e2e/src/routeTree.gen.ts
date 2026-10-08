@@ -63,6 +63,7 @@ import { Route as ApiAnthropicTruncatedToolInputWireRouteImport } from './routes
 import { Route as ApiArktypeToolWireRouteImport } from './routes/api.arktype-tool-wire'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
 import { Route as ApiBedrockConverseCacheRouteImport } from './routes/api.bedrock-converse-cache'
+import { Route as ApiBedrockConverseTruncatedToolCallRouteImport } from './routes/api.bedrock-converse-truncated-tool-call'
 import { Route as ApiByokChatRouteImport } from './routes/api.byok-chat'
 import { Route as ApiByteplusSeedance1080pWireRouteImport } from './routes/api.byteplus-seedance-1080p-wire'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
@@ -459,6 +460,11 @@ const ApiAudioRoute = ApiAudioRouteImport.update({
 const ApiBedrockConverseCacheRoute = ApiBedrockConverseCacheRouteImport.update({
   id: '/api/bedrock-converse-cache',
   path: '/api/bedrock-converse-cache',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBedrockConverseTruncatedToolCallRoute = ApiBedrockConverseTruncatedToolCallRouteImport.update({
+  id: '/api/bedrock-converse-truncated-tool-call',
+  path: '/api/bedrock-converse-truncated-tool-call',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiByokChatRoute = ApiByokChatRouteImport.update({
@@ -1025,6 +1031,7 @@ export interface FileRoutesByFullPath {
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/bedrock-converse-cache': typeof ApiBedrockConverseCacheRoute
+  '/api/bedrock-converse-truncated-tool-call': typeof ApiBedrockConverseTruncatedToolCallRoute
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
@@ -1178,6 +1185,7 @@ export interface FileRoutesByTo {
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/bedrock-converse-cache': typeof ApiBedrockConverseCacheRoute
+  '/api/bedrock-converse-truncated-tool-call': typeof ApiBedrockConverseTruncatedToolCallRoute
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
@@ -1332,6 +1340,7 @@ export interface FileRoutesById {
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/bedrock-converse-cache': typeof ApiBedrockConverseCacheRoute
+  '/api/bedrock-converse-truncated-tool-call': typeof ApiBedrockConverseTruncatedToolCallRoute
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
@@ -1487,6 +1496,7 @@ export interface FileRouteTypes {
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/bedrock-converse-cache'
+    | '/api/bedrock-converse-truncated-tool-call'
     | '/api/byok-chat'
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
@@ -1640,6 +1650,7 @@ export interface FileRouteTypes {
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/bedrock-converse-cache'
+    | '/api/bedrock-converse-truncated-tool-call'
     | '/api/byok-chat'
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
@@ -1793,6 +1804,7 @@ export interface FileRouteTypes {
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/bedrock-converse-cache'
+    | '/api/bedrock-converse-truncated-tool-call'
     | '/api/byok-chat'
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
@@ -1947,6 +1959,7 @@ export interface RootRouteChildren {
   ApiArktypeToolWireRoute: typeof ApiArktypeToolWireRoute
   ApiAudioRoute: typeof ApiAudioRouteWithChildren
   ApiBedrockConverseCacheRoute: typeof ApiBedrockConverseCacheRoute
+  ApiBedrockConverseTruncatedToolCallRoute: typeof ApiBedrockConverseTruncatedToolCallRoute
   ApiByokChatRoute: typeof ApiByokChatRoute
   ApiByteplusSeedance1080pWireRoute: typeof ApiByteplusSeedance1080pWireRoute
   ApiChatRoute: typeof ApiChatRoute
@@ -2420,6 +2433,13 @@ declare module '@tanstack/react-router' {
       path: '/api/bedrock-converse-cache'
       fullPath: '/api/bedrock-converse-cache'
       preLoaderRoute: typeof ApiBedrockConverseCacheRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/bedrock-converse-truncated-tool-call': {
+      id: '/api/bedrock-converse-truncated-tool-call'
+      path: '/api/bedrock-converse-truncated-tool-call'
+      fullPath: '/api/bedrock-converse-truncated-tool-call'
+      preLoaderRoute: typeof ApiBedrockConverseTruncatedToolCallRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/byok-chat': {
@@ -3219,6 +3239,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiArktypeToolWireRoute: ApiArktypeToolWireRoute,
   ApiAudioRoute: ApiAudioRouteWithChildren,
   ApiBedrockConverseCacheRoute: ApiBedrockConverseCacheRoute,
+  ApiBedrockConverseTruncatedToolCallRoute: ApiBedrockConverseTruncatedToolCallRoute,
   ApiByokChatRoute: ApiByokChatRoute,
   ApiByteplusSeedance1080pWireRoute: ApiByteplusSeedance1080pWireRoute,
   ApiChatRoute: ApiChatRoute,

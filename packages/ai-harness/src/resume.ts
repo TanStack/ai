@@ -6,6 +6,7 @@ import type {
   RunStore,
 } from '@tanstack/ai'
 import type { MessageStore } from '@tanstack/ai-persistence'
+import type { HarnessDurability } from './define'
 
 /** How often a running host renews its lease, and when a lease expires. */
 export const LEASE = { renewMs: 10_000, ttlMs: 30_000 }
@@ -216,7 +217,7 @@ export async function repairTranscript(options: {
   /** The content and error of a cut `replay: 'never'` call. */
   interrupted?: string
   /** The content and error of a call that the output limit cut. */
-  truncated?: string
+  truncated?: HarnessDurability['truncatedToolResult']
 }): Promise<void> {
   const { messages, threadId, pending, finished, interrupted, truncated } =
     options
@@ -226,14 +227,16 @@ export async function repairTranscript(options: {
   const answer = history.slice(
     history.findLastIndex((message) => message.role !== 'assistant') + 1,
   )
-  const cut = answer.flatMap((message) =>
-    message.metadata?.tanstack?.finishReason === 'length'
-      ? (message.toolCalls ?? [])
-          .filter((call) => !isProviderExecutedToolCall(call))
-          .map((call) => call.id)
-      : [],
+  const cut = new Map(
+    answer.flatMap((message) =>
+      message.metadata?.tanstack?.finishReason === 'length'
+        ? (message.toolCalls ?? [])
+            .filter((call) => !isProviderExecutedToolCall(call))
+            .map((call) => [call.id, call.function.name] as const)
+        : [],
+    ),
   )
-  if (pending.length === 0 && (finished?.size ?? 0) === 0 && cut.length === 0)
+  if (pending.length === 0 && (finished?.size ?? 0) === 0 && cut.size === 0)
     return
   const answered = new Set(
     history.flatMap((message) =>
@@ -246,7 +249,7 @@ export async function repairTranscript(options: {
   const pendingById = new Map(pending.map((tool) => [tool.toolCallId, tool]))
   const callIds = [
     ...new Set([
-      ...cut,
+      ...cut.keys(),
       ...(batch?.toolCalls ?? []).map((call) => call.id),
       ...pending.map((tool) => tool.toolCallId),
     ]),
@@ -256,8 +259,12 @@ export async function repairTranscript(options: {
     .flatMap((toolCallId): Array<ModelMessage> => {
       const result = finished?.get(toolCallId)
       if (result) return [result]
-      if (cut.includes(toolCallId)) {
-        const text = truncated ?? TRUNCATED_TOOL_RESULT
+      const toolName = cut.get(toolCallId)
+      if (toolName !== undefined) {
+        const text =
+          typeof truncated === 'function'
+            ? truncated({ toolCallId, toolName })
+            : (truncated ?? TRUNCATED_TOOL_RESULT)
         return [{ role: 'tool', toolCallId, content: text, error: text }]
       }
       const tool = pendingById.get(toolCallId)
