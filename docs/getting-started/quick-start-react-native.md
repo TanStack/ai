@@ -233,7 +233,7 @@ response is not enough; TanStack AI needs incremental response bytes to update
 the chat while the model is streaming.
 
 For deeper adapter options such as headers, credentials, `withCredentials`, and
-dynamic URLs, see [Connection Adapters](../chat/connection-adapters).
+dynamic URLs, see [Request Options](../transports/request-options).
 
 ## 6. Try the Expo recipe example
 

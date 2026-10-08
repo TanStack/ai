@@ -214,6 +214,7 @@ Re-exported from `@tanstack/ai-client`:
 import {
   fetchServerSentEvents,
   fetchHttpStream,
+  fetchJson,
   stream,
   type ConnectionAdapter,
 } from '@tanstack/ai-octane'

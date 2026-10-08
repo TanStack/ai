@@ -154,7 +154,7 @@ export async function POST(request: Request) {
 
 Learn more in the
 [Chat & Streaming docs](https://tanstack.com/ai/latest/docs/chat/streaming) and
-[Connection Adapters docs](https://tanstack.com/ai/latest/docs/chat/connection-adapters).
+[Transports docs](https://tanstack.com/ai/latest/docs/transports/overview).
 
 ## Type-Safe Tools
 
