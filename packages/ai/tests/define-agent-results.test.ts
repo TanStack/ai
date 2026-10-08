@@ -185,6 +185,30 @@ describe('defineAgent promise results', () => {
     expect(toolResult(chunks)).toMatchObject({ result: 'A short title' })
   })
 
+  it('streams the text of a chat({ stream: false }) result like a string', async () => {
+    const { adapter } = createMockAdapter({
+      iterations: [
+        [
+          ev.runStarted(),
+          ev.textStart('t'),
+          ev.textContent('A short title', 't'),
+          ev.textEnd('t'),
+          ev.runFinished('stop'),
+        ],
+      ],
+    })
+    const agent = defineAgent({
+      name: 'titler',
+      description: 'Writes a title',
+      run: (ctx) => ctx.chat({ adapter, stream: false }),
+    })
+
+    const chunks = await runParent(agent)
+
+    expect(finished(chunks).result).toBe('A short title')
+    expect(toolResult(chunks)).toMatchObject({ result: 'A short title' })
+  })
+
   it('shortens long strings for the model but keeps them on SUBAGENT_FINISHED', async () => {
     const b64 = 'a'.repeat(5000)
     const agent = defineAgent({

@@ -388,7 +388,7 @@ const stream = chat({
 - `ctx.chat`, `ctx.generateImage`, `ctx.generateVideo`, `ctx.generateSpeech`, and the other activities on `ctx` take the same options as the plain functions. They fill in the thread id, a run id, and the abort signal.
 - `ctx.chat` also uses the parent conversation (`ctx.messages`) when you do not pass `messages`.
 - `run` can return a promise of any value. The value arrives on `SUBAGENT_FINISHED.result`, and the parent model gets it as the tool result.
-- A string result also streams as the child's text, so the card shows it.
+- A string result also streams as the child's text, so the card shows it. The result of `ctx.chat({ stream: false })` counts as its text.
 - A very long string in the result (for example a base64 image) reaches the parent model as a short note, `[omitted 5000 characters]`. The full value stays on `SUBAGENT_FINISHED.result`.
 - `produces` says what the agent makes (`'image'`, `'text'`, and so on). It does not change how the agent runs.
 

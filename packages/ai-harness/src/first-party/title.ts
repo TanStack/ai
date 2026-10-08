@@ -60,7 +60,7 @@ export function title(options: {
           ],
           stream: false,
         })
-        const text = cleanTitle(answer)
+        const text = cleanTitle(answer.text)
         if (text) await ctx.session.updateEntry({ title: text })
       }
       return {

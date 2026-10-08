@@ -262,7 +262,7 @@ const summarizeWith =
         },
       ],
       stream: false,
-    })
+    }).then(({ text }) => text)
 
 function compactionFor(testCase: Case, adapter: AnyTextAdapter) {
   if (testCase === 'parallel-tools') {

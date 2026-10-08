@@ -27,7 +27,7 @@ export const Route = createFileRoute('/api/codex-wire')({
         // raw headers and body that the adapter sent.
         let sent: unknown
         let headers: Record<string, string> = {}
-        const text = await chat({
+        const { text } = await chat({
           adapter: createOpenaiChat('gpt-5.6-terra', 'chatgpt-access-token', {
             baseURL: `${LLMOCK_BASE}/v1`,
             defaultHeaders: {

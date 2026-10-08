@@ -30,7 +30,7 @@ export const Route = createFileRoute('/api/copilot-wire')({
           // route keeps the raw request.
           let url = ''
           let headers: Record<string, string> = {}
-          const text = await chat({
+          const { text } = await chat({
             adapter: anthropicText('claude-sonnet-5-5', {
               baseURL: LLMOCK_BASE,
               authToken: 'copilot-token',
@@ -63,7 +63,7 @@ export const Route = createFileRoute('/api/copilot-wire')({
         // aimock logs a converted body for /v1/responses, with no `store` or
         // `include`. So the route keeps the body that the adapter sent.
         let sent: unknown
-        const text = await chat({
+        const { text } = await chat({
           adapter: openaiCompatibleText('gpt-5.6', {
             name: 'github-copilot',
             baseURL: `${LLMOCK_BASE}/v1`,

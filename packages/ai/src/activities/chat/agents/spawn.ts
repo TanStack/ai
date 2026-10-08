@@ -552,6 +552,21 @@ function isAsyncIterable(value: unknown): value is AsyncIterable<StreamChunk> {
 }
 
 /**
+ * The text of a `chat({ stream: false })` result, else the value. A `run`
+ * that resolves to a chat result gives its text, like a string.
+ */
+function chatResultText(value: unknown): unknown {
+  return typeof value === 'object' &&
+    value !== null &&
+    'text' in value &&
+    typeof value.text === 'string' &&
+    'chunks' in value &&
+    Array.isArray(value.chunks)
+    ? value.text
+    : value
+}
+
+/**
  * Chunks for an agent whose `run` resolved to a plain value instead of a
  * stream. A string also streams as the child's text, so the parent model, a
  * `sequence` router, and the UI all read it like chat output. `messageId` is
@@ -678,7 +693,7 @@ export async function* spawnAgentStream(
         parentToolCallId === undefined
           ? `${ctx.runId}-text`
           : `${ctx.runId}-${parentToolCallId}-text`
-      yield* valueResultChunks(produced, id, messageId)
+      yield* valueResultChunks(chatResultText(produced), id, messageId)
       return
     }
     iterator = produced[Symbol.asyncIterator]()
