@@ -10,4 +10,4 @@
 '@tanstack/ai-vercel-gateway': patch
 ---
 
-Update the `openai` SDK dependency to `^7.30.0`.
+Update the `openai` SDK dependency to `^7.30.0`. `openai` 7 requires Node.js 22 or later.
