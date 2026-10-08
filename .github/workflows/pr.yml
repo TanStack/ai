@@ -155,8 +155,19 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - name: Setup Tools
-        uses: TanStack/config/.github/setup@190f659075ff0845850e330883eb26d7ffd0671f # main
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          cache: false
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      # pnpm pack resolves workspace dependencies, but publication needs no
+      # example dependencies or install scripts (including E2E browsers).
+      - name: Install publication dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter './packages/*'
       - name: Download Preview Builds
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
