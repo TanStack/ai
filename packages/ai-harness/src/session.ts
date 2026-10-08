@@ -38,6 +38,7 @@ import { OperationImpl } from './operation'
 import {
   CapabilityValues,
   RevertFiles,
+  RevertStanding,
   SessionMetadata,
   mountPlugins,
 } from './plugins'
@@ -1132,8 +1133,11 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   private sessionPlugins: MountedPlugins | undefined
   /** The last `reload()`. The calls run one at a time. */
   private reloads: Promise<void> = Promise.resolve()
-  /** A reload waits for the running turn, so no new turn starts. */
-  private holdTurns = false
+  /**
+   * The reloads and reverts that run. No new turn starts while one runs: a
+   * reload waits for the running turn, and a revert changes the files.
+   */
+  private holdTurns = 0
   /** Called when the running turn ends. A reload waits for it. */
   private readonly turnEnds = new Set<() => void>()
   private closing: Promise<void> | undefined
@@ -1488,6 +1492,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     const values = new CapabilityValues()
     const { metadata } = this.persistence.stores
     if (metadata) values.provide(SessionMetadata, metadata)
+    values.provide(RevertStanding, () => this.reverted !== undefined)
     return values
   }
 
@@ -1569,7 +1574,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
 
   private async runReload(): Promise<void> {
     if (this.closing) return
-    this.holdTurns = true
+    this.holdTurns++
     try {
       while (this.activeTurn) {
         await new Promise<void>((resolve) => this.turnEnds.add(resolve))
@@ -1592,7 +1597,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       )
       throw error
     } finally {
-      this.holdTurns = false
+      this.holdTurns--
       this.drain()
     }
   }
@@ -2762,21 +2767,23 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     if (this.snapshot().status !== 'idle') {
       return { inputId, status: 'rejected', reason: 'busy' }
     }
-    const messages = await this.messages.loadThread(this.threadId)
-    const at = messages.findIndex((message) => message.id === messageId)
-    if (at < 0)
-      return { inputId, status: 'rejected', reason: 'unknown_message' }
-    // A revert that stands ends first, so its files come back.
-    await this.unrevert()
-    const handler = this.sessionPlugins?.values.get(RevertFiles)
-    const files = await handler?.revert(messages.slice(at + 1), (type) =>
-      this.hostRecords(type),
-    )
-    await this.saveRevert({
-      messageId,
-      ...(files !== undefined ? { files } : {}),
+    return this.holding(async () => {
+      const messages = await this.messages.loadThread(this.threadId)
+      const at = messages.findIndex((message) => message.id === messageId)
+      if (at < 0)
+        return { inputId, status: 'rejected', reason: 'unknown_message' }
+      // A revert that stands ends first, so its files come back.
+      await this.endRevert()
+      const handler = this.sessionPlugins?.values.get(RevertFiles)
+      const files = await handler?.revert(messages.slice(at + 1), (type) =>
+        this.hostRecords(type),
+      )
+      await this.saveRevert({
+        messageId,
+        ...(files !== undefined ? { files } : {}),
+      })
+      return { inputId, status: 'accepted' }
     })
-    return { inputId, status: 'accepted' }
   }
 
   /** End the revert that stands: its files and messages come back. */
@@ -2785,15 +2792,36 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     if (this.snapshot().status !== 'idle') {
       return { inputId, status: 'rejected', reason: 'busy' }
     }
+    return this.holding(async () => {
+      if (!this.reverted) return { inputId, status: 'accepted' }
+      await this.endRevert()
+      // The notes that came during the revert go after the messages again.
+      await this.flushNotes()
+      return { inputId, status: 'accepted' }
+    })
+  }
+
+  /** Bring back the files of the revert that stands, and end it. */
+  private async endRevert() {
     const reverted = this.reverted
-    if (!reverted) return { inputId, status: 'accepted' }
+    if (!reverted) return
     if (reverted.files !== undefined) {
       await this.sessionPlugins?.values
         .get(RevertFiles)
         ?.unrevert(reverted.files)
     }
     await this.saveRevert(undefined)
-    return { inputId, status: 'accepted' }
+  }
+
+  /** Run `fn` while no new turn starts. A held turn starts after it. */
+  private async holding(fn: () => Promise<Receipt>) {
+    this.holdTurns++
+    try {
+      return await fn()
+    } finally {
+      this.holdTurns--
+      this.drain()
+    }
   }
 
   /** Drop the messages that a standing revert hides, and end the revert. */
@@ -3751,7 +3779,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   }
 
   private drain(): void {
-    if (this.activeTurn || this.closing || this.holdTurns) return
+    if (this.activeTurn || this.closing || this.holdTurns > 0) return
     const next = this.queue.shift()
     if (!next) return this.checkIdle()
     this.activeTurn = next.operation
@@ -6185,7 +6213,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
    */
   private async addNote(note: string) {
     this.pendingNotes.push(note)
-    if (!this.activeTurn) await this.flushNotes()
+    // While a revert stands, a note waits: the next turn or unrevert adds it.
+    if (!this.activeTurn && !this.reverted) await this.flushNotes()
   }
 
   /** Write queued notes to the transcript while no turn is writing it. */

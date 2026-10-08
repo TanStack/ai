@@ -1,5 +1,6 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { resolve, sep } from 'node:path'
+import { join, resolve, sep } from 'node:path'
 import { createFileRoute } from '@tanstack/react-router'
 import {
   EventType,
@@ -9,7 +10,7 @@ import {
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
-import { workspaceTools } from '@tanstack/ai-harness/plugins/coding'
+import { snapshots, workspaceTools } from '@tanstack/ai-harness/plugins/coding'
 import type {
   AnyTextAdapter,
   AdapterYieldChunk,
@@ -512,6 +513,38 @@ async function* codingTurn(
   }
 }
 
+/**
+ * The `coding-revert` scenario: two turns with `snapshots()`, each edits
+ * notes.txt. Between them, the user edits other.txt. Then a revert to the
+ * first prompt puts back the files of both turns.
+ */
+async function* revertTurns(
+  root: string,
+  threadId: string,
+  adapter: AnyTextAdapter,
+): AsyncGenerator<StreamChunk> {
+  const dataDir = await mkdtemp(join(tmpdir(), 'e2e-snapshots-'))
+  const host = createHarnessHost()
+  try {
+    const session = await host.open(
+      defineHarness({
+        name: 'e2e/tools-test-revert',
+        adapter,
+        plugins: () => [workspaceTools({ root }), snapshots({ root, dataDir })],
+      }),
+      { threadId },
+    )
+    yield* session.prompt('[coding-revert] run test').stream()
+    await writeFile(join(root, 'other.txt'), 'mine\n')
+    yield* session.prompt('[coding-revert-2] run test').stream()
+    const [prompt] = await session.transcript()
+    if (prompt?.id) await session.revert(prompt.id)
+  } finally {
+    await host.close()
+    await rm(dataDir, { recursive: true, force: true })
+  }
+}
+
 export const Route = createFileRoute('/api/tools-test')({
   server: {
     handlers: {
@@ -585,7 +618,9 @@ export const Route = createFileRoute('/api/tools-test')({
               testId,
             )
             return toServerSentEventsResponse(
-              codingTurn(scenario, root, params.threadId, adapter),
+              scenario === 'coding-revert'
+                ? revertTurns(root, params.threadId, adapter)
+                : codingTurn(scenario, root, params.threadId, adapter),
             )
           }
 

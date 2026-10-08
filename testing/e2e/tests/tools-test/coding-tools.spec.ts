@@ -155,4 +155,24 @@ test.describe('Coding tools (tools-test route)', () => {
     })
     expect(await read('bash.txt')).toBe('AGENT=1')
   })
+
+  test('revert puts back the files of the turns and keeps the edit of the user', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    await writeFile(file('notes.txt'), 'alpha\nbeta\n')
+    await writeFile(file('other.txt'), 'original\n')
+
+    // Two turns edit notes.txt. Between them, the user edits other.txt.
+    // Then the route reverts to the first prompt.
+    expect(
+      await runScenario(request, 'coding-revert', testId, aimockPort),
+    ).toEqual({
+      results: ['Edited notes.txt (1 change).', 'Edited notes.txt (1 change).'],
+      text: 'Edited notes.txt.Edited notes.txt again.',
+    })
+    expect(await read('notes.txt')).toBe('alpha\nbeta\n')
+    expect(await read('other.txt')).toBe('mine\n')
+  })
 })

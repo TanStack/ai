@@ -461,9 +461,10 @@ export const SessionMetadata = createCapability<MetadataStore>()(
  */
 export interface RevertFilesHandler {
   /**
-   * Put back the files that the tool calls of `hidden` changed. `records`
-   * reads the host records of one type from the session log. Resolves to
-   * what `unrevert` needs (JSON), or `undefined` when no file changed.
+   * Put back the files that the tool calls of `hidden` changed. Other files
+   * stay as they are. `records` reads the host records of one type from the
+   * session log. Resolves to what `unrevert` needs (JSON), or `undefined`
+   * when no file changed.
    */
   revert: (
     hidden: ReadonlyArray<ModelMessage>,
@@ -476,6 +477,14 @@ export interface RevertFilesHandler {
 /** @internal See {@link RevertFilesHandler}. */
 export const RevertFiles = createCapability<RevertFilesHandler>()(
   'tanstack/revert-files',
+)
+
+/**
+ * @internal Tells first-party plugins whether a revert stands. The session
+ * provides it. The package does not export it.
+ */
+export const RevertStanding = createCapability<() => boolean>()(
+  'tanstack/revert-standing',
 )
 
 /** Capability values provided by plugins, keyed by handle. */

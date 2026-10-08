@@ -103,7 +103,10 @@ if (firstAnswer?.id) await session.revert(firstAnswer.id)
 await session.unrevert()
 ```
 
-- The files that the tool calls after that message changed go back, as with `/undo`. Other files stay as they are.
+- A revert touches only the files that the tool calls after that message changed. Each file goes back to its state before the first of these calls. A file that did not exist then is removed.
+- Other files stay as they are. Your own edits between the hidden turns stay too.
+- `unrevert()` touches only the same files. It puts them back as they were when the revert started, with your edits.
+- A prompt that you send during `revert()` or `unrevert()` waits until it ends. Then the turn runs.
 - `transcript()` hides the messages after that message until `unrevert()` or the next prompt.
 - The next prompt drops the hidden messages for good. Then `unrevert()` does not change the files.
 - The revert is saved, so `unrevert()` still works after a restart.
@@ -134,6 +137,7 @@ Git then runs in the sandbox, and `dataDir` is a path in the sandbox. The sandbo
 
 - One level of undo. A second `/undo` answers `Nothing to undo.` After a `/redo`, `/undo` works again.
 - `/undo` and `/redo` work only when the session is idle. During a turn, they answer `Wait until the turn ends, then try again.`
+- While a revert stands, `/undo` and `/redo` answer `A revert stands. Run unrevert, or send a prompt, first.`
 - The undo point is kept in memory. After a restart, or when the session opens again, `/undo` works again after the next turn.
 - If you sent a message while the turn ran, `/undo` removes the conversation from that message on. The files still go back to the start of the turn.
 - Without `git`, the plugin prints `snapshots: git was not found. Snapshots are off.` once, and adds no commands. `diff()` throws. The turns run as usual.
