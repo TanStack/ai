@@ -16,6 +16,7 @@ export { resolveDebugOption } from './logger/resolve'
 export {
   toRunErrorPayload,
   toRunErrorRawEvent,
+  toRetryAfterMs,
 } from './activities/error-payload'
 export {
   getSandboxRuntime,

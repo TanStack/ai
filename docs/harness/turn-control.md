@@ -103,6 +103,7 @@ The defaults:
 - `maxRetries`: 3 retries since the last finished tool phase.
 - `baseDelayMs`: 2000. The delay doubles with each retry. Each delay is then multiplied by a random jitter from 0.75 to 1.0.
 - `isTransient`: `isTransientModelError`. It is true for 429, 5xx, overloaded, rate limit, network and connection errors, and timeouts.
+- `maxRetryAfterMs`: 900000 (15 minutes). The longest `retryAfterMs` that the policy waits for.
 
 Pass your own check when you know more about your provider:
 
@@ -125,7 +126,10 @@ const picky = defineHarness({
 
 - When the failed call streamed no text, the policy answers `'retry'`. The model runs the call again from the start.
 - When the failed call streamed some text, the policy answers `'continue'`. The model continues that text. See [Continue a partial answer](#continue-a-partial-answer).
-- The delay is always the backoff. The harness does not read a `retry-after` header from the provider.
+- When the error has a `retryAfterMs`, the policy waits that long and skips the backoff. A cancel of the turn stops the wait.
+- When `retryAfterMs` is more than `maxRetryAfterMs`, the policy does not retry, and the turn fails.
+
+The OpenAI and Anthropic adapters set `retryAfterMs` from the `retry-after-ms` or `retry-after` header of the provider response. A hook of your own gets it as `error.retryAfterMs`.
 
 Clients get a `harness.turn.retry` event for each retry. Its value has `operationId`, `retries`, `error`, and `continued`.
 
@@ -150,9 +154,10 @@ When the hook answers `'continue'`:
 
 - The partial text stays in the turn result and in the transcript.
 - The next model call gets the partial assistant message, then a short user note. The note asks the model to continue from where it stopped, without repeating its text.
+- The note stays in the transcript as a user message. It has `metadata: { tanstack: { synthetic: true } }`, so a UI can hide it.
 - The `harness.turn.retry` event has `continued: true`.
 
-`partial` is true when the failed call streamed text before the error. With no partial text, `'continue'` acts as `'retry'`, and the text of the failed call is not in the turn result.
+`partial` is true when the failed call streamed text, reasoning, or a tool call before the error. When `partial` is false, `'continue'` acts as `'retry'`, and the text of the failed call is not in the turn result.
 
 ### Compact after a context overflow
 

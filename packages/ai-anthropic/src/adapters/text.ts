@@ -8,6 +8,7 @@ import {
   REDACTED_THINKING_ID_PREFIX,
   orderedAssistantBlocks,
   splitMidConversationChanges,
+  toRetryAfterMs,
   toRunErrorRawEvent,
   transformMessagesForReplay,
   sanitizeUnicode,
@@ -657,6 +658,7 @@ export class AnthropicTextAdapter<
     } catch (error: unknown) {
       const err = error as Error & { status?: number; code?: string }
       const rawEvent = toRunErrorRawEvent(error)
+      const retryAfterMs = toRetryAfterMs(error)
       logger.errors('anthropic.chatStream fatal', {
         error,
         source: 'anthropic.chatStream',
@@ -670,6 +672,7 @@ export class AnthropicTextAdapter<
         // Forward the Anthropic SDK error's `.error` response body (e.g.
         // `{ type, message }`) when present; never the raw exception object.
         ...(rawEvent !== undefined && { rawEvent }),
+        ...(retryAfterMs !== undefined && { retryAfterMs }),
         error: {
           message: err.message || 'Unknown error occurred',
           code: err.code || String(err.status),
@@ -2271,6 +2274,7 @@ export class AnthropicTextAdapter<
     } catch (error: unknown) {
       const err = error as Error & { status?: number; code?: string }
       const rawEvent = toRunErrorRawEvent(error)
+      const retryAfterMs = toRetryAfterMs(error)
 
       logger.errors('anthropic.processAnthropicStream fatal', {
         error,
@@ -2285,6 +2289,7 @@ export class AnthropicTextAdapter<
         code: err.code || String(err.status),
         // Forward the Anthropic SDK error's `.error` response body when present.
         ...(rawEvent !== undefined && { rawEvent }),
+        ...(retryAfterMs !== undefined && { retryAfterMs }),
         error: {
           message: err.message || 'Unknown error occurred',
           code: err.code || String(err.status),

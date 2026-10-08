@@ -81,6 +81,7 @@ import { Route as ApiGeminiNativeImageWireRouteImport } from './routes/api.gemin
 import { Route as ApiGenerationPersistenceResumeRouteImport } from './routes/api.generation-persistence-resume'
 import { Route as ApiGenerationPersistenceServerRouteImport } from './routes/api.generation-persistence-server'
 import { Route as ApiHarnessContinueRouteImport } from './routes/api.harness-continue'
+import { Route as ApiHarnessRetryAfterRouteImport } from './routes/api.harness-retry-after'
 import { Route as ApiHarnessTestRouteImport } from './routes/api.harness-test'
 import { Route as ApiHarnessTurnOverridesRouteImport } from './routes/api.harness-turn-overrides'
 import { Route as ApiImageRouteImport } from './routes/api.image'
@@ -536,6 +537,11 @@ const ApiGenerationPersistenceServerRoute =
 const ApiHarnessContinueRoute = ApiHarnessContinueRouteImport.update({
   id: '/api/harness-continue',
   path: '/api/harness-continue',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHarnessRetryAfterRoute = ApiHarnessRetryAfterRouteImport.update({
+  id: '/api/harness-retry-after',
+  path: '/api/harness-retry-after',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiHarnessTestRoute = ApiHarnessTestRouteImport.update({
@@ -1019,6 +1025,7 @@ export interface FileRoutesByFullPath {
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
   '/api/harness-continue': typeof ApiHarnessContinueRoute
+  '/api/harness-retry-after': typeof ApiHarnessRetryAfterRoute
   '/api/harness-test': typeof ApiHarnessTestRoute
   '/api/harness-turn-overrides': typeof ApiHarnessTurnOverridesRoute
   '/api/image': typeof ApiImageRouteWithChildren
@@ -1171,6 +1178,7 @@ export interface FileRoutesByTo {
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
   '/api/harness-continue': typeof ApiHarnessContinueRoute
+  '/api/harness-retry-after': typeof ApiHarnessRetryAfterRoute
   '/api/harness-test': typeof ApiHarnessTestRoute
   '/api/harness-turn-overrides': typeof ApiHarnessTurnOverridesRoute
   '/api/image': typeof ApiImageRouteWithChildren
@@ -1324,6 +1332,7 @@ export interface FileRoutesById {
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
   '/api/harness-continue': typeof ApiHarnessContinueRoute
+  '/api/harness-retry-after': typeof ApiHarnessRetryAfterRoute
   '/api/harness-test': typeof ApiHarnessTestRoute
   '/api/harness-turn-overrides': typeof ApiHarnessTurnOverridesRoute
   '/api/image': typeof ApiImageRouteWithChildren
@@ -1478,6 +1487,7 @@ export interface FileRouteTypes {
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
     | '/api/harness-continue'
+    | '/api/harness-retry-after'
     | '/api/harness-test'
     | '/api/harness-turn-overrides'
     | '/api/image'
@@ -1630,6 +1640,7 @@ export interface FileRouteTypes {
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
     | '/api/harness-continue'
+    | '/api/harness-retry-after'
     | '/api/harness-test'
     | '/api/harness-turn-overrides'
     | '/api/image'
@@ -1782,6 +1793,7 @@ export interface FileRouteTypes {
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
     | '/api/harness-continue'
+    | '/api/harness-retry-after'
     | '/api/harness-test'
     | '/api/harness-turn-overrides'
     | '/api/image'
@@ -1935,6 +1947,7 @@ export interface RootRouteChildren {
   ApiGenerationPersistenceResumeRoute: typeof ApiGenerationPersistenceResumeRoute
   ApiGenerationPersistenceServerRoute: typeof ApiGenerationPersistenceServerRoute
   ApiHarnessContinueRoute: typeof ApiHarnessContinueRoute
+  ApiHarnessRetryAfterRoute: typeof ApiHarnessRetryAfterRoute
   ApiHarnessTestRoute: typeof ApiHarnessTestRoute
   ApiHarnessTurnOverridesRoute: typeof ApiHarnessTurnOverridesRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
@@ -2515,6 +2528,13 @@ declare module '@tanstack/react-router' {
       path: '/api/harness-continue'
       fullPath: '/api/harness-continue'
       preLoaderRoute: typeof ApiHarnessContinueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/harness-retry-after': {
+      id: '/api/harness-retry-after'
+      path: '/api/harness-retry-after'
+      fullPath: '/api/harness-retry-after'
+      preLoaderRoute: typeof ApiHarnessRetryAfterRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/harness-test': {
@@ -3198,6 +3218,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGenerationPersistenceResumeRoute: ApiGenerationPersistenceResumeRoute,
   ApiGenerationPersistenceServerRoute: ApiGenerationPersistenceServerRoute,
   ApiHarnessContinueRoute: ApiHarnessContinueRoute,
+  ApiHarnessRetryAfterRoute: ApiHarnessRetryAfterRoute,
   ApiHarnessTestRoute: ApiHarnessTestRoute,
   ApiHarnessTurnOverridesRoute: ApiHarnessTurnOverridesRoute,
   ApiImageRoute: ApiImageRouteWithChildren,

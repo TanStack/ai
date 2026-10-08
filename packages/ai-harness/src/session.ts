@@ -112,7 +112,7 @@ import type {
   AnyAgent,
 } from './agents'
 import type { AnyHarness, HarnessAgentsOf } from './define'
-import type { RecoverDecision, TurnAdditions } from './turn'
+import type { ModelErrorContext, RecoverDecision, TurnAdditions } from './turn'
 import type { HarnessPersistence, SessionIndexWriter } from './host'
 import type {
   AgentGroup,
@@ -4830,7 +4830,9 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         // runs them, also in the main part of a handoff.
         const turnHooks = isRootPart ? undefined : this.harness.turn
         let textBefore = text
-        let runError: { message: string; code?: string } | undefined
+        /** Text, reasoning, or a tool call streamed since `textBefore`. */
+        let streamed = false
+        let runError: ModelErrorContext['error'] | undefined
         let heldError: StreamChunk | undefined
         try {
           // The router and the routed agents get the full history. The
@@ -4973,19 +4975,28 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
               runError === undefined
             ) {
               // Held until the hook answers: a retried call shows no error.
+              const retryAfterMs = chunk.metadata?.tanstack?.retryAfterMs
               runError = {
                 message: chunk.message,
                 ...(chunk.code !== undefined ? { code: chunk.code } : {}),
+                ...(retryAfterMs !== undefined ? { retryAfterMs } : {}),
               }
               heldError = chunk
               continue
             }
             operation.publish(chunk)
-            if (
-              chunk.type === EventType.TEXT_MESSAGE_CONTENT &&
-              !('subagentRunId' in chunk && chunk.subagentRunId)
-            ) {
-              text += chunk.delta
+            if (!('subagentRunId' in chunk && chunk.subagentRunId)) {
+              if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
+                text += chunk.delta
+              }
+              if (
+                chunk.type === EventType.TEXT_MESSAGE_CONTENT ||
+                chunk.type === EventType.REASONING_MESSAGE_CONTENT ||
+                chunk.type === EventType.TOOL_CALL_START ||
+                chunk.type === EventType.TOOL_CALL_ARGS
+              ) {
+                streamed = true
+              }
             }
             if (chunk.type === EventType.RUN_ERROR) failure = chunk.message
             // A finished tool phase resets the retries, and its text stays in
@@ -5004,6 +5015,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
               if (retries > 0) this.stageRetries(turn, operation, 0)
               retries = 0
               textBefore = text
+              streamed = false
             }
           }
         } catch (error) {
@@ -5019,7 +5031,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           }
         }
         if (runError && turnHooks?.onModelError) {
-          const partial = text !== textBefore
+          const partial = streamed
           const answer =
             signal.aborted || this.logFailure
               ? undefined
@@ -5041,10 +5053,22 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             const isContinued = answer === 'continue' && partial
             if (isContinued) {
               // The partial answer stays in the turn result and in the
-              // transcript. The model continues it.
+              // transcript. The model continues it. The note stays in the
+              // transcript too, and its flag lets a UI hide it.
               continued = [
-                { role: 'assistant', content: text.slice(textBefore.length) },
-                { role: 'user', content: CONTINUE_NOTE },
+                ...(text !== textBefore
+                  ? [
+                      {
+                        role: 'assistant' as const,
+                        content: text.slice(textBefore.length),
+                      },
+                    ]
+                  : []),
+                {
+                  role: 'user',
+                  content: CONTINUE_NOTE,
+                  metadata: { tanstack: { synthetic: true } },
+                },
               ]
             } else {
               // The turn result has only the text of the calls that counted.
