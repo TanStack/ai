@@ -696,7 +696,8 @@ const CLAUDE_SONNET_5_5 = {
     AnthropicOutputConfigOptions
 >
 
-// Claude Haiku 5.5: `disabled` thinking 400s at xhigh/max (untyped); pricing is the <=100K-token tier.
+// Claude Haiku 5.5: `disabled` thinking 400s at xhigh/max (the types cannot
+// say so). Pricing is the <=100K-token tier.
 const CLAUDE_HAIKU_5_5 = {
   name: 'claude-haiku-5-5',
   id: 'claude-haiku-5-5',
@@ -1053,7 +1054,8 @@ export type AnthropicChatModelProviderOptionsByName = {
     AnthropicToolChoiceOptions &
     AnthropicMaxTokensOptions &
     AnthropicOutputConfigOptions
-  // Claude Haiku 5.5: adaptive or disabled thinking, no budget_tokens, no sampling.
+  // Claude Haiku 5.5: adaptive or disabled thinking, no budget_tokens, no
+  // sampling parameters.
   [CLAUDE_HAIKU_5_5.id]: AnthropicCacheControlOptions &
     AnthropicContainerOptions &
     AnthropicContextManagementOptions &

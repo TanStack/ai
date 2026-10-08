@@ -301,9 +301,9 @@ Per-model rules (enforced by the adapter's types):
   `"xhigh"` is available on Claude Opus 4.7+, Claude Sonnet 5, Claude
   Sonnet 5.5, Claude Haiku 5.5, and Claude Fable 5.
 - **`output_config`** is accepted on Claude Opus 4.7, Opus 4.8, Sonnet 5,
-  Fable 5, Opus 5, Fable 5.1, Opus 5.5, Sonnet 5.5, and Haiku 5.5. When you also pass
-  an `outputSchema`, the adapter adds `output_config.format` and keeps the
-  `effort` you set.
+  Fable 5, Opus 5, Fable 5.1, Opus 5.5, Sonnet 5.5, and Haiku 5.5. When you
+  also pass an `outputSchema`, the adapter adds `output_config.format` and
+  keeps the `effort` you set.
 
 ### Prompt Caching
 
