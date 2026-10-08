@@ -687,6 +687,121 @@ describe('durability.continueCutOff', () => {
     },
   )
 
+  it('adds one user message for each note, in order, in the same append', async () => {
+    const { persistence, first } = await crashAfterText([
+      cutAfter('The answer is '),
+    ])
+    const one = 'The stream was interrupted.'
+    const two = 'Continue from the partial.'
+
+    const next = await openCutOff(persistence, [() => text('42.')], {
+      durability: { continueCutOff: { note: [one, two] } },
+    })
+    await next.session.settled('in-1')
+
+    const added = [
+      ['assistant', 'The answer is '],
+      ['user', one],
+      ['user', two],
+    ]
+    expect(roles(next.calls[0].messages)).toEqual([['user', 'go'], ...added])
+    const record = (await persistence.stores.log.read(THREAD)).find(
+      (entry) =>
+        entry.record.type === 'harness.transcript' &&
+        JSON.stringify(entry.record).includes(one),
+    )?.record
+    expect(roles(Array.isArray(record?.add) ? record.add : [])).toEqual(added)
+    await first.host.close().catch(() => {})
+    await next.host.close()
+  })
+
+  /** A model call that streams one thinking block, then waits until it is aborted. */
+  const thinksThenHangs =
+    (signature?: string): Reply =>
+    (options: any) =>
+      (async function* (): AsyncGenerator<StreamChunk> {
+        yield* [
+          {
+            type: EventType.RUN_STARTED,
+            runId: 'r',
+            threadId: 't',
+            timestamp: 1,
+          },
+          { type: EventType.REASONING_START, messageId: 'r1', timestamp: 1 },
+          {
+            type: EventType.REASONING_MESSAGE_START,
+            messageId: 'r1',
+            role: 'reasoning',
+            timestamp: 1,
+          },
+          {
+            type: EventType.REASONING_MESSAGE_CONTENT,
+            messageId: 'r1',
+            delta: 'Check the docs.',
+            timestamp: 1,
+          },
+          ...(signature
+            ? [
+                {
+                  type: EventType.REASONING_ENCRYPTED_VALUE,
+                  subtype: 'message',
+                  entityId: 'r1',
+                  encryptedValue: signature,
+                  timestamp: 1,
+                } satisfies StreamChunk,
+              ]
+            : []),
+        ] satisfies Array<StreamChunk>
+        await aborted(options)
+      })()
+
+  it('continues an answer cut after signed thinking, and keeps the thinking', async () => {
+    const { persistence, first } = await crashAfterText(
+      [thinksThenHangs('sig-1')],
+      {},
+      'sig-1',
+    )
+
+    const next = await openCutOff(persistence, [() => text('42.')], {
+      durability: { continueCutOff: true },
+    })
+    await next.session.settled('in-1')
+
+    const partial = {
+      role: 'assistant',
+      content: null,
+      thinking: [{ content: 'Check the docs.', signature: 'sig-1' }],
+    }
+    expect(next.calls[0].messages).toMatchObject([
+      { role: 'user', content: 'go' },
+      partial,
+      { role: 'user', content: CUT_OFF_NOTE },
+    ])
+    expect((await next.session.transcript()).slice(1, 3)).toMatchObject([
+      partial,
+      { role: 'user', content: CUT_OFF_NOTE },
+    ])
+    await first.host.close().catch(() => {})
+    await next.host.close()
+  })
+
+  it('runs a call cut after thinking with no signature again with no note', async () => {
+    const { persistence, first } = await crashAfterText(
+      [thinksThenHangs()],
+      {},
+      'Check the docs.',
+    )
+
+    const next = await openCutOff(persistence, [() => text('42.')], {
+      durability: { continueCutOff: true },
+    })
+    await next.session.settled('in-1')
+
+    expect(roles(next.calls[0].messages)).toEqual([['user', 'go']])
+    await first.host.close().catch(() => {})
+    await next.host.close()
+  })
+
   it('runs a cut answer again with no note when the option is off', async () => {
     const { persistence, first } = await crashAfterText([
       cutAfter('The answer is '),

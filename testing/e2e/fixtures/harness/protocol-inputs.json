@@ -233,6 +233,18 @@
       "response": {
         "content": "Blue."
       }
+    },
+    {
+      "match": { "userMessage": "[harness-ephemeral-prompt] note" },
+      "response": { "content": "Apple." }
+    },
+    {
+      "match": { "userMessage": "[harness-ephemeral-continue] name a color" },
+      "response": { "content": "Red." }
+    },
+    {
+      "match": { "userMessage": "[harness-ephemeral-continue] note" },
+      "response": { "content": "Green." }
     }
   ]
 }

@@ -704,6 +704,81 @@ test.describe('harness protocol inputs', () => {
       .toEqual(['user: [harness-continue] name a color', 'assistant: Blue.'])
   })
 
+  test('gives the model the ephemeral messages of a prompt, and never stores them', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const user = asUser(request, testId, aimockPort)
+    const threadId = `ephemeral-prompt-${testId}`
+    const message = '[harness-ephemeral-prompt] name a fruit'
+    const note = '[harness-ephemeral-prompt] note: answer in one word'
+    expect(
+      await user.control(threadId, {
+        op: 'prompt',
+        message,
+        ephemeral: [{ role: 'user', content: note }],
+      }),
+    ).toMatchObject({ status: 'accepted' })
+
+    // The fixture answers only when the note is the last user message.
+    await expect.poll(() => user.answers(threadId)).toEqual(['Apple.'])
+    expect(JSON.stringify(await user.transcript(threadId))).not.toContain(note)
+    const journal = await request.get(
+      `http://127.0.0.1:${aimockPort}/v1/_requests`,
+    )
+    const entries: Array<JournalEntry> = await journal.json()
+    const sent = entries
+      .filter((entry) => entry.headers?.['x-test-id'] === testId)
+      .at(-1)
+      ?.body?.messages?.slice(-2)
+      .map((sentMessage) => sentMessage.content)
+    expect(sent).toEqual([message, note])
+  })
+
+  test('gives the model the ephemeral messages of continue, and never stores them', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const user = asUser(request, testId, aimockPort)
+    const threadId = `ephemeral-continue-${testId}`
+    const note = '[harness-ephemeral-continue] note: pick another color'
+    expect(
+      await user.control(threadId, {
+        op: 'prompt',
+        message: '[harness-ephemeral-continue] name a color',
+      }),
+    ).toMatchObject({ status: 'accepted' })
+    await expect.poll(() => user.answers(threadId)).toEqual(['Red.'])
+    // A fork through the prompt ends with the user message.
+    const at = (await user.transcript(threadId))[0]?.id
+    if (!at) throw new Error('The prompt has no message id.')
+    const forked = await request.post('/api/harness-protocol/sessions', {
+      headers: user.json,
+      data: { op: 'fork', threadId, through: at },
+    })
+    const fork: { threadId: string } = await forked.json()
+
+    expect(
+      await user.control(fork.threadId, {
+        op: 'continue',
+        ephemeral: [{ role: 'user', content: note }],
+      }),
+    ).toMatchObject({ status: 'accepted' })
+    // The fixture answers only when the note is the last user message.
+    await expect
+      .poll(async () =>
+        (await user.transcript(fork.threadId)).map(
+          (message) => `${message.role}: ${String(message.content)}`,
+        ),
+      )
+      .toEqual([
+        'user: [harness-ephemeral-continue] name a color',
+        'assistant: Green.',
+      ])
+  })
+
   test('rejects continue on an empty thread with nothing_to_continue', async ({
     request,
     baseURL,
