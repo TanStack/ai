@@ -104,7 +104,7 @@ export function createExecutePromptTool(
     })
 
     const baseSystem = system ?? DEFAULT_SYSTEM
-    const text = await chat({
+    const { text } = await chat({
       adapter,
       systemPrompts: [baseSystem, inner.systemPrompt],
       messages: [{ role: 'user', content: prompt }],

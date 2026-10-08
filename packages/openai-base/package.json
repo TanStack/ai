@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/openai-base",
-  "version": "0.12.4",
+  "version": "0.12.5",
   "description": "Shared OpenAI SDK base adapters for TanStack AI providers using Chat Completions and Responses APIs.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -55,7 +55,7 @@
   ],
   "dependencies": {
     "@tanstack/ai-utils": "workspace:^",
-    "openai": "^6.41.0"
+    "openai": "^7.30.0"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^"

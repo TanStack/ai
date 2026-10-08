@@ -32,6 +32,7 @@ import { Route as HeadlessUiRouteImport } from './routes/headless-ui'
 import { Route as InterruptLineageRouteImport } from './routes/interrupt-lineage'
 import { Route as InterruptsTestRouteImport } from './routes/interrupts-test'
 import { Route as JoinRunClientToolRouteImport } from './routes/join-run-client-tool'
+import { Route as JsonTransportRouteImport } from './routes/json-transport'
 import { Route as MarkdownCjkRouteImport } from './routes/markdown-cjk'
 import { Route as MessageHistoryPagingRouteImport } from './routes/message-history-paging'
 import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
@@ -49,6 +50,7 @@ import { Route as ProviderIndexRouteImport } from './routes/$provider/index'
 import { Route as ProviderFeatureRouteImport } from './routes/$provider/$feature'
 import { Route as ApiActivityTestRouteImport } from './routes/api.activity-test'
 import { Route as ApiAnthropicBugTestRouteImport } from './routes/api.anthropic-bug-test'
+import { Route as ApiAnthropicHaiku55WireRouteImport } from './routes/api.anthropic-haiku-5-5-wire'
 import { Route as ApiAnthropicMaxTokensUsageRouteImport } from './routes/api.anthropic-max-tokens-usage'
 import { Route as ApiAnthropicMultiTurnStructuredWireRouteImport } from './routes/api.anthropic-multi-turn-structured-wire'
 import { Route as ApiAnthropicOpus5CombinedWireRouteImport } from './routes/api.anthropic-opus-5-combined-wire'
@@ -64,6 +66,7 @@ import { Route as ApiBedrockConverseCacheRouteImport } from './routes/api.bedroc
 import { Route as ApiByokChatRouteImport } from './routes/api.byok-chat'
 import { Route as ApiByteplusSeedance1080pWireRouteImport } from './routes/api.byteplus-seedance-1080p-wire'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
+import { Route as ApiChatCompletionsIncompleteStreamRouteImport } from './routes/api.chat-completions-incomplete-stream'
 import { Route as ApiCompactionWireRouteImport } from './routes/api.compaction-wire'
 import { Route as ApiDevtoolsMemoryRouteImport } from './routes/api.devtools-memory'
 import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-delivery'
@@ -80,6 +83,7 @@ import { Route as ApiGenerationPersistenceServerRouteImport } from './routes/api
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiInterruptsTestRouteImport } from './routes/api.interrupts-test'
 import { Route as ApiJoinRunClientToolRouteImport } from './routes/api.join-run-client-tool'
+import { Route as ApiJsonTransportRouteImport } from './routes/api.json-transport'
 import { Route as ApiLazyToolsWireRouteImport } from './routes/api.lazy-tools-wire'
 import { Route as ApiMaxToolCallsWireRouteImport } from './routes/api.max-tool-calls-wire'
 import { Route as ApiMcpAppsCallRouteImport } from './routes/api.mcp-apps-call'
@@ -116,6 +120,7 @@ import { Route as ApiOpenrouterReasoningWireRouteImport } from './routes/api.ope
 import { Route as ApiOpenrouterRetryCodesRouteImport } from './routes/api.openrouter-retry-codes'
 import { Route as ApiOpenrouterStreamOptionsWireRouteImport } from './routes/api.openrouter-stream-options-wire'
 import { Route as ApiOpenrouterStrictToolOptionalsRouteImport } from './routes/api.openrouter-strict-tool-optionals'
+import { Route as ApiOpenrouterStructuredUsageRouteImport } from './routes/api.openrouter-structured-usage'
 import { Route as ApiOpenrouterWebToolsWireRouteImport } from './routes/api.openrouter-web-tools-wire'
 import { Route as ApiOtelMediaRouteImport } from './routes/api.otel-media'
 import { Route as ApiOtelTranscriptionRouteImport } from './routes/api.otel-transcription'
@@ -265,6 +270,11 @@ const JoinRunClientToolRoute = JoinRunClientToolRouteImport.update({
   path: '/join-run-client-tool',
   getParentRoute: () => rootRouteImport,
 } as any)
+const JsonTransportRoute = JsonTransportRouteImport.update({
+  id: '/json-transport',
+  path: '/json-transport',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MarkdownCjkRoute = MarkdownCjkRouteImport.update({
   id: '/markdown-cjk',
   path: '/markdown-cjk',
@@ -348,6 +358,11 @@ const ApiActivityTestRoute = ApiActivityTestRouteImport.update({
 const ApiAnthropicBugTestRoute = ApiAnthropicBugTestRouteImport.update({
   id: '/api/anthropic-bug-test',
   path: '/api/anthropic-bug-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAnthropicHaiku55WireRoute = ApiAnthropicHaiku55WireRouteImport.update({
+  id: '/api/anthropic-haiku-5-5-wire',
+  path: '/api/anthropic-haiku-5-5-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAnthropicMaxTokensUsageRoute =
@@ -434,6 +449,12 @@ const ApiChatRoute = ApiChatRouteImport.update({
   path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiChatCompletionsIncompleteStreamRoute =
+  ApiChatCompletionsIncompleteStreamRouteImport.update({
+    id: '/api/chat-completions-incomplete-stream',
+    path: '/api/chat-completions-incomplete-stream',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiCompactionWireRoute = ApiCompactionWireRouteImport.update({
   id: '/api/compaction-wire',
   path: '/api/compaction-wire',
@@ -515,6 +536,11 @@ const ApiInterruptsTestRoute = ApiInterruptsTestRouteImport.update({
 const ApiJoinRunClientToolRoute = ApiJoinRunClientToolRouteImport.update({
   id: '/api/join-run-client-tool',
   path: '/api/join-run-client-tool',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiJsonTransportRoute = ApiJsonTransportRouteImport.update({
+  id: '/api/json-transport',
+  path: '/api/json-transport',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiLazyToolsWireRoute = ApiLazyToolsWireRouteImport.update({
@@ -707,6 +733,12 @@ const ApiOpenrouterStrictToolOptionalsRoute =
     path: '/api/openrouter-strict-tool-optionals',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiOpenrouterStructuredUsageRoute =
+  ApiOpenrouterStructuredUsageRouteImport.update({
+    id: '/api/openrouter-structured-usage',
+    path: '/api/openrouter-structured-usage',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiOpenrouterWebToolsWireRoute =
   ApiOpenrouterWebToolsWireRouteImport.update({
     id: '/api/openrouter-web-tools-wire',
@@ -889,6 +921,7 @@ export interface FileRoutesByFullPath {
   '/interrupt-lineage': typeof InterruptLineageRoute
   '/interrupts-test': typeof InterruptsTestRoute
   '/join-run-client-tool': typeof JoinRunClientToolRoute
+  '/json-transport': typeof JsonTransportRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
@@ -905,6 +938,7 @@ export interface FileRoutesByFullPath {
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/activity-test': typeof ApiActivityTestRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/anthropic-haiku-5-5-wire': typeof ApiAnthropicHaiku55WireRoute
   '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
@@ -920,6 +954,7 @@ export interface FileRoutesByFullPath {
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
@@ -936,6 +971,7 @@ export interface FileRoutesByFullPath {
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
+  '/api/json-transport': typeof ApiJsonTransportRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
@@ -972,6 +1008,7 @@ export interface FileRoutesByFullPath {
   '/api/openrouter-retry-codes': typeof ApiOpenrouterRetryCodesRoute
   '/api/openrouter-stream-options-wire': typeof ApiOpenrouterStreamOptionsWireRoute
   '/api/openrouter-strict-tool-optionals': typeof ApiOpenrouterStrictToolOptionalsRoute
+  '/api/openrouter-structured-usage': typeof ApiOpenrouterStructuredUsageRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
@@ -1028,6 +1065,7 @@ export interface FileRoutesByTo {
   '/interrupt-lineage': typeof InterruptLineageRoute
   '/interrupts-test': typeof InterruptsTestRoute
   '/join-run-client-tool': typeof JoinRunClientToolRoute
+  '/json-transport': typeof JsonTransportRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
@@ -1044,6 +1082,7 @@ export interface FileRoutesByTo {
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/activity-test': typeof ApiActivityTestRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/anthropic-haiku-5-5-wire': typeof ApiAnthropicHaiku55WireRoute
   '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
@@ -1059,6 +1098,7 @@ export interface FileRoutesByTo {
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
@@ -1075,6 +1115,7 @@ export interface FileRoutesByTo {
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
+  '/api/json-transport': typeof ApiJsonTransportRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
@@ -1111,6 +1152,7 @@ export interface FileRoutesByTo {
   '/api/openrouter-retry-codes': typeof ApiOpenrouterRetryCodesRoute
   '/api/openrouter-stream-options-wire': typeof ApiOpenrouterStreamOptionsWireRoute
   '/api/openrouter-strict-tool-optionals': typeof ApiOpenrouterStrictToolOptionalsRoute
+  '/api/openrouter-structured-usage': typeof ApiOpenrouterStructuredUsageRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
@@ -1168,6 +1210,7 @@ export interface FileRoutesById {
   '/interrupt-lineage': typeof InterruptLineageRoute
   '/interrupts-test': typeof InterruptsTestRoute
   '/join-run-client-tool': typeof JoinRunClientToolRoute
+  '/json-transport': typeof JsonTransportRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
@@ -1184,6 +1227,7 @@ export interface FileRoutesById {
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/activity-test': typeof ApiActivityTestRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/anthropic-haiku-5-5-wire': typeof ApiAnthropicHaiku55WireRoute
   '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
@@ -1199,6 +1243,7 @@ export interface FileRoutesById {
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
@@ -1215,6 +1260,7 @@ export interface FileRoutesById {
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
+  '/api/json-transport': typeof ApiJsonTransportRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
@@ -1251,6 +1297,7 @@ export interface FileRoutesById {
   '/api/openrouter-retry-codes': typeof ApiOpenrouterRetryCodesRoute
   '/api/openrouter-stream-options-wire': typeof ApiOpenrouterStreamOptionsWireRoute
   '/api/openrouter-strict-tool-optionals': typeof ApiOpenrouterStrictToolOptionalsRoute
+  '/api/openrouter-structured-usage': typeof ApiOpenrouterStructuredUsageRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
@@ -1309,6 +1356,7 @@ export interface FileRouteTypes {
     | '/interrupt-lineage'
     | '/interrupts-test'
     | '/join-run-client-tool'
+    | '/json-transport'
     | '/markdown-cjk'
     | '/message-history-paging'
     | '/middleware-test'
@@ -1325,6 +1373,7 @@ export interface FileRouteTypes {
     | '/$provider/$feature'
     | '/api/activity-test'
     | '/api/anthropic-bug-test'
+    | '/api/anthropic-haiku-5-5-wire'
     | '/api/anthropic-max-tokens-usage'
     | '/api/anthropic-multi-turn-structured-wire'
     | '/api/anthropic-opus-5-combined-wire'
@@ -1340,6 +1389,7 @@ export interface FileRouteTypes {
     | '/api/byok-chat'
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
+    | '/api/chat-completions-incomplete-stream'
     | '/api/compaction-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
@@ -1356,6 +1406,7 @@ export interface FileRouteTypes {
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
+    | '/api/json-transport'
     | '/api/lazy-tools-wire'
     | '/api/max-tool-calls-wire'
     | '/api/mcp-apps-call'
@@ -1392,6 +1443,7 @@ export interface FileRouteTypes {
     | '/api/openrouter-retry-codes'
     | '/api/openrouter-stream-options-wire'
     | '/api/openrouter-strict-tool-optionals'
+    | '/api/openrouter-structured-usage'
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
     | '/api/otel-transcription'
@@ -1448,6 +1500,7 @@ export interface FileRouteTypes {
     | '/interrupt-lineage'
     | '/interrupts-test'
     | '/join-run-client-tool'
+    | '/json-transport'
     | '/markdown-cjk'
     | '/message-history-paging'
     | '/middleware-test'
@@ -1464,6 +1517,7 @@ export interface FileRouteTypes {
     | '/$provider/$feature'
     | '/api/activity-test'
     | '/api/anthropic-bug-test'
+    | '/api/anthropic-haiku-5-5-wire'
     | '/api/anthropic-max-tokens-usage'
     | '/api/anthropic-multi-turn-structured-wire'
     | '/api/anthropic-opus-5-combined-wire'
@@ -1479,6 +1533,7 @@ export interface FileRouteTypes {
     | '/api/byok-chat'
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
+    | '/api/chat-completions-incomplete-stream'
     | '/api/compaction-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
@@ -1495,6 +1550,7 @@ export interface FileRouteTypes {
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
+    | '/api/json-transport'
     | '/api/lazy-tools-wire'
     | '/api/max-tool-calls-wire'
     | '/api/mcp-apps-call'
@@ -1531,6 +1587,7 @@ export interface FileRouteTypes {
     | '/api/openrouter-retry-codes'
     | '/api/openrouter-stream-options-wire'
     | '/api/openrouter-strict-tool-optionals'
+    | '/api/openrouter-structured-usage'
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
     | '/api/otel-transcription'
@@ -1587,6 +1644,7 @@ export interface FileRouteTypes {
     | '/interrupt-lineage'
     | '/interrupts-test'
     | '/join-run-client-tool'
+    | '/json-transport'
     | '/markdown-cjk'
     | '/message-history-paging'
     | '/middleware-test'
@@ -1603,6 +1661,7 @@ export interface FileRouteTypes {
     | '/$provider/$feature'
     | '/api/activity-test'
     | '/api/anthropic-bug-test'
+    | '/api/anthropic-haiku-5-5-wire'
     | '/api/anthropic-max-tokens-usage'
     | '/api/anthropic-multi-turn-structured-wire'
     | '/api/anthropic-opus-5-combined-wire'
@@ -1618,6 +1677,7 @@ export interface FileRouteTypes {
     | '/api/byok-chat'
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
+    | '/api/chat-completions-incomplete-stream'
     | '/api/compaction-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
@@ -1634,6 +1694,7 @@ export interface FileRouteTypes {
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
+    | '/api/json-transport'
     | '/api/lazy-tools-wire'
     | '/api/max-tool-calls-wire'
     | '/api/mcp-apps-call'
@@ -1670,6 +1731,7 @@ export interface FileRouteTypes {
     | '/api/openrouter-retry-codes'
     | '/api/openrouter-stream-options-wire'
     | '/api/openrouter-strict-tool-optionals'
+    | '/api/openrouter-structured-usage'
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
     | '/api/otel-transcription'
@@ -1727,6 +1789,7 @@ export interface RootRouteChildren {
   InterruptLineageRoute: typeof InterruptLineageRoute
   InterruptsTestRoute: typeof InterruptsTestRoute
   JoinRunClientToolRoute: typeof JoinRunClientToolRoute
+  JsonTransportRoute: typeof JsonTransportRoute
   MarkdownCjkRoute: typeof MarkdownCjkRoute
   MessageHistoryPagingRoute: typeof MessageHistoryPagingRoute
   MiddlewareTestRoute: typeof MiddlewareTestRoute
@@ -1743,6 +1806,7 @@ export interface RootRouteChildren {
   ProviderFeatureRoute: typeof ProviderFeatureRoute
   ApiActivityTestRoute: typeof ApiActivityTestRoute
   ApiAnthropicBugTestRoute: typeof ApiAnthropicBugTestRoute
+  ApiAnthropicHaiku55WireRoute: typeof ApiAnthropicHaiku55WireRoute
   ApiAnthropicMaxTokensUsageRoute: typeof ApiAnthropicMaxTokensUsageRoute
   ApiAnthropicMultiTurnStructuredWireRoute: typeof ApiAnthropicMultiTurnStructuredWireRoute
   ApiAnthropicOpus5CombinedWireRoute: typeof ApiAnthropicOpus5CombinedWireRoute
@@ -1758,6 +1822,7 @@ export interface RootRouteChildren {
   ApiByokChatRoute: typeof ApiByokChatRoute
   ApiByteplusSeedance1080pWireRoute: typeof ApiByteplusSeedance1080pWireRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiChatCompletionsIncompleteStreamRoute: typeof ApiChatCompletionsIncompleteStreamRoute
   ApiCompactionWireRoute: typeof ApiCompactionWireRoute
   ApiDevtoolsMemoryRoute: typeof ApiDevtoolsMemoryRoute
   ApiDurableDeliveryRoute: typeof ApiDurableDeliveryRoute
@@ -1774,6 +1839,7 @@ export interface RootRouteChildren {
   ApiImageRoute: typeof ApiImageRouteWithChildren
   ApiInterruptsTestRoute: typeof ApiInterruptsTestRoute
   ApiJoinRunClientToolRoute: typeof ApiJoinRunClientToolRoute
+  ApiJsonTransportRoute: typeof ApiJsonTransportRoute
   ApiLazyToolsWireRoute: typeof ApiLazyToolsWireRoute
   ApiMaxToolCallsWireRoute: typeof ApiMaxToolCallsWireRoute
   ApiMcpAppsCallRoute: typeof ApiMcpAppsCallRoute
@@ -1810,6 +1876,7 @@ export interface RootRouteChildren {
   ApiOpenrouterRetryCodesRoute: typeof ApiOpenrouterRetryCodesRoute
   ApiOpenrouterStreamOptionsWireRoute: typeof ApiOpenrouterStreamOptionsWireRoute
   ApiOpenrouterStrictToolOptionalsRoute: typeof ApiOpenrouterStrictToolOptionalsRoute
+  ApiOpenrouterStructuredUsageRoute: typeof ApiOpenrouterStructuredUsageRoute
   ApiOpenrouterWebToolsWireRoute: typeof ApiOpenrouterWebToolsWireRoute
   ApiOtelMediaRoute: typeof ApiOtelMediaRoute
   ApiOtelTranscriptionRoute: typeof ApiOtelTranscriptionRoute
@@ -2001,6 +2068,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof JoinRunClientToolRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/json-transport': {
+      id: '/json-transport'
+      path: '/json-transport'
+      fullPath: '/json-transport'
+      preLoaderRoute: typeof JsonTransportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/markdown-cjk': {
       id: '/markdown-cjk'
       path: '/markdown-cjk'
@@ -2120,6 +2194,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAnthropicBugTestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/anthropic-haiku-5-5-wire': {
+      id: '/api/anthropic-haiku-5-5-wire'
+      path: '/api/anthropic-haiku-5-5-wire'
+      fullPath: '/api/anthropic-haiku-5-5-wire'
+      preLoaderRoute: typeof ApiAnthropicHaiku55WireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/anthropic-max-tokens-usage': {
       id: '/api/anthropic-max-tokens-usage'
       path: '/api/anthropic-max-tokens-usage'
@@ -2223,6 +2304,13 @@ declare module '@tanstack/react-router' {
       path: '/api/chat'
       fullPath: '/api/chat'
       preLoaderRoute: typeof ApiChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/chat-completions-incomplete-stream': {
+      id: '/api/chat-completions-incomplete-stream'
+      path: '/api/chat-completions-incomplete-stream'
+      fullPath: '/api/chat-completions-incomplete-stream'
+      preLoaderRoute: typeof ApiChatCompletionsIncompleteStreamRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/compaction-wire': {
@@ -2335,6 +2423,13 @@ declare module '@tanstack/react-router' {
       path: '/api/join-run-client-tool'
       fullPath: '/api/join-run-client-tool'
       preLoaderRoute: typeof ApiJoinRunClientToolRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/json-transport': {
+      id: '/api/json-transport'
+      path: '/api/json-transport'
+      fullPath: '/api/json-transport'
+      preLoaderRoute: typeof ApiJsonTransportRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/lazy-tools-wire': {
@@ -2587,6 +2682,13 @@ declare module '@tanstack/react-router' {
       path: '/api/openrouter-strict-tool-optionals'
       fullPath: '/api/openrouter-strict-tool-optionals'
       preLoaderRoute: typeof ApiOpenrouterStrictToolOptionalsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/openrouter-structured-usage': {
+      id: '/api/openrouter-structured-usage'
+      path: '/api/openrouter-structured-usage'
+      fullPath: '/api/openrouter-structured-usage'
+      preLoaderRoute: typeof ApiOpenrouterStructuredUsageRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/openrouter-web-tools-wire': {
@@ -2884,6 +2986,7 @@ const rootRouteChildren: RootRouteChildren = {
   InterruptLineageRoute: InterruptLineageRoute,
   InterruptsTestRoute: InterruptsTestRoute,
   JoinRunClientToolRoute: JoinRunClientToolRoute,
+  JsonTransportRoute: JsonTransportRoute,
   MarkdownCjkRoute: MarkdownCjkRoute,
   MessageHistoryPagingRoute: MessageHistoryPagingRoute,
   MiddlewareTestRoute: MiddlewareTestRoute,
@@ -2900,6 +3003,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProviderFeatureRoute: ProviderFeatureRoute,
   ApiActivityTestRoute: ApiActivityTestRoute,
   ApiAnthropicBugTestRoute: ApiAnthropicBugTestRoute,
+  ApiAnthropicHaiku55WireRoute: ApiAnthropicHaiku55WireRoute,
   ApiAnthropicMaxTokensUsageRoute: ApiAnthropicMaxTokensUsageRoute,
   ApiAnthropicMultiTurnStructuredWireRoute:
     ApiAnthropicMultiTurnStructuredWireRoute,
@@ -2917,6 +3021,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiByokChatRoute: ApiByokChatRoute,
   ApiByteplusSeedance1080pWireRoute: ApiByteplusSeedance1080pWireRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiChatCompletionsIncompleteStreamRoute:
+    ApiChatCompletionsIncompleteStreamRoute,
   ApiCompactionWireRoute: ApiCompactionWireRoute,
   ApiDevtoolsMemoryRoute: ApiDevtoolsMemoryRoute,
   ApiDurableDeliveryRoute: ApiDurableDeliveryRoute,
@@ -2933,6 +3039,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiImageRoute: ApiImageRouteWithChildren,
   ApiInterruptsTestRoute: ApiInterruptsTestRoute,
   ApiJoinRunClientToolRoute: ApiJoinRunClientToolRoute,
+  ApiJsonTransportRoute: ApiJsonTransportRoute,
   ApiLazyToolsWireRoute: ApiLazyToolsWireRoute,
   ApiMaxToolCallsWireRoute: ApiMaxToolCallsWireRoute,
   ApiMcpAppsCallRoute: ApiMcpAppsCallRoute,
@@ -2969,6 +3076,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOpenrouterRetryCodesRoute: ApiOpenrouterRetryCodesRoute,
   ApiOpenrouterStreamOptionsWireRoute: ApiOpenrouterStreamOptionsWireRoute,
   ApiOpenrouterStrictToolOptionalsRoute: ApiOpenrouterStrictToolOptionalsRoute,
+  ApiOpenrouterStructuredUsageRoute: ApiOpenrouterStructuredUsageRoute,
   ApiOpenrouterWebToolsWireRoute: ApiOpenrouterWebToolsWireRoute,
   ApiOtelMediaRoute: ApiOtelMediaRoute,
   ApiOtelTranscriptionRoute: ApiOtelTranscriptionRoute,

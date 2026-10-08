@@ -44,6 +44,7 @@ import { normalizeStreamChunk } from '../../utilities/normalize-stream-chunk'
 import { isRedactedThinkingId } from '../../utilities/reasoning-encrypted-value'
 import { restorePublicUsage } from '../../utilities/restore-inbound-chunk'
 import type { AdapterYieldChunk } from '../../utilities/adapter-yield-chunk'
+import type { ChatResult } from '../../stream-to-response.js'
 import {
   normalizeToolResult,
   parseToolOutput,
@@ -584,7 +585,8 @@ export interface TextActivityOptions<
   /**
    * Whether to stream the text result.
    * When true (default), returns a ChatStream for streaming output.
-   * When false, returns a Promise<string> with the collected text content.
+   * When false, returns a Promise<ChatResult> with the collected text and
+   * every chunk the run produced.
    *
    * Note: If outputSchema is provided, this option is ignored and the result
    * is always a Promise<InferSchemaType<TSchema>>.
@@ -593,7 +595,7 @@ export interface TextActivityOptions<
    *
    * @example Non-streaming text
    * ```ts
-   * const text = await chat({
+   * const { text } = await chat({
    *   adapter: openaiText('gpt-5.5'),
    *   messages: [{ role: 'user', content: 'Hello!' }],
    *   stream: false
@@ -704,7 +706,7 @@ export function createChatOptions<
  *   carrying the validated object.
  * - If outputSchema is provided without explicit stream:true:
  *   Promise<InferSchemaType<TSchema>>.
- * - If stream is explicitly false (no schema): Promise<string>.
+ * - If stream is explicitly false (no schema): Promise<ChatResult>.
  * - Otherwise (default): ChatStream.
  *
  * `[TStream] extends [true]` is used (not `TStream extends true`) so that the
@@ -724,7 +726,7 @@ export type TextActivityResult<
     ? StructuredOutputStream<InferSchemaType<TSchema>>
     : Promise<InferSchemaType<TSchema>>
   : [TStream] extends [false]
-    ? Promise<string>
+    ? Promise<ChatResult>
     : TTools extends infer _TTools
       ? ChatStream
       : ChatStream
@@ -5097,7 +5099,7 @@ class TextEngine<
  * This activity supports four modes:
  * 1. **Streaming agentic text**: Stream responses with automatic tool execution
  * 2. **Streaming one-shot text**: Simple streaming request/response without tools
- * 3. **Non-streaming text**: Returns collected text as a string (stream: false)
+ * 3. **Non-streaming text**: Returns a ChatResult with the text and every chunk (stream: false)
  * 4. **Agentic structured output**: Run tools, then return structured data
  *
  * @example Full agentic text (streaming with tools)
@@ -5128,12 +5130,13 @@ class TextEngine<
  *
  * @example Non-streaming text (stream: false)
  * ```ts
- * const text = await chat({
+ * const { text, chunks } = await chat({
  *   adapter: openaiText('gpt-5.5'),
  *   messages: [{ role: 'user', content: 'Hello!' }],
  *   stream: false
  * })
  * // text is a string with the full response
+ * // chunks is every chunk the run produced, in order
  * ```
  *
  * @example Agentic structured output (tools + structured response)
@@ -5827,12 +5830,13 @@ function readRoutedSubagentPersistence(
 }
 
 /**
- * Run non-streaming text - collects all content and returns as a string.
- * Runs the full agentic loop (if tools are provided) but returns collected text.
+ * Run non-streaming text - reads the whole run and returns a ChatResult.
+ * Runs the full agentic loop (if tools are provided) but returns the joined
+ * text plus every chunk the run produced.
  */
 function runNonStreamingText(
   options: RuntimeTextActivityOptions<AnyTextAdapter, undefined, false>,
-): Promise<string> {
+) {
   const stream = runStreamingText({
     ...options,
     stream: true,

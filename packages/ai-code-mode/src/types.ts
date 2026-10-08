@@ -1,4 +1,5 @@
 import type {
+  DebugOption,
   LazyToolsConfig,
   SchemaInput,
   ServerTool,
@@ -200,7 +201,7 @@ export interface CodeModeToolConfig {
 
   /**
    * How to surface tool parameters whose names look like secrets.
-   * Defaults to `'warn'` (logs via `console.warn`).
+   * Defaults to `'warn'` (logs through the `debug` logger's `warn` level).
    *
    * - `'warn'`: log a warning for each match.
    * - `'throw'`: throw an Error on the first match — useful in tests/CI.
@@ -256,6 +257,18 @@ export interface CodeModeToolConfig {
    * ```
    */
   transpile?: (code: string) => string | Promise<string>
+
+  /**
+   * Debug logging for this tool, resolved the same way as `chat({ debug })`.
+   *
+   * - Unset: only the `errors` category is on — failed executions and
+   *   secret-parameter warnings reach the default console logger.
+   * - `false`: silence everything, including errors.
+   * - `true` / `DebugConfig`: also enables the `tools` category, which logs
+   *   one line per successful execution. Pass `{ logger }` to route all of
+   *   it to your own `Logger` (pino, winston, …).
+   */
+  debug?: DebugOption
 }
 
 /**

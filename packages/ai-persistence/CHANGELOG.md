@@ -1,5 +1,14 @@
 # @tanstack/ai-persistence
 
+## 0.8.1
+
+### Patch Changes
+
+- [#1622](https://github.com/TanStack/ai/pull/1622) [`bfe9d33`](https://github.com/TanStack/ai/commit/bfe9d33a30b6311c3392cdf402dd48aef3fba3b3) - Keep the error of a stopped or failed subagent card after a reload. `reconstructChat` now reads the error from the stored child metadata, so a stopped child keeps its `Stopped` error and a failed child keeps its error `code`.
+
+- Updated dependencies [[`f687c54`](https://github.com/TanStack/ai/commit/f687c54ae4b8a67f2154ff9dea0319b8d2712856), [`fb55bcb`](https://github.com/TanStack/ai/commit/fb55bcba5193d4465f43006505918a2dc4472ec4), [`630ec86`](https://github.com/TanStack/ai/commit/630ec86e9997fabe046cae1a491060d72cbc71ea)]:
+  - @tanstack/ai@0.66.0
+
 ## 0.8.0
 
 ### Minor Changes
