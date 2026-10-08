@@ -125,14 +125,19 @@ export interface HarnessDurability {
     | ((call: { toolCallId: string; toolName: string }) => string)
   /**
    * Continue an answer that a crash cut. Before the recovered attempt runs,
-   * recovery adds the answer text that the log has as an assistant message,
-   * then a user message with `note`, in one append. The model goes on after
-   * the note. Partial thinking and tool calls are not kept. An attempt that
-   * streamed no answer text runs again with no note. Default `false`. The
-   * default note: `'The previous answer was cut off. Continue exactly where
-   * it stopped, without repeating it.'`
+   * recovery adds the part of the answer that the log has as an assistant
+   * message, then one user message for each note, in order, in one append.
+   * The model goes on after the notes. The assistant message has the answer
+   * text and each signed thinking block (a finished block with its
+   * signature, as the transcript keeps thinking), so the provider can replay
+   * it. A thinking block with no signature and tool calls are not kept. An
+   * attempt that streamed no answer text and no signed thinking (for example
+   * only thinking with no signature) runs again with no partial and no note.
+   * Signed thinking alone is enough to continue. A string `note` is one
+   * note. Default `false`. The default note: `'The previous answer was cut
+   * off. Continue exactly where it stopped, without repeating it.'`
    */
-  continueCutOff?: boolean | { note?: string }
+  continueCutOff?: boolean | { note?: string | ReadonlyArray<string> }
 }
 
 /**

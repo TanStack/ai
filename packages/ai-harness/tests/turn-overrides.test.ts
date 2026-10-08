@@ -508,3 +508,82 @@ describe('turn overrides: plugin adapter picker', () => {
     await host.close()
   })
 })
+
+describe('ephemeral input', () => {
+  const NOTE = 'Answer in one word.'
+  const note: Array<ModelMessage> = [{ role: 'user', content: NOTE }]
+
+  it('gives the ephemeral messages of a prompt to the model, and no store keeps them', async () => {
+    const persistence = durablePersistence()
+    const { host, session, calls } = await open(
+      [() => text('done')],
+      {},
+      { persistence },
+    )
+
+    expect(await session.prompt('go', { ephemeral: note })).toEqual({
+      text: 'done',
+    })
+
+    expect(messageTexts(calls[0])).toEqual(['go', NOTE])
+    expect(JSON.stringify(await session.transcript())).not.toContain(NOTE)
+    expect(
+      JSON.stringify(await persistence.stores.log.read(THREAD)),
+    ).not.toContain(NOTE)
+    await host.close()
+  })
+
+  it('gives the ephemeral messages of continue to the model, and no store keeps them', async () => {
+    const persistence = durablePersistence()
+    await persistence.stores.log.append(THREAD, 1, [
+      {
+        type: 'harness.transcript',
+        keep: 0,
+        add: [{ id: 'u1', role: 'user', content: 'go' }],
+      },
+    ])
+    const { host, session, calls } = await open(
+      [() => text('done')],
+      {},
+      { persistence },
+    )
+
+    expect(await session.continue({ ephemeral: note })).toEqual({
+      text: 'done',
+    })
+
+    expect(messageTexts(calls[0])).toEqual(['go', NOTE])
+    expect(JSON.stringify(await session.transcript())).not.toContain(NOTE)
+    expect(
+      JSON.stringify(await persistence.stores.log.read(THREAD)),
+    ).not.toContain(NOTE)
+    await host.close()
+  })
+
+  it('keeps the ephemeral messages at the start of the turn at each model call', async () => {
+    const { host, session, calls } = await open(
+      [
+        () => text('one'),
+        () => toolCall('lookup', { q: 'x' }),
+        () => text('done'),
+      ],
+      { tools: [lookup] },
+    )
+
+    await session.prompt('first')
+    await session.prompt('look', { ephemeral: note })
+
+    // The tool-call message has no text: its content is null.
+    expect(messageTexts(calls[1])).toEqual(['first', 'one', 'look', NOTE])
+    expect(messageTexts(calls[2])).toEqual([
+      'first',
+      'one',
+      'look',
+      NOTE,
+      'null',
+      'found',
+    ])
+    expect(JSON.stringify(await session.transcript())).not.toContain(NOTE)
+    await host.close()
+  })
+})

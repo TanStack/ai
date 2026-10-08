@@ -4,6 +4,7 @@ import type {
   ContentPart,
   Interrupt,
   KeyedAdapter,
+  ModelMessage,
   PromptCacheOptions,
   ReasoningOption,
   RunAgentResumeItem,
@@ -96,13 +97,28 @@ export interface SessionEvent {
  * it. Who sent the input is the principal from `authorize`, not a field here.
  *
  * In `cancelInput` and `setDelivery`, `inputId` is the input that waits.
+ *
+ * `ephemeral` of `prompt` and `continue` are messages for the model calls of
+ * that turn only, as in `session.prompt`. The inbox and the log do not keep
+ * them, and the duplicate check does not read them. Client data: do not
+ * trust it.
  */
 export type HarnessInput = (
-  | { op: 'prompt'; message: UserInput; busy?: BusyPolicy; context?: unknown }
+  | {
+      op: 'prompt'
+      message: UserInput
+      busy?: BusyPolicy
+      context?: unknown
+      ephemeral?: ReadonlyArray<ModelMessage & { role: 'user' }>
+    }
   | { op: 'steer'; message: UserInput; context?: unknown }
   | { op: 'followUp'; message: UserInput; context?: unknown }
   /** A turn from the stored transcript, with no new message. */
-  | { op: 'continue'; context?: unknown }
+  | {
+      op: 'continue'
+      context?: unknown
+      ephemeral?: ReadonlyArray<ModelMessage & { role: 'user' }>
+    }
   | { op: 'resolve'; resume: Array<RunAgentResumeItem> }
   | {
       op: 'agent'

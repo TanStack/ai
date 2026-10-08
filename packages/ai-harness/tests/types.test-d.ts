@@ -99,7 +99,7 @@ it('takes attempt and time limits on the harness', () => {
         truncatedToolResult?:
           | string
           | ((call: { toolCallId: string; toolName: string }) => string)
-        continueCutOff?: boolean | { note?: string }
+        continueCutOff?: boolean | { note?: string | ReadonlyArray<string> }
       }
     | undefined
   >()

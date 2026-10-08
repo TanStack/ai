@@ -65,11 +65,17 @@ export type ClientAgentHandles<THarness> = {
 export interface HarnessClient<THarness extends AnyHarness> {
   /**
    * Send a prompt. `inputId` is an id you choose: a retry with the same id
-   * and message gets the first receipt and does not run again.
+   * and message gets the first receipt and does not run again. `ephemeral`
+   * are messages for the model calls of this turn only. See
+   * `session.prompt`.
    */
   prompt: (
     message: UserInput,
-    options?: { busy?: BusyPolicy; inputId?: string },
+    options?: {
+      busy?: BusyPolicy
+      inputId?: string
+      ephemeral?: ReadonlyArray<ModelMessage & { role: 'user' }>
+    },
   ) => Promise<Receipt>
   steer: (
     message: UserInput,
@@ -83,7 +89,10 @@ export interface HarnessClient<THarness extends AnyHarness> {
    * Start a turn from the stored transcript, with no new message. See
    * `session.continue`.
    */
-  continue: (options?: { inputId?: string }) => Promise<Receipt>
+  continue: (options?: {
+    inputId?: string
+    ephemeral?: ReadonlyArray<ModelMessage & { role: 'user' }>
+  }) => Promise<Receipt>
   resolve: (resume: Array<RunAgentResumeItem>) => Promise<Receipt>
   cancel: (operationId?: string) => Promise<Receipt>
   /**
@@ -459,6 +468,9 @@ export function createHarnessClient<THarness extends AnyHarness>(
         message,
         ...(promptOptions?.busy ? { busy: promptOptions.busy } : {}),
         ...(promptOptions?.inputId ? { inputId: promptOptions.inputId } : {}),
+        ...(promptOptions?.ephemeral
+          ? { ephemeral: promptOptions.ephemeral }
+          : {}),
       }),
     steer: (message, steerOptions) =>
       send({
@@ -477,6 +489,9 @@ export function createHarnessClient<THarness extends AnyHarness>(
         op: 'continue',
         ...(continueOptions?.inputId
           ? { inputId: continueOptions.inputId }
+          : {}),
+        ...(continueOptions?.ephemeral
+          ? { ephemeral: continueOptions.ephemeral }
           : {}),
       }),
     resolve: (resume) => send({ op: 'resolve', resume }),

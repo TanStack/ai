@@ -35,6 +35,20 @@ export interface RecoverContext {
   }
   /** The transcript of the session, from the log. */
   messages: ReadonlyArray<ModelMessage>
+  /**
+   * The tool calls of this input that recovery closes with an error result,
+   * in call order: `'interrupted'` for a `replay: 'never'` call that a crash
+   * cut (it gets `durability.interruptedToolResult`), and `'truncated'` for a
+   * call of an answer that stopped at the output limit (it gets
+   * `durability.truncatedToolResult`). A finished call and a `replay: 'safe'`
+   * call (it runs again) are not in it. The list is the same when the hook
+   * settles the input, so then it names the calls that a run would close.
+   */
+  interruptedTools: ReadonlyArray<{
+    toolCallId: string
+    toolName: string
+    reason: 'interrupted' | 'truncated'
+  }>
   /** What the harness does when the hook returns `undefined`. */
   decision: RecoverDecision
 }

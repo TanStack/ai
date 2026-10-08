@@ -83,6 +83,7 @@ const reminded = defineHarness({
 - The transcript, the session log, and the message store never keep them.
 - A return with only `ephemeral` messages also sends the model back to work, and it counts for `maxFinishCycles`.
 - `onJoin` can return `ephemeral` messages too. They go to the model call of the join.
+- A reminder that you send in your own loop, one turn at a time, does not count for `maxFinishCycles`. Pass it to `prompt` or `continue`. See [Give the model a note for one turn](./inputs#give-the-model-a-note-for-one-turn).
 
 ## Retry model errors
 

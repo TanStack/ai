@@ -636,6 +636,144 @@ describe('recovery of a durable input', () => {
     expect(calls).toHaveLength(0)
     await host.close()
   })
+
+  /** Add `records` to the log of a stopped turn, after its other records. */
+  const appendSeeded = async (
+    persistence: Durable,
+    records: Array<LogRecord>,
+  ) =>
+    persistence.stores.log.append(
+      THREAD,
+      (await persistence.stores.log.read(THREAD)).length + 1,
+      records,
+    )
+
+  const call = (id: string, name: string) => ({
+    id,
+    type: 'function' as const,
+    function: { name, arguments: '{}' },
+  })
+
+  const answers = (name: string, result: string) =>
+    toolDefinition({ name, description: name }).server(async () => result)
+
+  it.each([
+    { maxAttempts: 10, action: 'run' },
+    { maxAttempts: 1, action: 'settle' },
+  ])(
+    'tells the recover hook which cut calls get the interrupted result ($action)',
+    async ({ maxAttempts, action }) => {
+      const persistence = durablePersistence()
+      await seedStoppedTurn(persistence, { attempt: 1 })
+      // Four calls in one batch: two cut mails, a lookup that finished, and a
+      // fetch that can run again.
+      await appendSeeded(persistence, [
+        {
+          type: 'harness.transcript',
+          keep: 1,
+          add: [
+            {
+              id: 'a1',
+              role: 'assistant',
+              content: null,
+              toolCalls: [
+                call('call-1', 'mail'),
+                call('call-2', 'mail'),
+                call('call-3', 'lookup'),
+                call('call-4', 'fetch'),
+              ],
+            },
+          ],
+        },
+        ...['call-1', 'call-2', 'call-3'].map((toolCallId) => ({
+          type: 'harness.tool.started',
+          toolCallId,
+          name: toolCallId === 'call-3' ? 'lookup' : 'mail',
+          replay: 'never',
+        })),
+        {
+          type: 'harness.tool.result',
+          toolCallId: 'call-3',
+          message: { role: 'tool', toolCallId: 'call-3', content: 'found' },
+        },
+        {
+          type: 'harness.tool.started',
+          toolCallId: 'call-4',
+          name: 'fetch',
+          replay: 'safe',
+        },
+      ])
+      const seen: Array<unknown> = []
+
+      const { host, session } = await openDurable({
+        persistence,
+        replies: [() => text('done')],
+        tools: [
+          answers('mail', 'sent'),
+          answers('lookup', 'found'),
+          answers('fetch', 'fetched'),
+        ],
+        durability: {
+          maxAttempts,
+          recover: ({ decision, interruptedTools }) => {
+            seen.push({ action: decision.action, interruptedTools })
+            return undefined
+          },
+        },
+      })
+      await session.settled('in-1')
+
+      expect(seen).toEqual([
+        {
+          action,
+          interruptedTools: [
+            { toolCallId: 'call-1', toolName: 'mail', reason: 'interrupted' },
+            { toolCallId: 'call-2', toolName: 'mail', reason: 'interrupted' },
+          ],
+        },
+      ])
+      await host.close()
+    },
+  )
+
+  it('tells the recover hook about a cut call of an answer that stopped at the output limit', async () => {
+    const persistence = durablePersistence()
+    await seedStoppedTurn(persistence, { attempt: 1 })
+    await appendSeeded(persistence, [
+      {
+        type: 'harness.transcript',
+        keep: 1,
+        add: [
+          {
+            id: 'a1',
+            role: 'assistant',
+            content: null,
+            toolCalls: [call('call-lookup', 'lookup')],
+            metadata: { tanstack: { finishReason: 'length' } },
+          },
+        ],
+      },
+    ])
+    const seen: Array<unknown> = []
+
+    const { host, session } = await openDurable({
+      persistence,
+      replies: [() => text('done')],
+      tools: [answers('lookup', 'found')],
+      durability: {
+        recover: ({ interruptedTools }) => {
+          seen.push(interruptedTools)
+          return undefined
+        },
+      },
+    })
+    await session.settled('in-1')
+
+    expect(seen).toEqual([
+      [{ toolCallId: 'call-lookup', toolName: 'lookup', reason: 'truncated' }],
+    ])
+    await host.close()
+  })
 })
 
 describe('session.recover()', () => {

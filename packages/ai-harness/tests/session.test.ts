@@ -6,7 +6,7 @@ import {
   defineAgent,
   toolDefinition,
 } from '@tanstack/ai'
-import { memoryPersistence } from '@tanstack/ai-persistence'
+import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import {
   HARNESS_EVENTS,
   createHarnessHost,
@@ -23,7 +23,7 @@ import {
   toolCall,
   untilAborted,
 } from './helpers'
-import type { StreamChunk } from '@tanstack/ai'
+import type { AnyChatMiddleware, ContentPart, StreamChunk } from '@tanstack/ai'
 import type { HarnessTurnOptions, Receipt, SessionEvent } from '../src'
 import type { Reply } from './helpers'
 
@@ -761,6 +761,80 @@ describe('joins without a log', () => {
     expect(messageTexts(calls[1])).toEqual(['[hidden]', 'first', 'more'])
     await host.close()
   })
+
+  it.each([false, true])(
+    'sends a steer that joins a call through the per-call change of a middleware (log: %s)',
+    async (withLog) => {
+      const image: ContentPart = {
+        type: 'image',
+        source: { type: 'url', value: 'https://example.com/cat.png' },
+      }
+      // Like a model that cannot read images: each image becomes a text.
+      const noImages: AnyChatMiddleware = {
+        name: 'test/no-images',
+        onConfig: (ctx, config) => {
+          if (ctx.phase !== 'beforeModel') return undefined
+          return {
+            providerMessages: (config.providerMessages ?? config.messages).map(
+              (message) =>
+                Array.isArray(message.content)
+                  ? {
+                      ...message,
+                      content: message.content.map((part) =>
+                        part.type === 'image'
+                          ? { type: 'text' as const, content: '[image]' }
+                          : part,
+                      ),
+                    }
+                  : message,
+            ),
+          }
+        },
+      }
+      const release = gate()
+      const { adapter, calls } = mockAdapter([
+        after(release.opened, 'first'),
+        () => text('second'),
+      ])
+      const { runs } = memoryPersistence().stores
+      const host = createHarnessHost({
+        persistence: withLog
+          ? { stores: { log: memoryLogStore(), runs } }
+          : memoryPersistence(),
+      })
+      const session = await host.open(
+        defineHarness({
+          name: 'test/steer-convert',
+          adapter,
+          middleware: [noImages],
+        }),
+        { threadId: 't-convert' },
+      )
+      const steer: Array<ContentPart> = [
+        { type: 'text', content: 'this' },
+        image,
+      ]
+
+      const turn = session.prompt('look')
+      await vi.waitFor(() => expect(calls).toHaveLength(1))
+      await session.prompt(steer, { busy: 'steer' }).receipt
+      release.open()
+      await turn
+
+      expect(calls[1].messages.at(-1).content).toEqual([
+        { type: 'text', content: 'this' },
+        { type: 'text', content: '[image]' },
+      ])
+      const transcript = await session.transcript()
+      expect(
+        transcript.find(
+          (message) =>
+            message.role === 'user' && Array.isArray(message.content),
+        )?.content,
+      ).toEqual(steer)
+      await host.close()
+    },
+  )
 
   it('fails the turn when onJoin throws, and runs the steer as its own turn', async () => {
     const { host, session, calls, wait } = await openJoins(

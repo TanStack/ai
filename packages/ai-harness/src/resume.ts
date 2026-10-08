@@ -7,6 +7,7 @@ import type {
 } from '@tanstack/ai'
 import type { MessageStore } from '@tanstack/ai-persistence'
 import type { HarnessDurability } from './define'
+import type { RecoverContext } from './turn'
 
 /** How often a running host renews its lease, and when a lease expires. */
 export const LEASE = { renewMs: 10_000, ttlMs: 30_000 }
@@ -193,35 +194,28 @@ export async function findCrashedRuns(
   )
 }
 
+/** A tool call that a repair closes with an error result, and why. */
+export type ClosedToolCall = RecoverContext['interruptedTools'][number]
+
 /**
- * Prepare the transcript of a crashed thread for a new run. It walks the tool
- * calls of the batch (the last assistant message with tool calls) in order:
+ * What a repair of `history` adds for each tool call of the batch (the last
+ * assistant message with tool calls), in order:
  *
  * - A call in `finished` gets its finished tool message. It does not run
  *   again.
  * - A call of an answer that stopped at the output limit (finish reason
- *   `length`) gets `truncated`, else {@link TRUNCATED_TOOL_RESULT}, as a tool
- *   error. It never runs.
- * - A pending call with `replay: 'never'` gets `interrupted`, else
- *   {@link INTERRUPTED_TOOL_RESULT}, as a tool error.
- * - A pending call with `replay: 'safe'`, or a call that never started, stays
- *   without a result, so the engine runs it.
+ *   `length`) is closed as `truncated`. It never runs.
+ * - A pending call with `replay: 'never'` is closed as `interrupted`.
+ * - A pending call with `replay: 'safe'`, or a call that never started, gets
+ *   nothing, so the engine runs it.
  */
-export async function repairTranscript(options: {
-  messages: MessageStore
-  threadId: string
+export function repairSteps(
+  history: ReadonlyArray<ModelMessage>,
   /** The tool calls that started and have no result. */
-  pending: ReadonlyArray<PendingTool>
+  pending: ReadonlyArray<PendingTool>,
   /** Tool messages of calls that finished before the crash, by toolCallId. */
-  finished?: ReadonlyMap<string, ModelMessage>
-  /** The content and error of a cut `replay: 'never'` call. */
-  interrupted?: string
-  /** The content and error of a call that the output limit cut. */
-  truncated?: HarnessDurability['truncatedToolResult']
-}): Promise<void> {
-  const { messages, threadId, pending, finished, interrupted, truncated } =
-    options
-  const history = await messages.loadThread(threadId)
+  finished?: ReadonlyMap<string, ModelMessage>,
+): Array<ModelMessage | ClosedToolCall> {
   // The last answer, with its segments. When the output limit stopped it,
   // its calls are not complete.
   const answer = history.slice(
@@ -236,8 +230,6 @@ export async function repairTranscript(options: {
         : [],
     ),
   )
-  if (pending.length === 0 && (finished?.size ?? 0) === 0 && cut.size === 0)
-    return
   const answered = new Set(
     history.flatMap((message) =>
       message.role === 'tool' && message.toolCallId ? [message.toolCallId] : [],
@@ -254,30 +246,61 @@ export async function repairTranscript(options: {
       ...pending.map((tool) => tool.toolCallId),
     ]),
   ]
-  const added = callIds
+  return callIds
     .filter((toolCallId) => !answered.has(toolCallId))
-    .flatMap((toolCallId): Array<ModelMessage> => {
+    .flatMap((toolCallId): Array<ModelMessage | ClosedToolCall> => {
       const result = finished?.get(toolCallId)
       if (result) return [result]
       const toolName = cut.get(toolCallId)
       if (toolName !== undefined) {
+        return [{ toolCallId, toolName, reason: 'truncated' }]
+      }
+      const tool = pendingById.get(toolCallId)
+      if (!tool || tool.replay === 'safe') return []
+      return [{ toolCallId, toolName: tool.name, reason: 'interrupted' }]
+    })
+}
+
+/**
+ * Prepare the transcript of a crashed thread for a new run, with the
+ * {@link repairSteps}. A `truncated` call gets `truncated`, else
+ * {@link TRUNCATED_TOOL_RESULT}, as a tool error. An `interrupted` call gets
+ * `interrupted`, else {@link INTERRUPTED_TOOL_RESULT}, as a tool error.
+ */
+export async function repairTranscript(options: {
+  messages: MessageStore
+  threadId: string
+  /** The tool calls that started and have no result. */
+  pending: ReadonlyArray<PendingTool>
+  /** Tool messages of calls that finished before the crash, by toolCallId. */
+  finished?: ReadonlyMap<string, ModelMessage>
+  /** The content and error of a cut `replay: 'never'` call. */
+  interrupted?: string
+  /** The content and error of a call that the output limit cut. */
+  truncated?: HarnessDurability['truncatedToolResult']
+}): Promise<void> {
+  const { messages, threadId, pending, finished, interrupted, truncated } =
+    options
+  const history = await messages.loadThread(threadId)
+  const added = repairSteps(history, pending, finished).map(
+    (step): ModelMessage => {
+      if (!('reason' in step)) return step
+      const { toolCallId, toolName } = step
+      if (step.reason === 'truncated') {
         const text =
           typeof truncated === 'function'
             ? truncated({ toolCallId, toolName })
             : (truncated ?? TRUNCATED_TOOL_RESULT)
-        return [{ role: 'tool', toolCallId, content: text, error: text }]
+        return { role: 'tool', toolCallId, content: text, error: text }
       }
-      const tool = pendingById.get(toolCallId)
-      if (!tool || tool.replay === 'safe') return []
-      return [
-        {
-          role: 'tool',
-          toolCallId,
-          content: interrupted ?? JSON.stringify(INTERRUPTED_TOOL_RESULT),
-          error: interrupted ?? INTERRUPTED_TOOL_RESULT.note,
-        },
-      ]
-    })
+      return {
+        role: 'tool',
+        toolCallId,
+        content: interrupted ?? JSON.stringify(INTERRUPTED_TOOL_RESULT),
+        error: interrupted ?? INTERRUPTED_TOOL_RESULT.note,
+      }
+    },
+  )
   if (added.length > 0) {
     await messages.saveThread(threadId, [...history, ...added])
   }
