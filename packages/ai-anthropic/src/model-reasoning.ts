@@ -6,6 +6,10 @@ import type { ModelReasoning } from '@tanstack/ai'
  * `chat({ reasoning })`. A model that is not here does not reason.
  */
 export type AnthropicModelReasoningByName = {
+  'claude-haiku-5-5': {
+    levels: 'off' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+    budget: false
+  }
   'claude-sonnet-5-5': {
     levels: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
     budget: false
@@ -66,6 +70,18 @@ export type AnthropicModelReasoningByName = {
 export const ANTHROPIC_MODEL_REASONING: Readonly<
   Record<string, ModelReasoning>
 > = {
+  'claude-haiku-5-5': {
+    map: {
+      off: 'none',
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: 'xhigh',
+      max: 'max',
+    },
+    budget: false,
+  },
   'claude-sonnet-5-5': {
     map: {
       off: null,

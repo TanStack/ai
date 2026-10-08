@@ -71,6 +71,7 @@ type AdaptiveEraModel =
   | 'claude-opus-4-7'
   | 'claude-opus-4-8'
   | 'claude-sonnet-5'
+  | 'claude-haiku-5-5'
 
 describe('Anthropic Model Provider Options Type Assertions', () => {
   describe('Pre-4.6 models — sampling options', () => {
@@ -109,7 +110,7 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
     })
   })
 
-  describe('Adaptive-era models (Opus 4.7/4.8, Sonnet 5) — no sampling', () => {
+  describe('Adaptive-era models (Opus 4.7/4.8, Sonnet 5, Haiku 5.5) — no sampling', () => {
     it('have max_tokens but NOT temperature/top_p/top_k', () => {
       type Options = AnthropicChatModelProviderOptionsByName[AdaptiveEraModel]
       expectTypeOf<Options>().toExtend<BaseOptions>()
@@ -145,6 +146,13 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
       type Levels = AnthropicModelReasoningByName['claude-fable-5']['levels']
       expectTypeOf<'off'>().not.toExtend<Levels>()
     })
+
+    it('claude-haiku-5-5 can turn thinking off and takes xhigh, with no budget', () => {
+      type Reasoning = AnthropicModelReasoningByName['claude-haiku-5-5']
+      expectTypeOf<Reasoning['budget']>().toEqualTypeOf<false>()
+      expectTypeOf<'off'>().toExtend<Reasoning['levels']>()
+      expectTypeOf<'xhigh'>().toExtend<Reasoning['levels']>()
+    })
   })
 
   describe('Provider options type completeness', () => {
@@ -161,6 +169,7 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
       expectTypeOf<'claude-opus-4-8'>().toExtend<Keys>()
       expectTypeOf<'claude-fable-5'>().toExtend<Keys>()
       expectTypeOf<'claude-sonnet-5'>().toExtend<Keys>()
+      expectTypeOf<'claude-haiku-5-5'>().toExtend<Keys>()
     })
   })
 })
@@ -317,6 +326,7 @@ describe('getAnthropicDefaultMaxTokens (#849)', () => {
     expect(getAnthropicDefaultMaxTokens('claude-sonnet-4-6')).toBe(64_000)
     expect(getAnthropicDefaultMaxTokens('claude-sonnet-4-5')).toBe(64_000)
     expect(getAnthropicDefaultMaxTokens('claude-opus-4-5')).toBe(32_000)
+    expect(getAnthropicDefaultMaxTokens('claude-haiku-5-5')).toBe(128_000)
   })
 
   it('falls back to the safe constant for unknown models', () => {

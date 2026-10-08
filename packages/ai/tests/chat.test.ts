@@ -319,7 +319,7 @@ describe('chat()', () => {
   // Non-streaming text (stream: false)
   // ==========================================================================
   describe('non-streaming text (stream: false)', () => {
-    it('should return a Promise<string> with collected text content', async () => {
+    it('should return a ChatResult with the collected text content', async () => {
       const { adapter } = createMockAdapter({
         iterations: [
           [
@@ -339,7 +339,15 @@ describe('chat()', () => {
         stream: false,
       })
 
-      expect(result).toBe('Hello world!')
+      expect(result.text).toBe('Hello world!')
+      expect(result.chunks.map((c) => c.type)).toEqual([
+        'RUN_STARTED',
+        'TEXT_MESSAGE_START',
+        'TEXT_MESSAGE_CONTENT',
+        'TEXT_MESSAGE_CONTENT',
+        'TEXT_MESSAGE_END',
+        'RUN_FINISHED',
+      ])
     })
 
     it('should still execute tools under the hood when stream: false', async () => {
@@ -373,7 +381,19 @@ describe('chat()', () => {
       })
 
       expect(executeSpy).toHaveBeenCalledTimes(1)
-      expect(result).toBe('72F in NYC')
+      expect(result.text).toBe('72F in NYC')
+      expect(result.chunks).toContainEqual(
+        expect.objectContaining({
+          type: 'TOOL_CALL_START',
+          toolCallId: 'call_1',
+        }),
+      )
+      expect(result.chunks).toContainEqual(
+        expect.objectContaining({
+          type: 'TOOL_CALL_RESULT',
+          toolCallId: 'call_1',
+        }),
+      )
     })
   })
 
@@ -4301,7 +4321,7 @@ describe('chat()', () => {
         stream: false,
       })
 
-      expect(result).toBe('Hello')
+      expect(result.text).toBe('Hello')
     })
   })
 

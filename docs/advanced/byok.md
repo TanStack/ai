@@ -133,7 +133,7 @@ If no provider is set, the send throws. The client does not attach every stored 
 
 Built-in fetch and XHR adapters copy the headers onto the POST.
 
-If you write a custom `connect`, copy `runContext.headers` yourself. See [Connection Adapters](../chat/connection-adapters).
+If you write a custom `connect`, copy `runContext.headers` yourself. See [Custom Transports](../transports/custom#request-scoped-adapters).
 
 ## 4. Read the key on the relay
 

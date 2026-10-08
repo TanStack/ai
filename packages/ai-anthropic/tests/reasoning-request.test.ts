@@ -131,6 +131,15 @@ describe('Anthropic chat({ reasoning }) request shape', () => {
     expect(body).not.toHaveProperty('output_config')
   })
 
+  it('Claude Haiku 5.5: adaptive thinking up to xhigh, and off disables it', async () => {
+    const xhigh = await send('claude-haiku-5-5', on('xhigh'))
+    expect(xhigh.thinking).toEqual({ type: 'adaptive', display: 'summarized' })
+    expect(xhigh.output_config).toEqual({ effort: 'xhigh' })
+    const off = await send('claude-haiku-5-5', on('off'))
+    expect(off.thinking).toEqual({ type: 'disabled' })
+    expect(off).not.toHaveProperty('output_config')
+  })
+
   it('clamps a level the model does not have', async () => {
     // claude-opus-4-8 has no `minimal`: it clamps up to `low`.
     const minimal = await send('claude-opus-4-8', on('minimal'))

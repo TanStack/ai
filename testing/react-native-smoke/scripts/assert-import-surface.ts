@@ -57,10 +57,12 @@ const forbiddenServerSymbols = new Set([
   'getVideoJobStatus',
   'mergeAgentTools',
   'realtimeToken',
+  'resumeJsonResponse',
   'streamToText',
   'summarize',
   'toHttpResponse',
   'toHttpStream',
+  'toJsonResponse',
   'toServerSentEventsResponse',
   'toServerSentEventsStream',
 ])

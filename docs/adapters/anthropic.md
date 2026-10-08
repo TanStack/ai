@@ -644,7 +644,7 @@ const stream = chat({
 });
 ```
 
-**Supported models:** Claude Sonnet 3.5 and above, with two exceptions. `claude-opus-5-fast` takes no provider tools. Claude Opus 5.5 and Claude Sonnet 5.5 accept only the `computer_toolset_20260801` toolset, which the adapter does not offer yet. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+**Supported models:** Claude Sonnet 3.5 and above, with two exceptions. `claude-opus-5-fast` takes no provider tools. Claude Opus 5.5, Claude Sonnet 5.5, and Claude Haiku 5.5 accept only the `computer_toolset_20260801` toolset, which the adapter does not offer yet. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
 
 ### `bashTool`
 

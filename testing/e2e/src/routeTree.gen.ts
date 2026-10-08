@@ -34,6 +34,7 @@ import { Route as HeadlessUiRouteImport } from './routes/headless-ui'
 import { Route as InterruptLineageRouteImport } from './routes/interrupt-lineage'
 import { Route as InterruptsTestRouteImport } from './routes/interrupts-test'
 import { Route as JoinRunClientToolRouteImport } from './routes/join-run-client-tool'
+import { Route as JsonTransportRouteImport } from './routes/json-transport'
 import { Route as MarkdownCjkRouteImport } from './routes/markdown-cjk'
 import { Route as MessageHistoryPagingRouteImport } from './routes/message-history-paging'
 import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
@@ -51,6 +52,7 @@ import { Route as ProviderFeatureRouteImport } from './routes/$provider/$feature
 import { Route as ApiActivityTestRouteImport } from './routes/api.activity-test'
 import { Route as ApiAdapterConfigReasoningWireRouteImport } from './routes/api.adapter-config-reasoning-wire'
 import { Route as ApiAnthropicBugTestRouteImport } from './routes/api.anthropic-bug-test'
+import { Route as ApiAnthropicHaiku55WireRouteImport } from './routes/api.anthropic-haiku-5-5-wire'
 import { Route as ApiAnthropicMaxTokensUsageRouteImport } from './routes/api.anthropic-max-tokens-usage'
 import { Route as ApiAnthropicMultiTurnStructuredWireRouteImport } from './routes/api.anthropic-multi-turn-structured-wire'
 import { Route as ApiAnthropicOpus5CombinedWireRouteImport } from './routes/api.anthropic-opus-5-combined-wire'
@@ -91,6 +93,7 @@ import { Route as ApiHarnessTurnOverridesRouteImport } from './routes/api.harnes
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiInterruptsTestRouteImport } from './routes/api.interrupts-test'
 import { Route as ApiJoinRunClientToolRouteImport } from './routes/api.join-run-client-tool'
+import { Route as ApiJsonTransportRouteImport } from './routes/api.json-transport'
 import { Route as ApiLazyToolsWireRouteImport } from './routes/api.lazy-tools-wire'
 import { Route as ApiMaxToolCallsWireRouteImport } from './routes/api.max-tool-calls-wire'
 import { Route as ApiMcpAppsCallRouteImport } from './routes/api.mcp-apps-call'
@@ -311,6 +314,11 @@ const JoinRunClientToolRoute = JoinRunClientToolRouteImport.update({
   path: '/join-run-client-tool',
   getParentRoute: () => rootRouteImport,
 } as any)
+const JsonTransportRoute = JsonTransportRouteImport.update({
+  id: '/json-transport',
+  path: '/json-transport',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MarkdownCjkRoute = MarkdownCjkRouteImport.update({
   id: '/markdown-cjk',
   path: '/markdown-cjk',
@@ -395,6 +403,11 @@ const ApiAdapterConfigReasoningWireRoute =
 const ApiAnthropicBugTestRoute = ApiAnthropicBugTestRouteImport.update({
   id: '/api/anthropic-bug-test',
   path: '/api/anthropic-bug-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAnthropicHaiku55WireRoute = ApiAnthropicHaiku55WireRouteImport.update({
+  id: '/api/anthropic-haiku-5-5-wire',
+  path: '/api/anthropic-haiku-5-5-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAnthropicMaxTokensUsageRoute =
@@ -610,6 +623,11 @@ const ApiInterruptsTestRoute = ApiInterruptsTestRouteImport.update({
 const ApiJoinRunClientToolRoute = ApiJoinRunClientToolRouteImport.update({
   id: '/api/join-run-client-tool',
   path: '/api/join-run-client-tool',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiJsonTransportRoute = ApiJsonTransportRouteImport.update({
+  id: '/api/json-transport',
+  path: '/api/json-transport',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiLazyToolsWireRoute = ApiLazyToolsWireRouteImport.update({
@@ -1022,6 +1040,7 @@ export interface FileRoutesByFullPath {
   '/interrupt-lineage': typeof InterruptLineageRoute
   '/interrupts-test': typeof InterruptsTestRoute
   '/join-run-client-tool': typeof JoinRunClientToolRoute
+  '/json-transport': typeof JsonTransportRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
@@ -1038,6 +1057,7 @@ export interface FileRoutesByFullPath {
   '/api/activity-test': typeof ApiActivityTestRoute
   '/api/adapter-config-reasoning-wire': typeof ApiAdapterConfigReasoningWireRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/anthropic-haiku-5-5-wire': typeof ApiAnthropicHaiku55WireRoute
   '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
@@ -1078,6 +1098,7 @@ export interface FileRoutesByFullPath {
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
+  '/api/json-transport': typeof ApiJsonTransportRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
@@ -1179,6 +1200,7 @@ export interface FileRoutesByTo {
   '/interrupt-lineage': typeof InterruptLineageRoute
   '/interrupts-test': typeof InterruptsTestRoute
   '/join-run-client-tool': typeof JoinRunClientToolRoute
+  '/json-transport': typeof JsonTransportRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
@@ -1195,6 +1217,7 @@ export interface FileRoutesByTo {
   '/api/activity-test': typeof ApiActivityTestRoute
   '/api/adapter-config-reasoning-wire': typeof ApiAdapterConfigReasoningWireRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/anthropic-haiku-5-5-wire': typeof ApiAnthropicHaiku55WireRoute
   '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
@@ -1235,6 +1258,7 @@ export interface FileRoutesByTo {
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
+  '/api/json-transport': typeof ApiJsonTransportRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
@@ -1337,6 +1361,7 @@ export interface FileRoutesById {
   '/interrupt-lineage': typeof InterruptLineageRoute
   '/interrupts-test': typeof InterruptsTestRoute
   '/join-run-client-tool': typeof JoinRunClientToolRoute
+  '/json-transport': typeof JsonTransportRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
@@ -1353,6 +1378,7 @@ export interface FileRoutesById {
   '/api/activity-test': typeof ApiActivityTestRoute
   '/api/adapter-config-reasoning-wire': typeof ApiAdapterConfigReasoningWireRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/anthropic-haiku-5-5-wire': typeof ApiAnthropicHaiku55WireRoute
   '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
@@ -1393,6 +1419,7 @@ export interface FileRoutesById {
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
+  '/api/json-transport': typeof ApiJsonTransportRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
@@ -1496,6 +1523,7 @@ export interface FileRouteTypes {
     | '/interrupt-lineage'
     | '/interrupts-test'
     | '/join-run-client-tool'
+    | '/json-transport'
     | '/markdown-cjk'
     | '/message-history-paging'
     | '/middleware-test'
@@ -1512,6 +1540,7 @@ export interface FileRouteTypes {
     | '/api/activity-test'
     | '/api/adapter-config-reasoning-wire'
     | '/api/anthropic-bug-test'
+    | '/api/anthropic-haiku-5-5-wire'
     | '/api/anthropic-max-tokens-usage'
     | '/api/anthropic-multi-turn-structured-wire'
     | '/api/anthropic-opus-5-combined-wire'
@@ -1552,6 +1581,7 @@ export interface FileRouteTypes {
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
+    | '/api/json-transport'
     | '/api/lazy-tools-wire'
     | '/api/max-tool-calls-wire'
     | '/api/mcp-apps-call'
@@ -1653,6 +1683,7 @@ export interface FileRouteTypes {
     | '/interrupt-lineage'
     | '/interrupts-test'
     | '/join-run-client-tool'
+    | '/json-transport'
     | '/markdown-cjk'
     | '/message-history-paging'
     | '/middleware-test'
@@ -1669,6 +1700,7 @@ export interface FileRouteTypes {
     | '/api/activity-test'
     | '/api/adapter-config-reasoning-wire'
     | '/api/anthropic-bug-test'
+    | '/api/anthropic-haiku-5-5-wire'
     | '/api/anthropic-max-tokens-usage'
     | '/api/anthropic-multi-turn-structured-wire'
     | '/api/anthropic-opus-5-combined-wire'
@@ -1709,6 +1741,7 @@ export interface FileRouteTypes {
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
+    | '/api/json-transport'
     | '/api/lazy-tools-wire'
     | '/api/max-tool-calls-wire'
     | '/api/mcp-apps-call'
@@ -1810,6 +1843,7 @@ export interface FileRouteTypes {
     | '/interrupt-lineage'
     | '/interrupts-test'
     | '/join-run-client-tool'
+    | '/json-transport'
     | '/markdown-cjk'
     | '/message-history-paging'
     | '/middleware-test'
@@ -1826,6 +1860,7 @@ export interface FileRouteTypes {
     | '/api/activity-test'
     | '/api/adapter-config-reasoning-wire'
     | '/api/anthropic-bug-test'
+    | '/api/anthropic-haiku-5-5-wire'
     | '/api/anthropic-max-tokens-usage'
     | '/api/anthropic-multi-turn-structured-wire'
     | '/api/anthropic-opus-5-combined-wire'
@@ -1866,6 +1901,7 @@ export interface FileRouteTypes {
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
+    | '/api/json-transport'
     | '/api/lazy-tools-wire'
     | '/api/max-tool-calls-wire'
     | '/api/mcp-apps-call'
@@ -1968,6 +2004,7 @@ export interface RootRouteChildren {
   InterruptLineageRoute: typeof InterruptLineageRoute
   InterruptsTestRoute: typeof InterruptsTestRoute
   JoinRunClientToolRoute: typeof JoinRunClientToolRoute
+  JsonTransportRoute: typeof JsonTransportRoute
   MarkdownCjkRoute: typeof MarkdownCjkRoute
   MessageHistoryPagingRoute: typeof MessageHistoryPagingRoute
   MiddlewareTestRoute: typeof MiddlewareTestRoute
@@ -1984,6 +2021,7 @@ export interface RootRouteChildren {
   ApiActivityTestRoute: typeof ApiActivityTestRoute
   ApiAdapterConfigReasoningWireRoute: typeof ApiAdapterConfigReasoningWireRoute
   ApiAnthropicBugTestRoute: typeof ApiAnthropicBugTestRoute
+  ApiAnthropicHaiku55WireRoute: typeof ApiAnthropicHaiku55WireRoute
   ApiAnthropicMaxTokensUsageRoute: typeof ApiAnthropicMaxTokensUsageRoute
   ApiAnthropicMultiTurnStructuredWireRoute: typeof ApiAnthropicMultiTurnStructuredWireRoute
   ApiAnthropicOpus5CombinedWireRoute: typeof ApiAnthropicOpus5CombinedWireRoute
@@ -2024,6 +2062,7 @@ export interface RootRouteChildren {
   ApiImageRoute: typeof ApiImageRouteWithChildren
   ApiInterruptsTestRoute: typeof ApiInterruptsTestRoute
   ApiJoinRunClientToolRoute: typeof ApiJoinRunClientToolRoute
+  ApiJsonTransportRoute: typeof ApiJsonTransportRoute
   ApiLazyToolsWireRoute: typeof ApiLazyToolsWireRoute
   ApiMaxToolCallsWireRoute: typeof ApiMaxToolCallsWireRoute
   ApiMcpAppsCallRoute: typeof ApiMcpAppsCallRoute
@@ -2272,6 +2311,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof JoinRunClientToolRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/json-transport': {
+      id: '/json-transport'
+      path: '/json-transport'
+      fullPath: '/json-transport'
+      preLoaderRoute: typeof JsonTransportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/markdown-cjk': {
       id: '/markdown-cjk'
       path: '/markdown-cjk'
@@ -2389,6 +2435,13 @@ declare module '@tanstack/react-router' {
       path: '/api/anthropic-bug-test'
       fullPath: '/api/anthropic-bug-test'
       preLoaderRoute: typeof ApiAnthropicBugTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/anthropic-haiku-5-5-wire': {
+      id: '/api/anthropic-haiku-5-5-wire'
+      path: '/api/anthropic-haiku-5-5-wire'
+      fullPath: '/api/anthropic-haiku-5-5-wire'
+      preLoaderRoute: typeof ApiAnthropicHaiku55WireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/anthropic-max-tokens-usage': {
@@ -2669,6 +2722,13 @@ declare module '@tanstack/react-router' {
       path: '/api/join-run-client-tool'
       fullPath: '/api/join-run-client-tool'
       preLoaderRoute: typeof ApiJoinRunClientToolRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/json-transport': {
+      id: '/api/json-transport'
+      path: '/api/json-transport'
+      fullPath: '/api/json-transport'
+      preLoaderRoute: typeof ApiJsonTransportRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/lazy-tools-wire': {
@@ -3270,6 +3330,7 @@ const rootRouteChildren: RootRouteChildren = {
   InterruptLineageRoute: InterruptLineageRoute,
   InterruptsTestRoute: InterruptsTestRoute,
   JoinRunClientToolRoute: JoinRunClientToolRoute,
+  JsonTransportRoute: JsonTransportRoute,
   MarkdownCjkRoute: MarkdownCjkRoute,
   MessageHistoryPagingRoute: MessageHistoryPagingRoute,
   MiddlewareTestRoute: MiddlewareTestRoute,
@@ -3286,6 +3347,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiActivityTestRoute: ApiActivityTestRoute,
   ApiAdapterConfigReasoningWireRoute: ApiAdapterConfigReasoningWireRoute,
   ApiAnthropicBugTestRoute: ApiAnthropicBugTestRoute,
+  ApiAnthropicHaiku55WireRoute: ApiAnthropicHaiku55WireRoute,
   ApiAnthropicMaxTokensUsageRoute: ApiAnthropicMaxTokensUsageRoute,
   ApiAnthropicMultiTurnStructuredWireRoute:
     ApiAnthropicMultiTurnStructuredWireRoute,
@@ -3329,6 +3391,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiImageRoute: ApiImageRouteWithChildren,
   ApiInterruptsTestRoute: ApiInterruptsTestRoute,
   ApiJoinRunClientToolRoute: ApiJoinRunClientToolRoute,
+  ApiJsonTransportRoute: ApiJsonTransportRoute,
   ApiLazyToolsWireRoute: ApiLazyToolsWireRoute,
   ApiMaxToolCallsWireRoute: ApiMaxToolCallsWireRoute,
   ApiMcpAppsCallRoute: ApiMcpAppsCallRoute,

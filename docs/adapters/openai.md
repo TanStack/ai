@@ -1101,7 +1101,7 @@ const patchResult = {
 };
 ```
 
-If the patch fails, set `status` to `"failed"`. Put the error text in `output`. Keep `applyPatchTool()` in `tools` on the next request. Use the stream. `chat({ stream: false })` returns only text. A patch-only turn then looks empty.
+If the patch fails, set `status` to `"failed"`. Put the error text in `output`. Keep `applyPatchTool()` in `tools` on the next request. A patch-only turn has no text. If you use `chat({ stream: false })`, `text` is empty. Read the `apply_patch` tool call from `chunks` with the same checks as the loop above.
 
 **Supported models:** GPT-5.x and other agent-capable models. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
 

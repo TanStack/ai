@@ -118,7 +118,7 @@ export async function POST(request: Request) {
 | Vercel AI SDK | TanStack AI | Notes |
 |--------------|-------------|-------|
 | `streamText()` | `chat()` | Main text generation function |
-| `generateText()` | `chat({ stream: false })` | Returns `Promise<string>` |
+| `generateText()` | `chat({ stream: false })` | Returns `Promise<{ text, chunks }>` |
 | `generateObject()` / `streamObject()` / `Output.object()` | `chat({ outputSchema })` | Returns `Promise<T>` — see [Structured Output](#structured-output) |
 | `openai('gpt-4o')` | `openaiText('gpt-4o')` | Activity-specific adapters |
 | `result.toUIMessageStreamResponse()` / `.toTextStreamResponse()` | `toServerSentEventsResponse(stream)` / `toHttpResponse(stream)` | Separate utility functions |
@@ -175,9 +175,9 @@ Options accepted by `streamText` as of AI SDK v6, and where each lives in TanSta
 |---------------------------|------------------------|
 | `result.textStream` | Filter the async iterable: `for await (const c of stream) if (c.type === 'text-delta') …` |
 | `result.fullStream` | The `stream` returned by `chat()` **is** the full stream (`AsyncIterable<StreamChunk>`) |
-| `result.text` | `await streamToText(stream)` or `chat({ …, stream: false })` |
+| `result.text` | `(await streamToText(stream)).text` or `(await chat({ …, stream: false })).text` |
 | `result.content` | Accumulate parts in `middleware.onChunk`, or read the final `UIMessage` in `onFinish` |
-| `result.toolCalls` / `result.toolResults` | Read from chunks in `middleware.onChunk` / `onAfterToolCall` |
+| `result.toolCalls` / `result.toolResults` | Read from chunks in `middleware.onChunk` / `onAfterToolCall`, or from `chunks` on the `stream: false` result |
 | `result.usage` / `result.totalUsage` | `middleware.onUsage(ctx, usage)` |
 | `result.finishReason` | `middleware.onFinish(ctx, info)` |
 | `result.steps` | Accumulate via `middleware.onIteration` / `onToolPhaseComplete` |
@@ -873,7 +873,7 @@ const firstPass = await chat({
 // Stage 2: cheaper model for the rest
 const followUp = chat({
   adapter: openaiText('gpt-4o-mini'),
-  messages: [...messages, { role: 'assistant' as const, content: firstPass }],
+  messages: [...messages, { role: 'assistant' as const, content: firstPass.text }],
   tools: [getWeather],
 })
 ```
@@ -1393,21 +1393,22 @@ chat({
 
 ## Non-streaming Generation (`generateText`)
 
-TanStack AI doesn't ship a separate `generateText` function — the same `chat()` covers both modes. Pass `stream: false` and the return type flips from `AsyncIterable<StreamChunk>` to `Promise<string>`:
+TanStack AI has no separate `generateText` function. The same `chat()` covers both modes. Pass `stream: false` and the return type changes from `AsyncIterable<StreamChunk>` to `Promise<ChatResult>`:
 
 ```typescript
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
-const text = await chat({
+const { text, chunks } = await chat({
   adapter: openaiText('gpt-4o'),
   messages: [{ role: 'user', content: 'Summarize TanStack AI in one sentence.' }],
   stream: false,
 })
 // text: string
+// chunks: every chunk of the run (tool calls, usage, RUN_FINISHED)
 ```
 
-If you already have a stream for another reason, `streamToText(stream)` collects it into a string:
+If you already have a stream, `streamToText(stream)` reads it to the end and returns the same `{ text, chunks }` result:
 
 ```typescript
 import { chat, streamToText } from '@tanstack/ai'
@@ -1415,7 +1416,7 @@ import { openaiText } from '@tanstack/ai-openai'
 
 const messages = [{ role: 'user' as const, content: 'Hello' }]
 const stream = chat({ adapter: openaiText('gpt-4o'), messages })
-const text = await streamToText(stream)
+const { text } = await streamToText(stream)
 ```
 
 For structured (non-streaming) output — the `generateObject` equivalent — pass `outputSchema` instead; see [Structured Output](#structured-output).
@@ -1625,6 +1626,6 @@ If you hit something that isn't covered here, the deep-dive docs pick up where t
 3. [Agentic Cycle](../chat/agentic-cycle) — agent loop internals and strategy composition
 4. [Structured Outputs](../structured-outputs/overview) — `outputSchema`, provider implementations, schema libraries
 5. [Middleware](../advanced/middleware) — full hook reference, context object, built-in middleware
-6. [Connection Adapters](../chat/connection-adapters) — SSE, HTTP stream, custom transports
+6. [Transports](../transports/overview) — SSE, HTTP stream, custom transports
 7. [Per-Model Type Safety](../advanced/per-model-type-safety) — how `modelOptions` is typed
 8. [API Reference](../api/ai) — every exported symbol
