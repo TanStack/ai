@@ -5,19 +5,7 @@ import { webSearchTool } from '@tanstack/ai-anthropic/tools'
 
 const DUMMY_KEY = 'sk-ant-e2e-test-dummy-key'
 
-/**
- * Wire-format verification for `claude-haiku-5-5` model options.
- *
- * `claude-haiku-5-5` takes adaptive thinking or an explicit
- * `thinking: { type: 'disabled' }` (the API allows it at `high` effort or
- * below), plus `output_config.effort`. This route only compiles when the model
- * accepts both, and the companion spec asserts that they reach the Messages
- * request.
- *
- * A custom `fetch` captures the outgoing request and answers with a synthetic
- * Claude SSE stream, so the run finishes without a real Anthropic key or an
- * aimock fixture, the same approach as `api.anthropic-opus-5-combined-wire.ts`.
- */
+/** Wire-format check: `claude-haiku-5-5` sends disabled thinking and `output_config.effort`. */
 
 /** Minimal Anthropic Messages stream with one text block. */
 function makeSyntheticAnthropicStream(): ReadableStream<Uint8Array> {

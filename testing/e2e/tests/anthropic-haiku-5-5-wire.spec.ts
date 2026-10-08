@@ -1,13 +1,6 @@
 import { test, expect } from './fixtures'
 
-/**
- * Wire-format verification for `claude-haiku-5-5` model options.
- *
- * `/api/anthropic-haiku-5-5-wire` runs `chat()` on `claude-haiku-5-5` with
- * `thinking: { type: 'disabled' }`, `output_config.effort`, and a provider
- * tool, through a custom `fetch` that records the Messages request. The route
- * only type-checks when the model accepts both options.
- */
+/** Wire-format check: `claude-haiku-5-5` options reach the Messages request. */
 type WireResponse = {
   ok: boolean
   error?: string

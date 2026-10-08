@@ -696,16 +696,7 @@ const CLAUDE_SONNET_5_5 = {
     AnthropicOutputConfigOptions
 >
 
-// Claude Haiku 5.5: adaptive thinking is the default. `{type: 'enabled',
-// budget_tokens}` returns a 400, and so does a non-default `temperature`,
-// `top_p` or `top_k`. Unlike Sonnet 5.5, `{type: 'disabled'}` is accepted at
-// `low`, `medium` and `high` effort; the API returns a 400 for it at `xhigh`
-// and `max`, which these types cannot express. A forced `tool_choice` (`any`
-// or a named tool) is accepted. Priority Tier is not supported, so there is no
-// `priority_tier` flag. The 1M-token context window is priced by prompt
-// length: the rates below apply to prompts up to 100,000 tokens, and prompts
-// over 100,000 tokens cost five times as much ($0.50 input, $0.05 cached,
-// $2.50 output per MTok).
+// Claude Haiku 5.5: `disabled` thinking 400s at xhigh/max (untyped); pricing is the <=100K-token tier.
 const CLAUDE_HAIKU_5_5 = {
   name: 'claude-haiku-5-5',
   id: 'claude-haiku-5-5',
@@ -1062,9 +1053,7 @@ export type AnthropicChatModelProviderOptionsByName = {
     AnthropicToolChoiceOptions &
     AnthropicMaxTokensOptions &
     AnthropicOutputConfigOptions
-  // Claude Haiku 5.5: adaptive thinking with an explicit opt-out (accepted at
-  // `high` effort or below), no budget_tokens, no sampling parameters — see
-  // the CLAUDE_HAIKU_5_5 constant above.
+  // Claude Haiku 5.5: adaptive or disabled thinking, no budget_tokens, no sampling.
   [CLAUDE_HAIKU_5_5.id]: AnthropicCacheControlOptions &
     AnthropicContainerOptions &
     AnthropicContextManagementOptions &
