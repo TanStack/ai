@@ -465,13 +465,28 @@ describe('the working folder note', () => {
   const sent = (call: { messages: ReadonlyArray<ModelMessage> }) =>
     JSON.stringify(call.messages)
 
-  it('tells the next model call when the working folder changes', async () => {
+  it('adds no note to a new thread, so the user message comes first', async () => {
     const { adapter, calls } = mockAdapter(() => text('ok'))
     const { host, session } = await open({ adapter })
 
     await session.configure({ cwd: '/repo/app' })
     await session.prompt('Hi.')
-    expect(sent(calls[0])).toContain(
+    const roles = calls[0]?.messages.map(
+      (message: ModelMessage) => message.role,
+    )
+    expect(roles).toEqual(['user'])
+    expect(sent(calls[0])).not.toContain('working folder')
+    await host.close()
+  })
+
+  it('tells the next model call when the working folder changes', async () => {
+    const { adapter, calls } = mockAdapter(() => text('ok'))
+    const { host, session } = await open({ adapter })
+
+    await session.prompt('First.')
+    await session.configure({ cwd: '/repo/app' })
+    await session.prompt('Hi.')
+    expect(sent(calls[1])).toContain(
       'The working folder is now /repo/app. Paths are relative to it.',
     )
     // The note is in the saved transcript, so it survives a restart.
@@ -485,11 +500,12 @@ describe('the working folder note', () => {
     const { adapter, calls } = mockAdapter(() => text('ok'))
     const { host, session } = await open({ adapter })
 
+    await session.prompt('First.')
     await session.configure({ cwd: '/repo/app' })
     await session.configure({ cwd: '/repo/app' })
     await session.configure({ instructions: 'Be short.' })
     await session.prompt('Hi.')
-    expect(sent(calls[0]).split('The working folder is now')).toHaveLength(2)
+    expect(sent(calls[1]).split('The working folder is now')).toHaveLength(2)
     await host.close()
   })
 

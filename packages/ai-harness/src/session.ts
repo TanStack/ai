@@ -2688,7 +2688,10 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     const movedFrom = this.threadSettings.cwd
     this.threadSettings = next
     // Tell the model about a new folder, so it stops using the old paths.
-    if (next.cwd !== movedFrom) {
+    // A new thread gets no note: some providers refuse a conversation that
+    // starts with an assistant message.
+    const isNew = (await this.messages.loadThread(this.threadId)).length === 0
+    if (next.cwd !== movedFrom && !isNew) {
       await this.addNote(
         next.cwd === undefined
           ? 'The working folder is the default folder again.'

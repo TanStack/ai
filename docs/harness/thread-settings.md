@@ -141,6 +141,7 @@ When `cwd` changes, the model gets a short note before its next call. So it stop
 - A new `cwd` adds "The working folder is now web-app. Paths are relative to it."
 - `cwd: null` adds "The working folder is the default folder again."
 - The same `cwd` again adds no note.
+- A thread with no messages yet gets no note. The workspace tools prompt tells the model the folder.
 
 The note is an assistant message in the transcript, so it stays after a restart. A change while a turn runs adds the note before the next turn.
 
