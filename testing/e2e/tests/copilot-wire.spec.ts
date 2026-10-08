@@ -24,7 +24,8 @@ for (const api of ['chat-completions', 'responses'] as const) {
     )
     expect(calls).toHaveLength(1)
     const headers = calls[0]?.headers
-    expect(headers?.['authorization']).toBe('Bearer copilot-token')
+    // aimock redacts the token in its journal. The header must still be there.
+    expect(headers?.['authorization']).toBe('[REDACTED]')
     expect(headers?.['openai-intent']).toBe('conversation-edits')
     expect(headers?.['x-github-api-version']).toBe('2026-08-01')
     expect(headers?.['x-initiator']).toBe('user')
