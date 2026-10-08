@@ -9,7 +9,7 @@ import {
   generateId,
   getGeminiApiKeyFromEnv,
 } from '../utils'
-import { buildGeminiUsage } from '../usage'
+import { flattenModalityTokenCounts, hasModalityTokens } from '../usage'
 import {
   isGeminiNativeImageModel,
   parseNativeImageSize,
@@ -33,16 +33,19 @@ import type {
   ImagePart,
   MediaInputMetadata,
   ResolvedMediaPrompt,
+  TokenUsage,
 } from '@tanstack/ai'
+import { ThinkingLevel } from '@google/genai'
 import type {
   Content,
-  GenerateContentConfig,
-  GenerateContentResponse,
+  ContentUnion,
   GenerateImagesConfig,
   GenerateImagesResponse,
   GoogleGenAI,
-  ImageConfig,
+  Interactions,
   Part,
+  SafetySetting,
+  ThinkingConfig,
 } from '@google/genai'
 import type { GeminiClientConfig } from '../utils/client'
 
@@ -59,7 +62,7 @@ export type GeminiImageModel = GeminiImageModels
  *
  * Tree-shakeable adapter for Gemini image generation functionality.
  * Supports Imagen 3/4 models (via generateImages API) and Gemini native
- * image models like Nano Banana 2 (via generateContent API).
+ * image models like Nano Banana 2 (via the Interactions API).
  *
  * Features:
  * - Aspect ratio-based image sizing
@@ -79,7 +82,7 @@ export class GeminiImageAdapter<
 > {
   override readonly kind = 'image' as const
   readonly name = 'gemini' as const
-  // Consumes Gemini Files API references (geminiFiles()) as fileData.fileUri.
+  // Consumes Gemini Files API references (geminiFiles()) as interaction image URIs.
   override readonly supportsFileSources = true
 
   // Type-only property - never assigned at runtime
@@ -142,6 +145,12 @@ export class GeminiImageAdapter<
         )
       }
 
+      if (options.modelOptions?.previous_interaction_id) {
+        throw new Error(
+          `${this.name}: previous_interaction_id is only supported on Gemini-native image models.`,
+        )
+      }
+
       // Imagen models path (generateImages API)
       validateImageSize(model, options.size)
       validateNumberOfImages(model, options.numberOfImages)
@@ -171,69 +180,77 @@ export class GeminiImageAdapter<
     const { model, size, numberOfImages, modelOptions } = options
 
     const parsedSize = size ? parseNativeImageSize(size) : undefined
+    // Named picks, never a wholesale spread of imageConfig. The portable
+    // `size` is the baseline; modelOptions.imageConfig wins per field.
+    const aspectRatio =
+      modelOptions?.imageConfig?.aspectRatio ?? parsedSize?.aspectRatio
+    const imageSize = interactionImageSize(
+      modelOptions?.imageConfig?.imageSize ?? parsedSize?.resolution,
+    )
 
-    // The portable `size` option is the baseline; modelOptions.imageConfig is
-    // the provider escape hatch and wins per field, so a caller passing only
-    // `imageConfig.imageSize` keeps the aspectRatio derived from `size`.
-    const imageConfig: ImageConfig = {
-      ...(parsedSize?.aspectRatio && { aspectRatio: parsedSize.aspectRatio }),
-      ...(parsedSize?.resolution && { imageSize: parsedSize.resolution }),
-      ...modelOptions?.imageConfig,
+    const thinking = modelOptions?.thinkingConfig
+    if (thinking?.thinkingBudget !== undefined) {
+      throw new Error(
+        `${this.name}: thinkingConfig.thinkingBudget is not supported on the Interactions image API. Set thinkingConfig.thinkingLevel ('minimal' | 'low' | 'medium' | 'high') instead.`,
+      )
     }
 
-    // Named picks, never a wholesale spread: the Imagen-shaped fields of
-    // GeminiImageProviderOptions (personGeneration, safetyFilterLevel,
-    // addWatermark, outputMimeType, …) are only valid on GenerateImagesConfig
-    // and would be rejected by generateContent. Picking by name means no
-    // Imagen field can reach this path even if one slips past the per-model
-    // provider-options map.
-    const nativeConfig: GenerateContentConfig = {
+    const generationConfig: Interactions.GenerationConfig = {
       ...(modelOptions?.seed !== undefined && { seed: modelOptions.seed }),
-      ...(modelOptions?.safetySettings !== undefined && {
-        safetySettings: modelOptions.safetySettings,
-      }),
-      ...(modelOptions?.thinkingConfig !== undefined && {
-        thinkingConfig: modelOptions.thinkingConfig,
-      }),
-      ...(modelOptions?.systemInstruction !== undefined && {
-        systemInstruction: modelOptions.systemInstruction,
-      }),
+      ...interactionThinking(thinking),
     }
 
-    const config: GenerateContentConfig = {
-      ...nativeConfig,
-      // Include TEXT so the model can interleave descriptions between images.
-      // IMPORTANT: responseModalities is a protected default — set it AFTER
-      // nativeConfig so nothing can silently disable image output.
-      responseModalities: ['TEXT', 'IMAGE'],
-      ...(Object.keys(imageConfig).length > 0 && { imageConfig }),
-    }
-
-    const contents = this.buildContents(resolved, numberOfImages)
-
-    const response = await this.client.models.generateContent({
+    // safety_settings is not on the SDK param type. Assign it after the
+    // object is built so the JSON body still carries it.
+    const request = {
       model,
-      contents,
-      config,
-    })
+      input: this.buildInteractionInput(resolved, numberOfImages),
+      stream: false as const,
+      response_format: {
+        type: 'image' as const,
+        ...(aspectRatio !== undefined && { aspect_ratio: aspectRatio }),
+        ...(imageSize !== undefined && { image_size: imageSize }),
+      },
+      ...(modelOptions?.systemInstruction !== undefined && {
+        system_instruction: systemInstructionText(
+          modelOptions.systemInstruction,
+        ),
+      }),
+      ...(Object.keys(generationConfig).length > 0 && {
+        generation_config: generationConfig,
+      }),
+      ...(modelOptions?.previous_interaction_id && {
+        previous_interaction_id: modelOptions.previous_interaction_id,
+      }),
+      ...(modelOptions?.store !== undefined && { store: modelOptions.store }),
+    }
+    if (
+      modelOptions?.safetySettings !== undefined &&
+      modelOptions.safetySettings.length > 0
+    ) {
+      Object.assign(request, {
+        safety_settings: modelOptions.safetySettings.map(interactionSafety),
+      })
+    }
 
-    return this.transformGeminiResponse(model, response)
+    const interaction = options.abortSignal
+      ? await this.client.interactions.create(request, {
+          signal: options.abortSignal,
+        })
+      : await this.client.interactions.create(request)
+
+    return this.transformInteractionResponse(model, interaction)
   }
 
   /**
-   * Build the multimodal `contents` payload. Text-only prompts pass through
-   * as a plain string (the SDK accepts it directly); prompts with image
-   * parts become a single user `Content` whose `parts` mirror the prompt's
-   * interleaved order — position is meaningful to Gemini ("not like this
-   * *(image)*, more like this *(image)*").
-   *
-   * The generateContent API has no numberOfImages parameter, so when more
-   * than one image is requested a trailing instruction is appended.
+   * Text-only prompts pass through as a string. Prompts with image parts
+   * become content blocks in prompt order. The Interactions API has no
+   * image count, so more than one image appends an instruction.
    */
-  private buildContents(
+  private buildInteractionInput(
     resolved: ResolvedMediaPrompt,
     numberOfImages: number | undefined,
-  ): string | Array<Content> {
+  ): string | Array<Interactions.Content> {
     const countInstruction =
       numberOfImages && numberOfImages > 1
         ? `Generate ${numberOfImages} distinct images.`
@@ -245,93 +262,93 @@ export class GeminiImageAdapter<
         : resolved.text
     }
 
-    const parts: Array<Part> = resolved.parts.map((part) => {
+    const blocks: Array<Interactions.Content> = resolved.parts.map((part) => {
       if (part.type === 'text') {
-        return { text: part.content }
+        return { type: 'text', text: part.content }
       }
       if (part.type === 'image') {
-        return this.imagePartToGeminiPart(part)
+        return this.imagePartToInteraction(part)
       }
-      // Video / audio parts were rejected in generateImages above.
       throw new Error(
         `gemini: unsupported prompt part type "${part.type}" in image generation.`,
       )
     })
     if (countInstruction) {
-      parts.push({ text: countInstruction })
+      blocks.push({ type: 'text', text: countInstruction })
     }
-    return [{ role: 'user', parts }]
+    return blocks
   }
 
-  private imagePartToGeminiPart(part: ImagePart<MediaInputMetadata>): Part {
+  private imagePartToInteraction(
+    part: ImagePart<MediaInputMetadata>,
+  ): Interactions.ImageContent {
     if (part.source.type === 'data') {
       return {
-        inlineData: {
-          mimeType: part.source.mimeType || 'image/png',
-          data: part.source.value,
-        },
+        type: 'image',
+        data: part.source.value,
+        mime_type: part.source.mimeType || 'image/png',
       }
     }
-    // URL sources (public HTTPS, Files API URIs, gs://) pass through as
-    // `fileData` and Gemini fetches them server-side — same as the chat
-    // adapter. Fetching locally and inlining as base64 double-buffers the
-    // image and OOMs on memory-constrained runtimes (e.g. Cloudflare
-    // Workers). A file source's handle is the file URI (throws when another
-    // provider issued it).
-    const fileUri = isFileSource(part.source)
+    // URL and Files API sources pass through as `uri`. Gemini fetches them.
+    // Fetching locally and inlining as base64 OOMs on constrained runtimes.
+    const uri = isFileSource(part.source)
       ? fileReferenceFor(part.source, this.name)
       : part.source.value
     return {
-      fileData: {
-        fileUri,
-        mimeType: part.source.mimeType ?? 'image/jpeg',
-      },
+      type: 'image',
+      uri,
+      mime_type: part.source.mimeType ?? 'image/jpeg',
     }
   }
 
-  private transformGeminiResponse(
+  private transformInteractionResponse(
     model: string,
-    response: GenerateContentResponse,
+    interaction: Interactions.Interaction,
   ): ImageGenerationResult {
-    const images: Array<GeneratedImage> = []
-    const textParts: Array<string> = []
-    const parts = response.candidates?.[0]?.content?.parts ?? []
-
-    for (const part of parts) {
-      if (
-        part.inlineData?.data &&
-        typeof part.inlineData.data === 'string' &&
-        part.inlineData.data.length > 0
-      ) {
-        images.push({ b64Json: part.inlineData.data })
-      } else if (typeof part.text === 'string' && part.text.length > 0) {
-        textParts.push(part.text)
-      }
+    if (interaction.status !== 'completed') {
+      throw new Error(
+        `Gemini ${model} image interaction ended with status "${interaction.status}".`,
+      )
+    }
+    if (!interaction.id) {
+      throw new Error(`Gemini ${model} image interaction returned no id.`)
     }
 
-    // If the model returned only text parts (for example a safety refusal
-    // or a "can't do that" message), surface the text instead of silently
-    // resolving to an empty images array — otherwise callers can't tell a
-    // generation failure apart from a genuine empty response.
+    const images: Array<GeneratedImage> = []
+    const textParts: Array<string> = []
+    for (const step of interaction.steps ?? []) {
+      if (step.type !== 'model_output') continue
+      for (const block of step.content ?? []) {
+        if (block.type === 'image') {
+          const image = generatedImageFromBlock(block)
+          if (image) images.push(image)
+        } else if (block.type === 'text' && block.text.length > 0) {
+          textParts.push(block.text)
+        }
+      }
+    }
+    if (images.length === 0 && interaction.output_image) {
+      const image = generatedImageFromBlock(interaction.output_image)
+      if (image) images.push(image)
+    }
+
     if (images.length === 0) {
+      if (textParts.length === 0 && interaction.output_text) {
+        textParts.push(interaction.output_text)
+      }
       const reason =
         textParts.length > 0
           ? `: ${textParts.join(' ').trim()}`
-          : ' (no inline image or text parts were returned).'
+          : ' (no image was returned).'
       throw new Error(`Gemini ${model} returned no images${reason}`)
     }
 
+    const usage = interactionImageUsage(interaction.usage)
     return {
-      id: generateId(this.name),
+      id: interaction.id,
       model,
       images,
-      // Surface token usage (with per-modality breakdown) when the model
-      // reports it (e.g. Nano Banana via generateContent). Conditionally spread
-      // to satisfy exactOptionalPropertyTypes — only include usage when
-      // present. See #330.
-      ...(response.usageMetadata
-        ? { usage: buildGeminiUsage(response.usageMetadata) }
-        : {}),
+      ...(usage ? { usage } : {}),
     }
   }
 
@@ -546,4 +563,164 @@ export function geminiImage<TModel extends GeminiImageModel>(
 ): GeminiImageAdapter<TModel> {
   const apiKey = getGeminiApiKeyFromEnv()
   return createGeminiImage(model, apiKey, config)
+}
+
+function interactionThinking(
+  thinking: ThinkingConfig | undefined,
+): Pick<
+  Interactions.GenerationConfig,
+  'thinking_level' | 'thinking_summaries'
+> {
+  if (!thinking) return {}
+  const level = interactionThinkingLevel(thinking.thinkingLevel)
+  return {
+    ...(level !== undefined && { thinking_level: level }),
+    ...(thinking.includeThoughts !== undefined && {
+      thinking_summaries: thinking.includeThoughts ? 'auto' : 'none',
+    }),
+  }
+}
+
+function interactionImageSize(
+  value: string | undefined,
+): '512' | '1K' | '2K' | '4K' | undefined {
+  if (value === '512' || value === '1K' || value === '2K' || value === '4K') {
+    return value
+  }
+  return undefined
+}
+
+function interactionThinkingLevel(
+  level: ThinkingConfig['thinkingLevel'],
+): 'minimal' | 'low' | 'medium' | 'high' | undefined {
+  switch (level) {
+    case ThinkingLevel.MINIMAL:
+      return 'minimal'
+    case ThinkingLevel.LOW:
+      return 'low'
+    case ThinkingLevel.MEDIUM:
+      return 'medium'
+    case ThinkingLevel.HIGH:
+      return 'high'
+    case ThinkingLevel.THINKING_LEVEL_UNSPECIFIED:
+    case undefined:
+      return undefined
+  }
+}
+
+function interactionSafety(setting: SafetySetting): {
+  type: string
+  threshold: string
+} {
+  const category = setting.category
+  const threshold = setting.threshold
+  if (!category || category === 'HARM_CATEGORY_UNSPECIFIED') {
+    throw new Error(
+      'gemini: safetySettings.category is required on the Interactions image API.',
+    )
+  }
+  if (!threshold || threshold === 'HARM_BLOCK_THRESHOLD_UNSPECIFIED') {
+    throw new Error(
+      'gemini: safetySettings.threshold is required on the Interactions image API.',
+    )
+  }
+  return {
+    type: category.replace(/^HARM_CATEGORY_/, '').toLowerCase(),
+    threshold: threshold.toLowerCase(),
+  }
+}
+
+function systemInstructionText(instruction: ContentUnion): string {
+  if (typeof instruction === 'string') return instruction
+  if (Array.isArray(instruction)) {
+    return instruction.map(partUnionText).join('')
+  }
+  if (isPart(instruction)) return partUnionText(instruction)
+  const parts = instruction.parts
+  if (!parts || parts.length === 0) {
+    throw new Error(
+      'gemini: systemInstruction on the Interactions image API must be text.',
+    )
+  }
+  return parts.map(partUnionText).join('')
+}
+
+function isPart(value: Content | Part): value is Part {
+  return !('parts' in value)
+}
+
+function partUnionText(part: Part | string): string {
+  if (typeof part === 'string') return part
+  if (
+    part.inlineData ||
+    part.fileData ||
+    part.functionCall ||
+    part.functionResponse
+  ) {
+    throw new Error(
+      'gemini: systemInstruction on the Interactions image API must be text. Inline media is not supported.',
+    )
+  }
+  if (typeof part.text !== 'string') {
+    throw new Error(
+      'gemini: systemInstruction on the Interactions image API must be text.',
+    )
+  }
+  return part.text
+}
+
+function generatedImageFromBlock(block: {
+  data?: string
+  uri?: string
+}): GeneratedImage | undefined {
+  if (typeof block.data === 'string' && block.data.length > 0) {
+    return { b64Json: block.data }
+  }
+  if (typeof block.uri === 'string' && block.uri.length > 0) {
+    return { url: block.uri }
+  }
+  return undefined
+}
+
+function interactionImageUsage(
+  usage: Interactions.Interaction['usage'],
+): TokenUsage | undefined {
+  if (!usage) return undefined
+  const promptTokens = usage.total_input_tokens ?? 0
+  const completionTokens = usage.total_output_tokens ?? 0
+  const promptModalities = flattenModalityTokenCounts(
+    usage.input_tokens_by_modality?.map((item) => ({
+      modality: item.modality,
+      tokenCount: item.tokens,
+    })),
+  )
+  const completionModalities = flattenModalityTokenCounts(
+    usage.output_tokens_by_modality?.map((item) => ({
+      modality: item.modality,
+      tokenCount: item.tokens,
+    })),
+  )
+  const promptTokensDetails = {
+    ...(hasModalityTokens(promptModalities) ? promptModalities : {}),
+    ...(usage.total_cached_tokens
+      ? { cachedTokens: usage.total_cached_tokens }
+      : {}),
+  }
+  const completionTokensDetails = {
+    ...(hasModalityTokens(completionModalities) ? completionModalities : {}),
+    ...(usage.total_thought_tokens
+      ? { reasoningTokens: usage.total_thought_tokens }
+      : {}),
+  }
+  return {
+    promptTokens,
+    completionTokens,
+    totalTokens: usage.total_tokens ?? promptTokens + completionTokens,
+    ...(Object.keys(promptTokensDetails).length > 0
+      ? { promptTokensDetails }
+      : {}),
+    ...(Object.keys(completionTokensDetails).length > 0
+      ? { completionTokensDetails }
+      : {}),
+  }
 }

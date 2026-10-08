@@ -234,6 +234,7 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'openai/gpt-6-astra',
   'openai/gpt-6-astra-fast',
   'openai/gpt-6-luna',
+  'openai/gpt-6-luna-decisions',
   'openai/gpt-6-luna-fast',
   'openai/gpt-6-sol',
   'openai/gpt-6-sol-fast',
@@ -2304,6 +2305,7 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'response_format'
       | 'structured_outputs'
     >
+  'openai/gpt-6-luna-decisions': VercelGatewayCommonOptions
   'openai/gpt-6-luna-fast': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -3233,6 +3235,7 @@ export type VercelGatewayModelInputModalitiesByName = {
   'openai/gpt-6-astra': readonly ['text', 'image', 'document']
   'openai/gpt-6-astra-fast': readonly ['text', 'image', 'document']
   'openai/gpt-6-luna': readonly ['text', 'image', 'document']
+  'openai/gpt-6-luna-decisions': readonly ['text']
   'openai/gpt-6-luna-fast': readonly ['text', 'image', 'document']
   'openai/gpt-6-sol': readonly ['text', 'image', 'document']
   'openai/gpt-6-sol-fast': readonly ['text', 'image', 'document']

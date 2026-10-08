@@ -17513,6 +17513,37 @@
     }
   },
   {
+    "id": "openai/gpt-6-luna-decisions",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1791244800,
+    "owned_by": "openai",
+    "name": "GPT-6 Luna Decisions",
+    "description": "GPT-6 Luna Decisions evaluates classification and scoring questions against shared text and image input using OpenAI's Decisions API. It supports predicate, choice, and score questions with probabilities and confidence values.",
+    "context_window": 1050000,
+    "max_tokens": 0,
+    "type": "evaluation",
+    "zdr": "none",
+    "no_training": "all",
+    "supported_specifications": ["v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high", "xhigh", "max"]
+      }
+    ],
+    "pricing": {
+      "input": "0.0000001"
+    }
+  },
+  {
     "id": "openai/gpt-6-luna-fast",
     "object": "model",
     "created": 1755815280,
@@ -19960,6 +19991,7 @@
         "type": "toggle"
       }
     ],
+    "deprecated_at": 1794528000000,
     "pricing": {
       "input": "0.00000009",
       "output": "0.00000018",
@@ -20000,6 +20032,7 @@
         "type": "toggle"
       }
     ],
+    "deprecated_at": 1793404800000,
     "pricing": {
       "input": "0",
       "output": "0"

@@ -499,15 +499,12 @@ See the [Embeddings guide](../embeddings.md) for the full API.
 
 ## Image Generation
 
-The Gemini adapter supports two types of image generation:
+The Gemini adapter has two image model groups:
 
-- **Gemini native image models** (NanoBanana) — Use the `generateContent` API with models like `gemini-3.1-flash-image`. These support aspect ratio control plus resolution tiers (`512`, `1K`, `2K`, `4K`); which ratios and tiers are accepted varies per model and is enforced at compile time.
-- **Imagen models** — Use the `generateImages` API with models like `imagen-4.0-generate-001`. These are dedicated image generation models with WIDTHxHEIGHT sizing.
+- **Gemini native image models** (NanoBanana). A model such as `gemini-3.1-flash-image` uses the Interactions API. You set an aspect ratio. Some models also take a resolution tier (`512`, `1K`, `2K`, or `4K`). TypeScript checks the set for the model.
+- **Imagen models**. A model such as `imagen-4.0-generate-001` uses `generateImages`. You set the size as WIDTHxHEIGHT.
 
-The adapter routes to `generateContent` when the model is in
-`GEMINI_NATIVE_IMAGE_MODELS`. Imagen models, and any id this package does not
-know, use `generateImages`. Import the list or `isGeminiNativeImageModel`
-from `@tanstack/ai-gemini`.
+When the model is in `GEMINI_NATIVE_IMAGE_MODELS`, the adapter uses the Interactions API. An Imagen model uses `generateImages`. An unknown id uses `generateImages`. Import the list or `isGeminiNativeImageModel` from `@tanstack/ai-gemini`.
 
 ### Example: Gemini Native Image Generation (NanoBanana)
 
@@ -526,6 +523,53 @@ const result = await generateImage({
 
 console.log(result.images);
 ```
+
+### Edit a Gemini native image
+
+You have an image from a Gemini native model. You want to change that image without a second upload of that image.
+
+Pass the last `id` back. Write only the change in `prompt`:
+
+```typescript
+import { generateImage } from "@tanstack/ai";
+import { geminiImage } from "@tanstack/ai-gemini";
+
+const adapter = geminiImage("gemini-3.1-flash-image");
+
+const first = await generateImage({
+  adapter,
+  prompt: "A red bicycle on a quiet street",
+});
+
+const edited = await generateImage({
+  adapter,
+  prompt: "Make the bicycle blue",
+  modelOptions: { previous_interaction_id: first.id },
+});
+```
+
+1. Generate the first image.
+2. Call `generateImage` again with `previous_interaction_id` set to `first.id`.
+3. Read `edited.images` for the new picture.
+
+`edited.id` is the id for the next edit.
+
+Keep the interaction so the next edit can run:
+
+1. Leave `store` unset.
+2. If you set `store` to `false`, a later call cannot use that id.
+
+The API default for `store` is `true`.
+
+A free tier keeps a stored interaction for 1 day. A paid tier keeps it for 55 days.
+
+If the model is Imagen, do not pass `previous_interaction_id`. The call throws.
+
+If this edit needs a new reference image, add that image part on this call. Do not send the image from `first`.
+
+The Interactions API is in Beta.
+
+The same steps are in [Image Generation](../media/image-generation#edit-a-gemini-native-image).
 
 ### Example: Imagen
 
@@ -615,26 +659,39 @@ const result = await generateImage({
 });
 ```
 
-Gemini native models (`generateContent`) take `seed`, `safetySettings`,
-`thinkingConfig`, `imageConfig`, and `systemInstruction`.
-`imageConfig` accepts only `aspectRatio` and `imageSize` on the Gemini
-Developer API.
+#### Gemini native models
+
+Set native image options on `modelOptions`:
 
 ```typescript
 import { generateImage } from "@tanstack/ai";
-import { geminiImage } from "@tanstack/ai-gemini";
+import { geminiImage, ThinkingLevel } from "@tanstack/ai-gemini";
 
 const result = await generateImage({
   adapter: geminiImage("gemini-3.1-flash-image"),
-  prompt: "...",
+  prompt: "A beautiful garden",
   size: "16:9_4K",
   modelOptions: {
-    thinkingConfig: { thinkingBudget: 512 },
-    // Merged over the imageConfig derived from `size`, per field.
+    thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+    // imageConfig replaces one field from size. The 16:9 ratio from size stays.
+    // imageConfig accepts only aspectRatio and imageSize.
     imageConfig: { imageSize: "2K" },
   },
 });
 ```
+
+Set `thinkingConfig.thinkingLevel` to one of these values:
+
+- `ThinkingLevel.MINIMAL`
+- `ThinkingLevel.LOW`
+- `ThinkingLevel.MEDIUM`
+- `ThinkingLevel.HIGH`
+
+`thinkingConfig.thinkingBudget` throws.
+
+If `systemInstruction` contains an image, a file, or a tool call, the call throws.
+
+Pass the last result `id` as `previous_interaction_id`. Read [Edit a Gemini native image](#edit-a-gemini-native-image) for the edit steps.
 
 See [Image Generation](../media/image-generation) for the full native option list.
 
@@ -696,7 +753,7 @@ GOOGLE_API_KEY=your-api-key-here
 
 ### Gemini Native Image Models (NanoBanana)
 
-These models use the `generateContent` API and support per-model resolution tiers.
+These models use the Interactions API. Each model has its own resolution tiers.
 
 | Model | Description |
 |-------|-------------|
@@ -746,7 +803,7 @@ Creates a Gemini summarization adapter.
 
 ### `geminiImage(model, config?)` / `createGeminiImage(model, apiKey, config?)`
 
-Creates a Gemini image adapter. Models in `GEMINI_NATIVE_IMAGE_MODELS` use `generateContent`. Imagen models, and any unknown id, use `generateImages`.
+Creates a Gemini image adapter. When the model is in `GEMINI_NATIVE_IMAGE_MODELS`, the call uses the Interactions API. `result.id` is the interaction id. An Imagen model uses `generateImages`. An unknown id uses `generateImages`.
 
 ### `geminiSpeech(model, config?)` / `createGeminiSpeech(model, apiKey, config?)`
 
