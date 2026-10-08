@@ -1493,6 +1493,10 @@ export interface TextCompactOptions {
   signal?: AbortSignal
   /** Wraps the fetch of the compaction request. */
   wrapFetch?: FetchWrapper
+  /** The system prompts of the chat call. */
+  systemPrompts?: Array<SystemPrompt>
+  /** The tools of the chat call. */
+  tools?: Array<AnyTool>
 }
 
 // ============================================================================

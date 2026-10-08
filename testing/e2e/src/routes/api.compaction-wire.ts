@@ -6,7 +6,10 @@ import {
   evictOldest,
   withCompaction,
 } from '@tanstack/ai-compaction'
-import type { CompactionStrategy } from '@tanstack/ai-compaction'
+import type {
+  CompactionInfo,
+  CompactionStrategy,
+} from '@tanstack/ai-compaction'
 import type { ModelMessage } from '@tanstack/ai'
 import { memoryPersistence, withPersistence } from '@tanstack/ai-persistence'
 
@@ -122,8 +125,10 @@ const compactedResponse = {
  * outgoing request body so the spec can assert what each strategy sent.
  *
  * `?strategy=clear` uses `clearToolResults` on a tool-heavy history.
- * `?strategy=native` turns on the adapter's own compaction. Anything else
- * uses `evictOldest` on a plain chat history.
+ * `?strategy=native` turns on the adapter's own compaction.
+ * `?strategy=native-empty` does too, but the compact result has no compaction
+ * item, so `evictOldest` runs in its place. Anything else uses `evictOldest`
+ * on a plain chat history.
  */
 export const Route = createFileRoute('/api/compaction-wire')({
   server: {
@@ -140,7 +145,16 @@ export const Route = createFileRoute('/api/compaction-wire')({
             input instanceof Request ? input : new Request(input, init)
           if (req.url.endsWith('/responses/compact')) {
             compactRequestBodies.push(JSON.parse(await req.text()))
-            return Response.json(compactedResponse)
+            return Response.json(
+              mode === 'native-empty'
+                ? {
+                    ...compactedResponse,
+                    output: compactedResponse.output.filter(
+                      (item) => item.type !== 'compaction',
+                    ),
+                  }
+                : compactedResponse,
+            )
           }
           requestBodies.push(JSON.parse(await req.text()))
           return new Response(makeTextStream(requestBodies.length), {
@@ -158,7 +172,12 @@ export const Route = createFileRoute('/api/compaction-wire')({
         })
         const persistence = memoryPersistence()
         let compactionCount = 0
-        const native = mode === 'native' ? adapter : undefined
+        const compactionErrors: Array<string> = []
+        const onCompact = (info: CompactionInfo) => {
+          compactionCount++
+          if (info.error) compactionErrors.push(info.error.message)
+        }
+        const native = mode?.startsWith('native') ? adapter : undefined
 
         try {
           for await (const _ of chat({
@@ -172,7 +191,7 @@ export const Route = createFileRoute('/api/compaction-wire')({
                 maxTokens: 60,
                 strategy,
                 native,
-                onCompact: () => compactionCount++,
+                onCompact,
               }),
             ],
             agentLoopStrategy: maxIterations(1),
@@ -191,7 +210,7 @@ export const Route = createFileRoute('/api/compaction-wire')({
                 maxTokens: 60,
                 strategy,
                 native,
-                onCompact: () => compactionCount++,
+                onCompact,
               }),
             ],
             agentLoopStrategy: maxIterations(1),
@@ -214,6 +233,7 @@ export const Route = createFileRoute('/api/compaction-wire')({
           compactRequestBodies,
           canonicalMessages,
           compactionCount,
+          compactionErrors,
         })
       },
     },

@@ -390,6 +390,8 @@ export async function POST(request: Request) {
 
 The ChatGPT route requires `store: false`. Do not set `max_output_tokens`. [Sign in with ChatGPT](./openai#sign-in-with-chatgpt-byok) has the browser sign-in helpers and the other limits.
 
+Native compaction does not work with the ChatGPT plan. The plan does not accept `/responses/compact`. Do not pass this adapter as `native` to `withCompaction`. Use a [compaction strategy](../advanced/compaction) instead.
+
 ## Example: With Tools
 
 Tools work exactly as they do with any other adapter, for models that support function calling:

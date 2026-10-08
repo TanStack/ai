@@ -1084,9 +1084,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
   /**
    * Compact the history with `POST /responses/compact`. The result holds
-   * the user messages and one encrypted compaction item.
+   * the user messages and one encrypted compaction item. A result with no
+   * compaction item throws.
    */
   async compact(options: TextCompactOptions): Promise<Array<ModelMessage>> {
+    const prompts = normalizeSystemPrompts(options.systemPrompts)
     const response = await clientFor(this.client, options).responses.compact(
       {
         model: options.model,
@@ -1095,9 +1097,20 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           undefined,
           options.model,
         ),
+        ...(prompts.length > 0 && {
+          instructions: prompts
+            .map((p) => sanitizeUnicode(p.content))
+            .join('\n'),
+        }),
+        ...(options.tools?.length && {
+          tools: this.convertTools(options.tools),
+        }),
       },
       options.signal ? { signal: options.signal } : {},
     )
+    if (!response.output.some((item) => item.type === 'compaction')) {
+      throw new Error('The compact result has no compaction item.')
+    }
     const metadata = {
       tanstack: {
         source: {

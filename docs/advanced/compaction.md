@@ -192,7 +192,9 @@ export async function POST(request: Request) {
 ```
 
 - An adapter with no `compact` method uses `strategy`.
-- When `compact` fails, `strategy` runs for that call. Some providers on the OpenAI Responses base have no compaction endpoint.
+- When `compact` fails, `strategy` runs in its place. `onCompact` and `compaction:ended` get the failure in `error`. Some providers on the OpenAI Responses base have no compaction endpoint.
+- After a failure, that adapter and model use `strategy` until the process restarts. No more compaction calls go out.
+- The compaction call gets the system prompts and the tools of the `chat()` call.
 - The compacted messages can hold an encrypted provider item. The adapter sends it back as it is to the same model. Another model does not get it.
 - The OpenAI Responses adapters have `compact`. See [Native compaction](../adapters/openai#native-compaction).
 
@@ -206,7 +208,7 @@ export async function POST(request: Request) {
 | `strategy` | `CompactionStrategy` | `evictOldest()` | How to shrink the messages. |
 | `estimateTokens` | `(message: ModelMessage) => number` | characters / 4 | Per-message token estimate. Pass a real tokenizer if you need exact counts. |
 | `strategyKey` | `string` | built-in strategy identity | Stable checkpoint identity. Set it for custom strategies, custom estimators, or a custom eviction marker. Change it when your `summarize` function can change. |
-| `onCompact` | `(info: CompactionInfo) => void` | - | Runs after each compaction. `info` is `{ before, after, messagesBefore, messagesAfter, reason, usage, error, stale }`. `error` is set when the check after a harness turn fails or a background summary fails. `stale` is set when a background summary no longer fits. |
+| `onCompact` | `(info: CompactionInfo) => void` | - | Runs after each compaction. `info` is `{ before, after, messagesBefore, messagesAfter, reason, usage, error, stale }`. `error` is set when the check after a harness turn fails, a background summary fails, or `native` compaction fails. `stale` is set when a background summary no longer fits. |
 | `countTokens` | `'estimate' \| 'usage'` | `'estimate'` | `'usage'` counts with the usage the provider reported for the last call. See [Count with real usage](#count-with-real-usage). |
 | `auto` | `boolean` | `true` | `false` turns off compaction at `maxTokens`. `compactNext` and the overflow check still run. |
 | `contextWindow` | `number` | - | The model's context window. With `countTokens: 'usage'` and `durable: true` in a harness with a log, compaction also runs after a turn whose usage passed it, even with `auto: false`. |
@@ -469,7 +471,7 @@ the strategy returns.
 
 - `reason`: `'threshold'` (the count passed `maxTokens`), `'forced'` (`compactNext`), or `'background'` (a [background summary](#prepare-the-summary-in-the-background)).
 - `usage`: the token usage of the summary calls.
-- `error`: the message when the strategy failed. By default the run then fails. Set `continueOnError: true` to send the full messages instead.
+- `error`: the message when the strategy failed. By default the run then fails. Set `continueOnError: true` to send the full messages instead. When `native` compaction failed and `strategy` ran in its place, `error` holds that failure, and the run goes on.
 - `stale`: `true` when a ready background summary no longer fit the messages and was dropped.
 
 A compaction after the last model call of a harness turn has `reason: 'after-turn'`. The stream is closed by then, so only `onCompact` reports it. A failed strategy or `onCompact` there does not fail the turn, because the answer is complete. Only a failed write to the log fails it.

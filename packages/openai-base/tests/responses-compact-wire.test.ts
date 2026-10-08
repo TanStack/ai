@@ -123,6 +123,50 @@ describe('Responses adapter compact', () => {
     ])
   })
 
+  it('sends the system prompts as instructions and the tools', async () => {
+    const { client, sent } = recordingClient(() => Response.json(compacted))
+    const adapter = new Responses(model, 'openai', client)
+
+    await adapter.compact({
+      model,
+      messages: [{ role: 'user', content: 'Plan the trip' }],
+      systemPrompts: ['Be brief.', 'Answer in English.'],
+      tools: [
+        {
+          name: 'search',
+          description: 'Search the web',
+          inputSchema: {
+            type: 'object',
+            properties: { query: { type: 'string' } },
+            required: ['query'],
+          },
+        },
+      ],
+    })
+
+    expect(sent[0]?.body).toMatchObject({
+      instructions: 'Be brief.\nAnswer in English.',
+      tools: [{ type: 'function', name: 'search' }],
+    })
+  })
+
+  it('throws when the result has no compaction item', async () => {
+    const { client } = recordingClient(() =>
+      Response.json({
+        ...compacted,
+        output: compacted.output.filter((item) => item.type !== 'compaction'),
+      }),
+    )
+    const adapter = new Responses(model, 'openai', client)
+
+    await expect(
+      adapter.compact({
+        model,
+        messages: [{ role: 'user', content: 'Plan the trip' }],
+      }),
+    ).rejects.toThrow('no compaction item')
+  })
+
   it('sends the compaction item back as it is on the next call', async () => {
     const { client, sent } = recordingClient(
       () =>
