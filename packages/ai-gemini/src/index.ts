@@ -63,11 +63,10 @@ export type {
   ImageConfig,
   ContentUnion,
 } from './image/image-provider-options'
-// `SafetySetting` is built from two SDK enums, and enums are values — they
-// cannot travel through `export type`. Re-exported here so `safetySettings`
-// is usable with only `@tanstack/ai-gemini` installed, without the consumer
-// having to add `@google/genai` to their own dependencies.
-export { HarmBlockThreshold, HarmCategory } from '@google/genai'
+// These SDK enums are values, so they cannot travel through `export type`.
+// Re-exported here so `safetySettings` and `thinkingConfig.thinkingLevel`
+// are usable with only `@tanstack/ai-gemini` installed.
+export { HarmBlockThreshold, HarmCategory, ThinkingLevel } from '@google/genai'
 
 // Files API helpers — upload + poll a file (e.g. video) until it is ACTIVE
 export {

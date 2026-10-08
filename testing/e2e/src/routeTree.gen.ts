@@ -32,6 +32,7 @@ import { Route as HeadlessUiRouteImport } from './routes/headless-ui'
 import { Route as InterruptLineageRouteImport } from './routes/interrupt-lineage'
 import { Route as InterruptsTestRouteImport } from './routes/interrupts-test'
 import { Route as JoinRunClientToolRouteImport } from './routes/join-run-client-tool'
+import { Route as JsonTransportRouteImport } from './routes/json-transport'
 import { Route as MarkdownCjkRouteImport } from './routes/markdown-cjk'
 import { Route as MessageHistoryPagingRouteImport } from './routes/message-history-paging'
 import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
@@ -81,6 +82,7 @@ import { Route as ApiGenerationPersistenceServerRouteImport } from './routes/api
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiInterruptsTestRouteImport } from './routes/api.interrupts-test'
 import { Route as ApiJoinRunClientToolRouteImport } from './routes/api.join-run-client-tool'
+import { Route as ApiJsonTransportRouteImport } from './routes/api.json-transport'
 import { Route as ApiLazyToolsWireRouteImport } from './routes/api.lazy-tools-wire'
 import { Route as ApiMaxToolCallsWireRouteImport } from './routes/api.max-tool-calls-wire'
 import { Route as ApiMcpAppsCallRouteImport } from './routes/api.mcp-apps-call'
@@ -265,6 +267,11 @@ const InterruptsTestRoute = InterruptsTestRouteImport.update({
 const JoinRunClientToolRoute = JoinRunClientToolRouteImport.update({
   id: '/join-run-client-tool',
   path: '/join-run-client-tool',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JsonTransportRoute = JsonTransportRouteImport.update({
+  id: '/json-transport',
+  path: '/json-transport',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MarkdownCjkRoute = MarkdownCjkRouteImport.update({
@@ -523,6 +530,11 @@ const ApiInterruptsTestRoute = ApiInterruptsTestRouteImport.update({
 const ApiJoinRunClientToolRoute = ApiJoinRunClientToolRouteImport.update({
   id: '/api/join-run-client-tool',
   path: '/api/join-run-client-tool',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiJsonTransportRoute = ApiJsonTransportRouteImport.update({
+  id: '/api/json-transport',
+  path: '/api/json-transport',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiLazyToolsWireRoute = ApiLazyToolsWireRouteImport.update({
@@ -903,6 +915,7 @@ export interface FileRoutesByFullPath {
   '/interrupt-lineage': typeof InterruptLineageRoute
   '/interrupts-test': typeof InterruptsTestRoute
   '/join-run-client-tool': typeof JoinRunClientToolRoute
+  '/json-transport': typeof JsonTransportRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
@@ -951,6 +964,7 @@ export interface FileRoutesByFullPath {
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
+  '/api/json-transport': typeof ApiJsonTransportRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
@@ -1044,6 +1058,7 @@ export interface FileRoutesByTo {
   '/interrupt-lineage': typeof InterruptLineageRoute
   '/interrupts-test': typeof InterruptsTestRoute
   '/join-run-client-tool': typeof JoinRunClientToolRoute
+  '/json-transport': typeof JsonTransportRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
@@ -1092,6 +1107,7 @@ export interface FileRoutesByTo {
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
+  '/api/json-transport': typeof ApiJsonTransportRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
@@ -1186,6 +1202,7 @@ export interface FileRoutesById {
   '/interrupt-lineage': typeof InterruptLineageRoute
   '/interrupts-test': typeof InterruptsTestRoute
   '/join-run-client-tool': typeof JoinRunClientToolRoute
+  '/json-transport': typeof JsonTransportRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
@@ -1234,6 +1251,7 @@ export interface FileRoutesById {
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
+  '/api/json-transport': typeof ApiJsonTransportRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
@@ -1329,6 +1347,7 @@ export interface FileRouteTypes {
     | '/interrupt-lineage'
     | '/interrupts-test'
     | '/join-run-client-tool'
+    | '/json-transport'
     | '/markdown-cjk'
     | '/message-history-paging'
     | '/middleware-test'
@@ -1377,6 +1396,7 @@ export interface FileRouteTypes {
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
+    | '/api/json-transport'
     | '/api/lazy-tools-wire'
     | '/api/max-tool-calls-wire'
     | '/api/mcp-apps-call'
@@ -1470,6 +1490,7 @@ export interface FileRouteTypes {
     | '/interrupt-lineage'
     | '/interrupts-test'
     | '/join-run-client-tool'
+    | '/json-transport'
     | '/markdown-cjk'
     | '/message-history-paging'
     | '/middleware-test'
@@ -1518,6 +1539,7 @@ export interface FileRouteTypes {
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
+    | '/api/json-transport'
     | '/api/lazy-tools-wire'
     | '/api/max-tool-calls-wire'
     | '/api/mcp-apps-call'
@@ -1611,6 +1633,7 @@ export interface FileRouteTypes {
     | '/interrupt-lineage'
     | '/interrupts-test'
     | '/join-run-client-tool'
+    | '/json-transport'
     | '/markdown-cjk'
     | '/message-history-paging'
     | '/middleware-test'
@@ -1659,6 +1682,7 @@ export interface FileRouteTypes {
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
+    | '/api/json-transport'
     | '/api/lazy-tools-wire'
     | '/api/max-tool-calls-wire'
     | '/api/mcp-apps-call'
@@ -1753,6 +1777,7 @@ export interface RootRouteChildren {
   InterruptLineageRoute: typeof InterruptLineageRoute
   InterruptsTestRoute: typeof InterruptsTestRoute
   JoinRunClientToolRoute: typeof JoinRunClientToolRoute
+  JsonTransportRoute: typeof JsonTransportRoute
   MarkdownCjkRoute: typeof MarkdownCjkRoute
   MessageHistoryPagingRoute: typeof MessageHistoryPagingRoute
   MiddlewareTestRoute: typeof MiddlewareTestRoute
@@ -1801,6 +1826,7 @@ export interface RootRouteChildren {
   ApiImageRoute: typeof ApiImageRouteWithChildren
   ApiInterruptsTestRoute: typeof ApiInterruptsTestRoute
   ApiJoinRunClientToolRoute: typeof ApiJoinRunClientToolRoute
+  ApiJsonTransportRoute: typeof ApiJsonTransportRoute
   ApiLazyToolsWireRoute: typeof ApiLazyToolsWireRoute
   ApiMaxToolCallsWireRoute: typeof ApiMaxToolCallsWireRoute
   ApiMcpAppsCallRoute: typeof ApiMcpAppsCallRoute
@@ -2027,6 +2053,13 @@ declare module '@tanstack/react-router' {
       path: '/join-run-client-tool'
       fullPath: '/join-run-client-tool'
       preLoaderRoute: typeof JoinRunClientToolRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/json-transport': {
+      id: '/json-transport'
+      path: '/json-transport'
+      fullPath: '/json-transport'
+      preLoaderRoute: typeof JsonTransportRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/markdown-cjk': {
@@ -2370,6 +2403,13 @@ declare module '@tanstack/react-router' {
       path: '/api/join-run-client-tool'
       fullPath: '/api/join-run-client-tool'
       preLoaderRoute: typeof ApiJoinRunClientToolRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/json-transport': {
+      id: '/api/json-transport'
+      path: '/api/json-transport'
+      fullPath: '/api/json-transport'
+      preLoaderRoute: typeof ApiJsonTransportRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/lazy-tools-wire': {
@@ -2926,6 +2966,7 @@ const rootRouteChildren: RootRouteChildren = {
   InterruptLineageRoute: InterruptLineageRoute,
   InterruptsTestRoute: InterruptsTestRoute,
   JoinRunClientToolRoute: JoinRunClientToolRoute,
+  JsonTransportRoute: JsonTransportRoute,
   MarkdownCjkRoute: MarkdownCjkRoute,
   MessageHistoryPagingRoute: MessageHistoryPagingRoute,
   MiddlewareTestRoute: MiddlewareTestRoute,
@@ -2977,6 +3018,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiImageRoute: ApiImageRouteWithChildren,
   ApiInterruptsTestRoute: ApiInterruptsTestRoute,
   ApiJoinRunClientToolRoute: ApiJoinRunClientToolRoute,
+  ApiJsonTransportRoute: ApiJsonTransportRoute,
   ApiLazyToolsWireRoute: ApiLazyToolsWireRoute,
   ApiMaxToolCallsWireRoute: ApiMaxToolCallsWireRoute,
   ApiMcpAppsCallRoute: ApiMcpAppsCallRoute,

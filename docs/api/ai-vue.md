@@ -224,6 +224,7 @@ Re-exported from `@tanstack/ai-client` for convenience:
 import {
   fetchServerSentEvents,
   fetchHttpStream,
+  fetchJson,
   stream,
   type ConnectionAdapter,
 } from "@tanstack/ai-vue";

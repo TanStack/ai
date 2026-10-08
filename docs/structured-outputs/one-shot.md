@@ -57,7 +57,7 @@ The return type of `chat()` switches on the combination of `outputSchema` and `s
 
 | Configuration | Return type |
 |---|---|
-| No `outputSchema`, `stream: false` | `Promise<string>` |
+| No `outputSchema`, `stream: false` | `Promise<ChatResult>` (`{ text, chunks }`) |
 | No `outputSchema`, `stream: true` (default for plain chat) | `AsyncIterable<StreamChunk>` |
 | With `outputSchema` (this page — implicitly non-streaming) | `Promise<InferSchemaType<TSchema>>` |
 | With `outputSchema` and `stream: true` | `StructuredOutputStream<InferSchemaType<TSchema>>` (see [Streaming UIs](./streaming)) |

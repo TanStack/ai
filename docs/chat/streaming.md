@@ -101,7 +101,7 @@ The shared `ChatClient` processes ready chunks in order without inserting a task
 
 The same pattern works in every UI framework. See [Quick Start](../getting-started/quick-start).
 
-If SSE is blocked, pick another transport on [Connection Adapters](./connection-adapters).
+If SSE is blocked, pick another transport on [Transports](../transports/overview).
 
 ## 3. Cancel a run
 
@@ -135,7 +135,7 @@ export async function POST(request: Request) {
 
 `AbortError` from `stop()` is expected. Pending client-tool work for that turn does not resume. A later `addToolResult()` for that turn is ignored.
 
-A dropped connection mid-line throws `StreamTruncatedError`. The client then moves to `error`. See [Connection Adapters](./connection-adapters).
+A dropped connection mid-line throws `StreamTruncatedError`. The client then moves to `error`. See [Transports: Errors](../transports/overview#errors).
 
 For OpenAI and OpenRouter Responses, a stream that ends without `response.completed` emits `RUN_ERROR` with code `incomplete-stream`. This applies to chat and to structured output. Text received before the error remains available. The run does not call `onFinish`.
 

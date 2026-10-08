@@ -1,0 +1,89 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[json-transport-text] say hello"
+      },
+      "response": {
+        "content": "JSON_TEXT_OK the whole answer came back in one JSON reply."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[json-transport-long] tell me about the lighthouse",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "The lighthouse keeper climbed the stairs each night, trimmed the wick, wound the clockwork, and watched the beam sweep the dark water until morning came. JSON_LONG_END"
+      },
+      "chunkSize": 4,
+      "streamingProfile": { "tps": 10 }
+    },
+    {
+      "match": {
+        "userMessage": "[json-transport-server-tool] weather in san francisco",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "Let me get the weather for you.",
+        "toolCalls": [
+          { "name": "get_weather", "arguments": "{\"city\":\"San Francisco\"}" }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[json-transport-server-tool] weather in san francisco",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "JSON_SERVER_TOOL_OK San Francisco is 72F and sunny."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[json-transport-client-tool] show a notification",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "I will show a notification.",
+        "toolCalls": [
+          {
+            "name": "show_notification",
+            "arguments": "{\"message\":\"Hello over JSON\",\"type\":\"info\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[json-transport-client-tool] show a notification",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "JSON_CLIENT_TOOL_OK the notification was shown."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[json-transport-approval] delete the temp file",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "I need your permission to delete this file.",
+        "toolCalls": [
+          { "name": "delete_file", "arguments": "{\"path\":\"/tmp/test.txt\"}" }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[json-transport-approval] delete the temp file",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "JSON_APPROVAL_OK the file has been deleted."
+      }
+    }
+  ]
+}
