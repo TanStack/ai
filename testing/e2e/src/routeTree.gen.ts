@@ -462,11 +462,12 @@ const ApiBedrockConverseCacheRoute = ApiBedrockConverseCacheRouteImport.update({
   path: '/api/bedrock-converse-cache',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiBedrockConverseTruncatedToolCallRoute = ApiBedrockConverseTruncatedToolCallRouteImport.update({
-  id: '/api/bedrock-converse-truncated-tool-call',
-  path: '/api/bedrock-converse-truncated-tool-call',
-  getParentRoute: () => rootRouteImport,
-} as any)
+const ApiBedrockConverseTruncatedToolCallRoute =
+  ApiBedrockConverseTruncatedToolCallRouteImport.update({
+    id: '/api/bedrock-converse-truncated-tool-call',
+    path: '/api/bedrock-converse-truncated-tool-call',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiByokChatRoute = ApiByokChatRouteImport.update({
   id: '/api/byok-chat',
   path: '/api/byok-chat',
@@ -3239,7 +3240,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiArktypeToolWireRoute: ApiArktypeToolWireRoute,
   ApiAudioRoute: ApiAudioRouteWithChildren,
   ApiBedrockConverseCacheRoute: ApiBedrockConverseCacheRoute,
-  ApiBedrockConverseTruncatedToolCallRoute: ApiBedrockConverseTruncatedToolCallRoute,
+  ApiBedrockConverseTruncatedToolCallRoute:
+    ApiBedrockConverseTruncatedToolCallRoute,
   ApiByokChatRoute: ApiByokChatRoute,
   ApiByteplusSeedance1080pWireRoute: ApiByteplusSeedance1080pWireRoute,
   ApiChatRoute: ApiChatRoute,
