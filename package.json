@@ -140,6 +140,7 @@
     "@changesets/changelog-github": "^0.7.0",
     "@changesets/cli": "^2.30.0",
     "@faker-js/faker": "^10.1.0",
+    "@nx/playwright": "23.1.1",
     "@stylistic/eslint-plugin": "^5.10.0",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-grok-build": "workspace:*",

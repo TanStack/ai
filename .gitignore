@@ -59,6 +59,7 @@ test-traces
 
 # Playwright
 playwright-report
+blob-report
 test-results
 
 solo.yml

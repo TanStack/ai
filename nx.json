@@ -4,7 +4,17 @@
   "nxCloudId": "6928ccd60a2e27ab22f38ad0",
   "useDaemonProcess": true,
   "useInferencePlugins": false,
-  "plugins": ["@tanstack/workspace-plugin"],
+  "plugins": [
+    "@tanstack/workspace-plugin",
+    {
+      "plugin": "@nx/playwright/plugin",
+      "include": ["testing/e2e/playwright.config.ts"],
+      "options": {
+        "targetName": "test:e2e",
+        "ciTargetName": "test:e2e:ci"
+      }
+    }
+  ],
   "analytics": false,
   "parallel": 4,
   "tui": {
@@ -103,6 +113,45 @@
         }
       ],
       "outputs": []
+    },
+    "test:e2e:ci--tests/**/*": {
+      "dependsOn": ["^build"],
+      "parallelism": false,
+      "inputs": [
+        "default",
+        "^production",
+        {
+          "env": "CI"
+        },
+        {
+          "externalDependencies": ["@playwright/test"]
+        }
+      ],
+      "options": {
+        "args": "--pass-with-no-tests"
+      }
+    },
+    "test:e2e:ci--merge-reports": {
+      "dependsOn": ["test:e2e:ci"],
+      "inputs": [
+        "default",
+        "^production",
+        {
+          "env": "CI"
+        }
+      ]
+    },
+    "test:e2e:ci": {
+      "inputs": [
+        "default",
+        "^production",
+        {
+          "env": "CI"
+        },
+        {
+          "externalDependencies": ["@playwright/test"]
+        }
+      ]
     }
   }
 }
