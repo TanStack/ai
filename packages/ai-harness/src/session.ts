@@ -40,6 +40,7 @@ import {
   RevertFiles,
   RevertStanding,
   SessionMetadata,
+  SessionSignal,
   mountPlugins,
 } from './plugins'
 import {
@@ -1141,6 +1142,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   /** Called when the running turn ends. A reload waits for it. */
   private readonly turnEnds = new Set<() => void>()
   private closing: Promise<void> | undefined
+  /** Aborts on close, not on a reload. See {@link SessionSignal}. */
+  private readonly lifetime = new AbortController()
   /** The last `recover()`. The calls run one at a time. */
   private recovery: Promise<void> = Promise.resolve()
   private readonly onClose: () => void
@@ -1493,6 +1496,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     const { metadata } = this.persistence.stores
     if (metadata) values.provide(SessionMetadata, metadata)
     values.provide(RevertStanding, () => this.reverted !== undefined)
+    values.provide(SessionSignal, this.lifetime.signal)
     return values
   }
 
@@ -3736,6 +3740,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       // The events from before the close land first, so the next host has
       // the text of a cut answer.
       if (options?.recoverable) await this.writer?.flush().catch(() => {})
+      this.lifetime.abort()
       try {
         await this.sessionPlugins?.dispose()
       } finally {

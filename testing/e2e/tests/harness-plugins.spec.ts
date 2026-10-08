@@ -84,6 +84,25 @@ test.describe('harness plugins', () => {
     })
   })
 
+  test('session.reload(): a background bash job keeps running, and its end note wakes the thread', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const response = await request.post('/api/harness-test', {
+      data: { scenario: 'plugin-reload-job', testId, aimockPort },
+    })
+    expect(response.ok()).toBe(true)
+    const body = await response.json()
+    expect(body.started).toBe('Started the job.')
+    expect(body.texts).toContainEqual(
+      expect.stringContaining(
+        'Background job bash-1 ended.\nexit code: 0\n[harness-reload-job] done',
+      ),
+    )
+    expect(body.texts.at(-1)).toBe('Saw the job end.')
+  })
+
   test('projectInstructions(): the environment block reaches the model', async ({
     request,
     testId,

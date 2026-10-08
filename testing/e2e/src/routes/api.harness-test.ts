@@ -707,6 +707,53 @@ async function reloadPlugins(
 }
 
 /**
+ * `session.reload()` while a background `bash` job runs. The job waits for a
+ * `go` file. The server reloads, then writes the file. The job's end note
+ * wakes the thread, and the wake turn answers. Returns the texts in order.
+ */
+async function reloadKeepsJob(
+  host: HarnessHost,
+  openai: () => ReturnType<typeof createTextAdapter>['adapter'],
+) {
+  const root = await mkdtemp(join(tmpdir(), 'e2e-reload-job-'))
+  try {
+    await writeFile(
+      join(root, 'wait.js'),
+      `const fs = require('node:fs')
+const timer = setInterval(() => {
+  if (!fs.existsSync('go')) return
+  clearInterval(timer)
+  console.log('[harness-reload-job] done')
+}, 20)`,
+    )
+    const session = await host.open(
+      defineHarness({
+        name: 'e2e/harness-reload-job',
+        adapter: openai(),
+        plugins: () => [workspaceTools({ root })],
+      }),
+      { threadId: 'e2e-reload-job' },
+    )
+    const started = await session.prompt('[harness-reload-job] start')
+    await session.reload()
+    await writeFile(join(root, 'go'), '')
+    const texts = async () =>
+      (await session.transcript()).flatMap((message) =>
+        message.role === 'assistant' && typeof message.content === 'string'
+          ? [message.content]
+          : [],
+      )
+    for (let tries = 0; tries < 200; tries++) {
+      if ((await texts()).includes('Saw the job end.')) break
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
+    return { started: started.text, texts: await texts() }
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+}
+
+/**
  * `snapshots()`: a turn writes `a.txt` with `write_file`, then `/undo` puts
  * the file back and removes the turn. The workspace and the snapshot data
  * are in a new temp folder.
@@ -1382,6 +1429,9 @@ export const Route = createFileRoute('/api/harness-test')({
           }
           if (body.scenario === 'plugin-reload') {
             return Response.json(await reloadPlugins(host, openai))
+          }
+          if (body.scenario === 'plugin-reload-job') {
+            return Response.json(await reloadKeepsJob(host, openai))
           }
           if (body.scenario === 'plugin-undo') {
             return Response.json(await undoTurn(host, openai))

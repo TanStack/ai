@@ -140,6 +140,31 @@
         "sequenceIndex": 1
       },
       "response": { "content": "Stamped it." }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-reload-job] start",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "bash",
+            "arguments": "{\"command\":\"node wait.js\",\"background\":true}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-reload-job] start",
+        "sequenceIndex": 1
+      },
+      "response": { "content": "Started the job." }
+    },
+    {
+      "match": { "userMessage": "[harness-reload-job] done" },
+      "response": { "content": "Saw the job end." }
     }
   ]
 }

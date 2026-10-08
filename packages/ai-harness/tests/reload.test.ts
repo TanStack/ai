@@ -1,19 +1,27 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import {
   HARNESS_EVENTS,
   createHarnessHost,
+  createPluginEvent,
+  defineCommand,
   defineHarness,
   definePlugin,
 } from '../src'
-import { after, gate, mockAdapter, text } from './helpers'
+import { hostBackend } from '../src/first-party/coding/backend'
+import { workspaceTools } from '../src/first-party/coding/workspace'
+import { createSessionView } from '../src/view'
+import { after, gate, mockAdapter, text, toolCall } from './helpers'
 import type {
   HarnessHost,
   HarnessPlugin,
   HarnessSession,
   PluginSetupContext,
 } from '../src'
+import type { WorkspaceBackend } from '../src/first-party/coding/backend'
+
+const Pinged = createPluginEvent<{}>('test/pinged')
 
 const hosts: Array<HarnessHost> = []
 afterEach(async () => {
@@ -225,5 +233,124 @@ describe('host.reload', () => {
     expect(first.agent('helper')).toBeDefined()
     expect(second.agent('helper')).toBeDefined()
     expect(third.agent('helper')).toBeUndefined()
+  })
+})
+
+describe('reload keeps session work', () => {
+  it('keeps a running background bash job, and its end note arrives', async () => {
+    let end: (exitCode: number) => void = () => undefined
+    let killed = false
+    const exited = new Promise<{ exitCode: number }>((done) => {
+      end = (exitCode) => done({ exitCode })
+    })
+    const backend: WorkspaceBackend = {
+      ...hostBackend,
+      spawn: () => ({
+        wait: () => exited,
+        kill: () => {
+          killed = true
+          end(143)
+        },
+        output: () => 'served\n',
+      }),
+    }
+    const { plugins, calls, harness, host } = setup([
+      () => toolCall('bash', { command: 'serve', background: true }, 'c1'),
+      () => text('started'),
+      () => text('saw the note'),
+    ])
+    plugins.push(workspaceTools({ root: process.cwd(), backend }))
+    const session = await host.open(harness, { threadId: 't' })
+    await session.prompt('serve')
+
+    await session.reload()
+    expect(killed).toBe(false)
+    end(0)
+
+    await vi.waitFor(() => expect(calls).toHaveLength(3))
+    expect(JSON.stringify(calls[2].messages)).toContain(
+      'Background job bash-1 ended.\\nexit code: 0\\nserved',
+    )
+  })
+
+  it('removes the ctx.on listeners of the old plugins', async () => {
+    const { plugins, harness, host } = setup()
+    let heard = 0
+    let latest: PluginSetupContext | undefined
+    plugins.push(
+      definePlugin({
+        name: 'test/listener',
+        setup: (ctx) => {
+          latest = ctx
+          ctx.on(Pinged, () => (heard += 1))
+        },
+      }),
+    )
+    const session = await host.open(harness, { threadId: 't' })
+    await session.reload()
+    await session.reload()
+    await session.reload()
+
+    latest?.emit(Pinged, {})
+    expect(heard).toBe(1)
+  })
+
+  it('makes the view read the description again', async () => {
+    const { plugins, harness, host } = setup()
+    const session = await host.open(harness, { threadId: 't' })
+    const view = createSessionView(session)
+    await view.ready
+    expect(view.store.get().commands.map((command) => command.name)).toEqual([])
+
+    plugins.push(
+      definePlugin({
+        name: 'test/commands',
+        setup: () => ({
+          commands: {
+            hello: defineCommand({ description: 'Hello', run: () => 'hi' }),
+          },
+        }),
+      }),
+    )
+    await session.reload()
+
+    await vi.waitFor(() =>
+      expect(view.store.get().commands.map((command) => command.name)).toEqual([
+        'hello',
+      ]),
+    )
+    view.dispose()
+  })
+})
+
+describe('ctx.agents.set with subagent', () => {
+  it('adds the agent to the subagent tools, and delete removes it', async () => {
+    const { plugins, calls, harness, host } = setup([
+      () => text('one'),
+      () => text('two'),
+    ])
+    let agents: PluginSetupContext['agents'] | undefined
+    plugins.push(
+      definePlugin({
+        name: 'test/live-subagents',
+        setup: (ctx) => {
+          agents = ctx.agents
+        },
+      }),
+    )
+    const session = await host.open(harness, { threadId: 't' })
+    const writer = defineAgent({
+      name: 'writer',
+      description: 'Writes',
+      run: async () => 'written',
+    })
+    agents?.set(writer, { subagent: true })
+    await session.prompt('first')
+    expect(toolNames(calls[0])).toEqual(['writer'])
+
+    agents?.delete('writer')
+    await session.prompt('second')
+    expect(toolNames(calls[1])).toEqual([])
+    expect(session.agent('writer')).toBeUndefined()
   })
 })

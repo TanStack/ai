@@ -1,4 +1,4 @@
-import { definePlugin } from '../../plugins'
+import { SessionSignal, definePlugin } from '../../plugins'
 import {
   PERMISSION_MODES,
   PermissionDecisionCapability,
@@ -374,8 +374,9 @@ export function workspaceTools(options: WorkspaceToolsOptions) {
         },
         hooks: () => hooks,
         note: (text) => ctx.session.note(text, { wake: true }),
-        // Kills the background `bash` jobs when the plugin is disposed.
-        signal: ctx.resources.signal,
+        // Kills the background `bash` jobs when the session closes. A reload
+        // keeps them. Without a session, the plugin cleanup kills them.
+        signal: ctx.getOptional(SessionSignal) ?? ctx.resources.signal,
       })
       const paths = pathsOf(options.backend ?? hostBackend)
       const folder = () => {
