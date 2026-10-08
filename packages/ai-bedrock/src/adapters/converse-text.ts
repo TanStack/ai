@@ -491,6 +491,13 @@ export class BedrockConverseTextAdapter<
       )
       const input = this.buildInput(chatOptions, outputSchema)
       const res = await this.send(input)
+      // An answer cut off at the output cap carries partial JSON or a partial
+      // forced tool input, which would read like a schema failure (#1426).
+      if (res.stopReason === 'max_tokens') {
+        throw new Error(
+          `${this.name}.structuredOutput: the response was cut off because the maximum token limit was reached (stopReason=max_tokens); raise modelOptions.max_completion_tokens`,
+        )
+      }
       const structured = input.outputConfig
         ? parseJsonAnswer(res, `${this.name}.structuredOutput: ${this.model}`)
         : extractStructuredToolInput(res)
@@ -656,6 +663,22 @@ export class BedrockConverseTextAdapter<
           model: chatOptions.model,
           timestamp: Date.now(),
         }
+      }
+
+      // Same truncation check as `structuredOutput()`: report the token limit
+      // before the empty-content and parse errors (issue #1426).
+      if (finishReason === 'length') {
+        const message = `${this.name}.structuredOutputStream: the response was cut off because the maximum token limit was reached (stopReason=max_tokens); raise modelOptions.max_completion_tokens`
+        yield {
+          type: EventType.RUN_ERROR,
+          runId,
+          model: chatOptions.model,
+          timestamp: Date.now(),
+          message,
+          code: 'max_tokens',
+          error: { message, code: 'max_tokens' },
+        }
+        return
       }
 
       if (accumulatedRaw.length === 0) {

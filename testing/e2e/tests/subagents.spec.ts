@@ -95,6 +95,7 @@ test.describe('subagents', () => {
 
   test('without a router the model starts the child and reads its result', async ({
     page,
+    request,
     testId,
     aimockPort,
   }) => {
@@ -109,6 +110,28 @@ test.describe('subagents', () => {
     )
     await expect(page.getByTestId('card-researcher')).toContainText(
       'text:Squids have three hearts.',
+    )
+
+    const journal = await request.get(
+      `http://127.0.0.1:${aimockPort}/v1/_requests`,
+    )
+    const entries = (await journal.json()) as Array<{
+      headers?: Record<string, string>
+      body?: {
+        messages?: Array<{ role?: string; content?: string | null }>
+      } | null
+    }>
+    const parentRequest = entries.find(
+      (entry) =>
+        entry.headers?.['x-test-id'] === testId &&
+        entry.body?.messages?.some((message) => message.role === 'tool'),
+    )
+    const toolMessage = parentRequest?.body?.messages?.find(
+      (message) => message.role === 'tool',
+    )
+
+    expect(toolMessage?.content).toBe(
+      JSON.stringify({ result: 'Squids have three hearts.' }),
     )
   })
 

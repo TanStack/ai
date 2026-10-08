@@ -332,7 +332,7 @@ On the client, each child is a `type: 'subagent'` part, the same as with one too
 
 ### Continue a child
 
-Each result gives the model the `subagentRunId` of the child. The model uses it in a later turn:
+With `withPersistence` on the parent `chat()`, each result gives the model the `subagentRunId` of the child. The model uses it in a later turn:
 
 1. The model calls `{ "agent": "writer", "prompt": "Draft a post about tides" }`.
 2. It gets `{ "subagentRunId": "subagent-1767225600000-x7k2m9q", "result": "Tides rise twice a day..." }`.
@@ -529,7 +529,7 @@ export function CleanupPanel() {
 
 The resume uses the plan that the router picked in the first run. It does not call the router again. While the child waits, its card has `status: 'suspended'` and `interruptIds`. After you approve, the card shows the tool result and the child's reply. Client tools in a child work the same way.
 
-The same flow works without a router. The child's tool call stays open until the resume, then the parent model reads the child's result.
+The same flow works without a router. The child's tool call stays open until the resume, then the parent model reads the child's result. The result content carries the child's output or error. It carries `subagentRunId` only when the model can continue the child: with a persistence store, or for a background child. Else the id stays in the subagent events.
 
 ## Middleware
 

@@ -38,7 +38,7 @@ export function buildOpenRouterUsage(
   if (usage.completionTokensDetails) {
     const details = usage.completionTokensDetails
     result.completionTokensDetails = {
-      ...(details.reasoningTokens
+      ...(details.reasoningTokens != null
         ? { reasoningTokens: details.reasoningTokens }
         : {}),
       ...(details.audioTokens ? { audioTokens: details.audioTokens } : {}),

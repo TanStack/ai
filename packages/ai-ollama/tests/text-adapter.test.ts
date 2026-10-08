@@ -367,6 +367,23 @@ describe('OllamaTextAdapter.structuredOutput', () => {
     ).rejects.toThrow(/Failed to parse structured output/)
   })
 
+  it('reports a length stop as truncation, not a parse failure', async () => {
+    chatMock.mockResolvedValueOnce({
+      message: { role: 'assistant', content: '{"result":' },
+      done_reason: 'length',
+    })
+    const adapter = createOllamaChat('llama3.2')
+    await expect(
+      adapter.structuredOutput({
+        chatOptions: {
+          logger: testLogger,
+          messages: [{ role: 'user', content: 'q' }],
+        },
+        outputSchema: { type: 'object', properties: {} },
+      } as any),
+    ).rejects.toThrow(/maximum token limit was reached/)
+  })
+
   it('surfaces upstream errors as structured-output errors', async () => {
     chatMock.mockRejectedValueOnce(new Error('network down'))
     const adapter = createOllamaChat('llama3.2')

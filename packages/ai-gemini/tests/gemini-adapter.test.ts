@@ -1398,6 +1398,28 @@ describe('GeminiAdapter through AI', () => {
     expect(structuredCompleteEvent(events)).toBeDefined()
   })
 
+  it('reports a MAX_TOKENS stop as truncation in structuredOutput', async () => {
+    mocks.generateContentSpy.mockResolvedValue({
+      candidates: [
+        {
+          content: { parts: [{ text: '{"city":' }] },
+          finishReason: 'MAX_TOKENS',
+        },
+      ],
+    })
+
+    await expect(
+      createTextAdapter().structuredOutput({
+        chatOptions: {
+          model: 'gemini-2.5-pro',
+          messages: [{ role: 'user', content: 'Return a city' }],
+          logger: testLogger,
+        },
+        outputSchema: cityJsonSchema,
+      }),
+    ).rejects.toThrow(/maximum token limit was reached/)
+  })
+
   it('emits empty-response when the structured stream has no text', async () => {
     mocks.generateContentStreamSpy.mockResolvedValue(
       createStream([
