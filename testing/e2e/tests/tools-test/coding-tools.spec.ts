@@ -11,10 +11,17 @@ import type { APIRequestContext } from '@playwright/test'
  * makes. aimock gives one tool call, and the tool works on real files. Each
  * test checks the `TOOL_CALL_RESULT` that the client gets, and the files
  * after the turn. No `permissions()` is mounted, so no tool waits for
- * approval.
+ * approval. Only `coding-format-ask` mounts `permissions()`: there the
+ * formatter asks, and the route rejects the question.
  */
 
-type Chunk = { type: string; delta?: string; content?: string }
+type Chunk = {
+  type: string
+  delta?: string
+  content?: string
+  name?: string
+  value?: { message?: string }
+}
 
 /** The chunks of an SSE body. */
 const sse = (body: string): Array<Chunk> =>
@@ -28,8 +35,8 @@ let root = ''
 const file = (path: string) => join(root, path)
 const read = (path: string) => readFile(file(path), 'utf8')
 
-/** Run `scenario` in `root`. Gives the tool results and the text the client got. */
-async function runScenario(
+/** Run `scenario` in `root`. Gives the chunks the client got. */
+async function post(
   request: APIRequestContext,
   scenario: string,
   testId: string,
@@ -53,6 +60,17 @@ async function runScenario(
     chunks.filter((chunk) => chunk.type === 'RUN_ERROR'),
     body,
   ).toEqual([])
+  return chunks
+}
+
+/** Run `scenario` in `root`. Gives the tool results and the text the client got. */
+async function runScenario(
+  request: APIRequestContext,
+  scenario: string,
+  testId: string,
+  aimockPort: number,
+) {
+  const chunks = await post(request, scenario, testId, aimockPort)
   return {
     results: chunks
       .filter((chunk) => chunk.type === 'TOOL_CALL_RESULT')
@@ -174,5 +192,31 @@ test.describe('Coding tools (tools-test route)', () => {
     })
     expect(await read('notes.txt')).toBe('alpha\nbeta\n')
     expect(await read('other.txt')).toBe('mine\n')
+  })
+
+  test('in acceptEdits mode, the formatter asks before it runs, and a reject keeps the write', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    // The config file makes prettier the formatter of a.ts.
+    await writeFile(file('.prettierrc'), '{}')
+
+    const chunks = await post(request, 'coding-format-ask', testId, aimockPort)
+
+    const questions = chunks
+      .filter((chunk) => chunk.name === 'harness.question')
+      .map((chunk) => chunk.value?.message)
+    expect(questions).toEqual([
+      `Allow formatter:prettier on ${file('a.ts')}? It runs code from the project. Answer once, always, or reject.`,
+    ])
+    expect(
+      chunks
+        .filter((chunk) => chunk.type === 'TOOL_CALL_RESULT')
+        .map((chunk) => chunk.content),
+    ).toEqual([
+      'Wrote a.ts.\nThe formatter prettier did not run: it is not allowed.',
+    ])
+    expect(await read('a.ts')).toBe('let a=1\n')
   })
 })

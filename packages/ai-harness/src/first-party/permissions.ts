@@ -76,6 +76,16 @@ export const PermissionDecisionCapability = createCapability<
   ) => PermissionDecision
 >()('tanstack/permission-decision')
 
+/**
+ * @internal Ask the rules of `permissions()` about `tool`, an action that is
+ * not a tool call, like `formatter:prettier`. It uses the saved answers. On
+ * `ask`, it asks the user with `message`, and saves an `always` answer.
+ * Resolves to `true` when the action can run. The package does not export it.
+ */
+export const PermissionPrompt = createCapability<
+  (tool: string, message: string) => Promise<boolean>
+>()('tanstack/permission-prompt')
+
 /** Is the user's answer a yes: `true`, `y`, or `yes`? */
 export function isYes(answer: unknown) {
   return answer === true || /^y(es)?$/i.test(String(answer).trim())
@@ -471,7 +481,7 @@ export function permissions(
 ) {
   return definePlugin({
     name: 'tanstack/permissions',
-    provides: [PermissionDecisionCapability],
+    provides: [PermissionDecisionCapability, PermissionPrompt],
     setup: (ctx) => {
       const contributed = ctx.collect(PermissionRules)
       const declared = ctx.collect(PermissionResources)
@@ -577,6 +587,35 @@ export function permissions(
         const decision = decidePermission(rules, tool, current, settings)
         return { decision, resources }
       }
+      /** Ask the user. An `always` answer saves the rules for the call. */
+      const askUser = async (
+        message: string,
+        tool: string,
+        resources: CallResources | undefined,
+        metadata: MetadataStore | undefined,
+      ) => {
+        const reply = readAnswer(
+          await ctx.session.ask({
+            message: `${message} Answer once, always, or reject.`,
+            schema: ANSWER_SCHEMA,
+          }),
+        )
+        if (reply.choice === 'always') {
+          await save(metadata, rulesToSave(tool, resources))
+        }
+        return reply
+      }
+      ctx.provide(PermissionPrompt, async (tool, message) => {
+        const { decision } = await decide(
+          tool,
+          undefined,
+          mode(),
+          sessionMetadata,
+        )
+        if (decision !== 'ask') return decision === 'allow'
+        const reply = await askUser(message, tool, undefined, sessionMetadata)
+        return reply.choice !== 'reject'
+      })
       const check = {
         name: 'tanstack/permissions',
         onBeforeToolCall: async (run, hook) => {
@@ -603,17 +642,14 @@ export function permissions(
             return refuse(`This tool is not allowed in ${current} mode.`)
           }
           const preview = JSON.stringify(hook.args ?? {}).slice(0, 300)
-          const reply = readAnswer(
-            await ctx.session.ask({
-              message: `Allow ${hook.toolName} ${preview}? Answer once, always, or reject.`,
-              schema: ANSWER_SCHEMA,
-            }),
+          const reply = await askUser(
+            `Allow ${hook.toolName} ${preview}?`,
+            hook.toolName,
+            resources,
+            metadata,
           )
           if (reply.choice === 'reject') {
             return refuse(reply.message ?? 'The user denied this tool call.')
-          }
-          if (reply.choice === 'always') {
-            await save(metadata, rulesToSave(hook.toolName, resources))
           }
           return undefined
         },

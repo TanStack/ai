@@ -388,8 +388,9 @@ async function applyAll(env: ToolEnv, steps: ReadonlyArray<Step>) {
   for (const { full, text } of written) await backend.writeFile(full, text)
   // The checks above refuse a removal when the backend has no `remove`.
   for (const full of removed) await backend.remove?.(full)
-  for (const { full } of written) await afterWrite(env, full)
-  return ['Applied the patch:', ...changes].join('\n')
+  const notes: Array<string> = []
+  for (const { full } of written) notes.push(...(await afterWrite(env, full)))
+  return ['Applied the patch:', ...changes, ...notes].join('\n')
 }
 
 /**

@@ -152,6 +152,27 @@
       "response": {
         "content": "Edited notes.txt again."
       }
+    },
+    {
+      "match": {
+        "userMessage": "[coding-format-ask] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "write_file",
+            "arguments": "{\"path\":\"a.ts\",\"content\":\"let a=1\\n\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[coding-format-ask] run test",
+        "sequenceIndex": 1
+      },
+      "response": { "content": "Wrote a.ts." }
     }
   ]
 }
