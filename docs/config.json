@@ -332,7 +332,7 @@
           "label": "Compaction",
           "to": "advanced/compaction",
           "addedAt": "2026-08-24",
-          "updatedAt": "2026-10-07"
+          "updatedAt": "2026-10-08"
         },
         {
           "label": "Prompt Caching",
@@ -928,7 +928,7 @@
           "label": "Send inputs safely",
           "to": "harness/inputs",
           "addedAt": "2026-09-30",
-          "updatedAt": "2026-10-07"
+          "updatedAt": "2026-10-08"
         },
         {
           "label": "Run side effects once",
@@ -946,13 +946,13 @@
           "label": "Control how a turn ends",
           "to": "harness/turn-control",
           "addedAt": "2026-10-01",
-          "updatedAt": "2026-10-07"
+          "updatedAt": "2026-10-08"
         },
         {
           "label": "Store settings per thread",
           "to": "harness/thread-settings",
           "addedAt": "2026-10-05",
-          "updatedAt": "2026-10-07"
+          "updatedAt": "2026-10-08"
         },
         {
           "label": "Compact a long session",
@@ -975,7 +975,7 @@
           "label": "Write a plugin",
           "to": "harness/plugins",
           "addedAt": "2026-09-26",
-          "updatedAt": "2026-10-07"
+          "updatedAt": "2026-10-08"
         },
         {
           "label": "Build a coding agent",
@@ -987,7 +987,7 @@
           "label": "Give your agent coding tools",
           "to": "harness/coding-tools",
           "addedAt": "2026-10-06",
-          "updatedAt": "2026-10-07"
+          "updatedAt": "2026-10-08"
         },
         {
           "label": "Sandbox and extend the coding tools",
@@ -1004,7 +1004,7 @@
           "label": "Undo a turn",
           "to": "harness/snapshots",
           "addedAt": "2026-10-06",
-          "updatedAt": "2026-10-07"
+          "updatedAt": "2026-10-08"
         },
         {
           "label": "Switch between agent profiles",
@@ -1039,7 +1039,7 @@
           "label": "Use MCP servers",
           "to": "harness/mcp",
           "addedAt": "2026-09-26",
-          "updatedAt": "2026-10-07"
+          "updatedAt": "2026-10-08"
         },
         {
           "label": "Use from any MCP client",
@@ -1494,7 +1494,7 @@
           "label": "OpenAI-Compatible",
           "to": "adapters/openai-compatible",
           "addedAt": "2026-06-01",
-          "updatedAt": "2026-10-07"
+          "updatedAt": "2026-10-08"
         },
         {
           "label": "LLM Gateway",
