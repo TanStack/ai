@@ -1,9 +1,6 @@
 import { buildBaseUsage } from '@tanstack/ai'
 import type { TokenUsage } from '@tanstack/ai'
-import type {
-  GenerateContentResponseUsageMetadata,
-  ModalityTokenCount,
-} from '@google/genai'
+import type { GenerateContentResponseUsageMetadata } from '@google/genai'
 
 /**
  * Flattened modality token counts for normalized usage reporting.
@@ -28,7 +25,7 @@ export interface FlattenedModalityTokens {
  * normalized structure.
  */
 export function flattenModalityTokenCounts(
-  modalities?: Array<ModalityTokenCount>,
+  modalities?: Array<{ modality?: string; tokenCount?: number }>,
 ): FlattenedModalityTokens {
   if (!modalities || modalities.length === 0) {
     return {}
