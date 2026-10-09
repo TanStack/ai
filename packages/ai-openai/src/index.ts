@@ -20,6 +20,13 @@ export {
   type OpenAIChatCompletionsProviderOptions,
 } from './adapters/text-chat-completions'
 
+export {
+  AzureOpenAITextAdapter,
+  azureOpenaiText,
+  createAzureOpenaiText,
+  type AzureOpenAITextConfig,
+} from './adapters/azure-text'
+
 // Summarize - thin factory functions over @tanstack/ai's ChatStreamSummarizeAdapter
 export {
   createOpenaiSummarize,

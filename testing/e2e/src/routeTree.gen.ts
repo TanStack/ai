@@ -63,6 +63,7 @@ import { Route as ApiAnthropicThinkingOrderWireRouteImport } from './routes/api.
 import { Route as ApiAnthropicTruncatedToolInputWireRouteImport } from './routes/api.anthropic-truncated-tool-input-wire'
 import { Route as ApiArktypeToolWireRouteImport } from './routes/api.arktype-tool-wire'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
+import { Route as ApiAzureOpenaiWireRouteImport } from './routes/api.azure-openai-wire'
 import { Route as ApiBedrockConverseCacheRouteImport } from './routes/api.bedrock-converse-cache'
 import { Route as ApiByokChatRouteImport } from './routes/api.byok-chat'
 import { Route as ApiByteplusSeedance1080pWireRouteImport } from './routes/api.byteplus-seedance-1080p-wire'
@@ -434,6 +435,11 @@ const ApiArktypeToolWireRoute = ApiArktypeToolWireRouteImport.update({
 const ApiAudioRoute = ApiAudioRouteImport.update({
   id: '/api/audio',
   path: '/api/audio',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAzureOpenaiWireRoute = ApiAzureOpenaiWireRouteImport.update({
+  id: '/api/azure-openai-wire',
+  path: '/api/azure-openai-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiBedrockConverseCacheRoute = ApiBedrockConverseCacheRouteImport.update({
@@ -969,6 +975,7 @@ export interface FileRoutesByFullPath {
   '/api/anthropic-truncated-tool-input-wire': typeof ApiAnthropicTruncatedToolInputWireRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
+  '/api/azure-openai-wire': typeof ApiAzureOpenaiWireRoute
   '/api/bedrock-converse-cache': typeof ApiBedrockConverseCacheRoute
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
@@ -1116,6 +1123,7 @@ export interface FileRoutesByTo {
   '/api/anthropic-truncated-tool-input-wire': typeof ApiAnthropicTruncatedToolInputWireRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
+  '/api/azure-openai-wire': typeof ApiAzureOpenaiWireRoute
   '/api/bedrock-converse-cache': typeof ApiBedrockConverseCacheRoute
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
@@ -1264,6 +1272,7 @@ export interface FileRoutesById {
   '/api/anthropic-truncated-tool-input-wire': typeof ApiAnthropicTruncatedToolInputWireRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
+  '/api/azure-openai-wire': typeof ApiAzureOpenaiWireRoute
   '/api/bedrock-converse-cache': typeof ApiBedrockConverseCacheRoute
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
@@ -1413,6 +1422,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-truncated-tool-input-wire'
     | '/api/arktype-tool-wire'
     | '/api/audio'
+    | '/api/azure-openai-wire'
     | '/api/bedrock-converse-cache'
     | '/api/byok-chat'
     | '/api/byteplus-seedance-1080p-wire'
@@ -1560,6 +1570,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-truncated-tool-input-wire'
     | '/api/arktype-tool-wire'
     | '/api/audio'
+    | '/api/azure-openai-wire'
     | '/api/bedrock-converse-cache'
     | '/api/byok-chat'
     | '/api/byteplus-seedance-1080p-wire'
@@ -1707,6 +1718,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-truncated-tool-input-wire'
     | '/api/arktype-tool-wire'
     | '/api/audio'
+    | '/api/azure-openai-wire'
     | '/api/bedrock-converse-cache'
     | '/api/byok-chat'
     | '/api/byteplus-seedance-1080p-wire'
@@ -1855,6 +1867,7 @@ export interface RootRouteChildren {
   ApiAnthropicTruncatedToolInputWireRoute: typeof ApiAnthropicTruncatedToolInputWireRoute
   ApiArktypeToolWireRoute: typeof ApiArktypeToolWireRoute
   ApiAudioRoute: typeof ApiAudioRouteWithChildren
+  ApiAzureOpenaiWireRoute: typeof ApiAzureOpenaiWireRoute
   ApiBedrockConverseCacheRoute: typeof ApiBedrockConverseCacheRoute
   ApiByokChatRoute: typeof ApiByokChatRoute
   ApiByteplusSeedance1080pWireRoute: typeof ApiByteplusSeedance1080pWireRoute
@@ -2322,6 +2335,13 @@ declare module '@tanstack/react-router' {
       path: '/api/audio'
       fullPath: '/api/audio'
       preLoaderRoute: typeof ApiAudioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/azure-openai-wire': {
+      id: '/api/azure-openai-wire'
+      path: '/api/azure-openai-wire'
+      fullPath: '/api/azure-openai-wire'
+      preLoaderRoute: typeof ApiAzureOpenaiWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/bedrock-converse-cache': {
@@ -3078,6 +3098,7 @@ const rootRouteChildren: RootRouteChildren = {
     ApiAnthropicTruncatedToolInputWireRoute,
   ApiArktypeToolWireRoute: ApiArktypeToolWireRoute,
   ApiAudioRoute: ApiAudioRouteWithChildren,
+  ApiAzureOpenaiWireRoute: ApiAzureOpenaiWireRoute,
   ApiBedrockConverseCacheRoute: ApiBedrockConverseCacheRoute,
   ApiByokChatRoute: ApiByokChatRoute,
   ApiByteplusSeedance1080pWireRoute: ApiByteplusSeedance1080pWireRoute,
