@@ -7,6 +7,7 @@ import {
 import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
 import { generateId } from '@tanstack/ai-utils'
 import {
+  BYTEPLUS_MODEL_INPUT_MODALITIES,
   BYTEPLUS_STRUCTURED_OUTPUT_CHAT_MODELS,
   emitsEncryptedContent,
   supportsStructuredOutput,
@@ -107,6 +108,8 @@ export class BytePlusTextAdapter<
 > {
   override readonly kind = 'text' as const
   override readonly name = 'byteplus' as const
+  override readonly inputModalities =
+    BYTEPLUS_MODEL_INPUT_MODALITIES[this.model]
 
   constructor(config: BytePlusTextConfig, model: TModel) {
     super(
@@ -137,15 +140,17 @@ export class BytePlusTextAdapter<
   }
 
   /**
-   * Captures Ark's `encrypted_content` and attaches it to the reasoning
-   * step's `STEP_FINISHED` event as its `signature`.
+   * Captures Ark's `encrypted_content` and sends it as a
+   * `REASONING_ENCRYPTED_VALUE` for the reasoning message, right after the
+   * reasoning step's `STEP_FINISHED`. Its `entityId` is the reasoning
+   * message id, so an AG-UI client finds that message.
    *
    * On a thinking-summary model Ark streams the whole blob as one dedicated
    * chunk (empty `content` and `reasoning_content`) sitting between the
    * reasoning deltas and the content deltas — so it is always captured before
    * the base closes the reasoning lifecycle at the first content delta.
    *
-   * `signature` is the framework's existing provider-signature seam: the chat
+   * The encrypted value is the framework's provider-signature seam: the chat
    * engine stores it on the `ThinkingPart`, which
    * `buildAssistantMessages` carries into `ModelMessage.thinking[].signature`,
    * which {@link BytePlusTextAdapter.convertMessage} echoes back to Ark on the
@@ -168,33 +173,30 @@ export class BytePlusTextAdapter<
     },
   ): AsyncIterable<AdapterYieldChunk> {
     const captured: { encryptedContent?: string } = {}
+    let reasoningMessageId: string | undefined
 
     for await (const event of super.processStreamChunks(
       captureEncryptedContent(stream, captured),
       options,
       aguiState,
     )) {
+      if (event.type === EventType.REASONING_MESSAGE_START) {
+        reasoningMessageId = event.messageId
+      }
       if (
         event.type === EventType.STEP_FINISHED &&
         captured.encryptedContent !== undefined &&
-        event.signature === undefined
+        event.signature === undefined &&
+        reasoningMessageId !== undefined
       ) {
-        // `delta` is stamped alongside the signature because the two consumers
-        // read this event differently. `chat()`'s server agent loop accumulates
-        // thinking ONLY from `STEP_FINISHED.delta` and then drops the whole
-        // step — signature included — when the accumulated content is empty
-        // (`finalizeCurrentThinkingStep`); the OpenAI base emits `content` but
-        // never `delta`, so without this the blob never reaches the
-        // continuation message. The client `StreamProcessor` can't double-count
-        // it: it short-circuits STEP_FINISHED content once
-        // `hasSeenReasoningEvents` is set, which the REASONING_MESSAGE_CONTENT
-        // events preceding every STEP_FINISHED here always set.
+        yield event
         yield {
-          ...event,
-          signature: captured.encryptedContent,
-          delta:
-            event.delta ??
-            (typeof event.content === 'string' ? event.content : ''),
+          type: EventType.REASONING_ENCRYPTED_VALUE,
+          subtype: 'message' as const,
+          entityId: reasoningMessageId,
+          encryptedValue: captured.encryptedContent,
+          model: event.model,
+          timestamp: event.timestamp,
         }
         continue
       }

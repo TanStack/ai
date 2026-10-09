@@ -1,5 +1,43 @@
 # @tanstack/ai-bedrock
 
+## 0.5.1
+
+### Patch Changes
+
+- Updated dependencies [[`723b4a4`](https://github.com/TanStack/ai/commit/723b4a4e8432825374d4980cc74c5f66dc7d1122), [`d84a49e`](https://github.com/TanStack/ai/commit/d84a49e5fef03499b10f63255880d056a55767a3)]:
+  - @tanstack/ai@0.68.0
+  - @tanstack/openai-base@0.13.1
+
+## 0.5.0
+
+### Minor Changes
+
+- [#1677](https://github.com/TanStack/ai/pull/1677) [`f562eac`](https://github.com/TanStack/ai/commit/f562eacf0cf1367b2ffb3703143aff5621e5e945) - `usage.promptTokens` is now the total input on the Anthropic, Bedrock Converse, and Claude Code adapters. It is the uncached tokens plus the cache reads plus the cache writes. Before, it was the uncached tokens only. `totalTokens` now uses the new `promptTokens`. The cache parts stay in `promptTokensDetails.cachedTokens` and `promptTokensDetails.cacheWriteTokens`. Other adapters already report `promptTokens` this way.
+
+  **Breaking:** if your code adds `cachedTokens` or `cacheWriteTokens` to `promptTokens` to get the total input, it now counts the cache two times. Use `promptTokens` as the total. To get the uncached tokens, subtract `cachedTokens` and `cacheWriteTokens` from `promptTokens`.
+
+### Patch Changes
+
+- [#1680](https://github.com/TanStack/ai/pull/1680) [`377262c`](https://github.com/TanStack/ai/commit/377262c0b4e5f59f8fd467a831b9341cc705077e) - Add `wrapFetch` to `chat()`, to the middleware `onConfig` config, and to `TextOptions`. A wrapper gets the next fetch and gives back a new fetch. Use it to change the URL, the headers, the request, or the response of a model call. The new `FetchWrapper` type names the wrapper.
+
+  The engine chains the `chat()` wrapper and the middleware wrappers into one function. A middleware wrapper runs inside the `chat()` wrapper and applies to one model call only.
+
+  These text adapters send their requests through the wrapper: every adapter on `@tanstack/openai-base` (OpenAI, the OpenAI-compatible adapters, Grok, Groq, BytePlus, LLM Gateway, Lovable, Vercel AI Gateway, Cloudflare, and the Bedrock Chat Completions and Responses APIs), Anthropic, Mistral, Ollama, and OpenRouter. The wrapper wraps the fetch of the adapter config, not the global fetch. An Anthropic or Ollama adapter with an injected client ignores `wrapFetch`. In Cloudflare binding mode, the wrapper runs, but the binding does not send the URL or the headers. Without `wrapFetch`, the requests do not change.
+
+- Updated dependencies [[`7dbfaf6`](https://github.com/TanStack/ai/commit/7dbfaf6c37a3d97de3b1f5bdb87be8bbbe2b0164), [`88fd67c`](https://github.com/TanStack/ai/commit/88fd67cd7ddfbe2b154173d2395b2c0338e97644), [`3aa2e3d`](https://github.com/TanStack/ai/commit/3aa2e3d95e2dcb1c14b4fda3bcdbdf3152582092), [`c5ae415`](https://github.com/TanStack/ai/commit/c5ae4152d0a040bb6ce7321e16b7ee66d3c36f96), [`13ba1b0`](https://github.com/TanStack/ai/commit/13ba1b0e47dc822f10f6c5133184f92c2eb0a013), [`377262c`](https://github.com/TanStack/ai/commit/377262c0b4e5f59f8fd467a831b9341cc705077e)]:
+  - @tanstack/ai@0.67.0
+  - @tanstack/openai-base@0.13.0
+
+## 0.4.6
+
+### Patch Changes
+
+- [#1668](https://github.com/TanStack/ai/pull/1668) [`09c5d27`](https://github.com/TanStack/ai/commit/09c5d27644c95751087fee27de9fac71e5ed7bba) - The Bedrock Converse adapter now sets `status: 'error'` on a tool result that has an `error`. This includes an empty error string. Before, every tool result went out with `status: 'success'`, so the model did not know that the tool failed.
+
+- Updated dependencies [[`ee935ef`](https://github.com/TanStack/ai/commit/ee935efaa25607425b1ba3452aec470588292334), [`baafb17`](https://github.com/TanStack/ai/commit/baafb176220c2b09fced334ad176e754582cd314), [`7a70720`](https://github.com/TanStack/ai/commit/7a7072041aeca984e19550455b039322060a0bb0)]:
+  - @tanstack/openai-base@0.12.7
+  - @tanstack/ai@0.66.1
+
 ## 0.4.5
 
 ### Patch Changes

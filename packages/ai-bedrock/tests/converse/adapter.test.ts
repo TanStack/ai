@@ -316,7 +316,7 @@ describe('BedrockConverseTextAdapter', () => {
       outputSchema: { type: 'object', properties: { n: { type: 'number' } } },
     })
     expect(res.usage).toEqual({
-      promptTokens: 3,
+      promptTokens: 8412,
       completionTokens: 4,
       totalTokens: 8416,
       promptTokensDetails: { cachedTokens: 8409, cacheWriteTokens: 0 },
@@ -509,7 +509,7 @@ describe('BedrockConverseTextAdapter', () => {
     }
     const finished = events.find((e) => e.type === EventType.RUN_FINISHED)
     expect((finished as { usage?: unknown }).usage).toEqual({
-      promptTokens: 3,
+      promptTokens: 8412,
       completionTokens: 4,
       totalTokens: 8416,
       promptTokensDetails: { cachedTokens: 8409, cacheWriteTokens: 0 },

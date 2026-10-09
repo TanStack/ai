@@ -1147,7 +1147,12 @@ export class StreamProcessor {
    * MESSAGES_SNAPSHOT) but whose transient state was cleared. In that case we
    * hydrate state from the existing message rather than creating a duplicate.
    */
-  private ensureAssistantMessage(preferredId?: string): {
+  private ensureAssistantMessage(
+    preferredId?: string,
+    // False when `preferredId` names its own message (a tool call's
+    // `parentMessageId`), so a different active message never takes it.
+    fallbackToActive = true,
+  ): {
     messageId: string
     state: MessageStreamState
   } {
@@ -1161,7 +1166,9 @@ export class StreamProcessor {
     }
 
     // Try active assistant message
-    const activeId = this.getActiveAssistantMessageId()
+    const activeId = fallbackToActive
+      ? this.getActiveAssistantMessageId()
+      : null
     if (activeId) {
       const state = this.getMessageState(activeId)
       if (state) {
@@ -1209,7 +1216,8 @@ export class StreamProcessor {
     this.messages = [...this.messages, assistantMessage]
     const state = this.createMessageState(id, 'assistant')
     this.activeMessageIds.add(id)
-    this.pendingManualMessageId = id
+    // Only a client id is a placeholder. A server id is already final.
+    if (!preferredId) this.pendingManualMessageId = id
     this.events.onStreamStart?.()
     this.emitMessagesChange()
     return { messageId: id, state }
@@ -1509,6 +1517,47 @@ export class StreamProcessor {
     return true
   }
 
+  private renameMessage(fromId: string, toId: string): void {
+    // Update the message's ID in the messages array
+    this.messages = this.messages.map((msg) =>
+      msg.id === fromId ? { ...msg, id: toId } : msg,
+    )
+
+    // Move state to the new key
+    const existingState = this.messageStates.get(fromId)
+    if (existingState) {
+      existingState.id = toId
+      this.messageStates.delete(fromId)
+      this.messageStates.set(toId, existingState)
+    }
+
+    // Update activeMessageIds
+    this.activeMessageIds.delete(fromId)
+    this.activeMessageIds.add(toId)
+
+    // TOOL_CALL_ARGS/END route through toolCallToMessage. Keep those
+    // entries on the remapped id so later args still accumulate
+    // (interleaved text can arrive as a full START/CONTENT/END block).
+    for (const [toolCallId, mappedMessageId] of this.toolCallToMessage) {
+      if (mappedMessageId === fromId) {
+        this.toolCallToMessage.set(toolCallId, toId)
+      }
+    }
+
+    // `structured-output.start` can arrive before this event and mark
+    // the pending id. Keep the mark on the remapped id so the JSON deltas
+    // go into the structured-output part, not a text part.
+    if (this.structuredMessageIds.delete(fromId)) {
+      this.structuredMessageIds.add(toId)
+    }
+    // Queued deltas move too, so the next flush of `toId` sends them.
+    const batch = this.structuredOutputUpdateBatches.get(fromId)
+    if (batch) {
+      this.structuredOutputUpdateBatches.delete(fromId)
+      this.structuredOutputUpdateBatches.set(toId, batch)
+    }
+  }
+
   /**
    * Handle TEXT_MESSAGE_START event
    */
@@ -1537,38 +1586,7 @@ export class StreamProcessor {
       this.pendingManualMessageId = null
 
       if (pendingId !== messageId) {
-        // Update the message's ID in the messages array
-        this.messages = this.messages.map((msg) =>
-          msg.id === pendingId ? { ...msg, id: messageId } : msg,
-        )
-
-        // Move state to the new key
-        const existingState = this.messageStates.get(pendingId)
-        if (existingState) {
-          existingState.id = messageId
-          this.messageStates.delete(pendingId)
-          this.messageStates.set(messageId, existingState)
-        }
-
-        // Update activeMessageIds
-        this.activeMessageIds.delete(pendingId)
-        this.activeMessageIds.add(messageId)
-
-        // TOOL_CALL_ARGS/END route through toolCallToMessage. Keep those
-        // entries on the remapped id so later args still accumulate
-        // (interleaved text can arrive as a full START/CONTENT/END block).
-        for (const [toolCallId, mappedMessageId] of this.toolCallToMessage) {
-          if (mappedMessageId === pendingId) {
-            this.toolCallToMessage.set(toolCallId, messageId)
-          }
-        }
-
-        // `structured-output.start` can arrive before this event and mark
-        // the pending id. Keep the mark on the remapped id so the JSON deltas
-        // go into the structured-output part, not a text part.
-        if (this.structuredMessageIds.delete(pendingId)) {
-          this.structuredMessageIds.add(messageId)
-        }
+        this.renameMessage(pendingId, messageId)
       }
 
       // Ensure state exists
@@ -2205,11 +2223,38 @@ export class StreamProcessor {
   private handleToolCallStartEvent(
     chunk: Extract<StreamChunk, { type: 'TOOL_CALL_START' }>,
   ): void {
+    // A placeholder (e.g. made by thinking) takes the tool call's parent id.
+    // Otherwise the next model call's TEXT_MESSAGE_START renames it, and one
+    // message holds two calls under the wrong id.
+    const pendingId = this.pendingManualMessageId
+    const parentId = chunk.parentMessageId
+    if (pendingId && parentId && parentId !== pendingId) {
+      const parent = this.messages.find((m) => m.id === parentId)
+      const placeholder = this.messages.find((m) => m.id === pendingId)
+      if (!parent) {
+        this.pendingManualMessageId = null
+        this.renameMessage(pendingId, parentId)
+      } else if (parent.role === 'assistant' && placeholder) {
+        // The parent already exists. Fold the placeholder into it, so the
+        // thinking stays in the same message as the tool call.
+        this.pendingManualMessageId = null
+        this.messages = this.messages
+          .filter((m) => m.id !== pendingId)
+          .map((m) =>
+            m.id === parentId
+              ? { ...m, parts: [...m.parts, ...placeholder.parts] }
+              : m,
+          )
+        this.renameMessage(pendingId, parentId)
+      }
+    }
+
     // Determine the message this tool call belongs to
     const targetMessageId =
       chunk.parentMessageId ?? this.getActiveAssistantMessageId()
     const { messageId, state } = this.ensureAssistantMessage(
       targetMessageId ?? undefined,
+      chunk.parentMessageId === undefined,
     )
 
     // Mark that we've seen tool calls since the last text segment

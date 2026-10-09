@@ -669,6 +669,8 @@ export interface TanStackRunMetadata {
   runId?: string
   sessionId?: string
   index?: number
+  /** On a `RUN_ERROR`. See `RunErrorEvent.retryAfterMs`. */
+  retryAfterMs?: number
   state?: ToolOutputState
   /** Parsed `TOOL_CALL_END` input. Spec `TOOL_CALL_END` has no top-level `input`. */
   input?: unknown
@@ -1109,6 +1111,13 @@ export interface AgentLoopState {
 export type AgentLoopStrategy = (state: AgentLoopState) => boolean
 
 /**
+ * Wraps the fetch of a model call. It gets the next fetch and gives back a
+ * new fetch. A wrapper can change the URL, the headers, the request, or the
+ * response.
+ */
+export type FetchWrapper = (next: typeof fetch) => typeof fetch
+
+/**
  * Options passed into the SDK and further piped to the AI provider.
  */
 export interface TextOptions<
@@ -1241,6 +1250,12 @@ export interface TextOptions<
    * Surfaced for observability/middleware; not consumed by the LLM call.
    */
   parentRunId?: string
+  /**
+   * Wraps the fetch of this request. The engine composes the `chat()` option
+   * and the middleware wrappers into one function. An adapter that supports
+   * it calls `wrapFetch(baseFetch)` and sends the request with the result.
+   */
+  wrapFetch?: FetchWrapper
   /**
    * AG-UI subagent run id when this chat runs as a child of another run.
    * A child `chat()` passes `ctx.subagentRunId`. Middleware reads it as
@@ -1392,6 +1407,12 @@ export interface RunErrorEvent extends Pick<
   model?: string
   /** Nested payload kept for in-process / durability consumers. */
   error?: { message: string; code?: string }
+  /**
+   * How long the provider asks you to wait before a retry, in milliseconds.
+   * Adapters read it from the `retry-after-ms` or `retry-after` header.
+   * `chat()` moves it to `metadata.tanstack.retryAfterMs`.
+   */
+  retryAfterMs?: number
   metadata?: { tanstack?: TanStackRunMetadata } & Record<string, any>
 }
 

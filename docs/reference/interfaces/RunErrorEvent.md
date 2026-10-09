@@ -3,7 +3,7 @@ id: RunErrorEvent
 title: RunErrorEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1381](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1381)
+Defined in: [packages/ai/src/types.ts:1396](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1396)
 
 Emitted when an error occurs during a run.
 
@@ -23,7 +23,7 @@ Spec `usage[]` is provider/model token counts. Interrupt errors live in
 optional error?: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1394](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1394)
+Defined in: [packages/ai/src/types.ts:1409](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1409)
 
 Nested payload kept for in-process / durability consumers.
 
@@ -47,7 +47,7 @@ message: string;
 optional metadata?: object & Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1395](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1395)
+Defined in: [packages/ai/src/types.ts:1416](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1416)
 
 #### Type Declaration
 
@@ -65,9 +65,23 @@ optional tanstack?: TanStackRunMetadata;
 optional model?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1392](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1392)
+Defined in: [packages/ai/src/types.ts:1407](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1407)
 
 Restored on the client from `metadata.tanstack`.
+
+***
+
+### retryAfterMs?
+
+```ts
+optional retryAfterMs?: number;
+```
+
+Defined in: [packages/ai/src/types.ts:1415](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1415)
+
+How long the provider asks you to wait before a retry, in milliseconds.
+Adapters read it from the `retry-after-ms` or `retry-after` header.
+`chat()` moves it to `metadata.tanstack.retryAfterMs`.
 
 ***
 
@@ -77,7 +91,7 @@ Restored on the client from `metadata.tanstack`.
 optional runId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1390](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1390)
+Defined in: [packages/ai/src/types.ts:1405](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1405)
 
 Restored on the client from `metadata.tanstack`.
 
@@ -89,7 +103,7 @@ Restored on the client from `metadata.tanstack`.
 optional threadId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1388](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1388)
+Defined in: [packages/ai/src/types.ts:1403](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1403)
 
 Restored on the client from `metadata.tanstack`.
 
@@ -101,7 +115,7 @@ Restored on the client from `metadata.tanstack`.
 type: RUN_ERROR;
 ```
 
-Defined in: [packages/ai/src/types.ts:1385](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1385)
+Defined in: [packages/ai/src/types.ts:1400](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1400)
 
 ***
 
@@ -111,4 +125,4 @@ Defined in: [packages/ai/src/types.ts:1385](https://github.com/TanStack/ai/blob/
 optional usage?: TokenUsage<ProviderUsageDetails> | TokenUsage[];
 ```
 
-Defined in: [packages/ai/src/types.ts:1386](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1386)
+Defined in: [packages/ai/src/types.ts:1401](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1401)

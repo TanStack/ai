@@ -163,12 +163,58 @@ const dynamicTemperature: ChatMiddleware = {
 | `tools` | `Tool[]` | Available tools |
 | `metadata` | `Record<string, unknown>` | Request metadata |
 | `modelOptions` | `Record<string, unknown>` | Provider-native options — this is where sampling params (`temperature`, `top_p` / `topP`, the provider's `max*Tokens` key) now live, alongside every other model-specific knob. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options). |
+| `wrapFetch` | `FetchWrapper \| undefined` | Wraps the HTTP fetch of the next model call. See [Change the HTTP requests of a call](#change-the-http-requests-of-a-call). |
 
 When multiple middleware define `onConfig`, the config is **piped** through them in order — each receives the merged config from the previous middleware.
 
 Return `providerMessages` when a transform must affect only the model call. For
 compatibility, returning `messages` also updates provider input unless the same
 result sets `providerMessages` explicitly.
+
+#### Change the HTTP requests of a call
+
+Your proxy wants a header on each request. Or you want to log each model call. You do not need your own client for that. Return `wrapFetch` from `onConfig`:
+
+```typescript
+import { type ChatMiddleware } from "@tanstack/ai";
+
+const traceHeader: ChatMiddleware = {
+  name: "trace-header",
+  onConfig: (ctx) => {
+    if (ctx.phase !== "beforeModel") return;
+    return {
+      wrapFetch: (next) => (input, init) => {
+        const headers = new Headers(init?.headers);
+        headers.set("x-trace-id", `${ctx.requestId}-${ctx.iteration}`);
+        return next(input, { ...init, headers });
+      },
+    };
+  },
+};
+```
+
+You want the same wrapper on every call of the run? Pass it to `chat()`:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+const stream = chat({
+  adapter: openaiText("gpt-5.6"),
+  messages: [{ role: "user", content: "Hi" }],
+  wrapFetch: (next) => async (input, init) => {
+    const started = Date.now();
+    const response = await next(input, init);
+    console.log(`model call: ${response.status} in ${Date.now() - started} ms`);
+    return response;
+  },
+});
+```
+
+- A wrapper gets the next `fetch` and gives back a new one. It can change the URL, the headers, the request, or the response.
+- A wrapper from `onConfig` applies to the next model call only.
+- Wrappers chain. The `chat()` wrapper runs first, then the middleware wrappers in middleware order, then the fetch of the adapter.
+- Each adapter page says if that adapter supports `wrapFetch`.
 
 ### onStructuredOutputConfig
 
@@ -566,7 +612,7 @@ The `hookCtx` provides:
 
 ### onAfterToolCall
 
-Called after each tool execution (or skip). All middleware run — there is no short-circuiting.
+Called after each tool execution (or skip). Every middleware runs, in array order.
 
 ```typescript
 import { type ChatMiddleware } from "@tanstack/ai";
@@ -593,8 +639,42 @@ The `info` object provides:
 | `toolCallId` | `string` | Tool call ID |
 | `ok` | `boolean` | Whether execution succeeded |
 | `duration` | `number` | Execution time in milliseconds |
-| `result` | `unknown` | Result (when `ok` is true) |
+| `result` | `unknown` | Result (when `ok` is true). After a `replaceResult` from an earlier middleware, the new result. |
 | `error` | `unknown` | Error (when `ok` is false) |
+
+#### Replace a tool result
+
+Some tools return way more than the model needs: 500 rows, a huge log, a secret you want to hide. The model reads every token of it. Return `{ type: 'replaceResult', result }` and the model gets your version instead:
+
+```typescript
+import { type ChatMiddleware } from "@tanstack/ai";
+
+const firstTwentyRows: ChatMiddleware = {
+  name: "first-twenty-rows",
+  onAfterToolCall: (ctx, info) => {
+    if (!info.ok || !Array.isArray(info.result)) return;
+    if (info.result.length <= 20) return;
+    return {
+      type: "replaceResult",
+      result: {
+        rows: info.result.slice(0, 20),
+        omitted: info.result.length - 20,
+      },
+    };
+  },
+};
+```
+
+| Return | What happens |
+|--------|--------|
+| nothing | The result stays the same. |
+| `{ type: 'replaceResult', result }` | The model gets `result`. The stream sends it in `TOOL_CALL_RESULT`, so the client shows it too. |
+
+Good to know:
+
+- Each middleware gets the result of the one before it as `info.result`. The last replacement wins.
+- A failed call stays failed. Your replacement becomes the error that the model reads.
+- A `skip` result from `onBeforeToolCall` goes through this hook too. `info.result` is the parsed skip result, the same value the model gets.
 
 ### Tool hook order in one turn
 
@@ -820,7 +900,7 @@ const stream = chat({
 | `onChunk` | **Piped** — chunks flow through each middleware | If first drops a chunk, later middleware never see it |
 | `onBeforeToolCall` | **First-win** — first non-void decision wins | Earlier middleware has priority |
 | `onShouldContinue` | **AND** — any explicit `false` stops the loop | Order only affects which middleware runs first when short-circuiting |
-| `onAfterToolCall` | Sequential | All run in order |
+| `onAfterToolCall` | **Piped**: each gets the result of the previous `replaceResult` | The last replacement wins |
 | `onUsage` | Sequential | All run in order |
 | `onFinish/onAbort/onError` | Sequential | All run in order |
 
@@ -1162,6 +1242,7 @@ import type {
   ToolCallHookContext,
   BeforeToolCallDecision,
   AfterToolCallInfo,
+  AfterToolCallDecision,
   IterationInfo,
   ToolPhaseCompleteInfo,
   UsageInfo,

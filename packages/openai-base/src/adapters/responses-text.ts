@@ -8,10 +8,12 @@ import {
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   toRunErrorPayload,
+  toRetryAfterMs,
   toRunErrorRawEvent,
 } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
-import { extractRequestOptions } from '../utils/request-options'
+import { clientFor, extractRequestOptions } from '../utils/request-options'
+import type { Fetch } from '../utils/request-options'
 import {
   makeStructuredOutputCompatibleWithMap,
   warnStrictFallback,
@@ -250,16 +252,32 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   /** See {@link OpenAIBaseTextAdapterOptions.strictFallbackWarning}. */
   protected readonly strictFallbackWarning: boolean
 
+  /** The fetch that the adapter gave the client. */
+  private readonly baseFetch: Fetch | undefined
+
+  /**
+   * `options.fetch` must be the fetch that the client uses. A `wrapFetch`
+   * call wraps it.
+   */
   constructor(
     model: TModel,
     name: string,
     client: OpenAI,
-    options: OpenAIBaseTextAdapterOptions = {},
+    options: OpenAIBaseTextAdapterOptions & { fetch?: Fetch | undefined } = {},
   ) {
     super({}, model)
     this.name = name
     this.client = client
     this.strictFallbackWarning = options.strictFallbackWarning ?? true
+    this.baseFetch = options.fetch
+  }
+
+  /**
+   * A copy of the client that sends its requests through `fetch`. Override it
+   * when the SDK copy loses an option of your client.
+   */
+  protected withFetch(fetch: Fetch): OpenAI {
+    return this.client.withOptions({ fetch })
   }
 
   async *chatStream(
@@ -291,7 +309,12 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         `activity=chat provider=${this.name} model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
         { provider: this.name, model: this.model },
       )
-      const response = await this.client.responses.create(
+      const response = await clientFor(
+        this.client,
+        options,
+        this.baseFetch,
+        (fetch) => this.withFetch(fetch),
+      ).responses.create(
         {
           ...requestParams,
           stream: true,
@@ -313,6 +336,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         `${this.name}.chatStream failed`,
       )
       const rawEvent = toRunErrorRawEvent(error)
+      const retryAfterMs = toRetryAfterMs(error)
 
       // Emit RUN_STARTED if not yet emitted
       if (!aguiState.hasEmittedRunStarted) {
@@ -340,6 +364,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         // Forward the provider's structured error body when present (see
         // toRunErrorRawEvent); omitted otherwise.
         ...(rawEvent !== undefined && { rawEvent }),
+        ...(retryAfterMs !== undefined && { retryAfterMs }),
         error: {
           message: errorPayload.message,
           code: errorPayload.code,
@@ -392,7 +417,12 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         `activity=structuredOutput provider=${this.name} model=${this.model} messages=${chatOptions.messages.length}`,
         { provider: this.name, model: this.model },
       )
-      const response = await this.client.responses.create(
+      const response = await clientFor(
+        this.client,
+        chatOptions,
+        this.baseFetch,
+        (fetch) => this.withFetch(fetch),
+      ).responses.create(
         {
           ...(cleanParams as Omit<ResponseCreateParams, 'stream'>),
           stream: false,
@@ -573,7 +603,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
       const stream: AsyncIterable<
         ResponseStreamEvent | LegacyReasoningDeltaEvent
-      > = await this.client.responses.create(
+      > = await clientFor(this.client, chatOptions, this.baseFetch, (fetch) =>
+        this.withFetch(fetch),
+      ).responses.create(
         {
           ...cleanParams,
           stream: true,
@@ -2139,6 +2171,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         `${this.name}.processStreamChunks failed`,
       )
       const rawEvent = toRunErrorRawEvent(error)
+      const retryAfterMs = toRetryAfterMs(error)
       options.logger.errors(`${this.name}.processStreamChunks fatal`, {
         error: errorPayload,
         source: `${this.name}.processStreamChunks`,
@@ -2153,6 +2186,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         message: errorPayload.message,
         ...(errorPayload.code !== undefined && { code: errorPayload.code }),
         ...(rawEvent !== undefined && { rawEvent }),
+        ...(retryAfterMs !== undefined && { retryAfterMs }),
         error: {
           message: errorPayload.message,
           ...(errorPayload.code !== undefined && { code: errorPayload.code }),

@@ -60,7 +60,7 @@ Generic parameters:
 ~types: object;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:104](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L104)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:111](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L111)
 
 **`Internal`**
 
@@ -110,7 +110,7 @@ toolCapabilities: TToolCapabilities;
 chatStream: (options) => AsyncIterable<AdapterYieldChunk>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:116](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L116)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:123](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L123)
 
 Stream text completions from the model
 
@@ -132,7 +132,7 @@ Stream text completions from the model
 optional combinedStructuredOutputSource?: (modelOptions?) => "text" | "event";
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:183](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L183)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:190](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L190)
 
 Where native-combined structured output is taken from.
 
@@ -152,6 +152,20 @@ Where native-combined structured output is taken from.
 #### Returns
 
 `"text"` \| `"event"`
+
+***
+
+### inputModalities?
+
+```ts
+readonly optional inputModalities?: readonly ("text" | "image" | "audio" | "video" | "document")[];
+```
+
+Defined in: [packages/ai/src/activities/chat/adapter.ts:106](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L106)
+
+The input kinds the model reads, at runtime, from the provider's model
+metadata. `undefined` means not known. This mirrors the type-level
+`'~types'.inputModalities`, which has no runtime value.
 
 ***
 
@@ -213,7 +227,7 @@ this is the declaration/validation surface only.
 structuredOutput: (options) => Promise<StructuredOutputResult<unknown>>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:128](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L128)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:135](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L135)
 
 Generate structured output using the provider's native structured output API.
 This method uses stream: false and sends the JSON schema to the provider
@@ -241,7 +255,7 @@ Promise with the raw data (validation is done in the chat function)
 optional structuredOutputStream?: (options) => AsyncIterable<AdapterYieldChunk>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:146](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L146)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:153](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L153)
 
 Stream structured output using the provider's native streaming structured
 output API (stream + response_format json_schema in a single request).
@@ -274,7 +288,7 @@ their timestamps follow stream order.
 optional supportsCombinedToolsAndSchema?: (modelOptions?) => boolean;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:169](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L169)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:176](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L176)
 
 Declares whether the adapter supports combining `tools` and a
 schema-constrained final answer in a single streaming request.

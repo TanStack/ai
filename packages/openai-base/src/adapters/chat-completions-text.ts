@@ -7,10 +7,12 @@ import {
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   toRunErrorPayload,
+  toRetryAfterMs,
   toRunErrorRawEvent,
 } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
-import { extractRequestOptions } from '../utils/request-options'
+import { clientFor, extractRequestOptions } from '../utils/request-options'
+import type { Fetch } from '../utils/request-options'
 import {
   makeStructuredOutputCompatibleWithMap,
   warnStrictFallback,
@@ -76,16 +78,24 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   /** See {@link OpenAIBaseTextAdapterOptions.strictFallbackWarning}. */
   protected readonly strictFallbackWarning: boolean
 
+  /** The fetch that the adapter gave the client. */
+  private readonly baseFetch: Fetch | undefined
+
+  /**
+   * `options.fetch` must be the fetch that the client uses. A `wrapFetch`
+   * call wraps it.
+   */
   constructor(
     model: TModel,
     name: string,
     client: OpenAI,
-    options: OpenAIBaseTextAdapterOptions = {},
+    options: OpenAIBaseTextAdapterOptions & { fetch?: Fetch | undefined } = {},
   ) {
     super({}, model)
     this.name = name
     this.client = client
     this.strictFallbackWarning = options.strictFallbackWarning ?? true
+    this.baseFetch = options.fetch
   }
 
   async *chatStream(
@@ -111,7 +121,11 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         `activity=chat provider=${this.name} model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
         { provider: this.name, model: this.model },
       )
-      const stream = await this.client.chat.completions.create(
+      const stream = await clientFor(
+        this.client,
+        options,
+        this.baseFetch,
+      ).chat.completions.create(
         {
           ...requestParams,
           stream: true,
@@ -139,6 +153,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       `${this.name}.${source} failed`,
     )
     const rawEvent = toRunErrorRawEvent(error)
+    const retryAfterMs = toRetryAfterMs(error)
 
     if (!aguiState.hasEmittedRunStarted) {
       aguiState.hasEmittedRunStarted = true
@@ -213,6 +228,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       message: errorPayload.message,
       ...(errorPayload.code !== undefined && { code: errorPayload.code }),
       ...(rawEvent !== undefined && { rawEvent }),
+      ...(retryAfterMs !== undefined && { retryAfterMs }),
       error: {
         message: errorPayload.message,
         ...(errorPayload.code !== undefined && { code: errorPayload.code }),
@@ -272,7 +288,11 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         `activity=structuredOutput provider=${this.name} model=${this.model} messages=${chatOptions.messages.length}`,
         { provider: this.name, model: this.model },
       )
-      const response = await this.client.chat.completions.create(
+      const response = await clientFor(
+        this.client,
+        chatOptions,
+        this.baseFetch,
+      ).chat.completions.create(
         {
           ...cleanParams,
           stream: false,
@@ -432,7 +452,11 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         { provider: this.name, model: this.model },
       )
 
-      const stream = await this.client.chat.completions.create(
+      const stream = await clientFor(
+        this.client,
+        chatOptions,
+        this.baseFetch,
+      ).chat.completions.create(
         {
           ...cleanParams,
           stream: true,
@@ -894,8 +918,16 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         if (!choice) continue
 
         const delta = choice.delta
-        const deltaContent = delta.content
+        const deltaContent: unknown = delta.content
         const deltaToolCalls = delta.tool_calls
+
+        // Fail loud on a non-string content. Text would show it as
+        // "[object Object]".
+        if (deltaContent != null && typeof deltaContent !== 'string') {
+          throw new Error(
+            `invalid choices[0].delta.content: expected a string, null, or an omitted field; received ${Array.isArray(deltaContent) ? 'an array' : 'an object'}`,
+          )
+        }
 
         // Handle content delta
         if (deltaContent) {

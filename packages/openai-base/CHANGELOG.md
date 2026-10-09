@@ -1,5 +1,42 @@
 # @tanstack/openai-base
 
+## 0.13.1
+
+### Patch Changes
+
+- Updated dependencies [[`723b4a4`](https://github.com/TanStack/ai/commit/723b4a4e8432825374d4980cc74c5f66dc7d1122), [`d84a49e`](https://github.com/TanStack/ai/commit/d84a49e5fef03499b10f63255880d056a55767a3)]:
+  - @tanstack/ai@0.68.0
+
+## 0.13.0
+
+### Minor Changes
+
+- [#1680](https://github.com/TanStack/ai/pull/1680) [`377262c`](https://github.com/TanStack/ai/commit/377262c0b4e5f59f8fd467a831b9341cc705077e) - Add `wrapFetch` to `chat()`, to the middleware `onConfig` config, and to `TextOptions`. A wrapper gets the next fetch and gives back a new fetch. Use it to change the URL, the headers, the request, or the response of a model call. The new `FetchWrapper` type names the wrapper.
+
+  The engine chains the `chat()` wrapper and the middleware wrappers into one function. A middleware wrapper runs inside the `chat()` wrapper and applies to one model call only.
+
+  These text adapters send their requests through the wrapper: every adapter on `@tanstack/openai-base` (OpenAI, the OpenAI-compatible adapters, Grok, Groq, BytePlus, LLM Gateway, Lovable, Vercel AI Gateway, Cloudflare, and the Bedrock Chat Completions and Responses APIs), Anthropic, Mistral, Ollama, and OpenRouter. The wrapper wraps the fetch of the adapter config, not the global fetch. An Anthropic or Ollama adapter with an injected client ignores `wrapFetch`. In Cloudflare binding mode, the wrapper runs, but the binding does not send the URL or the headers. Without `wrapFetch`, the requests do not change.
+
+### Patch Changes
+
+- [#1678](https://github.com/TanStack/ai/pull/1678) [`13ba1b0`](https://github.com/TanStack/ai/commit/13ba1b0e47dc822f10f6c5133184f92c2eb0a013) - A `RUN_ERROR` now tells you how long the provider asks you to wait before a retry.
+  - `@tanstack/ai`: `RunErrorEvent` has a new `retryAfterMs` field, in milliseconds. `chat()` moves it to `metadata.tanstack.retryAfterMs`. The new `toRetryAfterMs(error)` helper on `@tanstack/ai/adapter-internals` reads the `retry-after-ms` header first, then the `retry-after` header in seconds or as an HTTP date.
+  - `@tanstack/openai-base` and `@tanstack/ai-anthropic`: the text adapters set `retryAfterMs` on a `RUN_ERROR` when the error response has one of these headers. This includes every adapter that uses `@tanstack/openai-base`.
+
+- Updated dependencies [[`7dbfaf6`](https://github.com/TanStack/ai/commit/7dbfaf6c37a3d97de3b1f5bdb87be8bbbe2b0164), [`88fd67c`](https://github.com/TanStack/ai/commit/88fd67cd7ddfbe2b154173d2395b2c0338e97644), [`3aa2e3d`](https://github.com/TanStack/ai/commit/3aa2e3d95e2dcb1c14b4fda3bcdbdf3152582092), [`c5ae415`](https://github.com/TanStack/ai/commit/c5ae4152d0a040bb6ce7321e16b7ee66d3c36f96), [`13ba1b0`](https://github.com/TanStack/ai/commit/13ba1b0e47dc822f10f6c5133184f92c2eb0a013), [`377262c`](https://github.com/TanStack/ai/commit/377262c0b4e5f59f8fd467a831b9341cc705077e)]:
+  - @tanstack/ai@0.67.0
+
+## 0.12.7
+
+### Patch Changes
+
+- [#1670](https://github.com/TanStack/ai/pull/1670) [`ee935ef`](https://github.com/TanStack/ai/commit/ee935efaa25607425b1ba3452aec470588292334) - The Chat Completions adapter now stops the run with a `RUN_ERROR` when a stream chunk has an object or an array in `delta.content`. Before, the adapter streamed that value as the text `[object Object]` and finished the run. Null or missing `delta.content` still adds no text, and tool calls in the same chunk still run.
+
+- [#1674](https://github.com/TanStack/ai/pull/1674) [`7a70720`](https://github.com/TanStack/ai/commit/7a7072041aeca984e19550455b039322060a0bb0) - The Chat Completions adapters and the OpenRouter chat adapter now end the run with `RUN_ERROR` when the provider sends an unknown finish reason. The error message contains the provider finish reason, for example `Provider finish_reason: error`. Before this fix, the run finished as a success. The `content_filter` behavior does not change. OpenRouter still reports its `error` finish reason as `content_filter`.
+
+- Updated dependencies [[`baafb17`](https://github.com/TanStack/ai/commit/baafb176220c2b09fced334ad176e754582cd314)]:
+  - @tanstack/ai@0.66.1
+
 ## 0.12.6
 
 ### Patch Changes

@@ -15,6 +15,7 @@ import type {
   TokenUsage,
   Tool,
   ToolCall,
+  FetchWrapper,
 } from '../../../types'
 import type { SystemPrompt } from '../../../system-prompts'
 import type { ToolApprovalResolution } from '../../../interrupts'
@@ -346,6 +347,12 @@ export interface ChatMiddlewareConfig {
   resumeToolState?: ChatResumeToolState | undefined
   metadata?: Record<string, unknown> | undefined
   modelOptions?: Record<string, unknown> | undefined
+  /**
+   * Wraps the fetch of the next model call. A returned wrapper chains inside
+   * the wrappers before it, so it does not replace them. It applies to that
+   * call only. The next call starts again from the `chat()` option.
+   */
+  wrapFetch?: FetchWrapper | undefined
 }
 
 /**
@@ -447,6 +454,18 @@ export interface AfterToolCallInfo {
   /** The result (if ok) or error (if not ok) */
   result?: unknown
   error?: unknown
+}
+
+/**
+ * Decision returned from onAfterToolCall.
+ * - undefined/void: keep the current result
+ * - { type: 'replaceResult', result }: use this result instead. The model and
+ *   the stream see it. The next middleware gets it as `info.result`. An error
+ *   result stays an error.
+ */
+export type AfterToolCallDecision = void | {
+  type: 'replaceResult'
+  result: unknown
 }
 
 // ===========================
@@ -793,11 +812,14 @@ export interface ChatMiddleware<
 
   /**
    * Called after a tool execution completes (success or failure).
+   * Return `{ type: 'replaceResult', result }` to change the result that the
+   * model and the stream see. Middleware run in order. Each one sees the
+   * result of the one before it.
    */
   onAfterToolCall?: (
     ctx: ChatMiddlewareContext<TContext>,
     info: AfterToolCallInfo,
-  ) => void | Promise<void>
+  ) => AfterToolCallDecision | Promise<AfterToolCallDecision>
 
   /**
    * Called after all tool calls in an iteration have been processed.

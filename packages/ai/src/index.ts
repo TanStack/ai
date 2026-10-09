@@ -93,6 +93,13 @@ export {
   type SubagentRunContext,
 } from './activities/chat/agents/define-agent'
 export {
+  keyedAdapter,
+  keyedAdapters,
+  isKeyedAdapter,
+  type KeyedAdapter,
+  type KeyedAdapterResult,
+} from './byok/keyed'
+export {
   subagentRoute,
   type SubagentRouteOptions,
 } from './activities/chat/agents/route'
@@ -250,6 +257,7 @@ export type {
   StructuredOutputMiddlewareConfig,
   ToolCallHookContext,
   BeforeToolCallDecision,
+  AfterToolCallDecision,
   AfterToolCallInfo,
   IterationInfo,
   ToolPhaseCompleteInfo,

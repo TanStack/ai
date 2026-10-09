@@ -1,6 +1,7 @@
 import OpenAI from 'openai'
 import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
 import { getOpenAIApiKeyFromEnv } from '../utils/client'
+import { OPENAI_MODEL_INPUT_MODALITIES } from '../model-meta'
 import type {
   OPENAI_CHAT_MODELS,
   OpenAIChatModel,
@@ -65,6 +66,7 @@ export class OpenAIChatCompletionsTextAdapter<
   TToolCapabilities
 > {
   override readonly kind = 'text' as const
+  override readonly inputModalities = OPENAI_MODEL_INPUT_MODALITIES[this.model]
 
   constructor(config: OpenAIChatCompletionsConfig, model: TModel) {
     super(model, 'openai-chat', new OpenAI(config), config)

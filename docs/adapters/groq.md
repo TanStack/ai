@@ -72,6 +72,8 @@ const config: Omit<GroqTextConfig, 'apiKey'> = {
 const adapter = createGroqText("llama-3.3-70b-versatile", process.env.GROQ_API_KEY!, config);
 ```
 
+Need a header on each request, or a log of each model call? This adapter supports [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call).
+
 ## Example: Chat Completion
 
 ```typescript
@@ -237,6 +239,8 @@ GROQ_API_KEY=gsk_...
 ### `groqText(model, config?)`
 
 Creates a Groq chat adapter using environment variables.
+
+`adapter.inputModalities` lists the input kinds of the selected model. It is `undefined` for a model that this package does not know. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
 
 **Parameters:**
 

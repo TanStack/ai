@@ -7,4 +7,4 @@ title: Interrupt
 type Interrupt = AGUIInterrupt;
 ```
 
-Defined in: [packages/ai/src/types.ts:1345](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1345)
+Defined in: [packages/ai/src/types.ts:1360](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1360)

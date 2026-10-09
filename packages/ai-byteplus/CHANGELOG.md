@@ -1,5 +1,27 @@
 # @tanstack/ai-byteplus
 
+## 0.6.4
+
+### Patch Changes
+
+- [#1586](https://github.com/TanStack/ai/pull/1586) [`8bd5f07`](https://github.com/TanStack/ai/commit/8bd5f074147a4bf13d4cbbe0c988eda2af697f12) - Attach BytePlus Ark `encrypted_content` to its reasoning message. Before, the `REASONING_ENCRYPTED_VALUE` event used the thinking step's id as `entityId`, and no message had that id. An AG-UI client that is not TanStack's (for example, `@ag-ui/client`) dropped the value, so the next request did not send `encrypted_content` back. Now `entityId` is the id of the reasoning message, and the blob no longer rides on `STEP_FINISHED`.
+
+- Updated dependencies [[`723b4a4`](https://github.com/TanStack/ai/commit/723b4a4e8432825374d4980cc74c5f66dc7d1122), [`d84a49e`](https://github.com/TanStack/ai/commit/d84a49e5fef03499b10f63255880d056a55767a3)]:
+  - @tanstack/ai@0.68.0
+  - @tanstack/openai-base@0.13.1
+
+## 0.6.3
+
+### Patch Changes
+
+- [#1685](https://github.com/TanStack/ai/pull/1685) [`7dbfaf6`](https://github.com/TanStack/ai/commit/7dbfaf6c37a3d97de3b1f5bdb87be8bbbe2b0164) - Text adapters can now give `inputModalities` at run time: the input kinds that the model reads, for example `['text', 'image', 'document']`. `undefined` means that the adapter does not know.
+  - `TextAdapter` has the new optional `inputModalities` property. A `BaseTextAdapter` subclass sets it from its model metadata.
+  - The text adapters of OpenAI, Anthropic, Gemini, Mistral, Groq, BytePlus, Grok, OpenRouter, and LLM Gateway set it. A known model gives its input kinds. An unknown model gives `undefined`.
+
+- Updated dependencies [[`7dbfaf6`](https://github.com/TanStack/ai/commit/7dbfaf6c37a3d97de3b1f5bdb87be8bbbe2b0164), [`88fd67c`](https://github.com/TanStack/ai/commit/88fd67cd7ddfbe2b154173d2395b2c0338e97644), [`3aa2e3d`](https://github.com/TanStack/ai/commit/3aa2e3d95e2dcb1c14b4fda3bcdbdf3152582092), [`c5ae415`](https://github.com/TanStack/ai/commit/c5ae4152d0a040bb6ce7321e16b7ee66d3c36f96), [`13ba1b0`](https://github.com/TanStack/ai/commit/13ba1b0e47dc822f10f6c5133184f92c2eb0a013), [`377262c`](https://github.com/TanStack/ai/commit/377262c0b4e5f59f8fd467a831b9341cc705077e)]:
+  - @tanstack/ai@0.67.0
+  - @tanstack/openai-base@0.13.0
+
 ## 0.6.2
 
 ### Patch Changes

@@ -1,3 +1,4 @@
+import type { Modality } from '@tanstack/ai'
 import type {
   OpenAIBaseOptions,
   OpenAIMetadataOptions,
@@ -3410,3 +3411,72 @@ export type OpenAIModelInputModalitiesByName = {
   [GPT_6_1_SOL.name]: typeof GPT_6_1_SOL.supports.input
   [GPT_6_1_SOL_PRO.name]: typeof GPT_6_1_SOL_PRO.supports.input
 }
+
+/**
+ * Runtime map from chat model name to its supported input modalities, for the
+ * text adapter's `inputModalities`. `satisfies` keeps it equal to
+ * {@link OpenAIModelInputModalitiesByName}. An unknown name gives `undefined`.
+ */
+export const OPENAI_MODEL_INPUT_MODALITIES: Readonly<
+  Record<string, ReadonlyArray<Modality>>
+> = {
+  [GPT5_2.name]: GPT5_2.supports.input,
+  [GPT5_2_PRO.name]: GPT5_2_PRO.supports.input,
+  [GPT5_2_CHAT.name]: GPT5_2_CHAT.supports.input,
+  [GPT5_1.name]: GPT5_1.supports.input,
+  [GPT5_1_CODEX.name]: GPT5_1_CODEX.supports.input,
+  [GPT5.name]: GPT5.supports.input,
+  [GPT5_MINI.name]: GPT5_MINI.supports.input,
+  [GPT5_NANO.name]: GPT5_NANO.supports.input,
+  [GPT5_PRO.name]: GPT5_PRO.supports.input,
+  [GPT5_CODEX.name]: GPT5_CODEX.supports.input,
+  [GPT4_1.name]: GPT4_1.supports.input,
+  [GPT4_1_MINI.name]: GPT4_1_MINI.supports.input,
+  [GPT4_1_NANO.name]: GPT4_1_NANO.supports.input,
+  [GPT_4O.name]: GPT_4O.supports.input,
+  [GPT_4O_MINI.name]: GPT_4O_MINI.supports.input,
+  [GPT_4_TURBO.name]: GPT_4_TURBO.supports.input,
+  [CHATGPT_40.name]: CHATGPT_40.supports.input,
+  [GPT_5_1_CHAT.name]: GPT_5_1_CHAT.supports.input,
+  [GPT_5_CHAT.name]: GPT_5_CHAT.supports.input,
+  [GPT_5_1_CODEX_MINI.name]: GPT_5_1_CODEX_MINI.supports.input,
+  [CODEX_MINI_LATEST.name]: CODEX_MINI_LATEST.supports.input,
+  [COMPUTER_USE_PREVIEW.name]: COMPUTER_USE_PREVIEW.supports.input,
+  [O3.name]: O3.supports.input,
+  [O3_PRO.name]: O3_PRO.supports.input,
+  [O3_DEEP_RESEARCH.name]: O3_DEEP_RESEARCH.supports.input,
+  [O4_MINI_DEEP_RESEARCH.name]: O4_MINI_DEEP_RESEARCH.supports.input,
+  [O4_MINI.name]: O4_MINI.supports.input,
+  [O1.name]: O1.supports.input,
+  [O1_PRO.name]: O1_PRO.supports.input,
+  [GPT_AUDIO.name]: GPT_AUDIO.supports.input,
+  [GPT_AUDIO_MINI.name]: GPT_AUDIO_MINI.supports.input,
+  [GPT_4O_AUDIO.name]: GPT_4O_AUDIO.supports.input,
+  [GPT_4O_MINI_AUDIO.name]: GPT_4O_MINI_AUDIO.supports.input,
+  [GPT_4.name]: GPT_4.supports.input,
+  [GPT_3_5_TURBO.name]: GPT_3_5_TURBO.supports.input,
+  [O3_MINI.name]: O3_MINI.supports.input,
+  [GPT_4O_SEARCH_PREVIEW.name]: GPT_4O_SEARCH_PREVIEW.supports.input,
+  [GPT_4O_MINI_SEARCH_PREVIEW.name]: GPT_4O_MINI_SEARCH_PREVIEW.supports.input,
+  [GPT_5_4_MINI.name]: GPT_5_4_MINI.supports.input,
+  [GPT_5_4_NANO.name]: GPT_5_4_NANO.supports.input,
+  [GPT_5_4_IMAGE_2.name]: GPT_5_4_IMAGE_2.supports.input,
+  [GPT_5_6.name]: GPT_5_6.supports.input,
+  [GPT_5_6_SOL.name]: GPT_5_6_SOL.supports.input,
+  [GPT_5_6_TERRA.name]: GPT_5_6_TERRA.supports.input,
+  [GPT_5_6_LUNA.name]: GPT_5_6_LUNA.supports.input,
+  [GPT_5_5.name]: GPT_5_5.supports.input,
+  [GPT_5_5_PRO.name]: GPT_5_5_PRO.supports.input,
+  [GPT_CHAT_LATEST.name]: GPT_CHAT_LATEST.supports.input,
+  [GPT_5_6_LUNA_PRO.name]: GPT_5_6_LUNA_PRO.supports.input,
+  [GPT_5_6_SOL_PRO.name]: GPT_5_6_SOL_PRO.supports.input,
+  [GPT_5_6_TERRA_PRO.name]: GPT_5_6_TERRA_PRO.supports.input,
+  [GPT_6_ASTRA.name]: GPT_6_ASTRA.supports.input,
+  [GPT_6_ASTRA_PRO.name]: GPT_6_ASTRA_PRO.supports.input,
+  [GPT_6_LUNA.name]: GPT_6_LUNA.supports.input,
+  [GPT_6_LUNA_PRO.name]: GPT_6_LUNA_PRO.supports.input,
+  [GPT_6_SOL.name]: GPT_6_SOL.supports.input,
+  [GPT_6_SOL_PRO.name]: GPT_6_SOL_PRO.supports.input,
+  [GPT_6_1_SOL.name]: GPT_6_1_SOL.supports.input,
+  [GPT_6_1_SOL_PRO.name]: GPT_6_1_SOL_PRO.supports.input,
+} satisfies OpenAIModelInputModalitiesByName

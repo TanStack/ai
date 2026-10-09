@@ -1,5 +1,6 @@
 import OpenAI from 'openai'
 import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
+import { GROQ_MODEL_INPUT_MODALITIES } from '../model-meta'
 import { getGroqApiKeyFromEnv, withGroqDefaults } from '../utils/client'
 import { makeGroqStructuredOutputCompatibleWithMap } from '../utils/schema-converter'
 import type { Modality, TextOptions } from '@tanstack/ai'
@@ -58,6 +59,7 @@ export class GroqTextAdapter<
 > {
   override readonly kind = 'text' as const
   override readonly name = 'groq' as const
+  override readonly inputModalities = GROQ_MODEL_INPUT_MODALITIES[this.model]
 
   constructor(config: GroqTextConfig, model: TModel) {
     super(model, 'groq', new OpenAI(withGroqDefaults(config)), config)

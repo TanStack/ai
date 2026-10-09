@@ -263,6 +263,8 @@ declare: `sessionId` (resume), `cwd`, `authMode`, `authMethodId`, and
 | `onExtNotification` | Handle vendor `_x/…` JSON-RPC notifications. |
 | `buildPrompt` | Override how chat history maps to the harness prompt. |
 
+This adapter ignores [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call), because the harness process sends the model requests.
+
 ## WebSocket and Custom Transports
 
 Some harnesses run an ACP server you reach over WebSocket rather than stdio (the `grok agent serve` pattern). Open the transport yourself with `openTransport` — it receives the same context and returns an `AcpSessionTransport`. Put all teardown in the returned transport's `dispose`:
