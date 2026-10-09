@@ -311,7 +311,7 @@ describe('Mistral replay parity', () => {
     },
   )
   it.each(['stream', 'structured'])(
-    'replays foreign IDs, Unicode, and failed history through %s',
+    'replays foreign IDs and failed history through %s',
     async (path) => {
       const messages: Array<ModelMessage> = [
         {
