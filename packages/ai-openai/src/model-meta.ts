@@ -1,4 +1,4 @@
-import type { Modality } from '@tanstack/ai'
+import type { MidConversationChannels, Modality } from '@tanstack/ai'
 import type {
   OpenAIBaseOptions,
   OpenAIMetadataOptions,
@@ -14,6 +14,12 @@ interface ModelMeta<TProviderOptions = unknown> {
   name: string
   supports: {
     input: Array<'text' | 'image' | 'audio' | 'video' | 'document'>
+    /**
+     * The mid-conversation channels on the Responses API (from pi 0.87.1):
+     * added tools go out as an `additional_tools` item, and added prompts as
+     * a mid-conversation `developer` message.
+     */
+    mid_conversation_channels?: MidConversationChannels
     output: Array<'text' | 'image' | 'audio' | 'video'>
     endpoints: Array<
       | 'chat'
@@ -1958,6 +1964,7 @@ const GPT_5_4_MINI = {
   max_output_tokens: 128_000,
   supports: {
     input: ['image', 'text'],
+    mid_conversation_channels: { tools: true, systemPrompts: true },
     output: ['text'],
     endpoints: ['chat', 'chat-completions'],
     features: [
@@ -2140,6 +2147,7 @@ const GPT_5_6_SOL = {
   knowledge_cutoff: '2026-02-16',
   supports: {
     input: ['image', 'text'],
+    mid_conversation_channels: { tools: true, systemPrompts: true },
     output: ['text'],
     endpoints: ['chat', 'chat-completions'],
     features: [
@@ -2186,6 +2194,7 @@ const GPT_5_6_TERRA = {
   knowledge_cutoff: '2026-02-16',
   supports: {
     input: ['image', 'text'],
+    mid_conversation_channels: { tools: true, systemPrompts: true },
     output: ['text'],
     endpoints: ['chat', 'chat-completions'],
     features: [
@@ -2232,6 +2241,7 @@ const GPT_5_6_LUNA = {
   knowledge_cutoff: '2026-02-16',
   supports: {
     input: ['image', 'text'],
+    mid_conversation_channels: { tools: true, systemPrompts: true },
     output: ['text'],
     endpoints: ['chat', 'chat-completions'],
     features: [
@@ -2277,6 +2287,7 @@ const GPT_5_5 = {
   max_output_tokens: 128_000,
   supports: {
     input: ['text', 'image', 'document'],
+    mid_conversation_channels: { tools: true, systemPrompts: true },
     output: ['text'],
     endpoints: ['chat', 'chat-completions'],
     features: [
@@ -2498,6 +2509,7 @@ const GPT_6_ASTRA = {
   max_output_tokens: 128_000,
   supports: {
     input: ['image', 'text'],
+    mid_conversation_channels: { tools: true, systemPrompts: true },
     output: ['text'],
     endpoints: ['chat', 'chat-completions'],
     features: ['streaming', 'function_calling', 'structured_outputs'],
@@ -2565,6 +2577,7 @@ const GPT_6_LUNA = {
   max_output_tokens: 128_000,
   supports: {
     input: ['image', 'text'],
+    mid_conversation_channels: { tools: true, systemPrompts: true },
     output: ['text'],
     endpoints: ['chat', 'chat-completions'],
     features: ['streaming', 'function_calling', 'structured_outputs'],
@@ -2632,6 +2645,7 @@ const GPT_6_SOL = {
   max_output_tokens: 128_000,
   supports: {
     input: ['image', 'text'],
+    mid_conversation_channels: { tools: true, systemPrompts: true },
     output: ['text'],
     endpoints: ['chat', 'chat-completions'],
     features: ['streaming', 'function_calling', 'structured_outputs'],
@@ -2863,6 +2877,21 @@ export function openAIModelRejectsSamplingParams(model: string): boolean {
   if (model.startsWith('gpt-5') && !model.endsWith('-chat-latest')) return true
   if (model === 'codex-mini-latest') return true
   return false
+}
+
+/**
+ * Whether a model takes OpenAI's explicit prompt cache controls
+ * (`prompt_cache_options`) in place of `prompt_cache_retention`.
+ * This is true for gpt-5.6 and later, and for gpt-6 and later.
+ */
+export function openAIModelUsesExplicitPromptCache(model: string) {
+  // ponytail: name match on the version number. If OpenAI ships a model that
+  // breaks this pattern, add a per-model flag to the model meta.
+  const match = /^gpt-(\d+)(?:\.(\d+))?/.exec(model)
+  if (!match) return false
+  const major = Number(match[1])
+  const minor = Number(match[2] ?? 0)
+  return major > 5 || (major === 5 && minor >= 6)
 }
 
 // Image generation models (based on endpoints: "image-generation" or "image-edit")
@@ -3480,3 +3509,21 @@ export const OPENAI_MODEL_INPUT_MODALITIES: Readonly<
   [GPT_6_1_SOL.name]: GPT_6_1_SOL.supports.input,
   [GPT_6_1_SOL_PRO.name]: GPT_6_1_SOL_PRO.supports.input,
 } satisfies OpenAIModelInputModalitiesByName
+
+/**
+ * The mid-conversation channels of each Responses model, from
+ * `supports.mid_conversation_channels`. An unknown name gives `undefined`,
+ * so the adapter has no channels.
+ */
+export const OPENAI_MODEL_MID_CONVERSATION_CHANNELS: Readonly<
+  Record<string, MidConversationChannels>
+> = {
+  [GPT_5_4_MINI.name]: GPT_5_4_MINI.supports.mid_conversation_channels,
+  [GPT_5_5.name]: GPT_5_5.supports.mid_conversation_channels,
+  [GPT_5_6_LUNA.name]: GPT_5_6_LUNA.supports.mid_conversation_channels,
+  [GPT_5_6_SOL.name]: GPT_5_6_SOL.supports.mid_conversation_channels,
+  [GPT_5_6_TERRA.name]: GPT_5_6_TERRA.supports.mid_conversation_channels,
+  [GPT_6_ASTRA.name]: GPT_6_ASTRA.supports.mid_conversation_channels,
+  [GPT_6_LUNA.name]: GPT_6_LUNA.supports.mid_conversation_channels,
+  [GPT_6_SOL.name]: GPT_6_SOL.supports.mid_conversation_channels,
+}

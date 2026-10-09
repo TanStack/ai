@@ -422,6 +422,53 @@ modelOptions: {
 
 When reasoning is enabled, the model's reasoning process is streamed separately from the response text and appears as a collapsible thinking section in the UI.
 
+### Prompt caching
+
+`chat()` sends `prompt_cache_key` by default, set to the `threadId` that you pass. OpenAI uses the key to send requests with the same start to the same cache. With `promptCache: 'long'`, it also asks for the long retention. See [Prompt Caching](../advanced/prompt-caching).
+
+Want your own key? Set it in `modelOptions`. Your value wins:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+const stream = chat({
+  adapter: openaiText("gpt-6.1-sol"),
+  messages: [{ role: "user", content: "Hello!" }],
+  modelOptions: {
+    prompt_cache_key: "acme-support",
+  },
+});
+```
+
+`modelOptions.prompt_cache_retention` also wins over the automatic retention. `openaiChatCompletions` sends the key only to `api.openai.com`, unless you pass `promptCache: 'long'`.
+
+#### Tools and prompts added during a conversation
+
+On `gpt-5.4-mini`, `gpt-5.5`, `gpt-5.6-luna`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-6-astra`, `gpt-6-luna`, and `gpt-6-sol`, a tool or a system prompt that you add between model calls goes into the conversation. The cached start stays the same.
+
+What `openaiText` sends on these models:
+
+- `tools` and `instructions` keep the tools and the system prompts of the first call.
+- An added tool goes into `input` as `{ type: "additional_tools", role: "developer", tools: [...] }`.
+- An added system prompt goes into `input` as a `developer` message, at its place in the conversation.
+- With a provider tool such as `webSearchTool()`, `tools` is the full list for that request.
+
+The channels are on by default with OpenAI's own API. A custom `baseURL`, a custom `fetch`, or `OPENAI_BASE_URL` turns them off. Set `midConversationChannels` to choose:
+
+```typescript
+import { openaiText } from "@tanstack/ai-openai";
+
+export const fullLists = openaiText("gpt-6-astra", { midConversationChannels: false });
+
+export const throughProxy = openaiText("gpt-6-astra", {
+  baseURL: "https://llm-proxy.example.com/v1",
+  midConversationChannels: true,
+});
+```
+
+If that endpoint sends the request on to OpenAI as it is, set `true`. See [Mid-Conversation Changes](../advanced/mid-conversation-changes).
+
 ## Summarization
 
 Summarize long text content:

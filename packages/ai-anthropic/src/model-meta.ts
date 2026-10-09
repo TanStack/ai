@@ -1,4 +1,4 @@
-import type { Modality } from '@tanstack/ai'
+import type { MidConversationChannels, Modality } from '@tanstack/ai'
 import type {
   AnthropicAdaptiveOnlyThinkingOptions,
   AnthropicAdaptiveOrDisabledThinkingOptions,
@@ -25,6 +25,12 @@ interface ModelMeta<
   id: string
   supports: {
     input: Array<'text' | 'image' | 'audio' | 'video' | 'document'>
+    /**
+     * The mid-conversation channels (from pi 0.87.1): added tools use the
+     * `mid-conversation-tool-changes-2026-07-01` beta, and added prompts go
+     * in a mid-conversation `system` message.
+     */
+    mid_conversation_channels?: MidConversationChannels
     extended_thinking?: boolean
     adaptive_thinking?: boolean
     priority_tier?: boolean
@@ -364,6 +370,7 @@ const CLAUDE_OPUS_4_8 = {
   max_output_tokens: 128_000,
   supports: {
     input: ['text', 'image', 'document'],
+    mid_conversation_channels: { tools: true, systemPrompts: true },
     extended_thinking: false,
     adaptive_thinking: true,
     priority_tier: true,
@@ -411,6 +418,7 @@ const CLAUDE_FABLE_5 = {
   max_output_tokens: 128_000,
   supports: {
     input: ['text', 'image', 'document'],
+    mid_conversation_channels: { tools: true, systemPrompts: true },
     extended_thinking: false,
     adaptive_thinking: true,
     priority_tier: true,
@@ -508,6 +516,7 @@ const CLAUDE_OPUS_5 = {
   max_output_tokens: 128_000,
   supports: {
     input: ['text', 'image', 'document'],
+    mid_conversation_channels: { tools: true, systemPrompts: true },
     tools: [
       'web_search',
       'web_fetch',
@@ -575,6 +584,7 @@ const CLAUDE_FABLE_5_1 = {
   max_output_tokens: 128_000,
   supports: {
     input: ['text', 'image', 'document'],
+    mid_conversation_channels: { tools: true, systemPrompts: true },
     tools: [
       'web_search',
       'web_fetch',
@@ -614,6 +624,7 @@ const CLAUDE_OPUS_5_5 = {
   max_output_tokens: 128_000,
   supports: {
     input: ['text', 'image', 'document'],
+    mid_conversation_channels: { tools: true, systemPrompts: true },
     // No 'computer_use': this model accepts only `computer_toolset_20260801`,
     // and `computerUseTool()` sends the older versions, which return a 400.
     tools: [
@@ -885,6 +896,21 @@ export const ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS = new Set<string>([
   CLAUDE_SONNET_4_6.id,
   CLAUDE_HAIKU_4_5.id,
 ])
+
+/**
+ * The mid-conversation channels of each model, from
+ * `supports.mid_conversation_channels`. An unknown id gives `undefined`, so
+ * the adapter has no channels.
+ */
+export const ANTHROPIC_MODEL_MID_CONVERSATION_CHANNELS: Readonly<
+  Record<string, MidConversationChannels>
+> = {
+  [CLAUDE_OPUS_4_8.id]: CLAUDE_OPUS_4_8.supports.mid_conversation_channels,
+  [CLAUDE_OPUS_5.id]: CLAUDE_OPUS_5.supports.mid_conversation_channels,
+  [CLAUDE_OPUS_5_5.id]: CLAUDE_OPUS_5_5.supports.mid_conversation_channels,
+  [CLAUDE_FABLE_5.id]: CLAUDE_FABLE_5.supports.mid_conversation_channels,
+  [CLAUDE_FABLE_5_1.id]: CLAUDE_FABLE_5_1.supports.mid_conversation_channels,
+}
 
 // const ANTHROPIC_IMAGE_MODELS = [] as const
 // const ANTHROPIC_EMBEDDING_MODELS = [] as const

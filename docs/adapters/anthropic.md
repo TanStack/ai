@@ -356,14 +356,16 @@ Per-model rules (enforced by the adapter's types):
 
 ### Prompt Caching
 
-Cache prompts for better performance and reduced costs:
+`chat()` caches Claude prompts by default. It adds `cache_control` markers to the last tool, the last user message, and the system prompt. Pass `promptCache: 'long'` for the 1-hour cache, or `promptCache: 'none'` to send no markers. For the key and the cost, see [Prompt Caching](../advanced/prompt-caching).
+
+Want the markers in other places? Set `cache_control` in the `metadata` of a message part, a system prompt, or a tool. One marker of your own turns the automatic markers off for that request:
 
 ```typescript
 import { chat } from "@tanstack/ai";
 import { anthropicText } from "@tanstack/ai-anthropic";
 
 const stream = chat({
-  adapter: anthropicText("claude-sonnet-4-6"),
+  adapter: anthropicText("claude-opus-5-5"),
   messages: [
     {
       role: "user",
@@ -383,7 +385,40 @@ const stream = chat({
 });
 ```
 
+`modelOptions.cache_control` also turns the automatic markers off.
+
 `usage.promptTokens` counts the full input, cached tokens included. The cache reads and writes are also on `usage.promptTokensDetails`. See [Token usage](../chat/stream-events#token-usage).
+
+#### Tools and prompts added during a conversation
+
+On `claude-opus-4-8`, `claude-opus-5`, `claude-opus-5-5`, `claude-fable-5`, and `claude-fable-5-1`, a tool or a system prompt that you add between model calls goes into the conversation. The cached start of the request stays the same.
+
+What the adapter sends on these models:
+
+- `system` keeps the system prompts of the first call.
+- A request with tools gets the `mid-conversation-tool-changes-2026-07-01` beta and one placeholder tool, `__tanstack_deferred_placeholder__`. The model never calls it.
+- An added tool goes at the end of `tools` with `defer_loading: true`. A `system` message names it in a `tool_addition` block.
+- An added system prompt goes into a `system` message, before the next assistant message or at the end.
+- With a provider tool such as `webSearchTool()`, `tools` is the full list and has no placeholder.
+
+The automatic tool marker stays on the last tool of the first call, so the marked start does not move.
+
+The channels are on by default with Anthropic's own API. A custom `baseURL`, a custom `fetch`, `ANTHROPIC_BASE_URL`, or your own client turns them off. Set `midConversationChannels` to choose:
+
+```typescript
+import { anthropicText } from "@tanstack/ai-anthropic";
+
+export const fullLists = anthropicText("claude-opus-5-5", {
+  midConversationChannels: false,
+});
+
+export const throughProxy = anthropicText("claude-opus-5-5", {
+  baseURL: "https://llm-proxy.example.com",
+  midConversationChannels: true,
+});
+```
+
+If that endpoint sends the request and the `anthropic-beta` header on to Anthropic as they are, set `true`. See [Mid-Conversation Changes](../advanced/mid-conversation-changes).
 
 ## Summarization
 

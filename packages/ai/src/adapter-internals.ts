@@ -61,3 +61,8 @@ export {
 export { tanstackMetadata } from './utilities/merge-metadata'
 export { isSpecTopLevelKey } from './utilities/spec-event-keys'
 export { REDACTED_THINKING_ID_PREFIX } from './utilities/reasoning-encrypted-value'
+export {
+  planMidConversationChanges,
+  promptHash,
+  splitMidConversationChanges,
+} from './utilities/mid-conversation'

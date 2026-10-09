@@ -16,6 +16,7 @@ import type {
   Modality,
   ModelMessage,
   AdapterYieldChunk,
+  ResolvedPromptCache,
   TextOptions,
 } from '@tanstack/ai'
 import type {
@@ -97,6 +98,37 @@ type ResolveProviderOptions<TModel extends string> =
     ? MistralChatModelProviderOptionsByName[TModel]
     : MistralTextProviderOptions
 
+/**
+ * The Mistral wire field for `chat({ promptCache })`, by pi's rule. Mistral
+ * caches without a flag, so only the key goes out. There is no key for
+ * `'none'`. The SDK request type has no cache key field, so only the raw
+ * stream path sends it.
+ */
+function mistralPromptCacheKey(promptCache: ResolvedPromptCache | undefined) {
+  if (!promptCache?.key || promptCache.retention === 'none') return {}
+  return { prompt_cache_key: promptCache.key }
+}
+
+/**
+ * `promptTokensDetails.cachedTokens` when Mistral read prompt tokens from the
+ * cache. Mistral sends the count in `prompt_tokens_details.cached_tokens` or
+ * in `num_cached_tokens`. The SDK keeps these raw keys on `usage` with no
+ * types, so the values are checked here.
+ */
+function mistralCachedTokens(usage: Record<string, unknown>) {
+  const details = usage.prompt_tokens_details
+  const hasDetailsCount =
+    typeof details === 'object' &&
+    details !== null &&
+    'cached_tokens' in details
+  const cachedTokens = hasDetailsCount
+    ? details.cached_tokens
+    : usage.num_cached_tokens
+  return typeof cachedTokens === 'number' && cachedTokens > 0
+    ? { promptTokensDetails: { cachedTokens } }
+    : {}
+}
+
 type ResolveInputModalities<TModel extends string> =
   TModel extends keyof MistralModelInputModalitiesByName
     ? MistralModelInputModalitiesByName[TModel]
@@ -157,6 +189,9 @@ interface MistralRawChunk {
     prompt_tokens?: number
     completion_tokens?: number
     total_tokens?: number
+    // Cache reads. Mistral sends one of these two.
+    prompt_tokens_details?: { cached_tokens?: number } | null
+    num_cached_tokens?: number | null
   }
 }
 
@@ -210,8 +245,12 @@ export class MistralTextAdapter<
     }
 
     try {
+      const body = {
+        ...this.toWireBody(requestParams),
+        ...mistralPromptCacheKey(options.promptCache),
+      }
       const stream = this.fetchRawMistralStream(
-        requestParams,
+        body,
         this.rawConfig,
         options.wrapFetch,
       )
@@ -310,6 +349,7 @@ export class MistralTextAdapter<
           promptTokens: usage.promptTokens ?? 0,
           completionTokens: usage.completionTokens ?? 0,
           totalTokens: usage.totalTokens ?? 0,
+          ...mistralCachedTokens(usage),
         },
       }),
     }
@@ -612,6 +652,7 @@ export class MistralTextAdapter<
                   promptTokens: usage.prompt_tokens || 0,
                   completionTokens: usage.completion_tokens || 0,
                   totalTokens: usage.total_tokens || 0,
+                  ...mistralCachedTokens(usage),
                 }
               : undefined,
             finishReason: computedFinishReason,
@@ -739,7 +780,7 @@ export class MistralTextAdapter<
    * rejects streaming tool call chunks that omit `name` in argument deltas.
    */
   private async *fetchRawMistralStream(
-    params: ChatCompletionStreamRequest,
+    body: Record<string, unknown>,
     config: MistralClientConfig,
     wrapFetch: FetchWrapper | undefined,
   ): AsyncGenerator<MistralRawChunk> {
@@ -753,7 +794,6 @@ export class MistralTextAdapter<
     const url =
       config.resolveRequestUrl?.(true) ?? `${serverURL}/v1/chat/completions`
 
-    const body = this.toWireBody(params)
     const accessToken =
       config.getAccessToken === undefined
         ? config.apiKey

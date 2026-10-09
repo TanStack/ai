@@ -164,6 +164,7 @@ const dynamicTemperature: ChatMiddleware = {
 | `metadata` | `Record<string, unknown>` | Request metadata |
 | `modelOptions` | `Record<string, unknown>` | Provider-native options — this is where sampling params (`temperature`, `top_p` / `topP`, the provider's `max*Tokens` key) now live, alongside every other model-specific knob. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options). |
 | `wrapFetch` | `FetchWrapper \| undefined` | Wraps the HTTP fetch of the next model call. See [Change the HTTP requests of a call](#change-the-http-requests-of-a-call). |
+| `promptCache` | `ResolvedPromptCache \| undefined` | The prompt cache of the next model call: its `retention` and `key`. See [Change the prompt cache of a call](#change-the-prompt-cache-of-a-call). |
 
 When multiple middleware define `onConfig`, the config is **piped** through them in order — each receives the merged config from the previous middleware.
 
@@ -215,6 +216,26 @@ const stream = chat({
 - A wrapper from `onConfig` applies to the next model call only.
 - Wrappers chain. The `chat()` wrapper runs first, then the middleware wrappers in middleware order, then the fetch of the adapter.
 - Each adapter page says if that adapter supports `wrapFetch`.
+
+#### Change the prompt cache of a call
+
+A slow tool, like a build or a test run, can pause your agent for more than 5 minutes. The short Claude cache is gone by then. Return `promptCache` from `onConfig` to keep the cache longer from the next call on:
+
+```typescript
+import { type ChatMiddleware } from "@tanstack/ai";
+
+const longCacheAfterTools: ChatMiddleware = {
+  name: "long-cache-after-tools",
+  onConfig: (ctx, config) => {
+    if (ctx.phase !== "beforeModel" || ctx.iteration === 0) return;
+    return { promptCache: { ...config.promptCache, retention: "long" } };
+  },
+};
+```
+
+- `config.promptCache` is the current value, with its `retention` and its `key`.
+- The value you return goes to the adapter on the next model call. It stays until a middleware returns another one.
+- For the retention values and what they cost, see [Prompt Caching](./prompt-caching#turn-it-off-or-keep-it-longer).
 
 ### onStructuredOutputConfig
 
