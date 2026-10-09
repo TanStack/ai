@@ -4,15 +4,15 @@ title: streamToText
 ---
 
 ```ts
-function streamToText(stream): Promise<string>;
+function streamToText(stream): Promise<ChatResult>;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:49](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L49)
+Defined in: [packages/ai/src/stream-to-response.ts:60](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L60)
 
-Collect all text content from a StreamChunk async iterable and return as a string.
+Read a StreamChunk async iterable to the end and return its text and chunks.
 
-This function consumes the entire stream, accumulating content from TEXT_MESSAGE_CONTENT events,
-and returns the final concatenated text.
+`text` joins the deltas of every TEXT_MESSAGE_CONTENT event. `chunks` keeps
+every chunk in order, so tool calls and interrupt outcomes are not lost.
 
 ## Parameters
 
@@ -24,9 +24,13 @@ AsyncIterable of StreamChunks from chat()
 
 ## Returns
 
-`Promise`\<`string`\>
+`Promise`\<[`ChatResult`](../interfaces/ChatResult.md)\>
 
-Promise<string> - The accumulated text content
+A [ChatResult](../interfaces/ChatResult.md) with the joined text and every chunk.
+
+## Throws
+
+The error from the first RUN_ERROR chunk.
 
 ## Example
 
@@ -35,6 +39,6 @@ const stream = chat({
   adapter: openaiText('gpt-5.5'),
   messages: [{ role: 'user', content: 'Hello!' }]
 });
-const text = await streamToText(stream);
+const { text } = await streamToText(stream);
 console.log(text); // "Hello! How can I help you today?"
 ```
