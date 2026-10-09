@@ -72,7 +72,8 @@ export class GrokTextAdapter<
   override readonly supportsFileSources = true
 
   constructor(config: GrokTextConfig, model: TModel) {
-    super(model, 'grok', new OpenAI(withGrokDefaults(config)))
+    const options = withGrokDefaults(config)
+    super(model, 'grok', new OpenAI(options), { fetch: options.fetch })
   }
 
   /**

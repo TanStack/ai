@@ -31,6 +31,30 @@ interface HookFailure {
   error: unknown
 }
 
+/**
+ * Merge one onConfig result into the config. A new `wrapFetch` chains inside
+ * the current one. The same function (a spread config) does not wrap twice.
+ */
+function mergeConfig<
+  T extends ChatMiddlewareConfig | StructuredOutputMiddlewareConfig,
+>(current: T, result: Partial<T>): T {
+  const outer = current.wrapFetch
+  const inner = result.wrapFetch
+  // `undefined` or the same function keeps the wrappers before it.
+  const wrapFetch =
+    outer && inner && inner !== outer
+      ? (next: typeof fetch) => outer(inner(next))
+      : (inner ?? outer)
+  return {
+    ...current,
+    ...result,
+    ...('messages' in result && !('providerMessages' in result)
+      ? { providerMessages: result.messages }
+      : {}),
+    ...(wrapFetch ? { wrapFetch } : {}),
+  }
+}
+
 /** Check if a middleware should be skipped for instrumentation events. */
 function shouldSkipInstrumentation(mw: ChatMiddleware<any, any>): boolean {
   return mw.name === 'devtools' || mw.name === 'strip-to-spec'
@@ -166,13 +190,7 @@ export class MiddlewareRunner<
         const result = await mw.onConfig(ctx, current)
         const hasTransform = result !== undefined && result !== null
         if (hasTransform) {
-          current = {
-            ...current,
-            ...result,
-            ...('messages' in result && !('providerMessages' in result)
-              ? { providerMessages: result.messages }
-              : {}),
-          }
+          current = mergeConfig(current, result)
           if (!skip) {
             this.logger.config(
               `middleware=${mw.name ?? 'unnamed'} keys=${Object.keys(result).join(',')}`,
@@ -227,13 +245,7 @@ export class MiddlewareRunner<
         const result = await mw.onStructuredOutputConfig(ctx, current)
         const hasTransform = result !== undefined && result !== null
         if (hasTransform) {
-          current = {
-            ...current,
-            ...result,
-            ...('messages' in result && !('providerMessages' in result)
-              ? { providerMessages: result.messages }
-              : {}),
-          }
+          current = mergeConfig(current, result)
           if (!skip) {
             this.logger.config(
               `middleware=${mw.name ?? 'unnamed'} keys=${Object.keys(result).join(',')}`,

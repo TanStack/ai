@@ -11,6 +11,7 @@ import { makeMistralStructuredOutputCompatibleWithMap } from '../utils/schema-co
 import { createToolInputNormalizer } from '../utils/tool-input-normalizer'
 import type {
   ContentPart,
+  FetchWrapper,
   Modality,
   ModelMessage,
   AdapterYieldChunk,
@@ -207,7 +208,11 @@ export class MistralTextAdapter<
     }
 
     try {
-      const stream = this.fetchRawMistralStream(requestParams, this.rawConfig)
+      const stream = this.fetchRawMistralStream(
+        requestParams,
+        this.rawConfig,
+        options.wrapFetch,
+      )
       yield* this.processMistralStreamChunks(stream, options, aguiState)
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
@@ -259,7 +264,10 @@ export class MistralTextAdapter<
       outputSchema.required || [],
     )
 
-    const response = await this.client.chat.complete({
+    const client = chatOptions.wrapFetch
+      ? createMistralClient(this.rawConfig, chatOptions.wrapFetch(fetch))
+      : this.client
+    const response = await client.chat.complete({
       ...nonStreamParams,
       responseFormat: {
         type: 'json_schema',
@@ -731,6 +739,7 @@ export class MistralTextAdapter<
   private async *fetchRawMistralStream(
     params: ChatCompletionStreamRequest,
     config: MistralClientConfig,
+    wrapFetch: FetchWrapper | undefined,
   ): AsyncGenerator<MistralRawChunk> {
     const serverURL = (
       config.baseURL ??
@@ -754,7 +763,8 @@ export class MistralTextAdapter<
       ...config.defaultHeaders,
     }
 
-    const response = await fetch(url, {
+    const send = wrapFetch ? wrapFetch(fetch) : fetch
+    const response = await send(url, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),

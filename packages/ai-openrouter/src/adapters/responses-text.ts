@@ -12,6 +12,7 @@ import {
 } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../internal/request-options'
+import { clientForCall } from '../internal/wrap-fetch'
 import { openRouterSupportsCombinedToolsAndSchema } from '../internal/combined-tools-and-schema'
 import { makeStructuredOutputCompatible } from '../internal/schema-converter'
 import {
@@ -121,9 +122,11 @@ export class OpenRouterResponsesTextAdapter<
   readonly name = 'openrouter-responses' as const
 
   protected orClient: OpenRouter
+  private readonly sdkOptions: SDKOptions
 
   constructor(config: OpenRouterResponsesConfig, model: TModel) {
     super({}, model)
+    this.sdkOptions = config
     this.orClient = new OpenRouter(config)
   }
 
@@ -154,7 +157,11 @@ export class OpenRouterResponsesTextAdapter<
         { provider: this.name, model: this.model },
       )
       const reqOptions = extractRequestOptions(options.request)
-      const response = await this.orClient.beta.responses.send(
+      const response = await clientForCall(
+        this.orClient,
+        this.sdkOptions,
+        options.wrapFetch,
+      ).beta.responses.send(
         { responsesRequest: { ...responsesRequest, stream: true } },
         {
           ...(reqOptions.signal != null && { signal: reqOptions.signal }),
@@ -231,7 +238,11 @@ export class OpenRouterResponsesTextAdapter<
         { provider: this.name, model: this.model },
       )
       const reqOptions = extractRequestOptions(chatOptions.request)
-      const response = await this.orClient.beta.responses.send(
+      const response = await clientForCall(
+        this.orClient,
+        this.sdkOptions,
+        chatOptions.wrapFetch,
+      ).beta.responses.send(
         {
           responsesRequest: {
             ...responsesRequest,
@@ -422,7 +433,11 @@ export class OpenRouterResponsesTextAdapter<
         { provider: this.name, model: this.model },
       )
       const reqOptions = extractRequestOptions(chatOptions.request)
-      const rawStream = await this.orClient.beta.responses.send(
+      const rawStream = await clientForCall(
+        this.orClient,
+        this.sdkOptions,
+        chatOptions.wrapFetch,
+      ).beta.responses.send(
         {
           responsesRequest: {
             ...responsesRequest,
