@@ -5,7 +5,13 @@ import {
   isFileSource,
   normalizeSystemPrompts,
 } from '@tanstack/ai'
-import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
+import {
+  hashToolCallId,
+  orderedAssistantBlocks,
+  tanstackMetadata,
+  toRunErrorRawEvent,
+  transformMessagesForReplay,
+} from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import { buildGeminiUsage } from '../usage'
@@ -43,6 +49,8 @@ import type {
   ContentPart,
   Modality,
   ModelMessage,
+  MessageSource,
+  ToolCall,
   AdapterYieldChunk,
   ProviderExecutedToolSource,
   TextOptions,
@@ -59,6 +67,47 @@ import type { GeminiClientConfig } from '../utils/client'
 /**
  * Fallback MIME types for URL-sourced media parts that don't specify one.
  */
+/**
+ * Replay for the selected Google API, for this request only. Gemini 3, Claude,
+ * and gpt-oss models need a tool call ID, so another model's IDs are rewritten.
+ */
+export function prepareGeminiMessagesForReplay(
+  messages: Array<ModelMessage>,
+  target: MessageSource,
+): Array<ModelMessage> {
+  const major = target.model.toLowerCase().match(/^gemini(?:-live)?-(\d+)/)?.[1]
+  const requiresId =
+    target.model.startsWith('claude-') ||
+    target.model.startsWith('gpt-oss-') ||
+    (major !== undefined && Number(major) >= 3)
+  return transformMessagesForReplay(
+    messages,
+    target,
+    requiresId
+      ? (id, { attempt }) => {
+          const normalized = id.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64)
+          if (attempt === 0) return normalized
+          const suffix = `_${hashToolCallId(`${id}:${attempt}`)}`
+          return `${normalized.slice(0, 64 - suffix.length)}${suffix}`
+        }
+      : undefined,
+  ).messages
+}
+
+/** Add the source of this call to a chunk, errors included. */
+export function withGeminiSource(
+  chunk: AdapterYieldChunk,
+  source: MessageSource,
+): AdapterYieldChunk {
+  return {
+    ...chunk,
+    metadata: {
+      ...chunk.metadata,
+      tanstack: { ...tanstackMetadata(chunk), source },
+    },
+  }
+}
+
 const DEFAULT_MEDIA_MIME_TYPES = {
   image: 'image/jpeg',
   audio: 'audio/mp3',
@@ -107,10 +156,29 @@ type InteractionContent =
       mime_type?: string
     }
 
-interface InteractionStep {
-  type: 'user_input' | 'model_output'
-  content: Array<InteractionContent>
-}
+type InteractionStep =
+  | {
+      type: 'user_input' | 'model_output'
+      content: Array<InteractionContent>
+    }
+  | {
+      type: 'thought'
+      signature?: string
+      summary: Array<{ type: 'text'; text: string }>
+    }
+  | {
+      type: 'function_call'
+      id: string
+      name: string
+      arguments: Record<string, unknown>
+    }
+  | {
+      type: 'function_result'
+      call_id: string
+      name?: string
+      is_error?: boolean
+      result: string | Array<InteractionContent>
+    }
 
 /** True when any message carries a video part requesting agentic processing. */
 function hasAgenticVideo(messages: Array<ModelMessage>): boolean {
@@ -157,16 +225,93 @@ function contentPartToInteraction(part: ContentPart): InteractionContent {
  * Build the Interactions API `input` from chat messages. Each user/assistant
  * message becomes a `user_input` / `model_output` step wrapping its content
  * blocks — the wrapping the Python SDK performs implicitly but the JS SDK
- * does not. Tool messages are skipped (unsupported on this path).
+ * does not. Calls and results use the SDK's matching function steps.
  */
 function buildInteractionsInput(
   messages: Array<ModelMessage>,
 ): Array<InteractionStep> {
   const steps: Array<InteractionStep> = []
+  const names = new Map(
+    messages.flatMap((message) =>
+      (message.toolCalls ?? []).map(
+        (call) => [call.id, call.function.name] as const,
+      ),
+    ),
+  )
   for (const msg of messages) {
-    if (msg.role === 'tool') continue
+    if (msg.role === 'tool') {
+      if (!msg.toolCallId) continue
+      const result = Array.isArray(msg.content)
+        ? msg.content.map((part) => {
+            if (part.type !== 'text' && part.type !== 'image')
+              throw new Error(
+                `Gemini Interactions function results do not support ${part.type} content`,
+              )
+            return contentPartToInteraction(part)
+          })
+        : (msg.content ?? '')
+      const name = names.get(msg.toolCallId)
+      steps.push({
+        type: 'function_result',
+        call_id: msg.toolCallId,
+        ...(name && { name }),
+        ...(msg.error !== undefined && { is_error: true }),
+        result,
+      })
+      continue
+    }
     const stepType = msg.role === 'assistant' ? 'model_output' : 'user_input'
     const content: Array<InteractionContent> = []
+    const flush = () => {
+      if (content.length)
+        steps.push({ type: stepType, content: content.splice(0) })
+    }
+    const thought = (
+      thinking: NonNullable<ModelMessage['thinking']>[number],
+    ) => {
+      flush()
+      steps.push({
+        type: 'thought',
+        ...(thinking.signature && { signature: thinking.signature }),
+        summary: thinking.content
+          ? [{ type: 'text', text: thinking.content }]
+          : [],
+      })
+    }
+    const call = (toolCall: ToolCall) => {
+      const metadata = toolCall.metadata as GeminiToolCallMetadata | undefined
+      if (metadata?.providerExecuted) return
+      flush()
+      const signature = metadata?.thoughtSignature
+      if (typeof signature === 'string' && signature)
+        steps.push({ type: 'thought', signature, summary: [] })
+      const args: unknown = JSON.parse(toolCall.function.arguments || '{}')
+      if (typeof args !== 'object' || args === null || Array.isArray(args))
+        throw new Error(
+          `Gemini Interactions function ${toolCall.function.name} requires object arguments`,
+        )
+      steps.push({
+        type: 'function_call',
+        id: toolCall.id,
+        name: toolCall.function.name,
+        arguments: { ...args },
+      })
+    }
+    const ordered =
+      msg.role === 'assistant' ? orderedAssistantBlocks(msg) : undefined
+    if (ordered) {
+      for (const block of ordered) {
+        if (block.type === 'thinking') thought(block.thinking)
+        else if (block.type === 'text')
+          content.push({ type: 'text', text: block.text })
+        else call(block.toolCall)
+      }
+      flush()
+      continue
+    }
+    for (const thinking of msg.thinking ?? []) {
+      if (thinking.content || thinking.signature) thought(thinking)
+    }
     if (Array.isArray(msg.content)) {
       for (const part of msg.content) {
         content.push(contentPartToInteraction(part))
@@ -174,9 +319,8 @@ function buildInteractionsInput(
     } else if (msg.content) {
       content.push({ type: 'text', text: msg.content })
     }
-    if (content.length > 0) {
-      steps.push({ type: stepType, content })
-    }
+    flush()
+    for (const toolCall of msg.toolCalls ?? []) call(toolCall)
   }
   return steps
 }
@@ -249,6 +393,8 @@ export class GeminiTextAdapter<
 > {
   override readonly kind = 'text' as const
   readonly name = 'gemini' as const
+  override readonly provider: string
+  override readonly api: string
   // Consumes Gemini Files API references (geminiFiles()) as fileData.fileUri.
   override readonly supportsFileSources = true
   override readonly inputModalities = GEMINI_MODEL_INPUT_MODALITIES[this.model]
@@ -257,10 +403,30 @@ export class GeminiTextAdapter<
 
   constructor(config: GeminiTextConfig, model: TModel) {
     super({}, model)
+    this.provider =
+      config.vertexai === true || config.enterprise === true
+        ? 'google-vertex'
+        : 'google'
+    this.api =
+      this.provider === 'google-vertex'
+        ? 'google-vertex'
+        : 'google-generative-ai'
     this.client = createGeminiClient(config)
   }
 
   async *chatStream(
+    options: TextOptions<GeminiTextProviderOptions>,
+  ): AsyncIterable<AdapterYieldChunk> {
+    const source = {
+      provider: this.provider,
+      api: hasAgenticVideo(options.messages) ? 'google-interactions' : this.api,
+      model: options.model,
+    }
+    for await (const chunk of this.chatStreamRequest(options))
+      yield withGeminiSource(chunk, source)
+  }
+
+  private async *chatStreamRequest(
     options: TextOptions<GeminiTextProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
     // Agentic video understanding is only exposed through the Interactions API,
@@ -338,7 +504,13 @@ export class GeminiTextAdapter<
           ? normalizedPrompts.map((p) => p.content).join('\n')
           : undefined
 
-      const input = buildInteractionsInput(options.messages)
+      const input = buildInteractionsInput(
+        prepareGeminiMessagesForReplay(options.messages, {
+          provider: this.provider,
+          api: 'google-interactions',
+          model,
+        }),
+      )
 
       // The installed @google/genai (2.10.0) Interactions `VideoContent` type
       // predates the `processing` field, so the structurally-built input is
@@ -352,9 +524,16 @@ export class GeminiTextAdapter<
       })
 
       const text = interaction.output_text ?? ''
+      const responseMetadata = {
+        tanstack: {
+          ...(interaction.id && { responseId: interaction.id }),
+          ...(interaction.model && { model: interaction.model }),
+        },
+      }
 
       yield {
         type: EventType.RUN_STARTED,
+        metadata: responseMetadata,
         runId,
         threadId,
         model,
@@ -386,6 +565,7 @@ export class GeminiTextAdapter<
       }
       yield {
         type: EventType.RUN_FINISHED,
+        metadata: responseMetadata,
         runId,
         threadId,
         model,
@@ -467,6 +647,8 @@ export class GeminiTextAdapter<
       return {
         data: parsed,
         rawText,
+        ...(result.responseId && { responseId: result.responseId }),
+        ...(result.modelVersion && { model: result.modelVersion }),
         usage: result.usageMetadata
           ? buildGeminiUsage(result.usageMetadata)
           : undefined,
@@ -492,6 +674,18 @@ export class GeminiTextAdapter<
    * emits one synthetic delta.
    */
   async *structuredOutputStream(
+    options: StructuredOutputOptions<GeminiTextProviderOptions>,
+  ): AsyncIterable<AdapterYieldChunk> {
+    const source = {
+      provider: this.provider,
+      api: this.api,
+      model: options.chatOptions.model,
+    }
+    for await (const chunk of this.structuredOutputRequestStream(options))
+      yield withGeminiSource(chunk, source)
+  }
+
+  private async *structuredOutputRequestStream(
     options: StructuredOutputOptions<GeminiTextProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
     const { chatOptions: requestedChatOptions, outputSchema } = options
@@ -614,6 +808,8 @@ export class GeminiTextAdapter<
     logger: InternalLogger,
   ): AsyncIterable<AdapterYieldChunk> {
     const model = options.model
+    let responseId: string | undefined
+    let reportedModel: string | undefined
     let accumulatedContent = ''
     let accumulatedThinking = ''
     const toolCallMap = new Map<
@@ -685,12 +881,20 @@ export class GeminiTextAdapter<
     }
 
     for await (const chunk of result) {
+      if (chunk.responseId) responseId = chunk.responseId
+      if (chunk.modelVersion) reportedModel = chunk.modelVersion
       logger.provider(`provider=gemini`, { chunk })
       // Emit RUN_STARTED on first chunk
       if (!hasEmittedRunStarted) {
         hasEmittedRunStarted = true
         yield {
           type: EventType.RUN_STARTED,
+          metadata: {
+            tanstack: {
+              ...(responseId && { responseId }),
+              ...(reportedModel && { model: reportedModel }),
+            },
+          },
           runId,
           threadId,
           model,
@@ -990,6 +1194,12 @@ export class GeminiTextAdapter<
 
         yield {
           type: EventType.RUN_FINISHED,
+          metadata: {
+            tanstack: {
+              ...(responseId && { responseId }),
+              ...(reportedModel && { model: reportedModel }),
+            },
+          },
           runId,
           threadId,
           model,
@@ -1187,6 +1397,43 @@ export class GeminiTextAdapter<
         }
       }
 
+      // Thinking goes back as thought parts with their signatures, in the
+      // order the model sent them when the message has an order map.
+      if (msg.role === 'assistant') {
+        const thoughtPart = (
+          thinking: NonNullable<ModelMessage['thinking']>[number],
+        ): Part => ({
+          thought: true,
+          text: thinking.content,
+          ...(thinking.signature && { thoughtSignature: thinking.signature }),
+        })
+        const ordered = orderedAssistantBlocks(msg)
+        if (ordered) {
+          const calls = new Map(
+            parts.flatMap((part) =>
+              part.functionCall?.id
+                ? [[part.functionCall.id, part] as const]
+                : [],
+            ),
+          )
+          parts.length = 0
+          for (const block of ordered) {
+            if (block.type === 'text') parts.push({ text: block.text })
+            else if (block.type === 'thinking')
+              parts.push(thoughtPart(block.thinking))
+            else {
+              const call = calls.get(block.toolCall.id)
+              if (call) parts.push(call)
+            }
+          }
+        } else {
+          parts.unshift(
+            ...(msg.thinking ?? [])
+              .filter((thinking) => thinking.content || thinking.signature)
+              .map(thoughtPart),
+          )
+        }
+      }
       return {
         role,
         parts: parts.length > 0 ? parts : [{ text: '' }],
@@ -1216,13 +1463,11 @@ export class GeminiTextAdapter<
     for (const msg of messages) {
       const parts = msg.parts || []
 
-      // Skip empty model messages (no parts or only empty text)
+      // Skip model rows with no parts or only unsigned empty text.
       if (msg.role === 'model') {
         const hasContent =
           parts.length > 0 &&
-          !parts.every(
-            (p) => 'text' in p && (p as { text: string }).text === '',
-          )
+          !parts.every((p) => p.text === '' && !p.thoughtSignature)
         if (!hasContent) {
           continue
         }
@@ -1318,7 +1563,13 @@ export class GeminiTextAdapter<
     // emitting `field: undefined`s into the wire payload.
     const requestOptions: GenerateContentParameters = {
       model: options.model,
-      contents: this.formatMessages(options.messages),
+      contents: this.formatMessages(
+        prepareGeminiMessagesForReplay(options.messages, {
+          provider: this.provider,
+          api: this.api,
+          model: options.model,
+        }),
+      ),
       config: {
         ...modelOpts,
         ...(mappedThinkingConfig !== undefined && {
