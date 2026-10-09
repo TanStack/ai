@@ -1,7 +1,7 @@
 name: PR
 
 on:
-  # The temporary timing workflow replaces PR checks for this sample.
+  pull_request:
   push:
     branches: [main, alpha, beta, rc]
 
