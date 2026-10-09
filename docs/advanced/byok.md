@@ -239,6 +239,83 @@ Good to know:
 - `keyedAdapter` works for every adapter kind: text, image, speech, and the rest.
 - Your list can mix plain and keyed adapters. `isKeyedAdapter(adapter)` tells you which ones need a key.
 
+### More than one provider
+
+Your users pick OpenAI or Anthropic, and each one brings their own key. Put both in `keyedAdapters`. The map key is the provider id, so a key only goes to its own provider:
+
+```typescript group=keyed-many
+import { keyedAdapter, keyedAdapters } from "@tanstack/ai/byok";
+import { createAnthropicChat } from "@tanstack/ai-anthropic";
+import { anthropicByok } from "@tanstack/ai-anthropic/byok";
+import { createOpenaiChat } from "@tanstack/ai-openai";
+
+export const models = keyedAdapters({
+  openai: (key) => createOpenaiChat("gpt-6.1-sol", key),
+  anthropic: keyedAdapter(anthropicByok, (key) =>
+    createAnthropicChat("claude-sonnet-5-5", key),
+  ),
+});
+```
+
+In the route, `keyedAdapterFromRequest` builds the adapter of the provider that has a key:
+
+```typescript group=keyed-many
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import {
+  byokMissing,
+  keyedAdapterFromRequest,
+} from "@tanstack/ai/byok/server";
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request);
+  const adapter = keyedAdapterFromRequest(request, models);
+  if (!adapter) return byokMissing("openai");
+
+  const stream = chat({
+    adapter,
+    messages: params.messages,
+    threadId: params.threadId,
+    runId: params.runId,
+  });
+  return toServerSentEventsResponse(stream);
+}
+```
+
+On the client, `forwardedProps.provider` picks which key goes out:
+
+```tsx
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { byok } from "./byok";
+
+export function Chat({ provider }: { provider: "openai" | "anthropic" }) {
+  const { sendMessage } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+    byok,
+    forwardedProps: { provider },
+  });
+
+  return (
+    <button type="button" onClick={() => void sendMessage("Hello")}>
+      Send
+    </button>
+  );
+}
+```
+
+How it picks:
+
+1. The user's own key wins. That is the `x-byok-<id>` header, checked in map order.
+2. Then the env keys, in map order. Only entries made with a descriptor (like `anthropicByok`) have env names. A plain factory reads the header only.
+3. No key at all? You get `null`, so answer with `byokMissing`.
+
+An entry like `anthropic: keyedAdapter(openaiByok, ...)` throws at startup, so a key cannot reach the wrong provider.
+
+The adapter you get back is a union of your providers. Need the exact model types, for example for `modelOptions`? Call `models.openai.create(key)` yourself.
+
 ## If the relay already has an env key
 
 By default, a send with no browser key does not POST. If your relay has env keys, call `byok.setServerCoverage(true)`:

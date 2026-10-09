@@ -92,7 +92,13 @@ export {
   type SubagentChoiceOptions,
   type SubagentRunContext,
 } from './activities/chat/agents/define-agent'
-export { keyedAdapter, isKeyedAdapter, type KeyedAdapter } from './byok/keyed'
+export {
+  keyedAdapter,
+  keyedAdapters,
+  isKeyedAdapter,
+  type KeyedAdapter,
+  type KeyedAdapterResult,
+} from './byok/keyed'
 export {
   subagentRoute,
   type SubagentRouteOptions,

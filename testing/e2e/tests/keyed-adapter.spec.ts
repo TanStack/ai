@@ -26,3 +26,28 @@ test.describe('keyedAdapter', () => {
     })
   })
 })
+
+test.describe('keyedAdapters', () => {
+  test('builds the adapter of the provider whose key the user sent', async ({
+    request,
+    testId,
+  }) => {
+    const response = await request.post('/api/keyed-adapter?mode=many', {
+      headers: { 'x-byok-anthropic': 'sk-e2e-keyed-5678', 'x-test-id': testId },
+    })
+
+    expect(response.ok()).toBe(true)
+    const body = await response.json()
+    expect(body.text).toContain('Fender Stratocaster')
+    expect(body.provider).toBe('anthropic')
+    expect(body.credential).toBe('sk-e2e-keyed-5678')
+  })
+
+  test('answers byok_missing when no provider has a key', async ({
+    request,
+  }) => {
+    const response = await request.post('/api/keyed-adapter?mode=many')
+
+    expect(response.status()).toBe(401)
+  })
+})
