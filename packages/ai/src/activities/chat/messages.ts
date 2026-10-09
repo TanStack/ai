@@ -8,6 +8,7 @@ import {
   normalizeToolResult,
 } from '../../utilities/tool-result'
 import {
+  mergeMetadata,
   tanstackMetadata,
   withTanstackMetadata,
 } from '../../utilities/merge-metadata'
@@ -424,7 +425,7 @@ function blockOrderEntries(message: ModelMessage): Array<BlockOrderEntry> {
 /**
  * Join an assistant wire row marked `continues` into the message of the
  * assistant row before it, and extend that message's order map. The message
- * keeps the first row's id and metadata.
+ * keeps the first row's id and merges metadata from both rows.
  */
 function joinAssistantRows(
   previous: ModelMessage,
@@ -441,15 +442,33 @@ function joinAssistantRows(
   ])
   // Each row lists only its own ui resources. Keep them all.
   const rowResources = tanstackMetadata(row)?.uiResources ?? []
+  const metadata = mergeMetadata(previous.metadata, row.metadata)
+  let joinedMetadata =
+    metadata === undefined
+      ? undefined
+      : {
+          ...metadata,
+          ...(metadata.tanstack ? { tanstack: { ...metadata.tanstack } } : {}),
+        }
+  if (joinedMetadata?.tanstack) {
+    delete joinedMetadata.tanstack.continues
+    if (Object.keys(joinedMetadata.tanstack).length === 0)
+      delete joinedMetadata.tanstack
+  }
+  if (joinedMetadata && Object.keys(joinedMetadata).length === 0)
+    joinedMetadata = undefined
+  const merged: ModelMessage = { ...previous }
+  if (joinedMetadata === undefined) delete merged.metadata
+  else merged.metadata = joinedMetadata
   const base =
     rowResources.length > 0
-      ? withTanstackMetadata(previous, {
+      ? withTanstackMetadata(merged, {
           uiResources: [
             ...(tanstackMetadata(previous)?.uiResources ?? []),
             ...rowResources,
           ],
         })
-      : previous
+      : merged
   return {
     ...base,
     ...(text !== '' && { content: text }),
@@ -653,11 +672,20 @@ function assistantMetadata(
   const fromParts = uiMessage.parts.filter(isUiResourcePart)
   const current = uiMessage.metadata ?? {}
   const previous = tanstackMetadata(uiMessage)
-  const tanstack: TanStackMessageMetadata = {}
-  if (previous?.model !== undefined) tanstack.model = previous.model
-  if (previous?.runId !== undefined) tanstack.runId = previous.runId
-  if (previous?.run?.id !== undefined) tanstack.run = { id: previous.run.id }
-  if (previous?.signature !== undefined) tanstack.signature = previous.signature
+  const tanstack: TanStackMessageMetadata = { ...previous }
+  if (tanstack.run) {
+    tanstack.run = { ...tanstack.run }
+    delete tanstack.run.startedAt
+    delete tanstack.run.finishedAt
+  }
+  // These fields describe wire rows. The converters rebuild them from parts.
+  delete tanstack.createdAt
+  delete tanstack.continues
+  delete tanstack.structuredOutput
+  delete tanstack.toolCallMetadata
+  delete tanstack.toolResult
+  delete tanstack.toolResultOutcome
+  delete tanstack.uiResources
   if (fromParts.length > 0) tanstack.uiResources = fromParts
   const result = { ...current }
   if (Object.keys(tanstack).length > 0) result.tanstack = tanstack

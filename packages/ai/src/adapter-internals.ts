@@ -69,3 +69,11 @@ export type {
   BlockOrderEntry,
   OrderedAssistantBlock,
 } from './utilities/block-order'
+export {
+  transformMessagesForReplay,
+  hashToolCallId,
+} from './utilities/replay-messages'
+export type {
+  ReplayMessages,
+  ReplayToolIdRule,
+} from './utilities/replay-messages'
