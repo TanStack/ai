@@ -1,5 +1,14 @@
 # @tanstack/ai-mistral
 
+## 0.6.16
+
+### Patch Changes
+
+- [#1672](https://github.com/TanStack/ai/pull/1672) [`248574f`](https://github.com/TanStack/ai/commit/248574f9c8ca6f4c827203dcf9b174ef24082739) - Send the images of a tool result to Mistral as image chunks in the tool message. Before, the adapter sent the content parts of a tool result as one JSON string, so the model got the image data as text and not as an image. Mistral accepts image chunks in a tool message, so the adapter now sends the parts.
+
+- Updated dependencies [[`baafb17`](https://github.com/TanStack/ai/commit/baafb176220c2b09fced334ad176e754582cd314)]:
+  - @tanstack/ai@0.66.1
+
 ## 0.6.15
 
 ### Patch Changes
