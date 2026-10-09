@@ -7,6 +7,7 @@ import {
 } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
+  resolveReasoning,
   toRunErrorPayload,
   toRunErrorRawEvent,
 } from '@tanstack/ai/adapter-internals'
@@ -19,7 +20,11 @@ import {
   convertFunctionToolToResponsesFormat,
   createToolInputNormalizer,
 } from '../internal/responses-tool-converter'
-import { OPENROUTER_MODEL_INPUT_MODALITIES } from '../model-meta'
+import {
+  OPENROUTER_MODEL_INPUT_MODALITIES,
+  OPENROUTER_MODEL_REASONING,
+} from '../model-meta'
+import { openRouterEffort } from '../internal/reasoning'
 import { isWebSearchTool } from '../tools/web-search-tool'
 import { isWebFetchTool } from '../tools/web-fetch-tool'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
@@ -31,6 +36,7 @@ import type {
   InputsUnion,
   OpenResponsesResult,
   OutputItems,
+  ReasoningEffort,
   ResponsesRequest,
   StreamEvents,
 } from '@openrouter/sdk/models'
@@ -50,6 +56,7 @@ import type {
   OPENROUTER_CHAT_MODELS,
   OpenRouterChatModelToolCapabilitiesByName,
   OpenRouterModelInputModalitiesByName,
+  OpenRouterModelReasoningByName,
 } from '../model-meta'
 import type {
   OpenRouterMessageMetadataByModality,
@@ -79,6 +86,12 @@ export type OpenRouterResponsesTextModels =
   (typeof OPENROUTER_CHAT_MODELS)[number]
 export type OpenRouterResponsesTextProviderOptions =
   ExternalResponsesProviderOptions
+
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof OpenRouterModelReasoningByName
+    ? OpenRouterModelReasoningByName[TModel]
+    : never
 
 type ResolveInputModalities<TModel extends string> =
   TModel extends keyof OpenRouterModelInputModalitiesByName
@@ -117,7 +130,9 @@ export class OpenRouterResponsesTextAdapter<
   ResolveInputModalities<TModel>,
   OpenRouterMessageMetadataByModality,
   TToolCapabilities,
-  OpenRouterResponsesToolCallMetadata
+  OpenRouterResponsesToolCallMetadata,
+  never,
+  ResolveReasoning<TModel>
 > {
   override readonly kind = 'text' as const
   readonly name = 'openrouter-responses' as const
@@ -1759,6 +1774,15 @@ export class OpenRouterResponsesTextAdapter<
           )
         : undefined
 
+    // `chat({ reasoning })`: the effort, a summary so the thinking text
+    // streams back, and the token budget when the request sets one.
+    // `ReasoningEffort` is an open enum, so a newer value still goes out.
+    const resolved = resolveReasoning(
+      options.reasoning,
+      OPENROUTER_MODEL_REASONING[this.model],
+    )
+    const effort = openRouterEffort(resolved)
+
     const built: Pick<
       ResponsesRequest,
       | 'model'
@@ -1772,6 +1796,7 @@ export class OpenRouterResponsesTextAdapter<
       | 'toolChoice'
       | 'parallelToolCalls'
       | 'text'
+      | 'reasoning'
     > = {
       ...modelOptions,
       model: options.model + variantSuffix,
@@ -1789,6 +1814,18 @@ export class OpenRouterResponsesTextAdapter<
       ...(tools &&
         tools.length > 0 && {
           tools,
+        }),
+      ...(resolved &&
+        effort && {
+          reasoning: {
+            effort: effort as ReasoningEffort,
+            ...(resolved.summary && resolved.level !== 'off'
+              ? { summary: 'auto' as const }
+              : {}),
+            ...(resolved.budgetTokens !== undefined
+              ? { maxTokens: resolved.budgetTokens }
+              : {}),
+          },
         }),
       ...(combinedSchema && {
         // Merge onto any caller-supplied `text` (spread above via
