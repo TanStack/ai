@@ -19,6 +19,49 @@ const call = (id: string): ToolCall => ({
 })
 
 describe('request-local replay', () => {
+  it.each([
+    ['turn', 'turn-segment-1'],
+    ['turn', 'turn'],
+  ])(
+    'keeps calls of segment %s pending through segment %s',
+    (first, second) => {
+      const provider: ToolCall = {
+        ...call('p'),
+        metadata: { providerExecuted: true },
+      }
+      const messages: Array<ModelMessage> = [
+        { role: 'user', content: 'go' },
+        {
+          id: first,
+          role: 'assistant',
+          content: null,
+          toolCalls: [call('a'), provider],
+        },
+        {
+          id: second,
+          role: 'assistant',
+          content: null,
+          toolCalls: [call('b')],
+        },
+        { role: 'tool', toolCallId: 'a', content: 'result a' },
+        { role: 'tool', toolCallId: 'b', content: 'result b' },
+      ]
+      // The results of both segments come after the last segment. No
+      // placeholder goes between the segments.
+      expect(transformMessagesForReplay(messages).messages).toEqual(messages)
+    },
+  )
+  it('closes pending calls at the next assistant turn', () => {
+    const result = transformMessagesForReplay([
+      { id: 'one', role: 'assistant', content: null, toolCalls: [call('a')] },
+      { id: 'two', role: 'assistant', content: 'later' },
+    ])
+    expect(result.messages.map((message) => message.role)).toEqual([
+      'assistant',
+      'tool',
+      'assistant',
+    ])
+  })
   it.each(['error', 'aborted'])(
     'drops only results of the latest failed call batch: %s',
     (stopReason) => {

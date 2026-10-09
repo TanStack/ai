@@ -235,7 +235,9 @@ export class MistralTextAdapter<
           ? {
               ...chunk,
               metadata: {
+                ...chunk.metadata,
                 tanstack: {
+                  ...chunk.metadata?.tanstack,
                   source: {
                     provider: this.provider,
                     api: this.api,

@@ -75,10 +75,11 @@ export function prepareGeminiMessagesForReplay(
   messages: Array<ModelMessage>,
   target: MessageSource,
 ): Array<ModelMessage> {
-  const major = target.model.toLowerCase().match(/^gemini(?:-live)?-(\d+)/)?.[1]
+  const model = target.model.toLowerCase()
+  const major = model.match(/^gemini(?:-live)?-(\d+)/)?.[1]
   const requiresId =
-    target.model.startsWith('claude-') ||
-    target.model.startsWith('gpt-oss-') ||
+    model.startsWith('claude-') ||
+    model.startsWith('gpt-oss-') ||
     (major !== undefined && Number(major) >= 3)
   return transformMessagesForReplay(
     messages,

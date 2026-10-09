@@ -74,6 +74,9 @@ export function transformMessagesForReplay(
   const messages: Array<ModelMessage> = []
   let pending: Array<ToolCall> = []
   const answered = new Set<string>()
+  // The id of the assistant turn whose calls are pending. A turn split into
+  // segments (`id`, then the same `id` or `${id}-segment-N`) shares its calls.
+  let turnId: string | undefined
   const closePending = () => {
     for (const call of pending) {
       if (!answered.has(call.id) && !isProviderExecutedToolCall(call)) {
@@ -88,6 +91,7 @@ export function transformMessagesForReplay(
     }
     pending = []
     answered.clear()
+    turnId = undefined
   }
   const mapCall = (
     call: ToolCall,
@@ -122,7 +126,13 @@ export function transformMessagesForReplay(
     return id === call.id ? call : { ...call, id }
   }
   for (const message of original) {
-    if (message.role !== 'tool') closePending()
+    const nextSegment =
+      message.role === 'assistant' &&
+      answered.size === 0 &&
+      turnId !== undefined &&
+      message.id !== undefined &&
+      (message.id === turnId || message.id.startsWith(`${turnId}-segment-`))
+    if (message.role !== 'tool' && !nextSegment) closePending()
     if (message.role === 'assistant') {
       for (const call of message.toolCalls ?? [])
         failedCallBatch.set(call.id, isFailed(message))
@@ -211,7 +221,8 @@ export function transformMessagesForReplay(
     } else {
       for (const call of message.toolCalls ?? []) idMap.set(call.id, call.id)
     }
-    pending = mapped.toolCalls ?? []
+    pending = [...pending, ...(mapped.toolCalls ?? [])]
+    turnId ??= message.id
     messages.push(mapped)
   }
   closePending()

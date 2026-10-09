@@ -704,6 +704,7 @@ export class OpenRouterTextAdapter<
 
       yield {
         type: EventType.RUN_FINISHED,
+        ...(responseId && { responseId }),
         metadata: {
           tanstack: {
             ...(responseId && { responseId }),
@@ -1294,6 +1295,7 @@ export class OpenRouterTextAdapter<
 
         yield {
           type: EventType.RUN_FINISHED,
+          ...(responseId && { responseId }),
           metadata: {
             tanstack: {
               ...(responseId && { responseId }),

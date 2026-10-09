@@ -2403,6 +2403,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             ? `fc_${hashToolCallId(item)}`
             : normalizePart(item)
         if (!itemId.startsWith('fc_')) itemId = normalizePart(`fc_${itemId}`)
+        if (itemId === 'fc') itemId = `fc_${hashToolCallId(item)}`
         let itemRetry = attempt
         while (usedItemIds.has(itemId)) {
           itemRetry++
