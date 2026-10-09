@@ -232,7 +232,7 @@ function MessageRenderer({ message }: { message: UIMessage }) {
 }
 ```
 
-Server-side, enable thinking via `modelOptions` on the adapter:
+Server-side, turn thinking on with the `reasoning` option on `chat()`:
 
 ```typescript
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'

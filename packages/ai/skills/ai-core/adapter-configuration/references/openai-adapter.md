@@ -98,9 +98,10 @@ OPENAI_API_KEY
 ## Gotchas
 
 - Uses the **Responses API** (not Chat Completions) by default.
-- `gpt-5.1` defaults reasoning effort to `none`; you must explicitly set
-  `effort: 'low'` or higher to enable reasoning.
-- `o3-pro` only supports `high` reasoning effort.
+- `gpt-5.1` defaults reasoning effort to `none`. Set `reasoning: 'low'` or
+  higher to turn reasoning on.
+- `chat({ reasoning })` takes only the levels of the selected model. A level
+  that the model does not have moves to the nearest one.
 - `conversation` and `previous_response_id` cannot be used together.
 - Reasoning models (`o*`, `gpt-5*` except `*-chat-latest`, `codex-mini-latest`)
   pair each `function_call` with a `reasoning` item. The adapter requests

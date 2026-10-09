@@ -44,12 +44,10 @@ Retired models (Claude 3.x, Sonnet 3.7, Opus 4 / Sonnet 4) were removed —
 every registered id resolves against the first-party Anthropic API.
 `claude-opus-5-fast` is the only `-fast` id that remains.
 
-`output_config.effort` is typed only on the adaptive-era models
-(`claude-opus-4-7`, `claude-opus-4-8`, `claude-sonnet-5`, `claude-sonnet-5-5`,
-`claude-haiku-5-5`, `claude-fable-5`, `claude-fable-5-1`, `claude-opus-5`,
-`claude-opus-5-5`).
-There is no top-level `effort` option on any model. `claude-opus-4-6` /
-`claude-sonnet-4-6` accept `thinking: { type: 'adaptive' }` but no effort knob.
+Thinking is set with `chat({ reasoning })`, not with `modelOptions`. The
+adapter sends adaptive thinking with `output_config.effort` on Claude 4.7 and
+later, adaptive thinking with `effort` on Claude 4.6, and a token budget on
+the older models. The types take only the levels of the selected model.
 
 ## Provider-Specific modelOptions
 
@@ -127,12 +125,12 @@ chat({
 
 ## Gotchas
 
-- `thinking.budget_tokens` must be >= 1024 AND less than `modelOptions.max_tokens`.
-  Failing either check throws a validation error.
+- `budgetTokens` must be at least 1024. The adapter raises `max_tokens` above
+  the budget when it is lower.
 - Cannot set both `top_p` and `temperature` at the same time (throws error).
 - `claude-sonnet-5`, `claude-sonnet-5-5`, `claude-haiku-5-5`, `claude-fable-5`,
-  `claude-fable-5-1`, `claude-opus-4-8`, and `claude-opus-4-7` do NOT accept `temperature`, `top_p`, `top_k`, or
-  `thinking: { type: 'enabled', budget_tokens }` — adaptive thinking +
-  `output_config.effort` replace them (typed per model).
+  `claude-fable-5-1`, `claude-opus-4-8`, and `claude-opus-4-7` do NOT accept
+  `temperature`, `top_p`, or `top_k`, and take no `budgetTokens` (typed per
+  model).
 - System prompts support prompt caching via `cache_control` on `TextBlockParam[]`.
 - All Claude models accept `text`, `image`, and `document` (PDF) input.

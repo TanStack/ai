@@ -39,7 +39,7 @@ Need Gemini on Vertex AI (regional endpoints and Google Cloud credentials)? Use 
 
 Use `gemini-3.8-flash` for chat with multimodal input, thinking, and built-in tools. It also supports structured output and caching.
 
-For Gemini 3.8 Flash, set `modelOptions.thinkingConfig.thinkingLevel` to `LOW`, `MEDIUM`, or `HIGH`. The Interactions adapter uses `modelOptions.generation_config.thinking_level` with `low`, `medium`, or `high`. Gemini 3.8 Flash does not accept the `minimal` thinking level.
+To set how hard Gemini 3.8 Flash thinks, pass `reasoning: "low"`, `"medium"`, or `"high"` to `chat()`. It has no `minimal` level. See [Reasoning](#reasoning).
 
 ```typescript
 import { chat } from "@tanstack/ai";

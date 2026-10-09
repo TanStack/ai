@@ -175,7 +175,7 @@ export function handleChat(
 
 ### 3. Configuring Reasoning / Thinking
 
-Different providers expose reasoning/thinking through their `modelOptions`:
+Set reasoning/thinking with the `reasoning` option on `chat()`. It is the same on every provider, and the types take only the levels of the selected model:
 
 ```typescript
 import { chat } from '@tanstack/ai'

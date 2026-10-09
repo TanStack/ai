@@ -404,7 +404,7 @@ const stream = chat({
 });
 ```
 
-`effort` accepts `"none"`, `"minimal"`, `"low"`, `"medium"`, `"high"`, `"xhigh"`, and `"max"`. To switch reasoning off for a request, pass `reasoning: { enabled: false }`; the adapter sends it as `effort: "none"` because the SDK's request schema drops `enabled`.
+The adapter sends the level as `reasoning.effort`. `reasoning: "off"` sends `effort: "none"`.
 
 ### Session and metadata
 
