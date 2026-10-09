@@ -1,8 +1,5 @@
-import type {
-  Modality,
-  ModelReasoning,
-  ModelReasoningCapability,
-} from '@tanstack/ai'
+import type { Modality, ModelReasoning } from '@tanstack/ai'
+import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
 import type { MistralTextProviderOptions } from './text/text-provider-options'
 import type {
   CodestralEmbedProviderOptions,

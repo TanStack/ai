@@ -19,11 +19,8 @@
  * - The Seedance 2.0 family *requires* the `dreamina-` prefix.
  * - Older models reject the `dola-` prefix outright.
  */
-import type {
-  Modality,
-  ModelReasoning,
-  ModelReasoningCapability,
-} from '@tanstack/ai'
+import type { Modality, ModelReasoning } from '@tanstack/ai'
+import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
 import type { DurationOptions } from '@tanstack/ai/adapters'
 import type { BytePlusTextProviderOptions } from './text/text-provider-options'
 

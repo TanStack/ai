@@ -1,6 +1,6 @@
 import { expectTypeOf } from 'vitest'
 import { chat } from '../src'
-import type { ModelReasoningCapability } from '../src'
+import type { ModelReasoningCapability } from '../src/adapter-internals'
 import type { TextAdapter } from '../src/activities/chat/adapter'
 import type { DefaultMessageMetadataByModality } from '../src/types'
 

@@ -430,7 +430,6 @@ export {
 export type {
   AdapterReasoning,
   ModelReasoning,
-  ModelReasoningCapability,
   ReasoningCapability,
   ReasoningLevel,
   ReasoningMap,

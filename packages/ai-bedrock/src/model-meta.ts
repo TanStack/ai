@@ -1,5 +1,6 @@
 import { GENERATED_BEDROCK_MODELS } from './model-catalog.generated.js'
-import type { ModelReasoning, ModelReasoningCapability } from '@tanstack/ai'
+import type { ModelReasoning } from '@tanstack/ai'
+import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
 import type { BedrockTextProviderOptions } from './text/text-provider-options'
 import type { BedrockConverseProviderOptions } from './converse/provider-options'
 import type {

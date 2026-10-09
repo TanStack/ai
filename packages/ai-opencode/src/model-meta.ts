@@ -1,4 +1,5 @@
-import type { ModelReasoning, ModelReasoningCapability } from '@tanstack/ai'
+import type { ModelReasoning } from '@tanstack/ai'
+import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
 /**
  * Models known to work with OpenCode. OpenCode is provider-agnostic — it
  * resolves any `provider/model` id its configured providers support (via the

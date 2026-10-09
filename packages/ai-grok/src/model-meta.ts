@@ -1,11 +1,8 @@
 /**
  * Model metadata interface for documentation and type inference
  */
-import type {
-  Modality,
-  ModelReasoning,
-  ModelReasoningCapability,
-} from '@tanstack/ai'
+import type { Modality, ModelReasoning } from '@tanstack/ai'
+import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
 import type { GrokTextProviderOptions } from './text/text-provider-options'
 
 interface ModelMeta {

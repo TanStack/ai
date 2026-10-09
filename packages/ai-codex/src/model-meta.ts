@@ -1,4 +1,5 @@
-import type { ModelReasoning, ModelReasoningCapability } from '@tanstack/ai'
+import type { ModelReasoning } from '@tanstack/ai'
+import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
 /**
  * Models known to work with Codex. The harness accepts any OpenAI model id
  * its backend supports, so this list exists for autocomplete — any string is

@@ -1,4 +1,5 @@
-import type { ModelReasoning, ModelReasoningCapability } from '@tanstack/ai'
+import type { ModelReasoning } from '@tanstack/ai'
+import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
 import type {
   AiModels,
   BaseAiAutomaticSpeechRecognition,

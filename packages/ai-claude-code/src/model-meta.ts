@@ -1,4 +1,5 @@
-import type { ModelReasoning, ModelReasoningCapability } from '@tanstack/ai'
+import type { ModelReasoning } from '@tanstack/ai'
+import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
 /**
  * Models known to work with Claude Code. The harness accepts any Anthropic
  * model id (and the `opus` / `sonnet` / `haiku` aliases resolved by the CLI),
