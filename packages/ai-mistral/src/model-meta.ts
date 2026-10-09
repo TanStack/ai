@@ -227,6 +227,8 @@ const MAGISTRAL_SMALL_LATEST = {
     endpoints: ['chat'],
     features: ['streaming', 'tools', 'reasoning', 'json_object', 'json_schema'],
   },
+  // Not in models.dev. The same as Magistral Medium: prompt_mode only.
+  reasoning: { budget: false },
 } as const satisfies ModelMeta<MistralTextProviderOptions>
 
 const OPEN_MISTRAL_NEMO = {
@@ -467,6 +469,9 @@ export type MistralModelReasoningByName = {
   [MAGISTRAL_MEDIUM_LATEST.name]: ModelReasoningCapability<
     typeof MAGISTRAL_MEDIUM_LATEST.reasoning
   >
+  [MAGISTRAL_SMALL_LATEST.name]: ModelReasoningCapability<
+    typeof MAGISTRAL_SMALL_LATEST.reasoning
+  >
 }
 
 /**
@@ -479,4 +484,5 @@ export const MISTRAL_MODEL_REASONING: Readonly<Record<string, ModelReasoning>> =
     [MISTRAL_MEDIUM_LATEST.name]: MISTRAL_MEDIUM_LATEST.reasoning,
     [MISTRAL_SMALL_LATEST.name]: MISTRAL_SMALL_LATEST.reasoning,
     [MAGISTRAL_MEDIUM_LATEST.name]: MAGISTRAL_MEDIUM_LATEST.reasoning,
+    [MAGISTRAL_SMALL_LATEST.name]: MAGISTRAL_SMALL_LATEST.reasoning,
   } satisfies Record<keyof MistralModelReasoningByName, ModelReasoning>

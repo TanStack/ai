@@ -54,13 +54,16 @@ describe('Mistral chat({ reasoning }) request shape', () => {
     })
   })
 
-  it('Magistral: prompt_mode reasoning, and nothing for off', async () => {
-    const high = await send('magistral-medium-latest', on('medium'))
-    expect(high.prompt_mode).toBe('reasoning')
-    expect(high).not.toHaveProperty('reasoning_effort')
-    const off = await send('magistral-medium-latest', on('off'))
-    expect(off).not.toHaveProperty('prompt_mode')
-  })
+  it.each(['magistral-medium-latest', 'magistral-small-latest'] as const)(
+    '%s: prompt_mode reasoning, and nothing for off',
+    async (model) => {
+      const high = await send(model, on('medium'))
+      expect(high.prompt_mode).toBe('reasoning')
+      expect(high).not.toHaveProperty('reasoning_effort')
+      const off = await send(model, on('off'))
+      expect(off).not.toHaveProperty('prompt_mode')
+    },
+  )
 
   it('sends no reasoning fields without a request', async () => {
     const body = await send('mistral-small-latest', undefined)
