@@ -16,6 +16,7 @@ import { clientForCall } from '../internal/wrap-fetch'
 import { makeStructuredOutputCompatible } from '../internal/schema-converter'
 import { openRouterSupportsCombinedToolsAndSchema } from '../internal/combined-tools-and-schema'
 import { OPENROUTER_MODEL_INPUT_MODALITIES } from '../model-meta'
+import { addPromptCacheMarkers } from '../prompt-cache'
 import { convertToolsToProviderFormat } from '../tools'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
 import { buildOpenRouterUsage } from '../usage'
@@ -1374,7 +1375,9 @@ export class OpenRouterTextAdapter<
         },
       }),
     }
-    return request
+    return options.promptCache
+      ? addPromptCacheMarkers(request, options.promptCache)
+      : request
   }
 
   /**

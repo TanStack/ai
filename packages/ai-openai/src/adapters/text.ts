@@ -9,7 +9,9 @@ import { getOpenAIApiKeyFromEnv } from '../utils/client'
 import {
   OPENAI_MODEL_INPUT_MODALITIES,
   openAIModelRejectsSamplingParams,
+  openAIModelUsesExplicitPromptCache,
 } from '../model-meta'
+import { responsesPromptCacheFields } from '../prompt-cache'
 import type {
   OPENAI_CHAT_MODELS,
   OpenAIChatModel,
@@ -151,7 +153,14 @@ export class OpenAITextAdapter<
       ? convertToolsToProviderFormat(options.tools)
       : undefined
 
+    // `chat({ promptCache })` fields go first, so a value the caller set in
+    // `modelOptions` (already on `baseRequest`) wins.
+    const promptCacheFields = responsesPromptCacheFields(options.promptCache, {
+      explicitMode: openAIModelUsesExplicitPromptCache(options.model),
+      longRetention: true,
+    })
     const request: Omit<ResponseCreateParams, 'stream'> = {
+      ...promptCacheFields,
       ...baseRequest,
       ...(tools && tools.length > 0 && { tools }),
     }
