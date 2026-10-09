@@ -507,6 +507,8 @@ const oneLookup = chat({
 })
 ```
 
+In `chat({ toolChoice: { type: 'tool', name } })`, your editor suggests the names of the tools that you pass. Any other string also works, for example the name of a provider tool.
+
 Need a text answer on the last call? Return `{ toolChoice: 'none' }` from a middleware. See [Change the tool choice of a call](../advanced/middleware#change-the-tool-choice-of-a-call).
 
 ### Rules for every adapter

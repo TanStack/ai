@@ -126,7 +126,10 @@ import type {
   McpInputRequest,
   ToolResult,
 } from './tools/tool-calls'
-import type { ApprovalSchemaConfig } from './tools/tool-definition'
+import type {
+  ApprovalSchemaConfig,
+  InferToolName,
+} from './tools/tool-definition'
 import type {
   AnyTextAdapter,
   StructuredOutputOptions,
@@ -440,6 +443,12 @@ type ExactMiddlewareOption<
         : CheckInterruptRegistry<TInterrupts, TMiddleware>) &
       CheckCoverage<Extract<TMiddleware, ReadonlyArray<AnyChatMiddleware>>>
 
+/** The `name` literals of a `tools` array. */
+type ToolNames<TTools> =
+  TTools extends ReadonlyArray<infer TTool>
+    ? Extract<InferToolName<TTool>, string>
+    : never
+
 type TextActivityOptionsWithContext<
   TAdapter extends AnyTextAdapter,
   TSchema extends SchemaInput | undefined,
@@ -452,9 +461,11 @@ type TextActivityOptionsWithContext<
   TAgents extends ReadonlyArray<DefinedAgent> = ReadonlyArray<DefinedAgent>,
 > = Omit<
   TextActivityOptions<TAdapter, TSchema, TStream, any, TAgents>,
-  'tools' | 'middleware' | 'context' | 'interrupts'
+  'tools' | 'middleware' | 'context' | 'interrupts' | 'toolChoice'
 > & {
   tools?: TTools
+  /** {@link TextActivityOptions.toolChoice}, with the names of `tools` as suggestions. */
+  toolChoice?: ToolChoice<ToolNames<TTools>>
   interrupts?: TInterrupts & CheckUniqueInterruptDefinitions<TInterrupts>
   middleware?: ExactMiddlewareOption<TTools, TContext, TInterrupts, TMiddleware>
 } & RuntimeContextOption<TTools, TMiddleware, TContext>

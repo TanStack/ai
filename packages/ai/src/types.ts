@@ -1117,12 +1117,16 @@ export type AgentLoopStrategy = (state: AgentLoopState) => boolean
  * - `'none'`: the model calls no tool.
  * - `'required'`: the model must call a tool.
  * - `{ type: 'tool', name }`: the model must call that tool.
+ *
+ * `TName` is the names of the tools of the call, for editor suggestions. Any
+ * other string is also allowed, for example a provider tool or a lazy tool.
  */
-export type ToolChoice =
+export type ToolChoice<TName extends string = string> =
   | 'auto'
   | 'none'
   | 'required'
-  | { type: 'tool'; name: string }
+  // `string & {}` keeps the `TName` literals as suggestions.
+  | { type: 'tool'; name: TName | (string & {}) }
 
 /**
  * Wraps the fetch of a model call. It gets the next fetch and gives back a
