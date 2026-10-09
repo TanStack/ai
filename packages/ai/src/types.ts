@@ -669,6 +669,8 @@ export interface TanStackRunMetadata {
   runId?: string
   sessionId?: string
   index?: number
+  /** On a `RUN_ERROR`. See `RunErrorEvent.retryAfterMs`. */
+  retryAfterMs?: number
   state?: ToolOutputState
   /** Parsed `TOOL_CALL_END` input. Spec `TOOL_CALL_END` has no top-level `input`. */
   input?: unknown
@@ -1392,6 +1394,12 @@ export interface RunErrorEvent extends Pick<
   model?: string
   /** Nested payload kept for in-process / durability consumers. */
   error?: { message: string; code?: string }
+  /**
+   * How long the provider asks you to wait before a retry, in milliseconds.
+   * Adapters read it from the `retry-after-ms` or `retry-after` header.
+   * `chat()` moves it to `metadata.tanstack.retryAfterMs`.
+   */
+  retryAfterMs?: number
   metadata?: { tanstack?: TanStackRunMetadata } & Record<string, any>
 }
 
