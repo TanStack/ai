@@ -135,6 +135,7 @@ import { Route as ApiPersistenceDurabilityRouteImport } from './routes/api.persi
 import { Route as ApiPortableSkillsWireRouteImport } from './routes/api.portable-skills-wire'
 import { Route as ApiProviderSearchMetadataWireRouteImport } from './routes/api.provider-search-metadata-wire'
 import { Route as ApiProviderToolDispatchWireRouteImport } from './routes/api.provider-tool-dispatch-wire'
+import { Route as ApiReasoningWireRouteImport } from './routes/api.reasoning-wire'
 import { Route as ApiRetryAfterRouteImport } from './routes/api.retry-after'
 import { Route as ApiSandboxDurabilityRouteImport } from './routes/api.sandbox-durability'
 import { Route as ApiSandboxFilePersistenceRouteImport } from './routes/api.sandbox-file-persistence'
@@ -822,6 +823,11 @@ const ApiProviderToolDispatchWireRoute =
     path: '/api/provider-tool-dispatch-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiReasoningWireRoute = ApiReasoningWireRouteImport.update({
+  id: '/api/reasoning-wire',
+  path: '/api/reasoning-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiRetryAfterRoute = ApiRetryAfterRouteImport.update({
   id: '/api/retry-after',
   path: '/api/retry-after',
@@ -1072,6 +1078,7 @@ export interface FileRoutesByFullPath {
   '/api/portable-skills-wire': typeof ApiPortableSkillsWireRoute
   '/api/provider-search-metadata-wire': typeof ApiProviderSearchMetadataWireRoute
   '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
+  '/api/reasoning-wire': typeof ApiReasoningWireRoute
   '/api/retry-after': typeof ApiRetryAfterRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
@@ -1224,6 +1231,7 @@ export interface FileRoutesByTo {
   '/api/portable-skills-wire': typeof ApiPortableSkillsWireRoute
   '/api/provider-search-metadata-wire': typeof ApiProviderSearchMetadataWireRoute
   '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
+  '/api/reasoning-wire': typeof ApiReasoningWireRoute
   '/api/retry-after': typeof ApiRetryAfterRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
@@ -1377,6 +1385,7 @@ export interface FileRoutesById {
   '/api/portable-skills-wire': typeof ApiPortableSkillsWireRoute
   '/api/provider-search-metadata-wire': typeof ApiProviderSearchMetadataWireRoute
   '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
+  '/api/reasoning-wire': typeof ApiReasoningWireRoute
   '/api/retry-after': typeof ApiRetryAfterRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
@@ -1531,6 +1540,7 @@ export interface FileRouteTypes {
     | '/api/portable-skills-wire'
     | '/api/provider-search-metadata-wire'
     | '/api/provider-tool-dispatch-wire'
+    | '/api/reasoning-wire'
     | '/api/retry-after'
     | '/api/sandbox-durability'
     | '/api/sandbox-file-persistence'
@@ -1683,6 +1693,7 @@ export interface FileRouteTypes {
     | '/api/portable-skills-wire'
     | '/api/provider-search-metadata-wire'
     | '/api/provider-tool-dispatch-wire'
+    | '/api/reasoning-wire'
     | '/api/retry-after'
     | '/api/sandbox-durability'
     | '/api/sandbox-file-persistence'
@@ -1835,6 +1846,7 @@ export interface FileRouteTypes {
     | '/api/portable-skills-wire'
     | '/api/provider-search-metadata-wire'
     | '/api/provider-tool-dispatch-wire'
+    | '/api/reasoning-wire'
     | '/api/retry-after'
     | '/api/sandbox-durability'
     | '/api/sandbox-file-persistence'
@@ -1988,6 +2000,7 @@ export interface RootRouteChildren {
   ApiPortableSkillsWireRoute: typeof ApiPortableSkillsWireRoute
   ApiProviderSearchMetadataWireRoute: typeof ApiProviderSearchMetadataWireRoute
   ApiProviderToolDispatchWireRoute: typeof ApiProviderToolDispatchWireRoute
+  ApiReasoningWireRoute: typeof ApiReasoningWireRoute
   ApiRetryAfterRoute: typeof ApiRetryAfterRoute
   ApiSandboxDurabilityRoute: typeof ApiSandboxDurabilityRoute
   ApiSandboxFilePersistenceRoute: typeof ApiSandboxFilePersistenceRoute
@@ -2894,6 +2907,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiProviderToolDispatchWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/reasoning-wire': {
+      id: '/api/reasoning-wire'
+      path: '/api/reasoning-wire'
+      fullPath: '/api/reasoning-wire'
+      preLoaderRoute: typeof ApiReasoningWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/retry-after': {
       id: '/api/retry-after'
       path: '/api/retry-after'
@@ -3252,6 +3272,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPortableSkillsWireRoute: ApiPortableSkillsWireRoute,
   ApiProviderSearchMetadataWireRoute: ApiProviderSearchMetadataWireRoute,
   ApiProviderToolDispatchWireRoute: ApiProviderToolDispatchWireRoute,
+  ApiReasoningWireRoute: ApiReasoningWireRoute,
   ApiRetryAfterRoute: ApiRetryAfterRoute,
   ApiSandboxDurabilityRoute: ApiSandboxDurabilityRoute,
   ApiSandboxFilePersistenceRoute: ApiSandboxFilePersistenceRoute,

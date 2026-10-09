@@ -63,6 +63,9 @@ export default async function globalSetup() {
     '/v1beta/models/gemini-2.5-flash-lite:streamGenerateContent',
     geminiJsonSchemaToolMount(),
   )
+  // `chat({ reasoning })` wire check for Gemini: aimock's journal normalizes
+  // the body, so this mount checks `generationConfig.thinkingConfig` itself.
+  mock.mount('/reasoning-wire-gemini', geminiReasoningWireMount())
   // Gemini Veo video generation. aimock 1.29 mocks Gemini's `:predict`
   // (Imagen) endpoint but not the long-running `:predictLongRunning` +
   // operations-polling pair Veo uses, so mount both here. Non-Veo paths
@@ -374,6 +377,65 @@ function geminiJsonSchemaToolMount(): Mountable {
               content: {
                 role: 'model',
                 parts: [{ text: 'Schema accepted' }],
+              },
+              finishReason: 'STOP',
+              index: 0,
+            },
+          ],
+          usageMetadata: {
+            promptTokenCount: 1,
+            candidatesTokenCount: 1,
+            totalTokenCount: 2,
+          },
+        })}\n\n`,
+      )
+      return true
+    },
+  }
+}
+
+/**
+ * Answers a Gemini stream request only when `chat({ reasoning: { level:
+ * 'medium' } })` reached the wire as a medium thinking budget.
+ */
+function geminiReasoningWireMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+    ): Promise<boolean> {
+      if (req.method !== 'POST') return false
+      const body = await readJsonRequestBody(req)
+      const thinking = asRecord(
+        asRecord(body?.generationConfig)?.thinkingConfig,
+      )
+      if (
+        thinking?.includeThoughts !== true ||
+        thinking.thinkingBudget !== 8192 ||
+        thinking.thinkingLevel !== undefined
+      ) {
+        res.statusCode = 400
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            error: {
+              code: 400,
+              message: `Expected a thinking budget of 8192, got ${JSON.stringify(thinking)}.`,
+              status: 'INVALID_ARGUMENT',
+            },
+          }),
+        )
+        return true
+      }
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'text/event-stream')
+      res.end(
+        `data: ${JSON.stringify({
+          candidates: [
+            {
+              content: {
+                role: 'model',
+                parts: [{ text: 'Thinking config accepted' }],
               },
               finishReason: 'STOP',
               index: 0,

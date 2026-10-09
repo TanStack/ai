@@ -106,10 +106,9 @@ export const Route = createFileRoute('/api/anthropic-sonnet-5-5-wire')({
                 type: 'web_search_20250305',
               }),
             ],
-            modelOptions: {
-              output_config: { effort: 'medium' },
-              max_tokens: 1024,
-            },
+            // The adapter sends the level as output_config.effort.
+            reasoning: 'medium',
+            modelOptions: { max_tokens: 1024 },
           })) {
             // Drain the stream.
           }

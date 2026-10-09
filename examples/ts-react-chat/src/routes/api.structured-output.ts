@@ -24,6 +24,7 @@ import type {
   AnyTextAdapter,
   ChatMiddleware,
   AdapterYieldChunk,
+  ReasoningRequest,
 } from '@tanstack/ai'
 import { EventType } from '@tanstack/ai'
 
@@ -187,77 +188,47 @@ function adapterFor(provider: Provider, model?: string): AnyTextAdapter {
   }
 }
 
-// Per-provider modelOptions to opt into reasoning surfacing. Without these,
-// reasoning models reason silently and the UI never sees REASONING_* events.
-function reasoningOptionsFor(
+// Per-provider reasoning, so reasoning models stream their thinking. Without
+// it, they reason silently and the UI never sees REASONING_* events.
+function reasoningFor(
   provider: Provider,
   model: string | undefined,
-): Record<string, unknown> | undefined {
+): ReasoningRequest | undefined {
   switch (provider) {
     case 'openai':
-      // Responses API: `reasoning.summary: 'auto'` is what makes the API emit
-      // `response.reasoning_summary_text.delta` events. Only valid on
-      // reasoning models (gpt-5.x, o-series); older models (gpt-4o) reject it.
+      // Only the reasoning models (gpt-5.x, o-series) take reasoning.
       if (
         model?.startsWith('gpt-5') ||
         model?.startsWith('o3') ||
         model?.startsWith('o4')
       ) {
-        return { reasoning: { summary: 'auto' } }
+        return { level: 'medium', summary: true }
       }
       return undefined
-    case 'openai-chat':
-      // Chat Completions API doesn't surface reasoning summaries the way
-      // Responses does. Reasoning models still reason silently; no opt-in
-      // option to inject here.
-      return undefined
     case 'anthropic': {
-      // Default: thinking OFF. Demo flows that just want streaming
-      // structured output shouldn't pay for reasoning tokens, and 4.7
-      // adaptive thinking can easily blow the default `max_tokens` budget
-      // before the schema-constrained JSON finishes — leaving the user
-      // staring at "response was cut off". The dropdown opts back in via
-      // the synthetic `:thinking-max` suffix.
+      // Default: thinking off. Demo flows that just want streaming
+      // structured output shouldn't pay for reasoning tokens, and adaptive
+      // thinking can easily use the default `max_tokens` before the JSON
+      // finishes. The dropdown opts in via the synthetic `:thinking-max`
+      // suffix.
       const baseModel = stripModelSuffix(model)
       if (
         !baseModel ||
-        !ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(baseModel)
+        !ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(baseModel) ||
+        model?.endsWith(':thinking-max') !== true
       ) {
         return undefined
       }
-      const wantsThinking = model?.endsWith(':thinking-max') === true
-      if (!wantsThinking) return undefined
-
-      // Three 4.7-specific quirks (only relevant on the thinking variant):
-      //   1. Manual extended thinking (`type: 'enabled'` + `budget_tokens`)
-      //      is rejected with HTTP 400 — adaptive is the only supported
-      //      mode.
-      //   2. The default for `display` flipped from `'summarized'` (4.6)
-      //      to `'omitted'` (4.7). Without `display: 'summarized'` the
-      //      API still streams a thinking content block but only emits
-      //      `signature_delta`, no `thinking_delta` — empty reasoning
-      //      panel even when the model IS thinking.
-      //   3. Adaptive thinking is non-deterministic. The model decides
-      //      based on prompt complexity. For short prompts like the demo
-      //      `'high'` still skipped thinking; only `'max'` reliably
-      //      engages it (and even that's not a hard guarantee).
-      if (baseModel.startsWith('claude-opus-4-7')) {
-        return {
-          thinking: { type: 'adaptive', display: 'summarized' },
-          output_config: { effort: 'max' },
-        }
-      }
-      // 4.5 / 4.6 / haiku 4.5 still accept the legacy
-      // `type: 'enabled' + budget_tokens` shape.
-      return { thinking: { type: 'enabled', budget_tokens: 1024 } }
+      // Adaptive thinking decides from the prompt. For the short demo
+      // prompt, only `max` reliably makes the model think. Budget models
+      // get a small fixed budget.
+      return baseModel.startsWith('claude-opus-4-7')
+        ? { level: 'max', summary: true }
+        : { level: 'low', summary: true, budgetTokens: 1024 }
     }
     case 'gemini': {
-      // Gemini 3.x surfaces reasoning via `thinkingLevel: 'HIGH'` —
-      // `includeThoughts: true` is what makes the API stream
-      // `parts[].thought` events that the adapter routes to REASONING_*
-      // chunks. Gemini 2.x uses the older budget-based shape and may
-      // reject `thinkingLevel`; gate strictly to the combined-mode set so
-      // we don't send an unsupported option on the legacy path.
+      // Only the Gemini 3.x combined-mode models, which take thinking
+      // levels.
       const baseModel = stripModelSuffix(model)
       if (
         !baseModel ||
@@ -265,35 +236,32 @@ function reasoningOptionsFor(
       ) {
         return undefined
       }
-      return {
-        thinkingConfig: {
-          includeThoughts: true,
-          thinkingLevel: 'HIGH',
-        },
-      }
+      return { level: 'high', summary: true }
     }
-    case 'groq':
-      // Groq's Chat Completions only streams `delta.reasoning` when
-      // `reasoning_format: 'parsed'`. Required for gpt-oss / qwen3 / kimi-k2
-      // to emit reasoning during structured output (json_schema mode).
-      if (
-        model?.startsWith('openai/gpt-oss') ||
-        model?.startsWith('qwen') ||
-        model?.startsWith('moonshotai/kimi')
-      ) {
-        return { reasoning_format: 'parsed' }
-      }
-      return undefined
     case 'openrouter':
     case 'openrouter-responses':
-      // OpenRouter normalises across providers. `reasoning.effort` triggers
-      // the upstream model's reasoning + surfaces the deltas. Same option on
-      // both the chat-completions and Responses-beta endpoints.
-      return { reasoning: { effort: 'medium' } }
-    case 'grok':
-      // The Grok Responses adapter includes encrypted reasoning by default.
+      return { level: 'medium', summary: true }
+    default:
       return undefined
   }
+}
+
+// Groq's Chat Completions only streams `delta.reasoning` when
+// `reasoning_format: 'parsed'`. Required for gpt-oss / qwen3 / kimi-k2 to
+// emit reasoning during structured output (json_schema mode).
+function groqReasoningFormat(
+  provider: Provider,
+  model: string | undefined,
+): Record<string, unknown> | undefined {
+  if (
+    provider === 'groq' &&
+    (model?.startsWith('openai/gpt-oss') ||
+      model?.startsWith('qwen') ||
+      model?.startsWith('moonshotai/kimi'))
+  ) {
+    return { reasoning_format: 'parsed' }
+  }
+  return undefined
 }
 
 async function* structuredOutputResultStream(args: {
@@ -394,15 +362,17 @@ export const Route = createFileRoute('/api/structured-output')({
             resolvedProvider === 'anthropic' &&
             model?.endsWith(':thinking-max') === true
           const modelOptions = {
-            ...reasoningOptionsFor(resolvedProvider, model),
+            ...groqReasoningFormat(resolvedProvider, model),
             ...(wantsAnthropicMaxThinking && { max_tokens: 16_000 }),
           }
+          const reasoning = reasoningFor(resolvedProvider, model)
           const counter = phaseCounterMiddleware()
 
           if (stream) {
             const streamIterable = chat({
               adapter,
               modelOptions: modelOptions as never,
+              reasoning,
               messages: params.messages,
               outputSchema: GuitarRecommendationSchema,
               stream: true,
@@ -424,6 +394,7 @@ export const Route = createFileRoute('/api/structured-output')({
           const result = await chat({
             adapter,
             modelOptions: modelOptions as never,
+            reasoning,
             messages: params.messages,
             outputSchema: GuitarRecommendationSchema,
             middleware: [counter.middleware],
