@@ -1174,7 +1174,8 @@
         {
           "label": "Test with a Fake Model",
           "to": "advanced/testing",
-          "addedAt": "2026-10-09"
+          "addedAt": "2026-10-09",
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "Prompt Caching",
