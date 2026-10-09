@@ -69,10 +69,13 @@ test.describe('anthropic — auth on the wire', () => {
       'claude-code-20250219',
       'oauth-2025-04-20',
     ])
+    // The default prompt cache marks the system blocks, so the identity block
+    // has the automatic cache marker too.
     expect(wire?.system).toEqual([
       {
         type: 'text',
         text: "You are Claude Code, Anthropic's official CLI for Claude.",
+        cache_control: { type: 'ephemeral' },
       },
     ])
   })
