@@ -172,6 +172,73 @@ CAUTION: Do not log the raw key. Use [`maskKey`](../api/ai#maskkey) on error str
 
 You can paste a key, send a message, and the relay calls OpenAI with that key.
 
+## Pick the model before the key shows up
+
+You want to set up your models in one place, for example a list that users pick from. But you only get the key with each request. Wrap the adapter in `keyedAdapter`. The route builds it when the key comes in.
+
+On the server, define the model once:
+
+```typescript group=keyed
+import { keyedAdapter } from "@tanstack/ai/byok";
+import { createOpenaiChat } from "@tanstack/ai-openai";
+import { openaiByok } from "@tanstack/ai-openai/byok";
+
+export const gpt = keyedAdapter(openaiByok, (key) =>
+  createOpenaiChat("gpt-6.1-sol", key),
+);
+```
+
+Then build it in the route with the key from the request:
+
+```typescript group=keyed
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { byokMissing, getByokKey } from "@tanstack/ai/byok/server";
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request);
+  const apiKey = getByokKey(request, gpt.provider);
+  if (!apiKey) return byokMissing(gpt.provider);
+
+  const stream = chat({
+    adapter: gpt.create(apiKey),
+    messages: params.messages,
+    threadId: params.threadId,
+    runId: params.runId,
+  });
+  return toServerSentEventsResponse(stream);
+}
+```
+
+The client does not change. It sends the key the same way as in step 3:
+
+```tsx
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { byok } from "./byok";
+
+export function Chat() {
+  const { sendMessage } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+    byok,
+    forwardedProps: { provider: "openai" },
+  });
+
+  return (
+    <button type="button" onClick={() => void sendMessage("Hello")}>
+      Send
+    </button>
+  );
+}
+```
+
+Good to know:
+
+- `keyedAdapter` works for every adapter kind: text, image, speech, and the rest.
+- Your list can mix plain and keyed adapters. `isKeyedAdapter(adapter)` tells you which ones need a key.
+
 ## If the relay already has an env key
 
 By default, a send with no browser key does not POST. If your relay has env keys, call `byok.setServerCoverage(true)`:
