@@ -110,6 +110,7 @@ import { Route as ApiMcpTypedServerRouteImport } from './routes/api.mcp-typed-se
 import { Route as ApiMcpTypedTestRouteImport } from './routes/api.mcp-typed-test'
 import { Route as ApiMessageHistoryPagingRouteImport } from './routes/api.message-history-paging'
 import { Route as ApiMessageIdsRouteImport } from './routes/api.message-ids'
+import { Route as ApiMidConversationChangesWireRouteImport } from './routes/api.mid-conversation-changes-wire'
 import { Route as ApiMiddlewareTestRouteImport } from './routes/api.middleware-test'
 import { Route as ApiMistralStrictToolNullWireRouteImport } from './routes/api.mistral-strict-tool-null-wire'
 import { Route as ApiMoonshotUsageDetailsRouteImport } from './routes/api.moonshot-usage-details'
@@ -134,6 +135,7 @@ import { Route as ApiOtelTranscriptionRouteImport } from './routes/api.otel-tran
 import { Route as ApiOtelUsageRouteImport } from './routes/api.otel-usage'
 import { Route as ApiPersistenceDurabilityRouteImport } from './routes/api.persistence-durability'
 import { Route as ApiPortableSkillsWireRouteImport } from './routes/api.portable-skills-wire'
+import { Route as ApiPromptCacheWireRouteImport } from './routes/api.prompt-cache-wire'
 import { Route as ApiProviderSearchMetadataWireRouteImport } from './routes/api.provider-search-metadata-wire'
 import { Route as ApiProviderToolDispatchWireRouteImport } from './routes/api.provider-tool-dispatch-wire'
 import { Route as ApiRetryAfterRouteImport } from './routes/api.retry-after'
@@ -685,6 +687,12 @@ const ApiMessageIdsRoute = ApiMessageIdsRouteImport.update({
   path: '/api/message-ids',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMidConversationChangesWireRoute =
+  ApiMidConversationChangesWireRouteImport.update({
+    id: '/api/mid-conversation-changes-wire',
+    path: '/api/mid-conversation-changes-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiMiddlewareTestRoute = ApiMiddlewareTestRouteImport.update({
   id: '/api/middleware-test',
   path: '/api/middleware-test',
@@ -816,6 +824,11 @@ const ApiPersistenceDurabilityRoute =
 const ApiPortableSkillsWireRoute = ApiPortableSkillsWireRouteImport.update({
   id: '/api/portable-skills-wire',
   path: '/api/portable-skills-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPromptCacheWireRoute = ApiPromptCacheWireRouteImport.update({
+  id: '/api/prompt-cache-wire',
+  path: '/api/prompt-cache-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiProviderSearchMetadataWireRoute =
@@ -1060,6 +1073,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp-typed-test': typeof ApiMcpTypedTestRoute
   '/api/message-history-paging': typeof ApiMessageHistoryPagingRoute
   '/api/message-ids': typeof ApiMessageIdsRoute
+  '/api/mid-conversation-changes-wire': typeof ApiMidConversationChangesWireRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/mistral-strict-tool-null-wire': typeof ApiMistralStrictToolNullWireRoute
   '/api/moonshot-usage-details': typeof ApiMoonshotUsageDetailsRoute
@@ -1084,6 +1098,7 @@ export interface FileRoutesByFullPath {
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
   '/api/portable-skills-wire': typeof ApiPortableSkillsWireRoute
+  '/api/prompt-cache-wire': typeof ApiPromptCacheWireRoute
   '/api/provider-search-metadata-wire': typeof ApiProviderSearchMetadataWireRoute
   '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
   '/api/retry-after': typeof ApiRetryAfterRoute
@@ -1214,6 +1229,7 @@ export interface FileRoutesByTo {
   '/api/mcp-typed-test': typeof ApiMcpTypedTestRoute
   '/api/message-history-paging': typeof ApiMessageHistoryPagingRoute
   '/api/message-ids': typeof ApiMessageIdsRoute
+  '/api/mid-conversation-changes-wire': typeof ApiMidConversationChangesWireRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/mistral-strict-tool-null-wire': typeof ApiMistralStrictToolNullWireRoute
   '/api/moonshot-usage-details': typeof ApiMoonshotUsageDetailsRoute
@@ -1238,6 +1254,7 @@ export interface FileRoutesByTo {
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
   '/api/portable-skills-wire': typeof ApiPortableSkillsWireRoute
+  '/api/prompt-cache-wire': typeof ApiPromptCacheWireRoute
   '/api/provider-search-metadata-wire': typeof ApiProviderSearchMetadataWireRoute
   '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
   '/api/retry-after': typeof ApiRetryAfterRoute
@@ -1369,6 +1386,7 @@ export interface FileRoutesById {
   '/api/mcp-typed-test': typeof ApiMcpTypedTestRoute
   '/api/message-history-paging': typeof ApiMessageHistoryPagingRoute
   '/api/message-ids': typeof ApiMessageIdsRoute
+  '/api/mid-conversation-changes-wire': typeof ApiMidConversationChangesWireRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/mistral-strict-tool-null-wire': typeof ApiMistralStrictToolNullWireRoute
   '/api/moonshot-usage-details': typeof ApiMoonshotUsageDetailsRoute
@@ -1393,6 +1411,7 @@ export interface FileRoutesById {
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
   '/api/portable-skills-wire': typeof ApiPortableSkillsWireRoute
+  '/api/prompt-cache-wire': typeof ApiPromptCacheWireRoute
   '/api/provider-search-metadata-wire': typeof ApiProviderSearchMetadataWireRoute
   '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
   '/api/retry-after': typeof ApiRetryAfterRoute
@@ -1525,6 +1544,7 @@ export interface FileRouteTypes {
     | '/api/mcp-typed-test'
     | '/api/message-history-paging'
     | '/api/message-ids'
+    | '/api/mid-conversation-changes-wire'
     | '/api/middleware-test'
     | '/api/mistral-strict-tool-null-wire'
     | '/api/moonshot-usage-details'
@@ -1549,6 +1569,7 @@ export interface FileRouteTypes {
     | '/api/otel-usage'
     | '/api/persistence-durability'
     | '/api/portable-skills-wire'
+    | '/api/prompt-cache-wire'
     | '/api/provider-search-metadata-wire'
     | '/api/provider-tool-dispatch-wire'
     | '/api/retry-after'
@@ -1679,6 +1700,7 @@ export interface FileRouteTypes {
     | '/api/mcp-typed-test'
     | '/api/message-history-paging'
     | '/api/message-ids'
+    | '/api/mid-conversation-changes-wire'
     | '/api/middleware-test'
     | '/api/mistral-strict-tool-null-wire'
     | '/api/moonshot-usage-details'
@@ -1703,6 +1725,7 @@ export interface FileRouteTypes {
     | '/api/otel-usage'
     | '/api/persistence-durability'
     | '/api/portable-skills-wire'
+    | '/api/prompt-cache-wire'
     | '/api/provider-search-metadata-wire'
     | '/api/provider-tool-dispatch-wire'
     | '/api/retry-after'
@@ -1833,6 +1856,7 @@ export interface FileRouteTypes {
     | '/api/mcp-typed-test'
     | '/api/message-history-paging'
     | '/api/message-ids'
+    | '/api/mid-conversation-changes-wire'
     | '/api/middleware-test'
     | '/api/mistral-strict-tool-null-wire'
     | '/api/moonshot-usage-details'
@@ -1857,6 +1881,7 @@ export interface FileRouteTypes {
     | '/api/otel-usage'
     | '/api/persistence-durability'
     | '/api/portable-skills-wire'
+    | '/api/prompt-cache-wire'
     | '/api/provider-search-metadata-wire'
     | '/api/provider-tool-dispatch-wire'
     | '/api/retry-after'
@@ -1988,6 +2013,7 @@ export interface RootRouteChildren {
   ApiMcpTypedTestRoute: typeof ApiMcpTypedTestRoute
   ApiMessageHistoryPagingRoute: typeof ApiMessageHistoryPagingRoute
   ApiMessageIdsRoute: typeof ApiMessageIdsRoute
+  ApiMidConversationChangesWireRoute: typeof ApiMidConversationChangesWireRoute
   ApiMiddlewareTestRoute: typeof ApiMiddlewareTestRoute
   ApiMistralStrictToolNullWireRoute: typeof ApiMistralStrictToolNullWireRoute
   ApiMoonshotUsageDetailsRoute: typeof ApiMoonshotUsageDetailsRoute
@@ -2012,6 +2038,7 @@ export interface RootRouteChildren {
   ApiOtelUsageRoute: typeof ApiOtelUsageRoute
   ApiPersistenceDurabilityRoute: typeof ApiPersistenceDurabilityRoute
   ApiPortableSkillsWireRoute: typeof ApiPortableSkillsWireRoute
+  ApiPromptCacheWireRoute: typeof ApiPromptCacheWireRoute
   ApiProviderSearchMetadataWireRoute: typeof ApiProviderSearchMetadataWireRoute
   ApiProviderToolDispatchWireRoute: typeof ApiProviderToolDispatchWireRoute
   ApiRetryAfterRoute: typeof ApiRetryAfterRoute
@@ -2746,6 +2773,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMessageIdsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mid-conversation-changes-wire': {
+      id: '/api/mid-conversation-changes-wire'
+      path: '/api/mid-conversation-changes-wire'
+      fullPath: '/api/mid-conversation-changes-wire'
+      preLoaderRoute: typeof ApiMidConversationChangesWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/middleware-test': {
       id: '/api/middleware-test'
       path: '/api/middleware-test'
@@ -2912,6 +2946,13 @@ declare module '@tanstack/react-router' {
       path: '/api/portable-skills-wire'
       fullPath: '/api/portable-skills-wire'
       preLoaderRoute: typeof ApiPortableSkillsWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/prompt-cache-wire': {
+      id: '/api/prompt-cache-wire'
+      path: '/api/prompt-cache-wire'
+      fullPath: '/api/prompt-cache-wire'
+      preLoaderRoute: typeof ApiPromptCacheWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/provider-search-metadata-wire': {
@@ -3269,6 +3310,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpTypedTestRoute: ApiMcpTypedTestRoute,
   ApiMessageHistoryPagingRoute: ApiMessageHistoryPagingRoute,
   ApiMessageIdsRoute: ApiMessageIdsRoute,
+  ApiMidConversationChangesWireRoute: ApiMidConversationChangesWireRoute,
   ApiMiddlewareTestRoute: ApiMiddlewareTestRoute,
   ApiMistralStrictToolNullWireRoute: ApiMistralStrictToolNullWireRoute,
   ApiMoonshotUsageDetailsRoute: ApiMoonshotUsageDetailsRoute,
@@ -3293,6 +3335,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOtelUsageRoute: ApiOtelUsageRoute,
   ApiPersistenceDurabilityRoute: ApiPersistenceDurabilityRoute,
   ApiPortableSkillsWireRoute: ApiPortableSkillsWireRoute,
+  ApiPromptCacheWireRoute: ApiPromptCacheWireRoute,
   ApiProviderSearchMetadataWireRoute: ApiProviderSearchMetadataWireRoute,
   ApiProviderToolDispatchWireRoute: ApiProviderToolDispatchWireRoute,
   ApiRetryAfterRoute: ApiRetryAfterRoute,
