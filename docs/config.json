@@ -154,7 +154,7 @@
           "label": "Stream Events",
           "to": "chat/stream-events",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-09-27"
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "Subagents",
@@ -1514,7 +1514,8 @@
         {
           "label": "Event metadata",
           "to": "protocol/metadata",
-          "addedAt": "2026-08-21"
+          "addedAt": "2026-08-21",
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "Custom Events Reference",
