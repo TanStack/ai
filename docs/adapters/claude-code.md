@@ -66,6 +66,8 @@ const stream = chat({
 });
 ```
 
+`RUN_FINISHED.usage.promptTokens` counts the full input, cached tokens included. See [Token usage](../chat/stream-events#token-usage).
+
 ## Configuration
 
 | Option                       | Description                                                                                                                                       |

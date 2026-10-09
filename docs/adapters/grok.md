@@ -483,6 +483,8 @@ The shared Responses implementation supports streaming text, reasoning events, s
 
 Creates a Grok text adapter using environment variables.
 
+`adapter.inputModalities` lists the input kinds of the selected model. It is `undefined` for a model that this package does not know. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
+
 **Parameters:**
 
 - `model` - The model name (`'grok-4.3'` or `'grok-build-0.1'`)

@@ -181,15 +181,37 @@ describe('translateSdkStream', () => {
     expect(custom).toMatchObject({ value: { skills: [] } })
   })
 
-  it('maps usage onto RUN_FINISHED including cache token details', async () => {
+  it('maps usage onto RUN_FINISHED with promptTokens as uncached + cache read + cache write', async () => {
     const chunks = await collect([init, assistantText('hi'), resultSuccess])
     const finished = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(finished).toMatchObject({
       usage: {
-        promptTokens: 100,
+        promptTokens: 115,
         completionTokens: 50,
-        totalTokens: 150,
+        totalTokens: 165,
         promptTokensDetails: { cachedTokens: 10, cacheWriteTokens: 5 },
+      },
+    })
+  })
+
+  it('counts cache reads in promptTokens when the SDK omits input_tokens', async () => {
+    const chunks = await collect([
+      init,
+      assistantText('hi'),
+      {
+        type: 'result',
+        subtype: 'success',
+        result: 'done',
+        usage: { output_tokens: 7, cache_read_input_tokens: 40 },
+      },
+    ])
+    const finished = chunks.find((c) => c.type === 'RUN_FINISHED')
+    expect(finished).toMatchObject({
+      usage: {
+        promptTokens: 40,
+        completionTokens: 7,
+        totalTokens: 47,
+        promptTokensDetails: { cachedTokens: 40 },
       },
     })
   })

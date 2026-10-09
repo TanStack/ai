@@ -19,6 +19,7 @@
  * - The Seedance 2.0 family *requires* the `dreamina-` prefix.
  * - Older models reject the `dola-` prefix outright.
  */
+import type { Modality } from '@tanstack/ai'
 import type { DurationOptions } from '@tanstack/ai/adapters'
 import type { BytePlusTextProviderOptions } from './text/text-provider-options'
 
@@ -451,6 +452,35 @@ export type BytePlusModelInputModalitiesByName = {
   [DEEPSEEK_V3_2_251201.name]: typeof DEEPSEEK_V3_2_251201.supports.input
   [GPT_OSS_120B_250805.name]: typeof GPT_OSS_120B_250805.supports.input
 }
+
+/**
+ * Runtime map from chat model name to its supported input modalities, for the
+ * text adapter's `inputModalities`. `satisfies` keeps it equal to
+ * {@link BytePlusModelInputModalitiesByName}. An unknown name gives `undefined`.
+ */
+export const BYTEPLUS_MODEL_INPUT_MODALITIES: Readonly<
+  Record<string, ReadonlyArray<Modality>>
+> = {
+  [DOLA_SEED_2_1_TURBO.name]: DOLA_SEED_2_1_TURBO.supports.input,
+  [SEED_2_0_LITE_260428.name]: SEED_2_0_LITE_260428.supports.input,
+  [SEED_2_0_MINI_260428.name]: SEED_2_0_MINI_260428.supports.input,
+  [SEED_2_0_PRO_260328.name]: SEED_2_0_PRO_260328.supports.input,
+  [SEED_2_0_LITE_260228.name]: SEED_2_0_LITE_260228.supports.input,
+  [SEED_2_0_MINI_260215.name]: SEED_2_0_MINI_260215.supports.input,
+  [SEED_2_0_CODE_PREVIEW_260328.name]:
+    SEED_2_0_CODE_PREVIEW_260328.supports.input,
+  [SEED_1_8_251228.name]: SEED_1_8_251228.supports.input,
+  [SEED_1_6_250915.name]: SEED_1_6_250915.supports.input,
+  [SEED_1_6_250615.name]: SEED_1_6_250615.supports.input,
+  [SEED_1_6_FLASH_250715.name]: SEED_1_6_FLASH_250715.supports.input,
+  [SEED_1_6_FLASH_250615.name]: SEED_1_6_FLASH_250615.supports.input,
+  [GLM_5_2_260617.name]: GLM_5_2_260617.supports.input,
+  [GLM_4_7_251222.name]: GLM_4_7_251222.supports.input,
+  [DEEPSEEK_V4_PRO_260425.name]: DEEPSEEK_V4_PRO_260425.supports.input,
+  [DEEPSEEK_V4_FLASH_260425.name]: DEEPSEEK_V4_FLASH_260425.supports.input,
+  [DEEPSEEK_V3_2_251201.name]: DEEPSEEK_V3_2_251201.supports.input,
+  [GPT_OSS_120B_250805.name]: GPT_OSS_120B_250805.supports.input,
+} satisfies BytePlusModelInputModalitiesByName
 
 /**
  * Type-only map from chat model name to its supported provider tools.

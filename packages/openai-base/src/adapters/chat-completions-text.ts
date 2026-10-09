@@ -7,6 +7,7 @@ import {
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   toRunErrorPayload,
+  toRetryAfterMs,
   toRunErrorRawEvent,
 } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
@@ -139,6 +140,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       `${this.name}.${source} failed`,
     )
     const rawEvent = toRunErrorRawEvent(error)
+    const retryAfterMs = toRetryAfterMs(error)
 
     if (!aguiState.hasEmittedRunStarted) {
       aguiState.hasEmittedRunStarted = true
@@ -213,6 +215,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       message: errorPayload.message,
       ...(errorPayload.code !== undefined && { code: errorPayload.code }),
       ...(rawEvent !== undefined && { rawEvent }),
+      ...(retryAfterMs !== undefined && { retryAfterMs }),
       error: {
         message: errorPayload.message,
         ...(errorPayload.code !== undefined && { code: errorPayload.code }),
@@ -894,8 +897,16 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         if (!choice) continue
 
         const delta = choice.delta
-        const deltaContent = delta.content
+        const deltaContent: unknown = delta.content
         const deltaToolCalls = delta.tool_calls
+
+        // Fail loud on a non-string content. Text would show it as
+        // "[object Object]".
+        if (deltaContent != null && typeof deltaContent !== 'string') {
+          throw new Error(
+            `invalid choices[0].delta.content: expected a string, null, or an omitted field; received ${Array.isArray(deltaContent) ? 'an array' : 'an object'}`,
+          )
+        }
 
         // Handle content delta
         if (deltaContent) {

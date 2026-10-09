@@ -73,6 +73,8 @@ model: "fireworks/kimi-k3"      // always routed to Fireworks
 
 A curated set of flagship models (see `LLMGATEWAY_CHAT_MODELS`) additionally carries per-model type metadata — input modalities and provider options — with editor autocomplete. Uncurated ids still work and fall back to text-only input with the generic options.
 
+`adapter.inputModalities` lists the input kinds of the selected model. It is `undefined` for a model that this package does not know. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
+
 ## Example: Chat Completion
 
 ```typescript

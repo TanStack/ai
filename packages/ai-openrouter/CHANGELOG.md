@@ -1,5 +1,14 @@
 # @tanstack/ai-openrouter
 
+## 0.21.3
+
+### Patch Changes
+
+- [#1674](https://github.com/TanStack/ai/pull/1674) [`7a70720`](https://github.com/TanStack/ai/commit/7a7072041aeca984e19550455b039322060a0bb0) - The Chat Completions adapters and the OpenRouter chat adapter now end the run with `RUN_ERROR` when the provider sends an unknown finish reason. The error message contains the provider finish reason, for example `Provider finish_reason: error`. Before this fix, the run finished as a success. The `content_filter` behavior does not change. OpenRouter still reports its `error` finish reason as `content_filter`.
+
+- Updated dependencies [[`baafb17`](https://github.com/TanStack/ai/commit/baafb176220c2b09fced334ad176e754582cd314)]:
+  - @tanstack/ai@0.66.1
+
 ## 0.21.2
 
 ### Patch Changes

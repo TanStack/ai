@@ -104,6 +104,8 @@ model: "deepseek/deepseek-v3.2"
 
 See the full list at [openrouter.ai/models](https://openrouter.ai/models).
 
+`adapter.inputModalities` lists the input kinds of the selected model. It is `undefined` for a model that this package does not know. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
+
 ## Example: Chat Completion
 
 ```typescript
