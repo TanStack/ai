@@ -1519,7 +1519,8 @@
         {
           "label": "Event metadata",
           "to": "protocol/metadata",
-          "addedAt": "2026-08-21"
+          "addedAt": "2026-08-21",
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "Custom Events Reference",

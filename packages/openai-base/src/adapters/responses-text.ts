@@ -8,6 +8,7 @@ import {
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   toRunErrorPayload,
+  toRetryAfterMs,
   toRunErrorRawEvent,
 } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
@@ -313,6 +314,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         `${this.name}.chatStream failed`,
       )
       const rawEvent = toRunErrorRawEvent(error)
+      const retryAfterMs = toRetryAfterMs(error)
 
       // Emit RUN_STARTED if not yet emitted
       if (!aguiState.hasEmittedRunStarted) {
@@ -340,6 +342,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         // Forward the provider's structured error body when present (see
         // toRunErrorRawEvent); omitted otherwise.
         ...(rawEvent !== undefined && { rawEvent }),
+        ...(retryAfterMs !== undefined && { retryAfterMs }),
         error: {
           message: errorPayload.message,
           code: errorPayload.code,
@@ -2139,6 +2142,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         `${this.name}.processStreamChunks failed`,
       )
       const rawEvent = toRunErrorRawEvent(error)
+      const retryAfterMs = toRetryAfterMs(error)
       options.logger.errors(`${this.name}.processStreamChunks fatal`, {
         error: errorPayload,
         source: `${this.name}.processStreamChunks`,
@@ -2153,6 +2157,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         message: errorPayload.message,
         ...(errorPayload.code !== undefined && { code: errorPayload.code }),
         ...(rawEvent !== undefined && { rawEvent }),
+        ...(retryAfterMs !== undefined && { retryAfterMs }),
         error: {
           message: errorPayload.message,
           ...(errorPayload.code !== undefined && { code: errorPayload.code }),
