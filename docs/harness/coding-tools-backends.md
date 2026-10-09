@@ -229,6 +229,17 @@ export const formatAlerts = definePlugin({
 
 Clients get the same event as a `harness.plugin.event` with the name `tanstack/formatter:failed`.
 
+### Each run asks first
+
+A formatter runs code from the project, like `prettier.config.js`. The model can change that code with an edit. So with `permissions()`, the formatter asks before each run, also in `acceptEdits` mode. The question names the run `formatter:prettier`, `formatter:biome`, and so on.
+
+- Answer `always` once, and the formatter runs without a question in this project.
+- A `reject` keeps the write. The tool result says that the formatter did not run.
+- A rule can allow a formatter: `{ tool: 'formatter:prettier', decision: 'allow' }`.
+- Without `permissions()`, the formatter runs without a question.
+
+[Formatters](./permissions#formatters) shows what each mode does.
+
 ## Keep tool output small
 
 One tool result with a full log or a big JSON file fills the context of the model. `boundToolOutput()` cuts every tool result that is too long:

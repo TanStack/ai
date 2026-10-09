@@ -105,6 +105,8 @@ OAuth tokens containing `sk-ant-oat` are detected automatically. An environment 
 
 OAuth requests include the Claude Code identity system block, CLI identity headers, and the `claude-code-20250219` and `oauth-2025-04-20` betas. A Bearer token alone does not select OAuth. An injected SDK client owns its credentials. Adapter OAuth options still control the request identity.
 
+To call Claude models through a GitHub Copilot plan, see [GitHub Copilot](./openai-compatible#claude-models).
+
 ## Replay unsigned gateway thinking
 
 Some Anthropic-protocol gateways return readable thinking without a signature. Enable replay for those replies with `allowEmptySignature`:
@@ -642,7 +644,7 @@ const stream = chat({
 });
 ```
 
-**Supported models:** Claude Sonnet 3.5 and above, with two exceptions. `claude-opus-5-fast` takes no provider tools. Claude Opus 5.5 and Claude Sonnet 5.5 accept only the `computer_toolset_20260801` toolset, which the adapter does not offer yet. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+**Supported models:** Claude Sonnet 3.5 and above, with two exceptions. `claude-opus-5-fast` takes no provider tools. Claude Opus 5.5, Claude Sonnet 5.5, and Claude Haiku 5.5 accept only the `computer_toolset_20260801` toolset, which the adapter does not offer yet. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
 
 ### `bashTool`
 

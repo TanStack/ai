@@ -95,7 +95,9 @@ const stream = chat({
 
 The text and summarize REST config also accepts the OpenAI SDK client options (`baseURL`, `defaultHeaders`, `fetch`, `timeout`, `maxRetries`). The other adapters call the native `/ai/run` endpoint and take `fetch` only.
 
-The chat adapters on this page support `wrapFetch`. A middleware can use it to change the HTTP requests of a model call. See [Change the HTTP requests of a call](../advanced/middleware#change-the-http-requests-of-a-call).
+The chat adapters on this page support `wrapFetch` in REST mode. A middleware can use it to change the HTTP requests of a model call. See [Change the HTTP requests of a call](../advanced/middleware#change-the-http-requests-of-a-call).
+
+In binding mode, the binding reads only the request body. It drops the headers that a `wrapFetch` wrapper adds.
 
 ## Route through AI Gateway
 

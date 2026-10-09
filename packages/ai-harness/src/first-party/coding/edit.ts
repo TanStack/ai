@@ -135,8 +135,8 @@ export function editTools(env: ToolEnv) {
       const content = stringArg(args, 'content')
       return env.lock(full, async () => {
         await env.backend.writeFile(full, content)
-        await afterWrite(env, full)
-        return `Wrote ${env.shown(full)}.`
+        const notes = await afterWrite(env, full)
+        return [`Wrote ${env.shown(full)}.`, ...notes].join('\n')
       })
     }),
     toolDefinition({
@@ -179,8 +179,11 @@ export function editTools(env: ToolEnv) {
         // Keep the byte order mark, also when the new text drops it.
         const keepBom = before.startsWith(BOM) && !after.startsWith(BOM)
         await env.backend.writeFile(full, keepBom ? BOM + after : after)
-        await afterWrite(env, full)
-        return `Edited ${env.shown(full)} (${count} change${count > 1 ? 's' : ''}).`
+        const notes = await afterWrite(env, full)
+        return [
+          `Edited ${env.shown(full)} (${count} change${count > 1 ? 's' : ''}).`,
+          ...notes,
+        ].join('\n')
       })
     }),
   ]

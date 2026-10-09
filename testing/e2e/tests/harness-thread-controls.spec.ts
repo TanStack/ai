@@ -186,6 +186,8 @@ test.describe('harness thread controls', () => {
   }) => {
     const user = client(request, testId, aimockPort)
     const threadId = `cwd-${testId}`
+    // A new thread gets no note, so the note needs a first turn.
+    expect(await user.prompt(threadId, '[harness-cwd] start')).toBe('Started.')
     expect(
       await user.control(threadId, {
         op: 'configure',
@@ -194,11 +196,13 @@ test.describe('harness thread controls', () => {
     ).toMatchObject({ status: 'accepted' })
     expect(await user.prompt(threadId, '[harness-cwd] where')).toBe('Moved.')
 
-    const [call] = await user.modelCalls()
+    const [, call] = await user.modelCalls()
     const seen = (call?.body?.messages ?? [])
       .filter((message) => message.role !== 'system')
       .map((message) => contentText(message.content))
     expect(seen).toEqual([
+      '[harness-cwd] start',
+      'Started.',
       'The working folder is now /repo/app. Paths are relative to it.',
       '[harness-cwd] where',
     ])

@@ -15,10 +15,12 @@ import {
   orderedAssistantBlocks,
   splitMidConversationChanges,
   toRunErrorPayload,
+  toRetryAfterMs,
   toRunErrorRawEvent,
 } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
 import { clientFor, extractRequestOptions } from '../utils/request-options'
+import type { Fetch } from '../utils/request-options'
 import {
   makeStructuredOutputCompatibleWithMap,
   warnStrictFallback,
@@ -447,16 +449,32 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   /** See {@link OpenAIBaseTextAdapterOptions.strictFallbackWarning}. */
   protected readonly strictFallbackWarning: boolean
 
+  /** The fetch that the adapter gave the client. */
+  private readonly baseFetch: Fetch | undefined
+
+  /**
+   * `options.fetch` must be the fetch that the client uses. A `wrapFetch`
+   * call wraps it.
+   */
   constructor(
     model: TModel,
     name: string,
     client: OpenAI,
-    options: OpenAIBaseTextAdapterOptions = {},
+    options: OpenAIBaseTextAdapterOptions & { fetch?: Fetch | undefined } = {},
   ) {
     super({}, model)
     this.name = name
     this.client = client
     this.strictFallbackWarning = options.strictFallbackWarning ?? true
+    this.baseFetch = options.fetch
+  }
+
+  /**
+   * A copy of the client that sends its requests through `fetch`. Override it
+   * when the SDK copy loses an option of your client.
+   */
+  protected withFetch(fetch: Fetch): OpenAI {
+    return this.client.withOptions({ fetch })
   }
 
   async *chatStream(
@@ -488,7 +506,12 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         `activity=chat provider=${this.name} model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
         { provider: this.name, model: this.model },
       )
-      const response = await clientFor(this.client, options).responses.create(
+      const response = await clientFor(
+        this.client,
+        options,
+        this.baseFetch,
+        (fetch) => this.withFetch(fetch),
+      ).responses.create(
         {
           ...requestParams,
           stream: true,
@@ -510,6 +533,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         `${this.name}.chatStream failed`,
       )
       const rawEvent = toRunErrorRawEvent(error)
+      const retryAfterMs = toRetryAfterMs(error)
 
       // Emit RUN_STARTED if not yet emitted
       if (!aguiState.hasEmittedRunStarted) {
@@ -542,6 +566,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         // Forward the provider's structured error body when present (see
         // toRunErrorRawEvent); omitted otherwise.
         ...(rawEvent !== undefined && { rawEvent }),
+        ...(retryAfterMs !== undefined && { retryAfterMs }),
         error: {
           message: errorPayload.message,
           code: errorPayload.code,
@@ -597,6 +622,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       const response = await clientFor(
         this.client,
         chatOptions,
+        this.baseFetch,
+        (fetch) => this.withFetch(fetch),
       ).responses.create(
         {
           ...(cleanParams as Omit<ResponseCreateParams, 'stream'>),
@@ -781,7 +808,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
       const stream: AsyncIterable<
         ResponseStreamEvent | LegacyReasoningDeltaEvent
-      > = await clientFor(this.client, chatOptions).responses.create(
+      > = await clientFor(this.client, chatOptions, this.baseFetch, (fetch) =>
+        this.withFetch(fetch),
+      ).responses.create(
         {
           ...cleanParams,
           stream: true,
@@ -1084,10 +1113,17 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
   /**
    * Compact the history with `POST /responses/compact`. The result holds
-   * the user messages and one encrypted compaction item.
+   * the user messages and one encrypted compaction item. A result with no
+   * compaction item throws.
    */
   async compact(options: TextCompactOptions): Promise<Array<ModelMessage>> {
-    const response = await clientFor(this.client, options).responses.compact(
+    const prompts = normalizeSystemPrompts(options.systemPrompts)
+    const response = await clientFor(
+      this.client,
+      options,
+      this.baseFetch,
+      (fetch) => this.withFetch(fetch),
+    ).responses.compact(
       {
         model: options.model,
         input: this.convertMessagesToInput(
@@ -1095,9 +1131,20 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           undefined,
           options.model,
         ),
+        ...(prompts.length > 0 && {
+          instructions: prompts
+            .map((p) => sanitizeUnicode(p.content))
+            .join('\n'),
+        }),
+        ...(options.tools?.length && {
+          tools: this.convertTools(options.tools),
+        }),
       },
       options.signal ? { signal: options.signal } : {},
     )
+    if (!response.output.some((item) => item.type === 'compaction')) {
+      throw new Error('The compact result has no compaction item.')
+    }
     const metadata = {
       tanstack: {
         source: {
@@ -2049,6 +2096,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           if (item.type === 'reasoning') {
             captureReasoningItem(item)
             yield* openReasoning()
+            // One response can carry several reasoning items (reason, search,
+            // reason again). Close each one at its end, so the next item opens
+            // its own step and does not overwrite this id and encrypted_content.
+            yield* closeReasoning()
           }
           if (item.type === 'function_call' && item.id) {
             const metadata = trackedCall(item.id, chunk.output_index) ?? {
@@ -2435,6 +2486,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         `${this.name}.processStreamChunks failed`,
       )
       const rawEvent = toRunErrorRawEvent(error)
+      const retryAfterMs = toRetryAfterMs(error)
       options.logger.errors(`${this.name}.processStreamChunks fatal`, {
         error: errorPayload,
         source: `${this.name}.processStreamChunks`,
@@ -2453,6 +2505,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         message: errorPayload.message,
         ...(errorPayload.code !== undefined && { code: errorPayload.code }),
         ...(rawEvent !== undefined && { rawEvent }),
+        ...(retryAfterMs !== undefined && { retryAfterMs }),
         error: {
           message: errorPayload.message,
           ...(errorPayload.code !== undefined && { code: errorPayload.code }),

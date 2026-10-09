@@ -334,8 +334,15 @@ export async function readText(backend: WorkspaceBackend, path: string) {
   return decoder.decode(await backend.readFile(path))
 }
 
-/** Run the `afterWrite` hooks for `path`, one after another. */
+/**
+ * Run the `afterWrite` hooks for `path`, one after another. Resolves to the
+ * texts that the hooks return, for the tool result.
+ */
 export async function afterWrite(env: ToolEnv, path: string) {
-  const hooks = env.hooks()
-  for (const hook of hooks) await hook.afterWrite?.(path)
+  const notes: Array<string> = []
+  for (const hook of env.hooks()) {
+    const note = await hook.afterWrite?.(path)
+    if (note) notes.push(note)
+  }
+  return notes
 }

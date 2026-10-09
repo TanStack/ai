@@ -46,6 +46,7 @@ import { normalizeStreamChunk } from '../../utilities/normalize-stream-chunk'
 import { isRedactedThinkingId } from '../../utilities/reasoning-encrypted-value'
 import { restorePublicUsage } from '../../utilities/restore-inbound-chunk'
 import type { AdapterYieldChunk } from '../../utilities/adapter-yield-chunk'
+import type { ChatResult } from '../../stream-to-response.js'
 import {
   normalizeToolResult,
   parseToolOutput,
@@ -587,6 +588,25 @@ export interface TextActivityOptions<
   /** How the server tools of one model turn run. Default `'parallel'`. */
   toolExecution?: TextOptions['toolExecution']
   /**
+   * Continue after a model answer with tool calls that stopped at the output
+   * limit (finish reason `length`). Each call that the provider did not run
+   * gets this text as an error result and does not run. Then the model is
+   * called again, so it can send the calls again with complete arguments.
+   * The function form gets the call. Not set: the answer ends the run.
+   *
+   * @example
+   * ```ts
+   * chat({
+   *   adapter,
+   *   messages,
+   *   tools,
+   *   truncatedToolResult: (call) =>
+   *     `Tool call "${call.toolName}" was cut off. Send it again.`,
+   * })
+   * ```
+   */
+  truncatedToolResult?: TextOptions['truncatedToolResult']
+  /**
    * Optional configuration for lazy-tool discovery (tools marked `lazy: true`).
    * Tunes how much of each lazy tool's description appears in the discovery
    * catalog. Optional — defaults to `{ includeDescription: 'none' }`.
@@ -676,7 +696,8 @@ export interface TextActivityOptions<
   /**
    * Whether to stream the text result.
    * When true (default), returns a ChatStream for streaming output.
-   * When false, returns a Promise<string> with the collected text content.
+   * When false, returns a Promise<ChatResult> with the collected text and
+   * every chunk the run produced.
    *
    * Note: If outputSchema is provided, this option is ignored and the result
    * is always a Promise<InferSchemaType<TSchema>>.
@@ -685,7 +706,7 @@ export interface TextActivityOptions<
    *
    * @example Non-streaming text
    * ```ts
-   * const text = await chat({
+   * const { text } = await chat({
    *   adapter: openaiText('gpt-5.5'),
    *   messages: [{ role: 'user', content: 'Hello!' }],
    *   stream: false
@@ -796,7 +817,7 @@ export function createChatOptions<
  *   carrying the validated object.
  * - If outputSchema is provided without explicit stream:true:
  *   Promise<InferSchemaType<TSchema>>.
- * - If stream is explicitly false (no schema): Promise<string>.
+ * - If stream is explicitly false (no schema): Promise<ChatResult>.
  * - Otherwise (default): ChatStream.
  *
  * `[TStream] extends [true]` is used (not `TStream extends true`) so that the
@@ -816,7 +837,7 @@ export type TextActivityResult<
     ? StructuredOutputStream<InferSchemaType<TSchema>>
     : Promise<InferSchemaType<TSchema>>
   : [TStream] extends [false]
-    ? Promise<string>
+    ? Promise<ChatResult>
     : TTools extends infer _TTools
       ? ChatStream
       : ChatStream
@@ -2664,6 +2685,47 @@ class TextEngine<
 
     this.addAssistantToolCallMessage(toolCalls)
 
+    // The output limit cut this answer. Each call that the provider did not
+    // run has its error result now (closeTruncatedToolCalls). No call runs,
+    // and the loop goes on, so the model can call again.
+    if (this.lastFinishReason === 'length') {
+      // A client reads it as a tool turn, so it waits for the next call.
+      this.deferredToolCallRunFinishedChunks =
+        this.deferredToolCallRunFinishedChunks.map((chunk) =>
+          chunk.type === EventType.RUN_FINISHED
+            ? { ...chunk, finishReason: 'tool_calls' }
+            : chunk,
+        )
+      yield* this.flushDeferredToolCallRunFinishedChunks()
+      const results = toolCalls.flatMap((call): Array<ToolResult> => {
+        const result = this.messages.find(
+          (message) =>
+            message.role === 'tool' && message.toolCallId === call.id,
+        )
+        return result
+          ? [
+              {
+                toolCallId: call.id,
+                toolName: call.function.name,
+                result: result.content,
+                state: 'output-error',
+              },
+            ]
+          : []
+      })
+      for (const chunk of this.buildToolResultChunks(
+        results,
+        finishEvent,
+        undefined,
+        true,
+      )) {
+        yield* this.pipeThroughMiddleware(chunk)
+      }
+      this.toolCallManager.clear()
+      this.setToolPhase('continue')
+      return
+    }
+
     // Handle undiscovered lazy tool calls with self-correcting error messages
     const undiscoveredLazyResults: Array<ToolResult> = []
     const executableToolCalls = toolCalls.filter((tc) => {
@@ -2943,7 +3005,9 @@ class TextEngine<
 
   private shouldExecuteToolPhase(): boolean {
     return (
-      this.lastFinishReason === 'tool_calls' &&
+      (this.lastFinishReason === 'tool_calls' ||
+        (this.lastFinishReason === 'length' &&
+          this.params.truncatedToolResult !== undefined)) &&
       this.tools.length > 0 &&
       this.toolCallManager.hasToolCalls()
     )
@@ -3112,16 +3176,16 @@ class TextEngine<
             )
           : [],
       )
+    const option = this.params.truncatedToolResult
     this.messages = [
       ...this.messages,
-      ...cut.map(
-        (call): ModelMessage => ({
-          role: 'tool',
-          toolCallId: call.id,
-          content: TRUNCATED_TOOL_RESULT,
-          error: TRUNCATED_TOOL_RESULT,
-        }),
-      ),
+      ...cut.map((call): ModelMessage => {
+        const text =
+          typeof option === 'function'
+            ? option({ toolCallId: call.id, toolName: call.function.name })
+            : (option ?? TRUNCATED_TOOL_RESULT)
+        return { role: 'tool', toolCallId: call.id, content: text, error: text }
+      }),
     ]
   }
 
@@ -5879,7 +5943,7 @@ class TextEngine<
  * This activity supports four modes:
  * 1. **Streaming agentic text**: Stream responses with automatic tool execution
  * 2. **Streaming one-shot text**: Simple streaming request/response without tools
- * 3. **Non-streaming text**: Returns collected text as a string (stream: false)
+ * 3. **Non-streaming text**: Returns a ChatResult with the text and every chunk (stream: false)
  * 4. **Agentic structured output**: Run tools, then return structured data
  *
  * @example Full agentic text (streaming with tools)
@@ -5910,12 +5974,13 @@ class TextEngine<
  *
  * @example Non-streaming text (stream: false)
  * ```ts
- * const text = await chat({
+ * const { text, chunks } = await chat({
  *   adapter: openaiText('gpt-5.5'),
  *   messages: [{ role: 'user', content: 'Hello!' }],
  *   stream: false
  * })
  * // text is a string with the full response
+ * // chunks is every chunk the run produced, in order
  * ```
  *
  * @example Agentic structured output (tools + structured response)
@@ -6745,12 +6810,13 @@ function readRoutedSubagentPersistence(
 }
 
 /**
- * Run non-streaming text - collects all content and returns as a string.
- * Runs the full agentic loop (if tools are provided) but returns collected text.
+ * Run non-streaming text - reads the whole run and returns a ChatResult.
+ * Runs the full agentic loop (if tools are provided) but returns the joined
+ * text plus every chunk the run produced.
  */
 function runNonStreamingText(
   options: RuntimeTextActivityOptions<AnyTextAdapter, undefined, false>,
-): Promise<string> {
+) {
   const stream = runStreamingText({
     ...options,
     stream: true,

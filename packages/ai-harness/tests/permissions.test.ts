@@ -4,6 +4,7 @@ import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin } from '../src'
 import {
   PermissionDecisionCapability,
+  PermissionPrompt,
   PermissionResources,
   PermissionRules,
   decidePermission,
@@ -709,6 +710,71 @@ describe('permissions()', () => {
     expect(await answer(session, { answer: 'once' })).toContain('git status')
     await second
     expect(tools.ran).toEqual(['bash', 'bash'])
+    await host.close()
+  })
+
+  it('asks about an action that is not a tool call, like a formatter, by the mode', async () => {
+    const persistence = memoryPersistence()
+    let prompt:
+      | ((tool: string, message: string) => Promise<boolean>)
+      | undefined
+    // A plugin like formatter(): it adds an ask rule, and asks before it runs.
+    const runner = definePlugin({
+      name: 'test/runner',
+      optionalRequires: [PermissionPrompt],
+      setup: (ctx) => {
+        prompt = ctx.getOptional(PermissionPrompt)
+        return {
+          contribute: [
+            PermissionRules.item({
+              tool: 'formatter:*',
+              decision: 'ask',
+              kind: 'execute',
+            }),
+          ],
+        }
+      },
+    })
+    const { host, session } = await open(
+      persistence,
+      [
+        permissions({
+          root: ROOT,
+          rules: [{ tool: 'formatter:biome', decision: 'allow' }],
+        }),
+        runner,
+      ],
+      [],
+    )
+    if (!prompt) throw new Error('No PermissionPrompt.')
+
+    // A user rule allows biome. prettier asks, also in acceptEdits mode.
+    expect(await prompt('formatter:biome', 'Run biome?')).toBe(true)
+    await session.command('mode', 'acceptEdits')
+    const first = prompt('formatter:prettier', 'Run prettier?')
+    expect(await answer(session, { answer: 'reject' })).toBe(
+      'Run prettier? Answer once, always, or reject.',
+    )
+    expect(await first).toBe(false)
+
+    // always saves the rule for the project, so it asks no more.
+    const second = prompt('formatter:prettier', 'Run prettier?')
+    await answer(session, { answer: 'always' })
+    expect(await second).toBe(true)
+    expect(await prompt('formatter:prettier', 'Run prettier?')).toBe(true)
+    expect(
+      await persistence.stores.metadata.get(
+        'tanstack/permissions',
+        'permissions:saved:/work/repo',
+      ),
+    ).toEqual([{ tool: 'formatter:prettier', decision: 'allow' }])
+
+    // bypass runs everything. plan runs no command.
+    await session.command('mode', 'bypass')
+    expect(await prompt('formatter:oxfmt', 'Run oxfmt?')).toBe(true)
+    await session.command('mode', 'plan')
+    expect(await prompt('formatter:prettier', 'Run prettier?')).toBe(false)
+    expect(session.snapshot().pendingQuestions).toHaveLength(0)
     await host.close()
   })
 })

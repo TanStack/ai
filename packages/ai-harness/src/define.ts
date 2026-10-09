@@ -110,24 +110,34 @@ export interface HarnessDurability {
    */
   interruptedToolResult?: string
   /**
-   * The tool result that recovery gives each tool call of an answer that
-   * stopped at the output limit (finish reason `length`) and has no result in
-   * the log: the content and the error of its tool message. Such a call never
-   * runs, also with `replay: 'safe'`. During a turn, `chat()` gives these
-   * calls the default text at once. Default: `'The answer was cut off at the
-   * output limit before this tool call was complete. The call did not run.'`
+   * The tool result of each tool call of an answer that stopped at the output
+   * limit (finish reason `length`): the content and the error of its tool
+   * message. The function form gets the call. Such a call never runs, also
+   * with `replay: 'safe'`. When set, each `chat()` call of a turn gets it as
+   * `truncatedToolResult`: the answer keeps its calls, and the turn calls the
+   * model again. Recovery gives the same text to a cut call with no result in
+   * the log. Not set: a cut answer ends the turn, and recovery uses the
+   * default. Default: `'The answer was cut off at the output limit before
+   * this tool call was complete. The call did not run.'`
    */
-  truncatedToolResult?: string
+  truncatedToolResult?:
+    | string
+    | ((call: { toolCallId: string; toolName: string }) => string)
   /**
    * Continue an answer that a crash cut. Before the recovered attempt runs,
-   * recovery adds the answer text that the log has as an assistant message,
-   * then a user message with `note`, in one append. The model goes on after
-   * the note. Partial thinking and tool calls are not kept. An attempt that
-   * streamed no answer text runs again with no note. Default `false`. The
-   * default note: `'The previous answer was cut off. Continue exactly where
-   * it stopped, without repeating it.'`
+   * recovery adds the part of the answer that the log has as an assistant
+   * message, then one user message for each note, in order, in one append.
+   * The model goes on after the notes. The assistant message has the answer
+   * text and each signed thinking block (a finished block with its
+   * signature, as the transcript keeps thinking), so the provider can replay
+   * it. A thinking block with no signature and tool calls are not kept. An
+   * attempt that streamed no answer text and no signed thinking (for example
+   * only thinking with no signature) runs again with no partial and no note.
+   * Signed thinking alone is enough to continue. A string `note` is one
+   * note. Default `false`. The default note: `'The previous answer was cut
+   * off. Continue exactly where it stopped, without repeating it.'`
    */
-  continueCutOff?: boolean | { note?: string }
+  continueCutOff?: boolean | { note?: string | ReadonlyArray<string> }
 }
 
 /**

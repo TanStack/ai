@@ -177,6 +177,70 @@ describe('Anthropic per-model chat modelOptions gating', () => {
     })
   })
 
+  describe('claude-haiku-5-5 — max_tokens, no sampling', () => {
+    it('accepts max_tokens, a forced tool, and the base options', () => {
+      chat({
+        adapter: anthropicText('claude-haiku-5-5'),
+        messages: [{ role: 'user', content: 'hi' }],
+        modelOptions: {
+          service_tier: 'auto',
+          stop_sequences: ['STOP'],
+          tool_choice: { type: 'any' },
+          max_tokens: 2048,
+        },
+      })
+    })
+
+    it('takes reasoning from off to max, but no token budget', () => {
+      chat({
+        adapter: anthropicText('claude-haiku-5-5'),
+        messages: [{ role: 'user', content: 'hi' }],
+        reasoning: 'xhigh',
+      })
+      chat({
+        adapter: anthropicText('claude-haiku-5-5'),
+        messages: [{ role: 'user', content: 'hi' }],
+        reasoning: 'off',
+      })
+      chat({
+        adapter: anthropicText('claude-haiku-5-5'),
+        messages: [{ role: 'user', content: 'hi' }],
+        // @ts-expect-error - budget_tokens thinking returns a 400 on claude-haiku-5-5
+        reasoning: { level: 'high', budgetTokens: 2048 },
+      })
+    })
+
+    it('rejects thinking in modelOptions', () => {
+      chat({
+        adapter: anthropicText('claude-haiku-5-5'),
+        messages: [{ role: 'user', content: 'hi' }],
+        modelOptions: {
+          // @ts-expect-error - thinking is chat({ reasoning }), not a provider option
+          thinking: { type: 'adaptive' },
+        },
+      })
+    })
+
+    it('rejects sampling parameters', () => {
+      chat({
+        adapter: anthropicText('claude-haiku-5-5'),
+        messages: [{ role: 'user', content: 'hi' }],
+        modelOptions: {
+          // @ts-expect-error - 'temperature' is not available on claude-haiku-5-5
+          temperature: 0.5,
+        },
+      })
+      chat({
+        adapter: anthropicText('claude-haiku-5-5'),
+        messages: [{ role: 'user', content: 'hi' }],
+        modelOptions: {
+          // @ts-expect-error - 'top_k' is not available on claude-haiku-5-5
+          top_k: 5,
+        },
+      })
+    })
+  })
+
   describe('Model name type safety', () => {
     it('accepts any model id, such as a gateway or catalog id', () => {
       anthropicText('anthropic/claude-sonnet-4.6')
@@ -299,6 +363,21 @@ describe('Anthropic provider options shape assertions', () => {
   describe('claude-sonnet-5 — no sampling', () => {
     type Options = AnthropicChatModelProviderOptionsByName['claude-sonnet-5']
 
+    it('has max_tokens but NOT temperature/top_p/top_k', () => {
+      expectTypeOf<Options>().toHaveProperty('max_tokens')
+      expectTypeOf<Options>().not.toHaveProperty('temperature')
+      expectTypeOf<Options>().not.toHaveProperty('top_p')
+      expectTypeOf<Options>().not.toHaveProperty('top_k')
+    })
+  })
+
+  describe('claude-haiku-5-5 — no sampling, thinking from chat({ reasoning })', () => {
+    type Options = AnthropicChatModelProviderOptionsByName['claude-haiku-5-5']
+
+    it('has no thinking or output_config provider option', () => {
+      expectTypeOf<Options>().not.toHaveProperty('thinking')
+      expectTypeOf<Options>().not.toHaveProperty('output_config')
+    })
     it('has max_tokens but NOT temperature/top_p/top_k', () => {
       expectTypeOf<Options>().toHaveProperty('max_tokens')
       expectTypeOf<Options>().not.toHaveProperty('temperature')

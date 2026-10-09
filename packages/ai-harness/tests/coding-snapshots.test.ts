@@ -540,6 +540,151 @@ describe.skipIf(!hasGit)('session.revert', () => {
   })
 })
 
+describe.skipIf(!hasGit)('session.revert keeps the edits of the user', () => {
+  it('keeps a user edit between two hidden turns', async () => {
+    await put('a.txt', 'one')
+    await put('c.txt', 'one')
+    const { host, session } = await open(threeTurns())
+    await session.prompt('One')
+    await session.prompt('Two')
+    // The user edits a file that no turn changes.
+    await put('c.txt', 'mine')
+    await session.prompt('Three')
+    const first = (await session.transcript()).find(
+      (message) => message.content === 'First.',
+    )
+
+    await session.revert(first?.id ?? '')
+
+    expect(await read('a.txt')).toBe('two')
+    expect(await read('c.txt')).toBe('mine')
+    expect((await readdir(root)).sort()).toEqual(['a.txt', 'c.txt'])
+    await host.close()
+  })
+
+  it('keeps a user edit after the last hidden step on unrevert', async () => {
+    await put('a.txt', 'one')
+    const { host, session } = await open(threeTurns())
+    const { firstId } = await runThreeTurns(session)
+    // The user edits a file that a hidden turn changed.
+    await put('a.txt', 'mine')
+
+    await session.revert(firstId)
+    expect(await read('a.txt')).toBe('two')
+    await session.unrevert()
+
+    expect(await read('a.txt')).toBe('mine')
+    expect(await read('b.txt')).toBe('new')
+    await host.close()
+  })
+
+  it('holds a prompt that arrives during a revert', async () => {
+    await put('a.txt', 'one')
+    const wait = gate()
+    const reached = gate()
+    let blocking = false
+    // A backend that stops at the git checkout of the revert.
+    const backend: WorkspaceBackend = {
+      ...hostBackend,
+      exec: async (command, options) => {
+        if (blocking && / checkout /.test(command)) {
+          reached.open()
+          await wait.opened
+        }
+        return hostBackend.exec(command, options)
+      },
+    }
+    const turns = threeTurns()
+    const { host, session } = await open({
+      ...turns,
+      backend,
+      replies: [...turns.replies, () => text('Fourth.')],
+    })
+    const { firstId } = await runThreeTurns(session)
+    blocking = true
+    const reverting = session.revert(firstId)
+    await reached.opened
+
+    const prompting = session.prompt('Four')
+    await vi.waitFor(() => expect(session.snapshot().queuedTurns).toBe(1))
+    expect(session.snapshot().status).toBe('idle')
+    blocking = false
+    wait.open()
+    await reverting
+    await prompting
+
+    expect(await session.transcript()).toMatchObject([
+      { role: 'user', content: 'One' },
+      { role: 'assistant' },
+      { role: 'tool' },
+      { role: 'assistant', content: 'First.' },
+      { role: 'user', content: 'Four' },
+      { role: 'assistant', content: 'Fourth.' },
+    ])
+    await host.close()
+  })
+
+  it('adds a note that arrives during a revert after the commit', async () => {
+    await put('a.txt', 'one')
+    await mkdir(join(root, 'sub'))
+    const turns = threeTurns()
+    const { host, session } = await open({
+      ...turns,
+      replies: [...turns.replies, () => text('Fourth.')],
+    })
+    const { firstId } = await runThreeTurns(session)
+    await session.revert(firstId)
+
+    await session.configure({ cwd: 'sub' })
+    await session.prompt('Four')
+
+    expect(
+      (await session.transcript()).slice(4).map((message) => message.content),
+    ).toEqual([
+      'The working folder is now sub. Paths are relative to it.',
+      'Four',
+      'Fourth.',
+    ])
+    await host.close()
+  })
+
+  it('adds a note that arrives during a revert after unrevert', async () => {
+    await put('a.txt', 'one')
+    await mkdir(join(root, 'sub'))
+    const { host, session } = await open(threeTurns())
+    const { transcript, firstId } = await runThreeTurns(session)
+    await session.revert(firstId)
+
+    await session.configure({ cwd: 'sub' })
+    await session.unrevert()
+
+    expect(
+      (await session.transcript()).map((message) => message.content),
+    ).toEqual([
+      ...transcript.map((message) => message.content),
+      'The working folder is now sub. Paths are relative to it.',
+    ])
+    await host.close()
+  })
+
+  it('refuses /undo and /redo while a revert stands', async () => {
+    await put('a.txt', 'one')
+    const { host, session } = await open(threeTurns())
+    const { transcript, firstId } = await runThreeTurns(session)
+    await session.revert(firstId)
+
+    const refused = 'A revert stands. Run unrevert, or send a prompt, first.'
+    expect(await session.command('undo')).toBe(refused)
+    expect(await session.command('redo')).toBe(refused)
+
+    expect(await read('a.txt')).toBe('two')
+    await session.unrevert()
+    expect(await session.transcript()).toEqual(transcript)
+    expect(await read('a.txt')).toBe('three')
+    await host.close()
+  })
+})
+
 describe('snapshots on a cmd.exe backend', () => {
   it('quotes the git arguments for cmd.exe', async () => {
     const commands: Array<string> = []

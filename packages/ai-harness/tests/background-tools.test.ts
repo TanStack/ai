@@ -120,7 +120,6 @@ describe('session.background', () => {
     await turn
 
     expect(JSON.parse(toolResultIn(model.calls[1], 'call-1'))).toEqual({
-      subagentRunId: '',
       result: MOVED,
     })
     finish.open()

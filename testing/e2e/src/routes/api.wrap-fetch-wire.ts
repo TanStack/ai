@@ -31,7 +31,7 @@ export const Route = createFileRoute('/api/wrap-fetch-wire')({
           typeof body.testId === 'string'
             ? body.testId
             : undefined
-        const text = await chat({
+        const { text } = await chat({
           ...createTextAdapter('openai', undefined, undefined, testId),
           messages: [
             {

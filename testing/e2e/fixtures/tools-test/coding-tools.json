@@ -106,6 +106,73 @@
       "response": {
         "content": "The command ran."
       }
+    },
+    {
+      "match": {
+        "userMessage": "[coding-revert] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "edit_file",
+            "arguments": "{\"path\":\"notes.txt\",\"old\":\"alpha\",\"new\":\"gamma\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[coding-revert] run test",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Edited notes.txt."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[coding-revert-2] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "edit_file",
+            "arguments": "{\"path\":\"notes.txt\",\"old\":\"gamma\",\"new\":\"delta\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[coding-revert-2] run test",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Edited notes.txt again."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[coding-format-ask] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "write_file",
+            "arguments": "{\"path\":\"a.ts\",\"content\":\"let a=1\\n\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[coding-format-ask] run test",
+        "sequenceIndex": 1
+      },
+      "response": { "content": "Wrote a.ts." }
     }
   ]
 }

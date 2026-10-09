@@ -561,7 +561,8 @@ export function createSessionView(source: SessionViewSource) {
       if (isTurnEnd) emit('turnEnd', { operationId })
       const isDescriptionChange =
         event.name === HARNESS_EVENTS.configChanged ||
-        event.name === HARNESS_EVENTS.commandsChanged
+        event.name === HARNESS_EVENTS.commandsChanged ||
+        event.name === HARNESS_EVENTS.reloaded
       if (isDescriptionChange) refreshDescription()
       if (event.name === HARNESS_EVENTS.revert) refreshTranscript()
     }

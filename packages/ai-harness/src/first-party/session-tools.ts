@@ -53,7 +53,7 @@ export function compact(options: {
               return 'The conversation is already short.'
             const older = messages.slice(0, messages.length - keep)
             const transcript = transcriptText(older)
-            const summary = await chat({
+            const { text: summary } = await chat({
               adapter: await ctx.keys.adapter(options.adapter),
               messages: [
                 { role: 'user', content: `${SUMMARY_PROMPT}\n\n${transcript}` },

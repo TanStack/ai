@@ -105,7 +105,8 @@ export type SubagentTool = AnyTool | AnyClientTool
 
 /**
  * A named child agent. `run` is a `chat()` call (or any stream of AG-UI
- * chunks), or a promise of a plain value such as an image result.
+ * chunks), or a promise of a plain value such as an image result. A
+ * `chat({ stream: false })` result counts as its text.
  * `TTools` and `TSchema` stay on the object so `useChat({ subagents })` can
  * type that child's parts. `TResult` is the value a promise `run` resolves to.
  */

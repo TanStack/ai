@@ -49,16 +49,16 @@ Each test iterates over supported providers using `providersFor('feature')`:
 
 Deterministic scenarios covering tool execution flows:
 
-| Spec file                                         | Tests | What it covers                                                                                            |
-| ------------------------------------------------- | ----- | --------------------------------------------------------------------------------------------------------- |
-| `tests/tools-test/chat-flow.spec.ts`              | 5     | Text-only, server tool, client tool, tool call structure                                                  |
-| `tests/tools-test/approval-flow.spec.ts`          | 6     | Approve, deny, sequential, parallel, mixed flows                                                          |
-| `tests/tools-test/client-tool.spec.ts`            | 5     | Single, sequential, parallel, triple, server+client                                                       |
-| `tests/tools-test/race-conditions.spec.ts`        | 8     | No blocking, no deadlocks, timing, mixed flows                                                            |
-| `tests/tools-test/server-client-sequence.spec.ts` | 5     | Server→client, parallel server, ordering                                                                  |
-| `tests/tools-test/coding-tools.spec.ts`           | 5     | `workspaceTools()` in a temp folder: `read_file`, the `edit_file` fallback match, `patch`, `grep`, `bash` |
+| Spec file                                         | Tests | What it covers                                                                                                                    |
+| ------------------------------------------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `tests/tools-test/chat-flow.spec.ts`              | 5     | Text-only, server tool, client tool, tool call structure                                                                          |
+| `tests/tools-test/approval-flow.spec.ts`          | 6     | Approve, deny, sequential, parallel, mixed flows                                                                                  |
+| `tests/tools-test/client-tool.spec.ts`            | 5     | Single, sequential, parallel, triple, server+client                                                                               |
+| `tests/tools-test/race-conditions.spec.ts`        | 8     | No blocking, no deadlocks, timing, mixed flows                                                                                    |
+| `tests/tools-test/server-client-sequence.spec.ts` | 5     | Server→client, parallel server, ordering                                                                                          |
+| `tests/tools-test/coding-tools.spec.ts`           | 6     | `workspaceTools()` in a temp folder: `read_file`, the `edit_file` fallback match, `patch`, `grep`, `bash`, a `snapshots()` revert |
 
-`coding-tools.spec.ts` does not use the page. It sends each `coding-*` scenario to `/api/tools-test` with a temp folder as `root`. The route runs one harness turn with `workspaceTools()` in that folder. The spec checks the `TOOL_CALL_RESULT` chunks and the files after the turn.
+`coding-tools.spec.ts` does not use the page. It sends each `coding-*` scenario to `/api/tools-test` with a temp folder as `root`. The route runs one harness turn with `workspaceTools()` in that folder. The spec checks the `TOOL_CALL_RESULT` chunks and the files after the turn. `coding-revert` runs two turns with `snapshots()`, and then a revert to the first prompt.
 
 ### Interrupt playground
 
@@ -212,7 +212,7 @@ Clean up the fixture:
 }
 ```
 
-Existing prefixes: `[chat]`, `[oneshot]`, `[reasoning]`, `[multiturn-1]`, `[multiturn-2]`, `[toolcall]`, `[parallel]`, `[approval]`, `[approval-deny]`, `[text-tool-text]`, `[structured]`, `[structured-stream]`, `[structured-stream-abort]`, `[agentic]`, `[mmimage]`, `[mmstruct]`, `[summarize]`, `[imagegen]`, `[tts]`, `[transcription]`, `[abort-test]`, `[error-test]`, `[coding-read]`, `[coding-edit]`, `[coding-patch]`, `[coding-grep]`, `[coding-bash]`, `[harness-agent]`, `[harness-agents]`, `[harness-always]`, `[harness-background-done]`, `[harness-background]`, `[harness-chatclient]`, `[harness-context]`, `[harness-continue]`, `[harness-cut-off]`, `[harness-durable]`, `[harness-elicit]`, `[harness-env]`, `[harness-fast-resolve]`, `[harness-fork]`, `[harness-format]`, `[harness-limits]`, `[harness-mcp]`, `[harness-media-image]`, `[harness-media]`, `[harness-plan-subagent]`, `[harness-plan-writer]`, `[harness-protocol]`, `[harness-queue-moved]`, `[harness-queue]`, `[harness-reject]`, `[harness-rejoin]`, `[harness-reload]`, `[harness-reset]`, `[harness-restart-resolve]`, `[harness-routing-fix]`, `[harness-routing:pricer]`, `[harness-routing:researcher]`, `[harness-routing:seo]`, `[harness-routing:writer]`, `[harness-routing]`, `[harness-runid]`, `[harness-sender]`, `[harness-settings]`, `[harness-title]`, `[harness-tool-order]`, `[harness-turns]`, `[harness-undo]`, `[harness-usage]`.
+Existing prefixes: `[chat]`, `[oneshot]`, `[reasoning]`, `[multiturn-1]`, `[multiturn-2]`, `[toolcall]`, `[parallel]`, `[approval]`, `[approval-deny]`, `[text-tool-text]`, `[structured]`, `[structured-stream]`, `[structured-stream-abort]`, `[agentic]`, `[mmimage]`, `[mmstruct]`, `[summarize]`, `[imagegen]`, `[tts]`, `[transcription]`, `[abort-test]`, `[error-test]`, `[coding-read]`, `[coding-edit]`, `[coding-patch]`, `[coding-grep]`, `[coding-bash]`, `[coding-revert]`, `[coding-revert-2]`, `[harness-agent]`, `[harness-agents]`, `[harness-always]`, `[harness-background-done]`, `[harness-background]`, `[harness-chatclient]`, `[harness-context]`, `[harness-continue]`, `[harness-cut-off]`, `[harness-durable]`, `[harness-elicit]`, `[harness-env]`, `[harness-fast-resolve]`, `[harness-fork]`, `[harness-format]`, `[harness-limits]`, `[harness-mcp]`, `[harness-media-image]`, `[harness-media]`, `[harness-plan-subagent]`, `[harness-plan-writer]`, `[harness-protocol]`, `[harness-queue-moved]`, `[harness-queue]`, `[harness-reject]`, `[harness-rejoin]`, `[harness-reload]`, `[harness-reset]`, `[harness-restart-resolve]`, `[harness-retry-after]`, `[harness-routing-fix]`, `[harness-routing:pricer]`, `[harness-routing:researcher]`, `[harness-routing:seo]`, `[harness-routing:writer]`, `[harness-routing]`, `[harness-runid]`, `[harness-sender]`, `[harness-settings]`, `[harness-title]`, `[harness-tool-order]`, `[harness-turns]`, `[harness-undo]`, `[harness-usage]`.
 
 ## 4. Writing a Test
 

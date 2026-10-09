@@ -97,4 +97,33 @@ test.describe('withCompaction — wire format', () => {
     expect(JSON.stringify(result.secondRequestBody)).toContain('SEALED_E2E')
     expect(result.compactionCount).toBe(1)
   })
+
+  test('native compaction with no compaction item falls back to the strategy', async ({
+    request,
+  }) => {
+    const response = await request.post(
+      '/api/compaction-wire?strategy=native-empty',
+    )
+    expect(response.ok()).toBe(true)
+    const result = (await response.json()) as {
+      ok: boolean
+      error?: string
+      firstRequestBody: unknown
+      compactRequestBodies: Array<unknown>
+      compactionErrors: Array<string>
+    }
+    if (!result.ok) throw new Error(`Route failed: ${result.error}`)
+
+    // The compact call went out once, and its result was refused.
+    expect(result.compactRequestBodies).toHaveLength(1)
+    expect(result.compactionErrors).toEqual([
+      'The compact result has no compaction item.',
+    ])
+    // evictOldest ran in its place.
+    const wire = JSON.stringify(result.firstRequestBody)
+    expect(wire).toContain('omitted to save context')
+    expect(wire).toContain('KEEP_ME_LAST')
+    expect(wire).not.toContain('SECRET_ALPHA_ONE')
+    expect(wire).not.toContain('SEALED_E2E')
+  })
 })

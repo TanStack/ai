@@ -384,6 +384,12 @@ describe('turn.onModelError', () => {
     expect(sent[1]).toMatchObject({ role: 'assistant', content: 'Hello wor' })
     expect(sent[2].role).toBe('user')
     expect(sent[2].content).toContain('Continue from the exact point')
+    expect(sent[2].metadata).toEqual({ tanstack: { synthetic: true } })
+    expect(
+      (await session.transcript()).find(
+        (message) => message.metadata?.tanstack?.synthetic,
+      )?.content,
+    ).toContain('Continue from the exact point')
     expect(
       (await session.transcript())
         .filter((message) => message.role === 'assistant')
@@ -457,6 +463,208 @@ describe('turn.onModelError', () => {
       await host.close()
     },
   )
+
+  describe('retry-after', () => {
+    /** Runs the policy on a 429 that asks for a wait of `retryAfterMs`. */
+    async function answerFor(
+      retryAfterMs: number,
+      options: Parameters<typeof retryTransientErrors>[0] = {},
+    ) {
+      const { host, session } = await open({ replies: [], turn: {} })
+      const controller = new AbortController()
+      const answer = retryTransientErrors(options)({
+        session,
+        operationId: 'op',
+        error: { message: 'rate limited', code: '429', retryAfterMs },
+        retries: 0,
+        partial: false,
+        signal: controller.signal,
+      })
+      return { host, answer, controller }
+    }
+
+    it('waits for retryAfterMs, not the backoff', async () => {
+      vi.useFakeTimers()
+      try {
+        const { host, answer } = await answerFor(5_000, { baseDelayMs: 1 })
+        let settled: unknown
+        void answer.then((value) => (settled = value))
+        await vi.advanceTimersByTimeAsync(4_999)
+        expect(settled).toBeUndefined()
+        await vi.advanceTimersByTimeAsync(1)
+        expect(settled).toBe('retry')
+        await host.close()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('stops the wait when the turn is aborted', async () => {
+      const { host, answer, controller } = await answerFor(60_000)
+      controller.abort()
+      expect(await answer).toBeUndefined()
+      await host.close()
+    })
+
+    it('does not retry above the default cap of 15 minutes', async () => {
+      const { host, answer } = await answerFor(15 * 60_000 + 1)
+      expect(await answer).toBeUndefined()
+      await host.close()
+    })
+
+    it('does not retry above maxRetryAfterMs', async () => {
+      const { host, answer } = await answerFor(2_000, {
+        maxRetryAfterMs: 1_000,
+      })
+      expect(await answer).toBeUndefined()
+      await host.close()
+    })
+
+    it('passes retryAfterMs from the RUN_ERROR to the hook', async () => {
+      const seen: Array<unknown> = []
+      const { host, session } = await open({
+        replies: [
+          () => [
+            {
+              type: EventType.RUN_STARTED,
+              runId: 'r',
+              threadId: 't',
+              timestamp: Date.now(),
+            },
+            {
+              type: EventType.RUN_ERROR,
+              message: 'rate limited',
+              code: '429',
+              retryAfterMs: 7_000,
+              timestamp: Date.now(),
+            },
+          ],
+          () => text('ok'),
+        ],
+        turn: {
+          onModelError: ({ error }) => {
+            seen.push(error)
+            return 'retry'
+          },
+        },
+      })
+
+      expect(await session.prompt('go')).toEqual({ text: 'ok' })
+      expect(seen).toEqual([
+        { message: 'rate limited', code: '429', retryAfterMs: 7_000 },
+      ])
+      await host.close()
+    })
+  })
+
+  it('counts reasoning before the error as partial', async () => {
+    const seen: Array<boolean> = []
+    const { host, session } = await open({
+      replies: [
+        () => [
+          {
+            type: EventType.RUN_STARTED,
+            runId: 'r',
+            threadId: 't',
+            timestamp: Date.now(),
+          },
+          {
+            type: EventType.REASONING_START,
+            messageId: 'r1',
+            timestamp: Date.now(),
+          },
+          {
+            type: EventType.REASONING_MESSAGE_START,
+            messageId: 'r1',
+            role: 'reasoning',
+            timestamp: Date.now(),
+          },
+          {
+            type: EventType.REASONING_MESSAGE_CONTENT,
+            messageId: 'r1',
+            delta: 'Let me think',
+            timestamp: Date.now(),
+          },
+          {
+            type: EventType.RUN_ERROR,
+            message: 'overloaded',
+            timestamp: Date.now(),
+          },
+        ],
+        () => text('ok'),
+      ],
+      turn: {
+        onModelError: ({ partial }) => {
+          seen.push(partial)
+          return 'retry'
+        },
+      },
+    })
+
+    expect(await session.prompt('go')).toEqual({ text: 'ok' })
+    expect(seen).toEqual([true])
+    await host.close()
+  })
+
+  it('acts as a retry for a continue after reasoning only', async () => {
+    const { host, session, calls } = await open({
+      replies: [
+        () => [
+          {
+            type: EventType.RUN_STARTED,
+            runId: 'r',
+            threadId: 't',
+            timestamp: Date.now(),
+          },
+          {
+            type: EventType.REASONING_MESSAGE_CONTENT,
+            messageId: 'r1',
+            delta: 'Let me think',
+            timestamp: Date.now(),
+          },
+          {
+            type: EventType.RUN_ERROR,
+            message: 'overloaded',
+            timestamp: Date.now(),
+          },
+        ],
+        () => text('ok'),
+      ],
+      turn: { onModelError: () => 'continue' },
+    })
+
+    expect(await session.prompt('go')).toEqual({ text: 'ok' })
+    // No continue note: the model never wrote text to continue.
+    expect(messageTexts(calls[1])).toEqual(['go'])
+    await host.close()
+  })
+
+  it('counts a streamed tool call before the error as partial', async () => {
+    const seen: Array<boolean> = []
+    const { host, session } = await open({
+      replies: [
+        () => [
+          ...toolCall('lookup', { q: 'x' }).slice(0, 3),
+          {
+            type: EventType.RUN_ERROR,
+            message: 'overloaded',
+            timestamp: Date.now(),
+          },
+        ],
+        () => text('ok'),
+      ],
+      turn: {
+        onModelError: ({ partial }) => {
+          seen.push(partial)
+          return 'retry'
+        },
+      },
+    })
+
+    expect(await session.prompt('go')).toEqual({ text: 'ok' })
+    expect(seen).toEqual([true])
+    await host.close()
+  })
 
   it('keeps today behavior without the hook', async () => {
     const { host, session, calls } = await open({
@@ -539,6 +747,49 @@ describe('turn.onModelError', () => {
 
       expect(next.seen).toEqual([0])
       await first.host.close().catch(() => {})
+      await next.host.close()
+    })
+
+    it('keeps the count of a failed call when the host stops in the backoff', async () => {
+      const { runs, metadata } = memoryPersistence().stores
+      const persistence = { stores: { log: memoryLogStore(), runs, metadata } }
+      const openOn = async (replies: Array<Reply>, baseDelayMs: number) => {
+        const seen: Array<number> = []
+        const backoff = retryTransientErrors({ baseDelayMs })
+        const host = createHarnessHost({ persistence })
+        const session = await host.open(
+          defineHarness({
+            name: 'test/turn-control',
+            adapter: mockAdapter(replies).adapter,
+            turn: {
+              onModelError: (ctx) => {
+                seen.push(ctx.retries)
+                return backoff(ctx)
+              },
+            },
+          }),
+          { threadId: THREAD },
+        )
+        return { host, session, seen }
+      }
+      const first = await openOn([failsWith('503 Service Unavailable')], 60_000)
+      void first.session.prompt('go', { inputId: 'in-1' }).then(
+        () => {},
+        () => {},
+      )
+      await vi.waitFor(() => expect(first.seen).toEqual([0]))
+      // The host stops while the hook waits for the backoff.
+      await first.host.close({ recoverable: true })
+
+      const next = await openOn(
+        [failsWith('503 Service Unavailable'), () => text('ok')],
+        1,
+      )
+
+      expect(await next.session.settled('in-1')).toMatchObject({
+        outcome: 'completed',
+      })
+      expect(next.seen).toEqual([1])
       await next.host.close()
     })
   })

@@ -139,7 +139,7 @@ const adapter = createBedrockText("us.amazon.nova-pro-v1:0", process.env.BEDROCK
 
 All three Bedrock APIs accept these options. On the Converse API the headers are added before SigV4 signing, so a signed request still includes them.
 
-The Converse API ignores [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call), because the AWS SDK sends its requests through a request handler, not `fetch`.
+The Converse API ignores [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call), because the AWS SDK sends its requests through a request handler, not `fetch`. The Chat Completions API (`api: 'chat'`) and the Responses API (`api: 'responses'`) support `wrapFetch`.
 
 ## Converse API (default)
 

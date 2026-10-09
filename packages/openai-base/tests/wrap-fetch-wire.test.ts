@@ -1,12 +1,16 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import OpenAI from 'openai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { OpenAIBaseChatCompletionsTextAdapter } from '../src/adapters/chat-completions-text'
 import { OpenAIBaseResponsesTextAdapter } from '../src/adapters/responses-text'
 import type { FetchWrapper } from '@tanstack/ai'
+import type { ClientOptions } from 'openai'
+
+type Fetch = NonNullable<ClientOptions['fetch']>
 
 const logger = resolveDebugOption(false)
 const model = 'gpt-5.5'
+const apiKey = 'test-key'
 
 class Completions extends OpenAIBaseChatCompletionsTextAdapter<string> {}
 class Responses extends OpenAIBaseResponsesTextAdapter<string> {}
@@ -36,12 +40,16 @@ const responsesDone = {
 const apis = [
   {
     api: 'Chat Completions',
-    adapter: (client: OpenAI) => new Completions(model, 'openai', client),
+    adapter: (fetch: Fetch) =>
+      new Completions(model, 'openai', new OpenAI({ apiKey, fetch }), {
+        fetch,
+      }),
     sse: `data: ${JSON.stringify(completionsDone)}\n\ndata: [DONE]\n\n`,
   },
   {
     api: 'Responses',
-    adapter: (client: OpenAI) => new Responses(model, 'openai', client),
+    adapter: (fetch: Fetch) =>
+      new Responses(model, 'openai', new OpenAI({ apiKey, fetch }), { fetch }),
     sse: `data: ${JSON.stringify(responsesDone)}\n\n`,
   },
 ]
@@ -56,20 +64,25 @@ const addHeader =
     return next(input, { ...init, headers })
   }
 
+afterEach(() => vi.unstubAllGlobals())
+
 describe.each(apis)('$api adapter with wrapFetch', ({ adapter, sse }) => {
-  /** Runs one streaming call. Gives back the headers of each sent request. */
-  async function sentHeaders(wrapFetch?: FetchWrapper) {
-    const sent: Array<Headers> = []
-    const client = new OpenAI({
-      apiKey: 'test-key',
-      fetch: async (_url, init) => {
-        sent.push(new Headers(init?.headers))
-        return new Response(sse, {
-          headers: { 'content-type': 'text/event-stream' },
-        })
-      },
-    })
-    for await (const _ of adapter(client).chatStream({
+  /** A fetch that keeps the headers of each sent request. */
+  function recordingFetch(sent: Array<Headers>): Fetch {
+    return async (_url, init) => {
+      sent.push(new Headers(init?.headers))
+      return new Response(sse, {
+        headers: { 'content-type': 'text/event-stream' },
+      })
+    }
+  }
+
+  /** Runs one streaming call on `instance`. */
+  async function stream(
+    instance: ReturnType<typeof adapter>,
+    wrapFetch?: FetchWrapper,
+  ) {
+    for await (const _ of instance.chatStream({
       logger,
       model,
       messages: [{ role: 'user', content: 'Hi' }],
@@ -77,6 +90,12 @@ describe.each(apis)('$api adapter with wrapFetch', ({ adapter, sse }) => {
     })) {
       // drain
     }
+  }
+
+  /** Runs one streaming call. Gives back the headers of each sent request. */
+  async function sentHeaders(wrapFetch?: FetchWrapper) {
+    const sent: Array<Headers> = []
+    await stream(adapter(recordingFetch(sent)), wrapFetch)
     return sent
   }
 
@@ -108,5 +127,24 @@ describe.each(apis)('$api adapter with wrapFetch', ({ adapter, sse }) => {
     const sent = await sentHeaders()
     expect(sent).toHaveLength(1)
     expect(sent[0]?.get('x-trace-id')).toBeNull()
+  })
+
+  it('sends no header of the wrapper on a later call without one', async () => {
+    const sent: Array<Headers> = []
+    const instance = adapter(recordingFetch(sent))
+    await stream(instance, addHeader('x-trace-id', 'trace-1'))
+    await stream(instance)
+    expect(sent).toHaveLength(2)
+    expect(sent[0]?.get('x-trace-id')).toBe('trace-1')
+    expect(sent[1]?.get('x-trace-id')).toBeNull()
+  })
+
+  it('wraps the fetch of the config, not the global fetch', async () => {
+    const globalFetch = vi.fn<Fetch>()
+    vi.stubGlobal('fetch', globalFetch)
+    const sent = await sentHeaders(addHeader('x-trace-id', 'trace-1'))
+    expect(globalFetch).not.toHaveBeenCalled()
+    expect(sent).toHaveLength(1)
+    expect(sent[0]?.get('x-trace-id')).toBe('trace-1')
   })
 })

@@ -134,8 +134,11 @@ function harnessFor(request: Request) {
       : []
   // `x-harness-mcp: 1` connects the `api.mcp-input-server` route. Its
   // `ask_city` tool asks the user for a city by MCP elicitation.
+  // `x-harness-mcp: 2025` connects the spec 2025 `api.mcp-legacy-input-server`
+  // route. Its `book_trip` tool asks twice in one call.
+  const mcpMode = request.headers.get('x-harness-mcp')
   const servers =
-    request.headers.get('x-harness-mcp') === '1'
+    mcpMode === '1'
       ? [
           mcp({
             servers: {
@@ -146,7 +149,19 @@ function harnessFor(request: Request) {
             },
           }),
         ]
-      : []
+      : mcpMode === '2025'
+        ? [
+            mcp({
+              servers: {
+                trips: {
+                  type: 'http',
+                  url: new URL('/api/mcp-legacy-input-server', request.url)
+                    .href,
+                },
+              },
+            }),
+          ]
+        : []
   const harness = defineHarness({
     name: 'e2e/protocol',
     adapter,

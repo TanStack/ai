@@ -6,9 +6,9 @@ import {
   definePlugin,
   startLoopbackReceiver,
 } from '@tanstack/ai-harness'
-import { createMCPClient } from './client'
+import { connectTransport } from './client'
 import { MCPConnectionError } from './errors'
-import { askForInput, harnessClientOptions } from './harness-plugin'
+import { askForInput, elicitFor, harnessClientOptions } from './harness-plugin'
 import type {
   OAuthClientProvider,
   OAuthDiscoveryState,
@@ -267,25 +267,28 @@ export function mcpConnector(options: McpConnectorOptions) {
                 ? saved.client?.redirectUri
                 : undefined) ?? 'http://127.0.0.1/callback'
             try {
-              connection.client = await createMCPClient({
-                transport: {
-                  type: 'http',
-                  url,
-                  authProvider: credentialProvider(id, ctx.credentials, {
-                    redirectUri,
-                    clientName,
-                    scopes: options.scopes,
-                  }),
-                  ...(options.fetch ? { fetch: options.fetch } : {}),
+              connection.client = await connectTransport(
+                {
+                  transport: {
+                    type: 'http',
+                    url,
+                    authProvider: credentialProvider(id, ctx.credentials, {
+                      redirectUri,
+                      clientName,
+                      scopes: options.scopes,
+                    }),
+                    ...(options.fetch ? { fetch: options.fetch } : {}),
+                  },
+                  prefix,
+                  toolName: options.toolName,
+                  requestOptions: options.requestOptions,
+                  needsApproval:
+                    options.needsApproval ??
+                    ((tool) => tool.annotations?.readOnlyHint !== true),
+                  clientOptions: harnessClientOptions,
                 },
-                prefix,
-                toolName: options.toolName,
-                requestOptions: options.requestOptions,
-                needsApproval:
-                  options.needsApproval ??
-                  ((tool) => tool.annotations?.readOnlyHint !== true),
-                clientOptions: harnessClientOptions,
-              })
+                elicitFor(ctx.session),
+              )
             } catch (error) {
               // The server wants a new sign-in: ask the user to run /connect.
               // Other failures, for example a server that is down, stay

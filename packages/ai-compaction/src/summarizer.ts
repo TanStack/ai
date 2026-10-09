@@ -217,7 +217,7 @@ export function conversationSummarizer(options: {
     input.signal?.addEventListener('abort', stop, { once: true })
     let text: string
     try {
-      text = await chat({
+      const result = await chat({
         adapter: options.adapter,
         messages: [
           {
@@ -233,6 +233,7 @@ export function conversationSummarizer(options: {
         abortController: controller,
         stream: false,
       })
+      text = result.text
     } finally {
       input.signal?.removeEventListener('abort', stop)
     }

@@ -35,6 +35,20 @@ export interface RecoverContext {
   }
   /** The transcript of the session, from the log. */
   messages: ReadonlyArray<ModelMessage>
+  /**
+   * The tool calls of this input that recovery closes with an error result,
+   * in call order: `'interrupted'` for a `replay: 'never'` call that a crash
+   * cut (it gets `durability.interruptedToolResult`), and `'truncated'` for a
+   * call of an answer that stopped at the output limit (it gets
+   * `durability.truncatedToolResult`). A finished call and a `replay: 'safe'`
+   * call (it runs again) are not in it. The list is the same when the hook
+   * settles the input, so then it names the calls that a run would close.
+   */
+  interruptedTools: ReadonlyArray<{
+    toolCallId: string
+    toolName: string
+    reason: 'interrupted' | 'truncated'
+  }>
   /** What the harness does when the hook returns `undefined`. */
   decision: RecoverDecision
 }
@@ -62,13 +76,22 @@ export interface ModelErrorContext {
   session: HarnessSession
   operationId: string
   inputId?: string
-  error: { message: string; code?: string }
+  /**
+   * `retryAfterMs` is how long the provider asks you to wait, from the
+   * `RUN_ERROR` event. Adapters read it from the `retry-after` headers.
+   */
+  error: { message: string; code?: string; retryAfterMs?: number }
   /**
    * Retries since the last finished tool phase of this turn. A durable host
-   * keeps the count, so an attempt that recovery runs goes on from it.
+   * keeps the count, so an attempt that recovery runs goes on from it. The
+   * log has the count with this failed call before the hook runs, so a host
+   * that stops during a backoff loses no retry.
    */
   retries: number
-  /** True when the failed call streamed text before the error. */
+  /**
+   * True when the failed call streamed text, reasoning, or a tool call before
+   * the error.
+   */
   partial: boolean
   /** Aborted when the turn is cancelled. */
   signal: AbortSignal
@@ -117,7 +140,7 @@ export interface HarnessTurnOptions {
    * Return `'retry'` to run the model again in the same operation, after any
    * work (a backoff, a compaction record). The text of the failed call is
    * dropped. Return `'continue'` to keep that text: the model gets it and a
-   * note to continue from where it stopped. With no partial text,
+   * note to continue from where it stopped. When no text streamed,
    * `'continue'` acts as `'retry'`. See `retryTransientErrors`.
    */
   onModelError?: (
@@ -190,8 +213,10 @@ function wait(ms: number, signal: AbortSignal) {
 /**
  * A `turn.onModelError` policy: retry a transient model error after a
  * backoff of `baseDelayMs * 2^retries`, times a jitter from 0.75 to 1.0.
- * It answers `'continue'` when the failed call streamed text, so the model
- * continues that text, and `'retry'` otherwise.
+ * When the error has a `retryAfterMs`, it waits that long instead. Above
+ * `maxRetryAfterMs`, it does not retry. It answers `'continue'` when the
+ * failed call streamed output, so the model continues it, and `'retry'`
+ * otherwise.
  *
  * @example
  * ```ts
@@ -206,15 +231,28 @@ export function retryTransientErrors(
     baseDelayMs?: number
     /** Default {@link isTransientModelError}. */
     isTransient?: (error: { message: string; code?: string }) => boolean
+    /**
+     * The longest `retryAfterMs` to wait, in milliseconds. A longer one ends
+     * the retries. Default 900000 (15 minutes).
+     */
+    maxRetryAfterMs?: number
   } = {},
 ) {
   const maxRetries = options.maxRetries ?? 3
   const baseDelayMs = options.baseDelayMs ?? 2_000
   const isTransient = options.isTransient ?? isTransientModelError
+  const maxRetryAfterMs = options.maxRetryAfterMs ?? 15 * 60_000
   return async (ctx: ModelErrorContext) => {
     if (ctx.retries >= maxRetries || !isTransient(ctx.error)) return undefined
+    const { retryAfterMs } = ctx.error
+    if (retryAfterMs !== undefined && retryAfterMs > maxRetryAfterMs) {
+      return undefined
+    }
     const jitter = 0.75 + Math.random() * 0.25
-    await wait(Math.round(baseDelayMs * 2 ** ctx.retries * jitter), ctx.signal)
+    await wait(
+      retryAfterMs ?? Math.round(baseDelayMs * 2 ** ctx.retries * jitter),
+      ctx.signal,
+    )
     if (ctx.signal.aborted) return undefined
     return ctx.partial ? 'continue' : 'retry'
   }

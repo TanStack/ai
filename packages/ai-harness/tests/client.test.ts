@@ -118,6 +118,45 @@ describe('createHarnessClient', () => {
     await host.close()
   })
 
+  it('sends ephemeral messages with prompt and continue, and no store keeps them', async () => {
+    const { adapter, calls } = mockAdapter([
+      () => text('one'),
+      () => text('two'),
+    ])
+    const studio = defineHarness({ name: 'test/client-ephemeral', adapter })
+    const persistence = memoryPersistence()
+    const { messages } = persistence.stores
+    await messages.saveThread('thread-eph', [
+      { id: 'u1', role: 'user', content: 'go' },
+    ])
+    const host = createHarnessHost({ persistence })
+    const handler = createHarnessHandler({
+      host,
+      harness: studio,
+      authorize: () => ({ id: 'u' }),
+    })
+    const client = createHarnessClient<typeof studio>({
+      url: 'http://local/api/harness',
+      threadId: 'thread-eph',
+      fetch: (input, init) => handler(new Request(input, init)),
+    })
+
+    await client.continue({ ephemeral: [{ role: 'user', content: 'note 1' }] })
+    await client.prompt('again', {
+      ephemeral: [{ role: 'user', content: 'note 2' }],
+    })
+    await vi.waitFor(async () =>
+      expect(await messages.loadThread('thread-eph')).toHaveLength(4),
+    )
+
+    expect(messageTexts(calls[0])).toEqual(['go', 'note 1'])
+    expect(messageTexts(calls[1])).toEqual(['go', 'one', 'again', 'note 2'])
+    expect(
+      JSON.stringify(await messages.loadThread('thread-eph')),
+    ).not.toContain('note')
+    await host.close()
+  })
+
   it('throws on a refused request instead of retrying', async () => {
     const { adapter } = mockAdapter([])
     const studio = defineHarness({ name: 'test/client-denied', adapter })

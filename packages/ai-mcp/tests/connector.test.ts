@@ -7,6 +7,7 @@ import { mcpConnector } from '../src/connector'
 import {
   approveSignIns,
   elicitServer,
+  legacyElicitServer,
   mockTextAdapter,
   recorder,
   tripForm,
@@ -337,48 +338,58 @@ describe('mcpConnector', () => {
     ])
   })
 
-  it('asks a form elicitation as a session question and sends the answer', async () => {
-    const trips = elicitServer(inputRequired.elicit(tripForm))
-    const persistence = memoryPersistence()
-    // A saved sign-in, so the test skips the OAuth steps.
-    await persistence.stores.credentials.set(
-      { threadId: 't', userId: 'user-1' },
-      'trips',
-      { type: 'oauth', accessToken: 'access-1' },
-    )
-    const model = recorder('trips_book')
-    const host = createHarnessHost({ persistence })
-    cleanups.push(() => host.close())
-    const session = await host.open(
-      defineHarness({
-        name: 'test/mcp-connector-elicit',
-        adapter: model.adapter,
-        plugins: () => [
-          mcpConnector({
-            id: 'trips',
-            label: 'Trips',
-            url: 'http://mcp.test/mcp',
-            needsApproval: () => false,
-            fetch: async (input, init) => trips.fetch(new Request(input, init)),
-          }),
-        ],
-      }),
-      { threadId: 't', principal: { id: 'user-1' } },
-    )
-    const turn = session.prompt('book a trip')
-    await vi.waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toHaveLength(1),
-    )
-    const [question] = session.snapshot().pendingQuestions
+  it.each([
+    ['spec 2026', async () => elicitServer(inputRequired.elicit(tripForm))],
+    [
+      'spec 2025',
+      async () => legacyElicitServer([{ mode: 'form', ...tripForm }]),
+    ],
+  ])(
+    'asks a form elicitation of a %s server as a session question and sends the answer',
+    async (_name, start) => {
+      const trips = await start()
+      const persistence = memoryPersistence()
+      // A saved sign-in, so the test skips the OAuth steps.
+      await persistence.stores.credentials.set(
+        { threadId: 't', userId: 'user-1' },
+        'trips',
+        { type: 'oauth', accessToken: 'access-1' },
+      )
+      const model = recorder('trips_book')
+      const host = createHarnessHost({ persistence })
+      cleanups.push(() => host.close())
+      const session = await host.open(
+        defineHarness({
+          name: 'test/mcp-connector-elicit',
+          adapter: model.adapter,
+          plugins: () => [
+            mcpConnector({
+              id: 'trips',
+              label: 'Trips',
+              url: 'http://mcp.test/mcp',
+              needsApproval: () => false,
+              fetch: async (input, init) =>
+                trips.fetch(new Request(input, init)),
+            }),
+          ],
+        }),
+        { threadId: 't', principal: { id: 'user-1' } },
+      )
+      const turn = session.prompt('book a trip')
+      await vi.waitFor(() =>
+        expect(session.snapshot().pendingQuestions).toHaveLength(1),
+      )
+      const [question] = session.snapshot().pendingQuestions
 
-    expect(question).toMatchObject({
-      message: 'Which city?',
-      schema: tripForm.requestedSchema,
-    })
-    await session.answer(question?.questionId ?? '', { city: 'Rome' })
-    await turn
-    expect(trips.answers).toEqual([
-      { action: 'accept', content: { city: 'Rome' } },
-    ])
-  })
+      expect(question).toMatchObject({
+        message: 'Which city?',
+        schema: tripForm.requestedSchema,
+      })
+      await session.answer(question?.questionId ?? '', { city: 'Rome' })
+      await turn
+      expect(trips.answers).toEqual([
+        { action: 'accept', content: { city: 'Rome' } },
+      ])
+    },
+  )
 })

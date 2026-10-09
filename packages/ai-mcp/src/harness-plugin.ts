@@ -1,12 +1,14 @@
 import { defineCommand, definePlugin } from '@tanstack/ai-harness'
-import { createMCPClient } from './client'
-import { isMCPInputRequiredError } from './input-required'
+import { connectTransport } from './client'
+import type { ElicitResult } from '@modelcontextprotocol/client'
 import type { AnyTool, JSONSchema } from '@tanstack/ai'
 import type {
   AnyCommand,
   PluginPrompt,
   PluginSessionApi,
 } from '@tanstack/ai-harness'
+import type { OnElicit } from './client'
+import type { AskInput } from './tools'
 import type { HttpTransportConfig, StdioTransportConfig } from './transport'
 
 /** One server of {@link mcp}, keyed by its name. */
@@ -112,12 +114,15 @@ export function mcp(options: {
                 server.type === 'stdio'
                   ? (await import('./stdio')).stdioTransport(server)
                   : server
-              const client = await createMCPClient({
-                transport,
-                prefix: name,
-                requestOptions: requestOptionsOf(server),
-                clientOptions: harnessClientOptions,
-              })
+              const client = await connectTransport(
+                {
+                  transport,
+                  prefix: name,
+                  requestOptions: requestOptionsOf(server),
+                  clientOptions: harnessClientOptions,
+                },
+                elicitFor(ctx.session),
+              )
               try {
                 const tools = askForInput(
                   forCodeMode(server, await client.tools()),
@@ -225,60 +230,75 @@ export const harnessClientOptions = {
 /**
  * Ask the session user when an MCP tool asks for input (a form or a URL
  * elicitation). The tool call waits for the answer, then sends it to the
- * server. The answer is the form content, or an MCP result such as
- * `{ action: 'decline' }` or `{ action: 'cancel' }`.
+ * server. On spec 2026, a tool call can ask up to 5 times. The answer is the
+ * form content, or an MCP result such as `{ action: 'decline' }` or
+ * `{ action: 'cancel' }`.
  */
 export function askForInput(
   tools: ReadonlyArray<AnyTool>,
   session: PluginSessionApi,
 ) {
+  const askInput: AskInput = async (request) => ({
+    status: 'resolved',
+    payload: await ask(session, request),
+  })
   return tools.map((tool): AnyTool => {
     const execute = tool.execute
     if (!execute) return tool
     return {
       ...tool,
-      execute: async (args, context) => {
-        try {
-          return await execute(args, context)
-        } catch (error) {
-          // A resumed `mcp_input` interrupt already carries its answer.
-          const resumed =
-            isRecord(context) && context.inputResponse !== undefined
-          if (
-            !isMCPInputRequiredError(error) ||
-            error.kind !== 'form' ||
-            resumed
-          ) {
-            throw error
-          }
-          const request = isRecord(error.request) ? error.request : {}
-          const url =
-            request.mode === 'url' && typeof request.url === 'string'
-              ? request.url
-              : undefined
-          const answer = await session.ask({
-            message:
-              typeof request.message === 'string'
-                ? request.message
-                : 'The MCP server asks for input.',
-            schema: isJsonSchema(request.requestedSchema)
-              ? request.requestedSchema
-              : undefined,
-            ...(url ? { url } : {}),
-          })
-          // A URL request has no content: the answer only says "done".
-          const payload =
-            url !== undefined && !(isRecord(answer) && 'action' in answer)
-              ? { action: 'accept' }
-              : answer
-          return execute(args, {
-            ...(isRecord(context) ? context : {}),
-            inputResponse: { status: 'resolved', payload },
-          })
-        }
-      },
+      execute: (args, context) =>
+        execute(args, { ...(isRecord(context) ? context : {}), askInput }),
     }
   })
+}
+
+/** Answers the `elicitation/create` requests of a spec 2025 server. */
+export function elicitFor(session: PluginSessionApi): OnElicit {
+  return async (params) => elicitResult(await ask(session, params))
+}
+
+/** Asks the session user for one MCP elicitation request body. */
+async function ask(session: PluginSessionApi, request: unknown) {
+  const body = isRecord(request) ? request : {}
+  const url =
+    body.mode === 'url' && typeof body.url === 'string' ? body.url : undefined
+  const answer = await session.ask({
+    message:
+      typeof body.message === 'string'
+        ? body.message
+        : 'The MCP server asks for input.',
+    schema: isJsonSchema(body.requestedSchema)
+      ? body.requestedSchema
+      : undefined,
+    ...(url ? { url } : {}),
+  })
+  // A URL request has no content: the answer only says "done".
+  return url !== undefined && !(isRecord(answer) && 'action' in answer)
+    ? { action: 'accept' }
+    : answer
+}
+
+/** Maps an answer to the MCP result: decline, cancel, or accept. */
+function elicitResult(answer: unknown): ElicitResult {
+  if (
+    isRecord(answer) &&
+    (answer.action === 'decline' || answer.action === 'cancel')
+  ) {
+    return { action: answer.action }
+  }
+  const content =
+    isRecord(answer) && answer.action === 'accept' ? answer.content : answer
+  return isElicitContent(content)
+    ? { action: 'accept', content }
+    : { action: 'accept' }
+}
+
+// ponytail: the SDK checks the result against the schema of the request.
+function isElicitContent(
+  value: unknown,
+): value is NonNullable<ElicitResult['content']> {
+  return isRecord(value)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

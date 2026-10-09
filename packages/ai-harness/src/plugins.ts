@@ -232,8 +232,17 @@ export interface PluginSetupContext {
        * Add this plugin's agent, or replace the one with the same name. A
        * name that another plugin or the harness owns throws.
        */
-      set: (agent: AnyAgent) => void
-      /** Remove this plugin's agent `name`. Another owner's name does nothing. */
+      set: (
+        agent: AnyAgent,
+        options?: {
+          /** Also give the model a tool that runs this agent as a subagent. */
+          subagent?: boolean
+        },
+      ) => void
+      /**
+       * Remove this plugin's agent `name`, also from the subagent tools.
+       * Another owner's name does nothing.
+       */
       delete: (name: string) => void
     }
   /**
@@ -461,9 +470,10 @@ export const SessionMetadata = createCapability<MetadataStore>()(
  */
 export interface RevertFilesHandler {
   /**
-   * Put back the files that the tool calls of `hidden` changed. `records`
-   * reads the host records of one type from the session log. Resolves to
-   * what `unrevert` needs (JSON), or `undefined` when no file changed.
+   * Put back the files that the tool calls of `hidden` changed. Other files
+   * stay as they are. `records` reads the host records of one type from the
+   * session log. Resolves to what `unrevert` needs (JSON), or `undefined`
+   * when no file changed.
    */
   revert: (
     hidden: ReadonlyArray<ModelMessage>,
@@ -477,6 +487,33 @@ export interface RevertFilesHandler {
 export const RevertFiles = createCapability<RevertFilesHandler>()(
   'tanstack/revert-files',
 )
+
+/**
+ * @internal Tells first-party plugins whether a revert stands. The session
+ * provides it. The package does not export it.
+ */
+export const RevertStanding = createCapability<() => boolean>()(
+  'tanstack/revert-standing',
+)
+
+/**
+ * @internal Aborts when the session closes, not on a reload. Work that
+ * belongs to the session, like background `bash` jobs, stops with it. The
+ * package does not export it.
+ */
+export const SessionSignal = createCapability<AbortSignal>()(
+  'tanstack/session-signal',
+)
+
+/**
+ * @internal Tells the session that a background job, like a `bash` job,
+ * started or ended. A durable session logs it, so recovery can note a job
+ * that a crash stopped. The package does not export it.
+ */
+export const BackgroundJobs = createCapability<{
+  started: (jobId: string) => void
+  ended: (jobId: string) => void
+}>()('tanstack/background-jobs')
 
 /** Capability values provided by plugins, keyed by handle. */
 export class CapabilityValues {
@@ -589,6 +626,10 @@ export async function mountPlugins(
   const agents: Array<AnyAgent> = []
   const subagents: Array<AnyAgent> = []
   const services = env.services ?? NO_SERVICES
+  const remove = (name: string, list: Array<AnyAgent>) => {
+    const at = list.findIndex((item) => item.name === name)
+    if (at >= 0) list.splice(at, 1)
+  }
   // `ctx.commands.ready`: resolves after the last plugin is set up. A failed
   // mount leaves it pending, so no plugin acts on a session that never opens.
   let markReady = () => {}
@@ -641,17 +682,19 @@ export async function mountPlugins(
           run: services.agents.run,
           start: services.agents.start,
           group: services.agents.group,
-          set: (agent) => {
+          set: (agent, options) => {
             env.registry.set(agent, plugin.name)
-            const at = agents.findIndex((item) => item.name === agent.name)
-            agents.splice(at < 0 ? agents.length : at, 1, agent)
+            const list = options?.subagent ? subagents : agents
+            remove(agent.name, options?.subagent ? agents : subagents)
+            const at = list.findIndex((item) => item.name === agent.name)
+            list.splice(at < 0 ? list.length : at, 1, agent)
           },
           delete: (name) => {
             env.registry.delete(name, plugin.name)
             // Still there: another owner has it.
             if (env.registry.get(name)) return
-            const at = agents.findIndex((item) => item.name === name)
-            if (at >= 0) agents.splice(at, 1)
+            remove(name, agents)
+            remove(name, subagents)
           },
         },
         collect: <T>(point: ExtensionPoint<T>): ReadonlyArray<T> => {
@@ -674,8 +717,14 @@ export async function mountPlugins(
           })
         },
         emit: (event, value) => services.emit(plugin.name, event.name, value),
-        on: (event, handler) =>
-          services.on(event.name, (value) => handler(value as never)),
+        on: (event, handler) => {
+          const off = services.on(event.name, (value) =>
+            handler(value as never),
+          )
+          // The listener goes away with the plugin, for example on a reload.
+          scope.signal.addEventListener('abort', off)
+          return off
+        },
         state: (initial) => services.state(plugin.name, initial),
         config: services.config,
         credentials: services.credentials,

@@ -75,3 +75,35 @@ describe.each(adapters)('$adapter wrapFetch', ({ create, url }) => {
     expect(requests[0]?.headers.get('x-trace-id')).toBeNull()
   })
 })
+
+describe('azureOpenaiText wrapFetch with an apiVersion', () => {
+  it('keeps the apiVersion and sends the header of the wrapper', async () => {
+    const requests: Array<{ url: string; headers: Headers }> = []
+    const adapter = azureOpenaiText('gpt-5.5', {
+      apiKey: 'test-key',
+      resourceName: 'test-resource',
+      apiVersion: '2025-04-01-preview',
+      fetch: async (input, init) => {
+        const request = new Request(input, init)
+        requests.push({ url: request.url, headers: request.headers })
+        return new Response('', {
+          headers: { 'content-type': 'text/event-stream' },
+        })
+      },
+    })
+    for await (const _ of adapter.chatStream({
+      logger,
+      model: 'gpt-5.5',
+      messages: [{ role: 'user', content: 'Hi' }],
+      wrapFetch: addTraceHeader,
+    })) {
+      // drain
+    }
+    expect(requests).toHaveLength(1)
+    expect(requests[0]?.url).toBe(
+      'https://test-resource.openai.azure.com/openai/v1/responses?api-version=2025-04-01-preview',
+    )
+    expect(requests[0]?.headers.get('x-trace-id')).toBe('trace-1')
+    expect(requests[0]?.headers.get('api-key')).toBe('test-key')
+  })
+})

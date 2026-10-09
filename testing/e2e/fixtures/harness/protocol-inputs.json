@@ -218,6 +218,24 @@
     },
     {
       "match": {
+        "userMessage": "[harness-elicit-2025] book a trip",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [{ "name": "trips_book_trip", "arguments": "{}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-elicit-2025] book a trip",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Your trip to Paris is booked, seat 12A."
+      }
+    },
+    {
+      "match": {
         "userMessage": "[harness-continue] name a color",
         "sequenceIndex": 0
       },
@@ -233,6 +251,18 @@
       "response": {
         "content": "Blue."
       }
+    },
+    {
+      "match": { "userMessage": "[harness-ephemeral-prompt] note" },
+      "response": { "content": "Apple." }
+    },
+    {
+      "match": { "userMessage": "[harness-ephemeral-continue] name a color" },
+      "response": { "content": "Red." }
+    },
+    {
+      "match": { "userMessage": "[harness-ephemeral-continue] note" },
+      "response": { "content": "Green." }
     }
   ]
 }

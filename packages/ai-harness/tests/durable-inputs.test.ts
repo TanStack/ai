@@ -452,6 +452,59 @@ describe('recovery of a durable input', () => {
     await next.host.close()
   })
 
+  it('with truncatedToolResult, never runs a cut call and calls the model again', async () => {
+    const lookup = vi.fn(async () => 'found')
+    const tools = [
+      toolDefinition({
+        name: 'lookup',
+        description: 'Look up a fact',
+        inputSchema: z.object({ q: z.string() }),
+        replay: 'safe',
+      }).server(lookup),
+    ]
+    const truncatedToolResult = (call: { toolName: string }) =>
+      `Tool call "${call.toolName}" was not executed: the response hit the output token limit, so its arguments may be truncated. Re-issue the tool call with complete arguments.`
+    // A plain answer with one tool call. The output limit cuts it.
+    const cutAnswer: Reply = () => [
+      ...toolCall('lookup', { q: 'x' }, 'call-lookup').slice(0, -1),
+      {
+        type: EventType.RUN_FINISHED,
+        runId: 'r',
+        threadId: 't',
+        timestamp: 1,
+        finishReason: 'length',
+      },
+    ]
+    const { host, session, calls } = await openDurable({
+      persistence: durablePersistence(),
+      replies: [cutAnswer, () => text('done')],
+      tools,
+      durability: { truncatedToolResult },
+    })
+
+    expect(await session.prompt('look it up')).toEqual({ text: 'done' })
+
+    const result = truncatedToolResult({ toolName: 'lookup' })
+    expect(lookup).not.toHaveBeenCalled()
+    expect(calls).toHaveLength(2)
+    expect(calls[1].messages.at(-1)).toMatchObject({
+      role: 'tool',
+      toolCallId: 'call-lookup',
+      content: result,
+    })
+    expect(
+      (await session.transcript()).filter((message) => message.role === 'tool'),
+    ).toEqual([
+      {
+        role: 'tool',
+        toolCallId: 'call-lookup',
+        content: result,
+        error: result,
+      },
+    ])
+    await host.close()
+  })
+
   it('fails a background agent whose host stopped, and wakes the thread', async () => {
     const persistence = durablePersistence()
     await persistence.stores.log.append(THREAD, 1, [
@@ -581,6 +634,144 @@ describe('recovery of a durable input', () => {
       outcome: 'aborted',
     })
     expect(calls).toHaveLength(0)
+    await host.close()
+  })
+
+  /** Add `records` to the log of a stopped turn, after its other records. */
+  const appendSeeded = async (
+    persistence: Durable,
+    records: Array<LogRecord>,
+  ) =>
+    persistence.stores.log.append(
+      THREAD,
+      (await persistence.stores.log.read(THREAD)).length + 1,
+      records,
+    )
+
+  const call = (id: string, name: string) => ({
+    id,
+    type: 'function' as const,
+    function: { name, arguments: '{}' },
+  })
+
+  const answers = (name: string, result: string) =>
+    toolDefinition({ name, description: name }).server(async () => result)
+
+  it.each([
+    { maxAttempts: 10, action: 'run' },
+    { maxAttempts: 1, action: 'settle' },
+  ])(
+    'tells the recover hook which cut calls get the interrupted result ($action)',
+    async ({ maxAttempts, action }) => {
+      const persistence = durablePersistence()
+      await seedStoppedTurn(persistence, { attempt: 1 })
+      // Four calls in one batch: two cut mails, a lookup that finished, and a
+      // fetch that can run again.
+      await appendSeeded(persistence, [
+        {
+          type: 'harness.transcript',
+          keep: 1,
+          add: [
+            {
+              id: 'a1',
+              role: 'assistant',
+              content: null,
+              toolCalls: [
+                call('call-1', 'mail'),
+                call('call-2', 'mail'),
+                call('call-3', 'lookup'),
+                call('call-4', 'fetch'),
+              ],
+            },
+          ],
+        },
+        ...['call-1', 'call-2', 'call-3'].map((toolCallId) => ({
+          type: 'harness.tool.started',
+          toolCallId,
+          name: toolCallId === 'call-3' ? 'lookup' : 'mail',
+          replay: 'never',
+        })),
+        {
+          type: 'harness.tool.result',
+          toolCallId: 'call-3',
+          message: { role: 'tool', toolCallId: 'call-3', content: 'found' },
+        },
+        {
+          type: 'harness.tool.started',
+          toolCallId: 'call-4',
+          name: 'fetch',
+          replay: 'safe',
+        },
+      ])
+      const seen: Array<unknown> = []
+
+      const { host, session } = await openDurable({
+        persistence,
+        replies: [() => text('done')],
+        tools: [
+          answers('mail', 'sent'),
+          answers('lookup', 'found'),
+          answers('fetch', 'fetched'),
+        ],
+        durability: {
+          maxAttempts,
+          recover: ({ decision, interruptedTools }) => {
+            seen.push({ action: decision.action, interruptedTools })
+            return undefined
+          },
+        },
+      })
+      await session.settled('in-1')
+
+      expect(seen).toEqual([
+        {
+          action,
+          interruptedTools: [
+            { toolCallId: 'call-1', toolName: 'mail', reason: 'interrupted' },
+            { toolCallId: 'call-2', toolName: 'mail', reason: 'interrupted' },
+          ],
+        },
+      ])
+      await host.close()
+    },
+  )
+
+  it('tells the recover hook about a cut call of an answer that stopped at the output limit', async () => {
+    const persistence = durablePersistence()
+    await seedStoppedTurn(persistence, { attempt: 1 })
+    await appendSeeded(persistence, [
+      {
+        type: 'harness.transcript',
+        keep: 1,
+        add: [
+          {
+            id: 'a1',
+            role: 'assistant',
+            content: null,
+            toolCalls: [call('call-lookup', 'lookup')],
+            metadata: { tanstack: { finishReason: 'length' } },
+          },
+        ],
+      },
+    ])
+    const seen: Array<unknown> = []
+
+    const { host, session } = await openDurable({
+      persistence,
+      replies: [() => text('done')],
+      tools: [answers('lookup', 'found')],
+      durability: {
+        recover: ({ interruptedTools }) => {
+          seen.push(interruptedTools)
+          return undefined
+        },
+      },
+    })
+    await session.settled('in-1')
+
+    expect(seen).toEqual([
+      [{ toolCallId: 'call-lookup', toolName: 'lookup', reason: 'truncated' }],
+    ])
     await host.close()
   })
 })

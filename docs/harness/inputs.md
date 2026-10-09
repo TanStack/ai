@@ -116,6 +116,35 @@ const continuedReceipt = await client.continue({ inputId: 'req-43' })
 - When the turn starts, the last message of the transcript must be a user message or a tool result. Else the input is rejected with the reason `nothing_to_continue`, and `await continued` rejects with `InputRejectedError`.
 - A `continue` that a host left after a crash runs on the next host, as a prompt does.
 
+## Give the model a note for one turn
+
+A reminder such as "call `finish` or `give_up`" helps the model in one turn, but it does not belong in the transcript. Pass it as `ephemeral` to `prompt` or `continue`:
+
+```ts group=harness-inputs
+const reminded = session.continue({
+  inputId: 'req-44',
+  ephemeral: [{ role: 'user', content: 'Call finish or give_up now.' }],
+})
+await reminded
+```
+
+From the client:
+
+```ts group=harness-inputs-client
+const remindedReceipt = await client.prompt('Summarize the report.', {
+  inputId: 'req-45',
+  ephemeral: [{ role: 'user', content: 'Answer in three bullets.' }],
+})
+```
+
+- Each model call of the turn gets the messages right after the turn's own message (or the last stored message, for `continue`), before the answers and tool results of the turn.
+- The transcript, the session log, and the message store never keep them.
+- A retry with the same `inputId` gets the first input, also when its `ephemeral` messages are different.
+- A turn that recovery runs again after a crash has no `ephemeral` messages, because the log does not keep them.
+- From the client, `ephemeral` takes user messages only. On the server, `session.prompt` and `session.continue` take any message.
+
+To add a note from a hook when the model stops, see [Remind the model without saving the reminder](./turn-control#remind-the-model-without-saving-the-reminder).
+
 ## Send a message while a turn runs
 
 With `busy: 'steer'`, a prompt joins the running turn. It reaches the model at the next model call, in the order the messages arrived, and it ends with that turn.
@@ -198,6 +227,8 @@ await build
 - Without an argument, it moves every running call that supports it. Pass a `toolCallId` to move one call.
 - `bash` and the single `subagent` tool support it. Other tools keep running as before.
 - With no running call that supports it, the receipt has `status: 'rejected'` and `reason: 'not_running'`.
+- On a durable host (one with `stores.log`), the log keeps each job until it ends. When a crash stops a job, the next host adds the note "Background job call-1 stopped when the host restarted."
+- Without `stores.log`, the job lives in memory only. A crash stops it, and no note comes.
 
 A client sends `{ op: 'background' }` over `POST control`. It runs no new code, so it needs no `expose` entry:
 

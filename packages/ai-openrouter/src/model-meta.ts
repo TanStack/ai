@@ -157,11 +157,11 @@ const _DEEPSEEK_DEEPSEEK_FLASH_LATEST = {
   pricing: {
     text: {
       input: {
-        normal: 0.002,
-        cached: 0.002,
+        normal: 0.05,
+        cached: 0.02,
       },
       output: {
-        normal: 2.4,
+        normal: 1.2,
       },
     },
     image: 0,
@@ -190,15 +190,15 @@ const _DEEPSEEK_DEEPSEEK_PRO_LATEST = {
     ],
   },
   context_window: 1048576,
-  max_output_tokens: 393216,
+  max_output_tokens: 943718,
   pricing: {
     text: {
       input: {
-        normal: 0.2514,
-        cached: 0.25,
+        normal: 0.19,
+        cached: 0.18,
       },
       output: {
-        normal: 4.2,
+        normal: 5,
       },
     },
     image: 0,
@@ -232,8 +232,8 @@ const _DEEPSEEK_DEEPSEEK_V4_FLASH_LATEST = {
   pricing: {
     text: {
       input: {
-        normal: 0.0144,
-        cached: 0.0144,
+        normal: 0.018,
+        cached: 0.018,
       },
       output: {
         normal: 1.28,
@@ -333,7 +333,7 @@ const _MOONSHOTAI_KIMI_LATEST = {
   pricing: {
     text: {
       input: {
-        normal: 0.83,
+        normal: 0.61,
         cached: 0.45,
       },
       output: {
@@ -592,11 +592,11 @@ const _Z_AI_GLM_LATEST = {
   pricing: {
     text: {
       input: {
-        normal: 0.03,
-        cached: 0.03,
+        normal: 0.063,
+        cached: 0.0585,
       },
       output: {
-        normal: 12,
+        normal: 6.3,
       },
     },
     image: 0,
@@ -2662,8 +2662,8 @@ const DEEPSEEK_DEEPSEEK_V4_FLASH = {
   pricing: {
     text: {
       input: {
-        normal: 0.0287,
-        cached: 0.0287,
+        normal: 0.03,
+        cached: 0.03,
       },
       output: {
         normal: 1.28,
@@ -2700,8 +2700,8 @@ const DEEPSEEK_DEEPSEEK_V4_FLASH_0731 = {
   pricing: {
     text: {
       input: {
-        normal: 0.0144,
-        cached: 0.0144,
+        normal: 0.018,
+        cached: 0.018,
       },
       output: {
         normal: 1.28,
@@ -2849,8 +2849,8 @@ const DEEPSEEK_DEEPSEEK_V4_1_FLASH = {
   pricing: {
     text: {
       input: {
-        normal: 0.3,
-        cached: 0.006,
+        normal: 0.05,
+        cached: 0.02,
       },
       output: {
         normal: 1.2,
@@ -4126,11 +4126,11 @@ const GOOGLE_GEMMA_4_26B_A4B_IT = {
   pricing: {
     text: {
       input: {
-        normal: 0.0765,
-        cached: 0.0425,
+        normal: 0.09,
+        cached: 0.05,
       },
       output: {
-        normal: 0.255,
+        normal: 0.3,
       },
     },
     image: 0,
@@ -4701,40 +4701,6 @@ const INFERENCE_NET_SCHEMATRON_V2_TURBO = {
       },
       output: {
         normal: 0.15,
-      },
-    },
-    image: 0,
-  },
-} as const
-const KWAIPILOT_KAT_CODER_PRO_V2_5 = {
-  id: 'kwaipilot/kat-coder-pro-v2.5',
-  name: 'Kwaipilot: KAT-Coder-Pro V2.5',
-  supports: {
-    input: ['text'],
-    output: ['text'],
-    supports: [
-      'frequencyPenalty',
-      'logitBias',
-      'maxCompletionTokens',
-      'presencePenalty',
-      'responseFormat',
-      'seed',
-      'stop',
-      'temperature',
-      'toolChoice',
-      'topP',
-    ],
-  },
-  context_window: 262144,
-  max_output_tokens: 235929,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.74,
-        cached: 0.15,
-      },
-      output: {
-        normal: 2.96,
       },
     },
     image: 0,
@@ -6667,11 +6633,11 @@ const MOONSHOTAI_KIMI_K2_6 = {
   pricing: {
     text: {
       input: {
-        normal: 0.95,
-        cached: 0.16,
+        normal: 0.465,
+        cached: 0.0975,
       },
       output: {
-        normal: 4,
+        normal: 2.45,
       },
     },
     image: 0,
@@ -6742,8 +6708,8 @@ const MOONSHOTAI_KIMI_K3 = {
   pricing: {
     text: {
       input: {
-        normal: 0.99,
-        cached: 0.33,
+        normal: 0.62,
+        cached: 0.43,
       },
       output: {
         normal: 15,
@@ -11211,15 +11177,15 @@ const QWEN_QWEN3_30B_A3B_INSTRUCT_2507 = {
     ],
   },
   context_window: 262144,
-  max_output_tokens: 235929,
+  max_output_tokens: 32000,
   pricing: {
     text: {
       input: {
-        normal: 0.1,
+        normal: 0.04815,
         cached: 0,
       },
       output: {
-        normal: 0.3,
+        normal: 0.19305,
       },
     },
     image: 0,
@@ -11998,15 +11964,15 @@ const QWEN_QWEN3_5_35B_A3B = {
     ],
   },
   context_window: 262144,
-  max_output_tokens: 32768,
+  max_output_tokens: 235929,
   pricing: {
     text: {
       input: {
-        normal: 0.08,
-        cached: 0.04,
+        normal: 0.15,
+        cached: 0.05,
       },
       output: {
-        normal: 0.75,
+        normal: 1,
       },
     },
     image: 0,
@@ -12215,15 +12181,15 @@ const QWEN_QWEN3_6_27B = {
     ],
   },
   context_window: 262144,
-  max_output_tokens: 262140,
+  max_output_tokens: 65536,
   pricing: {
     text: {
       input: {
-        normal: 0.32,
+        normal: 0.3,
         cached: 0.03,
       },
       output: {
-        normal: 3.25,
+        normal: 2,
       },
     },
     image: 0,
@@ -13222,11 +13188,11 @@ const TENCENT_HY3 = {
   pricing: {
     text: {
       input: {
-        normal: 0.0825,
-        cached: 0.020625,
+        normal: 0.132,
+        cached: 0.033,
       },
       output: {
-        normal: 0.33,
+        normal: 0.528,
       },
     },
     image: 0,
@@ -13288,11 +13254,11 @@ const TENCENT_HY4_PREVIEW = {
   pricing: {
     text: {
       input: {
-        normal: 0.7506,
-        cached: 0.0378,
+        normal: 0.834,
+        cached: 0.042,
       },
       output: {
-        normal: 2.2509,
+        normal: 2.501,
       },
     },
     image: 0,
@@ -13422,12 +13388,12 @@ const THINKINGMACHINES_INKLING = {
     ],
   },
   context_window: 524288,
-  max_output_tokens: 262144,
+  max_output_tokens: 471859,
   pricing: {
     text: {
       input: {
-        normal: 0.95,
-        cached: 0.16,
+        normal: 1,
+        cached: 0.17,
       },
       output: {
         normal: 4.05,
@@ -14509,15 +14475,15 @@ const Z_AI_GLM_5_1 = {
     ],
   },
   context_window: 204800,
-  max_output_tokens: 131072,
+  max_output_tokens: 128000,
   pricing: {
     text: {
       input: {
-        normal: 1.4,
-        cached: 0.26,
+        normal: 0.966,
+        cached: 0.1794,
       },
       output: {
-        normal: 4.4,
+        normal: 3.036,
       },
     },
     image: 0,
@@ -14551,11 +14517,11 @@ const Z_AI_GLM_5_2 = {
   pricing: {
     text: {
       input: {
-        normal: 0.152,
-        cached: 0.15,
+        normal: 0.171,
+        cached: 0.162,
       },
       output: {
-        normal: 12,
+        normal: 7.2,
       },
     },
     image: 0,
@@ -16373,20 +16339,6 @@ export type OpenRouterModelOptionsByName = {
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'topP'
-    >
-  [KWAIPILOT_KAT_CODER_PRO_V2_5.id]: OpenRouterCommonOptions &
-    Pick<
-      OpenRouterBaseOptions,
-      | 'frequencyPenalty'
-      | 'logitBias'
-      | 'maxCompletionTokens'
-      | 'presencePenalty'
-      | 'responseFormat'
-      | 'seed'
-      | 'stop'
-      | 'temperature'
-      | 'toolChoice'
       | 'topP'
     >
   [LIQUID_LFM_2_5_2_6B_FREE.id]: OpenRouterCommonOptions &
@@ -20159,7 +20111,6 @@ export type OpenRouterModelInputModalitiesByName = {
   [INCLUSIONAI_LING_3_1_FLASH.id]: ReadonlyArray<'text'>
   [INFERENCE_NET_SCHEMATRON_V2_SMALL.id]: ReadonlyArray<'text'>
   [INFERENCE_NET_SCHEMATRON_V2_TURBO.id]: ReadonlyArray<'text'>
-  [KWAIPILOT_KAT_CODER_PRO_V2_5.id]: ReadonlyArray<'text'>
   [LIQUID_LFM_2_5_2_6B_FREE.id]: ReadonlyArray<'text'>
   [MANCER_WEAVER.id]: ReadonlyArray<'text'>
   [MEITUAN_LONGCAT_2_0.id]: ReadonlyArray<'text'>
@@ -20667,7 +20618,6 @@ export const OPENROUTER_CHAT_MODELS = [
   INCLUSIONAI_LING_3_1_FLASH.id,
   INFERENCE_NET_SCHEMATRON_V2_SMALL.id,
   INFERENCE_NET_SCHEMATRON_V2_TURBO.id,
-  KWAIPILOT_KAT_CODER_PRO_V2_5.id,
   LIQUID_LFM_2_5_2_6B_FREE.id,
   MANCER_WEAVER.id,
   MEITUAN_LONGCAT_2_0.id,
@@ -21205,8 +21155,6 @@ export const OPENROUTER_MODEL_INPUT_MODALITIES: Readonly<
     INFERENCE_NET_SCHEMATRON_V2_SMALL.supports.input,
   [INFERENCE_NET_SCHEMATRON_V2_TURBO.id]:
     INFERENCE_NET_SCHEMATRON_V2_TURBO.supports.input,
-  [KWAIPILOT_KAT_CODER_PRO_V2_5.id]:
-    KWAIPILOT_KAT_CODER_PRO_V2_5.supports.input,
   [LIQUID_LFM_2_5_2_6B_FREE.id]: LIQUID_LFM_2_5_2_6B_FREE.supports.input,
   [MANCER_WEAVER.id]: MANCER_WEAVER.supports.input,
   [MEITUAN_LONGCAT_2_0.id]: MEITUAN_LONGCAT_2_0.supports.input,
@@ -22220,7 +22168,6 @@ export const OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS: ReadonlySet<string> =
     INCEPTION_MERCURY_2_5.id,
     INCLUSIONAI_LING_3_0_FLASH_FIN.id,
     INCLUSIONAI_LING_3_0_FLASH_VL.id,
-    KWAIPILOT_KAT_CODER_PRO_V2_5.id,
     LIQUID_LFM_2_5_2_6B_FREE.id,
     META_LLAMA_LLAMA_3_1_70B_INSTRUCT.id,
     META_LLAMA_LLAMA_3_1_8B_INSTRUCT.id,

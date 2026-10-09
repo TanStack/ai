@@ -1,15 +1,17 @@
 import { tmpdir } from 'node:os'
 import * as nodePath from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin } from '../src'
 import { workspaceTools } from '../src/first-party/coding'
+import { permissions } from '../src/first-party/permissions'
 import {
   FormatFailed,
   formatOnWrite,
   formatter,
 } from '../src/first-party/coding/formatter'
 import { mockAdapter, text, toolCall } from './helpers'
+import type { HarnessSession } from '../src'
 import type { WorkspaceBackend } from '../src/first-party/coding/backend'
 import type {
   FormatFailure,
@@ -308,5 +310,137 @@ describe('formatter', () => {
     expect(JSON.stringify(calls[2].messages)).toContain(
       'Edited a.ts (1 change).',
     )
+  })
+})
+
+describe('formatter with permissions()', () => {
+  /**
+   * A session with the workspace tools, the formatter, and `permissions()`
+   * in `mode`, in a project of `files`. Each reply writes a file. `runs`
+   * lists the formatter runs.
+   */
+  async function openWith(
+    mode: string,
+    paths: Array<string>,
+    persistence = memoryPersistence(),
+    files: Record<string, string> = {},
+  ) {
+    const { backend, runs } = project(files)
+    const { adapter, calls } = mockAdapter([
+      ...paths.map(
+        (path, index) => () =>
+          toolCall('write_file', { path, content: '' }, `c${index}`),
+      ),
+      () => text('done'),
+    ])
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/formatter-permissions',
+        adapter,
+        plugins: () => [
+          permissions({ root }),
+          workspaceTools({ root, backend }),
+          formatter({ root, backend }),
+        ],
+      }),
+      { threadId: 't' },
+    )
+    await session.command('mode', mode)
+    return { host, session, runs, calls }
+  }
+
+  /** Wait for the one open question, then answer it. Returns its message. */
+  async function answer(session: HarnessSession, value: unknown) {
+    await vi.waitFor(() =>
+      expect(session.snapshot().pendingQuestions).toHaveLength(1),
+    )
+    const [question] = session.snapshot().pendingQuestions
+    if (!question) throw new Error('No question.')
+    await session.answer(question.questionId, value)
+    return question.message
+  }
+
+  it('in acceptEdits, asks before prettier runs after an edit of prettier.config.js', async () => {
+    const { host, session, runs, calls } = await openWith('acceptEdits', [
+      'prettier.config.js',
+    ])
+
+    const turn = session.prompt('change the config')
+    const message = await answer(session, { answer: 'reject' })
+    await turn
+
+    expect(message).toContain('formatter:prettier')
+    expect(runs).toEqual([])
+    // The write stays, and the result says the formatter did not run.
+    expect(JSON.stringify(calls[1].messages)).toContain(
+      'Wrote prettier.config.js.\\nThe formatter prettier did not run: it is not allowed.',
+    )
+    await host.close()
+  })
+
+  it('stops asking after an always answer, also in a new session', async () => {
+    const persistence = memoryPersistence()
+    const first = await openWith(
+      'acceptEdits',
+      ['prettier.config.js', 'a.ts'],
+      persistence,
+    )
+    const turn = first.session.prompt('write twice')
+    await answer(first.session, { answer: 'always' })
+    await turn
+    expect(first.runs.map((run) => run.command)).toEqual([
+      `npx --no-install prettier --write ${quoted('prettier.config.js')}`,
+      `npx --no-install prettier --write ${quoted('a.ts')}`,
+    ])
+    expect(first.session.snapshot().pendingQuestions).toHaveLength(0)
+    await first.host.close()
+
+    const second = await openWith('acceptEdits', ['b.ts'], persistence, {
+      'prettier.config.js': '',
+    })
+    await second.session.prompt('write again')
+    expect(second.runs.map((run) => run.command)).toEqual([
+      `npx --no-install prettier --write ${quoted('b.ts')}`,
+    ])
+    await second.host.close()
+  })
+
+  it('runs with no question in bypass', async () => {
+    const { host, session, runs } = await openWith('bypass', [
+      'prettier.config.js',
+    ])
+    await session.prompt('change the config')
+    expect(runs.map((run) => run.command)).toEqual([
+      `npx --no-install prettier --write ${quoted('prettier.config.js')}`,
+    ])
+    expect(session.snapshot().pendingQuestions).toHaveLength(0)
+    await host.close()
+  })
+
+  it('runs with no question and no note without permissions()', async () => {
+    const { backend, runs } = project({})
+    const { adapter, calls } = mockAdapter([
+      () => toolCall('write_file', { path: 'prettier.config.js', content: '' }),
+      () => text('done'),
+    ])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/formatter-no-permissions',
+        adapter,
+        plugins: () => [
+          workspaceTools({ root, backend }),
+          formatter({ root, backend }),
+        ],
+      }),
+      { threadId: 't' },
+    )
+    await session.prompt('change the config')
+    expect(runs.map((run) => run.command)).toEqual([
+      `npx --no-install prettier --write ${quoted('prettier.config.js')}`,
+    ])
+    expect(JSON.stringify(calls[1].messages)).not.toContain('did not run')
+    await host.close()
   })
 })

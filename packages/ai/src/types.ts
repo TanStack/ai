@@ -776,6 +776,8 @@ export interface TanStackRunMetadata {
   runId?: string
   sessionId?: string
   index?: number
+  /** On a `RUN_ERROR`. See `RunErrorEvent.retryAfterMs`. */
+  retryAfterMs?: number
   state?: ToolOutputState
   /** Parsed `TOOL_CALL_END` input. Spec `TOOL_CALL_END` has no top-level `input`. */
   input?: unknown
@@ -1313,6 +1315,17 @@ export interface TextOptions<
    */
   toolExecution?: 'parallel' | 'sequential'
   /**
+   * The tool result of a call in a model answer that stopped at the output
+   * limit (finish reason `length`). The function form gets the call. When
+   * set, such an answer keeps its tool calls. Each call that the provider did
+   * not run gets this text as an error result and does not run. Then the
+   * loop calls the model again, as after a tool phase. Not set: the answer
+   * ends the run, and only a segmented answer keeps its calls.
+   */
+  truncatedToolResult?:
+    | string
+    | ((call: { toolCallId: string; toolName: string }) => string)
+  /**
    * Optional configuration for lazy-tool discovery (tools marked `lazy: true`).
    * Tunes how much of each lazy tool's description appears in the discovery
    * catalog. Optional — defaults to `{ includeDescription: 'none' }`.
@@ -1493,6 +1506,10 @@ export interface TextCompactOptions {
   signal?: AbortSignal
   /** Wraps the fetch of the compaction request. */
   wrapFetch?: FetchWrapper
+  /** The system prompts of the chat call. */
+  systemPrompts?: Array<SystemPrompt>
+  /** The tools of the chat call. */
+  tools?: Array<AnyTool>
 }
 
 // ============================================================================
@@ -1612,6 +1629,12 @@ export interface RunErrorEvent extends Pick<
   model?: string
   /** Nested payload kept for in-process / durability consumers. */
   error?: { message: string; code?: string }
+  /**
+   * How long the provider asks you to wait before a retry, in milliseconds.
+   * Adapters read it from the `retry-after-ms` or `retry-after` header.
+   * `chat()` moves it to `metadata.tanstack.retryAfterMs`.
+   */
+  retryAfterMs?: number
   metadata?: { tanstack?: TanStackRunMetadata } & Record<string, any>
 }
 

@@ -155,7 +155,8 @@ export const helpers = definePlugin({
 ```
 
 - `ctx.agents.set(agent)` adds an agent of this plugin, or replaces the one with the same name. A name that another plugin or the harness owns throws.
-- `ctx.agents.delete(name)` removes an agent of this plugin. Another owner's name does nothing.
+- `ctx.agents.set(agent, { subagent: true })` also gives the model a tool that runs the agent as a subagent, from the next turn.
+- `ctx.agents.delete(name)` removes an agent of this plugin, and its subagent tool. Another owner's name does nothing.
 - `session.agent(name)`, `ctx.agents.list()`, and `routing` see the change at once.
 
 ## Keep state
@@ -309,7 +310,7 @@ Three ways, from simple to loose:
 
 - **Capabilities.** One plugin declares `provides: [cap]` and calls `ctx.provide(cap, value)`. Another declares `requires: [cap]` and reads `ctx.get(cap)`. The provider must come first.
 - **Extension points.** One plugin reads a list, and others add to it in any order.
-- **Events.** `ctx.emit(event, value)` reaches every `ctx.on(event, handler)`.
+- **Events.** `ctx.emit(event, value)` reaches every `ctx.on(event, handler)`. A listener stops when its plugin is cleaned up, for example on a reload.
 
 ```ts group=harness-plugins
 import { createExtensionPoint, createPluginEvent } from '@tanstack/ai-harness'
@@ -372,9 +373,11 @@ A reload works like this:
 1. It waits for the running turn to end. No new turn starts until the reload ends.
 2. It cleans up the resources of the session plugins, newest first.
 3. It calls `plugins()` again and runs `setup` of each session plugin.
-4. Clients get a `harness.reloaded` event. Read the commands, the settings, and the agents again.
+4. Clients get a `harness.reloaded` event. Read the commands, the settings, and the agents again. A `createSessionView` view reads the commands and the settings again by itself.
 
 The transcript, the log, the thread settings, and the inbox stay. The next turn gets the new tools, prompts, and middleware.
+
+The `ctx.on` listeners of the old plugins stop. Background `bash` jobs of the [workspace tools](./coding-tools) belong to the session, so they keep running. When a job ends, the model gets its end note. The jobs stop when the session closes.
 
 The harness does not watch files. Your host decides when to reload, as the `watch` call above does. The [`agents()` plugin](./agents) reads its `dirs` again at each reload, so a new agent file shows up.
 

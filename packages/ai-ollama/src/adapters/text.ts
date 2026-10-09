@@ -257,6 +257,14 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
         format: outputSchema,
       })
 
+      // A response cut off at the output cap is a truncated JSON document;
+      // report it before the parse error (issue #1426).
+      if (response.done_reason === 'length') {
+        throw new Error(
+          'ollama.structuredOutput: the response was cut off because the maximum token limit was reached (done_reason=length); raise modelOptions.options.num_predict',
+        )
+      }
+
       const rawText = response.message.content
 
       // Parse the JSON response

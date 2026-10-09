@@ -6,6 +6,7 @@ import type {
   MetadataStore,
   ModelMessage,
   SummarizationResult,
+  TextCompactOptions,
   TextOptions,
   TokenUsage,
   ToolCall,
@@ -2989,5 +2990,73 @@ describe('withCompaction native', () => {
 
     expect(strategy).toHaveBeenCalledTimes(1)
     expect(result).toStrictEqual({ providerMessages: [text('user', 'cut')] })
+  })
+
+  it('reports a failed adapter compact, and skips it for that model after', async () => {
+    const strategy = vi.fn<CompactionStrategy>(() => [text('user', 'cut')])
+    const compact = vi.fn(() => Promise.reject(new Error('404 Not Found')))
+    const adapter = { compact }
+    const infos: Array<CompactionInfo> = []
+    const options = {
+      maxTokens: 50,
+      strategy,
+      native: adapter,
+      onCompact: (info: CompactionInfo) => infos.push(info),
+    }
+    const first = recordingContext('beforeModel', { model: 'gpt-5.5' })
+    await runOnConfig(
+      withCompaction(options),
+      [big('user'), big('assistant'), big('user')],
+      first.ctx,
+    )
+
+    expect(infos.map((info) => info.error)).toStrictEqual([
+      { message: '404 Not Found' },
+    ])
+    expect(
+      first.events.find((event) => event.name === 'compaction:ended')?.value
+        .error,
+    ).toStrictEqual({ message: '404 Not Found' })
+
+    // A new middleware with the same adapter and model skips compact.
+    const second = recordingContext('beforeModel', { model: 'gpt-5.5' })
+    const result = await runOnConfig(
+      withCompaction(options),
+      [big('user'), big('assistant'), big('user')],
+      second.ctx,
+    )
+    expect(compact).toHaveBeenCalledTimes(1)
+    expect(strategy).toHaveBeenCalledTimes(2)
+    expect(result).toStrictEqual({ providerMessages: [text('user', 'cut')] })
+    expect(infos[1]?.error).toBeUndefined()
+
+    // Another model still tries compact.
+    await runOnConfig(
+      withCompaction(options),
+      [big('user'), big('assistant'), big('user')],
+      recordingContext('beforeModel', { model: 'gpt-5.4' }).ctx,
+    )
+    expect(compact).toHaveBeenCalledTimes(2)
+  })
+
+  it('passes the system prompts and the tools to the adapter compact', async () => {
+    const compact = vi.fn((_options: TextCompactOptions) =>
+      Promise.resolve([text('user', 'kept')]),
+    )
+    const mw = withCompaction({ maxTokens: 50, native: { compact } })
+    const tool = { name: 'search', description: 'Search the web' }
+    await mw.onConfig?.(
+      recordingContext('beforeModel', { model: 'gpt-5.5' }).ctx,
+      {
+        messages: [big('user'), big('assistant'), big('user')],
+        systemPrompts: ['Be brief.'],
+        tools: [tool],
+      },
+    )
+
+    expect(compact.mock.calls[0]?.[0]).toMatchObject({
+      systemPrompts: ['Be brief.'],
+      tools: [tool],
+    })
   })
 })

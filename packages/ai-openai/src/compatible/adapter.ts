@@ -14,6 +14,7 @@ import {
 } from '../prompt-cache'
 import { openAIModelUsesExplicitPromptCache } from '../model-meta'
 import type OpenAI from 'openai'
+import type { ClientOptions } from 'openai'
 import type {
   ChatCompletionCreateParamsStreaming,
   ChatCompletionMessageParam,
@@ -78,7 +79,7 @@ export class OpenAICompatibleChatAdapter<
     client: OpenAI,
     model: TModel,
     name: string,
-    options?: OpenAIBaseTextAdapterOptions,
+    options?: OpenAIBaseTextAdapterOptions & Pick<ClientOptions, 'fetch'>,
     config: CompatibleModelConfig = {},
   ) {
     super(model, name, client, options)
@@ -212,7 +213,7 @@ export class OpenAICompatibleResponsesAdapter<
     client: OpenAI,
     model: TModel,
     name: string,
-    options?: OpenAIBaseTextAdapterOptions,
+    options?: OpenAIBaseTextAdapterOptions & Pick<ClientOptions, 'fetch'>,
     config: CompatibleModelConfig = {},
   ) {
     super(model, name, client, options)

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { LogRecordsCapability, getLogRecords } from '@tanstack/ai'
 import { defineCommand } from '../../commands'
-import { RevertFiles, definePlugin } from '../../plugins'
+import { RevertFiles, RevertStanding, definePlugin } from '../../plugins'
 import { hostBackend } from './backend'
 import { isRecord } from '../../utils'
 import { quoteArg, shellPlatform } from './search'
@@ -37,18 +37,26 @@ const isStep = (value: unknown): value is SnapshotStep =>
   isRecord(value) &&
   typeof value.from === 'string' &&
   typeof value.to === 'string' &&
+  Array.isArray(value.files) &&
   Array.isArray(value.toolCallIds)
 
-/** What `unrevert` needs: the trees around the steps that a revert undid. */
-const isTrees = (value: unknown): value is { from: string; to: string } =>
+/**
+ * What `unrevert` needs: the tree when the revert started, and the files
+ * that the revert put back.
+ */
+const isReverted = (
+  value: unknown,
+): value is { now: string; files: Array<string> } =>
   isRecord(value) &&
-  typeof value.from === 'string' &&
-  typeof value.to === 'string'
+  typeof value.now === 'string' &&
+  Array.isArray(value.files) &&
+  value.files.every((file) => typeof file === 'string')
 
 /** The log record type of a {@link SnapshotStep}. */
 const STEP_RECORD = 'tanstack/snapshots:step'
 const TIMEOUT_MS = 60_000
 const BUSY = 'Wait until the turn ends, then try again.'
+const REVERTED = 'A revert stands. Run unrevert, or send a prompt, first.'
 
 /**
  * A shadow git repository for `options.root`. Git commands of one
@@ -134,9 +142,10 @@ function shadowRepo(options: SnapshotsOptions) {
     /**
      * Make the files that differ between `from` and `tree` match `tree`, and
      * give their count. Of these files, the ones that are not in `tree` are
-     * removed. All other files stay as they are.
+     * removed. With `only`, only the files in it change. All other files stay
+     * as they are.
      */
-    restore: (tree: string, from: string) =>
+    restore: (tree: string, from: string, only?: ReadonlySet<string>) =>
       serial(async () => {
         // Pairs of a status letter and a path. `D`: the path is not in `tree`.
         const status = (
@@ -148,7 +157,7 @@ function shadowRepo(options: SnapshotsOptions) {
         const restored: Array<string> = []
         for (let i = 1; i < status.length; i += 2) {
           const path = status[i]
-          if (!path) continue
+          if (!path || (only && !only.has(path))) continue
           if (status[i - 1] === 'D') removed.push(path)
           else restored.push(path)
         }
@@ -244,6 +253,7 @@ export function snapshots(options: SnapshotsOptions) {
         })
         return
       }
+      const reverted = ctx.getOptional(RevertStanding)
       const noSteps: Array<SnapshotStep> = []
       const steps = ctx.state(noSteps)
       ctx.provide(RevertFiles, {
@@ -259,14 +269,21 @@ export function snapshots(options: SnapshotsOptions) {
             .filter(isStep)
             .filter((step) => step.toolCallIds.some((id) => calls.has(id)))
           const first = later[0]
-          const last = later.at(-1)
-          if (!first || !last) return undefined
-          // As in `/undo`: only the files that the steps changed go back.
-          await repo.restore(first.from, last.to)
-          return { from: first.from, to: last.to }
+          if (!first) return undefined
+          // Only the files that the steps changed go back. The edits of the
+          // user in other files stay. `now` keeps all files for `unrevert`.
+          const files = [...new Set(later.flatMap((step) => step.files))]
+          const now = await repo.track()
+          await repo.restore(first.from, now, new Set(files))
+          return { now, files }
         },
         unrevert: async (saved) => {
-          if (isTrees(saved)) await repo.restore(saved.to, saved.from)
+          if (!isReverted(saved)) return
+          await repo.restore(
+            saved.now,
+            await repo.track(),
+            new Set(saved.files),
+          )
         },
       })
       /** The tree at the start of the step that runs. */
@@ -327,6 +344,7 @@ export function snapshots(options: SnapshotsOptions) {
               'Undo the last turn: restore the files and remove it from the transcript',
             run: async (_input, { session }) => {
               if (session.snapshot().status !== 'idle') return BUSY
+              if (reverted?.()) return REVERTED
               const messages = await session.transcript()
               // ponytail: the turn starts at the last user message. A steer
               // that joined the turn is a user message too, so only the
@@ -361,6 +379,7 @@ export function snapshots(options: SnapshotsOptions) {
             description: 'Bring back the files and the turn of the last /undo',
             run: async (_input, { session }) => {
               if (session.snapshot().status !== 'idle') return BUSY
+              if (reverted?.()) return REVERTED
               if (!redo) return 'Nothing to redo.'
               const { start, end, messages } = redo
               await repo.restore(end, start)

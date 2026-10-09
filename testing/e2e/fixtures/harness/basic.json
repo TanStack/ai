@@ -132,6 +132,29 @@
     },
     {
       "match": {
+        "userMessage": "[harness-job-restart] start the dev server",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "bash",
+            "arguments": "{\"command\":\"npm run dev\",\"background\":true}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-job-restart] start the dev server",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "The dev server runs in the background."
+      }
+    },
+    {
+      "match": {
         "userMessage": "[harness-routing-fix] clean up",
         "sequenceIndex": 0
       },

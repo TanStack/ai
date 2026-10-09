@@ -352,6 +352,28 @@ describe('parseHarnessInput', () => {
       parseHarnessInput({ op: 'setDelivery', inputId: 'a', delivery: 'now' }),
     ).toThrow("Invalid input: setDelivery needs 'steer' or 'queue'.")
   })
+
+  it('checks the ephemeral messages of prompt and continue', () => {
+    const refused =
+      'Invalid input: ephemeral must be an array of user messages.'
+    expect(() =>
+      parseHarnessInput({ op: 'prompt', message: 'hi', ephemeral: 'note' }),
+    ).toThrow(refused)
+    // A client cannot fake an answer or a tool result.
+    for (const role of ['system', 'assistant', 'tool']) {
+      expect(() =>
+        parseHarnessInput({
+          op: 'continue',
+          ephemeral: [{ role, content: 'note' }],
+        }),
+      ).toThrow(refused)
+    }
+    const ephemeral = [{ role: 'user', content: 'note' }]
+    expect(parseHarnessInput({ op: 'continue', ephemeral })).toEqual({
+      op: 'continue',
+      ephemeral,
+    })
+  })
 })
 
 describe('WebSocket', () => {

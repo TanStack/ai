@@ -58,7 +58,7 @@ The `mode` setting decides how much runs without a question:
 | --- | --- |
 | `default` | The rules apply as written. A call that asks waits for the user. |
 | `plan` | Read-only. Edits, commands, and calls that ask do not run. The model gets a note to plan and to change no files. |
-| `acceptEdits` | Edits run without a question. Commands still ask. |
+| `acceptEdits` | Edits run without a question. Commands and formatters still ask. |
 | `bypass` | Every call runs, also a call that a rule denies. |
 
 Switch the mode in one of these places:
@@ -176,6 +176,32 @@ export const exampleEnv = permissions({
 - The coding tools check the real path of a link too, and the stricter decision wins. So a link `notes` to `.env` asks, like `.env`.
 - `grep` skips each file that `read_file` asks about or denies, also after an `always` answer. A note gives the number of skipped files.
 - Your `rules` come after these rules, so they win. `{ tool: 'webfetch', decision: 'allow' }` lets `webfetch` run without a question.
+
+### Formatters
+
+A formatter runs code from the project, for example `prettier.config.js` or a package in `node_modules`. The model can edit these files. So [`formatter()`](./coding-tools-backends#format-each-file-after-a-write) asks before each run, like `bash`.
+
+It adds one rule: `{ tool: 'formatter:*', decision: 'ask', kind: 'execute' }`. Each run is named `formatter:` and the formatter name, for example `formatter:prettier`.
+
+| Mode | What the formatter does |
+| --- | --- |
+| `default` | It asks before it runs. |
+| `acceptEdits` | It asks before it runs. The edit itself runs without a question. |
+| `bypass` | It runs without a question. |
+| `plan` | It does not run. No file changes in this mode. |
+
+- An `always` answer saves `formatter:prettier` for the project, so the user answers once.
+- A `reject` skips the formatter for that write. The file stays as the tool wrote it, and the tool result says that the formatter did not run.
+- Without `permissions()`, the formatter runs without a question.
+
+This rule lets prettier run without a question:
+
+```ts group=harness-permissions
+export const trustedFormatter = permissions({
+  root,
+  rules: [{ tool: 'formatter:prettier', decision: 'allow' }],
+})
+```
 
 ## Answer a question
 

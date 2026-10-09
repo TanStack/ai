@@ -149,8 +149,9 @@ Each adapter's `supports.tools` array is the source of truth. The comparison
 matrix is maintained alongside `model-meta.ts` and reflected here:
 
 - **Anthropic**: every registered model supports the full tool superset,
-  except three. `claude-opus-5-5` and `claude-sonnet-5-5` support every
-  tool but `computerUseTool`, and `claude-opus-5-fast` supports none. The
+  except four. `claude-opus-5-5`, `claude-sonnet-5-5`, and
+  `claude-haiku-5-5` support every tool but `computerUseTool`, and
+  `claude-opus-5-fast` supports none. The
   retired Claude 3.x models with narrower support were removed.
 - **OpenAI**: GPT-5 family and reasoning models (O-series) support the full
   superset. GPT-6 Astra, Sol, and Luna support every tool except

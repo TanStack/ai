@@ -40,8 +40,8 @@ import {
 import type {
   AnyTextAdapter,
   ChatMiddleware,
+  ChatMiddlewareConfig,
   ChatMiddlewareContext,
-  FetchWrapper,
   ModelMessage,
   TokenUsage,
 } from '@tanstack/ai'
@@ -118,11 +118,20 @@ export interface CompactionEndedEventValue {
   reason: CompactionReason
   /** The sum of the strategy's `addUsage` calls, for example its summary call. */
   usage?: TokenUsage
-  /** Set when the strategy threw. */
+  /**
+   * Set when the strategy threw, or when the adapter's `compact` failed and
+   * the strategy ran in its place.
+   */
   error?: { message: string }
   /** `true`: a ready background summary no longer fit the messages, and was dropped. */
   stale?: boolean
 }
+
+/**
+ * The models whose native compaction failed, by adapter. They use the
+ * strategy for the rest of the process.
+ */
+const failedNative = new WeakMap<object, Set<string>>()
 
 function emitCompactionStarted(
   ctx: ChatMiddlewareContext,
@@ -357,7 +366,8 @@ export interface CompactionInfo {
   /**
    * Set when the after-turn check failed (the strategy, the store, or
    * `onCompact` threw), or when a background summary failed. The run goes
-   * on. When the strategy failed, a later check tries again.
+   * on. When the strategy failed, a later check tries again. Also set when
+   * the adapter's `compact` failed and the strategy ran in its place.
    */
   error?: { message: string }
   /** `true`: a ready background summary no longer fit the messages, and was dropped. */
@@ -427,7 +437,9 @@ export interface CompactionOptions {
   /**
    * Compact with the provider's own endpoint. Pass the adapter of the
    * `chat()` call. When the adapter has `compact`, it runs in place of
-   * `strategy`. Else, or when `compact` fails, `strategy` runs. Default: off.
+   * `strategy`. Else, or when `compact` fails, `strategy` runs. A failure
+   * sets `error` in `onCompact` and `compaction:ended`. Then that adapter
+   * and model use `strategy` for the rest of the process. Default: off.
    */
   native?: Pick<AnyTextAdapter, 'compact'>
 }
@@ -743,28 +755,40 @@ export function withCompaction(
   }
   const estimate = options.estimateTokens ?? estimateMessageTokens
   const configured = options.strategy ?? evictOldest()
-  const nativeCompact = options.native?.compact?.bind(options.native)
+  const native = options.native
+  const nativeCompact = native?.compact?.bind(native)
   /**
    * The strategy of a call: the adapter's `compact` when `native` has it.
-   * When `compact` fails, the configured strategy runs. An adapter can get
-   * `compact` from a shared base and point at a provider with no such
-   * endpoint.
+   * When `compact` fails, the configured strategy runs, and `spent.error`
+   * gets the failure. An adapter can get `compact` from a shared base and
+   * point at a provider with no such endpoint.
    */
   const strategyOf = (
     ctx: ChatMiddlewareContext,
-    wrapFetch?: FetchWrapper,
+    spent: { error?: { message: string } },
+    config?: ChatMiddlewareConfig,
   ): CompactionStrategy =>
-    nativeCompact
+    native && nativeCompact
       ? async (messages, compaction) => {
+          if (failedNative.get(native)?.has(ctx.model)) {
+            return configured(messages, compaction)
+          }
           try {
             return await nativeCompact({
               messages: [...messages],
               model: ctx.model,
               ...(compaction.signal ? { signal: compaction.signal } : {}),
-              ...(wrapFetch ? { wrapFetch } : {}),
+              ...(config?.wrapFetch ? { wrapFetch: config.wrapFetch } : {}),
+              ...(config ? { systemPrompts: config.systemPrompts } : {}),
+              ...(config ? { tools: config.tools } : {}),
             })
           } catch (error) {
             if (compaction.signal?.aborted) throw error
+            const models = failedNative.get(native) ?? new Set<string>()
+            failedNative.set(native, models.add(ctx.model))
+            spent.error = {
+              message: error instanceof Error ? error.message : String(error),
+            }
             return configured(messages, compaction)
           }
         }
@@ -812,7 +836,7 @@ export function withCompaction(
     snapshot: Array<ModelMessage>,
     before: number,
     reusedCheckpoint: boolean,
-    wrapFetch: FetchWrapper | undefined,
+    config: ChatMiddlewareConfig,
   ) {
     const startedAt = Date.now()
     const store = backgroundStore(ctx)
@@ -827,7 +851,7 @@ export function withCompaction(
       ...strategyField,
       reason: 'background',
     })
-    const spent: { usage?: TokenUsage } = {}
+    const spent: { usage?: TokenUsage; error?: { message: string } } = {}
     // This event reaches the stream only while the run that started the job
     // still runs. onCompact always gets a failure.
     const end = (error?: { message: string }) =>
@@ -842,11 +866,31 @@ export function withCompaction(
         ...(spent.usage ? { usage: spent.usage } : {}),
         ...(error ? { error } : {}),
       })
+    const report = (error: { message: string }) => {
+      end(error)
+      try {
+        options.onCompact?.({
+          before,
+          after: before,
+          messagesBefore: snapshot.length,
+          messagesAfter: snapshot.length,
+          reason: 'background',
+          ...(spent.usage ? { usage: spent.usage } : {}),
+          error,
+        })
+      } catch {
+        // An onCompact that throws must not reject the job.
+      }
+    }
     // The job starts after `jobs.set`, so a strategy that throws at once
     // still removes its entry.
     const done = Promise.resolve().then(async () => {
       try {
-        const next = await strategyOf(ctx, wrapFetch)(snapshot, {
+        const next = await strategyOf(
+          ctx,
+          spent,
+          config,
+        )(snapshot, {
           maxTokens: options.maxTokens,
           estimate,
           addUsage: (usage) => {
@@ -854,7 +898,7 @@ export function withCompaction(
           },
         })
         if (!next || next === snapshot) {
-          end()
+          end(spent.error)
           return
         }
         const record = compactionRecord({
@@ -870,24 +914,12 @@ export function withCompaction(
           prefixHash: await hashMessages(snapshot.slice(0, record.from)),
         }
         await store.set(BACKGROUND_NAMESPACE, ctx.threadId, ready)
+        // The summary is ready, but the adapter's compact failed first.
+        if (spent.error) report(spent.error)
       } catch (failure) {
-        const error = {
+        report({
           message: failure instanceof Error ? failure.message : String(failure),
-        }
-        end(error)
-        try {
-          options.onCompact?.({
-            before,
-            after: before,
-            messagesBefore: snapshot.length,
-            messagesAfter: snapshot.length,
-            reason: 'background',
-            ...(spent.usage ? { usage: spent.usage } : {}),
-            error,
-          })
-        } catch {
-          // An onCompact that throws must not reject the job.
-        }
+        })
       } finally {
         jobs.delete(ctx.threadId)
       }
@@ -908,7 +940,7 @@ export function withCompaction(
     const store = storeOf(ctx)
     if (!logRecords || !store) return
     const messages = [...ctx.messages]
-    const spent: { usage?: TokenUsage } = {}
+    const spent: { usage?: TokenUsage; error?: { message: string } } = {}
     let tokens = 0
     const info = (after: number, messagesAfter: number): CompactionInfo => ({
       before: tokens,
@@ -917,6 +949,7 @@ export function withCompaction(
       messagesAfter,
       reason: 'after-turn',
       ...(spent.usage ? { usage: spent.usage } : {}),
+      ...(spent.error ? { error: spent.error } : {}),
     })
     // The answer already streamed, so only a failed log append fails the run.
     // Other errors go to onCompact.
@@ -950,7 +983,7 @@ export function withCompaction(
       const isOverflow =
         options.contextWindow !== undefined && tokens > options.contextWindow
       if (!isOverflow && !(auto && tokens > options.maxTokens)) return
-      next = await strategyOf(ctx)(messages, {
+      next = await strategyOf(ctx, spent)(messages, {
         maxTokens: options.maxTokens,
         estimate,
         signal: ctx.signal,
@@ -958,7 +991,10 @@ export function withCompaction(
           spent.usage = sumUsage(spent.usage, usage)
         },
       })
-      if (!next || next === messages || ctx.signal?.aborted) return
+      if (!next || next === messages || ctx.signal?.aborted) {
+        if (spent.error) fail(spent.error.message)
+        return
+      }
       tokensAfter = sum(next, estimate)
     } catch (error) {
       // The saved usage stays, and the next call's own check tries again.
@@ -1060,6 +1096,7 @@ export function withCompaction(
         tokensBefore: number,
         why: CompactionReason,
         usage: TokenUsage | undefined,
+        error?: { message: string },
       ) => {
         const info: CompactionInfo = {
           before: tokensBefore,
@@ -1068,6 +1105,7 @@ export function withCompaction(
           messagesAfter: next.length,
           reason: why,
           ...(usage ? { usage } : {}),
+          ...(error ? { error } : {}),
         }
         options.onCompact?.(info)
         emitCompactionState(
@@ -1096,6 +1134,7 @@ export function withCompaction(
             : {}),
           reason: why,
           ...(usage ? { usage } : {}),
+          ...(error ? { error } : {}),
         })
 
         if (countUsage) {
@@ -1240,7 +1279,7 @@ export function withCompaction(
             [...workingMessages],
             before,
             reusedCheckpoint,
-            config.wrapFetch,
+            config,
           )
         }
       }
@@ -1290,10 +1329,14 @@ export function withCompaction(
 
       emitCompactionStarted(ctx, startedValue)
       // An object, so the closure below can write it and TypeScript reads it.
-      const spent: { usage?: TokenUsage } = {}
+      const spent: { usage?: TokenUsage; error?: { message: string } } = {}
       let next: Array<ModelMessage> | null
       try {
-        next = await strategyOf(ctx, config.wrapFetch)(workingMessages, {
+        next = await strategyOf(
+          ctx,
+          spent,
+          config,
+        )(workingMessages, {
           maxTokens: options.maxTokens,
           estimate,
           signal: ctx.signal,
@@ -1335,6 +1378,7 @@ export function withCompaction(
             : {}),
           reason,
           ...(spent.usage ? { usage: spent.usage } : {}),
+          ...(spent.error ? { error: spent.error } : {}),
         })
         if (reusedCheckpoint) {
           return { providerMessages: workingMessages }
@@ -1342,7 +1386,14 @@ export function withCompaction(
         return
       }
 
-      await commit(workingMessages, next, before, reason, spent.usage)
+      await commit(
+        workingMessages,
+        next,
+        before,
+        reason,
+        spent.usage,
+        spent.error,
+      )
       return { providerMessages: next }
     },
     onUsage: countUsage

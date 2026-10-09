@@ -86,7 +86,8 @@ export class GrokTextAdapter<
   override readonly inputModalities = GROK_MODEL_INPUT_MODALITIES[this.model]
 
   constructor(config: GrokTextConfig, model: TModel) {
-    super(model, 'grok', new OpenAI(withGrokDefaults(config)))
+    const options = withGrokDefaults(config)
+    super(model, 'grok', new OpenAI(options), { fetch: options.fetch })
   }
 
   protected override modelReasoning(model: string) {

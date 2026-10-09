@@ -117,17 +117,17 @@ Playwright does not retry or record video locally. CI retries twice and keeps th
 
 **Coverage runs in CI only. It is not part of `pnpm test`, `pnpm test:pr`, or any git hook, and you are not expected to run it locally.**
 
-The `Coverage` job on every PR measures each affected package that has a `test:coverage` target twice: once on your branch and once on its merge-base with `main`. A drop of more than 0.5 percentage points in any metric (statements, branches, functions, lines) fails the job. Packages your PR didn't affect, and packages without that target, are never measured.
+The `Coverage` job on every PR measures each affected package that has a `test:coverage` target twice: once on your branch and once on its merge-base with `main`. The job fails only when a metric (statements, branches, functions, lines) is at or above 60% on the merge-base and under 60% on your branch. Other drops are listed, but they do not fail the job. A package that is already under 60% on `main` cannot fail it. Packages your PR didn't affect, and packages without that target, are never measured.
 
-There is no baseline file to keep in sync, and nothing to update when a package is added or removed: both numbers come from the same job on the same runner. There are also no target percentages to hit — the gate only catches coverage getting _worse_ in what you touched, and never blocks a PR for being below some repo-wide bar.
+There is no baseline file to keep in sync, and nothing to update when a package is added or removed: both numbers come from the same job on the same runner.
 
-Read the numbers from the PR's Checks tab: open the `Coverage` job. When at least one package with `test:coverage` is affected, the job summary has a per-package table with deltas, pass or fail. It is not posted as a PR comment.
+Read the numbers in the PR comment that the `Coverage` job posts. It shows a per-package table with deltas, and the job updates the same comment on each push. A PR from a fork gets no comment, because its token cannot write one. The same table is in the job summary: open the `Coverage` job from the PR's Checks tab.
 
 Re-measuring the merge-base is usually close to free. On every push to `main`, a separate `Coverage` workflow runs `test:coverage` for every package with the same forwarded args as the PR job, and fills the Nx Cloud cache. `test:coverage` declares its `coverage/` directory as a task output, so the base-side run restores the cached summaries and does not run the tests again. If that workflow did not finish for the merge-base commit (for example, a newer push to `main` cancelled it), the base-side tests run again. Keep the `--` args in `coverage.yml` and `pr.yml` identical: Nx hashes them, so any difference causes a cache miss.
 
-### If the job says coverage dropped
+### If the job says coverage fell under 60%
 
-Add tests covering the code you changed. That's the whole remedy — there is no number to override. If you genuinely deleted well-tested code and the drop is expected, say so in the PR and a maintainer can merge past the failing check.
+Add tests covering the code you changed, so each metric is back at 60% or more. That's the whole remedy — there is no number to override. If you genuinely deleted well-tested code and the drop is expected, say so in the PR and a maintainer can merge past the failing check.
 
 Two known limitations:
 
@@ -242,7 +242,7 @@ The PR template lists the steps. The `Test plan` section is required — describ
 
 ### Automated Grok review
 
-A Grok agent comments on open, non-draft PRs. The first lines of that comment say it is automated. It is not a maintainer review.
+A Grok agent reviews non-draft PRs into `main` automatically when they open or sync. The first lines of the bot's comment say it is automated. It is not a maintainer review.
 
 The bot sets exactly one of these labels:
 
@@ -252,7 +252,9 @@ The bot sets exactly one of these labels:
 
 The bot never GitHub-approves and never merges. The `ready-to-merge` label still means a human approval plus green CI.
 
-If the bot pushes, it only commits bugs and suggestions the review listed. Maintainers start a new run with a `/ai-review` comment, or from Actions (`workflow_dispatch`).
+If the bot pushes, it only commits bugs and suggestions the review listed. Roster maintainers can request one run by writing `/ai-review`. Anyone with write access can use Actions (`workflow_dispatch`) on `main`. For a first-time fork contributor, GitHub holds the automatic run. A maintainer writes `/ai-review`, and the bot approves the waiting checks after a clean scan.
+
+The bot checks the PR before Grok starts. It blocks sensitive automation, agent instructions, symlinks, binary files, new executable files, new dependencies, lockfile changes, and incomplete patches. A blocked PR gets a bot comment with the reasons and no verdict label. Grok runs in a disposable Docker container without the bot's GitHub token. The host validates Grok's patch before it applies or pushes any edit.
 
 ## Adding a new provider adapter
 

@@ -101,7 +101,7 @@ export function openaiCompatible<
         client,
         model,
         name,
-        { strictFallbackWarning },
+        { strictFallbackWarning, fetch: clientOptions.fetch },
         modelConfig(models, model, compat),
       )
     }
@@ -115,7 +115,7 @@ export function openaiCompatible<
       client,
       model,
       name,
-      { strictFallbackWarning },
+      { strictFallbackWarning, fetch: clientOptions.fetch },
       modelConfig(models, model, compat),
     )
   }
@@ -153,7 +153,7 @@ export function openaiCompatibleText<const TModelName extends string>(
       client,
       model,
       name,
-      { strictFallbackWarning },
+      { strictFallbackWarning, fetch: clientOptions.fetch },
       compat ? { compat } : {},
     )
   }
@@ -167,7 +167,7 @@ export function openaiCompatibleText<const TModelName extends string>(
     client,
     model,
     name,
-    { strictFallbackWarning },
+    { strictFallbackWarning, fetch: clientOptions.fetch },
     {
       ...(reasoning !== undefined ? { reasoning } : {}),
       ...(compat ? { compat } : {}),

@@ -520,6 +520,43 @@ test.describe('harness protocol', () => {
     })
   })
 
+  test('lists the child of a thread with parentThreadId', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const auth = headers(testId, aimockPort)
+    const threadId = `children-${testId}`
+    const response = await request.post('/api/harness-protocol/control', {
+      headers: { ...auth, 'content-type': 'application/json' },
+      data: {
+        threadId,
+        input: { op: 'agent', agent: 'echo', input: { text: 'hi' } },
+      },
+    })
+    expect(await response.json()).toMatchObject({ status: 'accepted' })
+
+    // The agent run is a child session `subagent:<id>` of the thread.
+    const query = new URLSearchParams({ parentThreadId: threadId })
+    await expect
+      .poll(async () => {
+        const listed = await request.get(
+          `/api/harness-protocol/sessions?${query}`,
+          { headers: auth },
+        )
+        const body: {
+          entries: Array<{ threadId: string; parentThreadId?: string }>
+        } = await listed.json()
+        return body.entries
+      })
+      .toEqual([
+        expect.objectContaining({
+          threadId: expect.stringMatching(/^subagent:/),
+          parentThreadId: threadId,
+        }),
+      ])
+  })
+
   test('searches the session list by title, without case', async ({
     request,
     testId,

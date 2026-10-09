@@ -6,6 +6,7 @@ import {
   type AdapterYieldChunk,
   type UIMessage,
 } from '@tanstack/ai'
+import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { createAnthropicChatWithClient } from '../src'
 import { AnthropicTextAdapter } from '../src/adapters/text'
 import type { AnthropicTextProviderOptions } from '../src/adapters/text'
@@ -912,6 +913,41 @@ describe('Anthropic adapter option mapping', () => {
     // streaming ceiling, which would make the SDK throw before the request.
     expect(payload.max_tokens).toBe(ANTHROPIC_MAX_NONSTREAMING_TOKENS)
     expect(payload.max_tokens).toBeLessThanOrEqual(21_333)
+  })
+
+  it('reports a max_tokens stop as truncation in structuredOutput', async () => {
+    // A forced tool call cut off at the cap arrives with partial input.
+    mocks.betaMessagesCreate.mockResolvedValueOnce({
+      id: 'msg_structured',
+      type: 'message',
+      role: 'assistant',
+      model: 'claude-opus-4-1',
+      content: [
+        {
+          type: 'tool_use',
+          id: 'toolu_structured_output',
+          name: 'structured_output',
+          input: {},
+        },
+      ],
+      stop_reason: 'max_tokens',
+      usage: { input_tokens: 10, output_tokens: 100 },
+    })
+
+    await expect(
+      createAdapter('claude-opus-4-1').structuredOutput({
+        chatOptions: {
+          model: 'claude-opus-4-1',
+          messages: [{ role: 'user', content: 'recommend a guitar as json' }],
+          logger: resolveDebugOption(false),
+        },
+        outputSchema: {
+          type: 'object',
+          properties: { recommendation: { type: 'string' } },
+          required: ['recommendation'],
+        },
+      }),
+    ).rejects.toThrow(/maximum token limit was reached/)
   })
 
   it('native combined mode (#605): wires outputSchema into output_format alongside tools on Claude 4.5+', async () => {

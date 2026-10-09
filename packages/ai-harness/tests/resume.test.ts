@@ -392,6 +392,40 @@ describe('crash resume', () => {
     )
   })
 
+  it('gives a cut call the text of a truncated function, with the call', async () => {
+    const { stores } = memoryPersistence()
+    await stores.messages.saveThread('t1', [
+      { id: 'u1', role: 'user', content: 'look up' },
+      {
+        id: 'a1',
+        role: 'assistant',
+        content: null,
+        metadata: { tanstack: { finishReason: 'length' } },
+        toolCalls: [
+          {
+            id: 'call-a',
+            type: 'function',
+            function: { name: 'lookup', arguments: '{"q":' },
+          },
+        ],
+      },
+    ])
+
+    await repairTranscript({
+      messages: stores.messages,
+      threadId: 't1',
+      pending: [],
+      truncated: ({ toolCallId, toolName }) => `${toolName} ${toolCallId} cut`,
+    })
+
+    expect((await stores.messages.loadThread('t1')).at(-1)).toEqual({
+      role: 'tool',
+      toolCallId: 'call-a',
+      content: 'lookup call-a cut',
+      error: 'lookup call-a cut',
+    })
+  })
+
   it('fails a background agent that a crashed host left running, and notes it', async () => {
     const persistence = memoryPersistence()
     await persistence.stores.runs.createOrResume({

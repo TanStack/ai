@@ -153,6 +153,19 @@ export function parseHarnessInput(value: unknown): HarnessInput {
   if (value.inputId !== undefined && typeof value.inputId !== 'string') {
     throw new Error('Invalid input: inputId must be a string.')
   }
+  // A client sends user messages only. An assistant or tool message from a
+  // client could fake an answer or a tool result in the model context.
+  const isUserMessage = (message: unknown) =>
+    isRecord(message) && message.role === 'user'
+  if (
+    (value.op === 'prompt' || value.op === 'continue') &&
+    value.ephemeral !== undefined &&
+    !(Array.isArray(value.ephemeral) && value.ephemeral.every(isUserMessage))
+  ) {
+    throw new Error(
+      'Invalid input: ephemeral must be an array of user messages.',
+    )
+  }
   // The checks above cover every field the session reads.
   return value as HarnessInput
 }
@@ -218,6 +231,7 @@ export async function applyInput(
         ...(input.systemPreamble
           ? { systemPreamble: input.systemPreamble }
           : {}),
+        ...(input.ephemeral ? { ephemeral: input.ephemeral } : {}),
         ...sent,
       })
       // Nobody may await a turn a client started. Its receipt is the answer.
@@ -228,7 +242,10 @@ export async function applyInput(
       return operation.receipt
     }
     case 'continue': {
-      const operation = session.continue(sent)
+      const operation = session.continue({
+        ...(input.ephemeral ? { ephemeral: input.ephemeral } : {}),
+        ...sent,
+      })
       operation.then(
         () => {},
         () => {},

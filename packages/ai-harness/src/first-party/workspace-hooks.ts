@@ -5,8 +5,11 @@ import { createExtensionPoint } from '../extensions'
  * holds the lock on that path. A hook that throws fails the tool call.
  */
 export interface WorkspaceHooks {
-  /** Runs after a tool wrote the file at `path`, an absolute path. */
-  afterWrite?: (path: string) => Promise<void>
+  /**
+   * Runs after a tool wrote the file at `path`, an absolute path. Return
+   * text to add to the result, or nothing to add nothing.
+   */
+  afterWrite?: (path: string) => Promise<string | void>
   /**
    * Runs after `read_file` read the file at `path`, an absolute path. Return
    * text to add to the result, or `undefined` to add nothing.

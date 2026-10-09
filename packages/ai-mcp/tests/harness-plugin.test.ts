@@ -11,7 +11,9 @@ import { createMCPServer } from '../src/server/index'
 import {
   approveSignIns,
   elicitServer,
+  legacyElicitServer,
   recorder,
+  roundsServer,
   tripForm,
 } from './connector-helpers'
 import { startProtectedServer } from './protected-server'
@@ -247,6 +249,127 @@ if (process.env[childEnv] === '1') {
       await session.answer(question?.questionId ?? '', 'done')
       await turn
       expect(trips.answers).toEqual([{ action: 'accept' }])
+    })
+
+    it.each([
+      [
+        'accepts',
+        { city: 'Paris' },
+        { action: 'accept', content: { city: 'Paris' } },
+      ],
+      ['declines', { action: 'decline' }, { action: 'decline' }],
+      ['cancels', { action: 'cancel' }, { action: 'cancel' }],
+    ])(
+      'asks an elicitation/create form request of a spec 2025 server, and the user %s',
+      async (_name, value, expected) => {
+        const trips = await legacyElicitServer([{ mode: 'form', ...tripForm }])
+        const model = recorder('trips_book')
+        const { session } = await openWith(
+          { trips: httpServer((request) => trips.fetch(request)) },
+          model,
+        )
+        const turn = session.prompt('book a trip')
+        await vi.waitFor(() =>
+          expect(session.snapshot().pendingQuestions).toHaveLength(1),
+        )
+        const [question] = session.snapshot().pendingQuestions
+
+        expect(question?.message).toBe('Which city?')
+        expect(question?.schema).toMatchObject(tripForm.requestedSchema)
+        await session.answer(question?.questionId ?? '', value)
+        await turn
+        expect(trips.answers).toEqual([expected])
+        expect(JSON.stringify(model.calls[1]?.messages)).toContain('booked')
+      },
+    )
+
+    it('asks an elicitation/create url request of a spec 2025 server', async () => {
+      const trips = await legacyElicitServer([
+        {
+          mode: 'url',
+          message: 'Pay for the trip, then come back.',
+          url: 'https://pay.example.com/trip',
+          elicitationId: 'pay-1',
+        },
+      ])
+      const { session } = await openWith(
+        { trips: httpServer((request) => trips.fetch(request)) },
+        recorder('trips_book'),
+      )
+      const turn = session.prompt('book a trip')
+      await vi.waitFor(() =>
+        expect(session.snapshot().pendingQuestions).toHaveLength(1),
+      )
+      const [question] = session.snapshot().pendingQuestions
+
+      expect(question).toMatchObject({
+        message: 'Pay for the trip, then come back.',
+        url: 'https://pay.example.com/trip',
+      })
+      await session.answer(question?.questionId ?? '', 'done')
+      await turn
+      expect(trips.answers).toEqual([{ action: 'accept' }])
+    })
+
+    it('asks two elicitations of one spec 2026 tool call in turn', async () => {
+      const seat = {
+        message: 'Which seat?',
+        requestedSchema: {
+          type: 'object' as const,
+          properties: { seat: { type: 'string' as const } },
+          required: ['seat'],
+        },
+      }
+      const trips = roundsServer([
+        inputRequired.elicit(tripForm),
+        inputRequired.elicit(seat),
+      ])
+      const model = recorder('trips_book')
+      const { session } = await openWith(
+        { trips: httpServer((request) => trips.fetch(request)) },
+        model,
+      )
+      const turn = session.prompt('book a trip')
+      for (const [message, value] of [
+        ['Which city?', { city: 'Paris' }],
+        ['Which seat?', { seat: '12A' }],
+      ] as const) {
+        await vi.waitFor(() =>
+          expect(session.snapshot().pendingQuestions[0]?.message).toBe(message),
+        )
+        const [question] = session.snapshot().pendingQuestions
+        await session.answer(question?.questionId ?? '', value)
+      }
+      await turn
+      expect(trips.answers).toEqual([
+        { action: 'accept', content: { city: 'Paris' } },
+        { action: 'accept', content: { seat: '12A' } },
+      ])
+      expect(JSON.stringify(model.calls[1]?.messages)).toContain('booked')
+    })
+
+    it('fails the tool call after 5 elicitations in one call', async () => {
+      const trips = roundsServer(
+        Array.from({ length: 6 }, () => inputRequired.elicit(tripForm)),
+      )
+      const model = recorder('trips_book')
+      const { session } = await openWith(
+        { trips: httpServer((request) => trips.fetch(request)) },
+        model,
+      )
+      const turn = session.prompt('book a trip')
+      for (let round = 0; round < 5; round++) {
+        await vi.waitFor(() =>
+          expect(session.snapshot().pendingQuestions).toHaveLength(1),
+        )
+        const [question] = session.snapshot().pendingQuestions
+        await session.answer(question?.questionId ?? '', { city: 'Paris' })
+      }
+      await turn
+      expect(trips.answers).toHaveLength(5)
+      expect(JSON.stringify(model.calls[1]?.messages)).toContain(
+        'asked for input more than 5 times',
+      )
     })
 
     it('runs a stdio server as a child process and stops it when the session closes', async () => {

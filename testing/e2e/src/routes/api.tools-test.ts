@@ -1,5 +1,6 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { resolve, sep } from 'node:path'
+import { join, resolve, sep } from 'node:path'
 import { createFileRoute } from '@tanstack/react-router'
 import {
   EventType,
@@ -8,8 +9,17 @@ import {
   maxIterations,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
-import { workspaceTools } from '@tanstack/ai-harness/plugins/coding'
+import {
+  HARNESS_EVENTS,
+  createHarnessHost,
+  defineHarness,
+} from '@tanstack/ai-harness'
+import { permissions } from '@tanstack/ai-harness/plugins'
+import {
+  formatter,
+  snapshots,
+  workspaceTools,
+} from '@tanstack/ai-harness/plugins/coding'
 import type {
   AnyTextAdapter,
   AdapterYieldChunk,
@@ -482,7 +492,9 @@ function createInterleavedArgsAdapter(): AnyTextAdapter {
  * A `coding-*` scenario: one harness turn with `workspaceTools()` in `root`,
  * as the chunks the client gets. `coding-patch` gets the `patch` tool, the
  * other scenarios get `edit_file`. No `permissions()` is mounted, so no tool
- * asks for approval.
+ * asks for approval. Only `coding-format-ask` mounts `formatter()` and
+ * `permissions()` in `acceptEdits` mode: the write runs, the formatter asks,
+ * and the route rejects the question.
  */
 async function* codingTurn(
   scenario: string,
@@ -490,6 +502,7 @@ async function* codingTurn(
   threadId: string,
   adapter: AnyTextAdapter,
 ): AsyncGenerator<StreamChunk> {
+  const formatAsk = scenario === 'coding-format-ask'
   const host = createHarnessHost()
   try {
     const session = await host.open(
@@ -501,14 +514,62 @@ async function* codingTurn(
             root,
             editStyle: scenario === 'coding-patch' ? 'patch' : 'edit',
           }),
+          ...(formatAsk ? [permissions({ root }), formatter({ root })] : []),
         ],
       }),
       { threadId },
     )
+    if (formatAsk) await session.command('mode', 'acceptEdits')
     // The session keeps its own history, so the turn gets the prompt only.
-    yield* session.prompt(`[${scenario}] run test`).stream()
+    for await (const chunk of session
+      .prompt(`[${scenario}] run test`)
+      .stream()) {
+      yield chunk
+      const asks =
+        chunk.type === EventType.CUSTOM &&
+        chunk.name === HARNESS_EVENTS.question
+      const [question] = asks ? session.snapshot().pendingQuestions : []
+      if (question) await session.answer(question.questionId, 'reject')
+    }
   } finally {
     await host.close()
+  }
+}
+
+/**
+ * The `coding-revert` scenario: two turns with `snapshots()`, each edits
+ * notes.txt. Between them, the user edits other.txt. Then a revert to the
+ * first prompt puts back the files of both turns.
+ */
+async function* revertTurns(
+  root: string,
+  threadId: string,
+  adapter: AnyTextAdapter,
+): AsyncGenerator<StreamChunk> {
+  const dataDir = await mkdtemp(join(tmpdir(), 'e2e-snapshots-'))
+  const host = createHarnessHost()
+  try {
+    const session = await host.open(
+      defineHarness({
+        name: 'e2e/tools-test-revert',
+        adapter,
+        plugins: () => [
+          // The fixtures call `edit_file`, so the edit style must not depend
+          // on the model.
+          workspaceTools({ root, editStyle: 'edit' }),
+          snapshots({ root, dataDir }),
+        ],
+      }),
+      { threadId },
+    )
+    yield* session.prompt('[coding-revert] run test').stream()
+    await writeFile(join(root, 'other.txt'), 'mine\n')
+    yield* session.prompt('[coding-revert-2] run test').stream()
+    const [prompt] = await session.transcript()
+    if (prompt?.id) await session.revert(prompt.id)
+  } finally {
+    await host.close()
+    await rm(dataDir, { recursive: true, force: true })
   }
 }
 
@@ -585,7 +646,9 @@ export const Route = createFileRoute('/api/tools-test')({
               testId,
             )
             return toServerSentEventsResponse(
-              codingTurn(scenario, root, params.threadId, adapter),
+              scenario === 'coding-revert'
+                ? revertTurns(root, params.threadId, adapter)
+                : codingTurn(scenario, root, params.threadId, adapter),
             )
           }
 

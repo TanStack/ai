@@ -76,6 +76,23 @@ export const REASONING_TARGETS: ReadonlyArray<ReasoningTarget> = [
     typePrefix: 'Anthropic',
     constPrefix: 'ANTHROPIC',
     sources: ['anthropic', 'google-vertex-anthropic'],
+    overrides: {
+      // models.dev does not list claude-haiku-5-5 yet. The Claude API takes
+      // adaptive thinking with all five efforts, or `disabled`, and no
+      // budget_tokens.
+      'claude-haiku-5-5': {
+        map: {
+          ...NO_LEVELS,
+          off: 'none',
+          low: 'low',
+          medium: 'medium',
+          high: 'high',
+          xhigh: 'xhigh',
+          max: 'max',
+        },
+        budget: false,
+      },
+    },
   },
   {
     pkg: 'ai-gemini',

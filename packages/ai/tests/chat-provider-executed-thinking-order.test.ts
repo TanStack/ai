@@ -498,5 +498,56 @@ describe('provider-executed tools interleaved with signed thinking', () => {
       expect(lookup).not.toHaveBeenCalled()
       expect(calls).toHaveLength(2)
     })
+
+    it('with truncatedToolResult, gives the cut call that text and calls the model again', async () => {
+      const lookup = vi.fn(() => ({ found: true }))
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ...reasoning('step-1', 'plan', 'sig-a'),
+            providerToolStart('srvtoolu_1', 'one'),
+            ev.toolEnd('srvtoolu_1'),
+            ...reasoning('step-2', 'refine', 'sig-b'),
+            ev.toolStart('call_1', 'lookup'),
+            ev.toolArgs('call_1', '{"id":'),
+            ev.runFinished('length'),
+          ],
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Done.'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      await collectChunks(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'Research' }],
+          tools: [serverTool('lookup', lookup)],
+          truncatedToolResult: 'Cut off. Not run.',
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect(lookup).not.toHaveBeenCalled()
+      expect(calls).toHaveLength(2)
+      const history = calls[1]!.messages as Array<ModelMessage>
+      expect(
+        history.map((message) =>
+          message.role === 'tool'
+            ? { tool: message.toolCallId, content: message.content }
+            : { [message.role]: message.toolCalls?.map((call) => call.id) },
+        ),
+      ).toEqual([
+        { user: undefined },
+        { assistant: ['srvtoolu_1'] },
+        { assistant: ['call_1'] },
+        // The provider-executed call keeps its own result.
+        { tool: 'call_1', content: 'Cut off. Not run.' },
+      ])
+    })
   })
 })
