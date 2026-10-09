@@ -1,6 +1,7 @@
 import type {
   DefaultMessageMetadataByModality,
   JSONSchema,
+  MidConversationChannels,
   Modality,
   TextOptions,
   TokenUsage,
@@ -104,6 +105,14 @@ export interface TextAdapter<
    * `'~types'.inputModalities`, which has no runtime value.
    */
   readonly inputModalities?: ReadonlyArray<Modality>
+
+  /**
+   * The mid-conversation channels of the model: tools and system prompts
+   * added between model calls can go out with no change to the cached prompt
+   * prefix. `chat()` passes `TextOptions.midConversationChanges` only when a
+   * channel is on. `undefined` means no channels.
+   */
+  readonly midConversationChannels?: MidConversationChannels
 
   /**
    * @internal Type-only properties for inference. Not assigned at runtime.
@@ -231,6 +240,11 @@ export abstract class BaseTextAdapter<
    * `override readonly inputModalities = INPUT_BY_MODEL[this.model]`.
    */
   readonly inputModalities?: ReadonlyArray<Modality> = undefined
+  /**
+   * Provider subclasses override this from their model metadata, the same
+   * way as `inputModalities`. No channels by default.
+   */
+  readonly midConversationChannels?: MidConversationChannels = undefined
 
   // Type-only property - never assigned at runtime
   declare '~types': {

@@ -562,6 +562,8 @@ export {
   getProviderExecutedMetadata,
   isProviderExecutedToolCall,
 } from './utilities/provider-executed'
+export { splitMidConversationChanges } from './utilities/mid-conversation'
+export type { MidConversationRequest } from './utilities/mid-conversation'
 
 // Adapter extension utilities
 export { createModel, extendAdapter } from './extend-adapter'
