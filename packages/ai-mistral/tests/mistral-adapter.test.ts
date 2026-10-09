@@ -1204,6 +1204,71 @@ describe('Mistral AG-UI event emission', () => {
       /Mistral text adapter does not support content part of type 'audio'/,
     )
   })
+
+  it('sends the images of a tool result as image chunks in the tool message', async () => {
+    let capturedBody:
+      | { messages: Array<{ role: string; content: unknown }> }
+      | undefined
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init?: { body?: string }) => {
+        capturedBody = init?.body ? JSON.parse(init.body) : undefined
+        return {
+          ok: true,
+          status: 200,
+          body: new ReadableStream({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'))
+              controller.close()
+            },
+          }),
+        }
+      }),
+    )
+    mockComplete.mockReset()
+
+    const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+    for await (const _chunk of adapter.chatStream(
+      chatOpts({
+        model: 'mistral-large-latest',
+        messages: [
+          { role: 'user', content: 'Take a screenshot' },
+          {
+            role: 'assistant',
+            content: '',
+            toolCalls: [
+              {
+                id: 'call12345',
+                type: 'function',
+                function: { name: 'screenshot', arguments: '{}' },
+              },
+            ],
+          },
+          {
+            role: 'tool',
+            toolCallId: 'call12345',
+            content: [
+              { type: 'text', content: 'The screenshot' },
+              {
+                type: 'image',
+                source: { type: 'url', value: 'https://example.com/s.png' },
+              },
+            ],
+          },
+        ],
+      }),
+    )) {
+      // drain
+    }
+
+    const toolMessage = capturedBody?.messages.find(
+      (message) => message.role === 'tool',
+    )
+    expect(toolMessage?.content).toEqual([
+      { type: 'text', text: 'The screenshot' },
+      { type: 'image_url', image_url: 'https://example.com/s.png' },
+    ])
+  })
 })
 
 describe('Mistral reasoning (magistral-* models)', () => {
