@@ -1,6 +1,8 @@
 import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import {
   appendOutputSchemaInstruction,
+  reasoningBudget,
+  resolveReasoning,
   toRunErrorRawEvent,
 } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
@@ -29,6 +31,7 @@ import { buildPrompt } from '../messages/prompt'
 import { translateSdkStream } from '../stream/translate'
 import { mapPolicyToClaudeFlags } from './policy-map'
 import { projectClaudeWorkspace } from './projection'
+import { CLAUDE_CODE_MODEL_REASONING } from '../model-meta'
 import {
   CLAUDE_JSON_SCHEMA_PLACEHOLDER,
   CLAUDE_RUNNER_SOURCE,
@@ -50,9 +53,13 @@ import type {
   DefaultMessageMetadataByModality,
   Modality,
   AdapterYieldChunk,
+  ReasoningRequest,
   TextOptions,
 } from '@tanstack/ai'
-import type { ClaudeCodeModel } from '../model-meta'
+import type {
+  ClaudeCodeModel,
+  ClaudeCodeModelReasoningByName,
+} from '../model-meta'
 import type { ClaudeCodeTextProviderOptions } from '../provider-options'
 import type { AgentSdkMessage } from '../stream/sdk-types'
 
@@ -155,6 +162,43 @@ function bridgeToMcpConfig(bridge: HostToolBridge): string {
   })
 }
 
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof ClaudeCodeModelReasoningByName
+    ? ClaudeCodeModelReasoningByName[TModel]
+    : never
+
+/**
+ * The CLI settings for `chat({ reasoning })`, from the Claude Code docs:
+ * - a model with effort levels: `--effort <level>`.
+ * - a budget model (Haiku): `MAX_THINKING_TOKENS`, the budget (pi's table
+ *   when the request sets none), or `0` for `off`.
+ */
+export function claudeCodeReasoning(
+  model: string,
+  request: ReasoningRequest | undefined,
+): { args: Array<string>; env: Record<string, string> } {
+  const reasoning = CLAUDE_CODE_MODEL_REASONING[model]
+  const resolved = resolveReasoning(request, reasoning)
+  if (!resolved || !reasoning) return { args: [], env: {} }
+  if (reasoning.map) {
+    return resolved.value === null
+      ? { args: [], env: {} }
+      : { args: ['--effort', resolved.value], env: {} }
+  }
+  const budget =
+    resolved.level === 'off'
+      ? 0
+      : reasoningBudget({
+          level: resolved.level,
+          summary: resolved.summary,
+          ...(resolved.budgetTokens !== undefined
+            ? { budgetTokens: resolved.budgetTokens }
+            : {}),
+        })
+  return { args: [], env: { MAX_THINKING_TOKENS: String(budget) } }
+}
+
 export class ClaudeCodeTextAdapter<
   TModel extends ClaudeCodeModel,
 > extends BaseTextAdapter<
@@ -164,7 +208,8 @@ export class ClaudeCodeTextAdapter<
   DefaultMessageMetadataByModality,
   ReadonlyArray<string>,
   unknown,
-  never
+  never,
+  ResolveReasoning<TModel>
 > {
   readonly name = 'claude-code' as const
 
@@ -240,6 +285,7 @@ export class ClaudeCodeTextAdapter<
 
     if (config.streamPartials !== false) args.push('--include-partial-messages')
     if (resume !== undefined) args.push('--resume', resume)
+    args.push(...claudeCodeReasoning(this.model, options.reasoning).args)
 
     const permissionMode =
       modelOptions?.permissionMode ??
@@ -565,6 +611,7 @@ export class ClaudeCodeTextAdapter<
               }),
           ...(injectApiKey ? hostClaudeAuthEnv() : {}),
           ...localProcessHomeEnv(sandbox.provider),
+          ...claudeCodeReasoning(this.model, options.reasoning).env,
           ...this.adapterConfig.env,
         },
         ...(options.abortController?.signal
