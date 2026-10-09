@@ -214,6 +214,40 @@ class MyTextAdapter extends BaseTextAdapter<
 console.log(new MyTextAdapter('my-vision-model').inputModalities) // ['text', 'image']
 ```
 
+## Send assistant blocks in order
+
+Your provider wants thinking, text, and tool calls in the order the model sent them. A `ModelMessage` keeps them in three separate fields: `thinking`, `content`, and `toolCalls`. Use `orderedAssistantBlocks` to get them back in order:
+
+```typescript
+import { orderedAssistantBlocks } from '@tanstack/ai'
+import type { ModelMessage } from '@tanstack/ai'
+
+type WireBlock =
+  | { type: 'reasoning'; text: string; signature?: string }
+  | { type: 'text'; text: string }
+  | { type: 'call'; id: string; name: string; args: string }
+
+export function orderedWireBlocks(message: ModelMessage): Array<WireBlock> | undefined {
+  const blocks = orderedAssistantBlocks(message)
+  if (!blocks) return undefined
+  return blocks.map((block): WireBlock => {
+    if (block.type === 'thinking') {
+      return { type: 'reasoning', text: block.thinking.content, signature: block.thinking.signature }
+    }
+    if (block.type === 'text') return { type: 'text', text: block.text }
+    return {
+      type: 'call',
+      id: block.toolCall.id,
+      name: block.toolCall.function.name,
+      args: block.toolCall.function.arguments,
+    }
+  })
+}
+```
+
+- The order comes from `message.blockOrder`. The library writes it only when the order is not the default: all thinking, then the text, then the tool calls.
+- `orderedAssistantBlocks` returns `undefined` when the message has no map, or when the map does not match the message. Then send your default order.
+
 ## Example: OpenAI-Compatible Proxy
 
 A common use case is typing models for an OpenAI-compatible proxy:
