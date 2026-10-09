@@ -48,6 +48,7 @@ import { Route as WebsocketAdapterRouteImport } from './routes/websocket-adapter
 import { Route as ProviderIndexRouteImport } from './routes/$provider/index'
 import { Route as ProviderFeatureRouteImport } from './routes/$provider/$feature'
 import { Route as ApiActivityTestRouteImport } from './routes/api.activity-test'
+import { Route as ApiAdapterInputModalitiesRouteImport } from './routes/api.adapter-input-modalities'
 import { Route as ApiAnthropicBugTestRouteImport } from './routes/api.anthropic-bug-test'
 import { Route as ApiAnthropicHaiku55WireRouteImport } from './routes/api.anthropic-haiku-5-5-wire'
 import { Route as ApiAnthropicMaxTokensUsageRouteImport } from './routes/api.anthropic-max-tokens-usage'
@@ -348,6 +349,11 @@ const ProviderFeatureRoute = ProviderFeatureRouteImport.update({
 const ApiActivityTestRoute = ApiActivityTestRouteImport.update({
   id: '/api/activity-test',
   path: '/api/activity-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdapterInputModalitiesRoute = ApiAdapterInputModalitiesRouteImport.update({
+  id: '/api/adapter-input-modalities',
+  path: '/api/adapter-input-modalities',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAnthropicBugTestRoute = ApiAnthropicBugTestRouteImport.update({
@@ -936,6 +942,7 @@ export interface FileRoutesByFullPath {
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/activity-test': typeof ApiActivityTestRoute
+  '/api/adapter-input-modalities': typeof ApiAdapterInputModalitiesRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-haiku-5-5-wire': typeof ApiAnthropicHaiku55WireRoute
   '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
@@ -1080,6 +1087,7 @@ export interface FileRoutesByTo {
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/activity-test': typeof ApiActivityTestRoute
+  '/api/adapter-input-modalities': typeof ApiAdapterInputModalitiesRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-haiku-5-5-wire': typeof ApiAnthropicHaiku55WireRoute
   '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
@@ -1225,6 +1233,7 @@ export interface FileRoutesById {
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/activity-test': typeof ApiActivityTestRoute
+  '/api/adapter-input-modalities': typeof ApiAdapterInputModalitiesRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-haiku-5-5-wire': typeof ApiAnthropicHaiku55WireRoute
   '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
@@ -1371,6 +1380,7 @@ export interface FileRouteTypes {
     | '/websocket-adapter'
     | '/$provider/$feature'
     | '/api/activity-test'
+    | '/api/adapter-input-modalities'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-haiku-5-5-wire'
     | '/api/anthropic-max-tokens-usage'
@@ -1515,6 +1525,7 @@ export interface FileRouteTypes {
     | '/websocket-adapter'
     | '/$provider/$feature'
     | '/api/activity-test'
+    | '/api/adapter-input-modalities'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-haiku-5-5-wire'
     | '/api/anthropic-max-tokens-usage'
@@ -1659,6 +1670,7 @@ export interface FileRouteTypes {
     | '/websocket-adapter'
     | '/$provider/$feature'
     | '/api/activity-test'
+    | '/api/adapter-input-modalities'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-haiku-5-5-wire'
     | '/api/anthropic-max-tokens-usage'
@@ -1804,6 +1816,7 @@ export interface RootRouteChildren {
   WebsocketAdapterRoute: typeof WebsocketAdapterRoute
   ProviderFeatureRoute: typeof ProviderFeatureRoute
   ApiActivityTestRoute: typeof ApiActivityTestRoute
+  ApiAdapterInputModalitiesRoute: typeof ApiAdapterInputModalitiesRoute
   ApiAnthropicBugTestRoute: typeof ApiAnthropicBugTestRoute
   ApiAnthropicHaiku55WireRoute: typeof ApiAnthropicHaiku55WireRoute
   ApiAnthropicMaxTokensUsageRoute: typeof ApiAnthropicMaxTokensUsageRoute
@@ -2178,6 +2191,13 @@ declare module '@tanstack/react-router' {
       path: '/api/activity-test'
       fullPath: '/api/activity-test'
       preLoaderRoute: typeof ApiActivityTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/adapter-input-modalities': {
+      id: '/api/adapter-input-modalities'
+      path: '/api/adapter-input-modalities'
+      fullPath: '/api/adapter-input-modalities'
+      preLoaderRoute: typeof ApiAdapterInputModalitiesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/anthropic-bug-test': {
@@ -3001,6 +3021,7 @@ const rootRouteChildren: RootRouteChildren = {
   WebsocketAdapterRoute: WebsocketAdapterRoute,
   ProviderFeatureRoute: ProviderFeatureRoute,
   ApiActivityTestRoute: ApiActivityTestRoute,
+  ApiAdapterInputModalitiesRoute: ApiAdapterInputModalitiesRoute,
   ApiAnthropicBugTestRoute: ApiAnthropicBugTestRoute,
   ApiAnthropicHaiku55WireRoute: ApiAnthropicHaiku55WireRoute,
   ApiAnthropicMaxTokensUsageRoute: ApiAnthropicMaxTokensUsageRoute,

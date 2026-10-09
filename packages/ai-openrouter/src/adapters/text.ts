@@ -14,6 +14,7 @@ import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../internal/request-options'
 import { makeStructuredOutputCompatible } from '../internal/schema-converter'
 import { openRouterSupportsCombinedToolsAndSchema } from '../internal/combined-tools-and-schema'
+import { OPENROUTER_MODEL_INPUT_MODALITIES } from '../model-meta'
 import { convertToolsToProviderFormat } from '../tools'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
 import { buildOpenRouterUsage } from '../usage'
@@ -138,6 +139,8 @@ export class OpenRouterTextAdapter<
 > {
   override readonly kind = 'text' as const
   readonly name = 'openrouter' as const
+  override readonly inputModalities =
+    OPENROUTER_MODEL_INPUT_MODALITIES[this.model]
 
   protected orClient: OpenRouter
   private readonly retryCodes: Array<string> | undefined
