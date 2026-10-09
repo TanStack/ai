@@ -2,7 +2,7 @@ import OpenAI from 'openai'
 import type { ClientOptions } from 'openai'
 import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
 import { resolveReasoning } from '@tanstack/ai/adapter-internals'
-import { CLOUDFLARE_MODEL_REASONING } from '../model-reasoning'
+import { CLOUDFLARE_MODEL_REASONING } from '../utils/models'
 import {
   gatewayHeaders,
   isBindingConfig,
@@ -19,14 +19,16 @@ import type {
   CloudflareTextConfig,
   CloudflareTextRestConfig,
 } from '../utils/config'
-import type { CloudflareTextModel } from '../utils/models'
+import type {
+  CloudflareModelReasoningByName,
+  CloudflareTextModel,
+} from '../utils/models'
 import type {
   DefaultMessageMetadataByModality,
   Modality,
   ModelMessage,
   TextOptions,
 } from '@tanstack/ai'
-import type { CloudflareModelReasoningByName } from '../model-reasoning'
 
 /** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
 type ResolveReasoning<TModel extends string> =
