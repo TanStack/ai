@@ -83,6 +83,7 @@ import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiInterruptsTestRouteImport } from './routes/api.interrupts-test'
 import { Route as ApiJoinRunClientToolRouteImport } from './routes/api.join-run-client-tool'
 import { Route as ApiJsonTransportRouteImport } from './routes/api.json-transport'
+import { Route as ApiKeyedAdapterRouteImport } from './routes/api.keyed-adapter'
 import { Route as ApiLazyToolsWireRouteImport } from './routes/api.lazy-tools-wire'
 import { Route as ApiLoneSurrogatesWireRouteImport } from './routes/api.lone-surrogates-wire'
 import { Route as ApiMaxToolCallsWireRouteImport } from './routes/api.max-tool-calls-wire'
@@ -538,6 +539,11 @@ const ApiJsonTransportRoute = ApiJsonTransportRouteImport.update({
   path: '/api/json-transport',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiKeyedAdapterRoute = ApiKeyedAdapterRouteImport.update({
+  id: '/api/keyed-adapter',
+  path: '/api/keyed-adapter',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiLazyToolsWireRoute = ApiLazyToolsWireRouteImport.update({
   id: '/api/lazy-tools-wire',
   path: '/api/lazy-tools-wire',
@@ -971,6 +977,7 @@ export interface FileRoutesByFullPath {
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
   '/api/json-transport': typeof ApiJsonTransportRoute
+  '/api/keyed-adapter': typeof ApiKeyedAdapterRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/lone-surrogates-wire': typeof ApiLoneSurrogatesWireRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
@@ -1115,6 +1122,7 @@ export interface FileRoutesByTo {
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
   '/api/json-transport': typeof ApiJsonTransportRoute
+  '/api/keyed-adapter': typeof ApiKeyedAdapterRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/lone-surrogates-wire': typeof ApiLoneSurrogatesWireRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
@@ -1260,6 +1268,7 @@ export interface FileRoutesById {
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
   '/api/json-transport': typeof ApiJsonTransportRoute
+  '/api/keyed-adapter': typeof ApiKeyedAdapterRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/lone-surrogates-wire': typeof ApiLoneSurrogatesWireRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
@@ -1406,6 +1415,7 @@ export interface FileRouteTypes {
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
     | '/api/json-transport'
+    | '/api/keyed-adapter'
     | '/api/lazy-tools-wire'
     | '/api/lone-surrogates-wire'
     | '/api/max-tool-calls-wire'
@@ -1550,6 +1560,7 @@ export interface FileRouteTypes {
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
     | '/api/json-transport'
+    | '/api/keyed-adapter'
     | '/api/lazy-tools-wire'
     | '/api/lone-surrogates-wire'
     | '/api/max-tool-calls-wire'
@@ -1694,6 +1705,7 @@ export interface FileRouteTypes {
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
     | '/api/json-transport'
+    | '/api/keyed-adapter'
     | '/api/lazy-tools-wire'
     | '/api/lone-surrogates-wire'
     | '/api/max-tool-calls-wire'
@@ -1839,6 +1851,7 @@ export interface RootRouteChildren {
   ApiInterruptsTestRoute: typeof ApiInterruptsTestRoute
   ApiJoinRunClientToolRoute: typeof ApiJoinRunClientToolRoute
   ApiJsonTransportRoute: typeof ApiJsonTransportRoute
+  ApiKeyedAdapterRoute: typeof ApiKeyedAdapterRoute
   ApiLazyToolsWireRoute: typeof ApiLazyToolsWireRoute
   ApiLoneSurrogatesWireRoute: typeof ApiLoneSurrogatesWireRoute
   ApiMaxToolCallsWireRoute: typeof ApiMaxToolCallsWireRoute
@@ -2423,6 +2436,13 @@ declare module '@tanstack/react-router' {
       path: '/api/json-transport'
       fullPath: '/api/json-transport'
       preLoaderRoute: typeof ApiJsonTransportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/keyed-adapter': {
+      id: '/api/keyed-adapter'
+      path: '/api/keyed-adapter'
+      fullPath: '/api/keyed-adapter'
+      preLoaderRoute: typeof ApiKeyedAdapterRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/lazy-tools-wire': {
@@ -3039,6 +3059,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiInterruptsTestRoute: ApiInterruptsTestRoute,
   ApiJoinRunClientToolRoute: ApiJoinRunClientToolRoute,
   ApiJsonTransportRoute: ApiJsonTransportRoute,
+  ApiKeyedAdapterRoute: ApiKeyedAdapterRoute,
   ApiLazyToolsWireRoute: ApiLazyToolsWireRoute,
   ApiLoneSurrogatesWireRoute: ApiLoneSurrogatesWireRoute,
   ApiMaxToolCallsWireRoute: ApiMaxToolCallsWireRoute,

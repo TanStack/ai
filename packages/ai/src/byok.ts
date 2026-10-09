@@ -15,3 +15,5 @@ export {
   ByokUnresolvedProviderError,
 } from './byok/errors'
 export { maskKey, scrubSecrets } from './byok/scrub'
+export { keyedAdapter, isKeyedAdapter } from './byok/keyed'
+export type { KeyedAdapter } from './byok/keyed'
