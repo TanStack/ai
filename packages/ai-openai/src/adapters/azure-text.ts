@@ -61,6 +61,7 @@ export class AzureOpenAITextAdapter extends OpenAIBaseResponsesTextAdapter<
   DefaultMessageMetadataByModality,
   ReadonlyArray<string>
 > {
+  override readonly api = 'azure-openai-responses'
   private readonly deploymentName: string
 
   constructor(config: AzureOpenAITextConfig, model: string) {

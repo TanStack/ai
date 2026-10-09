@@ -7,8 +7,12 @@ import {
 } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
+  hashToolCallId,
+  orderedAssistantBlocks,
+  tanstackMetadata,
   toRunErrorPayload,
   toRunErrorRawEvent,
+  transformMessagesForReplay,
 } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../internal/request-options'
@@ -121,6 +125,8 @@ export class OpenRouterResponsesTextAdapter<
 > {
   override readonly kind = 'text' as const
   readonly name = 'openrouter-responses' as const
+  override readonly provider = 'openrouter'
+  override readonly api = 'openai-responses'
   override readonly inputModalities =
     OPENROUTER_MODEL_INPUT_MODALITIES[this.model]
 
@@ -134,6 +140,24 @@ export class OpenRouterResponsesTextAdapter<
   }
 
   async *chatStream(
+    options: TextOptions<OpenRouterResponsesTextProviderOptions>,
+  ): AsyncIterable<AdapterYieldChunk> {
+    const source = {
+      provider: this.provider,
+      api: this.api,
+      model: options.model,
+    }
+    for await (const chunk of this.chatStreamRequest(options))
+      yield {
+        ...chunk,
+        metadata: {
+          ...chunk.metadata,
+          tanstack: { ...tanstackMetadata(chunk), source },
+        },
+      }
+  }
+
+  private async *chatStreamRequest(
     options: TextOptions<OpenRouterResponsesTextProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
     // Track tool call metadata by unique ID. The Responses API streams tool
@@ -302,6 +326,8 @@ export class OpenRouterResponsesTextAdapter<
       return {
         data: transformed,
         rawText,
+        ...(response.id && { responseId: response.id }),
+        ...(response.model && { model: response.model }),
         ...(hasUsage && {
           usage: {
             promptTokens: usage.inputTokens ?? 0,
@@ -337,6 +363,24 @@ export class OpenRouterResponsesTextAdapter<
   async *structuredOutputStream(
     options: StructuredOutputOptions<OpenRouterResponsesTextProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
+    const source = {
+      provider: this.provider,
+      api: this.api,
+      model: options.chatOptions.model,
+    }
+    for await (const chunk of this.structuredOutputRequestStream(options))
+      yield {
+        ...chunk,
+        metadata: {
+          ...chunk.metadata,
+          tanstack: { ...tanstackMetadata(chunk), source },
+        },
+      }
+  }
+
+  private async *structuredOutputRequestStream(
+    options: StructuredOutputOptions<OpenRouterResponsesTextProviderOptions>,
+  ): AsyncIterable<AdapterYieldChunk> {
     const { chatOptions, outputSchema } = options
     const responsesRequest = this.mapOptionsToRequest(chatOptions)
 
@@ -359,6 +403,8 @@ export class OpenRouterResponsesTextAdapter<
     let stepId: string | undefined
     let hasClosedReasoning = false
     let model: string = chatOptions.model
+    let responseId: string | undefined
+    let reportedModel: string | undefined
     let usage:
       | {
           inputTokens?: number
@@ -463,6 +509,11 @@ export class OpenRouterResponsesTextAdapter<
 
       for await (const rawEvent of rawStream) {
         const chunk = normalizeStreamEvent(rawEvent)
+        if (chunk.response?.id) responseId = chunk.response.id
+        if (chunk.response?.model) {
+          model = chunk.response.model
+          reportedModel = model
+        }
 
         chatOptions.logger.provider(
           `provider=${this.name} type=${chunk.type}`,
@@ -695,6 +746,13 @@ export class OpenRouterResponsesTextAdapter<
 
       yield {
         type: EventType.RUN_FINISHED,
+        ...(responseId && { responseId }),
+        metadata: {
+          tanstack: {
+            ...(responseId && { responseId }),
+            ...(reportedModel && { model: reportedModel }),
+          },
+        },
         runId: aguiState.runId,
         threadId: aguiState.threadId,
         model,
@@ -869,6 +927,8 @@ export class OpenRouterResponsesTextAdapter<
     let hasStreamedReasoningDeltas = false
 
     let model: string = options.model
+    let responseId: string | undefined
+    let reportedModel: string | undefined
 
     let stepId: string | null = null
     let hasEmittedTextMessageStart = false
@@ -961,6 +1021,11 @@ export class OpenRouterResponsesTextAdapter<
     try {
       for await (const rawEvent of stream) {
         const chunk = normalizeStreamEvent(rawEvent)
+        if (chunk.response?.id) responseId = chunk.response.id
+        if (chunk.response?.model) {
+          model = chunk.response.model
+          reportedModel = model
+        }
         options.logger.provider(`provider=${this.name} type=${chunk.type}`, {
           provider: this.name,
           type: chunk.type,
@@ -1617,6 +1682,13 @@ export class OpenRouterResponsesTextAdapter<
 
           yield {
             type: EventType.RUN_FINISHED,
+            ...(responseId && { responseId }),
+            metadata: {
+              tanstack: {
+                ...(responseId && { responseId }),
+                ...(reportedModel && { model: reportedModel }),
+              },
+            },
             runId: aguiState.runId,
             threadId: aguiState.threadId,
             model: model || options.model,
@@ -1733,7 +1805,7 @@ export class OpenRouterResponsesTextAdapter<
       {}) as Partial<ResponsesRequest> & { variant?: string }
     const variantSuffix = variant ? `:${variant}` : ''
 
-    const input = this.convertMessagesToInput(options.messages)
+    const input = this.convertMessagesToInput(options.messages, options.model)
 
     // ResponsesFunctionTool already matches OpenRouter's
     // ResponsesRequestToolFunction shape:
@@ -1827,14 +1899,93 @@ export class OpenRouterResponsesTextAdapter<
    */
   protected convertMessagesToInput(
     messages: Array<ModelMessage>,
+    targetModel: string = this.model,
   ): Array<InputsItem> {
+    // History from another model loses its signatures, and its tool IDs are
+    // rewritten to `call|item` IDs this API accepts. Each call stays paired.
+    const target = {
+      provider: this.provider,
+      api: this.api,
+      model: targetModel,
+    }
+    const itemIds = new Map<string, string>()
+    const usedCallIds = new Set<string>()
+    const usedItemIds = new Set<string>()
+    const normalizedCompositeIds = new Set<string>()
+    for (const message of messages) {
+      const source = message.metadata?.tanstack?.source
+      const sameSource =
+        !source ||
+        (source.provider === target.provider &&
+          source.api === target.api &&
+          source.model === target.model)
+      for (const call of message.toolCalls ?? []) {
+        const metadata = call.metadata
+        const itemId =
+          typeof metadata === 'object' &&
+          metadata !== null &&
+          'itemId' in metadata &&
+          typeof metadata.itemId === 'string'
+            ? metadata.itemId
+            : call.id
+        itemIds.set(call.id, itemId)
+        if (sameSource) {
+          usedCallIds.add(call.id)
+          usedItemIds.add(itemId)
+        }
+      }
+    }
+    const normalizePart = (part: string) =>
+      part
+        .replace(/[^a-zA-Z0-9_-]/g, '_')
+        .slice(0, 64)
+        .replace(/_+$/, '')
+    messages = transformMessagesForReplay(
+      messages,
+      target,
+      (id, { source, attempt }) => {
+        const [call = '', compositeItem] = id.split('|')
+        const item = compositeItem ?? itemIds.get(id) ?? call
+        let retry = attempt
+        let callId = normalizePart(
+          retry
+            ? `${call.slice(0, 48)}_${hashToolCallId(`${id}:${retry}`)}`
+            : call,
+        )
+        while (!callId || usedCallIds.has(callId)) {
+          retry++
+          callId = normalizePart(
+            `${call.slice(0, 48)}_${hashToolCallId(`${id}:${retry}`)}`,
+          )
+        }
+        usedCallIds.add(callId)
+        let itemId =
+          source &&
+          (source.provider !== target.provider || source.api !== target.api)
+            ? `fc_${hashToolCallId(item)}`
+            : normalizePart(item)
+        if (!itemId.startsWith('fc_')) itemId = normalizePart(`fc_${itemId}`)
+        if (itemId === 'fc') itemId = `fc_${hashToolCallId(item)}`
+        let itemRetry = attempt
+        while (usedItemIds.has(itemId)) {
+          itemRetry++
+          itemId = `fc_${hashToolCallId(`${item}:${itemRetry}`)}`
+        }
+        usedItemIds.add(itemId)
+        const composite = `${callId}|${itemId}`
+        normalizedCompositeIds.add(composite)
+        return composite
+      },
+    ).messages
+    const callIdFor = (id: string) =>
+      normalizedCompositeIds.has(id) ? (id.split('|')[0] ?? id) : id
     const result: Array<InputsItem> = []
 
     for (const message of messages) {
       if (message.role === 'tool') {
         result.push({
           type: 'function_call_output',
-          callId: message.toolCallId || '',
+          callId: message.toolCallId ? callIdFor(message.toolCallId) : '',
           output:
             typeof message.content === 'string'
               ? message.content
@@ -1844,6 +1995,13 @@ export class OpenRouterResponsesTextAdapter<
       }
 
       if (message.role === 'assistant') {
+        const firstItem = result.length
+        const source = message.metadata?.tanstack?.source
+        const foreign =
+          source &&
+          (source.provider !== target.provider ||
+            source.api !== target.api ||
+            source.model !== target.model)
         if (message.toolCalls && message.toolCalls.length > 0) {
           for (const toolCall of message.toolCalls) {
             const argumentsString =
@@ -1857,8 +2015,10 @@ export class OpenRouterResponsesTextAdapter<
             )?.itemId
             result.push({
               type: 'function_call',
-              callId: toolCall.id,
-              id: itemId || toolCall.id,
+              callId: callIdFor(toolCall.id),
+              id: normalizedCompositeIds.has(toolCall.id)
+                ? (toolCall.id.split('|')[1] ?? toolCall.id)
+                : itemId || toolCall.id,
               name: toolCall.function.name,
               arguments: argumentsString,
             })
@@ -1873,6 +2033,34 @@ export class OpenRouterResponsesTextAdapter<
               role: 'assistant',
               content: contentStr,
             })
+          }
+        }
+        // Another model's answer: plain text and calls in the order the
+        // model sent them.
+        if (foreign) {
+          const emitted = result.splice(firstItem)
+          const text = this.extractTextContent(message.content)
+          const blocks = orderedAssistantBlocks(message) ?? [
+            ...(text ? [{ type: 'text' as const, text }] : []),
+            ...(message.toolCalls ?? []).map((toolCall) => ({
+              type: 'tool-call' as const,
+              toolCall,
+            })),
+          ]
+          for (const block of blocks) {
+            if (block.type === 'text')
+              result.push({
+                type: 'message',
+                role: 'assistant',
+                content: block.text,
+              })
+            else if (block.type === 'tool-call') {
+              const callId = callIdFor(block.toolCall.id)
+              const item = emitted.find(
+                (item) => 'callId' in item && item.callId === callId,
+              )
+              if (item) result.push(item)
+            }
           }
         }
         continue

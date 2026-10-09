@@ -23,6 +23,11 @@ import type {
 } from '@tanstack/ai/adapter-internals'
 import { base64ToUint8Array } from '@tanstack/ai-utils'
 import {
+  mergeMetadata,
+  tanstackMetadata,
+  withTanstackMetadata,
+} from '@tanstack/ai/client'
+import {
   InterruptsCapability,
   PersistenceCapability,
   PersistenceCompletionCapability,
@@ -296,6 +301,10 @@ interface RunStateEntry {
    */
   streamingMessageId?: string
   streamingMessageCreatedAt?: Date
+  /** Metadata of the current model call (source, response id), for snapshots. */
+  streamingMetadata?: Record<string, any>
+  /** Ids of the snapshot rows of the current model call. */
+  streamingMessageIds?: Set<string>
   /**
    * Length of `ctx.messages` when this run started. Messages from this index
    * on are the ones this run added, so they get its run id on save (#1061).
@@ -2090,6 +2099,48 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       : {}),
   })
 
+  function resetStreaming(state: RunStateEntry) {
+    state.streamingMetadata = undefined
+    state.streamingMessageIds = new Set()
+    state.streamingMessageId = undefined
+    state.streamingMessageCreatedAt = undefined
+    state.streamingText = ''
+    state.lastSnapshotAt = undefined
+  }
+
+  /**
+   * Write the call metadata, and the stop reason of a failed call, onto the
+   * snapshot rows of the current model call. Replay drops a failed call.
+   */
+  async function updateStreamingRows(
+    ctx: ChatMiddlewareContext,
+    stopReason?: 'error' | 'aborted',
+  ) {
+    const state = runState.get(ctx)
+    const ids = state?.streamingMessageIds
+    if (!state || !ids?.size) return
+    const loaded = threadMessages(await messageStore.loadThread(ctx.threadId))
+    let changed = false
+    const messages = loaded.map((message) => {
+      if (
+        message.role !== 'assistant' ||
+        message.id === undefined ||
+        !ids.has(message.id)
+      )
+        return message
+      changed = true
+      const metadata = mergeMetadata(message.metadata, state.streamingMetadata)
+      const next = {
+        ...message,
+        ...(metadata !== undefined ? { metadata } : {}),
+      }
+      return stopReason === undefined
+        ? next
+        : withTanstackMetadata(next, { stopReason })
+    })
+    if (changed) await messageStore.saveThread(ctx.threadId, messages)
+  }
+
   return defineChatMiddleware({
     name: 'chat-persistence',
     routedSubagentPersistence: subagentRuns,
@@ -2163,6 +2214,11 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
     },
 
     async onConfig(ctx: ChatMiddlewareContext, config: ChatMiddlewareConfig) {
+      if (snapshotStreaming && ctx.phase === 'beforeModel') {
+        // A new model call starts its own snapshot rows.
+        const current = runState.get(ctx)
+        if (current) resetStreaming(current)
+      }
       if (ctx.phase !== 'init') return
 
       const patch: Partial<ChatMiddlewareConfig> = {}
@@ -2269,6 +2325,36 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
         runId: ctx.runId,
         chunk,
       })
+      const current = runState.get(ctx)
+      const isParentChunk =
+        !('subagentRunId' in chunk) || chunk.subagentRunId === undefined
+      if (snapshotStreaming && isParentChunk && current) {
+        if (chunk.type === 'RUN_STARTED') resetStreaming(current)
+        // Keep the call metadata (source, response id) for the snapshot rows.
+        const tanstack = tanstackMetadata(chunk)
+        const metadata =
+          chunk.type === 'TOOL_CALL_START'
+            ? tanstack === undefined
+              ? undefined
+              : { tanstack }
+            : chunk.metadata
+        current.streamingMetadata = mergeMetadata(
+          current.streamingMetadata,
+          metadata,
+        )
+        if (chunk.type === 'RUN_FINISHED') {
+          current.streamingMetadata = withTanstackMetadata(
+            { metadata: current.streamingMetadata },
+            {
+              ...(chunk.responseId !== undefined
+                ? { responseId: chunk.responseId }
+                : {}),
+              ...(chunk.model !== undefined ? { model: chunk.model } : {}),
+            },
+          ).metadata
+          await updateStreamingRows(ctx)
+        }
+      }
       // Capture the current assistant turn's identity for optional in-progress
       // snapshots. Completed messages already live in `ctx.messages`.
       if (snapshotStreaming && ctx.phase === 'modelStream') {
@@ -2319,6 +2405,9 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
                 {
                   role: 'assistant',
                   content: snapshotState.streamingText,
+                  ...(snapshotState.streamingMetadata !== undefined
+                    ? { metadata: snapshotState.streamingMetadata }
+                    : {}),
                   ...(snapshotState.streamingMessageId
                     ? { id: snapshotState.streamingMessageId }
                     : {}),
@@ -2327,6 +2416,12 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
                     : {}),
                 },
               ])
+              if (snapshotState.streamingMessageId !== undefined) {
+                snapshotState.streamingMessageIds ??= new Set()
+                snapshotState.streamingMessageIds.add(
+                  snapshotState.streamingMessageId,
+                )
+              }
               await persistActivities(ctx)
             } catch {
               // Streaming snapshots are best-effort; onFinish persists final.
@@ -2409,7 +2504,11 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
 
     async onError(ctx: ChatMiddlewareContext, info: ErrorInfo) {
       try {
-        await failRun(runs, ctx.runId, info.error, runState.get(ctx)?.usage)
+        try {
+          await updateStreamingRows(ctx, 'error')
+        } finally {
+          await failRun(runs, ctx.runId, info.error, runState.get(ctx)?.usage)
+        }
       } finally {
         runState.get(ctx)?.completion?.reject(info.error)
       }
@@ -2441,7 +2540,11 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
         terminal =
           cancelled || (!detachableRun(ctx) && state?.interrupted !== true)
         if (terminal) {
-          await abortRun(runs, ctx.runId, state?.usage)
+          try {
+            await updateStreamingRows(ctx, 'aborted')
+          } finally {
+            await abortRun(runs, ctx.runId, state?.usage)
+          }
         }
       } finally {
         if (terminal) state?.completion?.reject(info.reason)

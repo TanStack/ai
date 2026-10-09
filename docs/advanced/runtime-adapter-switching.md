@@ -43,6 +43,83 @@ async function handleRequest(request: Request) {
 }
 ```
 
+## Keep saved history when you switch
+
+You start a thread on Claude, then switch to GPT. Claude's thinking signatures and tool call IDs mean nothing to OpenAI. If you send them as they are, the request fails.
+
+You do not have to fix this yourself. Keep the message metadata when you save and send the history. `chat()` does the rest.
+
+Each assistant message records where it came from, in `metadata.tanstack.source`:
+
+```json
+{ "provider": "anthropic", "api": "anthropic-messages", "model": "claude-sonnet-5-5" }
+```
+
+When the next call goes to a different source, the adapter changes the request:
+
+- It drops signatures and redacted thinking.
+- It sends readable thinking as plain text.
+- It rewrites tool call IDs to the shape that the new API accepts. Each result keeps its call.
+- On the OpenAI Responses API, a model without image input gets no images from tool results.
+
+Each request also cleans the history:
+
+- An answer that failed or was aborted is left out, with its tool results.
+- A tool call with no result gets the result `No result provided`.
+
+All of this changes only the request. Your saved history stays the same. A message with no `source` counts as same-source, so its signatures go back as they are.
+
+On the server, read the request with `chatParamsFromRequest`. It keeps the message metadata:
+
+```typescript
+import { chat, chatParamsFromRequest, toServerSentEventsResponse } from '@tanstack/ai'
+import { anthropicText } from '@tanstack/ai-anthropic'
+import { openaiText } from '@tanstack/ai-openai'
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request)
+  const adapter =
+    params.forwardedProps.provider === 'anthropic'
+      ? anthropicText('claude-sonnet-5-5')
+      : openaiText('gpt-6.1-sol')
+
+  return toServerSentEventsResponse(
+    chat({ adapter, messages: params.messages, threadId: params.threadId }),
+  )
+}
+```
+
+On the client, send the provider that the user picked:
+
+```tsx
+import { useState } from 'react'
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+
+export function ProviderChat() {
+  const [provider, setProvider] = useState('anthropic')
+  const { sendMessage } = useChat({
+    connection: fetchServerSentEvents('/api/chat'),
+    forwardedProps: { provider },
+  })
+
+  return (
+    <>
+      <select
+        aria-label="Provider"
+        value={provider}
+        onChange={(event) => setProvider(event.target.value)}
+      >
+        <option value="anthropic">Claude</option>
+        <option value="openai">GPT</option>
+      </select>
+      <button onClick={() => sendMessage('Keep going')}>Send</button>
+    </>
+  )
+}
+```
+
+Switch the provider in the middle of a thread. The next answer comes from the new model, with the full history.
+
 ## Why This Works
 
 Each adapter factory function accepts a model name as its first argument and returns a fully typed adapter:
