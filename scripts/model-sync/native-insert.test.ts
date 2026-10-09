@@ -23,6 +23,12 @@ export type AnthropicModelInputModalitiesByName = {
   [FOO.id]: typeof FOO.supports.input
 }
 
+export const ANTHROPIC_MODEL_INPUT_MODALITIES: Readonly<
+  Record<string, ReadonlyArray<Modality>>
+> = {
+  [FOO.id]: FOO.supports.input,
+} satisfies AnthropicModelInputModalitiesByName
+
 const ANTHROPIC_MODEL_MAX_OUTPUT_TOKENS: Record<string, number> = {
   [FOO.id]: FOO.max_output_tokens,
 }
@@ -128,5 +134,22 @@ export type OpenAIModelInputModalitiesByName = {
 
     expect(result).toContain('[GPT6.name]: typeof GPT6.supports.tools')
     expect(result).toContain('GPT6.name,')
+    // This stub has no runtime input-modalities map, so none is written.
+    expect(result).not.toContain('GPT6.supports.input,')
+  })
+
+  it('writes the input-modalities row into the type map and the runtime map', () => {
+    const result = applyChatModelCatalogInserts(STUB, ANTHROPIC_CONFIG, [
+      {
+        constName: 'CLAUDE_FABLE_5_1',
+        providerOptionsEntry: 'AnthropicSamplingOptions',
+        hasMaxOutputTokens: true,
+      },
+    ])
+
+    expect(result).toContain(`> = {
+  [FOO.id]: FOO.supports.input,
+  [CLAUDE_FABLE_5_1.id]: CLAUDE_FABLE_5_1.supports.input,
+} satisfies AnthropicModelInputModalitiesByName`)
   })
 })

@@ -13,7 +13,7 @@ permissions:
 
 env:
   NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
-  NX_CI_CACHE_BUST: six-shard-file-groups-cold-20261009-02
+  NX_CI_CACHE_BUST: six-shard-isolated-perf-cold-20261009-03
 
 jobs:
   e2e:

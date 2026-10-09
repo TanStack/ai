@@ -238,6 +238,8 @@ GROQ_API_KEY=gsk_...
 
 Creates a Groq chat adapter using environment variables.
 
+`adapter.inputModalities` lists the input kinds of the selected model. It is `undefined` for a model that this package does not know. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
+
 **Parameters:**
 
 - `model` - The model name (e.g., `llama-3.3-70b-versatile`)

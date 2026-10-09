@@ -234,7 +234,7 @@ The defensive `ignore` list in `.changeset/config.json` blocks accidental public
 
 1. Push your branch and open a PR against `main`.
 2. Fill the PR template. Tick **docs** and **changeset** honestly, or say why you skipped them.
-3. The PR workflow runs checks in one Nx task graph on Nx Agents. It includes workspace checks, package tests and builds, React Native smoke checks, declaration checks, six Playwright E2E shard tasks, coverage measurements, and preview builds. Separate jobs report the coverage result and publish the preview builds.
+3. The PR workflow runs checks in one Nx task graph on Nx Agents. It includes workspace checks, package tests and builds, React Native smoke checks, declaration checks, six Playwright E2E shard tasks and one isolated browser performance task, coverage measurements, and preview builds. Separate jobs report the coverage result and publish the preview builds.
 4. Address review comments.
 5. A maintainer merges. Releases are cut via Changesets. Your changeset entry lands in the next release.
 

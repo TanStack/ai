@@ -1,5 +1,15 @@
 # @tanstack/ai-bedrock
 
+## 0.4.6
+
+### Patch Changes
+
+- [#1668](https://github.com/TanStack/ai/pull/1668) [`09c5d27`](https://github.com/TanStack/ai/commit/09c5d27644c95751087fee27de9fac71e5ed7bba) - The Bedrock Converse adapter now sets `status: 'error'` on a tool result that has an `error`. This includes an empty error string. Before, every tool result went out with `status: 'success'`, so the model did not know that the tool failed.
+
+- Updated dependencies [[`ee935ef`](https://github.com/TanStack/ai/commit/ee935efaa25607425b1ba3452aec470588292334), [`baafb17`](https://github.com/TanStack/ai/commit/baafb176220c2b09fced334ad176e754582cd314), [`7a70720`](https://github.com/TanStack/ai/commit/7a7072041aeca984e19550455b039322060a0bb0)]:
+  - @tanstack/openai-base@0.12.7
+  - @tanstack/ai@0.66.1
+
 ## 0.4.5
 
 ### Patch Changes

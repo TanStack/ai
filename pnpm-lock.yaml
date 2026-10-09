@@ -3732,6 +3732,9 @@ importers:
       '@tanstack/ai-skills':
         specifier: workspace:*
         version: link:../../packages/ai-skills
+      '@tanstack/ai-solid':
+        specifier: workspace:*
+        version: link:../../packages/ai-solid
       '@tanstack/ai-vercel-gateway':
         specifier: workspace:*
         version: link:../../packages/ai-vercel-gateway
@@ -3780,6 +3783,9 @@ importers:
       remark-gfm:
         specifier: ^4.0.1
         version: 4.0.1
+      solid-js:
+        specifier: ^1.9.10
+        version: 1.9.10
       tailwindcss:
         specifier: ^4.1.18
         version: 4.1.18

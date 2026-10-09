@@ -1,3 +1,4 @@
+import type { Modality } from '@tanstack/ai'
 import type { GroqTextProviderOptions } from './text/text-provider-options'
 import type { GroqTTSProviderOptions } from './audio/tts-provider-options'
 
@@ -357,6 +358,30 @@ export type GroqModelInputModalitiesByName = {
   [KIMI_K2_INSTRUCT_0905.name]: typeof KIMI_K2_INSTRUCT_0905.supports.input
   [QWEN3_32B.name]: typeof QWEN3_32B.supports.input
 }
+
+/**
+ * Runtime map from chat model name to its supported input modalities, for the
+ * text adapter's `inputModalities`. `satisfies` keeps it equal to
+ * {@link GroqModelInputModalitiesByName}. An unknown name gives `undefined`.
+ */
+export const GROQ_MODEL_INPUT_MODALITIES: Readonly<
+  Record<string, ReadonlyArray<Modality>>
+> = {
+  [LLAMA_3_1_8B_INSTANT.name]: LLAMA_3_1_8B_INSTANT.supports.input,
+  [LLAMA_3_3_70B_VERSATILE.name]: LLAMA_3_3_70B_VERSATILE.supports.input,
+  [LLAMA_4_MAVERICK_17B_128E_INSTRUCT.name]:
+    LLAMA_4_MAVERICK_17B_128E_INSTRUCT.supports.input,
+  [LLAMA_4_SCOUT_17B_16E_INSTRUCT.name]:
+    LLAMA_4_SCOUT_17B_16E_INSTRUCT.supports.input,
+  [LLAMA_GUARD_4_12B.name]: LLAMA_GUARD_4_12B.supports.input,
+  [LLAMA_PROMPT_GUARD_2_86M.name]: LLAMA_PROMPT_GUARD_2_86M.supports.input,
+  [LLAMA_PROMPT_GUARD_2_22M.name]: LLAMA_PROMPT_GUARD_2_22M.supports.input,
+  [GPT_OSS_20B.name]: GPT_OSS_20B.supports.input,
+  [GPT_OSS_120B.name]: GPT_OSS_120B.supports.input,
+  [GPT_OSS_SAFEGUARD_20B.name]: GPT_OSS_SAFEGUARD_20B.supports.input,
+  [KIMI_K2_INSTRUCT_0905.name]: KIMI_K2_INSTRUCT_0905.supports.input,
+  [QWEN3_32B.name]: QWEN3_32B.supports.input,
+} satisfies GroqModelInputModalitiesByName
 
 /**
  * Type-only map from Groq chat model name to its provider options type.

@@ -45,6 +45,7 @@
     "@tanstack/ai-sandbox": "workspace:*",
     "@tanstack/ai-sandbox-local-process": "workspace:*",
     "@tanstack/ai-skills": "workspace:*",
+    "@tanstack/ai-solid": "workspace:*",
     "@tanstack/ai-vercel-gateway": "workspace:*",
     "@tanstack/ai-vertex": "workspace:*",
     "@tanstack/ai-worldlabs": "workspace:*",
@@ -61,6 +62,7 @@
     "rehype-raw": "^7.0.0",
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1",
+    "solid-js": "^1.9.10",
     "tailwindcss": "^4.1.18",
     "ws": "^8.18.3",
     "zod": "^4.2.0"
@@ -193,7 +195,8 @@
           "test:e2e:ci--shard-3",
           "test:e2e:ci--shard-4",
           "test:e2e:ci--shard-5",
-          "test:e2e:ci--shard-6"
+          "test:e2e:ci--shard-6",
+          "test:e2e:ci--shard-performance"
         ],
         "options": {
           "cwd": "testing/e2e",
@@ -208,10 +211,26 @@
         "cache": true,
         "options": {
           "config": "playwright.config.ts",
-          "expectedSuites": 6
+          "expectedSuites": 7
         },
         "outputs": [
           "{projectRoot}/playwright-report"
+        ]
+      },
+      "test:e2e:ci--shard-performance": {
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "testing/e2e",
+          "command": "playwright test chat-client-stream-processing.spec.ts --workers=1 --output=test-results/shard-performance",
+          "env": {
+            "PLAYWRIGHT_BLOB_OUTPUT_DIR": "blob-report/shard-performance",
+            "PLAYWRIGHT_HTML_OUTPUT_DIR": "playwright-report/shard-performance"
+          }
+        },
+        "outputs": [
+          "{projectRoot}/test-results/shard-performance",
+          "{projectRoot}/blob-report/shard-performance",
+          "{projectRoot}/playwright-report/shard-performance"
         ]
       }
     }

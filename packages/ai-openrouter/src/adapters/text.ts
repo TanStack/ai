@@ -14,6 +14,7 @@ import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../internal/request-options'
 import { makeStructuredOutputCompatible } from '../internal/schema-converter'
 import { openRouterSupportsCombinedToolsAndSchema } from '../internal/combined-tools-and-schema'
+import { OPENROUTER_MODEL_INPUT_MODALITIES } from '../model-meta'
 import { convertToolsToProviderFormat } from '../tools'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
 import { buildOpenRouterUsage } from '../usage'
@@ -138,6 +139,8 @@ export class OpenRouterTextAdapter<
 > {
   override readonly kind = 'text' as const
   readonly name = 'openrouter' as const
+  override readonly inputModalities =
+    OPENROUTER_MODEL_INPUT_MODALITIES[this.model]
 
   protected orClient: OpenRouter
   private readonly retryCodes: Array<string> | undefined
@@ -1178,6 +1181,25 @@ export class OpenRouterTextAdapter<
               content: accumulatedReasoning,
             }
           }
+        }
+
+        // An unknown finishReason must not end the run as a success.
+        if (
+          pendingFinishReason &&
+          !['stop', 'length', 'content_filter', 'tool_calls', 'error'].includes(
+            pendingFinishReason,
+          )
+        ) {
+          const message = `Provider finish_reason: ${pendingFinishReason}`
+          yield {
+            type: EventType.RUN_ERROR,
+            runId: aguiState.runId,
+            model: lastModel || options.model,
+            timestamp: Date.now(),
+            message,
+            error: { message },
+          }
+          return
         }
 
         // Map upstream finishReason to AG-UI's narrower vocabulary while

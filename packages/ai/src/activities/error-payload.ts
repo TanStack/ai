@@ -138,3 +138,35 @@ export function toRunErrorRawEvent(error: unknown): unknown {
   if (e.metadata !== undefined && e.metadata !== null) return e.metadata
   return undefined
 }
+
+/**
+ * Read how long a provider asks you to wait before a retry, from the response
+ * headers that an SDK error carries. It reads `retry-after-ms` first, then
+ * `retry-after` in seconds or as an HTTP date. Gives `undefined` when no
+ * usable header is present.
+ *
+ *   const retryAfterMs = toRetryAfterMs(error)
+ *   yield { type: EventType.RUN_ERROR, ..., ...(retryAfterMs !== undefined && { retryAfterMs }) }
+ */
+export function toRetryAfterMs(error: unknown): number | undefined {
+  if (!error || typeof error !== 'object' || !('headers' in error)) {
+    return undefined
+  }
+  const { headers } = error
+  const get = (name: string): string | null | undefined => {
+    if (headers instanceof Headers) return headers.get(name)
+    if (headers && typeof headers === 'object' && name in headers) {
+      const value: unknown = Reflect.get(headers, name)
+      return typeof value === 'string' ? value : undefined
+    }
+    return undefined
+  }
+  const ms = Number(get('retry-after-ms') || NaN)
+  if (Number.isFinite(ms) && ms >= 0) return ms
+  const value = get('retry-after')
+  if (!value) return undefined
+  const seconds = Number(value)
+  if (Number.isFinite(seconds)) return seconds >= 0 ? seconds * 1000 : undefined
+  const date = Date.parse(value)
+  return Number.isNaN(date) ? undefined : Math.max(0, date - Date.now())
+}
