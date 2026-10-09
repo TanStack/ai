@@ -351,11 +351,12 @@ const ApiActivityTestRoute = ApiActivityTestRouteImport.update({
   path: '/api/activity-test',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAdapterInputModalitiesRoute = ApiAdapterInputModalitiesRouteImport.update({
-  id: '/api/adapter-input-modalities',
-  path: '/api/adapter-input-modalities',
-  getParentRoute: () => rootRouteImport,
-} as any)
+const ApiAdapterInputModalitiesRoute =
+  ApiAdapterInputModalitiesRouteImport.update({
+    id: '/api/adapter-input-modalities',
+    path: '/api/adapter-input-modalities',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAnthropicBugTestRoute = ApiAnthropicBugTestRouteImport.update({
   id: '/api/anthropic-bug-test',
   path: '/api/anthropic-bug-test',
