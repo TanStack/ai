@@ -7,14 +7,14 @@ title: chat
 function chat<TAdapter, TSchema, TStream, TTools, TInterrupts, TContext, TMiddleware, TAgents>(options): TextActivityResult<TSchema, TStream, TTools>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/index.ts:5155](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/index.ts#L5155)
+Defined in: [packages/ai/src/activities/chat/index.ts:5158](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/index.ts#L5158)
 
 Text activity - handles agentic text generation, one-shot text generation, and agentic structured output.
 
 This activity supports four modes:
 1. **Streaming agentic text**: Stream responses with automatic tool execution
 2. **Streaming one-shot text**: Simple streaming request/response without tools
-3. **Non-streaming text**: Returns collected text as a string (stream: false)
+3. **Non-streaming text**: Returns a ChatResult with the text and every chunk (stream: false)
 4. **Agentic structured output**: Run tools, then return structured data
 
 ## Type Parameters
@@ -102,12 +102,13 @@ for await (const chunk of chat({
 **Non-streaming text (stream: false)**
 
 ```ts
-const text = await chat({
+const { text, chunks } = await chat({
   adapter: openaiText('gpt-5.5'),
   messages: [{ role: 'user', content: 'Hello!' }],
   stream: false
 })
 // text is a string with the full response
+// chunks is every chunk the run produced, in order
 ```
 
 **Agentic structured output (tools + structured response)**

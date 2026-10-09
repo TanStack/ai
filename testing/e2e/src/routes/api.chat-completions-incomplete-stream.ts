@@ -55,7 +55,14 @@ export const Route = createFileRoute('/api/chat-completions-incomplete-stream')(
           const completion = [
             {
               ...envelope,
-              choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+              choices: [
+                {
+                  index: 0,
+                  delta: {},
+                  finish_reason:
+                    scenario === 'unknown-finish' ? 'error' : 'stop',
+                },
+              ],
             },
             {
               ...envelope,
@@ -78,6 +85,7 @@ export const Route = createFileRoute('/api/chat-completions-incomplete-stream')(
                 const complete =
                   scenario === 'complete' ||
                   scenario === 'object-content' ||
+                  scenario === 'unknown-finish' ||
                   requests++ > 0
                 const payload = complete
                   ? [...chunks.slice(0, 1), ...completion]
