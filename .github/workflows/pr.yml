@@ -1,7 +1,7 @@
 name: PR
 
 on:
-  # Temporary: the main CI timing workflow replaces PR checks for this trial.
+  pull_request:
   push:
     branches: [main, alpha, beta, rc]
 
