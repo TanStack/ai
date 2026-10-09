@@ -23,6 +23,7 @@ export {
 export {
   AzureOpenAITextAdapter,
   azureOpenaiText,
+  createAzureOpenaiText,
   type AzureOpenAITextConfig,
 } from './adapters/azure-text'
 

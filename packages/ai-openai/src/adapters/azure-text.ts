@@ -4,6 +4,7 @@ import {
   warnStrictFallback,
 } from '@tanstack/openai-base'
 import { convertToolsToProviderFormat } from '../tools'
+import { getAzureOpenAIApiKeyFromEnv } from '../utils/client'
 import type {
   DefaultMessageMetadataByModality,
   Modality,
@@ -27,7 +28,7 @@ export interface AzureOpenAITextConfig
   extends
     Omit<OpenAIClientConfig, 'apiKey' | NotForAzure>,
     OpenAIBaseTextAdapterOptions {
-  apiKey?: string
+  apiKey: string
   workloadIdentity?: AzureClientOptions['workloadIdentity']
   resourceName?: string
   apiVersion?: string
@@ -72,18 +73,10 @@ export class AzureOpenAITextAdapter extends OpenAIBaseResponsesTextAdapter<
       deploymentNameMap,
       ...clientOptions
     } = config
-    const env: Record<string, string | undefined> =
-      typeof process === 'undefined' ? {} : process.env
-    const explicitResource = resourceName?.trim()
-    const resource = explicitResource || env.AZURE_OPENAI_RESOURCE_NAME?.trim()
+    const resource = resourceName?.trim()
     const selectedURL =
       baseURL?.trim() ||
-      (explicitResource
-        ? 'https://' + explicitResource + '.openai.azure.com/openai/v1'
-        : env.AZURE_OPENAI_BASE_URL?.trim()) ||
-      (resource
-        ? 'https://' + resource + '.openai.azure.com/openai/v1'
-        : undefined)
+      (resource ? 'https://' + resource + '.openai.azure.com/openai/v1' : '')
     if (!selectedURL)
       throw new Error('Azure OpenAI needs baseURL or resourceName')
     super(
@@ -91,28 +84,17 @@ export class AzureOpenAITextAdapter extends OpenAIBaseResponsesTextAdapter<
       'azure-openai-responses',
       new AzureOpenAI({
         ...clientOptions,
-        apiKey: apiKey ?? env.AZURE_OPENAI_API_KEY,
+        apiKey,
         baseURL: normalizeAzureBaseURL(selectedURL),
-        apiVersion: apiVersion || env.AZURE_OPENAI_API_VERSION || 'v1',
+        apiVersion: apiVersion || 'v1',
       }),
       config,
     )
-    const envMap = new Map<string, string>()
-    for (const entry of (env.AZURE_OPENAI_DEPLOYMENT_NAME_MAP ?? '').split(
-      ',',
-    )) {
-      const [logical, deployment] = entry
-        .split('=', 2)
-        .map((value) => value.trim())
-      if (logical && deployment) envMap.set(logical, deployment)
-    }
     this.deploymentName =
       deploymentName ||
-      (deploymentNameMap
-        ? Object.hasOwn(deploymentNameMap, model)
-          ? deploymentNameMap[model]
-          : undefined
-        : envMap.get(model)) ||
+      (deploymentNameMap && Object.hasOwn(deploymentNameMap, model)
+        ? deploymentNameMap[model]
+        : undefined) ||
       model
   }
 
@@ -141,9 +123,74 @@ export class AzureOpenAITextAdapter extends OpenAIBaseResponsesTextAdapter<
   }
 }
 
+/**
+ * Creates an Azure OpenAI text adapter with an explicit API key.
+ * Type resolution happens here at the call site.
+ *
+ * @param model - The model name, or your deployment name
+ * @param apiKey - Your Azure OpenAI API key
+ * @param config - The endpoint (`resourceName` or `baseURL`) and other options
+ * @returns Configured Azure OpenAI text adapter instance
+ *
+ * @example
+ * ```typescript
+ * const adapter = createAzureOpenaiText('gpt-5.6', 'your-azure-key', {
+ *   resourceName: 'my-resource',
+ *   deploymentName: 'prod-chat',
+ * });
+ * ```
+ */
+export function createAzureOpenaiText(
+  model: string,
+  apiKey: string,
+  config: Omit<AzureOpenAITextConfig, 'apiKey'>,
+): AzureOpenAITextAdapter {
+  return new AzureOpenAITextAdapter({ apiKey, ...config }, model)
+}
+
+/**
+ * Creates an Azure OpenAI text adapter from environment variables.
+ *
+ * Reads `AZURE_OPENAI_API_KEY`. Values that `config` does not set come from
+ * `AZURE_OPENAI_BASE_URL` or `AZURE_OPENAI_RESOURCE_NAME`,
+ * `AZURE_OPENAI_API_VERSION`, and `AZURE_OPENAI_DEPLOYMENT_NAME_MAP`
+ * (`model=deployment,model=deployment`).
+ *
+ * @param model - The model name, or your deployment name
+ * @param config - Optional configuration (excluding apiKey which is auto-detected)
+ * @returns Configured Azure OpenAI text adapter instance
+ * @throws Error if AZURE_OPENAI_API_KEY is not found in environment
+ *
+ * @example
+ * ```typescript
+ * // Automatically uses AZURE_OPENAI_API_KEY and AZURE_OPENAI_RESOURCE_NAME
+ * const adapter = azureOpenaiText('gpt-5.6');
+ * ```
+ */
 export function azureOpenaiText(
   model: string,
-  config?: AzureOpenAITextConfig,
+  config?: Omit<AzureOpenAITextConfig, 'apiKey'>,
 ): AzureOpenAITextAdapter {
-  return new AzureOpenAITextAdapter(config ?? {}, model)
+  const env: Record<string, string | undefined> =
+    typeof process === 'undefined' ? {} : process.env
+  const hasEndpoint = !!(
+    config?.baseURL?.trim() || config?.resourceName?.trim()
+  )
+  const deploymentNameMap =
+    config?.deploymentNameMap ??
+    Object.fromEntries(
+      (env.AZURE_OPENAI_DEPLOYMENT_NAME_MAP ?? '')
+        .split(',')
+        .map((entry) => entry.split('=', 2).map((value) => value.trim()))
+        .filter(([logical, deployment]) => logical && deployment),
+    )
+  return createAzureOpenaiText(model, getAzureOpenAIApiKeyFromEnv(), {
+    ...config,
+    ...(!hasEndpoint && {
+      baseURL: env.AZURE_OPENAI_BASE_URL,
+      resourceName: env.AZURE_OPENAI_RESOURCE_NAME,
+    }),
+    apiVersion: config?.apiVersion || env.AZURE_OPENAI_API_VERSION,
+    deploymentNameMap,
+  })
 }

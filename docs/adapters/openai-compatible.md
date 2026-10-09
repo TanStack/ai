@@ -229,19 +229,18 @@ const litellm = openaiCompatible({
 
 ## Azure OpenAI
 
-Use `azureOpenaiText` from `@tanstack/ai-openai`. It sets the `api-key` header, the endpoint, the API version, and the deployment name for you:
+Use `createAzureOpenaiText` from `@tanstack/ai-openai`. It sets the `api-key` header, the endpoint, the API version, and the deployment name for you:
 
 ```typescript
-import { azureOpenaiText } from "@tanstack/ai-openai";
+import { createAzureOpenaiText } from "@tanstack/ai-openai";
 
-const adapter = azureOpenaiText("gpt-5.6", {
+const adapter = createAzureOpenaiText("gpt-5.6", process.env.AZURE_OPENAI_API_KEY!, {
   resourceName: "my-resource",
-  apiKey: process.env.AZURE_OPENAI_API_KEY,
   deploymentName: "production-chat",
 });
 ```
 
-See [Azure OpenAI](./openai#azure-openai) for the environment variables and for which value wins.
+See [Azure OpenAI](./openai#azure-openai) for `azureOpenaiText`, which reads the key and the other values from the environment.
 
 ## Example: With Tools
 

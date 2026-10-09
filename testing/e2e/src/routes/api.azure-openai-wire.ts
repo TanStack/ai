@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { chat } from '@tanstack/ai'
-import { azureOpenaiText } from '@tanstack/ai-openai'
+import { createAzureOpenaiText } from '@tanstack/ai-openai'
 
 const LLMOCK_DEFAULT_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
 
@@ -24,8 +24,7 @@ export const Route = createFileRoute('/api/azure-openai-wire')({
             ? body.testId
             : undefined
         const { text } = await chat({
-          adapter: azureOpenaiText('gpt-5.5', {
-            apiKey: 'azure-e2e-key',
+          adapter: createAzureOpenaiText('gpt-5.5', 'azure-e2e-key', {
             baseURL: `${LLMOCK_DEFAULT_BASE}/openai/v1`,
             deploymentName: 'e2e-deployment',
             ...(testId ? { defaultHeaders: { 'X-Test-Id': testId } } : {}),

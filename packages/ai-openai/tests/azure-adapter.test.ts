@@ -1,18 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import * as publicApi from '../src/index'
+import { azureOpenaiText, createAzureOpenaiText } from '../src/index'
 
 const logger = resolveDebugOption(false)
-
-function factory() {
-  expect(publicApi).toHaveProperty('azureOpenaiText')
-  if (
-    !('azureOpenaiText' in publicApi) ||
-    typeof publicApi.azureOpenaiText !== 'function'
-  )
-    throw new Error('The approved Azure factory is missing')
-  return publicApi.azureOpenaiText
-}
 
 function transport() {
   const requests: Array<{
@@ -52,7 +43,7 @@ function transport() {
   return { fetcher, requests }
 }
 
-async function drain(adapter: ReturnType<ReturnType<typeof factory>>) {
+async function drain(adapter: ReturnType<typeof azureOpenaiText>) {
   const chunks = []
   for await (const chunk of adapter.chatStream({
     logger,
@@ -91,8 +82,7 @@ describe('Azure Responses factory', () => {
         })
       const { fetcher, requests } = transport()
       await drain(
-        factory()('gpt-5.5', {
-          apiKey: 'key',
+        createAzureOpenaiText('gpt-5.5', 'key', {
           resourceName: 'resource',
           deploymentNameMap,
           ...(kind === 'explicit'
@@ -113,9 +103,40 @@ describe('Azure Responses factory', () => {
       ).toBe('inherited-deployment')
     },
   )
-  it('exports its factory, adapter and config from the existing root', () => {
-    factory()
+  it('exports both factories and the adapter from the existing root', () => {
+    expect(publicApi).toHaveProperty('azureOpenaiText')
+    expect(publicApi).toHaveProperty('createAzureOpenaiText')
     expect(publicApi).toHaveProperty('AzureOpenAITextAdapter')
+  })
+
+  it('createAzureOpenaiText reads nothing from the environment', async () => {
+    vi.stubEnv('AZURE_OPENAI_API_KEY', 'env-key')
+    vi.stubEnv('AZURE_OPENAI_API_VERSION', 'env-version')
+    vi.stubEnv('AZURE_OPENAI_DEPLOYMENT_NAME_MAP', 'gpt-5.5=env-deployment')
+    const { fetcher, requests } = transport()
+    await drain(
+      createAzureOpenaiText('gpt-5.5', 'explicit-key', {
+        resourceName: 'resource',
+        fetch: fetcher,
+      }),
+    )
+    expect(requests[0]?.url).toBe(
+      'https://resource.openai.azure.com/openai/v1/responses?api-version=v1',
+    )
+    expect(requests[0]?.headers.get('api-key')).toBe('explicit-key')
+    expect(requests[0]?.body.model).toBe('gpt-5.5')
+  })
+
+  it('createAzureOpenaiText needs an endpoint', () => {
+    vi.stubEnv('AZURE_OPENAI_RESOURCE_NAME', 'env-resource')
+    expect(() => createAzureOpenaiText('gpt-5.5', 'key', {})).toThrow(
+      'Azure OpenAI needs baseURL or resourceName',
+    )
+  })
+
+  it('azureOpenaiText throws without AZURE_OPENAI_API_KEY', () => {
+    vi.stubEnv('AZURE_OPENAI_RESOURCE_NAME', 'resource')
+    expect(() => azureOpenaiText('gpt-5.5')).toThrow('AZURE_OPENAI_API_KEY')
   })
 
   it.each([
@@ -143,8 +164,7 @@ describe('Azure Responses factory', () => {
     'normalizes %s through the actual Azure SDK',
     async (baseURL, expected) => {
       const { fetcher, requests } = transport()
-      const adapter = factory()('gpt-5.5', {
-        apiKey: 'azure-key',
+      const adapter = createAzureOpenaiText('gpt-5.5', 'azure-key', {
         baseURL,
         fetch: fetcher,
       })
@@ -158,7 +178,7 @@ describe('Azure Responses factory', () => {
     },
   )
 
-  it('lets explicit Azure values win over environment and SDK defaults', async () => {
+  it('azureOpenaiText lets config values win over the environment', async () => {
     vi.stubEnv('AZURE_OPENAI_API_KEY', 'env-key')
     vi.stubEnv('AZURE_OPENAI_BASE_URL', 'https://env.openai.azure.com')
     vi.stubEnv('AZURE_OPENAI_RESOURCE_NAME', 'env-resource')
@@ -166,8 +186,7 @@ describe('Azure Responses factory', () => {
     vi.stubEnv('AZURE_OPENAI_DEPLOYMENT_NAME_MAP', 'gpt-5.5=env-deployment')
     vi.stubEnv('OPENAI_BASE_URL', 'https://unrelated.invalid/v1')
     const { fetcher, requests } = transport()
-    const adapter = factory()('gpt-5.5', {
-      apiKey: 'explicit-key',
+    const adapter = azureOpenaiText('gpt-5.5', {
       baseURL: 'https://explicit.openai.azure.com',
       apiVersion: 'explicit-version',
       deploymentName: 'explicit-deployment',
@@ -181,17 +200,17 @@ describe('Azure Responses factory', () => {
     expect(requests[0]?.url).toBe(
       'https://explicit.openai.azure.com/openai/v1/responses?api-version=explicit-version',
     )
-    expect(requests[0]?.headers.get('api-key')).toBe('explicit-key')
+    expect(requests[0]?.headers.get('api-key')).toBe('env-key')
     expect(requests[0]?.headers.get('x-control')).toBe('kept')
     expect(requests[0]?.body.model).toBe('explicit-deployment')
     expect(adapter.model).toBe('gpt-5.5')
   })
 
-  it('uses an explicit deployment map before the environment map', async () => {
+  it('azureOpenaiText uses a config deployment map before the environment map', async () => {
+    vi.stubEnv('AZURE_OPENAI_API_KEY', 'env-key')
     vi.stubEnv('AZURE_OPENAI_DEPLOYMENT_NAME_MAP', 'gpt-5.5=env-deployment')
     const { fetcher, requests } = transport()
-    const adapter = factory()('gpt-5.5', {
-      apiKey: 'key',
+    const adapter = azureOpenaiText('gpt-5.5', {
       resourceName: 'resource',
       deploymentNameMap: { 'gpt-5.5': 'explicit-mapped-deployment' },
       fetch: fetcher,
@@ -209,19 +228,19 @@ describe('Azure Responses factory', () => {
       ' bad, gpt-5.5 = first , gpt-5.5 = final , other=another ',
     )
     const { fetcher, requests } = transport()
-    await drain(factory()('gpt-5.5', { fetch: fetcher }))
+    await drain(azureOpenaiText('gpt-5.5', { fetch: fetcher }))
     expect(requests[0]?.url).toBe(
       'https://resource.openai.azure.com/openai/v1/responses?api-version=v1',
     )
     expect(requests[0]?.body.model).toBe('final')
   })
 
-  it('lets an explicit resource name win over environment base URL', async () => {
+  it('azureOpenaiText lets a config resource name win over the environment base URL', async () => {
+    vi.stubEnv('AZURE_OPENAI_API_KEY', 'env-key')
     vi.stubEnv('AZURE_OPENAI_BASE_URL', 'https://env.openai.azure.com')
     const { fetcher, requests } = transport()
     await drain(
-      factory()('gpt-5.5', {
-        apiKey: 'key',
+      azureOpenaiText('gpt-5.5', {
         resourceName: 'explicit-resource',
         fetch: fetcher,
       }),
@@ -233,8 +252,7 @@ describe('Azure Responses factory', () => {
 
   it('sends the deployment name on native structured output', async () => {
     const { fetcher, requests } = transport()
-    const adapter = factory()('gpt-5.5', {
-      apiKey: 'key',
+    const adapter = createAzureOpenaiText('gpt-5.5', 'key', {
       resourceName: 'resource',
       deploymentName: 'explicit-deployment',
       fetch: fetcher,
