@@ -11,7 +11,7 @@ import type {
   AnthropicModelInputModalitiesByName,
 } from '../src/model-meta'
 import type { AnthropicMessageMetadataByModality } from '../src/message-types'
-import type { AnthropicModelReasoningByName } from '../src/model-reasoning'
+import type { AnthropicModelReasoningByName } from '../src/model-meta'
 import type {
   AnthropicContainerOptions,
   AnthropicContextManagementOptions,

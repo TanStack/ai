@@ -71,7 +71,6 @@ import type {
   FetchWrapper,
   Modality,
   ModelMessage,
-  ModelReasoningCapability,
   AdapterYieldChunk,
   TextOptions,
 } from '@tanstack/ai'
@@ -305,7 +304,7 @@ type ResolveInputModalities<TModel extends string> =
 /** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
 type ResolveReasoning<TModel extends string> =
   TModel extends keyof AnthropicModelReasoningByName
-    ? ModelReasoningCapability<AnthropicModelReasoningByName[TModel]>
+    ? AnthropicModelReasoningByName[TModel]
     : never
 
 type ResolveToolCapabilities<TModel extends string> =
@@ -782,8 +781,8 @@ export class AnthropicTextAdapter<
     // Wire engine-threaded outputSchema into Messages `output_config.format`
     // alongside any `tools` so the model emits tool calls during the agent
     // loop and a single schema-constrained JSON message on its final turn.
-    // Merge into any existing `output_config` so callers can keep tuning
-    // `output_config.effort` alongside the schema.
+    // Merge it with the `output_config.effort` that `chat({ reasoning })`
+    // sets.
     const combinedSchema = options.outputSchema as
       | Record<string, unknown>
       | undefined

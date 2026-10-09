@@ -1,4 +1,8 @@
-import type { Modality, ModelReasoning } from '@tanstack/ai'
+import type {
+  Modality,
+  ModelReasoning,
+  ModelReasoningCapability,
+} from '@tanstack/ai'
 import type {
   AnthropicCacheControlOptions,
   AnthropicContainerOptions,
@@ -92,7 +96,18 @@ const CLAUDE_OPUS_4_6 = {
       'memory',
     ],
   },
-  reasoning: {"map":{"off":null,"minimal":null,"low":"low","medium":"medium","high":"high","xhigh":null,"max":"max"},"budget":true},
+  reasoning: {
+    map: {
+      off: null,
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: null,
+      max: 'max',
+    },
+    budget: true,
+  },
 } as const satisfies ModelMeta<
   AnthropicCacheControlOptions &
     AnthropicContainerOptions &
@@ -132,7 +147,18 @@ const CLAUDE_OPUS_4_5 = {
       'memory',
     ],
   },
-  reasoning: {"map":{"off":null,"minimal":null,"low":"low","medium":"medium","high":"high","xhigh":null,"max":null},"budget":true},
+  reasoning: {
+    map: {
+      off: null,
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: true,
+  },
 } as const satisfies ModelMeta<
   AnthropicCacheControlOptions &
     AnthropicContainerOptions &
@@ -175,7 +201,18 @@ const CLAUDE_SONNET_4_6 = {
       'memory',
     ],
   },
-  reasoning: {"map":{"off":null,"minimal":null,"low":"low","medium":"medium","high":"high","xhigh":null,"max":"max"},"budget":true},
+  reasoning: {
+    map: {
+      off: null,
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: null,
+      max: 'max',
+    },
+    budget: true,
+  },
 } as const satisfies ModelMeta<
   AnthropicCacheControlOptions &
     AnthropicContainerOptions &
@@ -215,7 +252,7 @@ const CLAUDE_SONNET_4_5 = {
       'memory',
     ],
   },
-  reasoning: {"budget":true},
+  reasoning: { budget: true },
 } as const satisfies ModelMeta<
   AnthropicCacheControlOptions &
     AnthropicContainerOptions &
@@ -255,7 +292,7 @@ const CLAUDE_HAIKU_4_5 = {
       'memory',
     ],
   },
-  reasoning: {"budget":true},
+  reasoning: { budget: true },
 } as const satisfies ModelMeta<
   AnthropicCacheControlOptions &
     AnthropicContainerOptions &
@@ -295,7 +332,7 @@ const CLAUDE_OPUS_4_1 = {
       'memory',
     ],
   },
-  reasoning: {"budget":true},
+  reasoning: { budget: true },
 } as const satisfies ModelMeta<
   AnthropicCacheControlOptions &
     AnthropicContainerOptions &
@@ -339,7 +376,18 @@ const CLAUDE_OPUS_4_7 = {
       normal: 25,
     },
   },
-  reasoning: {"map":{"off":null,"minimal":null,"low":"low","medium":"medium","high":"high","xhigh":"xhigh","max":"max"},"budget":false},
+  reasoning: {
+    map: {
+      off: null,
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: 'xhigh',
+      max: 'max',
+    },
+    budget: false,
+  },
 } as const satisfies ModelMeta<
   AnthropicCacheControlOptions &
     AnthropicContainerOptions &
@@ -382,7 +430,18 @@ const CLAUDE_OPUS_4_8 = {
       normal: 25,
     },
   },
-  reasoning: {"map":{"off":null,"minimal":null,"low":"low","medium":"medium","high":"high","xhigh":"xhigh","max":"max"},"budget":false},
+  reasoning: {
+    map: {
+      off: null,
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: 'xhigh',
+      max: 'max',
+    },
+    budget: false,
+  },
 } as const satisfies ModelMeta<
   AnthropicCacheControlOptions &
     AnthropicContainerOptions &
@@ -428,7 +487,18 @@ const CLAUDE_FABLE_5 = {
       normal: 50,
     },
   },
-  reasoning: {"map":{"off":null,"minimal":null,"low":"low","medium":"medium","high":"high","xhigh":"xhigh","max":"max"},"budget":false},
+  reasoning: {
+    map: {
+      off: null,
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: 'xhigh',
+      max: 'max',
+    },
+    budget: false,
+  },
 } as const satisfies ModelMeta<
   AnthropicCacheControlOptions &
     AnthropicContainerOptions &
@@ -473,7 +543,18 @@ const CLAUDE_SONNET_5 = {
       normal: 10,
     },
   },
-  reasoning: {"map":{"off":"none","minimal":null,"low":"low","medium":"medium","high":"high","xhigh":"xhigh","max":"max"},"budget":false},
+  reasoning: {
+    map: {
+      off: 'none',
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: 'xhigh',
+      max: 'max',
+    },
+    budget: false,
+  },
 } as const satisfies ModelMeta<
   AnthropicCacheControlOptions &
     AnthropicContainerOptions &
@@ -520,7 +601,18 @@ const CLAUDE_OPUS_5 = {
       normal: 25,
     },
   },
-  reasoning: {"map":{"off":null,"minimal":null,"low":"low","medium":"medium","high":"high","xhigh":"xhigh","max":"max"},"budget":false},
+  reasoning: {
+    map: {
+      off: null,
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: 'xhigh',
+      max: 'max',
+    },
+    budget: false,
+  },
 } as const satisfies ModelMeta<
   AnthropicContainerOptions &
     AnthropicContextManagementOptions &
@@ -549,7 +641,18 @@ const CLAUDE_OPUS_5_FAST = {
       normal: 50,
     },
   },
-  reasoning: {"map":{"off":"none","minimal":null,"low":"low","medium":"medium","high":"high","xhigh":"xhigh","max":"max"},"budget":true},
+  reasoning: {
+    map: {
+      off: 'none',
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: 'xhigh',
+      max: 'max',
+    },
+    budget: true,
+  },
 } as const satisfies ModelMeta<
   AnthropicContainerOptions &
     AnthropicContextManagementOptions &
@@ -586,7 +689,18 @@ const CLAUDE_FABLE_5_1 = {
       normal: 50,
     },
   },
-  reasoning: {"map":{"off":null,"minimal":null,"low":"low","medium":"medium","high":"high","xhigh":"xhigh","max":"max"},"budget":false},
+  reasoning: {
+    map: {
+      off: null,
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: 'xhigh',
+      max: 'max',
+    },
+    budget: false,
+  },
 } as const satisfies ModelMeta<
   AnthropicCacheControlOptions &
     AnthropicContainerOptions &
@@ -625,7 +739,18 @@ const CLAUDE_OPUS_5_5 = {
       normal: 20,
     },
   },
-  reasoning: {"map":{"off":null,"minimal":null,"low":"low","medium":"medium","high":"high","xhigh":"xhigh","max":"max"},"budget":false},
+  reasoning: {
+    map: {
+      off: null,
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: 'xhigh',
+      max: 'max',
+    },
+    budget: false,
+  },
 } as const satisfies ModelMeta<
   AnthropicCacheControlOptions &
     AnthropicContainerOptions &
@@ -671,7 +796,18 @@ const CLAUDE_SONNET_5_5 = {
       normal: 10,
     },
   },
-  reasoning: {"map":{"off":null,"minimal":null,"low":"low","medium":"medium","high":"high","xhigh":"xhigh","max":"max"},"budget":false},
+  reasoning: {
+    map: {
+      off: null,
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: 'xhigh',
+      max: 'max',
+    },
+    budget: false,
+  },
 } as const satisfies ModelMeta<
   AnthropicCacheControlOptions &
     AnthropicContainerOptions &
@@ -714,7 +850,18 @@ const CLAUDE_HAIKU_5_5 = {
       normal: 0.5,
     },
   },
-  reasoning: {"map":{"off":"none","minimal":null,"low":"low","medium":"medium","high":"high","xhigh":"xhigh","max":"max"},"budget":false},
+  reasoning: {
+    map: {
+      off: 'none',
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: 'xhigh',
+      max: 'max',
+    },
+    budget: false,
+  },
 } as const satisfies ModelMeta<
   AnthropicCacheControlOptions &
     AnthropicContainerOptions &
@@ -1113,35 +1260,65 @@ export const ANTHROPIC_MODEL_INPUT_MODALITIES: Readonly<
 // later. Until then, the sync scripts keep these fields as they are.
 
 /**
- * Each chat model's reasoning data, at the type level. A model that is not
- * here does not reason. The adapter derives the levels of
- * `chat({ reasoning })` from it with `ModelReasoningCapability`.
+ * Each chat model's reasoning levels, and whether it takes a token budget,
+ * for `chat({ reasoning })`. Derived from the `reasoning` field. A model
+ * that is not here does not reason.
  */
 export type AnthropicModelReasoningByName = {
-  [CLAUDE_OPUS_4_6.id]: typeof CLAUDE_OPUS_4_6.reasoning
-  [CLAUDE_OPUS_4_5.id]: typeof CLAUDE_OPUS_4_5.reasoning
-  [CLAUDE_SONNET_4_6.id]: typeof CLAUDE_SONNET_4_6.reasoning
-  [CLAUDE_SONNET_4_5.id]: typeof CLAUDE_SONNET_4_5.reasoning
-  [CLAUDE_HAIKU_4_5.id]: typeof CLAUDE_HAIKU_4_5.reasoning
-  [CLAUDE_OPUS_4_1.id]: typeof CLAUDE_OPUS_4_1.reasoning
-  [CLAUDE_OPUS_4_7.id]: typeof CLAUDE_OPUS_4_7.reasoning
-  [CLAUDE_OPUS_4_8.id]: typeof CLAUDE_OPUS_4_8.reasoning
-  [CLAUDE_FABLE_5.id]: typeof CLAUDE_FABLE_5.reasoning
-  [CLAUDE_SONNET_5.id]: typeof CLAUDE_SONNET_5.reasoning
-  [CLAUDE_OPUS_5.id]: typeof CLAUDE_OPUS_5.reasoning
-  [CLAUDE_OPUS_5_FAST.id]: typeof CLAUDE_OPUS_5_FAST.reasoning
-  [CLAUDE_FABLE_5_1.id]: typeof CLAUDE_FABLE_5_1.reasoning
-  [CLAUDE_OPUS_5_5.id]: typeof CLAUDE_OPUS_5_5.reasoning
-  [CLAUDE_SONNET_5_5.id]: typeof CLAUDE_SONNET_5_5.reasoning
-  [CLAUDE_HAIKU_5_5.id]: typeof CLAUDE_HAIKU_5_5.reasoning
+  [CLAUDE_OPUS_4_6.id]: ModelReasoningCapability<
+    typeof CLAUDE_OPUS_4_6.reasoning
+  >
+  [CLAUDE_OPUS_4_5.id]: ModelReasoningCapability<
+    typeof CLAUDE_OPUS_4_5.reasoning
+  >
+  [CLAUDE_SONNET_4_6.id]: ModelReasoningCapability<
+    typeof CLAUDE_SONNET_4_6.reasoning
+  >
+  [CLAUDE_SONNET_4_5.id]: ModelReasoningCapability<
+    typeof CLAUDE_SONNET_4_5.reasoning
+  >
+  [CLAUDE_HAIKU_4_5.id]: ModelReasoningCapability<
+    typeof CLAUDE_HAIKU_4_5.reasoning
+  >
+  [CLAUDE_OPUS_4_1.id]: ModelReasoningCapability<
+    typeof CLAUDE_OPUS_4_1.reasoning
+  >
+  [CLAUDE_OPUS_4_7.id]: ModelReasoningCapability<
+    typeof CLAUDE_OPUS_4_7.reasoning
+  >
+  [CLAUDE_OPUS_4_8.id]: ModelReasoningCapability<
+    typeof CLAUDE_OPUS_4_8.reasoning
+  >
+  [CLAUDE_FABLE_5.id]: ModelReasoningCapability<typeof CLAUDE_FABLE_5.reasoning>
+  [CLAUDE_SONNET_5.id]: ModelReasoningCapability<
+    typeof CLAUDE_SONNET_5.reasoning
+  >
+  [CLAUDE_OPUS_5.id]: ModelReasoningCapability<typeof CLAUDE_OPUS_5.reasoning>
+  [CLAUDE_OPUS_5_FAST.id]: ModelReasoningCapability<
+    typeof CLAUDE_OPUS_5_FAST.reasoning
+  >
+  [CLAUDE_FABLE_5_1.id]: ModelReasoningCapability<
+    typeof CLAUDE_FABLE_5_1.reasoning
+  >
+  [CLAUDE_OPUS_5_5.id]: ModelReasoningCapability<
+    typeof CLAUDE_OPUS_5_5.reasoning
+  >
+  [CLAUDE_SONNET_5_5.id]: ModelReasoningCapability<
+    typeof CLAUDE_SONNET_5_5.reasoning
+  >
+  [CLAUDE_HAIKU_5_5.id]: ModelReasoningCapability<
+    typeof CLAUDE_HAIKU_5_5.reasoning
+  >
 }
 
 /**
  * Runtime map from chat model name to its reasoning data, for the text
- * adapter. `satisfies` keeps it equal to {@link AnthropicModelReasoningByName}. An unknown
+ * adapter. `satisfies` keeps its keys equal to {@link AnthropicModelReasoningByName}. An unknown
  * name gives `undefined`: the adapter sends no reasoning field.
  */
-export const ANTHROPIC_MODEL_REASONING: Readonly<Record<string, ModelReasoning>> = {
+export const ANTHROPIC_MODEL_REASONING: Readonly<
+  Record<string, ModelReasoning>
+> = {
   [CLAUDE_OPUS_4_6.id]: CLAUDE_OPUS_4_6.reasoning,
   [CLAUDE_OPUS_4_5.id]: CLAUDE_OPUS_4_5.reasoning,
   [CLAUDE_SONNET_4_6.id]: CLAUDE_SONNET_4_6.reasoning,
@@ -1158,4 +1335,4 @@ export const ANTHROPIC_MODEL_REASONING: Readonly<Record<string, ModelReasoning>>
   [CLAUDE_OPUS_5_5.id]: CLAUDE_OPUS_5_5.reasoning,
   [CLAUDE_SONNET_5_5.id]: CLAUDE_SONNET_5_5.reasoning,
   [CLAUDE_HAIKU_5_5.id]: CLAUDE_HAIKU_5_5.reasoning,
-} satisfies AnthropicModelReasoningByName
+} satisfies Record<keyof AnthropicModelReasoningByName, ModelReasoning>

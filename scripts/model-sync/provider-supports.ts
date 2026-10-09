@@ -78,8 +78,8 @@ const ANTHROPIC_BASE_OPTIONS = [
 /**
  * Per-model Anthropic provider-options intersection, inferred from the
  * OpenRouter catalog. Does not copy another model's tool list. Thinking is
- * not here: `chat({ reasoning })` sets it, with the levels that
- * `sync-model-reasoning.ts` writes to `model-reasoning.ts`.
+ * not here: `chat({ reasoning })` sets it, with the levels of each model's
+ * `reasoning` field in `model-meta.ts`.
  *
  * - sampling listed → sampling options.
  * - no sampling (Sonnet 5, Opus 4.7+, Fable 5) → `max_tokens` only.
