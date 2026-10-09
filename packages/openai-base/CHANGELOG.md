@@ -1,5 +1,16 @@
 # @tanstack/openai-base
 
+## 0.12.7
+
+### Patch Changes
+
+- [#1670](https://github.com/TanStack/ai/pull/1670) [`ee935ef`](https://github.com/TanStack/ai/commit/ee935efaa25607425b1ba3452aec470588292334) - The Chat Completions adapter now stops the run with a `RUN_ERROR` when a stream chunk has an object or an array in `delta.content`. Before, the adapter streamed that value as the text `[object Object]` and finished the run. Null or missing `delta.content` still adds no text, and tool calls in the same chunk still run.
+
+- [#1674](https://github.com/TanStack/ai/pull/1674) [`7a70720`](https://github.com/TanStack/ai/commit/7a7072041aeca984e19550455b039322060a0bb0) - The Chat Completions adapters and the OpenRouter chat adapter now end the run with `RUN_ERROR` when the provider sends an unknown finish reason. The error message contains the provider finish reason, for example `Provider finish_reason: error`. Before this fix, the run finished as a success. The `content_filter` behavior does not change. OpenRouter still reports its `error` finish reason as `content_filter`.
+
+- Updated dependencies [[`baafb17`](https://github.com/TanStack/ai/commit/baafb176220c2b09fced334ad176e754582cd314)]:
+  - @tanstack/ai@0.66.1
+
 ## 0.12.6
 
 ### Patch Changes
