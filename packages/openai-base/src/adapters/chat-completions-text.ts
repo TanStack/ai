@@ -1196,6 +1196,29 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           return
         }
 
+        // An unknown finish_reason must not end the run as a success.
+        if (
+          pendingFinishReason &&
+          ![
+            'stop',
+            'length',
+            'content_filter',
+            'tool_calls',
+            'function_call',
+          ].includes(pendingFinishReason)
+        ) {
+          const message = `Provider finish_reason: ${pendingFinishReason}`
+          yield {
+            type: EventType.RUN_ERROR,
+            runId: aguiState.runId,
+            model: lastModel || options.model,
+            timestamp: Date.now(),
+            message,
+            error: { message },
+          }
+          return
+        }
+
         // Map upstream finish_reason to AG-UI's narrower vocabulary.
         // Collapsing length / content_filter to 'stop' would hide why the
         // run terminated — surface it instead. Use `tool_calls` only when

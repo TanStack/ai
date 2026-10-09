@@ -195,6 +195,43 @@ describe('Chat Completions completion policy with the real SDK', () => {
     expect(result.onError).toHaveBeenCalledTimes(1)
   })
 
+  it('reports an unknown finish_reason as RUN_ERROR', async () => {
+    const result = await observe([
+      textChunk,
+      {
+        ...envelope,
+        choices: [{ index: 0, delta: {}, finish_reason: 'error' }],
+      },
+      usageChunk,
+    ])
+    expect(result.events.at(-1)).toMatchObject({
+      type: 'RUN_ERROR',
+      message: 'Provider finish_reason: error',
+    })
+    expect(result.events.map((event) => event.type)).not.toContain(
+      'RUN_FINISHED',
+    )
+    expect(result.onError).toHaveBeenCalledTimes(1)
+    expect(result.onFinish).not.toHaveBeenCalled()
+  })
+
+  it('keeps content_filter as a finished run', async () => {
+    const result = await observe([
+      textChunk,
+      {
+        ...envelope,
+        choices: [{ index: 0, delta: {}, finish_reason: 'content_filter' }],
+      },
+      usageChunk,
+    ])
+    expect(result.events.at(-1)).toMatchObject({ type: 'RUN_FINISHED' })
+    expect(result.onFinish).toHaveBeenCalledTimes(1)
+    expect(result.onFinish.mock.calls[0]?.[1]).toMatchObject({
+      finishReason: 'content_filter',
+    })
+    expect(result.onError).not.toHaveBeenCalled()
+  })
+
   it('keeps caller cancellation on the abort path', async () => {
     const result = await observe([textChunk], { cancel: true })
     expect(result.onAbort).toHaveBeenCalledTimes(1)
