@@ -1,4 +1,8 @@
-import type { Modality } from '@tanstack/ai'
+import type {
+  Modality,
+  ModelReasoning,
+  ModelReasoningCapability,
+} from '@tanstack/ai'
 import type { GroqTextProviderOptions } from './text/text-provider-options'
 import type { GroqTTSProviderOptions } from './audio/tts-provider-options'
 
@@ -35,6 +39,8 @@ interface ModelMeta<TProviderOptions = unknown> {
    * Type-level description of which provider options this model supports.
    */
   providerOptions?: TProviderOptions
+  /** The model's data for `chat({ reasoning })`. None: it does not reason. */
+  reasoning?: ModelReasoning
 }
 
 const LLAMA_3_3_70B_VERSATILE = {
@@ -212,6 +218,18 @@ const GPT_OSS_120B = {
     ],
     tools: [] as const,
   },
+  reasoning: {
+    map: {
+      off: null,
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
+  },
 } as const satisfies ModelMeta<GroqTextProviderOptions>
 
 const GPT_OSS_SAFEGUARD_20B = {
@@ -243,6 +261,18 @@ const GPT_OSS_SAFEGUARD_20B = {
     ],
     tools: [] as const,
   },
+  reasoning: {
+    map: {
+      off: null,
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
+  },
 } as const satisfies ModelMeta<GroqTextProviderOptions>
 
 const GPT_OSS_20B = {
@@ -272,6 +302,18 @@ const GPT_OSS_20B = {
       'tools',
     ],
     tools: [] as const,
+  },
+  reasoning: {
+    map: {
+      off: null,
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
   },
 } as const satisfies ModelMeta<GroqTextProviderOptions>
 
@@ -315,6 +357,18 @@ const QWEN3_32B = {
     endpoints: ['chat'],
     features: ['streaming', 'json_object', 'tools', 'reasoning'],
     tools: [] as const,
+  },
+  reasoning: {
+    map: {
+      off: 'none',
+      minimal: null,
+      low: null,
+      medium: null,
+      high: 'default',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
   },
 } as const satisfies ModelMeta<GroqTextProviderOptions>
 
@@ -497,3 +551,37 @@ export const GROQ_TTS_MODELS = [
  * Union type of all supported Groq TTS model names.
  */
 export type GroqTTSModel = (typeof GROQ_TTS_MODELS)[number]
+
+// Reasoning
+//
+// Each model's `reasoning` field holds its data for `chat({ reasoning })`:
+// the provider value for each level (`null`: the model does not have it),
+// and whether it takes a thinking token budget. The data comes from
+// models.dev. The generator that writes it comes with the model catalog
+// later. Until then, the sync scripts keep these fields as they are.
+
+/**
+ * Each chat model's reasoning levels, and whether it takes a token budget,
+ * for `chat({ reasoning })`. Derived from the `reasoning` field. A model
+ * that is not here does not reason.
+ */
+export type GroqModelReasoningByName = {
+  [GPT_OSS_20B.name]: ModelReasoningCapability<typeof GPT_OSS_20B.reasoning>
+  [GPT_OSS_120B.name]: ModelReasoningCapability<typeof GPT_OSS_120B.reasoning>
+  [GPT_OSS_SAFEGUARD_20B.name]: ModelReasoningCapability<
+    typeof GPT_OSS_SAFEGUARD_20B.reasoning
+  >
+  [QWEN3_32B.name]: ModelReasoningCapability<typeof QWEN3_32B.reasoning>
+}
+
+/**
+ * Runtime map from chat model name to its reasoning data, for the text
+ * adapter. `satisfies` keeps its keys equal to {@link GroqModelReasoningByName}. An unknown
+ * name gives `undefined`: the adapter sends no reasoning field.
+ */
+export const GROQ_MODEL_REASONING: Readonly<Record<string, ModelReasoning>> = {
+  [GPT_OSS_20B.name]: GPT_OSS_20B.reasoning,
+  [GPT_OSS_120B.name]: GPT_OSS_120B.reasoning,
+  [GPT_OSS_SAFEGUARD_20B.name]: GPT_OSS_SAFEGUARD_20B.reasoning,
+  [QWEN3_32B.name]: QWEN3_32B.reasoning,
+} satisfies Record<keyof GroqModelReasoningByName, ModelReasoning>
