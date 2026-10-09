@@ -57,6 +57,8 @@ import {
   repairTranscript,
 } from './resume'
 import { HARNESS_EVENTS, InputRejectedError } from './types'
+import { ToolTurnAdapter } from './tool-turn'
+import type { ToolTurn } from './tool-turn'
 import { addUsage, callUsage, emptyUsage, isSessionUsage } from './usage'
 import type {
   AgentStarter,
@@ -357,6 +359,8 @@ interface QueuedTurn {
   /** A `resume` input: the interrupted run it continues. */
   parentRunId?: string
   inputId?: string
+  /** Per-run system/developer messages prepended ahead of harness prompts. */
+  systemPreamble?: Array<string>
   /** The settings of this one turn. Kept in memory only, not in the log. */
   overrides?: TurnOverrides
   /** The `ephemeral` messages of the input. Kept in memory only, as `overrides`. */
@@ -374,6 +378,8 @@ interface QueuedTurn {
   reset?: { note?: string }
   /** A `continue()`: it runs only when the model can answer the transcript. */
   isContinue?: boolean
+  /** A `tool()`: its only model call asks for this tool. */
+  tool?: ToolTurn
 }
 
 /**
@@ -955,6 +961,7 @@ const CHAT_OPS = new Set<string>([
   'steer',
   'followUp',
   'continue',
+  'tool',
   'resolve',
 ])
 
@@ -964,6 +971,7 @@ const WORK_OPS = new Set<string>([
   'steer',
   'followUp',
   'continue',
+  'tool',
   'resolve',
   'reset',
   'agent',
@@ -1863,6 +1871,11 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
    * other ephemeral messages gets the first input's operation and its own
    * are dropped. A turn that recovery runs again has none. A steer that joins
    * the running turn ignores them.
+   *
+   * `systemPreamble` are system prompts that this turn gets ahead of the
+   * harness prompts, for example memory that the host adds. They are kept
+   * like `overrides`: in memory only, and only from server code. A client
+   * input cannot set them.
    */
   prompt(
     message: UserInput,
@@ -1870,6 +1883,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       busy?: BusyPolicy
       inputId?: string
       overrides?: TurnOverrides
+      systemPreamble?: Array<string>
       principal?: Principal
       context?: unknown
       ephemeral?: ReadonlyArray<ModelMessage>
@@ -1880,6 +1894,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     const busy = options?.busy ?? this.harness.busy ?? 'queue'
     const inputId = options?.inputId ?? createInputId()
     const overrides = options?.overrides
+    const systemPreamble = options?.systemPreamble
     const ephemeral = options?.ephemeral
     const principal = options?.principal ?? this.principal
     const context = options?.context
@@ -1953,6 +1968,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             message,
             inputId,
             overrides,
+            systemPreamble,
             ephemeral,
             ...sent,
           })
@@ -2991,6 +3007,71 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     this.operations.set(operation.id, operation)
     const principal = options?.principal ?? this.principal
     void this.executeCommand(operation, name, input, principal)
+    return operation
+  }
+
+  /**
+   * Run one tool with no model, for example from a schedule or a webhook.
+   * It runs as a chat turn whose only model call asks for the tool, so the
+   * call goes through middleware, the input check, and `permissions()`, and
+   * the call and its result join the transcript. A tool that asks for
+   * approval stops the turn with an interrupt. `meta` is echoed as a
+   * `tanstack.injection` custom event. The turn waits behind a running turn.
+   */
+  tool(
+    name: string,
+    args?: unknown,
+    options?: {
+      meta?: Record<string, unknown>
+      inputId?: string
+      principal?: Principal
+    },
+  ): Operation<ChatTurnResult> {
+    const inputId = options?.inputId ?? createInputId()
+    const principal = options?.principal ?? this.principal
+    const meta = options?.meta
+    const input: HarnessInput = {
+      op: 'tool',
+      name,
+      ...(args !== undefined ? { args } : {}),
+      ...(meta ? { meta } : {}),
+    }
+    const known = this.knownTurn(inputId, input, principal)
+    if (known) return known
+    const operation = this.createTurnOperation()
+    this.bindTurn(inputId, operation)
+    void this.admitting(() =>
+      this.accept(inputId, input, principal).then(
+        (admission) => {
+          if (admission !== 'new') {
+            this.answerDuplicate(operation, inputId, admission)
+            return
+          }
+          const isWaiting =
+            this.activeTurn !== undefined || this.queue.length > 0
+          this.answerTurn(operation, {
+            inputId,
+            status: isWaiting ? 'queued' : 'accepted',
+            operationId: operation.id,
+          })
+          this.enqueueTurn({
+            operation,
+            inputId,
+            principal,
+            tool: { name, args, ...(meta ? { meta } : {}) },
+          })
+        },
+        (error: unknown) => {
+          const failure = this.logFailure ?? error
+          this.answerTurn(operation, {
+            inputId,
+            status: 'rejected',
+            reason: errorText(failure),
+          })
+          operation.fail('failed', failure)
+        },
+      ),
+    )
     return operation
   }
 
@@ -4790,8 +4871,9 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         stored.model === undefined
           ? undefined
           : this.harness.models?.[stored.model]
-      const model =
-        overrides?.adapter ?? named ?? picked ?? this.harness.adapter
+      const model = turn.tool
+        ? new ToolTurnAdapter(turn.tool, `tool-${turn.inputId ?? operation.id}`)
+        : (overrides?.adapter ?? named ?? picked ?? this.harness.adapter)
       if (!model) throw new Error(NO_MODEL)
       const adapter: AnyTextAdapter = await this.keys.adapter(model)
       const resolvePrompt = (prompt: string | (() => string)) =>
@@ -4860,7 +4942,12 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       // A new turn asks the router once. A resolve does not: it continues the
       // turn it answers, the main model or the saved plan of the root agents.
       let pick: SubagentRouterPick | undefined
-      if (routing && rootAgents.length > 0 && turn.resume === undefined) {
+      if (
+        routing &&
+        rootAgents.length > 0 &&
+        turn.resume === undefined &&
+        !turn.tool
+      ) {
         const history = await this.messages.loadThread(this.threadId)
         pick = await routing.router({
           messages: resetContext([...history, ...(message ? [message] : [])]),
@@ -4970,6 +5057,9 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             adapter,
             messages: routedFrom ?? turnMessages,
             systemPrompts: [
+              // Per-run preamble (e.g. pod memory) comes first, ahead of the
+              // harness's own system prompts.
+              ...(turn.systemPreamble ?? []),
               ...(this.harness.systemPrompts ?? []),
               ...[...(session?.prompts ?? []), ...(runPlugins?.prompts ?? [])]
                 .map(resolvePrompt)
@@ -5051,7 +5141,17 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             ...(this.harness.interrupts
               ? { interrupts: this.harness.interrupts }
               : {}),
-            ...(context !== undefined ? { context } : {}),
+            // A plain-object (or absent) turn context also carries the live
+            // thread/run ids, so in-band tools can resolve the calling thread.
+            ...(context === undefined || isPlainObject(context)
+              ? {
+                  context: {
+                    ...context,
+                    threadId: this.threadId,
+                    runId: operation.id,
+                  },
+                }
+              : { context }),
             ...(reasoning !== undefined ? { reasoning } : {}),
             promptCache,
             threadId: this.threadId,
@@ -6838,6 +6938,20 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           principal: entry.principal,
           context: input.context,
         })
+      } else if (input.op === 'tool') {
+        const operation = this.createTurnOperation()
+        this.admitted.set(entry.inputId, inputKey(input, entry.principal))
+        this.bindTurn(entry.inputId, operation)
+        this.enqueueTurn({
+          operation,
+          inputId: entry.inputId,
+          principal: entry.principal,
+          tool: {
+            name: input.name,
+            args: input.args,
+            ...(input.meta ? { meta: input.meta } : {}),
+          },
+        })
       } else if (input.op === 'reset') {
         this.queueReset(entry.inputId, input.note, entry.principal, 'end')
       } else {
@@ -7028,7 +7142,11 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         }
         if (
           !isChat ||
-          !('message' in input.input || input.input.op === 'continue')
+          !(
+            'message' in input.input ||
+            input.input.op === 'continue' ||
+            input.input.op === 'tool'
+          )
         ) {
           this.reject(input.inputId, 'expired_on_restart')
           continue
@@ -7060,6 +7178,18 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             context: input.input.context,
             overrides: decision.overrides,
             isContinue: true,
+          })
+          continue
+        }
+        if (input.input.op === 'tool') {
+          const { name, args, meta } = input.input
+          const operation = this.createTurnOperation()
+          this.bindTurn(input.inputId, operation)
+          this.enqueueTurn({
+            operation,
+            inputId: input.inputId,
+            principal: input.principal,
+            tool: { name, args, ...(meta ? { meta } : {}) },
           })
           continue
         }

@@ -1,0 +1,235 @@
+@import 'tailwindcss';
+
+/* TanStack AI design tokens. Dark is the default; [data-theme='light'] swaps
+   the raw values, and every utility (bg-surface, text-ink-2, …) follows. */
+@theme {
+  --color-surface: #111111;
+  --color-surface-raised: #181817;
+  --color-surface-sunken: #0a0a0a;
+  --color-ui: #1f1e1c;
+  --color-ui-hover: #272623;
+  --color-line: rgba(238, 235, 212, 0.08);
+  --color-line-strong: rgba(238, 235, 212, 0.16);
+  --color-ink: #ffffff;
+  --color-ink-2: #aea691;
+  --color-ink-3: #77715f;
+  --color-accent: #e06e49;
+  --color-accent-ink: #111111;
+  --color-accent-soft: rgba(224, 110, 73, 0.14);
+  --color-ok: #8fae86;
+  --color-ok-soft: rgba(143, 174, 134, 0.12);
+  --color-warn: #c9a65e;
+  --color-warn-soft: rgba(201, 166, 94, 0.12);
+  --color-err: #cf7a6c;
+  --color-err-soft: rgba(207, 122, 108, 0.12);
+  --color-off: #77715f;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-2: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25);
+
+  --font-display: 'Bricolage Grotesque', ui-sans-serif, sans-serif;
+  --font-sans: Inter, ui-sans-serif, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+  --color-surface: #eeebd4;
+  --color-surface-raised: #e6e2c9;
+  --color-surface-sunken: #e1dcc0;
+  --color-ui: #ffffff;
+  --color-ui-hover: #f7f5ea;
+  --color-line: rgba(17, 17, 17, 0.09);
+  --color-line-strong: rgba(17, 17, 17, 0.18);
+  --color-ink: #111111;
+  --color-ink-2: #3e3529;
+  --color-ink-3: #7a705c;
+  --color-accent: #d3481b;
+  --color-accent-ink: #ffffff;
+  --color-accent-soft: rgba(211, 72, 27, 0.1);
+  --color-ok: #4d7546;
+  --color-ok-soft: rgba(77, 117, 70, 0.1);
+  --color-warn: #8f6a1f;
+  --color-warn-soft: rgba(143, 106, 31, 0.1);
+  --color-err: #a5432f;
+  --color-err-soft: rgba(165, 67, 47, 0.1);
+  --color-off: #7a705c;
+  --shadow-1: 0 1px 2px rgba(62, 53, 41, 0.12);
+  --shadow-2: 0 1px 2px rgba(62, 53, 41, 0.1), 0 8px 24px rgba(62, 53, 41, 0.1);
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-surface font-sans text-sm font-light text-ink antialiased;
+    transition: background-color 200ms var(--ease-out);
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-accent;
+  }
+  ::placeholder {
+    @apply text-ink-3;
+  }
+  select option {
+    @apply bg-ui text-ink;
+  }
+}
+
+@layer components {
+  .label {
+    @apply text-[11px] font-normal tracking-[0.06em] text-ink-3 uppercase;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-sm px-3 py-1.5 text-[13px] font-medium whitespace-nowrap transition-[background-color,filter] duration-150 disabled:opacity-40;
+  }
+  .btn-sm {
+    @apply px-2 py-1 text-xs;
+  }
+  .btn-accent {
+    @apply bg-accent text-accent-ink hover:brightness-[1.08];
+  }
+  .btn-ink {
+    @apply bg-ink text-surface hover:brightness-[1.08];
+  }
+  .btn-outline {
+    @apply border border-line-strong text-ink hover:bg-ui-hover;
+  }
+  .btn-ghost {
+    @apply text-ink-2 hover:bg-ui-hover hover:text-ink;
+  }
+  .icon-btn {
+    @apply inline-flex size-6 items-center justify-center rounded-sm text-ink-3 transition-colors duration-150 hover:bg-ui-hover hover:text-ink;
+  }
+  .input {
+    @apply rounded-sm border border-line bg-ui px-2.5 py-1.5 text-[13px] font-normal text-ink outline-none focus:border-line-strong;
+  }
+  .pill {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap;
+  }
+  .panel {
+    @apply rounded-lg bg-surface-raised p-5;
+  }
+  .nav-row {
+    @apply flex w-full items-center gap-2.5 rounded-sm px-2 py-1.5 text-left text-sm text-ink-2 transition-colors duration-150 hover:bg-ui-hover;
+  }
+  .nav-row svg {
+    @apply shrink-0 text-ink-3;
+  }
+  .nav-row.active {
+    @apply bg-ui text-ink;
+  }
+  .nav-row.active svg {
+    @apply text-accent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* Markdown message rendering (the .md wrapper in <Markdown>). Scoped, minimal —
+   just enough for the sentiment digest's tables, headings, lists and code. */
+.md {
+  line-height: 1.55;
+}
+.md > :first-child {
+  margin-top: 0;
+}
+.md > :last-child {
+  margin-bottom: 0;
+}
+.md h1,
+.md h2,
+.md h3,
+.md h4 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  margin: 0.9em 0 0.35em;
+  line-height: 1.2;
+}
+.md h1 {
+  font-size: 1.25em;
+}
+.md h2 {
+  font-size: 1.1em;
+}
+.md strong {
+  font-weight: 500;
+}
+.md p,
+.md ul,
+.md ol,
+.md table {
+  margin: 0.5em 0;
+}
+.md ul,
+.md ol {
+  padding-left: 1.25em;
+}
+.md ul {
+  list-style: disc;
+}
+.md ol {
+  list-style: decimal;
+}
+.md a {
+  color: var(--color-accent);
+}
+.md a:hover {
+  text-decoration: underline;
+}
+.md code {
+  background: var(--color-ui);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+.md pre {
+  background: var(--color-surface-sunken);
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+}
+.md pre code {
+  background: none;
+  padding: 0;
+}
+.md table {
+  border-collapse: collapse;
+  display: block;
+  overflow-x: auto;
+  font-size: 0.9em;
+}
+.md th,
+.md td {
+  border-bottom: 1px solid var(--color-line);
+  padding: 0.4em 0.75em 0.4em 0;
+  text-align: left;
+}
+.md th {
+  color: var(--color-ink-3);
+  font-weight: 400;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.md blockquote {
+  border-left: 2px solid var(--color-line-strong);
+  padding-left: 0.75em;
+  color: var(--color-ink-2);
+  margin: 0.5em 0;
+}

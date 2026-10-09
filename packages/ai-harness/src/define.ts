@@ -199,7 +199,8 @@ export interface HarnessConfig<
    * and the `context` of a turn input are both plain objects, a turn gets
    * both merged, and this value wins for a key in both, so a client cannot
    * replace a server value. Otherwise a turn gets this value when it is set,
-   * else the input's.
+   * else the input's. A plain-object (or absent) context also gets the live
+   * `threadId` and `runId`, which win over both.
    */
   context?: unknown
   /**
@@ -262,6 +263,13 @@ export interface HarnessConfig<
      * opens, so `defineHarness` does not check these names.
      */
     commands?: ReadonlyArray<string>
+    /**
+     * The harness tools a client may run with a `tool` input, with no model
+     * turn, for example from a schedule or a webhook. An input for any other
+     * tool is refused with `not_exposed`. The call goes through the same
+     * middleware, input check, and `permissions()` rules as a model call.
+     */
+    tools?: ReadonlyArray<string>
   }
 }
 

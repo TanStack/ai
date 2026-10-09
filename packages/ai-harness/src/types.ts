@@ -144,6 +144,8 @@ export type HarnessInput = (
   | { op: 'command'; name: string; input?: unknown }
   | { op: 'answer'; questionId: string; value: unknown }
   | { op: 'config'; key: string; value: unknown }
+  /** Run one tool in `expose.tools` with no model. See `session.tool`. */
+  | { op: 'tool'; name: string; args?: unknown; meta?: Record<string, unknown> }
   | { op: 'configure'; settings: ThreadSettingsChange }
   | { op: 'reset'; note?: string }
   | { op: 'revert'; messageId: string }

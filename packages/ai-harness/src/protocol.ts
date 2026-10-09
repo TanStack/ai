@@ -49,6 +49,7 @@ const INPUT_OPS = new Set([
   'command',
   'answer',
   'config',
+  'tool',
   'configure',
   'reset',
   'revert',
@@ -104,6 +105,9 @@ export function parseHarnessInput(value: unknown): HarnessInput {
   }
   if (value.op === 'config' && typeof value.key !== 'string') {
     throw new Error('Invalid input: config needs a key.')
+  }
+  if (value.op === 'tool' && typeof value.name !== 'string') {
+    throw new Error('Invalid input: tool needs a name.')
   }
   const namesInput = value.op === 'cancelInput' || value.op === 'setDelivery'
   if (namesInput && typeof value.inputId !== 'string') {
@@ -184,8 +188,8 @@ export function parseControlFrame(data: string): ControlFrame {
 /**
  * Apply a client input to a session. A client can run, or send messages to,
  * only the agents in `expose.agents`. It can run only the commands in
- * `expose.commands`, and change only the settings in `expose.settings` and the
- * config keys in `expose.config`. Resolves to the receipt. `principal` is who
+ * `expose.commands` and the tools in `expose.tools`, and change only the
+ * settings in `expose.settings` and the config keys in `expose.config`. Resolves to the receipt. `principal` is who
  * sent the input, from your `authorize`, never from the input itself. A chat
  * input runs with its credentials.
  */
@@ -277,6 +281,24 @@ export async function applyInput(
         return notExposed
       }
       return session.setConfig(input.key, input.value)
+    case 'tool': {
+      if (!(harness.expose?.tools ?? []).includes(input.name)) {
+        return notExposed
+      }
+      const operation = session.tool(input.name, input.args, {
+        ...(input.meta ? { meta: input.meta } : {}),
+        ...id,
+      })
+      operation.then(
+        () => {},
+        () => {},
+      )
+      return {
+        inputId: operation.id,
+        status: 'accepted',
+        operationId: operation.id,
+      }
+    }
     case 'configure': {
       // A client changes only the settings the harness exposes.
       const exposed: ReadonlyArray<string> = harness.expose?.settings ?? []
@@ -376,6 +398,7 @@ export function capabilitiesOf(harness: AnyHarness) {
       items: (harness.tools ?? []).map((tool) => ({
         name: tool.name,
         description: tool.description,
+        exposed: (harness.expose?.tools ?? []).includes(tool.name),
       })),
     },
     multiAgent: {

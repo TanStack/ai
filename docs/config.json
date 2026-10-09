@@ -945,7 +945,7 @@
           "label": "Connect clients",
           "to": "harness/connect",
           "addedAt": "2026-09-26",
-          "updatedAt": "2026-10-07"
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "Send and show media",
@@ -1092,7 +1092,7 @@
           "label": "Use from any MCP client",
           "to": "harness/mcp-server",
           "addedAt": "2026-09-28",
-          "updatedAt": "2026-10-06"
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "Code mode in a harness",

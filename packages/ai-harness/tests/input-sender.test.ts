@@ -21,6 +21,8 @@ import type {
 } from '../src'
 
 const THREAD = 't1'
+/** The live ids that the harness adds to the context of every tool call. */
+const live = { threadId: THREAD, runId: expect.any(String) }
 const alice = { id: 'alice' }
 const bob = { id: 'bob' }
 
@@ -509,7 +511,7 @@ describe('the context of an input', () => {
     expect(seen).toEqual([
       {
         principal: 'alice',
-        context: { tenant: 'server', db: 'main', screen: 'settings' },
+        context: { tenant: 'server', db: 'main', screen: 'settings', ...live },
       },
     ])
     const inputId =
@@ -565,7 +567,9 @@ describe('the context of an input', () => {
     const session = await host.open(harness, { threadId: THREAD })
     await session.settled(receipt.inputId)
 
-    expect(seen).toEqual([{ principal: 'alice', context: { screen: 'home' } }])
+    expect(seen).toEqual([
+      { principal: 'alice', context: { screen: 'home', ...live } },
+    ])
     await host.close()
   })
 })
@@ -625,7 +629,9 @@ describe('recovery keeps the sender and the context', () => {
         principal: { id: 'bob', tenantId: 'org' },
       }),
     ])
-    expect(seen).toEqual([{ principal: 'bob', context: { screen: 'x' } }])
+    expect(seen).toEqual([
+      { principal: 'bob', context: { screen: 'x', ...live } },
+    ])
     await host.close()
   })
 
@@ -683,7 +689,9 @@ describe('recovery keeps the sender and the context', () => {
         principal: { id: 'bob' },
       }),
     ])
-    expect(seen).toEqual([{ principal: 'bob', context: { screen: 'x' } }])
+    expect(seen).toEqual([
+      { principal: 'bob', context: { screen: 'x', ...live } },
+    ])
     await host.close()
   })
 })

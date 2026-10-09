@@ -1,0 +1,51 @@
+{
+  "name": "agent-dashboard",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev --port 3002",
+    "build": "vite build",
+    "serve": "vite preview",
+    "start": "node .output/server/index.mjs",
+    "test": "vitest run",
+    "test:lib": "vitest run",
+    "test:e2e": "playwright test",
+    "test:types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@phosphor-icons/react": "^2.1.10",
+    "@tailwindcss/vite": "^4.1.18",
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-anthropic": "workspace:*",
+    "@tanstack/ai-dashboard": "workspace:*",
+    "@tanstack/ai-harness": "workspace:*",
+    "@tanstack/ai-mcp": "workspace:*",
+    "@tanstack/ai-models": "workspace:*",
+    "@tanstack/ai-persistence": "workspace:*",
+    "@tanstack/react-db": "^0.1.55",
+    "@tanstack/react-devtools": "^0.9.10",
+    "@tanstack/react-query": "^5.90.12",
+    "@tanstack/react-router": "^1.170.41",
+    "@tanstack/react-router-devtools": "^1.158.4",
+    "@tanstack/react-start": "^1.168.60",
+    "@tanstack/router-plugin": "^1.168.42",
+    "nitro": "3.0.260610-beta",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "tailwindcss": "^4.1.18",
+    "zod": "^4.2.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@tanstack/devtools-vite": "^0.5.3",
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.2.0",
+    "typescript": "5.9.3",
+    "vite": "^8.2.1",
+    "vitest": "^4.1.10"
+  }
+}
