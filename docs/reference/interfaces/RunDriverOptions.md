@@ -3,7 +3,7 @@ id: RunDriverOptions
 title: RunDriverOptions
 ---
 
-Defined in: [packages/ai/src/stream-to-response.ts:813](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L813)
+Defined in: [packages/ai/src/stream-to-response.ts:1114](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L1114)
 
 Everything the resume helpers need to take a run over as a side effect of
 serving its log.
@@ -26,7 +26,7 @@ background-worker-driven run supply its own pair.
 claim: <T>(input, fn) => Promise<T>;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:825](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L825)
+Defined in: [packages/ai/src/stream-to-response.ts:1126](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L1126)
 
 Run `fn` under exclusive ownership of the run, or reject if refused.
 
@@ -68,7 +68,7 @@ Run `fn` under exclusive ownership of the run, or reject if refused.
 drive: (input) => AsyncIterable<AGUIEvent>;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:819](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L819)
+Defined in: [packages/ai/src/stream-to-response.ts:1120](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L1120)
 
 Produce the run's remaining events. Called only once the claim is held.
 
@@ -100,7 +100,7 @@ Produce the run's remaining events. Called only once the claim is held.
 locks: LockStore;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:817](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L817)
+Defined in: [packages/ai/src/stream-to-response.ts:1118](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L1118)
 
 ***
 
@@ -110,7 +110,7 @@ Defined in: [packages/ai/src/stream-to-response.ts:817](https://github.com/TanSt
 optional logger?: InternalLogger;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:840](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L840)
+Defined in: [packages/ai/src/stream-to-response.ts:1141](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L1141)
 
 ***
 
@@ -120,7 +120,7 @@ Defined in: [packages/ai/src/stream-to-response.ts:840](https://github.com/TanSt
 pipe: (stream, input) => Promise<unknown>;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:834](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L834)
+Defined in: [packages/ai/src/stream-to-response.ts:1135](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L1135)
 
 Persist the driven stream to the run's producer-side durability log.
 
@@ -156,7 +156,7 @@ Persist the driven stream to the run's producer-side durability log.
 request: Request;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:815](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L815)
+Defined in: [packages/ai/src/stream-to-response.ts:1116](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L1116)
 
 The attach request; its run id is read with [resolveResumeRunId](../functions/resolveResumeRunId.md).
 
@@ -168,7 +168,7 @@ The attach request; its run id is read with [resolveResumeRunId](../functions/re
 runs: RunStore;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:816](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L816)
+Defined in: [packages/ai/src/stream-to-response.ts:1117](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L1117)
 
 ***
 
@@ -178,7 +178,7 @@ Defined in: [packages/ai/src/stream-to-response.ts:816](https://github.com/TanSt
 optional waitUntil?: (promise) => void;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:839](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L839)
+Defined in: [packages/ai/src/stream-to-response.ts:1140](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L1140)
 
 Platform keep-alive (e.g. `ctx.waitUntil`) for the background drive.
 

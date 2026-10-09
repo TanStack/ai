@@ -171,7 +171,7 @@ function messageToBlocks(
       toolResult: {
         toolUseId: msg.toolCallId,
         content: [toolResult],
-        status: 'success',
+        status: msg.error !== undefined ? 'error' : 'success',
       },
     })
     return blocks

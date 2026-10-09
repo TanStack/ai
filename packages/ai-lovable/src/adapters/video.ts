@@ -2,7 +2,6 @@ import OpenAI from 'openai'
 import { resolveMediaPrompt } from '@tanstack/ai'
 import { BaseVideoAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
-import { arrayBufferToBase64 } from '@tanstack/ai-utils'
 import {
   getLovableApiKeyFromEnv,
   openaiRequestOptions,
@@ -20,6 +19,7 @@ import type {
   VideoGenerationOptions,
   VideoJobResult,
   VideoStatusResult,
+  VideoStreamResult,
   VideoUrlResult,
 } from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
@@ -36,19 +36,9 @@ import type {
 } from '../video/video-provider-options'
 import type { LovableClientConfig } from '../utils/client'
 
-const LARGE_MEDIA_BUFFER_BYTES = 10 * 1024 * 1024
 const VIDEO_DURATIONS = [
   4, 6, 8,
 ] as const satisfies ReadonlyArray<LovableVideoDuration>
-
-function warnIfLargeMediaBuffer(byteLength: number, source: string): void {
-  if (byteLength <= LARGE_MEDIA_BUFFER_BYTES) return
-  console.warn(
-    `[lovable.${source}] downloaded ${(byteLength / 1024 / 1024).toFixed(1)} MiB into memory before base64 encoding. ` +
-      `Workers/serverless runtimes commonly run out of memory above ~10 MiB. ` +
-      `Consider streaming the video through a CDN or your own storage layer instead.`,
-  )
-}
 
 /**
  * @experimental Video generation is an experimental feature and may change.
@@ -184,7 +174,9 @@ export class LovableVideoAdapter<
     }
   }
 
-  async getVideoUrl(jobId: string): Promise<VideoUrlResult> {
+  override async getVideo(
+    jobId: string,
+  ): Promise<VideoUrlResult | VideoStreamResult> {
     try {
       const videoInfo = await this.client.videos.retrieve(jobId)
       const directUrl = videoResourceUrl(videoInfo)
@@ -198,12 +190,15 @@ export class LovableVideoAdapter<
         }
       }
 
-      const contentResponse = await this.client.videos.downloadContent(jobId)
-      return dataUrlFromResponse(
+      // No URL: hand the download stream to generation middleware instead of
+      // buffering the whole video.
+      const response = await this.client.videos.downloadContent(jobId)
+      if (!response.body) throw new Error('Video download returned no body')
+      return {
         jobId,
-        contentResponse,
-        'video.downloadContent',
-      )
+        body: response.body,
+        contentType: response.headers.get('content-type') || 'video/mp4',
+      }
     } catch (error: unknown) {
       if (isHttpStatus(error, 404)) {
         throw new Error(`Video job not found: ${jobId}`)
@@ -241,22 +236,6 @@ export class LovableVideoAdapter<
       default:
         return 'processing'
     }
-  }
-}
-
-async function dataUrlFromResponse(
-  jobId: string,
-  contentResponse: Response,
-  source: string,
-): Promise<VideoUrlResult> {
-  const videoBlob = await contentResponse.blob()
-  const buffer = await videoBlob.arrayBuffer()
-  warnIfLargeMediaBuffer(buffer.byteLength, source)
-  const base64 = arrayBufferToBase64(buffer)
-  const mimeType = contentResponse.headers.get('content-type') || 'video/mp4'
-  return {
-    jobId,
-    url: `data:${mimeType};base64,${base64}`,
   }
 }
 

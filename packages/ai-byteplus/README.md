@@ -82,7 +82,7 @@ import { byteplusText } from '@tanstack/ai-byteplus'
 // The adapter carries the model — there is no separate `model` option.
 const adapter = byteplusText('seed-2-0-lite-260428')
 
-const text = await chat({
+const { text } = await chat({
   adapter,
   messages: [{ role: 'user', content: 'Explain diffusion models briefly' }],
   stream: false,

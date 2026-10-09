@@ -90,10 +90,12 @@ export default async function globalSetup() {
   mock.mount('/api/embed', ollamaEmbedMount())
   mock.mount('/mistral', mistralEmbeddingsMount())
 
-  // Gemini native image generation. aimock has no generateContent image
-  // branch. One mount covers the #1104 size wire (aspectRatio / imageSize)
-  // and the #1103 modelOptions wire (safetySettings / thinkingConfig).
-  mock.mount('/v1beta/models', geminiNativeImageMount())
+  // Gemini native image generation. The adapter posts to the Interactions
+  // API. This dedicated prefix leaves aimock's /v1beta/interactions handler
+  // free for the stateful text tests. One mount covers the #1104 size wire
+  // (response_format) and the modelOptions wire (safety_settings /
+  // thinking_level), plus a chained edit.
+  mock.mount('/gemini-image', geminiNativeImageMount())
 
   // Gemini Omni Flash video generation (Interactions API). aimock handles
   // synchronous text interactions natively, but not background video jobs
@@ -663,27 +665,33 @@ function rejectGeminiImageRequest(
 }
 
 /**
- * Mounts Gemini native `generateContent` image calls for
- * `gemini-3.1-flash-image` and `gemini-2.5-flash-image`.
+ * Mounts Gemini native image calls on the Interactions API for
+ * `gemini-3.1-flash-image`, `gemini-nano-banana-2.1` and
+ * `gemini-2.5-flash-image`.
  *
- * aimock has no `generateContent` image branch. This mount reads the raw
- * body so two specs can assert on the wire:
- * - `/api/gemini-image-ga-models` checks `imageConfig.aspectRatio` / `imageSize`
- * - `/api/gemini-native-image-wire` checks top-level `safetySettings` and
- *   `generationConfig.thinkingConfig` on `gemini-2.5-flash-image`
+ * The adapter posts `POST /v1beta/interactions` with `response_format.type`
+ * `image`. This mount reads that body so two specs can assert on the wire:
+ * - `/api/gemini-image-ga-models` checks `response_format.aspect_ratio` /
+ *   `image_size`
+ * - `/api/gemini-native-image-wire` checks snake_case `safety_settings` and
+ *   `generation_config.thinking_level`, then a chained edit that sends
+ *   `previous_interaction_id` and no image block
  */
 function geminiNativeImageMount(): Mountable {
   const NATIVE_IMAGE_MODELS = new Set([
     'gemini-3.1-flash-image',
+    'gemini-nano-banana-2.1',
     'gemini-2.5-flash-image',
   ])
 
   // Coupled to the `size` values in api.gemini-image-ga-models.ts.
   const EXPECTED_ASPECT_RATIO = '16:9'
   const EXPECTED_FLASH_IMAGE_SIZE = '2K'
+  const CREATE_ID = 'int_e2e_create'
+  const EDIT_ID = 'int_e2e_edit'
 
-  // Imagen-only GenerateImagesConfig fields must never appear on generateContent.
-  const IMAGEN_ONLY_FIELDS = [
+  // CamelCase generateContent / Imagen fields must never reach this body.
+  const ROOT_FORBIDDEN = [
     'personGeneration',
     'safetyFilterLevel',
     'addWatermark',
@@ -697,19 +705,33 @@ function geminiNativeImageMount(): Mountable {
     'includeRaiReason',
     'outputGcsUri',
     'aspectRatio',
+    'generationConfig',
+    'imageConfig',
+    'safetySettings',
+    'thinkingConfig',
+    'systemInstruction',
+    'responseModalities',
+    'response_modalities',
+    'contents',
+    'thinking_budget',
+  ]
+  const GENERATION_FORBIDDEN = [
+    'thinking_budget',
+    'thinkingBudget',
+    'thinkingConfig',
+    'image_config',
+    'imageConfig',
   ]
 
   return {
     async handleRequest(
       req: http.IncomingMessage,
       res: http.ServerResponse,
-      // aimock strips the mount prefix ('/v1beta/models'), so pathname
-      // looks like '/{model}:generateContent'.
+      // aimock strips the mount prefix ('/gemini-image'), so pathname
+      // looks like '/v1beta/interactions'.
       pathname: string,
     ): Promise<boolean> {
-      const match = pathname.match(/^\/([^/:]+):generateContent$/)
-      const model = match?.[1]
-      if (!model || !NATIVE_IMAGE_MODELS.has(model) || req.method !== 'POST') {
+      if (pathname !== '/v1beta/interactions' || req.method !== 'POST') {
         return false
       }
 
@@ -718,101 +740,141 @@ function geminiNativeImageMount(): Mountable {
         return rejectGeminiImageRequest(res, 'Malformed JSON body.')
       }
 
-      const generationConfig = asRecord(body.generationConfig)
-      const imageConfig = asRecord(generationConfig?.imageConfig)
-      const aspectRatio = imageConfig?.aspectRatio
-      const imageSize = imageConfig?.imageSize
-      const leaked = IMAGEN_ONLY_FIELDS.find(
-        (name) =>
-          name in body || (generationConfig && name in generationConfig),
-      )
-      if (leaked) {
+      const model = body.model
+      if (typeof model !== 'string' || !NATIVE_IMAGE_MODELS.has(model)) {
         return rejectGeminiImageRequest(
           res,
-          `Imagen-only field "${leaked}" reached generateContent — GenerateImagesConfig and GenerateContentConfig got crossed.`,
+          `Unexpected image model ${JSON.stringify(model)}.`,
         )
       }
 
-      const hasModelOptions =
-        Array.isArray(body.safetySettings) ||
-        (generationConfig !== undefined &&
-          typeof generationConfig.thinkingConfig === 'object' &&
-          generationConfig.thinkingConfig !== null)
+      if (body.stream !== false) {
+        return rejectGeminiImageRequest(res, 'stream must be false.')
+      }
 
-      if (model === 'gemini-2.5-flash-image' && hasModelOptions) {
+      const format = asRecord(body.response_format)
+      if (!format || format.type !== 'image') {
+        return rejectGeminiImageRequest(
+          res,
+          'response_format.type must be "image".',
+        )
+      }
+
+      const leaked = ROOT_FORBIDDEN.find((name) => name in body)
+      if (leaked) {
+        return rejectGeminiImageRequest(
+          res,
+          `Field "${leaked}" reached the Interactions image request.`,
+        )
+      }
+
+      const generationConfig = asRecord(body.generation_config)
+      const leakedGeneration = generationConfig
+        ? GENERATION_FORBIDDEN.find((name) => name in generationConfig)
+        : undefined
+      if (leakedGeneration) {
+        return rejectGeminiImageRequest(
+          res,
+          `Field "${leakedGeneration}" reached generation_config.`,
+        )
+      }
+
+      const previousId = body.previous_interaction_id
+      const isEdit = typeof previousId === 'string' && previousId.length > 0
+      const hasWireOptions =
+        Array.isArray(body.safety_settings) || generationConfig !== undefined
+
+      if (isEdit) {
+        if (inputHasImage(body.input)) {
+          return rejectGeminiImageRequest(
+            res,
+            'A chained edit must not resend an image block.',
+          )
+        }
+      } else if (hasWireOptions) {
+        const settings = body.safety_settings
+        const setting = Array.isArray(settings)
+          ? asRecord(settings[0])
+          : undefined
         if (
-          !Array.isArray(body.safetySettings) ||
-          body.safetySettings.length === 0
+          !setting ||
+          setting.type !== 'dangerous_content' ||
+          setting.threshold !== 'block_only_high'
         ) {
           return rejectGeminiImageRequest(
             res,
-            'Missing top-level safetySettings (modelOptions.safetySettings did not reach the wire).',
+            'safety_settings must be [{ type: "dangerous_content", threshold: "block_only_high" }].',
+          )
+        }
+        if (generationConfig?.thinking_level !== 'low') {
+          return rejectGeminiImageRequest(
+            res,
+            'generation_config.thinking_level must be "low".',
           )
         }
         if (
-          !generationConfig ||
-          typeof generationConfig.thinkingConfig !== 'object' ||
-          generationConfig.thinkingConfig === null
+          model === 'gemini-2.5-flash-image' &&
+          format.image_size !== undefined
         ) {
           return rejectGeminiImageRequest(
             res,
-            'Missing generationConfig.thinkingConfig (modelOptions.thinkingConfig did not reach the wire).',
+            `${model}: response_format.image_size must be absent.`,
           )
         }
       } else {
+        const aspectRatio = format.aspect_ratio
+        const imageSize = format.image_size
         if (aspectRatio !== EXPECTED_ASPECT_RATIO) {
           return rejectGeminiImageRequest(
             res,
-            `${model}: generationConfig.imageConfig.aspectRatio must be "${EXPECTED_ASPECT_RATIO}", got ${JSON.stringify(aspectRatio)}.`,
+            `${model}: response_format.aspect_ratio must be "${EXPECTED_ASPECT_RATIO}", got ${JSON.stringify(aspectRatio)}.`,
           )
         }
-
-        if (model === 'gemini-3.1-flash-image') {
+        if (model !== 'gemini-2.5-flash-image') {
           if (imageSize !== EXPECTED_FLASH_IMAGE_SIZE) {
             return rejectGeminiImageRequest(
               res,
-              `${model}: generationConfig.imageConfig.imageSize must be "${EXPECTED_FLASH_IMAGE_SIZE}", got ${JSON.stringify(imageSize)}.`,
+              `${model}: response_format.image_size must be "${EXPECTED_FLASH_IMAGE_SIZE}", got ${JSON.stringify(imageSize)}.`,
             )
           }
         } else if (imageSize !== undefined) {
           return rejectGeminiImageRequest(
             res,
-            `${model}: generationConfig.imageConfig.imageSize must be absent.`,
+            `${model}: response_format.image_size must be absent.`,
           )
         }
       }
 
+      const image = {
+        type: 'image',
+        mime_type: 'image/png',
+        data: TINY_PNG_BASE64,
+      }
       res.statusCode = 200
       res.setHeader('Content-Type', 'application/json')
       res.end(
         JSON.stringify({
-          candidates: [
-            {
-              content: {
-                role: 'model',
-                parts: [
-                  {
-                    inlineData: {
-                      mimeType: 'image/png',
-                      data: TINY_PNG_BASE64,
-                    },
-                  },
-                ],
-              },
-              finishReason: 'STOP',
-              index: 0,
-            },
-          ],
-          usageMetadata: {
-            promptTokenCount: 8,
-            candidatesTokenCount: 1290,
-            totalTokenCount: 1298,
+          id: isEdit ? EDIT_ID : CREATE_ID,
+          object: 'interaction',
+          status: 'completed',
+          model,
+          output_image: image,
+          steps: [{ type: 'model_output', content: [image] }],
+          usage: {
+            total_input_tokens: 8,
+            total_output_tokens: 1290,
+            total_tokens: 1298,
           },
         }),
       )
       return true
     },
   }
+}
+
+function inputHasImage(input: unknown): boolean {
+  if (!Array.isArray(input)) return false
+  return input.some((block) => asRecord(block)?.type === 'image')
 }
 
 /**
@@ -1152,7 +1214,7 @@ function rejectVoiceRequest(res: http.ServerResponse, message: string): true {
  * The success body mirrors a captured live task (see the Phase 0 probe notes):
  * `content.video_url` plus `usage.completion_tokens`, `seed`, `resolution`,
  * `ratio`, `duration`, the lowercase `framespersecond`, and `output_format`.
- * `updated_at` matters — `getVideoUrl` anchors its 24-hour `expiresAt` to it.
+ * `updated_at` matters — `getVideo` anchors its 24-hour `expiresAt` to it.
  * The `model` is echoed back from the submitted task rather than hardcoded, so
  * the poll response can't drift from what the adapter actually asked for.
  *

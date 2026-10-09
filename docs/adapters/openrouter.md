@@ -59,6 +59,8 @@ const adapter = createOpenRouterText(
 );
 ```
 
+Need a header on each request, or a log of each model call? Both text adapters support [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call). If you set an `httpClient`, each wrapped request still goes through it.
+
 ### Retry rate limits
 
 A busy upstream provider can reply with HTTP 429. The adapter retries only 5XX errors by default. Add `"429"` to `retryCodes` to retry rate limits too:
@@ -103,6 +105,8 @@ model: "deepseek/deepseek-v3.2"
 ```
 
 See the full list at [openrouter.ai/models](https://openrouter.ai/models).
+
+`adapter.inputModalities` lists the input kinds of the selected model. It is `undefined` for a model that this package does not know. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
 
 ## Example: Chat Completion
 
@@ -506,6 +510,17 @@ fields are simply absent and the stream completes normally. Both
 `openRouterText` and `openRouterResponsesText` populate cost when OpenRouter
 returns it.
 
+The `openRouterText` adapter's `structuredOutputStream()` method includes
+received usage on its terminal `RUN_ERROR` event. This covers parse failures,
+truncated responses, empty responses, and SDK errors. When `chat()` uses this
+path, middleware `onChunk` receives the error event even if the promise rejects.
+The `onUsage` hook reports successful calls. Each adapter call reports usage on
+one terminal event.
+
+A reported `completionTokensDetails.reasoningTokens` value of `0` stays zero.
+A missing count stays absent. Errors before any usage arrives have no `usage`
+field. If the consumer stops reading the stream, it cannot receive later events.
+
 ## Reranking
 
 OpenRouter exposes rerank models through its unified `/v1/rerank` endpoint
@@ -638,11 +653,25 @@ shared by all TanStack AI video adapters:
 // Server: create the job, then poll
 import { generateVideo, getVideoJobStatus } from "@tanstack/ai";
 import { openRouterVideo } from "@tanstack/ai-openrouter";
+import { withGenerationPersistence } from "@tanstack/ai-persistence";
+import { persistence } from "./persistence";
 
 const adapter = openRouterVideo("bytedance/seedance-2.0");
 
+// OpenRouter returns the finished video as a stream, not a URL. Persistence
+// stores the stream and sets `url`. Pass the same options to both calls.
+const hosting = {
+  threadId: "videos",
+  middleware: [
+    withGenerationPersistence(persistence, {
+      artifactUrl: (ref) => `/api/artifacts/${ref.artifactId}`,
+    }),
+  ],
+};
+
 const { jobId } = await generateVideo({
   adapter,
+  ...hosting,
   prompt: [
     { type: "text", content: "Animate this product shot, slow push-in" },
     {
@@ -657,14 +686,13 @@ const { jobId } = await generateVideo({
   duration: 8,
 });
 
-let status = await getVideoJobStatus({ adapter, jobId });
+let status = await getVideoJobStatus({ adapter, jobId, ...hosting });
 while (status.status !== "completed" && status.status !== "failed") {
   await new Promise((r) => setTimeout(r, 5000));
-  status = await getVideoJobStatus({ adapter, jobId });
+  status = await getVideoJobStatus({ adapter, jobId, ...hosting });
 }
-// status.url is a data: URL (OpenRouter download URLs require the API key,
-// so the adapter downloads server-side); status.usage?.cost is the real
-// billed cost reported by the gateway.
+// status.url is your artifact route. status.usage?.cost is the real billed
+// cost that the gateway reports.
 ```
 
 ```tsx

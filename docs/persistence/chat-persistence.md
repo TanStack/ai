@@ -121,6 +121,79 @@ Subagent support is optional. If the store omits `listByParentRun`, a reload sho
 
 The columns and the method are in the [store reference](./store-reference).
 
+## AG-UI activity rows on reload
+
+An AG-UI `ACTIVITY_SNAPSHOT` or `ACTIVITY_DELTA` event shows in the client as a
+`role: 'activity'` row, for example a search progress card. The `messages`
+store keeps only model messages, so a reload loses that row. Add an
+`activities` store to keep it.
+
+1. Give the backend an `activities` store. `memoryPersistence()` already has
+   one. For your own backend, type it with `defineActivityStore`:
+
+   ```ts
+   import {
+     composePersistence,
+     defineActivityStore,
+   } from '@tanstack/ai-persistence'
+   import type { ActivityRecord } from '@tanstack/ai-persistence'
+   import { persistence as base } from './persistence'
+
+   const rows = new Map<string, Array<ActivityRecord>>()
+
+   export const persistence = composePersistence(base, {
+     overrides: {
+       activities: defineActivityStore({
+         loadActivities: async (threadId) => rows.get(threadId) ?? [],
+         // Full overwrite: `list` is the complete activity list for the thread.
+         saveActivities: async (threadId, list) => {
+           rows.set(threadId, list)
+         },
+       }),
+     },
+   })
+   ```
+
+2. Keep your `withPersistence(persistence)` route and `reconstructChat` `GET`
+   endpoint. They save and restore the rows when `stores.activities` is set.
+
+3. Render the rows on the client. Each one has one part with
+   `type: 'activity'`:
+
+   ```tsx
+   import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+
+   function Chat({ threadId }: { threadId: string }) {
+     const { messages } = useChat({
+       threadId,
+       connection: fetchServerSentEvents('/api/chat'),
+       persistence: true,
+     })
+     return (
+       <div>
+         {messages.map((message) =>
+           message.role === 'activity' ? (
+             <div key={message.id}>
+               {message.parts.map((part, index) =>
+                 part.type === 'activity' ? (
+                   <pre key={index}>
+                     {part.activityType}: {JSON.stringify(part.content)}
+                   </pre>
+                 ) : null,
+               )}
+             </div>
+           ) : (
+             <div key={message.id}>{message.role}</div>
+           ),
+         )}
+       </div>
+     )
+   }
+   ```
+
+The model never gets activity rows as input. A failed activity save does not
+fail the run. Each `ActivityRecord` keeps the row's `metadata`.
+
 ## Keep every stored message
 
 `withPersistence` merges incoming `messages` into the stored thread by id.

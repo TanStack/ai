@@ -158,6 +158,11 @@ Extends `ChatClientOptions` from `@tanstack/ai-client`:
 - `onInterruptStateChange?` - Callback when interrupt state changes; context source is `hydrate` for restored state and `live` for streamed or client-initiated updates
 - `streamProcessor?` - Stream processing configuration
 
+For values that change, read Solid signals through option getters:
+
+- `forwardedProps`, `body`, `context`, and `tools` update the current chat.
+- A new `threadId` starts a new chat.
+
 **Note:** Client tools are now automatically executed - no `onToolCall` callback needed!
 
 ### Returns
@@ -192,13 +197,14 @@ interface UseChatReturn {
   reload: () => Promise<void>;
   stop: () => void;
   isLoading: Accessor<boolean>;
+  isHydrating: Accessor<boolean>;
   error: Accessor<Error | undefined>;
   setMessages: (messages: UIMessage[]) => void;
   clear: () => void;
 }
 ```
 
-**Note:** Unlike React, `messages`, `isLoading`, and `error` are SolidJS `Accessor` functions, so you need to call them to get their values (e.g., `messages()` instead of just `messages`).
+**Note:** Unlike React, `messages`, `isLoading`, `isHydrating`, and `error` are SolidJS `Accessor` functions, so you need to call them to get their values (e.g., `messages()` instead of just `messages`).
 
 ## `useByok(client)`
 
@@ -226,6 +232,7 @@ Re-exported from `@tanstack/ai-client` for convenience:
 import {
   fetchServerSentEvents,
   fetchHttpStream,
+  fetchJson,
   stream,
   type ConnectionAdapter,
 } from "@tanstack/ai-solid";

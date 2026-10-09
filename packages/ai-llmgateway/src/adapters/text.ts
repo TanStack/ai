@@ -1,5 +1,6 @@
 import OpenAI from 'openai'
 import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
+import { LLMGATEWAY_MODEL_INPUT_MODALITIES } from '../model-meta'
 import {
   getLLMGatewayApiKeyFromEnv,
   withLLMGatewayDefaults,
@@ -61,6 +62,8 @@ export class LLMGatewayTextAdapter<
 > {
   override readonly kind = 'text' as const
   override readonly name = 'llmgateway' as const
+  override readonly inputModalities =
+    LLMGATEWAY_MODEL_INPUT_MODALITIES[this.model]
 
   constructor(config: LLMGatewayTextConfig, model: TModel) {
     super(

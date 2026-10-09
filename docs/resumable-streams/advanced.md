@@ -48,14 +48,17 @@ export async function POST(request: Request) {
     runId,
   })
   return toServerSentEventsResponse(stream, {
-    durability: { adapter: durableStream(request, durableOptions), batch: 32 },
+    durability: {
+      adapter: durableStream(request, durableOptions),
+      batch: 32,
+      batchWaitMs: 50,
+    },
   })
 }
 ```
 
 - `headers` takes a static object for fixed credentials or an async resolver for
   rotating tokens. The resolver runs for every create, append, read, and close.
-- `batch` controls how many chunks are buffered per log append (default 32).
 - The backend must return a non-empty `Stream-Next-Offset` header on create,
   append, and close. A missing header fails loudly. The adapter never guesses an
   offset.
@@ -68,6 +71,20 @@ export async function POST(request: Request) {
   for adapters that can offer it. Resuming a run after a producer restart does
   not need it: see
   [Resuming a run without duplicating what you already streamed](#resuming-a-run-without-duplicating-what-you-already-streamed).
+
+### Batch the log writes
+
+Every append to a remote backend is one request. A chunk reaches the client only
+after its append. So two options on `durability` trade writes against how fast
+the text appears:
+
+- `batch`: the most chunks in one append. The default is 32.
+- `batchWaitMs`: the most milliseconds that a chunk waits for more chunks. Then
+  its batch is appended and sent. The default is 50.
+
+If your backend charges per write, raise `batchWaitMs` and `batch`. The text then
+arrives in bigger steps. If the reply arrives in large blocks, lower
+`batchWaitMs`. Set it to `0` to append every chunk on its own.
 
 ## Attaching to a run by id
 
@@ -118,8 +135,10 @@ Either way the producer awaits `close()` on exit, and a terminal is written
 before closing so a reconnecting or joining client sees a terminal instead of
 hanging. If appending that terminal or closing fails, the cause is logged
 server-side by default (a joiner only ever sees a generic incomplete error, so
-the server log is where the real cause lives). Pass `debug` to route it to your
-own logger:
+the server log is where the real cause lives). The server logs a failed replay
+the same way, for example a reconnect or join for an expired run. On SSE and
+NDJSON, that reader also gets a `RUN_ERROR`. Pass `debug` to route these logs
+to your own logger:
 
 ```ts
 import { memoryStream, toServerSentEventsResponse } from '@tanstack/ai'

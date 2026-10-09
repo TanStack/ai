@@ -1,5 +1,79 @@
 # @tanstack/ai-anthropic
 
+## 0.21.0
+
+### Minor Changes
+
+- [#1679](https://github.com/TanStack/ai/pull/1679) [`9b4f444`](https://github.com/TanStack/ai/commit/9b4f444e74adffc7a3c51a623dade042b7b3ae91) - The Anthropic adapters now accept a Bearer token and a Claude OAuth token.
+  - The new `auth` option sets how the credential goes out: `'api-key'` (the `x-api-key` header), `'bearer'` (`Authorization: Bearer <token>`, no `x-api-key`), or `'oauth'`.
+  - The default is `'oauth'` when the credential contains `sk-ant-oat`, else `'api-key'`. An explicit `auth` always wins.
+  - `createAnthropicChat`, `createAnthropicSummarize`, and `createAnthropicFiles` use only the credential that you pass. They do not read a credential from the environment.
+  - `anthropicText`, `anthropicSummarize`, and `anthropicFiles` read `ANTHROPIC_AUTH_TOKEN` (`'bearer'`, or `'oauth'` for an `sk-ant-oat` token), then `ANTHROPIC_OAUTH_TOKEN` (`'oauth'`), then `ANTHROPIC_API_KEY` (`'api-key'`). They throw when none is set.
+  - With `'oauth'`, each request also gets the Claude Code identity system block, the Claude Code CLI headers, and the `claude-code-20250219` and `oauth-2025-04-20` betas.
+
+  ```ts
+  import { createAnthropicChat } from '@tanstack/ai-anthropic'
+
+  const adapter = createAnthropicChat('claude-sonnet-5-5', token, {
+    auth: 'bearer',
+  })
+  ```
+
+- [#1677](https://github.com/TanStack/ai/pull/1677) [`f562eac`](https://github.com/TanStack/ai/commit/f562eacf0cf1367b2ffb3703143aff5621e5e945) - `usage.promptTokens` is now the total input on the Anthropic, Bedrock Converse, and Claude Code adapters. It is the uncached tokens plus the cache reads plus the cache writes. Before, it was the uncached tokens only. `totalTokens` now uses the new `promptTokens`. The cache parts stay in `promptTokensDetails.cachedTokens` and `promptTokensDetails.cacheWriteTokens`. Other adapters already report `promptTokens` this way.
+
+  **Breaking:** if your code adds `cachedTokens` or `cacheWriteTokens` to `promptTokens` to get the total input, it now counts the cache two times. Use `promptTokens` as the total. To get the uncached tokens, subtract `cachedTokens` and `cacheWriteTokens` from `promptTokens`.
+
+### Patch Changes
+
+- [#1685](https://github.com/TanStack/ai/pull/1685) [`7dbfaf6`](https://github.com/TanStack/ai/commit/7dbfaf6c37a3d97de3b1f5bdb87be8bbbe2b0164) - Text adapters can now give `inputModalities` at run time: the input kinds that the model reads, for example `['text', 'image', 'document']`. `undefined` means that the adapter does not know.
+  - `TextAdapter` has the new optional `inputModalities` property. A `BaseTextAdapter` subclass sets it from its model metadata.
+  - The text adapters of OpenAI, Anthropic, Gemini, Mistral, Groq, BytePlus, Grok, OpenRouter, and LLM Gateway set it. A known model gives its input kinds. An unknown model gives `undefined`.
+
+- [#1678](https://github.com/TanStack/ai/pull/1678) [`13ba1b0`](https://github.com/TanStack/ai/commit/13ba1b0e47dc822f10f6c5133184f92c2eb0a013) - A `RUN_ERROR` now tells you how long the provider asks you to wait before a retry.
+  - `@tanstack/ai`: `RunErrorEvent` has a new `retryAfterMs` field, in milliseconds. `chat()` moves it to `metadata.tanstack.retryAfterMs`. The new `toRetryAfterMs(error)` helper on `@tanstack/ai/adapter-internals` reads the `retry-after-ms` header first, then the `retry-after` header in seconds or as an HTTP date.
+  - `@tanstack/openai-base` and `@tanstack/ai-anthropic`: the text adapters set `retryAfterMs` on a `RUN_ERROR` when the error response has one of these headers. This includes every adapter that uses `@tanstack/openai-base`.
+
+- [#1680](https://github.com/TanStack/ai/pull/1680) [`377262c`](https://github.com/TanStack/ai/commit/377262c0b4e5f59f8fd467a831b9341cc705077e) - Add `wrapFetch` to `chat()`, to the middleware `onConfig` config, and to `TextOptions`. A wrapper gets the next fetch and gives back a new fetch. Use it to change the URL, the headers, the request, or the response of a model call. The new `FetchWrapper` type names the wrapper.
+
+  The engine chains the `chat()` wrapper and the middleware wrappers into one function. A middleware wrapper runs inside the `chat()` wrapper and applies to one model call only.
+
+  These text adapters send their requests through the wrapper: every adapter on `@tanstack/openai-base` (OpenAI, the OpenAI-compatible adapters, Grok, Groq, BytePlus, LLM Gateway, Lovable, Vercel AI Gateway, Cloudflare, and the Bedrock Chat Completions and Responses APIs), Anthropic, Mistral, Ollama, and OpenRouter. The wrapper wraps the fetch of the adapter config, not the global fetch. An Anthropic or Ollama adapter with an injected client ignores `wrapFetch`. In Cloudflare binding mode, the wrapper runs, but the binding does not send the URL or the headers. Without `wrapFetch`, the requests do not change.
+
+- Updated dependencies [[`7dbfaf6`](https://github.com/TanStack/ai/commit/7dbfaf6c37a3d97de3b1f5bdb87be8bbbe2b0164), [`88fd67c`](https://github.com/TanStack/ai/commit/88fd67cd7ddfbe2b154173d2395b2c0338e97644), [`3aa2e3d`](https://github.com/TanStack/ai/commit/3aa2e3d95e2dcb1c14b4fda3bcdbdf3152582092), [`c5ae415`](https://github.com/TanStack/ai/commit/c5ae4152d0a040bb6ce7321e16b7ee66d3c36f96), [`13ba1b0`](https://github.com/TanStack/ai/commit/13ba1b0e47dc822f10f6c5133184f92c2eb0a013), [`377262c`](https://github.com/TanStack/ai/commit/377262c0b4e5f59f8fd467a831b9341cc705077e)]:
+  - @tanstack/ai@0.67.0
+
+## 0.20.0
+
+### Minor Changes
+
+- [#1654](https://github.com/TanStack/ai/pull/1654) [`13805ab`](https://github.com/TanStack/ai/commit/13805ab31b5be0085c79bf3de8bf149adb2a20c8) - Add `claude-haiku-5-5` to `ANTHROPIC_MODELS`. The model takes adaptive thinking (or an explicit `thinking: { type: 'disabled' }`) and `output_config.effort`, and its types reject `budget_tokens`, the sampling parameters, and `computerUseTool()`.
+
+### Patch Changes
+
+- [#1654](https://github.com/TanStack/ai/pull/1654) [`13805ab`](https://github.com/TanStack/ai/commit/13805ab31b5be0085c79bf3de8bf149adb2a20c8) - Correct the `claude-sonnet-5-5` and `claude-sonnet-5` model metadata: neither supports Priority Tier, `claude-sonnet-5-5` cache reads cost $0.10 per MTok, and `claude-sonnet-5` is priced at the standard $2 / $10 per MTok.
+
+- [#1548](https://github.com/TanStack/ai/pull/1548) [`68aeada`](https://github.com/TanStack/ai/commit/68aeadad200425f7e40fadaa86922941a9e25624) - Structured output now reports a truncation error when the response stops at the output token limit. Before, you got a JSON parse error, or the partial result came back as valid data. `openai-base` and `ai-openrouter` already do this ([#1426](https://github.com/TanStack/ai/issues/1426)).
+
+- Updated dependencies [[`f687c54`](https://github.com/TanStack/ai/commit/f687c54ae4b8a67f2154ff9dea0319b8d2712856), [`fb55bcb`](https://github.com/TanStack/ai/commit/fb55bcba5193d4465f43006505918a2dc4472ec4), [`630ec86`](https://github.com/TanStack/ai/commit/630ec86e9997fabe046cae1a491060d72cbc71ea)]:
+  - @tanstack/ai@0.66.0
+
+## 0.19.5
+
+### Patch Changes
+
+- [#1609](https://github.com/TanStack/ai/pull/1609) [`507ecd6`](https://github.com/TanStack/ai/commit/507ecd674317058077aeeddb16891e4c20aa83b3) - Report token usage when a streamed response stops at `max_tokens`. The `RUN_ERROR` with `code: 'max_tokens'` now carries `usage`, the same as `RUN_FINISHED` does for the other stop reasons. Anthropic bills these tokens, so code that counts `usage` no longer misses them.
+
+  Keep the input, cache, and server tool counts of a stream when its closing `message_delta` leaves them out. Some Anthropic-compatible servers send only `output_tokens` there, so `usage` reported 0 input tokens. The adapter now takes each missing count from `message_start`, the same as the Anthropic SDK does.
+
+- [#1594](https://github.com/TanStack/ai/pull/1594) [`02a998f`](https://github.com/TanStack/ai/commit/02a998f9c4dbfee9f831a1b366913f4729fe5173) - Match `claude-sonnet-5-5` to what the Claude API accepts. `modelOptions.output_config` (with `effort`) is now typed for this model. `temperature`, `top_p`, and `top_k` are no longer accepted, because the API rejects non-default values with a 400. `computerUseTool()` is no longer accepted either, because on the Claude API this model takes only the `computer_toolset_20260801` toolset. The other provider tools are unchanged.
+
+- [#1587](https://github.com/TanStack/ai/pull/1587) [`7b6b1a9`](https://github.com/TanStack/ai/commit/7b6b1a99d45e40165f0a1f833a04e793a09275de) - Do not end a request in an assistant message that holds only thinking. Claude rejects it with `The final block in an assistant message cannot be thinking`. This happened when a run resumed after an `afterModel` interrupt paused a turn with thinking but no text. The adapter now leaves that message out, and Claude answers again.
+
+- [#1583](https://github.com/TanStack/ai/pull/1583) [`d07f0b6`](https://github.com/TanStack/ai/commit/d07f0b6c396afdecbbd6401233f9c83f2d00f99d) - Send `{}` as `tool_use.input` when a replayed tool call's arguments are not valid JSON. A stream that stopped mid tool call used to replay the raw string, and Anthropic rejected every later turn with "Input should be an object".
+
+- Updated dependencies [[`7b6b1a9`](https://github.com/TanStack/ai/commit/7b6b1a99d45e40165f0a1f833a04e793a09275de), [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66), [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66), [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66), [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66), [`82291b2`](https://github.com/TanStack/ai/commit/82291b22941d2c813ff0050fc9d41b024480153d), [`ff3a66e`](https://github.com/TanStack/ai/commit/ff3a66ed8f628d45b282316fab337d3ed19f34cd), [`560c76f`](https://github.com/TanStack/ai/commit/560c76fd638b5691e195e1d0619fee8a78d98c20), [`4b9dcb4`](https://github.com/TanStack/ai/commit/4b9dcb44d8fe1e7c933b79c23d8f072e7bc300f4), [`30254ad`](https://github.com/TanStack/ai/commit/30254ad70161894d232d3b45e3b21f45d49f336e), [`40fdd22`](https://github.com/TanStack/ai/commit/40fdd22ce05d55e71514b4cc80b1c28cefb4a431)]:
+  - @tanstack/ai@0.65.0
+
 ## 0.19.4
 
 ### Patch Changes

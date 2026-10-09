@@ -135,16 +135,12 @@ export interface GeminiImageProviderOptions {
 /**
  * Provider options for Gemini native image models (Nano Banana and friends).
  *
- * These models are served by `generateContent`, not `generateImages`, so they
- * are configured by @google/genai's `GenerateContentConfig` — a different
- * shape from the Imagen-only {@link GeminiImageProviderOptions} above. Only
- * the `GenerateContentConfig` fields with clear image-generation semantics are
- * surfaced; sampling knobs (`temperature`, `topK`, …) and chat-only plumbing
+ * These models are served by the Interactions API, not `generateImages`.
+ * Sampling knobs (`temperature`, `topK`, …) and chat-only plumbing
  * (`tools`, `responseSchema`, …) are deliberately left out.
  *
- * `responseModalities` is intentionally absent: the adapter always requests
- * `['TEXT', 'IMAGE']`, and letting a caller override it would silently disable
- * image output on an image-generation call.
+ * Image output is always requested. There is no `responseModalities` field:
+ * a caller override would silently disable image output.
  */
 export interface GeminiNativeImageProviderOptions {
   /**
@@ -161,8 +157,9 @@ export interface GeminiNativeImageProviderOptions {
   safetySettings?: Array<SafetySetting>
 
   /**
-   * Controls the model's internal reasoning before it emits an image
-   * Use to raise or disable the thinking budget on models that support it
+   * Controls the model's internal reasoning before it emits an image.
+   * `thinkingLevel` maps to the Interactions `thinking_level`.
+   * `thinkingBudget` is rejected: the Interactions image API has no budget.
    */
   thinkingConfig?: ThinkingConfig
 
@@ -181,6 +178,20 @@ export interface GeminiNativeImageProviderOptions {
    * e.g. a house art direction applied on top of the per-call prompt
    */
   systemInstruction?: ContentUnion
+
+  /**
+   * Continue an edit from a previous native image result. Pass that result's
+   * `id`. The new prompt is the edit; the previous image is not sent again.
+   * Interactions are stored server-side (1 day on the free tier, 55 days on
+   * paid). `store: false` cannot be chained.
+   */
+  previous_interaction_id?: string
+
+  /**
+   * Whether Gemini stores this interaction so a later call can chain it.
+   * Omit to use the API default (`true`).
+   */
+  store?: boolean
 }
 
 /**
@@ -194,9 +205,9 @@ export type GeminiAnyImageProviderOptions = GeminiImageProviderOptions &
 
 /**
  * Model-specific provider options mapping.
- * Gemini native image models go through `generateContent` and take
- * `GenerateContentConfig` fields; Imagen models go through `generateImages`
- * and take `GenerateImagesConfig` fields. Mirrors the native/Imagen split in
+ * Gemini native image models go through the Interactions API. Imagen models
+ * go through `generateImages` and take `GenerateImagesConfig` fields.
+ * Mirrors the native/Imagen split in
  * {@link GeminiImageModelSizeByName} and
  * {@link GeminiImageModelInputModalitiesByName}.
  */
@@ -281,6 +292,15 @@ export type Gemini31FlashImageSize =
 export type Gemini31FlashLiteImageSize = `${GeminiExtendedImageAspectRatio}_1K`
 
 /**
+ * Sizes for `gemini-nano-banana-2.1`: all 14 aspect ratios at 1K / 2K / 4K.
+ * The API rejects the 512 tier on this model.
+ *
+ * @see https://ai.google.dev/gemini-api/docs/models/gemini-nano-banana-2.1
+ */
+export type GeminiNanoBanana21ImageSize =
+  `${GeminiExtendedImageAspectRatio}_${'1K' | '2K' | '4K'}`
+
+/**
  * Sizes for `gemini-3-pro-image` (and its shut-down `-preview` alias): the ten
  * standard aspect ratios at 1K / 2K / 4K. Pro has no 512 tier and none of the
  * extreme banner ratios on the Gemini API.
@@ -292,13 +312,12 @@ export type Gemini3ProImageSize =
  * Sizes for `gemini-2.5-flash-image`: a bare aspect ratio with no resolution
  * suffix, e.g. `'16:9'`. Google documents no `image_size` value or default for
  * this model — it emits a single fixed 1024px-class output — so the adapter
- * sends `imageConfig.aspectRatio` and omits `imageSize` entirely rather than
- * guessing a tier the API never documented.
+ * sends `aspect_ratio` and omits `image_size` rather than guessing a tier.
  */
 export type Gemini25FlashImageSize = GeminiStandardImageAspectRatio
 
 /**
- * `imageConfig` fields the Gemini Developer API accepts on `generateContent`.
+ * `imageConfig` fields sent as Interactions `response_format`.
  * Other `@google/genai` `ImageConfig` keys (`personGeneration`,
  * `outputMimeType`, and more) throw on this surface.
  */
@@ -313,13 +332,14 @@ export type GeminiNativeImageConfig = {
  * possible set and accepts combinations no single model supports.
  */
 export type GeminiNativeImageSize =
+  | GeminiNanoBanana21ImageSize
   | Gemini31FlashImageSize
   | Gemini31FlashLiteImageSize
   | Gemini3ProImageSize
   | Gemini25FlashImageSize
 
 /**
- * Gemini native image models that use the generateContent API path.
+ * Gemini native image models that use the Interactions API path.
  * These models take an aspect-ratio-based size rather than Imagen's
  * WIDTHxHEIGHT pixel strings.
  *
@@ -337,6 +357,7 @@ export type GeminiNativeImageSize =
  * shape.
  */
 export const GEMINI_NATIVE_IMAGE_MODELS = [
+  'gemini-nano-banana-2.1',
   'gemini-3.1-flash-image',
   'gemini-3.1-flash-image-preview',
   'gemini-3.1-flash-lite-image',
@@ -371,6 +392,7 @@ export function isGeminiNativeImageModel(model: string): boolean {
  * resolution set (they genuinely differ); Imagen models use pixel sizes.
  */
 export type GeminiImageModelSizeByName = {
+  'gemini-nano-banana-2.1': GeminiNanoBanana21ImageSize
   'gemini-3.1-flash-image': Gemini31FlashImageSize
   'gemini-3.1-flash-image-preview': Gemini31FlashImageSize
   'gemini-3.1-flash-lite-image': Gemini31FlashLiteImageSize

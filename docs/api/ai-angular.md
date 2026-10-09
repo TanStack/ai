@@ -178,13 +178,14 @@ interface InjectChatResult {
   isSubscribed: Signal<boolean>;
   connectionStatus: Signal<ConnectionStatus>;
   sessionGenerating: Signal<boolean>;
+  isHydrating: Signal<boolean>;
   // Only present when outputSchema is supplied:
   partial: Signal<DeepPartial<InferSchemaType<TSchema>>>;
   final: Signal<InferSchemaType<TSchema> | null>;
 }
 ```
 
-**Note:** All reactive state (`messages`, `isLoading`, `error`, `status`, `isSubscribed`, `connectionStatus`, `sessionGenerating`) is exposed as read-only Angular `Signal`s. Read them by calling them as functions (e.g., `chat.messages()`, `chat.isLoading()`). Cleanup is automatic via `DestroyRef.onDestroy`.
+**Note:** All reactive state (`messages`, `isLoading`, `error`, `status`, `isSubscribed`, `connectionStatus`, `sessionGenerating`, `isHydrating`) is exposed as read-only Angular `Signal`s. Read them by calling them as functions (e.g., `chat.messages()`, `chat.isLoading()`). Cleanup is automatic via `DestroyRef.onDestroy`.
 
 ## `injectByok(client)`
 
@@ -220,6 +221,7 @@ Re-exported from `@tanstack/ai-client` for convenience:
 import {
   fetchServerSentEvents,
   fetchHttpStream,
+  fetchJson,
   xhrServerSentEvents,
   xhrHttpStream,
   stream,

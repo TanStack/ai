@@ -14,7 +14,10 @@ import {
   generateId,
   getGeminiApiKeyFromEnv,
 } from '../utils'
-import { GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS } from '../model-meta'
+import {
+  GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS,
+  GEMINI_MODEL_INPUT_MODALITIES,
+} from '../model-meta'
 import type {
   GEMINI_MODELS,
   GeminiChatModelProviderOptionsByName,
@@ -248,6 +251,7 @@ export class GeminiTextAdapter<
   readonly name = 'gemini' as const
   // Consumes Gemini Files API references (geminiFiles()) as fileData.fileUri.
   override readonly supportsFileSources = true
+  override readonly inputModalities = GEMINI_MODEL_INPUT_MODALITIES[this.model]
 
   private readonly client: GoogleGenAI
 
@@ -440,6 +444,14 @@ export class GeminiTextAdapter<
           responseSchema: outputSchema,
         },
       })
+
+      // A response cut off at the output cap is a truncated JSON document;
+      // report it before the parse error (issue #1426).
+      if (result.candidates?.[0]?.finishReason === FinishReason.MAX_TOKENS) {
+        throw new Error(
+          'gemini.structuredOutput: the response was cut off because the maximum token limit was reached (finishReason=MAX_TOKENS); raise modelOptions.maxOutputTokens',
+        )
+      }
 
       // Extract text content from the response
       const rawText = this.extractTextFromResponse(result)

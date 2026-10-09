@@ -7,6 +7,7 @@ import {
 import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
 import { generateId } from '@tanstack/ai-utils'
 import {
+  BYTEPLUS_MODEL_INPUT_MODALITIES,
   BYTEPLUS_STRUCTURED_OUTPUT_CHAT_MODELS,
   emitsEncryptedContent,
   supportsStructuredOutput,
@@ -107,6 +108,8 @@ export class BytePlusTextAdapter<
 > {
   override readonly kind = 'text' as const
   override readonly name = 'byteplus' as const
+  override readonly inputModalities =
+    BYTEPLUS_MODEL_INPUT_MODALITIES[this.model]
 
   constructor(config: BytePlusTextConfig, model: TModel) {
     super(
@@ -192,7 +195,9 @@ export class BytePlusTextAdapter<
         yield {
           ...event,
           signature: captured.encryptedContent,
-          delta: event.delta ?? event.content ?? '',
+          delta:
+            event.delta ??
+            (typeof event.content === 'string' ? event.content : ''),
         }
         continue
       }

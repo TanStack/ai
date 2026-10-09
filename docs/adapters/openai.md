@@ -89,6 +89,55 @@ const stream = chat({
 
 Both adapters work identically with [Structured Outputs](../structured-outputs/overview) — including `stream: true` — and accept the same `modelOptions` (temperature, top_p, max_tokens, stop, …). The reasoning section below applies to `openaiText`; `openaiChatCompletions` accepts `modelOptions.reasoning.effort` but cannot stream summary text.
 
+## Azure OpenAI
+
+Your OpenAI model runs as a deployment in Azure? Use `createAzureOpenaiText`. It calls the Azure Responses API and sends your key in the `api-key` header.
+
+```typescript
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { createAzureOpenaiText } from "@tanstack/ai-openai";
+
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: createAzureOpenaiText("gpt-5.6", process.env.AZURE_OPENAI_API_KEY!, {
+      resourceName: "my-resource",
+      deploymentName: "production-chat",
+    }),
+    messages,
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+Azure gets `production-chat` as the model. Your code still uses `gpt-5.6`. The client does not change: it reads this route like any other chat route.
+
+`createAzureOpenaiText` reads nothing from the environment. You pass the key, and you pass the endpoint as `resourceName` or `baseURL`.
+
+Rather keep it all in the environment? Use `azureOpenaiText`. Like `openaiText`, it reads the key from the environment:
+
+```sh
+AZURE_OPENAI_API_KEY=your-key
+AZURE_OPENAI_RESOURCE_NAME=my-resource
+AZURE_OPENAI_DEPLOYMENT_NAME_MAP=gpt-5.6=production-chat
+```
+
+```typescript
+import { azureOpenaiText } from "@tanstack/ai-openai";
+
+const adapter = azureOpenaiText("gpt-5.6");
+```
+
+`azureOpenaiText` always reads the key from `AZURE_OPENAI_API_KEY`, and it throws when that is not set. For the other values, the config wins over the environment:
+
+- **Endpoint:** `baseURL`, then `resourceName`, then `AZURE_OPENAI_BASE_URL`, then `AZURE_OPENAI_RESOURCE_NAME`. You must set one of them.
+- **API version:** `apiVersion`, then `AZURE_OPENAI_API_VERSION`, then `v1`.
+- **Deployment:** `deploymentName`, then `deploymentNameMap`, then `AZURE_OPENAI_DEPLOYMENT_NAME_MAP`, then the model name. A `deploymentNameMap` in the config replaces the environment map. The two maps do not merge.
+
+An Azure resource URL always goes to the `/openai/v1` path. A proxy URL keeps its own path.
+
 ## Basic Usage - Custom API Key
 
 ```typescript
@@ -261,6 +310,8 @@ const config: Omit<OpenAITextConfig, "apiKey"> = {
 
 const adapter = createOpenaiChat("gpt-5.2", process.env.OPENAI_API_KEY!, config);
 ```
+
+Need a header on each request, or a log of each model call? The chat adapters on this page support [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call).
 
 ### Tools that cannot use strict mode
 
@@ -560,6 +611,59 @@ for (const segment of result.segments ?? []) {
 
 When no response format is specified, `gpt-4o-transcribe-diarize` requests default to `response_format: "diarized_json"` and `chunking_strategy: "auto"`; passing a top-level `responseFormat` of `"json"` or `"text"` opts out of speaker segments. `known_speaker_names` and `known_speaker_references` must be provided together (up to 4, matching lengths). OpenAI does not support `prompt`, `include`, or `timestamp_granularities` with diarized transcription.
 
+## Evaluate
+
+Sometimes you need an answer that your code can branch on, not chat text. Examples are a queue name, an urgency level, or a yes or no.
+Use `openaiDecider` with `decide()` to ask typed questions about one shared `state`. The adapter calls the OpenAI Decisions API (`/v1/decisions`):
+
+```typescript
+import { decide, choice, score, boolean } from "@tanstack/ai";
+import { openaiDecider } from "@tanstack/ai-openai";
+
+const ticket = {
+  subject: "Charged twice for the same invoice",
+  body: "Please refund the extra payment.",
+};
+
+const result = await decide({
+  adapter: openaiDecider("gpt-6-luna"),
+  state: ticket,
+  questions: {
+    queue: choice({
+      instructions: "Which team should handle this ticket?",
+      options: {
+        billing: "Payments, invoices, refunds",
+        tech: "Bugs, outages, integrations",
+        sales: "Pricing, upgrades, new accounts",
+      },
+    }),
+    urgency: score({
+      instructions: "How urgent is this ticket?",
+      levels: ["low", "medium", "high"],
+    }),
+    refund: boolean({
+      instructions: "Is the customer asking for a refund?",
+    }),
+  },
+});
+
+console.log(result.queue.value); // "billing"
+console.log(result.urgency.value); // "medium"
+console.log(result.refund.value); // true
+console.log(result.meta.usage);
+```
+
+`openaiDecider` reads `OPENAI_API_KEY` from the environment. To pass a key yourself, use `createOpenaiDecider("gpt-6-luna", "sk-...")`.
+
+Good to know:
+
+- `gpt-6-luna` is the only Decisions model.
+- An object `state` goes to OpenAI as JSON text.
+- If OpenAI refuses to answer a question, `decide()` throws an error with the name of that question.
+- `boolean()` criteria work. The adapter adds the true and false meanings to the instructions.
+
+See the [Evaluate guide](../evaluate/evaluate) for question helpers, the result shape, abort, and middleware.
+
 ## Environment Variables
 
 Set your API key in environment variables:
@@ -575,6 +679,8 @@ Every factory pair follows the same shape: the short factory (`openaiText`, `ope
 ### `openaiText(model, config?)`
 
 Creates an OpenAI text adapter against the Responses API (`/v1/responses`) using `OPENAI_API_KEY` from the environment.
+
+`adapter.inputModalities` lists the input kinds of the selected model. It is `undefined` for a model that this package does not know. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
 
 **Parameters:**
 
@@ -613,6 +719,10 @@ Creates an OpenAI transcription adapter for Whisper, GPT-4o transcription, and G
 ### `openaiVideo(model, config?)` / `createOpenaiVideo(model, apiKey, config?)`
 
 Creates an OpenAI video generation adapter (Sora). _Experimental._
+
+### `openaiDecider(model, config?)` / `createOpenaiDecider(model, apiKey, config?)`
+
+Creates an OpenAI evaluate adapter for `decide()`. See [Evaluate](#evaluate) for usage.
 
 ### `openaiRealtime(...)` / `openaiRealtimeToken(...)`
 
@@ -961,7 +1071,7 @@ const patchResult = {
 };
 ```
 
-If the patch fails, set `status` to `"failed"`. Put the error text in `output`. Keep `applyPatchTool()` in `tools` on the next request. Use the stream. `chat({ stream: false })` returns only text. A patch-only turn then looks empty.
+If the patch fails, set `status` to `"failed"`. Put the error text in `output`. Keep `applyPatchTool()` in `tools` on the next request. A patch-only turn has no text. If you use `chat({ stream: false })`, `text` is empty. Read the `apply_patch` tool call from `chunks` with the same checks as the loop above.
 
 **Supported models:** GPT-5.x and other agent-capable models. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
 

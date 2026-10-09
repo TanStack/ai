@@ -3526,11 +3526,87 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
 
       const signedSteps = chunks.filter(
         (chunk) =>
-          chunk.type === EventType.STEP_FINISHED &&
-          typeof chunk.signature === 'string' &&
-          chunk.signature.includes('enc-after-text'),
+          chunk.type === EventType.REASONING_ENCRYPTED_VALUE &&
+          chunk.encryptedValue.includes('enc-after-text'),
       )
       expect(signedSteps).toHaveLength(1)
+    })
+
+    it('ties each encrypted reasoning value to its reasoning message', async () => {
+      setupMockResponsesClient([
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-tie',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: { type: 'reasoning', id: 'rs_tie' },
+        },
+        { type: 'response.reasoning_text.delta', delta: 'Thinking.' },
+        {
+          type: 'response.output_item.done',
+          output_index: 0,
+          item: {
+            type: 'reasoning',
+            id: 'rs_tie',
+            summary: [{ type: 'summary_text', text: 'Thinking.' }],
+          },
+        },
+        {
+          type: 'response.output_text.delta',
+          item_id: 'msg_1',
+          output_index: 1,
+          content_index: 0,
+          delta: 'Hi',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-tie',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                type: 'reasoning',
+                id: 'rs_tie',
+                encrypted_content: 'enc-tie',
+                summary: [{ type: 'summary_text', text: 'Thinking.' }],
+              },
+              {
+                type: 'message',
+                id: 'msg_1',
+                role: 'assistant',
+                content: [{ type: 'output_text', text: 'Hi' }],
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ])
+
+      const chunks = []
+      for await (const chunk of chat({
+        adapter: new TestResponsesAdapter(testConfig, 'test-model'),
+        messages: [{ role: 'user', content: 'Hi' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const reasoningIds = chunks.flatMap((c) =>
+        c.type === EventType.REASONING_MESSAGE_START ? [c.messageId] : [],
+      )
+      const targets = chunks.flatMap((c) =>
+        c.type === EventType.REASONING_ENCRYPTED_VALUE ? [c.entityId] : [],
+      )
+      expect(reasoningIds).toHaveLength(1)
+      expect(targets.length).toBeGreaterThan(0)
+      // An AG-UI client attaches the value to the message with this id.
+      expect(new Set(targets)).toEqual(new Set(reasoningIds))
     })
 
     it('round-trips encrypted reasoning with no reasoning text through a server tool', async () => {
@@ -3663,6 +3739,101 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         summary: [],
       })
       expect(functionCallIndex).toBeGreaterThan(reasoningIndex)
+    })
+
+    it('keeps both reasoning items when the model reasons, searches, then reasons again', async () => {
+      const reasoningItem = (id: string) => ({
+        type: 'reasoning',
+        id,
+        encrypted_content: `enc-${id}`,
+        summary: [],
+      })
+      const output = [
+        reasoningItem('rs_search'),
+        {
+          type: 'web_search_call',
+          id: 'ws_1',
+          status: 'completed',
+          action: { type: 'search', query: 'guitar shops' },
+        },
+        reasoningItem('rs_call'),
+        {
+          type: 'function_call',
+          id: 'fc_1',
+          call_id: 'call_1',
+          name: 'lookup_weather',
+          arguments: '{"location":"Berlin"}',
+        },
+      ]
+      const firstTurn = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-ws-1',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        ...output.flatMap((item, outputIndex) => [
+          {
+            type: 'response.output_item.added',
+            output_index: outputIndex,
+            item: { ...item, encrypted_content: undefined },
+          },
+          {
+            type: 'response.output_item.done',
+            output_index: outputIndex,
+            item,
+          },
+        ]),
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-ws-1',
+            model: 'test-model',
+            status: 'completed',
+            output,
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ]
+      const secondTurn = [
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-ws-2',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: { input_tokens: 2, output_tokens: 1, total_tokens: 3 },
+          },
+        },
+      ]
+
+      mockResponsesCreate = vi
+        .fn()
+        .mockResolvedValueOnce(createAsyncIterable(firstTurn))
+        .mockResolvedValueOnce(createAsyncIterable(secondTurn))
+
+      for await (const _chunk of chat({
+        adapter: new TestResponsesAdapter(testConfig, 'test-model'),
+        messages: [{ role: 'user', content: 'How is the weather?' }],
+        tools: [{ ...weatherTool, execute: () => ({ temperature: 72 }) }],
+      })) {
+        // consume both agent-loop turns
+      }
+
+      // Before the fix, rs_call overwrote rs_search and the search went back
+      // with no reasoning item, which the API rejects with a 400.
+      const secondRequest = mockResponsesCreate.mock.calls[1]![0]
+      const input = secondRequest.input as Array<{ type: string; id?: string }>
+      expect(input.map((item) => item.id ?? item.type)).toEqual([
+        'message',
+        'rs_search',
+        'rs_call',
+        'function_call',
+        'function_call_output',
+      ])
     })
 
     it('round-trips encrypted reasoning with a function_call through a server tool', async () => {

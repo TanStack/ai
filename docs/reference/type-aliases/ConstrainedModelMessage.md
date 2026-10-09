@@ -7,7 +7,7 @@ title: ConstrainedModelMessage
 type ConstrainedModelMessage<TInputModalitiesTypes> = Omit<ModelMessage, "content"> & object;
 ```
 
-Defined in: [packages/ai/src/types.ts:633](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L633)
+Defined in: [packages/ai/src/types.ts:709](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L709)
 
 A ModelMessage with content constrained to only allow content parts
 matching the specified input modalities.

@@ -239,6 +239,7 @@ interface CreateChatReturn {
   isSubscribed: boolean
   connectionStatus: ConnectionStatus
   sessionGenerating: boolean
+  isHydrating: boolean
   setMessages: (messages: Array<UIMessage>) => void
   clear: () => void
   queue: Array<QueuedMessage>
@@ -259,6 +260,7 @@ Re-exported from `@tanstack/ai-client`:
 import {
   fetchServerSentEvents,
   fetchHttpStream,
+  fetchJson,
   stream,
   type ConnectionAdapter,
 } from '@tanstack/ai-remix'

@@ -306,7 +306,7 @@ export function CleanupPanel() {
 
 The resume uses the plan that the router picked in the first run. It does not call the router again. While the child waits, its card has `status: 'suspended'` and `interruptIds`. After you approve, the card shows the tool result and the child's reply. Client tools in a child work the same way.
 
-The same flow works without a router. The child's tool call stays open until the resume, then the parent model reads the child's result.
+The same flow works without a router. The child's tool call stays open until the resume, then the parent model reads the child's result. The result content carries the child's output or error; `subagentRunId` stays in subagent tracking events.
 
 ## Middleware
 

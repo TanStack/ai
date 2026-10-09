@@ -255,3 +255,5 @@ Full walkthrough, including the client: [Harness Agents](../structured-outputs/h
 - **No sampling controls.** `temperature`-style options don't exist here.
 - **Sessions are machine-local.** Resume requires hitting the same server instance.
 - **Cold starts.** Each call spawns a harness turn; expect higher first-token latency than HTTP adapters.
+
+This adapter ignores [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call), because the harness process sends the model requests.

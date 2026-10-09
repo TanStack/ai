@@ -596,6 +596,11 @@ export function uiMessageToModelMessages(
     return []
   }
 
+  // AG-UI activity is frontend-only and must never enter model input.
+  if (uiMessage.role === 'activity') {
+    return []
+  }
+
   // For non-assistant messages (user), use the simpler path since they
   // don't have tool calls or tool results to interleave
   if (uiMessage.role !== 'assistant') {
@@ -800,6 +805,10 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
       case 'ui-resource':
         // MCP Apps widget — rendered client-side only. It must never enter
         // model input, so it is intentionally dropped from the model message.
+        break
+
+      case 'activity':
+        // Frontend-only AG-UI activity. Never converted into ModelMessage input.
         break
 
       case 'subagent': {
@@ -1139,8 +1148,19 @@ export function aguiSnapshotMessageToUIMessage(
       })
     }
     case 'activity':
+      return applySnapshotMetadata(message, {
+        id,
+        role: 'activity',
+        parts: [
+          {
+            type: 'activity',
+            activityType: message.activityType,
+            content: structuredClone(message.content),
+          },
+        ],
+      })
     default:
-      // `activity` (and any future role) has no text/parts equivalent today.
+      // Any future role has no text/parts equivalent today.
       return applySnapshotMetadata(message, {
         id,
         role: 'assistant',
@@ -1197,17 +1217,20 @@ function snapshotStructuredOutput(
   ) {
     return undefined
   }
-  return {
-    type: 'structured-output',
-    status: value.status,
+  const base = {
+    type: 'structured-output' as const,
     raw: value.raw,
     ...(value.partial !== undefined ? { partial: value.partial } : {}),
-    ...(value.data !== undefined ? { data: value.data } : {}),
     ...(value.reasoning ? { reasoning: value.reasoning } : {}),
     ...(value.errorMessage !== undefined
       ? { errorMessage: value.errorMessage }
       : {}),
   }
+  if (value.status !== 'complete') return { ...base, status: value.status }
+  // A complete part must carry `data`. Drop a malformed snapshot so the
+  // message falls back to plain text.
+  if (value.data === undefined) return undefined
+  return { ...base, status: 'complete', data: value.data }
 }
 
 /**
@@ -1244,7 +1267,8 @@ export function aguiContentToContentParts(
 /**
  * Convert an array of ModelMessages to UIMessages
  *
- * This handles merging tool result messages with their corresponding assistant messages
+ * This handles merging tool result messages with their corresponding assistant
+ * messages, and assistant segments that share the same stable message ID.
  *
  * @param modelMessages - Array of ModelMessages to convert
  * @returns Array of UIMessages
@@ -1312,7 +1336,8 @@ export function modelMessagesToUIMessages(
       if (
         msg.role === 'assistant' &&
         currentAssistantMessage &&
-        isAssistantSegmentOf(msg.id, currentAssistantMessage.id)
+        (msg.id === currentAssistantMessage.id ||
+          isAssistantSegmentOf(msg.id, currentAssistantMessage.id))
       ) {
         currentAssistantMessage.parts.push(...uiMessage.parts)
         continue

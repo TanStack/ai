@@ -5,6 +5,7 @@ import { typesafeDecider } from '@tanstack/ai-typesafe'
 import { openRouterDecider } from '@tanstack/ai-openrouter'
 import { vercelGatewayDecider } from '@tanstack/ai-vercel-gateway'
 import { cloudflareDecider } from '@tanstack/ai-cloudflare'
+import { openaiDecider } from '@tanstack/ai-openai'
 import { isProvider } from './models'
 import type { EvaluateResult } from '@tanstack/ai'
 import type { Provider } from './models'
@@ -93,6 +94,12 @@ export const evaluateTicketFn = createServerFn({ method: 'POST' })
         })
 
         return res
+      case 'openai':
+        return await decide({
+          adapter: openaiDecider('gpt-6-luna'),
+          state: ticket,
+          questions,
+        })
       default: {
         const exhaustive: never = data.provider
         throw new Error(`Unknown provider: ${exhaustive}`)
