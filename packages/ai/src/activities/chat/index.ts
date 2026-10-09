@@ -1597,7 +1597,8 @@ class TextEngine<
   /**
    * Calls the model again after a rate-limit `RUN_ERROR`, as the `retry`
    * option allows. A call that streamed output is not retried, so no output
-   * repeats. A second `RUN_STARTED` is dropped later, like any other.
+   * repeats. `RUN_STARTED` is held until the attempt is kept, so the public
+   * start has the same `runId` as the `RUN_FINISHED` of the kept attempt.
    */
   private async *retryRateLimited(
     call: () => AsyncIterable<AdapterYieldChunk>,
@@ -1608,6 +1609,7 @@ class TextEngine<
       return
     }
     const maxWaitMs = retry.maxWaitMs ?? 60_000
+    let start: AdapterYieldChunk | undefined
     for (let attempt = 1; ; attempt++) {
       let streamed = false
       let waitMs: number | undefined
@@ -1622,16 +1624,27 @@ class TextEngine<
           waitMs = chunk.retryAfterMs
           break
         }
-        if (chunk.type !== EventType.RUN_STARTED) streamed = true
+        if (chunk.type === EventType.RUN_STARTED && !streamed) {
+          start = chunk
+          continue
+        }
+        if (start) yield start
+        start = undefined
+        streamed = true
         yield chunk
       }
-      if (waitMs === undefined) return
-      this.logger.errors(
-        `activity=chat rate limited, retry ${attempt} of ${retry.maxRetries} in ${waitMs}ms`,
-        { attempt, waitMs },
-      )
-      await waitOrAbort(waitMs, this.effectiveSignal)
-      if (this.isCancelled()) return
+      if (waitMs !== undefined) {
+        this.logger.errors(
+          `activity=chat rate limited, retry ${attempt} of ${retry.maxRetries} in ${waitMs}ms`,
+          { attempt, waitMs },
+        )
+        // Also wakes on a middleware `ctx.abort()`, not only the caller's.
+        await waitOrAbort(waitMs, this.toolAbortSignal)
+      }
+      if (waitMs === undefined || this.isCancelled()) {
+        if (start) yield start
+        return
+      }
     }
   }
 

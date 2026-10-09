@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { chat } from '../src/activities/chat/index'
+import { defineChatMiddleware } from '../src/activities/chat/middleware/index'
 import { EventType } from '../src/types'
 import { collectChunks, createMockAdapter, ev } from './test-utils'
 import type { StreamChunk } from '../src/types'
@@ -106,6 +107,57 @@ describe('chat({ retry })', () => {
         adapter,
         messages,
         abortController,
+        retry: { maxRetries: 2, maxWaitMs: 120_000 },
+      }),
+    )
+    expect(calls).toHaveLength(1)
+    expect(Date.now() - started).toBeLessThan(5_000)
+  })
+
+  it('sends the runId of the kept attempt on RUN_STARTED', async () => {
+    const { adapter } = createMockAdapter({
+      iterations: [
+        [
+          ev.runStarted('run-a'),
+          { ...ev.runError('rate limited'), retryAfterMs: 5 },
+        ],
+        [
+          ev.runStarted('run-b'),
+          ev.textStart(),
+          ev.textContent('hello'),
+          ev.textEnd(),
+          ev.runFinished('stop', 'run-b'),
+        ],
+      ],
+    })
+    const chunks = await collectChunks(
+      chat({ adapter, messages, retry: { maxRetries: 2 } }),
+    )
+    const runIds = chunks
+      .filter(
+        (c) =>
+          c.type === EventType.RUN_STARTED || c.type === EventType.RUN_FINISHED,
+      )
+      .map((c) => ('runId' in c ? c.runId : undefined))
+    expect(runIds).toEqual(['run-b', 'run-b'])
+  })
+
+  it('stops waiting when middleware aborts the run', async () => {
+    const { adapter, calls } = createMockAdapter({
+      iterations: [rateLimited(60_000), answer],
+    })
+    const aborter = defineChatMiddleware({
+      name: 'test-aborter',
+      onStart(ctx) {
+        setTimeout(() => ctx.abort('stop'), 20)
+      },
+    })
+    const started = Date.now()
+    await collectChunks(
+      chat({
+        adapter,
+        messages,
+        middleware: [aborter],
         retry: { maxRetries: 2, maxWaitMs: 120_000 },
       }),
     )
