@@ -92,7 +92,7 @@
         "executor": "nx:run-commands",
         "options": {
           "cwd": "testing/e2e",
-          "command": "playwright test --shard=1/6 --output=test-results/shard-1",
+          "command": "playwright test --config=playwright.shards.config.ts --shard=1/6 --output=test-results/shard-1",
           "env": {
             "PLAYWRIGHT_BLOB_OUTPUT_DIR": "blob-report/shard-1",
             "PLAYWRIGHT_HTML_OUTPUT_DIR": "playwright-report/shard-1"
@@ -108,7 +108,7 @@
         "executor": "nx:run-commands",
         "options": {
           "cwd": "testing/e2e",
-          "command": "playwright test --shard=2/6 --output=test-results/shard-2",
+          "command": "playwright test --config=playwright.shards.config.ts --shard=2/6 --output=test-results/shard-2",
           "env": {
             "PLAYWRIGHT_BLOB_OUTPUT_DIR": "blob-report/shard-2",
             "PLAYWRIGHT_HTML_OUTPUT_DIR": "playwright-report/shard-2"
@@ -124,7 +124,7 @@
         "executor": "nx:run-commands",
         "options": {
           "cwd": "testing/e2e",
-          "command": "playwright test --shard=3/6 --output=test-results/shard-3",
+          "command": "playwright test --config=playwright.shards.config.ts --shard=3/6 --output=test-results/shard-3",
           "env": {
             "PLAYWRIGHT_BLOB_OUTPUT_DIR": "blob-report/shard-3",
             "PLAYWRIGHT_HTML_OUTPUT_DIR": "playwright-report/shard-3"
@@ -140,7 +140,7 @@
         "executor": "nx:run-commands",
         "options": {
           "cwd": "testing/e2e",
-          "command": "playwright test --shard=4/6 --output=test-results/shard-4",
+          "command": "playwright test --config=playwright.shards.config.ts --shard=4/6 --output=test-results/shard-4",
           "env": {
             "PLAYWRIGHT_BLOB_OUTPUT_DIR": "blob-report/shard-4",
             "PLAYWRIGHT_HTML_OUTPUT_DIR": "playwright-report/shard-4"
@@ -156,7 +156,7 @@
         "executor": "nx:run-commands",
         "options": {
           "cwd": "testing/e2e",
-          "command": "playwright test --shard=5/6 --output=test-results/shard-5",
+          "command": "playwright test --config=playwright.shards.config.ts --shard=5/6 --output=test-results/shard-5",
           "env": {
             "PLAYWRIGHT_BLOB_OUTPUT_DIR": "blob-report/shard-5",
             "PLAYWRIGHT_HTML_OUTPUT_DIR": "playwright-report/shard-5"
@@ -172,7 +172,7 @@
         "executor": "nx:run-commands",
         "options": {
           "cwd": "testing/e2e",
-          "command": "playwright test --shard=6/6 --output=test-results/shard-6",
+          "command": "playwright test --config=playwright.shards.config.ts --shard=6/6 --output=test-results/shard-6",
           "env": {
             "PLAYWRIGHT_BLOB_OUTPUT_DIR": "blob-report/shard-6",
             "PLAYWRIGHT_HTML_OUTPUT_DIR": "playwright-report/shard-6"

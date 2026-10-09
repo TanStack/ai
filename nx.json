@@ -10,7 +10,8 @@
       "plugin": "@nx/playwright/plugin",
       "include": ["testing/e2e/playwright.config.ts"],
       "options": {
-        "targetName": "test:e2e"
+        "targetName": "test:e2e",
+        "ciTargetName": ""
       }
     }
   ],
