@@ -20,7 +20,12 @@ export const Route = createFileRoute('/api/chat-completions-incomplete-stream')(
               choices: [
                 {
                   index: 0,
-                  delta: { content: 'partial' },
+                  delta: {
+                    content:
+                      scenario === 'object-content'
+                        ? { text: 'partial' }
+                        : 'partial',
+                  },
                   finish_reason: null,
                 },
               ],
@@ -70,7 +75,10 @@ export const Route = createFileRoute('/api/chat-completions-incomplete-stream')(
               maxRetries: 0,
               fetch: async () => {
                 // Finish a follow-up request if a regression executes the tool.
-                const complete = scenario === 'complete' || requests++ > 0
+                const complete =
+                  scenario === 'complete' ||
+                  scenario === 'object-content' ||
+                  requests++ > 0
                 const payload = complete
                   ? [...chunks.slice(0, 1), ...completion]
                   : chunks
@@ -92,6 +100,7 @@ export const Route = createFileRoute('/api/chat-completions-incomplete-stream')(
             toolCalls: 0,
             totalTokens: 0,
             errorCode: '',
+            errorMessage: '',
           }
           for await (const event of chat({
             adapter,
@@ -123,7 +132,10 @@ export const Route = createFileRoute('/api/chat-completions-incomplete-stream')(
             result.events.push(event.type)
             if (event.type === 'TEXT_MESSAGE_CONTENT')
               result.text += event.delta
-            if (event.type === 'RUN_ERROR') result.errorCode = event.code ?? ''
+            if (event.type === 'RUN_ERROR') {
+              result.errorCode = event.code ?? ''
+              result.errorMessage = event.message
+            }
           }
           return Response.json(result)
         },

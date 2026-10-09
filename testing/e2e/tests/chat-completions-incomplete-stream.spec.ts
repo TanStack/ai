@@ -41,3 +41,22 @@ test('Chat Completions keeps usage after a normal finish reason', async ({
   expect(result.events.at(-1)).toBe('RUN_FINISHED')
   expect(result.events).not.toContain('RUN_ERROR')
 })
+
+test('Chat Completions rejects object text content instead of streaming it', async ({
+  request,
+}) => {
+  const response = await request.post(
+    '/api/chat-completions-incomplete-stream?scenario=object-content',
+  )
+  expect(response.ok()).toBe(true)
+  const result = await response.json()
+  expect(result).toMatchObject({
+    text: '',
+    finishCount: 0,
+    errorCount: 1,
+    errorMessage:
+      'invalid choices[0].delta.content: expected a string, null, or an omitted field; received an object',
+  })
+  expect(result.events).not.toContain('TEXT_MESSAGE_CONTENT')
+  expect(result.events).not.toContain('RUN_FINISHED')
+})

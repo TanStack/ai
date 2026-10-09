@@ -894,8 +894,16 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         if (!choice) continue
 
         const delta = choice.delta
-        const deltaContent = delta.content
+        const deltaContent: unknown = delta.content
         const deltaToolCalls = delta.tool_calls
+
+        // Fail loud on a non-string content. Text would show it as
+        // "[object Object]".
+        if (deltaContent != null && typeof deltaContent !== 'string') {
+          throw new Error(
+            `invalid choices[0].delta.content: expected a string, null, or an omitted field; received ${Array.isArray(deltaContent) ? 'an array' : 'an object'}`,
+          )
+        }
 
         // Handle content delta
         if (deltaContent) {
