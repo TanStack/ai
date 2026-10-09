@@ -13,6 +13,13 @@ const LLMOCK_DEFAULT_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
 const DUMMY_KEY = 'sk-e2e-test-dummy-key'
 
 const reasoning: ReasoningRequest = { level: 'medium', summary: true }
+// Gemini 2.5 Flash takes only `off` and `high`, so ask for `high` with an
+// explicit budget. The mount checks the budget on the wire.
+const geminiReasoning: ReasoningRequest = {
+  level: 'high',
+  summary: true,
+  budgetTokens: 8192,
+}
 const messages = [
   {
     role: 'user' as const,
@@ -62,7 +69,7 @@ export const Route = createFileRoute('/api/reasoning-wire')({
           for await (const chunk of chat({
             adapter,
             messages,
-            reasoning,
+            reasoning: provider === 'gemini' ? geminiReasoning : reasoning,
             wrapFetch: capture,
           })) {
             if (chunk.type === 'TEXT_MESSAGE_CONTENT') text += chunk.delta
