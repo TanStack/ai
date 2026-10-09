@@ -37,6 +37,7 @@ import { Route as MarkdownCjkRouteImport } from './routes/markdown-cjk'
 import { Route as MessageHistoryPagingRouteImport } from './routes/message-history-paging'
 import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
 import { Route as PersistenceDurabilityRouteImport } from './routes/persistence-durability'
+import { Route as SolidReactiveChatRouteImport } from './routes/solid-reactive-chat'
 import { Route as SubagentsTestRouteImport } from './routes/subagents-test'
 import { Route as SubagentsUiTestRouteImport } from './routes/subagents-ui-test'
 import { Route as TextFirstToolRouteImport } from './routes/text-first-tool'
@@ -293,6 +294,11 @@ const MiddlewareTestRoute = MiddlewareTestRouteImport.update({
 const PersistenceDurabilityRoute = PersistenceDurabilityRouteImport.update({
   id: '/persistence-durability',
   path: '/persistence-durability',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SolidReactiveChatRoute = SolidReactiveChatRouteImport.update({
+  id: '/solid-reactive-chat',
+  path: '/solid-reactive-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SubagentsTestRoute = SubagentsTestRouteImport.update({
@@ -926,6 +932,7 @@ export interface FileRoutesByFullPath {
   '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
+  '/solid-reactive-chat': typeof SolidReactiveChatRoute
   '/subagents-test': typeof SubagentsTestRoute
   '/subagents-ui-test': typeof SubagentsUiTestRoute
   '/text-first-tool': typeof TextFirstToolRoute
@@ -1070,6 +1077,7 @@ export interface FileRoutesByTo {
   '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
+  '/solid-reactive-chat': typeof SolidReactiveChatRoute
   '/subagents-test': typeof SubagentsTestRoute
   '/subagents-ui-test': typeof SubagentsUiTestRoute
   '/text-first-tool': typeof TextFirstToolRoute
@@ -1215,6 +1223,7 @@ export interface FileRoutesById {
   '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
+  '/solid-reactive-chat': typeof SolidReactiveChatRoute
   '/subagents-test': typeof SubagentsTestRoute
   '/subagents-ui-test': typeof SubagentsUiTestRoute
   '/text-first-tool': typeof TextFirstToolRoute
@@ -1361,6 +1370,7 @@ export interface FileRouteTypes {
     | '/message-history-paging'
     | '/middleware-test'
     | '/persistence-durability'
+    | '/solid-reactive-chat'
     | '/subagents-test'
     | '/subagents-ui-test'
     | '/text-first-tool'
@@ -1505,6 +1515,7 @@ export interface FileRouteTypes {
     | '/message-history-paging'
     | '/middleware-test'
     | '/persistence-durability'
+    | '/solid-reactive-chat'
     | '/subagents-test'
     | '/subagents-ui-test'
     | '/text-first-tool'
@@ -1649,6 +1660,7 @@ export interface FileRouteTypes {
     | '/message-history-paging'
     | '/middleware-test'
     | '/persistence-durability'
+    | '/solid-reactive-chat'
     | '/subagents-test'
     | '/subagents-ui-test'
     | '/text-first-tool'
@@ -1794,6 +1806,7 @@ export interface RootRouteChildren {
   MessageHistoryPagingRoute: typeof MessageHistoryPagingRoute
   MiddlewareTestRoute: typeof MiddlewareTestRoute
   PersistenceDurabilityRoute: typeof PersistenceDurabilityRoute
+  SolidReactiveChatRoute: typeof SolidReactiveChatRoute
   SubagentsTestRoute: typeof SubagentsTestRoute
   SubagentsUiTestRoute: typeof SubagentsUiTestRoute
   TextFirstToolRoute: typeof TextFirstToolRoute
@@ -2101,6 +2114,13 @@ declare module '@tanstack/react-router' {
       path: '/persistence-durability'
       fullPath: '/persistence-durability'
       preLoaderRoute: typeof PersistenceDurabilityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/solid-reactive-chat': {
+      id: '/solid-reactive-chat'
+      path: '/solid-reactive-chat'
+      fullPath: '/solid-reactive-chat'
+      preLoaderRoute: typeof SolidReactiveChatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/subagents-test': {
@@ -2991,6 +3011,7 @@ const rootRouteChildren: RootRouteChildren = {
   MessageHistoryPagingRoute: MessageHistoryPagingRoute,
   MiddlewareTestRoute: MiddlewareTestRoute,
   PersistenceDurabilityRoute: PersistenceDurabilityRoute,
+  SolidReactiveChatRoute: SolidReactiveChatRoute,
   SubagentsTestRoute: SubagentsTestRoute,
   SubagentsUiTestRoute: SubagentsUiTestRoute,
   TextFirstToolRoute: TextFirstToolRoute,
