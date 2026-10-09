@@ -27,7 +27,10 @@ import type {
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
 import type { Mistral } from '@mistralai/mistralai'
-import type { ChatCompletionStreamRequest } from '@mistralai/mistralai/models/components'
+import type {
+  ChatCompletionStreamRequest,
+  ContentChunk,
+} from '@mistralai/mistralai/models/components'
 import type {
   ExternalTextProviderOptions,
   InternalTextProviderOptions,
@@ -990,8 +993,12 @@ export class MistralTextAdapter<
       return {
         role: 'tool',
         toolCallId: message.toolCallId,
-        content:
-          typeof message.content === 'string'
+        // Mistral accepts image chunks in a tool message, so send the parts.
+        content: Array.isArray(message.content)
+          ? message.content.map((part) =>
+              this.convertContentPartToMistral(part),
+            )
+          : typeof message.content === 'string'
             ? message.content
             : JSON.stringify(message.content),
       }
@@ -1116,7 +1123,9 @@ function messageToWire(msg: ChatCompletionStreamRequest['messages'][number]) {
     return {
       role: 'tool',
       tool_call_id: msg.toolCallId,
-      content: msg.content,
+      content: Array.isArray(msg.content)
+        ? msg.content.map(contentPartToWire)
+        : msg.content,
       ...(msg.name !== undefined ? { name: msg.name } : {}),
     }
   }
@@ -1138,18 +1147,23 @@ function messageToWire(msg: ChatCompletionStreamRequest['messages'][number]) {
   if (msg.role === 'user' && Array.isArray(msg.content)) {
     return {
       role: 'user',
-      content: msg.content.map((part) => {
-        if (part.type === 'image_url') {
-          return { type: 'image_url', image_url: part.imageUrl }
-        }
-        if (part.type === 'document_url') {
-          return { type: 'document_url', document_url: part.documentUrl }
-        }
-        return part
-      }),
+      content: msg.content.map(contentPartToWire),
     }
   }
   return msg
+}
+
+/**
+ * Snake-cases one content chunk of a user or tool message.
+ */
+function contentPartToWire(part: ContentChunk) {
+  if (part.type === 'image_url') {
+    return { type: 'image_url', image_url: part.imageUrl }
+  }
+  if (part.type === 'document_url') {
+    return { type: 'document_url', document_url: part.documentUrl }
+  }
+  return part
 }
 
 /**

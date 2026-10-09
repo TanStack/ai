@@ -1,5 +1,14 @@
 # @tanstack/ai-compaction
 
+## 0.1.15
+
+### Patch Changes
+
+- [#1671](https://github.com/TanStack/ai/pull/1671) [`2ee30cf`](https://github.com/TanStack/ai/commit/2ee30cf4768033cc66d65d4aa1251fd2d6fa6e1f) - `summarizeOldest` now fails the compaction when the summarizer returns an empty or whitespace-only summary. Before, it replaced the old messages with an empty summary and saved that result in the checkpoint, so the history was lost. Now the strategy throws an error, the history stays, and no checkpoint is written.
+
+- Updated dependencies [[`baafb17`](https://github.com/TanStack/ai/commit/baafb176220c2b09fced334ad176e754582cd314)]:
+  - @tanstack/ai@0.66.1
+
 ## 0.1.14
 
 ### Patch Changes

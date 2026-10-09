@@ -85,6 +85,7 @@ import { Route as ApiInterruptsTestRouteImport } from './routes/api.interrupts-t
 import { Route as ApiJoinRunClientToolRouteImport } from './routes/api.join-run-client-tool'
 import { Route as ApiJsonTransportRouteImport } from './routes/api.json-transport'
 import { Route as ApiLazyToolsWireRouteImport } from './routes/api.lazy-tools-wire'
+import { Route as ApiLoneSurrogatesWireRouteImport } from './routes/api.lone-surrogates-wire'
 import { Route as ApiMaxToolCallsWireRouteImport } from './routes/api.max-tool-calls-wire'
 import { Route as ApiMcpAppsCallRouteImport } from './routes/api.mcp-apps-call'
 import { Route as ApiMcpAppsChatRouteImport } from './routes/api.mcp-apps-chat'
@@ -548,6 +549,11 @@ const ApiLazyToolsWireRoute = ApiLazyToolsWireRouteImport.update({
   path: '/api/lazy-tools-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiLoneSurrogatesWireRoute = ApiLoneSurrogatesWireRouteImport.update({
+  id: '/api/lone-surrogates-wire',
+  path: '/api/lone-surrogates-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMaxToolCallsWireRoute = ApiMaxToolCallsWireRouteImport.update({
   id: '/api/max-tool-calls-wire',
   path: '/api/max-tool-calls-wire',
@@ -973,6 +979,7 @@ export interface FileRoutesByFullPath {
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
   '/api/json-transport': typeof ApiJsonTransportRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
+  '/api/lone-surrogates-wire': typeof ApiLoneSurrogatesWireRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
@@ -1117,6 +1124,7 @@ export interface FileRoutesByTo {
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
   '/api/json-transport': typeof ApiJsonTransportRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
+  '/api/lone-surrogates-wire': typeof ApiLoneSurrogatesWireRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
@@ -1262,6 +1270,7 @@ export interface FileRoutesById {
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
   '/api/json-transport': typeof ApiJsonTransportRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
+  '/api/lone-surrogates-wire': typeof ApiLoneSurrogatesWireRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
@@ -1408,6 +1417,7 @@ export interface FileRouteTypes {
     | '/api/join-run-client-tool'
     | '/api/json-transport'
     | '/api/lazy-tools-wire'
+    | '/api/lone-surrogates-wire'
     | '/api/max-tool-calls-wire'
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
@@ -1552,6 +1562,7 @@ export interface FileRouteTypes {
     | '/api/join-run-client-tool'
     | '/api/json-transport'
     | '/api/lazy-tools-wire'
+    | '/api/lone-surrogates-wire'
     | '/api/max-tool-calls-wire'
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
@@ -1696,6 +1707,7 @@ export interface FileRouteTypes {
     | '/api/join-run-client-tool'
     | '/api/json-transport'
     | '/api/lazy-tools-wire'
+    | '/api/lone-surrogates-wire'
     | '/api/max-tool-calls-wire'
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
@@ -1841,6 +1853,7 @@ export interface RootRouteChildren {
   ApiJoinRunClientToolRoute: typeof ApiJoinRunClientToolRoute
   ApiJsonTransportRoute: typeof ApiJsonTransportRoute
   ApiLazyToolsWireRoute: typeof ApiLazyToolsWireRoute
+  ApiLoneSurrogatesWireRoute: typeof ApiLoneSurrogatesWireRoute
   ApiMaxToolCallsWireRoute: typeof ApiMaxToolCallsWireRoute
   ApiMcpAppsCallRoute: typeof ApiMcpAppsCallRoute
   ApiMcpAppsChatRoute: typeof ApiMcpAppsChatRoute
@@ -2437,6 +2450,13 @@ declare module '@tanstack/react-router' {
       path: '/api/lazy-tools-wire'
       fullPath: '/api/lazy-tools-wire'
       preLoaderRoute: typeof ApiLazyToolsWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/lone-surrogates-wire': {
+      id: '/api/lone-surrogates-wire'
+      path: '/api/lone-surrogates-wire'
+      fullPath: '/api/lone-surrogates-wire'
+      preLoaderRoute: typeof ApiLoneSurrogatesWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/max-tool-calls-wire': {
@@ -3041,6 +3061,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiJoinRunClientToolRoute: ApiJoinRunClientToolRoute,
   ApiJsonTransportRoute: ApiJsonTransportRoute,
   ApiLazyToolsWireRoute: ApiLazyToolsWireRoute,
+  ApiLoneSurrogatesWireRoute: ApiLoneSurrogatesWireRoute,
   ApiMaxToolCallsWireRoute: ApiMaxToolCallsWireRoute,
   ApiMcpAppsCallRoute: ApiMcpAppsCallRoute,
   ApiMcpAppsChatRoute: ApiMcpAppsChatRoute,

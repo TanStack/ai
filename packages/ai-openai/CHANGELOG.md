@@ -1,5 +1,16 @@
 # @tanstack/ai-openai
 
+## 0.28.0
+
+### Minor Changes
+
+- [#1652](https://github.com/TanStack/ai/pull/1652) [`13a5c4c`](https://github.com/TanStack/ai/commit/13a5c4c03333499b4cb8d88e5678161f81c39842) - Add `openaiDecider` and `createOpenaiDecider` so `decide()` can ask typed questions through the OpenAI Decisions API with `gpt-6-luna`.
+
+### Patch Changes
+
+- Updated dependencies [[`13a5c4c`](https://github.com/TanStack/ai/commit/13a5c4c03333499b4cb8d88e5678161f81c39842)]:
+  - @tanstack/openai-base@0.12.6
+
 ## 0.27.1
 
 ### Patch Changes

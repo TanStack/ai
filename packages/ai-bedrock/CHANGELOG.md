@@ -1,5 +1,24 @@
 # @tanstack/ai-bedrock
 
+## 0.4.6
+
+### Patch Changes
+
+- [#1668](https://github.com/TanStack/ai/pull/1668) [`09c5d27`](https://github.com/TanStack/ai/commit/09c5d27644c95751087fee27de9fac71e5ed7bba) - The Bedrock Converse adapter now sets `status: 'error'` on a tool result that has an `error`. This includes an empty error string. Before, every tool result went out with `status: 'success'`, so the model did not know that the tool failed.
+
+- Updated dependencies [[`ee935ef`](https://github.com/TanStack/ai/commit/ee935efaa25607425b1ba3452aec470588292334), [`baafb17`](https://github.com/TanStack/ai/commit/baafb176220c2b09fced334ad176e754582cd314), [`7a70720`](https://github.com/TanStack/ai/commit/7a7072041aeca984e19550455b039322060a0bb0)]:
+  - @tanstack/openai-base@0.12.7
+  - @tanstack/ai@0.66.1
+
+## 0.4.5
+
+### Patch Changes
+
+- [#1652](https://github.com/TanStack/ai/pull/1652) [`13a5c4c`](https://github.com/TanStack/ai/commit/13a5c4c03333499b4cb8d88e5678161f81c39842) - Update the `openai` SDK dependency to `^7.30.0`. `openai` 7 requires Node.js 22 or later.
+
+- Updated dependencies [[`13a5c4c`](https://github.com/TanStack/ai/commit/13a5c4c03333499b4cb8d88e5678161f81c39842)]:
+  - @tanstack/openai-base@0.12.6
+
 ## 0.4.4
 
 ### Patch Changes

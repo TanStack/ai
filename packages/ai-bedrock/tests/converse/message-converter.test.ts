@@ -267,4 +267,13 @@ describe('toConverseMessages', () => {
     const name1 = (messages[2]!.content![0] as any).document.name as string
     expect(name0).not.toBe(name1)
   })
+
+  it('marks a tool result with an error, even an empty one, as status error', () => {
+    for (const error of ['boom', '']) {
+      const { messages } = toConverseMessages([
+        { role: 'tool', content: 'failed', toolCallId: 't1', error },
+      ])
+      expect(messages[0]!.content![0]!.toolResult?.status).toBe('error')
+    }
+  })
 })

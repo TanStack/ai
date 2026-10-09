@@ -1180,6 +1180,25 @@ export class OpenRouterTextAdapter<
           }
         }
 
+        // An unknown finishReason must not end the run as a success.
+        if (
+          pendingFinishReason &&
+          !['stop', 'length', 'content_filter', 'tool_calls', 'error'].includes(
+            pendingFinishReason,
+          )
+        ) {
+          const message = `Provider finish_reason: ${pendingFinishReason}`
+          yield {
+            type: EventType.RUN_ERROR,
+            runId: aguiState.runId,
+            model: lastModel || options.model,
+            timestamp: Date.now(),
+            message,
+            error: { message },
+          }
+          return
+        }
+
         // Map upstream finishReason to AG-UI's narrower vocabulary while
         // preserving the upstream value when it falls outside the AG-UI set.
         // Use `tool_calls` only when a TOOL_CALL_END was actually emitted.
