@@ -1147,7 +1147,12 @@ export class StreamProcessor {
    * MESSAGES_SNAPSHOT) but whose transient state was cleared. In that case we
    * hydrate state from the existing message rather than creating a duplicate.
    */
-  private ensureAssistantMessage(preferredId?: string): {
+  private ensureAssistantMessage(
+    preferredId?: string,
+    // False when `preferredId` names its own message (a tool call's
+    // `parentMessageId`), so a different active message never takes it.
+    fallbackToActive = true,
+  ): {
     messageId: string
     state: MessageStreamState
   } {
@@ -1161,7 +1166,9 @@ export class StreamProcessor {
     }
 
     // Try active assistant message
-    const activeId = this.getActiveAssistantMessageId()
+    const activeId = fallbackToActive
+      ? this.getActiveAssistantMessageId()
+      : null
     if (activeId) {
       const state = this.getMessageState(activeId)
       if (state) {
@@ -1542,6 +1549,12 @@ export class StreamProcessor {
     // go into the structured-output part, not a text part.
     if (this.structuredMessageIds.delete(fromId)) {
       this.structuredMessageIds.add(toId)
+    }
+    // Queued deltas move too, so the next flush of `toId` sends them.
+    const batch = this.structuredOutputUpdateBatches.get(fromId)
+    if (batch) {
+      this.structuredOutputUpdateBatches.delete(fromId)
+      this.structuredOutputUpdateBatches.set(toId, batch)
     }
   }
 
@@ -2215,14 +2228,25 @@ export class StreamProcessor {
     // message holds two calls under the wrong id.
     const pendingId = this.pendingManualMessageId
     const parentId = chunk.parentMessageId
-    if (
-      pendingId &&
-      parentId &&
-      parentId !== pendingId &&
-      !this.messages.some((m) => m.id === parentId)
-    ) {
-      this.pendingManualMessageId = null
-      this.renameMessage(pendingId, parentId)
+    if (pendingId && parentId && parentId !== pendingId) {
+      const parent = this.messages.find((m) => m.id === parentId)
+      const placeholder = this.messages.find((m) => m.id === pendingId)
+      if (!parent) {
+        this.pendingManualMessageId = null
+        this.renameMessage(pendingId, parentId)
+      } else if (parent.role === 'assistant' && placeholder) {
+        // The parent already exists. Fold the placeholder into it, so the
+        // thinking stays in the same message as the tool call.
+        this.pendingManualMessageId = null
+        this.messages = this.messages
+          .filter((m) => m.id !== pendingId)
+          .map((m) =>
+            m.id === parentId
+              ? { ...m, parts: [...m.parts, ...placeholder.parts] }
+              : m,
+          )
+        this.renameMessage(pendingId, parentId)
+      }
     }
 
     // Determine the message this tool call belongs to
@@ -2230,6 +2254,7 @@ export class StreamProcessor {
       chunk.parentMessageId ?? this.getActiveAssistantMessageId()
     const { messageId, state } = this.ensureAssistantMessage(
       targetMessageId ?? undefined,
+      chunk.parentMessageId === undefined,
     )
 
     // Mark that we've seen tool calls since the last text segment

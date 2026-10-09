@@ -552,7 +552,7 @@ Content-bearing chunks that trigger `ensureAssistantMessage()`:
 - `STEP_FINISHED`
 - `RUN_ERROR`
 
-The message takes the server id on the chunk when it has one (`TOOL_CALL_START.parentMessageId`, `TEXT_MESSAGE_CONTENT.messageId`). Thinking chunks carry no assistant id, so they make a placeholder with a client id. The placeholder takes the first server id that arrives in `TOOL_CALL_START.parentMessageId` or `TEXT_MESSAGE_START.messageId`, and keeps it. A later model call's `TEXT_MESSAGE_START` with a new id then starts a new UIMessage. It does not rename this one, so each UIMessage keeps the id the server stored for it.
+The message takes the server id on the chunk when it has one (`TOOL_CALL_START.parentMessageId`, `TEXT_MESSAGE_CONTENT.messageId`). Thinking chunks carry no assistant id, so they make a placeholder with a client id. The placeholder takes the first server id that arrives in `TOOL_CALL_START.parentMessageId` or `TEXT_MESSAGE_START.messageId`, and keeps it. A later model call's `TEXT_MESSAGE_START` with a new id then starts a new UIMessage. It does not rename this one, so each UIMessage keeps the id the server stored for it. If a message with that `parentMessageId` already exists, the placeholder joins it, so the thinking stays with its tool call. A tool call always goes to the message its `parentMessageId` names, not to the active message.
 
 ---
 
