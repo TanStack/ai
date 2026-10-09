@@ -1,11 +1,12 @@
 /**
  * Model metadata interface for documentation and type inference
  */
-import type { Modality } from '@tanstack/ai'
 import type {
-  GrokBuildProviderOptions,
-  GrokTextProviderOptions,
-} from './text/text-provider-options'
+  Modality,
+  ModelReasoning,
+  ModelReasoningCapability,
+} from '@tanstack/ai'
+import type { GrokTextProviderOptions } from './text/text-provider-options'
 
 interface ModelMeta {
   name: string
@@ -28,6 +29,8 @@ interface ModelMeta {
       normal: number
     }
   }
+  /** The model's data for `chat({ reasoning })`. None: it does not reason. */
+  reasoning?: ModelReasoning
 }
 
 const GROK_4_5 = {
@@ -47,6 +50,18 @@ const GROK_4_5 = {
     output: {
       normal: 6,
     },
+  },
+  reasoning: {
+    map: {
+      off: null,
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
   },
 } as const satisfies ModelMeta
 
@@ -68,6 +83,18 @@ const GROK_4_6 = {
       normal: 6,
     },
   },
+  reasoning: {
+    map: {
+      off: null,
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: 'xhigh',
+      max: null,
+    },
+    budget: false,
+  },
 } as const satisfies ModelMeta
 
 const GROK_4_7 = {
@@ -88,6 +115,18 @@ const GROK_4_7 = {
     output: {
       normal: 4.8,
     },
+  },
+  reasoning: {
+    map: {
+      off: null,
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: 'xhigh',
+      max: null,
+    },
+    budget: false,
   },
 } as const satisfies ModelMeta
 
@@ -217,6 +256,18 @@ const GROK_4_3 = {
       normal: 2.5,
     },
   },
+  reasoning: {
+    map: {
+      off: 'none',
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
+  },
 } as const satisfies ModelMeta
 
 const GROK_BUILD_0_1 = {
@@ -250,6 +301,7 @@ const GROK_4_20_REASONING = {
     capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
     tools: [] as const,
   },
+  reasoning: { budget: false },
 } as const satisfies ModelMeta
 
 const GROK_4_20_NON_REASONING = {
@@ -272,6 +324,7 @@ const GROK_4_1_FAST_REASONING = {
     capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
     tools: [] as const,
   },
+  reasoning: { budget: false },
 } as const satisfies ModelMeta
 
 const GROK_4_1_FAST_NON_REASONING = {
@@ -479,7 +532,7 @@ export type GrokProviderOptions = GrokTextProviderOptions
  */
 export type GrokChatModelProviderOptionsByName = {
   [GROK_4_3.name]: GrokProviderOptions
-  [GROK_BUILD_0_1.name]: GrokBuildProviderOptions
+  [GROK_BUILD_0_1.name]: GrokProviderOptions
   [GROK_4_20_REASONING.name]: GrokProviderOptions
   [GROK_4_20_NON_REASONING.name]: GrokProviderOptions
   [GROK_4_1_FAST_REASONING.name]: GrokProviderOptions
@@ -507,3 +560,43 @@ export type ResolveInputModalities<TModel extends string> =
   TModel extends keyof GrokModelInputModalitiesByName
     ? GrokModelInputModalitiesByName[TModel]
     : readonly ['text']
+
+// Reasoning
+//
+// Each model's `reasoning` field holds its data for `chat({ reasoning })`:
+// the provider value for each level (`null`: the model does not have it),
+// and whether it takes a thinking token budget. The data comes from
+// models.dev. The generator that writes it comes with the model catalog
+// later. Until then, the sync scripts keep these fields as they are.
+
+/**
+ * Each chat model's reasoning levels, and whether it takes a token budget,
+ * for `chat({ reasoning })`. Derived from the `reasoning` field. A model
+ * that is not here does not reason.
+ */
+export type GrokModelReasoningByName = {
+  [GROK_4_3.name]: ModelReasoningCapability<typeof GROK_4_3.reasoning>
+  [GROK_4_5.name]: ModelReasoningCapability<typeof GROK_4_5.reasoning>
+  [GROK_4_6.name]: ModelReasoningCapability<typeof GROK_4_6.reasoning>
+  [GROK_4_20_REASONING.name]: ModelReasoningCapability<
+    typeof GROK_4_20_REASONING.reasoning
+  >
+  [GROK_4_1_FAST_REASONING.name]: ModelReasoningCapability<
+    typeof GROK_4_1_FAST_REASONING.reasoning
+  >
+  [GROK_4_7.name]: ModelReasoningCapability<typeof GROK_4_7.reasoning>
+}
+
+/**
+ * Runtime map from chat model name to its reasoning data, for the text
+ * adapter. `satisfies` keeps its keys equal to {@link GrokModelReasoningByName}. An unknown
+ * name gives `undefined`: the adapter sends no reasoning field.
+ */
+export const GROK_MODEL_REASONING: Readonly<Record<string, ModelReasoning>> = {
+  [GROK_4_3.name]: GROK_4_3.reasoning,
+  [GROK_4_5.name]: GROK_4_5.reasoning,
+  [GROK_4_6.name]: GROK_4_6.reasoning,
+  [GROK_4_20_REASONING.name]: GROK_4_20_REASONING.reasoning,
+  [GROK_4_1_FAST_REASONING.name]: GROK_4_1_FAST_REASONING.reasoning,
+  [GROK_4_7.name]: GROK_4_7.reasoning,
+} satisfies Record<keyof GrokModelReasoningByName, ModelReasoning>
