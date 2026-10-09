@@ -1057,9 +1057,9 @@ export class OpenRouterTextAdapter<
               // upstream never sent both id and name.
               if (!toolCall.started) continue
 
-              // Parse arguments for TOOL_CALL_END. Surface parse failures via
-              // the logger so a model emitting malformed JSON for tool args
-              // is debuggable instead of silently invoking the tool with {}.
+              // Leave malformed arguments for the core's tool-error handling.
+              // An undefined input preserves the accumulated argument string.
+              // Non-object JSON still normalizes to {}.
               let parsedInput: unknown = {}
               if (toolCall.arguments) {
                 try {
@@ -1080,7 +1080,7 @@ export class OpenRouterTextAdapter<
                       rawArguments: toolCall.arguments,
                     },
                   )
-                  parsedInput = {}
+                  parsedInput = undefined
                 }
               }
 
@@ -1143,7 +1143,7 @@ export class OpenRouterTextAdapter<
                   rawArguments: toolCall.arguments,
                 },
               )
-              parsedInput = {}
+              parsedInput = undefined
             }
           }
           yield {

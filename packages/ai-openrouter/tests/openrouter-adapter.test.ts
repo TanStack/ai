@@ -3308,3 +3308,76 @@ describe('OpenRouter finish reasons', () => {
     },
   )
 })
+
+describe('OpenRouter malformed tool arguments', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  // OpenRouter ends a tool call cut off by the output limit with
+  // finish_reason 'tool_calls' (native_finish_reason 'max_output_tokens').
+  it.each([true, false])(
+    'preserves malformed arguments for tool-error handling (finish_reason=%s)',
+    async (withFinishReason) => {
+      setupMockSdkClient([
+        {
+          id: 'chatcmpl-malformed',
+          model: 'openai/gpt-4o-mini',
+          choices: [
+            {
+              delta: {
+                toolCalls: [
+                  {
+                    index: 0,
+                    id: 'call_malformed',
+                    type: 'function',
+                    function: {
+                      name: 'lookup_weather',
+                      arguments: '{"location":', // truncated — invalid JSON
+                    },
+                  },
+                ],
+              },
+              finishReason: withFinishReason ? 'tool_calls' : null,
+            },
+          ],
+        },
+      ])
+      const errorsSpy = vi.spyOn(testLogger, 'errors')
+      const chunks: Array<AdapterYieldChunk> = []
+
+      try {
+        for await (const chunk of createAdapter().chatStream({
+          model: 'openai/gpt-4o-mini',
+          messages: [{ role: 'user', content: 'Weather?' }],
+          tools: [weatherTool],
+          logger: testLogger,
+        })) {
+          chunks.push(chunk)
+        }
+
+        const toolEnd = chunks.find((chunk) => chunk.type === 'TOOL_CALL_END')
+        expect(toolEnd).toBeDefined()
+        expect(toolEnd?.input).toBeUndefined()
+        expect(
+          chunks.find((chunk) => chunk.type === 'TOOL_CALL_ARGS'),
+        ).toMatchObject({
+          toolCallId: 'call_malformed',
+          delta: '{"location":',
+        })
+
+        const parseError = errorsSpy.mock.calls.find((c) =>
+          String(c[0]).includes('tool-args JSON parse failed'),
+        )
+        expect(parseError).toBeDefined()
+        expect(parseError![1]).toMatchObject({
+          toolCallId: 'call_malformed',
+          toolName: 'lookup_weather',
+          rawArguments: '{"location":',
+        })
+      } finally {
+        errorsSpy.mockRestore()
+      }
+    },
+  )
+})
