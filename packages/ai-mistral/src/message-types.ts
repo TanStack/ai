@@ -119,7 +119,7 @@ export interface ChatCompletionAssistantMessageParam {
 
 export interface ChatCompletionToolMessageParam {
   role: 'tool'
-  content: string | Array<ChatCompletionContentPartText>
+  content: string | Array<ChatCompletionContentPart>
   toolCallId: string
   name?: string
 }

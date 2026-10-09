@@ -4,7 +4,7 @@ import { test, expect } from './fixtures'
  * Wire-format verification for multimodal tool-result messages (#363).
  *
  * A tool message's `content` can be `Array<ContentPart>`, and the
- * OpenAI / Anthropic / Gemini adapters must convert it to structured provider
+ * OpenAI / Anthropic / Gemini / Mistral adapters must convert it to structured provider
  * tool output instead of `JSON.stringify`. This spec drives the route at
  * `/api/multimodal-tool-result-wire` (which calls `chat()` with a pre-built
  * conversation that includes a multimodal tool result), then inspects
@@ -126,5 +126,39 @@ test.describe('multimodal tool result — wire format', () => {
     const { ok } = (await res.json()) as { ok: boolean; error?: string }
     // Structural proof that the image becomes a functionResponse.parts inlineData entry lives in packages/ai-gemini/tests/tool-result-multimodal.test.ts — aimock's journal strips multimodal tool content so it can't be asserted here.
     expect(ok).toBe(true)
+  })
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Mistral (/v1/chat/completions)
+  //
+  // Mistral accepts image chunks in a tool message. aimock journals the
+  // chat-completions body as sent, so the tool message content must be an
+  // array with an `image_url` chunk, not a JSON string of the parts.
+  // ──────────────────────────────────────────────────────────────────────────
+  test('mistral: tool message content is an array with an image_url chunk', async ({
+    request,
+    aimockPort,
+    testId,
+  }) => {
+    await request.post(
+      `/api/multimodal-tool-result-wire?provider=mistral&testId=${encodeURIComponent(testId)}`,
+    )
+    const journal = await request.get(
+      `http://127.0.0.1:${aimockPort}/v1/_requests`,
+    )
+    const entries = (await journal.json()) as Array<{ body: any }>
+    const toolMsg = entries[0]?.body?.messages?.find(
+      (m: any) => m.role === 'tool',
+    )
+    expect(Array.isArray(toolMsg?.content)).toBe(true)
+    expect(toolMsg.content).toContainEqual({ type: 'text', text: 'screenshot' })
+    expect(
+      toolMsg.content.some(
+        (p: any) =>
+          p.type === 'image_url' &&
+          typeof p.image_url === 'string' &&
+          p.image_url.startsWith('data:image/png;base64,'),
+      ),
+    ).toBe(true)
   })
 })
