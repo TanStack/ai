@@ -3258,3 +3258,53 @@ describe('structured output usage on interrupted streams', () => {
     },
   )
 })
+
+describe('OpenRouter finish reasons', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  async function finishWith(finishReason: string) {
+    setupMockSdkClient([
+      {
+        id: 'chatcmpl-finish',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'Hello' }, finishReason: null }],
+      },
+      {
+        id: 'chatcmpl-finish',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: {}, finishReason }],
+      },
+    ])
+    const chunks: Array<AdapterYieldChunk> = []
+    for await (const chunk of createAdapter().chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [{ role: 'user', content: 'Hello' }],
+      logger: testLogger,
+    })) {
+      chunks.push(chunk)
+    }
+    return chunks
+  }
+
+  it('reports an unknown finish reason as RUN_ERROR', async () => {
+    const chunks = await finishWith('unexpected_reason')
+    expect(chunks.at(-1)).toMatchObject({
+      type: 'RUN_ERROR',
+      message: 'Provider finish_reason: unexpected_reason',
+    })
+    expect(chunks.map((chunk) => chunk.type)).not.toContain('RUN_FINISHED')
+  })
+
+  it.each(['content_filter', 'error'])(
+    'keeps %s as a content_filter finish',
+    async (finishReason) => {
+      const chunks = await finishWith(finishReason)
+      expect(chunks.at(-1)).toMatchObject({
+        type: 'RUN_FINISHED',
+        finishReason: 'content_filter',
+      })
+    },
+  )
+})
