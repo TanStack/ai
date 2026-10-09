@@ -94,7 +94,7 @@ const stream = chat({
 });
 ```
 
-No `budgetTokens`? A budget model gets a budget from the level: 1024 tokens for `minimal`, 2048 for `low`, 8192 for `medium`, and 16384 for `high` and up.
+No `budgetTokens`? A budget model gets a budget from the level. The shared default is 1024 tokens for `minimal`, 2048 for `low`, 8192 for `medium`, and 16384 for `high` and up. Gemini 2.5 uses its own budgets: for example, `high` is 32768 on `gemini-2.5-pro` and 24576 on `gemini-2.5-flash`.
 
 ## Change the level in middleware
 

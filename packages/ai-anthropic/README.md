@@ -98,7 +98,7 @@ export async function POST(request: Request) {
 
 ### Thinking
 
-Newer Claude models use adaptive thinking — the model decides when and how much to think, and depth is tuned with `output_config.effort`:
+Set how hard Claude thinks with `reasoning` on `chat()`. The adapter sends the right thinking fields for the model:
 
 ```typescript
 const stream = chat({
@@ -109,7 +109,7 @@ const stream = chat({
 })
 ```
 
-Claude 4.6 models also accept the manual `{ type: 'enabled', budget_tokens }` shape; `budget_tokens` must be less than `max_tokens`. Which shapes and sampling parameters each model accepts is enforced by the adapter's types — see the docs for the per-model rules.
+Models that think with a token budget, such as Claude Haiku 4.5, also take `reasoning: { level: 'high', budgetTokens: 8000 }`. The adapter raises `max_tokens` when it is below the budget. The types take only the levels and options of the selected model. See the docs for the levels of each model.
 
 ### Prompt Caching
 
