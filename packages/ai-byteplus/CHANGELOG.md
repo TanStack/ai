@@ -1,5 +1,15 @@
 # @tanstack/ai-byteplus
 
+## 0.6.4
+
+### Patch Changes
+
+- [#1586](https://github.com/TanStack/ai/pull/1586) [`8bd5f07`](https://github.com/TanStack/ai/commit/8bd5f074147a4bf13d4cbbe0c988eda2af697f12) - Attach BytePlus Ark `encrypted_content` to its reasoning message. Before, the `REASONING_ENCRYPTED_VALUE` event used the thinking step's id as `entityId`, and no message had that id. An AG-UI client that is not TanStack's (for example, `@ag-ui/client`) dropped the value, so the next request did not send `encrypted_content` back. Now `entityId` is the id of the reasoning message, and the blob no longer rides on `STEP_FINISHED`.
+
+- Updated dependencies [[`723b4a4`](https://github.com/TanStack/ai/commit/723b4a4e8432825374d4980cc74c5f66dc7d1122), [`d84a49e`](https://github.com/TanStack/ai/commit/d84a49e5fef03499b10f63255880d056a55767a3)]:
+  - @tanstack/ai@0.68.0
+  - @tanstack/openai-base@0.13.1
+
 ## 0.6.3
 
 ### Patch Changes
