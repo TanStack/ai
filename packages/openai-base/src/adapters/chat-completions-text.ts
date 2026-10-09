@@ -6,9 +6,11 @@ import {
 } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
+  hashToolCallId,
   toRunErrorPayload,
   toRetryAfterMs,
   toRunErrorRawEvent,
+  transformMessagesForReplay,
 } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
 import { clientFor, extractRequestOptions } from '../utils/request-options'
@@ -72,8 +74,21 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   TToolCapabilities
 > {
   override readonly kind = 'text' as const
+  override readonly api: string = 'openai-completions'
   readonly name: string
   protected client: OpenAI
+
+  private sourceMetadata(
+    model: string,
+    stopReason?: 'error' | 'aborted',
+  ): Record<string, unknown> {
+    return {
+      tanstack: {
+        source: { provider: this.provider ?? this.name, api: this.api, model },
+        ...(stopReason ? { stopReason } : {}),
+      },
+    }
+  }
 
   /** See {@link OpenAIBaseTextAdapterOptions.strictFallbackWarning}. */
   protected readonly strictFallbackWarning: boolean
@@ -159,6 +174,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       aguiState.hasEmittedRunStarted = true
       yield {
         type: EventType.RUN_STARTED,
+        metadata: this.sourceMetadata(options.model),
         runId: aguiState.runId,
         threadId: aguiState.threadId,
         model: options.model,
@@ -221,6 +237,10 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
 
     yield {
       type: EventType.RUN_ERROR,
+      metadata: this.sourceMetadata(
+        options.model,
+        this.isAbortError(error) ? 'aborted' : 'error',
+      ),
       runId: aguiState.runId,
       threadId: aguiState.threadId,
       model: options.model,
@@ -351,6 +371,8 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       return {
         data: transformed,
         rawText,
+        ...(response.id ? { responseId: response.id } : {}),
+        ...(response.model ? { model: response.model } : {}),
         ...(usage && { usage }),
       }
     } catch (error: unknown) {
@@ -398,6 +420,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     let hasClosedReasoning = false
     let stepId: string | undefined
     let lastModel: string | undefined
+    let lastResponseId: string | undefined
     let finishReason: string | null = null
     let lastUsage:
       | OpenAI.Chat.Completions.ChatCompletionChunk['usage']
@@ -480,6 +503,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           { provider: this.name, model: chunk.model },
         )
 
+        if (chunk.id) lastResponseId = chunk.id
         if (chunk.model) lastModel = chunk.model
 
         // Usage may arrive on a chunk with empty `choices` (OpenAI's
@@ -495,6 +519,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           aguiState.hasEmittedRunStarted = true
           yield {
             type: EventType.RUN_STARTED,
+            metadata: this.sourceMetadata(chatOptions.model),
             runId: aguiState.runId,
             threadId: aguiState.threadId,
             model: chunk.model || chatOptions.model,
@@ -593,6 +618,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         const message = `${this.name}.structuredOutputStream: the response was cut off because the maximum token limit was reached (finish_reason=length); raise the output token limit (max_completion_tokens or max_tokens, depending on the provider)`
         yield {
           type: EventType.RUN_ERROR,
+          metadata: this.sourceMetadata(chatOptions.model),
           runId: aguiState.runId,
           model: lastModel || chatOptions.model,
           timestamp: Date.now(),
@@ -606,6 +632,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       if (accumulatedContent.length === 0) {
         yield {
           type: EventType.RUN_ERROR,
+          metadata: this.sourceMetadata(chatOptions.model),
           runId: aguiState.runId,
           model: lastModel || chatOptions.model,
           timestamp: Date.now(),
@@ -625,6 +652,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       } catch {
         yield {
           type: EventType.RUN_ERROR,
+          metadata: this.sourceMetadata(chatOptions.model),
           runId: aguiState.runId,
           model: lastModel || chatOptions.model,
           timestamp: Date.now(),
@@ -654,6 +682,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
 
       yield {
         type: EventType.RUN_FINISHED,
+        ...(lastResponseId ? { responseId: lastResponseId } : {}),
         runId: aguiState.runId,
         threadId: aguiState.threadId,
         model: lastModel || chatOptions.model,
@@ -668,6 +697,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         aguiState.hasEmittedRunStarted = true
         yield {
           type: EventType.RUN_STARTED,
+          metadata: this.sourceMetadata(chatOptions.model),
           runId: aguiState.runId,
           threadId: aguiState.threadId,
           model: chatOptions.model,
@@ -689,6 +719,10 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       const rawEvent = isAbort ? undefined : toRunErrorRawEvent(error)
       yield {
         type: EventType.RUN_ERROR,
+        metadata: this.sourceMetadata(
+          chatOptions.model,
+          isAbort ? 'aborted' : 'error',
+        ),
         runId: aguiState.runId,
         model: lastModel || chatOptions.model,
         timestamp: Date.now(),
@@ -792,6 +826,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     let accumulatedContent = ''
     let hasEmittedTextMessageStart = false
     let lastModel: string | undefined
+    let lastResponseId: string | undefined
     // Track usage from any chunk that carries it. With
     // `stream_options: { include_usage: true }` OpenAI emits a terminal chunk
     // whose `choices` is `[]` and only the `usage` field is populated; the
@@ -848,6 +883,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         if (chunk.usage) {
           lastUsage = chunk.usage
         }
+        if (chunk.id) lastResponseId = chunk.id
         if (chunk.model) {
           lastModel = chunk.model
         }
@@ -862,6 +898,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           aguiState.hasEmittedRunStarted = true
           yield {
             type: EventType.RUN_STARTED,
+            metadata: this.sourceMetadata(options.model),
             runId: aguiState.runId,
             threadId: aguiState.threadId,
             model: chunk.model || options.model,
@@ -1218,6 +1255,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             'Chat Completions stream ended without a finish_reason or usage-only tail'
           yield {
             type: EventType.RUN_ERROR,
+            metadata: this.sourceMetadata(options.model),
             runId: aguiState.runId,
             model: lastModel || options.model,
             timestamp: Date.now(),
@@ -1242,6 +1280,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           const message = `Provider finish_reason: ${pendingFinishReason}`
           yield {
             type: EventType.RUN_ERROR,
+            metadata: this.sourceMetadata(options.model),
             runId: aguiState.runId,
             model: lastModel || options.model,
             timestamp: Date.now(),
@@ -1274,6 +1313,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         // arrived rather than emitting `usage: undefined`.
         yield {
           type: EventType.RUN_FINISHED,
+          ...(lastResponseId ? { responseId: lastResponseId } : {}),
           runId: aguiState.runId,
           threadId: aguiState.threadId,
           model: lastModel || options.model,
@@ -1323,8 +1363,38 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       })
     }
 
-    // Convert messages
-    for (const message of options.messages) {
+    // History from another model loses its signatures, and its tool IDs are
+    // rewritten to a shape this API accepts. Each call stays paired.
+    const replay = transformMessagesForReplay(
+      options.messages,
+      {
+        provider: this.provider ?? this.name,
+        api: this.api,
+        model: options.model,
+      },
+      (id, { attempt }) => {
+        if (attempt > 0) {
+          const hash = hashToolCallId(`${id}:${attempt}`).slice(0, 8)
+          return `${
+            id
+              .split('|')[0]
+              ?.replace(/[^a-zA-Z0-9_-]/g, '_')
+              .slice(0, 31) || 'call'
+          }_${hash}`
+        }
+        if (id.includes('|')) {
+          const separator = id.indexOf('|')
+          const call = id.slice(0, separator).replace(/[^a-zA-Z0-9_-]/g, '_')
+          const item = id.slice(separator + 1).replace(/[^a-zA-Z0-9_-]/g, '_')
+          const combined = item ? `${call}_${item}` : call
+          return combined.length <= 40
+            ? combined
+            : `${call.slice(0, 31)}_${hashToolCallId(id).slice(0, 8)}`
+        }
+        return (this.provider ?? this.name) === 'openai' ? id.slice(0, 40) : id
+      },
+    )
+    for (const message of replay.messages) {
       messages.push(this.convertMessage(message))
     }
 

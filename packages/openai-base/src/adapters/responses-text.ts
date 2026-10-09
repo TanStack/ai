@@ -7,9 +7,12 @@ import {
 } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
+  hashToolCallId,
+  orderedAssistantBlocks,
   toRunErrorPayload,
   toRetryAfterMs,
   toRunErrorRawEvent,
+  transformMessagesForReplay,
 } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
 import { clientFor, extractRequestOptions } from '../utils/request-options'
@@ -246,8 +249,21 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   OpenAIResponsesToolCallMetadata
 > {
   override readonly kind = 'text' as const
+  override readonly api: string = 'openai-responses'
   readonly name: string
   protected client: OpenAI
+
+  private sourceMetadata(
+    model: string,
+    stopReason?: 'error' | 'aborted',
+  ): Record<string, unknown> {
+    return {
+      tanstack: {
+        source: { provider: this.provider ?? this.name, api: this.api, model },
+        ...(stopReason ? { stopReason } : {}),
+      },
+    }
+  }
 
   /** See {@link OpenAIBaseTextAdapterOptions.strictFallbackWarning}. */
   protected readonly strictFallbackWarning: boolean
@@ -343,6 +359,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         aguiState.hasEmittedRunStarted = true
         yield {
           type: EventType.RUN_STARTED,
+          metadata: this.sourceMetadata(options.model),
           runId: aguiState.runId,
           threadId: aguiState.threadId,
           model: options.model,
@@ -357,6 +374,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       // matter), so we omit the key when there's no code.
       yield {
         type: EventType.RUN_ERROR,
+        metadata: this.sourceMetadata(
+          options.model,
+          this.isAbortError(error) ? 'aborted' : 'error',
+        ),
         model: options.model,
         timestamp: Date.now(),
         message: errorPayload.message,
@@ -475,6 +496,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       return {
         data: transformed,
         rawText,
+        ...(response.id ? { responseId: response.id } : {}),
+        ...(response.model ? { model: response.model } : {}),
         ...(usage && { usage }),
       }
     } catch (error: unknown) {
@@ -527,6 +550,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     let stepId: string | undefined
     let hasClosedReasoning = false
     let model: string = chatOptions.model
+    let responseId: string | undefined
     let usage: OpenAI.Responses.Response['usage'] | undefined
     let responseCompleted = false
 
@@ -631,6 +655,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           aguiState.hasEmittedRunStarted = true
           yield {
             type: EventType.RUN_STARTED,
+            metadata: this.sourceMetadata(chatOptions.model),
             runId: aguiState.runId,
             threadId: aguiState.threadId,
             model,
@@ -656,6 +681,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               : ''
           yield {
             type: EventType.RUN_ERROR,
+            metadata: this.sourceMetadata(chatOptions.model),
             runId: aguiState.runId,
             model,
             timestamp: Date.now(),
@@ -729,6 +755,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         if (chunk.type === 'response.completed') {
           responseCompleted = true
           const response = chunk.response
+          if (response.id) responseId = response.id
           if (response.usage) usage = response.usage
           if (response.model) model = response.model
           // Terminal event: do not wait for the HTTP body to close (#1445).
@@ -748,6 +775,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           // under `exactOptionalPropertyTypes` (see chatStream catch).
           yield {
             type: EventType.RUN_ERROR,
+            metadata: this.sourceMetadata(chatOptions.model),
             runId: aguiState.runId,
             model,
             timestamp: Date.now(),
@@ -774,6 +802,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         const message = 'Response stream ended before response.completed'
         yield {
           type: EventType.RUN_ERROR,
+          metadata: this.sourceMetadata(chatOptions.model),
           runId: aguiState.runId,
           model,
           timestamp: Date.now(),
@@ -787,6 +816,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       if (accumulatedContent.length === 0) {
         yield {
           type: EventType.RUN_ERROR,
+          metadata: this.sourceMetadata(chatOptions.model),
           runId: aguiState.runId,
           model,
           timestamp: Date.now(),
@@ -806,6 +836,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       } catch {
         yield {
           type: EventType.RUN_ERROR,
+          metadata: this.sourceMetadata(chatOptions.model),
           runId: aguiState.runId,
           model,
           timestamp: Date.now(),
@@ -838,6 +869,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
       yield {
         type: EventType.RUN_FINISHED,
+        ...(responseId ? { responseId } : {}),
         runId: aguiState.runId,
         threadId: aguiState.threadId,
         model,
@@ -852,6 +884,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         aguiState.hasEmittedRunStarted = true
         yield {
           type: EventType.RUN_STARTED,
+          metadata: this.sourceMetadata(chatOptions.model),
           runId: aguiState.runId,
           threadId: aguiState.threadId,
           model,
@@ -872,6 +905,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       const rawEvent = isAbort ? undefined : toRunErrorRawEvent(error)
       yield {
         type: EventType.RUN_ERROR,
+        metadata: this.sourceMetadata(
+          chatOptions.model,
+          isAbort ? 'aborted' : 'error',
+        ),
         runId: aguiState.runId,
         model,
         timestamp: Date.now(),
@@ -1043,6 +1080,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
     // Preserve response metadata across events
     let model: string = options.model
+    let responseId: string | undefined
 
     // AG-UI lifecycle tracking
     let stepId: string | null = null
@@ -1313,6 +1351,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           aguiState.hasEmittedRunStarted = true
           yield {
             type: EventType.RUN_STARTED,
+            metadata: this.sourceMetadata(options.model),
             runId: aguiState.runId,
             threadId: aguiState.threadId,
             model: model || options.model,
@@ -1348,6 +1387,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           const code = isRefusal ? 'refusal' : contentPart.type
           return {
             type: EventType.RUN_ERROR,
+            metadata: this.sourceMetadata(options.model),
             model: model || options.model,
             timestamp: Date.now(),
             message,
@@ -1363,6 +1403,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           chunk.type === 'response.incomplete' ||
           chunk.type === 'response.failed'
         ) {
+          if (chunk.response.id) responseId = chunk.response.id
           model = chunk.response.model
         }
 
@@ -1427,6 +1468,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           // `RUN_FINISHED { finishReason: 'stop' }` — masking the failure.
           yield {
             type: EventType.RUN_ERROR,
+            metadata: this.sourceMetadata(options.model),
             model: chunk.response.model,
             timestamp: Date.now(),
             message: errorMessage,
@@ -1878,6 +1920,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         }
 
         if (chunk.type === 'response.completed') {
+          if (chunk.response.id) responseId = chunk.response.id
+          if (chunk.response.model) model = chunk.response.model
           const responseOutput = Array.isArray(chunk.response.output)
             ? chunk.response.output
             : []
@@ -2097,6 +2141,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
           yield {
             type: EventType.RUN_FINISHED,
+            ...(responseId ? { responseId } : {}),
             runId: aguiState.runId,
             threadId: aguiState.threadId,
             model: model || options.model,
@@ -2119,6 +2164,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           const code = chunk.code ?? undefined
           yield {
             type: EventType.RUN_ERROR,
+            metadata: this.sourceMetadata(options.model),
             model: model || options.model,
             timestamp: Date.now(),
             message: chunk.message,
@@ -2156,6 +2202,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         const message = 'Response stream ended before response.completed'
         yield {
           type: EventType.RUN_ERROR,
+          metadata: this.sourceMetadata(options.model),
           model: model || options.model,
           timestamp: Date.now(),
           message,
@@ -2181,6 +2228,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       // error body when present.
       yield {
         type: EventType.RUN_ERROR,
+        metadata: this.sourceMetadata(
+          options.model,
+          this.isAbortError(error) ? 'aborted' : 'error',
+        ),
         model: options.model,
         timestamp: Date.now(),
         message: errorPayload.message,
@@ -2202,7 +2253,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   protected mapOptionsToRequest(
     options: TextOptions<TProviderOptions>,
   ): Omit<ResponseCreateParams, 'stream'> {
-    const input = this.convertMessagesToInput(options.messages)
+    const input = this.convertMessagesToInput(options.messages, options.model)
 
     if (this.strictFallbackWarning) {
       warnStrictFallback(options.tools, options.logger)
@@ -2287,7 +2338,85 @@ export abstract class OpenAIBaseResponsesTextAdapter<
    */
   protected convertMessagesToInput(
     messages: Array<ModelMessage>,
+    targetModel: string = this.model,
   ): ResponseInput {
+    // History from another model loses its signatures, and its tool IDs are
+    // rewritten to `call|item` IDs this API accepts. Each call stays paired.
+    const target = {
+      provider: this.provider ?? this.name,
+      api: this.api,
+      model: targetModel,
+    }
+    const itemIds = new Map<string, string>()
+    const usedCallIds = new Set<string>()
+    const usedItemIds = new Set<string>()
+    const normalizedCompositeIds = new Set<string>()
+    for (const message of messages) {
+      const source = message.metadata?.tanstack?.source
+      const sameSource =
+        !source ||
+        (source.provider === target.provider &&
+          source.api === target.api &&
+          source.model === target.model)
+      for (const call of message.toolCalls ?? []) {
+        if (sameSource) usedCallIds.add(call.id)
+        const metadata = call.metadata
+        const itemId =
+          metadata !== null &&
+          typeof metadata === 'object' &&
+          'itemId' in metadata &&
+          typeof metadata.itemId === 'string'
+            ? metadata.itemId
+            : undefined
+        if (itemId) itemIds.set(call.id, itemId)
+        if (sameSource && itemId) usedItemIds.add(itemId)
+      }
+    }
+    const normalizePart = (part: string) =>
+      part
+        .replace(/[^a-zA-Z0-9_-]/g, '_')
+        .slice(0, 64)
+        .replace(/_+$/, '')
+    const replay = transformMessagesForReplay(
+      messages,
+      target,
+      (id, { source, attempt }) => {
+        const [call = '', compositeItem] = id.split('|')
+        const item = compositeItem ?? itemIds.get(id)
+        let retry = attempt
+        let callId = normalizePart(
+          retry
+            ? `${call.slice(0, 48)}_${hashToolCallId(`${id}:${retry}`)}`
+            : call,
+        )
+        while (!callId || usedCallIds.has(callId)) {
+          retry++
+          callId = normalizePart(
+            `${call.slice(0, 48)}_${hashToolCallId(`${id}:${retry}`)}`,
+          )
+        }
+        usedCallIds.add(callId)
+        if (item === undefined) return callId
+        let itemId =
+          source &&
+          (source.provider !== target.provider || source.api !== target.api)
+            ? `fc_${hashToolCallId(item)}`
+            : normalizePart(item)
+        if (!itemId.startsWith('fc_')) itemId = normalizePart(`fc_${itemId}`)
+        let itemRetry = attempt
+        while (usedItemIds.has(itemId)) {
+          itemRetry++
+          itemId = `fc_${hashToolCallId(`${item}:${itemRetry}`)}`
+        }
+        usedItemIds.add(itemId)
+        const composite = `${callId}|${itemId}`
+        normalizedCompositeIds.add(composite)
+        return composite
+      },
+    )
+    const callIdFor = (id: string) =>
+      normalizedCompositeIds.has(id) ? (id.split('|')[0] ?? id) : id
+    messages = replay.messages
     const result: ResponseInput = []
     // A reasoning item id may only appear once in `input`; replaying the same
     // id twice fails with "Duplicate item found with id rs_...". Providers have
@@ -2317,15 +2446,24 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           continue
         }
         const toolContent = message.content
-        const output: string | Array<ResponseFunctionCallOutputItem> =
-          Array.isArray(toolContent)
-            ? toolContent.map((part) => this.convertContentPartToInput(part))
-            : typeof toolContent === 'string'
-              ? toolContent
-              : JSON.stringify(toolContent)
+        // A model without image input gets no images from a tool result.
+        const parts = Array.isArray(toolContent)
+          ? toolContent.filter(
+              (part) =>
+                part.type !== 'image' ||
+                (this.inputModalities?.includes('image') ?? true),
+            )
+          : undefined
+        const output: string | Array<ResponseFunctionCallOutputItem> = parts
+          ? parts.length > 0 || parts.length === toolContent?.length
+            ? parts.map((part) => this.convertContentPartToInput(part))
+            : '(see attached image)'
+          : typeof toolContent === 'string'
+            ? toolContent
+            : JSON.stringify(toolContent)
         result.push({
           type: 'function_call_output',
-          call_id: message.toolCallId || '',
+          call_id: message.toolCallId ? callIdFor(message.toolCallId) : '',
           output,
         })
         continue
@@ -2333,6 +2471,13 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
       // Handle assistant messages
       if (message.role === 'assistant') {
+        const firstItem = result.length
+        const source = message.metadata?.tanstack?.source
+        const foreign =
+          source &&
+          (source.provider !== target.provider ||
+            source.api !== target.api ||
+            source.model !== target.model)
         // Every reasoning item this message could contribute, and how many of
         // them actually made it into `input` after de-duplication. Both counts
         // are needed below to decide whether the function calls can still be
@@ -2394,7 +2539,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               // The raw ws_/msg_ items carry ids that must pair with their
               // reasoning item, the same as function calls above. When they
               // cannot pair, skip them and send the plain message with no id.
-              if (webSearchCall && canPairReasoning) {
+              if (webSearchCall && canPairReasoning && !foreign) {
                 result.push(webSearchCall)
                 rawAssistantMessage ??= metadata.openai?.assistantMessage
               }
@@ -2406,14 +2551,20 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               typeof toolCall.function.arguments === 'string'
                 ? toolCall.function.arguments
                 : JSON.stringify(toolCall.function.arguments)
+            const replayItemId = normalizedCompositeIds.has(toolCall.id)
+              ? toolCall.id.split('|')[1]
+              : undefined
+            const replayMetadata = replayItemId
+              ? { ...metadata, itemId: replayItemId }
+              : toolCall.metadata
             const replayCall = {
-              id: toolCall.id,
+              id: callIdFor(toolCall.id),
               function: {
                 name: toolCall.function.name,
                 arguments: argumentsString,
               },
-              ...(toolCall.metadata !== undefined
-                ? { metadata: toolCall.metadata }
+              ...(replayMetadata !== undefined
+                ? { metadata: replayMetadata }
                 : {}),
             }
             const userItem = userToolRequestItem(replayCall)
@@ -2422,11 +2573,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               result.push(userItem)
               continue
             }
-            const itemId = metadata?.itemId
+            const itemId = replayItemId ?? metadata?.itemId
 
             result.push({
               type: 'function_call',
-              call_id: toolCall.id,
+              call_id: callIdFor(toolCall.id),
               ...(itemId && canPairReasoning && { id: itemId }),
               name: toolCall.function.name,
               arguments: argumentsString,
@@ -2448,6 +2599,34 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           }
         }
 
+        // Another model's answer: plain text and calls in the order the
+        // model sent them. Its raw items are not sent.
+        if (foreign) {
+          const emitted = result.splice(firstItem)
+          const text = this.extractTextContent(message.content)
+          const blocks = orderedAssistantBlocks(message) ?? [
+            ...(text ? [{ type: 'text' as const, text }] : []),
+            ...(message.toolCalls ?? []).map((toolCall) => ({
+              type: 'tool-call' as const,
+              toolCall,
+            })),
+          ]
+          for (const block of blocks) {
+            if (block.type === 'text') {
+              result.push({
+                type: 'message',
+                role: 'assistant',
+                content: block.text,
+              })
+            } else if (block.type === 'tool-call') {
+              const callId = callIdFor(block.toolCall.id)
+              const item = emitted.find(
+                (item) => 'call_id' in item && item.call_id === callId,
+              )
+              if (item) result.push(item)
+            }
+          }
+        }
         continue
       }
 
