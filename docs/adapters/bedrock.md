@@ -229,7 +229,7 @@ Tools take the same metadata. Pass `metadata: { cachePoint: { type: 'default' } 
 
 ### Token usage
 
-`onUsage` and `RUN_FINISHED.usage` report Bedrock's counts as `promptTokens`, `completionTokens`, and `totalTokens`. When a request hits or writes a prompt cache, the cache counts arrive on `promptTokensDetails.cachedTokens` and `promptTokensDetails.cacheWriteTokens`. Bedrock counts only the uncached part of the input in `promptTokens`, so add the two cache counts to it to get the full input size.
+`onUsage` and `RUN_FINISHED.usage` report Bedrock's counts as `promptTokens`, `completionTokens`, and `totalTokens`. `promptTokens` is the full input, cached tokens included. When a request hits or writes a prompt cache, the cache parts are also on `promptTokensDetails.cachedTokens` and `promptTokensDetails.cacheWriteTokens`. To read these counts, see [Token usage](../chat/stream-events#token-usage).
 
 ## Chat Completions API (`api: 'chat'`)
 

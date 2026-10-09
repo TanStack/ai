@@ -154,7 +154,7 @@
           "label": "Stream Events",
           "to": "chat/stream-events",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-09-27"
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "Subagents",
@@ -1192,7 +1192,7 @@
           "label": "Anthropic",
           "to": "adapters/anthropic",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-07"
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "Google Gemini",
@@ -1314,7 +1314,7 @@
           "label": "Claude Code",
           "to": "adapters/claude-code",
           "addedAt": "2026-06-12",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "Codex",
@@ -1344,7 +1344,7 @@
           "label": "Amazon Bedrock",
           "to": "adapters/bedrock",
           "addedAt": "2026-06-25",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "BytePlus",

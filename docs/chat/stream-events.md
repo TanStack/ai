@@ -59,6 +59,27 @@ for await (const chunk of stream) {
 }
 ```
 
+## Token usage
+
+You want to know what a run cost. `RUN_FINISHED.usage.promptTokens` is the full input, cached tokens included. The cache parts are also on `promptTokensDetails`:
+
+- `cachedTokens`: tokens read from the cache.
+- `cacheWriteTokens`: tokens written to the cache.
+
+Need the uncached part? Subtract both:
+
+```typescript
+import type { TokenUsage } from "@tanstack/ai";
+
+function uncachedTokens(usage: TokenUsage) {
+  const read = usage.promptTokensDetails?.cachedTokens ?? 0;
+  const written = usage.promptTokensDetails?.cacheWriteTokens ?? 0;
+  return usage.promptTokens - read - written;
+}
+```
+
+Upgrading the Anthropic, Bedrock, or Claude Code adapter? Their `promptTokens` used to count only the uncached tokens. If your code adds `cachedTokens` to `promptTokens`, remove that addition. Otherwise you count the cache two times.
+
 ## Threads and runs
 
 Two ids frame every stream. They come from the AG-UI protocol, not from a storage layer.
