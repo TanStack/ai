@@ -3,7 +3,7 @@ id: WorldGenerationAssets
 title: WorldGenerationAssets
 ---
 
-Defined in: [packages/ai/src/types.ts:2497](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2497)
+Defined in: [packages/ai/src/types.ts:2518](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2518)
 
 **`Experimental`**
 
@@ -21,7 +21,7 @@ to fetch from a browser.
 optional caption?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2499](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2499)
+Defined in: [packages/ai/src/types.ts:2520](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2520)
 
 **`Experimental`**
 
@@ -35,7 +35,7 @@ Auto-generated scene description
 optional imagery?: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:2513](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2513)
+Defined in: [packages/ai/src/types.ts:2534](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2534)
 
 **`Experimental`**
 
@@ -53,7 +53,7 @@ optional panoUrl?: string;
 optional mesh?: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:2508](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2508)
+Defined in: [packages/ai/src/types.ts:2529](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2529)
 
 **`Experimental`**
 
@@ -83,7 +83,7 @@ optional hqMeshUrl?: string;
 optional splats?: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:2502](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2502)
+Defined in: [packages/ai/src/types.ts:2523](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2523)
 
 **`Experimental`**
 
@@ -115,7 +115,7 @@ Quality-key map of splat URLs (`100k`, `500k`, `full_res`, …)
 optional thumbnailUrl?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2501](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2501)
+Defined in: [packages/ai/src/types.ts:2522](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2522)
 
 **`Experimental`**
 

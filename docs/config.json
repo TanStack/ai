@@ -1123,7 +1123,7 @@
           "label": "Bring Your Own Key",
           "to": "advanced/byok",
           "addedAt": "2026-08-18",
-          "updatedAt": "2026-09-30"
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "Debug Logging",
@@ -1210,13 +1210,13 @@
           "label": "Google Vertex AI",
           "to": "adapters/vertex",
           "addedAt": "2026-08-19",
-          "updatedAt": "2026-08-19"
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "Ollama",
           "to": "adapters/ollama",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-03"
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "Grok (xAI)",
@@ -1291,13 +1291,13 @@
           "label": "Vercel AI Gateway",
           "to": "adapters/vercel-gateway",
           "addedAt": "2026-08-12",
-          "updatedAt": "2026-09-18"
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "Lovable AI Gateway",
           "to": "adapters/lovable",
           "addedAt": "2026-08-24",
-          "updatedAt": "2026-09-28"
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "OpenAI-Compatible",
@@ -1315,7 +1315,7 @@
           "label": "Cloudflare",
           "to": "adapters/cloudflare",
           "addedAt": "2026-09-03",
-          "updatedAt": "2026-09-18"
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "Claude Code",
@@ -1327,25 +1327,25 @@
           "label": "Codex",
           "to": "adapters/codex",
           "addedAt": "2026-06-12",
-          "updatedAt": "2026-08-18"
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "OpenCode",
           "to": "adapters/opencode",
           "addedAt": "2026-06-12",
-          "updatedAt": "2026-08-17"
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "Grok Build",
           "to": "adapters/grok-build",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-18"
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "ACP-Compatible",
           "to": "adapters/acp-compatible",
           "addedAt": "2026-06-30",
-          "updatedAt": "2026-08-18"
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "Amazon Bedrock",

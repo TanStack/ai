@@ -1,5 +1,19 @@
 # @tanstack/ai-claude-code
 
+## 0.8.0
+
+### Minor Changes
+
+- [#1677](https://github.com/TanStack/ai/pull/1677) [`f562eac`](https://github.com/TanStack/ai/commit/f562eacf0cf1367b2ffb3703143aff5621e5e945) - `usage.promptTokens` is now the total input on the Anthropic, Bedrock Converse, and Claude Code adapters. It is the uncached tokens plus the cache reads plus the cache writes. Before, it was the uncached tokens only. `totalTokens` now uses the new `promptTokens`. The cache parts stay in `promptTokensDetails.cachedTokens` and `promptTokensDetails.cacheWriteTokens`. Other adapters already report `promptTokens` this way.
+
+  **Breaking:** if your code adds `cachedTokens` or `cacheWriteTokens` to `promptTokens` to get the total input, it now counts the cache two times. Use `promptTokens` as the total. To get the uncached tokens, subtract `cachedTokens` and `cacheWriteTokens` from `promptTokens`.
+
+### Patch Changes
+
+- Updated dependencies [[`7dbfaf6`](https://github.com/TanStack/ai/commit/7dbfaf6c37a3d97de3b1f5bdb87be8bbbe2b0164), [`88fd67c`](https://github.com/TanStack/ai/commit/88fd67cd7ddfbe2b154173d2395b2c0338e97644), [`3aa2e3d`](https://github.com/TanStack/ai/commit/3aa2e3d95e2dcb1c14b4fda3bcdbdf3152582092), [`c5ae415`](https://github.com/TanStack/ai/commit/c5ae4152d0a040bb6ce7321e16b7ee66d3c36f96), [`13ba1b0`](https://github.com/TanStack/ai/commit/13ba1b0e47dc822f10f6c5133184f92c2eb0a013), [`377262c`](https://github.com/TanStack/ai/commit/377262c0b4e5f59f8fd467a831b9341cc705077e)]:
+  - @tanstack/ai@0.67.0
+  - @tanstack/ai-sandbox@0.5.21
+
 ## 0.7.4
 
 ### Patch Changes

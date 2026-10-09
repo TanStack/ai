@@ -70,6 +70,8 @@ const config: Omit<GrokTextConfig, "apiKey"> = {
 const adapter = createGrokText("grok-build-0.1", process.env.XAI_API_KEY!, config);
 ```
 
+Need a header on each request, or a log of each model call? The chat adapters on this page support [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call).
+
 ## Grok on Vertex
 
 Use `@tanstack/ai-grok/vertex` when Grok must run on Vertex AI. That path

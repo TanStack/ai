@@ -88,6 +88,7 @@ import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiInterruptsTestRouteImport } from './routes/api.interrupts-test'
 import { Route as ApiJoinRunClientToolRouteImport } from './routes/api.join-run-client-tool'
 import { Route as ApiJsonTransportRouteImport } from './routes/api.json-transport'
+import { Route as ApiKeyedAdapterRouteImport } from './routes/api.keyed-adapter'
 import { Route as ApiLazyToolsWireRouteImport } from './routes/api.lazy-tools-wire'
 import { Route as ApiLoneSurrogatesWireRouteImport } from './routes/api.lone-surrogates-wire'
 import { Route as ApiMaxToolCallsWireRouteImport } from './routes/api.max-tool-calls-wire'
@@ -152,6 +153,7 @@ import { Route as ApiVideoLiveRouteImport } from './routes/api.video-live'
 import { Route as ApiVoiceRouteImport } from './routes/api.voice'
 import { Route as ApiWebMcpPageToolsRouteImport } from './routes/api.web-mcp-page-tools'
 import { Route as ApiWorldRouteImport } from './routes/api.world'
+import { Route as ApiWrapFetchWireRouteImport } from './routes/api.wrap-fetch-wire'
 import { Route as ApiAudioStreamRouteImport } from './routes/api.audio.stream'
 import { Route as ApiImageStreamRouteImport } from './routes/api.image.stream'
 import { Route as ApiTranscriptionStreamRouteImport } from './routes/api.transcription.stream'
@@ -570,6 +572,11 @@ const ApiJsonTransportRoute = ApiJsonTransportRouteImport.update({
   path: '/api/json-transport',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiKeyedAdapterRoute = ApiKeyedAdapterRouteImport.update({
+  id: '/api/keyed-adapter',
+  path: '/api/keyed-adapter',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiLazyToolsWireRoute = ApiLazyToolsWireRouteImport.update({
   id: '/api/lazy-tools-wire',
   path: '/api/lazy-tools-wire',
@@ -908,6 +915,11 @@ const ApiWorldRoute = ApiWorldRouteImport.update({
   path: '/api/world',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWrapFetchWireRoute = ApiWrapFetchWireRouteImport.update({
+  id: '/api/wrap-fetch-wire',
+  path: '/api/wrap-fetch-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAudioStreamRoute = ApiAudioStreamRouteImport.update({
   id: '/stream',
   path: '/stream',
@@ -1013,6 +1025,7 @@ export interface FileRoutesByFullPath {
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
   '/api/json-transport': typeof ApiJsonTransportRoute
+  '/api/keyed-adapter': typeof ApiKeyedAdapterRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/lone-surrogates-wire': typeof ApiLoneSurrogatesWireRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
@@ -1077,6 +1090,7 @@ export interface FileRoutesByFullPath {
   '/api/voice': typeof ApiVoiceRoute
   '/api/web-mcp-page-tools': typeof ApiWebMcpPageToolsRoute
   '/api/world': typeof ApiWorldRoute
+  '/api/wrap-fetch-wire': typeof ApiWrapFetchWireRoute
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/image/stream': typeof ApiImageStreamRoute
@@ -1163,6 +1177,7 @@ export interface FileRoutesByTo {
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
   '/api/json-transport': typeof ApiJsonTransportRoute
+  '/api/keyed-adapter': typeof ApiKeyedAdapterRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/lone-surrogates-wire': typeof ApiLoneSurrogatesWireRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
@@ -1227,6 +1242,7 @@ export interface FileRoutesByTo {
   '/api/voice': typeof ApiVoiceRoute
   '/api/web-mcp-page-tools': typeof ApiWebMcpPageToolsRoute
   '/api/world': typeof ApiWorldRoute
+  '/api/wrap-fetch-wire': typeof ApiWrapFetchWireRoute
   '/$provider': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/image/stream': typeof ApiImageStreamRoute
@@ -1314,6 +1330,7 @@ export interface FileRoutesById {
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
   '/api/json-transport': typeof ApiJsonTransportRoute
+  '/api/keyed-adapter': typeof ApiKeyedAdapterRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/lone-surrogates-wire': typeof ApiLoneSurrogatesWireRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
@@ -1378,6 +1395,7 @@ export interface FileRoutesById {
   '/api/voice': typeof ApiVoiceRoute
   '/api/web-mcp-page-tools': typeof ApiWebMcpPageToolsRoute
   '/api/world': typeof ApiWorldRoute
+  '/api/wrap-fetch-wire': typeof ApiWrapFetchWireRoute
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/image/stream': typeof ApiImageStreamRoute
@@ -1466,6 +1484,7 @@ export interface FileRouteTypes {
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
     | '/api/json-transport'
+    | '/api/keyed-adapter'
     | '/api/lazy-tools-wire'
     | '/api/lone-surrogates-wire'
     | '/api/max-tool-calls-wire'
@@ -1530,6 +1549,7 @@ export interface FileRouteTypes {
     | '/api/voice'
     | '/api/web-mcp-page-tools'
     | '/api/world'
+    | '/api/wrap-fetch-wire'
     | '/$provider/'
     | '/api/audio/stream'
     | '/api/image/stream'
@@ -1616,6 +1636,7 @@ export interface FileRouteTypes {
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
     | '/api/json-transport'
+    | '/api/keyed-adapter'
     | '/api/lazy-tools-wire'
     | '/api/lone-surrogates-wire'
     | '/api/max-tool-calls-wire'
@@ -1680,6 +1701,7 @@ export interface FileRouteTypes {
     | '/api/voice'
     | '/api/web-mcp-page-tools'
     | '/api/world'
+    | '/api/wrap-fetch-wire'
     | '/$provider'
     | '/api/audio/stream'
     | '/api/image/stream'
@@ -1766,6 +1788,7 @@ export interface FileRouteTypes {
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
     | '/api/json-transport'
+    | '/api/keyed-adapter'
     | '/api/lazy-tools-wire'
     | '/api/lone-surrogates-wire'
     | '/api/max-tool-calls-wire'
@@ -1830,6 +1853,7 @@ export interface FileRouteTypes {
     | '/api/voice'
     | '/api/web-mcp-page-tools'
     | '/api/world'
+    | '/api/wrap-fetch-wire'
     | '/$provider/'
     | '/api/audio/stream'
     | '/api/image/stream'
@@ -1917,6 +1941,7 @@ export interface RootRouteChildren {
   ApiInterruptsTestRoute: typeof ApiInterruptsTestRoute
   ApiJoinRunClientToolRoute: typeof ApiJoinRunClientToolRoute
   ApiJsonTransportRoute: typeof ApiJsonTransportRoute
+  ApiKeyedAdapterRoute: typeof ApiKeyedAdapterRoute
   ApiLazyToolsWireRoute: typeof ApiLazyToolsWireRoute
   ApiLoneSurrogatesWireRoute: typeof ApiLoneSurrogatesWireRoute
   ApiMaxToolCallsWireRoute: typeof ApiMaxToolCallsWireRoute
@@ -1981,6 +2006,7 @@ export interface RootRouteChildren {
   ApiVoiceRoute: typeof ApiVoiceRoute
   ApiWebMcpPageToolsRoute: typeof ApiWebMcpPageToolsRoute
   ApiWorldRoute: typeof ApiWorldRoute
+  ApiWrapFetchWireRoute: typeof ApiWrapFetchWireRoute
   ProviderIndexRoute: typeof ProviderIndexRoute
 }
 
@@ -2539,6 +2565,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiJsonTransportRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/keyed-adapter': {
+      id: '/api/keyed-adapter'
+      path: '/api/keyed-adapter'
+      fullPath: '/api/keyed-adapter'
+      preLoaderRoute: typeof ApiKeyedAdapterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/lazy-tools-wire': {
       id: '/api/lazy-tools-wire'
       path: '/api/lazy-tools-wire'
@@ -2987,6 +3020,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWorldRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/wrap-fetch-wire': {
+      id: '/api/wrap-fetch-wire'
+      path: '/api/wrap-fetch-wire'
+      fullPath: '/api/wrap-fetch-wire'
+      preLoaderRoute: typeof ApiWrapFetchWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/audio/stream': {
       id: '/api/audio/stream'
       path: '/stream'
@@ -3165,6 +3205,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiInterruptsTestRoute: ApiInterruptsTestRoute,
   ApiJoinRunClientToolRoute: ApiJoinRunClientToolRoute,
   ApiJsonTransportRoute: ApiJsonTransportRoute,
+  ApiKeyedAdapterRoute: ApiKeyedAdapterRoute,
   ApiLazyToolsWireRoute: ApiLazyToolsWireRoute,
   ApiLoneSurrogatesWireRoute: ApiLoneSurrogatesWireRoute,
   ApiMaxToolCallsWireRoute: ApiMaxToolCallsWireRoute,
@@ -3229,6 +3270,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiVoiceRoute: ApiVoiceRoute,
   ApiWebMcpPageToolsRoute: ApiWebMcpPageToolsRoute,
   ApiWorldRoute: ApiWorldRoute,
+  ApiWrapFetchWireRoute: ApiWrapFetchWireRoute,
   ProviderIndexRoute: ProviderIndexRoute,
 }
 export const routeTree = rootRouteImport

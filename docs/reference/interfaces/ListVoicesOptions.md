@@ -3,7 +3,7 @@ id: ListVoicesOptions
 title: ListVoicesOptions
 ---
 
-Defined in: [packages/ai/src/types.ts:2791](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2791)
+Defined in: [packages/ai/src/types.ts:2812](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2812)
 
 Options for listing a provider's voices.
 
@@ -15,7 +15,7 @@ Options for listing a provider's voices.
 optional abortSignal?: AbortSignal;
 ```
 
-Defined in: [packages/ai/src/types.ts:2801](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2801)
+Defined in: [packages/ai/src/types.ts:2822](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2822)
 
 Effective abort signal. Adapters forward this to the provider SDK when
 supported.
@@ -28,7 +28,7 @@ supported.
 optional origins?: VoiceOrigin[];
 ```
 
-Defined in: [packages/ai/src/types.ts:2796](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2796)
+Defined in: [packages/ai/src/types.ts:2817](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2817)
 
 Restrict the result to voices of these origins. Adapters filter server
 side when the provider supports it, and in memory otherwise.

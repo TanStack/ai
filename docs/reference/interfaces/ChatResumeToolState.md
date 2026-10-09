@@ -3,7 +3,7 @@ id: ChatResumeToolState
 title: ChatResumeToolState
 ---
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:356](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L356)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:363](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L363)
 
 Tool decisions reconstructed by server-side middleware from validated resume
 entries. This lets empty-message interrupt resumes continue tool execution
@@ -17,7 +17,7 @@ without relying on client message history.
 optional approvals?: ReadonlyMap<string, ToolApprovalResolution>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:357](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L357)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:364](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L364)
 
 ***
 
@@ -27,7 +27,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:357](https://gi
 optional cancelledToolCallIds?: ReadonlySet<string>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:371](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L371)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:378](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L378)
 
 ***
 
@@ -37,7 +37,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:371](https://gi
 optional clientToolErrors?: ReadonlyMap<string, string>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:359](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L359)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:366](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L366)
 
 ***
 
@@ -47,7 +47,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:359](https://gi
 optional clientToolResults?: ReadonlyMap<string, unknown>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:358](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L358)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:365](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L365)
 
 ***
 
@@ -57,7 +57,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:358](https://gi
 optional deniedToolResults?: ReadonlyMap<string, unknown>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:370](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L370)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:377](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L377)
 
 ***
 
@@ -67,7 +67,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:370](https://gi
 optional genericInterruptRequests?: ReadonlyMap<string, GenericInterruptRequestBase<InterruptDefinition<any, any, any, any, any>>>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:364](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L364)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:371](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L371)
 
 Durable generic requests reconstructed by server middleware.
 
@@ -79,4 +79,4 @@ Durable generic requests reconstructed by server middleware.
 optional genericInterrupts?: ReadonlyMap<string, ChatResumeGenericResolution>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:360](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L360)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:367](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L367)
