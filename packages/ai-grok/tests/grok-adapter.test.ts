@@ -581,7 +581,7 @@ describe('Grok adapters', () => {
       // Type-level regression guard: the SummarizeAdapter constraint only
       // instantiates at the summarize() call site, so constructing the adapter
       // (covered above) is not enough. This closure is type-checked but never
-      // executed â€” passing CI's test:types is the assertion.
+      // executed - passing CI's test:types is the assertion.
       const _typeCheck = () => {
         void summarize({ adapter: grokSummarize('grok-4.3'), text: '' })
         void summarize({ adapter: grokSummarize('grok-build-0.1'), text: '' })

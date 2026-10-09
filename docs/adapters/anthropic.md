@@ -297,7 +297,7 @@ const stream = chat({
 
 What goes on the wire:
 
-- `off` sends `thinking: { type: "disabled" }`.
+- `off` sends `thinking: { type: "disabled" }` on the models with `off` in the table below. On a model without `off`, such as `claude-fable-5`, the types reject it, and at run time it moves to the lowest level that the model has.
 - Claude 4.6 gets adaptive thinking and the top-level `effort`.
 - Claude 4.7 and later get adaptive thinking and `output_config.effort`. With an `outputSchema`, the adapter adds `output_config.format` next to the effort.
 - Budget models get `thinking: { type: "enabled", budget_tokens }`. The level picks the budget, or you set it with `budgetTokens`. The adapter raises `max_tokens` when it is below the budget.
