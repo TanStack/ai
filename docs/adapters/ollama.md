@@ -161,6 +161,12 @@ export async function POST(request: Request) {
 
 **Note:** Tool support varies by model. Models like `llama3`, `mistral`, and `qwen2` generally have good tool calling support.
 
+## Tool choice
+
+Ollama ignores `toolChoice`. Ollama has no tool choice, so the model decides to call a tool or not, also with `'none'` or `'required'`.
+
+Want no tool calls for a request? Do not pass `tools`. For the other providers, see [Choose when the model calls a tool](../tools/tools#choose-when-the-model-calls-a-tool).
+
 ## Model Options
 
 Ollama supports various provider-specific options. Unlike the other providers, Ollama nests its sampling and runner parameters inside an `options` object **within** `modelOptions` — `temperature`, `top_p`, and `num_predict` (the token-limit key) all live under `modelOptions.options`:

@@ -163,6 +163,7 @@ const dynamicTemperature: ChatMiddleware = {
 | `tools` | `Tool[]` | Available tools |
 | `metadata` | `Record<string, unknown>` | Request metadata |
 | `modelOptions` | `Record<string, unknown>` | Provider-native options — this is where sampling params (`temperature`, `top_p` / `topP`, the provider's `max*Tokens` key) now live, alongside every other model-specific knob. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options). |
+| `toolChoice` | `ToolChoice \| undefined` | How the model uses the tools at the next model call. See [Change the tool choice of a call](#change-the-tool-choice-of-a-call). |
 | `wrapFetch` | `FetchWrapper \| undefined` | Wraps the HTTP fetch of the next model call. See [Change the HTTP requests of a call](#change-the-http-requests-of-a-call). |
 
 When multiple middleware define `onConfig`, the config is **piped** through them in order — each receives the merged config from the previous middleware.
@@ -170,6 +171,46 @@ When multiple middleware define `onConfig`, the config is **piped** through them
 Return `providerMessages` when a transform must affect only the model call. For
 compatibility, returning `messages` also updates provider input unless the same
 result sets `providerMessages` explicitly.
+
+#### Change the tool choice of a call
+
+Your agent hits its last model call, and the model calls a tool again. The run ends after the tool result, and the user gets no answer. Return `toolChoice: 'none'` on that last call, and the model answers in text:
+
+```typescript
+import { chat, maxIterations, toolDefinition, type ChatMiddleware } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { z } from "zod";
+
+const MAX_CALLS = 10;
+
+const search = toolDefinition({
+  name: "search",
+  description: "Search the docs",
+  inputSchema: z.object({ query: z.string() }),
+}).server(async ({ query }) => ({ hits: [`A page about ${query}`] }));
+
+const answerOnLastCall: ChatMiddleware = {
+  name: "answer-on-last-call",
+  onConfig: (ctx) => {
+    if (ctx.phase === "beforeModel" && ctx.iteration === MAX_CALLS - 1) {
+      return { toolChoice: "none" };
+    }
+  },
+};
+
+const stream = chat({
+  adapter: openaiText("gpt-6.1-sol"),
+  messages: [{ role: "user", content: "How do I add a tool?" }],
+  tools: [search],
+  agentLoopStrategy: maxIterations(MAX_CALLS),
+  middleware: [answerOnLastCall],
+});
+```
+
+- `config.toolChoice` is the `chat()` option.
+- The value you return applies to the next model call only. The call after it starts again from the `chat()` option.
+- Return it in the `beforeModel` phase. A value from the `init` phase does not reach a model call.
+- For the values, and what each provider does with them, see [Choose when the model calls a tool](../tools/tools#choose-when-the-model-calls-a-tool).
 
 #### Change the HTTP requests of a call
 
@@ -556,7 +597,7 @@ capability, then return those fields from `onConfig` when
 | --- | --- |
 | `onInterruptBoundary` | Nothing. It can only pause. |
 | `onInterruptResolution` | Pending-tool policy (`toolResume`) |
-| `onConfig` | `messages`, `systemPrompts`, `tools`, `modelOptions`, `metadata` |
+| `onConfig` | `messages`, `systemPrompts`, `tools`, `modelOptions`, `metadata`, `toolChoice` |
 
 The full resume order, plus an example that writes a user note into the
 system prompt, is in [Apply Answers](../interrupts/apply-answers).

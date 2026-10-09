@@ -126,7 +126,10 @@ import type {
   McpInputRequest,
   ToolResult,
 } from './tools/tool-calls'
-import type { ApprovalSchemaConfig } from './tools/tool-definition'
+import type {
+  ApprovalSchemaConfig,
+  InferToolName,
+} from './tools/tool-definition'
 import type {
   AnyTextAdapter,
   StructuredOutputOptions,
@@ -160,6 +163,7 @@ import type {
   ToolCallEndEvent,
   ToolCallResultEvent,
   ToolCallStartEvent,
+  ToolChoice,
   FetchWrapper,
   ToolInputResponse,
   UIMessage,
@@ -439,6 +443,12 @@ type ExactMiddlewareOption<
         : CheckInterruptRegistry<TInterrupts, TMiddleware>) &
       CheckCoverage<Extract<TMiddleware, ReadonlyArray<AnyChatMiddleware>>>
 
+/** The `name` literals of a `tools` array. */
+type ToolNames<TTools> =
+  TTools extends ReadonlyArray<infer TTool>
+    ? Extract<InferToolName<TTool>, string>
+    : never
+
 type TextActivityOptionsWithContext<
   TAdapter extends AnyTextAdapter,
   TSchema extends SchemaInput | undefined,
@@ -451,9 +461,11 @@ type TextActivityOptionsWithContext<
   TAgents extends ReadonlyArray<DefinedAgent> = ReadonlyArray<DefinedAgent>,
 > = Omit<
   TextActivityOptions<TAdapter, TSchema, TStream, any, TAgents>,
-  'tools' | 'middleware' | 'context' | 'interrupts'
+  'tools' | 'middleware' | 'context' | 'interrupts' | 'toolChoice'
 > & {
   tools?: TTools
+  /** {@link TextActivityOptions.toolChoice}, with the names of `tools` as suggestions. */
+  toolChoice?: ToolChoice<ToolNames<TTools>>
   interrupts?: TInterrupts & CheckUniqueInterruptDefinitions<TInterrupts>
   middleware?: ExactMiddlewareOption<TTools, TContext, TInterrupts, TMiddleware>
 } & RuntimeContextOption<TTools, TMiddleware, TContext>
@@ -559,6 +571,18 @@ export interface TextActivityOptions<
   conversationId?: TextOptions['conversationId']
   /** Thread/conversation ID for AG-UI protocol. Auto-generated if not provided. */
   threadId?: TextOptions['threadId']
+  /**
+   * How the model uses the tools: `'auto'`, `'none'`, `'required'`, or
+   * `{ type: 'tool', name }`. It applies to every model call of this
+   * `chat()`. A middleware `onConfig` can change it for one call. A call with
+   * no tools sends no tool choice. A provider value in `modelOptions` wins.
+   *
+   * @example
+   * ```ts
+   * chat({ adapter, messages, tools, toolChoice: 'required' })
+   * ```
+   */
+  toolChoice?: ToolChoice
   /**
    * Wraps the fetch of each model call. It can change the base URL, the
    * headers, the request, or the response. A middleware `onConfig` can add
@@ -863,6 +887,11 @@ class TextEngine<
     InterruptDefinition<any, any, any, any>
   >
   private params: TParams
+  /**
+   * The tool choice of the next model call. `params.toolChoice` keeps the
+   * `chat()` option, so a middleware value lasts for one call only.
+   */
+  private callToolChoice: ToolChoice | undefined = undefined
   /** The composed fetch wrapper of the next model call. */
   private callWrapFetch: FetchWrapper | undefined = undefined
   private systemPrompts: Array<SystemPrompt>
@@ -1647,6 +1676,10 @@ class TextEngine<
     // covered too.
     assertMessagesFileSourceSupport(this.adapter, this.messages)
 
+    // Providers reject a tool choice on a request with no tools.
+    const toolChoice =
+      toolsWithJsonSchemas.length > 0 ? this.callToolChoice : undefined
+
     for await (const raw of this.adapter.chatStream({
       model: this.params.model,
       ...sanitizeProviderRequest(this.providerMessages, this.systemPrompts),
@@ -1663,6 +1696,7 @@ class TextEngine<
       capabilities: this.middlewareCtx,
       // Client approval decisions, for harness interactive-approval resolution.
       approvals: adapterApprovals,
+      ...(toolChoice ? { toolChoice } : {}),
       ...(this.callWrapFetch ? { wrapFetch: this.callWrapFetch } : {}),
       ...(combinedSchema ? { outputSchema: combinedSchema } : {}),
     })) {
@@ -3918,11 +3952,15 @@ class TextEngine<
 
     this.middlewareCtx.phase = 'structuredOutput'
 
-    // Build the structured-output config view. `tools` is intentionally
-    // excluded from the type because it isn't forwarded to the structured-
-    // output adapter call — including it here would be misleading API.
+    // Build the structured-output config view. `tools` and `toolChoice` are
+    // intentionally excluded from the type because they aren't forwarded to
+    // the structured-output adapter call — including them would be misleading.
     const baseConfig = this.buildMiddlewareConfig()
-    const { tools: _omitTools, ...baseWithoutTools } = baseConfig
+    const {
+      tools: _omitTools,
+      toolChoice: _omitToolChoice,
+      ...baseWithoutTools
+    } = baseConfig
     let structuredConfig: StructuredOutputMiddlewareConfig = {
       ...baseWithoutTools,
       outputSchema: this.finalStructuredOutput.jsonSchema,
@@ -4479,6 +4517,7 @@ class TextEngine<
       metadata: this.params.metadata,
       modelOptions: this.params.modelOptions,
       reasoning: this.params.reasoning,
+      toolChoice: this.params.toolChoice,
       wrapFetch: this.params.wrapFetch,
     }
   }
@@ -4953,6 +4992,8 @@ class TextEngine<
       modelOptions: config.modelOptions,
       reasoning: config.reasoning,
     }
+    // Not stored in params: the next call starts from the chat() option.
+    this.callToolChoice = config.toolChoice ?? this.params.toolChoice
     // Not stored in params: the next call starts from the chat() option,
     // which the config already holds.
     this.callWrapFetch = config.wrapFetch

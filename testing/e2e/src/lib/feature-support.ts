@@ -115,6 +115,10 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'llmgateway',
     'cloudflare',
   ]),
+  // OpenAI only: aimock's journal keeps `tool_choice` for Responses requests,
+  // but stores Anthropic requests in OpenAI shape without it. Anthropic is
+  // covered by `/api/tool-choice-wire`, which captures the request body.
+  'tool-choice': new Set(['openai']),
   'parallel-tool-calls': new Set([
     'openai',
     'anthropic',

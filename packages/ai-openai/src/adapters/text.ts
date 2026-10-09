@@ -1,6 +1,7 @@
 import OpenAI from 'openai'
 import {
   OpenAIBaseResponsesTextAdapter,
+  toResponsesToolChoice,
   warnStrictFallback,
 } from '@tanstack/openai-base'
 import { validateTextProviderOptions } from '../text/text-provider-options'
@@ -166,7 +167,14 @@ export class OpenAITextAdapter<
       ? convertToolsToProviderFormat(options.tools)
       : undefined
 
+    // The base saw no tools, so it sent no `chat({ toolChoice })`. Set it
+    // here when the request has tools. It goes before `baseRequest`, so a
+    // `tool_choice` from modelOptions wins.
     const request: Omit<ResponseCreateParams, 'stream'> = {
+      ...(tools?.length &&
+        options.toolChoice !== undefined && {
+          tool_choice: toResponsesToolChoice(options.toolChoice),
+        }),
       ...baseRequest,
       ...(tools && tools.length > 0 && { tools }),
     }

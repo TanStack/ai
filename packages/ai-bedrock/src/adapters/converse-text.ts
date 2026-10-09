@@ -10,7 +10,10 @@ import {
 } from '../converse/stream-processor'
 import { buildConverseUsage } from '../converse/usage'
 import { converseThinking } from '../converse/reasoning'
-import { BEDROCK_MODEL_REASONING } from '../model-meta'
+import {
+  BEDROCK_CLAUDE_NO_FORCED_TOOL_FAMILIES,
+  BEDROCK_MODEL_REASONING,
+} from '../model-meta'
 import {
   STRUCTURED_TOOL_NAME,
   buildStructuredToolConfig,
@@ -589,10 +592,6 @@ export class BedrockConverseTextAdapter<
       options.systemPrompts,
     )
 
-    const toolConfig = options.tools
-      ? toToolConfig(convertTools(options.tools), 'auto')
-      : undefined
-
     // Sampling options live on `modelOptions` (typed as the narrowed
     // `BedrockConverseProviderOptions`, which surfaces the OpenAI Chat
     // Completions field names); translate them into Converse's `inferenceConfig`,
@@ -607,6 +606,34 @@ export class BedrockConverseTextAdapter<
       options.reasoning,
       BEDROCK_MODEL_REASONING[this.model],
     )
+
+    // `chat({ toolChoice })`. Converse has no `none` choice, so `none` sends
+    // no tool config. But Bedrock rejects `toolUse` or `toolResult` blocks
+    // without a tool config, so with tool blocks in the history `none` sends
+    // the tools with auto (the model can still call one). Claude rejects a
+    // forced tool while thinking is on (only Claude gets thinking fields), and
+    // some Claude models reject it on every request. Then a forced choice
+    // falls back to auto.
+    const canForceTool =
+      additionalModelRequestFields === undefined &&
+      !BEDROCK_CLAUDE_NO_FORCED_TOOL_FAMILIES.some((name) =>
+        this.model.includes(name),
+      )
+    const hasToolBlocks = messages.some((message) =>
+      message.content?.some((block) => block.toolUse || block.toolResult),
+    )
+    const toolChoice =
+      options.toolChoice === 'none'
+        ? hasToolBlocks
+          ? 'auto'
+          : 'none'
+        : canForceTool
+          ? options.toolChoice
+          : 'auto'
+    const toolConfig = options.tools
+      ? toToolConfig(convertTools(options.tools), toolChoice)
+      : undefined
+
     const requestedMaxTokens = modelOptions?.max_completion_tokens
     const maxTokens =
       minMaxTokens !== undefined &&

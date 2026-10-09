@@ -186,7 +186,7 @@ Two kinds of tools flow through this adapter:
 
 2. **Your TanStack tools** are bridged *into* the harness: the adapter starts a short-lived Streamable-HTTP MCP server on `127.0.0.1` for the duration of the turn and points Codex at it. Define tools as usual with `toolDefinition().server()`; tool-call events come back under the names you registered.
 
-```typescript
+```typescript group=tools
 import { z } from "zod";
 import { chat, toolDefinition } from "@tanstack/ai";
 import { codexText } from "@tanstack/ai-codex";
@@ -207,6 +207,32 @@ const stream = chat({
 ```
 
 **Client-side and approval-gated tools are not supported.** The harness executes tools inside a live subprocess, which cannot pause across HTTP requests to wait for a browser round-trip or a human approval. Passing a tool without a server `execute()` implementation — or one marked `needsApproval` — fails fast with a descriptive error. Run those tools outside the harness with a regular provider adapter.
+
+## Tool choice
+
+You want Codex to skip your tools, or to see just one of them. Pass `toolChoice` to `chat()`:
+
+```typescript group=tools
+const noBridgedTools = chat({
+  adapter: codexText("gpt-5.3-codex"),
+  messages: [{ role: "user", content: "Explain the bug in src/app.ts." }],
+  tools: [lookupTicket],
+  toolChoice: "none",
+});
+```
+
+`toolChoice` limits only the tools that the adapter bridges into Codex. The built-in Codex tools always stay on, and Codex decides when it calls a tool.
+
+| Value | What the adapter does |
+| --- | --- |
+| `'auto'` | Bridges all of your tools. |
+| `'none'` | Bridges none of your tools. |
+| `{ type: 'tool', name }` | Bridges only the named tool. Codex does not have to call it. |
+| `'required'` | Bridges all of your tools. Codex does not have to call one. |
+
+Each value except `'auto'` logs a warning the first time an adapter instance gets it.
+
+For the values on other adapters, see [Choose when the model calls a tool](../tools/tools#choose-when-the-model-calls-a-tool).
 
 ## Structured Output
 

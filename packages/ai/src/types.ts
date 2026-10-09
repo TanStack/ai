@@ -1112,6 +1112,23 @@ export interface AgentLoopState {
 export type AgentLoopStrategy = (state: AgentLoopState) => boolean
 
 /**
+ * How the model uses the tools of a call.
+ * - `'auto'`: the model decides.
+ * - `'none'`: the model calls no tool.
+ * - `'required'`: the model must call a tool.
+ * - `{ type: 'tool', name }`: the model must call that tool.
+ *
+ * `TName` is the names of the tools of the call, for editor suggestions. Any
+ * other string is also allowed, for example a provider tool or a lazy tool.
+ */
+export type ToolChoice<TName extends string = string> =
+  | 'auto'
+  | 'none'
+  | 'required'
+  // `string & {}` keeps the `TName` literals as suggestions.
+  | { type: 'tool'; name: TName | (string & {}) }
+
+/**
  * Wraps the fetch of a model call. It gets the next fetch and gives back a
  * new fetch. A wrapper can change the URL, the headers, the request, or the
  * response.
@@ -1258,6 +1275,11 @@ export interface TextOptions<
    * Surfaced for observability/middleware; not consumed by the LLM call.
    */
   parentRunId?: string
+  /**
+   * How the model uses the tools of this request. `chat()` sets it only when
+   * the request has tools. A provider value in `modelOptions` wins over it.
+   */
+  toolChoice?: ToolChoice
   /**
    * Wraps the fetch of this request. The engine composes the `chat()` option
    * and the middleware wrappers into one function. An adapter that supports

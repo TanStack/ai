@@ -135,7 +135,7 @@ Options accepted by `streamText` as of AI SDK v6, and where each lives in TanSta
 | `messages` | `messages` | Same concept; content parts differ (see [Multimodal](#multimodal-content)) |
 | `system: 'You are…'` | `systemPrompts: ['You are…']` | Root-level `string[]` |
 | `tools: { name: tool({…}) }` | `tools: [toolInstance, …]` | Array of tool instances instead of a keyed object |
-| `toolChoice: 'auto' \| 'required' \| 'none' \| { type, toolName }` | `modelOptions.toolChoice` (provider-specific) | Not a top-level option — set on the adapter's `modelOptions` |
+| `toolChoice: 'auto' \| 'required' \| 'none' \| { type, toolName }` | `toolChoice: 'auto' \| 'required' \| 'none' \| { type: 'tool', name }` | `toolName` becomes `name`. See [Choose when the model calls a tool](../tools/tools#choose-when-the-model-calls-a-tool) |
 | `activeTools: string[]` | Filter `tools` yourself, or use `prepareStep` equivalent via middleware | No dedicated option — see [Middleware](#middleware) for dynamic tool filtering |
 | `maxOutputTokens` | `maxTokens` | Renamed to match the original OpenAI naming |
 | `temperature` | `temperature` | Same |
