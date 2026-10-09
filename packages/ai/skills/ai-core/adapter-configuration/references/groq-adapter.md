@@ -48,7 +48,6 @@ chat({
   messages,
   modelOptions: {
     // Reasoning
-    reasoning_effort: 'medium', // 'none' | 'default' | 'low' | 'medium' | 'high'
     reasoning_format: 'parsed', // 'hidden' | 'raw' | 'parsed' (mutually exclusive with include_reasoning)
     include_reasoning: true, // mutually exclusive with reasoning_format
     // Response format

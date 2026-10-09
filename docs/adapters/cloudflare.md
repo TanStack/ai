@@ -264,9 +264,8 @@ const stream = chat({
   modelOptions: {
     temperature: 0.3,
     max_tokens: 512,
-    reasoning_effort: "low",
-    chat_template_kwargs: { enable_thinking: false },
   },
+  reasoning: "low",
 });
 ```
 

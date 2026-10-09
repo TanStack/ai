@@ -175,9 +175,7 @@ const stream = chat({
 Enable reasoning for models that support it (e.g., `openai/gpt-oss-120b`, `qwen/qwen3-32b`). This allows the model to show its reasoning process, which is streamed as `thinking` chunks:
 
 ```typescript ignore
-modelOptions: {
-  reasoning_effort: "medium", // "none" | "default" | "low" | "medium" | "high"
-}
+reasoning: "medium",
 ```
 
 ## Summarization

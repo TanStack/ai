@@ -141,8 +141,8 @@ const stream = chat({
   modelOptions: {
     temperature: 0.7,
     max_completion_tokens: 4096,
-    reasoning_effort: "high",
   },
+  reasoning: "high",
 });
 ```
 

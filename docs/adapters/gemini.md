@@ -348,6 +348,8 @@ import { geminiTextInteractions } from "@tanstack/ai-gemini/experimental";
 const stream = chat({
   adapter: geminiTextInteractions("gemini-3.5-flash"),
   messages: [{ role: "user", content: "Hello!" }],
+  // Goes out as generation_config.thinking_level and thinking_summaries.
+  reasoning: "low",
   modelOptions: {
     // Stateful chaining — passed only on turn 2+.
     previous_interaction_id: "int_abc123",
@@ -361,8 +363,6 @@ const stream = chat({
 
     // snake_case generation config distinct from geminiText's camelCase one.
     generation_config: {
-      thinking_level: "low",
-      thinking_summaries: "auto",
       stop_sequences: ["<done>"],
     },
 
@@ -429,11 +429,7 @@ const stream = chat({
 Enable thinking for models that support it:
 
 ```typescript ignore
-modelOptions: {
-  thinking: {
-    includeThoughts: true,
-  },
-}
+reasoning: "high",
 ```
 
 ### Structured Output

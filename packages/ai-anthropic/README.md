@@ -104,11 +104,8 @@ Newer Claude models use adaptive thinking — the model decides when and how muc
 const stream = chat({
   adapter: anthropicText('claude-sonnet-5'),
   messages: [{ role: 'user', content: 'Plan a database migration.' }],
-  modelOptions: {
-    thinking: { type: 'adaptive', display: 'summarized' },
-    output_config: { effort: 'xhigh' },
-    max_tokens: 64_000,
-  },
+  reasoning: 'xhigh',
+  modelOptions: { max_tokens: 64_000 },
 })
 ```
 

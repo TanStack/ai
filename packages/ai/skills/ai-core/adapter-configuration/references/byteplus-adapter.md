@@ -70,10 +70,10 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 chat({
   adapter: byteplusText('dola-seed-2-1-turbo-260628'),
   messages,
+  // Ark thinking.type plus reasoning_effort
+  reasoning: 'medium',
   modelOptions: {
     // Ark-only
-    thinking: { type: 'enabled' }, // 'enabled' | 'disabled' | 'auto' ('auto': gpt-oss-120b only)
-    reasoning_effort: 'medium', // 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
     repetition_penalty: 1.1,
     service_tier: 'default', // 'default' | 'flex' (flex = cheaper offline batch queue)
     // Sampling (OpenAI-compatible names)

@@ -48,13 +48,13 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 chat({
   adapter: grokText('grok-4.6'),
   messages,
+  // Reasoning: goes out as reasoning.effort
+  reasoning: 'high',
   modelOptions: {
     // Sampling (Responses API names)
     temperature: 0.7,
     top_p: 0.9,
     max_output_tokens: 4096,
-    // Reasoning (reasoning-capable models)
-    reasoning: { effort: 'high' }, // 'none' | 'low' | 'medium' | 'high'
     // Response storage (adapter default: false)
     store: false,
     // End-user id for abuse monitoring

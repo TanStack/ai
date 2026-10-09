@@ -158,9 +158,8 @@ export async function POST(request: Request) {
       temperature: 0.7,
       top_p: 0.9,
       max_tokens: 2048,
-      thinking: { type: 'enabled' },
-      reasoning_effort: 'medium',
     },
+    reasoning: 'medium',
   })
 
   return toServerSentEventsResponse(stream)
@@ -188,9 +187,9 @@ export async function POST(request: Request) {
   const { messages } = await request.json()
 
   const stream = chat({
-    adapter: byteplusText('dola-seed-2-1-turbo-260628'),
+    adapter: byteplusText('glm-5-2-260617'),
     messages,
-    modelOptions: { thinking: { type: 'disabled' } },
+    reasoning: 'off',
   })
 
   return toServerSentEventsResponse(stream)

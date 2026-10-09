@@ -412,12 +412,7 @@ const stream = chat({
 Enable reasoning for models that support it (e.g., GPT-5, O3). This allows the model to show its reasoning process, which is streamed as `thinking` chunks:
 
 ```typescript ignore
-modelOptions: {
-  reasoning: {
-    effort: "medium", // "none" | "minimal" | "low" | "medium" | "high"
-    summary: "detailed", // "auto" | "detailed" (optional)
-  },
-}
+reasoning: { level: "medium", summary: true },
 ```
 
 When reasoning is enabled, the model's reasoning process is streamed separately from the response text and appears as a collapsible thinking section in the UI.

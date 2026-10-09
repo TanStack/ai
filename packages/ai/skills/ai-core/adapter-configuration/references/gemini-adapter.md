@@ -50,15 +50,9 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 chat({
   adapter: geminiText('gemini-2.5-pro'),
   messages,
+  // Thinking: a budget on Gemini 2.5, a level on Gemini 3
+  reasoning: { level: 'high', budgetTokens: 4096 },
   modelOptions: {
-    // Thinking (budget-based)
-    thinkingConfig: {
-      includeThoughts: true,
-      thinkingBudget: 4096,
-    },
-    // Thinking (level-based, advanced models) — the alternative to the
-    // budget shape above:
-    // thinkingConfig: { thinkingLevel: 'THINKING_LEVEL_HIGH' },
     // Safety settings
     safetySettings: [
       {

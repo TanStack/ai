@@ -67,15 +67,6 @@ chat({
     temperature: 0.7,
     // top_p: 0.9, // cannot be combined with temperature
     max_tokens: 16000,
-    // Extended thinking (budget-based)
-    thinking: {
-      type: 'enabled',
-      budget_tokens: 8000, // must be >= 1024 and < max_tokens
-    },
-    // Adaptive thinking (claude-sonnet-4-6, claude-opus-4-6+) — the
-    // alternative to the budget shape above; effort is tuned via
-    // output_config.effort on the adaptive-era models (see below)
-    // thinking: { type: 'adaptive' },
     // Service tier
     service_tier: 'auto', // 'auto' | 'standard_only'
     // Stop sequences
@@ -101,6 +92,8 @@ chat({
     // Sampling
     top_k: 40,
   },
+  // Thinking: chat({ reasoning }) sets the thinking fields for the model
+  reasoning: { level: 'high', budgetTokens: 8000 },
 })
 ```
 
@@ -123,15 +116,9 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 chat({
   adapter: anthropicText('claude-sonnet-5'), // or 'claude-fable-5', 'claude-opus-4-8'
   messages,
+  // Adaptive thinking; the level goes out as output_config.effort
+  reasoning: 'xhigh',
   modelOptions: {
-    // Adaptive thinking only — budget_tokens is rejected (400).
-    // On claude-fable-5, claude-fable-5-1, claude-opus-5-5, and
-    // claude-sonnet-5-5, { type: 'disabled' } is also rejected; elsewhere
-    // it opts out of thinking.
-    thinking: { type: 'adaptive', display: 'summarized' },
-    // Effort lives under output_config; 'xhigh' is available on
-    // Opus 4.7+, Sonnet 5, Sonnet 5.5, Haiku 5.5, Fable 5, and Fable 5.1.
-    output_config: { effort: 'xhigh' },
     max_tokens: 64_000,
     // NO temperature / top_p / top_k — the API rejects them on these models
   },

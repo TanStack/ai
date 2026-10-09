@@ -400,9 +400,7 @@ import { openRouterText } from "@tanstack/ai-openrouter";
 const stream = chat({
   adapter: openRouterText("anthropic/claude-sonnet-5"),
   messages: [{ role: "user", content: "Hello!" }],
-  modelOptions: {
-    reasoning: { effort: "high" },
-  },
+  reasoning: "high",
 });
 ```
 

@@ -285,12 +285,7 @@ One exception: structured output (`chat({ outputSchema })`) on models that use t
 Enable extended thinking with a token budget. This allows Claude to show its reasoning process, which is streamed as `thinking` chunks:
 
 ```typescript ignore
-modelOptions: {
-  thinking: {
-    type: "enabled",
-    budget_tokens: 2048, // Maximum tokens for thinking
-  },
-}
+reasoning: { level: "high", budgetTokens: 2048 },
 ```
 
 **Note:** `budget_tokens` must be less than `modelOptions.max_tokens` — set `max_tokens` high enough to leave room for the visible response alongside the thinking budget, or the request is rejected.
@@ -308,11 +303,8 @@ import { anthropicText } from "@tanstack/ai-anthropic";
 const stream = chat({
   adapter: anthropicText("claude-sonnet-5"),
   messages: [{ role: "user", content: "Plan a database migration." }],
-  modelOptions: {
-    thinking: { type: "adaptive", display: "summarized" },
-    output_config: { effort: "xhigh" },
-    max_tokens: 64_000,
-  },
+  reasoning: "xhigh",
+  modelOptions: { max_tokens: 64_000 },
 });
 ```
 
