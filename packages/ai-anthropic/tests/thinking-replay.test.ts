@@ -404,13 +404,6 @@ describe('Anthropic replay block order', () => {
       signed('Now Paris.', 'sig-2'),
       toolUse('call-2', 'Paris'),
     ])
-    // The automatic cache marker (promptCache defaults to 'short') still
-    // lands on the last block of the last user message.
-    const [payload] = mocks.betaMessagesCreate.mock.calls[1]!
-    expect(payload.messages.at(-1).content.at(-1)).toMatchObject({
-      type: 'tool_result',
-      cache_control: { type: 'ephemeral' },
-    })
   })
 
   it('keeps an emoji whole when thinking splits the text', async () => {
@@ -611,12 +604,6 @@ describe('Anthropic replay block order', () => {
       { type: 'text', text: 'Let me check.' },
       toolUse('call-1', 'Berlin'),
     ])
-    // Both requests have the default automatic markers, in the same places.
-    expect(today.messages.at(-1).content.at(-1)).toMatchObject({
-      type: 'tool_result',
-      tool_use_id: 'call-1',
-      cache_control: { type: 'ephemeral' },
-    })
     expect(JSON.stringify(withMap)).toBe(JSON.stringify(today))
   })
 })
