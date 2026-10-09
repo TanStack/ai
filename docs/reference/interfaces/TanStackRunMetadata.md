@@ -35,7 +35,7 @@ Defined in: [packages/ai/src/types.ts:671](https://github.com/TanStack/ai/blob/m
 optional input?: unknown;
 ```
 
-Defined in: [packages/ai/src/types.ts:674](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L674)
+Defined in: [packages/ai/src/types.ts:676](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L676)
 
 Parsed `TOOL_CALL_END` input. Spec `TOOL_CALL_END` has no top-level `input`.
 
@@ -58,6 +58,18 @@ optional model?: string;
 ```
 
 Defined in: [packages/ai/src/types.ts:663](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L663)
+
+***
+
+### retryAfterMs?
+
+```ts
+optional retryAfterMs?: number;
+```
+
+Defined in: [packages/ai/src/types.ts:673](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L673)
+
+On a `RUN_ERROR`. See `RunErrorEvent.retryAfterMs`.
 
 ***
 
@@ -87,7 +99,7 @@ Defined in: [packages/ai/src/types.ts:670](https://github.com/TanStack/ai/blob/m
 optional state?: ToolOutputState;
 ```
 
-Defined in: [packages/ai/src/types.ts:672](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L672)
+Defined in: [packages/ai/src/types.ts:674](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L674)
 
 ***
 

@@ -14,7 +14,7 @@ type ChatMiddlewarePhase =
   | "structuredOutput";
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:90](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L90)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:91](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L91)
 
 Phase of the chat middleware lifecycle.
 - 'init': Initial config transform before the chat engine starts

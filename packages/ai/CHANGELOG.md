@@ -1,5 +1,46 @@
 # @tanstack/ai
 
+## 0.67.0
+
+### Minor Changes
+
+- [#1685](https://github.com/TanStack/ai/pull/1685) [`7dbfaf6`](https://github.com/TanStack/ai/commit/7dbfaf6c37a3d97de3b1f5bdb87be8bbbe2b0164) - Text adapters can now give `inputModalities` at run time: the input kinds that the model reads, for example `['text', 'image', 'document']`. `undefined` means that the adapter does not know.
+  - `TextAdapter` has the new optional `inputModalities` property. A `BaseTextAdapter` subclass sets it from its model metadata.
+  - The text adapters of OpenAI, Anthropic, Gemini, Mistral, Groq, BytePlus, Grok, OpenRouter, and LLM Gateway set it. A known model gives its input kinds. An unknown model gives `undefined`.
+
+- [#1683](https://github.com/TanStack/ai/pull/1683) [`88fd67c`](https://github.com/TanStack/ai/commit/88fd67cd7ddfbe2b154173d2395b2c0338e97644) - A middleware `onAfterToolCall` hook can now replace the result of a tool call. Return `{ type: 'replaceResult', result }` from the hook.
+  - The model and the stream (`TOOL_CALL_RESULT`) get the new result.
+  - Middleware run in order. Each hook gets the result of the hook before it as `info.result`.
+  - An error result stays an error.
+  - A hook that returns `undefined`, or any value that is not a `replaceResult` decision, keeps the result.
+  - `onAfterToolCall` after an `onBeforeToolCall` skip now gets the parsed skip result, the same value that goes to the model.
+  - The new `AfterToolCallDecision` type is exported from `@tanstack/ai`.
+
+- [#1682](https://github.com/TanStack/ai/pull/1682) [`3aa2e3d`](https://github.com/TanStack/ai/commit/3aa2e3d95e2dcb1c14b4fda3bcdbdf3152582092) - Add `fakeText()` at the new `@tanstack/ai/testing` subpath. It is a text adapter that answers from a script. Use it to test `chat()`, tools, and middleware with no network and no API key.
+  - Queue answers with `setResponses` and `appendResponses`. An answer is `{ text?, thinking?, toolCalls?, finishReason?, error? }`, or a function that gets `{ request, state }`. An empty queue fails with "No more fake responses queued".
+  - Token usage is an estimate: `ceil(characters / 4)`. With `cache: true`, the part of a request that matches the previous request of the same thread counts as cached tokens.
+  - Options: `model`, `contextWindow`, and `tokensPerSecond` for stream pacing. The stream stops when the request aborts.
+  - `RUN_STARTED` carries `parentRunId` when the call has one.
+  - The default tool call id is `fake-call-<fake>-<call>-<index>`. It is unique across `fakeText()` instances.
+
+- [#1684](https://github.com/TanStack/ai/pull/1684) [`c5ae415`](https://github.com/TanStack/ai/commit/c5ae4152d0a040bb6ce7321e16b7ee66d3c36f96) - Add `keyedAdapter(provider, create)` and `isKeyedAdapter(value)`. Import them from `@tanstack/ai` or `@tanstack/ai/byok`.
+  - `keyedAdapter` wraps an adapter factory that needs a provider key. `provider` is a BYOK descriptor (for example `openaiByok`) or a provider id. It throws when the provider id is not valid.
+  - A host finds the key, for example with `getByokKey(request, keyed.provider)`, and calls `keyed.create(key)` just before the call. The key is not in your code.
+  - `isKeyedAdapter` tells a keyed adapter apart from a plain adapter.
+  - It works for every adapter kind: text, image, speech, audio, video, and the rest.
+
+  For several providers, use `keyedAdapters({ openai: (key) => ..., anthropic: keyedAdapter(anthropicByok, ...) })`. The map key is the provider id, so a key goes only to its own provider. An entry that is a keyed adapter for another provider throws at startup. In a route, `keyedAdapterFromRequest(request, models)` from `@tanstack/ai/byok/server` builds the adapter of the provider that has a key. The user's `x-byok-<id>` header wins, then the env names of descriptor entries, in map order. It gives `null` when no provider has a key.
+
+- [#1678](https://github.com/TanStack/ai/pull/1678) [`13ba1b0`](https://github.com/TanStack/ai/commit/13ba1b0e47dc822f10f6c5133184f92c2eb0a013) - A `RUN_ERROR` now tells you how long the provider asks you to wait before a retry.
+  - `@tanstack/ai`: `RunErrorEvent` has a new `retryAfterMs` field, in milliseconds. `chat()` moves it to `metadata.tanstack.retryAfterMs`. The new `toRetryAfterMs(error)` helper on `@tanstack/ai/adapter-internals` reads the `retry-after-ms` header first, then the `retry-after` header in seconds or as an HTTP date.
+  - `@tanstack/openai-base` and `@tanstack/ai-anthropic`: the text adapters set `retryAfterMs` on a `RUN_ERROR` when the error response has one of these headers. This includes every adapter that uses `@tanstack/openai-base`.
+
+- [#1680](https://github.com/TanStack/ai/pull/1680) [`377262c`](https://github.com/TanStack/ai/commit/377262c0b4e5f59f8fd467a831b9341cc705077e) - Add `wrapFetch` to `chat()`, to the middleware `onConfig` config, and to `TextOptions`. A wrapper gets the next fetch and gives back a new fetch. Use it to change the URL, the headers, the request, or the response of a model call. The new `FetchWrapper` type names the wrapper.
+
+  The engine chains the `chat()` wrapper and the middleware wrappers into one function. A middleware wrapper runs inside the `chat()` wrapper and applies to one model call only.
+
+  These text adapters send their requests through the wrapper: every adapter on `@tanstack/openai-base` (OpenAI, the OpenAI-compatible adapters, Grok, Groq, BytePlus, LLM Gateway, Lovable, Vercel AI Gateway, Cloudflare, and the Bedrock Chat Completions and Responses APIs), Anthropic, Mistral, Ollama, and OpenRouter. The wrapper wraps the fetch of the adapter config, not the global fetch. An Anthropic or Ollama adapter with an injected client ignores `wrapFetch`. In Cloudflare binding mode, the wrapper runs, but the binding does not send the URL or the headers. Without `wrapFetch`, the requests do not change.
+
 ## 0.66.1
 
 ### Patch Changes

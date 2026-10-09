@@ -1,5 +1,15 @@
 # @tanstack/ai-solid
 
+## 0.26.2
+
+### Patch Changes
+
+- [#1553](https://github.com/TanStack/ai/pull/1553) [`9ab2fae`](https://github.com/TanStack/ai/commit/9ab2fae7c8dbb59edc12cfd17b2c617cd6ced6e4) - Keep the Solid `useChat` history when a reactive option such as `body` changes. Only a new `threadId` starts a new chat.
+
+- Updated dependencies [[`7dbfaf6`](https://github.com/TanStack/ai/commit/7dbfaf6c37a3d97de3b1f5bdb87be8bbbe2b0164), [`88fd67c`](https://github.com/TanStack/ai/commit/88fd67cd7ddfbe2b154173d2395b2c0338e97644), [`3aa2e3d`](https://github.com/TanStack/ai/commit/3aa2e3d95e2dcb1c14b4fda3bcdbdf3152582092), [`c5ae415`](https://github.com/TanStack/ai/commit/c5ae4152d0a040bb6ce7321e16b7ee66d3c36f96), [`13ba1b0`](https://github.com/TanStack/ai/commit/13ba1b0e47dc822f10f6c5133184f92c2eb0a013), [`377262c`](https://github.com/TanStack/ai/commit/377262c0b4e5f59f8fd467a831b9341cc705077e)]:
+  - @tanstack/ai@0.67.0
+  - @tanstack/ai-client@0.39.1
+
 ## 0.26.1
 
 ### Patch Changes
