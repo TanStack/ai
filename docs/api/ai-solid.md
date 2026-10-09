@@ -158,6 +158,11 @@ Extends `ChatClientOptions` from `@tanstack/ai-client`:
 - `onInterruptStateChange?` - Callback when interrupt state changes; context source is `hydrate` for restored state and `live` for streamed or client-initiated updates
 - `streamProcessor?` - Stream processing configuration
 
+For values that change, read Solid signals through option getters:
+
+- `forwardedProps`, `body`, `context`, and `tools` update the current chat.
+- A new `threadId` starts a new chat.
+
 **Note:** Client tools are now automatically executed - no `onToolCall` callback needed!
 
 ### Returns

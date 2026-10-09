@@ -20,7 +20,12 @@ export const Route = createFileRoute('/api/chat-completions-incomplete-stream')(
               choices: [
                 {
                   index: 0,
-                  delta: { content: 'partial' },
+                  delta: {
+                    content:
+                      scenario === 'object-content'
+                        ? { text: 'partial' }
+                        : 'partial',
+                  },
                   finish_reason: null,
                 },
               ],
@@ -79,6 +84,7 @@ export const Route = createFileRoute('/api/chat-completions-incomplete-stream')(
                 // Finish a follow-up request if a regression executes the tool.
                 const complete =
                   scenario === 'complete' ||
+                  scenario === 'object-content' ||
                   scenario === 'unknown-finish' ||
                   requests++ > 0
                 const payload = complete
