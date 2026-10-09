@@ -37,6 +37,7 @@ import { Route as MarkdownCjkRouteImport } from './routes/markdown-cjk'
 import { Route as MessageHistoryPagingRouteImport } from './routes/message-history-paging'
 import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
 import { Route as PersistenceDurabilityRouteImport } from './routes/persistence-durability'
+import { Route as SolidReactiveChatRouteImport } from './routes/solid-reactive-chat'
 import { Route as SubagentsTestRouteImport } from './routes/subagents-test'
 import { Route as SubagentsUiTestRouteImport } from './routes/subagents-ui-test'
 import { Route as TextFirstToolRouteImport } from './routes/text-first-tool'
@@ -49,6 +50,7 @@ import { Route as ProviderIndexRouteImport } from './routes/$provider/index'
 import { Route as ProviderFeatureRouteImport } from './routes/$provider/$feature'
 import { Route as ApiActivityTestRouteImport } from './routes/api.activity-test'
 import { Route as ApiAdapterInputModalitiesRouteImport } from './routes/api.adapter-input-modalities'
+import { Route as ApiAnthropicAuthWireRouteImport } from './routes/api.anthropic-auth-wire'
 import { Route as ApiAnthropicBugTestRouteImport } from './routes/api.anthropic-bug-test'
 import { Route as ApiAnthropicHaiku55WireRouteImport } from './routes/api.anthropic-haiku-5-5-wire'
 import { Route as ApiAnthropicMaxTokensUsageRouteImport } from './routes/api.anthropic-max-tokens-usage'
@@ -62,6 +64,7 @@ import { Route as ApiAnthropicThinkingOrderWireRouteImport } from './routes/api.
 import { Route as ApiAnthropicTruncatedToolInputWireRouteImport } from './routes/api.anthropic-truncated-tool-input-wire'
 import { Route as ApiArktypeToolWireRouteImport } from './routes/api.arktype-tool-wire'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
+import { Route as ApiAzureOpenaiWireRouteImport } from './routes/api.azure-openai-wire'
 import { Route as ApiBedrockConverseCacheRouteImport } from './routes/api.bedrock-converse-cache'
 import { Route as ApiByokChatRouteImport } from './routes/api.byok-chat'
 import { Route as ApiByteplusSeedance1080pWireRouteImport } from './routes/api.byteplus-seedance-1080p-wire'
@@ -72,6 +75,7 @@ import { Route as ApiDevtoolsMemoryRouteImport } from './routes/api.devtools-mem
 import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-delivery'
 import { Route as ApiDurableTakeoverRouteImport } from './routes/api.durable-takeover'
 import { Route as ApiEmbeddingRouteImport } from './routes/api.embedding'
+import { Route as ApiFakeTextRouteImport } from './routes/api.fake-text'
 import { Route as ApiFileSourceWireRouteImport } from './routes/api.file-source-wire'
 import { Route as ApiForeignChunkEventsRouteImport } from './routes/api.foreign-chunk-events'
 import { Route as ApiForeignClientToolRouteImport } from './routes/api.foreign-client-tool'
@@ -296,6 +300,11 @@ const PersistenceDurabilityRoute = PersistenceDurabilityRouteImport.update({
   path: '/persistence-durability',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SolidReactiveChatRoute = SolidReactiveChatRouteImport.update({
+  id: '/solid-reactive-chat',
+  path: '/solid-reactive-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SubagentsTestRoute = SubagentsTestRouteImport.update({
   id: '/subagents-test',
   path: '/subagents-test',
@@ -351,9 +360,15 @@ const ApiActivityTestRoute = ApiActivityTestRouteImport.update({
   path: '/api/activity-test',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAdapterInputModalitiesRoute = ApiAdapterInputModalitiesRouteImport.update({
-  id: '/api/adapter-input-modalities',
-  path: '/api/adapter-input-modalities',
+const ApiAdapterInputModalitiesRoute =
+  ApiAdapterInputModalitiesRouteImport.update({
+    id: '/api/adapter-input-modalities',
+    path: '/api/adapter-input-modalities',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAnthropicAuthWireRoute = ApiAnthropicAuthWireRouteImport.update({
+  id: '/api/anthropic-auth-wire',
+  path: '/api/anthropic-auth-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAnthropicBugTestRoute = ApiAnthropicBugTestRouteImport.update({
@@ -429,6 +444,11 @@ const ApiAudioRoute = ApiAudioRouteImport.update({
   path: '/api/audio',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAzureOpenaiWireRoute = ApiAzureOpenaiWireRouteImport.update({
+  id: '/api/azure-openai-wire',
+  path: '/api/azure-openai-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiBedrockConverseCacheRoute = ApiBedrockConverseCacheRouteImport.update({
   id: '/api/bedrock-converse-cache',
   path: '/api/bedrock-converse-cache',
@@ -479,6 +499,11 @@ const ApiDurableTakeoverRoute = ApiDurableTakeoverRouteImport.update({
 const ApiEmbeddingRoute = ApiEmbeddingRouteImport.update({
   id: '/api/embedding',
   path: '/api/embedding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFakeTextRoute = ApiFakeTextRouteImport.update({
+  id: '/api/fake-text',
+  path: '/api/fake-text',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiFileSourceWireRoute = ApiFileSourceWireRouteImport.update({
@@ -932,6 +957,7 @@ export interface FileRoutesByFullPath {
   '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
+  '/solid-reactive-chat': typeof SolidReactiveChatRoute
   '/subagents-test': typeof SubagentsTestRoute
   '/subagents-ui-test': typeof SubagentsUiTestRoute
   '/text-first-tool': typeof TextFirstToolRoute
@@ -943,6 +969,7 @@ export interface FileRoutesByFullPath {
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/activity-test': typeof ApiActivityTestRoute
   '/api/adapter-input-modalities': typeof ApiAdapterInputModalitiesRoute
+  '/api/anthropic-auth-wire': typeof ApiAnthropicAuthWireRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-haiku-5-5-wire': typeof ApiAnthropicHaiku55WireRoute
   '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
@@ -956,6 +983,7 @@ export interface FileRoutesByFullPath {
   '/api/anthropic-truncated-tool-input-wire': typeof ApiAnthropicTruncatedToolInputWireRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
+  '/api/azure-openai-wire': typeof ApiAzureOpenaiWireRoute
   '/api/bedrock-converse-cache': typeof ApiBedrockConverseCacheRoute
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
@@ -966,6 +994,7 @@ export interface FileRoutesByFullPath {
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
+  '/api/fake-text': typeof ApiFakeTextRoute
   '/api/file-source-wire': typeof ApiFileSourceWireRoute
   '/api/foreign-chunk-events': typeof ApiForeignChunkEventsRoute
   '/api/foreign-client-tool': typeof ApiForeignClientToolRoute
@@ -1077,6 +1106,7 @@ export interface FileRoutesByTo {
   '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
+  '/solid-reactive-chat': typeof SolidReactiveChatRoute
   '/subagents-test': typeof SubagentsTestRoute
   '/subagents-ui-test': typeof SubagentsUiTestRoute
   '/text-first-tool': typeof TextFirstToolRoute
@@ -1088,6 +1118,7 @@ export interface FileRoutesByTo {
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/activity-test': typeof ApiActivityTestRoute
   '/api/adapter-input-modalities': typeof ApiAdapterInputModalitiesRoute
+  '/api/anthropic-auth-wire': typeof ApiAnthropicAuthWireRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-haiku-5-5-wire': typeof ApiAnthropicHaiku55WireRoute
   '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
@@ -1101,6 +1132,7 @@ export interface FileRoutesByTo {
   '/api/anthropic-truncated-tool-input-wire': typeof ApiAnthropicTruncatedToolInputWireRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
+  '/api/azure-openai-wire': typeof ApiAzureOpenaiWireRoute
   '/api/bedrock-converse-cache': typeof ApiBedrockConverseCacheRoute
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
@@ -1111,6 +1143,7 @@ export interface FileRoutesByTo {
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
+  '/api/fake-text': typeof ApiFakeTextRoute
   '/api/file-source-wire': typeof ApiFileSourceWireRoute
   '/api/foreign-chunk-events': typeof ApiForeignChunkEventsRoute
   '/api/foreign-client-tool': typeof ApiForeignClientToolRoute
@@ -1223,6 +1256,7 @@ export interface FileRoutesById {
   '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
+  '/solid-reactive-chat': typeof SolidReactiveChatRoute
   '/subagents-test': typeof SubagentsTestRoute
   '/subagents-ui-test': typeof SubagentsUiTestRoute
   '/text-first-tool': typeof TextFirstToolRoute
@@ -1234,6 +1268,7 @@ export interface FileRoutesById {
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/activity-test': typeof ApiActivityTestRoute
   '/api/adapter-input-modalities': typeof ApiAdapterInputModalitiesRoute
+  '/api/anthropic-auth-wire': typeof ApiAnthropicAuthWireRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-haiku-5-5-wire': typeof ApiAnthropicHaiku55WireRoute
   '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
@@ -1247,6 +1282,7 @@ export interface FileRoutesById {
   '/api/anthropic-truncated-tool-input-wire': typeof ApiAnthropicTruncatedToolInputWireRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
+  '/api/azure-openai-wire': typeof ApiAzureOpenaiWireRoute
   '/api/bedrock-converse-cache': typeof ApiBedrockConverseCacheRoute
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
@@ -1257,6 +1293,7 @@ export interface FileRoutesById {
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
+  '/api/fake-text': typeof ApiFakeTextRoute
   '/api/file-source-wire': typeof ApiFileSourceWireRoute
   '/api/foreign-chunk-events': typeof ApiForeignChunkEventsRoute
   '/api/foreign-client-tool': typeof ApiForeignClientToolRoute
@@ -1370,6 +1407,7 @@ export interface FileRouteTypes {
     | '/message-history-paging'
     | '/middleware-test'
     | '/persistence-durability'
+    | '/solid-reactive-chat'
     | '/subagents-test'
     | '/subagents-ui-test'
     | '/text-first-tool'
@@ -1381,6 +1419,7 @@ export interface FileRouteTypes {
     | '/$provider/$feature'
     | '/api/activity-test'
     | '/api/adapter-input-modalities'
+    | '/api/anthropic-auth-wire'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-haiku-5-5-wire'
     | '/api/anthropic-max-tokens-usage'
@@ -1394,6 +1433,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-truncated-tool-input-wire'
     | '/api/arktype-tool-wire'
     | '/api/audio'
+    | '/api/azure-openai-wire'
     | '/api/bedrock-converse-cache'
     | '/api/byok-chat'
     | '/api/byteplus-seedance-1080p-wire'
@@ -1404,6 +1444,7 @@ export interface FileRouteTypes {
     | '/api/durable-delivery'
     | '/api/durable-takeover'
     | '/api/embedding'
+    | '/api/fake-text'
     | '/api/file-source-wire'
     | '/api/foreign-chunk-events'
     | '/api/foreign-client-tool'
@@ -1515,6 +1556,7 @@ export interface FileRouteTypes {
     | '/message-history-paging'
     | '/middleware-test'
     | '/persistence-durability'
+    | '/solid-reactive-chat'
     | '/subagents-test'
     | '/subagents-ui-test'
     | '/text-first-tool'
@@ -1526,6 +1568,7 @@ export interface FileRouteTypes {
     | '/$provider/$feature'
     | '/api/activity-test'
     | '/api/adapter-input-modalities'
+    | '/api/anthropic-auth-wire'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-haiku-5-5-wire'
     | '/api/anthropic-max-tokens-usage'
@@ -1539,6 +1582,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-truncated-tool-input-wire'
     | '/api/arktype-tool-wire'
     | '/api/audio'
+    | '/api/azure-openai-wire'
     | '/api/bedrock-converse-cache'
     | '/api/byok-chat'
     | '/api/byteplus-seedance-1080p-wire'
@@ -1549,6 +1593,7 @@ export interface FileRouteTypes {
     | '/api/durable-delivery'
     | '/api/durable-takeover'
     | '/api/embedding'
+    | '/api/fake-text'
     | '/api/file-source-wire'
     | '/api/foreign-chunk-events'
     | '/api/foreign-client-tool'
@@ -1660,6 +1705,7 @@ export interface FileRouteTypes {
     | '/message-history-paging'
     | '/middleware-test'
     | '/persistence-durability'
+    | '/solid-reactive-chat'
     | '/subagents-test'
     | '/subagents-ui-test'
     | '/text-first-tool'
@@ -1671,6 +1717,7 @@ export interface FileRouteTypes {
     | '/$provider/$feature'
     | '/api/activity-test'
     | '/api/adapter-input-modalities'
+    | '/api/anthropic-auth-wire'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-haiku-5-5-wire'
     | '/api/anthropic-max-tokens-usage'
@@ -1684,6 +1731,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-truncated-tool-input-wire'
     | '/api/arktype-tool-wire'
     | '/api/audio'
+    | '/api/azure-openai-wire'
     | '/api/bedrock-converse-cache'
     | '/api/byok-chat'
     | '/api/byteplus-seedance-1080p-wire'
@@ -1694,6 +1742,7 @@ export interface FileRouteTypes {
     | '/api/durable-delivery'
     | '/api/durable-takeover'
     | '/api/embedding'
+    | '/api/fake-text'
     | '/api/file-source-wire'
     | '/api/foreign-chunk-events'
     | '/api/foreign-client-tool'
@@ -1806,6 +1855,7 @@ export interface RootRouteChildren {
   MessageHistoryPagingRoute: typeof MessageHistoryPagingRoute
   MiddlewareTestRoute: typeof MiddlewareTestRoute
   PersistenceDurabilityRoute: typeof PersistenceDurabilityRoute
+  SolidReactiveChatRoute: typeof SolidReactiveChatRoute
   SubagentsTestRoute: typeof SubagentsTestRoute
   SubagentsUiTestRoute: typeof SubagentsUiTestRoute
   TextFirstToolRoute: typeof TextFirstToolRoute
@@ -1817,6 +1867,7 @@ export interface RootRouteChildren {
   ProviderFeatureRoute: typeof ProviderFeatureRoute
   ApiActivityTestRoute: typeof ApiActivityTestRoute
   ApiAdapterInputModalitiesRoute: typeof ApiAdapterInputModalitiesRoute
+  ApiAnthropicAuthWireRoute: typeof ApiAnthropicAuthWireRoute
   ApiAnthropicBugTestRoute: typeof ApiAnthropicBugTestRoute
   ApiAnthropicHaiku55WireRoute: typeof ApiAnthropicHaiku55WireRoute
   ApiAnthropicMaxTokensUsageRoute: typeof ApiAnthropicMaxTokensUsageRoute
@@ -1830,6 +1881,7 @@ export interface RootRouteChildren {
   ApiAnthropicTruncatedToolInputWireRoute: typeof ApiAnthropicTruncatedToolInputWireRoute
   ApiArktypeToolWireRoute: typeof ApiArktypeToolWireRoute
   ApiAudioRoute: typeof ApiAudioRouteWithChildren
+  ApiAzureOpenaiWireRoute: typeof ApiAzureOpenaiWireRoute
   ApiBedrockConverseCacheRoute: typeof ApiBedrockConverseCacheRoute
   ApiByokChatRoute: typeof ApiByokChatRoute
   ApiByteplusSeedance1080pWireRoute: typeof ApiByteplusSeedance1080pWireRoute
@@ -1840,6 +1892,7 @@ export interface RootRouteChildren {
   ApiDurableDeliveryRoute: typeof ApiDurableDeliveryRoute
   ApiDurableTakeoverRoute: typeof ApiDurableTakeoverRoute
   ApiEmbeddingRoute: typeof ApiEmbeddingRoute
+  ApiFakeTextRoute: typeof ApiFakeTextRoute
   ApiFileSourceWireRoute: typeof ApiFileSourceWireRoute
   ApiForeignChunkEventsRoute: typeof ApiForeignChunkEventsRoute
   ApiForeignClientToolRoute: typeof ApiForeignClientToolRoute
@@ -2116,6 +2169,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PersistenceDurabilityRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/solid-reactive-chat': {
+      id: '/solid-reactive-chat'
+      path: '/solid-reactive-chat'
+      fullPath: '/solid-reactive-chat'
+      preLoaderRoute: typeof SolidReactiveChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/subagents-test': {
       id: '/subagents-test'
       path: '/subagents-test'
@@ -2198,6 +2258,13 @@ declare module '@tanstack/react-router' {
       path: '/api/adapter-input-modalities'
       fullPath: '/api/adapter-input-modalities'
       preLoaderRoute: typeof ApiAdapterInputModalitiesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/anthropic-auth-wire': {
+      id: '/api/anthropic-auth-wire'
+      path: '/api/anthropic-auth-wire'
+      fullPath: '/api/anthropic-auth-wire'
+      preLoaderRoute: typeof ApiAnthropicAuthWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/anthropic-bug-test': {
@@ -2291,6 +2358,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAudioRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/azure-openai-wire': {
+      id: '/api/azure-openai-wire'
+      path: '/api/azure-openai-wire'
+      fullPath: '/api/azure-openai-wire'
+      preLoaderRoute: typeof ApiAzureOpenaiWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/bedrock-converse-cache': {
       id: '/api/bedrock-converse-cache'
       path: '/api/bedrock-converse-cache'
@@ -2359,6 +2433,13 @@ declare module '@tanstack/react-router' {
       path: '/api/embedding'
       fullPath: '/api/embedding'
       preLoaderRoute: typeof ApiEmbeddingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/fake-text': {
+      id: '/api/fake-text'
+      path: '/api/fake-text'
+      fullPath: '/api/fake-text'
+      preLoaderRoute: typeof ApiFakeTextRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/file-source-wire': {
@@ -3011,6 +3092,7 @@ const rootRouteChildren: RootRouteChildren = {
   MessageHistoryPagingRoute: MessageHistoryPagingRoute,
   MiddlewareTestRoute: MiddlewareTestRoute,
   PersistenceDurabilityRoute: PersistenceDurabilityRoute,
+  SolidReactiveChatRoute: SolidReactiveChatRoute,
   SubagentsTestRoute: SubagentsTestRoute,
   SubagentsUiTestRoute: SubagentsUiTestRoute,
   TextFirstToolRoute: TextFirstToolRoute,
@@ -3022,6 +3104,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProviderFeatureRoute: ProviderFeatureRoute,
   ApiActivityTestRoute: ApiActivityTestRoute,
   ApiAdapterInputModalitiesRoute: ApiAdapterInputModalitiesRoute,
+  ApiAnthropicAuthWireRoute: ApiAnthropicAuthWireRoute,
   ApiAnthropicBugTestRoute: ApiAnthropicBugTestRoute,
   ApiAnthropicHaiku55WireRoute: ApiAnthropicHaiku55WireRoute,
   ApiAnthropicMaxTokensUsageRoute: ApiAnthropicMaxTokensUsageRoute,
@@ -3037,6 +3120,7 @@ const rootRouteChildren: RootRouteChildren = {
     ApiAnthropicTruncatedToolInputWireRoute,
   ApiArktypeToolWireRoute: ApiArktypeToolWireRoute,
   ApiAudioRoute: ApiAudioRouteWithChildren,
+  ApiAzureOpenaiWireRoute: ApiAzureOpenaiWireRoute,
   ApiBedrockConverseCacheRoute: ApiBedrockConverseCacheRoute,
   ApiByokChatRoute: ApiByokChatRoute,
   ApiByteplusSeedance1080pWireRoute: ApiByteplusSeedance1080pWireRoute,
@@ -3048,6 +3132,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiDurableDeliveryRoute: ApiDurableDeliveryRoute,
   ApiDurableTakeoverRoute: ApiDurableTakeoverRoute,
   ApiEmbeddingRoute: ApiEmbeddingRoute,
+  ApiFakeTextRoute: ApiFakeTextRoute,
   ApiFileSourceWireRoute: ApiFileSourceWireRoute,
   ApiForeignChunkEventsRoute: ApiForeignChunkEventsRoute,
   ApiForeignClientToolRoute: ApiForeignClientToolRoute,

@@ -1,5 +1,11 @@
 # @tanstack/ai
 
+## 0.66.1
+
+### Patch Changes
+
+- [#1673](https://github.com/TanStack/ai/pull/1673) [`baafb17`](https://github.com/TanStack/ai/commit/baafb176220c2b09fced334ad176e754582cd314) - `chat()` now removes lone UTF-16 surrogates from the text that it sends to the provider. This covers message text, text parts, tool results, system prompts, and the decoded strings in tool call arguments. Valid surrogate pairs, such as emoji, stay. Before this fix, a lone surrogate made the provider reject the whole request as invalid JSON or UTF-8.
+
 ## 0.66.0
 
 ### Minor Changes

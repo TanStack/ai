@@ -229,22 +229,18 @@ const litellm = openaiCompatible({
 
 ## Azure OpenAI
 
-Azure uses a resource-scoped URL and a separate API-version. Use the `/openai/v1` endpoint with `defaultQuery` for the version and `defaultHeaders` for the `api-key` header:
+Use `createAzureOpenaiText` from `@tanstack/ai-openai`. It sets the `api-key` header, the endpoint, the API version, and the deployment name for you:
 
 ```typescript
-import { openaiCompatible } from "@tanstack/ai-openai/compatible";
+import { createAzureOpenaiText } from "@tanstack/ai-openai";
 
-const azure = openaiCompatible({
-  name: "azure",
-  baseURL: "https://YOUR_RESOURCE.openai.azure.com/openai/v1",
-  apiKey: process.env.AZURE_OPENAI_API_KEY!, // also sent as Bearer; Azure accepts the api-key header below
-  models: ["gpt-4o"], // your Azure deployment name
-  defaultQuery: { "api-version": "2026-01-01-preview" },
-  defaultHeaders: { "api-key": process.env.AZURE_OPENAI_API_KEY! },
+const adapter = createAzureOpenaiText("gpt-5.6", process.env.AZURE_OPENAI_API_KEY!, {
+  resourceName: "my-resource",
+  deploymentName: "production-chat",
 });
 ```
 
-> Confirm the current `api-version` and endpoint shape in Azure's documentation — Azure's API surface evolves independently of OpenAI's.
+See [Azure OpenAI](./openai#azure-openai) for `azureOpenaiText`, which reads the key and the other values from the environment.
 
 ## Example: With Tools
 

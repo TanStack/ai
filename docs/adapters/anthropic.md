@@ -59,6 +59,30 @@ const stream = chat({
 });
 ```
 
+## Bearer and OAuth tokens
+
+Got a Bearer token or a Claude OAuth token instead of an API key? Pass it as `authToken`. The adapter sends `Authorization: Bearer <token>` and no `x-api-key` header:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { anthropicText } from "@tanstack/ai-anthropic";
+
+const stream = chat({
+  adapter: anthropicText("claude-sonnet-5-5", {
+    authToken: process.env.MY_CLAUDE_TOKEN,
+  }),
+  messages: [{ role: "user", content: "Hello!" }],
+});
+```
+
+A Claude OAuth token starts with `sk-ant-oat`. The adapter sees this and turns on OAuth mode. In OAuth mode, every request also gets:
+
+- the Claude Code identity system block, before your own system prompts.
+- the Claude Code CLI headers (`user-agent` and `x-app`).
+- the `claude-code-20250219` and `oauth-2025-04-20` betas.
+
+To pick the mode yourself, set `oauth: true` or `oauth: false`. With `oauth: false`, the token still goes out as a Bearer token, but without the Claude Code extras.
+
 ## Configuration
 
 ```typescript
@@ -336,6 +360,8 @@ const stream = chat({
 });
 ```
 
+`usage.promptTokens` counts the full input, cached tokens included. The cache reads and writes are also on `usage.promptTokensDetails`. See [Token usage](../chat/stream-events#token-usage).
+
 ## Summarization
 
 Anthropic supports text summarization:
@@ -356,15 +382,21 @@ console.log(result.summary);
 
 ## Environment Variables
 
-Set your API key in environment variables:
+Set one of these. If you pass no `apiKey` or `authToken`, the adapter uses the first one that is set:
+
+1. `ANTHROPIC_AUTH_TOKEN`: sent as a Bearer token.
+2. `ANTHROPIC_OAUTH_TOKEN`: sent as a Bearer token, in OAuth mode.
+3. `ANTHROPIC_API_KEY`: sent as `x-api-key`.
 
 ```bash
 ANTHROPIC_API_KEY=sk-ant-...
 ```
 
+An `apiKey` or `authToken` in the config always wins over the environment. See [Bearer and OAuth tokens](#bearer-and-oauth-tokens) for what OAuth mode adds.
+
 ## API Reference
 
-Every factory pair follows the same shape: the short factory (`anthropicText`, `anthropicSummarize`) reads `ANTHROPIC_API_KEY` from the environment, while `createAnthropicChat` / `createAnthropicSummarize` take an explicit API key. Both take `model` as the first argument. For Claude on Vertex, use `anthropicVertexText` from `@tanstack/ai-anthropic/vertex`. For any other custom transport, `createAnthropicChatWithClient` accepts an Anthropic-compatible Messages client.
+Every factory pair follows the same shape: the short factory (`anthropicText`, `anthropicSummarize`) takes the credential from its config or from the [environment](#environment-variables), while `createAnthropicChat` / `createAnthropicSummarize` take an explicit API key. Both take `model` as the first argument. For Claude on Vertex, use `anthropicVertexText` from `@tanstack/ai-anthropic/vertex`. For any other custom transport, `createAnthropicChatWithClient` accepts an Anthropic-compatible Messages client.
 
 ### `anthropicText(model, config?)` / `createAnthropicChat(model, apiKey, config?)`
 
@@ -376,6 +408,8 @@ Creates an Anthropic chat adapter.
 
 - `model` - Claude model id (e.g. `"claude-sonnet-5"`, `"claude-fable-5"`, `"claude-opus-4-8"`)
 - `config?.baseURL` - Custom base URL (optional)
+- `config?.authToken` - Bearer or Claude OAuth token (optional)
+- `config?.oauth` - Turn OAuth mode on or off (optional)
 
 ### `anthropicVertexText(model, config?)`
 

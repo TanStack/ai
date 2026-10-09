@@ -18,7 +18,7 @@ TanStack AI exposes this as a tree-shakeable **`files` adapter** per provider, p
 
 ## Files adapters
 
-Each provider with a native surface has a factory: `openaiFiles()`, `anthropicFiles()`, `geminiFiles()`, `grokFiles()`, and `falFiles()`. They read the same API-key env var as the provider's other adapters. To pass a key explicitly, use the `create*Files(apiKey)` variants (`createOpenaiFiles`, `createAnthropicFiles`, `createGeminiFiles`, `createGrokFiles`). `falFiles(config)` takes its key in the config object.
+Each provider with a native surface has a factory: `openaiFiles()`, `anthropicFiles()`, `geminiFiles()`, `grokFiles()`, and `falFiles()`. They read the same credentials from the environment as the provider's other adapters. To pass a key explicitly, use the `create*Files(apiKey)` variants (`createOpenaiFiles`, `createAnthropicFiles`, `createGeminiFiles`, `createGrokFiles`). `falFiles(config)` takes its key in the config object. `anthropicFiles({ authToken })` also takes a Bearer token, see [Bearer and OAuth tokens](../adapters/anthropic#bearer-and-oauth-tokens).
 
 ```typescript
 import { createOpenaiFiles, openaiFiles } from '@tanstack/ai-openai'

@@ -89,6 +89,55 @@ const stream = chat({
 
 Both adapters work identically with [Structured Outputs](../structured-outputs/overview) — including `stream: true` — and accept the same `modelOptions` (temperature, top_p, max_tokens, stop, …). The reasoning section below applies to `openaiText`; `openaiChatCompletions` accepts `modelOptions.reasoning.effort` but cannot stream summary text.
 
+## Azure OpenAI
+
+Your OpenAI model runs as a deployment in Azure? Use `createAzureOpenaiText`. It calls the Azure Responses API and sends your key in the `api-key` header.
+
+```typescript
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { createAzureOpenaiText } from "@tanstack/ai-openai";
+
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: createAzureOpenaiText("gpt-5.6", process.env.AZURE_OPENAI_API_KEY!, {
+      resourceName: "my-resource",
+      deploymentName: "production-chat",
+    }),
+    messages,
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+Azure gets `production-chat` as the model. Your code still uses `gpt-5.6`. The client does not change: it reads this route like any other chat route.
+
+`createAzureOpenaiText` reads nothing from the environment. You pass the key, and you pass the endpoint as `resourceName` or `baseURL`.
+
+Rather keep it all in the environment? Use `azureOpenaiText`. Like `openaiText`, it reads the key from the environment:
+
+```sh
+AZURE_OPENAI_API_KEY=your-key
+AZURE_OPENAI_RESOURCE_NAME=my-resource
+AZURE_OPENAI_DEPLOYMENT_NAME_MAP=gpt-5.6=production-chat
+```
+
+```typescript
+import { azureOpenaiText } from "@tanstack/ai-openai";
+
+const adapter = azureOpenaiText("gpt-5.6");
+```
+
+`azureOpenaiText` always reads the key from `AZURE_OPENAI_API_KEY`, and it throws when that is not set. For the other values, the config wins over the environment:
+
+- **Endpoint:** `baseURL`, then `resourceName`, then `AZURE_OPENAI_BASE_URL`, then `AZURE_OPENAI_RESOURCE_NAME`. You must set one of them.
+- **API version:** `apiVersion`, then `AZURE_OPENAI_API_VERSION`, then `v1`.
+- **Deployment:** `deploymentName`, then `deploymentNameMap`, then `AZURE_OPENAI_DEPLOYMENT_NAME_MAP`, then the model name. A `deploymentNameMap` in the config replaces the environment map. The two maps do not merge.
+
+An Azure resource URL always goes to the `/openai/v1` path. A proxy URL keeps its own path.
+
 ## Basic Usage - Custom API Key
 
 ```typescript

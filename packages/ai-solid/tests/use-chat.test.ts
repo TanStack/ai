@@ -1,5 +1,6 @@
 import { renderHook, waitFor } from '@solidjs/testing-library'
 import { ChatClient } from '@tanstack/ai-client'
+import { createSignal } from 'solid-js'
 import { describe, expect, it, vi } from 'vitest'
 import { useChat } from '../src/use-chat'
 import {
@@ -248,6 +249,68 @@ describe('useChat', () => {
   })
 
   describe('state synchronization', () => {
+    it('keeps conversation history when reactive body changes', async () => {
+      const requests: Array<{ users: number; body: unknown }> = []
+      const adapter = createMockConnectionAdapter({
+        chunks: createTextChunks('Response'),
+        onConnect: (messages, data) => {
+          requests.push({
+            users: messages.filter((message) => message.role === 'user').length,
+            body: data?.['provider'],
+          })
+        },
+      })
+      const { result } = renderHook(() => {
+        const [provider, setProvider] = createSignal('openai')
+        const chat = useChat({
+          connection: adapter,
+          get body() {
+            return { provider: provider() }
+          },
+        })
+        return { chat, setProvider }
+      })
+
+      await result.chat.sendMessage('First')
+      result.setProvider('anthropic')
+      await result.chat.sendMessage('Second')
+
+      expect(requests).toEqual([
+        { users: 1, body: 'openai' },
+        { users: 2, body: 'anthropic' },
+      ])
+      expect(
+        result.chat.messages().filter((message) => message.role === 'user'),
+      ).toHaveLength(2)
+    })
+
+    it('starts a new client when reactive threadId changes', async () => {
+      const users: Array<number> = []
+      const adapter = createMockConnectionAdapter({
+        chunks: createTextChunks('Response'),
+        onConnect: (messages) => {
+          users.push(
+            messages.filter((message) => message.role === 'user').length,
+          )
+        },
+      })
+      const { result } = renderHook(() => {
+        const [threadId, setThreadId] = createSignal('first-thread')
+        const chat = useChat({
+          connection: adapter,
+          get threadId() {
+            return threadId()
+          },
+        })
+        return { chat, setThreadId }
+      })
+
+      await result.chat.sendMessage('First')
+      result.setThreadId('second-thread')
+      await result.chat.sendMessage('Second')
+
+      expect(users).toEqual([1, 1])
+    })
     it('should update messages via onMessagesChange callback', async () => {
       const chunks = createTextChunks('Hello, world!')
       const adapter = createMockConnectionAdapter({ chunks })
