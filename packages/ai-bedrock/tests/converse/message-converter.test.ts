@@ -178,6 +178,34 @@ describe('toConverseMessages', () => {
     )
   })
 
+  it('maps tool result images to Converse tool result image blocks', () => {
+    const image = {
+      type: 'image' as const,
+      source: {
+        type: 'data' as const,
+        value: btoa('xy'),
+        mimeType: 'image/png',
+      },
+    }
+    const imageBlock = {
+      image: { format: 'png', source: { bytes: new Uint8Array([120, 121]) } },
+    }
+    const { messages } = toConverseMessages([
+      {
+        role: 'tool',
+        content: [{ type: 'text', content: 'screenshot' }, image],
+        toolCallId: 't1',
+      },
+      { role: 'assistant', content: 'ok' },
+      { role: 'tool', content: [image], toolCallId: 't2' },
+    ])
+    expect(messages[0]!.content![0]!.toolResult?.content).toEqual([
+      { text: 'screenshot' },
+      imageBlock,
+    ])
+    expect(messages[2]!.content![0]!.toolResult?.content).toEqual([imageBlock])
+  })
+
   it('throws on a URL image source (Converse needs inline bytes)', () => {
     expect(() =>
       toConverseMessages([

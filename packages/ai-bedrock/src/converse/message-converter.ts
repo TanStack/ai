@@ -166,11 +166,19 @@ function messageToBlocks(
       )
     }
     const textContent = stringContent(msg.content)
-    const toolResult: ToolResultContentBlock = { text: textContent }
+    const content: Array<ToolResultContentBlock> = textContent
+      ? [{ text: textContent }]
+      : []
+    for (const part of Array.isArray(msg.content) ? msg.content : []) {
+      if (!isImagePart(part)) continue
+      const { image } = contentPartToBlock(part, 0)
+      if (image) content.push({ image })
+    }
+    if (content.length === 0) content.push({ text: textContent })
     blocks.push({
       toolResult: {
         toolUseId: msg.toolCallId,
-        content: [toolResult],
+        content,
         status: 'success',
       },
     })
