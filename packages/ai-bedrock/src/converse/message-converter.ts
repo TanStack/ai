@@ -304,19 +304,25 @@ export function toConverseMessages(
 export function toolBlocksToText(messages: Array<Message>): Array<Message> {
   return messages.map((message) => ({
     ...message,
-    content: message.content?.map((block): ContentBlock => {
+    content: message.content?.flatMap((block): Array<ContentBlock> => {
       if (block.toolUse) {
         const { toolUseId, name, input } = block.toolUse
-        return {
-          text: `[Tool call ${toolUseId} ${name}(${JSON.stringify(input)})]`,
-        }
+        return [
+          {
+            text: `[Tool call ${toolUseId} ${name}(${JSON.stringify(input)})]`,
+          },
+        ]
       }
       if (block.toolResult) {
         const { toolUseId, content = [] } = block.toolResult
         const text = content.map((part) => part.text ?? '').join('')
-        return { text: `[Tool result ${toolUseId}: ${text}]` }
+        // Keep the images of the result as image blocks after the text.
+        const images = content.flatMap((part) =>
+          part.image ? [{ image: part.image }] : [],
+        )
+        return [{ text: `[Tool result ${toolUseId}: ${text}]` }, ...images]
       }
-      return block
+      return [block]
     }),
   }))
 }

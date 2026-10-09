@@ -167,6 +167,57 @@ describe('BedrockConverseTextAdapter', () => {
     ])
   })
 
+  it('keeps tool result images when it sends tool history as text', async () => {
+    const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
+    a.streamEvents = [{ messageStop: { stopReason: 'end_turn' } }]
+    for await (const _ of a.chatStream(
+      textOptions({
+        messages: [
+          {
+            role: 'assistant',
+            content: null,
+            toolCalls: [
+              {
+                id: 't1',
+                type: 'function',
+                function: { name: 'screenshot', arguments: '{}' },
+              },
+            ],
+          },
+          {
+            role: 'tool',
+            content: [
+              { type: 'text', content: 'the page' },
+              {
+                type: 'image',
+                source: {
+                  type: 'data',
+                  value: btoa('xy'),
+                  mimeType: 'image/png',
+                },
+              },
+            ],
+            toolCallId: 't1',
+          },
+        ],
+      }),
+    )) {
+      // drain
+    }
+    expect(a.capturedStreamInput?.messages?.[1]).toEqual({
+      role: 'user',
+      content: [
+        { text: '[Tool result t1: the page]' },
+        {
+          image: {
+            format: 'png',
+            source: { bytes: new Uint8Array([120, 121]) },
+          },
+        },
+      ],
+    })
+  })
+
   it('emits RUN_ERROR on an in-band Converse error event', async () => {
     const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
     a.streamEvents = [
