@@ -16,6 +16,14 @@ import type { ResponseCreateParams } from 'openai/resources/responses/responses'
 import type { ExternalTextProviderOptions } from '../text/text-provider-options'
 import type { OpenAIClientConfig } from '../utils/client'
 
+/**
+ * Azure deployment names are not model ids, so Azure has no per-model
+ * reasoning data for `chat({ reasoning })`. It keeps `reasoning` in
+ * `modelOptions`, as the Responses API types it.
+ */
+type AzureTextProviderOptions = ExternalTextProviderOptions &
+  Pick<ResponseCreateParams, 'reasoning'>
+
 /** The client options that `AzureOpenAI` refuses, or types more narrowly. */
 type NotForAzure =
   | 'provider'
@@ -56,7 +64,7 @@ function normalizeAzureBaseURL(baseURL: string): string {
 
 export class AzureOpenAITextAdapter extends OpenAIBaseResponsesTextAdapter<
   string,
-  { [K in keyof ExternalTextProviderOptions]: ExternalTextProviderOptions[K] },
+  { [K in keyof AzureTextProviderOptions]: AzureTextProviderOptions[K] },
   ReadonlyArray<Modality>,
   DefaultMessageMetadataByModality,
   ReadonlyArray<string>
@@ -103,7 +111,7 @@ export class AzureOpenAITextAdapter extends OpenAIBaseResponsesTextAdapter<
    * OpenAI tool converter (file_search, web_search, and so on).
    */
   protected override mapOptionsToRequest(
-    options: TextOptions<ExternalTextProviderOptions>,
+    options: TextOptions<AzureTextProviderOptions>,
   ): Omit<ResponseCreateParams, 'stream'> {
     const { tools: _baseTools, ...request } = super.mapOptionsToRequest({
       ...options,
