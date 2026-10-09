@@ -3,7 +3,45 @@ import { generateId as _generateId, getApiKeyFromEnv } from '@tanstack/ai-utils'
 import type { ClientOptions } from '@anthropic-ai/sdk'
 
 export interface AnthropicClientConfig extends ClientOptions {
-  apiKey: string
+  apiKey?: string | null
+}
+
+/**
+ * Resolve the credential. An explicit `authToken` or `apiKey` wins. Else the
+ * environment, in this order: `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_OAUTH_TOKEN`,
+ * `ANTHROPIC_API_KEY`. A token goes out as `Authorization: Bearer`. An
+ * `sk-ant-oat` token or `ANTHROPIC_OAUTH_TOKEN` turns on OAuth, unless
+ * `oauthOverride` is set.
+ */
+export function resolveAnthropicCredentials(
+  config: AnthropicClientConfig,
+  oauthOverride?: boolean,
+) {
+  const env = typeof process === 'undefined' ? {} : process.env
+  const explicit = Boolean(config.authToken || config.apiKey)
+  const environmentToken = env.ANTHROPIC_AUTH_TOKEN || env.ANTHROPIC_OAUTH_TOKEN
+  const credential =
+    (explicit
+      ? config.authToken || config.apiKey
+      : environmentToken || env.ANTHROPIC_API_KEY) ||
+    // Reads `window.env` too, and throws when no key is set.
+    getAnthropicApiKeyFromEnv()
+  const detectedOAuth = Boolean(
+    credential.includes('sk-ant-oat') ||
+    (!explicit && !env.ANTHROPIC_AUTH_TOKEN && env.ANTHROPIC_OAUTH_TOKEN),
+  )
+  const oauth = oauthOverride ?? detectedOAuth
+  const token = Boolean(
+    config.authToken ||
+    (!explicit && environmentToken) ||
+    detectedOAuth ||
+    oauth,
+  )
+  return {
+    apiKey: token ? null : credential,
+    authToken: token ? credential : null,
+    oauth,
+  }
 }
 
 type AnyAnthropicMessagesCreate = (
@@ -32,10 +70,16 @@ export interface AnthropicMessagesClient {
  */
 export function createAnthropicClient(
   config: AnthropicClientConfig,
+  oauthOverride?: boolean,
 ): Anthropic_SDK {
+  const credentials = resolveAnthropicCredentials(config, oauthOverride)
   return new Anthropic_SDK({
     ...config,
-    apiKey: config.apiKey,
+    apiKey: credentials.apiKey,
+    authToken: credentials.authToken,
+    ...(credentials.authToken && {
+      defaultHeaders: { ...config.defaultHeaders, 'x-api-key': null },
+    }),
   })
 }
 
