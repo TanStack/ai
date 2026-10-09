@@ -34,11 +34,39 @@ const adapters = {
  * answers with a 429 and `Retry-After: 7`. Returns the `retryAfterMs` of the
  * `RUN_ERROR` that `chat()` yields. `?api=` picks the adapter.
  */
+/**
+ * `chat({ retry })` against `[chat-retry]`: aimock answers the first call with
+ * a 429 and `Retry-After: 1`, and the second call with text. `testId` gives the
+ * test its own aimock `sequenceIndex` count.
+ */
+async function retryThenAnswer(testId: string | undefined) {
+  const adapter = createOpenaiChatCompletions('gpt-4o', DUMMY_KEY, {
+    ...config,
+    baseURL: `${LLMOCK_DEFAULT_BASE}/v1`,
+    ...(testId ? { defaultHeaders: { 'X-Test-Id': testId } } : {}),
+  })
+  const types: Array<string> = []
+  let text = ''
+  for await (const chunk of chat({
+    adapter,
+    messages: [{ role: 'user', content: '[chat-retry] say hello' }],
+    retry: { maxRetries: 1 },
+  })) {
+    types.push(chunk.type)
+    if (chunk.type === 'TEXT_MESSAGE_CONTENT') text += chunk.delta
+  }
+  return Response.json({ ok: true, types, text })
+}
+
 export const Route = createFileRoute('/api/retry-after')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const api = new URL(request.url).searchParams.get('api')
+        const url = new URL(request.url)
+        if (url.searchParams.get('mode') === 'retry') {
+          return retryThenAnswer(url.searchParams.get('testId') ?? undefined)
+        }
+        const api = url.searchParams.get('api')
         if (
           api !== 'anthropic' &&
           api !== 'openai-responses' &&

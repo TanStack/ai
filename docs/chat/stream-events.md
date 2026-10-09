@@ -122,6 +122,30 @@ const { messages } = useChat({
 
 No `retryAfterMs`? The provider sent no wait header, so pick your own backoff. The provider SDKs also retry a 429 by themselves first. To handle every 429 yourself, set `maxRetries: 0` in the adapter config.
 
+### Let `chat()` retry for you
+
+You can skip the wait loop. Pass `retry`, and `chat()` waits the `retryAfterMs`, then calls the model again:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { anthropicText } from "@tanstack/ai-anthropic";
+
+const stream = chat({
+  adapter: anthropicText("claude-sonnet-5-5"),
+  messages: [{ role: "user", content: "Hello!" }],
+  retry: { maxRetries: 3, maxWaitMs: 30_000 },
+});
+```
+
+Good to know:
+
+- It retries only when the `RUN_ERROR` has a `retryAfterMs`.
+- It skips waits longer than `maxWaitMs` (default 60 000). You get the `RUN_ERROR` instead.
+- It never retries a call that already streamed output, so no text repeats.
+- An abort stops the wait right away.
+
+On a serverless route, a long wait keeps the request open. If your host has a short time limit, keep `maxWaitMs` low and let the client retry the rest.
+
 ## Threads and runs
 
 Two ids frame every stream. They come from the AG-UI protocol, not from a storage layer.

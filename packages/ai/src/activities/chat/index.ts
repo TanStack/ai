@@ -537,6 +537,15 @@ export interface TextActivityOptions<
   /** How the server tools of one model turn run. Default `'parallel'`. */
   toolExecution?: TextOptions['toolExecution']
   /**
+   * Retry a rate-limited model call after the wait the provider asks for.
+   *
+   * @example
+   * ```ts
+   * chat({ adapter, messages, retry: { maxRetries: 3 } })
+   * ```
+   */
+  retry?: TextOptions['retry']
+  /**
    * Optional configuration for lazy-tool discovery (tools marked `lazy: true`).
    * Tunes how much of each lazy tool's description appears in the discovery
    * catalog. Optional — defaults to `{ includeDescription: 'none' }`.
@@ -833,6 +842,20 @@ function combineAbortSignals(
   a.addEventListener('abort', onAbort(a), { once: true })
   b.addEventListener('abort', onAbort(b), { once: true })
   return controller.signal
+}
+
+/** Wait `ms`, or less when the signal aborts. It never rejects. */
+function waitOrAbort(ms: number, signal: AbortSignal | undefined) {
+  return new Promise<void>((resolve) => {
+    if (signal?.aborted) return resolve()
+    const done = () => {
+      clearTimeout(timer)
+      signal?.removeEventListener('abort', done)
+      resolve()
+    }
+    const timer = setTimeout(done, ms)
+    signal?.addEventListener('abort', done, { once: true })
+  })
 }
 
 class TextEngine<
@@ -1571,6 +1594,60 @@ class TextEngine<
     })
   }
 
+  /**
+   * Calls the model again after a rate-limit `RUN_ERROR`, as the `retry`
+   * option allows. A call that streamed output is not retried, so no output
+   * repeats. `RUN_STARTED` is held until the attempt is kept, so the public
+   * start has the same `runId` as the `RUN_FINISHED` of the kept attempt.
+   */
+  private async *retryRateLimited(
+    call: () => AsyncIterable<AdapterYieldChunk>,
+  ): AsyncGenerator<AdapterYieldChunk> {
+    const retry = this.params.retry
+    if (!retry) {
+      yield* call()
+      return
+    }
+    const maxWaitMs = retry.maxWaitMs ?? 60_000
+    let start: AdapterYieldChunk | undefined
+    for (let attempt = 1; ; attempt++) {
+      let streamed = false
+      let waitMs: number | undefined
+      for await (const chunk of call()) {
+        if (
+          chunk.type === EventType.RUN_ERROR &&
+          !streamed &&
+          attempt <= retry.maxRetries &&
+          chunk.retryAfterMs !== undefined &&
+          chunk.retryAfterMs <= maxWaitMs
+        ) {
+          waitMs = chunk.retryAfterMs
+          break
+        }
+        if (chunk.type === EventType.RUN_STARTED && !streamed) {
+          start = chunk
+          continue
+        }
+        if (start) yield start
+        start = undefined
+        streamed = true
+        yield chunk
+      }
+      if (waitMs !== undefined) {
+        this.logger.errors(
+          `activity=chat rate limited, retry ${attempt} of ${retry.maxRetries} in ${waitMs}ms`,
+          { attempt, waitMs },
+        )
+        // Also wakes on a middleware `ctx.abort()`, not only the caller's.
+        await waitOrAbort(waitMs, this.toolAbortSignal)
+      }
+      if (waitMs === undefined || this.isCancelled()) {
+        if (start) yield start
+        return
+      }
+    }
+  }
+
   private async *streamModelResponse(): AsyncGenerator<StreamChunk> {
     const { metadata, modelOptions } = this.params
     const tools = this.tools
@@ -1628,7 +1705,7 @@ class TextEngine<
     // covered too.
     assertMessagesFileSourceSupport(this.adapter, this.messages)
 
-    for await (const raw of this.adapter.chatStream({
+    const streamOptions = {
       model: this.params.model,
       ...sanitizeProviderRequest(this.providerMessages, this.systemPrompts),
       tools: toolsWithJsonSchemas,
@@ -1645,7 +1722,10 @@ class TextEngine<
       approvals: adapterApprovals,
       ...(this.callWrapFetch ? { wrapFetch: this.callWrapFetch } : {}),
       ...(combinedSchema ? { outputSchema: combinedSchema } : {}),
-    })) {
+    }
+    for await (const raw of this.retryRateLimited(() =>
+      this.adapter.chatStream(streamOptions),
+    )) {
       if (this.isCancelled()) {
         break
       }

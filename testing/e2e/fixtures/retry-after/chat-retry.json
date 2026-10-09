@@ -1,0 +1,19 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "[chat-retry] say hello", "sequenceIndex": 0 },
+      "response": {
+        "error": {
+          "message": "Rate limit exceeded",
+          "type": "rate_limit_error"
+        },
+        "status": 429,
+        "retryAfter": 1
+      }
+    },
+    {
+      "match": { "userMessage": "[chat-retry] say hello", "sequenceIndex": 1 },
+      "response": { "content": "hello after the wait" }
+    }
+  ]
+}
