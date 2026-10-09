@@ -127,6 +127,9 @@ No `retryAfterMs`? The provider sent no wait header, so pick your own backoff. T
 You can skip the wait loop. Pass `retry`, and `chat()` waits the `retryAfterMs`, then calls the model again:
 
 ```typescript
+import { chat } from "@tanstack/ai";
+import { anthropicText } from "@tanstack/ai-anthropic";
+
 const stream = chat({
   adapter: anthropicText("claude-sonnet-5-5"),
   messages: [{ role: "user", content: "Hello!" }],
