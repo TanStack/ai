@@ -79,6 +79,34 @@ describe('applyChatModelCatalogInserts', () => {
     )
   })
 
+  it('keeps the reasoning maps as they are', () => {
+    const reasoning = `
+export type AnthropicModelReasoningByName = {
+  [FOO.id]: ModelReasoningCapability<typeof FOO.reasoning>
+}
+
+export const ANTHROPIC_MODEL_REASONING: Readonly<
+  Record<string, ModelReasoning>
+> = {
+  [FOO.id]: FOO.reasoning,
+} satisfies Record<keyof AnthropicModelReasoningByName, ModelReasoning>
+`
+    const result = applyChatModelCatalogInserts(
+      STUB + reasoning,
+      ANTHROPIC_CONFIG,
+      [
+        {
+          constName: 'CLAUDE_FABLE_5_1',
+          providerOptionsEntry: 'AnthropicMaxTokensOptions',
+          hasMaxOutputTokens: true,
+          acceptsCombinedToolsAndSchema: true,
+        },
+      ],
+    )
+
+    expect(result.endsWith(reasoning)).toBe(true)
+  })
+
   it('leaves a -fast Anthropic model out of the combined set', () => {
     const result = applyChatModelCatalogInserts(STUB, ANTHROPIC_CONFIG, [
       {
