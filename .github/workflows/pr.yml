@@ -24,8 +24,6 @@ jobs:
     env:
       NX_CI_EXECUTION_ENV: agents
       VITEST_MAX_WORKERS: 1
-      # Temporary full task-cache benchmark; remove after the trial.
-      NX_CI_CACHE_BUST: full-cold-20261009-02
       # PRs run all checks; branch pushes retain the E2E trigger while Release
       # runs its existing package checks. Both use one distributed task graph.
       TARGETS: ${{ github.event_name == 'pull_request' && 'test:sherif,test:knip,test:docs,test:kiira,test:maintainer,test:ai-review,test:oxlint,test:lib:ci,test:types,test:build,build,test:react-native,test:dts,test:e2e:ci--merge-reports,test:coverage:ci,build:preview' || 'test:e2e:ci--merge-reports' }}
@@ -51,8 +49,6 @@ jobs:
           --stop-agents-on-failure=false
       - name: Setup Tools
         uses: TanStack/config/.github/setup@190f659075ff0845850e330883eb26d7ffd0671f # main
-      - name: Bust all task hashes
-        run: node scripts/ci-cache-bust.mjs
       - name: Run Checks
         run: pnpm exec nx run-many --targets="$TARGETS"
       - name: Upload Video Recordings
