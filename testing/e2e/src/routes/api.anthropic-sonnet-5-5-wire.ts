@@ -8,11 +8,8 @@ const DUMMY_KEY = 'sk-ant-e2e-test-dummy-key'
 /**
  * Wire-format verification for `claude-sonnet-5-5` model options.
  *
- * The model sync added `claude-sonnet-5-5` with the sampling options and
- * without `output_config`, so `output_config.effort` did not type-check while
- * `temperature` did (the API rejects non-default sampling values with a 400).
- * This route only compiles when the model accepts `output_config`, and the
- * companion spec asserts that the effort reaches the Messages request.
+ * The route sets `reasoning: 'medium'`, and the companion spec asserts that
+ * the adapter sends it as `output_config.effort` in the Messages request.
  *
  * A custom `fetch` captures the outgoing request and answers with a synthetic
  * Claude SSE stream, so the run finishes without a real Anthropic key or an
