@@ -456,6 +456,18 @@ export interface AfterToolCallInfo {
   error?: unknown
 }
 
+/**
+ * Decision returned from onAfterToolCall.
+ * - undefined/void: keep the current result
+ * - { type: 'replaceResult', result }: use this result instead. The model and
+ *   the stream see it. The next middleware gets it as `info.result`. An error
+ *   result stays an error.
+ */
+export type AfterToolCallDecision = void | {
+  type: 'replaceResult'
+  result: unknown
+}
+
 // ===========================
 // Iteration Info
 // ===========================
@@ -800,11 +812,14 @@ export interface ChatMiddleware<
 
   /**
    * Called after a tool execution completes (success or failure).
+   * Return `{ type: 'replaceResult', result }` to change the result that the
+   * model and the stream see. Middleware run in order. Each one sees the
+   * result of the one before it.
    */
   onAfterToolCall?: (
     ctx: ChatMiddlewareContext<TContext>,
     info: AfterToolCallInfo,
-  ) => void | Promise<void>
+  ) => AfterToolCallDecision | Promise<AfterToolCallDecision>
 
   /**
    * Called after all tool calls in an iteration have been processed.

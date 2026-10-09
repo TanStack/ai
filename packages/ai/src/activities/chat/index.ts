@@ -2251,7 +2251,7 @@ class TextEngine<
             name: info.toolName,
             result: info.result,
           })
-          await this.middlewareRunner.runOnAfterToolCall(
+          return this.middlewareRunner.runOnAfterToolCall(
             this.middlewareCtx,
             info,
           )
@@ -2440,7 +2440,7 @@ class TextEngine<
             name: info.toolName,
             result: info.result,
           })
-          await this.middlewareRunner.runOnAfterToolCall(
+          return this.middlewareRunner.runOnAfterToolCall(
             this.middlewareCtx,
             info,
           )

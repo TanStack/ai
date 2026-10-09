@@ -20,7 +20,7 @@ import { buildAnthropicUsage } from '../usage'
 import {
   createAnthropicClient,
   generateId,
-  getAnthropicApiKeyFromEnv,
+  resolveAnthropicCredentials,
 } from '../utils/client'
 import {
   ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS,
@@ -256,11 +256,28 @@ export function computeAnthropicBetas(
 /**
  * Configuration for Anthropic text adapter
  */
-export interface AnthropicTextConfig extends AnthropicClientConfig {}
+export interface AnthropicTextConfig extends AnthropicClientConfig {
+  /**
+   * Add the Claude Code identity: the identity system block, the CLI
+   * headers, and the `claude-code-20250219` and `oauth-2025-04-20` betas. The
+   * default is true for an `sk-ant-oat` token or `ANTHROPIC_OAUTH_TOKEN`.
+   */
+  oauth?: boolean
+}
 
 export type AnthropicTextAdapterConfig =
   | AnthropicTextConfig
-  | { client: AnthropicMessagesClient }
+  | {
+      client: AnthropicMessagesClient
+      /** See {@link AnthropicTextConfig.oauth}. */
+      oauth?: boolean
+    }
+
+/** The headers that Claude Code sends with an OAuth token. */
+const OAUTH_IDENTITY_HEADERS = {
+  'user-agent': 'claude-cli/2.1.280',
+  'x-app': 'cli',
+}
 
 /**
  * Anthropic-specific provider options for text/chat
@@ -347,19 +364,52 @@ export class AnthropicTextAdapter<
   override readonly supportsFileSources = true
 
   private readonly client: SdkAnthropicMessagesClient
+  private readonly oauth: boolean
+  /** True when the credential goes out as `Authorization: Bearer`. */
+  private readonly tokenAuthentication: boolean
+  /** The OAuth identity headers, with the caller's own values on top. */
+  private readonly oauthHeaders = new Headers(OAUTH_IDENTITY_HEADERS)
+
   /** The adapter's own SDK client. An injected client cannot take a fetch. */
   private readonly sdkClient: Anthropic_SDK | undefined
   private readonly baseFetch: typeof fetch | undefined
 
   constructor(config: AnthropicTextAdapterConfig, model: TModel) {
     super({}, model)
+    const credentials =
+      'client' in config
+        ? undefined
+        : resolveAnthropicCredentials(config, config.oauth)
+    this.oauth = config.oauth ?? credentials?.oauth ?? false
+    this.tokenAuthentication = Boolean(credentials?.authToken) || this.oauth
     if ('client' in config) {
       this.client = asSdkAnthropicMessagesClient(config.client)
-    } else {
-      this.sdkClient = createAnthropicClient(config)
-      this.client = this.sdkClient
-      this.baseFetch = config.fetch
+      return
     }
+    for (const [name, value] of Object.entries(config.defaultHeaders ?? {})) {
+      const lower = name.toLowerCase()
+      if (
+        value != null &&
+        (lower === 'x-app' ||
+          lower === 'user-agent' ||
+          lower === 'anthropic-beta')
+      )
+        this.oauthHeaders.set(name, value)
+    }
+    this.baseFetch = config.fetch
+    this.sdkClient = createAnthropicClient(
+      {
+        ...config,
+        ...(this.oauth && {
+          defaultHeaders: {
+            ...OAUTH_IDENTITY_HEADERS,
+            ...config.defaultHeaders,
+          },
+        }),
+      },
+      this.oauth,
+    )
+    this.client = this.sdkClient
   }
 
   /** Use a client whose fetch goes through `wrapFetch` for one call. */
@@ -368,6 +418,46 @@ export class AnthropicTextAdapter<
     return this.sdkClient.withOptions({
       fetch: wrapFetch(this.baseFetch ?? globalThis.fetch),
     })
+  }
+
+  /** With OAuth, the Claude Code betas go first. */
+  private requestBetas(betas: Array<AnthropicBeta> | undefined) {
+    if (!this.oauth) return betas
+    return [
+      ...new Set<AnthropicBeta>([
+        'claude-code-20250219',
+        'oauth-2025-04-20',
+        ...(betas ?? []),
+      ]),
+    ]
+  }
+
+  /**
+   * With a token, drop `x-api-key`. With OAuth, also send the identity
+   * headers, and merge the configured `anthropic-beta` with the request betas.
+   */
+  private requestHeaders(
+    headers: HeadersInit | undefined,
+    betas: Array<AnthropicBeta> | undefined,
+  ) {
+    if (!this.tokenAuthentication) return headers
+    const requestHeaders = new Headers(
+      this.oauth ? this.oauthHeaders : undefined,
+    )
+    new Headers(headers).forEach((value, name) =>
+      requestHeaders.set(name, value),
+    )
+    if (this.oauth) {
+      const configured = (requestHeaders.get('anthropic-beta') ?? '')
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean)
+      requestHeaders.set(
+        'anthropic-beta',
+        [...new Set([...(betas ?? []), ...configured])].join(','),
+      )
+    }
+    return { ...Object.fromEntries(requestHeaders), 'x-api-key': null }
   }
 
   async *chatStream(
@@ -384,10 +474,12 @@ export class AnthropicTextAdapter<
 
       // `betas` is attached at the call site rather than in the shared mapper
       // because the beta set depends on both the tools and the modelOptions.
-      const betas = computeAnthropicBetas(
-        options.tools,
-        options.modelOptions,
-        messagesHaveFileSource(options.messages),
+      const betas = this.requestBetas(
+        computeAnthropicBetas(
+          options.tools,
+          options.modelOptions,
+          messagesHaveFileSource(options.messages),
+        ),
       )
 
       // `client.beta.messages` is Anthropic's permanent staging surface, not a
@@ -406,7 +498,7 @@ export class AnthropicTextAdapter<
         },
         {
           signal: options.request?.signal,
-          headers: options.request?.headers,
+          headers: this.requestHeaders(options.request?.headers, betas),
         },
       )
 
@@ -477,10 +569,12 @@ export class AnthropicTextAdapter<
         `activity=chat provider=anthropic model=${this.model} messages=${chatOptions.messages.length} tools=${chatOptions.tools?.length ?? 0} stream=false`,
         { provider: 'anthropic', model: this.model },
       )
-      const betas = computeAnthropicBetas(
-        chatOptions.tools,
-        chatOptions.modelOptions,
-        messagesHaveFileSource(chatOptions.messages),
+      const betas = this.requestBetas(
+        computeAnthropicBetas(
+          chatOptions.tools,
+          chatOptions.modelOptions,
+          messagesHaveFileSource(chatOptions.messages),
+        ),
       )
       // Make non-streaming request with tool_choice forced to our structured output tool
       const response = await this.clientFor(
@@ -495,7 +589,7 @@ export class AnthropicTextAdapter<
         },
         {
           signal: chatOptions.request?.signal,
-          headers: chatOptions.request?.headers,
+          headers: this.requestHeaders(chatOptions.request?.headers, betas),
         },
       )
 
@@ -652,8 +746,8 @@ export class AnthropicTextAdapter<
       const normalized = normalizeSystemPrompts<AnthropicSystemPromptMetadata>(
         options.systemPrompts,
       )
-      if (normalized.length === 0) return undefined
-      return normalized.map(
+      if (normalized.length === 0 && !this.oauth) return undefined
+      const blocks = normalized.map(
         (p): TextBlockParam => ({
           type: 'text',
           text: p.content,
@@ -662,6 +756,16 @@ export class AnthropicTextAdapter<
           }),
         }),
       )
+      // Anthropic accepts an OAuth token only with the Claude Code identity.
+      return this.oauth
+        ? [
+            {
+              type: 'text',
+              text: "You are Claude Code, Anthropic's official CLI for Claude.",
+            },
+            ...blocks,
+          ]
+        : blocks
     })()
     // Wire engine-threaded outputSchema into Messages `output_config.format`
     // alongside any `tools` so the model emits tool calls during the agent
@@ -1730,17 +1834,17 @@ export function createAnthropicChatWithClient<
 }
 
 /**
- * Creates an Anthropic text adapter with automatic API key detection.
- * Type resolution happens here at the call site.
+ * Creates an Anthropic text adapter. Without an `apiKey` or `authToken` in
+ * `config`, it reads `ANTHROPIC_AUTH_TOKEN`, then `ANTHROPIC_OAUTH_TOKEN`, then
+ * `ANTHROPIC_API_KEY`. Type resolution happens here at the call site.
  */
 export function anthropicText<TModel extends (typeof ANTHROPIC_MODELS)[number]>(
   model: TModel,
-  config?: Omit<AnthropicTextConfig, 'apiKey'>,
+  config?: AnthropicTextConfig,
 ): AnthropicTextAdapter<
   TModel,
   ResolveProviderOptions<TModel>,
   ResolveInputModalities<TModel>
 > {
-  const apiKey = getAnthropicApiKeyFromEnv()
-  return createAnthropicChat(model, apiKey, config)
+  return new AnthropicTextAdapter(config ?? {}, model)
 }

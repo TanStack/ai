@@ -1,5 +1,4 @@
 import { ChatStreamSummarizeAdapter } from '@tanstack/ai/adapters'
-import { getAnthropicApiKeyFromEnv } from '../utils/client'
 import { AnthropicTextAdapter } from './text'
 import type { InferTextProviderOptions } from '@tanstack/ai/adapters'
 import type { ANTHROPIC_MODELS } from '../model-meta'
@@ -45,11 +44,12 @@ export function createAnthropicSummarize<
 }
 
 /**
- * Creates an Anthropic summarize adapter with automatic API key detection.
+ * Creates an Anthropic summarize adapter. Without an `apiKey` or `authToken`,
+ * it reads the credential from the environment, as `anthropicText` does.
  * Type resolution happens here at the call site.
  *
  * @param model - The model name (e.g., 'claude-sonnet-5', 'claude-haiku-4-5')
- * @param config - Optional configuration (excluding apiKey which is auto-detected)
+ * @param config - Optional configuration
  * @returns Configured Anthropic summarize adapter instance with resolved types
  *
  * @example
@@ -60,10 +60,14 @@ export function createAnthropicSummarize<
  */
 export function anthropicSummarize<TModel extends AnthropicSummarizeModel>(
   model: TModel,
-  config?: Omit<AnthropicSummarizeConfig, 'apiKey'>,
+  config?: AnthropicSummarizeConfig,
 ): ChatStreamSummarizeAdapter<
   TModel,
   InferTextProviderOptions<AnthropicTextAdapter<TModel>>
 > {
-  return createAnthropicSummarize(model, getAnthropicApiKeyFromEnv(), config)
+  return new ChatStreamSummarizeAdapter(
+    new AnthropicTextAdapter(config ?? {}, model),
+    model,
+    'anthropic',
+  )
 }

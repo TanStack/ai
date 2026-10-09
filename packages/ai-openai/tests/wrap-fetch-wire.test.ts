@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
+import { createAzureOpenaiText } from '../src/adapters/azure-text'
 import { createOpenaiChat } from '../src/adapters/text'
 import { openaiCompatibleText } from '../src/compatible'
 import type { FetchWrapper } from '@tanstack/ai'
@@ -28,6 +29,15 @@ const adapters = [
         fetch,
       }),
     url: 'https://api.deepseek.test/v1/chat/completions',
+  },
+  {
+    adapter: 'createAzureOpenaiText',
+    create: (fetch: typeof globalThis.fetch) =>
+      createAzureOpenaiText('gpt-5.5', 'test-key', {
+        resourceName: 'test-resource',
+        fetch,
+      }),
+    url: 'https://test-resource.openai.azure.com/openai/v1/responses?api-version=v1',
   },
 ]
 
@@ -65,5 +75,36 @@ describe.each(adapters)('$adapter wrapFetch', ({ create, url }) => {
     expect(requests).toHaveLength(1)
     expect(requests[0]?.url).toBe(url)
     expect(requests[0]?.headers.get('x-trace-id')).toBeNull()
+  })
+})
+
+describe('createAzureOpenaiText wrapFetch with an apiVersion', () => {
+  it('keeps the apiVersion and sends the header of the wrapper', async () => {
+    const requests: Array<{ url: string; headers: Headers }> = []
+    const adapter = createAzureOpenaiText('gpt-5.5', 'test-key', {
+      resourceName: 'test-resource',
+      apiVersion: '2025-04-01-preview',
+      fetch: async (input, init) => {
+        const request = new Request(input, init)
+        requests.push({ url: request.url, headers: request.headers })
+        return new Response('', {
+          headers: { 'content-type': 'text/event-stream' },
+        })
+      },
+    })
+    for await (const _ of adapter.chatStream({
+      logger,
+      model: 'gpt-5.5',
+      messages: [{ role: 'user', content: 'Hi' }],
+      wrapFetch: addTraceHeader,
+    })) {
+      // drain
+    }
+    expect(requests).toHaveLength(1)
+    expect(requests[0]?.url).toBe(
+      'https://test-resource.openai.azure.com/openai/v1/responses?api-version=2025-04-01-preview',
+    )
+    expect(requests[0]?.headers.get('x-trace-id')).toBe('trace-1')
+    expect(requests[0]?.headers.get('api-key')).toBe('test-key')
   })
 })

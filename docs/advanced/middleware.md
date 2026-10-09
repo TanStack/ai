@@ -612,7 +612,7 @@ The `hookCtx` provides:
 
 ### onAfterToolCall
 
-Called after each tool execution (or skip). All middleware run — there is no short-circuiting.
+Called after each tool execution (or skip). Every middleware runs, in array order.
 
 ```typescript
 import { type ChatMiddleware } from "@tanstack/ai";
@@ -639,8 +639,42 @@ The `info` object provides:
 | `toolCallId` | `string` | Tool call ID |
 | `ok` | `boolean` | Whether execution succeeded |
 | `duration` | `number` | Execution time in milliseconds |
-| `result` | `unknown` | Result (when `ok` is true) |
+| `result` | `unknown` | Result (when `ok` is true). After a `replaceResult` from an earlier middleware, the new result. |
 | `error` | `unknown` | Error (when `ok` is false) |
+
+#### Replace a tool result
+
+Some tools return way more than the model needs: 500 rows, a huge log, a secret you want to hide. The model reads every token of it. Return `{ type: 'replaceResult', result }` and the model gets your version instead:
+
+```typescript
+import { type ChatMiddleware } from "@tanstack/ai";
+
+const firstTwentyRows: ChatMiddleware = {
+  name: "first-twenty-rows",
+  onAfterToolCall: (ctx, info) => {
+    if (!info.ok || !Array.isArray(info.result)) return;
+    if (info.result.length <= 20) return;
+    return {
+      type: "replaceResult",
+      result: {
+        rows: info.result.slice(0, 20),
+        omitted: info.result.length - 20,
+      },
+    };
+  },
+};
+```
+
+| Return | What happens |
+|--------|--------|
+| nothing | The result stays the same. |
+| `{ type: 'replaceResult', result }` | The model gets `result`. The stream sends it in `TOOL_CALL_RESULT`, so the client shows it too. |
+
+Good to know:
+
+- Each middleware gets the result of the one before it as `info.result`. The last replacement wins.
+- A failed call stays failed. Your replacement becomes the error that the model reads.
+- A `skip` result from `onBeforeToolCall` goes through this hook too. `info.result` is the parsed skip result, the same value the model gets.
 
 ### Tool hook order in one turn
 
@@ -866,7 +900,7 @@ const stream = chat({
 | `onChunk` | **Piped** — chunks flow through each middleware | If first drops a chunk, later middleware never see it |
 | `onBeforeToolCall` | **First-win** — first non-void decision wins | Earlier middleware has priority |
 | `onShouldContinue` | **AND** — any explicit `false` stops the loop | Order only affects which middleware runs first when short-circuiting |
-| `onAfterToolCall` | Sequential | All run in order |
+| `onAfterToolCall` | **Piped**: each gets the result of the previous `replaceResult` | The last replacement wins |
 | `onUsage` | Sequential | All run in order |
 | `onFinish/onAbort/onError` | Sequential | All run in order |
 
@@ -1208,6 +1242,7 @@ import type {
   ToolCallHookContext,
   BeforeToolCallDecision,
   AfterToolCallInfo,
+  AfterToolCallDecision,
   IterationInfo,
   ToolPhaseCompleteInfo,
   UsageInfo,

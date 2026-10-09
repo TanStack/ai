@@ -154,7 +154,7 @@
           "label": "Stream Events",
           "to": "chat/stream-events",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-09-27"
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "Subagents",
@@ -1140,7 +1140,7 @@
           "label": "Files API",
           "to": "advanced/files-api",
           "addedAt": "2026-09-11",
-          "updatedAt": "2026-09-24"
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "Per-Model Type Safety",
@@ -1169,6 +1169,11 @@
           "to": "advanced/typed-options",
           "addedAt": "2026-05-25",
           "updatedAt": "2026-09-14"
+        },
+        {
+          "label": "Test with a Fake Model",
+          "to": "advanced/testing",
+          "addedAt": "2026-10-09"
         },
         {
           "label": "Approval Flow Processing",

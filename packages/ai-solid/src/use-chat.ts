@@ -2,7 +2,7 @@ import {
   createEffect,
   createMemo,
   createSignal,
-  createUniqueId,
+  on,
   onCleanup,
   onMount,
   untrack,
@@ -57,10 +57,7 @@ export function useChat<
   > = {} as UseChatOptions<TTools, TSchema, TContext, TInterrupts>,
 ): UseChatReturn<TTools, TSchema, TInterrupts> {
   // The hook's identity is its `threadId`. Reload with the same `threadId`
-  // restores the same conversation. `hookId` is only a recreation key when no
-  // `threadId` is given. It is never sent on the wire.
-  const hookId = createUniqueId()
-  const clientId = options.threadId ?? hookId
+  // restores the same conversation.
 
   const [messages, setMessages] = createSignal<Array<UIMessage<TTools>>>(
     options.initialMessages || [],
@@ -103,7 +100,7 @@ export function useChat<
   // reference we saw at creation; the wrapper lets reactive `options` or
   // in-place mutations propagate. When the user clears a callback (sets it to
   // undefined), `?.` no-ops.
-  const client = createMemo(() => {
+  const createClient = () => {
     // Build options with conditional spreads for fields whose source
     // type is `T | undefined` but the ChatClient target uses a strict
     // optional (`field?: T`) — `exactOptionalPropertyTypes` rejects
@@ -217,10 +214,12 @@ export function useChat<
         options.onInterruptStateChange?.(nextInterruptState, context)
       },
     })
-    // Only recreate when clientId changes
-    // Connection and other options are captured at creation time
     return instance
-  }, [clientId])
+  }
+  // Rebuild the client only when `threadId` changes. `on` runs `createClient`
+  // untracked, so a reactive `body` or `forwardedProps` change does not start a
+  // new client and drop the transcript. The effects below sync those values.
+  const client = createMemo(on(() => options.threadId, createClient))
 
   setMessages(client().getMessages())
   setHasOlderMessages(client().getHasOlderMessages())

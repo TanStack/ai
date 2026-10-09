@@ -3,10 +3,7 @@ import {
   BaseFilesAdapter,
   normalizeFileUploadInput,
 } from '@tanstack/ai/adapters'
-import {
-  createAnthropicClient,
-  getAnthropicApiKeyFromEnv,
-} from '../utils/client'
+import { createAnthropicClient } from '../utils/client'
 import type Anthropic_SDK from '@anthropic-ai/sdk'
 import type { FileMetadata } from '@anthropic-ai/sdk/resources/beta/files'
 import type { FileHandle, FileUploadInput } from '@tanstack/ai/adapters'
@@ -76,10 +73,12 @@ export function createAnthropicFiles(
 }
 
 /**
- * Create an Anthropic Files adapter, reading the API key from `ANTHROPIC_API_KEY`.
+ * Create an Anthropic Files adapter. Without an `apiKey` or `authToken`, it
+ * reads `ANTHROPIC_AUTH_TOKEN`, then `ANTHROPIC_OAUTH_TOKEN`, then
+ * `ANTHROPIC_API_KEY`.
  */
 export function anthropicFiles(
-  config?: Omit<AnthropicFilesConfig, 'apiKey'>,
+  config?: AnthropicFilesConfig,
 ): AnthropicFilesAdapter {
-  return createAnthropicFiles(getAnthropicApiKeyFromEnv(), config)
+  return new AnthropicFilesAdapter(config ?? {})
 }
