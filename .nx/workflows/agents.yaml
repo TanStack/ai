@@ -25,6 +25,8 @@ launch-templates:
           base-branch: main
       - name: Install dependencies
         uses: nrwl/nx-cloud-workflows/v6/workflow-steps/install-node-modules/main.yaml
+      - name: Bust all task hashes for the benchmark
+        script: node scripts/ci-cache-bust.mjs
       # Playwright is a workspace dependency, so the root-only install-browsers
       # reusable step cannot discover it. Ubuntu 22.04 also needs its system libs.
       - name: Install Playwright Chromium and system dependencies

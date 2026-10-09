@@ -76,6 +76,12 @@ export function runCoverage({
       run('git', ['worktree', 'add', '--detach', baseRoot, env.NX_BASE])
       worktreeCreated = true
       run('pnpm', ['install', '--frozen-lockfile'], baseRoot)
+      if (env.NX_CI_CACHE_BUST)
+        run(
+          process.execPath,
+          [join(root, 'scripts/ci-cache-bust.mjs')],
+          baseRoot,
+        )
       const available = new Set(
         JSON.parse(
           nx(
