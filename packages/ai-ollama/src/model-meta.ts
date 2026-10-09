@@ -1,3 +1,4 @@
+import type { ModelReasoning } from '@tanstack/ai'
 // constants
 import { ATHENE_MODELS } from './meta/model-meta-athene'
 import { AYA_MODELS } from './meta/model-meta-aya'
@@ -8,8 +9,14 @@ import { COMMAND_R_PLUS_MODELS } from './meta/model-meta-command-r-plus'
 import { COMMAND_R_7b_MODELS } from './meta/model-meta-command-r7b'
 import { DEEPSEEK_CODER_V2_MODELS } from './meta/model-meta-deepseek-coder-v2'
 import { DEEPSEEK_OCR_MODELS } from './meta/model-meta-deepseek-ocr'
-import { DEEPSEEK_R1_MODELS } from './meta/model-meta-deepseek-r1'
-import { DEEPSEEK_V3_1_MODELS } from './meta/model-meta-deepseek-v3.1.js'
+import {
+  DEEPSEEK_R1_MODELS,
+  DEEPSEEK_R1_MODEL_REASONING,
+} from './meta/model-meta-deepseek-r1'
+import {
+  DEEPSEEK_V3_1_MODELS,
+  DEEPSEEK_V3_1_MODEL_REASONING,
+} from './meta/model-meta-deepseek-v3.1.js'
 import { DEVSTRAL_MODELS } from './meta/model-meta-devstral'
 import { DOLPHIN3_MODELS } from './meta/model-meta-dolphin3'
 import { EXAONE3_5MODELS } from './meta/model-meta-exaone3.5.js'
@@ -19,7 +26,10 @@ import { FIREFUNCTION_V2_MODELS } from './meta/model-meta-firefunction-v2'
 import { GEMMA_MODELS } from './meta/model-meta-gemma'
 import { GEMMA2_MODELS } from './meta/model-meta-gemma2'
 import { GEMMA3_MODELS } from './meta/model-meta-gemma3'
-import { GPT_OSS_MODELS } from './meta/model-meta-gpt-oss'
+import {
+  GPT_OSS_MODELS,
+  GPT_OSS_MODEL_REASONING,
+} from './meta/model-meta-gpt-oss'
 import { GRANITE3_DENSE_MODELS } from './meta/model-meta-granite3-dense'
 import { GRANITE3_GUARDIAN_MODELS } from './meta/model-meta-granite3-guardian'
 import { GRANITE3_MOE_MODELS } from './meta/model-meta-granite3-moe'
@@ -56,7 +66,7 @@ import { QWEN_MODELS } from './meta/model-meta-qwen'
 import { QWEN2_MODELS } from './meta/model-meta-qwen2'
 import { QWEN2_5_MODELS } from './meta/model-meta-qwen2.5.js'
 import { QWEN2_5_CODER_MODELS } from './meta/model-meta-qwen2.5-coder.js'
-import { QWEN3_MODELS } from './meta/model-meta-qwen3'
+import { QWEN3_MODELS, QWEN3_MODEL_REASONING } from './meta/model-meta-qwen3'
 import { QWQ_MODELS } from './meta/model-meta-qwq'
 import { SAILOR2_MODELS } from './meta/model-meta-sailor2'
 import { SHIELDGEMMA_MODELS } from './meta/model-meta-shieldgemma'
@@ -105,10 +115,12 @@ import type {
 import type {
   DeepseekR1ChatModelProviderOptionsByName,
   DeepseekR1ModelInputModalitiesByName,
+  DeepseekR1ModelReasoningByName,
 } from './meta/model-meta-deepseek-r1'
 import type {
   Deepseekv3_1ChatModelProviderOptionsByName,
   Deepseekv3_1ModelInputModalitiesByName,
+  Deepseekv3_1ModelReasoningByName,
 } from './meta/model-meta-deepseek-v3.1.js'
 import type {
   DevstralChatModelProviderOptionsByName,
@@ -149,6 +161,7 @@ import type {
 import type {
   GptOssChatModelProviderOptionsByName,
   GptOssModelInputModalitiesByName,
+  GptOssModelReasoningByName,
 } from './meta/model-meta-gpt-oss'
 import type {
   Granite3DenseChatModelProviderOptionsByName,
@@ -297,6 +310,7 @@ import type {
 import type {
   Qwen3ChatModelProviderOptionsByName,
   Qwen3ModelInputModalitiesByName,
+  Qwen3ModelReasoningByName,
 } from './meta/model-meta-qwen3'
 import type {
   QwqChatModelProviderOptionsByName,
@@ -548,3 +562,29 @@ export const OLLAMA_EMBEDDING_MODELS = [
 export type OllamaEmbeddingModel =
   | (typeof OLLAMA_EMBEDDING_MODELS)[number]
   | (string & {})
+
+// Reasoning
+//
+// Each model's data for `chat({ reasoning })` sits in its family file: the
+// provider value for each level (`null`: the model does not have it), and
+// whether it takes a thinking token budget. The data comes from models.dev.
+// The generator that writes it comes with the model catalog later. Until
+// then, edit those entries by hand.
+
+/**
+ * Each listed model's reasoning levels, for `chat({ reasoning })`. A listed
+ * model that is not here does not reason.
+ */
+export type OllamaModelReasoningByName = DeepseekR1ModelReasoningByName &
+  Deepseekv3_1ModelReasoningByName &
+  GptOssModelReasoningByName &
+  Qwen3ModelReasoningByName
+
+/** Runtime map from model name to its reasoning data, for the text adapter. */
+export const OLLAMA_MODEL_REASONING: Readonly<Record<string, ModelReasoning>> =
+  {
+    ...DEEPSEEK_R1_MODEL_REASONING,
+    ...DEEPSEEK_V3_1_MODEL_REASONING,
+    ...GPT_OSS_MODEL_REASONING,
+    ...QWEN3_MODEL_REASONING,
+  }
