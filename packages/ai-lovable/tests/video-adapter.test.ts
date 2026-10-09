@@ -52,6 +52,8 @@ describe('Lovable video adapter', () => {
     expect(adapter.snapDuration(4)).toBe(4)
     expect(adapter.snapDuration(5)).toBe(4)
     expect(adapter.snapDuration(8)).toBe(8)
+    expect(adapter.snapDuration('6s')).toBe(6)
+    expect(adapter.snapDuration('auto')).toBeUndefined()
   })
 
   it('creates a job with prompt, size, and seconds', async () => {
@@ -102,8 +104,9 @@ describe('Lovable video adapter', () => {
     }
     adapter.spyOnVideosRetrieve().mockResolvedValueOnce(completed)
 
-    const result = await adapter.getVideoUrl('video-job-1')
+    const result = await adapter.getVideo('video-job-1')
 
+    if (result.body) throw new Error('expected a URL result')
     expect(result.url).toBe('https://cdn.example/clip.mp4')
     expect(result.expiresAt).toEqual(new Date(expiresAtSeconds * 1000))
   })
@@ -165,6 +168,45 @@ describe('Lovable video adapter', () => {
         prompt: 'A city at night',
         size: '1920x1080',
         duration: 4,
+        logger: testLogger,
+      }),
+    ).rejects.toThrow(/8 second/)
+    expect(mockCreate).not.toHaveBeenCalled()
+  })
+
+  it('sends seconds "8" for an "8s" clip at 1080p', async () => {
+    const adapter = new TestLovableVideoAdapter(
+      { apiKey: 'test-api-key' },
+      'google/veo-3.1-fast',
+    )
+    const mockCreate = adapter
+      .spyOnVideosCreate()
+      .mockResolvedValueOnce(queuedVideo('video-job-1'))
+
+    await adapter.createVideoJob({
+      model: 'google/veo-3.1-fast',
+      prompt: 'A city at night',
+      size: '1920x1080',
+      duration: '8s',
+      logger: testLogger,
+    })
+
+    expect(mockCreate.mock.calls[0]![0].seconds).toBe('8')
+  })
+
+  it('rejects a "4s" clip at 1080p', async () => {
+    const adapter = new TestLovableVideoAdapter(
+      { apiKey: 'test-api-key' },
+      'google/veo-3.1-fast',
+    )
+    const mockCreate = adapter.spyOnVideosCreate()
+
+    await expect(
+      adapter.createVideoJob({
+        model: 'google/veo-3.1-fast',
+        prompt: 'A city at night',
+        size: '1920x1080',
+        duration: '4s',
         logger: testLogger,
       }),
     ).rejects.toThrow(/8 second/)

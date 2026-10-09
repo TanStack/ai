@@ -229,7 +229,7 @@ describe('BedrockConverseTextAdapter', () => {
       outputSchema: { type: 'object', properties: { n: { type: 'number' } } },
     })
     expect(res.usage).toEqual({
-      promptTokens: 3,
+      promptTokens: 8412,
       completionTokens: 4,
       totalTokens: 8416,
       promptTokensDetails: { cachedTokens: 8409, cacheWriteTokens: 0 },
@@ -276,6 +276,61 @@ describe('BedrockConverseTextAdapter', () => {
     expect(
       (finished as { finishReason?: string } | undefined)?.finishReason,
     ).toBe('stop')
+  })
+
+  it('reports a max_tokens stop as truncation in structuredOutput', async () => {
+    const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
+    a.nonStreamOutput = {
+      output: {
+        message: {
+          role: 'assistant',
+          content: [
+            {
+              toolUse: { toolUseId: 's', name: 'structured_output', input: {} },
+            },
+          ],
+        },
+      },
+      stopReason: 'max_tokens',
+    } as unknown as ConverseCommandOutput
+    await expect(
+      a.structuredOutput({
+        chatOptions: textOptions({
+          messages: [{ role: 'user', content: 'go' }],
+        }),
+        outputSchema: { type: 'object', properties: { n: { type: 'number' } } },
+      }),
+    ).rejects.toThrow(/maximum token limit was reached/)
+  })
+
+  it('reports a max_tokens stop as truncation in structuredOutputStream', async () => {
+    const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
+    a.streamEvents = [
+      { messageStart: { role: 'assistant' } },
+      {
+        contentBlockStart: {
+          start: { toolUse: { toolUseId: 's', name: 'structured_output' } },
+          contentBlockIndex: 0,
+        },
+      },
+      {
+        contentBlockDelta: {
+          delta: { toolUse: { input: '{"n":' } },
+          contentBlockIndex: 0,
+        },
+      },
+      { contentBlockStop: { contentBlockIndex: 0 } },
+      { messageStop: { stopReason: 'max_tokens' } },
+    ]
+    const events: Array<AdapterYieldChunk> = []
+    for await (const c of a.structuredOutputStream({
+      chatOptions: textOptions({ messages: [{ role: 'user', content: 'go' }] }),
+      outputSchema: { type: 'object', properties: { n: { type: 'number' } } },
+    })) {
+      events.push(c)
+    }
+    const runError = events.find((e) => e.type === EventType.RUN_ERROR)
+    expect((runError as { code?: string } | undefined)?.code).toBe('max_tokens')
   })
 
   it('folds trailing metadata usage into the structuredOutputStream RUN_FINISHED (#1278)', async () => {
@@ -367,7 +422,7 @@ describe('BedrockConverseTextAdapter', () => {
     }
     const finished = events.find((e) => e.type === EventType.RUN_FINISHED)
     expect((finished as { usage?: unknown }).usage).toEqual({
-      promptTokens: 3,
+      promptTokens: 8412,
       completionTokens: 4,
       totalTokens: 8416,
       promptTokensDetails: { cachedTokens: 8409, cacheWriteTokens: 0 },

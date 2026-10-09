@@ -6,6 +6,7 @@ import {
   type AdapterYieldChunk,
   type UIMessage,
 } from '@tanstack/ai'
+import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { createAnthropicChatWithClient } from '../src'
 import { AnthropicTextAdapter } from '../src/adapters/text'
 import type { AnthropicTextProviderOptions } from '../src/adapters/text'
@@ -825,6 +826,41 @@ describe('Anthropic adapter option mapping', () => {
     expect(payload.max_tokens).toBeLessThanOrEqual(21_333)
   })
 
+  it('reports a max_tokens stop as truncation in structuredOutput', async () => {
+    // A forced tool call cut off at the cap arrives with partial input.
+    mocks.betaMessagesCreate.mockResolvedValueOnce({
+      id: 'msg_structured',
+      type: 'message',
+      role: 'assistant',
+      model: 'claude-opus-4-1',
+      content: [
+        {
+          type: 'tool_use',
+          id: 'toolu_structured_output',
+          name: 'structured_output',
+          input: {},
+        },
+      ],
+      stop_reason: 'max_tokens',
+      usage: { input_tokens: 10, output_tokens: 100 },
+    })
+
+    await expect(
+      createAdapter('claude-opus-4-1').structuredOutput({
+        chatOptions: {
+          model: 'claude-opus-4-1',
+          messages: [{ role: 'user', content: 'recommend a guitar as json' }],
+          logger: resolveDebugOption(false),
+        },
+        outputSchema: {
+          type: 'object',
+          properties: { recommendation: { type: 'string' } },
+          required: ['recommendation'],
+        },
+      }),
+    ).rejects.toThrow(/maximum token limit was reached/)
+  })
+
   it('native combined mode (#605): wires outputSchema into output_format alongside tools on Claude 4.5+', async () => {
     // Final-turn JSON the model emits when output_format is in play.
     const finalJson = JSON.stringify({ city: 'Berlin', temp: 18 })
@@ -1314,6 +1350,59 @@ describe('Anthropic adapter option mapping', () => {
       thinking: 'Second signed thinking block',
       signature: 'signature-2',
     })
+  })
+
+  it('sends an object tool_use input when replayed tool call arguments are truncated (issue #1582)', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('Done'))
+
+    const adapter = createAdapter('claude-opus-4-1')
+
+    for await (const _ of chat({
+      adapter,
+      messages: [
+        { role: 'user', content: 'Weather in Berlin and Paris?' },
+        {
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'call_berlin',
+              type: 'function',
+              function: { name: 'lookup_weather', arguments: toolArguments },
+            },
+            {
+              id: 'call_paris',
+              type: 'function',
+              function: {
+                name: 'lookup_weather',
+                arguments: '{"location": "Par',
+              },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_berlin', content: '{"temp":72}' },
+        { role: 'tool', toolCallId: 'call_paris', content: '{"temp":68}' },
+      ],
+      tools: [weatherTool],
+    })) {
+      // consume stream
+    }
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+    expect(payload.messages[1].content).toEqual([
+      {
+        type: 'tool_use',
+        id: 'call_berlin',
+        name: 'lookup_weather',
+        input: { location: 'Berlin' },
+      },
+      {
+        type: 'tool_use',
+        id: 'call_paris',
+        name: 'lookup_weather',
+        input: {},
+      },
+    ])
   })
 
   it('merges multiple consecutive tool result messages into one user message', async () => {

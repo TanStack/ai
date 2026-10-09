@@ -294,7 +294,7 @@ import { generateSpeech } from "@tanstack/ai";
 import { elevenlabsSpeech } from "@tanstack/ai-elevenlabs";
 
 const result = await generateSpeech({
-  adapter: elevenlabsSpeech("eleven_v3"),
+  adapter: elevenlabsSpeech("eleven_v4"),
   text: "Hello from ElevenLabs!",
   voice: "Rachel",
   format: "mp3",
@@ -314,7 +314,7 @@ import { generateSpeech } from "@tanstack/ai";
 import { elevenlabsSpeech } from "@tanstack/ai-elevenlabs";
 
 const result = await generateSpeech({
-  adapter: elevenlabsSpeech("eleven_v3"),
+  adapter: elevenlabsSpeech("eleven_v4"),
   turns: [
     { text: "Knock knock.", voice: "bYTqZQo3Jz7LQtmGTgwi" },
     { text: "Who is there?", voice: "6lCwbsX1yVjD49QmpkTR" },
@@ -364,7 +364,7 @@ import { listVoices } from "@tanstack/ai";
 import { elevenlabsSpeech } from "@tanstack/ai-elevenlabs";
 
 const { voices } = await listVoices({
-  adapter: elevenlabsSpeech("eleven_v3"),
+  adapter: elevenlabsSpeech("eleven_v4"),
   origins: ["generated", "cloned"],
 });
 ```
@@ -400,7 +400,7 @@ Without a `name`, you get preview voices to audition. With a `name`, the best ca
 
 | Family | Models |
 | --- | --- |
-| Text-to-speech | `eleven_v3`, `eleven_v3_conversational`, `eleven_multilingual_v2`, `eleven_flash_v2_5`, `eleven_flash_v2` |
+| Text-to-speech | `eleven_v4`, `eleven_v4_turbo`, `eleven_v3`, `eleven_v3_conversational`, `eleven_multilingual_v2`, `eleven_flash_v2_5`, `eleven_flash_v2` |
 | Music | `music_v2_5`, `music_v2` |
 | Sound effects | `eleven_text_to_sound_v2` |
 | Transcription | `scribe_v2`, `scribe_v2_medical` |
@@ -432,7 +432,7 @@ Route every request through a gateway, such as Cloudflare AI Gateway or a corpor
 ```typescript
 import { createElevenLabsSpeech } from "@tanstack/ai-elevenlabs";
 
-const adapter = createElevenLabsSpeech("eleven_v3", process.env.ELEVENLABS_API_KEY!, {
+const adapter = createElevenLabsSpeech("eleven_v4", process.env.ELEVENLABS_API_KEY!, {
   baseURL: "https://gateway.example.com/elevenlabs",
   defaultHeaders: { "cf-aig-authorization": `Bearer ${process.env.GATEWAY_TOKEN}` },
 });

@@ -1,5 +1,53 @@
 # @tanstack/ai-mcp
 
+## 0.8.2
+
+### Patch Changes
+
+- Updated dependencies [[`7dbfaf6`](https://github.com/TanStack/ai/commit/7dbfaf6c37a3d97de3b1f5bdb87be8bbbe2b0164), [`88fd67c`](https://github.com/TanStack/ai/commit/88fd67cd7ddfbe2b154173d2395b2c0338e97644), [`3aa2e3d`](https://github.com/TanStack/ai/commit/3aa2e3d95e2dcb1c14b4fda3bcdbdf3152582092), [`c5ae415`](https://github.com/TanStack/ai/commit/c5ae4152d0a040bb6ce7321e16b7ee66d3c36f96), [`13ba1b0`](https://github.com/TanStack/ai/commit/13ba1b0e47dc822f10f6c5133184f92c2eb0a013), [`377262c`](https://github.com/TanStack/ai/commit/377262c0b4e5f59f8fd467a831b9341cc705077e)]:
+  - @tanstack/ai@0.67.0
+
+## 0.8.1
+
+### Patch Changes
+
+- Updated dependencies [[`f687c54`](https://github.com/TanStack/ai/commit/f687c54ae4b8a67f2154ff9dea0319b8d2712856), [`fb55bcb`](https://github.com/TanStack/ai/commit/fb55bcba5193d4465f43006505918a2dc4472ec4), [`630ec86`](https://github.com/TanStack/ai/commit/630ec86e9997fabe046cae1a491060d72cbc71ea)]:
+  - @tanstack/ai@0.66.0
+
+## 0.8.0
+
+### Minor Changes
+
+- [#1567](https://github.com/TanStack/ai/pull/1567) [`cda5bc5`](https://github.com/TanStack/ai/commit/cda5bc5251a29347810162cb727819d8d8763a51) - Add `instructions` to `MCPClient`. It holds the instructions the server sends when the client connects, so a host can put them in the system prompt. It is `undefined` when the server sends none.
+
+### Patch Changes
+
+- [#1633](https://github.com/TanStack/ai/pull/1633) [`fb29a06`](https://github.com/TanStack/ai/commit/fb29a0659328206fa847ad348328e8d7bd8bb315) - Stop advertising list-change subscriptions for static MCP servers and reject `subscriptions/listen` instead of leaving an idle SSE stream open.
+
+- Updated dependencies [[`7b6b1a9`](https://github.com/TanStack/ai/commit/7b6b1a99d45e40165f0a1f833a04e793a09275de), [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66), [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66), [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66), [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66), [`82291b2`](https://github.com/TanStack/ai/commit/82291b22941d2c813ff0050fc9d41b024480153d), [`ff3a66e`](https://github.com/TanStack/ai/commit/ff3a66ed8f628d45b282316fab337d3ed19f34cd), [`560c76f`](https://github.com/TanStack/ai/commit/560c76fd638b5691e195e1d0619fee8a78d98c20), [`4b9dcb4`](https://github.com/TanStack/ai/commit/4b9dcb44d8fe1e7c933b79c23d8f072e7bc300f4), [`30254ad`](https://github.com/TanStack/ai/commit/30254ad70161894d232d3b45e3b21f45d49f336e), [`40fdd22`](https://github.com/TanStack/ai/commit/40fdd22ce05d55e71514b4cc80b1c28cefb4a431)]:
+  - @tanstack/ai@0.65.0
+
+## 0.7.0
+
+### Minor Changes
+
+- [#1595](https://github.com/TanStack/ai/pull/1595) [`ee726f5`](https://github.com/TanStack/ai/commit/ee726f537dbb036d5edb756b92739afaa7573824) - `createMCPServer` from `@tanstack/ai-mcp/server`:
+  - A resource `read(uri, variables, ctx)` now gets the requested URI, the template variables, and `ctx.context` (the `handle` context plus `authInfo`). A template resource can take `list(ctx)` for `resources/list`.
+  - `metadata._meta` on a tool definition is sent as the MCP tool `_meta`, so a tool can link an MCP Apps view with `_meta.ui.resourceUri`.
+  - New `sessions: 'stateless'` serves spec 2025 clients without a session store, so it works on Cloudflare Workers and other multi-instance hosts. It is now the default. In that mode, `ctx.context.requestInput` throws a clear error for a spec 2025 client, and `ctx.context.sample` uses the `sample` option. Set `sessions: 'memory'` to keep the old spec 2025 sessions. `serveMCPStdio` still uses `'memory'` when `sessions` is not set.
+  - New `onerror` option receives SDK transport and protocol errors, including the `serveMCPStdio` transport errors.
+  - Tool and prompt schemas are converted and compiled once at `createMCPServer`, not on every request.
+  - Output schemas are advertised from the output view, and tool results are parsed with the output schema, so a transform or pipe no longer fails the structured-content check. Async output schemas work. Output that fails its schema returns a tool error that names the tool. An output schema with a bare transform advertises no output schema.
+  - `createMCPClient({ server })` parses tool output the same way, and `readResource(uri, context)` takes a context for the resource.
+  - `MCPResourceContext`, `MCPResourceRead`, and `MCPResourceList` are exported. `resourceDefinition` accepts `list` only with `uriTemplate`.
+
+  `convertSchemaToJsonSchema` from `@tanstack/ai` takes a new `io: 'input' | 'output'` option.
+
+### Patch Changes
+
+- Updated dependencies [[`3a09cf0`](https://github.com/TanStack/ai/commit/3a09cf04431a45810051ea5df6bb3935af421ddb), [`ee726f5`](https://github.com/TanStack/ai/commit/ee726f537dbb036d5edb756b92739afaa7573824), [`a5fce7f`](https://github.com/TanStack/ai/commit/a5fce7f95b8b9c6eb57697aa1e3f587bf27483b9), [`94116ad`](https://github.com/TanStack/ai/commit/94116ad137015b6f62fe62b4c06a335dbde36a49)]:
+  - @tanstack/ai@0.64.0
+
 ## 0.6.0
 
 ### Minor Changes

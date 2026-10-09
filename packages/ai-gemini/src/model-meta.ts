@@ -1,3 +1,4 @@
+import type { Modality } from '@tanstack/ai'
 import type {
   GeminiCachedContentOptions,
   GeminiCommonConfigOptions,
@@ -282,6 +283,38 @@ const GEMINI_3_1_FLASH_LITE_IMAGE = {
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
     GeminiStructuredOutputOptions &
+    GeminiThinkingOptions
+>
+
+/**
+ * Nano Banana 2.1 — GA. 1K / 2K / 4K output, no 512 tier. The id does not
+ * follow the `gemini-<version>-flash-image` pattern of the earlier models.
+ * Token limits are the values `GET /v1beta/models` returns.
+ * @see https://ai.google.dev/gemini-api/docs/models/gemini-nano-banana-2.1
+ */
+const GEMINI_NANO_BANANA_2_1 = {
+  name: 'gemini-nano-banana-2.1',
+  max_input_tokens: 65_536,
+  max_output_tokens: 65_536,
+  supports: {
+    input: ['text', 'image'],
+    output: ['text', 'image'],
+    capabilities: ['batch_api', 'thinking'],
+    tools: ['google_search'],
+  },
+  pricing: {
+    input: {
+      normal: 1.5,
+    },
+    output: {
+      normal: 7.5,
+    },
+  },
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
     GeminiThinkingOptions
 >
 
@@ -841,36 +874,6 @@ const GEMINI_OMNI_1_1_FLASH = {
     GeminiCachedContentOptions
 >
 
-/**
- * @deprecated `gemini-omni-flash-preview` shuts down on 2026-09-30. Use the
- * GA id `gemini-omni-1.1-flash` instead. Kept in the model union so existing
- * code still compiles until shutdown.
- * @see https://ai.google.dev/gemini-api/docs/models/gemini-omni-flash
- * @experimental Omni video generation is an experimental feature and may change.
- */
-const GEMINI_OMNI_FLASH_PREVIEW = {
-  name: 'gemini-omni-flash-preview',
-  max_input_tokens: 1_048_576,
-  max_output_tokens: 1,
-  supports: {
-    input: ['text', 'image', 'video'],
-    output: ['video', 'audio'],
-  },
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0.1,
-    },
-  },
-} as const satisfies ModelMeta<
-  GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiCommonConfigOptions &
-    GeminiCachedContentOptions
->
-
 const GEMINI_3_8_FLASH = {
   name: 'gemini-3.8-flash',
   max_input_tokens: 1_048_576,
@@ -1145,6 +1148,7 @@ export type GeminiImageModels =
  * should use the GA id above its alias.
  */
 export const GEMINI_IMAGE_MODELS = [
+  GEMINI_NANO_BANANA_2_1.name,
   GEMINI_3_1_FLASH_IMAGE.name,
   GEMINI_3_1_FLASH_LITE_IMAGE.name,
   GEMINI_3_PRO_IMAGE.name,
@@ -1226,19 +1230,15 @@ export const GEMINI_VIDEO_MODELS = [
   VEO_3_1_FAST_PREVIEW.name,
   VEO_3_1_LITE_PREVIEW.name,
   GEMINI_OMNI_1_1_FLASH.name,
-  // Deprecated alias — shuts down 2026-09-30.
-  GEMINI_OMNI_FLASH_PREVIEW.name,
 ] as const
 
 /**
  * Video models served by the Interactions API rather than Veo's
- * `:predictLongRunning` operations flow. GA id first; the trailing
- * `-preview` id is a shutdown alias kept so existing code compiles.
+ * `:predictLongRunning` operations flow.
  * @experimental Omni video generation is an experimental feature and may change.
  */
 export const GEMINI_INTERACTIONS_VIDEO_MODELS = [
   GEMINI_OMNI_1_1_FLASH.name,
-  GEMINI_OMNI_FLASH_PREVIEW.name,
 ] as const
 
 /**
@@ -1389,3 +1389,26 @@ export type GeminiModelInputModalitiesByName = {
   // Models with text, image, audio, video (no document)
   [GEMINI_2_5_FLASH.name]: typeof GEMINI_2_5_FLASH.supports.input
 }
+
+/**
+ * Runtime map from chat model name to its supported input modalities, for the
+ * text adapter's `inputModalities`. `satisfies` keeps it equal to
+ * {@link GeminiModelInputModalitiesByName}. An unknown name gives `undefined`.
+ */
+export const GEMINI_MODEL_INPUT_MODALITIES: Readonly<
+  Record<string, ReadonlyArray<Modality>>
+> = {
+  [GEMINI_3_8_FLASH.name]: GEMINI_3_8_FLASH.supports.input,
+  [GEMINI_3_7_FLASH.name]: GEMINI_3_7_FLASH.supports.input,
+  [GEMINI_3_6_FLASH.name]: GEMINI_3_6_FLASH.supports.input,
+  [GEMINI_3_5_FLASH.name]: GEMINI_3_5_FLASH.supports.input,
+  [GEMINI_3_5_FLASH_LITE.name]: GEMINI_3_5_FLASH_LITE.supports.input,
+  [GEMINI_3_1_PRO.name]: GEMINI_3_1_PRO.supports.input,
+  [GEMINI_3_FLASH.name]: GEMINI_3_FLASH.supports.input,
+  [GEMINI_3_1_FLASH_LITE.name]: GEMINI_3_1_FLASH_LITE.supports.input,
+  [GEMINI_3_1_FLASH_LITE_PREVIEW.name]:
+    GEMINI_3_1_FLASH_LITE_PREVIEW.supports.input,
+  [GEMINI_2_5_PRO.name]: GEMINI_2_5_PRO.supports.input,
+  [GEMINI_2_5_FLASH_LITE.name]: GEMINI_2_5_FLASH_LITE.supports.input,
+  [GEMINI_2_5_FLASH.name]: GEMINI_2_5_FLASH.supports.input,
+} satisfies GeminiModelInputModalitiesByName

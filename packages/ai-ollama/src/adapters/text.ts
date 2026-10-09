@@ -32,7 +32,12 @@ import type {
   Tool as OllamaTool,
   ToolCall,
 } from 'ollama'
-import type { AdapterYieldChunk, TextOptions, Tool } from '@tanstack/ai'
+import type {
+  AdapterYieldChunk,
+  FetchWrapper,
+  TextOptions,
+  Tool,
+} from '@tanstack/ai'
 
 export type OllamaTextModel =
   | (typeof OLLAMA_TEXT_MODELS)[number]
@@ -85,6 +90,8 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
   readonly name = 'ollama' as const
 
   private readonly client: Ollama
+  /** The config of the adapter's own client. An injected client has none. */
+  private readonly clientConfig: OllamaClientConfig | undefined
 
   constructor(
     hostOrClientOrConfig: string | Ollama | OllamaClientConfig | undefined,
@@ -95,14 +102,23 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
       typeof hostOrClientOrConfig === 'string' ||
       hostOrClientOrConfig === undefined
     ) {
-      this.client = createOllamaClient({ host: hostOrClientOrConfig })
+      this.clientConfig = { host: hostOrClientOrConfig }
+      this.client = createOllamaClient(this.clientConfig)
     } else if ('chat' in hostOrClientOrConfig) {
       // Ollama client instance (has a chat method)
       this.client = hostOrClientOrConfig
     } else {
       // OllamaClientConfig object
+      this.clientConfig = hostOrClientOrConfig
       this.client = createOllamaClient(hostOrClientOrConfig)
     }
+  }
+
+  /** Use a client whose fetch goes through `wrapFetch` for one call. */
+  private clientFor(wrapFetch: FetchWrapper | undefined) {
+    return wrapFetch && this.clientConfig
+      ? createOllamaClient(this.clientConfig, wrapFetch(fetch))
+      : this.client
   }
 
   async *chatStream(
@@ -115,7 +131,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
         `activity=chat provider=ollama model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
         { provider: 'ollama', model: this.model },
       )
-      const response = await this.client.chat({
+      const response = await this.clientFor(options.wrapFetch).chat({
         ...mappedOptions,
         stream: true,
       })
@@ -164,11 +180,19 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
         { provider: 'ollama', model: this.model },
       )
       // Make non-streaming request with JSON format
-      const response = await this.client.chat({
+      const response = await this.clientFor(chatOptions.wrapFetch).chat({
         ...mappedOptions,
         stream: false,
         format: outputSchema,
       })
+
+      // A response cut off at the output cap is a truncated JSON document;
+      // report it before the parse error (issue #1426).
+      if (response.done_reason === 'length') {
+        throw new Error(
+          'ollama.structuredOutput: the response was cut off because the maximum token limit was reached (done_reason=length); raise modelOptions.options.num_predict',
+        )
+      }
 
       const rawText = response.message.content
 

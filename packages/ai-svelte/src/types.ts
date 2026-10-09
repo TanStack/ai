@@ -90,6 +90,7 @@ export type CreateChatOptions<
   | 'onSubscriptionChange'
   | 'onConnectionStatusChange'
   | 'onSessionGeneratingChange'
+  | 'onHydratingChange'
   | 'onQueueChange'
   | 'onResumeStateChange'
   | 'onRunIdChange'
@@ -304,6 +305,13 @@ interface BaseCreateChatReturn<
    * activity visible to all subscribers (e.g. across tabs/devices).
    */
   readonly sessionGenerating: boolean
+  /**
+   * Whether the chat is being rebuilt from persistence (the server hydrate, or
+   * an async storage adapter). While it is true, show a loading state instead
+   * of an empty chat. It turns false when the transcript is in place and any
+   * in-flight run is re-joined. From then on `isLoading` covers the stream.
+   */
+  readonly isHydrating: boolean
   /**
    * @deprecated Use `updateForwardedProps` instead. Both populate the
    * same wire payload; `updateBody` is retained for backward compatibility.

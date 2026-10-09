@@ -143,6 +143,35 @@ test.describe('persistence durability (browser refresh)', () => {
     )
     expect(stored).toBeNull()
   })
+
+  test('sends one hydrate GET when a chat mounts under React Strict Mode (persistence: true)', async ({
+    page,
+  }) => {
+    // The dev server replays a client mount's effects (attach, detach, attach)
+    // before the first GET returns. Each attach used to send its own hydrate
+    // GET. The page mounts the chat after hydration, because a hydrated mount
+    // gets no replay.
+    const hydrateGets: Array<string> = []
+    page.on('request', (req) => {
+      const url = new URL(req.url())
+      if (
+        req.method() === 'GET' &&
+        url.pathname === '/api/persistence-durability' &&
+        url.searchParams.has('threadId')
+      ) {
+        hydrateGets.push(req.url())
+      }
+    })
+
+    await page.goto('/client-mount-hydrate')
+
+    // The interrupt comes from the hydrate response, so every hydrate GET of
+    // this mount was already sent when it shows.
+    await expect
+      .poll(() => interruptCount(page), { timeout: 15_000 })
+      .toBeGreaterThanOrEqual(1)
+    expect(hydrateGets).toHaveLength(1)
+  })
 })
 
 test.describe('structured output persistence', () => {
@@ -329,6 +358,36 @@ test.describe('server persistence', () => {
         toolCallId: 'call-status',
         state: 'error',
         error: 'Status service unavailable',
+      }),
+    )
+  })
+
+  test('restores the error of a stopped child', async ({ request }) => {
+    const threadId = `subagent-stopped-${crypto.randomUUID()}`
+    const runId = crypto.randomUUID()
+    const seed = await request.post(
+      '/api/persistence-durability?scenario=subagent-stopped',
+      { data: { threadId, runId } },
+    )
+    expect(seed.ok()).toBe(true)
+
+    const hydration = await request.get(
+      `/api/persistence-durability?scenario=subagent-stopped&threadId=${encodeURIComponent(threadId)}`,
+    )
+    expect(hydration.ok()).toBe(true)
+    const body = (await hydration.json()) as {
+      messages: Array<{ parts: Array<Record<string, unknown>> }>
+    }
+    const parts = body.messages.flatMap((message) => message.parts)
+
+    expect(parts).toContainEqual(
+      expect.objectContaining({
+        type: 'subagent',
+        subagent: expect.objectContaining({
+          name: 'researcher',
+          status: 'error',
+          error: { message: 'Stopped' },
+        }),
       }),
     )
   })

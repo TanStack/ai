@@ -1,8 +1,11 @@
+import { arrayBufferToBase64 } from '@tanstack/ai-utils'
+import { snapToDurationOption } from './snap'
 import type {
   ModelInputModalitiesByName,
   VideoGenerationOptions,
   VideoJobResult,
   VideoStatusResult,
+  VideoStreamResult,
   VideoUrlResult,
 } from '../../types'
 
@@ -24,6 +27,12 @@ export type DurationOptions<T extends string | number | undefined> =
       range?: { min: number; max: number; step?: number }
     }
   | { kind: 'none' }
+
+/**
+ * Spellings of one clip length: the number `6`, the string `"6"`, or the
+ * template `"6s"`.
+ */
+export type VideoDurationSpell<N extends number> = N | `${N}` | `${N}s`
 
 /**
  * Configuration for video adapter instances
@@ -113,8 +122,18 @@ export interface VideoAdapter<
   getVideoStatus: (jobId: string) => Promise<VideoStatusResult>
 
   /**
-   * Get the URL to download/view the generated video.
-   * Should only be called after status is 'completed'.
+   * Get the finished video: a public URL when the provider has one, or the
+   * download stream for generation middleware to host. Call only after
+   * status is 'completed'.
+   *
+   * Optional only so adapters written against `getVideoUrl` keep working.
+   * New adapters implement this.
+   */
+  getVideo?: (jobId: string) => Promise<VideoUrlResult | VideoStreamResult>
+
+  /**
+   * @deprecated Use `getVideo`. This is `getVideo` with a provider stream
+   * buffered into a base64 `data:` URL, which holds the whole video in memory.
    */
   getVideoUrl: (jobId: string) => Promise<VideoUrlResult>
 
@@ -126,10 +145,45 @@ export interface VideoAdapter<
   availableDurations: () => DurationOptions<TModelDurationByName[TModel]>
 
   /**
-   * Coerce a raw seconds value to the closest valid duration for this model.
-   * Returns `undefined` for models with no duration field.
+   * Coerce `input` to the closest duration this model accepts.
+   * `input` may be seconds (`7`), a numeric string (`"7"`), a template
+   * (`"6s"`), or a keyword the model lists (`"auto"`).
+   * Returns `undefined` when the model has no duration field, or when
+   * `input` is a keyword that model does not list.
    */
-  snapDuration: (seconds: number) => TModelDurationByName[TModel] | undefined
+  snapDuration: (
+    input: number | string,
+  ) => TModelDurationByName[TModel] | undefined
+}
+
+const LARGE_VIDEO_BYTES = 10 * 1024 * 1024
+
+/**
+ * The fallback when nothing hosts a provider video stream: buffer it into a
+ * base64 `data:` URL. A result that already has a `url` passes through.
+ */
+export async function inlineVideoStream<
+  T extends {
+    url?: string
+    body?: ReadableStream<Uint8Array>
+    contentType?: string
+  },
+>(video: T): Promise<Omit<T, 'body' | 'contentType'> & { url: string }> {
+  const { body, contentType, ...rest } = video
+  if (rest.url !== undefined) return { ...rest, url: rest.url }
+  if (!body) throw new Error('Video result has no url and no body')
+  const buffer = await new Response(body).arrayBuffer()
+  if (buffer.byteLength > LARGE_VIDEO_BYTES) {
+    console.warn(
+      `[generateVideo] buffered ${(buffer.byteLength / 1024 / 1024).toFixed(1)} MiB of video into memory for a base64 data: URL. ` +
+        `Workers/serverless runtimes commonly run out of memory above ~10 MiB. ` +
+        `Add withGenerationPersistence with artifactUrl to stream it into your storage instead.`,
+    )
+  }
+  return {
+    ...rest,
+    url: `data:${contentType ?? 'video/mp4'};base64,${arrayBufferToBase64(buffer)}`,
+  }
 }
 
 /**
@@ -197,7 +251,19 @@ export abstract class BaseVideoAdapter<
 
   abstract getVideoStatus(jobId: string): Promise<VideoStatusResult>
 
-  abstract getVideoUrl(jobId: string): Promise<VideoUrlResult>
+  /** Implement this. See {@link VideoAdapter.getVideo}. */
+  getVideo?(jobId: string): Promise<VideoUrlResult | VideoStreamResult>
+
+  /**
+   * @deprecated Implement and call `getVideo`. This is `getVideo` with a
+   * provider stream buffered into a base64 `data:` URL.
+   */
+  async getVideoUrl(jobId: string): Promise<VideoUrlResult> {
+    if (!this.getVideo) {
+      throw new Error(`${this.name}: video adapter must implement getVideo()`)
+    }
+    return await inlineVideoStream(await this.getVideo(jobId))
+  }
 
   /**
    * Default implementation returns `{ kind: 'none' }`. Adapters that have
@@ -208,11 +274,13 @@ export abstract class BaseVideoAdapter<
   }
 
   /**
-   * Default implementation returns `undefined`. Adapters that have declared
-   * their per-model duration map should override.
+   * Uses `availableDurations()`. Adapters that declare a duration map only
+   * need to override that method.
    */
-  snapDuration(_seconds: number): TModelDurationByName[TModel] | undefined {
-    return undefined
+  snapDuration(
+    input: number | string,
+  ): TModelDurationByName[TModel] | undefined {
+    return snapToDurationOption(input, this.availableDurations())
   }
 
   protected generateId(): string {

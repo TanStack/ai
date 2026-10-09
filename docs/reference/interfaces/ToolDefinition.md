@@ -3,7 +3,7 @@ id: ToolDefinition
 title: ToolDefinition
 ---
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:229](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L229)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:233](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L233)
 
 Tool definition builder that allows creating server or client tools from a shared definition
 
@@ -43,7 +43,7 @@ Tool definition builder that allows creating server or client tools from a share
 __toolSide: "definition";
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:154](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L154)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:156](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L156)
 
 #### Inherited from
 
@@ -57,7 +57,7 @@ Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:154](https
 readonly optional [toolApprovalCapability]?: object;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:161](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L161)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:164](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L164)
 
 #### approvalSchema
 
@@ -83,7 +83,7 @@ needsApproval: TNeedsApproval;
 approvalSchema: TApprovalSchema;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:160](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L160)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:162](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L162)
 
 #### Inherited from
 
@@ -97,7 +97,7 @@ Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:160](https
 client: <TContext>(execute?) => ClientTool<TInput, TOutput, TName, TContext, TNeedsApproval, TApprovalSchema> & BuiltToolSchemaFields<TInput, TOutput, TApprovalSchema>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:263](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L263)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:267](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L267)
 
 Create a client-side tool with optional execute function.
 Carries the definition's `needsApproval` literal through to the client
@@ -127,7 +127,7 @@ tool so the tool-call part's `approval` field stays gated on it.
 description: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:774](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L774)
+Defined in: [packages/ai/src/types.ts:865](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L865)
 
 Clear description of what the tool does.
 
@@ -154,7 +154,7 @@ optional execute?: (args, context?) =>
 | Promise<InferSchemaType<TOutput>>;
 ```
 
-Defined in: [packages/ai/src/types.ts:854](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L854)
+Defined in: [packages/ai/src/types.ts:945](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L945)
 
 Optional function to execute when the model calls this tool.
 
@@ -197,13 +197,27 @@ execute: async (args) => {
 
 ***
 
+### execution?
+
+```ts
+optional execution?: "task";
+```
+
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:163](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L163)
+
+#### Inherited from
+
+[`ToolDefinitionInstance`](ToolDefinitionInstance.md).[`execution`](ToolDefinitionInstance.md#execution)
+
+***
+
 ### inputSchema
 
 ```ts
 inputSchema: TInput;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:157](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L157)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:159](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L159)
 
 Schema describing the tool's input parameters.
 
@@ -261,7 +275,7 @@ type({
 optional lazy?: boolean;
 ```
 
-Defined in: [packages/ai/src/types.ts:860](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L860)
+Defined in: [packages/ai/src/types.ts:951](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L951)
 
 If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Works with both chat() (the synthetic discovery tool) and Code Mode (kept out of the system prompt and revealed via discover_tools).
 
@@ -277,7 +291,7 @@ If true, this tool is lazy and will only be sent to the LLM after being discover
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:863](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L863)
+Defined in: [packages/ai/src/types.ts:954](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L954)
 
 Additional metadata for adapters or custom extensions
 
@@ -293,7 +307,7 @@ Additional metadata for adapters or custom extensions
 name: TName;
 ```
 
-Defined in: [packages/ai/src/types.ts:764](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L764)
+Defined in: [packages/ai/src/types.ts:855](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L855)
 
 Unique name of the tool (used by the model to call it).
 
@@ -318,7 +332,7 @@ Must be unique within the tools array.
 optional needsApproval?: TNeedsApproval;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:159](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L159)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:161](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L161)
 
 If true, tool execution requires user approval before running. Works with both server and client tools.
 
@@ -334,7 +348,7 @@ If true, tool execution requires user approval before running. Works with both s
 outputSchema: TOutput;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:158](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L158)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:160](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L160)
 
 Optional schema for validating tool output.
 
@@ -369,7 +383,7 @@ z.object({
 server: <TContext>(execute) => ServerTool<TInput, TOutput, TName, TContext, TNeedsApproval, TApprovalSchema> & BuiltToolSchemaFields<TInput, TOutput, TApprovalSchema>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:246](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L246)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:250](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L250)
 
 Create a server-side tool with execute function
 

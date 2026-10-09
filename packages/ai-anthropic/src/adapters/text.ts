@@ -4,7 +4,11 @@ import {
   isFileSource,
   normalizeSystemPrompts,
 } from '@tanstack/ai'
-import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
+import {
+  REDACTED_THINKING_ID_PREFIX,
+  toRetryAfterMs,
+  toRunErrorRawEvent,
+} from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import { getAnthropicProviderToolKind } from '../tools/anthropic-provider-tool'
@@ -17,10 +21,12 @@ import { buildAnthropicUsage } from '../usage'
 import {
   createAnthropicClient,
   generateId,
-  getAnthropicApiKeyFromEnv,
+  getAnthropicCredentialFromEnv,
+  resolveAnthropicAuth,
 } from '../utils/client'
 import {
   ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS,
+  ANTHROPIC_MODEL_INPUT_MODALITIES,
   getAnthropicDefaultMaxTokens,
 } from '../model-meta'
 import type {
@@ -59,6 +65,7 @@ import type { AnthropicBeta } from '@anthropic-ai/sdk/resources/beta/beta'
 import type {
   AnyTool,
   ContentPart,
+  FetchWrapper,
   Modality,
   ModelMessage,
   AdapterYieldChunk,
@@ -258,6 +265,12 @@ export type AnthropicTextAdapterConfig =
   | AnthropicTextConfig
   | { client: AnthropicMessagesClient }
 
+/** The headers that Claude Code sends with an OAuth token. */
+const OAUTH_IDENTITY_HEADERS = {
+  'user-agent': 'claude-cli/2.1.280',
+  'x-app': 'cli',
+}
+
 /**
  * Anthropic-specific provider options for text/chat
  */
@@ -341,15 +354,103 @@ export class AnthropicTextAdapter<
   readonly name = 'anthropic' as const
   // Consumes `file_id` sources issued by anthropicFiles() (Files API beta).
   override readonly supportsFileSources = true
+  override readonly inputModalities =
+    ANTHROPIC_MODEL_INPUT_MODALITIES[this.model]
 
   private readonly client: SdkAnthropicMessagesClient
+  /**
+   * With `auth: 'oauth'`: add the Claude Code identity system block, the CLI
+   * headers, and the `claude-code-20250219` and `oauth-2025-04-20` betas.
+   */
+  private readonly oauth: boolean = false
+  /** True when the credential goes out as `Authorization: Bearer`. */
+  private readonly tokenAuthentication: boolean = false
+  /** The OAuth identity headers, with the caller's own values on top. */
+  private readonly oauthHeaders = new Headers(OAUTH_IDENTITY_HEADERS)
+
+  /** The adapter's own SDK client. An injected client cannot take a fetch. */
+  private readonly sdkClient: Anthropic_SDK | undefined
+  private readonly baseFetch: typeof fetch | undefined
 
   constructor(config: AnthropicTextAdapterConfig, model: TModel) {
     super({}, model)
-    this.client =
-      'client' in config
-        ? asSdkAnthropicMessagesClient(config.client)
-        : createAnthropicClient(config)
+    if ('client' in config) {
+      this.client = asSdkAnthropicMessagesClient(config.client)
+      return
+    }
+    const auth = resolveAnthropicAuth(config)
+    this.oauth = auth === 'oauth'
+    this.tokenAuthentication = auth !== 'api-key'
+    for (const [name, value] of Object.entries(config.defaultHeaders ?? {})) {
+      const lower = name.toLowerCase()
+      if (
+        value != null &&
+        (lower === 'x-app' ||
+          lower === 'user-agent' ||
+          lower === 'anthropic-beta')
+      )
+        this.oauthHeaders.set(name, value)
+    }
+    this.baseFetch = config.fetch
+    this.sdkClient = createAnthropicClient({
+      ...config,
+      auth,
+      ...(this.oauth && {
+        defaultHeaders: {
+          ...OAUTH_IDENTITY_HEADERS,
+          ...config.defaultHeaders,
+        },
+      }),
+    })
+    this.client = this.sdkClient
+  }
+
+  /** Use a client whose fetch goes through `wrapFetch` for one call. */
+  private clientFor(wrapFetch: FetchWrapper | undefined) {
+    if (!wrapFetch || !this.sdkClient) return this.client
+    return this.sdkClient.withOptions({
+      fetch: wrapFetch(this.baseFetch ?? globalThis.fetch),
+    })
+  }
+
+  /** With OAuth, the Claude Code betas go first. */
+  private requestBetas(betas: Array<AnthropicBeta> | undefined) {
+    if (!this.oauth) return betas
+    return [
+      ...new Set<AnthropicBeta>([
+        'claude-code-20250219',
+        'oauth-2025-04-20',
+        ...(betas ?? []),
+      ]),
+    ]
+  }
+
+  /**
+   * With a token, drop `x-api-key`. With OAuth, also send the identity
+   * headers, and merge the configured `anthropic-beta` with the request betas.
+   */
+  private requestHeaders(
+    headers: HeadersInit | undefined,
+    betas: Array<AnthropicBeta> | undefined,
+  ) {
+    if (!this.tokenAuthentication) return headers
+    const requestHeaders = new Headers(
+      this.oauth ? this.oauthHeaders : undefined,
+    )
+    new Headers(headers).forEach((value, name) =>
+      requestHeaders.set(name, value),
+    )
+    if (this.oauth) {
+      const configured = (requestHeaders.get('anthropic-beta') ?? '')
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean)
+      requestHeaders.set(
+        'anthropic-beta',
+        [...new Set([...(betas ?? []), ...configured])].join(','),
+      )
+    }
+    return { ...Object.fromEntries(requestHeaders), 'x-api-key': null }
   }
 
   async *chatStream(
@@ -366,10 +467,12 @@ export class AnthropicTextAdapter<
 
       // `betas` is attached at the call site rather than in the shared mapper
       // because the beta set depends on both the tools and the modelOptions.
-      const betas = computeAnthropicBetas(
-        options.tools,
-        options.modelOptions,
-        messagesHaveFileSource(options.messages),
+      const betas = this.requestBetas(
+        computeAnthropicBetas(
+          options.tools,
+          options.modelOptions,
+          messagesHaveFileSource(options.messages),
+        ),
       )
 
       // `client.beta.messages` is Anthropic's permanent staging surface, not a
@@ -378,7 +481,9 @@ export class AnthropicTextAdapter<
       // thinking) plus richer `container` (skills) and `context_management`
       // shapes that `InternalTextProviderOptions` carries. We route every
       // Messages call through it so the request mapper stays single-shape.
-      const stream = await this.client.beta.messages.create(
+      const stream = await this.clientFor(
+        options.wrapFetch,
+      ).beta.messages.create(
         {
           ...requestParams,
           stream: true,
@@ -386,7 +491,7 @@ export class AnthropicTextAdapter<
         },
         {
           signal: options.request?.signal,
-          headers: options.request?.headers,
+          headers: this.requestHeaders(options.request?.headers, betas),
         },
       )
 
@@ -399,6 +504,7 @@ export class AnthropicTextAdapter<
     } catch (error: unknown) {
       const err = error as Error & { status?: number; code?: string }
       const rawEvent = toRunErrorRawEvent(error)
+      const retryAfterMs = toRetryAfterMs(error)
       logger.errors('anthropic.chatStream fatal', {
         error,
         source: 'anthropic.chatStream',
@@ -412,6 +518,7 @@ export class AnthropicTextAdapter<
         // Forward the Anthropic SDK error's `.error` response body (e.g.
         // `{ type, message }`) when present; never the raw exception object.
         ...(rawEvent !== undefined && { rawEvent }),
+        ...(retryAfterMs !== undefined && { retryAfterMs }),
         error: {
           message: err.message || 'Unknown error occurred',
           code: err.code || String(err.status),
@@ -457,13 +564,17 @@ export class AnthropicTextAdapter<
         `activity=chat provider=anthropic model=${this.model} messages=${chatOptions.messages.length} tools=${chatOptions.tools?.length ?? 0} stream=false`,
         { provider: 'anthropic', model: this.model },
       )
-      const betas = computeAnthropicBetas(
-        chatOptions.tools,
-        chatOptions.modelOptions,
-        messagesHaveFileSource(chatOptions.messages),
+      const betas = this.requestBetas(
+        computeAnthropicBetas(
+          chatOptions.tools,
+          chatOptions.modelOptions,
+          messagesHaveFileSource(chatOptions.messages),
+        ),
       )
       // Make non-streaming request with tool_choice forced to our structured output tool
-      const response = await this.client.beta.messages.create(
+      const response = await this.clientFor(
+        chatOptions.wrapFetch,
+      ).beta.messages.create(
         {
           ...requestParams,
           stream: false,
@@ -473,9 +584,17 @@ export class AnthropicTextAdapter<
         },
         {
           signal: chatOptions.request?.signal,
-          headers: chatOptions.request?.headers,
+          headers: this.requestHeaders(chatOptions.request?.headers, betas),
         },
       )
+
+      // A forced tool call cut off at the output cap carries partial input,
+      // which would read like a schema failure (issue #1426).
+      if (response.stop_reason === 'max_tokens') {
+        throw new Error(
+          'anthropic.structuredOutput: the response was cut off because the maximum token limit was reached (stop_reason=max_tokens); raise modelOptions.max_tokens',
+        )
+      }
 
       // Extract the tool use content from the response
       let parsed: unknown = null
@@ -622,8 +741,8 @@ export class AnthropicTextAdapter<
       const normalized = normalizeSystemPrompts<AnthropicSystemPromptMetadata>(
         options.systemPrompts,
       )
-      if (normalized.length === 0) return undefined
-      return normalized.map(
+      if (normalized.length === 0 && !this.oauth) return undefined
+      const blocks = normalized.map(
         (p): TextBlockParam => ({
           type: 'text',
           text: p.content,
@@ -632,6 +751,16 @@ export class AnthropicTextAdapter<
           }),
         }),
       )
+      // Anthropic accepts an OAuth token only with the Claude Code identity.
+      return this.oauth
+        ? [
+            {
+              type: 'text',
+              text: "You are Claude Code, Anthropic's official CLI for Claude.",
+            },
+            ...blocks,
+          ]
+        : blocks
     })()
     // Wire engine-threaded outputSchema into Messages `output_config.format`
     // alongside any `tools` so the model emits tool calls during the agent
@@ -824,6 +953,7 @@ export class AnthropicTextAdapter<
                 : typeof toolContent === 'string'
                   ? toolContent
                   : '',
+              ...(message.error !== undefined && { is_error: true }),
             },
           ],
         })
@@ -853,7 +983,7 @@ export class AnthropicTextAdapter<
               : {}
             parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
           } catch {
-            parsedInput = toolCall.function.arguments
+            parsedInput = {}
           }
 
           // Provider-executed server tools (e.g. web_search) replay as the
@@ -952,6 +1082,13 @@ export class AnthropicTextAdapter<
 
     for (const thinking of thinkingParts) {
       if (!thinking.signature) continue
+      if (thinking.redacted) {
+        contentBlocks.push({
+          type: 'redacted_thinking',
+          data: thinking.signature,
+        })
+        continue
+      }
       const block: ThinkingBlockParam = {
         type: 'thinking',
         thinking: thinking.content,
@@ -1002,6 +1139,22 @@ export class AnthropicTextAdapter<
       } else {
         merged.push({ ...msg })
       }
+    }
+
+    // Anthropic rejects a request that ends in a thinking-only assistant
+    // message ("The final block in an assistant message cannot be `thinking`").
+    // An interrupt can pause a turn that has thinking but no text. Drop it so
+    // the request ends in the user message and the model answers again.
+    const last = merged.at(-1)
+    if (
+      last?.role === 'assistant' &&
+      Array.isArray(last.content) &&
+      last.content.every(
+        (block) =>
+          block.type === 'thinking' || block.type === 'redacted_thinking',
+      )
+    ) {
+      merged.pop()
     }
 
     // De-duplicate tool_result blocks with the same tool_use_id.
@@ -1066,6 +1219,9 @@ export class AnthropicTextAdapter<
     let hasEmittedRunFinished = false
     // Track current content block type for proper content_block_stop handling
     let currentBlockType: string | null = null
+    // Input and cache counts from message_start, for a closing message_delta
+    // that leaves them out.
+    let messageStartUsage: Anthropic_SDK.Beta.BetaUsage | undefined
 
     try {
       for await (const event of stream) {
@@ -1085,7 +1241,9 @@ export class AnthropicTextAdapter<
           }
         }
 
-        if (event.type === 'content_block_start') {
+        if (event.type === 'message_start') {
+          messageStartUsage = event.message.usage
+        } else if (event.type === 'content_block_start') {
           currentBlockType = event.content_block.type
           if (event.content_block.type === 'tool_use') {
             currentToolIndex++
@@ -1214,6 +1372,63 @@ export class AnthropicTextAdapter<
               timestamp: Date.now(),
               stepType: 'thinking',
             }
+          } else if (event.content_block.type === 'redacted_thinking') {
+            // Encrypted thinking: no text, and its data must go back to
+            // Anthropic unchanged. It gets its own reasoning message, and the
+            // encrypted value names that message. The id prefix marks the
+            // data as a redacted block, not a signature. The step reuses the
+            // id so the stream processor sees the prefix too.
+            const redactedId = `${REDACTED_THINKING_ID_PREFIX}${genId()}`
+            yield {
+              type: EventType.REASONING_START,
+              messageId: redactedId,
+              model,
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.REASONING_MESSAGE_START,
+              messageId: redactedId,
+              role: 'reasoning' as const,
+              model,
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.STEP_STARTED,
+              stepName: redactedId,
+              stepId: redactedId,
+              model,
+              timestamp: Date.now(),
+              stepType: 'thinking',
+            }
+            yield {
+              type: EventType.STEP_FINISHED,
+              stepName: redactedId,
+              stepId: redactedId,
+              model,
+              timestamp: Date.now(),
+              delta: '',
+              content: '',
+            }
+            yield {
+              type: EventType.REASONING_ENCRYPTED_VALUE,
+              subtype: 'message' as const,
+              entityId: redactedId,
+              encryptedValue: event.content_block.data,
+              model,
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.REASONING_MESSAGE_END,
+              messageId: redactedId,
+              model,
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.REASONING_END,
+              messageId: redactedId,
+              model,
+              timestamp: Date.now(),
+            }
           }
         } else if (event.type === 'content_block_delta') {
           if (event.delta.type === 'text_delta') {
@@ -1332,8 +1547,10 @@ export class AnthropicTextAdapter<
           }
         } else if (event.type === 'content_block_stop') {
           if (currentBlockType === 'thinking') {
-            // Emit signature so it can be replayed in multi-turn context
-            if (accumulatedSignature && stepId) {
+            // Emit signature so it can be replayed in multi-turn context.
+            // It belongs to the reasoning message, not the step, so an AG-UI
+            // client finds that message by `entityId`.
+            if (accumulatedSignature && stepId && reasoningMessageId) {
               yield {
                 type: EventType.STEP_FINISHED,
                 stepName: stepId,
@@ -1342,7 +1559,14 @@ export class AnthropicTextAdapter<
                 timestamp: Date.now(),
                 delta: '',
                 content: accumulatedThinking,
-                signature: accumulatedSignature,
+              }
+              yield {
+                type: EventType.REASONING_ENCRYPTED_VALUE,
+                subtype: 'message' as const,
+                entityId: reasoningMessageId,
+                encryptedValue: accumulatedSignature,
+                model,
+                timestamp: Date.now(),
               }
             }
           } else if (currentBlockType === 'tool_use') {
@@ -1454,6 +1678,7 @@ export class AnthropicTextAdapter<
         } else if (event.type === 'message_delta') {
           if (event.delta.stop_reason) {
             hasEmittedRunFinished = true
+            const usage = buildAnthropicUsage(event.usage, messageStartUsage)
 
             // Close reasoning events if still open
             if (reasoningMessageId && !hasClosedReasoning) {
@@ -1481,7 +1706,7 @@ export class AnthropicTextAdapter<
                   model,
                   timestamp: Date.now(),
                   finishReason: 'tool_calls',
-                  usage: buildAnthropicUsage(event.usage),
+                  usage,
                 }
                 break
               }
@@ -1514,6 +1739,7 @@ export class AnthropicTextAdapter<
                       'The response was cut off because the maximum token limit was reached.',
                     code: 'max_tokens',
                   },
+                  usage,
                 }
                 break
               }
@@ -1535,7 +1761,7 @@ export class AnthropicTextAdapter<
                   model,
                   timestamp: Date.now(),
                   finishReason: 'stop',
-                  usage: buildAnthropicUsage(event.usage),
+                  usage,
                 }
               }
             }
@@ -1545,6 +1771,7 @@ export class AnthropicTextAdapter<
     } catch (error: unknown) {
       const err = error as Error & { status?: number; code?: string }
       const rawEvent = toRunErrorRawEvent(error)
+      const retryAfterMs = toRetryAfterMs(error)
 
       logger.errors('anthropic.processAnthropicStream fatal', {
         error,
@@ -1558,6 +1785,7 @@ export class AnthropicTextAdapter<
         code: err.code || String(err.status),
         // Forward the Anthropic SDK error's `.error` response body when present.
         ...(rawEvent !== undefined && { rawEvent }),
+        ...(retryAfterMs !== undefined && { retryAfterMs }),
         error: {
           message: err.message || 'Unknown error occurred',
           code: err.code || String(err.status),
@@ -1568,7 +1796,9 @@ export class AnthropicTextAdapter<
 }
 
 /**
- * Creates an Anthropic chat adapter with explicit API key.
+ * Creates an Anthropic chat adapter with an explicit credential. It reads no
+ * credential from the environment. `config.auth` picks how the credential
+ * goes out. An `sk-ant-oat` credential uses `'oauth'` by default.
  * Type resolution happens here at the call site.
  */
 export function createAnthropicChat<
@@ -1603,7 +1833,9 @@ export function createAnthropicChatWithClient<
 }
 
 /**
- * Creates an Anthropic text adapter with automatic API key detection.
+ * Creates an Anthropic text adapter with the credential from the environment:
+ * `ANTHROPIC_AUTH_TOKEN`, then `ANTHROPIC_OAUTH_TOKEN`, then
+ * `ANTHROPIC_API_KEY`. A `config.auth` wins over the detected kind.
  * Type resolution happens here at the call site.
  */
 export function anthropicText<TModel extends (typeof ANTHROPIC_MODELS)[number]>(
@@ -1614,6 +1846,9 @@ export function anthropicText<TModel extends (typeof ANTHROPIC_MODELS)[number]>(
   ResolveProviderOptions<TModel>,
   ResolveInputModalities<TModel>
 > {
-  const apiKey = getAnthropicApiKeyFromEnv()
-  return createAnthropicChat(model, apiKey, config)
+  const { credential, auth } = getAnthropicCredentialFromEnv()
+  return createAnthropicChat(model, credential, {
+    ...config,
+    auth: config?.auth ?? auth,
+  })
 }

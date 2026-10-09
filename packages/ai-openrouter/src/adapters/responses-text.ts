@@ -12,9 +12,14 @@ import {
 } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../internal/request-options'
+import { clientForCall } from '../internal/wrap-fetch'
 import { openRouterSupportsCombinedToolsAndSchema } from '../internal/combined-tools-and-schema'
 import { makeStructuredOutputCompatible } from '../internal/schema-converter'
-import { convertFunctionToolToResponsesFormat } from '../internal/responses-tool-converter'
+import {
+  convertFunctionToolToResponsesFormat,
+  createToolInputNormalizer,
+} from '../internal/responses-tool-converter'
+import { OPENROUTER_MODEL_INPUT_MODALITIES } from '../model-meta'
 import { isWebSearchTool } from '../tools/web-search-tool'
 import { isWebFetchTool } from '../tools/web-fetch-tool'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
@@ -116,11 +121,15 @@ export class OpenRouterResponsesTextAdapter<
 > {
   override readonly kind = 'text' as const
   readonly name = 'openrouter-responses' as const
+  override readonly inputModalities =
+    OPENROUTER_MODEL_INPUT_MODALITIES[this.model]
 
   protected orClient: OpenRouter
+  private readonly sdkOptions: SDKOptions
 
   constructor(config: OpenRouterResponsesConfig, model: TModel) {
     super({}, model)
+    this.sdkOptions = config
     this.orClient = new OpenRouter(config)
   }
 
@@ -151,7 +160,11 @@ export class OpenRouterResponsesTextAdapter<
         { provider: this.name, model: this.model },
       )
       const reqOptions = extractRequestOptions(options.request)
-      const response = await this.orClient.beta.responses.send(
+      const response = await clientForCall(
+        this.orClient,
+        this.sdkOptions,
+        options.wrapFetch,
+      ).beta.responses.send(
         { responsesRequest: { ...responsesRequest, stream: true } },
         {
           ...(reqOptions.signal != null && { signal: reqOptions.signal }),
@@ -228,7 +241,11 @@ export class OpenRouterResponsesTextAdapter<
         { provider: this.name, model: this.model },
       )
       const reqOptions = extractRequestOptions(chatOptions.request)
-      const response = await this.orClient.beta.responses.send(
+      const response = await clientForCall(
+        this.orClient,
+        this.sdkOptions,
+        chatOptions.wrapFetch,
+      ).beta.responses.send(
         {
           responsesRequest: {
             ...responsesRequest,
@@ -419,7 +436,11 @@ export class OpenRouterResponsesTextAdapter<
         { provider: this.name, model: this.model },
       )
       const reqOptions = extractRequestOptions(chatOptions.request)
-      const rawStream = await this.orClient.beta.responses.send(
+      const rawStream = await clientForCall(
+        this.orClient,
+        this.sdkOptions,
+        chatOptions.wrapFetch,
+      ).beta.responses.send(
         {
           responsesRequest: {
             ...responsesRequest,
@@ -837,6 +858,10 @@ export class OpenRouterResponsesTextAdapter<
       hasEmittedRunStarted: boolean
     },
   ): AsyncIterable<AdapterYieldChunk> {
+    const normalizeToolInput = createToolInputNormalizer(
+      options.tools,
+      this.makeStructuredOutputCompatible.bind(this),
+    )
     let accumulatedContent = ''
     let accumulatedReasoning = ''
 
@@ -1325,7 +1350,10 @@ export class OpenRouterResponsesTextAdapter<
           if (chunk.arguments) {
             try {
               const parsed = JSON.parse(chunk.arguments)
-              parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
+              parsedInput = normalizeToolInput(
+                name,
+                parsed && typeof parsed === 'object' ? parsed : {},
+              )
             } catch (parseError) {
               options.logger.errors(
                 `${this.name}.processStreamChunks tool-args JSON parse failed`,
@@ -1400,8 +1428,10 @@ export class OpenRouterResponsesTextAdapter<
               if (rawArgs) {
                 try {
                   const parsed = JSON.parse(rawArgs)
-                  parsedInput =
-                    parsed && typeof parsed === 'object' ? parsed : {}
+                  parsedInput = normalizeToolInput(
+                    name,
+                    parsed && typeof parsed === 'object' ? parsed : {},
+                  )
                 } catch (parseError) {
                   options.logger.errors(
                     `${this.name}.processStreamChunks tool-args JSON parse failed (output_item.done backfill)`,
@@ -1522,8 +1552,10 @@ export class OpenRouterResponsesTextAdapter<
               if (rawArgs) {
                 try {
                   const parsed = JSON.parse(rawArgs)
-                  parsedInput =
-                    parsed && typeof parsed === 'object' ? parsed : {}
+                  parsedInput = normalizeToolInput(
+                    name,
+                    parsed && typeof parsed === 'object' ? parsed : {},
+                  )
                 } catch (parseError) {
                   options.logger.errors(
                     `${this.name}.processStreamChunks tool-args JSON parse failed (response.completed backfill)`,

@@ -1,5 +1,12 @@
 # @tanstack/ai-isolate-cloudflare
 
+## 0.2.43
+
+### Patch Changes
+
+- Updated dependencies [[`80ae825`](https://github.com/TanStack/ai/commit/80ae825b0f226d65312e2986aeb2e7d94e5b2def)]:
+  - @tanstack/ai-code-mode@0.5.0
+
 ## 0.2.42
 
 ### Patch Changes

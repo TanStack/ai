@@ -28,10 +28,13 @@ interface ThinkingPart {
   content: string;
   stepId?: string;
   signature?: string;
+  redacted?: boolean;
 }
 ```
 
 The `ThinkingPart` appears in `UIMessage.parts` alongside `TextPart` and `ToolCallPart` entries. As reasoning tokens arrive, its `content` accumulates token by token.
+
+Claude can also send a redacted thinking block. It is encrypted, so it has no text. It arrives as a `ThinkingPart` with `redacted: true`, an empty `content`, and the encrypted data in `signature`. Keep the part in your stored messages: the next request sends it back to Claude unchanged. In a UI, show a short placeholder such as "Thinking hidden" instead of the empty text.
 
 ## Enabling Thinking
 

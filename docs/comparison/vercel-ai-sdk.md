@@ -599,13 +599,14 @@ This isn't just philosophical - it means no accidental dependencies on platform-
 
 Code Mode lets the model write TypeScript that calls your tools inside a sandbox. One `execute_typescript` call can loop, branch, and `Promise.all` instead of one tool per turn.
 
-TanStack AI ships five isolate drivers behind one `IsolateDriver` interface:
+TanStack AI ships six isolate drivers behind one `IsolateDriver` interface:
 
 - **`@tanstack/ai-isolate-node`** - Node.js sandbox via `isolated-vm`
 - **`@tanstack/ai-isolate-quickjs`** - QuickJS WASM (browsers and edge)
 - **`@tanstack/ai-isolate-quickjs-bun`** - Native QuickJS on Bun via `bun:ffi`
 - **`@tanstack/ai-isolate-cloudflare`** - Cloudflare Workers
 - **`@tanstack/ai-isolate-daytona`** - Remote Daytona sandbox
+- **`@tanstack/ai-isolate-e2b`** - Remote E2B sandbox
 
 Swap the driver without changing application code. A companion `@tanstack/ai-code-mode-snippets` package gives the model a persistent snippet library. The model can save working TypeScript snippets, list them, and reuse them across sessions. Trust strategies control what gets promoted to a first-class tool.
 

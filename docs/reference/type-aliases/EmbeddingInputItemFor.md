@@ -10,7 +10,7 @@ type EmbeddingInputItemFor<TModalities> =
   | EmbeddingItemByModality[TModalities];
 ```
 
-Defined in: [packages/ai/src/types.ts:2953](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2953)
+Defined in: [packages/ai/src/types.ts:3108](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3108)
 
 Embedding item type narrowed to the modalities a specific model supports.
 `EmbeddingInputItemFor<'text'>` (a text-only model) is `string | TextPart`;

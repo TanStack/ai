@@ -20,6 +20,7 @@ import type {
 } from '@tanstack/ai-event-client'
 import type {
   ActivityDeltaEvent as AGUIActivityDeltaEvent,
+  ActivityMessage as AGUIActivityMessage,
   ActivitySnapshotEvent as AGUIActivitySnapshotEvent,
   AudioPart as AGUIAudioPart,
   BaseEvent as AGUIBaseEvent,
@@ -381,7 +382,12 @@ export interface ModelMessage<
   name?: string
   toolCalls?: Array<ToolCall>
   toolCallId?: string
-  thinking?: Array<{ content: string; signature?: string }>
+  /**
+   * Signed thinking to send back to the provider. `redacted: true` marks a
+   * block the provider encrypted: `content` is empty and `signature` holds its
+   * opaque data. See `ThinkingPart.signature` for the planned rename.
+   */
+  thinking?: Array<{ content: string; signature?: string; redacted?: boolean }>
   /** Error reported by an AG-UI tool message. */
   error?: string
   /** Optional AG-UI message metadata. TanStack-owned fields live under `tanstack`. */
@@ -465,7 +471,40 @@ export interface ThinkingPart {
   type: 'thinking'
   content: string
   stepId?: string
+  /**
+   * The provider's opaque reasoning artefact, sent back unchanged: an
+   * Anthropic signature, Anthropic redacted data, or OpenAI encrypted content.
+   * TODO(#1581): rename to `encryptedValue` to match AG-UI's `ReasoningMessage`.
+   * Renaming breaks stored messages, so it needs a read shim for `signature`.
+   */
   signature?: string
+  /**
+   * The provider encrypted this thinking block (Anthropic `redacted_thinking`).
+   * `content` is empty, and `signature` holds the opaque data that goes back
+   * to the provider unchanged. On the AG-UI wire, the reasoning message id
+   * starts with `redacted_thinking-` instead.
+   */
+  redacted?: boolean
+}
+
+/**
+ * Frontend-only AG-UI activity. Never converted into ModelMessage input.
+ * Mirrors {@link https://docs.ag-ui.com/concepts/messages | ActivityMessage}:
+ * `activityType` selects a renderer; `content` is the structured payload.
+ */
+export interface ActivityPart extends Pick<
+  AGUIActivityMessage,
+  'activityType' | 'content' | 'subagentRunId'
+> {
+  type: 'activity'
+}
+
+/**
+ * Durable sidecar row for frontend-only AG-UI activity. Never a ModelMessage.
+ * `index` is the insert position in the reconstructed UI transcript.
+ */
+export interface ActivityRecord extends Omit<AGUIActivityMessage, 'role'> {
+  index: number
 }
 
 /**
@@ -488,14 +527,26 @@ export type DeepPartial<T> =
  * consumers can thread `useChat({ outputSchema })`'s schema all the way down
  * to `messages[i].parts[j].data`. Defaults to `unknown` so untyped consumers
  * (e.g. internal codepaths that don't know about TSchema) keep working.
+ *
+ * Discriminated on `status`: checking `status === 'complete'` narrows `data`
+ * to `TData`.
  */
-export interface StructuredOutputPart<TData = unknown> {
+export type StructuredOutputPart<TData = unknown> =
+  | (StructuredOutputPartBase<TData> & {
+      status: 'streaming' | 'error'
+      /** Not set until `status === 'complete'`. */
+      data?: undefined
+    })
+  | (StructuredOutputPartBase<TData> & {
+      status: 'complete'
+      /** Validated final object. */
+      data: TData
+    })
+
+interface StructuredOutputPartBase<TData> {
   type: 'structured-output'
-  status: 'streaming' | 'complete' | 'error'
   /** Progressive parse of `raw` via parsePartialJSON — populated while streaming and after complete. */
   partial?: DeepPartial<TData>
-  /** Validated final object — only set when `status === 'complete'`. */
-  data?: TData
   /** Accumulating JSON buffer. Source of truth for wire round-trip. */
   raw: string
   /** Optional chain-of-thought surfaced by reasoning models alongside the structured output. */
@@ -561,6 +612,7 @@ export type MessagePart<TData = unknown> =
   | ToolCallPart
   | ToolResultPart
   | ThinkingPart
+  | ActivityPart
   | StructuredOutputPart<TData>
   | UIResourcePart
   | SubagentPart
@@ -617,6 +669,8 @@ export interface TanStackRunMetadata {
   runId?: string
   sessionId?: string
   index?: number
+  /** On a `RUN_ERROR`. See `RunErrorEvent.retryAfterMs`. */
+  retryAfterMs?: number
   state?: ToolOutputState
   /** Parsed `TOOL_CALL_END` input. Spec `TOOL_CALL_END` has no top-level `input`. */
   input?: unknown
@@ -631,7 +685,7 @@ export interface TanStackRunMetadata {
  */
 export interface UIMessage<TData = unknown> {
   id: string
-  role: 'system' | 'user' | 'assistant'
+  role: 'system' | 'user' | 'assistant' | 'activity'
   parts: Array<MessagePart<TData>>
   createdAt?: Date
   /** Optional AG-UI sender name. Converters preserve it across wire and persist. */
@@ -1057,6 +1111,13 @@ export interface AgentLoopState {
 export type AgentLoopStrategy = (state: AgentLoopState) => boolean
 
 /**
+ * Wraps the fetch of a model call. It gets the next fetch and gives back a
+ * new fetch. A wrapper can change the URL, the headers, the request, or the
+ * response.
+ */
+export type FetchWrapper = (next: typeof fetch) => typeof fetch
+
+/**
  * Options passed into the SDK and further piped to the AI provider.
  */
 export interface TextOptions<
@@ -1189,6 +1250,12 @@ export interface TextOptions<
    * Surfaced for observability/middleware; not consumed by the LLM call.
    */
   parentRunId?: string
+  /**
+   * Wraps the fetch of this request. The engine composes the `chat()` option
+   * and the middleware wrappers into one function. An adapter that supports
+   * it calls `wrapFetch(baseFetch)` and sends the request with the result.
+   */
+  wrapFetch?: FetchWrapper
   /**
    * AG-UI subagent run id when this chat runs as a child of another run.
    * A child `chat()` passes `ctx.subagentRunId`. Middleware reads it as
@@ -1340,6 +1407,12 @@ export interface RunErrorEvent extends Pick<
   model?: string
   /** Nested payload kept for in-process / durability consumers. */
   error?: { message: string; code?: string }
+  /**
+   * How long the provider asks you to wait before a retry, in milliseconds.
+   * Adapters read it from the `retry-after-ms` or `retry-after` header.
+   * `chat()` moves it to `metadata.tanstack.retryAfterMs`.
+   */
+  retryAfterMs?: number
   metadata?: { tanstack?: TanStackRunMetadata } & Record<string, any>
 }
 
@@ -1739,11 +1812,31 @@ export interface ReasoningEndEvent extends AGUIReasoningEndEvent {}
  */
 export interface ReasoningEncryptedValueEvent extends AGUIReasoningEncryptedValueEvent {}
 
-/** AG-UI 1.0 ActivitySnapshotEvent shape. */
-export interface ActivitySnapshotEvent extends AGUIActivitySnapshotEvent {}
+/**
+ * Full activity state for an `ActivityMessage`.
+ *
+ * @ag-ui/core provides: `messageId`, `activityType`, `content`, `replace?`,
+ * `metadata?`, `subagentRunId?`. When `replace` is omitted it means `true`.
+ */
+export interface ActivitySnapshotEvent extends Omit<
+  AGUIActivitySnapshotEvent,
+  'type'
+> {
+  type: 'ACTIVITY_SNAPSHOT'
+}
 
-/** AG-UI 1.0 ActivityDeltaEvent shape. */
-export interface ActivityDeltaEvent extends AGUIActivityDeltaEvent {}
+/**
+ * RFC 6902 JSON Patch against an existing activity's `content`.
+ *
+ * @ag-ui/core provides: `messageId`, `activityType`, `patch`, `metadata?`,
+ * `subagentRunId?`
+ */
+export interface ActivityDeltaEvent extends Omit<
+  AGUIActivityDeltaEvent,
+  'type'
+> {
+  type: 'ACTIVITY_DELTA'
+}
 
 /** AG-UI 1.0 RawEvent shape. */
 export interface RawEvent extends AGUIRawEvent {}
@@ -2282,9 +2375,10 @@ export interface VideoGenerationOptions<
   /** Video size — format depends on the provider (e.g., "16:9", "1280x720") */
   size?: TSize
   /**
-   * Video duration in seconds. Adapters that declare a per-model duration
-   * map narrow this to the model's valid union; use
-   * `adapter.snapDuration(seconds)` to coerce raw seconds to a valid value.
+   * Video duration. Adapters that declare a per-model duration map narrow
+   * this to that model's union (a number, `"8"`, or `"8s"`). Use
+   * `adapter.snapDuration(input)` to coerce a raw value. `input` may be
+   * seconds, a `"6s"` template, or `"auto"` when the model lists it.
    */
   duration?: TDuration
   /** Model-specific options for video generation */
@@ -2356,6 +2450,25 @@ export interface VideoUrlResult {
   usage?: TokenUsage
   /** Persisted artifact references for generated assets, when available */
   artifacts?: Array<PersistedArtifactRef>
+  body?: never
+}
+
+/**
+ * Video bytes from a provider that has no public URL for the finished video.
+ * Core passes `body` to generation middleware, which streams it into storage
+ * and sets `url`. Use `withGenerationPersistence` with `artifactUrl`.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export interface VideoStreamResult {
+  /** Job identifier */
+  jobId: string
+  /** The video bytes. Read once, with backpressure. Never buffer it whole. */
+  body: ReadableStream<Uint8Array>
+  /** MIME type of `body`, e.g. `video/mp4`. */
+  contentType: string
+  usage?: TokenUsage
+  url?: never
 }
 
 // ============================================================================

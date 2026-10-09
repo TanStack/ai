@@ -7,7 +7,7 @@ title: toHttpResponse
 function toHttpResponse<TOffset>(stream, init?): Response;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:1128](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L1128)
+Defined in: [packages/ai/src/stream-to-response.ts:1430](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L1430)
 
 Convert a StreamChunk async iterable to a Response in HTTP stream format (newline-delimited JSON)
 
@@ -22,7 +22,8 @@ to make the stream resumable: fresh runs are appended to the log and each
 NDJSON line is emitted as an `{ id, chunk }` envelope carrying an opaque
 offset; a reconnect (native `Last-Event-ID` header) or a `?offset` join
 replays from the log without re-running the producer. `batch` controls how
-many chunks are buffered per `append` (default 32). This shares the exact
+many chunks are buffered per `append` (default 32), and `batchWaitMs` how
+long a buffered chunk waits for more (default 50). This shares the exact
 `durableStreamSource` used by `toServerSentEventsResponse` — only the wire
 encoding differs.
 
@@ -44,7 +45,7 @@ AsyncIterable of StreamChunks from chat()
 
 `ResponseInit` & `object`
 
-Optional Response initialization options (including `abortController`, `durability` with its optional `batch`, and `debug`)
+Optional Response initialization options (including `abortController`, `durability` with its optional `batch` and `batchWaitMs`, and `debug`)
 
 ## Returns
 

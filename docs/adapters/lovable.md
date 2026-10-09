@@ -136,6 +136,8 @@ const stream = chat({
 
 `api: "responses"` is the same as the default. `api: "chat-completions"` is the same as `api: "chat"`.
 
+Need a header on each request, or a log of each model call? The chat adapters on this page support [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call).
+
 ## Summarize
 
 ```typescript
@@ -164,7 +166,9 @@ const result = await generateImage({
 
 ## Video
 
-Video jobs are async. Create a job, poll status, then fetch the MP4 URL. Clips last 4, 6, or 8 seconds. 1080p and 4K clips are always 8 seconds. 4K works only on `google/veo-3.1-fast` and `google/veo-3.1`.
+Video jobs are async. Create a job, poll status, then fetch the MP4 URL. Clips last 4, 6, or 8 seconds. You can write `4`, `"4"`, or `"4s"` (same forms for 6 and 8).
+
+1080p and 4K clips are always 8 seconds. `"8s"` counts as 8 seconds. 4K works only on `google/veo-3.1-fast` and `google/veo-3.1`.
 
 ```typescript
 import { generateVideo } from "@tanstack/ai"
@@ -173,7 +177,7 @@ import { lovableVideo } from "@tanstack/ai-lovable"
 const { jobId } = await generateVideo({
   adapter: lovableVideo("google/veo-3.1-lite"),
   prompt: "a red guitar on a wooden bench, slow camera push-in",
-  duration: 4,
+  duration: "4s",
   size: "1280x720",
 })
 ```

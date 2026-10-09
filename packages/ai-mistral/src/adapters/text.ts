@@ -9,8 +9,10 @@ import {
 } from '../utils/client'
 import { makeMistralStructuredOutputCompatibleWithMap } from '../utils/schema-converter'
 import { createToolInputNormalizer } from '../utils/tool-input-normalizer'
+import { MISTRAL_MODEL_INPUT_MODALITIES } from '../model-meta'
 import type {
   ContentPart,
+  FetchWrapper,
   Modality,
   ModelMessage,
   AdapterYieldChunk,
@@ -27,7 +29,10 @@ import type {
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
 import type { Mistral } from '@mistralai/mistralai'
-import type { ChatCompletionStreamRequest } from '@mistralai/mistralai/models/components'
+import type {
+  ChatCompletionStreamRequest,
+  ContentChunk,
+} from '@mistralai/mistralai/models/components'
 import type {
   ExternalTextProviderOptions,
   InternalTextProviderOptions,
@@ -176,6 +181,7 @@ export class MistralTextAdapter<
   MistralMessageMetadataByModality
 > {
   readonly name = 'mistral' as const
+  override readonly inputModalities = MISTRAL_MODEL_INPUT_MODALITIES[this.model]
 
   private readonly client: Mistral
   private readonly rawConfig: MistralClientConfig
@@ -204,7 +210,11 @@ export class MistralTextAdapter<
     }
 
     try {
-      const stream = this.fetchRawMistralStream(requestParams, this.rawConfig)
+      const stream = this.fetchRawMistralStream(
+        requestParams,
+        this.rawConfig,
+        options.wrapFetch,
+      )
       yield* this.processMistralStreamChunks(stream, options, aguiState)
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
@@ -256,7 +266,10 @@ export class MistralTextAdapter<
       outputSchema.required || [],
     )
 
-    const response = await this.client.chat.complete({
+    const client = chatOptions.wrapFetch
+      ? createMistralClient(this.rawConfig, chatOptions.wrapFetch(fetch))
+      : this.client
+    const response = await client.chat.complete({
       ...nonStreamParams,
       responseFormat: {
         type: 'json_schema',
@@ -267,6 +280,14 @@ export class MistralTextAdapter<
         },
       },
     })
+
+    // A response cut off at the output cap is a truncated JSON document;
+    // report it before the parse error (issue #1426).
+    if (response.choices[0]?.finishReason === 'length') {
+      throw new Error(
+        'mistral.structuredOutput: the response was cut off because the maximum token limit was reached (finish_reason=length); raise modelOptions.max_tokens',
+      )
+    }
 
     const rawText = response.choices[0]?.message?.content
     const textContent = typeof rawText === 'string' ? rawText : ''
@@ -720,6 +741,7 @@ export class MistralTextAdapter<
   private async *fetchRawMistralStream(
     params: ChatCompletionStreamRequest,
     config: MistralClientConfig,
+    wrapFetch: FetchWrapper | undefined,
   ): AsyncGenerator<MistralRawChunk> {
     const serverURL = (
       config.baseURL ??
@@ -743,7 +765,8 @@ export class MistralTextAdapter<
       ...config.defaultHeaders,
     }
 
-    const response = await fetch(url, {
+    const send = wrapFetch ? wrapFetch(fetch) : fetch
+    const response = await send(url, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
@@ -982,8 +1005,12 @@ export class MistralTextAdapter<
       return {
         role: 'tool',
         toolCallId: message.toolCallId,
-        content:
-          typeof message.content === 'string'
+        // Mistral accepts image chunks in a tool message, so send the parts.
+        content: Array.isArray(message.content)
+          ? message.content.map((part) =>
+              this.convertContentPartToMistral(part),
+            )
+          : typeof message.content === 'string'
             ? message.content
             : JSON.stringify(message.content),
       }
@@ -1108,7 +1135,9 @@ function messageToWire(msg: ChatCompletionStreamRequest['messages'][number]) {
     return {
       role: 'tool',
       tool_call_id: msg.toolCallId,
-      content: msg.content,
+      content: Array.isArray(msg.content)
+        ? msg.content.map(contentPartToWire)
+        : msg.content,
       ...(msg.name !== undefined ? { name: msg.name } : {}),
     }
   }
@@ -1130,18 +1159,23 @@ function messageToWire(msg: ChatCompletionStreamRequest['messages'][number]) {
   if (msg.role === 'user' && Array.isArray(msg.content)) {
     return {
       role: 'user',
-      content: msg.content.map((part) => {
-        if (part.type === 'image_url') {
-          return { type: 'image_url', image_url: part.imageUrl }
-        }
-        if (part.type === 'document_url') {
-          return { type: 'document_url', document_url: part.documentUrl }
-        }
-        return part
-      }),
+      content: msg.content.map(contentPartToWire),
     }
   }
   return msg
+}
+
+/**
+ * Snake-cases one content chunk of a user or tool message.
+ */
+function contentPartToWire(part: ContentChunk) {
+  if (part.type === 'image_url') {
+    return { type: 'image_url', image_url: part.imageUrl }
+  }
+  if (part.type === 'document_url') {
+    return { type: 'document_url', document_url: part.documentUrl }
+  }
+  return part
 }
 
 /**

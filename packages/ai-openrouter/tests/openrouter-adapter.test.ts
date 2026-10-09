@@ -179,6 +179,47 @@ describe('OpenRouter adapter option mapping', () => {
     expect(serialized).toHaveProperty('tool_choice', 'auto')
   })
 
+  it('sends function tools with strict: false and the schema as authored', async () => {
+    setupMockSdkClient([
+      {
+        id: 'chatcmpl-strict',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'ok' }, finishReason: 'stop' }],
+        usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+      },
+    ])
+    const inputSchema = {
+      type: 'object',
+      properties: {
+        guitar: { type: 'string' },
+        strings: { type: 'array', items: { type: 'string' }, minItems: 1 },
+      },
+      required: ['guitar'],
+    }
+
+    for await (const _ of chat({
+      adapter: createAdapter(),
+      messages: [{ role: 'user', content: 'Hello' }],
+      tools: [
+        { name: 'recommend_guitar', description: 'Recommend', inputSchema },
+      ],
+    })) {
+      // drain
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const serialized = ChatRequest$outboundSchema.parse(rawParams.chatRequest)
+    expect(serialized.tools?.[0]).toEqual({
+      type: 'function',
+      function: {
+        name: 'recommend_guitar',
+        description: 'Recommend',
+        parameters: inputSchema,
+        strict: false,
+      },
+    })
+  })
+
   it('prepends mixed string + object-form systemPrompts as a role:system message and drops foreign metadata', async () => {
     const streamChunks = [
       {
@@ -3156,4 +3197,114 @@ describe('OpenRouter cost tracking', () => {
       expect(runFinishedChunk.usage).not.toHaveProperty('cost')
     }
   })
+})
+
+describe('structured output usage on interrupted streams', () => {
+  it.each(['Error', 'AbortError', 'RequestAbortedError'])(
+    '%s preserves only received usage',
+    async (name) => {
+      for (const hasUsage of [false, true]) {
+        const providerUsage = {
+          promptTokens: 10,
+          completionTokens: 50,
+          totalTokens: 60,
+          cost: 0.002,
+        }
+        const closed = vi.fn()
+        mockSend = vi.fn().mockResolvedValue({
+          async *[Symbol.asyncIterator]() {
+            try {
+              if (hasUsage)
+                yield {
+                  id: 'gen-test',
+                  model: 'openai/gpt-4o-mini',
+                  choices: [],
+                  usage: providerUsage,
+                }
+              throw Object.assign(new Error('stream interrupted'), { name })
+            } finally {
+              closed()
+            }
+          },
+        })
+        const chunks: Array<AdapterYieldChunk> = []
+        for await (const chunk of createAdapter().structuredOutputStream({
+          chatOptions: {
+            model: 'openai/gpt-4o-mini',
+            messages: [{ role: 'user', content: 'Return JSON.' }],
+            logger: testLogger,
+          },
+          outputSchema: { type: 'object' },
+        })) {
+          chunks.push(chunk)
+        }
+        const terminal = chunks.at(-1)
+        expect(terminal).toMatchObject({
+          type: 'RUN_ERROR',
+          message: name === 'Error' ? 'stream interrupted' : 'Request aborted',
+        })
+        if (name !== 'Error')
+          expect(terminal).toMatchObject({ code: 'aborted' })
+        if (hasUsage) expect(terminal).toMatchObject({ usage: providerUsage })
+        else expect(terminal).not.toHaveProperty('usage')
+        expect(
+          chunks.filter((chunk) => chunk.type === 'RUN_FINISHED'),
+        ).toHaveLength(0)
+        expect(chunks.filter((chunk) => 'usage' in chunk)).toHaveLength(
+          hasUsage ? 1 : 0,
+        )
+        expect(closed).toHaveBeenCalledOnce()
+      }
+    },
+  )
+})
+
+describe('OpenRouter finish reasons', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  async function finishWith(finishReason: string) {
+    setupMockSdkClient([
+      {
+        id: 'chatcmpl-finish',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'Hello' }, finishReason: null }],
+      },
+      {
+        id: 'chatcmpl-finish',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: {}, finishReason }],
+      },
+    ])
+    const chunks: Array<AdapterYieldChunk> = []
+    for await (const chunk of createAdapter().chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [{ role: 'user', content: 'Hello' }],
+      logger: testLogger,
+    })) {
+      chunks.push(chunk)
+    }
+    return chunks
+  }
+
+  it('reports an unknown finish reason as RUN_ERROR', async () => {
+    const chunks = await finishWith('unexpected_reason')
+    expect(chunks.at(-1)).toMatchObject({
+      type: 'RUN_ERROR',
+      message: 'Provider finish_reason: unexpected_reason',
+    })
+    expect(chunks.map((chunk) => chunk.type)).not.toContain('RUN_FINISHED')
+  })
+
+  it.each(['content_filter', 'error'])(
+    'keeps %s as a content_filter finish',
+    async (finishReason) => {
+      const chunks = await finishWith(finishReason)
+      expect(chunks.at(-1)).toMatchObject({
+        type: 'RUN_FINISHED',
+        finishReason: 'content_filter',
+      })
+    },
+  )
 })

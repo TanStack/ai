@@ -35,7 +35,7 @@ Tools you pass to Code Mode are converted to typed function stubs that appear in
 
 ### Secure sandboxing
 
-Generated code runs in an isolated environment (V8 isolate, QuickJS WASM, native QuickJS on Bun, Cloudflare Worker, or Daytona sandbox) with no access to the host file system, network, or process. The sandbox has configurable timeouts and memory limits.
+Generated code runs in an isolated environment. V8, QuickJS WASM, native QuickJS on Bun, and a Cloudflare Worker have no access to the host file system, network, or process. A Daytona sandbox and an E2B sandbox are full Linux environments. Each sandbox has its own file system, network, and processes. The code in that sandbox cannot reach the host. Timeouts and memory limits are configurable.
 
 ## Getting Started
 
@@ -131,6 +131,21 @@ octane: @tanstack/ai-isolate-daytona @daytona/sdk
 
 <!-- ::end:tabs -->
 
+E2B sandboxes:
+
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-isolate-e2b e2b
+vue: @tanstack/ai-isolate-e2b e2b
+solid: @tanstack/ai-isolate-e2b e2b
+svelte: @tanstack/ai-isolate-e2b e2b
+preact: @tanstack/ai-isolate-e2b e2b
+angular: @tanstack/ai-isolate-e2b e2b
+vanilla: @tanstack/ai-isolate-e2b e2b
+octane: @tanstack/ai-isolate-e2b e2b
+
+<!-- ::end:tabs -->
+
 ### 2. Define tools
 
 Define your tools with `toolDefinition()` and provide a server-side implementation with `.server()`. These become the `external_*` functions available inside the sandbox.
@@ -223,7 +238,7 @@ const { tool, systemPrompt } = createCodeMode({
   driver,          // IsolateDriver — required
   tools,           // Array<ServerTool | ToolDefinition> — required, at least one
   timeout,         // number — execution timeout in ms (default: 30000)
-  memoryLimit,     // number — memory limit in MB (default: 128, Node + QuickJS drivers)
+  memoryLimit,     // number. Memory limit in MB (default: 128). Node, QuickJS, and E2B drivers.
   getSnippetBindings, // () => Promise<Record<string, ToolBinding>> — optional dynamic bindings
 });
 ```
@@ -235,8 +250,9 @@ const { tool, systemPrompt } = createCodeMode({
 | `driver` | `IsolateDriver` | The sandbox runtime to execute code in |
 | `tools` | `Array<ServerTool \| ToolDefinition>` | Tools exposed as `external_*` functions. Must have `.server()` implementations |
 | `timeout` | `number` | Execution timeout in milliseconds (default: 30000) |
-| `memoryLimit` | `number` | Memory limit in MB (default: 128). Supported by Node and QuickJS drivers |
+| `memoryLimit` | `number` | Memory limit in MB (default: 128). Supported by Node, QuickJS, and E2B drivers |
 | `getSnippetBindings` | `() => Promise<Record<string, ToolBinding>>` | Optional function returning additional bindings at execution time |
+| `debug` | `DebugOption` | Debug logging, same shape as `chat({ debug })`. Failed executions log under `errors` (on by default), successful ones under `tools`. Pass `{ logger }` to use your own `Logger`, or `false` to silence. See [Debug Logging](../advanced/debug-logging.md) |
 
 The tool returns a `CodeModeToolResult`:
 
@@ -286,6 +302,7 @@ interface IsolateDriver {
 | `@tanstack/ai-isolate-quickjs-bun` | `createQuickJSBunIsolateDriver()` | Bun |
 | `@tanstack/ai-isolate-cloudflare` | `createCloudflareIsolateDriver()` | Cloudflare Workers |
 | `@tanstack/ai-isolate-daytona` | `createDaytonaIsolateDriver()` | Daytona sandboxes |
+| `@tanstack/ai-isolate-e2b` | `createE2BIsolateDriver()` | E2B sandboxes |
 
 For full configuration options for each driver, see [Isolate Drivers](./code-mode-isolates.md).
 
@@ -303,6 +320,8 @@ For a full comparison of drivers with all configuration options, see [Isolate Dr
 
 In brief: use the **Node driver** for server-side Node.js (fastest, V8 JIT), **QuickJS** for browsers or portable edge deployments (no native deps), **QuickJS Bun** for Bun servers (native QuickJS via `bun:ffi`), the **Cloudflare driver** when you deploy to Cloudflare Workers, and the **Daytona driver** when you want execution inside a full remote Linux sandbox.
 
+Use the **E2B driver** for an E2B sandbox.
+
 ## Custom Events
 
 Code Mode emits custom events during execution that you can observe through the TanStack AI event system. These are useful for building UIs that show execution progress, debugging, or logging.
@@ -316,6 +335,37 @@ Code Mode emits custom events during execution that you can observe through the 
 | `code_mode:external_error` | When an `external_*` call fails | `{ function, error, duration }` |
 
 To display these events in your React app, see [Showing Code Mode in the UI](./client-integration).
+
+## Stop tool calls when the run stops
+
+When a user stops a chat run, a tool call that the sandbox started keeps going unless the tool listens for the abort. Each `external_*` call gets the `abortSignal` of the chat run in its second argument. Pass it to the slow work:
+
+```typescript
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
+
+const searchDocs = toolDefinition({
+  name: "searchDocs",
+  description: "Search the docs",
+  inputSchema: z.object({ query: z.string() }),
+}).server(async ({ query }, ctx) => {
+  const res = await fetch(
+    `https://search.example/v1?q=${encodeURIComponent(query)}`,
+    { signal: ctx?.abortSignal },
+  );
+  return res.json();
+});
+```
+
+MCP tools from `@tanstack/ai-mcp` already stop their request when the run aborts.
+
+A tool that runs inside Code Mode gets these fields:
+
+- `abortSignal`: the signal of the chat run. If the run is already aborted, the call does not start.
+- `context`: the runtime `context` that you gave to `chat()`.
+- `emitCustomEvent`: sends a custom event to the stream. A tool that a `snippet_*` function calls does not send events.
+
+The tool does not get `toolCallId` or `inputResponse`. These fields belong to the `execute_typescript` call.
 
 ## Model Compatibility
 
@@ -367,4 +417,4 @@ pnpm eval -- --no-judge      # skip Anthropic-based judging
 
 - [Showing Code Mode in the UI](./client-integration) — Display execution progress in your React app
 - [Code Mode with Snippets](./code-mode-with-snippets) — Add persistent, reusable snippet libraries
-- [Isolate Drivers](./code-mode-isolates) — Compare Node, QuickJS, QuickJS Bun, Cloudflare, and Daytona sandbox runtimes
+- [Isolate Drivers](./code-mode-isolates): compare Node, QuickJS, QuickJS Bun, Cloudflare, Daytona, and E2B.

@@ -9,6 +9,7 @@ export { resolveDebugOption } from './logger/resolve'
 export {
   toRunErrorPayload,
   toRunErrorRawEvent,
+  toRetryAfterMs,
 } from './activities/error-payload'
 export {
   getSandboxRuntime,
@@ -59,3 +60,4 @@ export {
 } from './utilities/structured-output-events'
 export { tanstackMetadata } from './utilities/merge-metadata'
 export { isSpecTopLevelKey } from './utilities/spec-event-keys'
+export { REDACTED_THINKING_ID_PREFIX } from './utilities/reasoning-encrypted-value'

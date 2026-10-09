@@ -8,7 +8,7 @@ import {
   resolveMediaPrompt,
   unsupportedFileSourceError,
 } from '@tanstack/ai'
-import { BaseVideoAdapter, snapToDurationOption } from '@tanstack/ai/adapters'
+import { BaseVideoAdapter } from '@tanstack/ai/adapters'
 import { arrayBufferToBase64 } from '@tanstack/ai-utils'
 import { createGeminiClient, getGeminiApiKeyFromEnv } from '../utils'
 import {
@@ -235,7 +235,7 @@ function interactionUsageToTokenUsage(
  *
  * **Veo models** run as a long-running operation: `createVideoJob` starts
  * the operation via the `:predictLongRunning` endpoint, `getVideoStatus`
- * polls it, and `getVideoUrl` extracts the generated video's URI once it
+ * polls it, and `getVideo` extracts the generated video's URI once it
  * completes. Image prompt parts are routed by `metadata.role`:
  * - `'start_frame'` (or the first un-roled image) → the input image the
  *   video starts from
@@ -247,11 +247,10 @@ function interactionUsageToTokenUsage(
  * requires the API key (`x-goog-api-key` header or `?key=` query
  * parameter) to download.
  *
- * **Gemini Omni Flash** (`gemini-omni-1.1-flash`, plus the deprecated
- * `gemini-omni-flash-preview` alias) only serves the Interactions API:
+ * **Gemini Omni Flash** (`gemini-omni-1.1-flash`) only serves the Interactions API:
  * `createVideoJob` creates a background interaction with
  * `response_modalities: ['video']`, `getVideoStatus` polls it by id, and
- * `getVideoUrl` returns the inline base64 MP4 as a `data:` URL (or the
+ * `getVideo` returns the inline base64 MP4 as a `data:` URL (or the
  * Files API URI when the server delivers by reference). Image and video
  * prompt parts are sent as interaction content blocks, grouped as images,
  * then videos, then the text prompt (interleaving is not preserved); pass
@@ -360,7 +359,7 @@ export class GeminiVideoAdapter<
   /**
    * Gemini Omni Flash job creation via the Interactions API. Creates a
    * background interaction requesting video output; the interaction id is
-   * the job id polled by `getVideoStatus` / `getVideoUrl`.
+   * the job id polled by `getVideoStatus` / `getVideo`.
    */
   private async createInteractionsVideoJob(
     options: VideoGenerationOptions<
@@ -532,7 +531,7 @@ export class GeminiVideoAdapter<
 
     // The operation can finish "successfully" with every sample dropped by
     // Responsible-AI filters — surface that as a failure instead of letting
-    // getVideoUrl() throw on an empty response.
+    // getVideo() throw on an empty response.
     const videos = operation.response?.generatedVideos ?? []
     if (videos.length === 0) {
       const reasons = operation.response?.raiMediaFilteredReasons
@@ -551,7 +550,7 @@ export class GeminiVideoAdapter<
   /**
    * Poll an Omni background interaction. `in_progress` maps to
    * 'processing'; a `completed` interaction with no video content (e.g.
-   * filtered output) is surfaced as a failure so `getVideoUrl` doesn't
+   * filtered output) is surfaced as a failure so `getVideo` doesn't
    * throw on an empty response. `requires_action` also fails: the adapter
    * never sends tools, so it can only arise via
    * `previous_interaction_id` chaining onto a tool-bearing interaction —
@@ -593,7 +592,7 @@ export class GeminiVideoAdapter<
     }
   }
 
-  async getVideoUrl(jobId: string): Promise<VideoUrlResult> {
+  override async getVideo(jobId: string): Promise<VideoUrlResult> {
     if (isInteractionsVideoModel(this.model)) {
       return await this.getInteractionsVideoUrl(jobId)
     }
@@ -666,12 +665,6 @@ export class GeminiVideoAdapter<
     return getGeminiVideoDurationOptions(this.model)
   }
 
-  override snapDuration(
-    seconds: number,
-  ): GeminiVideoModelDurationByName[TModel] | undefined {
-    return snapToDurationOption(seconds, this.availableDurations())
-  }
-
   /**
    * Fetch the long-running operation by name. The SDK's
    * `operations.getVideosOperation` needs a real `GenerateVideosOperation`
@@ -692,12 +685,6 @@ export class GeminiVideoAdapter<
   }
 }
 
-/** @deprecated Shuts down 2026-09-30. Use `gemini-omni-1.1-flash`. */
-export function createGeminiVideo(
-  model: 'gemini-omni-flash-preview',
-  apiKey: string,
-  config?: Omit<GeminiVideoConfig, 'apiKey'>,
-): GeminiVideoAdapter<'gemini-omni-flash-preview'>
 /**
  * Creates a Gemini video adapter with an explicit API key.
  * Type resolution happens here at the call site.
@@ -733,11 +720,6 @@ export function createGeminiVideo<TModel extends GeminiVideoModel>(
   return new GeminiVideoAdapter({ apiKey, ...config }, model)
 }
 
-/** @deprecated Shuts down 2026-09-30. Use `gemini-omni-1.1-flash`. */
-export function geminiVideo(
-  model: 'gemini-omni-flash-preview',
-  config?: Omit<GeminiVideoConfig, 'apiKey'>,
-): GeminiVideoAdapter<'gemini-omni-flash-preview'>
 /**
  * Creates a Gemini video adapter with automatic API key detection from environment variables.
  * Type resolution happens here at the call site.

@@ -1,6 +1,11 @@
 export { createMCPServer } from './create-server'
 export type { MCPHandleOptions, MCPServer } from './create-server'
 export { promptDefinition, resourceDefinition } from './definitions'
+export type {
+  MCPResourceContext,
+  MCPResourceList,
+  MCPResourceRead,
+} from './definitions'
 export { introspectionVerifier, jwtVerifier } from './auth'
 export type { IntrospectionVerifierOptions, JwtVerifierOptions } from './auth'
 export { ToolInputRequiredError } from './context'

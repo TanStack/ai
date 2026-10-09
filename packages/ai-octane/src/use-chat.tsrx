@@ -254,6 +254,11 @@ export function useChat<
           setSessionGenerating(isGenerating)
         })
       },
+      onHydratingChange: (nextIsHydrating: boolean) => {
+        runOrQueueForActiveInstance(() => {
+          setHydration({ client: instance, value: nextIsHydrating })
+        })
+      },
       ...(optionsRef.current.queue !== undefined && {
         queue: optionsRef.current.queue,
       }),
@@ -290,6 +295,17 @@ export function useChat<
     return { client: instance, initialization: initializationState }
   }, [clientId, syncResumeState])
 
+  // Seeded from the client so the first render already shows hydrating, not an
+  // empty chat. The constructor sets it without firing a callback. Tagged with
+  // its client: after a thread switch, the new client's value shows on the
+  // first render, before the effects sync it.
+  const [hydration, setHydration] = useState(() => ({
+    client,
+    value: client.getIsHydrating(),
+  }))
+  const isHydrating =
+    hydration.client === client ? hydration.value : client.getIsHydrating()
+
   useEffect(() => {
     activeClientRef.current = client
     try {
@@ -314,6 +330,7 @@ export function useChat<
       setMessages(clientMessages)
     }
     setHasOlderMessages(client.getHasOlderMessages())
+    setHydration({ client, value: client.getIsHydrating() })
   }, [client])
 
   // OCTANE DIVERGENCE: upstream captures the initial transport. ChatClient
@@ -586,6 +603,7 @@ export function useChat<
     isSubscribed,
     connectionStatus,
     sessionGenerating,
+    isHydrating,
     setMessages: setMessagesManually,
     clear,
     addToolResult,

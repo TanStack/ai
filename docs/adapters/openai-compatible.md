@@ -124,6 +124,8 @@ const provider = openaiCompatible({
 });
 ```
 
+Need a header on each request, or a log of each model call? The chat adapters on this page support [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call).
+
 ## Chat Completions vs Responses
 
 By default the adapter targets the **Chat Completions** API (`/chat/completions`). For providers that implement the **Responses** API, select `api: "responses"`. This API choice also controls how `ChatStreamSummarizeAdapter` forwards `maxLength`, regardless of the wrapper name:
@@ -161,12 +163,9 @@ Any provider implementing the OpenAI Chat Completions API works. Common ones are
 | Cerebras | `https://api.cerebras.ai/v1` | `llama-3.3-70b` |
 | DeepInfra | `https://api.deepinfra.com/v1/openai` | `meta-llama/Llama-3.3-70B-Instruct` |
 | Perplexity | `https://api.perplexity.ai` | `sonar`, `sonar-pro` |
-| Requesty | `https://router.requesty.ai/v1` | `openai/gpt-4o-mini` |
 | Mistral | `https://api.mistral.ai/v1` | `mistral-large-latest` |
 | Nebius | `https://api.studio.nebius.ai/v1` | `meta-llama/Llama-3.3-70B-Instruct` |
 | Z.AI (GLM) | `https://api.z.ai/api/paas/v4` | `glm-4.6` |
-| Upstage (Solar) | `https://api.upstage.ai/v1` | `solar-pro4`, `solar-mini` |
-| Liner | `https://platform.liner.com/api/v1` | `liner-mark-1.0` |
 | Baseten | `https://inference.baseten.co/v1` | model-dependent |
 | Hugging Face (router) | `https://router.huggingface.co/v1` | `meta-llama/Llama-3.3-70B-Instruct` |
 | NVIDIA NIM | `https://integrate.api.nvidia.com/v1` | `meta/llama-3.3-70b-instruct` |
@@ -232,22 +231,18 @@ const litellm = openaiCompatible({
 
 ## Azure OpenAI
 
-Azure uses a resource-scoped URL and a separate API-version. Use the `/openai/v1` endpoint with `defaultQuery` for the version and `defaultHeaders` for the `api-key` header:
+Use `createAzureOpenaiText` from `@tanstack/ai-openai`. It sets the `api-key` header, the endpoint, the API version, and the deployment name for you:
 
 ```typescript
-import { openaiCompatible } from "@tanstack/ai-openai/compatible";
+import { createAzureOpenaiText } from "@tanstack/ai-openai";
 
-const azure = openaiCompatible({
-  name: "azure",
-  baseURL: "https://YOUR_RESOURCE.openai.azure.com/openai/v1",
-  apiKey: process.env.AZURE_OPENAI_API_KEY!, // also sent as Bearer; Azure accepts the api-key header below
-  models: ["gpt-4o"], // your Azure deployment name
-  defaultQuery: { "api-version": "2026-01-01-preview" },
-  defaultHeaders: { "api-key": process.env.AZURE_OPENAI_API_KEY! },
+const adapter = createAzureOpenaiText("gpt-5.6", process.env.AZURE_OPENAI_API_KEY!, {
+  resourceName: "my-resource",
+  deploymentName: "production-chat",
 });
 ```
 
-> Confirm the current `api-version` and endpoint shape in Azure's documentation — Azure's API surface evolves independently of OpenAI's.
+See [Azure OpenAI](./openai#azure-openai) for `azureOpenaiText`, which reads the key and the other values from the environment.
 
 ## Example: With Tools
 

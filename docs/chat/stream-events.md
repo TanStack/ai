@@ -27,11 +27,12 @@ Do now:
 - `RUN_STARTED`: `threadId`, `runId`
 - `TEXT_MESSAGE_START` / `CONTENT` / `END`: `messageId`, `delta`
 - `TOOL_CALL_START` / `ARGS` / `END`: `toolCallId`, `toolCallName`, args `delta`
-- `RUN_FINISHED` / `RUN_ERROR`: usage and finish reason
+- `RUN_FINISHED` / `RUN_ERROR`: usage and finish reason. A rate-limited `RUN_ERROR` also says how long to wait. See [Rate limits](#rate-limits)
 
 Later:
 
 - `REASONING_*` / `REASONING_ENCRYPTED_VALUE`: thinking content. See [Thinking and Reasoning](./thinking-content)
+- `TEXT_MESSAGE_CHUNK` / `TOOL_CALL_CHUNK` / `REASONING_MESSAGE_CHUNK`: other AG-UI servers can send one of these in place of START / CONTENT / END. A chunk with no id continues the open stream of the same kind. A chunk of a different kind closes that stream. The client builds the same message from both forms
 - `STEP_STARTED` / `STEP_FINISHED`: `stepName` only
 - `CUSTOM`: `name` and `value`. See [Custom Events](../protocol/custom-events)
 - `SUBAGENT_STARTED` / `SUBAGENT_FINISHED` / `SUBAGENT_ERROR`: a child agent. Attributed events carry `subagentRunId`. A child that waits for an interrupt ends with `SUBAGENT_FINISHED` and `outcome: { type: 'suspended' }`. In request messages, each child message carries `subagentRunId`. See [Subagents](./subagents)
@@ -57,6 +58,69 @@ for await (const chunk of stream) {
   }
 }
 ```
+
+## Token usage
+
+You want to know what a run cost. `RUN_FINISHED.usage.promptTokens` is the full input, cached tokens included. The cache parts are also on `promptTokensDetails`:
+
+- `cachedTokens`: tokens read from the cache.
+- `cacheWriteTokens`: tokens written to the cache.
+
+Need the uncached part? Subtract both:
+
+```typescript
+import type { TokenUsage } from "@tanstack/ai";
+
+function uncachedTokens(usage: TokenUsage) {
+  const read = usage.promptTokensDetails?.cachedTokens ?? 0;
+  const written = usage.promptTokensDetails?.cacheWriteTokens ?? 0;
+  return usage.promptTokens - read - written;
+}
+```
+
+Upgrading the Anthropic, Bedrock, or Claude Code adapter? Their `promptTokens` used to count only the uncached tokens. If your code adds `cachedTokens` to `promptTokens`, remove that addition. Otherwise you count the cache two times.
+
+## Rate limits
+
+You got a 429 and want to know how long to wait. If the provider sends a `retry-after-ms` or `retry-after` header, the `RUN_ERROR` has the wait in `metadata.tanstack.retryAfterMs`, in milliseconds.
+
+The Anthropic adapter and the adapters built on `@tanstack/openai-base` (for example OpenAI, Grok, and Groq) set it.
+
+On the server:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { anthropicText } from "@tanstack/ai-anthropic";
+
+const stream = chat({
+  adapter: anthropicText("claude-sonnet-5-5"),
+  messages: [{ role: "user", content: "Hello!" }],
+});
+
+for await (const chunk of stream) {
+  if (chunk.type === "RUN_ERROR") {
+    const waitMs = chunk.metadata?.tanstack?.retryAfterMs;
+    console.log(waitMs === undefined ? "No wait sent" : `Retry in ${waitMs} ms`);
+  }
+}
+```
+
+The value also reaches the browser. On the client:
+
+```typescript
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
+const { messages } = useChat({
+  connection: fetchServerSentEvents("/api/chat"),
+  onChunk: (chunk) => {
+    if (chunk.type === "RUN_ERROR") {
+      console.log(chunk.metadata?.tanstack?.retryAfterMs);
+    }
+  },
+});
+```
+
+No `retryAfterMs`? The provider sent no wait header, so pick your own backoff. The provider SDKs also retry a 429 by themselves first. To handle every 429 yourself, set `maxRetries: 0` in the adapter config.
 
 ## Threads and runs
 

@@ -103,6 +103,37 @@ describe('createChat', () => {
     expect(chat.sessionGenerating).toBe(false)
   })
 
+  it('isHydrating is true until an async storage adapter has read the transcript', async () => {
+    let resolveRead!: (value: {
+      messages: Array<{
+        id: string
+        role: 'user'
+        parts: Array<{ type: 'text'; content: string }>
+      }>
+    }) => void
+    const read = new Promise<Parameters<typeof resolveRead>[0]>((resolve) => {
+      resolveRead = resolve
+    })
+    const chat = createChat({
+      connection: createMockConnectionAdapter({ chunks: [] }),
+      threadId: 'svelte-hydrating',
+      persistence: {
+        getItem: () => read,
+        setItem: async () => {},
+        removeItem: async () => {},
+      },
+    })
+
+    expect(chat.isHydrating).toBe(true)
+    resolveRead({
+      messages: [
+        { id: 'm1', role: 'user', parts: [{ type: 'text', content: 'hi' }] },
+      ],
+    })
+    await vi.waitFor(() => expect(chat.isHydrating).toBe(false))
+    expect(chat.messages).toHaveLength(1)
+  })
+
   it('should subscribe immediately when live is true', () => {
     const mockConnection = createMockConnectionAdapter({ chunks: [] })
     const chat = createChat({

@@ -167,6 +167,7 @@ interface UseChatReturn {
   reload: () => Promise<void>;
   stop: () => void;
   isLoading: boolean;
+  isHydrating: boolean;
   error: Error | undefined;
   setMessages: (messages: UIMessage[]) => void;
   clear: () => void;
@@ -199,6 +200,7 @@ Re-exported from `@tanstack/ai-client` for convenience:
 import {
   fetchServerSentEvents,
   fetchHttpStream,
+  fetchJson,
   stream,
   type ConnectionAdapter,
 } from "@tanstack/ai-preact";

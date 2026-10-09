@@ -46,11 +46,11 @@ const stream = chat({
   messages: [{ role: 'user', content: 'Hello!' }],
 })
 
-const text = await streamToText(stream)
+const { text } = await streamToText(stream)
 console.log(text)
 ```
 
-`chat()` returns an `AsyncIterable<StreamChunk>`. `streamToText` consumes it and returns the accumulated text content.
+`chat()` returns an `AsyncIterable<StreamChunk>`. `streamToText` reads it to the end and returns `{ text, chunks }`. `text` is the full reply. `chunks` holds the rest of the run: tool calls, usage, and interrupts.
 
 ## HTTP Endpoint
 
@@ -122,7 +122,7 @@ const stream = chat({
   tools: [getWeather],
 })
 
-const text = await streamToText(stream)
+const { text } = await streamToText(stream)
 console.log(text)
 ```
 

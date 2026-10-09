@@ -35,6 +35,7 @@ import type {
   GenerationMiddleware,
   GenerationMiddlewareContext,
 } from '../middleware/types'
+import { inlineVideoStream } from './adapter'
 import type { VideoAdapter } from './adapter'
 import { normalizeStreamChunk } from '../../utilities/normalize-stream-chunk'
 import type { AdapterYieldChunk } from '../../utilities/adapter-yield-chunk'
@@ -46,12 +47,41 @@ import type {
   TokenUsage,
   VideoJobResult,
   VideoStatusResult,
+  VideoStreamResult,
   VideoUrlResult,
 } from '../../types'
 
 // ===========================
 // Activity Kind
 // ===========================
+
+/** A provider URL passes through; bytes go to middleware to be hosted. */
+function videoMedia(result: VideoUrlResult | VideoStreamResult) {
+  return result.body
+    ? { body: result.body, contentType: result.contentType }
+    : {
+        url: result.url,
+        ...(result.expiresAt ? { expiresAt: result.expiresAt } : {}),
+      }
+}
+
+/**
+ * Settle the result's `url` after middleware ran. A hosted stream already has
+ * one; an unhosted stream is buffered into a `data:` URL, so video generation
+ * works without persistence.
+ */
+async function settleVideoUrl<
+  T extends {
+    url?: string
+    body?: ReadableStream<Uint8Array>
+    contentType?: string
+  },
+>(result: T) {
+  if (result.url !== undefined && result.body && !result.body.locked) {
+    await result.body.cancel().catch(() => {})
+  }
+  return await inlineVideoStream(result)
+}
 
 /** The adapter kind this activity handles */
 export const kind = 'video' as const
@@ -173,10 +203,11 @@ export type VideoCreateOptions<
   /** Video size — format depends on the provider (e.g., "16:9", "1280x720") */
   size?: VideoSizeForAdapter<TAdapter>
   /**
-   * Video duration in seconds. Adapters that declare a per-model duration
-   * map narrow this to the model's valid union (e.g. `4 | 6 | 8` for Veo 3).
-   * Pass `adapter.snapDuration(seconds)` to coerce raw seconds to a valid
-   * value.
+   * Video duration. Adapters that declare a per-model duration map narrow
+   * this to that model's union (for example `4 | 6 | 8` for Veo 3, or
+   * `4 | "4" | "4s"` for Sora). Pass `adapter.snapDuration(input)` to coerce
+   * a raw value. `input` may be seconds, a `"6s"` template, or `"auto"` when
+   * the model lists it.
    */
   duration?: VideoDurationForAdapter<TAdapter>
   /**
@@ -691,13 +722,14 @@ async function* runStreamingVideoGeneration<
       }
 
       if (statusResult.status === 'completed') {
-        const urlResult = await adapter.getVideoUrl(jobResult.jobId)
+        const video = await (adapter.getVideo?.(jobResult.jobId) ??
+          adapter.getVideoUrl(jobResult.jobId))
 
         logger.output(
           `activity=generateVideo jobId=${jobResult.jobId} status=completed`,
           {
             jobId: jobResult.jobId,
-            url: urlResult.url,
+            url: video.url,
           },
         )
 
@@ -710,21 +742,22 @@ async function* runStreamingVideoGeneration<
         const rawResult = {
           jobId: jobResult.jobId,
           status: 'completed' as const,
-          url: urlResult.url,
-          expiresAt: urlResult.expiresAt,
-          ...(urlResult.usage ? { usage: urlResult.usage } : {}),
+          ...videoMedia(video),
+          ...(video.usage ? { usage: video.usage } : {}),
         }
-        const result = await applyGenerationResultTransforms(mwCtx, rawResult)
+        const result = await settleVideoUrl(
+          await applyGenerationResultTransforms(mwCtx, rawResult),
+        )
 
         // Fire finish before yielding the terminal chunks: the generation has
         // succeeded, so a consumer that stops reading after `generation:result`
         // (without pulling `RUN_FINISHED`) must not trip the abandonment path in
         // `finally`, which would otherwise report a spurious cancellation.
-        if (urlResult.usage)
-          await runGenerationUsage(middleware, mwCtx, urlResult.usage)
+        if (video.usage)
+          await runGenerationUsage(middleware, mwCtx, video.usage)
         await runGenerationFinish(middleware, mwCtx, {
           duration: Date.now() - obsStartTime,
-          usage: urlResult.usage,
+          usage: video.usage,
         })
         settled = true
         abortControls.clear()
@@ -955,12 +988,12 @@ export async function getVideoJobStatus<
 
   // If completed, also get the URL
   if (statusResult.status === 'completed') {
-    let urlResult: VideoUrlResult
+    let video: VideoUrlResult | VideoStreamResult
     // Scoped tightly to the provider call: a middleware hook that throws must
     // surface as itself, not be relabelled "failed to get video URL" and then
     // re-reported to the very middleware that threw.
     try {
-      urlResult = await adapter.getVideoUrl(jobId)
+      video = await (adapter.getVideo?.(jobId) ?? adapter.getVideoUrl(jobId))
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Failed to get video URL'
@@ -998,39 +1031,56 @@ export async function getVideoJobStatus<
       jobId,
       status: statusResult.status,
       progress: statusResult.progress,
-      url: urlResult.url,
+      url: video.url,
       duration: Date.now() - startTime,
       timestamp: Date.now(),
     })
-    if (urlResult.usage) {
+    if (video.usage) {
       aiEventClient.emit('video:usage', {
         requestId,
         model: adapter.model,
-        usage: urlResult.usage,
+        usage: video.usage,
         timestamp: Date.now(),
       })
     }
 
     const mwCtx = terminalContext()
     await runGenerationStart(middleware, mwCtx)
-    const result = await applyGenerationResultTransforms<VideoJobStatusResult>(
-      mwCtx,
-      {
+    const transformed = await applyGenerationResultTransforms<
+      VideoJobStatusResult & {
+        body?: ReadableStream<Uint8Array>
+        contentType?: string
+      }
+    >(mwCtx, {
+      jobId,
+      status: 'completed',
+      ...(statusResult.progress !== undefined
+        ? { progress: statusResult.progress }
+        : {}),
+      ...videoMedia(video),
+      ...(video.usage ? { usage: video.usage } : {}),
+    })
+    let result: VideoJobStatusResult
+    try {
+      result = await settleVideoUrl(transformed)
+    } catch (error) {
+      // The download broke mid-stream: the job is terminal, so fail the run.
+      await runGenerationError(middleware, mwCtx, {
+        error,
+        duration: Date.now() - startTime,
+      })
+      return {
         jobId,
-        status: 'completed',
-        ...(statusResult.progress !== undefined
-          ? { progress: statusResult.progress }
-          : {}),
-        url: urlResult.url,
-        ...(urlResult.expiresAt ? { expiresAt: urlResult.expiresAt } : {}),
-        ...(urlResult.usage ? { usage: urlResult.usage } : {}),
-      },
-    )
-    if (urlResult.usage)
-      await runGenerationUsage(middleware, mwCtx, urlResult.usage)
+        status: 'failed' as const,
+        progress: statusResult.progress,
+        error:
+          error instanceof Error ? error.message : 'Failed to download video',
+      }
+    }
+    if (video.usage) await runGenerationUsage(middleware, mwCtx, video.usage)
     await runGenerationFinish(middleware, mwCtx, {
       duration: Date.now() - startTime,
-      usage: urlResult.usage,
+      usage: video.usage,
     })
     return result
   }

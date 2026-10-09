@@ -12,8 +12,10 @@ import {
 } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../internal/request-options'
+import { clientForCall } from '../internal/wrap-fetch'
 import { makeStructuredOutputCompatible } from '../internal/schema-converter'
 import { openRouterSupportsCombinedToolsAndSchema } from '../internal/combined-tools-and-schema'
+import { OPENROUTER_MODEL_INPUT_MODALITIES } from '../model-meta'
 import { convertToolsToProviderFormat } from '../tools'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
 import { buildOpenRouterUsage } from '../usage'
@@ -138,13 +140,17 @@ export class OpenRouterTextAdapter<
 > {
   override readonly kind = 'text' as const
   readonly name = 'openrouter' as const
+  override readonly inputModalities =
+    OPENROUTER_MODEL_INPUT_MODALITIES[this.model]
 
   protected orClient: OpenRouter
+  private readonly sdkOptions: SDKOptions
   private readonly retryCodes: Array<string> | undefined
 
   constructor(config: OpenRouterConfig, model: TModel) {
     super({}, model)
     const { retryCodes, ...sdkOptions } = config
+    this.sdkOptions = sdkOptions
     this.orClient = new OpenRouter(sdkOptions)
     this.retryCodes = retryCodes
   }
@@ -172,7 +178,11 @@ export class OpenRouterTextAdapter<
         { provider: this.name, model: this.model },
       )
       const reqOptions = extractRequestOptions(options.request)
-      const stream = await this.orClient.chat.send(
+      const stream = await clientForCall(
+        this.orClient,
+        this.sdkOptions,
+        options.wrapFetch,
+      ).chat.send(
         {
           chatRequest: {
             ...chatRequest,
@@ -270,7 +280,11 @@ export class OpenRouterTextAdapter<
         { provider: this.name, model: this.model },
       )
       const reqOptions = extractRequestOptions(chatOptions.request)
-      const response = await this.orClient.chat.send(
+      const response = await clientForCall(
+        this.orClient,
+        this.sdkOptions,
+        chatOptions.wrapFetch,
+      ).chat.send(
         {
           chatRequest: {
             ...cleanParams,
@@ -387,7 +401,7 @@ export class OpenRouterTextAdapter<
     let stepId: string | undefined
     let lastModel: string | undefined
     let finishReason: string | null | undefined
-    let lastUsage: ChatStreamChunk['usage'] | undefined
+    let lastUsage: ReturnType<typeof buildOpenRouterUsage>
 
     const closeReasoningLifecycle = function* (this: {
       name: string
@@ -446,7 +460,11 @@ export class OpenRouterTextAdapter<
       )
 
       const reqOptions = extractRequestOptions(chatOptions.request)
-      const stream = await this.orClient.chat.send(
+      const stream = await clientForCall(
+        this.orClient,
+        this.sdkOptions,
+        chatOptions.wrapFetch,
+      ).chat.send(
         {
           chatRequest: {
             ...cleanParams,
@@ -473,7 +491,11 @@ export class OpenRouterTextAdapter<
         )
 
         if (chunk.model) lastModel = chunk.model
-        if (chunk.usage) lastUsage = chunk.usage
+        // Keep received usage for either terminal outcome, including parse and SDK errors.
+        const usage = buildOpenRouterUsage(chunk.usage)
+        if (usage) {
+          lastUsage = { ...usage, ...extractUsageCost(chunk.usage) }
+        }
 
         if (!aguiState.hasEmittedRunStarted) {
           aguiState.hasEmittedRunStarted = true
@@ -573,6 +595,7 @@ export class OpenRouterTextAdapter<
         const message = `${this.name}.structuredOutputStream: the response was cut off because the maximum token limit was reached (finish_reason=length); raise maxCompletionTokens`
         yield {
           type: EventType.RUN_ERROR,
+          ...(lastUsage && { usage: lastUsage }),
           runId: aguiState.runId,
           model: lastModel || chatOptions.model,
           timestamp: Date.now(),
@@ -586,6 +609,7 @@ export class OpenRouterTextAdapter<
       if (accumulatedContent.length === 0) {
         yield {
           type: EventType.RUN_ERROR,
+          ...(lastUsage && { usage: lastUsage }),
           runId: aguiState.runId,
           model: lastModel || chatOptions.model,
           timestamp: Date.now(),
@@ -605,6 +629,7 @@ export class OpenRouterTextAdapter<
       } catch {
         yield {
           type: EventType.RUN_ERROR,
+          ...(lastUsage && { usage: lastUsage }),
           runId: aguiState.runId,
           model: lastModel || chatOptions.model,
           timestamp: Date.now(),
@@ -632,8 +657,6 @@ export class OpenRouterTextAdapter<
         timestamp: Date.now(),
       }
 
-      const finalUsage = buildOpenRouterUsage(lastUsage)
-
       yield {
         type: EventType.RUN_FINISHED,
         runId: aguiState.runId,
@@ -641,9 +664,7 @@ export class OpenRouterTextAdapter<
         model: lastModel || chatOptions.model,
         timestamp: Date.now(),
         finishReason: 'stop',
-        ...(finalUsage && {
-          usage: { ...finalUsage, ...extractUsageCost(lastUsage) },
-        }),
+        ...(lastUsage && { usage: lastUsage }),
       }
     } catch (error: unknown) {
       if (!aguiState.hasEmittedRunStarted) {
@@ -677,6 +698,7 @@ export class OpenRouterTextAdapter<
       const rawEvent = isAbort ? undefined : toRunErrorRawEvent(error)
       yield {
         type: EventType.RUN_ERROR,
+        ...(lastUsage && { usage: lastUsage }),
         runId: aguiState.runId,
         model: lastModel || chatOptions.model,
         timestamp: Date.now(),
@@ -1174,6 +1196,25 @@ export class OpenRouterTextAdapter<
               content: accumulatedReasoning,
             }
           }
+        }
+
+        // An unknown finishReason must not end the run as a success.
+        if (
+          pendingFinishReason &&
+          !['stop', 'length', 'content_filter', 'tool_calls', 'error'].includes(
+            pendingFinishReason,
+          )
+        ) {
+          const message = `Provider finish_reason: ${pendingFinishReason}`
+          yield {
+            type: EventType.RUN_ERROR,
+            runId: aguiState.runId,
+            model: lastModel || options.model,
+            timestamp: Date.now(),
+            message,
+            error: { message },
+          }
+          return
         }
 
         // Map upstream finishReason to AG-UI's narrower vocabulary while

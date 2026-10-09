@@ -60,6 +60,8 @@ const adapter = createLLMGatewayText(
 
 LLM Gateway is open source and self-hostable; point `baseURL` at your own deployment to keep the same adapter surface.
 
+Need a header on each request, or a log of each model call? This adapter supports [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call).
+
 ## Available Models
 
 Any model listed at [llmgateway.io/models](https://llmgateway.io/models) works — pass its id as the model name. A bare model id lets the gateway route to the best available provider; prefix it with `provider/` to pin routing to a specific provider:
@@ -72,6 +74,8 @@ model: "fireworks/kimi-k3"      // always routed to Fireworks
 ```
 
 A curated set of flagship models (see `LLMGATEWAY_CHAT_MODELS`) additionally carries per-model type metadata — input modalities and provider options — with editor autocomplete. Uncurated ids still work and fall back to text-only input with the generic options.
+
+`adapter.inputModalities` lists the input kinds of the selected model. It is `undefined` for a model that this package does not know. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
 
 ## Example: Chat Completion
 
