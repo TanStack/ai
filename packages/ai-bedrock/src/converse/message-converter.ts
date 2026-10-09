@@ -287,3 +287,28 @@ export function toConverseMessages(
 
   return { system, messages: converseMessages }
 }
+
+/**
+ * Write the `toolUse` and `toolResult` blocks as text blocks. Bedrock rejects
+ * these blocks in a request with no `toolConfig`, so a request with no tools
+ * sends its tool history this way.
+ */
+export function toolBlocksToText(messages: Array<Message>): Array<Message> {
+  return messages.map((message) => ({
+    ...message,
+    content: message.content?.map((block): ContentBlock => {
+      if (block.toolUse) {
+        const { toolUseId, name, input } = block.toolUse
+        return {
+          text: `[Tool call ${toolUseId} ${name}(${JSON.stringify(input)})]`,
+        }
+      }
+      if (block.toolResult) {
+        const { toolUseId, content = [] } = block.toolResult
+        const text = content.map((part) => part.text ?? '').join('')
+        return { text: `[Tool result ${toolUseId}: ${text}]` }
+      }
+      return block
+    }),
+  }))
+}

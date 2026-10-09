@@ -131,6 +131,42 @@ describe('BedrockConverseTextAdapter', () => {
     })
   })
 
+  it('sends tool history as text when the request has no tools', async () => {
+    const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
+    a.streamEvents = [{ messageStop: { stopReason: 'end_turn' } }]
+    for await (const _ of a.chatStream(
+      textOptions({
+        messages: [
+          { role: 'user', content: 'weather?' },
+          {
+            role: 'assistant',
+            content: null,
+            toolCalls: [
+              {
+                id: 't1',
+                type: 'function',
+                function: { name: 'getWeather', arguments: '{"city":"Paris"}' },
+              },
+            ],
+          },
+          { role: 'tool', content: 'sunny', toolCallId: 't1' },
+        ],
+      }),
+    )) {
+      // drain
+    }
+    // Bedrock answers 400 to toolUse / toolResult blocks without a toolConfig.
+    expect(a.capturedStreamInput?.toolConfig).toBeUndefined()
+    expect(a.capturedStreamInput?.messages).toEqual([
+      { role: 'user', content: [{ text: 'weather?' }] },
+      {
+        role: 'assistant',
+        content: [{ text: '[Tool call t1 getWeather({"city":"Paris"})]' }],
+      },
+      { role: 'user', content: [{ text: '[Tool result t1: sunny]' }] },
+    ])
+  })
+
   it('emits RUN_ERROR on an in-band Converse error event', async () => {
     const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
     a.streamEvents = [
