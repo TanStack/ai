@@ -1,3 +1,4 @@
+import type { Modality } from '@tanstack/ai'
 import type {
   GeminiCachedContentOptions,
   GeminiCommonConfigOptions,
@@ -1388,3 +1389,26 @@ export type GeminiModelInputModalitiesByName = {
   // Models with text, image, audio, video (no document)
   [GEMINI_2_5_FLASH.name]: typeof GEMINI_2_5_FLASH.supports.input
 }
+
+/**
+ * Runtime map from chat model name to its supported input modalities, for the
+ * text adapter's `inputModalities`. `satisfies` keeps it equal to
+ * {@link GeminiModelInputModalitiesByName}. An unknown name gives `undefined`.
+ */
+export const GEMINI_MODEL_INPUT_MODALITIES: Readonly<
+  Record<string, ReadonlyArray<Modality>>
+> = {
+  [GEMINI_3_8_FLASH.name]: GEMINI_3_8_FLASH.supports.input,
+  [GEMINI_3_7_FLASH.name]: GEMINI_3_7_FLASH.supports.input,
+  [GEMINI_3_6_FLASH.name]: GEMINI_3_6_FLASH.supports.input,
+  [GEMINI_3_5_FLASH.name]: GEMINI_3_5_FLASH.supports.input,
+  [GEMINI_3_5_FLASH_LITE.name]: GEMINI_3_5_FLASH_LITE.supports.input,
+  [GEMINI_3_1_PRO.name]: GEMINI_3_1_PRO.supports.input,
+  [GEMINI_3_FLASH.name]: GEMINI_3_FLASH.supports.input,
+  [GEMINI_3_1_FLASH_LITE.name]: GEMINI_3_1_FLASH_LITE.supports.input,
+  [GEMINI_3_1_FLASH_LITE_PREVIEW.name]:
+    GEMINI_3_1_FLASH_LITE_PREVIEW.supports.input,
+  [GEMINI_2_5_PRO.name]: GEMINI_2_5_PRO.supports.input,
+  [GEMINI_2_5_FLASH_LITE.name]: GEMINI_2_5_FLASH_LITE.supports.input,
+  [GEMINI_2_5_FLASH.name]: GEMINI_2_5_FLASH.supports.input,
+} satisfies GeminiModelInputModalitiesByName

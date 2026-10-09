@@ -25,6 +25,7 @@ import {
 } from '../utils/client'
 import {
   ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS,
+  ANTHROPIC_MODEL_INPUT_MODALITIES,
   getAnthropicDefaultMaxTokens,
 } from '../model-meta'
 import type {
@@ -362,6 +363,8 @@ export class AnthropicTextAdapter<
   readonly name = 'anthropic' as const
   // Consumes `file_id` sources issued by anthropicFiles() (Files API beta).
   override readonly supportsFileSources = true
+  override readonly inputModalities =
+    ANTHROPIC_MODEL_INPUT_MODALITIES[this.model]
 
   private readonly client: SdkAnthropicMessagesClient
   private readonly oauth: boolean

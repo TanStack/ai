@@ -1,3 +1,4 @@
+import type { Modality } from '@tanstack/ai'
 import type {
   AnthropicAdaptiveOnlyThinkingOptions,
   AnthropicAdaptiveOrDisabledThinkingOptions,
@@ -1113,3 +1114,29 @@ export type AnthropicModelInputModalitiesByName = {
   [CLAUDE_SONNET_5_5.id]: typeof CLAUDE_SONNET_5_5.supports.input
   [CLAUDE_HAIKU_5_5.id]: typeof CLAUDE_HAIKU_5_5.supports.input
 }
+
+/**
+ * Runtime map from chat model name to its supported input modalities, for the
+ * text adapter's `inputModalities`. `satisfies` keeps it equal to
+ * {@link AnthropicModelInputModalitiesByName}. An unknown name gives `undefined`.
+ */
+export const ANTHROPIC_MODEL_INPUT_MODALITIES: Readonly<
+  Record<string, ReadonlyArray<Modality>>
+> = {
+  [CLAUDE_OPUS_4_6.id]: CLAUDE_OPUS_4_6.supports.input,
+  [CLAUDE_OPUS_4_5.id]: CLAUDE_OPUS_4_5.supports.input,
+  [CLAUDE_SONNET_4_6.id]: CLAUDE_SONNET_4_6.supports.input,
+  [CLAUDE_SONNET_4_5.id]: CLAUDE_SONNET_4_5.supports.input,
+  [CLAUDE_HAIKU_4_5.id]: CLAUDE_HAIKU_4_5.supports.input,
+  [CLAUDE_OPUS_4_1.id]: CLAUDE_OPUS_4_1.supports.input,
+  [CLAUDE_OPUS_4_7.id]: CLAUDE_OPUS_4_7.supports.input,
+  [CLAUDE_OPUS_4_8.id]: CLAUDE_OPUS_4_8.supports.input,
+  [CLAUDE_FABLE_5.id]: CLAUDE_FABLE_5.supports.input,
+  [CLAUDE_SONNET_5.id]: CLAUDE_SONNET_5.supports.input,
+  [CLAUDE_OPUS_5.id]: CLAUDE_OPUS_5.supports.input,
+  [CLAUDE_OPUS_5_FAST.id]: CLAUDE_OPUS_5_FAST.supports.input,
+  [CLAUDE_FABLE_5_1.id]: CLAUDE_FABLE_5_1.supports.input,
+  [CLAUDE_OPUS_5_5.id]: CLAUDE_OPUS_5_5.supports.input,
+  [CLAUDE_SONNET_5_5.id]: CLAUDE_SONNET_5_5.supports.input,
+  [CLAUDE_HAIKU_5_5.id]: CLAUDE_HAIKU_5_5.supports.input,
+} satisfies AnthropicModelInputModalitiesByName

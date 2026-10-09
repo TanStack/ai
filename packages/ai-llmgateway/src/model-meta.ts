@@ -1,3 +1,4 @@
+import type { Modality } from '@tanstack/ai'
 import type { LLMGatewayTextProviderOptions } from './text/text-provider-options'
 
 /**
@@ -464,6 +465,30 @@ export type LLMGatewayModelInputModalitiesByName = {
   [MINIMAX_M2_5.name]: typeof MINIMAX_M2_5.supports.input
   [GROK_4_5.name]: typeof GROK_4_5.supports.input
 }
+
+/**
+ * Runtime map from chat model name to its supported input modalities, for the
+ * text adapter's `inputModalities`. `satisfies` keeps it equal to
+ * {@link LLMGatewayModelInputModalitiesByName}. An unknown name gives `undefined`.
+ */
+export const LLMGATEWAY_MODEL_INPUT_MODALITIES: Readonly<
+  Record<string, ReadonlyArray<Modality>>
+> = {
+  [GPT_5_6_TERRA.name]: GPT_5_6_TERRA.supports.input,
+  [GPT_5_5.name]: GPT_5_5.supports.input,
+  [GPT_5_4_MINI.name]: GPT_5_4_MINI.supports.input,
+  [CLAUDE_OPUS_5.name]: CLAUDE_OPUS_5.supports.input,
+  [CLAUDE_SONNET_5.name]: CLAUDE_SONNET_5.supports.input,
+  [CLAUDE_HAIKU_4_5.name]: CLAUDE_HAIKU_4_5.supports.input,
+  [GEMINI_PRO_LATEST.name]: GEMINI_PRO_LATEST.supports.input,
+  [GEMINI_3_6_FLASH.name]: GEMINI_3_6_FLASH.supports.input,
+  [KIMI_K3.name]: KIMI_K3.supports.input,
+  [GLM_5_2.name]: GLM_5_2.supports.input,
+  [DEEPSEEK_V4_PRO.name]: DEEPSEEK_V4_PRO.supports.input,
+  [QWEN_3_7_MAX.name]: QWEN_3_7_MAX.supports.input,
+  [MINIMAX_M2_5.name]: MINIMAX_M2_5.supports.input,
+  [GROK_4_5.name]: GROK_4_5.supports.input,
+} satisfies LLMGatewayModelInputModalitiesByName
 
 /**
  * Type-only map from LLM Gateway chat model name to its provider options
