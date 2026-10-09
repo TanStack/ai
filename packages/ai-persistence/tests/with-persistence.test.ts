@@ -1900,4 +1900,58 @@ describe('withPersistence (merge by id)', () => {
       expect.objectContaining({ role: 'assistant', content: 'hello' }),
     ])
   })
+
+  it('keeps the stored change record when the incoming copy has none', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.messages!.saveThread('t1', [
+      { role: 'user', content: 'ask', id: 'u1' },
+      {
+        role: 'assistant',
+        content: 'done',
+        id: 'a1',
+        midConversationChange: { tools: ['read'], systemPrompts: [] },
+      },
+    ])
+
+    const thread = await runPersistedChat(persistence, [
+      { role: 'user', content: 'ask', id: 'u1' },
+      { role: 'assistant', content: 'done', id: 'a1' },
+      { role: 'user', content: 'next', id: 'u2' },
+    ])
+
+    expect(thread.find((message) => message.id === 'a1')).toEqual({
+      role: 'assistant',
+      content: 'done',
+      id: 'a1',
+      midConversationChange: { tools: ['read'], systemPrompts: [] },
+    })
+  })
+
+  it('lets an incoming change record win', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.messages!.saveThread('t1', [
+      { role: 'user', content: 'ask', id: 'u1' },
+      {
+        role: 'assistant',
+        content: 'done',
+        id: 'a1',
+        midConversationChange: { tools: ['read'], systemPrompts: [] },
+      },
+    ])
+
+    const thread = await runPersistedChat(persistence, [
+      { role: 'user', content: 'ask', id: 'u1' },
+      {
+        role: 'assistant',
+        content: 'done',
+        id: 'a1',
+        midConversationChange: { toolsAdded: ['grep'] },
+      },
+      { role: 'user', content: 'next', id: 'u2' },
+    ])
+
+    expect(
+      thread.find((message) => message.id === 'a1')?.midConversationChange,
+    ).toEqual({ toolsAdded: ['grep'] })
+  })
 })

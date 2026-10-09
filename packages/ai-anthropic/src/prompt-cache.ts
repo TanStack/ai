@@ -9,15 +9,25 @@ import type { InternalTextProviderOptions } from './text/text-provider-options'
 
 /**
  * The block types that can take the automatic cache marker when they are
- * the last block of the last user message.
- * Later work adds the `tool_addition` and `tool_removal` blocks here.
+ * the last block of the last user message, or of a mid-conversation
+ * `system` message at the end.
  */
 export const ANTHROPIC_CACHEABLE_BLOCK_TYPES: ReadonlySet<string> = new Set([
   'text',
   'image',
   'document',
   'tool_result',
+  'tool_addition',
+  'tool_removal',
 ])
+
+/**
+ * The name of the deferred placeholder tool of mid-conversation tool mode.
+ * The text adapter puts it on the placeholder, and the cache markers find
+ * the placeholder by it.
+ */
+export const ANTHROPIC_DEFERRED_TOOL_PLACEHOLDER_NAME =
+  '__tanstack_deferred_placeholder__'
 
 // Anthropic rejects a request with more than 4 cache markers.
 const MAX_CACHE_MARKERS = 4
@@ -62,15 +72,20 @@ function withCacheControl<T extends object>(
 
 /**
  * The messages with a marker on the last block of the last message. Returns
- * `null` when that message is not from the user or its last block cannot
- * take a marker.
+ * `null` when that message is not from the user or a mid-conversation
+ * `system` message, or when its last block cannot take a marker.
  */
 function markLastUserMessage(
   messages: Array<BetaMessageParam>,
   cacheControl: BetaCacheControlEphemeral,
 ) {
   const last = messages.at(-1)
-  if (last === undefined || last.role !== 'user') return null
+  // A mid-conversation `system` message at the end takes the marker, as in
+  // pi 0.87.1. The SDK type has no `system` role, so compare it as a string.
+  const role: string | undefined = last?.role
+  if (last === undefined || (role !== 'user' && role !== 'system')) {
+    return null
+  }
   const blocks: Array<BetaContentBlockParam> =
     typeof last.content !== 'string'
       ? last.content
@@ -104,9 +119,11 @@ function markLastUserMessage(
  * request already has a marker of the caller's (on a system block, a message
  * block, a tool, or the top-level `cache_control`). Otherwise it marks, with
  * at most 4 markers:
- * 1. the last tool,
- * 2. the last block of the last message, when it is a user message and the
- *    block type is in {@link ANTHROPIC_CACHEABLE_BLOCK_TYPES},
+ * 1. the last tool. In mid-conversation tool mode (the tools hold the
+ *    placeholder), the last start tool, right before the placeholder,
+ * 2. the last block of the last message, when it is a user message or a
+ *    mid-conversation `system` message and the block type is in
+ *    {@link ANTHROPIC_CACHEABLE_BLOCK_TYPES},
  * 3. the system blocks from the end, with the markers that are left.
  *
  * It does not change the request it gets. It returns a new request, or the
@@ -130,8 +147,18 @@ export function applyAnthropicPromptCache(
       ? { type: 'ephemeral', ttl: '1h' }
       : { type: 'ephemeral' }
 
+  // Mid-conversation tool mode: the placeholder and the deferred added tools
+  // are not in the cached start, so the marker goes on the last start tool,
+  // right before the placeholder (pi 0.87.1). Without the placeholder, the
+  // last tool, as before.
+  const placeholder =
+    request.tools?.findIndex(
+      (tool) => tool.name === ANTHROPIC_DEFERRED_TOOL_PLACEHOLDER_NAME,
+    ) ?? -1
   const tools = request.tools?.map((tool, index, all) =>
-    index === all.length - 1 ? withCacheControl(tool, cacheControl) : tool,
+    index === (placeholder > 0 ? placeholder - 1 : all.length - 1)
+      ? withCacheControl(tool, cacheControl)
+      : tool,
   )
   const messages = markLastUserMessage(request.messages, cacheControl)
 
