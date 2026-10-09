@@ -174,6 +174,8 @@ Two constraints the type system can't express, both live-verified as `400`s:
 
 `service_tier: 'flex'` routes the request to the cheaper offline batch queue with no latency guarantee.
 
+Need a header on each request, or a log of each model call? The chat adapter supports [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call).
+
 ## Reasoning and `encrypted_content`
 
 Seed models reason by default. Reasoning arrives as its own stream of `reasoning_content` deltas and is surfaced as reasoning content rather than answer text, so `useChat` renders it separately from the reply. Turn it off per request:

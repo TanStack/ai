@@ -3,6 +3,7 @@ import {
   OpenAIBaseResponsesTextAdapter,
 } from '@tanstack/openai-base'
 import type OpenAI from 'openai'
+import type { ClientOptions } from 'openai'
 import type { Modality } from '@tanstack/ai'
 import type { OpenAIMessageMetadataByModality } from '../message-types'
 import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
@@ -31,7 +32,7 @@ export class OpenAICompatibleChatAdapter<
     client: OpenAI,
     model: TModel,
     name: string,
-    options?: OpenAIBaseTextAdapterOptions,
+    options?: OpenAIBaseTextAdapterOptions & Pick<ClientOptions, 'fetch'>,
   ) {
     super(model, name, client, options)
   }
@@ -83,7 +84,7 @@ export class OpenAICompatibleResponsesAdapter<
     client: OpenAI,
     model: TModel,
     name: string,
-    options?: OpenAIBaseTextAdapterOptions,
+    options?: OpenAIBaseTextAdapterOptions & Pick<ClientOptions, 'fetch'>,
   ) {
     super(model, name, client, options)
   }

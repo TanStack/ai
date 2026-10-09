@@ -153,6 +153,7 @@ import { Route as ApiVideoLiveRouteImport } from './routes/api.video-live'
 import { Route as ApiVoiceRouteImport } from './routes/api.voice'
 import { Route as ApiWebMcpPageToolsRouteImport } from './routes/api.web-mcp-page-tools'
 import { Route as ApiWorldRouteImport } from './routes/api.world'
+import { Route as ApiWrapFetchWireRouteImport } from './routes/api.wrap-fetch-wire'
 import { Route as ApiAudioStreamRouteImport } from './routes/api.audio.stream'
 import { Route as ApiImageStreamRouteImport } from './routes/api.image.stream'
 import { Route as ApiTranscriptionStreamRouteImport } from './routes/api.transcription.stream'
@@ -914,6 +915,11 @@ const ApiWorldRoute = ApiWorldRouteImport.update({
   path: '/api/world',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWrapFetchWireRoute = ApiWrapFetchWireRouteImport.update({
+  id: '/api/wrap-fetch-wire',
+  path: '/api/wrap-fetch-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAudioStreamRoute = ApiAudioStreamRouteImport.update({
   id: '/stream',
   path: '/stream',
@@ -1084,6 +1090,7 @@ export interface FileRoutesByFullPath {
   '/api/voice': typeof ApiVoiceRoute
   '/api/web-mcp-page-tools': typeof ApiWebMcpPageToolsRoute
   '/api/world': typeof ApiWorldRoute
+  '/api/wrap-fetch-wire': typeof ApiWrapFetchWireRoute
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/image/stream': typeof ApiImageStreamRoute
@@ -1235,6 +1242,7 @@ export interface FileRoutesByTo {
   '/api/voice': typeof ApiVoiceRoute
   '/api/web-mcp-page-tools': typeof ApiWebMcpPageToolsRoute
   '/api/world': typeof ApiWorldRoute
+  '/api/wrap-fetch-wire': typeof ApiWrapFetchWireRoute
   '/$provider': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/image/stream': typeof ApiImageStreamRoute
@@ -1387,6 +1395,7 @@ export interface FileRoutesById {
   '/api/voice': typeof ApiVoiceRoute
   '/api/web-mcp-page-tools': typeof ApiWebMcpPageToolsRoute
   '/api/world': typeof ApiWorldRoute
+  '/api/wrap-fetch-wire': typeof ApiWrapFetchWireRoute
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/image/stream': typeof ApiImageStreamRoute
@@ -1540,6 +1549,7 @@ export interface FileRouteTypes {
     | '/api/voice'
     | '/api/web-mcp-page-tools'
     | '/api/world'
+    | '/api/wrap-fetch-wire'
     | '/$provider/'
     | '/api/audio/stream'
     | '/api/image/stream'
@@ -1691,6 +1701,7 @@ export interface FileRouteTypes {
     | '/api/voice'
     | '/api/web-mcp-page-tools'
     | '/api/world'
+    | '/api/wrap-fetch-wire'
     | '/$provider'
     | '/api/audio/stream'
     | '/api/image/stream'
@@ -1842,6 +1853,7 @@ export interface FileRouteTypes {
     | '/api/voice'
     | '/api/web-mcp-page-tools'
     | '/api/world'
+    | '/api/wrap-fetch-wire'
     | '/$provider/'
     | '/api/audio/stream'
     | '/api/image/stream'
@@ -1994,6 +2006,7 @@ export interface RootRouteChildren {
   ApiVoiceRoute: typeof ApiVoiceRoute
   ApiWebMcpPageToolsRoute: typeof ApiWebMcpPageToolsRoute
   ApiWorldRoute: typeof ApiWorldRoute
+  ApiWrapFetchWireRoute: typeof ApiWrapFetchWireRoute
   ProviderIndexRoute: typeof ProviderIndexRoute
 }
 
@@ -3007,6 +3020,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWorldRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/wrap-fetch-wire': {
+      id: '/api/wrap-fetch-wire'
+      path: '/api/wrap-fetch-wire'
+      fullPath: '/api/wrap-fetch-wire'
+      preLoaderRoute: typeof ApiWrapFetchWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/audio/stream': {
       id: '/api/audio/stream'
       path: '/stream'
@@ -3250,6 +3270,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiVoiceRoute: ApiVoiceRoute,
   ApiWebMcpPageToolsRoute: ApiWebMcpPageToolsRoute,
   ApiWorldRoute: ApiWorldRoute,
+  ApiWrapFetchWireRoute: ApiWrapFetchWireRoute,
   ProviderIndexRoute: ProviderIndexRoute,
 }
 export const routeTree = rootRouteImport

@@ -62,14 +62,20 @@ export function openaiCompatible<
         ResolveCompatOptions<TModels, TModelName>,
         ResolveCompatInput<TModels, TModelName>,
         ResolveCompatTools<TModels, TModelName>
-      >(client, model, name, { strictFallbackWarning })
+      >(client, model, name, {
+        strictFallbackWarning,
+        fetch: clientOptions.fetch,
+      })
     }
     return new OpenAICompatibleChatAdapter<
       TModelName,
       ResolveCompatOptions<TModels, TModelName>,
       ResolveCompatInput<TModels, TModelName>,
       ResolveCompatTools<TModels, TModelName>
-    >(client, model, name, { strictFallbackWarning })
+    >(client, model, name, {
+      strictFallbackWarning,
+      fetch: clientOptions.fetch,
+    })
   }
 }
 
@@ -103,10 +109,11 @@ export function openaiCompatibleText<const TModelName extends string>(
       client,
       model,
       name,
-      { strictFallbackWarning },
+      { strictFallbackWarning, fetch: clientOptions.fetch },
     )
   }
   return new OpenAICompatibleChatAdapter<TModelName>(client, model, name, {
     strictFallbackWarning,
+    fetch: clientOptions.fetch,
   })
 }

@@ -65,6 +65,7 @@ import type { AnthropicBeta } from '@anthropic-ai/sdk/resources/beta/beta'
 import type {
   AnyTool,
   ContentPart,
+  FetchWrapper,
   Modality,
   ModelMessage,
   AdapterYieldChunk,
@@ -367,6 +368,10 @@ export class AnthropicTextAdapter<
   /** The OAuth identity headers, with the caller's own values on top. */
   private readonly oauthHeaders = new Headers(OAUTH_IDENTITY_HEADERS)
 
+  /** The adapter's own SDK client. An injected client cannot take a fetch. */
+  private readonly sdkClient: Anthropic_SDK | undefined
+  private readonly baseFetch: typeof fetch | undefined
+
   constructor(config: AnthropicTextAdapterConfig, model: TModel) {
     super({}, model)
     if ('client' in config) {
@@ -386,7 +391,8 @@ export class AnthropicTextAdapter<
       )
         this.oauthHeaders.set(name, value)
     }
-    this.client = createAnthropicClient({
+    this.baseFetch = config.fetch
+    this.sdkClient = createAnthropicClient({
       ...config,
       auth,
       ...(this.oauth && {
@@ -395,6 +401,15 @@ export class AnthropicTextAdapter<
           ...config.defaultHeaders,
         },
       }),
+    })
+    this.client = this.sdkClient
+  }
+
+  /** Use a client whose fetch goes through `wrapFetch` for one call. */
+  private clientFor(wrapFetch: FetchWrapper | undefined) {
+    if (!wrapFetch || !this.sdkClient) return this.client
+    return this.sdkClient.withOptions({
+      fetch: wrapFetch(this.baseFetch ?? globalThis.fetch),
     })
   }
 
@@ -466,7 +481,9 @@ export class AnthropicTextAdapter<
       // thinking) plus richer `container` (skills) and `context_management`
       // shapes that `InternalTextProviderOptions` carries. We route every
       // Messages call through it so the request mapper stays single-shape.
-      const stream = await this.client.beta.messages.create(
+      const stream = await this.clientFor(
+        options.wrapFetch,
+      ).beta.messages.create(
         {
           ...requestParams,
           stream: true,
@@ -555,7 +572,9 @@ export class AnthropicTextAdapter<
         ),
       )
       // Make non-streaming request with tool_choice forced to our structured output tool
-      const response = await this.client.beta.messages.create(
+      const response = await this.clientFor(
+        chatOptions.wrapFetch,
+      ).beta.messages.create(
         {
           ...requestParams,
           stream: false,
