@@ -8,6 +8,7 @@
 import { devtoolsMiddleware } from '@tanstack/ai-event-client'
 import { undoNullWidening } from '@tanstack/ai-utils'
 import { streamToText } from '../../stream-to-response.js'
+import { normalizeReasoning } from '../../reasoning'
 import { resolveDebugOption } from '../../logger/resolve'
 import { EventType } from '../../types'
 import {
@@ -187,6 +188,11 @@ import type {
   UnionToIntersection,
 } from './runtime-context-types'
 import type { ChatMCPOptions } from './mcp/types'
+import type {
+  AdapterReasoning,
+  ReasoningOption,
+  ReasoningOptionFor,
+} from '../../reasoning'
 
 /** One entry of the per-iteration arrival order (see `turnParts`). */
 type TurnPart =
@@ -530,6 +536,13 @@ export interface TextActivityOptions<
   metadata?: TextOptions['metadata']
   /** Model-specific provider options (type comes from adapter) */
   modelOptions?: TAdapter['~types']['providerOptions']
+  /**
+   * How hard the model thinks: a level (`'low'`, `'high'`, ...) or
+   * `{ level, summary?, budgetTokens? }`. The types allow only the model's own
+   * levels. Not set: the provider default applies. `'off'` turns thinking off.
+   * A level the model does not support at runtime moves to the nearest one.
+   */
+  reasoning?: ReasoningOptionFor<AdapterReasoning<TAdapter>>
   /** AbortController for cancellation */
   abortController?: TextOptions['abortController']
   /** Strategy for controlling the agent loop */
@@ -1014,7 +1027,13 @@ class TextEngine<
       ).map((definition) => [definition.id, definition]),
     )
     this.finalStructuredOutput = config.finalStructuredOutput
-    this.params = config.params
+    this.params = {
+      ...config.params,
+      // `chat()` takes a level or an object. Adapters read one shape.
+      reasoning: normalizeReasoning(
+        config.params.reasoning as ReasoningOption | undefined,
+      ),
+    }
     this.systemPrompts = config.params.systemPrompts || []
     this.loopStrategy =
       config.params.agentLoopStrategy || maxIterationsStrategy(5)
@@ -1572,7 +1591,7 @@ class TextEngine<
   }
 
   private async *streamModelResponse(): AsyncGenerator<StreamChunk> {
-    const { metadata, modelOptions } = this.params
+    const { metadata, modelOptions, reasoning } = this.params
     const tools = this.tools
 
     // Convert tool schemas to JSON Schema before passing to adapter
@@ -1635,6 +1654,7 @@ class TextEngine<
       metadata,
       request: this.effectiveRequest,
       modelOptions,
+      ...(reasoning ? { reasoning } : {}),
       logger: this.logger,
       threadId: this.threadId,
       runId: this.runIdOverride,
@@ -3950,6 +3970,9 @@ class TextEngine<
         ),
         metadata: postOnConfig.metadata,
         modelOptions: postOnConfig.modelOptions,
+        ...(postOnConfig.reasoning
+          ? { reasoning: postOnConfig.reasoning }
+          : {}),
         logger: this.logger,
         threadId: this.threadId,
         runId: this.runIdOverride,
@@ -4455,6 +4478,7 @@ class TextEngine<
       },
       metadata: this.params.metadata,
       modelOptions: this.params.modelOptions,
+      reasoning: this.params.reasoning,
       wrapFetch: this.params.wrapFetch,
     }
   }
@@ -4927,6 +4951,7 @@ class TextEngine<
       ...this.params,
       metadata: config.metadata,
       modelOptions: config.modelOptions,
+      reasoning: config.reasoning,
     }
     // Not stored in params: the next call starts from the chat() option,
     // which the config already holds.
