@@ -26,7 +26,7 @@ import { buildPrompt } from '../messages/prompt'
 import { translateThreadEvents } from '../stream/translate'
 import { projectCodexWorkspace } from './projection'
 import { mapPolicyToCodexFlags } from './policy-map'
-import { CODEX_MODEL_REASONING } from '../model-reasoning'
+import { CODEX_MODEL_REASONING } from '../model-meta'
 import type { CodexPolicyFlags } from './policy-map'
 import type { HostToolBridge, SandboxHandle } from '@tanstack/ai-sandbox'
 import type {
@@ -40,8 +40,7 @@ import type {
   ReasoningRequest,
   TextOptions,
 } from '@tanstack/ai'
-import type { CodexModel } from '../model-meta'
-import type { CodexModelReasoningByName } from '../model-reasoning'
+import type { CodexModel, CodexModelReasoningByName } from '../model-meta'
 import type { CodexTextProviderOptions } from '../provider-options'
 import type { CodexThreadEvent } from '../stream/sdk-types'
 
