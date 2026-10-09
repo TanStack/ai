@@ -566,7 +566,10 @@ The `hookCtx` provides:
 
 ### onAfterToolCall
 
-Called after each tool execution (or skip). All middleware run — there is no short-circuiting.
+Called after each tool execution (or skip). Hooks run in order.
+If one hook throws, later hooks do not run.
+The chat run ends through `onError`. Catch errors inside the hook when its work
+is optional.
 
 ```typescript
 import { type ChatMiddleware } from "@tanstack/ai";
