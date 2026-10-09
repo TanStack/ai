@@ -17,6 +17,7 @@ import {
   readCodeExecutionSkills,
 } from '../tools/code-execution-tool'
 import { validateTextProviderOptions } from '../text/text-provider-options'
+import { anthropicThinking } from '../text/reasoning'
 import { buildAnthropicUsage } from '../usage'
 import {
   createAnthropicClient,
@@ -27,6 +28,7 @@ import {
 import {
   ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS,
   ANTHROPIC_MODEL_INPUT_MODALITIES,
+  ANTHROPIC_MODEL_REASONING,
   getAnthropicDefaultMaxTokens,
 } from '../model-meta'
 import type {
@@ -34,6 +36,7 @@ import type {
   AnthropicChatModelProviderOptionsByName,
   AnthropicChatModelToolCapabilitiesByName,
   AnthropicModelInputModalitiesByName,
+  AnthropicModelReasoningByName,
 } from '../model-meta'
 import type {
   StructuredOutputOptions,
@@ -68,6 +71,7 @@ import type {
   FetchWrapper,
   Modality,
   ModelMessage,
+  ModelReasoningCapability,
   AdapterYieldChunk,
   TextOptions,
 } from '@tanstack/ai'
@@ -298,6 +302,12 @@ type ResolveInputModalities<TModel extends string> =
     ? AnthropicModelInputModalitiesByName[TModel]
     : readonly ['text', 'image', 'document']
 
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof AnthropicModelReasoningByName
+    ? ModelReasoningCapability<AnthropicModelReasoningByName[TModel]>
+    : never
+
 type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof AnthropicChatModelToolCapabilitiesByName
     ? NonNullable<AnthropicChatModelToolCapabilitiesByName[TModel]>
@@ -348,7 +358,8 @@ export class AnthropicTextAdapter<
   unknown,
   // TSystemPromptMetadata — narrows `systemPrompts[i].metadata` at the
   // chat() call site so users get `cache_control` autocomplete.
-  AnthropicSystemPromptMetadata
+  AnthropicSystemPromptMetadata,
+  ResolveReasoning<TModel>
 > {
   override readonly kind = 'text' as const
   readonly name = 'anthropic' as const
@@ -467,10 +478,12 @@ export class AnthropicTextAdapter<
 
       // `betas` is attached at the call site rather than in the shared mapper
       // because the beta set depends on both the tools and the modelOptions.
+      // The request, not modelOptions: `reasoning` can turn budget
+      // thinking (and so the interleaved-thinking beta) on.
       const betas = this.requestBetas(
         computeAnthropicBetas(
           options.tools,
-          options.modelOptions,
+          requestParams,
           messagesHaveFileSource(options.messages),
         ),
       )
@@ -567,7 +580,7 @@ export class AnthropicTextAdapter<
       const betas = this.requestBetas(
         computeAnthropicBetas(
           chatOptions.tools,
-          chatOptions.modelOptions,
+          requestParams,
           messagesHaveFileSource(chatOptions.messages),
         ),
       )
@@ -661,12 +674,9 @@ export class AnthropicTextAdapter<
         'cache_control',
         'container',
         'context_management',
-        'effort',
         'mcp_servers',
-        'output_config',
         'service_tier',
         'stop_sequences',
-        'thinking',
         'tool_choice',
         'top_k',
         'temperature',
@@ -712,9 +722,16 @@ export class AnthropicTextAdapter<
       }
     }
 
+    // `chat({ reasoning })`, as this model's thinking fields.
+    const { output_config: reasoningOutputConfig, ...thinkingFields } =
+      anthropicThinking(
+        this.model,
+        options.reasoning,
+        ANTHROPIC_MODEL_REASONING[this.model],
+      )
     const thinkingBudget =
-      validProviderOptions.thinking?.type === 'enabled'
-        ? validProviderOptions.thinking.budget_tokens
+      thinkingFields.thinking?.type === 'enabled'
+        ? thinkingFields.thinking.budget_tokens
         : undefined
     // Anthropic's Messages API *requires* `max_tokens`, so we must always send a
     // value. When the caller doesn't specify one, default to the resolved
@@ -770,17 +787,22 @@ export class AnthropicTextAdapter<
     const combinedSchema = options.outputSchema as
       | Record<string, unknown>
       | undefined
-    const outputConfig = combinedSchema
-      ? {
-          output_config: {
-            ...(validProviderOptions.output_config ?? {}),
-            format: {
-              type: 'json_schema' as const,
-              schema: combinedSchema,
+    const outputConfig =
+      combinedSchema || reasoningOutputConfig
+        ? {
+            output_config: {
+              ...reasoningOutputConfig,
+              ...(combinedSchema
+                ? {
+                    format: {
+                      type: 'json_schema' as const,
+                      schema: combinedSchema,
+                    },
+                  }
+                : {}),
             },
-          },
-        }
-      : undefined
+          }
+        : undefined
 
     // Lift skills attached to a `code_execution` tool into the top-level
     // `container.skills` request param (Anthropic's required shape). Preserve any
@@ -813,6 +835,7 @@ export class AnthropicTextAdapter<
       ...(systemBlocks !== undefined && { system: systemBlocks }),
       ...(tools !== undefined && { tools }),
       ...validProviderOptions,
+      ...thinkingFields,
       ...(outputConfig ?? {}),
     }
     validateTextProviderOptions(requestParams)

@@ -11,18 +11,14 @@ import type {
   AnthropicModelInputModalitiesByName,
 } from '../src/model-meta'
 import type { AnthropicMessageMetadataByModality } from '../src/message-types'
+import type { AnthropicModelReasoningByName } from '../src/model-reasoning'
 import type {
-  AnthropicAdaptiveOnlyThinkingOptions,
-  AnthropicAdaptiveOrDisabledThinkingOptions,
-  AnthropicAdaptiveThinkingOptions,
   AnthropicContainerOptions,
   AnthropicContextManagementOptions,
   AnthropicMCPOptions,
-  AnthropicOutputConfigOptions,
   AnthropicSamplingOptions,
   AnthropicServiceTierOptions,
   AnthropicStopSequencesOptions,
-  AnthropicThinkingOptions,
   AnthropicToolChoiceOptions,
 } from '../src/text/text-provider-options'
 import type {
@@ -48,10 +44,10 @@ type MakeInputModalitiesTypes<TModalities extends ReadonlyArray<Modality>> = {
  * Type assertion tests for Anthropic model provider options.
  *
  * These tests verify that:
- * 1. Pre-4.6 models expose budget-based extended thinking + sampling options
- * 2. 4.6-generation models additionally expose the adaptive thinking shape
- * 3. Opus 4.7/4.8 and the 5-generation models expose ONLY adaptive-era
- *    options (no budget_tokens, no sampling parameters)
+ * 1. Pre-4.7 models expose sampling options
+ * 2. Opus 4.7/4.8 and the 5-generation models do not (they reject sampling)
+ * 3. No model takes thinking in modelOptions: `chat({ reasoning })` owns it,
+ *    with the levels from the generated reasoning map
  * 4. All models have base options (container, context management, MCP,
  *    stop sequences, tool choice) and the provider-options map covers
  *    every registered model
@@ -78,11 +74,8 @@ type AdaptiveEraModel =
   | 'claude-haiku-5-5'
 
 describe('Anthropic Model Provider Options Type Assertions', () => {
-  describe('Pre-4.6 models — budget-based extended thinking + sampling', () => {
-    it('expose thinking, service_tier, sampling, and base options', () => {
-      expectTypeOf<
-        AnthropicChatModelProviderOptionsByName[BudgetThinkingModel]
-      >().toExtend<AnthropicThinkingOptions>()
+  describe('Pre-4.6 models — sampling options', () => {
+    it('expose service_tier, sampling, and base options', () => {
       expectTypeOf<
         AnthropicChatModelProviderOptionsByName[BudgetThinkingModel]
       >().toExtend<AnthropicServiceTierOptions>()
@@ -96,7 +89,6 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
 
     it('expose the individual base properties', () => {
       type Options = AnthropicChatModelProviderOptionsByName['claude-opus-4-5']
-      expectTypeOf<Options>().toHaveProperty('thinking')
       expectTypeOf<Options>().toHaveProperty('service_tier')
       expectTypeOf<Options>().toHaveProperty('container')
       expectTypeOf<Options>().toHaveProperty('context_management')
@@ -107,40 +99,21 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
     })
   })
 
-  describe('4.6-generation models — adaptive + deprecated budget thinking', () => {
-    it('claude-opus-4-6 exposes the adaptive thinking union and sampling', () => {
-      type Options = AnthropicChatModelProviderOptionsByName['claude-opus-4-6']
-      expectTypeOf<Options>().toExtend<AnthropicAdaptiveThinkingOptions>()
-      expectTypeOf<Options>().toExtend<AnthropicServiceTierOptions>()
-      expectTypeOf<Options>().toExtend<AnthropicSamplingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
-
-    it('claude-sonnet-4-6 exposes the adaptive thinking union and sampling', () => {
-      type Options =
-        AnthropicChatModelProviderOptionsByName['claude-sonnet-4-6']
-      expectTypeOf<Options>().toExtend<AnthropicAdaptiveThinkingOptions>()
+  describe('4.6-generation models — sampling options', () => {
+    it('claude-opus-4-6 and claude-sonnet-4-6 expose sampling', () => {
+      type Options = AnthropicChatModelProviderOptionsByName[
+        | 'claude-opus-4-6'
+        | 'claude-sonnet-4-6']
       expectTypeOf<Options>().toExtend<AnthropicServiceTierOptions>()
       expectTypeOf<Options>().toExtend<AnthropicSamplingOptions>()
       expectTypeOf<Options>().toExtend<BaseOptions>()
     })
   })
 
-  describe('Adaptive-era models (Opus 4.7/4.8, Sonnet 5, Haiku 5.5) — no budget thinking, no sampling', () => {
-    it('expose adaptive-or-disabled thinking, output_config, and base options', () => {
-      expectTypeOf<
-        AnthropicChatModelProviderOptionsByName[AdaptiveEraModel]
-      >().toExtend<AnthropicAdaptiveOrDisabledThinkingOptions>()
-      expectTypeOf<
-        AnthropicChatModelProviderOptionsByName[AdaptiveEraModel]
-      >().toExtend<AnthropicOutputConfigOptions>()
-      expectTypeOf<
-        AnthropicChatModelProviderOptionsByName[AdaptiveEraModel]
-      >().toExtend<BaseOptions>()
-    })
-
+  describe('Adaptive-era models (Opus 4.7/4.8, Sonnet 5, Haiku 5.5) — no sampling', () => {
     it('have max_tokens but NOT temperature/top_p/top_k', () => {
       type Options = AnthropicChatModelProviderOptionsByName[AdaptiveEraModel]
+      expectTypeOf<Options>().toExtend<BaseOptions>()
       expectTypeOf<Options>().toHaveProperty('max_tokens')
       expectTypeOf<Options>().not.toHaveProperty('temperature')
       expectTypeOf<Options>().not.toHaveProperty('top_p')
@@ -148,26 +121,30 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
     })
   })
 
-  describe('claude-fable-5 — thinking always on (adaptive-only)', () => {
-    type Options = AnthropicChatModelProviderOptionsByName['claude-fable-5']
-
-    it('exposes adaptive-only thinking, output_config, and base options', () => {
-      expectTypeOf<Options>().toExtend<AnthropicAdaptiveOnlyThinkingOptions>()
-      expectTypeOf<Options>().toExtend<AnthropicOutputConfigOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
+  describe('thinking lives on chat({ reasoning }), not modelOptions', () => {
+    it('no model takes thinking, effort, or output_config in modelOptions', () => {
+      type Options =
+        AnthropicChatModelProviderOptionsByName[keyof AnthropicChatModelProviderOptionsByName]
+      expectTypeOf<Options>().not.toHaveProperty('thinking')
+      expectTypeOf<Options>().not.toHaveProperty('effort')
+      expectTypeOf<Options>().not.toHaveProperty('output_config')
     })
 
-    it('thinking accepts only the adaptive shape', () => {
-      expectTypeOf<
-        NonNullable<Options['thinking']>['type']
-      >().toEqualTypeOf<'adaptive'>()
+    it('budget models take a token budget and can turn thinking off', () => {
+      type Reasoning = AnthropicModelReasoningByName['claude-haiku-4-5']
+      expectTypeOf<Reasoning['budget']>().toEqualTypeOf<true>()
+      expectTypeOf<'off'>().toExtend<Reasoning['levels']>()
     })
 
-    it('has max_tokens but NOT temperature/top_p/top_k', () => {
-      expectTypeOf<Options>().toHaveProperty('max_tokens')
-      expectTypeOf<Options>().not.toHaveProperty('temperature')
-      expectTypeOf<Options>().not.toHaveProperty('top_p')
-      expectTypeOf<Options>().not.toHaveProperty('top_k')
+    it('adaptive-era models take effort levels up to max, with no budget', () => {
+      type Reasoning = AnthropicModelReasoningByName['claude-opus-4-8']
+      expectTypeOf<Reasoning['budget']>().toEqualTypeOf<false>()
+      expectTypeOf<'max'>().toExtend<Reasoning['levels']>()
+    })
+
+    it('claude-fable-5 always thinks: off is not a level', () => {
+      type Levels = AnthropicModelReasoningByName['claude-fable-5']['levels']
+      expectTypeOf<'off'>().not.toExtend<Levels>()
     })
   })
 

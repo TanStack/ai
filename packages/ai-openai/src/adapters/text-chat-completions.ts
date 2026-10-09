@@ -13,11 +13,7 @@ import type {
   OpenAIModelInputModalitiesByName,
   OpenAIModelReasoningByName,
 } from '../model-meta'
-import type {
-  Modality,
-  ModelReasoningCapability,
-  ReasoningCapability,
-} from '@tanstack/ai'
+import type { Modality, ReasoningCapability } from '@tanstack/ai'
 import type { OpenAIMessageMetadataByModality } from '../message-types'
 import type { OpenAIClientConfig } from '../utils/client'
 import type { ExternalTextProviderOptions } from '../text/text-provider-options'
@@ -53,7 +49,7 @@ type ResolveToolCapabilities<TModel extends string> =
 
 type ResolveReasoning<TModel extends string> =
   TModel extends keyof OpenAIModelReasoningByName
-    ? ModelReasoningCapability<OpenAIModelReasoningByName[TModel]>
+    ? OpenAIModelReasoningByName[TModel]
     : never
 
 /**

@@ -20,12 +20,7 @@ import type {
   OpenAIModelReasoningByName,
 } from '../model-meta'
 import type { ResponseCreateParams } from 'openai/resources/responses/responses'
-import type {
-  Modality,
-  ModelReasoningCapability,
-  ReasoningCapability,
-  TextOptions,
-} from '@tanstack/ai'
+import type { Modality, ReasoningCapability, TextOptions } from '@tanstack/ai'
 import type {
   ExternalTextProviderOptions,
   InternalTextProviderOptions,
@@ -70,7 +65,7 @@ type ResolveInputModalities<TModel extends string> =
 /** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
 type ResolveReasoning<TModel extends string> =
   TModel extends keyof OpenAIModelReasoningByName
-    ? ModelReasoningCapability<OpenAIModelReasoningByName[TModel]>
+    ? OpenAIModelReasoningByName[TModel]
     : never
 
 /**

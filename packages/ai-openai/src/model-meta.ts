@@ -1,4 +1,8 @@
-import type { Modality, ModelReasoning } from '@tanstack/ai'
+import type {
+  Modality,
+  ModelReasoning,
+  ModelReasoningCapability,
+} from '@tanstack/ai'
 import type {
   OpenAIBaseOptions,
   OpenAIMetadataOptions,
@@ -3852,54 +3856,72 @@ export const OPENAI_MODEL_INPUT_MODALITIES: Readonly<
 // later. Until then, the sync scripts keep these fields as they are.
 
 /**
- * Each chat model's reasoning data, at the type level. A model that is not
- * here does not reason. The adapter derives the levels of
- * `chat({ reasoning })` from it with `ModelReasoningCapability`.
+ * Each chat model's reasoning levels, and whether it takes a token budget,
+ * for `chat({ reasoning })`. Derived from the `reasoning` field. A model
+ * that is not here does not reason.
  */
 export type OpenAIModelReasoningByName = {
-  [GPT5_2.name]: typeof GPT5_2.reasoning
-  [GPT5_2_PRO.name]: typeof GPT5_2_PRO.reasoning
-  [GPT5_2_CHAT.name]: typeof GPT5_2_CHAT.reasoning
-  [GPT5_1.name]: typeof GPT5_1.reasoning
-  [GPT5_1_CODEX.name]: typeof GPT5_1_CODEX.reasoning
-  [GPT5.name]: typeof GPT5.reasoning
-  [GPT5_MINI.name]: typeof GPT5_MINI.reasoning
-  [GPT5_NANO.name]: typeof GPT5_NANO.reasoning
-  [GPT5_PRO.name]: typeof GPT5_PRO.reasoning
-  [GPT5_CODEX.name]: typeof GPT5_CODEX.reasoning
-  [GPT_5_1_CODEX_MINI.name]: typeof GPT_5_1_CODEX_MINI.reasoning
-  [O3.name]: typeof O3.reasoning
-  [O3_PRO.name]: typeof O3_PRO.reasoning
-  [O4_MINI.name]: typeof O4_MINI.reasoning
-  [O1.name]: typeof O1.reasoning
-  [O1_PRO.name]: typeof O1_PRO.reasoning
-  [O3_MINI.name]: typeof O3_MINI.reasoning
-  [GPT_5_4_MINI.name]: typeof GPT_5_4_MINI.reasoning
-  [GPT_5_4_NANO.name]: typeof GPT_5_4_NANO.reasoning
-  [GPT_5_4_IMAGE_2.name]: typeof GPT_5_4_IMAGE_2.reasoning
-  [GPT_5_6.name]: typeof GPT_5_6.reasoning
-  [GPT_5_6_SOL.name]: typeof GPT_5_6_SOL.reasoning
-  [GPT_5_6_TERRA.name]: typeof GPT_5_6_TERRA.reasoning
-  [GPT_5_6_LUNA.name]: typeof GPT_5_6_LUNA.reasoning
-  [GPT_5_5.name]: typeof GPT_5_5.reasoning
-  [GPT_5_5_PRO.name]: typeof GPT_5_5_PRO.reasoning
-  [GPT_CHAT_LATEST.name]: typeof GPT_CHAT_LATEST.reasoning
-  [GPT_5_6_LUNA_PRO.name]: typeof GPT_5_6_LUNA_PRO.reasoning
-  [GPT_5_6_SOL_PRO.name]: typeof GPT_5_6_SOL_PRO.reasoning
-  [GPT_5_6_TERRA_PRO.name]: typeof GPT_5_6_TERRA_PRO.reasoning
-  [GPT_6_ASTRA.name]: typeof GPT_6_ASTRA.reasoning
-  [GPT_6_ASTRA_PRO.name]: typeof GPT_6_ASTRA_PRO.reasoning
-  [GPT_6_LUNA.name]: typeof GPT_6_LUNA.reasoning
-  [GPT_6_LUNA_PRO.name]: typeof GPT_6_LUNA_PRO.reasoning
-  [GPT_6_SOL.name]: typeof GPT_6_SOL.reasoning
-  [GPT_6_SOL_PRO.name]: typeof GPT_6_SOL_PRO.reasoning
-  [GPT_6_1_SOL.name]: typeof GPT_6_1_SOL.reasoning
-  [GPT_6_1_SOL_PRO.name]: typeof GPT_6_1_SOL_PRO.reasoning
+  [GPT5_2.name]: ModelReasoningCapability<typeof GPT5_2.reasoning>
+  [GPT5_2_PRO.name]: ModelReasoningCapability<typeof GPT5_2_PRO.reasoning>
+  [GPT5_2_CHAT.name]: ModelReasoningCapability<typeof GPT5_2_CHAT.reasoning>
+  [GPT5_1.name]: ModelReasoningCapability<typeof GPT5_1.reasoning>
+  [GPT5_1_CODEX.name]: ModelReasoningCapability<typeof GPT5_1_CODEX.reasoning>
+  [GPT5.name]: ModelReasoningCapability<typeof GPT5.reasoning>
+  [GPT5_MINI.name]: ModelReasoningCapability<typeof GPT5_MINI.reasoning>
+  [GPT5_NANO.name]: ModelReasoningCapability<typeof GPT5_NANO.reasoning>
+  [GPT5_PRO.name]: ModelReasoningCapability<typeof GPT5_PRO.reasoning>
+  [GPT5_CODEX.name]: ModelReasoningCapability<typeof GPT5_CODEX.reasoning>
+  [GPT_5_1_CODEX_MINI.name]: ModelReasoningCapability<
+    typeof GPT_5_1_CODEX_MINI.reasoning
+  >
+  [O3.name]: ModelReasoningCapability<typeof O3.reasoning>
+  [O3_PRO.name]: ModelReasoningCapability<typeof O3_PRO.reasoning>
+  [O4_MINI.name]: ModelReasoningCapability<typeof O4_MINI.reasoning>
+  [O1.name]: ModelReasoningCapability<typeof O1.reasoning>
+  [O1_PRO.name]: ModelReasoningCapability<typeof O1_PRO.reasoning>
+  [O3_MINI.name]: ModelReasoningCapability<typeof O3_MINI.reasoning>
+  [GPT_5_4_MINI.name]: ModelReasoningCapability<typeof GPT_5_4_MINI.reasoning>
+  [GPT_5_4_NANO.name]: ModelReasoningCapability<typeof GPT_5_4_NANO.reasoning>
+  [GPT_5_4_IMAGE_2.name]: ModelReasoningCapability<
+    typeof GPT_5_4_IMAGE_2.reasoning
+  >
+  [GPT_5_6.name]: ModelReasoningCapability<typeof GPT_5_6.reasoning>
+  [GPT_5_6_SOL.name]: ModelReasoningCapability<typeof GPT_5_6_SOL.reasoning>
+  [GPT_5_6_TERRA.name]: ModelReasoningCapability<typeof GPT_5_6_TERRA.reasoning>
+  [GPT_5_6_LUNA.name]: ModelReasoningCapability<typeof GPT_5_6_LUNA.reasoning>
+  [GPT_5_5.name]: ModelReasoningCapability<typeof GPT_5_5.reasoning>
+  [GPT_5_5_PRO.name]: ModelReasoningCapability<typeof GPT_5_5_PRO.reasoning>
+  [GPT_CHAT_LATEST.name]: ModelReasoningCapability<
+    typeof GPT_CHAT_LATEST.reasoning
+  >
+  [GPT_5_6_LUNA_PRO.name]: ModelReasoningCapability<
+    typeof GPT_5_6_LUNA_PRO.reasoning
+  >
+  [GPT_5_6_SOL_PRO.name]: ModelReasoningCapability<
+    typeof GPT_5_6_SOL_PRO.reasoning
+  >
+  [GPT_5_6_TERRA_PRO.name]: ModelReasoningCapability<
+    typeof GPT_5_6_TERRA_PRO.reasoning
+  >
+  [GPT_6_ASTRA.name]: ModelReasoningCapability<typeof GPT_6_ASTRA.reasoning>
+  [GPT_6_ASTRA_PRO.name]: ModelReasoningCapability<
+    typeof GPT_6_ASTRA_PRO.reasoning
+  >
+  [GPT_6_LUNA.name]: ModelReasoningCapability<typeof GPT_6_LUNA.reasoning>
+  [GPT_6_LUNA_PRO.name]: ModelReasoningCapability<
+    typeof GPT_6_LUNA_PRO.reasoning
+  >
+  [GPT_6_SOL.name]: ModelReasoningCapability<typeof GPT_6_SOL.reasoning>
+  [GPT_6_SOL_PRO.name]: ModelReasoningCapability<typeof GPT_6_SOL_PRO.reasoning>
+  [GPT_6_1_SOL.name]: ModelReasoningCapability<typeof GPT_6_1_SOL.reasoning>
+  [GPT_6_1_SOL_PRO.name]: ModelReasoningCapability<
+    typeof GPT_6_1_SOL_PRO.reasoning
+  >
 }
 
 /**
  * Runtime map from chat model name to its reasoning data, for the text
- * adapter. `satisfies` keeps it equal to {@link OpenAIModelReasoningByName}. An unknown
+ * adapter. `satisfies` keeps its keys equal to {@link OpenAIModelReasoningByName}. An unknown
  * name gives `undefined`: the adapter sends no reasoning field.
  */
 export const OPENAI_MODEL_REASONING: Readonly<Record<string, ModelReasoning>> =
@@ -3942,4 +3964,4 @@ export const OPENAI_MODEL_REASONING: Readonly<Record<string, ModelReasoning>> =
     [GPT_6_SOL_PRO.name]: GPT_6_SOL_PRO.reasoning,
     [GPT_6_1_SOL.name]: GPT_6_1_SOL.reasoning,
     [GPT_6_1_SOL_PRO.name]: GPT_6_1_SOL_PRO.reasoning,
-  } satisfies OpenAIModelReasoningByName
+  } satisfies Record<keyof OpenAIModelReasoningByName, ModelReasoning>
