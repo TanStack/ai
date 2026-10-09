@@ -1162,7 +1162,8 @@
         {
           "label": "Extend Adapter",
           "to": "advanced/extend-adapter",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "Typed Pre-Configured Options",
@@ -1520,7 +1521,8 @@
         {
           "label": "Event metadata",
           "to": "protocol/metadata",
-          "addedAt": "2026-08-21"
+          "addedAt": "2026-08-21",
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "Custom Events Reference",

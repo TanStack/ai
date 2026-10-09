@@ -776,6 +776,8 @@ Every factory pair follows the same shape: the short factory (`geminiText`, `gem
 
 Creates a Gemini text/chat adapter.
 
+`adapter.inputModalities` lists the input kinds of the selected model. It is `undefined` for a model that this package does not know. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
+
 **Parameters:**
 
 - `model` - Gemini chat model id (e.g. `"gemini-3.1-pro-preview"`)

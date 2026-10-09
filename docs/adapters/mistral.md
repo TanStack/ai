@@ -415,6 +415,8 @@ See [Mistral's model comparison](https://docs.mistral.ai/getting-started/models/
 
 Creates a Mistral text adapter using the `MISTRAL_API_KEY` environment variable.
 
+`adapter.inputModalities` lists the input kinds of the selected model. It is `undefined` for a model that this package does not know. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
+
 **Parameters:**
 
 - `model` — The model name (e.g., `'mistral-large-latest'`)

@@ -99,6 +99,13 @@ export interface TextAdapter<
   readonly supportsFileSources?: boolean
 
   /**
+   * The input kinds the model reads, at runtime, from the provider's model
+   * metadata. `undefined` means not known. This mirrors the type-level
+   * `'~types'.inputModalities`, which has no runtime value.
+   */
+  readonly inputModalities?: ReadonlyArray<Modality>
+
+  /**
    * @internal Type-only properties for inference. Not assigned at runtime.
    */
   '~types': {
@@ -219,6 +226,11 @@ export abstract class BaseTextAdapter<
   readonly model: TModel
   readonly requires?: ReadonlyArray<CapabilityHandle> = undefined
   readonly supportsFileSources: boolean = false
+  /**
+   * Provider subclasses override this from their model metadata, for example
+   * `override readonly inputModalities = INPUT_BY_MODEL[this.model]`.
+   */
+  readonly inputModalities?: ReadonlyArray<Modality> = undefined
 
   // Type-only property - never assigned at runtime
   declare '~types': {

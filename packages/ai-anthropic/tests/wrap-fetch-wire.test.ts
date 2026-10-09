@@ -27,10 +27,12 @@ const message = {
 
 let sentTag: string | null = null
 let sentKey: string | null = null
+let sentAuthorization: string | null = null
 const baseFetch: typeof fetch = async (input, init) => {
   const request = new Request(input, init)
   sentTag = request.headers.get('x-wrapped')
   sentKey = request.headers.get('x-api-key')
+  sentAuthorization = request.headers.get('authorization')
   const body = await request.json()
   return body.stream
     ? new Response(sse, { headers: { 'content-type': 'text/event-stream' } })
@@ -61,6 +63,24 @@ async function streamTag(wrapFetch?: FetchWrapper) {
 }
 
 describe('anthropic wrapFetch', () => {
+  it('keeps Bearer auth on the per-call client', async () => {
+    const adapter = createAnthropicChat(model, 'sk-token', {
+      auth: 'bearer',
+      fetch: baseFetch,
+    })
+    for await (const _ of adapter.chatStream({
+      logger,
+      model,
+      messages,
+      wrapFetch: addTag,
+    })) {
+      // drain
+    }
+    expect(sentTag).toBe('yes')
+    expect(sentAuthorization).toBe('Bearer sk-token')
+    expect(sentKey).toBe(null)
+  })
+
   it('sends the stream request through the wrapper', async () => {
     expect(await streamTag(addTag)).toBe('yes')
     expect(sentKey).toBe('test-key')

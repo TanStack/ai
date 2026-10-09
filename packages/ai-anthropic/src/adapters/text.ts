@@ -6,6 +6,7 @@ import {
 } from '@tanstack/ai'
 import {
   REDACTED_THINKING_ID_PREFIX,
+  toRetryAfterMs,
   toRunErrorRawEvent,
 } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
@@ -20,10 +21,12 @@ import { buildAnthropicUsage } from '../usage'
 import {
   createAnthropicClient,
   generateId,
-  resolveAnthropicCredentials,
+  getAnthropicCredentialFromEnv,
+  resolveAnthropicAuth,
 } from '../utils/client'
 import {
   ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS,
+  ANTHROPIC_MODEL_INPUT_MODALITIES,
   getAnthropicDefaultMaxTokens,
 } from '../model-meta'
 import type {
@@ -256,22 +259,11 @@ export function computeAnthropicBetas(
 /**
  * Configuration for Anthropic text adapter
  */
-export interface AnthropicTextConfig extends AnthropicClientConfig {
-  /**
-   * Add the Claude Code identity: the identity system block, the CLI
-   * headers, and the `claude-code-20250219` and `oauth-2025-04-20` betas. The
-   * default is true for an `sk-ant-oat` token or `ANTHROPIC_OAUTH_TOKEN`.
-   */
-  oauth?: boolean
-}
+export interface AnthropicTextConfig extends AnthropicClientConfig {}
 
 export type AnthropicTextAdapterConfig =
   | AnthropicTextConfig
-  | {
-      client: AnthropicMessagesClient
-      /** See {@link AnthropicTextConfig.oauth}. */
-      oauth?: boolean
-    }
+  | { client: AnthropicMessagesClient }
 
 /** The headers that Claude Code sends with an OAuth token. */
 const OAUTH_IDENTITY_HEADERS = {
@@ -362,11 +354,17 @@ export class AnthropicTextAdapter<
   readonly name = 'anthropic' as const
   // Consumes `file_id` sources issued by anthropicFiles() (Files API beta).
   override readonly supportsFileSources = true
+  override readonly inputModalities =
+    ANTHROPIC_MODEL_INPUT_MODALITIES[this.model]
 
   private readonly client: SdkAnthropicMessagesClient
-  private readonly oauth: boolean
+  /**
+   * With `auth: 'oauth'`: add the Claude Code identity system block, the CLI
+   * headers, and the `claude-code-20250219` and `oauth-2025-04-20` betas.
+   */
+  private readonly oauth: boolean = false
   /** True when the credential goes out as `Authorization: Bearer`. */
-  private readonly tokenAuthentication: boolean
+  private readonly tokenAuthentication: boolean = false
   /** The OAuth identity headers, with the caller's own values on top. */
   private readonly oauthHeaders = new Headers(OAUTH_IDENTITY_HEADERS)
 
@@ -376,16 +374,13 @@ export class AnthropicTextAdapter<
 
   constructor(config: AnthropicTextAdapterConfig, model: TModel) {
     super({}, model)
-    const credentials =
-      'client' in config
-        ? undefined
-        : resolveAnthropicCredentials(config, config.oauth)
-    this.oauth = config.oauth ?? credentials?.oauth ?? false
-    this.tokenAuthentication = Boolean(credentials?.authToken) || this.oauth
     if ('client' in config) {
       this.client = asSdkAnthropicMessagesClient(config.client)
       return
     }
+    const auth = resolveAnthropicAuth(config)
+    this.oauth = auth === 'oauth'
+    this.tokenAuthentication = auth !== 'api-key'
     for (const [name, value] of Object.entries(config.defaultHeaders ?? {})) {
       const lower = name.toLowerCase()
       if (
@@ -397,18 +392,16 @@ export class AnthropicTextAdapter<
         this.oauthHeaders.set(name, value)
     }
     this.baseFetch = config.fetch
-    this.sdkClient = createAnthropicClient(
-      {
-        ...config,
-        ...(this.oauth && {
-          defaultHeaders: {
-            ...OAUTH_IDENTITY_HEADERS,
-            ...config.defaultHeaders,
-          },
-        }),
-      },
-      this.oauth,
-    )
+    this.sdkClient = createAnthropicClient({
+      ...config,
+      auth,
+      ...(this.oauth && {
+        defaultHeaders: {
+          ...OAUTH_IDENTITY_HEADERS,
+          ...config.defaultHeaders,
+        },
+      }),
+    })
     this.client = this.sdkClient
   }
 
@@ -511,6 +504,7 @@ export class AnthropicTextAdapter<
     } catch (error: unknown) {
       const err = error as Error & { status?: number; code?: string }
       const rawEvent = toRunErrorRawEvent(error)
+      const retryAfterMs = toRetryAfterMs(error)
       logger.errors('anthropic.chatStream fatal', {
         error,
         source: 'anthropic.chatStream',
@@ -524,6 +518,7 @@ export class AnthropicTextAdapter<
         // Forward the Anthropic SDK error's `.error` response body (e.g.
         // `{ type, message }`) when present; never the raw exception object.
         ...(rawEvent !== undefined && { rawEvent }),
+        ...(retryAfterMs !== undefined && { retryAfterMs }),
         error: {
           message: err.message || 'Unknown error occurred',
           code: err.code || String(err.status),
@@ -1776,6 +1771,7 @@ export class AnthropicTextAdapter<
     } catch (error: unknown) {
       const err = error as Error & { status?: number; code?: string }
       const rawEvent = toRunErrorRawEvent(error)
+      const retryAfterMs = toRetryAfterMs(error)
 
       logger.errors('anthropic.processAnthropicStream fatal', {
         error,
@@ -1789,6 +1785,7 @@ export class AnthropicTextAdapter<
         code: err.code || String(err.status),
         // Forward the Anthropic SDK error's `.error` response body when present.
         ...(rawEvent !== undefined && { rawEvent }),
+        ...(retryAfterMs !== undefined && { retryAfterMs }),
         error: {
           message: err.message || 'Unknown error occurred',
           code: err.code || String(err.status),
@@ -1799,7 +1796,9 @@ export class AnthropicTextAdapter<
 }
 
 /**
- * Creates an Anthropic chat adapter with explicit API key.
+ * Creates an Anthropic chat adapter with an explicit credential. It reads no
+ * credential from the environment. `config.auth` picks how the credential
+ * goes out. An `sk-ant-oat` credential uses `'oauth'` by default.
  * Type resolution happens here at the call site.
  */
 export function createAnthropicChat<
@@ -1834,17 +1833,22 @@ export function createAnthropicChatWithClient<
 }
 
 /**
- * Creates an Anthropic text adapter. Without an `apiKey` or `authToken` in
- * `config`, it reads `ANTHROPIC_AUTH_TOKEN`, then `ANTHROPIC_OAUTH_TOKEN`, then
- * `ANTHROPIC_API_KEY`. Type resolution happens here at the call site.
+ * Creates an Anthropic text adapter with the credential from the environment:
+ * `ANTHROPIC_AUTH_TOKEN`, then `ANTHROPIC_OAUTH_TOKEN`, then
+ * `ANTHROPIC_API_KEY`. A `config.auth` wins over the detected kind.
+ * Type resolution happens here at the call site.
  */
 export function anthropicText<TModel extends (typeof ANTHROPIC_MODELS)[number]>(
   model: TModel,
-  config?: AnthropicTextConfig,
+  config?: Omit<AnthropicTextConfig, 'apiKey'>,
 ): AnthropicTextAdapter<
   TModel,
   ResolveProviderOptions<TModel>,
   ResolveInputModalities<TModel>
 > {
-  return new AnthropicTextAdapter(config ?? {}, model)
+  const { credential, auth } = getAnthropicCredentialFromEnv()
+  return createAnthropicChat(model, credential, {
+    ...config,
+    auth: config?.auth ?? auth,
+  })
 }

@@ -1,47 +1,35 @@
 import Anthropic_SDK from '@anthropic-ai/sdk'
-import { generateId as _generateId, getApiKeyFromEnv } from '@tanstack/ai-utils'
+import { generateId as _generateId } from '@tanstack/ai-utils'
 import type { ClientOptions } from '@anthropic-ai/sdk'
 
-export interface AnthropicClientConfig extends ClientOptions {
-  apiKey?: string | null
+/**
+ * How the adapter sends the credential.
+ * - `'api-key'`: the `x-api-key` header.
+ * - `'bearer'`: `Authorization: Bearer`, and no `x-api-key`.
+ * - `'oauth'`: the same as `'bearer'`, plus the Claude Code identity that a
+ *   Claude OAuth token needs.
+ */
+export type AnthropicAuth = 'api-key' | 'bearer' | 'oauth'
+
+export interface AnthropicClientConfig extends Omit<
+  ClientOptions,
+  'apiKey' | 'authToken'
+> {
+  apiKey: string
+  /**
+   * How to send `apiKey`. The default is `'oauth'` when the credential
+   * contains `sk-ant-oat`, else `'api-key'`.
+   */
+  auth?: AnthropicAuth
 }
 
-/**
- * Resolve the credential. An explicit `authToken` or `apiKey` wins. Else the
- * environment, in this order: `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_OAUTH_TOKEN`,
- * `ANTHROPIC_API_KEY`. A token goes out as `Authorization: Bearer`. An
- * `sk-ant-oat` token or `ANTHROPIC_OAUTH_TOKEN` turns on OAuth, unless
- * `oauthOverride` is set.
- */
-export function resolveAnthropicCredentials(
-  config: AnthropicClientConfig,
-  oauthOverride?: boolean,
-) {
-  const env = typeof process === 'undefined' ? {} : process.env
-  const explicit = Boolean(config.authToken || config.apiKey)
-  const environmentToken = env.ANTHROPIC_AUTH_TOKEN || env.ANTHROPIC_OAUTH_TOKEN
-  const credential =
-    (explicit
-      ? config.authToken || config.apiKey
-      : environmentToken || env.ANTHROPIC_API_KEY) ||
-    // Reads `window.env` too, and throws when no key is set.
-    getAnthropicApiKeyFromEnv()
-  const detectedOAuth = Boolean(
-    credential.includes('sk-ant-oat') ||
-    (!explicit && !env.ANTHROPIC_AUTH_TOKEN && env.ANTHROPIC_OAUTH_TOKEN),
+/** The explicit `auth`, else the kind that the credential shows. */
+export function resolveAnthropicAuth(
+  config: Pick<AnthropicClientConfig, 'apiKey' | 'auth'>,
+): AnthropicAuth {
+  return (
+    config.auth ?? (config.apiKey.includes('sk-ant-oat') ? 'oauth' : 'api-key')
   )
-  const oauth = oauthOverride ?? detectedOAuth
-  const token = Boolean(
-    config.authToken ||
-    (!explicit && environmentToken) ||
-    detectedOAuth ||
-    oauth,
-  )
-  return {
-    apiKey: token ? null : credential,
-    authToken: token ? credential : null,
-    oauth,
-  }
 }
 
 type AnyAnthropicMessagesCreate = (
@@ -66,29 +54,59 @@ export interface AnthropicMessagesClient {
 }
 
 /**
- * Creates an Anthropic SDK client instance
+ * Creates an Anthropic SDK client instance. It reads no credential from the
+ * environment.
  */
 export function createAnthropicClient(
   config: AnthropicClientConfig,
-  oauthOverride?: boolean,
 ): Anthropic_SDK {
-  const credentials = resolveAnthropicCredentials(config, oauthOverride)
+  const { auth: _auth, apiKey, ...options } = config
+  const token = resolveAnthropicAuth(config) !== 'api-key'
+  // Explicit nulls stop the SDK from reading `ANTHROPIC_API_KEY` and
+  // `ANTHROPIC_AUTH_TOKEN` on its own.
   return new Anthropic_SDK({
-    ...config,
-    apiKey: credentials.apiKey,
-    authToken: credentials.authToken,
-    ...(credentials.authToken && {
-      defaultHeaders: { ...config.defaultHeaders, 'x-api-key': null },
+    ...options,
+    apiKey: token ? null : apiKey,
+    authToken: token ? apiKey : null,
+    ...(token && {
+      defaultHeaders: { ...options.defaultHeaders, 'x-api-key': null },
     }),
   })
 }
 
 /**
- * Gets Anthropic API key from environment variables
- * @throws Error if ANTHROPIC_API_KEY is not found
+ * Reads the credential from the environment (`window.env` or
+ * `process.env`), in this order:
+ * 1. `ANTHROPIC_AUTH_TOKEN`: `'bearer'`, or `'oauth'` for an `sk-ant-oat` token.
+ * 2. `ANTHROPIC_OAUTH_TOKEN`: `'oauth'`.
+ * 3. `ANTHROPIC_API_KEY`: `'api-key'`.
+ * @throws Error if none of them is set
  */
-export function getAnthropicApiKeyFromEnv(): string {
-  return getApiKeyFromEnv('ANTHROPIC_API_KEY')
+export function getAnthropicCredentialFromEnv(): {
+  credential: string
+  auth: AnthropicAuth
+} {
+  const { window: browser } = globalThis as {
+    window?: { env?: Record<string, string | undefined> }
+  }
+  const env =
+    browser?.env ?? (typeof process === 'undefined' ? undefined : process.env)
+  const authToken = env?.ANTHROPIC_AUTH_TOKEN
+  if (authToken) {
+    return {
+      credential: authToken,
+      auth: authToken.includes('sk-ant-oat') ? 'oauth' : 'bearer',
+    }
+  }
+  if (env?.ANTHROPIC_OAUTH_TOKEN) {
+    return { credential: env.ANTHROPIC_OAUTH_TOKEN, auth: 'oauth' }
+  }
+  if (env?.ANTHROPIC_API_KEY) {
+    return { credential: env.ANTHROPIC_API_KEY, auth: 'api-key' }
+  }
+  throw new Error(
+    'ANTHROPIC_AUTH_TOKEN, ANTHROPIC_OAUTH_TOKEN, and ANTHROPIC_API_KEY are not set. Please set one of these environment variables or pass the credential directly.',
+  )
 }
 
 /**

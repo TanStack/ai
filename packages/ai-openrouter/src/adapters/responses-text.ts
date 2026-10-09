@@ -19,6 +19,7 @@ import {
   convertFunctionToolToResponsesFormat,
   createToolInputNormalizer,
 } from '../internal/responses-tool-converter'
+import { OPENROUTER_MODEL_INPUT_MODALITIES } from '../model-meta'
 import { isWebSearchTool } from '../tools/web-search-tool'
 import { isWebFetchTool } from '../tools/web-fetch-tool'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
@@ -120,6 +121,8 @@ export class OpenRouterResponsesTextAdapter<
 > {
   override readonly kind = 'text' as const
   readonly name = 'openrouter-responses' as const
+  override readonly inputModalities =
+    OPENROUTER_MODEL_INPUT_MODALITIES[this.model]
 
   protected orClient: OpenRouter
   private readonly sdkOptions: SDKOptions

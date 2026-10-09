@@ -7,6 +7,7 @@ import {
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   toRunErrorPayload,
+  toRetryAfterMs,
   toRunErrorRawEvent,
 } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
@@ -152,6 +153,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       `${this.name}.${source} failed`,
     )
     const rawEvent = toRunErrorRawEvent(error)
+    const retryAfterMs = toRetryAfterMs(error)
 
     if (!aguiState.hasEmittedRunStarted) {
       aguiState.hasEmittedRunStarted = true
@@ -226,6 +228,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       message: errorPayload.message,
       ...(errorPayload.code !== undefined && { code: errorPayload.code }),
       ...(rawEvent !== undefined && { rawEvent }),
+      ...(retryAfterMs !== undefined && { retryAfterMs }),
       error: {
         message: errorPayload.message,
         ...(errorPayload.code !== undefined && { code: errorPayload.code }),

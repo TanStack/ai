@@ -6,7 +6,10 @@ import {
 import { validateTextProviderOptions } from '../text/text-provider-options'
 import { convertToolsToProviderFormat } from '../tools'
 import { getOpenAIApiKeyFromEnv } from '../utils/client'
-import { openAIModelRejectsSamplingParams } from '../model-meta'
+import {
+  OPENAI_MODEL_INPUT_MODALITIES,
+  openAIModelRejectsSamplingParams,
+} from '../model-meta'
 import type {
   OPENAI_CHAT_MODELS,
   OpenAIChatModel,
@@ -102,6 +105,7 @@ export class OpenAITextAdapter<
   // compatible subclasses of the openai-base adapter (Grok, Bedrock, custom)
   // — which have no such surface — fail closed in preflight.
   override readonly supportsFileSources = true
+  override readonly inputModalities = OPENAI_MODEL_INPUT_MODALITIES[this.model]
 
   constructor(config: OpenAITextConfig, model: TModel) {
     super(model, 'openai', new OpenAI(config), config)
