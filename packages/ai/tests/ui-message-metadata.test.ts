@@ -2,6 +2,7 @@ import type { AdapterYieldChunk } from '../src/utilities/adapter-yield-chunk'
 import { EventType } from '../src/types'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import {
+  aguiSnapshotMessageToUIMessage,
   convertMessagesToModelMessages,
   modelMessageToUIMessage,
   uiMessageToModelMessages,
@@ -9,7 +10,6 @@ import {
 import { StreamProcessor } from '../src/activities/chat/stream/processor'
 import { normalizeStreamChunk } from '../src/utilities/normalize-stream-chunk'
 import { uiMessagesToWire } from '../src/utilities/ag-ui-wire'
-import { aguiSnapshotMessageToUIMessage } from '../src/activities/chat/messages'
 import type {
   MessageSource,
   TanStackMessageMetadata,

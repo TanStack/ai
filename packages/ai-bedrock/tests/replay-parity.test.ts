@@ -1,17 +1,9 @@
 import { BedrockTextAdapter } from '../src/adapters/text'
 import { BedrockResponsesTextAdapter } from '../src/adapters/responses-text'
-import { BedrockRuntimeClient } from '@aws-sdk/client-bedrock-runtime'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { BedrockConverseTextAdapter } from '../src/adapters/converse-text'
 import { describe, expect, it } from 'vitest'
-import {
-  EventType,
-  StreamProcessor,
-  chat,
-  toolDefinition,
-  uiMessagesToWire,
-  normalizeStreamChunk,
-} from '@tanstack/ai'
+import { EventType, chat, toolDefinition } from '@tanstack/ai'
 import { toConverseMessages } from '../src/converse/message-converter'
 import { processConverseStream } from '../src/converse/stream-processor'
 import type {

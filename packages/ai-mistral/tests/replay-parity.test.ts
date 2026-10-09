@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { chat, EventType } from '@tanstack/ai'
+import { chat } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { MistralTextAdapter } from '../src/adapters/text'
 import { mistralVertexText } from '../src/vertex'

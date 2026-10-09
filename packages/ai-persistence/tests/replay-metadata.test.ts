@@ -3,12 +3,16 @@ import {
   chat,
   defineChatMiddleware,
   DetachableRunCapability,
+  EventType,
   provideDetachableRun,
   RUN_CANCEL_REASON,
 } from '@tanstack/ai'
-import type { ModelMessage } from '@tanstack/ai'
-import { EventType } from '@tanstack/ai'
-import type { AdapterYieldChunk, StreamChunk, Tool } from '@tanstack/ai'
+import type {
+  AdapterYieldChunk,
+  ModelMessage,
+  StreamChunk,
+  Tool,
+} from '@tanstack/ai'
 import { fakeText } from '@tanstack/ai/testing'
 import { memoryPersistence } from '../src/memory'
 import { withPersistence } from '../src/middleware'

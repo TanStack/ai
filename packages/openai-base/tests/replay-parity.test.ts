@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import OpenAI from 'openai'
-import { chat, EventType } from '@tanstack/ai'
+import { EventType } from '@tanstack/ai'
 import type { AdapterYieldChunk, ModelMessage } from '@tanstack/ai'
 import {
   resolveDebugOption,
@@ -799,7 +799,6 @@ describe('OpenAI replay parity', () => {
               },
             ],
           },
-          promptCache: { key: 'ignored-base-cache', retention: 'short' },
           request: {
             headers: { 'x-request': 'value' },
             signal: controller.signal,
@@ -867,7 +866,6 @@ describe('OpenAI replay parity', () => {
               { type: 'function', name: 'raw', parameters: { type: 'object' } },
             ],
           },
-          promptCache: { key: 'ignored-base-cache', retention: 'short' },
         }),
       )
       expect(mock.bodies).toEqual([

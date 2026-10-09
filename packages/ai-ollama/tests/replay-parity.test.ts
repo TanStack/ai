@@ -1,6 +1,5 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { Ollama } from 'ollama'
-import { chat, EventType } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { OllamaTextAdapter } from '../src/adapters/text'
 import type { ModelMessage } from '@tanstack/ai'
@@ -42,19 +41,6 @@ async function collect(iterable: AsyncIterable<unknown>) {
   for await (const chunk of iterable) chunks.push(chunk)
   return chunks
 }
-
-const toolRow = (input: unknown, done: boolean) => ({
-  model: 'reported-model',
-  message: {
-    role: 'assistant',
-    content: '',
-    tool_calls: [
-      { id: 'call', function: { name: 'inspect', arguments: input, index: 0 } },
-    ],
-  },
-  done,
-  done_reason: done ? 'stop' : undefined,
-})
 
 describe('Ollama replay parity', () => {
   it.each([undefined, { provider: 'ollama', api: 'ollama', model }])(

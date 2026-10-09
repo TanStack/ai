@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { HTTPClient } from '@openrouter/sdk'
-import { chat, EventType } from '@tanstack/ai'
+import { EventType } from '@tanstack/ai'
 import {
   hashToolCallId,
   resolveDebugOption,
