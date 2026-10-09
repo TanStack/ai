@@ -139,6 +139,8 @@ const adapter = createBedrockText("us.amazon.nova-pro-v1:0", process.env.BEDROCK
 
 All three Bedrock APIs accept these options. On the Converse API the headers are added before SigV4 signing, so a signed request still includes them.
 
+Need more than a fixed header, such as a log of each model call? The Chat Completions API (`api: 'chat'`) and the Responses API (`api: 'responses'`) support [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call). The Converse API ignores it, because the AWS SDK does not send its requests through `fetch`.
+
 ## Converse API (default)
 
 `bedrockText(model)` or `bedrockText(model, { api: 'converse' })` returns a `bedrock-converse` adapter backed by `@aws-sdk/client-bedrock-runtime`. This is Bedrock's model-agnostic conversational API and is the recommended path for most use cases.

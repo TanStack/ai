@@ -72,6 +72,8 @@ const config: Omit<GroqTextConfig, 'apiKey'> = {
 const adapter = createGroqText("llama-3.3-70b-versatile", process.env.GROQ_API_KEY!, config);
 ```
 
+Need a header on each request, or a log of each model call? This adapter supports [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call).
+
 ## Example: Chat Completion
 
 ```typescript

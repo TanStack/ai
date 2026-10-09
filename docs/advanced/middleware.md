@@ -163,12 +163,58 @@ const dynamicTemperature: ChatMiddleware = {
 | `tools` | `Tool[]` | Available tools |
 | `metadata` | `Record<string, unknown>` | Request metadata |
 | `modelOptions` | `Record<string, unknown>` | Provider-native options — this is where sampling params (`temperature`, `top_p` / `topP`, the provider's `max*Tokens` key) now live, alongside every other model-specific knob. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options). |
+| `wrapFetch` | `FetchWrapper \| undefined` | Wraps the HTTP fetch of the next model call. See [Change the HTTP requests of a call](#change-the-http-requests-of-a-call). |
 
 When multiple middleware define `onConfig`, the config is **piped** through them in order — each receives the merged config from the previous middleware.
 
 Return `providerMessages` when a transform must affect only the model call. For
 compatibility, returning `messages` also updates provider input unless the same
 result sets `providerMessages` explicitly.
+
+#### Change the HTTP requests of a call
+
+Your proxy wants a header on each request. Or you want to log each model call. You do not need your own client for that. Return `wrapFetch` from `onConfig`:
+
+```typescript
+import { type ChatMiddleware } from "@tanstack/ai";
+
+const traceHeader: ChatMiddleware = {
+  name: "trace-header",
+  onConfig: (ctx) => {
+    if (ctx.phase !== "beforeModel") return;
+    return {
+      wrapFetch: (next) => (input, init) => {
+        const headers = new Headers(init?.headers);
+        headers.set("x-trace-id", `${ctx.requestId}-${ctx.iteration}`);
+        return next(input, { ...init, headers });
+      },
+    };
+  },
+};
+```
+
+You want the same wrapper on every call of the run? Pass it to `chat()`:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+const stream = chat({
+  adapter: openaiText("gpt-5.6"),
+  messages: [{ role: "user", content: "Hi" }],
+  wrapFetch: (next) => async (input, init) => {
+    const started = Date.now();
+    const response = await next(input, init);
+    console.log(`model call: ${response.status} in ${Date.now() - started} ms`);
+    return response;
+  },
+});
+```
+
+- A wrapper gets the next `fetch` and gives back a new one. It can change the URL, the headers, the request, or the response.
+- A wrapper from `onConfig` applies to the next model call only.
+- Wrappers chain. The `chat()` wrapper runs first, then the middleware wrappers in middleware order, then the fetch of the adapter.
+- Each adapter page says if that adapter supports `wrapFetch`.
 
 ### onStructuredOutputConfig
 

@@ -71,6 +71,8 @@ const config: Omit<AnthropicTextConfig, "apiKey"> = {
 const adapter = createAnthropicChat("claude-sonnet-4-6", process.env.ANTHROPIC_API_KEY!, config);
 ```
 
+Need a header on each request, or a log of each model call? This adapter supports [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call). An adapter with your own client (Claude on Vertex, or `createAnthropicChatWithClient`) ignores it, because the adapter cannot reach the fetch of that client.
+
 ## Claude on Vertex
 
 Use `@tanstack/ai-anthropic/vertex` when Claude must run on Vertex AI. That
