@@ -45,9 +45,17 @@ export type FakeResponseStep =
       state: FakeTextState
     }) => FakeResponse | Promise<FakeResponse>)
 
-export interface FakeTextOptions<TModel extends string> {
+export interface FakeTextOptions<
+  TModel extends string,
+  TInput extends ReadonlyArray<Modality> = ReadonlyArray<Modality>,
+> {
   /** The model id. Default `'fake-model'`. */
   model?: TModel
+  /**
+   * The input kinds the model reads. Sets the adapter's `inputModalities`,
+   * and types the message content that `chat()` accepts.
+   */
+  input?: TInput
   /** The model's context window in tokens. Data for the caller. */
   contextWindow?: number
   /** Stream the text at this many tokens (4 characters each) per second. */
@@ -127,25 +135,32 @@ function chunksOf(text: string) {
  * A text adapter that answers from a script. Use it to test `chat()`, tools,
  * and middleware with no network and no API key. Create it with `fakeText()`.
  */
-export class FakeTextAdapter<TModel extends string> extends BaseTextAdapter<
+export class FakeTextAdapter<
+  TModel extends string,
+  TInput extends ReadonlyArray<Modality> = ReadonlyArray<Modality>,
+> extends BaseTextAdapter<
   TModel,
   Record<string, unknown>,
-  ReadonlyArray<Modality>,
+  TInput,
   DefaultMessageMetadataByModality
 > {
   readonly name = 'fake'
+  // Optional, as on `TextAdapter`, so the fake is an adapter under
+  // `exactOptionalPropertyTypes` too.
+  declare readonly inputModalities?: ReadonlyArray<Modality>
   /** The context window from the options. */
   readonly contextWindow: number | undefined
   readonly state: FakeTextState = { callCount: 0 }
 
   private queue: Array<FakeResponseStep> = []
   private readonly previousRequests = new Map<string, string>()
-  private readonly options: FakeTextOptions<TModel>
+  private readonly options: FakeTextOptions<TModel, TInput>
   private readonly instance = ++fakeCount
 
-  constructor(model: TModel, options: FakeTextOptions<TModel>) {
+  constructor(model: TModel, options: FakeTextOptions<TModel, TInput>) {
     super({}, model)
     this.options = options
+    if (options.input) this.inputModalities = options.input
     this.contextWindow = options.contextWindow
   }
 
@@ -360,9 +375,10 @@ export class FakeTextAdapter<TModel extends string> extends BaseTextAdapter<
  * }
  * ```
  */
-export function fakeText<const TModel extends string = 'fake-model'>(
-  options: FakeTextOptions<TModel> = {},
-) {
+export function fakeText<
+  const TModel extends string = 'fake-model',
+  const TInput extends ReadonlyArray<Modality> = ReadonlyArray<Modality>,
+>(options: FakeTextOptions<TModel, TInput> = {}) {
   const model = options.model ?? 'fake-model'
   // `options.model` is `TModel` when set. The default only applies when the
   // caller left it out, and then `TModel` is the default `'fake-model'`.
