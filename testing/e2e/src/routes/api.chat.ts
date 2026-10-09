@@ -167,6 +167,9 @@ export const Route = createFileRoute('/api/chat')({
                   : chat({
                       ...adapterOptions,
                       tools: config.tools,
+                      ...(config.toolChoice && {
+                        toolChoice: config.toolChoice,
+                      }),
                       modelOptions,
                       ...(config.reasoning && { reasoning: config.reasoning }),
                       systemPrompts,

@@ -145,6 +145,7 @@ import { Route as ApiSubagentsTestRouteImport } from './routes/api.subagents-tes
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiTextFirstToolWireRouteImport } from './routes/api.text-first-tool-wire'
 import { Route as ApiToolCallLifecycleWireRouteImport } from './routes/api.tool-call-lifecycle-wire'
+import { Route as ApiToolChoiceWireRouteImport } from './routes/api.tool-choice-wire'
 import { Route as ApiToolFirstTextWireRouteImport } from './routes/api.tool-first-text-wire'
 import { Route as ApiToolsTestRouteImport } from './routes/api.tools-test'
 import { Route as ApiTranscriptionRouteImport } from './routes/api.transcription'
@@ -876,6 +877,11 @@ const ApiToolCallLifecycleWireRoute =
     path: '/api/tool-call-lifecycle-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiToolChoiceWireRoute = ApiToolChoiceWireRouteImport.update({
+  id: '/api/tool-choice-wire',
+  path: '/api/tool-choice-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiToolFirstTextWireRoute = ApiToolFirstTextWireRouteImport.update({
   id: '/api/tool-first-text-wire',
   path: '/api/tool-first-text-wire',
@@ -1088,6 +1094,7 @@ export interface FileRoutesByFullPath {
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/text-first-tool-wire': typeof ApiTextFirstToolWireRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
+  '/api/tool-choice-wire': typeof ApiToolChoiceWireRoute
   '/api/tool-first-text-wire': typeof ApiToolFirstTextWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
@@ -1241,6 +1248,7 @@ export interface FileRoutesByTo {
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/text-first-tool-wire': typeof ApiTextFirstToolWireRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
+  '/api/tool-choice-wire': typeof ApiToolChoiceWireRoute
   '/api/tool-first-text-wire': typeof ApiToolFirstTextWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
@@ -1395,6 +1403,7 @@ export interface FileRoutesById {
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/text-first-tool-wire': typeof ApiTextFirstToolWireRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
+  '/api/tool-choice-wire': typeof ApiToolChoiceWireRoute
   '/api/tool-first-text-wire': typeof ApiToolFirstTextWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
@@ -1550,6 +1559,7 @@ export interface FileRouteTypes {
     | '/api/summarize'
     | '/api/text-first-tool-wire'
     | '/api/tool-call-lifecycle-wire'
+    | '/api/tool-choice-wire'
     | '/api/tool-first-text-wire'
     | '/api/tools-test'
     | '/api/transcription'
@@ -1703,6 +1713,7 @@ export interface FileRouteTypes {
     | '/api/summarize'
     | '/api/text-first-tool-wire'
     | '/api/tool-call-lifecycle-wire'
+    | '/api/tool-choice-wire'
     | '/api/tool-first-text-wire'
     | '/api/tools-test'
     | '/api/transcription'
@@ -1856,6 +1867,7 @@ export interface FileRouteTypes {
     | '/api/summarize'
     | '/api/text-first-tool-wire'
     | '/api/tool-call-lifecycle-wire'
+    | '/api/tool-choice-wire'
     | '/api/tool-first-text-wire'
     | '/api/tools-test'
     | '/api/transcription'
@@ -2010,6 +2022,7 @@ export interface RootRouteChildren {
   ApiSummarizeRoute: typeof ApiSummarizeRoute
   ApiTextFirstToolWireRoute: typeof ApiTextFirstToolWireRoute
   ApiToolCallLifecycleWireRoute: typeof ApiToolCallLifecycleWireRoute
+  ApiToolChoiceWireRoute: typeof ApiToolChoiceWireRoute
   ApiToolFirstTextWireRoute: typeof ApiToolFirstTextWireRoute
   ApiToolsTestRoute: typeof ApiToolsTestRoute
   ApiTranscriptionRoute: typeof ApiTranscriptionRouteWithChildren
@@ -2977,6 +2990,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiToolCallLifecycleWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/tool-choice-wire': {
+      id: '/api/tool-choice-wire'
+      path: '/api/tool-choice-wire'
+      fullPath: '/api/tool-choice-wire'
+      preLoaderRoute: typeof ApiToolChoiceWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/tool-first-text-wire': {
       id: '/api/tool-first-text-wire'
       path: '/api/tool-first-text-wire'
@@ -3282,6 +3302,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSummarizeRoute: ApiSummarizeRoute,
   ApiTextFirstToolWireRoute: ApiTextFirstToolWireRoute,
   ApiToolCallLifecycleWireRoute: ApiToolCallLifecycleWireRoute,
+  ApiToolChoiceWireRoute: ApiToolChoiceWireRoute,
   ApiToolFirstTextWireRoute: ApiToolFirstTextWireRoute,
   ApiToolsTestRoute: ApiToolsTestRoute,
   ApiTranscriptionRoute: ApiTranscriptionRouteWithChildren,

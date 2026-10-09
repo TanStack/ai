@@ -1,4 +1,4 @@
-import type { ReasoningRequest } from '@tanstack/ai'
+import type { ReasoningRequest, ToolChoice } from '@tanstack/ai'
 import type { Feature, Provider } from '@/lib/types'
 import { getGuitars, compareGuitars, addToCart } from '@/lib/tools'
 
@@ -7,6 +7,8 @@ interface FeatureConfig {
   modelOptions: Record<string, any>
   /** `chat({ reasoning })` for the feature. */
   reasoning?: ReasoningRequest
+  /** `chat({ toolChoice })` for the feature. */
+  toolChoice?: ToolChoice
   modelOverrides?: Partial<Record<Provider, string>>
   dedicatedRoute?: string
   /**
@@ -57,6 +59,11 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
   'tool-calling': {
     tools: [getGuitars],
     modelOptions: {},
+  },
+  'tool-choice': {
+    tools: [getGuitars],
+    modelOptions: {},
+    toolChoice: { type: 'tool', name: 'getGuitars' },
   },
   'parallel-tool-calls': {
     tools: [getGuitars, compareGuitars],
