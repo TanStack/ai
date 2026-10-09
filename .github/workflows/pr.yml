@@ -1,7 +1,7 @@
 name: PR
 
 on:
-  pull_request:
+  # The temporary six-shard timing workflow replaces this PR run.
   push:
     branches: [main, alpha, beta, rc]
 

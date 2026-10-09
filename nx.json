@@ -10,8 +10,7 @@
       "plugin": "@nx/playwright/plugin",
       "include": ["testing/e2e/playwright.config.ts"],
       "options": {
-        "targetName": "test:e2e",
-        "ciTargetName": "test:e2e:ci"
+        "targetName": "test:e2e"
       }
     }
   ],
@@ -114,23 +113,6 @@
       ],
       "outputs": []
     },
-    "test:e2e:ci--tests/**/*": {
-      "dependsOn": ["^build"],
-      "parallelism": false,
-      "inputs": [
-        "default",
-        "^production",
-        {
-          "env": "CI"
-        },
-        {
-          "externalDependencies": ["@playwright/test"]
-        }
-      ],
-      "options": {
-        "args": "--pass-with-no-tests"
-      }
-    },
     "test:e2e:ci--merge-reports": {
       "dependsOn": ["test:e2e:ci"],
       "inputs": [
@@ -152,6 +134,21 @@
           "externalDependencies": ["@playwright/test"]
         }
       ]
+    },
+    "test:e2e:ci--shard-*": {
+      "dependsOn": ["^build"],
+      "parallelism": false,
+      "inputs": [
+        "default",
+        "^production",
+        {
+          "env": "CI"
+        },
+        {
+          "externalDependencies": ["@playwright/test"]
+        }
+      ],
+      "cache": true
     }
   }
 }
