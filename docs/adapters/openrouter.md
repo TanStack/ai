@@ -391,20 +391,22 @@ Plugin ids include `web`, `file-parser`, `response-healing`, `moderation`, and `
 
 ### Reasoning
 
-`reasoning` is OpenRouter's unified reasoning configuration:
+Set `reasoning` on `chat()`. OpenRouter gets it as `reasoning.effort`:
 
 ```typescript
 import { chat } from "@tanstack/ai";
 import { openRouterText } from "@tanstack/ai-openrouter";
 
 const stream = chat({
-  adapter: openRouterText("anthropic/claude-sonnet-5"),
+  adapter: openRouterText("anthropic/claude-opus-5.5"),
   messages: [{ role: "user", content: "Hello!" }],
   reasoning: "high",
 });
 ```
 
-The adapter sends the level as `reasoning.effort`. `reasoning: "off"` sends `effort: "none"`.
+- `off` sends `effort: "none"`.
+- `openRouterText` takes no `budgetTokens`. `openRouterResponsesText` sends `budgetTokens` as `reasoning.maxTokens`, and adds `summary: "auto"` so the thinking text streams.
+- The types take the levels of each model. Your editor shows them when you type `reasoning`.
 
 ### Session and metadata
 

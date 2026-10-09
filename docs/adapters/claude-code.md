@@ -89,6 +89,25 @@ const stream = chat({
 
 **Permissions on headless servers.** Without an explicit `permissionMode` or `canUseTool`, the adapter installs a safe default handler: bridged TanStack tools always run, and any built-in tool call that would normally prompt a human is denied with guidance instead of hanging the request. To let the harness edit files or run commands, set `permissionMode: 'acceptEdits'` / `'bypassPermissions'`, or enumerate `allowedTools`.
 
+## Reasoning
+
+Set `reasoning` on `chat()`. The adapter turns it into a Claude Code setting:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { claudeCodeText } from "@tanstack/ai-claude-code";
+
+const stream = chat({
+  adapter: claudeCodeText("claude-opus-4-8"),
+  messages: [{ role: "user", content: "Refactor the auth module" }],
+  reasoning: "xhigh",
+});
+```
+
+- `claude-opus-4-8`, `claude-opus-4-7`, `opus`: `--effort`, `low` to `max`.
+- `claude-opus-4-6`, `claude-sonnet-4-6`, `sonnet`: `--effort`, `low`, `medium`, `high`, `max`.
+- `claude-haiku-4-5`, `haiku`: `MAX_THINKING_TOKENS`, `off` to `high`. The level picks the budget, or you set it with `budgetTokens`. `off` sends `0`.
+
 ## Stateful Sessions
 
 Claude Code sessions are stateful — the harness keeps the full working context (files read, commands run, conclusions reached) between turns. The adapter surfaces the session id of every run as a custom stream event named `claude-code.session-id`; thread it back via `modelOptions.sessionId` to resume the session. When resuming, only the latest user message is sent — the harness already holds the prior context.

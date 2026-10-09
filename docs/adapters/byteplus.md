@@ -142,7 +142,7 @@ export function Chat() {
 
 ### Model options
 
-Ark's chat endpoint is OpenAI-compatible, so sampling parameters keep their OpenAI snake_case names and live in `modelOptions`. `thinking`, `reasoning_effort`, `repetition_penalty` and `service_tier` are the Ark-only additions:
+Ark's chat endpoint is OpenAI-compatible, so sampling parameters keep their OpenAI snake_case names and live in `modelOptions`. `repetition_penalty` and `service_tier` are the Ark-only additions. The thinking level goes in `reasoning`:
 
 ```typescript
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
@@ -166,10 +166,7 @@ export async function POST(request: Request) {
 }
 ```
 
-Two constraints the type system can't express, both live-verified as `400`s:
-
-- `max_tokens` and `max_completion_tokens` are mutually exclusive.
-- `reasoning_effort` cannot be combined with `thinking: { type: 'disabled' }`.
+`max_tokens` and `max_completion_tokens` are mutually exclusive. The types cannot express this, and Ark returns a `400` when you send both.
 
 `service_tier: 'flex'` routes the request to the cheaper offline batch queue with no latency guarantee.
 
@@ -177,7 +174,7 @@ Need a header on each request, or a log of each model call? The chat adapter sup
 
 ## Reasoning and `encrypted_content`
 
-Seed models reason by default. Reasoning arrives as its own stream of `reasoning_content` deltas and is surfaced as reasoning content rather than answer text, so `useChat` renders it separately from the reply. Turn it off per request:
+Seed models reason by default. Reasoning arrives as its own stream of `reasoning_content` deltas and is surfaced as reasoning content rather than answer text, so `useChat` renders it separately from the reply. Turn it off per request, on a model that can stop thinking:
 
 ```typescript
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
@@ -196,7 +193,14 @@ export async function POST(request: Request) {
 }
 ```
 
-`disabled` works everywhere; `auto` is accepted only by `gpt-oss-120b-250805`. `deepseek-v3-2-251201` is the one model that defaults to reasoning *off*.
+`off` sends `thinking: { type: 'disabled' }` and no effort. The other levels send `thinking: { type: 'enabled' }` and `reasoning_effort`. `deepseek-v3-2-251201` is the one model that does not think by default.
+
+The levels of each model:
+
+- `dola-seed-2-1-turbo-260628` and the `seed-*` models: `minimal` to `high`. They cannot stop thinking.
+- `glm-5-2-260617`: `off` to `high`. `glm-4-7-251222`, `deepseek-v3-2-251201`: `off`, `high`.
+- `deepseek-v4-pro-260425`, `deepseek-v4-flash-260425`: `off`, `high`, `max`.
+- `gpt-oss-120b-250805`: `low`, `medium`, `high`.
 
 The four "thinking summary" models — `dola-seed-2-1-turbo-260628`, `seed-2-0-lite-260428`, `seed-2-0-mini-260428` and `seed-2-0-pro-260328` — also emit an opaque `encrypted_content` blob alongside the reasoning trace. It is a signature over that trace, and BytePlus's docs ask for it back verbatim on the assistant message in the next turn.
 

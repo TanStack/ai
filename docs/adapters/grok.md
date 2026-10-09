@@ -205,6 +205,30 @@ export async function POST(request: Request) {
 
 > If you previously passed `temperature` / `topP` / `maxTokens` at the root of `chat()`, see [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
 
+## Reasoning
+
+Want Grok to think harder? Set `reasoning` on `chat()`. It goes out as `reasoning.effort`, with a summary so the thinking text streams:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { grokText } from "@tanstack/ai-grok";
+
+const stream = chat({
+  adapter: grokText("grok-4.7"),
+  messages: [{ role: "user", content: "Plan a database migration." }],
+  reasoning: "xhigh",
+});
+```
+
+| Model | Levels |
+| --- | --- |
+| `grok-4.7`, `grok-4.6` | `low` to `xhigh` |
+| `grok-4.5` | `low`, `medium`, `high` |
+| `grok-4.3` | `off`, `low`, `medium`, `high` |
+| `grok-4.20-reasoning`, `grok-4.1-fast-reasoning` | `off` to `high` |
+
+`grok-build-0.1` and the `non-reasoning` models take no `reasoning`.
+
 ## Summarization
 
 Summarize long text content:

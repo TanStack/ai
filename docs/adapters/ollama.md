@@ -226,6 +226,31 @@ modelOptions: {
 }
 ```
 
+## Reasoning
+
+Running a thinking model like Qwen 3 or gpt-oss? Set `reasoning` on `chat()`:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { ollamaText } from "@tanstack/ai-ollama";
+
+const stream = chat({
+  adapter: ollamaText("qwen3:8b"),
+  messages: [{ role: "user", content: "Plan a database migration." }],
+  reasoning: "off",
+});
+```
+
+The adapter sends it as `think`:
+
+| Model | Levels | Sent as |
+| --- | --- | --- |
+| `qwen3`, `deepseek-r1`, `deepseek-v3.1` | `off`, `high` | `think: false` or `true` |
+| `gpt-oss` | `low`, `medium`, `high` | `think: "low"` and so on |
+| a model name this package does not list | `off`, `high` | `think: false` or `true` |
+
+The other listed models take no `reasoning`.
+
 ## Summarization
 
 Summarize long text content locally:

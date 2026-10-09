@@ -86,6 +86,24 @@ const stream = chat({
 
 Per-call overrides — `sessionId`, `permissionMode`, `directory` — go through `modelOptions`.
 
+## Reasoning
+
+Set `reasoning` on `chat()`. The adapter writes it into the model's `options` in the OpenCode server config:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { opencodeText } from "@tanstack/ai-opencode";
+
+const stream = chat({
+  adapter: opencodeText("anthropic/claude-sonnet-4-5"),
+  messages: [{ role: "user", content: "Refactor the auth module" }],
+  reasoning: { level: "high", budgetTokens: 8000 },
+});
+```
+
+- Claude models get `thinking` with a token budget. `off` disables thinking. `anthropic/claude-sonnet-4-5` and `opencode/claude-sonnet-4-5` take `off` to `high`. `anthropic/claude-opus-4-5` takes `low`, `medium`, `high`.
+- The other models get `reasoningEffort`, plus `reasoningSummary: "auto"` when the summary is on. `openai/gpt-5.2` takes `off`, `low` to `xhigh`. The `gpt-5.1-codex` models take `low`, `medium`, `high`.
+
 ## Permissions
 
 OpenCode asks for permission before mutating files or running commands. A headless server has no one to answer those prompts, so the adapter applies a policy automatically — it never hangs a turn:

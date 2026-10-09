@@ -89,6 +89,25 @@ Per-call overrides go through `modelOptions`: `sessionId`, `sandboxMode`,
 `approvalPolicy`, `workingDirectory`, `skipGitRepoCheck`, and `authMode`.
 Set the effort per call with `reasoning` on `chat()`. See [Reasoning](#reasoning).
 
+## Reasoning
+
+Set `reasoning` on `chat()`. Codex gets it as `model_reasoning_effort`:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { codexText } from "@tanstack/ai-codex";
+
+const stream = chat({
+  adapter: codexText("gpt-5.3-codex"),
+  messages: [{ role: "user", content: "Fix the failing test in utils.test.ts" }],
+  reasoning: "xhigh",
+});
+```
+
+- `gpt-5.3-codex`: `off`, `low` to `xhigh`. `gpt-5.2-codex`: `low` to `xhigh`.
+- `gpt-5.1-codex`, `gpt-5.1-codex-mini`: `low`, `medium`, `high`. `gpt-5.1`: `off`, `low`, `medium`, `high`.
+- A call without `reasoning` uses `modelReasoningEffort` from the config.
+
 ## Stateful Sessions
 
 Codex threads are stateful — the harness keeps the full working context (files read, commands run, conclusions reached) between turns. The adapter surfaces the thread id of every fresh run as a custom stream event named `codex.session-id`; thread it back via `modelOptions.sessionId` to resume. When resuming, only the latest user message is sent — the harness already holds the prior context.
