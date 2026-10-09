@@ -84,6 +84,25 @@ export interface ReasoningRequest {
  */
 export type ModelReasoning = false | { map?: ReasoningMap; budget: boolean }
 
+/** The levels a level map supports, with the rules of `supportedReasoningLevels`. */
+type MapLevels<TMap> = Exclude<
+  ReasoningLevel,
+  | { [L in keyof TMap]: TMap[L] extends string ? never : L }[keyof TMap]
+  | Exclude<'xhigh' | 'max', keyof TMap>
+>
+
+/**
+ * The type-level capability of a model's reasoning data, for an adapter's
+ * `'~types'.reasoning`. Provider packages keep the data in their model meta
+ * `as const`, and derive the levels from it with this type.
+ */
+export type ModelReasoningCapability<
+  TReasoning extends { map?: ReasoningMap; budget: boolean },
+> = {
+  levels: MapLevels<NonNullable<TReasoning['map']>>
+  budget: TReasoning['budget']
+}
+
 /** A level or an object, as the user passed it, into the one shape adapters read. */
 export function normalizeReasoning(
   option: ReasoningOption | undefined,

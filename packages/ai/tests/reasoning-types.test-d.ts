@@ -1,4 +1,6 @@
+import { expectTypeOf } from 'vitest'
 import { chat } from '../src'
+import type { ModelReasoningCapability } from '../src'
 import type { TextAdapter } from '../src/activities/chat/adapter'
 import type { DefaultMessageMetadataByModality } from '../src/types'
 
@@ -61,3 +63,17 @@ chat({ adapter: plainModel, messages, reasoning: 'low' })
 
 // Not passing it is always fine.
 chat({ adapter: plainModel, messages })
+
+// A model's levels, derived from its reasoning data.
+const metaData = {
+  map: { off: null, minimal: null, low: 'low', high: 'high', max: 'max' },
+  budget: false,
+} as const
+expectTypeOf<ModelReasoningCapability<typeof metaData>>().toEqualTypeOf<{
+  levels: 'low' | 'medium' | 'high' | 'max'
+  budget: false
+}>()
+expectTypeOf<ModelReasoningCapability<{ budget: true }>>().toEqualTypeOf<{
+  levels: 'off' | 'minimal' | 'low' | 'medium' | 'high'
+  budget: true
+}>()
