@@ -1162,7 +1162,8 @@
         {
           "label": "Extend Adapter",
           "to": "advanced/extend-adapter",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "Typed Pre-Configured Options",
@@ -1186,19 +1187,19 @@
           "label": "OpenAI",
           "to": "adapters/openai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-08"
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "Anthropic",
           "to": "adapters/anthropic",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-07"
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "Google Gemini",
           "to": "adapters/gemini",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-08"
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "Google Vertex AI",
@@ -1216,19 +1217,19 @@
           "label": "Grok (xAI)",
           "to": "adapters/grok",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-19"
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "Groq",
           "to": "adapters/groq",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-07"
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "Mistral",
           "to": "adapters/mistral",
           "addedAt": "2026-06-30",
-          "updatedAt": "2026-09-03"
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "Cohere",
@@ -1274,7 +1275,7 @@
           "label": "OpenRouter Adapter",
           "to": "adapters/openrouter",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-07"
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "Perplexity Search",
@@ -1302,7 +1303,8 @@
         {
           "label": "LLM Gateway",
           "to": "adapters/llmgateway",
-          "addedAt": "2026-07-29"
+          "addedAt": "2026-07-29",
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "Cloudflare",
@@ -1350,7 +1352,7 @@
           "label": "BytePlus",
           "to": "adapters/byteplus",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-09-16"
+          "updatedAt": "2026-10-09"
         }
       ],
       "tab": "adapters"

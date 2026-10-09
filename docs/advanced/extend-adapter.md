@@ -159,6 +159,61 @@ This design is intentional - it allows you to:
 - Proxy requests to different backends that accept custom model identifiers
 - Add type safety without runtime overhead
 
+## Check what a model accepts
+
+A user attaches an image, but the selected model only reads text. You want to know that before you send the request. Read `inputModalities` on the text adapter:
+
+```typescript
+import { openaiText } from '@tanstack/ai-openai'
+
+const adapter = openaiText('gpt-6.1-sol')
+
+console.log(adapter.inputModalities) // ['image', 'text']
+
+if (!adapter.inputModalities?.includes('image')) {
+  console.log('This model cannot read images. Pick another model.')
+}
+```
+
+- The list comes from the model metadata of the provider package.
+- It is `undefined` when the package does not know the model, for example a custom model from `extendAdapter`. Treat `undefined` as "not known", not as "text only".
+
+If you write your own adapter, set `inputModalities` from your model list:
+
+```typescript
+import { BaseTextAdapter } from '@tanstack/ai/adapters'
+import type { DefaultMessageMetadataByModality, Modality } from '@tanstack/ai'
+
+const INPUT_BY_MODEL: Record<string, ReadonlyArray<Modality>> = {
+  'my-vision-model': ['text', 'image'],
+  'my-text-model': ['text'],
+}
+
+class MyTextAdapter extends BaseTextAdapter<
+  string,
+  Record<string, never>,
+  ReadonlyArray<Modality>,
+  DefaultMessageMetadataByModality
+> {
+  readonly name = 'my-provider'
+  override readonly inputModalities = INPUT_BY_MODEL[this.model]
+
+  constructor(model: string) {
+    super({}, model)
+  }
+
+  async *chatStream() {
+    // Call your provider and yield its chunks here.
+  }
+
+  structuredOutput() {
+    return Promise.resolve({ data: {}, rawText: '{}' })
+  }
+}
+
+console.log(new MyTextAdapter('my-vision-model').inputModalities) // ['text', 'image']
+```
+
 ## Example: OpenAI-Compatible Proxy
 
 A common use case is typing models for an OpenAI-compatible proxy:
