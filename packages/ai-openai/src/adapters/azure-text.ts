@@ -1,6 +1,7 @@
 import { AzureOpenAI } from 'openai'
 import {
   OpenAIBaseResponsesTextAdapter,
+  toResponsesToolChoice,
   warnStrictFallback,
 } from '@tanstack/openai-base'
 import { convertToolsToProviderFormat } from '../tools'
@@ -137,7 +138,13 @@ export class AzureOpenAITextAdapter<
     const tools = options.tools
       ? convertToolsToProviderFormat(options.tools)
       : undefined
+    // The base saw no tools, so it sent no `chat({ toolChoice })`. It goes
+    // before `request`, so a `tool_choice` from modelOptions wins.
     return {
+      ...(tools?.length &&
+        options.toolChoice !== undefined && {
+          tool_choice: toResponsesToolChoice(options.toolChoice),
+        }),
       ...request,
       ...(tools && tools.length > 0 && { tools }),
       model: this.deploymentName,

@@ -1,6 +1,9 @@
 import OpenAI from 'openai'
 import { fileReferenceFor, isFileSource } from '@tanstack/ai'
-import { OpenAIBaseResponsesTextAdapter } from '@tanstack/openai-base'
+import {
+  OpenAIBaseResponsesTextAdapter,
+  toResponsesToolChoice,
+} from '@tanstack/openai-base'
 import {
   GROK_MODEL_INPUT_MODALITIES,
   GROK_MODEL_REASONING,
@@ -135,7 +138,16 @@ export class GrokTextAdapter<
       ? convertToolsToProviderFormat(options.tools)
       : undefined
 
+    // The base saw no tools, so it sent no `chat({ toolChoice })`. Set it
+    // here when the request has tools. It goes before `request`, so a
+    // `tool_choice` from modelOptions wins.
+    const toolChoiceField =
+      tools?.length && options.toolChoice !== undefined
+        ? { tool_choice: toResponsesToolChoice(options.toolChoice) }
+        : undefined
+
     return {
+      ...toolChoiceField,
       ...request,
       // xAI recommends encrypted reasoning for reasoning-capable Responses
       // requests; callers can still override either field in modelOptions.

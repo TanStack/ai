@@ -24,6 +24,11 @@ interface ModelMeta<
     extended_thinking?: boolean
     adaptive_thinking?: boolean
     priority_tier?: boolean
+    /**
+     * `false`: the model rejects a forced tool (`any` or a named `tool`) on
+     * every request, with or without thinking. Absent: it accepts one.
+     */
+    forced_tool_choice?: false
     tools?: Array<
       | 'web_search'
       | 'web_fetch'
@@ -667,6 +672,7 @@ const CLAUDE_FABLE_5_1 = {
   max_output_tokens: 128_000,
   supports: {
     input: ['text', 'image', 'document'],
+    forced_tool_choice: false,
     tools: [
       'web_search',
       'web_fetch',
@@ -716,6 +722,7 @@ const CLAUDE_OPUS_5_5 = {
   max_output_tokens: 128_000,
   supports: {
     input: ['text', 'image', 'document'],
+    forced_tool_choice: false,
     // No 'computer_use': this model accepts only `computer_toolset_20260801`,
     // and `computerUseTool()` sends the older versions, which return a 400.
     tools: [
@@ -771,6 +778,7 @@ const CLAUDE_SONNET_5_5 = {
   max_output_tokens: 128_000,
   supports: {
     input: ['text', 'image', 'document'],
+    forced_tool_choice: false,
     extended_thinking: false,
     adaptive_thinking: true,
     // No 'computer_use': this model accepts only `computer_toolset_20260801`,
@@ -1247,6 +1255,34 @@ export const ANTHROPIC_MODEL_INPUT_MODALITIES: Readonly<
   [CLAUDE_SONNET_5_5.id]: CLAUDE_SONNET_5_5.supports.input,
   [CLAUDE_HAIKU_5_5.id]: CLAUDE_HAIKU_5_5.supports.input,
 } satisfies AnthropicModelInputModalitiesByName
+
+/**
+ * The chat models that reject a forced tool (`any` or a named `tool`) on
+ * every request. Derived from `supports.forced_tool_choice`. Thinking also
+ * blocks a forced tool, so the text adapter checks that per request.
+ */
+export const ANTHROPIC_NO_FORCED_TOOL_MODELS: ReadonlySet<string> = new Set(
+  [
+    CLAUDE_OPUS_4_6,
+    CLAUDE_OPUS_4_5,
+    CLAUDE_SONNET_4_6,
+    CLAUDE_SONNET_4_5,
+    CLAUDE_HAIKU_4_5,
+    CLAUDE_OPUS_4_1,
+    CLAUDE_OPUS_4_7,
+    CLAUDE_OPUS_4_8,
+    CLAUDE_FABLE_5,
+    CLAUDE_SONNET_5,
+    CLAUDE_OPUS_5,
+    CLAUDE_OPUS_5_FAST,
+    CLAUDE_FABLE_5_1,
+    CLAUDE_OPUS_5_5,
+    CLAUDE_SONNET_5_5,
+    CLAUDE_HAIKU_5_5,
+  ]
+    .filter((model) => 'forced_tool_choice' in model.supports)
+    .map((model) => model.id),
+)
 
 // Reasoning
 //

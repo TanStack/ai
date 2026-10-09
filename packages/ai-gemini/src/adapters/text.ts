@@ -1,4 +1,4 @@
-import { FinishReason } from '@google/genai'
+import { FinishReason, FunctionCallingConfigMode } from '@google/genai'
 import {
   EventType,
   fileReferenceFor,
@@ -34,6 +34,7 @@ import type {
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
   Content,
+  FunctionCallingConfig,
   GenerateContentParameters,
   GenerateContentResponse,
   GoogleGenAI,
@@ -48,6 +49,7 @@ import type {
   AdapterYieldChunk,
   ProviderExecutedToolSource,
   TextOptions,
+  ToolChoice,
 } from '@tanstack/ai'
 import type { ExternalTextProviderOptions } from '../text/text-provider-options'
 import type {
@@ -86,6 +88,19 @@ function getGroundingSources(
     })
   }
   return [...sources.values()]
+}
+
+/** Maps `chat({ toolChoice })` to the Gemini function calling config. */
+function toGeminiFunctionCallingConfig(
+  choice: ToolChoice,
+): FunctionCallingConfig {
+  if (choice === 'auto') return { mode: FunctionCallingConfigMode.AUTO }
+  if (choice === 'none') return { mode: FunctionCallingConfigMode.NONE }
+  if (choice === 'required') return { mode: FunctionCallingConfigMode.ANY }
+  return {
+    mode: FunctionCallingConfigMode.ANY,
+    allowedFunctionNames: [choice.name],
+  }
 }
 
 /**
@@ -1305,6 +1320,17 @@ export class GeminiTextAdapter<
         }
       : undefined
 
+    // `chat({ toolChoice })` is sent only when the request has function
+    // declarations, because Gemini rejects a function calling config without
+    // them. A `toolConfig` in modelOptions wins key by key, so its own
+    // `functionCallingConfig` wins, and a `retrievalConfig` alone keeps this one.
+    const tools = convertToolsToProviderFormat(options.tools)
+    const functionCallingConfig =
+      options.toolChoice !== undefined &&
+      tools.some((tool) => 'functionDeclarations' in tool)
+        ? toGeminiFunctionCallingConfig(options.toolChoice)
+        : undefined
+
     // Vendor `GenerateContentConfig` fields are `field?: T` (no `| undefined`)
     // under EOPT, so spread each common option only when present rather than
     // emitting `field: undefined`s into the wire payload.
@@ -1313,11 +1339,17 @@ export class GeminiTextAdapter<
       contents: this.formatMessages(options.messages),
       config: {
         ...modelOpts,
+        ...(functionCallingConfig !== undefined && {
+          toolConfig: {
+            functionCallingConfig,
+            ...options.modelOptions?.toolConfig,
+          },
+        }),
         ...(mappedThinkingConfig !== undefined && {
           thinkingConfig: mappedThinkingConfig,
         }),
         ...(systemInstruction !== undefined && { systemInstruction }),
-        tools: convertToolsToProviderFormat(options.tools),
+        tools,
         ...(combinedSchemaConfig ?? {}),
         // Forward the caller's abort signal so cancellation reaches the SDK
         // request, matching the OpenAI-compatible adapters (issue #1374).

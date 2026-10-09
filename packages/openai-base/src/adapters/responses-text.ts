@@ -25,6 +25,7 @@ import type {
   StructuredOutputCompatibility,
 } from '../utils/schema-converter'
 import { buildResponsesUsage } from '../usage'
+import { toResponsesToolChoice } from '../tools/tool-choice'
 import { convertToolsToResponsesFormat } from './responses-tool-converter'
 import {
   hostedShellCallIds,
@@ -2258,6 +2259,13 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         }
       : undefined
 
+    // `chat({ toolChoice })` is sent only when the request has tools. It goes
+    // before the `modelOptions` spread, so a `tool_choice` there wins.
+    const toolChoiceField =
+      tools?.length && options.toolChoice !== undefined
+        ? { tool_choice: toResponsesToolChoice(options.toolChoice) }
+        : undefined
+
     // `modelOptions` is the sole sampling surface: `temperature`, `top_p`, and
     // `max_output_tokens` live there (typed via OpenAISamplingOptions) and are
     // spread first. Engine-managed fields (`model`, `metadata`, `instructions`,
@@ -2265,6 +2273,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     // always win over any same-named key a caller happened to put in
     // `modelOptions`.
     const params: Omit<ResponseCreateParams, 'stream'> = {
+      ...toolChoiceField,
       ...modelOptions,
       model: options.model,
       ...(options.metadata !== undefined && { metadata: options.metadata }),

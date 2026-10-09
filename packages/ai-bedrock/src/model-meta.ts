@@ -175,6 +175,20 @@ export type BedrockModelReasoningByName = {
 export const BEDROCK_MODEL_REASONING: Readonly<Record<string, ModelReasoning>> =
   BEDROCK_REASONING
 
+/**
+ * The Claude families that reject a forced tool (`any` or a named `tool`) on
+ * every request, with or without thinking. A Bedrock id has the family name
+ * inside it, for example `us.anthropic.claude-opus-5-5-...`.
+ * ponytail: names, not catalog entries, because the generated catalog has no
+ * entry for these models yet. Move it to the catalog when it has them.
+ */
+export const BEDROCK_CLAUDE_NO_FORCED_TOOL_FAMILIES: ReadonlyArray<string> = [
+  'claude-fable-5-1',
+  'claude-mythos-5-1',
+  'claude-opus-5-5',
+  'claude-sonnet-5-5',
+]
+
 // ============================================================================
 // Embedding models
 // ============================================================================
