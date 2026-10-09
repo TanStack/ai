@@ -190,6 +190,26 @@ tools inside a live process and can't pause across an HTTP round-trip. A tool
 without a server `execute()` (or marked `needsApproval`) fails fast; run those
 with a regular provider adapter.
 
+## Tool choice
+
+You want Grok Build to see just one of your tools, or none of them. Pass
+`toolChoice` to `chat()`. It limits only the tools that the adapter bridges
+into Grok Build. The built-in Grok Build tools always stay on, and Grok Build
+decides when it calls a tool. The rules are the same on both protocols.
+
+| Value | What the adapter does |
+| --- | --- |
+| `'auto'` | Bridges all of your tools. |
+| `'none'` | Bridges none of your tools. |
+| `{ type: 'tool', name }` | Bridges only the named tool. Grok Build does not have to call it. |
+| `'required'` | Bridges all of your tools. Grok Build does not have to call one. |
+
+Each value except `'auto'` logs a warning the first time an adapter instance
+gets it.
+
+For the values on other adapters, see
+[Choose when the model calls a tool](../tools/tools#choose-when-the-model-calls-a-tool).
+
 ## Durable runs
 
 A durable sandbox run (you pass `runs` and `durability` to `withSandbox`)

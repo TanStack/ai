@@ -188,7 +188,7 @@ Two kinds of tools flow through this adapter:
 
 2. **Your TanStack tools** are bridged *into* the harness as an in-process MCP server. Define them as usual with `toolDefinition().server()`; the model sees them as `mcp__tanstack__<name>` and the adapter strips the prefix on the way back out, so events match the names you registered.
 
-```typescript
+```typescript group=tools
 import { z } from "zod";
 import { chat, toolDefinition } from "@tanstack/ai";
 import { claudeCodeText } from "@tanstack/ai-claude-code";
@@ -209,6 +209,30 @@ const stream = chat({
 ```
 
 **Client-side and approval-gated tools are not supported.** The harness executes tools inside a live subprocess, which cannot pause across HTTP requests to wait for a browser round-trip or a human approval. Passing a tool without a server `execute()` implementation — or one marked `needsApproval` — fails fast with a descriptive error. Run those tools outside the harness with a regular provider adapter.
+
+## Tool choice
+
+You want Claude Code to answer in text only, or to use just one of your tools. Pass `toolChoice` to `chat()`:
+
+```typescript group=tools
+const onlyLookup = chat({
+  adapter: claudeCodeText("claude-opus-4-8"),
+  messages: [{ role: "user", content: "What's the status of ticket T-123?" }],
+  tools: [lookupTicket],
+  toolChoice: { type: "tool", name: "lookup_ticket" },
+});
+```
+
+| Value | What the adapter does |
+| --- | --- |
+| `'auto'` | No change. Claude Code can call every tool. |
+| `'none'` | Turns off the built-in tools and bridges none of your tools. Claude Code answers in text. |
+| `{ type: 'tool', name }` | Turns off the built-in tools and bridges only the named tool. Claude Code can call only this tool, but it does not have to. |
+| `'required'` | No change. Claude Code cannot force a tool call, so the adapter logs a warning the first time. |
+
+For `'none'` and a named tool, the adapter passes `--tools ""` and `--strict-mcp-config`. Then other MCP servers, for example from the workspace or a settings file, do not load.
+
+For the values on other adapters, see [Choose when the model calls a tool](../tools/tools#choose-when-the-model-calls-a-tool).
 
 ## Structured Output
 
