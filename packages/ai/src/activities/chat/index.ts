@@ -52,6 +52,7 @@ import {
 } from '../../utilities/tool-result'
 import { isProviderExecutedToolCall } from '../../utilities/provider-executed'
 import { assertMessagesFileSourceSupport } from '../../utilities/content-source'
+import { sanitizeProviderRequest } from '../../utilities/sanitize-unicode'
 import { LazyToolManager } from './tools/lazy-tool-manager'
 import { assertUniqueToolNames } from './tools/unique-tool-names'
 import type { DefinedAgent } from './agents/define-agent'
@@ -1614,12 +1615,11 @@ class TextEngine<
 
     for await (const raw of this.adapter.chatStream({
       model: this.params.model,
-      messages: this.providerMessages,
+      ...sanitizeProviderRequest(this.providerMessages, this.systemPrompts),
       tools: toolsWithJsonSchemas,
       metadata,
       request: this.effectiveRequest,
       modelOptions,
-      systemPrompts: this.systemPrompts,
       logger: this.logger,
       threadId: this.threadId,
       runId: this.runIdOverride,
@@ -3928,10 +3928,12 @@ class TextEngine<
     const structuredCallOptions = {
       chatOptions: {
         model: this.params.model,
-        messages: this.providerMessages,
+        ...sanitizeProviderRequest(
+          this.providerMessages,
+          postOnConfig.systemPrompts,
+        ),
         metadata: postOnConfig.metadata,
         modelOptions: postOnConfig.modelOptions,
-        systemPrompts: postOnConfig.systemPrompts,
         logger: this.logger,
         threadId: this.threadId,
         runId: this.runIdOverride,
