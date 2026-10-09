@@ -506,7 +506,7 @@ describe('BytePlus text adapter', () => {
   })
 
   describe('provider options', () => {
-    it('forwards Ark-only and sampling options into the request body', async () => {
+    it('forwards Ark-only options, sampling options, and chat({ reasoning })', async () => {
       const mockCreate = setupMockSdkClient([
         {
           id: 'chatcmpl-opts',
@@ -517,8 +517,6 @@ describe('BytePlus text adapter', () => {
       const adapter = createBytePlusText('seed-2-0-lite-260428', 'ark-test-key')
 
       const modelOptions: BytePlusTextProviderOptions = {
-        thinking: { type: 'enabled' },
-        reasoning_effort: 'high',
         repetition_penalty: 1.05,
         service_tier: 'flex',
         temperature: 0.4,
@@ -530,6 +528,7 @@ describe('BytePlus text adapter', () => {
           model: 'seed-2-0-lite-260428',
           messages: [{ role: 'user', content: 'Hello' }],
           modelOptions,
+          reasoning: { level: 'high', summary: true },
           logger: testLogger,
         }),
       )
@@ -544,6 +543,42 @@ describe('BytePlus text adapter', () => {
         stream: true,
         stream_options: { include_usage: true },
       })
+    })
+  })
+
+  describe('chat({ reasoning })', () => {
+    async function requestFor(
+      model: 'glm-4-7-251222' | 'glm-5-2-260617',
+      level: 'off' | 'high',
+    ) {
+      const mockCreate = setupMockSdkClient([
+        {
+          id: 'chatcmpl-reasoning',
+          model,
+          choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+        },
+      ])
+      await collect(
+        createBytePlusText(model, 'ark-test-key').chatStream({
+          model,
+          messages: [{ role: 'user', content: 'Hello' }],
+          reasoning: { level, summary: true },
+          logger: testLogger,
+        }),
+      )
+      return mockCreate.mock.calls[0]?.[0] as Record<string, unknown>
+    }
+
+    it('off sends thinking disabled and no effort', async () => {
+      const body = await requestFor('glm-5-2-260617', 'off')
+      expect(body.thinking).toEqual({ type: 'disabled' })
+      expect(body).not.toHaveProperty('reasoning_effort')
+    })
+
+    it('an on/off model sends thinking enabled and no effort', async () => {
+      const body = await requestFor('glm-4-7-251222', 'high')
+      expect(body.thinking).toEqual({ type: 'enabled' })
+      expect(body).not.toHaveProperty('reasoning_effort')
     })
   })
 
