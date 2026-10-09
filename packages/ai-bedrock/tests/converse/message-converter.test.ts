@@ -206,6 +206,25 @@ describe('toConverseMessages', () => {
     expect(messages[2]!.content![0]!.toolResult?.content).toEqual([imageBlock])
   })
 
+  it('keeps the text of a tool result whose image has a URL source', () => {
+    const { messages } = toConverseMessages([
+      {
+        role: 'tool',
+        content: [
+          { type: 'text', content: 'screenshot' },
+          {
+            type: 'image',
+            source: { type: 'url', value: 'https://example.com/a.png' },
+          },
+        ],
+        toolCallId: 't1',
+      },
+    ])
+    expect(messages[0]!.content![0]!.toolResult?.content).toEqual([
+      { text: 'screenshot' },
+    ])
+  })
+
   it('throws on a URL image source (Converse needs inline bytes)', () => {
     expect(() =>
       toConverseMessages([

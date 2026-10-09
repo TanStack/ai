@@ -170,7 +170,8 @@ function messageToBlocks(
       ? [{ text: textContent }]
       : []
     for (const part of Array.isArray(msg.content) ? msg.content : []) {
-      if (!isImagePart(part)) continue
+      // Converse takes only inline bytes. Skip other sources, as before.
+      if (!isImagePart(part) || !isDataSource(part.source)) continue
       const { image } = contentPartToBlock(part, 0)
       if (image) content.push({ image })
     }
