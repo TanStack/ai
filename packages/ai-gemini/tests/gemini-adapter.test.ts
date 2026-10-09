@@ -374,10 +374,6 @@ describe('GeminiAdapter through AI', () => {
           },
         },
       },
-      thinkingConfig: {
-        includeThoughts: true,
-        thinkingBudget: 128,
-      },
       imageConfig: {
         aspectRatio: '1:1',
       },
@@ -392,6 +388,7 @@ describe('GeminiAdapter through AI', () => {
       messages: [{ role: 'user', content: 'Provide structured response' }],
       systemPrompts: ['Stay concise', 'Return JSON'],
       modelOptions: providerOptions,
+      reasoning: { level: 'minimal', budgetTokens: 128 },
     })) {
       /* consume stream */
     }
@@ -425,7 +422,10 @@ describe('GeminiAdapter through AI', () => {
       providerOptions?.enableEnhancedCivicAnswers,
     )
     expect(config.speechConfig).toEqual(providerOptions?.speechConfig)
-    expect(config.thinkingConfig).toEqual(providerOptions?.thinkingConfig)
+    expect(config.thinkingConfig).toEqual({
+      includeThoughts: true,
+      thinkingBudget: 128,
+    })
     expect(config.imageConfig).toEqual(providerOptions?.imageConfig)
   })
 
@@ -1088,12 +1088,7 @@ describe('GeminiAdapter through AI', () => {
       adapter,
       tools: [sumTool],
       messages: [{ role: 'user', content: 'What is 1 + 2 + 5?' }],
-      modelOptions: {
-        thinkingConfig: {
-          includeThoughts: true,
-          thinkingLevel: 'LOW',
-        },
-      },
+      reasoning: 'low',
     })) {
       /* consume stream */
     }

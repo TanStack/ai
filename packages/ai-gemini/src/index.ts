@@ -174,10 +174,7 @@ export type {
   GeminiEmbeddingModelProviderOptionsByName,
   GeminiEmbeddingModelInputModalitiesByName,
 } from './model-meta'
-export type {
-  GeminiStructuredOutputOptions,
-  GeminiThinkingOptions,
-} from './text/text-provider-options'
+export type { GeminiStructuredOutputOptions } from './text/text-provider-options'
 export type { GoogleGeminiTool } from './tools/index'
 export type {
   GeminiTextMetadata,
