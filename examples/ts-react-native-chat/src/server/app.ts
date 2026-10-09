@@ -110,7 +110,7 @@ function requireOpenAIApiKey(): string {
   return apiKey
 }
 
-function supportsReasoningOptions(model: OpenAIChatModel) {
+function supportsReasoning(model: OpenAIChatModel) {
   return (
     model.startsWith('gpt-5') ||
     model.startsWith('o1') ||
@@ -119,13 +119,10 @@ function supportsReasoningOptions(model: OpenAIChatModel) {
   )
 }
 
-function getOpenAIModelOptions(model: OpenAIChatModel) {
-  if (!supportsReasoningOptions(model)) return undefined
-  return {
-    reasoning: {
-      summary: 'auto',
-    },
-  } as const
+/** Reasoning models stream a summary of their thinking. */
+function getOpenAIReasoning(model: OpenAIChatModel) {
+  if (!supportsReasoning(model)) return undefined
+  return { level: 'medium', summary: true } as const
 }
 
 export function createRecipePrompt(
@@ -358,7 +355,7 @@ async function createChatStream(
   requireOpenAIApiKey()
   const model = getOpenAIModel()
   const tools = mergeAgentTools(serverTools, params.tools)
-  const modelOptions = getOpenAIModelOptions(model)
+  const reasoning = getOpenAIReasoning(model)
 
   return chat({
     adapter: openaiText(model),
@@ -371,7 +368,7 @@ async function createChatStream(
     agentLoopStrategy: maxIterations(6),
     outputSchema: recipeOutputSchema,
     stream: true,
-    ...(modelOptions ? { modelOptions: modelOptions as never } : {}),
+    ...(reasoning ? { reasoning } : {}),
   }) as AsyncIterable<StreamChunk>
 }
 

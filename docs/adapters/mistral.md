@@ -282,6 +282,28 @@ Reasoning events are always closed before any text or tool output begins, so con
 
 See [Thinking & Reasoning](../chat/thinking-content) for the cross-provider event spec.
 
+## Reasoning
+
+Set `reasoning` on `chat()` to turn thinking up, down, or off:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { mistralText } from "@tanstack/ai-mistral";
+
+const stream = chat({
+  adapter: mistralText("mistral-medium-latest"),
+  messages: [{ role: "user", content: "Why is the sky blue?" }],
+  reasoning: "high",
+});
+```
+
+What goes on the wire:
+
+- `mistral-medium-latest`, `mistral-small-latest`: `reasoning_effort`. They take `off` (sent as `none`) and `high`.
+- `magistral-medium-latest`, `magistral-small-latest`: `prompt_mode: "reasoning"` for any level from `minimal` to `high`. `off` sends nothing.
+
+The other models take no `reasoning`.
+
 ## Example: Structured Output
 
 Generate JSON that conforms to a Zod schema using Mistral's `json_schema` response format:

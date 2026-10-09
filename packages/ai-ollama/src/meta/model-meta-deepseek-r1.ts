@@ -1,7 +1,8 @@
+import type { ModelReasoning } from '@tanstack/ai'
+import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
 import type {
   OllamaChatRequest,
   OllamaChatRequestMessages,
-  OllamaChatRequestThinking,
   OllamaChatRequestTools,
   OllamaMessageThinking,
   OllamaMessageTools,
@@ -17,11 +18,14 @@ const DEEPSEEK_R1_LATEST = {
   },
   size: '5.2gb',
   context: 128_000,
+  reasoning: {
+    map: { off: 'false', minimal: null, low: null, medium: null, high: 'true' },
+    budget: false,
+  },
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-    OllamaChatRequestTools &
-    OllamaChatRequestThinking
+    OllamaChatRequestTools
 >
 
 const DEEPSEEK_R1_1_5b = {
@@ -33,11 +37,14 @@ const DEEPSEEK_R1_1_5b = {
   },
   size: '1.1gb',
   context: 128_000,
+  reasoning: {
+    map: { off: 'false', minimal: null, low: null, medium: null, high: 'true' },
+    budget: false,
+  },
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-    OllamaChatRequestTools &
-    OllamaChatRequestThinking
+    OllamaChatRequestTools
 >
 
 const DEEPSEEK_R1_7b = {
@@ -49,11 +56,14 @@ const DEEPSEEK_R1_7b = {
   },
   size: '4.7gb',
   context: 128_000,
+  reasoning: {
+    map: { off: 'false', minimal: null, low: null, medium: null, high: 'true' },
+    budget: false,
+  },
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-    OllamaChatRequestTools &
-    OllamaChatRequestThinking
+    OllamaChatRequestTools
 >
 
 const DEEPSEEK_R1_8b = {
@@ -65,11 +75,14 @@ const DEEPSEEK_R1_8b = {
   },
   size: '5.2gb',
   context: 128_000,
+  reasoning: {
+    map: { off: 'false', minimal: null, low: null, medium: null, high: 'true' },
+    budget: false,
+  },
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-    OllamaChatRequestTools &
-    OllamaChatRequestThinking
+    OllamaChatRequestTools
 >
 
 const DEEPSEEK_R1_32b = {
@@ -81,11 +94,14 @@ const DEEPSEEK_R1_32b = {
   },
   size: '20gb',
   context: 128_000,
+  reasoning: {
+    map: { off: 'false', minimal: null, low: null, medium: null, high: 'true' },
+    budget: false,
+  },
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-    OllamaChatRequestTools &
-    OllamaChatRequestThinking
+    OllamaChatRequestTools
 >
 
 const DEEPSEEK_R1_70b = {
@@ -97,11 +113,14 @@ const DEEPSEEK_R1_70b = {
   },
   size: '43gb',
   context: 128_000,
+  reasoning: {
+    map: { off: 'false', minimal: null, low: null, medium: null, high: 'true' },
+    budget: false,
+  },
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-    OllamaChatRequestTools &
-    OllamaChatRequestThinking
+    OllamaChatRequestTools
 >
 
 const DEEPSEEK_R1_671b = {
@@ -113,11 +132,14 @@ const DEEPSEEK_R1_671b = {
   },
   size: '404gb',
   context: 160_000,
+  reasoning: {
+    map: { off: 'false', minimal: null, low: null, medium: null, high: 'true' },
+    budget: false,
+  },
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-    OllamaChatRequestTools &
-    OllamaChatRequestThinking
+    OllamaChatRequestTools
 >
 
 export const DEEPSEEK_R1_MODELS = [
@@ -145,32 +167,25 @@ export type DeepseekR1ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
   [DEEPSEEK_R1_LATEST.name]: OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-    OllamaChatRequestTools &
-    OllamaChatRequestThinking
+    OllamaChatRequestTools
   [DEEPSEEK_R1_1_5b.name]: OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-    OllamaChatRequestTools &
-    OllamaChatRequestThinking
+    OllamaChatRequestTools
   [DEEPSEEK_R1_7b.name]: OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-    OllamaChatRequestTools &
-    OllamaChatRequestThinking
+    OllamaChatRequestTools
   [DEEPSEEK_R1_8b.name]: OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-    OllamaChatRequestTools &
-    OllamaChatRequestThinking
+    OllamaChatRequestTools
   [DEEPSEEK_R1_32b.name]: OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-    OllamaChatRequestTools &
-    OllamaChatRequestThinking
+    OllamaChatRequestTools
   [DEEPSEEK_R1_70b.name]: OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-    OllamaChatRequestTools &
-    OllamaChatRequestThinking
+    OllamaChatRequestTools
   [DEEPSEEK_R1_671b.name]: OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-    OllamaChatRequestTools &
-    OllamaChatRequestThinking
+    OllamaChatRequestTools
 }
 
 export type DeepseekR1ModelInputModalitiesByName = {
@@ -183,3 +198,39 @@ export type DeepseekR1ModelInputModalitiesByName = {
   [DEEPSEEK_R1_70b.name]: typeof DEEPSEEK_R1_70b.supports.input
   [DEEPSEEK_R1_671b.name]: typeof DEEPSEEK_R1_671b.supports.input
 }
+
+/** Each model's reasoning levels, for `chat({ reasoning })`. */
+export type DeepseekR1ModelReasoningByName = {
+  [DEEPSEEK_R1_LATEST.name]: ModelReasoningCapability<
+    typeof DEEPSEEK_R1_LATEST.reasoning
+  >
+  [DEEPSEEK_R1_1_5b.name]: ModelReasoningCapability<
+    typeof DEEPSEEK_R1_1_5b.reasoning
+  >
+  [DEEPSEEK_R1_7b.name]: ModelReasoningCapability<
+    typeof DEEPSEEK_R1_7b.reasoning
+  >
+  [DEEPSEEK_R1_8b.name]: ModelReasoningCapability<
+    typeof DEEPSEEK_R1_8b.reasoning
+  >
+  [DEEPSEEK_R1_32b.name]: ModelReasoningCapability<
+    typeof DEEPSEEK_R1_32b.reasoning
+  >
+  [DEEPSEEK_R1_70b.name]: ModelReasoningCapability<
+    typeof DEEPSEEK_R1_70b.reasoning
+  >
+  [DEEPSEEK_R1_671b.name]: ModelReasoningCapability<
+    typeof DEEPSEEK_R1_671b.reasoning
+  >
+}
+
+/** Each model's reasoning data at runtime. */
+export const DEEPSEEK_R1_MODEL_REASONING = {
+  [DEEPSEEK_R1_LATEST.name]: DEEPSEEK_R1_LATEST.reasoning,
+  [DEEPSEEK_R1_1_5b.name]: DEEPSEEK_R1_1_5b.reasoning,
+  [DEEPSEEK_R1_7b.name]: DEEPSEEK_R1_7b.reasoning,
+  [DEEPSEEK_R1_8b.name]: DEEPSEEK_R1_8b.reasoning,
+  [DEEPSEEK_R1_32b.name]: DEEPSEEK_R1_32b.reasoning,
+  [DEEPSEEK_R1_70b.name]: DEEPSEEK_R1_70b.reasoning,
+  [DEEPSEEK_R1_671b.name]: DEEPSEEK_R1_671b.reasoning,
+} satisfies Record<keyof DeepseekR1ModelReasoningByName, ModelReasoning>

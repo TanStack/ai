@@ -1,6 +1,8 @@
 import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import {
   appendOutputSchemaInstruction,
+  reasoningBudget,
+  resolveReasoning,
   toRunErrorRawEvent,
 } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
@@ -29,6 +31,7 @@ import { buildPrompt } from '../messages/prompt'
 import { translateSdkStream } from '../stream/translate'
 import { mapPolicyToClaudeFlags } from './policy-map'
 import { projectClaudeWorkspace } from './projection'
+import { CLAUDE_CODE_MODEL_REASONING } from '../model-meta'
 import {
   CLAUDE_JSON_SCHEMA_PLACEHOLDER,
   CLAUDE_RUNNER_SOURCE,
@@ -50,9 +53,13 @@ import type {
   DefaultMessageMetadataByModality,
   Modality,
   AdapterYieldChunk,
+  ReasoningRequest,
   TextOptions,
 } from '@tanstack/ai'
-import type { ClaudeCodeModel } from '../model-meta'
+import type {
+  ClaudeCodeModel,
+  ClaudeCodeModelReasoningByName,
+} from '../model-meta'
 import type { ClaudeCodeTextProviderOptions } from '../provider-options'
 import type { AgentSdkMessage } from '../stream/sdk-types'
 
@@ -142,6 +149,19 @@ function localProcessHomeEnv(provider: string): Record<string, string> {
   return home ? { HOME: home } : {}
 }
 
+/**
+ * The chat() tools to bridge for `toolChoice`: none for `'none'`, and only
+ * the named tool for `{ type: 'tool', name }`.
+ */
+function toolsForChoice(options: TextOptions<ClaudeCodeTextProviderOptions>) {
+  const { toolChoice, tools = [] } = options
+  if (toolChoice === 'none') return []
+  if (typeof toolChoice === 'object') {
+    return tools.filter((tool) => tool.name === toolChoice.name)
+  }
+  return tools
+}
+
 /** Format a host tool-bridge as claude's `--mcp-config` JSON. */
 function bridgeToMcpConfig(bridge: HostToolBridge): string {
   return JSON.stringify({
@@ -155,6 +175,43 @@ function bridgeToMcpConfig(bridge: HostToolBridge): string {
   })
 }
 
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof ClaudeCodeModelReasoningByName
+    ? ClaudeCodeModelReasoningByName[TModel]
+    : never
+
+/**
+ * The CLI settings for `chat({ reasoning })`, from the Claude Code docs:
+ * - a model with effort levels: `--effort <level>`.
+ * - a budget model (Haiku): `MAX_THINKING_TOKENS`, the budget (pi's table
+ *   when the request sets none), or `0` for `off`.
+ */
+export function claudeCodeReasoning(
+  model: string,
+  request: ReasoningRequest | undefined,
+): { args: Array<string>; env: Record<string, string> } {
+  const reasoning = CLAUDE_CODE_MODEL_REASONING[model]
+  const resolved = resolveReasoning(request, reasoning)
+  if (!resolved || !reasoning) return { args: [], env: {} }
+  if (reasoning.map) {
+    return resolved.value === null
+      ? { args: [], env: {} }
+      : { args: ['--effort', resolved.value], env: {} }
+  }
+  const budget =
+    resolved.level === 'off'
+      ? 0
+      : reasoningBudget({
+          level: resolved.level,
+          summary: resolved.summary,
+          ...(resolved.budgetTokens !== undefined
+            ? { budgetTokens: resolved.budgetTokens }
+            : {}),
+        })
+  return { args: [], env: { MAX_THINKING_TOKENS: String(budget) } }
+}
+
 export class ClaudeCodeTextAdapter<
   TModel extends ClaudeCodeModel,
 > extends BaseTextAdapter<
@@ -164,7 +221,8 @@ export class ClaudeCodeTextAdapter<
   DefaultMessageMetadataByModality,
   ReadonlyArray<string>,
   unknown,
-  never
+  never,
+  ResolveReasoning<TModel>
 > {
   readonly name = 'claude-code' as const
 
@@ -172,6 +230,9 @@ export class ClaudeCodeTextAdapter<
   override readonly requires = [SandboxCapability] as const
 
   private readonly adapterConfig: ClaudeCodeTextConfig
+
+  /** Set after the first `toolChoice: 'required'` warning. */
+  private warnedRequired = false
 
   constructor(config: ClaudeCodeTextConfig, model: TModel) {
     super({}, model)
@@ -240,6 +301,7 @@ export class ClaudeCodeTextAdapter<
 
     if (config.streamPartials !== false) args.push('--include-partial-messages')
     if (resume !== undefined) args.push('--resume', resume)
+    args.push(...claudeCodeReasoning(this.model, options.reasoning).args)
 
     const permissionMode =
       modelOptions?.permissionMode ??
@@ -266,6 +328,13 @@ export class ClaudeCodeTextAdapter<
     ]
     if (disallowedTools.length > 0) {
       args.push('--disallowedTools', [...new Set(disallowedTools)].join(','))
+    }
+    // `'none'` and a named tool: `--tools ''` turns off every built-in tool,
+    // and `--strict-mcp-config` keeps only the bridge, which then has no
+    // chat() tool or only the named one (see `toolsForChoice`).
+    const toolChoice = options.toolChoice
+    if (toolChoice === 'none' || typeof toolChoice === 'object') {
+      args.push('--tools', '', '--strict-mcp-config')
     }
 
     const systemPrompts = normalizeSystemPrompts(options.systemPrompts)
@@ -371,6 +440,13 @@ export class ClaudeCodeTextAdapter<
     let cleanupSandbox: SandboxHandle | undefined
     const tempFiles: Array<string> = []
     try {
+      // Claude Code cannot force a tool call.
+      if (options.toolChoice === 'required' && !this.warnedRequired) {
+        this.warnedRequired = true
+        logger.warn(
+          "claude-code: toolChoice 'required' is not supported. The agent decides which tools to call.",
+        )
+      }
       const sandbox = this.sandboxFrom(options)
       cleanupSandbox = sandbox
       const cwd = this.workdir(options)
@@ -440,13 +516,13 @@ export class ClaudeCodeTextAdapter<
 
       // Bridge chat()-provided server tools (and/or the permission tool) into
       // the sandbox over MCP.
-      const hasTools = options.tools !== undefined && options.tools.length > 0
-      if (hasTools || permission !== undefined) {
+      const tools = toolsForChoice(options)
+      if (tools.length > 0 || permission !== undefined) {
         const provisioner =
           (options.capabilities
             ? getToolBridgeProvisioner(options.capabilities, { optional: true })
             : undefined) ?? nodeHttpBridgeProvisioner
-        bridge = await provisioner.provision(options.tools ?? [], {
+        bridge = await provisioner.provision(tools, {
           provider: sandbox.provider,
           context: options.context,
           emitCustomEvent: channel.emitCustomEvent,
@@ -565,6 +641,7 @@ export class ClaudeCodeTextAdapter<
               }),
           ...(injectApiKey ? hostClaudeAuthEnv() : {}),
           ...localProcessHomeEnv(sandbox.provider),
+          ...claudeCodeReasoning(this.model, options.reasoning).env,
           ...this.adapterConfig.env,
         },
         ...(options.abortController?.signal

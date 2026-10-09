@@ -1,6 +1,7 @@
 import OpenAI from 'openai'
 import {
   OpenAIBaseResponsesTextAdapter,
+  toResponsesToolChoice,
   warnStrictFallback,
 } from '@tanstack/openai-base'
 import { validateTextProviderOptions } from '../text/text-provider-options'
@@ -8,6 +9,7 @@ import { convertToolsToProviderFormat } from '../tools'
 import { getOpenAIApiKeyFromEnv } from '../utils/client'
 import {
   OPENAI_MODEL_INPUT_MODALITIES,
+  OPENAI_MODEL_REASONING,
   openAIModelRejectsSamplingParams,
 } from '../model-meta'
 import type {
@@ -16,9 +18,10 @@ import type {
   OpenAIChatModelProviderOptionsByName,
   OpenAIChatModelToolCapabilitiesByName,
   OpenAIModelInputModalitiesByName,
+  OpenAIModelReasoningByName,
 } from '../model-meta'
 import type { ResponseCreateParams } from 'openai/resources/responses/responses'
-import type { Modality, TextOptions } from '@tanstack/ai'
+import type { Modality, ReasoningCapability, TextOptions } from '@tanstack/ai'
 import type {
   ExternalTextProviderOptions,
   InternalTextProviderOptions,
@@ -60,6 +63,12 @@ type ResolveInputModalities<TModel extends string> =
     ? OpenAIModelInputModalitiesByName[TModel]
     : readonly ['text', 'image', 'audio']
 
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof OpenAIModelReasoningByName
+    ? OpenAIModelReasoningByName[TModel]
+    : never
+
 /**
  * Resolve tool capabilities for a specific model.
  * If the model has explicit tools in the map, use those; otherwise use empty tuple.
@@ -91,12 +100,14 @@ export class OpenAITextAdapter<
     ResolveInputModalities<TModel>,
   TToolCapabilities extends ReadonlyArray<string> =
     ResolveToolCapabilities<TModel>,
+  TReasoning extends ReasoningCapability = ResolveReasoning<TModel>,
 > extends OpenAIBaseResponsesTextAdapter<
   TModel,
   TProviderOptions,
   TInputModalities,
   OpenAIMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  TReasoning
 > {
   override readonly kind = 'text' as const
   override readonly name = 'openai' as const
@@ -109,6 +120,11 @@ export class OpenAITextAdapter<
 
   constructor(config: OpenAITextConfig, model: TModel) {
     super(model, 'openai', new OpenAI(config), config)
+  }
+
+  /** `chat({ reasoning })` goes out as `reasoning: { effort, summary }`. */
+  protected override modelReasoning(model: string) {
+    return OPENAI_MODEL_REASONING[model]
   }
 
   /**
@@ -151,7 +167,14 @@ export class OpenAITextAdapter<
       ? convertToolsToProviderFormat(options.tools)
       : undefined
 
+    // The base saw no tools, so it sent no `chat({ toolChoice })`. Set it
+    // here when the request has tools. It goes before `baseRequest`, so a
+    // `tool_choice` from modelOptions wins.
     const request: Omit<ResponseCreateParams, 'stream'> = {
+      ...(tools?.length &&
+        options.toolChoice !== undefined && {
+          tool_choice: toResponsesToolChoice(options.toolChoice),
+        }),
       ...baseRequest,
       ...(tools && tools.length > 0 && { tools }),
     }

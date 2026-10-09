@@ -7,10 +7,10 @@ const LLMOCK_DEFAULT_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
 const DUMMY_KEY = 'sk-e2e-test-dummy-key'
 
 /**
- * Drives the real OpenRouter SDK request path with its documented
- * `reasoning.enabled` opt-out or an empty reasoning object. The companion
- * spec inspects aimock's request journal to verify the adapter normalizes or
- * omits the option before the SDK serializes the request body.
+ * Drives the real OpenRouter SDK request path with `chat({ reasoning: 'off' })`
+ * or no reasoning at all. The companion spec inspects aimock's request journal
+ * to verify the adapter sends `effort: 'none'` or omits the field before the
+ * SDK serializes the request body.
  */
 export const Route = createFileRoute('/api/openrouter-reasoning-wire')({
   server: {
@@ -30,7 +30,7 @@ export const Route = createFileRoute('/api/openrouter-reasoning-wire')({
           })
         }
 
-        const adapter = createOpenRouterText('openai/gpt-5', DUMMY_KEY, {
+        const adapter = createOpenRouterText('openai/gpt-5.5', DUMMY_KEY, {
           serverURL: `${LLMOCK_DEFAULT_BASE}/v1`,
           httpClient,
         })
@@ -47,10 +47,7 @@ export const Route = createFileRoute('/api/openrouter-reasoning-wire')({
                     : '[reasoning-wire] disable reasoning',
               },
             ],
-            modelOptions:
-              scenario === 'empty'
-                ? { reasoning: {} }
-                : { reasoning: { enabled: false } },
+            ...(scenario === 'empty' ? {} : { reasoning: 'off' as const }),
           })) {
             // Drain the stream.
           }

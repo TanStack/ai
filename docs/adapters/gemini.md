@@ -39,7 +39,7 @@ Need Gemini on Vertex AI (regional endpoints and Google Cloud credentials)? Use 
 
 Use `gemini-3.8-flash` for chat with multimodal input, thinking, and built-in tools. It also supports structured output and caching.
 
-For Gemini 3.8 Flash, set `modelOptions.thinkingConfig.thinkingLevel` to `LOW`, `MEDIUM`, or `HIGH`. The Interactions adapter uses `modelOptions.generation_config.thinking_level` with `low`, `medium`, or `high`. Gemini 3.8 Flash does not accept the `minimal` thinking level.
+To set how hard Gemini 3.8 Flash thinks, pass `reasoning: "low"`, `"medium"`, or `"high"` to `chat()`. It has no `minimal` level. See [Reasoning](#reasoning).
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -348,6 +348,8 @@ import { geminiTextInteractions } from "@tanstack/ai-gemini/experimental";
 const stream = chat({
   adapter: geminiTextInteractions("gemini-3.5-flash"),
   messages: [{ role: "user", content: "Hello!" }],
+  // Goes out as generation_config.thinking_level and thinking_summaries.
+  reasoning: "low",
   modelOptions: {
     // Stateful chaining — passed only on turn 2+.
     previous_interaction_id: "int_abc123",
@@ -361,8 +363,6 @@ const stream = chat({
 
     // snake_case generation config distinct from geminiText's camelCase one.
     generation_config: {
-      thinking_level: "low",
-      thinking_summaries: "auto",
       stop_sequences: ["<done>"],
     },
 
@@ -424,17 +424,51 @@ const stream = chat({
 
 > If you previously passed `temperature` / `topP` / `maxTokens` at the root of `chat()`, see [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
 
-### Thinking
+### Reasoning
 
-Enable thinking for models that support it:
+Want Gemini to think harder? Set `reasoning` on `chat()`:
 
-```typescript ignore
-modelOptions: {
-  thinking: {
-    includeThoughts: true,
-  },
-}
+```typescript
+import { chat } from "@tanstack/ai";
+import { geminiText } from "@tanstack/ai-gemini";
+
+const stream = chat({
+  adapter: geminiText("gemini-3.8-flash"),
+  messages: [{ role: "user", content: "Plan a database migration." }],
+  reasoning: "high",
+});
 ```
+
+What goes on the wire:
+
+- Gemini 3 models: `thinkingConfig.thinkingLevel`.
+- Gemini 2.5 models: `thinkingConfig.thinkingBudget`. Set it with `budgetTokens`, or the level picks it. `off` sends a budget of `0`.
+- `summary` sets `thinkingConfig.includeThoughts`, so the thinking text streams.
+- `geminiTextInteractions`: `generation_config.thinking_level` and `thinking_summaries`.
+
+The levels of each model:
+
+| Model | Levels | `budgetTokens` |
+| --- | --- | --- |
+| `gemini-3.8-flash`, `gemini-3.7-flash`, `gemini-3.1-pro-preview` | `low`, `medium`, `high` | no |
+| `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.5-flash-lite`, `gemini-3.1-flash-lite`, `gemini-3.1-flash-lite-preview`, `gemini-3-flash-preview` | `minimal` to `high` | no |
+| `gemini-2.5-pro` | `off` to `high` | yes |
+| `gemini-2.5-flash`, `gemini-2.5-flash-lite` | `off`, `high` | yes |
+
+A Gemini 2.5 budget:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { geminiText } from "@tanstack/ai-gemini";
+
+const stream = chat({
+  adapter: geminiText("gemini-2.5-pro"),
+  messages: [{ role: "user", content: "Check this proof." }],
+  reasoning: { level: "high", budgetTokens: 8000 },
+});
+```
+
+Image models keep their own `thinkingConfig` in `modelOptions`. See [Image Model Options](#image-model-options).
 
 ### Structured Output
 

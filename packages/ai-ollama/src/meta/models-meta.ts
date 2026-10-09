@@ -1,3 +1,4 @@
+import type { ModelReasoning } from '@tanstack/ai'
 import type { Tool, ToolCall } from 'ollama'
 
 export interface OllamaModelMeta<TModelOptions = unknown> {
@@ -10,6 +11,8 @@ export interface OllamaModelMeta<TModelOptions = unknown> {
   }
   size?: string
   context?: number
+  /** The model's data for `chat({ reasoning })`. None: it does not reason. */
+  reasoning?: ModelReasoning
 }
 
 interface OllamaOptions {
@@ -69,14 +72,6 @@ export interface OllamaChatRequest {
   logprobs?: boolean
   top_logprobs?: number
   options?: Partial<OllamaOptions>
-}
-
-export interface OllamaChatRequestThinking {
-  think?: boolean
-}
-
-export interface OllamaChatRequestThinking_OpenAI {
-  think?: 'low' | 'medium' | 'high'
 }
 
 export interface OllamaChatRequestTools {

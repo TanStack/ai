@@ -5,7 +5,7 @@ import { webSearchTool } from '@tanstack/ai-anthropic/tools'
 
 const DUMMY_KEY = 'sk-ant-e2e-test-dummy-key'
 
-/** Wire-format check: `claude-haiku-5-5` sends disabled thinking and `output_config.effort`. */
+/** Wire-format check: `claude-haiku-5-5` with `reasoning: 'off'` sends disabled thinking. */
 
 /** Minimal Anthropic Messages stream with one text block. */
 function makeSyntheticAnthropicStream(): ReadableStream<Uint8Array> {
@@ -94,11 +94,9 @@ export const Route = createFileRoute('/api/anthropic-haiku-5-5-wire')({
                 type: 'web_search_20250305',
               }),
             ],
-            modelOptions: {
-              thinking: { type: 'disabled' },
-              output_config: { effort: 'low' },
-              max_tokens: 1024,
-            },
+            // The adapter sends `off` as disabled thinking, with no effort.
+            reasoning: 'off',
+            modelOptions: { max_tokens: 1024 },
           })) {
             // Drain the stream.
           }

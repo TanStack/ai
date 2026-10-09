@@ -161,6 +161,12 @@ export async function POST(request: Request) {
 
 **Note:** Tool support varies by model. Models like `llama3`, `mistral`, and `qwen2` generally have good tool calling support.
 
+## Tool choice
+
+Ollama ignores `toolChoice`. Ollama has no tool choice, so the model decides to call a tool or not, also with `'none'` or `'required'`.
+
+Want no tool calls for a request? Do not pass `tools`. For the other providers, see [Choose when the model calls a tool](../tools/tools#choose-when-the-model-calls-a-tool).
+
 ## Model Options
 
 Ollama supports various provider-specific options. Unlike the other providers, Ollama nests its sampling and runner parameters inside an `options` object **within** `modelOptions` — `temperature`, `top_p`, and `num_predict` (the token-limit key) all live under `modelOptions.options`:
@@ -225,6 +231,31 @@ modelOptions: {
   },
 }
 ```
+
+## Reasoning
+
+Running a thinking model like Qwen 3 or gpt-oss? Set `reasoning` on `chat()`:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { ollamaText } from "@tanstack/ai-ollama";
+
+const stream = chat({
+  adapter: ollamaText("qwen3:8b"),
+  messages: [{ role: "user", content: "Plan a database migration." }],
+  reasoning: "off",
+});
+```
+
+The adapter sends it as `think`:
+
+| Model | Levels | Sent as |
+| --- | --- | --- |
+| `qwen3`, `deepseek-r1`, `deepseek-v3.1` | `off`, `high` | `think: false` or `true` |
+| `gpt-oss` | `low`, `medium`, `high` | `think: "low"` and so on |
+| a model name this package does not list | `off`, `high` | `think: false` or `true` |
+
+The other listed models take no `reasoning`.
 
 ## Summarization
 

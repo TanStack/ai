@@ -1,10 +1,12 @@
 import OpenAI from 'openai'
 import { OpenAIBaseResponsesTextAdapter } from '@tanstack/openai-base'
+import { LOVABLE_MODEL_REASONING } from '../model-meta'
 import { getLovableApiKeyFromEnv, withLovableDefaults } from '../utils/client'
 import type { Modality } from '@tanstack/ai'
 import type {
   LovableChatModelToolCapabilitiesByName,
   LovableModelId,
+  LovableModelReasoningByName,
   ResolveInputModalities,
   ResolveProviderOptions,
 } from '../model-meta'
@@ -18,6 +20,16 @@ export interface LovableResponsesTextConfig
 
 export type LovableResponsesTextProviderOptions =
   ExternalResponsesProviderOptions
+
+/**
+ * The reasoning levels of a model, for `chat({ reasoning })`. This API has
+ * no token budget field, so no model takes `budgetTokens` here. `never`:
+ * the model does not reason.
+ */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof LovableModelReasoningByName
+    ? { levels: LovableModelReasoningByName[TModel]['levels']; budget: false }
+    : never
 
 type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof LovableChatModelToolCapabilitiesByName
@@ -42,13 +54,18 @@ export class LovableResponsesTextAdapter<
   TProviderOptions,
   TInputModalities,
   LovableMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  ResolveReasoning<TModel>
 > {
   override readonly kind = 'text' as const
   override readonly name = 'lovable' as const
 
   constructor(config: LovableResponsesTextConfig, model: TModel) {
     super(model, 'lovable', new OpenAI(withLovableDefaults(config)), config)
+  }
+
+  protected override modelReasoning(model: string) {
+    return LOVABLE_MODEL_REASONING[model]
   }
 }
 

@@ -1,3 +1,5 @@
+import type { ModelReasoning } from '@tanstack/ai'
+import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
 import type { LovableEmbeddingProviderOptions } from './embedding/embedding-provider-options'
 import type {
   LovableImageProviderOptions,
@@ -158,3 +160,268 @@ export const LOVABLE_TRANSCRIPTION_MODELS = [
 
 export type LovableTranscriptionModel =
   (typeof LOVABLE_TRANSCRIPTION_MODELS)[number]
+
+// Reasoning
+//
+// Each model's data for `chat({ reasoning })`: the provider value for each
+// level (`null`: the model does not have it), and whether it takes a
+// thinking token budget. The data comes from models.dev. The generator that
+// writes it comes with the model catalog later. Until then, edit these
+// entries by hand.
+
+const LOVABLE_REASONING = {
+  'google/gemini-3.7-flash': {
+    map: {
+      off: null,
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
+  },
+  'google/gemini-3.6-flash': {
+    map: {
+      off: null,
+      minimal: 'minimal',
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
+  },
+  'google/gemini-3.5-flash': {
+    map: {
+      off: null,
+      minimal: 'minimal',
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
+  },
+  'google/gemini-3.1-pro-preview': {
+    map: {
+      off: null,
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
+  },
+  'google/gemini-3.1-flash-lite': {
+    map: {
+      off: null,
+      minimal: 'minimal',
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
+  },
+  'google/gemini-3-flash-preview': {
+    map: {
+      off: null,
+      minimal: 'minimal',
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
+  },
+  'google/gemini-2.5-pro': { budget: true },
+  'google/gemini-2.5-flash': {
+    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
+    budget: true,
+  },
+  'google/gemini-2.5-flash-lite': {
+    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
+    budget: true,
+  },
+  'openai/gpt-5.6-sol': {
+    map: {
+      off: 'none',
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: 'xhigh',
+      max: 'max',
+    },
+    budget: false,
+  },
+  'openai/gpt-5.6-terra': {
+    map: {
+      off: 'none',
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: 'xhigh',
+      max: 'max',
+    },
+    budget: false,
+  },
+  'openai/gpt-5.6-luna': {
+    map: {
+      off: 'none',
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: 'xhigh',
+      max: 'max',
+    },
+    budget: false,
+  },
+  'openai/gpt-5.5-pro': {
+    map: {
+      off: null,
+      minimal: null,
+      low: null,
+      medium: 'medium',
+      high: 'high',
+      xhigh: 'xhigh',
+      max: null,
+    },
+    budget: false,
+  },
+  'openai/gpt-5.5': {
+    map: {
+      off: 'none',
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: 'xhigh',
+      max: null,
+    },
+    budget: false,
+  },
+  'openai/gpt-5.4-pro': {
+    map: {
+      off: null,
+      minimal: null,
+      low: null,
+      medium: 'medium',
+      high: 'high',
+      xhigh: 'xhigh',
+      max: null,
+    },
+    budget: false,
+  },
+  'openai/gpt-5.4': {
+    map: {
+      off: 'none',
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: 'xhigh',
+      max: null,
+    },
+    budget: false,
+  },
+  'openai/gpt-5.4-mini': {
+    map: {
+      off: 'none',
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: 'xhigh',
+      max: null,
+    },
+    budget: false,
+  },
+  'openai/gpt-5.4-nano': {
+    map: {
+      off: 'none',
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: 'xhigh',
+      max: null,
+    },
+    budget: false,
+  },
+  'openai/gpt-5.2': {
+    map: {
+      off: 'none',
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: 'xhigh',
+      max: null,
+    },
+    budget: false,
+  },
+  'openai/gpt-5': {
+    map: {
+      off: null,
+      minimal: 'minimal',
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
+  },
+  'openai/gpt-5-mini': {
+    map: {
+      off: null,
+      minimal: 'minimal',
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
+  },
+  'openai/gpt-5-nano': {
+    map: {
+      off: null,
+      minimal: 'minimal',
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
+  },
+} as const satisfies Partial<Record<LovableChatModel, ModelReasoning>>
+
+/**
+ * Each model's reasoning levels, and whether it takes a token budget, for
+ * `chat({ reasoning })`. A model that is not here does not reason.
+ */
+export type LovableModelReasoningByName = {
+  [K in keyof typeof LOVABLE_REASONING]: ModelReasoningCapability<
+    (typeof LOVABLE_REASONING)[K]
+  >
+}
+
+/**
+ * Runtime map from model id to its reasoning data, for the text adapter. An
+ * unknown id gives `undefined`: the adapter sends no reasoning field.
+ */
+export const LOVABLE_MODEL_REASONING: Readonly<Record<string, ModelReasoning>> =
+  LOVABLE_REASONING

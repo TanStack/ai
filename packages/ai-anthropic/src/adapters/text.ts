@@ -17,6 +17,7 @@ import {
   readCodeExecutionSkills,
 } from '../tools/code-execution-tool'
 import { validateTextProviderOptions } from '../text/text-provider-options'
+import { anthropicThinking } from '../text/reasoning'
 import { buildAnthropicUsage } from '../usage'
 import {
   createAnthropicClient,
@@ -27,6 +28,8 @@ import {
 import {
   ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS,
   ANTHROPIC_MODEL_INPUT_MODALITIES,
+  ANTHROPIC_MODEL_REASONING,
+  ANTHROPIC_NO_FORCED_TOOL_MODELS,
   getAnthropicDefaultMaxTokens,
 } from '../model-meta'
 import type {
@@ -34,6 +37,7 @@ import type {
   AnthropicChatModelProviderOptionsByName,
   AnthropicChatModelToolCapabilitiesByName,
   AnthropicModelInputModalitiesByName,
+  AnthropicModelReasoningByName,
 } from '../model-meta'
 import type {
   StructuredOutputOptions,
@@ -70,6 +74,7 @@ import type {
   ModelMessage,
   AdapterYieldChunk,
   TextOptions,
+  ToolChoice,
 } from '@tanstack/ai'
 import type {
   AnthropicSystemPromptMetadata,
@@ -176,6 +181,20 @@ export function messagesHaveFileSource(messages: Array<ModelMessage>): boolean {
         (part) => 'source' in part && isFileSource(part.source),
       ),
   )
+}
+
+/**
+ * Maps `chat({ toolChoice })` to the Messages `tool_choice`. When the
+ * request cannot force a tool, a forced choice falls back to `auto`.
+ */
+function toAnthropicToolChoice(
+  choice: ToolChoice,
+  { canForceTool }: { canForceTool: boolean },
+) {
+  if (choice === 'none') return { type: 'none' as const }
+  if (choice === 'auto' || !canForceTool) return { type: 'auto' as const }
+  if (choice === 'required') return { type: 'any' as const }
+  return { type: 'tool' as const, name: choice.name }
 }
 
 /**
@@ -298,6 +317,12 @@ type ResolveInputModalities<TModel extends string> =
     ? AnthropicModelInputModalitiesByName[TModel]
     : readonly ['text', 'image', 'document']
 
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof AnthropicModelReasoningByName
+    ? AnthropicModelReasoningByName[TModel]
+    : never
+
 type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof AnthropicChatModelToolCapabilitiesByName
     ? NonNullable<AnthropicChatModelToolCapabilitiesByName[TModel]>
@@ -348,7 +373,8 @@ export class AnthropicTextAdapter<
   unknown,
   // TSystemPromptMetadata — narrows `systemPrompts[i].metadata` at the
   // chat() call site so users get `cache_control` autocomplete.
-  AnthropicSystemPromptMetadata
+  AnthropicSystemPromptMetadata,
+  ResolveReasoning<TModel>
 > {
   override readonly kind = 'text' as const
   readonly name = 'anthropic' as const
@@ -467,10 +493,12 @@ export class AnthropicTextAdapter<
 
       // `betas` is attached at the call site rather than in the shared mapper
       // because the beta set depends on both the tools and the modelOptions.
+      // The request, not modelOptions: `reasoning` can turn budget
+      // thinking (and so the interleaved-thinking beta) on.
       const betas = this.requestBetas(
         computeAnthropicBetas(
           options.tools,
-          options.modelOptions,
+          requestParams,
           messagesHaveFileSource(options.messages),
         ),
       )
@@ -567,7 +595,7 @@ export class AnthropicTextAdapter<
       const betas = this.requestBetas(
         computeAnthropicBetas(
           chatOptions.tools,
-          chatOptions.modelOptions,
+          requestParams,
           messagesHaveFileSource(chatOptions.messages),
         ),
       )
@@ -661,12 +689,9 @@ export class AnthropicTextAdapter<
         'cache_control',
         'container',
         'context_management',
-        'effort',
         'mcp_servers',
-        'output_config',
         'service_tier',
         'stop_sequences',
-        'thinking',
         'tool_choice',
         'top_k',
         'temperature',
@@ -712,9 +737,16 @@ export class AnthropicTextAdapter<
       }
     }
 
+    // `chat({ reasoning })`, as this model's thinking fields.
+    const { output_config: reasoningOutputConfig, ...thinkingFields } =
+      anthropicThinking(
+        this.model,
+        options.reasoning,
+        ANTHROPIC_MODEL_REASONING[this.model],
+      )
     const thinkingBudget =
-      validProviderOptions.thinking?.type === 'enabled'
-        ? validProviderOptions.thinking.budget_tokens
+      thinkingFields.thinking?.type === 'enabled'
+        ? thinkingFields.thinking.budget_tokens
         : undefined
     // Anthropic's Messages API *requires* `max_tokens`, so we must always send a
     // value. When the caller doesn't specify one, default to the resolved
@@ -765,22 +797,27 @@ export class AnthropicTextAdapter<
     // Wire engine-threaded outputSchema into Messages `output_config.format`
     // alongside any `tools` so the model emits tool calls during the agent
     // loop and a single schema-constrained JSON message on its final turn.
-    // Merge into any existing `output_config` so callers can keep tuning
-    // `output_config.effort` alongside the schema.
+    // Merge it with the `output_config.effort` that `chat({ reasoning })`
+    // sets.
     const combinedSchema = options.outputSchema as
       | Record<string, unknown>
       | undefined
-    const outputConfig = combinedSchema
-      ? {
-          output_config: {
-            ...(validProviderOptions.output_config ?? {}),
-            format: {
-              type: 'json_schema' as const,
-              schema: combinedSchema,
+    const outputConfig =
+      combinedSchema || reasoningOutputConfig
+        ? {
+            output_config: {
+              ...reasoningOutputConfig,
+              ...(combinedSchema
+                ? {
+                    format: {
+                      type: 'json_schema' as const,
+                      schema: combinedSchema,
+                    },
+                  }
+                : {}),
             },
-          },
-        }
-      : undefined
+          }
+        : undefined
 
     // Lift skills attached to a `code_execution` tool into the top-level
     // `container.skills` request param (Anthropic's required shape). Preserve any
@@ -813,10 +850,30 @@ export class AnthropicTextAdapter<
       ...(systemBlocks !== undefined && { system: systemBlocks }),
       ...(tools !== undefined && { tools }),
       ...validProviderOptions,
+      ...thinkingFields,
       ...(outputConfig ?? {}),
     }
     validateTextProviderOptions(requestParams)
-    return requestParams
+
+    // `chat({ toolChoice })` is sent only when the request has tools. It goes
+    // before the request spread, so a `tool_choice` in modelOptions wins. It
+    // is not in `requestParams`, because that type has no `none` choice.
+    // The API rejects a forced tool while thinking is on, and some models
+    // reject it on every request.
+    const isThinking =
+      requestParams.thinking !== undefined &&
+      requestParams.thinking.type !== 'disabled'
+    const canForceTool =
+      !isThinking && !ANTHROPIC_NO_FORCED_TOOL_MODELS.has(this.model)
+    const toolChoiceField =
+      tools?.length && options.toolChoice !== undefined
+        ? {
+            tool_choice: toAnthropicToolChoice(options.toolChoice, {
+              canForceTool,
+            }),
+          }
+        : undefined
+    return { ...toolChoiceField, ...requestParams }
   }
 
   /**

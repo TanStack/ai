@@ -1,10 +1,10 @@
-import type { Modality } from '@tanstack/ai'
+import type { Modality, ModelReasoning } from '@tanstack/ai'
+import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
 import type {
   GeminiCachedContentOptions,
   GeminiCommonConfigOptions,
   GeminiSafetyOptions,
   GeminiStructuredOutputOptions,
-  GeminiThinkingOptions,
   GeminiToolConfigOptions,
 } from './text/text-provider-options'
 import type { GeminiEmbeddingProviderOptions } from './embedding/embedding-provider-options'
@@ -50,6 +50,8 @@ interface ModelMeta<TProviderOptions = unknown> {
    * Type-level description of which provider options this model supports.
    */
   providerOptions?: TProviderOptions
+  /** The model's data for `chat({ reasoning })`. None: it does not reason. */
+  reasoning?: ModelReasoning
 }
 
 const GEMINI_3_1_PRO = {
@@ -77,13 +79,24 @@ const GEMINI_3_1_PRO = {
       normal: 15,
     },
   },
+  reasoning: {
+    map: {
+      off: null,
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
+  },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 const GEMINI_3_FLASH = {
@@ -111,13 +124,24 @@ const GEMINI_3_FLASH = {
       normal: 3,
     },
   },
+  reasoning: {
+    map: {
+      off: null,
+      minimal: 'minimal',
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
+  },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 /**
@@ -149,8 +173,7 @@ const GEMINI_3_PRO_IMAGE = {
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 /**
@@ -183,8 +206,7 @@ const GEMINI_3_PRO_IMAGE_PREVIEW = {
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 /**
@@ -216,8 +238,7 @@ const GEMINI_3_1_FLASH_IMAGE = {
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
-    GeminiCachedContentOptions &
-    GeminiThinkingOptions
+    GeminiCachedContentOptions
 >
 
 /**
@@ -250,8 +271,7 @@ const GEMINI_3_1_FLASH_IMAGE_PREVIEW = {
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 /**
@@ -282,8 +302,7 @@ const GEMINI_3_1_FLASH_LITE_IMAGE = {
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 /**
@@ -314,8 +333,7 @@ const GEMINI_NANO_BANANA_2_1 = {
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
-    GeminiCachedContentOptions &
-    GeminiThinkingOptions
+    GeminiCachedContentOptions
 >
 
 const GEMINI_3_1_FLASH_LITE = {
@@ -343,13 +361,24 @@ const GEMINI_3_1_FLASH_LITE = {
       normal: 1.5,
     },
   },
+  reasoning: {
+    map: {
+      off: null,
+      minimal: 'minimal',
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
+  },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 const GEMINI_3_1_FLASH_LITE_PREVIEW = {
@@ -377,13 +406,24 @@ const GEMINI_3_1_FLASH_LITE_PREVIEW = {
       normal: 1.5,
     },
   },
+  reasoning: {
+    map: {
+      off: null,
+      minimal: 'minimal',
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
+  },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 const GEMINI_2_5_PRO = {
@@ -417,13 +457,13 @@ const GEMINI_2_5_PRO = {
       normal: 15,
     },
   },
+  reasoning: { budget: true },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 const GEMINI_2_5_PRO_TTS = {
@@ -482,13 +522,16 @@ const GEMINI_2_5_FLASH = {
       normal: 2.5,
     },
   },
+  reasoning: {
+    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
+    budget: true,
+  },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 /**
@@ -558,8 +601,7 @@ const GEMINI_2_5_FLASH_LIVE = {
   GeminiToolConfigOptions &
   GeminiSafetyOptions &
   GeminiGenerationConfigOptions &
-  GeminiCachedContentOptions &
-  GeminiThinkingOptions
+  GeminiCachedContentOptions
 >
 */
 const GEMINI_2_5_FLASH_TTS = {
@@ -688,13 +730,16 @@ const GEMINI_2_5_FLASH_LITE = {
       normal: 0.4,
     },
   },
+  reasoning: {
+    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
+    budget: true,
+  },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 const IMAGEN_4_GENERATE = {
@@ -908,13 +953,24 @@ const GEMINI_3_8_FLASH = {
       normal: 3.75,
     },
   },
+  reasoning: {
+    map: {
+      off: null,
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
+  },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions<'LOW' | 'MEDIUM' | 'HIGH'>
+    GeminiStructuredOutputOptions
 >
 
 const GEMINI_3_7_FLASH = {
@@ -953,13 +1009,24 @@ const GEMINI_3_7_FLASH = {
       normal: 3.75,
     },
   },
+  reasoning: {
+    map: {
+      off: null,
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
+  },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 const GEMINI_3_6_FLASH = {
@@ -996,13 +1063,24 @@ const GEMINI_3_6_FLASH = {
       normal: 7.5,
     },
   },
+  reasoning: {
+    map: {
+      off: null,
+      minimal: 'minimal',
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
+  },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 const GEMINI_3_5_FLASH = {
@@ -1037,13 +1115,24 @@ const GEMINI_3_5_FLASH = {
       normal: 9,
     },
   },
+  reasoning: {
+    map: {
+      off: null,
+      minimal: 'minimal',
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
+  },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 const GEMINI_3_5_FLASH_LITE = {
@@ -1079,13 +1168,24 @@ const GEMINI_3_5_FLASH_LITE = {
       normal: 2.5,
     },
   },
+  reasoning: {
+    map: {
+      off: null,
+      minimal: 'minimal',
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
+  },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 export const GEMINI_MODELS = [
@@ -1270,74 +1370,62 @@ export type GeminiChatModelProviderOptionsByName = {
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions<'LOW' | 'MEDIUM' | 'HIGH'>
+    GeminiStructuredOutputOptions
   [GEMINI_3_7_FLASH.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
   [GEMINI_3_6_FLASH.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
   [GEMINI_3_5_FLASH.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
   [GEMINI_3_5_FLASH_LITE.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
   [GEMINI_3_1_PRO.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
   [GEMINI_3_FLASH.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
   [GEMINI_3_1_FLASH_LITE.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
   [GEMINI_3_1_FLASH_LITE_PREVIEW.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
   [GEMINI_2_5_PRO.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
   [GEMINI_2_5_FLASH.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
   [GEMINI_2_5_FLASH_LITE.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 }
 
 /**
@@ -1412,3 +1500,77 @@ export const GEMINI_MODEL_INPUT_MODALITIES: Readonly<
   [GEMINI_2_5_FLASH_LITE.name]: GEMINI_2_5_FLASH_LITE.supports.input,
   [GEMINI_2_5_FLASH.name]: GEMINI_2_5_FLASH.supports.input,
 } satisfies GeminiModelInputModalitiesByName
+
+// Reasoning
+//
+// Each model's `reasoning` field holds its data for `chat({ reasoning })`:
+// the provider value for each level (`null`: the model does not have it),
+// and whether it takes a thinking token budget. The data comes from
+// models.dev. The generator that writes it comes with the model catalog
+// later. Until then, the sync scripts keep these fields as they are.
+
+/**
+ * Each chat model's reasoning levels, and whether it takes a token budget,
+ * for `chat({ reasoning })`. Derived from the `reasoning` field. A model
+ * that is not here does not reason.
+ */
+export type GeminiModelReasoningByName = {
+  [GEMINI_3_8_FLASH.name]: ModelReasoningCapability<
+    typeof GEMINI_3_8_FLASH.reasoning
+  >
+  [GEMINI_3_7_FLASH.name]: ModelReasoningCapability<
+    typeof GEMINI_3_7_FLASH.reasoning
+  >
+  [GEMINI_3_6_FLASH.name]: ModelReasoningCapability<
+    typeof GEMINI_3_6_FLASH.reasoning
+  >
+  [GEMINI_3_5_FLASH.name]: ModelReasoningCapability<
+    typeof GEMINI_3_5_FLASH.reasoning
+  >
+  [GEMINI_3_5_FLASH_LITE.name]: ModelReasoningCapability<
+    typeof GEMINI_3_5_FLASH_LITE.reasoning
+  >
+  [GEMINI_3_1_PRO.name]: ModelReasoningCapability<
+    typeof GEMINI_3_1_PRO.reasoning
+  >
+  [GEMINI_3_FLASH.name]: ModelReasoningCapability<
+    typeof GEMINI_3_FLASH.reasoning
+  >
+  [GEMINI_3_1_FLASH_LITE.name]: ModelReasoningCapability<
+    typeof GEMINI_3_1_FLASH_LITE.reasoning
+  >
+  [GEMINI_3_1_FLASH_LITE_PREVIEW.name]: ModelReasoningCapability<
+    typeof GEMINI_3_1_FLASH_LITE_PREVIEW.reasoning
+  >
+  [GEMINI_2_5_PRO.name]: ModelReasoningCapability<
+    typeof GEMINI_2_5_PRO.reasoning
+  >
+  [GEMINI_2_5_FLASH_LITE.name]: ModelReasoningCapability<
+    typeof GEMINI_2_5_FLASH_LITE.reasoning
+  >
+  [GEMINI_2_5_FLASH.name]: ModelReasoningCapability<
+    typeof GEMINI_2_5_FLASH.reasoning
+  >
+}
+
+/**
+ * Runtime map from chat model name to its reasoning data, for the text
+ * adapter. `satisfies` keeps its keys equal to {@link GeminiModelReasoningByName}. An unknown
+ * name gives `undefined`: the adapter sends no reasoning field.
+ */
+export const GEMINI_MODEL_REASONING: Readonly<Record<string, ModelReasoning>> =
+  {
+    [GEMINI_3_8_FLASH.name]: GEMINI_3_8_FLASH.reasoning,
+    [GEMINI_3_7_FLASH.name]: GEMINI_3_7_FLASH.reasoning,
+    [GEMINI_3_6_FLASH.name]: GEMINI_3_6_FLASH.reasoning,
+    [GEMINI_3_5_FLASH.name]: GEMINI_3_5_FLASH.reasoning,
+    [GEMINI_3_5_FLASH_LITE.name]: GEMINI_3_5_FLASH_LITE.reasoning,
+    [GEMINI_3_1_PRO.name]: GEMINI_3_1_PRO.reasoning,
+    [GEMINI_3_FLASH.name]: GEMINI_3_FLASH.reasoning,
+    [GEMINI_3_1_FLASH_LITE.name]: GEMINI_3_1_FLASH_LITE.reasoning,
+    [GEMINI_3_1_FLASH_LITE_PREVIEW.name]:
+      GEMINI_3_1_FLASH_LITE_PREVIEW.reasoning,
+    [GEMINI_2_5_PRO.name]: GEMINI_2_5_PRO.reasoning,
+    [GEMINI_2_5_FLASH_LITE.name]: GEMINI_2_5_FLASH_LITE.reasoning,
+    [GEMINI_2_5_FLASH.name]: GEMINI_2_5_FLASH.reasoning,
+  } satisfies Record<keyof GeminiModelReasoningByName, ModelReasoning>

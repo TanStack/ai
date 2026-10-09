@@ -55,7 +55,7 @@ describe('applyChatModelCatalogInserts', () => {
       {
         constName: 'CLAUDE_FABLE_5_1',
         providerOptionsEntry:
-          'AnthropicAdaptiveOnlyThinkingOptions & AnthropicMaxTokensOptions',
+          'AnthropicToolChoiceOptions & AnthropicMaxTokensOptions',
         hasMaxOutputTokens: true,
         acceptsCombinedToolsAndSchema: true,
       },
@@ -69,7 +69,7 @@ describe('applyChatModelCatalogInserts', () => {
       '[CLAUDE_FABLE_5_1.id]: typeof CLAUDE_FABLE_5_1.supports.input',
     )
     expect(result).toContain(
-      '[CLAUDE_FABLE_5_1.id]: AnthropicAdaptiveOnlyThinkingOptions & AnthropicMaxTokensOptions',
+      '[CLAUDE_FABLE_5_1.id]: AnthropicToolChoiceOptions & AnthropicMaxTokensOptions',
     )
     expect(result).toContain(
       '[CLAUDE_FABLE_5_1.id]: CLAUDE_FABLE_5_1.max_output_tokens,',
@@ -77,6 +77,34 @@ describe('applyChatModelCatalogInserts', () => {
     expect(result).toContain(
       'export const ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS = new Set<string>([\n  CLAUDE_FABLE_5_1.id,',
     )
+  })
+
+  it('keeps the reasoning maps as they are', () => {
+    const reasoning = `
+export type AnthropicModelReasoningByName = {
+  [FOO.id]: ModelReasoningCapability<typeof FOO.reasoning>
+}
+
+export const ANTHROPIC_MODEL_REASONING: Readonly<
+  Record<string, ModelReasoning>
+> = {
+  [FOO.id]: FOO.reasoning,
+} satisfies Record<keyof AnthropicModelReasoningByName, ModelReasoning>
+`
+    const result = applyChatModelCatalogInserts(
+      STUB + reasoning,
+      ANTHROPIC_CONFIG,
+      [
+        {
+          constName: 'CLAUDE_FABLE_5_1',
+          providerOptionsEntry: 'AnthropicMaxTokensOptions',
+          hasMaxOutputTokens: true,
+          acceptsCombinedToolsAndSchema: true,
+        },
+      ],
+    )
+
+    expect(result.endsWith(reasoning)).toBe(true)
   })
 
   it('leaves a -fast Anthropic model out of the combined set', () => {

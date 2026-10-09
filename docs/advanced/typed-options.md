@@ -34,8 +34,8 @@ const chatOptions = createChatOptions({
   // native key.
   modelOptions: {
     temperature: 0.3,
-    reasoning: { effort: 'medium' },
   },
+  reasoning: 'medium',
 })
 
 // Later, anywhere in your codebase:
@@ -96,9 +96,7 @@ export const supportChatOptions = createChatOptions({
   adapter: openaiText('gpt-5.5'),
   systemPrompts: ['You are a customer-support assistant for Acme Corp.'],
   tools: [lookupOrder],
-  modelOptions: {
-    reasoning: { effort: 'medium' },
-  },
+  reasoning: 'medium',
 })
 ```
 

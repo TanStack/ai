@@ -174,7 +174,7 @@ describe('LLM Gateway adapters', () => {
       expect(adapter).toBeDefined()
     })
 
-    it('forwards sampling options from modelOptions', async () => {
+    it('forwards sampling options and chat({ reasoning }) as reasoning_effort', async () => {
       const streamChunks = [
         {
           id: 'chatcmpl-sampling',
@@ -191,13 +191,13 @@ describe('LLM Gateway adapters', () => {
         temperature: 0.5,
         top_p: 0.8,
         max_completion_tokens: 128,
-        reasoning_effort: 'high',
       }
 
       for await (const _ of adapter.chatStream({
         model: 'gpt-5.6-terra',
         messages: [{ role: 'user', content: 'Hello' }],
         modelOptions,
+        reasoning: { level: 'high', summary: true },
         logger: testLogger,
       })) {
         // consume stream

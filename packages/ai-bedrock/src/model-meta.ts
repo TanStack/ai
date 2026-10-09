@@ -1,4 +1,6 @@
 import { GENERATED_BEDROCK_MODELS } from './model-catalog.generated.js'
+import type { ModelReasoning } from '@tanstack/ai'
+import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
 import type { BedrockTextProviderOptions } from './text/text-provider-options'
 import type { BedrockConverseProviderOptions } from './converse/provider-options'
 import type {
@@ -73,6 +75,119 @@ export type ResolveInputModalities<TModel extends string> =
   TModel extends keyof BedrockModelInputModalitiesByName
     ? BedrockModelInputModalitiesByName[TModel]
     : readonly ['text']
+
+// ============================================================================
+// Reasoning
+// ============================================================================
+//
+// Each model's data for `chat({ reasoning })`: the provider value for each
+// level (`null`: the model does not have it), and whether it takes a
+// thinking token budget. The data comes from models.dev. The generator that
+// writes it comes with the model catalog later. Until then, edit these
+// entries by hand. scripts/fetch-bedrock-models.ts does not touch them.
+
+const BEDROCK_REASONING = {
+  'openai.gpt-oss-120b-1:0': {
+    map: {
+      off: null,
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
+  },
+  'openai.gpt-oss-20b-1:0': {
+    map: {
+      off: null,
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
+  },
+  'us.anthropic.claude-sonnet-4-5-20250929-v1:0': {
+    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
+    budget: true,
+  },
+  'us.anthropic.claude-haiku-4-5-20251001-v1:0': {
+    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
+    budget: true,
+  },
+  'us.deepseek.r1-v1:0': { budget: false },
+  'google.gemma-4-31b': {
+    map: {
+      off: 'none',
+      minimal: null,
+      low: null,
+      medium: null,
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
+  },
+  'google.gemma-4-26b-a4b': {
+    map: {
+      off: 'none',
+      minimal: null,
+      low: null,
+      medium: null,
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
+  },
+  'google.gemma-4-e2b': {
+    map: {
+      off: 'none',
+      minimal: null,
+      low: null,
+      medium: null,
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
+  },
+} as const satisfies Partial<Record<Entry['id'], ModelReasoning>>
+
+/**
+ * Each model's reasoning levels, and whether it takes a token budget, for
+ * `chat({ reasoning })`. A model that is not here does not reason.
+ */
+export type BedrockModelReasoningByName = {
+  [K in keyof typeof BEDROCK_REASONING]: ModelReasoningCapability<
+    (typeof BEDROCK_REASONING)[K]
+  >
+}
+
+/**
+ * Runtime map from model id to its reasoning data, for the text adapters. An
+ * unknown id gives `undefined`: the adapter sends no reasoning field.
+ */
+export const BEDROCK_MODEL_REASONING: Readonly<Record<string, ModelReasoning>> =
+  BEDROCK_REASONING
+
+/**
+ * The Claude families that reject a forced tool (`any` or a named `tool`) on
+ * every request, with or without thinking. A Bedrock id has the family name
+ * inside it, for example `us.anthropic.claude-opus-5-5-...`.
+ * ponytail: names, not catalog entries, because the generated catalog has no
+ * entry for these models yet. Move it to the catalog when it has them.
+ */
+export const BEDROCK_CLAUDE_NO_FORCED_TOOL_FAMILIES: ReadonlyArray<string> = [
+  'claude-fable-5-1',
+  'claude-mythos-5-1',
+  'claude-opus-5-5',
+  'claude-sonnet-5-5',
+]
 
 // ============================================================================
 // Embedding models

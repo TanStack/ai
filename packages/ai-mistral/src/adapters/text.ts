@@ -9,19 +9,27 @@ import {
 } from '../utils/client'
 import { makeMistralStructuredOutputCompatibleWithMap } from '../utils/schema-converter'
 import { createToolInputNormalizer } from '../utils/tool-input-normalizer'
-import { MISTRAL_MODEL_INPUT_MODALITIES } from '../model-meta'
+import {
+  MISTRAL_MODEL_INPUT_MODALITIES,
+  MISTRAL_MODEL_REASONING,
+} from '../model-meta'
+import { resolveReasoning } from '@tanstack/ai/adapter-internals'
 import type {
   ContentPart,
   FetchWrapper,
   Modality,
   ModelMessage,
   AdapterYieldChunk,
+  ModelReasoning,
+  ReasoningRequest,
   TextOptions,
+  ToolChoice,
 } from '@tanstack/ai'
 import type {
   MISTRAL_CHAT_MODELS,
   MistralChatModelProviderOptionsByName,
   MistralModelInputModalitiesByName,
+  MistralModelReasoningByName,
   MistralTextAdapterModel,
 } from '../model-meta'
 import type {
@@ -32,6 +40,7 @@ import type { Mistral } from '@mistralai/mistralai'
 import type {
   ChatCompletionStreamRequest,
   ContentChunk,
+  ReasoningEffort,
 } from '@mistralai/mistralai/models/components'
 import type {
   ExternalTextProviderOptions,
@@ -96,6 +105,42 @@ type ResolveProviderOptions<TModel extends string> =
   TModel extends keyof MistralChatModelProviderOptionsByName
     ? MistralChatModelProviderOptionsByName[TModel]
     : MistralTextProviderOptions
+
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof MistralModelReasoningByName
+    ? MistralModelReasoningByName[TModel]
+    : never
+
+/**
+ * The Mistral reasoning fields for `chat({ reasoning })`, by pi's rule:
+ * - a model with effort levels (Mistral Small, Mistral Medium):
+ *   `reasoningEffort` with the level's value, `none` for `off`.
+ * - another reasoning model (Magistral): `promptMode: 'reasoning'`, and
+ *   nothing for `off`.
+ */
+function mistralReasoning(
+  request: ReasoningRequest | undefined,
+  reasoning: ModelReasoning | undefined,
+): Pick<ChatCompletionStreamRequest, 'promptMode' | 'reasoningEffort'> {
+  const resolved = resolveReasoning(request, reasoning)
+  if (!resolved || !reasoning) return {}
+  if (reasoning.map) {
+    // `ReasoningEffort` is an open enum, so a newer value still goes out.
+    return resolved.value === null
+      ? {}
+      : { reasoningEffort: resolved.value as ReasoningEffort }
+  }
+  return resolved.level === 'off' ? {} : { promptMode: 'reasoning' }
+}
+
+/** Maps `chat({ toolChoice })` to the Mistral `toolChoice`. */
+function toMistralToolChoice(
+  choice: ToolChoice,
+): NonNullable<ChatCompletionStreamRequest['toolChoice']> {
+  if (typeof choice === 'string') return choice
+  return { type: 'function', function: { name: choice.name } }
+}
 
 type ResolveInputModalities<TModel extends string> =
   TModel extends keyof MistralModelInputModalitiesByName
@@ -178,7 +223,11 @@ export class MistralTextAdapter<
   TModel,
   TProviderOptions,
   TInputModalities,
-  MistralMessageMetadataByModality
+  MistralMessageMetadataByModality,
+  ReadonlyArray<string>,
+  unknown,
+  never,
+  ResolveReasoning<TModel>
 > {
   readonly name = 'mistral' as const
   override readonly inputModalities = MISTRAL_MODEL_INPUT_MODALITIES[this.model]
@@ -864,6 +913,8 @@ export class MistralTextAdapter<
       frequencyPenalty,
       presencePenalty,
       safePrompt,
+      reasoningEffort,
+      promptMode,
       stream: _stream,
       ...rest
     } = params
@@ -885,6 +936,8 @@ export class MistralTextAdapter<
       ...(frequencyPenalty != null && { frequency_penalty: frequencyPenalty }),
       ...(presencePenalty != null && { presence_penalty: presencePenalty }),
       ...(safePrompt != null && { safe_prompt: safePrompt }),
+      ...(reasoningEffort != null && { reasoning_effort: reasoningEffort }),
+      ...(promptMode != null && { prompt_mode: promptMode }),
     }
   }
 
@@ -953,7 +1006,15 @@ export class MistralTextAdapter<
       messages.push(this.convertMessageToMistral(message))
     }
 
+    // `chat({ toolChoice })` is sent only when the request has tools. It goes
+    // before the `modelOptions` spread, so a `tool_choice` there wins.
+    const toolChoiceField =
+      tools?.length && options.toolChoice !== undefined
+        ? { toolChoice: toMistralToolChoice(options.toolChoice) }
+        : undefined
+
     return {
+      ...toolChoiceField,
       model: this.rawConfig.requestModel ?? options.model,
       messages: messages,
       temperature: modelOptions?.temperature ?? undefined,
@@ -961,6 +1022,10 @@ export class MistralTextAdapter<
       topP: modelOptions?.top_p ?? undefined,
       tools: tools as ChatCompletionStreamRequest['tools'],
       stream: true,
+      ...mistralReasoning(
+        options.reasoning,
+        MISTRAL_MODEL_REASONING[options.model],
+      ),
       ...(modelOptions && {
         ...(modelOptions.stop != null && { stop: modelOptions.stop }),
         ...(modelOptions.random_seed != null && {

@@ -1,4 +1,5 @@
-import type { Modality } from '@tanstack/ai'
+import type { Modality, ModelReasoning } from '@tanstack/ai'
+import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
 import type { MistralTextProviderOptions } from './text/text-provider-options'
 import type {
   CodestralEmbedProviderOptions,
@@ -39,6 +40,8 @@ interface ModelMeta<TProviderOptions = unknown> {
     >
   }
   providerOptions?: TProviderOptions
+  /** The model's data for `chat({ reasoning })`. None: it does not reason. */
+  reasoning?: ModelReasoning
 }
 
 const MISTRAL_LARGE_LATEST = {
@@ -71,6 +74,18 @@ const MISTRAL_MEDIUM_LATEST = {
     endpoints: ['chat'],
     features: ['streaming', 'tools', 'json_object', 'json_schema', 'vision'],
   },
+  reasoning: {
+    map: {
+      off: 'none',
+      minimal: null,
+      low: null,
+      medium: null,
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
+  },
 } as const satisfies ModelMeta<MistralTextProviderOptions>
 
 const MISTRAL_SMALL_LATEST = {
@@ -86,6 +101,18 @@ const MISTRAL_SMALL_LATEST = {
     output: ['text'],
     endpoints: ['chat'],
     features: ['streaming', 'tools', 'json_object', 'json_schema', 'vision'],
+  },
+  reasoning: {
+    map: {
+      off: 'none',
+      minimal: null,
+      low: null,
+      medium: null,
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
   },
 } as const satisfies ModelMeta<MistralTextProviderOptions>
 
@@ -183,6 +210,7 @@ const MAGISTRAL_MEDIUM_LATEST = {
     endpoints: ['chat'],
     features: ['streaming', 'tools', 'reasoning', 'json_object', 'json_schema'],
   },
+  reasoning: { budget: false },
 } as const satisfies ModelMeta<MistralTextProviderOptions>
 
 const MAGISTRAL_SMALL_LATEST = {
@@ -199,6 +227,8 @@ const MAGISTRAL_SMALL_LATEST = {
     endpoints: ['chat'],
     features: ['streaming', 'tools', 'reasoning', 'json_object', 'json_schema'],
   },
+  // Not in models.dev. The same as Magistral Medium: prompt_mode only.
+  reasoning: { budget: false },
 } as const satisfies ModelMeta<MistralTextProviderOptions>
 
 const OPEN_MISTRAL_NEMO = {
@@ -415,3 +445,44 @@ export type ResolveInputModalities<TModel extends string> =
   TModel extends keyof MistralModelInputModalitiesByName
     ? MistralModelInputModalitiesByName[TModel]
     : readonly ['text']
+
+// Reasoning
+//
+// Each model's `reasoning` field holds its data for `chat({ reasoning })`:
+// the provider value for each level (`null`: the model does not have it),
+// and whether it takes a thinking token budget. The data comes from
+// models.dev. The generator that writes it comes with the model catalog
+// later. Until then, the sync scripts keep these fields as they are.
+
+/**
+ * Each chat model's reasoning levels, and whether it takes a token budget,
+ * for `chat({ reasoning })`. Derived from the `reasoning` field. A model
+ * that is not here does not reason.
+ */
+export type MistralModelReasoningByName = {
+  [MISTRAL_MEDIUM_LATEST.name]: ModelReasoningCapability<
+    typeof MISTRAL_MEDIUM_LATEST.reasoning
+  >
+  [MISTRAL_SMALL_LATEST.name]: ModelReasoningCapability<
+    typeof MISTRAL_SMALL_LATEST.reasoning
+  >
+  [MAGISTRAL_MEDIUM_LATEST.name]: ModelReasoningCapability<
+    typeof MAGISTRAL_MEDIUM_LATEST.reasoning
+  >
+  [MAGISTRAL_SMALL_LATEST.name]: ModelReasoningCapability<
+    typeof MAGISTRAL_SMALL_LATEST.reasoning
+  >
+}
+
+/**
+ * Runtime map from chat model name to its reasoning data, for the text
+ * adapter. `satisfies` keeps its keys equal to {@link MistralModelReasoningByName}. An unknown
+ * name gives `undefined`: the adapter sends no reasoning field.
+ */
+export const MISTRAL_MODEL_REASONING: Readonly<Record<string, ModelReasoning>> =
+  {
+    [MISTRAL_MEDIUM_LATEST.name]: MISTRAL_MEDIUM_LATEST.reasoning,
+    [MISTRAL_SMALL_LATEST.name]: MISTRAL_SMALL_LATEST.reasoning,
+    [MAGISTRAL_MEDIUM_LATEST.name]: MAGISTRAL_MEDIUM_LATEST.reasoning,
+    [MAGISTRAL_SMALL_LATEST.name]: MAGISTRAL_SMALL_LATEST.reasoning,
+  } satisfies Record<keyof MistralModelReasoningByName, ModelReasoning>

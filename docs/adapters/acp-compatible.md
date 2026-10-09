@@ -314,6 +314,21 @@ const pi = acpCompatible({
 
 `chat()`-provided tools bridged into the agent are always auto-approved, regardless of mode.
 
+## Tool choice
+
+You want the agent to see just one of your tools, or none of them. Pass `toolChoice` to `chat()`. It limits only the tools that the adapter bridges into the agent. ACP has no field to turn off the built-in tools of the agent or to force a tool call, so the agent decides when it calls a tool.
+
+| Value | What the adapter does |
+| --- | --- |
+| `'auto'` | Bridges all of your tools. |
+| `'none'` | Bridges none of your tools. |
+| `{ type: 'tool', name }` | Bridges only the named tool. The agent does not have to call it. |
+| `'required'` | Bridges all of your tools. The agent does not have to call one. |
+
+Each value except `'auto'` logs a warning the first time an adapter instance gets it. The warning starts with the harness `name`, for example `pi:`.
+
+For the values on other adapters, see [Choose when the model calls a tool](../tools/tools#choose-when-the-model-calls-a-tool).
+
 ## Session Resume
 
 On every run the adapter emits the harness session id as a CUSTOM event named `<name>.session-id` (e.g. `pi.session-id`). Thread that id back through `modelOptions.sessionId` on the next call and the harness resumes the session — only the trailing user message is sent, since the agent already holds the prior context:

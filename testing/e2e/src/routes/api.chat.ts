@@ -115,6 +115,7 @@ export const Route = createFileRoute('/api/chat')({
               ? chat({
                   ...adapterOptions,
                   modelOptions,
+                  ...(config.reasoning && { reasoning: config.reasoning }),
                   systemPrompts,
                   messages: params.messages,
                   threadId: params.threadId,
@@ -131,6 +132,7 @@ export const Route = createFileRoute('/api/chat')({
                 ? chat({
                     ...adapterOptions,
                     modelOptions,
+                    ...(config.reasoning && { reasoning: config.reasoning }),
                     systemPrompts,
                     messages: params.messages,
                     threadId: params.threadId,
@@ -148,6 +150,7 @@ export const Route = createFileRoute('/api/chat')({
                       ...adapterOptions,
                       tools: config.tools,
                       modelOptions,
+                      ...(config.reasoning && { reasoning: config.reasoning }),
                       systemPrompts,
                       agentLoopStrategy: maxIterations(5),
                       messages: params.messages,
@@ -164,7 +167,11 @@ export const Route = createFileRoute('/api/chat')({
                   : chat({
                       ...adapterOptions,
                       tools: config.tools,
+                      ...(config.toolChoice && {
+                        toolChoice: config.toolChoice,
+                      }),
                       modelOptions,
+                      ...(config.reasoning && { reasoning: config.reasoning }),
                       systemPrompts,
                       agentLoopStrategy: maxIterations(5),
                       messages: params.messages,

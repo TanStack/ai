@@ -421,6 +421,23 @@ export type {
 // All types
 export * from './types'
 
+// One reasoning option for every provider: `chat({ reasoning })`.
+export {
+  REASONING_LEVELS,
+  clampReasoningLevel,
+  supportedReasoningLevels,
+} from './reasoning'
+export type {
+  AdapterReasoning,
+  ModelReasoning,
+  ReasoningCapability,
+  ReasoningLevel,
+  ReasoningMap,
+  ReasoningOption,
+  ReasoningOptionFor,
+  ReasoningRequest,
+} from './reasoning'
+
 // Shared identity/isolation scope for the persistence + memory subsystems
 export type { Scope } from './scope'
 

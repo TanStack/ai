@@ -172,13 +172,25 @@ const stream = chat({
 
 ### Reasoning
 
-Enable reasoning for models that support it (e.g., `openai/gpt-oss-120b`, `qwen/qwen3-32b`). This allows the model to show its reasoning process, which is streamed as `thinking` chunks:
+Set how hard a reasoning model thinks with `reasoning` on `chat()`:
 
-```typescript ignore
-modelOptions: {
-  reasoning_effort: "medium", // "none" | "default" | "low" | "medium" | "high"
-}
+```typescript
+import { chat } from "@tanstack/ai";
+import { groqText } from "@tanstack/ai-groq";
+
+const stream = chat({
+  adapter: groqText("openai/gpt-oss-120b"),
+  messages: [{ role: "user", content: "Hello!" }],
+  reasoning: "medium",
+});
 ```
+
+It goes out as `reasoning_effort`:
+
+- `openai/gpt-oss-120b`, `openai/gpt-oss-20b`, `openai/gpt-oss-safeguard-20b`: `low`, `medium`, `high`.
+- `qwen/qwen3-32b`: `off` (sent as `none`) and `high` (sent as `default`).
+
+To pick how the thinking text comes back, set `reasoning_format` in `modelOptions`.
 
 ## Summarization
 

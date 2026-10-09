@@ -15,10 +15,12 @@ import type {
   TokenUsage,
   Tool,
   ToolCall,
+  ToolChoice,
   FetchWrapper,
 } from '../../../types'
 import type { SystemPrompt } from '../../../system-prompts'
 import type { ToolApprovalResolution } from '../../../interrupts'
+import type { ReasoningRequest } from '../../../reasoning'
 import type {
   GenericInterruptRequest,
   InterruptDefinition,
@@ -347,6 +349,14 @@ export interface ChatMiddlewareConfig {
   resumeToolState?: ChatResumeToolState | undefined
   metadata?: Record<string, unknown> | undefined
   modelOptions?: Record<string, unknown> | undefined
+  /** How hard the model thinks at this call. A middleware can set or change it. */
+  reasoning?: ReasoningRequest | undefined
+  /**
+   * How the model uses the tools of the next model call. A returned value
+   * applies to that call only. The next call starts again from the `chat()`
+   * option. A call with no tools sends no tool choice.
+   */
+  toolChoice?: ToolChoice | undefined
   /**
    * Wraps the fetch of the next model call. A returned wrapper chains inside
    * the wrappers before it, so it does not replace them. It applies to that
@@ -385,16 +395,17 @@ export type ChatResumeGenericResolution =
 /**
  * Config passed to onStructuredOutputConfig.
  *
- * Mirrors ChatMiddlewareConfig minus `tools` (the final structured-output call
- * is a single typed-response request, not an agentic loop — tools cannot be
- * forwarded to it), plus the `outputSchema` being sent to the provider.
+ * Mirrors ChatMiddlewareConfig minus `tools` and `toolChoice` (the final
+ * structured-output call is a single typed-response request, not an agentic
+ * loop — tools cannot be forwarded to it), plus the `outputSchema` being sent
+ * to the provider.
  * Middleware may transform the schema (e.g., inject $defs, strip
  * vendor-incompatible keywords) by returning a partial that includes
  * `outputSchema`.
  */
 export interface StructuredOutputMiddlewareConfig extends Omit<
   ChatMiddlewareConfig,
-  'tools'
+  'tools' | 'toolChoice'
 > {
   /** JSON Schema being sent to the provider for structured output. */
   outputSchema: JSONSchema

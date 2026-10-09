@@ -287,6 +287,33 @@ for await (const chunk of chat({
 }
 ```
 
+## Reasoning
+
+Set `reasoning` on `chat()`. What goes on the wire depends on the API:
+
+- Converse (the default): only Claude gets thinking. A budget model gets `thinking` with a budget in `additionalModelRequestFields`, and `maxTokens` grows past the budget. `off` sends nothing.
+- Chat Completions (`api: 'chat'`): `reasoning_effort`.
+- Responses (`api: 'responses'`): `reasoning.effort`.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { bedrockText } from "@tanstack/ai-bedrock";
+
+const stream = chat({
+  adapter: bedrockText("us.anthropic.claude-haiku-4-5-20251001-v1:0", {
+    region: "us-east-1",
+  }),
+  messages: [{ role: "user", content: "Check this proof." }],
+  reasoning: { level: "high", budgetTokens: 8000 },
+});
+```
+
+The levels of each model:
+
+- `us.anthropic.claude-haiku-4-5-*`, `us.anthropic.claude-sonnet-4-5-*`: `off`, `high`, with `budgetTokens`.
+- `openai.gpt-oss-120b-1:0`, `openai.gpt-oss-20b-1:0`: `low`, `medium`, `high`.
+- `us.deepseek.r1-v1:0`: `off` to `high`. The `google.gemma-4` models: `off`, `high`.
+
 ## Embeddings
 
 Generate embedding vectors with Titan or Cohere embedding models via `InvokeModel`:

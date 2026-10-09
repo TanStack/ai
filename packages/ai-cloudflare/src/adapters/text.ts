@@ -1,6 +1,8 @@
 import OpenAI from 'openai'
 import type { ClientOptions } from 'openai'
 import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
+import { resolveReasoning } from '@tanstack/ai/adapter-internals'
+import { CLOUDFLARE_MODEL_REASONING } from '../utils/models'
 import {
   gatewayHeaders,
   isBindingConfig,
@@ -17,13 +19,27 @@ import type {
   CloudflareTextConfig,
   CloudflareTextRestConfig,
 } from '../utils/config'
-import type { CloudflareTextModel } from '../utils/models'
-import type { ModelMessage } from '@tanstack/ai'
+import type {
+  CloudflareModelReasoningByName,
+  CloudflareTextModel,
+} from '../utils/models'
+import type {
+  DefaultMessageMetadataByModality,
+  Modality,
+  ModelMessage,
+  TextOptions,
+} from '@tanstack/ai'
+
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof CloudflareModelReasoningByName
+    ? CloudflareModelReasoningByName[TModel]
+    : never
 
 /**
  * Chat Completions parameters forwarded verbatim to Workers AI. Reasoning
- * models (GLM, Kimi, gpt-oss, QwQ) read `reasoning_effort` and
- * `chat_template_kwargs`; `null` for `reasoning_effort` turns reasoning off.
+ * effort is set with `chat({ reasoning })`; reasoning models (GLM, Kimi,
+ * gpt-oss, QwQ) also read `chat_template_kwargs`.
  */
 export interface CloudflareTextProviderOptions {
   temperature?: number
@@ -34,7 +50,6 @@ export interface CloudflareTextProviderOptions {
   repetition_penalty?: number
   frequency_penalty?: number
   presence_penalty?: number
-  reasoning_effort?: 'low' | 'medium' | 'high' | null
   chat_template_kwargs?: {
     enable_thinking?: boolean
     clear_thinking?: boolean
@@ -78,7 +93,14 @@ function clientOptions(config: CloudflareTextConfig): ClientOptions {
 export class CloudflareTextAdapter<
   TModel extends CloudflareTextModel,
   TProviderOptions extends Record<string, any> = CloudflareTextProviderOptions,
-> extends OpenAIBaseChatCompletionsTextAdapter<TModel, TProviderOptions> {
+> extends OpenAIBaseChatCompletionsTextAdapter<
+  TModel,
+  TProviderOptions,
+  ReadonlyArray<Modality>,
+  DefaultMessageMetadataByModality,
+  ReadonlyArray<string>,
+  ResolveReasoning<TModel>
+> {
   override readonly kind = 'text' as const
   override readonly name = 'cloudflare' as const
 
@@ -88,6 +110,25 @@ export class CloudflareTextAdapter<
       ...config,
       fetch: options.fetch,
     })
+  }
+
+  /**
+   * `chat({ reasoning })` as `reasoning_effort`. Workers AI turns reasoning
+   * off with `null`, so `off` sends `null`, not the model's off value.
+   */
+  protected override mapOptionsToRequest(options: TextOptions) {
+    const request = super.mapOptionsToRequest(options)
+    const resolved = resolveReasoning(
+      options.reasoning,
+      CLOUDFLARE_MODEL_REASONING[options.model],
+    )
+    if (resolved) {
+      Object.assign(request, {
+        reasoning_effort:
+          resolved.level === 'off' ? null : (resolved.value ?? resolved.level),
+      })
+    }
+    return request
   }
 
   /**

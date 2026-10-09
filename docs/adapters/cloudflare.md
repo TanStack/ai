@@ -252,7 +252,7 @@ export default {
 
 ## Model options
 
-Sampling and reasoning controls go in `modelOptions`. Reasoning models stream their thinking as `reasoning_content`, which shows up as `REASONING_*` events.
+Sampling controls go in `modelOptions`, and the thinking level goes in `reasoning`. Reasoning models stream their thinking as `reasoning_content`, which shows up as `REASONING_*` events.
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -264,11 +264,21 @@ const stream = chat({
   modelOptions: {
     temperature: 0.3,
     max_tokens: 512,
-    reasoning_effort: "low",
-    chat_template_kwargs: { enable_thinking: false },
   },
+  reasoning: "low",
 });
 ```
+
+### Reasoning
+
+`reasoning` goes out as `reasoning_effort`. `off` sends `null`, which turns thinking off. Some models and their levels:
+
+- `@cf/zai-org/glm-5.3`, `@cf/zai-org/glm-5.3-flash`: `low`, `high`, `max`.
+- `@cf/deepseek-ai/deepseek-v4-pro-0813`, `@cf/deepseek-ai/deepseek-v4-flash-0731`: `off`, `low`, `high`, `max`.
+- `@cf/openai/gpt-oss-120b`, `@cf/openai/gpt-oss-20b`: `low`, `medium`, `high`.
+- `@cf/qwen/qwq-32b`, `@cf/moonshotai/kimi-k2.7-code`: `off` to `high`.
+
+The types take the levels of each model. A model with no reasoning data takes no `reasoning`.
 
 ## Evaluate
 

@@ -4,9 +4,9 @@ import { test, expect } from './fixtures'
  * Wire-format verification for `claude-sonnet-5-5` model options.
  *
  * `/api/anthropic-sonnet-5-5-wire` runs `chat()` on `claude-sonnet-5-5` with
- * `output_config.effort` and a provider tool, through a custom `fetch` that
- * records the Messages request. The route only type-checks when the model
- * accepts `output_config`.
+ * `reasoning: 'medium'` and a provider tool, through a custom `fetch` that
+ * records the Messages request. The adapter sends the level as
+ * `output_config.effort`.
  */
 type WireResponse = {
   ok: boolean

@@ -11,11 +11,13 @@ import {
   getGeminiProviderToolMetadata,
 } from '../../tools/gemini-provider-tool'
 import { assertUniqueToolNames } from '@tanstack/ai/adapter-internals'
+import { interactionsThinking } from '../../text/reasoning'
+import { GEMINI_MODEL_REASONING } from '../../model-meta'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
-  GeminiChatModelProviderOptionsByName,
   GeminiChatModelToolCapabilitiesByName,
   GeminiModelInputModalitiesByName,
+  GeminiModelReasoningByName,
   GeminiModels,
 } from '../../model-meta'
 import type {
@@ -105,31 +107,24 @@ type ToolCallState = {
 // ===========================
 
 /**
- * Resolve provider options for a specific model. Reuses the chat-model
- * options map from `model-meta.ts` so a model's allowed thinking levels are
- * declared once: the Interactions API takes the same levels as
- * `generateContent` but lowercased (`low`, not `LOW`). Models whose chat
- * options carry no `thinkingConfig` resolve to `never`, so `thinking_level`
- * can't be set on them. Everything else falls through to the flat SDK shape.
+ * Resolve provider options for a specific model. Thinking is not here:
+ * `chat({ reasoning })` sets `thinking_level` and `thinking_summaries`.
  */
-type InteractionsThinkingLevel<TModel> =
-  TModel extends keyof GeminiChatModelProviderOptionsByName
-    ? GeminiChatModelProviderOptionsByName[TModel] extends {
-        thinkingConfig?: { thinkingLevel?: infer L extends string }
-      }
-      ? Lowercase<L>
-      : never
-    : never
-
-type ResolveProviderOptions<TModel extends GeminiModels> = Omit<
+type ResolveProviderOptions = Omit<
   GeminiTextInteractionsProviderOptions,
   'generation_config'
 > & {
   generation_config?: Omit<
     NonNullable<GeminiTextInteractionsProviderOptions['generation_config']>,
-    'thinking_level'
-  > & { thinking_level?: InteractionsThinkingLevel<TModel> }
+    'thinking_level' | 'thinking_summaries'
+  >
 }
+
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof GeminiModelReasoningByName
+    ? GeminiModelReasoningByName[TModel]
+    : never
 
 /**
  * Resolve input modalities for a specific model. Reuses the chat-model
@@ -186,7 +181,7 @@ type ResolveToolCapabilities<TModel extends string> =
  */
 export class GeminiTextInteractionsAdapter<
   TModel extends GeminiModels,
-  TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
+  TProviderOptions extends Record<string, any> = ResolveProviderOptions,
   TInputModalities extends ReadonlyArray<Modality> =
     ResolveInputModalities<TModel>,
   TToolCapabilities extends ReadonlyArray<string> =
@@ -196,7 +191,10 @@ export class GeminiTextInteractionsAdapter<
   TProviderOptions,
   TInputModalities,
   GeminiMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  unknown,
+  never,
+  ResolveReasoning<TModel>
 > {
   override readonly kind = 'text' as const
   override readonly name = 'gemini-text-interactions' as const
@@ -632,7 +630,7 @@ export function createGeminiTextInteractions<TModel extends GeminiModels>(
   config?: Omit<GeminiTextInteractionsConfig, 'apiKey'>,
 ): GeminiTextInteractionsAdapter<
   TModel,
-  ResolveProviderOptions<TModel>,
+  ResolveProviderOptions,
   ResolveInputModalities<TModel>,
   ResolveToolCapabilities<TModel>
 > {
@@ -645,7 +643,7 @@ export function geminiTextInteractions<TModel extends GeminiModels>(
   config?: Omit<GeminiTextInteractionsConfig, 'apiKey'>,
 ): GeminiTextInteractionsAdapter<
   TModel,
-  ResolveProviderOptions<TModel>,
+  ResolveProviderOptions,
   ResolveInputModalities<TModel>,
   ResolveToolCapabilities<TModel>
 > {
@@ -663,6 +661,10 @@ function buildInteractionsRequest(
 
   const generationConfig: Interactions.GenerationConfig = {
     ...modelOpts?.generation_config,
+    ...interactionsThinking(
+      options.reasoning,
+      GEMINI_MODEL_REASONING[options.model],
+    ),
   }
 
   const hasGenerationConfig = Object.keys(generationConfig).length > 0
