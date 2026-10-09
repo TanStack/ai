@@ -1,23 +1,23 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { chat } from '@tanstack/ai'
-import { anthropicText } from '@tanstack/ai-anthropic'
+import { createAnthropicChat } from '@tanstack/ai-anthropic'
 
 const LLMOCK_DEFAULT_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
 // Fake credentials. aimock accepts any value.
 const DUMMY_TOKEN = 'e2e-dummy-bearer-token'
 const DUMMY_KEY = 'sk-ant-e2e-test-dummy-key'
 
-const configs = {
-  'api-key': { apiKey: DUMMY_KEY },
-  bearer: { authToken: DUMMY_TOKEN },
-  oauth: { authToken: DUMMY_TOKEN, oauth: true },
-}
+const credentials = {
+  'api-key': { credential: DUMMY_KEY, auth: 'api-key' },
+  bearer: { credential: DUMMY_TOKEN, auth: 'bearer' },
+  oauth: { credential: DUMMY_TOKEN, auth: 'oauth' },
+} as const
 
 /**
  * Streams one Anthropic chat against the aimock fixture in
  * `fixtures/anthropic-auth`. A `fetch` wrapper records the headers and the
  * `system` field that the SDK puts on the wire, then sends the request on to
- * aimock. `?mode=` picks the credential config.
+ * aimock. `?mode=` picks the credential and its `auth` kind.
  */
 export const Route = createFileRoute('/api/anthropic-auth-wire')({
   server: {
@@ -29,8 +29,9 @@ export const Route = createFileRoute('/api/anthropic-auth-wire')({
         }
 
         let wire: Record<string, unknown> | undefined
-        const adapter = anthropicText('claude-haiku-4-5', {
-          ...configs[mode],
+        const { credential, auth } = credentials[mode]
+        const adapter = createAnthropicChat('claude-haiku-4-5', credential, {
+          auth,
           baseURL: LLMOCK_DEFAULT_BASE,
           fetch: async (input, init) => {
             const outgoing = new Request(input, init)

@@ -96,6 +96,8 @@ const adapter = createGeminiChat("gemini-3.8-flash", process.env.GEMINI_API_KEY!
 
 `baseURL` sets `httpOptions.baseUrl` and `defaultHeaders` sets `httpOptions.headers`. If you set both forms, `baseURL` and `defaultHeaders` win.
 
+This adapter ignores [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call), because the `@google/genai` SDK does not take a custom fetch.
+
 ## Example: Chat Completion
 
 ```typescript
@@ -773,6 +775,8 @@ Every factory pair follows the same shape: the short factory (`geminiText`, `gem
 ### `geminiText(model, config?)` / `createGeminiChat(model, apiKey, config?)`
 
 Creates a Gemini text/chat adapter.
+
+`adapter.inputModalities` lists the input kinds of the selected model. It is `undefined` for a model that this package does not know. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
 
 **Parameters:**
 

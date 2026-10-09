@@ -174,6 +174,8 @@ Two constraints the type system can't express, both live-verified as `400`s:
 
 `service_tier: 'flex'` routes the request to the cheaper offline batch queue with no latency guarantee.
 
+Need a header on each request, or a log of each model call? The chat adapter supports [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call).
+
 ## Reasoning and `encrypted_content`
 
 Seed models reason by default. Reasoning arrives as its own stream of `reasoning_content` deltas and is surfaced as reasoning content rather than answer text, so `useChat` renders it separately from the reply. Turn it off per request:
@@ -596,6 +598,8 @@ Every factory has an environment-variable form and an explicit-key form.
 ### `byteplusText(model, config?)` / `createBytePlusText(model, apiKey, config?)`
 
 Chat adapter for the Seed, GLM, DeepSeek and gpt-oss models. Reads `ARK_API_KEY` (or `BYTEPLUS_API_KEY`). `config.baseURL` overrides the region endpoint.
+
+`adapter.inputModalities` lists the input kinds of the selected model. It is `undefined` for a model that this package does not know. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
 
 ### `byteplusVideo(model, config?)` / `createBytePlusVideo(model, apiKey, config?)`
 

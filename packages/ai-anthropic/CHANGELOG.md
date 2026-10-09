@@ -1,5 +1,47 @@
 # @tanstack/ai-anthropic
 
+## 0.21.0
+
+### Minor Changes
+
+- [#1679](https://github.com/TanStack/ai/pull/1679) [`9b4f444`](https://github.com/TanStack/ai/commit/9b4f444e74adffc7a3c51a623dade042b7b3ae91) - The Anthropic adapters now accept a Bearer token and a Claude OAuth token.
+  - The new `auth` option sets how the credential goes out: `'api-key'` (the `x-api-key` header), `'bearer'` (`Authorization: Bearer <token>`, no `x-api-key`), or `'oauth'`.
+  - The default is `'oauth'` when the credential contains `sk-ant-oat`, else `'api-key'`. An explicit `auth` always wins.
+  - `createAnthropicChat`, `createAnthropicSummarize`, and `createAnthropicFiles` use only the credential that you pass. They do not read a credential from the environment.
+  - `anthropicText`, `anthropicSummarize`, and `anthropicFiles` read `ANTHROPIC_AUTH_TOKEN` (`'bearer'`, or `'oauth'` for an `sk-ant-oat` token), then `ANTHROPIC_OAUTH_TOKEN` (`'oauth'`), then `ANTHROPIC_API_KEY` (`'api-key'`). They throw when none is set.
+  - With `'oauth'`, each request also gets the Claude Code identity system block, the Claude Code CLI headers, and the `claude-code-20250219` and `oauth-2025-04-20` betas.
+
+  ```ts
+  import { createAnthropicChat } from '@tanstack/ai-anthropic'
+
+  const adapter = createAnthropicChat('claude-sonnet-5-5', token, {
+    auth: 'bearer',
+  })
+  ```
+
+- [#1677](https://github.com/TanStack/ai/pull/1677) [`f562eac`](https://github.com/TanStack/ai/commit/f562eacf0cf1367b2ffb3703143aff5621e5e945) - `usage.promptTokens` is now the total input on the Anthropic, Bedrock Converse, and Claude Code adapters. It is the uncached tokens plus the cache reads plus the cache writes. Before, it was the uncached tokens only. `totalTokens` now uses the new `promptTokens`. The cache parts stay in `promptTokensDetails.cachedTokens` and `promptTokensDetails.cacheWriteTokens`. Other adapters already report `promptTokens` this way.
+
+  **Breaking:** if your code adds `cachedTokens` or `cacheWriteTokens` to `promptTokens` to get the total input, it now counts the cache two times. Use `promptTokens` as the total. To get the uncached tokens, subtract `cachedTokens` and `cacheWriteTokens` from `promptTokens`.
+
+### Patch Changes
+
+- [#1685](https://github.com/TanStack/ai/pull/1685) [`7dbfaf6`](https://github.com/TanStack/ai/commit/7dbfaf6c37a3d97de3b1f5bdb87be8bbbe2b0164) - Text adapters can now give `inputModalities` at run time: the input kinds that the model reads, for example `['text', 'image', 'document']`. `undefined` means that the adapter does not know.
+  - `TextAdapter` has the new optional `inputModalities` property. A `BaseTextAdapter` subclass sets it from its model metadata.
+  - The text adapters of OpenAI, Anthropic, Gemini, Mistral, Groq, BytePlus, Grok, OpenRouter, and LLM Gateway set it. A known model gives its input kinds. An unknown model gives `undefined`.
+
+- [#1678](https://github.com/TanStack/ai/pull/1678) [`13ba1b0`](https://github.com/TanStack/ai/commit/13ba1b0e47dc822f10f6c5133184f92c2eb0a013) - A `RUN_ERROR` now tells you how long the provider asks you to wait before a retry.
+  - `@tanstack/ai`: `RunErrorEvent` has a new `retryAfterMs` field, in milliseconds. `chat()` moves it to `metadata.tanstack.retryAfterMs`. The new `toRetryAfterMs(error)` helper on `@tanstack/ai/adapter-internals` reads the `retry-after-ms` header first, then the `retry-after` header in seconds or as an HTTP date.
+  - `@tanstack/openai-base` and `@tanstack/ai-anthropic`: the text adapters set `retryAfterMs` on a `RUN_ERROR` when the error response has one of these headers. This includes every adapter that uses `@tanstack/openai-base`.
+
+- [#1680](https://github.com/TanStack/ai/pull/1680) [`377262c`](https://github.com/TanStack/ai/commit/377262c0b4e5f59f8fd467a831b9341cc705077e) - Add `wrapFetch` to `chat()`, to the middleware `onConfig` config, and to `TextOptions`. A wrapper gets the next fetch and gives back a new fetch. Use it to change the URL, the headers, the request, or the response of a model call. The new `FetchWrapper` type names the wrapper.
+
+  The engine chains the `chat()` wrapper and the middleware wrappers into one function. A middleware wrapper runs inside the `chat()` wrapper and applies to one model call only.
+
+  These text adapters send their requests through the wrapper: every adapter on `@tanstack/openai-base` (OpenAI, the OpenAI-compatible adapters, Grok, Groq, BytePlus, LLM Gateway, Lovable, Vercel AI Gateway, Cloudflare, and the Bedrock Chat Completions and Responses APIs), Anthropic, Mistral, Ollama, and OpenRouter. The wrapper wraps the fetch of the adapter config, not the global fetch. An Anthropic or Ollama adapter with an injected client ignores `wrapFetch`. In Cloudflare binding mode, the wrapper runs, but the binding does not send the URL or the headers. Without `wrapFetch`, the requests do not change.
+
+- Updated dependencies [[`7dbfaf6`](https://github.com/TanStack/ai/commit/7dbfaf6c37a3d97de3b1f5bdb87be8bbbe2b0164), [`88fd67c`](https://github.com/TanStack/ai/commit/88fd67cd7ddfbe2b154173d2395b2c0338e97644), [`3aa2e3d`](https://github.com/TanStack/ai/commit/3aa2e3d95e2dcb1c14b4fda3bcdbdf3152582092), [`c5ae415`](https://github.com/TanStack/ai/commit/c5ae4152d0a040bb6ce7321e16b7ee66d3c36f96), [`13ba1b0`](https://github.com/TanStack/ai/commit/13ba1b0e47dc822f10f6c5133184f92c2eb0a013), [`377262c`](https://github.com/TanStack/ai/commit/377262c0b4e5f59f8fd467a831b9341cc705077e)]:
+  - @tanstack/ai@0.67.0
+
 ## 0.20.0
 
 ### Minor Changes

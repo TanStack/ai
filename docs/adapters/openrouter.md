@@ -59,6 +59,8 @@ const adapter = createOpenRouterText(
 );
 ```
 
+Need a header on each request, or a log of each model call? Both text adapters support [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call). If you set an `httpClient`, each wrapped request still goes through it.
+
 ### Retry rate limits
 
 A busy upstream provider can reply with HTTP 429. The adapter retries only 5XX errors by default. Add `"429"` to `retryCodes` to retry rate limits too:
@@ -103,6 +105,8 @@ model: "deepseek/deepseek-v3.2"
 ```
 
 See the full list at [openrouter.ai/models](https://openrouter.ai/models).
+
+`adapter.inputModalities` lists the input kinds of the selected model. It is `undefined` for a model that this package does not know. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
 
 ## Example: Chat Completion
 

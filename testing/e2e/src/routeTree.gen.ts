@@ -49,6 +49,7 @@ import { Route as WebsocketAdapterRouteImport } from './routes/websocket-adapter
 import { Route as ProviderIndexRouteImport } from './routes/$provider/index'
 import { Route as ProviderFeatureRouteImport } from './routes/$provider/$feature'
 import { Route as ApiActivityTestRouteImport } from './routes/api.activity-test'
+import { Route as ApiAdapterInputModalitiesRouteImport } from './routes/api.adapter-input-modalities'
 import { Route as ApiAnthropicAuthWireRouteImport } from './routes/api.anthropic-auth-wire'
 import { Route as ApiAnthropicBugTestRouteImport } from './routes/api.anthropic-bug-test'
 import { Route as ApiAnthropicHaiku55WireRouteImport } from './routes/api.anthropic-haiku-5-5-wire'
@@ -87,6 +88,7 @@ import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiInterruptsTestRouteImport } from './routes/api.interrupts-test'
 import { Route as ApiJoinRunClientToolRouteImport } from './routes/api.join-run-client-tool'
 import { Route as ApiJsonTransportRouteImport } from './routes/api.json-transport'
+import { Route as ApiKeyedAdapterRouteImport } from './routes/api.keyed-adapter'
 import { Route as ApiLazyToolsWireRouteImport } from './routes/api.lazy-tools-wire'
 import { Route as ApiLoneSurrogatesWireRouteImport } from './routes/api.lone-surrogates-wire'
 import { Route as ApiMaxToolCallsWireRouteImport } from './routes/api.max-tool-calls-wire'
@@ -151,6 +153,7 @@ import { Route as ApiVideoLiveRouteImport } from './routes/api.video-live'
 import { Route as ApiVoiceRouteImport } from './routes/api.voice'
 import { Route as ApiWebMcpPageToolsRouteImport } from './routes/api.web-mcp-page-tools'
 import { Route as ApiWorldRouteImport } from './routes/api.world'
+import { Route as ApiWrapFetchWireRouteImport } from './routes/api.wrap-fetch-wire'
 import { Route as ApiAudioStreamRouteImport } from './routes/api.audio.stream'
 import { Route as ApiImageStreamRouteImport } from './routes/api.image.stream'
 import { Route as ApiTranscriptionStreamRouteImport } from './routes/api.transcription.stream'
@@ -360,6 +363,12 @@ const ApiActivityTestRoute = ApiActivityTestRouteImport.update({
   path: '/api/activity-test',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdapterInputModalitiesRoute =
+  ApiAdapterInputModalitiesRouteImport.update({
+    id: '/api/adapter-input-modalities',
+    path: '/api/adapter-input-modalities',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAnthropicAuthWireRoute = ApiAnthropicAuthWireRouteImport.update({
   id: '/api/anthropic-auth-wire',
   path: '/api/anthropic-auth-wire',
@@ -561,6 +570,11 @@ const ApiJoinRunClientToolRoute = ApiJoinRunClientToolRouteImport.update({
 const ApiJsonTransportRoute = ApiJsonTransportRouteImport.update({
   id: '/api/json-transport',
   path: '/api/json-transport',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiKeyedAdapterRoute = ApiKeyedAdapterRouteImport.update({
+  id: '/api/keyed-adapter',
+  path: '/api/keyed-adapter',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiLazyToolsWireRoute = ApiLazyToolsWireRouteImport.update({
@@ -901,6 +915,11 @@ const ApiWorldRoute = ApiWorldRouteImport.update({
   path: '/api/world',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWrapFetchWireRoute = ApiWrapFetchWireRouteImport.update({
+  id: '/api/wrap-fetch-wire',
+  path: '/api/wrap-fetch-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAudioStreamRoute = ApiAudioStreamRouteImport.update({
   id: '/stream',
   path: '/stream',
@@ -967,6 +986,7 @@ export interface FileRoutesByFullPath {
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/activity-test': typeof ApiActivityTestRoute
+  '/api/adapter-input-modalities': typeof ApiAdapterInputModalitiesRoute
   '/api/anthropic-auth-wire': typeof ApiAnthropicAuthWireRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-haiku-5-5-wire': typeof ApiAnthropicHaiku55WireRoute
@@ -1005,6 +1025,7 @@ export interface FileRoutesByFullPath {
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
   '/api/json-transport': typeof ApiJsonTransportRoute
+  '/api/keyed-adapter': typeof ApiKeyedAdapterRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/lone-surrogates-wire': typeof ApiLoneSurrogatesWireRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
@@ -1069,6 +1090,7 @@ export interface FileRoutesByFullPath {
   '/api/voice': typeof ApiVoiceRoute
   '/api/web-mcp-page-tools': typeof ApiWebMcpPageToolsRoute
   '/api/world': typeof ApiWorldRoute
+  '/api/wrap-fetch-wire': typeof ApiWrapFetchWireRoute
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/image/stream': typeof ApiImageStreamRoute
@@ -1116,6 +1138,7 @@ export interface FileRoutesByTo {
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/activity-test': typeof ApiActivityTestRoute
+  '/api/adapter-input-modalities': typeof ApiAdapterInputModalitiesRoute
   '/api/anthropic-auth-wire': typeof ApiAnthropicAuthWireRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-haiku-5-5-wire': typeof ApiAnthropicHaiku55WireRoute
@@ -1154,6 +1177,7 @@ export interface FileRoutesByTo {
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
   '/api/json-transport': typeof ApiJsonTransportRoute
+  '/api/keyed-adapter': typeof ApiKeyedAdapterRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/lone-surrogates-wire': typeof ApiLoneSurrogatesWireRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
@@ -1218,6 +1242,7 @@ export interface FileRoutesByTo {
   '/api/voice': typeof ApiVoiceRoute
   '/api/web-mcp-page-tools': typeof ApiWebMcpPageToolsRoute
   '/api/world': typeof ApiWorldRoute
+  '/api/wrap-fetch-wire': typeof ApiWrapFetchWireRoute
   '/$provider': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/image/stream': typeof ApiImageStreamRoute
@@ -1266,6 +1291,7 @@ export interface FileRoutesById {
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/activity-test': typeof ApiActivityTestRoute
+  '/api/adapter-input-modalities': typeof ApiAdapterInputModalitiesRoute
   '/api/anthropic-auth-wire': typeof ApiAnthropicAuthWireRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-haiku-5-5-wire': typeof ApiAnthropicHaiku55WireRoute
@@ -1304,6 +1330,7 @@ export interface FileRoutesById {
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
   '/api/json-transport': typeof ApiJsonTransportRoute
+  '/api/keyed-adapter': typeof ApiKeyedAdapterRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/lone-surrogates-wire': typeof ApiLoneSurrogatesWireRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
@@ -1368,6 +1395,7 @@ export interface FileRoutesById {
   '/api/voice': typeof ApiVoiceRoute
   '/api/web-mcp-page-tools': typeof ApiWebMcpPageToolsRoute
   '/api/world': typeof ApiWorldRoute
+  '/api/wrap-fetch-wire': typeof ApiWrapFetchWireRoute
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/image/stream': typeof ApiImageStreamRoute
@@ -1417,6 +1445,7 @@ export interface FileRouteTypes {
     | '/websocket-adapter'
     | '/$provider/$feature'
     | '/api/activity-test'
+    | '/api/adapter-input-modalities'
     | '/api/anthropic-auth-wire'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-haiku-5-5-wire'
@@ -1455,6 +1484,7 @@ export interface FileRouteTypes {
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
     | '/api/json-transport'
+    | '/api/keyed-adapter'
     | '/api/lazy-tools-wire'
     | '/api/lone-surrogates-wire'
     | '/api/max-tool-calls-wire'
@@ -1519,6 +1549,7 @@ export interface FileRouteTypes {
     | '/api/voice'
     | '/api/web-mcp-page-tools'
     | '/api/world'
+    | '/api/wrap-fetch-wire'
     | '/$provider/'
     | '/api/audio/stream'
     | '/api/image/stream'
@@ -1566,6 +1597,7 @@ export interface FileRouteTypes {
     | '/websocket-adapter'
     | '/$provider/$feature'
     | '/api/activity-test'
+    | '/api/adapter-input-modalities'
     | '/api/anthropic-auth-wire'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-haiku-5-5-wire'
@@ -1604,6 +1636,7 @@ export interface FileRouteTypes {
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
     | '/api/json-transport'
+    | '/api/keyed-adapter'
     | '/api/lazy-tools-wire'
     | '/api/lone-surrogates-wire'
     | '/api/max-tool-calls-wire'
@@ -1668,6 +1701,7 @@ export interface FileRouteTypes {
     | '/api/voice'
     | '/api/web-mcp-page-tools'
     | '/api/world'
+    | '/api/wrap-fetch-wire'
     | '/$provider'
     | '/api/audio/stream'
     | '/api/image/stream'
@@ -1715,6 +1749,7 @@ export interface FileRouteTypes {
     | '/websocket-adapter'
     | '/$provider/$feature'
     | '/api/activity-test'
+    | '/api/adapter-input-modalities'
     | '/api/anthropic-auth-wire'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-haiku-5-5-wire'
@@ -1753,6 +1788,7 @@ export interface FileRouteTypes {
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
     | '/api/json-transport'
+    | '/api/keyed-adapter'
     | '/api/lazy-tools-wire'
     | '/api/lone-surrogates-wire'
     | '/api/max-tool-calls-wire'
@@ -1817,6 +1853,7 @@ export interface FileRouteTypes {
     | '/api/voice'
     | '/api/web-mcp-page-tools'
     | '/api/world'
+    | '/api/wrap-fetch-wire'
     | '/$provider/'
     | '/api/audio/stream'
     | '/api/image/stream'
@@ -1865,6 +1902,7 @@ export interface RootRouteChildren {
   WebsocketAdapterRoute: typeof WebsocketAdapterRoute
   ProviderFeatureRoute: typeof ProviderFeatureRoute
   ApiActivityTestRoute: typeof ApiActivityTestRoute
+  ApiAdapterInputModalitiesRoute: typeof ApiAdapterInputModalitiesRoute
   ApiAnthropicAuthWireRoute: typeof ApiAnthropicAuthWireRoute
   ApiAnthropicBugTestRoute: typeof ApiAnthropicBugTestRoute
   ApiAnthropicHaiku55WireRoute: typeof ApiAnthropicHaiku55WireRoute
@@ -1903,6 +1941,7 @@ export interface RootRouteChildren {
   ApiInterruptsTestRoute: typeof ApiInterruptsTestRoute
   ApiJoinRunClientToolRoute: typeof ApiJoinRunClientToolRoute
   ApiJsonTransportRoute: typeof ApiJsonTransportRoute
+  ApiKeyedAdapterRoute: typeof ApiKeyedAdapterRoute
   ApiLazyToolsWireRoute: typeof ApiLazyToolsWireRoute
   ApiLoneSurrogatesWireRoute: typeof ApiLoneSurrogatesWireRoute
   ApiMaxToolCallsWireRoute: typeof ApiMaxToolCallsWireRoute
@@ -1967,6 +2006,7 @@ export interface RootRouteChildren {
   ApiVoiceRoute: typeof ApiVoiceRoute
   ApiWebMcpPageToolsRoute: typeof ApiWebMcpPageToolsRoute
   ApiWorldRoute: typeof ApiWorldRoute
+  ApiWrapFetchWireRoute: typeof ApiWrapFetchWireRoute
   ProviderIndexRoute: typeof ProviderIndexRoute
 }
 
@@ -2252,6 +2292,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiActivityTestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/adapter-input-modalities': {
+      id: '/api/adapter-input-modalities'
+      path: '/api/adapter-input-modalities'
+      fullPath: '/api/adapter-input-modalities'
+      preLoaderRoute: typeof ApiAdapterInputModalitiesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/anthropic-auth-wire': {
       id: '/api/anthropic-auth-wire'
       path: '/api/anthropic-auth-wire'
@@ -2516,6 +2563,13 @@ declare module '@tanstack/react-router' {
       path: '/api/json-transport'
       fullPath: '/api/json-transport'
       preLoaderRoute: typeof ApiJsonTransportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/keyed-adapter': {
+      id: '/api/keyed-adapter'
+      path: '/api/keyed-adapter'
+      fullPath: '/api/keyed-adapter'
+      preLoaderRoute: typeof ApiKeyedAdapterRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/lazy-tools-wire': {
@@ -2966,6 +3020,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWorldRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/wrap-fetch-wire': {
+      id: '/api/wrap-fetch-wire'
+      path: '/api/wrap-fetch-wire'
+      fullPath: '/api/wrap-fetch-wire'
+      preLoaderRoute: typeof ApiWrapFetchWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/audio/stream': {
       id: '/api/audio/stream'
       path: '/stream'
@@ -3102,6 +3163,7 @@ const rootRouteChildren: RootRouteChildren = {
   WebsocketAdapterRoute: WebsocketAdapterRoute,
   ProviderFeatureRoute: ProviderFeatureRoute,
   ApiActivityTestRoute: ApiActivityTestRoute,
+  ApiAdapterInputModalitiesRoute: ApiAdapterInputModalitiesRoute,
   ApiAnthropicAuthWireRoute: ApiAnthropicAuthWireRoute,
   ApiAnthropicBugTestRoute: ApiAnthropicBugTestRoute,
   ApiAnthropicHaiku55WireRoute: ApiAnthropicHaiku55WireRoute,
@@ -3143,6 +3205,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiInterruptsTestRoute: ApiInterruptsTestRoute,
   ApiJoinRunClientToolRoute: ApiJoinRunClientToolRoute,
   ApiJsonTransportRoute: ApiJsonTransportRoute,
+  ApiKeyedAdapterRoute: ApiKeyedAdapterRoute,
   ApiLazyToolsWireRoute: ApiLazyToolsWireRoute,
   ApiLoneSurrogatesWireRoute: ApiLoneSurrogatesWireRoute,
   ApiMaxToolCallsWireRoute: ApiMaxToolCallsWireRoute,
@@ -3207,6 +3270,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiVoiceRoute: ApiVoiceRoute,
   ApiWebMcpPageToolsRoute: ApiWebMcpPageToolsRoute,
   ApiWorldRoute: ApiWorldRoute,
+  ApiWrapFetchWireRoute: ApiWrapFetchWireRoute,
   ProviderIndexRoute: ProviderIndexRoute,
 }
 export const routeTree = rootRouteImport

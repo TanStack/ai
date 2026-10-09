@@ -87,6 +87,8 @@ const adapter = createOllamaChat("llama3", {
 
 `host` and `headers` are aliases of the same two options. If you set both forms, `baseURL` and `defaultHeaders` win.
 
+Need more than a fixed header, such as a log of each model call? This adapter supports [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call). An adapter with your own `Ollama` client ignores it.
+
 ## Available Models
 
 To see available models on your Ollama instance:

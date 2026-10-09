@@ -37,9 +37,12 @@ export interface MistralClientConfig {
 }
 
 /**
- * Creates a Mistral SDK client instance.
+ * Creates a Mistral SDK client instance. A `fetcher` replaces the SDK's fetch.
  */
-export function createMistralClient(config: MistralClientConfig): Mistral {
+export function createMistralClient(
+  config: MistralClientConfig,
+  fetcher?: typeof fetch,
+): Mistral {
   const {
     apiKey,
     baseURL,
@@ -56,8 +59,24 @@ export function createMistralClient(config: MistralClientConfig): Mistral {
     resolveRequestUrl !== undefined
 
   let httpClient: HTTPClient | undefined
-  if (needsHook) {
-    httpClient = new HTTPClient()
+  if (needsHook || fetcher) {
+    httpClient = new HTTPClient({
+      // The SDK sends a Request. Send a URL and an init, as a plain fetch
+      // call does, so a wrapper that reads `init.headers` keeps them.
+      fetcher:
+        fetcher &&
+        (async (input) => {
+          const request = new Request(input)
+          return fetcher(request.url, {
+            method: request.method,
+            headers: request.headers,
+            body: request.body && (await request.arrayBuffer()),
+            signal: request.signal,
+          })
+        }),
+    })
+  }
+  if (httpClient && needsHook) {
     httpClient.addHook('beforeRequest', async (req) => {
       const nextUrl =
         resolveRequestUrl === undefined ? req.url : resolveRequestUrl(false)

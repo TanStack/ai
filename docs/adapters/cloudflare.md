@@ -95,6 +95,8 @@ const stream = chat({
 
 The text and summarize REST config also accepts the OpenAI SDK client options (`baseURL`, `defaultHeaders`, `fetch`, `timeout`, `maxRetries`). The other adapters call the native `/ai/run` endpoint and take `fetch` only.
 
+Need a header on each request, or a log of each model call? The chat adapter supports [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call) over REST. In binding mode, the wrapper still runs. The binding reads only the request body, so it drops the URL and the headers that the wrapper sets.
+
 ## Route through AI Gateway
 
 AI Gateway gives you caching, logs, rate limits, and one bill across providers. Add `gateway` to any config to send requests through it. Use `"default"` for the gateway Cloudflare creates for your account.

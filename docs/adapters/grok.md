@@ -70,6 +70,8 @@ const config: Omit<GrokTextConfig, "apiKey"> = {
 const adapter = createGrokText("grok-build-0.1", process.env.XAI_API_KEY!, config);
 ```
 
+Need a header on each request, or a log of each model call? The chat adapters on this page support [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call).
+
 ## Grok on Vertex
 
 Use `@tanstack/ai-grok/vertex` when Grok must run on Vertex AI. That path
@@ -482,6 +484,8 @@ The shared Responses implementation supports streaming text, reasoning events, s
 ### `grokText(model, config?)`
 
 Creates a Grok text adapter using environment variables.
+
+`adapter.inputModalities` lists the input kinds of the selected model. It is `undefined` for a model that this package does not know. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
 
 **Parameters:**
 

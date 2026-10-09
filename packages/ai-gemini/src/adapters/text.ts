@@ -14,7 +14,10 @@ import {
   generateId,
   getGeminiApiKeyFromEnv,
 } from '../utils'
-import { GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS } from '../model-meta'
+import {
+  GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS,
+  GEMINI_MODEL_INPUT_MODALITIES,
+} from '../model-meta'
 import type {
   GEMINI_MODELS,
   GeminiChatModelProviderOptionsByName,
@@ -248,6 +251,7 @@ export class GeminiTextAdapter<
   readonly name = 'gemini' as const
   // Consumes Gemini Files API references (geminiFiles()) as fileData.fileUri.
   override readonly supportsFileSources = true
+  override readonly inputModalities = GEMINI_MODEL_INPUT_MODALITIES[this.model]
 
   private readonly client: GoogleGenAI
 

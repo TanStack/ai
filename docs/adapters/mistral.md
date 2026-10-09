@@ -97,6 +97,8 @@ const adapter = createMistralText("mistral-large-latest", process.env.MISTRAL_AP
 
 `serverURL` is an alias of `baseURL`. If you set both, `baseURL` wins.
 
+Need more than a fixed header, such as a log of each model call? This adapter supports [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call).
+
 ## Mistral on Vertex
 
 Use `@tanstack/ai-mistral/vertex` when Mistral must run on Vertex AI. That
@@ -412,6 +414,8 @@ See [Mistral's model comparison](https://docs.mistral.ai/getting-started/models/
 ### `mistralText(model, config?)`
 
 Creates a Mistral text adapter using the `MISTRAL_API_KEY` environment variable.
+
+`adapter.inputModalities` lists the input kinds of the selected model. It is `undefined` for a model that this package does not know. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
 
 **Parameters:**
 
