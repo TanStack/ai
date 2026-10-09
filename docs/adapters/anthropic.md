@@ -336,6 +336,8 @@ const stream = chat({
 });
 ```
 
+`usage.promptTokens` counts the full input, cached tokens included. The cache reads and writes are also on `usage.promptTokensDetails`. See [Token usage](../chat/stream-events#token-usage).
+
 ## Summarization
 
 Anthropic supports text summarization:

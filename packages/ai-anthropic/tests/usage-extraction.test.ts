@@ -127,7 +127,7 @@ describe('Anthropic usage extraction', () => {
     })
   })
 
-  it('extracts cache token details', async () => {
+  it('adds cache read and cache write tokens to promptTokens', async () => {
     const mockStream = createMockStream([
       {
         type: 'message_start',
@@ -182,9 +182,58 @@ describe('Anthropic usage extraction', () => {
 
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    expect(tokenUsageOf(doneChunk)?.promptTokensDetails).toEqual({
-      cacheWriteTokens: 50,
-      cachedTokens: 25,
+    // promptTokens = 100 uncached + 25 read + 50 write.
+    expect(tokenUsageOf(doneChunk)).toEqual({
+      promptTokens: 175,
+      completionTokens: 50,
+      totalTokens: 225,
+      promptTokensDetails: { cacheWriteTokens: 50, cachedTokens: 25 },
+    })
+  })
+
+  it('counts a cache hit with a null cache write field', async () => {
+    // The SDK types the cache fields as `number | null`.
+    mocks.betaMessagesCreate.mockResolvedValueOnce(
+      createMockStream([
+        {
+          type: 'message_start',
+          message: {
+            id: 'msg_123',
+            type: 'message',
+            role: 'assistant',
+            content: [],
+            model: 'claude-opus-4-1',
+            usage: { input_tokens: 12, output_tokens: 0 },
+          },
+        },
+        {
+          type: 'message_delta',
+          delta: { stop_reason: 'end_turn' },
+          usage: {
+            input_tokens: 12,
+            output_tokens: 40,
+            cache_creation_input_tokens: null,
+            cache_read_input_tokens: 1800,
+          },
+        },
+        { type: 'message_stop' },
+      ]),
+    )
+
+    const chunks: Array<AdapterYieldChunk> = []
+    for await (const chunk of chat({
+      adapter: createAdapter(),
+      messages: [{ role: 'user', content: 'Hello' }],
+    })) {
+      chunks.push(chunk)
+    }
+
+    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
+    expect(tokenUsageOf(doneChunk)).toEqual({
+      promptTokens: 1812,
+      completionTokens: 40,
+      totalTokens: 1852,
+      promptTokensDetails: { cachedTokens: 1800 },
     })
   })
 
@@ -423,9 +472,9 @@ describe('Anthropic usage extraction', () => {
     const errorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
     expect(errorChunk).toMatchObject({ code: 'max_tokens' })
     expect(tokenUsageOf(errorChunk)).toEqual({
-      promptTokens: 13,
+      promptTokens: 53,
       completionTokens: 3,
-      totalTokens: 16,
+      totalTokens: 56,
       promptTokensDetails: { cachedTokens: 40 },
     })
   })
@@ -481,9 +530,9 @@ describe('Anthropic usage extraction', () => {
 
       const terminal = chunks.find((c) => c.type === terminalType)
       expect(tokenUsageOf(terminal)).toEqual({
-        promptTokens: 13,
+        promptTokens: 60,
         completionTokens: 10,
-        totalTokens: 23,
+        totalTokens: 70,
         promptTokensDetails: { cacheWriteTokens: 7, cachedTokens: 40 },
         providerUsageDetails: { serverToolUse: { webSearchRequests: 2 } },
       })
@@ -538,9 +587,9 @@ describe('Anthropic usage extraction', () => {
 
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(tokenUsageOf(doneChunk)).toEqual({
-      promptTokens: 20,
+      promptTokens: 78,
       completionTokens: 10,
-      totalTokens: 30,
+      totalTokens: 88,
       promptTokensDetails: { cacheWriteTokens: 8, cachedTokens: 50 },
       providerUsageDetails: { serverToolUse: { webSearchRequests: 3 } },
     })
