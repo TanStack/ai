@@ -1177,6 +1177,16 @@
           "addedAt": "2026-10-09"
         },
         {
+          "label": "Prompt Caching",
+          "to": "advanced/prompt-caching",
+          "addedAt": "2026-10-09"
+        },
+        {
+          "label": "Mid-Conversation Changes",
+          "to": "advanced/mid-conversation-changes",
+          "addedAt": "2026-10-09"
+        },
+        {
           "label": "Approval Flow Processing",
           "to": "architecture/approval-flow-processing",
           "addedAt": "2026-04-15",
@@ -1370,7 +1380,7 @@
           "label": "Community Adapters Guide",
           "to": "community-adapters/guide",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-21"
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "Decart",
