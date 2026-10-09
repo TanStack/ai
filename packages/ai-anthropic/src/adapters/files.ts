@@ -3,7 +3,10 @@ import {
   BaseFilesAdapter,
   normalizeFileUploadInput,
 } from '@tanstack/ai/adapters'
-import { createAnthropicClient } from '../utils/client'
+import {
+  createAnthropicClient,
+  getAnthropicCredentialFromEnv,
+} from '../utils/client'
 import type Anthropic_SDK from '@anthropic-ai/sdk'
 import type { FileMetadata } from '@anthropic-ai/sdk/resources/beta/files'
 import type { FileHandle, FileUploadInput } from '@tanstack/ai/adapters'
@@ -63,7 +66,8 @@ function toFileHandle(file: FileMetadata): FileHandle<'anthropic'> {
 }
 
 /**
- * Create an Anthropic Files adapter with an explicit API key.
+ * Create an Anthropic Files adapter with an explicit credential. It reads no
+ * credential from the environment. `config.auth` picks how it goes out.
  */
 export function createAnthropicFiles(
   apiKey: string,
@@ -73,12 +77,16 @@ export function createAnthropicFiles(
 }
 
 /**
- * Create an Anthropic Files adapter. Without an `apiKey` or `authToken`, it
- * reads `ANTHROPIC_AUTH_TOKEN`, then `ANTHROPIC_OAUTH_TOKEN`, then
- * `ANTHROPIC_API_KEY`.
+ * Create an Anthropic Files adapter with the credential from the environment:
+ * `ANTHROPIC_AUTH_TOKEN`, then `ANTHROPIC_OAUTH_TOKEN`, then
+ * `ANTHROPIC_API_KEY`. A `config.auth` wins over the detected kind.
  */
 export function anthropicFiles(
-  config?: AnthropicFilesConfig,
+  config?: Omit<AnthropicFilesConfig, 'apiKey'>,
 ): AnthropicFilesAdapter {
-  return new AnthropicFilesAdapter(config ?? {})
+  const { credential, auth } = getAnthropicCredentialFromEnv()
+  return createAnthropicFiles(credential, {
+    ...config,
+    auth: config?.auth ?? auth,
+  })
 }
