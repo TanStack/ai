@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { newId, webhooks } from '@/server/injection'
 import { startScheduler } from '@/server/scheduler'
-import { noteThread } from '@/server/harness'
+import { openThread } from '@/server/harness'
 import type { Webhook } from '@/server/injection'
 import '@/server/meta'
 
@@ -38,7 +38,7 @@ export const Route = createFileRoute('/api/webhooks')({
             { status: 400 },
           )
         }
-        if (body.harness) noteThread(body.threadId, body.harness)
+        await openThread(body.threadId, body.harness)
         const token = newId('wh')
         const webhook: Webhook = {
           id: token,

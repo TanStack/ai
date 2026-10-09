@@ -48,7 +48,7 @@ The handler answers these paths under your route:
 - `GET run?threadId=`: the saved messages, the running turn, and the waiting approvals, for a `useChat` that loads the thread after a reload.
 - `GET run?runId=`: the turn with that run id as SSE, from its first event. A reloaded `useChat` joins a running turn with it.
 - `GET events?threadId=`: every event of the session as SSE. Each event id is a cursor, so a reconnect with `Last-Event-ID` continues where it stopped.
-- `POST control`: send `{ threadId, input }`, for example `{ op: 'prompt', message }`. You get a receipt back. Agents, settings, config keys, and commands need `expose`. See [Choose what clients can change](#choose-what-clients-can-change).
+- `POST control`: send `{ threadId, input }`, for example `{ op: 'prompt', message }`. You get a receipt back. Agents, settings, config keys, commands, and tools need `expose`. See [Choose what clients can change](#choose-what-clients-can-change).
 - `GET snapshot?threadId=`: the status, running operations, and waiting approvals.
 
 ## Choose what clients can change
@@ -74,6 +74,7 @@ export const team = defineHarness({
 | `settings` | Change these [thread settings](./thread-settings) with `client.configure(settings)`. |
 | `config` | Set these plugin config keys with `client.setConfig(key, value)`. |
 | `commands` | Run these commands with `client.command(name)`, or with `/name` in a [session view](./custom-ui) on a client. |
+| `tools` | Run these harness tools with no model turn. See [Run a tool from a client](#run-a-tool-from-a-client). |
 
 - Any other input of these kinds gets `{ status: 'rejected', reason: 'not_exposed' }`.
 - `GET describe` and `client.describe()` list only the exposed commands and config keys. A UI built from them shows only what a client can use.
@@ -81,6 +82,52 @@ export const team = defineHarness({
 - `defineHarness` checks the names in `agents`. Plugins add their config keys and commands when a session opens, so it does not check those names.
 
 Do not expose the `mode` of `permissions()` to clients that you do not trust. With `bypass`, every tool call runs with no question. See [Keep the mode on the server](./permissions#keep-the-mode-on-the-server).
+
+### Run a tool from a client
+
+A "Refresh stats" button needs the result of one tool, not a model answer. A `tool` input runs that tool with no model call, so it costs no tokens.
+
+1. List the tool in `expose.tools`:
+
+   ```ts group=harness-connect
+   import { toolDefinition } from '@tanstack/ai'
+   import { z } from 'zod'
+
+   const fetchStats = toolDefinition({
+     name: 'fetch_stats',
+     description: 'Count the open tickets in a queue.',
+     inputSchema: z.object({ queue: z.string() }),
+   }).server(async ({ queue }) => ({ queue, open: 12 }))
+
+   export const support = defineHarness({
+     name: 'acme/support',
+     adapter: openaiText('gpt-6.1-sol'),
+     tools: [fetchStats],
+     expose: { tools: ['fetch_stats'] },
+   })
+   ```
+
+2. Send the input to `POST control`:
+
+   ```ts group=harness-connect-tool
+   await fetch('/api/harness/control', {
+     method: 'POST',
+     headers: { 'Content-Type': 'application/json' },
+     body: JSON.stringify({
+       threadId: 'support-1',
+       input: { op: 'tool', name: 'fetch_stats', args: { queue: 'billing' } },
+     }),
+   })
+   ```
+
+The call runs as one turn of the thread:
+
+- The tool call and its result go into the transcript and the event feed. A view of the thread shows them like any other tool call.
+- The call goes through the same middleware, input check, and `permissions()` rules as a call from the model.
+- The input waits in the queue while another turn runs.
+- `meta` in the input (for example `{ trigger: 'button' }`) comes back on a `tanstack.injection` custom event with the `toolCallId`.
+
+`GET capabilities` marks each tool with `exposed: true` or `false`. Server code can run any tool with `session.tool(name, args)`.
 
 ## Talk to it from a web app
 

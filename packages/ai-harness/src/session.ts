@@ -57,6 +57,8 @@ import {
   repairTranscript,
 } from './resume'
 import { HARNESS_EVENTS, InputRejectedError } from './types'
+import { ToolTurnAdapter } from './tool-turn'
+import type { ToolTurn } from './tool-turn'
 import { addUsage, callUsage, emptyUsage, isSessionUsage } from './usage'
 import type {
   AgentStarter,
@@ -376,6 +378,8 @@ interface QueuedTurn {
   reset?: { note?: string }
   /** A `continue()`: it runs only when the model can answer the transcript. */
   isContinue?: boolean
+  /** A `tool()`: its only model call asks for this tool. */
+  tool?: ToolTurn
 }
 
 /**
@@ -957,6 +961,7 @@ const CHAT_OPS = new Set<string>([
   'steer',
   'followUp',
   'continue',
+  'tool',
   'resolve',
 ])
 
@@ -966,6 +971,7 @@ const WORK_OPS = new Set<string>([
   'steer',
   'followUp',
   'continue',
+  'tool',
   'resolve',
   'reset',
   'agent',
@@ -1865,6 +1871,11 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
    * other ephemeral messages gets the first input's operation and its own
    * are dropped. A turn that recovery runs again has none. A steer that joins
    * the running turn ignores them.
+   *
+   * `systemPreamble` are system prompts that this turn gets ahead of the
+   * harness prompts, for example memory that the host adds. They are kept
+   * like `overrides`: in memory only, and only from server code. A client
+   * input cannot set them.
    */
   prompt(
     message: UserInput,
@@ -1891,7 +1902,6 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       op: 'prompt',
       message,
       busy,
-      ...(systemPreamble ? { systemPreamble } : {}),
       ...(context !== undefined ? { context } : {}),
     }
     const known = this.knownTurn(inputId, input, principal)
@@ -3001,21 +3011,67 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   }
 
   /**
-   * Run a single registered tool out-of-band — no model turn. The tool's
-   * lifecycle is published into the feed as an AG-UI run (RUN_STARTED,
-   * TOOL_CALL_*, RUN_FINISHED), so watchers render it exactly like a tool call
-   * the model made. `meta` (e.g. an injection trigger) is echoed onto the run.
+   * Run one tool with no model, for example from a schedule or a webhook.
+   * It runs as a chat turn whose only model call asks for the tool, so the
+   * call goes through middleware, the input check, and `permissions()`, and
+   * the call and its result join the transcript. A tool that asks for
+   * approval stops the turn with an interrupt. `meta` is echoed as a
+   * `tanstack.injection` custom event. The turn waits behind a running turn.
    */
   tool(
     name: string,
     args?: unknown,
-    meta?: Record<string, unknown>,
-  ): Operation<unknown> {
-    const operation = new OperationImpl<unknown>('tool', this.feed, (target) =>
-      this.cancel(target.id),
+    options?: {
+      meta?: Record<string, unknown>
+      inputId?: string
+      principal?: Principal
+    },
+  ): Operation<ChatTurnResult> {
+    const inputId = options?.inputId ?? createInputId()
+    const principal = options?.principal ?? this.principal
+    const meta = options?.meta
+    const input: HarnessInput = {
+      op: 'tool',
+      name,
+      ...(args !== undefined ? { args } : {}),
+      ...(meta ? { meta } : {}),
+    }
+    const known = this.knownTurn(inputId, input, principal)
+    if (known) return known
+    const operation = this.createTurnOperation()
+    this.bindTurn(inputId, operation)
+    void this.admitting(() =>
+      this.accept(inputId, input, principal).then(
+        (admission) => {
+          if (admission !== 'new') {
+            this.answerDuplicate(operation, inputId, admission)
+            return
+          }
+          const isWaiting =
+            this.activeTurn !== undefined || this.queue.length > 0
+          this.answerTurn(operation, {
+            inputId,
+            status: isWaiting ? 'queued' : 'accepted',
+            operationId: operation.id,
+          })
+          this.enqueueTurn({
+            operation,
+            inputId,
+            principal,
+            tool: { name, args, ...(meta ? { meta } : {}) },
+          })
+        },
+        (error: unknown) => {
+          const failure = this.logFailure ?? error
+          this.answerTurn(operation, {
+            inputId,
+            status: 'rejected',
+            reason: errorText(failure),
+          })
+          operation.fail('failed', failure)
+        },
+      ),
     )
-    this.operations.set(operation.id, operation)
-    void this.executeTool(operation, name, args, meta)
     return operation
   }
 
@@ -3660,118 +3716,6 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         message: error instanceof Error ? error.message : String(error),
         timestamp: Date.now(),
       })
-      operation.fail(
-        operation.abortController.signal.aborted ? 'cancelled' : 'failed',
-        error,
-      )
-    }
-    this.publishFinished(operation)
-  }
-
-  private async executeTool(
-    operation: OperationImpl<unknown>,
-    name: string,
-    args: unknown,
-    meta?: Record<string, unknown>,
-  ): Promise<void> {
-    const inputId = createInputId()
-    await this.accept(inputId, {
-      op: 'tool',
-      name,
-      args,
-      ...(meta ? { meta } : {}),
-    })
-    const tool = [
-      ...(this.harness.tools ?? []),
-      ...(this.sessionPlugins?.tools ?? []),
-    ].find((candidate) => candidate.name === name)
-    const execute = (
-      tool as { execute?: (a: unknown, c?: unknown) => unknown } | undefined
-    )?.execute
-    if (!tool || typeof execute !== 'function') {
-      this.reject(inputId, 'unknown_tool')
-      operation.fail(
-        'failed',
-        new Error(`Unknown or non-executable tool: ${name}`),
-      )
-      this.publishFinished(operation)
-      return
-    }
-    let checked: unknown = args
-    const schema = (tool as { inputSchema?: unknown }).inputSchema
-    if (schema !== undefined) {
-      const result = await validateWithStandardSchema(
-        schema as never,
-        args ?? {},
-      )
-      if (!result.success) {
-        const reason = `Input validation failed for tool ${name}: ${result.issues
-          .map((issue) => issue.message)
-          .join(', ')}`
-        this.reject(inputId, 'invalid_input')
-        operation.fail('failed', new Error(reason))
-        this.publishFinished(operation)
-        return
-      }
-      checked = result.data
-    }
-    operation.setStatus('running')
-    await this.applied(inputId, operation.id)
-    this.publishStarted(operation)
-    const toolCallId = `tool-${operation.id}`
-    try {
-      operation.publish({
-        type: EventType.RUN_STARTED,
-        runId: operation.id,
-        threadId: this.threadId,
-        timestamp: Date.now(),
-      } as StreamChunk)
-      operation.publish({
-        type: EventType.TOOL_CALL_START,
-        toolCallId,
-        toolCallName: name,
-        timestamp: Date.now(),
-      } as StreamChunk)
-      operation.publish({
-        type: EventType.TOOL_CALL_ARGS,
-        toolCallId,
-        delta: JSON.stringify(checked ?? {}),
-        timestamp: Date.now(),
-      } as StreamChunk)
-      operation.publish({
-        type: EventType.TOOL_CALL_END,
-        toolCallId,
-        timestamp: Date.now(),
-      } as StreamChunk)
-      if (meta) {
-        operation.publish(
-          customEvent('tanstack.injection', { toolCallId, ...meta }),
-        )
-      }
-      const result: unknown = await execute(checked, {
-        threadId: this.threadId,
-        runId: operation.id,
-        signal: operation.abortController.signal,
-      })
-      operation.publish({
-        type: EventType.TOOL_CALL_RESULT,
-        toolCallId,
-        content: compactForModel(result),
-        timestamp: Date.now(),
-      } as StreamChunk)
-      operation.publish({
-        type: EventType.RUN_FINISHED,
-        runId: operation.id,
-        threadId: this.threadId,
-        timestamp: Date.now(),
-      } as StreamChunk)
-      operation.finish('completed', result)
-    } catch (error) {
-      operation.publish({
-        type: EventType.RUN_ERROR,
-        message: error instanceof Error ? error.message : String(error),
-        timestamp: Date.now(),
-      } as StreamChunk)
       operation.fail(
         operation.abortController.signal.aborted ? 'cancelled' : 'failed',
         error,
@@ -4927,8 +4871,9 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         stored.model === undefined
           ? undefined
           : this.harness.models?.[stored.model]
-      const model =
-        overrides?.adapter ?? named ?? picked ?? this.harness.adapter
+      const model = turn.tool
+        ? new ToolTurnAdapter(turn.tool, `tool-${turn.inputId ?? operation.id}`)
+        : (overrides?.adapter ?? named ?? picked ?? this.harness.adapter)
       if (!model) throw new Error(NO_MODEL)
       const adapter: AnyTextAdapter = await this.keys.adapter(model)
       const resolvePrompt = (prompt: string | (() => string)) =>
@@ -4997,7 +4942,12 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       // A new turn asks the router once. A resolve does not: it continues the
       // turn it answers, the main model or the saved plan of the root agents.
       let pick: SubagentRouterPick | undefined
-      if (routing && rootAgents.length > 0 && turn.resume === undefined) {
+      if (
+        routing &&
+        rootAgents.length > 0 &&
+        turn.resume === undefined &&
+        !turn.tool
+      ) {
         const history = await this.messages.loadThread(this.threadId)
         pick = await routing.router({
           messages: resetContext([...history, ...(message ? [message] : [])]),
@@ -6985,11 +6935,22 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           operation,
           message: input.message,
           inputId: entry.inputId,
-          ...(input.op === 'prompt' && input.systemPreamble
-            ? { systemPreamble: input.systemPreamble }
-            : {}),
           principal: entry.principal,
           context: input.context,
+        })
+      } else if (input.op === 'tool') {
+        const operation = this.createTurnOperation()
+        this.admitted.set(entry.inputId, inputKey(input, entry.principal))
+        this.bindTurn(entry.inputId, operation)
+        this.enqueueTurn({
+          operation,
+          inputId: entry.inputId,
+          principal: entry.principal,
+          tool: {
+            name: input.name,
+            args: input.args,
+            ...(input.meta ? { meta: input.meta } : {}),
+          },
         })
       } else if (input.op === 'reset') {
         this.queueReset(entry.inputId, input.note, entry.principal, 'end')
@@ -7181,7 +7142,11 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         }
         if (
           !isChat ||
-          !('message' in input.input || input.input.op === 'continue')
+          !(
+            'message' in input.input ||
+            input.input.op === 'continue' ||
+            input.input.op === 'tool'
+          )
         ) {
           this.reject(input.inputId, 'expired_on_restart')
           continue
@@ -7213,6 +7178,18 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             context: input.input.context,
             overrides: decision.overrides,
             isContinue: true,
+          })
+          continue
+        }
+        if (input.input.op === 'tool') {
+          const { name, args, meta } = input.input
+          const operation = this.createTurnOperation()
+          this.bindTurn(input.inputId, operation)
+          this.enqueueTurn({
+            operation,
+            inputId: input.inputId,
+            principal: input.principal,
+            tool: { name, args, ...(meta ? { meta } : {}) },
           })
           continue
         }

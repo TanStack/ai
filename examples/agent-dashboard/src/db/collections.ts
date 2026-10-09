@@ -20,11 +20,19 @@ export interface MessageRow {
   /** Set for text produced by a subagent, for attribution. */
   subagentRunId?: string
   /**
-   * A platform-generated system card (not a chat bubble): a channel opening, or a
-   * member joining a channel via a subscription. Rendered distinctly.
+   * A platform-generated system card (not a chat bubble): a channel opening, a
+   * member joining, or a session event (compaction, sign-in, retry, error).
    */
   system?: {
-    kind: 'channel_created' | 'member_joined'
+    kind:
+      | 'channel_created'
+      | 'member_joined'
+      | 'compaction'
+      | 'sign_in'
+      | 'retry'
+      | 'error'
+    /** For `sign_in`: where the user signs in. */
+    url?: string
     channelId?: string
     channelName?: string
     topic?: string
@@ -73,6 +81,8 @@ export interface SpendRow {
   inputTokens: number
   outputTokens: number
   totalTokens: number
+  /** USD, from provider costs or catalog prices (see `server/spend.ts`). */
+  cost: number
 }
 
 export interface SessionRow {

@@ -20,7 +20,7 @@ test('a team and its approved run survive a reload', async ({ page }) => {
     page.getByText('Approval required', { exact: true }).first(),
   ).toBeVisible()
 
-  // Approve via the AG-UI resume flow; the run continues and finishes.
+  // Approve with a harness `resolve` input; the run continues and finishes.
   await page.getByRole('button', { name: 'Approve', exact: true }).click()
   await expect(page.getByText(/Sent ✅/)).toBeVisible()
   await expect(

@@ -30,7 +30,7 @@ export const Route = createFileRoute('/api/webhooks/$token')({
         const payload = (await request.json().catch(() => ({}))) as unknown
         const record = (job: {
           id: string
-          status: 'queued' | 'accepted' | 'rejected'
+          status: 'accepted' | 'rejected'
           reason?: string
         }) => {
           webhook.deliveries = [

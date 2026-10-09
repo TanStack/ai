@@ -169,13 +169,6 @@ export interface HarnessConfig<
   models?: Record<string, AnyTextAdapter | KeyedAdapter<AnyTextAdapter>>
   systemPrompts?: Array<SystemPrompt>
   tools?: ReadonlyArray<AnyTool>
-  /**
-   * Per-tool visibility. `public` tools may be invoked out-of-band (by the
-   * dashboard, a schedule, a webhook — the `{ op: 'tool' }` input); `private`
-   * tools run only inside the owning agent's own model turns. Tools default to
-   * `private` — a tool is injectable only when named here as `public`.
-   */
-  toolVisibility?: Record<string, 'public' | 'private'>
   middleware?: ReadonlyArray<AnyChatMiddleware>
   /** When a turn stops calling the model. Defaults to `maxIterations(50)`. */
   agentLoopStrategy?: AgentLoopStrategy
@@ -270,6 +263,13 @@ export interface HarnessConfig<
      * opens, so `defineHarness` does not check these names.
      */
     commands?: ReadonlyArray<string>
+    /**
+     * The harness tools a client may run with a `tool` input, with no model
+     * turn, for example from a schedule or a webhook. An input for any other
+     * tool is refused with `not_exposed`. The call goes through the same
+     * middleware, input check, and `permissions()` rules as a model call.
+     */
+    tools?: ReadonlyArray<string>
   }
 }
 

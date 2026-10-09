@@ -2,16 +2,6 @@
 '@tanstack/ai-harness': minor
 ---
 
-Add an additive `systemPreamble` to the `prompt` input op. When present, its
-strings are prepended (ahead of the harness's own `systemPrompts`) as
-system/developer messages for that one run — a place for a trigger to attach
-per-run context (e.g. operational memory) without the agent author doing
-anything.
+`session.prompt(message, { systemPreamble })` adds system prompts for that one turn, ahead of the harness prompts, for example memory that the host adds. Only server code can set it. A client `prompt` input cannot, and the log does not keep it, as with `overrides`.
 
-Also make the server-tool execution `context` always carry the live `threadId`
-and `runId` (merged over the harness's static `context`) so a tool invoked
-in-band (from a model turn) can resolve the calling thread, matching the flat
-`{ threadId, runId, signal }` already passed to out-of-band `{ op: 'tool' }`
-invocations.
-
-Generated with Claude Code.
+A plain-object tool `context` also gets the live `threadId` and `runId`, so a tool can find the thread and the run that called it.

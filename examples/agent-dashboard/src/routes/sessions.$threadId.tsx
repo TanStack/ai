@@ -12,9 +12,10 @@ import {
 } from '@/db/collections'
 import {
   controlInput,
-  hydrateSession,
+  ensureSession,
   sendPrompt,
 } from '@/lib/session-controller'
+import { SessionTools } from '@/components/session-tools'
 import {
   Composer,
   StatusPill,
@@ -38,7 +39,7 @@ function SessionDetail() {
   const [input, setInput] = useState('')
 
   useEffect(() => {
-    void hydrateSession(threadId)
+    ensureSession(threadId)
   }, [threadId])
 
   const { data: msgs = [] } = useLiveQuery(
@@ -100,6 +101,7 @@ function SessionDetail() {
           {tokens.toLocaleString()} tokens
         </span>
       </header>
+      <SessionTools threadId={threadId} />
 
       <div className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto">
         <div className="mx-auto flex w-full max-w-[720px] flex-col gap-7 px-6 py-5">

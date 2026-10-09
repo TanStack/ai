@@ -15,8 +15,8 @@ import {
 } from '@tanstack/ai-harness'
 import { permissions, usage } from '@tanstack/ai-harness/plugins'
 import { z } from 'zod'
-import { fileMap, filePersistence } from './store'
-import { podTools, podVisibility } from './systools'
+import { filePersistence } from './store'
+import { podToolNames, podTools } from './systools'
 import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
 import type { AnyHarness, Principal } from '@tanstack/ai-harness'
 
@@ -85,7 +85,11 @@ function turn(options: {
     threadId: 't',
     timestamp: now,
     usage: [
-      { inputTokens: options.inputTokens, outputTokens: options.outputTokens },
+      {
+        inputTokens: options.inputTokens,
+        outputTokens: options.outputTokens,
+        totalTokens: options.inputTokens + options.outputTokens,
+      },
     ],
     metadata: {
       tanstack: {
@@ -248,14 +252,13 @@ export const triage = defineHarness({
     triageSettings,
   ],
   tools: [lookupTicket, sendReply, fetchStats, ...podTools],
-  // Only `fetch_stats` may be invoked out-of-band from the automations UI (the
-  // reply tools stay private to the agent's own model turns). The `pod.*` system
-  // tools are public too, but they're excluded from the run-now registry (see
-  // `api.tools.ts`) — they're plumbing, not scheduled automations.
-  toolVisibility: { fetch_stats: 'public', ...podVisibility },
-  // The config form and the meta-chat `set_agent_config` tool write these.
   expose: {
+    // The config form and the meta-chat `set_agent_config` tool write these.
     config: ['tone', 'signature', 'max_drafts', 'auto_send_low_risk'],
+    // Only `fetch_stats` runs from the automations UI. The reply tools run
+    // only in the agent's own turns. The `pod.*` tools are left out of the
+    // run-now list (see `api.tools.ts`): they are plumbing.
+    tools: ['fetch_stats', ...podToolNames],
   },
 })
 
@@ -280,57 +283,39 @@ export function registerHarness(harness: AnyHarness): void {
   harnessRegistry[harness.name] = harness
 }
 
-/** A live view of the threads the dashboard has touched, for the session list. */
-export interface ThreadInfo {
-  id: string
-  harness: string
-  createdAt: number
-  lastActivity: number
-}
-const threads = fileMap<ThreadInfo>('threads')
-
-export function noteThread(threadId: string, harness?: string): void {
-  const now = Date.now()
-  const existing = threads.get(threadId)
-  if (existing) {
-    existing.lastActivity = now
-    // A thread can be created (default triage) before the client tells us which
-    // harness it runs; adopt the specific harness whenever we're told it.
-    if (harness && harnessRegistry[harness]) existing.harness = harness
-    threads.set(threadId, existing) // persist the in-place update
-  } else {
-    threads.set(threadId, {
-      id: threadId,
-      harness: harness && harnessRegistry[harness] ? harness : triage.name,
-      createdAt: now,
-      lastActivity: now,
-    })
-  }
-}
-
-export function listThreads(): Array<ThreadInfo> {
-  return [...threads.values()].sort((a, b) => b.lastActivity - a.lastActivity)
-}
-
-/** The harness a thread runs on (default: triage). */
-export function getHarnessForThread(threadId: string) {
-  const name = threads.get(threadId)?.harness ?? triage.name
-  return harnessRegistry[name] ?? triage
-}
-
 /** Local single-user demo: every request is the same owner. */
-export const authorize = (): Principal => ({ id: 'local', name: 'You' })
+export const LOCAL: Principal = { id: 'local', name: 'You' }
+export const authorize = (): Principal => LOCAL
 
-/** Record the thread on every session open, and allow it. */
-export const canAccess = (_principal: Principal, threadId: string): boolean => {
-  noteThread(threadId)
-  return true
+/**
+ * The harness of a thread: `name` when the caller knows it, else the one in
+ * the session index entry, else triage. The first open of a thread writes its
+ * harness into the index, so pass `name` on that open.
+ */
+export async function harnessFor(
+  threadId: string,
+  name?: string | null,
+): Promise<AnyHarness> {
+  if (name && harnessRegistry[name]) return harnessRegistry[name]
+  const entry = await getHost().sessions.get(threadId)
+  return harnessRegistry[entry?.harness ?? ''] ?? triage
 }
 
-/** canAccess that records a thread under a specific harness (for meta-chat). */
-export const canAccessFor =
-  (harness: string) =>
-  (_principal: Principal, threadId: string): boolean => {
-    noteThread(threadId, harness)
-    return true
-  }
+/** Open a thread on its harness, as the local owner (see `harnessFor`). */
+export async function openThread(threadId: string, name?: string | null) {
+  const harness = await harnessFor(threadId, name)
+  const session = await getHost().open(harness, { threadId, principal: LOCAL })
+  return { harness, session }
+}
+
+/** The top-level threads of the session index, newest first. */
+export async function listThreads() {
+  const { entries } = await getHost().sessions.list()
+  return entries.map((entry) => ({
+    id: entry.threadId,
+    harness: entry.harness ?? triage.name,
+    ...(entry.title ? { title: entry.title } : {}),
+    createdAt: entry.createdAt,
+    lastActivity: entry.updatedAt,
+  }))
+}

@@ -109,16 +109,6 @@ export function parseHarnessInput(value: unknown): HarnessInput {
   if (value.op === 'tool' && typeof value.name !== 'string') {
     throw new Error('Invalid input: tool needs a name.')
   }
-  if (
-    value.op === 'prompt' &&
-    value.systemPreamble !== undefined &&
-    (!Array.isArray(value.systemPreamble) ||
-      value.systemPreamble.some((line) => typeof line !== 'string'))
-  ) {
-    throw new Error(
-      'Invalid input: systemPreamble must be an array of strings.',
-    )
-  }
   const namesInput = value.op === 'cancelInput' || value.op === 'setDelivery'
   if (namesInput && typeof value.inputId !== 'string') {
     throw new Error(`Invalid input: ${value.op} needs an inputId.`)
@@ -198,8 +188,8 @@ export function parseControlFrame(data: string): ControlFrame {
 /**
  * Apply a client input to a session. A client can run, or send messages to,
  * only the agents in `expose.agents`. It can run only the commands in
- * `expose.commands`, and change only the settings in `expose.settings` and the
- * config keys in `expose.config`. Resolves to the receipt. `principal` is who
+ * `expose.commands` and the tools in `expose.tools`, and change only the
+ * settings in `expose.settings` and the config keys in `expose.config`. Resolves to the receipt. `principal` is who
  * sent the input, from your `authorize`, never from the input itself. A chat
  * input runs with its credentials.
  */
@@ -228,9 +218,6 @@ export async function applyInput(
     case 'prompt': {
       const operation = session.prompt(input.message, {
         ...(input.busy ? { busy: input.busy } : {}),
-        ...(input.systemPreamble
-          ? { systemPreamble: input.systemPreamble }
-          : {}),
         ...(input.ephemeral ? { ephemeral: input.ephemeral } : {}),
         ...sent,
       })
@@ -295,15 +282,13 @@ export async function applyInput(
       }
       return session.setConfig(input.key, input.value)
     case 'tool': {
-      // Only `public` tools may run out-of-band. Unknown or private → rejected.
-      const known = (harness.tools ?? []).some((t) => t.name === input.name)
-      if (!known) {
-        return { inputId: '', status: 'rejected', reason: 'unknown_tool' }
+      if (!(harness.expose?.tools ?? []).includes(input.name)) {
+        return notExposed
       }
-      if ((harness.toolVisibility?.[input.name] ?? 'private') !== 'public') {
-        return { inputId: '', status: 'rejected', reason: 'not_public' }
-      }
-      const operation = session.tool(input.name, input.args, input.meta)
+      const operation = session.tool(input.name, input.args, {
+        ...(input.meta ? { meta: input.meta } : {}),
+        ...id,
+      })
       operation.then(
         () => {},
         () => {},
@@ -413,7 +398,7 @@ export function capabilitiesOf(harness: AnyHarness) {
       items: (harness.tools ?? []).map((tool) => ({
         name: tool.name,
         description: tool.description,
-        visibility: harness.toolVisibility?.[tool.name] ?? 'private',
+        exposed: (harness.expose?.tools ?? []).includes(tool.name),
       })),
     },
     multiAgent: {

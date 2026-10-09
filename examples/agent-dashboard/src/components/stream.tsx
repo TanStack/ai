@@ -13,8 +13,12 @@ import {
   CircleNotchIcon,
   HandPalmIcon,
   HandTapIcon,
+  ArrowsInIcon,
+  ArrowClockwiseIcon,
   HashIcon,
+  KeyIcon,
   PencilSimpleIcon,
+  WarningIcon,
   PlugIcon,
   QuestionIcon,
   StopIcon,
@@ -350,14 +354,35 @@ export function ToolCard({
   )
 }
 
+const SYSTEM_ICON = {
+  channel_created: HashIcon,
+  member_joined: UserPlusIcon,
+  compaction: ArrowsInIcon,
+  sign_in: KeyIcon,
+  retry: ArrowClockwiseIcon,
+  error: WarningIcon,
+}
+
 export function SystemCard({ message }: { message: MessageRow }) {
-  const Icon =
-    message.system?.kind === 'channel_created' ? HashIcon : UserPlusIcon
+  const kind = message.system?.kind ?? 'member_joined'
+  const Icon = SYSTEM_ICON[kind]
   return (
-    <div className="flex items-center gap-3 text-xs font-normal text-ink-3">
+    <div
+      className={`flex items-center gap-3 text-xs font-normal ${kind === 'error' ? 'text-err' : 'text-ink-3'}`}
+    >
       <span className="h-px flex-1 bg-line" />
       <Icon size={14} />
       <span>{message.text}</span>
+      {message.system?.url && (
+        <a
+          href={message.system.url}
+          target="_blank"
+          rel="noreferrer"
+          className="underline"
+        >
+          Sign in
+        </a>
+      )}
       {message.system?.topic && <span>· {message.system.topic}</span>}
       <span>· {clock(message.createdAt)}</span>
       <span className="h-px flex-1 bg-line" />
@@ -467,7 +492,7 @@ export function ApprovalCard({
           Deny
         </button>
         <span className="ml-auto text-[11px] font-normal text-ink-3">
-          approve → AG-UI resume · deny → harness protocol
+          a harness `resolve` input
         </span>
       </div>
     </div>
@@ -477,6 +502,11 @@ export function ApprovalCard({
 export function QuestionCard({ question }: { question: QuestionRow }) {
   const [answer, setAnswer] = useState('')
   const rawId = question.id.split(':').slice(1).join(':')
+  // A `permissions()` question: `{ answer: 'once' | 'always' | 'reject' }`.
+  const properties = question.schema?.properties as
+    | { answer?: { enum?: Array<string> } }
+    | undefined
+  const choices = properties?.answer?.enum
   const submit = async (value: unknown) => {
     questions.update(question.id, (draft) => {
       draft.status = 'answered'
@@ -498,7 +528,19 @@ export function QuestionCard({ question }: { question: QuestionRow }) {
         </span>
       </div>
       <p className="px-3 pb-3">{question.message}</p>
-      {question.schema?.type === 'boolean' ? (
+      {choices ? (
+        <div className="flex gap-2 border-t border-line px-3 py-2.5">
+          {choices.map((choice, index) => (
+            <button
+              key={choice}
+              onClick={() => submit({ answer: choice })}
+              className={`btn ${index === 0 ? 'btn-accent' : 'btn-outline'}`}
+            >
+              {choice}
+            </button>
+          ))}
+        </div>
+      ) : question.schema?.type === 'boolean' ? (
         <div className="flex gap-2 border-t border-line px-3 py-2.5">
           <button onClick={() => submit(true)} className="btn btn-accent">
             Yes

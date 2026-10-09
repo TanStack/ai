@@ -21,7 +21,7 @@ import { defineHarness } from '@tanstack/ai-harness'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { z } from 'zod'
 import { registerHarness } from './harness'
-import { podTools, podVisibility } from './systools'
+import { podToolNames, podTools } from './systools'
 import { writeMemory } from './memory'
 import { fetchReactNews } from './reddit'
 import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
@@ -62,7 +62,9 @@ function textTurn(
       runId: 'run',
       threadId: 't',
       timestamp: now,
-      usage: [{ inputTokens, outputTokens }],
+      usage: [
+        { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens },
+      ],
       metadata: { tanstack: { finishReason: 'stop' } },
     } as StreamChunk,
   ]
@@ -143,7 +145,7 @@ export const redditFetcher = defineHarness({
   ),
   systemPrompts: ['You fetch React news from Reddit. You do not chat.'],
   tools: [searchReactNews, ...podTools],
-  toolVisibility: { 'reddit.search_react_news': 'public', ...podVisibility },
+  expose: { tools: ['reddit.search_react_news', ...podToolNames] },
 })
 
 /* ------------------------------ Sentiment agent ----------------------------- */
@@ -202,23 +204,28 @@ function missingKeyModel(): AnyTextAdapter {
   )
 }
 
-function sentimentAdapter(): AnyTextAdapter {
+function sentimentAdapter(model = 'claude-haiku-4-5'): AnyTextAdapter {
   if (process.env.VITE_E2E === '1') return sentimentMock()
   if (!process.env.ANTHROPIC_API_KEY) return missingKeyModel()
-  // haiku: fast + cheap, the right tier for a per-batch sentiment digest.
-  return anthropicText('claude-haiku-4-5') as unknown as AnyTextAdapter
+  return anthropicText(model as 'claude-haiku-4-5') as unknown as AnyTextAdapter
 }
 
 export const sentimentReact = defineHarness({
   name: 'sentiment/react',
   description:
     'Reacts to a React-news batch with a sentiment digest (real LLM)',
+  // haiku: fast + cheap, the right tier for a per-batch sentiment digest.
   adapter: sentimentAdapter(),
+  // The session view's model picker sets `settings.model` to one of these.
+  models: {
+    haiku: sentimentAdapter('claude-haiku-5-5'),
+    sonnet: sentimentAdapter('claude-sonnet-5-5'),
+  },
+  expose: { settings: ['model'] },
   systemPrompts: [SENTIMENT_SYSTEM],
   // Only `remember` — provider-safe name (dotted `pod.*` names 400 on Anthropic).
   // The digest itself is plain text projected into the channel, not a tool call.
   tools: [remember],
-  toolVisibility: {},
 })
 
 registerHarness(redditFetcher)

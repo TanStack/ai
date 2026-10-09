@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { canAccess } from '@/server/harness'
 import { deleteMemory, listMemory, writeMemory } from '@/server/memory'
 import '@/server/meta'
 
@@ -14,7 +13,6 @@ export const Route = createFileRoute('/api/memory')({
         if (!threadId) {
           return Response.json({ error: 'threadId required' }, { status: 400 })
         }
-        canAccess({ id: 'local' }, threadId)
         return Response.json({ entries: listMemory(threadId) })
       },
       POST: async ({ request }) => {
@@ -29,7 +27,6 @@ export const Route = createFileRoute('/api/memory')({
             { status: 400 },
           )
         }
-        canAccess({ id: 'local' }, body.threadId)
         writeMemory(body.threadId, body.key, body.value)
         return Response.json({ entries: listMemory(body.threadId) })
       },
@@ -43,7 +40,6 @@ export const Route = createFileRoute('/api/memory')({
             { status: 400 },
           )
         }
-        canAccess({ id: 'local' }, threadId)
         deleteMemory(threadId, key)
         return Response.json({ entries: listMemory(threadId) })
       },

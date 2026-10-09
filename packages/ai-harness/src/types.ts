@@ -54,7 +54,7 @@ export interface TurnOverrides {
 export type BusyPolicy = 'queue' | 'steer' | 'reject'
 
 /** Kinds of work a session runs. */
-export type OperationKind = 'chat' | 'agent' | 'command' | 'compact' | 'tool'
+export type OperationKind = 'chat' | 'agent' | 'command' | 'compact'
 
 export type OperationStatus =
   | 'accepted'
@@ -104,14 +104,10 @@ export interface SessionEvent {
  * trust it.
  */
 export type HarnessInput = (
-// `systemPreamble` prepends per-run system/developer messages (e.g. pod memory)
-// ahead of the harness's own system prompts — additive; the agent author does
-// nothing, the trigger attaches them.
-| {
+  | {
       op: 'prompt'
       message: UserInput
       busy?: BusyPolicy
-      systemPreamble?: Array<string>
       context?: unknown
       ephemeral?: ReadonlyArray<ModelMessage & { role: 'user' }>
     }
@@ -148,8 +144,7 @@ export type HarnessInput = (
   | { op: 'command'; name: string; input?: unknown }
   | { op: 'answer'; questionId: string; value: unknown }
   | { op: 'config'; key: string; value: unknown }
-  // Out-of-band tool invocation: run one registered tool with no model turn.
-  // `meta` carries provenance (e.g. an injection trigger) onto the result event.
+  /** Run one tool in `expose.tools` with no model. See `session.tool`. */
   | { op: 'tool'; name: string; args?: unknown; meta?: Record<string, unknown> }
   | { op: 'configure'; settings: ThreadSettingsChange }
   | { op: 'reset'; note?: string }

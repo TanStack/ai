@@ -11,11 +11,12 @@ import { EventType, toolDefinition } from '@tanstack/ai'
 import { applyInput, defineHarness } from '@tanstack/ai-harness'
 import { z } from 'zod'
 import {
-  getHarnessForThread,
+  LOCAL,
   getHost,
   getPersistence,
   harnessRegistry,
   listThreads,
+  openThread,
   registerHarness,
   triage,
 } from './harness'
@@ -24,14 +25,14 @@ import {
 import './demo-agents'
 // Register the Reddit pod agents (reddit/fetcher, sentiment/react) too.
 import './reddit-agent'
+import { connectRelay } from './relay'
 import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
 
 let seq = 0
 const id = (p: string) => `${p}-meta-${(seq += 1)}`
 
 async function snapshotOf(threadId: string) {
-  const harness = getHarnessForThread(threadId)
-  const session = await getHost().open(harness, { threadId })
+  const { session } = await openThread(threadId)
   return { session, snapshot: session.snapshot() }
 }
 
@@ -52,7 +53,7 @@ const listSessions = toolDefinition({
   inputSchema: z.object({}),
 }).server(async () => {
   const rows = await Promise.all(
-    listThreads().map(async (t) => {
+    (await listThreads()).map(async (t) => {
       const { snapshot } = await snapshotOf(t.id)
       return {
         threadId: t.id,
@@ -72,7 +73,9 @@ const queryRuns = toolDefinition({
 }).server(async () => {
   const runs = (
     await Promise.all(
-      listThreads().map(
+      (
+        await listThreads()
+      ).map(
         async (t) =>
           (await getPersistence().stores.runs?.listByThread?.(t.id)) ?? [],
       ),
@@ -88,7 +91,10 @@ const getAgentConfig = toolDefinition({
   description: 'Read an agent config',
   inputSchema: z.object({ agent: z.string().optional() }),
 }).server(async () => {
-  const session = await getHost().open(triage, { threadId: 'settings' })
+  const session = await getHost().open(triage, {
+    threadId: 'settings',
+    principal: LOCAL,
+  })
   const config = session.config()
   return Object.entries(config).map(([key, entry]) => ({
     key,
@@ -102,7 +108,10 @@ const setAgentConfig = toolDefinition({
   description: 'Change an agent config value',
   inputSchema: z.object({ key: z.string(), value: z.any() }),
 }).server(async ({ key, value }) => {
-  const session = await getHost().open(triage, { threadId: 'settings' })
+  const session = await getHost().open(triage, {
+    threadId: 'settings',
+    principal: LOCAL,
+  })
   const receipt = await applyInput(triage, session, {
     op: 'config',
     key,
@@ -117,7 +126,7 @@ const summarizeSession = toolDefinition({
   inputSchema: z.object({ threadId: z.string().optional() }),
 }).server(async ({ threadId }) => {
   const target =
-    threadId ?? listThreads().find((t) => t.harness === triage.name)?.id
+    threadId ?? (await listThreads()).find((t) => t.harness === triage.name)?.id
   if (!target) return { error: 'no sessions yet' }
   const { snapshot } = await snapshotOf(target)
   const messages = await getPersistence().stores.messages.loadThread(target)
@@ -273,7 +282,7 @@ function metaModel(): AnyTextAdapter {
             runId: 'run',
             threadId: 't',
             timestamp: now,
-            usage: [{ inputTokens: 180, outputTokens: 20 }],
+            usage: [{ inputTokens: 180, outputTokens: 20, totalTokens: 200 }],
             metadata: { tanstack: { finishReason: 'tool_calls' } },
           } as StreamChunk
           return
@@ -323,7 +332,7 @@ function metaModel(): AnyTextAdapter {
           runId: 'run',
           threadId: 't',
           timestamp: now,
-          usage: [{ inputTokens: 260, outputTokens: 40 }],
+          usage: [{ inputTokens: 260, outputTokens: 40, totalTokens: 300 }],
           metadata: { tanstack: { finishReason: 'stop' } },
         } as StreamChunk
       })(),
@@ -348,3 +357,18 @@ export const meta = defineHarness({
 })
 
 registerHarness(meta)
+
+// Every harness is registered now. Finish the work that a restart cut off: the
+// work claims are in the persisted stores, so a claim whose lease ran out runs
+// again here.
+void getHost()
+  .resumePending({ harnesses: Object.values(harnessRegistry) })
+  .catch((error: unknown) => {
+    console.error('[dashboard] resumePending failed', error)
+  })
+
+if (process.env.DASHBOARD_RELAY_URL) {
+  void connectRelay(process.env.DASHBOARD_RELAY_URL).catch((error: unknown) => {
+    console.error('[dashboard] relay connect failed', error)
+  })
+}

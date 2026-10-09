@@ -5,16 +5,16 @@
  * harness `{ op: 'tool' }` op, so it reaches the channel view via the live tail
  * and is persisted for replay/history like any other run.
  *
- * Offline hosts: the example embeds the host, so there is no real offline host.
- * We simulate one with a dashboard-side pending queue + a dev toggle, per the
- * plan — the relay (`packages/ai-dashboard`) and its private queue are untouched.
+ * The harness inbox keeps an input that arrives while a turn runs, and the
+ * persisted stores keep it across a restart, so there is no queue here.
  *
  * Server-only. This module also owns the schedule/webhook registries because the
  * dashboard owns the clock (the server ticks; see scheduler.ts).
  */
 import { applyInput } from '@tanstack/ai-harness'
-import { getHarnessForThread, getHost } from './harness'
+import { openThread } from './harness'
 import { memoryPreamble } from './memory'
+import { overBudget } from './spend'
 import { fileMap } from './store'
 
 export type Trigger = 'timer' | 'manual' | 'webhook' | 'mcp'
@@ -35,7 +35,7 @@ export interface Job {
   /** For `mode: 'prompt'`: the message that starts the run. */
   message?: string
   trigger: Trigger
-  status: 'queued' | 'accepted' | 'rejected'
+  status: 'accepted' | 'rejected'
   reason?: string
   /** For `mode: 'prompt'`: how many memory entries were attached. */
   attached?: number
@@ -82,9 +82,6 @@ export interface Webhook {
 }
 
 const jobs: Array<Job> = []
-const pending: Array<Job> = []
-const seen = new Set<string>()
-let offline = false
 
 // Durable: written through to the state file on every set/delete (see store.ts).
 // A schedule that came due while the server was down fires once on next boot.
@@ -96,21 +93,11 @@ export function newId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${(seq += 1)}`
 }
 
-export function isOffline(): boolean {
-  return offline
-}
-export function setOffline(value: boolean): void {
-  offline = value
-  if (!offline) void flushPending()
-}
-export function pendingCount(): number {
-  return pending.length
-}
 export function listJobs(): Array<Job> {
   return [...jobs].sort((a, b) => b.createdAt - a.createdAt).slice(0, 100)
 }
 
-/** Run (or queue, if offline) an injection. Idempotent by job id. */
+/** Run an injection. Idempotent by job id. */
 export async function runInjection(params: {
   threadId: string
   mode?: 'tool' | 'prompt'
@@ -138,28 +125,21 @@ export async function runInjection(params: {
     createdAt: Date.now(),
   }
   jobs.push(job)
-  seen.add(id)
-
-  if (offline) {
-    job.status = 'queued'
-    pending.push(job)
-    return job
-  }
   return execute(job)
 }
 
 async function execute(job: Job): Promise<Job> {
   if (job.mode === 'prompt') {
-    const { attached } = await runPrompt({
+    const { attached, rejected } = await runPrompt({
       threadId: job.threadId,
       message: job.message ?? '',
     })
     job.attached = attached
-    job.status = 'accepted'
+    job.status = rejected ? 'rejected' : 'accepted'
+    if (rejected) job.reason = rejected
     return job
   }
-  const harness = getHarnessForThread(job.threadId)
-  const session = await getHost().open(harness, { threadId: job.threadId })
+  const { harness, session } = await openThread(job.threadId)
   const receipt = await applyInput(harness, session, {
     op: 'tool',
     name: job.tool,
@@ -180,25 +160,20 @@ async function execute(job: Job): Promise<Job> {
 export async function runPrompt(params: {
   threadId: string
   message: string
-}): Promise<{ attached: number }> {
-  const harness = getHarnessForThread(params.threadId)
-  const session = await getHost().open(harness, { threadId: params.threadId })
+}): Promise<{ attached: number; rejected?: 'over_budget' }> {
+  if (await overBudget(params.threadId)) {
+    return { attached: 0, rejected: 'over_budget' }
+  }
+  const { session } = await openThread(params.threadId)
   const systemPreamble = memoryPreamble(params.threadId)
-  await applyInput(harness, session, {
-    op: 'prompt',
-    message: params.message,
-    ...(systemPreamble.length ? { systemPreamble } : {}),
-  })
+  // `systemPreamble` is server-only: a client input can't carry one.
+  session
+    .prompt(params.message, systemPreamble.length ? { systemPreamble } : {})
+    .then(
+      () => {},
+      () => {},
+    )
   // Count entries (preamble has a header line + one line per entry).
   const attached = systemPreamble.length ? systemPreamble.length - 1 : 0
   return { attached }
-}
-
-/** Drain queued jobs when the host "reconnects" (offline toggled off). */
-export async function flushPending(): Promise<void> {
-  const toRun = pending.splice(0)
-  for (const job of toRun) {
-    job.status = 'accepted'
-    await execute(job)
-  }
 }

@@ -13,13 +13,14 @@
     "test:types": "tsc --noEmit"
   },
   "dependencies": {
-    "@ag-ui/client": "1.0.0",
     "@phosphor-icons/react": "^2.1.10",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-anthropic": "workspace:*",
+    "@tanstack/ai-dashboard": "workspace:*",
     "@tanstack/ai-harness": "workspace:*",
     "@tanstack/ai-mcp": "workspace:*",
+    "@tanstack/ai-models": "workspace:*",
     "@tanstack/ai-persistence": "workspace:*",
     "@tanstack/react-db": "^0.1.55",
     "@tanstack/react-devtools": "^0.9.10",

@@ -2,9 +2,9 @@
  * The channel's automations: the tool registry (public tools only, with run-now),
  * the schedule table (the dashboard's clock), and a webhook tester. All three
  * produce the same thing — an injected tool call whose structured result streams
- * into the channel via the feed tail.
+ * into the channel through the session feed.
  */
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { runInjection } from '@/lib/session-controller'
 import type { MembershipRow } from '@/db/collections'
 
@@ -19,11 +19,6 @@ export function AutomationsPanel({
   channelId: string
   primary: MembershipRow
 }) {
-  const qc = useQueryClient()
-  const invalidate = () => {
-    void qc.invalidateQueries({ queryKey: ['offline'] })
-  }
-
   const tools = useQuery<{ tools: Array<ToolInfo> }>({
     // Pass the harness so the registry is resolved directly — otherwise the
     // thread may not yet be noted with its harness and we'd get triage's tools.
@@ -33,24 +28,10 @@ export function AutomationsPanel({
         `/api/tools?threadId=${primary.threadId}&harness=${encodeURIComponent(primary.harness)}`,
       ).then((r) => r.json()),
   })
-  const offline = useQuery<{ offline: boolean; queued: number }>({
-    queryKey: ['offline'],
-    queryFn: () => fetch('/api/dev/offline').then((r) => r.json()),
-    refetchInterval: 1500,
-  })
 
   const toolNames = tools.data?.tools ?? []
   const selectedTool = toolNames[0]?.name || ''
 
-  const setOffline = useMutation({
-    mutationFn: (value: boolean) =>
-      fetch('/api/dev/offline', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ offline: value }),
-      }).then((r) => r.json()),
-    onSuccess: invalidate,
-  })
   const sendWebhook = useMutation({
     mutationFn: async () => {
       const created = await fetch('/api/webhooks', {
@@ -103,11 +84,6 @@ export function AutomationsPanel({
         <span className="text-xs text-ink-3">
           deterministic tool runs — no tokens
         </span>
-        {offline.data?.offline && (
-          <span className="pill ml-auto bg-warn-soft text-warn">
-            host offline — {offline.data.queued} queued
-          </span>
-        )}
       </div>
 
       {/* Tool registry + run-now (public tools only) */}
@@ -132,7 +108,7 @@ export function AutomationsPanel({
         </div>
       </div>
 
-      {/* Webhook + offline simulation */}
+      {/* Webhook tester */}
       <div className="flex flex-wrap gap-2">
         <button
           onClick={() => sendWebhook.mutate()}
@@ -149,14 +125,6 @@ export function AutomationsPanel({
             Send PR webhook
           </button>
         )}
-        <button
-          onClick={() => setOffline.mutate(!offline.data?.offline)}
-          className="btn btn-sm btn-outline"
-        >
-          {offline.data?.offline
-            ? 'Bring host online'
-            : 'Simulate host offline'}
-        </button>
       </div>
     </div>
   )

@@ -48,7 +48,6 @@ import {
 import { compact } from '@/components/ui'
 import { TraceWaterfall } from '@/components/trace-waterfall'
 import { TeamAutomations } from '@/components/team-automations'
-import { costUsd } from '@/lib/pricing'
 import type {
   ApprovalRow,
   BudgetRow,
@@ -200,10 +199,10 @@ export function ChannelView({
     (sum, s) => sum + (s.totalTokens ?? 0),
     0,
   )
-  const dollars = (spendRows as Array<SpendRow>).reduce((sum, row) => {
-    const member = rosterRows.find((item) => item.threadId === row.threadId)
-    return sum + costUsd(member?.harness, row.inputTokens, row.outputTokens)
-  }, 0)
+  const dollars = (spendRows as Array<SpendRow>).reduce(
+    (sum, row) => sum + (row.cost ?? 0),
+    0,
+  )
   const timeline = buildTimeline({
     msgs: msgs as Array<MessageRow>,
     tools: (tools as Array<ToolCallRow>).filter(

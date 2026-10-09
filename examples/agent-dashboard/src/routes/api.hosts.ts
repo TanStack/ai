@@ -7,7 +7,7 @@ import '@/server/meta'
 export const Route = createFileRoute('/api/hosts')({
   server: {
     handlers: {
-      GET: () =>
+      GET: async () =>
         Response.json([
           {
             id: 'local',
@@ -16,7 +16,7 @@ export const Route = createFileRoute('/api/hosts')({
               name: h.name,
               description: h.description ?? '',
             })),
-            sessions: listThreads().length,
+            sessions: (await listThreads()).length,
           },
         ]),
     },

@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { HARNESS_PROTOCOL_VERSION, applyInput } from '@tanstack/ai-harness'
-import { canAccess, getHost, triage } from '@/server/harness'
+import { LOCAL, getHost, triage } from '@/server/harness'
 
 // Agent config, versioned alongside the harness protocol. GET returns the
 // ConfigOption schemas + current values; POST writes a value through the harness
@@ -11,8 +11,10 @@ export const Route = createFileRoute('/api/config')({
       GET: async ({ request }) => {
         const threadId =
           new URL(request.url).searchParams.get('threadId') ?? 'settings'
-        canAccess({ id: 'local' }, threadId)
-        const session = await getHost().open(triage, { threadId })
+        const session = await getHost().open(triage, {
+          threadId,
+          principal: LOCAL,
+        })
         const config = session.config()
         const options = Object.entries(config).map(([key, entry]) => ({
           key,

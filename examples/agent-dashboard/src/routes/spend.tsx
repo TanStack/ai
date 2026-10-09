@@ -6,10 +6,9 @@ import {
   memberships,
   spend,
   teams,
-  upsert,
 } from '@/db/collections'
 import { WarningIcon } from '@phosphor-icons/react'
-import { costUsd } from '@/lib/pricing'
+import { setBudget } from '@/lib/session-controller'
 import { PageHeader, compact } from '@/components/ui'
 import type {
   BudgetRow,
@@ -55,7 +54,7 @@ function Spend() {
       outputTokens: s.outputTokens,
       budget,
       over: s.totalTokens > budget,
-      cost: costUsd(member?.harness, s.inputTokens, s.outputTokens),
+      cost: s.cost,
       teamId: member?.teamId,
     }
   })
@@ -70,12 +69,6 @@ function Spend() {
   for (const row of rows) {
     if (!row.teamId) continue
     teamTotals.set(row.teamId, (teamTotals.get(row.teamId) ?? 0) + row.cost)
-  }
-
-  const setBudget = (threadId: string, maxTokens: number) => {
-    upsert(budgets, { id: threadId, threadId, maxTokens }, (draft) => {
-      draft.maxTokens = maxTokens
-    })
   }
 
   const totalBudget = rows.reduce((sum, r) => sum + r.budget, 0) || 1

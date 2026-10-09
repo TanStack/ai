@@ -542,6 +542,40 @@ describe('createHarnessMcpServer', () => {
     expect(listed.tools.map((tool) => tool.name).sort()).toEqual(controlTools)
   })
 
+  it('runs an exposed harness tool with no model call', async () => {
+    const stats = toolDefinition({
+      name: 'fetch_stats',
+      description: 'Fetch the stats of a queue',
+      inputSchema: z.object({ queue: z.string() }),
+    }).server(async ({ queue }) => ({ queue, open: 7 }))
+    const hidden = toolDefinition({
+      name: 'hidden',
+      description: 'Not exposed',
+      inputSchema: z.object({}),
+    }).server(async () => 'no')
+    const model = scripted([])
+    const { server } = await serve(
+      defineHarness({
+        name: 'test/tools',
+        adapter: model.adapter,
+        tools: [stats, hidden],
+        expose: { tools: ['fetch_stats'] },
+      }),
+    )
+    const { client } = await connect(server)
+
+    const listed = await client.listTools()
+    const names = listed.tools.map((tool) => tool.name)
+    expect(names).toContain('tool_fetch_stats')
+    expect(names).not.toContain('tool_hidden')
+    const result = await client.callTool({
+      name: 'tool_fetch_stats',
+      arguments: { queue: 'billing' },
+    })
+    expect(result.isError).toBeFalsy()
+    expect(model.calls).toHaveLength(0)
+  })
+
   it('gives command names that clash as tool names distinct tool names, in name order', async () => {
     const clashing = definePlugin({
       name: 'test/clashing',

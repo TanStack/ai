@@ -99,13 +99,8 @@ const memoryRead = toolDefinition({
 /** The system tools, to spread into every harness's `tools`. */
 export const podTools = [channelCreate, messagePost, memoryWrite, memoryRead]
 
-/** Visibility for the system tools (all public — callable out-of-band). */
-export const podVisibility: Record<string, 'public' | 'private'> = {
-  'pod.channel_create': 'public',
-  'pod.message_post': 'public',
-  'pod.memory_write': 'public',
-  'pod.memory_read': 'public',
-}
+/** The system tools, for `expose.tools`: the dashboard runs them out-of-band. */
+export const podToolNames = podTools.map((t) => t.name)
 
 /** Names of the system tools, e.g. to exclude them from the run-now registry. */
-export const POD_TOOL_NAMES = new Set<string>(podTools.map((t) => t.name))
+export const POD_TOOL_NAMES = new Set<string>(podToolNames)

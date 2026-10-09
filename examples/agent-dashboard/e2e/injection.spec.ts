@@ -4,7 +4,7 @@ import type { Page } from '@playwright/test'
 
 // Phase 2: the dashboard invokes work deterministically — run-now, timers, and
 // webhooks — with the structured result streaming into the channel. These share
-// server-side state (the scheduler + the offline flag), so run them serially.
+// server-side state (the scheduler), so run them serially.
 test.describe.configure({ mode: 'serial' })
 
 async function newTeam(page: Page) {
@@ -64,22 +64,4 @@ test('a webhook produces the same injected result as the other triggers', async 
 
   await page.getByRole('button', { name: 'Send test webhook' }).click()
   await expect(page.getByText('webhook trigger')).toBeVisible()
-})
-
-test('an injected job queues while the host is offline and flushes on reconnect', async ({
-  page,
-}) => {
-  await newTeam(page)
-
-  await page.getByRole('button', { name: 'Simulate host offline' }).click()
-  await expect(page.getByText(/host offline/)).toBeVisible()
-
-  // Injecting while offline queues instead of running — no card appears yet.
-  await page.getByRole('button', { name: 'run fetch_stats' }).click()
-  await expect(page.getByText(/1 queued/)).toBeVisible()
-  await expect(page.getByText('manual trigger')).toHaveCount(0)
-
-  // Reconnect → the queue flushes → the result appears.
-  await page.getByRole('button', { name: 'Bring host online' }).click()
-  await expect(page.getByText('manual trigger')).toBeVisible({ timeout: 8000 })
 })

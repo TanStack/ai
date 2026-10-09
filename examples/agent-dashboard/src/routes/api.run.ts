@@ -1,10 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { canAccess, noteThread } from '@/server/harness'
+import { openThread } from '@/server/harness'
 import { runPrompt } from '@/server/injection'
 import '@/server/meta'
 
 // The memory-attaching run trigger: start a model run for a thread and prepend the
-// thread's current pod memory as a `systemPreamble`. Used by interactive channel
+// thread's current pod memory as a `systemPreamble`. A thread at its token
+// budget is refused (409). Used by interactive channel
 // prompts and by subscription dispatch — the platform attaches the memory, the
 // agent author does nothing. Observation is via the live tail, so this only
 // triggers (no stream in the response).
@@ -23,12 +24,14 @@ export const Route = createFileRoute('/api/run')({
             { status: 400 },
           )
         }
-        canAccess({ id: 'local' }, body.threadId)
-        if (body.harness) noteThread(body.threadId, body.harness)
-        const { attached } = await runPrompt({
+        await openThread(body.threadId, body.harness)
+        const { attached, rejected } = await runPrompt({
           threadId: body.threadId,
           message: body.message,
         })
+        if (rejected) {
+          return Response.json({ ok: false, reason: rejected }, { status: 409 })
+        }
         return Response.json({ ok: true, attached })
       },
     },

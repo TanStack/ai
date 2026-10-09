@@ -1,8 +1,8 @@
 /**
- * The live session controller. One `@ag-ui/client` HttpAgent per member thread,
- * whose AG-UI events are projected into TanStack DB collections. The UI is then a
- * live query over those collections — a projection of the event stream, not a
- * poller.
+ * The live session controller. Each member thread is followed over the harness
+ * protocol (`/api/harness/events`), and its events are projected into TanStack
+ * DB collections. The UI is then a live query over those collections — a
+ * projection of the event stream, not a poller.
  *
  * A *channel* unions N member threads into one shared view. Each member keeps its
  * own server-side AG-UI thread (so no harness change is needed to make agents
@@ -10,9 +10,9 @@
  * streams from colliding, every projected row id is namespaced by the member's
  * `agentId` (which equals the member's `threadId` today).
  */
-import { HttpAgent } from '@ag-ui/client'
 import {
   approvals,
+  budgets,
   channelMembers,
   channels,
   memberships,
@@ -49,12 +49,7 @@ export interface Member {
   displayName: string
 }
 
-interface Entry {
-  agent: HttpAgent
-  subscribed: boolean
-}
-const registry = new Map<string, Entry>()
-/** The member behind each thread, so approvals can find the right endpoint. */
+/** The member behind each thread, so control inputs reach the right harness. */
 const membersByThread = new Map<string, Member>()
 
 function origin() {
@@ -113,9 +108,14 @@ export async function hydrateRoster(): Promise<void> {
   }
 }
 
-/** Which run endpoint a harness streams over. */
-export function endpointFor(harness: string): string {
-  return harness === 'dashboard/meta' ? '/api/meta' : '/api/agent'
+/** A harness protocol URL. Without a harness, the server uses the thread's own. */
+function harnessUrl(route: string, threadId: string, extra = ''): string {
+  const harness = membersByThread.get(threadId)?.harness
+  return (
+    `${origin()}/api/harness/${route}?threadId=${encodeURIComponent(threadId)}` +
+    (harness ? `&harness=${encodeURIComponent(harness)}` : '') +
+    extra
+  )
 }
 
 function shortName(harness: string): string {
@@ -127,14 +127,13 @@ function shortName(harness: string): string {
  * (`/sessions/$threadId`, `/chat`). agentId === threadId, so id namespacing is
  * per-thread and the existing threadId-keyed queries keep working unchanged.
  */
-function memberFromThread(threadId: string, endpoint: string): Member {
-  const harness = endpoint === '/api/meta' ? 'dashboard/meta' : 'support/triage'
+function memberFromThread(threadId: string, harness = ''): Member {
   return {
     channelId: `channel-${threadId}`,
     agentId: threadId,
     threadId,
     harness,
-    role: endpoint === '/api/meta' ? 'operator' : 'agent',
+    role: harness === 'dashboard/meta' ? 'operator' : 'agent',
     displayName: shortName(harness),
   }
 }
@@ -143,13 +142,6 @@ interface Ctx {
   threadId: string
   channelId: string
   agentId: string
-  /**
-   * True when events arrive from the raw feed tail (channel view) rather than a
-   * coalesced AG-UI run (back-compat routes). The raw feed carries per-turn
-   * usage on RUN_FINISHED but no `tanstack.spend` ticks, so spend is summed from
-   * RUN_FINISHED here; the back-compat path keeps using the spend ticks.
-   */
-  viaTail?: boolean
 }
 
 /** Cap a projected tool result so a large payload can't bloat the live view. */
@@ -214,7 +206,7 @@ export function setActiveChannel(threadId: string, channelId: string): void {
 /** Project one AG-UI event into the collections, namespaced to a member. */
 function project(ctx: Ctx, event: any, replay = false) {
   const { threadId, agentId } = ctx
-  // A synthesized history event (see /api/tail rehydration) carries the channel
+  // A synthesized history event (see `historyEvents`) carries the channel
   // its message belonged to, so a rebuilt timeline routes DM vs main correctly.
   const channelId =
     event.channelId ?? activeChannelByThread.get(threadId) ?? ctx.channelId
@@ -341,7 +333,56 @@ function project(ctx: Ctx, event: any, replay = false) {
       }
       break
     }
+    case 'RUN_ERROR':
+      systemNote(
+        ctx,
+        channelId,
+        `error:${runId}`,
+        'error',
+        event.message ?? 'The run failed',
+      )
+      closeSpan(nsKey(`run:${runId}`), at)
+      setStatus(ctx, 'idle')
+      currentRunByThread.delete(threadId)
+      break
     case 'CUSTOM':
+      if (event.name === 'compaction:started') {
+        systemNote(
+          ctx,
+          channelId,
+          `compaction:${runId}`,
+          'compaction',
+          'Compacting the conversation…',
+        )
+      }
+      if (event.name === 'compaction:ended') {
+        systemNote(
+          ctx,
+          channelId,
+          `compaction:${runId}`,
+          'compaction',
+          'Compacted the conversation',
+        )
+      }
+      if (event.name === 'harness.auth_required') {
+        systemNote(
+          ctx,
+          channelId,
+          `auth:${event.value?.connector}`,
+          'sign_in',
+          `${event.value?.connector ?? 'A connector'} needs you to sign in`,
+          event.value?.url,
+        )
+      }
+      if (event.name === 'harness.turn.retry') {
+        systemNote(
+          ctx,
+          channelId,
+          `retry:${event.value?.operationId}:${event.value?.retries}`,
+          'retry',
+          `Retrying after an error: ${event.value?.error?.message ?? event.value?.error ?? 'unknown'}`,
+        )
+      }
       // An injected tool call tags its tool-call id with the trigger, so the
       // channel view can render it as a structured, distinctly-badged card.
       if (event.name === 'tanstack.injection' && event.value?.toolCallId) {
@@ -351,28 +392,6 @@ function project(ctx: Ctx, event: any, replay = false) {
             draft.trigger = event.value.trigger
           })
         }
-      }
-      if (event.name === 'tanstack.spend') {
-        const c = event.value?.cumulative ?? {}
-        upsert(
-          spend,
-          {
-            id: threadId,
-            threadId,
-            channelId,
-            agentId,
-            inputTokens: c.inputTokens ?? 0,
-            outputTokens: c.outputTokens ?? 0,
-            totalTokens: c.totalTokens ?? 0,
-          },
-          (draft) => {
-            draft.inputTokens = c.inputTokens ?? draft.inputTokens
-            draft.outputTokens = c.outputTokens ?? draft.outputTokens
-            draft.totalTokens = c.totalTokens ?? draft.totalTokens
-            draft.channelId = channelId
-            draft.agentId = agentId
-          },
-        )
       }
       if (event.name === 'harness.question' && event.value?.questionId) {
         upsert<QuestionRow>(questions, {
@@ -400,38 +419,7 @@ function project(ctx: Ctx, event: any, replay = false) {
       break
     case 'RUN_FINISHED': {
       closeSpan(nsKey(`run:${runId}`), at)
-      // The raw feed tail carries per-turn usage here (no spend ticks), so sum
-      // it into the spend row. The back-compat path uses `tanstack.spend` ticks.
-      if (ctx.viaTail) {
-        const usage = Array.isArray(event.usage) ? event.usage : []
-        const input = usage.reduce(
-          (sum: number, u: any) => sum + (u.inputTokens ?? 0),
-          0,
-        )
-        const output = usage.reduce(
-          (sum: number, u: any) => sum + (u.outputTokens ?? 0),
-          0,
-        )
-        if (input || output) {
-          upsert(
-            spend,
-            {
-              id: threadId,
-              threadId,
-              channelId,
-              agentId,
-              inputTokens: input,
-              outputTokens: output,
-              totalTokens: input + output,
-            },
-            (draft) => {
-              draft.inputTokens += input
-              draft.outputTokens += output
-              draft.totalTokens += input + output
-            },
-          )
-        }
-      }
+      refreshSpend(ctx)
       // On replay, approvals come from the live snapshot (a resolved interrupt
       // has no clearing event in the stream), so don't recreate them here.
       if (!replay && event.outcome?.type === 'interrupt') {
@@ -473,6 +461,85 @@ function project(ctx: Ctx, event: any, replay = false) {
     default:
       break
   }
+}
+
+/** A session event as a system card in the stream. A second note with the same id updates it. */
+function systemNote(
+  ctx: Ctx,
+  channelId: string,
+  key: string,
+  kind: 'compaction' | 'sign_in' | 'retry' | 'error',
+  text: string,
+  url?: string,
+): void {
+  const row = {
+    id: `${ctx.agentId}:sys:${key}`,
+    threadId: ctx.threadId,
+    channelId,
+    agentId: ctx.agentId,
+    role: 'system' as const,
+    text,
+    system: { kind, ...(url ? { url } : {}) },
+    createdAt: Date.now(),
+  }
+  upsert(messages, row, (draft) => {
+    draft.text = text
+  })
+}
+
+const spendTimers = new Map<string, ReturnType<typeof setTimeout>>()
+/** Read a thread's spend and budget from the server (`session.usage()`). */
+function refreshSpend(ctx: Ctx): void {
+  if (typeof window === 'undefined' || spendTimers.has(ctx.threadId)) return
+  spendTimers.set(
+    ctx.threadId,
+    setTimeout(async () => {
+      spendTimers.delete(ctx.threadId)
+      try {
+        const res = await fetch(
+          `${origin()}/api/spend?threadId=${encodeURIComponent(ctx.threadId)}`,
+        )
+        if (!res.ok) return
+        const data = await res.json()
+        if (!data.totalTokens) return
+        const row = {
+          id: ctx.threadId,
+          threadId: ctx.threadId,
+          channelId: ctx.channelId,
+          agentId: ctx.agentId,
+          inputTokens: data.inputTokens,
+          outputTokens: data.outputTokens,
+          totalTokens: data.totalTokens,
+          cost: data.cost,
+        }
+        upsert(spend, row, (draft) => Object.assign(draft, row))
+        upsert(
+          budgets,
+          { id: ctx.threadId, threadId: ctx.threadId, maxTokens: data.budget },
+          (draft) => {
+            draft.maxTokens = data.budget
+          },
+        )
+      } catch {
+        // best-effort: the meter catches up on the next run
+      }
+    }, 100),
+  )
+}
+
+/** Set a thread's token budget. The server refuses prompts at the limit. */
+export async function setBudget(
+  threadId: string,
+  maxTokens: number,
+): Promise<void> {
+  upsert(budgets, { id: threadId, threadId, maxTokens }, (draft) => {
+    draft.maxTokens = maxTokens
+  })
+  await fetch(`${origin()}/api/spend`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ threadId, maxTokens }),
+  })
 }
 
 /* ------------------------------------------------------------------ */
@@ -755,34 +822,6 @@ async function triggerRun(threadId: string, message: string): Promise<void> {
   }
 }
 
-function agentFor(threadId: string, endpoint: string): Entry {
-  let entry = registry.get(threadId)
-  if (!entry) {
-    const agent = new HttpAgent({ url: `${origin()}${endpoint}`, threadId })
-    entry = { agent, subscribed: false }
-    registry.set(threadId, entry)
-  }
-  return entry
-}
-
-/** Subscribe a member's HttpAgent so its events project into the channel. */
-function subscribeMember(member: Member): Entry {
-  membersByThread.set(member.threadId, member)
-  const entry = agentFor(member.threadId, endpointFor(member.harness))
-  if (!entry.subscribed) {
-    const ctx: Ctx = {
-      threadId: member.threadId,
-      channelId: member.channelId,
-      agentId: member.agentId,
-    }
-    entry.agent.subscribe({
-      onEvent: ({ event }) => project(ctx, event as any),
-    })
-    entry.subscribed = true
-  }
-  return entry
-}
-
 /* ------------------------------------------------------------------ */
 /* Team / channel construction                                         */
 /* ------------------------------------------------------------------ */
@@ -859,7 +898,7 @@ export function addAgentToChannel(
     ...(subs ? { subscriptions: subs } : {}),
     joinedAt: Date.now(),
   })
-  subscribeMember(member)
+  openChannelMember(member)
   persistRoster()
   return member
 }
@@ -907,46 +946,187 @@ export function createReactNewsTeam(): { teamId: string; channelId: string } {
   return { teamId, channelId }
 }
 
-/** Rehydrate a member's thread from stored events (replay). Once per thread. */
-const hydrated = new Set<string>()
-export async function hydrateMember(member: Member): Promise<void> {
-  if (hydrated.has(member.threadId)) return
-  hydrated.add(member.threadId)
-  subscribeMember(member)
+/* ------------------------------------------------------------------ */
+/* Following a member thread                                           */
+/* ------------------------------------------------------------------ */
+
+type ModelMessageLike = {
+  id?: string
+  role: string
+  content?: unknown
+  toolCalls?: Array<{
+    id: string
+    function?: { name?: string; arguments?: unknown }
+  }>
+  toolCallId?: string
+}
+
+function textOf(content: unknown): string {
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return ''
+  return content
+    .filter((part) => part?.type === 'text')
+    .map((part) => (typeof part.content === 'string' ? part.content : ''))
+    .join('')
+}
+
+/**
+ * The session feed is in memory, so it is empty after a server restart. Then
+ * the timeline is rebuilt from the saved transcript as the same AG-UI events a
+ * live run emits, so one projection path renders both.
+ *
+ * Each message's channel comes from the `[channel:<id>]` tag that the run
+ * trigger puts on the prompt. A reply or tool keeps the channel of the last
+ * tagged prompt.
+ */
+function historyEvents(msgs: Array<ModelMessageLike>): Array<any> {
+  const out: Array<any> = []
+  let channelId: string | undefined
+  for (const m of msgs) {
+    const id = m.id ?? `${m.role}-${out.length}`
+    if (m.role === 'user' || m.role === 'assistant') {
+      let text = textOf(m.content)
+      const tag = text.match(/^\[channel:([^\]]+)\]\s*/)
+      if (tag) {
+        channelId = tag[1]
+        text = text.slice(tag[0].length)
+      }
+      if (text || !m.toolCalls?.length) {
+        out.push({
+          type: 'TEXT_MESSAGE_START',
+          messageId: id,
+          role: m.role,
+          channelId,
+        })
+        if (text) {
+          out.push({
+            type: 'TEXT_MESSAGE_CONTENT',
+            messageId: id,
+            delta: text,
+            channelId,
+          })
+        }
+      }
+      for (const tc of m.toolCalls ?? []) {
+        const args = tc.function?.arguments ?? ''
+        out.push(
+          {
+            type: 'TOOL_CALL_START',
+            toolCallId: tc.id,
+            toolCallName: tc.function?.name ?? 'tool',
+            channelId,
+          },
+          {
+            type: 'TOOL_CALL_ARGS',
+            toolCallId: tc.id,
+            delta: typeof args === 'string' ? args : JSON.stringify(args),
+            channelId,
+          },
+        )
+      }
+    } else if (m.role === 'tool' && m.toolCallId) {
+      out.push({
+        type: 'TOOL_CALL_RESULT',
+        toolCallId: m.toolCallId,
+        content: textOf(m.content),
+        channelId,
+      })
+    }
+  }
+  return out
+}
+
+/** Seed the still-pending approvals and questions from a session snapshot. */
+function seedPending(ctx: Ctx, snapshot: any): void {
+  for (const interrupt of snapshot.pendingInterrupts ?? []) {
+    upsert(approvals, {
+      id: `${ctx.agentId}:${interrupt.id}`,
+      threadId: ctx.threadId,
+      channelId: ctx.channelId,
+      agentId: ctx.agentId,
+      interruptId: interrupt.id,
+      toolCallId: interrupt.toolCallId
+        ? `${ctx.agentId}:${interrupt.toolCallId}`
+        : undefined,
+      reason: interrupt.reason ?? 'tool_call',
+      message: interrupt.message ?? 'Approval required',
+      responseSchema: interrupt.responseSchema,
+      status: 'pending',
+      createdAt: Date.now(),
+    })
+  }
+  for (const question of snapshot.pendingQuestions ?? []) {
+    upsert<QuestionRow>(questions, {
+      id: `${ctx.agentId}:${question.questionId}`,
+      threadId: ctx.threadId,
+      channelId: ctx.channelId,
+      agentId: ctx.agentId,
+      message: question.message ?? 'Input required',
+      schema: question.schema,
+      status: 'pending',
+      createdAt: Date.now(),
+    })
+  }
+  if (snapshot.status === 'requires_action' || snapshot.status === 'running') {
+    setStatus(ctx, snapshot.status)
+  }
+}
+
+const followed = new Set<string>()
+
+/**
+ * Follow a member's thread and project every event: interactive runs, injected
+ * tools, timers, webhooks. This is the one projection path for every view.
+ *
+ * The snapshot gives the pending approvals and the feed head. Events up to the
+ * head are history (`replay`), so a resolved interrupt does not come back as a
+ * pending approval. Events after the head are live.
+ */
+export function openChannelMember(member: Member): void {
+  membersByThread.set(member.threadId, member)
+  if (followed.has(member.threadId) || typeof window === 'undefined') return
+  followed.add(member.threadId)
+  void follow(member)
+}
+
+async function follow(member: Member): Promise<void> {
   const ctx: Ctx = {
     threadId: member.threadId,
     channelId: member.channelId,
     agentId: member.agentId,
   }
+  let head = ''
   try {
-    const res = await fetch(
-      `${origin()}/api/replay?threadId=${encodeURIComponent(member.threadId)}`,
-    )
-    if (!res.ok) return
-    const data = await res.json()
-    for (const entry of data.events ?? []) {
-      project(ctx, entry.event, true)
+    const snapshot = await (
+      await fetch(harnessUrl('snapshot', member.threadId))
+    ).json()
+    head = snapshot.cursor ?? ''
+    if (!head || head === '0') {
+      const transcript = await (
+        await fetch(harnessUrl('transcript', member.threadId))
+      ).json()
+      for (const event of historyEvents(transcript ?? [])) {
+        project(ctx, event, true)
+      }
     }
-    for (const interrupt of data.pendingInterrupts ?? []) {
-      upsert(approvals, {
-        id: `${member.agentId}:${interrupt.id}`,
-        threadId: member.threadId,
-        channelId: member.channelId,
-        agentId: member.agentId,
-        interruptId: interrupt.id,
-        toolCallId: interrupt.toolCallId
-          ? `${member.agentId}:${interrupt.toolCallId}`
-          : undefined,
-        reason: interrupt.reason ?? 'tool_call',
-        message: interrupt.message ?? 'Approval required',
-        responseSchema: interrupt.responseSchema,
-        status: 'pending',
-        createdAt: Date.now(),
-      })
-    }
-    setStatus(ctx, data.status ?? 'idle')
+    seedPending(ctx, snapshot)
+    refreshSpend(ctx)
   } catch {
-    // best-effort replay
+    // best-effort history: the live feed below still works
+  }
+  let live = !head || head === '0'
+  // EventSource resumes from the last `id` (the cursor) on a reconnect.
+  const source = new EventSource(
+    harnessUrl('events', member.threadId, '&from=0'),
+  )
+  source.onmessage = (message) => {
+    try {
+      const frame = JSON.parse(message.data)
+      project(ctx, frame.event, !live)
+      if (!live && frame.cursor === head) live = true
+    } catch {
+      // ignore malformed frames
+    }
   }
 }
 
@@ -954,94 +1134,41 @@ export async function hydrateMember(member: Member): Promise<void> {
 /* Back-compat, thread-keyed API (single-member routes)                */
 /* ------------------------------------------------------------------ */
 
-/** Create + subscribe the agent for a thread so its events start projecting. */
-export function ensureSession(threadId: string, endpoint = '/api/agent'): void {
-  subscribeMember(memberFromThread(threadId, endpoint))
-}
-
-/** Rehydrate a single-thread session view (back-compat for /sessions, history). */
-export async function hydrateSession(
-  threadId: string,
-  endpoint = '/api/agent',
-): Promise<void> {
-  const member = memberFromThread(threadId, endpoint)
-  await hydrateMember(member)
-  openQuestionTail(member)
-}
-
-const questionTailed = new Set<string>()
-function openQuestionTail(member: Member): void {
-  if (questionTailed.has(member.threadId) || typeof window === 'undefined')
-    return
-  questionTailed.add(member.threadId)
-  const source = new EventSource(
-    `${origin()}/api/tail?threadId=${encodeURIComponent(member.threadId)}&harness=${encodeURIComponent(member.harness)}`,
+/**
+ * Follow a single-thread view (`/chat`, `/sessions/$threadId`). Without a
+ * harness, the server uses the thread's own.
+ */
+export function ensureSession(threadId: string, harness?: string): void {
+  openChannelMember(
+    membersByThread.get(threadId) ?? memberFromThread(threadId, harness),
   )
-  source.onmessage = (message) => {
-    try {
-      const parsed = JSON.parse(message.data)
-      const ctx: Ctx = {
-        threadId: member.threadId,
-        channelId: member.channelId,
-        agentId: member.agentId,
-      }
-      if (parsed.snapshot) {
-        for (const question of parsed.snapshot.pendingQuestions ?? []) {
-          upsert<QuestionRow>(questions, {
-            id: `${member.agentId}:${question.questionId}`,
-            threadId: member.threadId,
-            channelId: member.channelId,
-            agentId: member.agentId,
-            message: question.message ?? 'Input required',
-            schema: question.schema,
-            status: 'pending',
-            createdAt: Date.now(),
-          })
-        }
-      } else if (
-        parsed.event?.type === 'CUSTOM' &&
-        parsed.event.name?.startsWith('harness.question')
-      ) {
-        project(ctx, parsed.event, parsed.replay === true)
-      }
-    } catch {
-      // ignore malformed frames
-    }
-  }
 }
 
-/** Send a user prompt to a member's thread and stream the reply in. */
+/** Send a user prompt to a thread. The reply arrives on the followed feed. */
 export async function sendPrompt(
   threadId: string,
   text: string,
-  endpoint = '/api/agent',
-  channelId = `channel-${threadId}`,
+  harness?: string,
 ): Promise<void> {
-  const member = membersByThread.get(threadId) ?? {
-    ...memberFromThread(threadId, endpoint),
-    channelId,
-  }
-  const entry = subscribeMember(member)
+  ensureSession(threadId, harness)
   upsert(messages, {
     id: `user-${Date.now()}`,
     threadId,
-    channelId: member.channelId,
+    channelId: membersByThread.get(threadId)!.channelId,
     agentId: 'user',
     role: 'user',
     text,
     createdAt: Date.now(),
   })
-  entry.agent.addMessage({ id: `u-${Date.now()}`, role: 'user', content: text })
-  await entry.agent.runAgent()
+  await triggerRun(threadId, text)
 }
 
 export type ApprovalDecision = 'approve' | 'deny'
 
 /**
- * Resolve an approval. `approve` goes through the AG-UI resume flow (a new run,
- * so the continuation streams back). `deny` goes through the harness-native
- * control endpoint — exercising both paths the interrupt supports. The stored
- * raw `interruptId` is what the server understands (the row `id` is namespaced).
+ * Resolve an approval with a `resolve` control input. The continuation arrives
+ * on the followed feed. The stored raw `interruptId` is what the server knows
+ * (the row `id` is namespaced).
  */
 export async function resolveApproval(
   threadId: string,
@@ -1049,7 +1176,6 @@ export async function resolveApproval(
   decision: ApprovalDecision,
   editedArgs?: Record<string, unknown>,
 ): Promise<void> {
-  // The raw interrupt id: stored on the row, or de-namespaced from the row id.
   const row = approvals.has(approvalId)
     ? (approvals.get(approvalId) as { interruptId?: string; threadId?: string })
     : undefined
@@ -1065,42 +1191,17 @@ export async function resolveApproval(
       draft.status = decision === 'approve' ? 'approved' : 'denied'
     })
   }
-  closeSpan(
-    `${row?.threadId ?? threadId}:approval:${rawInterruptId}`,
-    Date.now(),
-  )
+  closeSpan(`${targetThread}:approval:${rawInterruptId}`, Date.now())
 
-  const member = membersByThread.get(targetThread)
-  const endpoint = member ? endpointFor(member.harness) : '/api/agent'
-
-  if (decision === 'approve') {
-    const payload = editedArgs ? { approved: true, editedArgs } : true
-    const entry = agentFor(targetThread, endpoint)
-    await entry.agent.runAgent({
-      resume: [{ interruptId: rawInterruptId, status: 'resolved', payload }],
-    })
-    return
-  }
-
-  // Harness-native path.
-  await fetch(`${origin()}/api/harness/control`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      threadId: targetThread,
-      input: {
-        op: 'resolve',
-        resume: [
-          { interruptId: rawInterruptId, status: 'cancelled', payload: false },
-        ],
-      },
-    }),
-  })
-  if (sessions.has(targetThread)) {
-    sessions.update(targetThread, (draft) => {
-      draft.status = 'idle'
-    })
-  }
+  const resume =
+    decision === 'approve'
+      ? {
+          interruptId: rawInterruptId,
+          status: 'resolved',
+          payload: editedArgs ? { approved: true, editedArgs } : true,
+        }
+      : { interruptId: rawInterruptId, status: 'cancelled', payload: false }
+  await controlInput(targetThread, { op: 'resolve', resume: [resume] })
 }
 
 export async function controlInput(
@@ -1108,89 +1209,49 @@ export async function controlInput(
   input:
     | { op: 'steer'; message: string }
     | { op: 'cancel' }
-    | { op: 'answer'; questionId: string; value: unknown },
-): Promise<void> {
-  await fetch(`${origin()}/api/harness/control`, {
+    | { op: 'answer'; questionId: string; value: unknown }
+    | { op: 'resolve'; resume: Array<Record<string, unknown>> }
+    | { op: 'reset' }
+    | { op: 'cancelInput'; inputId: string }
+    | { op: 'configure'; settings: Record<string, unknown> },
+): Promise<{ status: string; reason?: string }> {
+  const res = await fetch(harnessUrl('control', threadId), {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ threadId, input }),
   })
+  return res.json()
 }
 
-/* ------------------------------------------------------------------ */
-/* Channel tail + injection (teams view)                               */
-/* ------------------------------------------------------------------ */
+/** `GET /api/harness/<route>` for a thread: `snapshot`, `describe`, `transcript`, `sessions`. */
+export async function harnessGet(
+  route: string,
+  threadId: string,
+  extra = '',
+): Promise<any> {
+  const res = await fetch(harnessUrl(route, threadId, extra))
+  return res.json()
+}
 
-const tailed = new Set<string>()
-
-/**
- * Open a live tail of a member's feed and project every event — interactive runs,
- * injected tools, timers, webhooks — the single projection path for the channel
- * view. The tail replays from the start then follows live, so it also rehydrates.
- * An HttpAgent is created for triggering runs but is NOT subscribed (the tail is
- * the only projector, so nothing is counted twice).
- */
-export function openChannelMember(member: Member): void {
-  membersByThread.set(member.threadId, member)
-  agentFor(member.threadId, endpointFor(member.harness))
-  if (tailed.has(member.threadId) || typeof window === 'undefined') return
-  tailed.add(member.threadId)
-  const ctx: Ctx = {
-    threadId: member.threadId,
-    channelId: member.channelId,
-    agentId: member.agentId,
-    viaTail: true,
-  }
-  const source = new EventSource(
-    `${origin()}/api/tail?threadId=${encodeURIComponent(member.threadId)}&harness=${encodeURIComponent(member.harness)}`,
-  )
-  source.onmessage = (message) => {
-    try {
-      const parsed = JSON.parse(message.data)
-      // First frame: the authoritative snapshot. Seed the still-pending approvals
-      // (a resolved interrupt is absent here, so it never resurfaces on reload).
-      if (parsed.snapshot) {
-        for (const interrupt of parsed.snapshot.pendingInterrupts ?? []) {
-          upsert(approvals, {
-            id: `${ctx.agentId}:${interrupt.id}`,
-            threadId: ctx.threadId,
-            channelId: ctx.channelId,
-            agentId: ctx.agentId,
-            interruptId: interrupt.id,
-            toolCallId: interrupt.toolCallId
-              ? `${ctx.agentId}:${interrupt.toolCallId}`
-              : undefined,
-            reason: interrupt.reason ?? 'tool_call',
-            message: interrupt.message ?? 'Approval required',
-            responseSchema: interrupt.responseSchema,
-            status: 'pending',
-            createdAt: Date.now(),
-          })
-        }
-        for (const question of parsed.snapshot.pendingQuestions ?? []) {
-          upsert<QuestionRow>(questions, {
-            id: `${ctx.agentId}:${question.questionId}`,
-            threadId: ctx.threadId,
-            channelId: ctx.channelId,
-            agentId: ctx.agentId,
-            message: question.message ?? 'Input required',
-            schema: question.schema,
-            status: 'pending',
-            createdAt: Date.now(),
-          })
-        }
-        return
-      }
-      project(ctx, parsed.event, parsed.replay === true)
-    } catch {
-      // ignore malformed frames
-    }
-  }
+/** A session index op: rename, delete, or fork a thread. */
+export async function sessionOp(
+  threadId: string,
+  op:
+    | { op: 'rename'; title: string }
+    | { op: 'delete' }
+    | { op: 'fork'; through: string },
+): Promise<any> {
+  const res = await fetch(harnessUrl('sessions', threadId), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ threadId, ...op }),
+  })
+  return res.status === 204 ? null : res.json()
 }
 
 /**
  * Trigger a model run for a channel member via the memory-attaching run trigger
- * (`/api/run`). Projection comes from the tail. `channelId` is the channel the
+ * (`/api/run`). Projection comes from the followed feed. `channelId` is the channel the
  * human is looking at — the member becomes active there, so its run projects into
  * that channel (not just its home channel).
  */

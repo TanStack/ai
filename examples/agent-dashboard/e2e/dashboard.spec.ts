@@ -26,10 +26,10 @@ test('streams a session and approves a tool call mid-run', async ({ page }) => {
   ).toBeVisible()
   await expect(page.getByText('send_reply').first()).toBeVisible()
 
-  // Spend meter is live (tokens accrued from the stream).
+  // Spend meter is live (from `session.usage()`).
   await expect(page.getByText(/[1-9][0-9,]* tokens/)).toBeVisible()
 
-  // Approve via the AG-UI resume flow; the run continues and finishes.
+  // Approve with a harness `resolve` input; the run continues and finishes.
   await page.getByRole('button', { name: 'Approve', exact: true }).click()
 
   await expect(page.getByText(/Sent ✅/)).toBeVisible()

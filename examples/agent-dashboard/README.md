@@ -2,7 +2,7 @@
 
 Mission control for TanStack AI agents — a TanStack Start app that watches live
 agent sessions, approves tool calls mid-run, and tracks spend, all as a live
-projection of the [AG-UI](../../docs/harness/ag-ui.md) event stream.
+projection of the [harness](../../docs/harness/connect.md) event feed.
 
 It embeds a deterministic **support-triage** agent, so it runs with **no API
 key**: the agent looks up a ticket (an auto tool), drafts a customer reply (an
@@ -18,9 +18,10 @@ pnpm --filter agent-dashboard dev   # http://localhost:3002
 
 - **TanStack Start** — app shell + routing: hosts → sessions → session detail
   (`src/routes`), and server API routes that host the agent (`src/routes/api.*`).
-- **`@tanstack/ai-harness/ag-ui`** — the session view consumes the AG-UI SSE
-  stream with a bare `@ag-ui/client` `HttpAgent` (`src/lib/session-controller.ts`);
-  no bespoke protocol code.
+- **`createHarnessHandler`** — each harness is served at `/api/harness/*`. The
+  session view reads `snapshot` and `transcript` to hydrate, then follows
+  `events?from=` over SSE (`src/lib/session-controller.ts`). Every action
+  (steer, cancel, answer, resolve, configure, fork, rename) is a harness input.
 - **TanStack DB** — run state (messages, tool calls, approvals, spend) lives in
   `localOnly` collections written from the stream and read with `useLiveQuery`
   (`src/db/collections.ts`). The UI is a projection of the stream, not a poller.
@@ -85,25 +86,31 @@ double and a recorded Reddit fixture, so it needs neither a key nor the network.
 
 ## Control plane
 
-- **History** (`/history`) — past runs backed by `HarnessPersistence`
-  (`runs.listByThread`). Opening a session replays it from stored events
-  (`/api/replay`), so a session you didn't run in this tab rehydrates from the
-  persisted feed.
-- **Spend** (`/spend`) — per-session token rollups (a live query over the
-  `spend` collection) with per-session budgets and over-budget alerts.
+- **History** (`/history`) — the host session index (`host.sessions`). It
+  refreshes from `GET /api/harness/host-events`. Opening a session replays its
+  stored feed, so a session you didn't run in this tab rehydrates.
+- **Spend** (`/spend`) — per-session usage from `session.usage()`, priced with
+  `modelCost` from `@tanstack/ai-models`. Set a budget and `/api/run` rejects
+  new prompts for that session once it is over.
+- **Session tools** — on a session page: rename, fork from the last message,
+  reset the context, pick the model (for harnesses that expose it), cancel a
+  queued input, and open child sessions.
 - **Config** (`/config`) — a form generated from the agent's typed
   `ConfigOption` schemas; edits write through the harness protocol
   (`op: 'config'`). Endpoints are versioned with `HARNESS_PROTOCOL_VERSION`.
 
 ## The approval queue
 
-When a run pauses on an approval, an approval card appears. It resolves the
-interrupt through **both** paths the interrupt supports:
+When a run pauses on an approval, an approval card appears. Each button sends a
+`resolve` input to `/api/harness/control`, and the continuation streams back
+on the event feed:
 
-- **Approve** → the AG-UI resume flow (`runAgent({ resume })` over `/api/agent`),
-  so the continuation streams back into the view.
-- **Deny** → the harness-native control endpoint (`/api/harness/control`).
-- **Edit** → approve with edited tool arguments.
+- **Approve** resolves the interrupt.
+- **Deny** cancels it.
+- **Edit** approves with edited tool arguments.
+
+A `permissions()` question shows its answers (`once`, `always`, `reject`) as
+buttons.
 
 ## Operate a live run
 
@@ -116,8 +123,8 @@ Open a team and start a run. The team page gives you these controls:
 5. Answer an agent question with its question card.
 
 The **Spend** page shows token use and estimated dollar cost. Scripted demo
-agents cost `$0.00`. The `sentiment/react` agent uses the price for
-`claude-haiku-4-5` from the Anthropic model metadata.
+agents cost `$0.00`. The `sentiment/react` agent is priced from the model
+it ran on, using `@tanstack/ai-models`.
 
 ## Manage automations
 
@@ -132,14 +139,20 @@ a webhook.
 
 ## Manage the dashboard through MCP
 
-The dashboard serves its management tools at `/api/mcp`. Connect Claude Code:
+Each harness has its own MCP server (`createHarnessMcpServer`) at
+`/api/mcp/<harness>`. It has `chat`, `steer`, `cancel`, `approve`, `reject`,
+`answer`, `status`, and one `tool_<name>` for each exposed tool:
+
+```bash
+claude mcp add --transport http triage http://localhost:3002/api/mcp/support/triage
+```
+
+The dashboard's own tools are at `/api/mcp`: list teams, send a message to a
+team, run a public tool, and control schedules.
 
 ```bash
 claude mcp add --transport http dashboard http://localhost:3002/api/mcp
 ```
-
-The MCP server can list dashboard state, send and steer messages, stop runs,
-answer questions, resolve approvals, run public tools, and control schedules.
 
 This local demo does not require authentication. Add an authentication gate
 before you expose the endpoint outside localhost.
@@ -166,24 +179,39 @@ Demo script:
 
 ## Server wiring
 
-- `POST /api/agent` — the AG-UI run stream (`createAgUiHandler`, spend ticks on).
-- `GET|POST /api/harness/*` — the harness control tier (`createHarnessHandler`):
-  `snapshot`, `events`, `control`.
-- `GET /api/hosts`, `GET /api/sessions` — host and session lists.
+- `GET|POST /api/harness/*` — `createHarnessHandler`, one per harness (pick it
+  with `?harness=`, or it is read from the session index): `run`, `events`,
+  `control`, `snapshot`, `transcript`, `describe`, `sessions`, `host-events`.
+- `POST /api/run` — start a turn (checks the session budget first).
+- `GET|POST /api/spend` — session usage and budgets.
+- `GET /api/hosts`, `GET /api/sessions`, `GET /api/runs` — lists.
 - `GET|POST /api/config` — read/write agent config (versioned).
-- `GET /api/runs` — run history; `GET /api/replay` — a session's stored events.
-- `POST /api/meta` — the meta-chat's AG-UI run stream.
+- `/api/mcp`, `/api/mcp/<harness>` — MCP (see above).
 
 ## State
 
 Server state is durable, so you can close the tab, restart the server, and find
 each team where you left it. It lives in one JSON file (`.data/state.json`,
 gitignored; override with `DASHBOARD_STATE_FILE`), written through on every
-mutation and replayed on boot (`src/server/store.ts`). Persisted: chat run state
-(messages, runs, interrupts, agent config) plus the dashboard's side tables
-(threads, pod memory, schedules, webhooks). Not persisted: the in-flight
-injection queue and the dev offline toggle. It's a single-process file store — a
+mutation (`src/server/store.ts`). Persisted: every harness store except
+credentials (sessions index, transcripts, runs, events, interrupts, inputs,
+leases, config) plus the dashboard's side tables (schedules, webhooks,
+budgets, relay tokens). On boot the server calls `host.resumePending()`, so a
+turn cut off by a restart continues. It's a single-process file store — a
 multi-node dashboard would swap in a real database behind the same seam.
+
+## Remote relay
+
+Set `DASHBOARD_RELAY_URL` to connect each harness to a
+[`@tanstack/ai-dashboard`](../../packages/ai-dashboard) relay:
+
+```bash
+node packages/ai-dashboard/bin/dashboard.mjs --port 8797
+DASHBOARD_RELAY_URL=http://127.0.0.1:8797 pnpm --filter agent-dashboard dev
+```
+
+The server logs a pairing code for each harness. Approve it in the relay. The
+token is saved, so the next start connects with no code.
 
 ## Test
 

@@ -37,9 +37,6 @@ export async function answerAgentQuestion(page: Page) {
   // The question card sits at the bottom of the stream, under the open panel.
   await closeDemo(page)
   await page.getByText('Agent question').first().waitFor()
-  await page.getByPlaceholder('Your answer').first().fill('yes')
-  await page
-    .getByRole('button', { name: 'Answer', exact: true })
-    .first()
-    .click()
+  // A `permissions()` ask: allow this one call.
+  await page.getByRole('button', { name: 'once', exact: true }).first().click()
 }

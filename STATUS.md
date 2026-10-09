@@ -15,8 +15,8 @@ then the **Reddit pod** (`~/Downloads/teams-reddit-pod.md`).
 - **Branch**: `feat/agent-dashboard`, pushed to `origin/feat/agent-dashboard`,
   open as [PR #1560](https://github.com/TanStack/ai/pull/1560).
 - **Base**: up to date with `origin/main` (merged 2026-10-02). The harness work
-  it builds on (`@tanstack/ai-harness` session view, AG-UI bridge, out-of-band
-  tools, `@tanstack/ai-dashboard`) is **branch-only** — none of it is on `main`.
+  it builds on (`@tanstack/ai-harness` session view, out-of-band tools,
+  `@tanstack/ai-dashboard`) is **branch-only** — none of it is on `main`.
 - **Do not touch** the relay in `packages/ai-dashboard` (spec §6).
 
 ---
@@ -37,33 +37,37 @@ Status legend: ✅ shipped · 🟡 partial / demo-grade · 🧪 simulated · ❌
 
 #### A1. Live observability
 
-| Feature                            | Status | Notes                                                                                                                                             |
-| ---------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Live session stream                | ✅     | AG-UI SSE consumed by a bare `@ag-ui/client` `HttpAgent`. Projected into TanStack DB collections, read with `useLiveQuery`. No polling.           |
-| Standards-based wire protocol      | ✅     | AG-UI 1.0 (`@tanstack/ai-harness/ag-ui`). Any AG-UI client can consume a harness run.                                                             |
-| Message rendering                  | ✅     | Assistant text renders as markdown (GFM tables) via `react-markdown` + `remark-gfm`. User text stays plain.                                       |
-| Tool-call cards                    | ✅     | Name, status (running/done), args and result as collapsible JSON trees. Plain-text results stay text. Oversize results show "(result truncated)". |
-| Injected-call badge                | ✅     | Tool calls started by a timer, run-now, or webhook get a violet border and a `⏵ timer/manual/webhook` badge.                                      |
-| Subagent attribution               | ✅     | Messages from a child agent carry a `subagent` badge (`subagentRunId` preserved through AG-UI).                                                   |
-| Per-agent attribution in teams     | ✅     | Author tag on every message and tool card once a channel has ≥2 members.                                                                          |
-| Channel status pill                | ✅     | Aggregates members: `running` / `requires action` / `idle`.                                                                                       |
-| Live token counter per channel     | ✅     | Sum of `spend` rows for the channel, in the header.                                                                                               |
-| Memory-attached badge              | ✅     | "🧠 N memory entries attached" on the channel header after a run.                                                                                 |
-| Long trigger prompts collapse      | ✅     | Injected subscription prompts clamp to 3 lines with Show more / Show less. Internal `[channel:<id>]` routing tags are stripped.                   |
-| Session detail view                | ✅     | `/sessions/$threadId`: one thread's stream, kept for back-compat with the pre-teams model.                                                        |
-| Timeline survives a server restart | ✅     | `/api/tail` rebuilds AG-UI events from persisted messages when the in-memory feed is empty, routed to the right channel.                          |
-| Resolved approvals stay resolved   | ✅     | Tail sends a snapshot frame + `replay: true` on history, so reloading never re-raises an approved interrupt.                                      |
-| Trace waterfall per run            | ✅     | Live run, text, tool, and approval spans. Pending approvals can be resolved in the trace.                                                         |
-| OpenTelemetry export               | ❌     | No OTLP export or cross-service trace correlation.                                                                                                |
-| Search / filter across sessions    | ❌     |                                                                                                                                                   |
+| Feature                            | Status | Notes                                                                                                                                                    |
+| ---------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Live session stream                | ✅     | `createHarnessHandler` per harness: `snapshot` + `transcript` hydrate, then `events?from=` over SSE. Projected into TanStack DB collections. No polling. |
+| Message rendering                  | ✅     | Assistant text renders as markdown (GFM tables) via `react-markdown` + `remark-gfm`. User text stays plain.                                              |
+| Tool-call cards                    | ✅     | Name, status (running/done), args and result as collapsible JSON trees. Plain-text results stay text. Oversize results show "(result truncated)".        |
+| Injected-call badge                | ✅     | Tool calls started by a timer, run-now, or webhook get a violet border and a `⏵ timer/manual/webhook` badge.                                             |
+| Subagent attribution               | ✅     | Messages from a child agent carry a `subagent` badge (`subagentRunId` preserved on the event feed).                                                      |
+| Per-agent attribution in teams     | ✅     | Author tag on every message and tool card once a channel has ≥2 members.                                                                                 |
+| Channel status pill                | ✅     | Aggregates members: `running` / `requires action` / `idle`.                                                                                              |
+| Live token counter per channel     | ✅     | Sum of `spend` rows for the channel, in the header.                                                                                                      |
+| Memory-attached badge              | ✅     | "🧠 N memory entries attached" on the channel header after a run.                                                                                        |
+| Long trigger prompts collapse      | ✅     | Injected subscription prompts clamp to 3 lines with Show more / Show less. Internal `[channel:<id>]` routing tags are stripped.                          |
+| Session detail view                | ✅     | `/sessions/$threadId`: one thread's stream, kept for back-compat with the pre-teams model.                                                               |
+| Timeline survives a server restart | ✅     | The persisted event feed replays from cursor 0. An empty feed falls back to the transcript, routed to the right channel.                                 |
+| Resolved approvals stay resolved   | ✅     | Pending approvals and questions come from the snapshot, so reloading never re-raises an approved interrupt.                                              |
+| Compaction / sign-in / retry cards | ✅     | System cards for `compaction:*`, `harness.auth_required` (with a sign-in link), `harness.turn.retry`, and run errors.                                    |
+| Trace waterfall per run            | ✅     | Live run, text, tool, and approval spans. Pending approvals can be resolved in the trace.                                                                |
+| OpenTelemetry export               | ❌     | No OTLP export or cross-service trace correlation.                                                                                                       |
+| Search / filter across sessions    | ❌     |                                                                                                                                                          |
 
 #### A2. Human-in-the-loop
 
 | Feature                                | Status | Notes                                                                                        |
 | -------------------------------------- | ------ | -------------------------------------------------------------------------------------------- |
 | Approval queue (mid-run)               | ✅     | Run pauses on an approval-gated tool (`needsApproval`). Card shows tool name, message, args. |
-| Approve                                | ✅     | Resumes through the AG-UI resume flow; the continuation streams back into the view.          |
-| Deny                                   | ✅     | Goes through the harness control tier (`/api/harness/control`).                              |
+| Approve                                | ✅     | A `resolve` input on `/api/harness/control`; the continuation streams back on the feed.      |
+| Deny                                   | ✅     | A `resolve` input with `cancelled: true`.                                                    |
+| Permission answers                     | ✅     | `permissions()` questions show `once` / `always` / `reject` buttons.                         |
+| Fork / rename / reset / model picker   | ✅     | Session tools bar. Model picker for harnesses that expose `settings: ['model']`.             |
+| Input queue                            | ✅     | Queued inputs from the snapshot, each with cancel (`cancelInput`).                           |
+| Child sessions                         | ✅     | Lists `sessions?parentThreadId=` on a session page.                                          |
 | Edit, then approve                     | ✅     | Edit tool args as JSON, then approve the edited call.                                        |
 | Chat with an agent                     | ✅     | Message box sends to the channel's primary agent. Memory is attached to every run.           |
 | Run a member on demand                 | ✅     | Roster `▶ run` sends a generic nudge to any agent.                                           |
@@ -106,33 +110,33 @@ Status legend: ✅ shipped · 🟡 partial / demo-grade · 🧪 simulated · ❌
 
 #### A5. Automations (deterministic, zero-token triggers)
 
-| Feature                     | Status | Notes                                                                                                                                                   |
-| --------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Out-of-band tool invocation | ✅     | `{ op: 'tool' }` runs one registered tool with no model turn. Result streams into the channel and persists for replay.                                  |
-| Tool visibility             | ✅     | Only `public` tools can run out-of-band. Unknown or private tools are rejected, enforced on the server at read time.                                    |
-| Run-now                     | ✅     | Product UI: roster **🔧 tools** → RunToolDialog (pick a public tool, JSON params). Also in the Demo Controls panel.                                     |
-| Schedules                   | ✅     | Server-owned clock (1 s scheduler). `everySeconds` or 5-field cron. Pause / resume / delete. Idempotent jobs.                                           |
-| Webhooks                    | ✅     | Tokenized ingress `POST /api/webhooks/:token`. Two modes: `tool` (run a tool) or `prompt` (start a model run, memory attached).                         |
-| Result size cap             | ✅     | 64 KB per injected result.                                                                                                                              |
-| Offline host queue          | 🧪     | Simulated in the dashboard (dev toggle + "host offline — N queued" banner, flush on reconnect). The real relay queue lives in `@tanstack/ai-dashboard`. |
-| Per-field tool param forms  | ❌     | JSON only; `/api/tools` doesn't expose input schemas.                                                                                                   |
-| Schedule UI for cron        | ✅     | Product UI supports intervals and five-field cron, three upcoming runs, last run, pause/resume, and delete.                                             |
-| Webhook delivery management | ✅     | Product UI shows endpoint URLs and the latest 20 delivery attempts, with retry and delete.                                                              |
+| Feature                     | Status | Notes                                                                                                                                                      |
+| --------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Out-of-band tool invocation | ✅     | `{ op: 'tool' }` runs one registered tool with no model turn. Result streams into the channel and persists for replay.                                     |
+| Tool exposure               | ✅     | Only tools in `expose.tools` can run from a client. Others get `not_exposed`. Each harness MCP server adds `tool_<name>` for them.                         |
+| Run-now                     | ✅     | Product UI: roster **🔧 tools** → RunToolDialog (pick a public tool, JSON params). Also in the Demo Controls panel.                                        |
+| Schedules                   | ✅     | Server-owned clock (1 s scheduler). `everySeconds` or 5-field cron. Pause / resume / delete. Idempotent jobs.                                              |
+| Webhooks                    | ✅     | Tokenized ingress `POST /api/webhooks/:token`. Two modes: `tool` (run a tool) or `prompt` (start a model run, memory attached).                            |
+| Result size cap             | ✅     | 64 KB per injected result.                                                                                                                                 |
+| Remote relay                | ✅     | `DASHBOARD_RELAY_URL` connects each harness to `@tanstack/ai-dashboard` with `connectDashboard`. Pairing tokens persist. The relay owns the offline queue. |
+| Per-field tool param forms  | ❌     | JSON only; `/api/tools` doesn't expose input schemas.                                                                                                      |
+| Schedule UI for cron        | ✅     | Product UI supports intervals and five-field cron, three upcoming runs, last run, pause/resume, and delete.                                                |
+| Webhook delivery management | ✅     | Product UI shows endpoint URLs and the latest 20 delivery attempts, with retry and delete.                                                                 |
 
 #### A6. Control plane
 
-| Feature                     | Status | Notes                                                                                                                                                             |
-| --------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Run history                 | ✅     | `/history`, backed by `HarnessPersistence` (`runs.listByThread`). Includes the meta agent's own runs.                                                             |
-| Session replay              | ✅     | Rehydrates any stored session from persisted events (`/api/replay`).                                                                                              |
-| Spend tracking              | ✅     | `/spend`: per-session input / output / total tokens, live. SSR-safe SVG bar chart with budget reference lines.                                                    |
-| Budgets + alerts            | 🟡     | Editable per-session token budget (default 2,000), "over budget" status and banner. **Alert only — not enforced**, and budgets are browser-local (not persisted). |
-| Cost in dollars             | 🟡     | Per-session and per-team estimates for `claude-haiku-4-5`; scripted agents show `$0.00`. Cached-token pricing is not tracked.                                     |
-| Agent config                | ✅     | `/config`: form generated from typed `ConfigOption` schemas; writes through the harness protocol (`op: 'config'`).                                                |
-| Protocol versioning         | ✅     | Endpoints stamped with `HARNESS_PROTOCOL_VERSION`.                                                                                                                |
-| Agent versioning / rollback | ❌     | Deferred (spec §5).                                                                                                                                               |
-| Evals / red-teaming         | ❌     | Deferred (spec §5).                                                                                                                                               |
-| Prompt playground           | ❌     | Deferred (spec §5).                                                                                                                                               |
+| Feature                     | Status | Notes                                                                                                                                                      |
+| --------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Run history                 | ✅     | `/history`, the host session index (`host.sessions`), live through `host-events`. Includes the meta agent's own runs.                                      |
+| Session replay              | ✅     | Rehydrates any stored session from its persisted feed (`events?from=0`), or from the transcript.                                                           |
+| Spend tracking              | ✅     | `/spend`: per-session tokens from `session.usage()`, live. SSR-safe SVG bar chart with budget reference lines.                                             |
+| Budgets + alerts            | 🟡     | Per-session token budget (default 2,000), persisted. Once a budget is set, `/api/run` rejects new prompts over it. Schedules and webhooks are not checked. |
+| Cost in dollars             | ✅     | `modelCost` from `@tanstack/ai-models` per model, including cached tokens. A provider-reported cost wins. Scripted agents show `$0.00`.                    |
+| Agent config                | ✅     | `/config`: form generated from typed `ConfigOption` schemas; writes through the harness protocol (`op: 'config'`).                                         |
+| Protocol versioning         | ✅     | Endpoints stamped with `HARNESS_PROTOCOL_VERSION`.                                                                                                         |
+| Agent versioning / rollback | ❌     | Deferred (spec §5).                                                                                                                                        |
+| Evals / red-teaming         | ❌     | Deferred (spec §5).                                                                                                                                        |
+| Prompt playground           | ❌     | Deferred (spec §5).                                                                                                                                        |
 
 #### A7. Meta-chat (the dashboard's own agent)
 
@@ -145,23 +149,23 @@ Status legend: ✅ shipped · 🟡 partial / demo-grade · 🧪 simulated · ❌
 
 #### A8. Persistence, deployment, security
 
-| Feature                    | Status | Notes                                                                                                                      |
-| -------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------- |
-| Durable state              | ✅     | One JSON file (`.data/state.json`, override `DASHBOARD_STATE_FILE`). Atomic, debounced write-through; replayed on boot.    |
-| What persists              | ✅     | Messages, runs, interrupts, agent config, threads, pod memory, schedules, webhooks, team roster.                           |
-| What doesn't               | —      | In-flight injection queue, offline toggle, budgets, inbox/credentials.                                                     |
-| Multi-node / real database | ❌     | Single process, single file. A DB can swap in behind the same seam.                                                        |
-| Auth                       | 🟡     | Local single user (`authorize` returns a fixed principal). No multi-user, RBAC, or SSO.                                    |
-| Audit trail                | 🟡     | Every action is a message or tool call in the stream (`pod.memory_write` cards stay visible). No dedicated audit log view. |
+| Feature                    | Status | Notes                                                                                                                                                                 |
+| -------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Durable state              | ✅     | One JSON file (`.data/state.json`, override `DASHBOARD_STATE_FILE`). Atomic, debounced write-through; replayed on boot.                                               |
+| What persists              | ✅     | Every harness store but credentials (session index, transcripts, events, inputs, leases), plus schedules, webhooks, budgets, relay tokens. `resumePending()` at boot. |
+| What doesn't               | —      | Credentials.                                                                                                                                                          |
+| Multi-node / real database | ❌     | Single process, single file. A DB can swap in behind the same seam.                                                                                                   |
+| Auth                       | 🟡     | Local single user (`authorize` returns a fixed principal). No multi-user, RBAC, or SSO.                                                                               |
+| Audit trail                | 🟡     | Every action is a message or tool call in the stream (`pod.memory_write` cards stay visible). No dedicated audit log view.                                            |
 
 #### A9. Developer experience
 
-| Feature                      | Status | Notes                                                                                                      |
-| ---------------------------- | ------ | ---------------------------------------------------------------------------------------------------------- |
-| Runs with no API key         | ✅     | Scripted demo agents. Only the Reddit sentiment agent needs `ANTHROPIC_API_KEY`.                           |
-| Demo Controls devtools panel | ✅     | Custom TanStack DevTools plugin: seeded-team launchers, triage demo, automations, PR webhook, offline sim. |
-| Hermetic e2e                 | ✅     | `VITE_E2E` swaps in deterministic doubles + a recorded Reddit fixture. No key, no network.                 |
-| TanStack stack showcase      | ✅     | Start (routes + server API), DB (`localOnly` collections), Query (server state), DevTools, Router.         |
+| Feature                      | Status | Notes                                                                                              |
+| ---------------------------- | ------ | -------------------------------------------------------------------------------------------------- |
+| Runs with no API key         | ✅     | Scripted demo agents. Only the Reddit sentiment agent needs `ANTHROPIC_API_KEY`.                   |
+| Demo Controls devtools panel | ✅     | Custom TanStack DevTools plugin: seeded-team launchers, triage demo, automations, PR webhook.      |
+| Hermetic e2e                 | ✅     | `VITE_E2E` swaps in deterministic doubles + a recorded Reddit fixture. No key, no network.         |
+| TanStack stack showcase      | ✅     | Start (routes + server API), DB (`localOnly` collections), Query (server state), DevTools, Router. |
 
 #### A10. Bundled demo agents
 
@@ -201,12 +205,10 @@ Status legend: ✅ shipped · 🟡 partial / demo-grade · 🧪 simulated · ❌
 
 These are what a competitor would need to match the dashboards, not UI.
 
-- **AG-UI bridge** (`@tanstack/ai-harness/ag-ui`): `sessionEventsToAgUi()`,
-  `operationToAgUiRun()` (one harness operation → one valid AG-UI run),
-  `createAgUiHandler()` (SSE). Usage in `metadata.tanstack.usage` (conformed to
-  `SpecTokenUsage[]`), optional `tanstack.spend` ticks, subagent attribution.
-- **Out-of-band tool op** `{ op: 'tool', name, args?, meta? }` + `toolVisibility`.
-- **`systemPreamble`** on the prompt op (per-run context injection) + live
+- **Out-of-band tool op** `{ op: 'tool', name, args?, meta? }` + `expose.tools`.
+  A model-less turn, so middleware, `permissions()`, and durable steps apply.
+- **`systemPreamble`** on server-side `session.prompt()` (per-run context
+  injection; clients cannot set it) + live
   `threadId`/`runId` in tool execution context.
 - **`createSessionView`**: a live TanStack Store view of a session for any UI,
   with a pure reducer and `selectGoal`.
@@ -434,8 +436,7 @@ npx @tanstack/ai-dashboard --port 8790       # the self-hosted remote control
 Demo: on the home page, **Add to team** an agent. Open the **Demo Controls**
 devtools panel (bottom-left) → **Start triage demo** → approve the drafted reply
 mid-run → **＋ Add agent** to reveal the roster. In **Automations**, run
-`fetch_stats` now, add a schedule, send a test webhook, or simulate the host
-offline. Then try **Meta-chat**, **History**, **Spend**, **Config**.
+`fetch_stats` now, add a schedule, or send a test webhook. Then try **Meta-chat**, **History**, **Spend**, **Config**.
 
 PR-watcher: **+ PR-watcher demo** → **Send PR webhook**. A `#pr-…` channel opens
 and the security agent flags the PR; reply **"not a security problem — we're
@@ -447,14 +448,13 @@ Reddit pod: **+ React-news demo** → **🔧 tools** → run
 
 ## Verification
 
-- `examples/agent-dashboard`: **20 Playwright e2e** (approval mid-run, config,
+- `examples/agent-dashboard`: **21 Playwright e2e** (approval mid-run, config,
   spend, history + replay, meta-chat, teams, injection, PR-watcher loop, DM,
   memory panel, persistence + approval replay, Reddit pod, trace, controls,
-  product automations, MCP); **5 vitest** (RSS parser + pricing).
+  product automations, MCP, session tools); vitest for the RSS parser.
 - `@tanstack/ai-dashboard`: **4 vitest** (relay, child-agent blocks).
-- After the 2026-10-02 merge with `main`: `test:types` + `test:lib` pass for
-  `agent-dashboard`, `@tanstack/ai-dashboard`, `@tanstack/ai-harness`. Full
-  `test:pr` and e2e not re-run yet.
+- After aligning with #1555 (2026-10-09): `pnpm test:pr` (113 projects),
+  dashboard e2e (21 passed), and `@tanstack/ai-e2e` (599 passed) all green.
 
 ## Deliberate decisions / open questions (flagged for @AlemTuzlak)
 
@@ -462,9 +462,15 @@ Reddit pod: **+ React-news demo** → **🔧 tools** → run
   loops a ResizeObserver and freezes the main thread).
 - **Location**: `examples/agent-dashboard` (no `apps/` dir in the repo).
 - **Auth**: local single-user. Multi-user auth beyond pairing/host-token is a follow-up.
-- **Spend**: tokens-first with per-session budgets as data; cost is a pluggable follow-up.
+- **Spend**: tokens from `session.usage()`, dollars from `@tanstack/ai-models`.
+  Budgets are enforced only on the `/api/run` path, and only once set.
+- **Wire protocol**: the dashboard uses the native harness routes, not AG-UI.
+  `@ag-ui/client` `HttpAgent` cannot read #1555's `POST run` stream (it
+  needs `RUN_STARTED` first).
 
-## Known cosmetic issue
+## Known issues
 
-- `@ag-ui/client` warns when it strips a nonstandard `/toolName` field the
-  harness core adds to `TOOL_CALL_START`. Warning only.
+- A tool turn can put an assistant tool call before any user message in the
+  transcript.
+- The e2e "spend dashboard shows live token usage" flaked twice in about six
+  full runs (the answer click did not land). It passes alone and in repeat runs.

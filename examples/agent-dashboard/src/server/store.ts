@@ -7,12 +7,11 @@
  * left it: a single snapshot file, written through on every mutation and replayed
  * on boot. No database, no schema, no new dependency.
  *
- * Persisted: chat run state (messages, runs, interrupts, metadata) plus the
- * dashboard's own side tables (threads, pod memory, schedules, webhooks).
- * Not persisted: the in-flight injection queue and the dev offline toggle
- * (ephemeral); and inbox/credentials/generation stores — nothing here writes
- * them, and secrets do not belong in a plaintext file. Add an encrypted store
- * before persisting credentials.
+ * Persisted: every harness store (messages, runs, interrupts, metadata, the
+ * session index, the inbox, media, …) plus the dashboard's own side tables
+ * (pod memory, schedules, webhooks, budgets). Not persisted: the in-flight
+ * injection job list (ephemeral), and credentials:
+ * secrets do not belong in a plaintext file.
  *
  * ponytail: single-process, single-file. A multi-node dashboard needs a real DB;
  * this one does not. Writes are debounced and atomic (tmp + rename); the last
@@ -27,15 +26,21 @@ import type { ModelMessage } from '@tanstack/ai'
 import type { InterruptRecord, RunRecord } from '@tanstack/ai-persistence'
 
 interface PersistedState {
+  /** Every harness store but credentials (see `filePersistence`). */
+  stores?: Record<string, Record<string, unknown>>
+  // Legacy chat stores, read once by `replayLegacy`.
   messages: Record<string, Array<ModelMessage>>
   runs: Record<string, RunRecord>
   interrupts: Record<string, InterruptRecord>
   metadata: Record<string, Record<string, { value: unknown; revision: string }>>
   // Side tables. Typed by their owning module via `fileMap<V>`.
+  // `threads` is legacy: the session index replaced it.
   threads: Record<string, unknown>
   memory: Record<string, Record<string, string>>
   schedules: Record<string, unknown>
   webhooks: Record<string, unknown>
+  budgets: Record<string, unknown>
+  relayTokens: Record<string, unknown>
   // The team roster (teams/channels/memberships/channelMembers). Created and
   // owned by the client's TanStack DB collections; the server just persists the
   // blob so a fresh tab or a restarted server can re-seed those collections.
@@ -59,6 +64,8 @@ function emptyState(): PersistedState {
     memory: {},
     schedules: {},
     webhooks: {},
+    budgets: {},
+    relayTokens: {},
     roster: { teams: [], channels: [], memberships: [], channelMembers: [] },
   }
 }
@@ -144,110 +151,121 @@ class FileMap<V> extends Map<string, V> {
 }
 
 /** A `Map` for a side table, seeded from and written through to the snapshot. */
-export function fileMap<V>(section: 'threads' | 'schedules' | 'webhooks') {
+export function fileMap<V>(
+  section: 'schedules' | 'webhooks' | 'budgets' | 'relayTokens',
+) {
   return new FileMap<V>(section)
 }
 
+// Secrets do not belong in a plaintext file. The other stores are mirrored.
+const UNSAVED_STORES = new Set(['credentials'])
+
+/** JSON with `Map`s and bytes, for the fields of the in-memory stores. */
+function encode(value: unknown): unknown {
+  if (value instanceof Map) {
+    return { $map: [...value].map(([k, v]) => [k, encode(v)]) }
+  }
+  if (value instanceof Uint8Array) {
+    return { $bytes: Buffer.from(value).toString('base64') }
+  }
+  if (Array.isArray(value)) return value.map(encode)
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([k, v]) => [k, encode(v)]),
+    )
+  }
+  return value
+}
+
+function decode(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(decode)
+  if (value && typeof value === 'object') {
+    if ('$map' in value && Array.isArray(value.$map)) {
+      return new Map(
+        value.$map.map(([k, v]: [string, unknown]) => [k, decode(v)]),
+      )
+    }
+    if ('$bytes' in value && typeof value.$bytes === 'string') {
+      return new Uint8Array(Buffer.from(value.$bytes, 'base64'))
+    }
+    return Object.fromEntries(
+      Object.entries(value).map(([k, v]) => [k, decode(v)]),
+    )
+  }
+  return value
+}
+
+/** The `Map` and counter fields of a store: its whole state. */
+function fieldsOf(store: object): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(store).filter(
+      ([, v]) => v instanceof Map || typeof v === 'number',
+    ),
+  )
+}
+
+const READ = /^(get|list|load|read|has|find|count|stream)/
+
 /**
- * File-backed persistence for the harness host. Keeps the in-memory reference
- * backend (so every store-contract invariant is inherited, not re-implemented),
- * replays the snapshot into it on boot, then patches the four chat state stores'
- * mutators in place to mirror each write back to disk. Reads stay untouched.
+ * File-backed persistence for the harness host. It keeps the in-memory
+ * reference backend, so every store contract holds. On boot it fills each
+ * store's fields from the snapshot. After each write call it saves them back.
+ *
+ * ponytail: it reads the fields of the reference stores, so it depends on
+ * their shape (`Map` fields). A real app uses a database adapter instead.
  */
 export function filePersistence() {
   const base = memoryPersistence()
-  const { messages, runs, interrupts, metadata } = base.stores
+  const stores = Object.entries(base.stores).filter(
+    ([name]) => !UNSAVED_STORES.has(name),
+  ) as Array<[string, Record<string, unknown>]>
 
-  replay(base)
-
-  const mirrorRun = async (runId: string): Promise<void> => {
-    const rec = await runs.get(runId)
-    if (rec) state.runs[runId] = rec
-    flush()
-  }
-  const mirrorInterrupt = async (interruptId: string): Promise<void> => {
-    const rec = await interrupts.get(interruptId)
-    if (rec) state.interrupts[interruptId] = rec
-    flush()
-  }
-  const mirrorMetadata = async (
-    namespace: string,
-    key: string,
-  ): Promise<void> => {
-    // getVersioned/setIf are optional MetadataStore capabilities; the in-memory
-    // backend always implements them, so the non-null assertions are safe.
-    const versioned = await metadata.getVersioned!(namespace, key)
-    if (versioned) (state.metadata[namespace] ??= {})[key] = versioned
-    flush()
+  if (state.stores) {
+    for (const [name, store] of stores) {
+      for (const [field, saved] of Object.entries(state.stores[name] ?? {})) {
+        store[field] = decode(saved)
+      }
+    }
+  } else {
+    replayLegacy(base)
   }
 
-  const saveThread = messages.saveThread.bind(messages)
-  messages.saveThread = async (threadId, msgs) => {
-    await saveThread(threadId, msgs)
-    state.messages[threadId] = msgs
-    flush()
-  }
-
-  const createOrResume = runs.createOrResume.bind(runs)
-  runs.createOrResume = async (input) => {
-    const rec = await createOrResume(input)
-    state.runs[rec.runId] = rec
-    flush()
-    return rec
-  }
-  const updateRun = runs.update.bind(runs)
-  runs.update = async (runId, patch) => {
-    await updateRun(runId, patch)
-    await mirrorRun(runId)
-  }
-
-  const createInterrupt = interrupts.create.bind(interrupts)
-  interrupts.create = async (record) => {
-    await createInterrupt(record)
-    await mirrorInterrupt(record.interruptId)
-  }
-  const resolveInterrupt = interrupts.resolve.bind(interrupts)
-  interrupts.resolve = async (interruptId, response) => {
-    await resolveInterrupt(interruptId, response)
-    await mirrorInterrupt(interruptId)
-  }
-  const cancelInterrupt = interrupts.cancel.bind(interrupts)
-  interrupts.cancel = async (interruptId) => {
-    await cancelInterrupt(interruptId)
-    await mirrorInterrupt(interruptId)
-  }
-  const commitBatch = interrupts.commitBatch?.bind(interrupts)
-  interrupts.commitBatch = async (entries) => {
-    await commitBatch?.(entries)
-    for (const entry of entries) await mirrorInterrupt(entry.interruptId)
-  }
-
-  const setMetadata = metadata.set.bind(metadata)
-  metadata.set = async (namespace, key, value) => {
-    await setMetadata(namespace, key, value)
-    await mirrorMetadata(namespace, key)
-  }
-  const setIfMetadata = metadata.setIf!.bind(metadata)
-  metadata.setIf = async (namespace, key, value, expectedRevision) => {
-    const result = await setIfMetadata(namespace, key, value, expectedRevision)
-    if (result.ok) await mirrorMetadata(namespace, key)
-    return result
-  }
-  const deleteMetadata = metadata.delete.bind(metadata)
-  metadata.delete = async (namespace, key) => {
-    await deleteMetadata(namespace, key)
-    if (state.metadata[namespace]) {
-      delete state.metadata[namespace][key]
+  let saving: ReturnType<typeof setTimeout> | undefined
+  const save = () => {
+    saving ??= setTimeout(() => {
+      saving = undefined
+      state.stores = Object.fromEntries(
+        stores.map(([name, store]) => [name, encode(fieldsOf(store))]),
+      ) as PersistedState['stores']
+      Object.assign(state, { messages: {}, runs: {}, interrupts: {} })
+      Object.assign(state, { metadata: {}, threads: {} })
       flush()
+    }, 50)
+    saving.unref?.()
+  }
+  for (const [, store] of stores) {
+    const proto = Object.getPrototypeOf(store)
+    for (const method of Object.getOwnPropertyNames(proto)) {
+      const original = store[method]
+      if (method === 'constructor' || READ.test(method)) continue
+      if (typeof original !== 'function') continue
+      store[method] = (...args: Array<unknown>): unknown => {
+        const result = original.apply(store, args)
+        if (result instanceof Promise) void result.then(save, () => {})
+        else save()
+        return result
+      }
     }
   }
-
   return base
 }
 
-/** Rebuild the in-memory stores from the snapshot by re-applying its writes. */
-function replay(base: ReturnType<typeof memoryPersistence>): void {
-  const { messages, runs, interrupts, metadata } = base.stores
+/**
+ * Load a snapshot from before the full mirror: the chat stores and the old
+ * `threads` table, which the session index replaces.
+ */
+function replayLegacy(base: ReturnType<typeof memoryPersistence>): void {
+  const { messages, runs, interrupts, metadata, sessions } = base.stores
 
   for (const [threadId, msgs] of Object.entries(state.messages)) {
     void messages.saveThread(threadId, msgs)
@@ -275,5 +293,19 @@ function replay(base: ReturnType<typeof memoryPersistence>): void {
       // revisions are not stable across a restart. No caller here depends on it.
       void metadata.set(namespace, key, entry.value)
     }
+  }
+  for (const [threadId, thread] of Object.entries(state.threads)) {
+    const { harness, createdAt, lastActivity } = thread as {
+      harness: string
+      createdAt: number
+      lastActivity: number
+    }
+    void sessions.upsert({
+      threadId,
+      harness,
+      createdAt,
+      updatedAt: lastActivity,
+      principal: { id: 'local' },
+    })
   }
 }

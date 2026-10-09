@@ -176,9 +176,6 @@ importers:
 
   examples/agent-dashboard:
     dependencies:
-      '@ag-ui/client':
-        specifier: 1.0.0
-        version: 1.0.0
       '@phosphor-icons/react':
         specifier: ^2.1.10
         version: 2.1.10(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -191,12 +188,18 @@ importers:
       '@tanstack/ai-anthropic':
         specifier: workspace:*
         version: link:../../packages/ai-anthropic
+      '@tanstack/ai-dashboard':
+        specifier: workspace:*
+        version: link:../../packages/ai-dashboard
       '@tanstack/ai-harness':
         specifier: workspace:*
         version: link:../../packages/ai-harness
       '@tanstack/ai-mcp':
         specifier: workspace:*
         version: link:../../packages/ai-mcp
+      '@tanstack/ai-models':
+        specifier: workspace:*
+        version: link:../../packages/ai-models
       '@tanstack/ai-persistence':
         specifier: workspace:*
         version: link:../../packages/ai-persistence
@@ -2989,19 +2992,10 @@ importers:
 
   packages/ai-harness:
     dependencies:
-      '@ag-ui/core':
-        specifier: 1.0.0
-        version: 1.0.0(zod@4.3.6)
-      '@ag-ui/encoder':
-        specifier: 1.0.0
-        version: 1.0.0(zod@4.3.6)
       '@tanstack/store':
         specifier: ^0.11.1
         version: 0.11.1
     devDependencies:
-      '@ag-ui/client':
-        specifier: 1.0.0
-        version: 1.0.0
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
@@ -4487,9 +4481,6 @@ packages:
   '@acemir/cssom@0.9.31':
     resolution: {integrity: sha512-ZnR3GSaH+/vJ0YlHau21FjfLYjMpYVIzTD8M8vIEQvIGxeOXyXdzCI140rrCY862p/C/BbzWsjc1dgnM9mkoTA==}
 
-  '@ag-ui/client@1.0.0':
-    resolution: {integrity: sha512-Q24E4yuK35tz7ROOC0yWYltdOZK1K+5GmM2Syh/PReFE9e8lDcE8LoMoY5HZyxpQZ+0IizwpQm9LyVqAHP8mpw==}
-
   '@ag-ui/core@1.0.0':
     resolution: {integrity: sha512-yCRhsQvb4+lmGMrDsi4TOJxqKpm/kb3H64wwL+Z90jNVrkhy17RErfzsNgybfbjNKLM0nenEDYDVJsZHJJSigQ==}
     peerDependencies:
@@ -4497,12 +4488,6 @@ packages:
     peerDependenciesMeta:
       zod:
         optional: true
-
-  '@ag-ui/encoder@1.0.0':
-    resolution: {integrity: sha512-8w+SHIjsatOcHHe5UBqdlqOiZaQWa3rMv1cUdNFXtHmfcIOLbMd1PG3SRWHD9AMUzApDl4964BV9xs3QPZogrw==}
-
-  '@ag-ui/proto@1.0.0':
-    resolution: {integrity: sha512-RXEdjD3RfZ/8fUEX+ZqN5SrZAxrOZ9oQt0FlEhN4Ie/YEOKDVv0u1g83fOhGxWJTTVAmYSM/xf+ijwixsmz2RA==}
 
   '@agentclientprotocol/sdk@1.5.0':
     resolution: {integrity: sha512-524jwbB2iYWA+kWWyv9fhKbhU89dH/lu9u5EXwVNmfYzopV8BujCDxByBDZhxRUkB7RWIJzISCnwivdDk+bdVg==}
@@ -8827,10 +8812,6 @@ packages:
       react: ^18.0.0 || ^19.0.0
       react-dom: ^18.0.0 || ^19.0.0
 
-  '@protobuf-ts/protoc@2.11.1':
-    resolution: {integrity: sha512-mUZJaV0daGO6HUX90o/atzQ6A7bbN2RSuHtdwo8SSF2Qoe3zHwa4IHyCN1evftTeHfLmdz+45qo47sL+5P8nyg==}
-    hasBin: true
-
   '@protobufjs/aspromise@1.1.2':
     resolution: {integrity: sha512-j+gKExEuLmKwvz3OgROXtrJ2UG2x8Ch2YZUxahh+s1F2HZ+wAceUNLkvy6zKCPVRkU++ZWQrdxsUeQXmcg4uoQ==}
 
@@ -11518,9 +11499,6 @@ packages:
 
   '@types/unist@3.0.3':
     resolution: {integrity: sha512-ko/gIFJRv177XgZsZcBwnqJN5x/Gien8qNOn0D5bQU/zAzVf9Zt3BlcUiLqhV9y4ARk0GbT3tnUiPNgnTXzc/Q==}
-
-  '@types/uuid@10.0.0':
-    resolution: {integrity: sha512-7gqG38EyHgyP1S+7+xomFtL+ZNHcKv6DwNaCZmJmo1vgMugyF3TCnXVg4t1uk89mLNwnLtnY3TpOpCOyp1/xHQ==}
 
   '@types/webxr@0.5.24':
     resolution: {integrity: sha512-h8fgEd/DpoS9CBrjEQXR+dIDraopAEfu4wYVNY2tEPwk60stPWhvZMf4Foo5FakuQ7HFZoa8WceaWFervK2Ovg==}
@@ -17319,9 +17297,6 @@ packages:
   run-parallel@1.2.0:
     resolution: {integrity: sha512-5l4VyZR86LZ/lDxZTR6jqL8AFE2S0IFLMP26AbjsLVADxHdhB/c0GUsH+y39UfCi3dzz8OlQuPmnaJOMoDHQBA==}
 
-  rxjs@7.8.1:
-    resolution: {integrity: sha512-AA3TVj+0A2iuIoQkWEK/tqFjBq2j+6PO6Y0zJcvzLAFhEFIO3HL0vls9hWLncZbAAbK0mar7oZ4V079I/qPMxg==}
-
   rxjs@7.8.2:
     resolution: {integrity: sha512-dhKf903U/PQZY6boNNtAGdWbG85WAbjT/1xYoZIC7FAY0yWapOBQVsVrDl58W86//e1VpMNBtRV4MaXfdMySFA==}
 
@@ -18592,9 +18567,6 @@ packages:
       uploadthing:
         optional: true
 
-  untruncate-json@0.0.1:
-    resolution: {integrity: sha512-4W9enDK4X1y1s2S/Rz7ysw6kDuMS3VmRjMFg7GZrNO+98OSe+x5Lh7PKYoVjy3lW/1wmhs6HW0lusnQRHgMarA==}
-
   untun@0.1.3:
     resolution: {integrity: sha512-4luGP9LMYszMRZwsvyUd9MrxgEGZdZuZgpVQHEEX0lCYFESasVRvZd0EYpCkOIbJKHMuv0LskpXc/8Un+MJzEQ==}
     hasBin: true
@@ -19357,51 +19329,9 @@ snapshots:
 
   '@acemir/cssom@0.9.31': {}
 
-  '@ag-ui/client@1.0.0':
-    dependencies:
-      '@ag-ui/core': 1.0.0(zod@3.25.76)
-      '@ag-ui/encoder': 1.0.0(zod@3.25.76)
-      '@ag-ui/proto': 1.0.0
-      '@types/uuid': 10.0.0
-      compare-versions: 6.1.1
-      fast-json-patch: 3.1.1
-      rxjs: 7.8.1
-      untruncate-json: 0.0.1
-      uuid: 11.1.1
-      zod: 3.25.76
-
-  '@ag-ui/core@1.0.0(zod@3.25.76)':
-    optionalDependencies:
-      zod: 3.25.76
-
   '@ag-ui/core@1.0.0(zod@4.2.1)':
     optionalDependencies:
       zod: 4.2.1
-
-  '@ag-ui/core@1.0.0(zod@4.3.6)':
-    optionalDependencies:
-      zod: 4.3.6
-
-  '@ag-ui/encoder@1.0.0(zod@3.25.76)':
-    dependencies:
-      '@ag-ui/core': 1.0.0(zod@3.25.76)
-      '@ag-ui/proto': 1.0.0
-    transitivePeerDependencies:
-      - zod
-
-  '@ag-ui/encoder@1.0.0(zod@4.3.6)':
-    dependencies:
-      '@ag-ui/core': 1.0.0(zod@4.3.6)
-      '@ag-ui/proto': 1.0.0
-    transitivePeerDependencies:
-      - zod
-
-  '@ag-ui/proto@1.0.0':
-    dependencies:
-      '@ag-ui/core': 1.0.0(zod@3.25.76)
-      '@bufbuild/protobuf': 2.15.0
-      '@protobuf-ts/protoc': 2.11.1
-      zod: 3.25.76
 
   '@agentclientprotocol/sdk@1.5.0(zod@4.3.6)':
     dependencies:
@@ -23210,28 +23140,6 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@modelcontextprotocol/sdk@1.29.0(zod@4.6.5)':
-    dependencies:
-      '@hono/node-server': 1.19.17(hono@4.13.8)
-      ajv: 8.20.0
-      ajv-formats: 3.0.1(ajv@8.20.0)
-      content-type: 1.0.5
-      cors: 2.8.6
-      cross-spawn: 7.0.6
-      eventsource: 3.0.7
-      eventsource-parser: 3.1.1
-      express: 5.2.1
-      express-rate-limit: 8.7.0(express@5.2.1)(supports-color@7.2.0)
-      hono: 4.13.8
-      jose: 6.2.12
-      json-schema-typed: 8.0.2
-      pkce-challenge: 5.0.1
-      raw-body: 3.0.2
-      zod: 4.6.5
-      zod-to-json-schema: 3.25.2(zod@4.6.5)
-    transitivePeerDependencies:
-      - supports-color
-
   '@modelcontextprotocol/server@2.1.0':
     dependencies:
       '@modelcontextprotocol/core': 2.1.0
@@ -24558,8 +24466,6 @@ snapshots:
     transitivePeerDependencies:
       - '@types/react-dom'
     optional: true
-
-  '@protobuf-ts/protoc@2.11.1': {}
 
   '@protobufjs/aspromise@1.1.2': {}
 
@@ -28444,8 +28350,6 @@ snapshots:
   '@types/unist@2.0.11': {}
 
   '@types/unist@3.0.3': {}
-
-  '@types/uuid@10.0.0': {}
 
   '@types/webxr@0.5.24': {}
 
@@ -36472,10 +36376,6 @@ snapshots:
     dependencies:
       queue-microtask: 1.2.3
 
-  rxjs@7.8.1:
-    dependencies:
-      tslib: 2.8.1
-
   rxjs@7.8.2:
     dependencies:
       tslib: 2.8.1
@@ -37810,8 +37710,6 @@ snapshots:
       lru-cache: 11.5.3
       ofetch: 2.0.0-alpha.3
 
-  untruncate-json@0.0.1: {}
-
   untun@0.1.3:
     dependencies:
       citty: 0.1.6
@@ -38712,10 +38610,6 @@ snapshots:
   zod-to-json-schema@3.25.2(zod@4.3.6):
     dependencies:
       zod: 4.3.6
-
-  zod-to-json-schema@3.25.2(zod@4.6.5):
-    dependencies:
-      zod: 4.6.5
 
   zod@3.25.76: {}
 

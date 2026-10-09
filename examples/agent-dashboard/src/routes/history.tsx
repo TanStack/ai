@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
+import { useEffect } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { CaretRightIcon } from '@phosphor-icons/react'
 import { PageHeader } from '@/components/ui'
 
@@ -25,11 +26,19 @@ const statusStyle: Record<string, string> = {
 }
 
 function History() {
+  const queryClient = useQueryClient()
   const runs = useQuery<{ protocolVersion: number; runs: Array<Run> }>({
     queryKey: ['runs'],
     queryFn: () => fetch('/api/runs').then((r) => r.json()),
-    refetchInterval: 3000,
   })
+  // The host announces each session change and status change, so refetch then.
+  useEffect(() => {
+    const source = new EventSource('/api/harness/host-events')
+    source.onmessage = () => {
+      void queryClient.invalidateQueries({ queryKey: ['runs'] })
+    }
+    return () => source.close()
+  }, [queryClient])
 
   const items = runs.data?.runs ?? []
 

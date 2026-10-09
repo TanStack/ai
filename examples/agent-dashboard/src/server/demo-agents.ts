@@ -20,7 +20,7 @@ import { EventType, toolDefinition } from '@tanstack/ai'
 import { defineHarness } from '@tanstack/ai-harness'
 import { z } from 'zod'
 import { registerHarness } from './harness'
-import { podTools, podVisibility } from './systools'
+import { podToolNames, podTools } from './systools'
 import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
 
 let seq = 0
@@ -88,7 +88,11 @@ function turn(options: {
     threadId: 't',
     timestamp: now,
     usage: [
-      { inputTokens: options.inputTokens, outputTokens: options.outputTokens },
+      {
+        inputTokens: options.inputTokens,
+        outputTokens: options.outputTokens,
+        totalTokens: options.inputTokens + options.outputTokens,
+      },
     ],
     metadata: {
       tanstack: { finishReason: options.tool ? 'tool_calls' : 'stop' },
@@ -309,7 +313,7 @@ export const prWatcher = defineHarness({
     'You are a PR watcher. When a webhook arrives, check for a new PR, open a channel for it, and post a summary requesting review.',
   ],
   tools: [checkPr, ...podTools],
-  toolVisibility: { 'github.check_pr': 'public', ...podVisibility },
+  expose: { tools: ['github.check_pr', ...podToolNames] },
 })
 
 export const securityReview = defineHarness({
@@ -321,7 +325,7 @@ export const securityReview = defineHarness({
     'You are a security reviewer. Review the PR and post your findings. When a human gives you a standing instruction about what not to flag, persist it with pod.memory_write.',
   ],
   tools: [...podTools],
-  toolVisibility: { ...podVisibility },
+  expose: { tools: podToolNames },
 })
 
 registerHarness(prWatcher)

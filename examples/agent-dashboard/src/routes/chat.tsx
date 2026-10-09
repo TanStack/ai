@@ -10,7 +10,7 @@ export const Route = createFileRoute('/chat')({
   component: MetaChat,
 })
 
-const ENDPOINT = '/api/meta'
+const HARNESS = 'dashboard/meta'
 const QUICK = [
   'List the agents on this host',
   'How many runs so far?',
@@ -25,7 +25,7 @@ function MetaChat() {
   const [input, setInput] = useState('')
 
   useEffect(() => {
-    ensureSession(threadId, ENDPOINT)
+    ensureSession(threadId, HARNESS)
   }, [threadId])
 
   const { data: msgs = [] } = useLiveQuery(
@@ -45,7 +45,7 @@ function MetaChat() {
     const t = text.trim()
     if (!t) return
     setInput('')
-    await sendPrompt(threadId, t, ENDPOINT)
+    await sendPrompt(threadId, t, HARNESS)
   }
 
   return (

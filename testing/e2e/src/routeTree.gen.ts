@@ -9,8 +9,6 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as ApiOpenrouterStructuredUsageRouteImport } from './routes/api.openrouter-structured-usage'
-import { Route as ApiChatCompletionsIncompleteStreamRouteImport } from './routes/api.chat-completions-incomplete-stream'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ActivityTestRouteImport } from './routes/activity-test'
 import { Route as ByokRouteImport } from './routes/byok'
@@ -69,10 +67,11 @@ import { Route as ApiBedrockConverseTruncatedToolCallRouteImport } from './route
 import { Route as ApiByokChatRouteImport } from './routes/api.byok-chat'
 import { Route as ApiByteplusSeedance1080pWireRouteImport } from './routes/api.byteplus-seedance-1080p-wire'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
+import { Route as ApiChatCompletionsIncompleteStreamRouteImport } from './routes/api.chat-completions-incomplete-stream'
 import { Route as ApiCloudflareBindingWireRouteImport } from './routes/api.cloudflare-binding-wire'
+import { Route as ApiCodexWireRouteImport } from './routes/api.codex-wire'
 import { Route as ApiCompactionDurableWireRouteImport } from './routes/api.compaction-durable-wire'
 import { Route as ApiCompactionWireRouteImport } from './routes/api.compaction-wire'
-import { Route as ApiCodexWireRouteImport } from './routes/api.codex-wire'
 import { Route as ApiCopilotWireRouteImport } from './routes/api.copilot-wire'
 import { Route as ApiDevtoolsMemoryRouteImport } from './routes/api.devtools-memory'
 import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-delivery'
@@ -133,6 +132,7 @@ import { Route as ApiOpenrouterReasoningWireRouteImport } from './routes/api.ope
 import { Route as ApiOpenrouterRetryCodesRouteImport } from './routes/api.openrouter-retry-codes'
 import { Route as ApiOpenrouterStreamOptionsWireRouteImport } from './routes/api.openrouter-stream-options-wire'
 import { Route as ApiOpenrouterStrictToolOptionalsRouteImport } from './routes/api.openrouter-strict-tool-optionals'
+import { Route as ApiOpenrouterStructuredUsageRouteImport } from './routes/api.openrouter-structured-usage'
 import { Route as ApiOpenrouterWebToolsWireRouteImport } from './routes/api.openrouter-web-tools-wire'
 import { Route as ApiOtelMediaRouteImport } from './routes/api.otel-media'
 import { Route as ApiOtelTranscriptionRouteImport } from './routes/api.otel-transcription'
@@ -168,34 +168,6 @@ import { Route as ApiTranscriptionStreamRouteImport } from './routes/api.transcr
 import { Route as ApiTtsStreamRouteImport } from './routes/api.tts.stream'
 import { Route as ApiVideoStreamRouteImport } from './routes/api.video.stream'
 
-const ApiOpenrouterStructuredUsageRoute =
-  ApiOpenrouterStructuredUsageRouteImport.update({
-    id: '/api/openrouter-structured-usage',
-    path: '/api/openrouter-structured-usage',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiOpenrouterWebToolsWireRoute =
-  ApiOpenrouterWebToolsWireRouteImport.update({
-    id: '/api/openrouter-web-tools-wire',
-    path: '/api/openrouter-web-tools-wire',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiOtelMediaRoute = ApiOtelMediaRouteImport.update({
-  id: '/api/otel-media',
-  path: '/api/otel-media',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiChatCompletionsIncompleteStreamRoute =
-  ApiChatCompletionsIncompleteStreamRouteImport.update({
-    id: '/api/chat-completions-incomplete-stream',
-    path: '/api/chat-completions-incomplete-stream',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiCompactionWireRoute = ApiCompactionWireRouteImport.update({
-  id: '/api/compaction-wire',
-  path: '/api/compaction-wire',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -500,12 +472,23 @@ const ApiChatRoute = ApiChatRouteImport.update({
   path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiChatCompletionsIncompleteStreamRoute =
+  ApiChatCompletionsIncompleteStreamRouteImport.update({
+    id: '/api/chat-completions-incomplete-stream',
+    path: '/api/chat-completions-incomplete-stream',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiCloudflareBindingWireRoute =
   ApiCloudflareBindingWireRouteImport.update({
     id: '/api/cloudflare-binding-wire',
     path: '/api/cloudflare-binding-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiCodexWireRoute = ApiCodexWireRouteImport.update({
+  id: '/api/codex-wire',
+  path: '/api/codex-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCompactionDurableWireRoute =
   ApiCompactionDurableWireRouteImport.update({
     id: '/api/compaction-durable-wire',
@@ -515,11 +498,6 @@ const ApiCompactionDurableWireRoute =
 const ApiCompactionWireRoute = ApiCompactionWireRouteImport.update({
   id: '/api/compaction-wire',
   path: '/api/compaction-wire',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiCodexWireRoute = ApiCodexWireRouteImport.update({
-  id: '/api/codex-wire',
-  path: '/api/codex-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCopilotWireRoute = ApiCopilotWireRouteImport.update({
@@ -836,6 +814,12 @@ const ApiOpenrouterStrictToolOptionalsRoute =
     path: '/api/openrouter-strict-tool-optionals',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiOpenrouterStructuredUsageRoute =
+  ApiOpenrouterStructuredUsageRouteImport.update({
+    id: '/api/openrouter-structured-usage',
+    path: '/api/openrouter-structured-usage',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiOpenrouterWebToolsWireRoute =
   ApiOpenrouterWebToolsWireRouteImport.update({
     id: '/api/openrouter-web-tools-wire',
@@ -1015,8 +999,6 @@ const ApiVideoStreamRoute = ApiVideoStreamRouteImport.update({
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/api/openrouter-structured-usage': typeof ApiOpenrouterStructuredUsageRoute
-  '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   '/': typeof IndexRoute
   '/activity-test': typeof ActivityTestRoute
   '/byok': typeof ByokRoute
@@ -1074,10 +1056,11 @@ export interface FileRoutesByFullPath {
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
+  '/api/codex-wire': typeof ApiCodexWireRoute
   '/api/compaction-durable-wire': typeof ApiCompactionDurableWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
-  '/api/codex-wire': typeof ApiCodexWireRoute
   '/api/copilot-wire': typeof ApiCopilotWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
@@ -1138,6 +1121,7 @@ export interface FileRoutesByFullPath {
   '/api/openrouter-retry-codes': typeof ApiOpenrouterRetryCodesRoute
   '/api/openrouter-stream-options-wire': typeof ApiOpenrouterStreamOptionsWireRoute
   '/api/openrouter-strict-tool-optionals': typeof ApiOpenrouterStrictToolOptionalsRoute
+  '/api/openrouter-structured-usage': typeof ApiOpenrouterStructuredUsageRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
@@ -1175,8 +1159,6 @@ export interface FileRoutesByFullPath {
   '/api/video/stream': typeof ApiVideoStreamRoute
 }
 export interface FileRoutesByTo {
-  '/api/openrouter-structured-usage': typeof ApiOpenrouterStructuredUsageRoute
-  '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   '/': typeof IndexRoute
   '/activity-test': typeof ActivityTestRoute
   '/byok': typeof ByokRoute
@@ -1234,10 +1216,11 @@ export interface FileRoutesByTo {
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
+  '/api/codex-wire': typeof ApiCodexWireRoute
   '/api/compaction-durable-wire': typeof ApiCompactionDurableWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
-  '/api/codex-wire': typeof ApiCodexWireRoute
   '/api/copilot-wire': typeof ApiCopilotWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
@@ -1298,6 +1281,7 @@ export interface FileRoutesByTo {
   '/api/openrouter-retry-codes': typeof ApiOpenrouterRetryCodesRoute
   '/api/openrouter-stream-options-wire': typeof ApiOpenrouterStreamOptionsWireRoute
   '/api/openrouter-strict-tool-optionals': typeof ApiOpenrouterStrictToolOptionalsRoute
+  '/api/openrouter-structured-usage': typeof ApiOpenrouterStructuredUsageRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
@@ -1335,8 +1319,6 @@ export interface FileRoutesByTo {
   '/api/video/stream': typeof ApiVideoStreamRoute
 }
 export interface FileRoutesById {
-  '/api/openrouter-structured-usage': typeof ApiOpenrouterStructuredUsageRoute
-  '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/activity-test': typeof ActivityTestRoute
@@ -1395,10 +1377,11 @@ export interface FileRoutesById {
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
+  '/api/codex-wire': typeof ApiCodexWireRoute
   '/api/compaction-durable-wire': typeof ApiCompactionDurableWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
-  '/api/codex-wire': typeof ApiCodexWireRoute
   '/api/copilot-wire': typeof ApiCopilotWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
@@ -1459,6 +1442,7 @@ export interface FileRoutesById {
   '/api/openrouter-retry-codes': typeof ApiOpenrouterRetryCodesRoute
   '/api/openrouter-stream-options-wire': typeof ApiOpenrouterStreamOptionsWireRoute
   '/api/openrouter-strict-tool-optionals': typeof ApiOpenrouterStrictToolOptionalsRoute
+  '/api/openrouter-structured-usage': typeof ApiOpenrouterStructuredUsageRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
@@ -1498,8 +1482,6 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    | '/api/openrouter-structured-usage'
-    | '/api/chat-completions-incomplete-stream'
     | '/'
     | '/activity-test'
     | '/byok'
@@ -1557,10 +1539,11 @@ export interface FileRouteTypes {
     | '/api/byok-chat'
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
+    | '/api/chat-completions-incomplete-stream'
     | '/api/cloudflare-binding-wire'
+    | '/api/codex-wire'
     | '/api/compaction-durable-wire'
     | '/api/compaction-wire'
-    | '/api/codex-wire'
     | '/api/copilot-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
@@ -1621,6 +1604,7 @@ export interface FileRouteTypes {
     | '/api/openrouter-retry-codes'
     | '/api/openrouter-stream-options-wire'
     | '/api/openrouter-strict-tool-optionals'
+    | '/api/openrouter-structured-usage'
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
     | '/api/otel-transcription'
@@ -1658,8 +1642,6 @@ export interface FileRouteTypes {
     | '/api/video/stream'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/api/openrouter-structured-usage'
-    | '/api/chat-completions-incomplete-stream'
     | '/'
     | '/activity-test'
     | '/byok'
@@ -1717,10 +1699,11 @@ export interface FileRouteTypes {
     | '/api/byok-chat'
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
+    | '/api/chat-completions-incomplete-stream'
     | '/api/cloudflare-binding-wire'
+    | '/api/codex-wire'
     | '/api/compaction-durable-wire'
     | '/api/compaction-wire'
-    | '/api/codex-wire'
     | '/api/copilot-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
@@ -1781,6 +1764,7 @@ export interface FileRouteTypes {
     | '/api/openrouter-retry-codes'
     | '/api/openrouter-stream-options-wire'
     | '/api/openrouter-strict-tool-optionals'
+    | '/api/openrouter-structured-usage'
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
     | '/api/otel-transcription'
@@ -1817,8 +1801,6 @@ export interface FileRouteTypes {
     | '/api/tts/stream'
     | '/api/video/stream'
   id:
-    | '/api/openrouter-structured-usage'
-    | '/api/chat-completions-incomplete-stream'
     | '__root__'
     | '/'
     | '/activity-test'
@@ -1877,10 +1859,11 @@ export interface FileRouteTypes {
     | '/api/byok-chat'
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
+    | '/api/chat-completions-incomplete-stream'
     | '/api/cloudflare-binding-wire'
+    | '/api/codex-wire'
     | '/api/compaction-durable-wire'
     | '/api/compaction-wire'
-    | '/api/codex-wire'
     | '/api/copilot-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
@@ -1941,6 +1924,7 @@ export interface FileRouteTypes {
     | '/api/openrouter-retry-codes'
     | '/api/openrouter-stream-options-wire'
     | '/api/openrouter-strict-tool-optionals'
+    | '/api/openrouter-structured-usage'
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
     | '/api/otel-transcription'
@@ -1979,8 +1963,6 @@ export interface FileRouteTypes {
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  ApiOpenrouterStructuredUsageRoute: typeof ApiOpenrouterStructuredUsageRoute
-  ApiChatCompletionsIncompleteStreamRoute: typeof ApiChatCompletionsIncompleteStreamRoute
   IndexRoute: typeof IndexRoute
   ActivityTestRoute: typeof ActivityTestRoute
   ByokRoute: typeof ByokRoute
@@ -2038,10 +2020,11 @@ export interface RootRouteChildren {
   ApiByokChatRoute: typeof ApiByokChatRoute
   ApiByteplusSeedance1080pWireRoute: typeof ApiByteplusSeedance1080pWireRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiChatCompletionsIncompleteStreamRoute: typeof ApiChatCompletionsIncompleteStreamRoute
   ApiCloudflareBindingWireRoute: typeof ApiCloudflareBindingWireRoute
+  ApiCodexWireRoute: typeof ApiCodexWireRoute
   ApiCompactionDurableWireRoute: typeof ApiCompactionDurableWireRoute
   ApiCompactionWireRoute: typeof ApiCompactionWireRoute
-  ApiCodexWireRoute: typeof ApiCodexWireRoute
   ApiCopilotWireRoute: typeof ApiCopilotWireRoute
   ApiDevtoolsMemoryRoute: typeof ApiDevtoolsMemoryRoute
   ApiDurableDeliveryRoute: typeof ApiDurableDeliveryRoute
@@ -2102,6 +2085,7 @@ export interface RootRouteChildren {
   ApiOpenrouterRetryCodesRoute: typeof ApiOpenrouterRetryCodesRoute
   ApiOpenrouterStreamOptionsWireRoute: typeof ApiOpenrouterStreamOptionsWireRoute
   ApiOpenrouterStrictToolOptionalsRoute: typeof ApiOpenrouterStrictToolOptionalsRoute
+  ApiOpenrouterStructuredUsageRoute: typeof ApiOpenrouterStructuredUsageRoute
   ApiOpenrouterWebToolsWireRoute: typeof ApiOpenrouterWebToolsWireRoute
   ApiOtelMediaRoute: typeof ApiOtelMediaRoute
   ApiOtelTranscriptionRoute: typeof ApiOtelTranscriptionRoute
@@ -2136,20 +2120,6 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/api/openrouter-structured-usage': {
-      id: '/api/openrouter-structured-usage'
-      path: '/api/openrouter-structured-usage'
-      fullPath: '/api/openrouter-structured-usage'
-      preLoaderRoute: typeof ApiOpenrouterStructuredUsageRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/chat-completions-incomplete-stream': {
-      id: '/api/chat-completions-incomplete-stream'
-      path: '/api/chat-completions-incomplete-stream'
-      fullPath: '/api/chat-completions-incomplete-stream'
-      preLoaderRoute: typeof ApiChatCompletionsIncompleteStreamRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
@@ -2556,11 +2526,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/chat-completions-incomplete-stream': {
+      id: '/api/chat-completions-incomplete-stream'
+      path: '/api/chat-completions-incomplete-stream'
+      fullPath: '/api/chat-completions-incomplete-stream'
+      preLoaderRoute: typeof ApiChatCompletionsIncompleteStreamRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/cloudflare-binding-wire': {
       id: '/api/cloudflare-binding-wire'
       path: '/api/cloudflare-binding-wire'
       fullPath: '/api/cloudflare-binding-wire'
       preLoaderRoute: typeof ApiCloudflareBindingWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/codex-wire': {
+      id: '/api/codex-wire'
+      path: '/api/codex-wire'
+      fullPath: '/api/codex-wire'
+      preLoaderRoute: typeof ApiCodexWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/compaction-durable-wire': {
@@ -2575,13 +2559,6 @@ declare module '@tanstack/react-router' {
       path: '/api/compaction-wire'
       fullPath: '/api/compaction-wire'
       preLoaderRoute: typeof ApiCompactionWireRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/codex-wire': {
-      id: '/api/codex-wire'
-      path: '/api/codex-wire'
-      fullPath: '/api/codex-wire'
-      preLoaderRoute: typeof ApiCodexWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/copilot-wire': {
@@ -3004,6 +2981,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOpenrouterStrictToolOptionalsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/openrouter-structured-usage': {
+      id: '/api/openrouter-structured-usage'
+      path: '/api/openrouter-structured-usage'
+      fullPath: '/api/openrouter-structured-usage'
+      preLoaderRoute: typeof ApiOpenrouterStructuredUsageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/openrouter-web-tools-wire': {
       id: '/api/openrouter-web-tools-wire'
       path: '/api/openrouter-web-tools-wire'
@@ -3304,9 +3288,6 @@ const ApiVideoRouteWithChildren = ApiVideoRoute._addFileChildren(
 )
 
 const rootRouteChildren: RootRouteChildren = {
-  ApiOpenrouterStructuredUsageRoute: ApiOpenrouterStructuredUsageRoute,
-  ApiChatCompletionsIncompleteStreamRoute:
-    ApiChatCompletionsIncompleteStreamRoute,
   IndexRoute: IndexRoute,
   ActivityTestRoute: ActivityTestRoute,
   ByokRoute: ByokRoute,
@@ -3367,10 +3348,12 @@ const rootRouteChildren: RootRouteChildren = {
   ApiByokChatRoute: ApiByokChatRoute,
   ApiByteplusSeedance1080pWireRoute: ApiByteplusSeedance1080pWireRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiChatCompletionsIncompleteStreamRoute:
+    ApiChatCompletionsIncompleteStreamRoute,
   ApiCloudflareBindingWireRoute: ApiCloudflareBindingWireRoute,
+  ApiCodexWireRoute: ApiCodexWireRoute,
   ApiCompactionDurableWireRoute: ApiCompactionDurableWireRoute,
   ApiCompactionWireRoute: ApiCompactionWireRoute,
-  ApiCodexWireRoute: ApiCodexWireRoute,
   ApiCopilotWireRoute: ApiCopilotWireRoute,
   ApiDevtoolsMemoryRoute: ApiDevtoolsMemoryRoute,
   ApiDurableDeliveryRoute: ApiDurableDeliveryRoute,
@@ -3431,6 +3414,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOpenrouterRetryCodesRoute: ApiOpenrouterRetryCodesRoute,
   ApiOpenrouterStreamOptionsWireRoute: ApiOpenrouterStreamOptionsWireRoute,
   ApiOpenrouterStrictToolOptionalsRoute: ApiOpenrouterStrictToolOptionalsRoute,
+  ApiOpenrouterStructuredUsageRoute: ApiOpenrouterStructuredUsageRoute,
   ApiOpenrouterWebToolsWireRoute: ApiOpenrouterWebToolsWireRoute,
   ApiOtelMediaRoute: ApiOtelMediaRoute,
   ApiOtelTranscriptionRoute: ApiOtelTranscriptionRoute,
