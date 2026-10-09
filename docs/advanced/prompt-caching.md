@@ -63,7 +63,7 @@ Set `promptCache` on `chat()`:
 |---|---|
 | `'short'` | The default. The provider keeps the cache for a short time, 5 minutes on Claude. |
 | `'long'` | A longer cache, 1 hour on Claude. For other providers, see [What each provider gets](#what-each-provider-gets). |
-| `'none'` | No cache fields at all. |
+| `'none'` | No caching. Most adapters send no cache fields. On gpt-5.6 and later, `openaiText` sends `prompt_cache_options: { mode: 'explicit' }`, so OpenAI caches nothing. |
 
 To set your own key too, pass an object. Both fields are optional:
 
@@ -86,7 +86,10 @@ Need a different cache for one model call only? A middleware can set it. See [Ch
 
 On OpenAI and Mistral, a cache write is free and a cache read is cheaper. Keep the default.
 
-Claude bills the cache write. A write costs a bit more than normal input, and a read costs much less. So a start that is sent two times already costs less than no cache.
+Claude bills the cache write, and a read costs much less than normal input:
+
+- With the 5-minute cache (`'short'`), a write costs a bit more than normal input. A start that you send twice already costs less than no cache.
+- With the 1-hour cache (`'long'`), a write costs about twice the normal input. The start must be read more times before the cache saves money.
 
 Two cases change the choice:
 
