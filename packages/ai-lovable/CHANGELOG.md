@@ -1,5 +1,13 @@
 # @tanstack/ai-lovable
 
+## 0.5.5
+
+### Patch Changes
+
+- Updated dependencies [[`1bfcee3`](https://github.com/TanStack/ai/commit/1bfcee35bb3cf0ff3aac005440c842e66c3d687d), [`1bfcee3`](https://github.com/TanStack/ai/commit/1bfcee35bb3cf0ff3aac005440c842e66c3d687d)]:
+  - @tanstack/ai@0.69.0
+  - @tanstack/openai-base@0.13.2
+
 ## 0.5.4
 
 ### Patch Changes
