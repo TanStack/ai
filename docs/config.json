@@ -784,7 +784,7 @@
           "label": "Text-to-Speech",
           "to": "media/text-to-speech",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-16"
+          "updatedAt": "2026-10-05"
         },
         {
           "label": "Transcription",
@@ -1258,6 +1258,11 @@
           "to": "adapters/elevenlabs",
           "addedAt": "2026-04-15",
           "updatedAt": "2026-09-29"
+        },
+        {
+          "label": "60db",
+          "to": "adapters/sixtydb",
+          "addedAt": "2026-10-05"
         },
         {
           "label": "fal.ai",

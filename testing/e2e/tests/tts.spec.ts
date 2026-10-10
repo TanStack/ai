@@ -1,5 +1,6 @@
 import { generateSpeech } from '@tanstack/ai'
 import { createElevenLabsSpeech } from '@tanstack/ai-elevenlabs'
+import { createSixtyDBSpeech } from '@tanstack/ai-sixtydb'
 import { test, expect } from './fixtures'
 import {
   fillTextInput,
@@ -8,6 +9,34 @@ import {
   featureUrl,
 } from './helpers'
 import { providersFor } from './test-matrix'
+
+test.describe('sixtydb -- WAV playback', () => {
+  test('decodes the generated WAV in the browser', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    const result = await generateSpeech({
+      adapter: createSixtyDBSpeech('tts', 'e2e-dummy', {
+        baseURL: `http://127.0.0.1:${aimockPort}`,
+        defaultHeaders: { 'X-Test-Id': testId },
+      }),
+      text: 'Hello from a workspace voice',
+      voice: 'e2e-workspace-voice',
+    })
+    const decoded = await page.evaluate(async (audio) => {
+      const bytes = Uint8Array.from(atob(audio), (char) => char.charCodeAt(0))
+      const context = new OfflineAudioContext(1, 16, 24000)
+      const buffer = await context.decodeAudioData(bytes.buffer)
+      return {
+        channels: buffer.numberOfChannels,
+        samples: buffer.length,
+        rate: buffer.sampleRate,
+      }
+    }, result.audio)
+    expect(decoded).toEqual({ channels: 1, samples: 16, rate: 24000 })
+  })
+})
 
 test.describe('elevenlabs -- tts formats', () => {
   test('returns playable WAV from the PCM endpoint', async ({

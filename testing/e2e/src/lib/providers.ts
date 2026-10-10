@@ -112,6 +112,7 @@ const defaultModels: Record<Provider, string> = {
   // it out of text features, but we still need an entry to satisfy the
   // Record<Provider, …> constraint.
   elevenlabs: '',
+  sixtydb: '',
   llmgateway: 'gpt-5.6-terra',
   cloudflare: '@cf/zai-org/glm-5.3-flash',
 }
@@ -391,6 +392,9 @@ export function createTextAdapter(
       throw new Error(
         'ElevenLabs has no text/chat adapter — use createTTSAdapter or createTranscriptionAdapter.',
       )
+    },
+    sixtydb: () => {
+      throw new Error('60db has no text/chat adapter. Use createTTSAdapter.')
     },
     llmgateway: () =>
       createChatOptions({

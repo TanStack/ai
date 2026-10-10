@@ -36,6 +36,7 @@ export const providers: Provider[] = [
   'mistral',
   'byteplus',
   'elevenlabs',
+  'sixtydb',
   'llmgateway',
   'cloudflare',
 ]

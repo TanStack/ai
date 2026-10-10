@@ -420,6 +420,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'gemini',
     'grok',
     'elevenlabs',
+    'sixtydb',
     'byteplus',
     'lovable',
   ]),
