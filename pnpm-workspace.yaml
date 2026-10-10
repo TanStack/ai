@@ -5,6 +5,9 @@ blockExoticSubdeps: true
 trustPolicy: 'no-downgrade'
 minimumReleaseAge: 1440
 minimumReleaseAgeExclude:
+  # octane adapter upgrade: published less than 24 hours ago
+  - 'octane@0.12.1'
+  - '@octanejs/testing-library@0.1.62'
   - 'kiira@0.6.0' # root dev dependency (TS7-native engine); freshly published
   - 'kiira-core@0.6.0' # transitive dependency of kiira@0.6.0
   # Working closely with the aimock team; the e2e suite often needs fresh
