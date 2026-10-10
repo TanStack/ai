@@ -347,10 +347,13 @@ Per-model rules (enforced by the adapter's types):
 - **`claude-fable-5`** — thinking is always on. The only accepted explicit
   config is `{ type: "adaptive" }` (both `disabled` and `budget_tokens`
   return a 400), and sampling parameters are rejected.
-- **`claude-sonnet-5-5`** — the types accept only `{ type: "adaptive" }`.
-  Both `disabled` and `budget_tokens` return a 400, and so do non-default
-  sampling values. To turn off up-front thinking, the API takes
-  `{ type: "between_tools" }`, which the adapter does not type yet.
+- **`claude-sonnet-5-5` / `claude-opus-5-5`** — the types accept only
+  `{ type: "adaptive" }`. Both `disabled` and `budget_tokens` return a
+  400, and so do non-default sampling values. To turn off up-front
+  thinking on Sonnet 5.5, the API takes `{ type: "between_tools" }`,
+  which the adapter does not type yet. `summarize()` also omits its
+  default `temperature: 0.3` on these models (and on the other
+  no-sampling ids above), so the request does not 400.
 - **`claude-haiku-5-5`** — adaptive thinking is the default, and the
   types accept `{ type: "adaptive" }` or `{ type: "disabled" }`. The API
   accepts `disabled` at `high` effort or below and returns a 400 at `xhigh`
