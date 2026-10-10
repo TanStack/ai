@@ -802,10 +802,15 @@ describe('ChatClient auto-rejoin after reload', () => {
   // React Native (AsyncStorage) and IndexedDB can finish reading before the
   // view mounts. Returns a client whose async hydrate restored run `r1` while
   // no view was attached.
-  async function restoreFromAsyncStoreBeforeAttach() {
+  async function restoreFromAsyncStoreBeforeAttach(
+    options: {
+      resume?: ChatResumeSnapshot
+      joinRunImpl?: (runId: string) => AsyncGenerator<StreamChunk>
+    } = {},
+  ) {
     const record: ChatPersistedState = {
       messages: [createUIMessage('user-1', 'hi', 'user')],
-      resume: {
+      resume: options.resume ?? {
         resumeState: { threadId: 't1', runId: 'r1' },
       },
     }
@@ -820,11 +825,14 @@ describe('ChatClient auto-rejoin after reload', () => {
       removeItem: () => Promise.resolve(),
     }
 
-    const joinRun = vi.fn(async function* (_runId: string) {
-      for (const chunk of runChunks('r1', 't1')) {
-        yield chunk
-      }
-    })
+    const joinRun = vi.fn(
+      options.joinRunImpl ??
+        async function* (_runId: string) {
+          for (const chunk of runChunks('r1', 't1')) {
+            yield chunk
+          }
+        },
+    )
     const connection: ResumableConnectConnectionAdapter = {
       connect: async function* () {},
       joinRun,
@@ -896,6 +904,56 @@ describe('ChatClient auto-rejoin after reload', () => {
       expect(joinRun).not.toHaveBeenCalled()
     },
   )
+
+  it('does not retry a refused join of a restored run after a view switch', async () => {
+    const { client, joinRun } = await restoreFromAsyncStoreBeforeAttach({
+      joinRunImpl: async function* () {
+        await Promise.resolve()
+        throw new Error('Unknown or expired memory stream run: "r1"')
+      },
+    })
+
+    client.attach()
+    await vi.waitFor(() => {
+      expect(joinRun).toHaveBeenCalledTimes(1)
+      expect(client.getIsLoading()).toBe(false)
+    })
+
+    client.detach()
+    client.attach()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(joinRun).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not rejoin a restored run that has pending interrupts', async () => {
+    const { client, joinRun } = await restoreFromAsyncStoreBeforeAttach({
+      resume: {
+        resumeState: { threadId: 't1', runId: 'r1' },
+        pendingInterrupts: [
+          {
+            id: 'generic-1',
+            reason: 'confirmation',
+            metadata: {
+              'tanstack:interruptBinding': {
+                kind: 'generic',
+                interruptId: 'generic-1',
+                interruptedRunId: 'r1',
+                generation: 1,
+                responseSchemaHash: 'none',
+              },
+            },
+          },
+        ],
+      },
+    })
+
+    client.attach()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(client.getInterrupts()).toHaveLength(1)
+    expect(joinRun).not.toHaveBeenCalled()
+  })
 
   it('KEEPS the resume pointer when joinRun times out before attaching', async () => {
     const { adapter, read } = memoryAdapter({

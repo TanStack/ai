@@ -70,8 +70,17 @@ test.describe('async store rejoin (issue #1639)', () => {
     // The hydrate must not open a connection while detached.
     expect(joinRequests).toHaveLength(0)
 
+    // Release only once the server has answered the join, so the run is still
+    // open when it is tailed rather than replayed from a finished log.
+    const joinResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        new URL(response.url()).pathname === '/api/async-store-rejoin' &&
+        response.status() === 200,
+    )
     await page.getByTestId('show-chat').click()
-    await expect.poll(() => joinRequests.length).toBe(1)
+    await joinResponse
+    expect(joinRequests).toHaveLength(1)
 
     const released = await request.get(
       `/api/async-store-rejoin?action=release&threadId=${encodeURIComponent(threadId)}`,

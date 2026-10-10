@@ -1538,9 +1538,10 @@ export class ChatClient<
       isLineageDescendantTerminal
     ) {
       this.lastResume = null
-      // Retire the rejoin target too: `detach()` resets the join guard, so a
-      // later `attach()` would otherwise join the finished run again.
-      if (runId && this.rejoinRunId === runId) this.rejoinRunId = null
+      // Retire the rejoin target with the durable snapshot below: `detach()`
+      // resets the join guard, so a later `attach()` would otherwise join the
+      // finished run again.
+      this.rejoinRunId = null
       // Run settled without an interrupt: drop the durable resume snapshot so a
       // later reload does not try to rejoin a finished run.
       this.persistor?.persistResumeSnapshot(null)
@@ -2144,6 +2145,7 @@ export class ChatClient<
           // the "no view is watching any more" case, so the pointer only ever
           // dies for a client that is still looking at the run.
           this.lastResume = null
+          if (this.rejoinRunId === runId) this.rejoinRunId = null
           this.persistor?.persistResumeSnapshot(null)
         }
         if (this.abortController === controller) {
