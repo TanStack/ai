@@ -799,10 +799,10 @@ describe('ChatClient auto-rejoin after reload', () => {
     void client
   })
 
-  it('rejoins from an async store that resolves BEFORE attach()', async () => {
-    // React Native (AsyncStorage) and IndexedDB can finish reading before the
-    // view mounts. The hydrate must not open a connection while detached, but
-    // the restored run id has to survive until `attach()` rejoins it.
+  // React Native (AsyncStorage) and IndexedDB can finish reading before the
+  // view mounts. Returns a client whose async hydrate restored run `r1` while
+  // no view was attached.
+  async function restoreFromAsyncStoreBeforeAttach() {
     const record: ChatPersistedState = {
       messages: [createUIMessage('user-1', 'hi', 'user')],
       resume: {
@@ -844,18 +844,58 @@ describe('ChatClient auto-rejoin after reload', () => {
       expect(hydrated).toBe(true)
       expect(latest.some((m) => m.id === 'user-1')).toBe(true)
     })
+    // The hydrate must not open a connection while detached.
     expect(joinRun).not.toHaveBeenCalled()
+
+    const waitForStreamedText = () =>
+      vi.waitFor(() => {
+        const assistant = latest.find((m) => m.role === 'assistant')
+        const text = assistant?.parts.find((p) => p.type === 'text')
+        expect(text && 'content' in text && text.content).toBe('world')
+      })
+    return { client, joinRun, waitForStreamedText }
+  }
+
+  it('rejoins from an async store that resolves BEFORE attach()', async () => {
+    const { client, joinRun, waitForStreamedText } =
+      await restoreFromAsyncStoreBeforeAttach()
 
     client.attach()
 
-    await vi.waitFor(() => {
-      const assistant = latest.find((m) => m.role === 'assistant')
-      const text = assistant?.parts.find((p) => p.type === 'text')
-      expect(text && 'content' in text && text.content).toBe('world')
-    })
+    await waitForStreamedText()
     expect(joinRun).toHaveBeenCalledTimes(1)
     expect(joinRun).toHaveBeenCalledWith('r1', expect.anything())
   })
+
+  it('does not rejoin a restored run again after it finished', async () => {
+    const { client, joinRun, waitForStreamedText } =
+      await restoreFromAsyncStoreBeforeAttach()
+
+    client.attach()
+    await waitForStreamedText()
+    await vi.waitFor(() => expect(client.getIsLoading()).toBe(false))
+
+    // A view switch: `detach()` resets the join guard, so only a retired
+    // rejoin target keeps the next `attach()` from joining the finished run.
+    client.detach()
+    client.attach()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(joinRun).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['clear', 'stop'] as const)(
+    'does not rejoin a restored run after %s() before attach()',
+    async (method) => {
+      const { client, joinRun } = await restoreFromAsyncStoreBeforeAttach()
+
+      client[method]()
+      client.attach()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(joinRun).not.toHaveBeenCalled()
+    },
+  )
 
   it('KEEPS the resume pointer when joinRun times out before attaching', async () => {
     const { adapter, read } = memoryAdapter({

@@ -1538,6 +1538,9 @@ export class ChatClient<
       isLineageDescendantTerminal
     ) {
       this.lastResume = null
+      // Retire the rejoin target too: `detach()` resets the join guard, so a
+      // later `attach()` would otherwise join the finished run again.
+      if (runId && this.rejoinRunId === runId) this.rejoinRunId = null
       // Run settled without an interrupt: drop the durable resume snapshot so a
       // later reload does not try to rejoin a finished run.
       this.persistor?.persistResumeSnapshot(null)
@@ -2928,6 +2931,7 @@ export class ChatClient<
     this.cancelInFlightStream({ setReadyStatus: true })
     this.discardPendingSends()
     this.lastResume = null
+    this.rejoinRunId = null
     this.activeInterruptSubmission = undefined
     this.interruptManager.reset()
     if (hadLocalStream) {
@@ -2963,6 +2967,7 @@ export class ChatClient<
     this.persistor?.remove()
     this.stoppedSubagentIds.clear()
     this.lastResume = null
+    this.rejoinRunId = null
     this.interruptManager.reset()
     this.pendingResumeThreadId = null
     this.pendingResumeParentRunId = null
