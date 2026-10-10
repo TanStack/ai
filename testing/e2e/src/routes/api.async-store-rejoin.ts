@@ -14,36 +14,43 @@ import type { AnyTextAdapter, AdapterYieldChunk } from '@tanstack/ai'
  * that resolves BEFORE `attach()` must still be rejoined.
  *
  * The POST streams the first half of a reply, then holds the producer until
- * the client disconnects (the spec reload) plus a short settle, and only then
- * streams `REJOIN_OK` and the terminal. The second half lands strictly after
- * the reload, so the page can only show it by tailing the run with `joinRun`.
+ * the spec calls `GET ?action=release&threadId=…`, and only then streams
+ * `REJOIN_OK` and the terminal. The spec releases after the reload, so the
+ * second half can only reach the page through `joinRun`. A client abort does
+ * not reach this dev server, so the hold cannot key on the disconnect.
  *
  * Exempt from the aimock policy: a fixed AG-UI sequence, never an LLM provider.
  */
 
 const PART_ONE = 'PART_ONE the run is still going. '
 const REJOIN_OK = 'REJOIN_OK the run finished after the reload.'
-const DISCONNECT_FALLBACK_MS = 10_000
-const SETTLE_AFTER_DISCONNECT_MS = 1500
+// Cleans up a held run the spec never released.
+const RELEASE_FALLBACK_MS = 60_000
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
+// Per-thread gate. `release` may arrive before the POST registers its wait.
+const releaseByThread = new Map<string, () => void>()
+const releasedThreads = new Set<string>()
 
-function waitForDisconnect(signal: AbortSignal): Promise<void> {
-  if (signal.aborted) return Promise.resolve()
+function waitForRelease(threadId: string): Promise<void> {
+  if (releasedThreads.delete(threadId)) return Promise.resolve()
   return new Promise((resolve) => {
     const finish = () => {
       clearTimeout(timer)
-      signal.removeEventListener('abort', finish)
+      releaseByThread.delete(threadId)
       resolve()
     }
-    const timer = setTimeout(finish, DISCONNECT_FALLBACK_MS)
-    signal.addEventListener('abort', finish, { once: true })
+    const timer = setTimeout(finish, RELEASE_FALLBACK_MS)
+    releaseByThread.set(threadId, finish)
   })
 }
 
-function createAdapter(signal: AbortSignal): AnyTextAdapter {
+function release(threadId: string): void {
+  const finish = releaseByThread.get(threadId)
+  if (finish) finish()
+  else releasedThreads.add(threadId)
+}
+
+function createAdapter(): AnyTextAdapter {
   return {
     kind: 'text',
     name: 'async-store-rejoin',
@@ -84,8 +91,7 @@ function createAdapter(signal: AbortSignal): AnyTextAdapter {
         timestamp: Date.now(),
       }
 
-      await waitForDisconnect(signal)
-      await delay(SETTLE_AFTER_DISCONNECT_MS)
+      await waitForRelease(threadId)
 
       yield {
         type: EventType.TEXT_MESSAGE_CONTENT,
@@ -128,7 +134,7 @@ export const Route = createFileRoute('/api/async-store-rejoin')({
         }
 
         const stream = chat({
-          adapter: createAdapter(request.signal),
+          adapter: createAdapter(),
           messages: params.messages,
           stream: true,
           threadId: params.threadId,
@@ -141,6 +147,12 @@ export const Route = createFileRoute('/api/async-store-rejoin')({
       },
 
       GET: ({ request }) => {
+        const url = new URL(request.url)
+        if (url.searchParams.get('action') === 'release') {
+          release(url.searchParams.get('threadId') ?? '')
+          return new Response(null, { status: 204 })
+        }
+
         const durability = memoryStream(request)
         if (durability.resumeFrom() !== null) {
           return resumeServerSentEventsResponse({ adapter: durability })

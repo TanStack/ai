@@ -11,8 +11,8 @@ import { sendMessage } from './helpers'
  *
  * The page renders the chat inside a hidden `<Activity>` on the second load,
  * so the hydrate resolves first and `attach()` runs only on "Show chat". The
- * harness holds the run until the first page unloads; `REJOIN_OK` arrives
- * after that, so it can only come from `joinRun`.
+ * harness holds the run until the spec releases it after "Show chat", so
+ * `REJOIN_OK` can only come from `joinRun`.
  *
  * Provider-free: `/api/async-store-rejoin` streams a fixed AG-UI sequence
  * through a `memoryStream` sink (exempt from the aimock policy).
@@ -21,6 +21,7 @@ import { sendMessage } from './helpers'
 test.describe('async store rejoin (issue #1639)', () => {
   test('rejoins the in-flight run once the view attaches after the store read', async ({
     page,
+    request,
   }) => {
     const threadId = `async-store-rejoin-${crypto.randomUUID()}`
     await page.goto(
@@ -47,33 +48,41 @@ test.describe('async store rejoin (issue #1639)', () => {
       .not.toBeNull()
 
     const joinRequests: Array<string> = []
-    page.on('request', (request) => {
+    page.on('request', (req) => {
       if (
-        request.method() === 'GET' &&
-        new URL(request.url()).pathname === '/api/async-store-rejoin'
+        req.method() === 'GET' &&
+        new URL(req.url()).pathname === '/api/async-store-rejoin'
       ) {
-        joinRequests.push(request.url())
+        joinRequests.push(req.url())
       }
     })
 
-    // A new document with the chat hidden: the async store read resolves
-    // while no view is attached.
+    // A new document with the chat hidden: the async store read and the
+    // restore of the in-flight run both finish while no view is attached.
     await page.goto(
       `/async-store-rejoin?threadId=${encodeURIComponent(threadId)}&deferAttach=true`,
     )
+    await expect(page.getByTestId('assistant-text')).toBeHidden()
     await expect(page.locator('html')).toHaveAttribute(
-      'data-async-store-read',
+      'data-async-store-hydrated',
       'true',
     )
     // The hydrate must not open a connection while detached.
     expect(joinRequests).toHaveLength(0)
 
     await page.getByTestId('show-chat').click()
+    await expect.poll(() => joinRequests.length).toBe(1)
+
+    const released = await request.get(
+      `/api/async-store-rejoin?action=release&threadId=${encodeURIComponent(threadId)}`,
+    )
+    expect(released.ok()).toBe(true)
 
     await expect(page.getByTestId('assistant-text')).toContainText(
       'REJOIN_OK',
       { timeout: 15_000 },
     )
     await expect(page.getByTestId('loading-indicator')).toHaveCount(0)
+    expect(joinRequests).toHaveLength(1)
   })
 })

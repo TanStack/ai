@@ -14,17 +14,22 @@ import type { ChatPersistedState, ChatStorageAdapter } from '@tanstack/ai-react'
  * Native AsyncStorage or IndexedDB. The chat renders inside a hidden
  * `<Activity>`, which builds the client (starting the hydrate) but defers its
  * effects, so `attach()` runs only when the spec clicks "Show chat". The spec
- * waits for the store read first, which pins the order the bug needs: the
- * hydrate restores the in-flight run while no view is attached.
+ * first waits for `data-async-store-hydrated`, which pins the order the bug
+ * needs: the hydrate restores the in-flight run while no view is attached.
  */
 
-const STORE_READ_ATTRIBUTE = 'data-async-store-read'
+const HYDRATED_ATTRIBUTE = 'data-async-store-hydrated'
 const syncStore = localStoragePersistence()
 
 const asyncStore: ChatStorageAdapter<ChatPersistedState> = {
   async getItem(key) {
     const value = await syncStore.getItem(key)
-    document.documentElement.setAttribute(STORE_READ_ATTRIBUTE, 'true')
+    // The client applies the record (messages, then the run pointer) in promise
+    // callbacks chained on this read. A timer runs only after those microtasks,
+    // so the attribute appears once the run is restored, not merely read.
+    setTimeout(() => {
+      document.documentElement.setAttribute(HYDRATED_ATTRIBUTE, 'true')
+    }, 0)
     return value
   },
   async setItem(key, value) {
