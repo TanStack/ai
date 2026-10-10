@@ -1,0 +1,31 @@
+launch-templates:
+  linux-medium-ai:
+    resource-class: docker_linux_amd64/medium
+    image: ubuntu22.04-node24.14-v1
+    init-steps:
+      - name: Checkout
+        uses: nrwl/nx-cloud-workflows/v6/workflow-steps/checkout/main.yaml
+      - name: Install Node from .nvmrc
+        uses: nrwl/nx-cloud-workflows/v6/workflow-steps/install-node/main.yaml
+      - name: Activate the pinned package manager
+        script: corepack prepare "$(node -p 'require("./package.json").packageManager')" --activate
+      - name: Restore pnpm store
+        uses: nrwl/nx-cloud-workflows/v6/workflow-steps/cache/main.yaml
+        inputs:
+          key: pnpm-lock.yaml|pnpm-workspace.yaml|package.json|patches/**|.nvmrc
+          paths: |
+            ~/.local/share/pnpm/store
+          base-branch: main
+      - name: Restore Playwright browser cache
+        uses: nrwl/nx-cloud-workflows/v6/workflow-steps/cache/main.yaml
+        inputs:
+          key: pnpm-lock.yaml|"playwright"
+          paths: |
+            ~/.cache/ms-playwright
+          base-branch: main
+      - name: Install dependencies
+        uses: nrwl/nx-cloud-workflows/v6/workflow-steps/install-node-modules/main.yaml
+      # Playwright is a workspace dependency, so the root-only install-browsers
+      # reusable step cannot discover it. Ubuntu 22.04 also needs its system libs.
+      - name: Install Playwright Chromium and system dependencies
+        script: pnpm --filter @tanstack/ai-e2e exec playwright install --with-deps chromium

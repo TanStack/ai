@@ -42,6 +42,7 @@ stats.html
 .idea
 .nx/cache
 .nx/workspace-data
+.nx/pr-artifacts
 .pnpm-store
 .svelte-kit
 .tsup
@@ -58,6 +59,7 @@ test-traces
 
 # Playwright
 playwright-report
+blob-report
 test-results
 
 solo.yml

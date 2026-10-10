@@ -15,7 +15,7 @@
     "clean:all": "git clean -fdx --exclude=\"!.env\"",
     "test": "pnpm run test:ci",
     "test:pr": "pnpm run test:react-native && VITEST_MAX_WORKERS=1 nx affected --targets=test:sherif,test:knip,test:docs,test:kiira,test:maintainer,test:ai-review,test:oxlint,test:lib,test:types,test:build,build && pnpm test:dts",
-    "test:ci": "pnpm run test:react-native && VITEST_MAX_WORKERS=1 nx run-many --targets=test:sherif,test:knip,test:docs,test:kiira,test:maintainer,test:ai-review,test:oxlint,test:lib,test:types,test:build,build && pnpm test:dts",
+    "test:ci": "VITEST_MAX_WORKERS=1 nx run-many --targets=test:sherif,test:knip,test:docs,test:kiira,test:maintainer,test:ai-review,test:oxlint,test:lib,test:types,test:build,build,test:react-native,test:dts",
     "test:oxlint": "nx affected --target=test:oxlint --exclude=examples/**,testing/**",
     "test:sherif": "sherif --ignore-dependency typescript --ignore-dependency @fal-ai/client",
     "test:lib": "VITEST_MAX_WORKERS=1 nx affected --targets=test:lib --exclude=examples/**,testing/**",
@@ -27,7 +27,7 @@
     "test:knip": "knip",
     "test:docs": "tsx scripts/verify-links.ts",
     "test:dts": "node scripts/scan-dangling-dts.mjs",
-    "test:maintainer": "vitest run --root scripts/maintainer && vitest run scripts/model-sync scripts/publish-staged-docs.test.ts && vitest run scripts/coverage-check.test.ts",
+    "test:maintainer": "vitest run --root scripts/maintainer && vitest run scripts/model-sync scripts/publish-staged-docs.test.ts && vitest run scripts/coverage-check.test.ts scripts/ci-artifacts.test.ts",
     "test:ai-review": "vitest run --root agent-scripts/ai-review",
     "ai-review": "tsx agent-scripts/ai-review/run.ts",
     "maintainer:sweep": "tsx scripts/maintainer/sweep.ts",
@@ -57,6 +57,94 @@
     "changeset:version": "changeset version && pnpm install --no-frozen-lockfile && pnpm format"
   },
   "nx": {
+    "targets": {
+      "test:coverage:ci": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "dependsOn": [
+          {
+            "projects": [
+              "directory:packages/*"
+            ],
+            "target": "test:coverage"
+          },
+          "test:coverage:base"
+        ],
+        "inputs": [
+          "default",
+          {
+            "env": "NX_BASE"
+          },
+          {
+            "env": "NX_HEAD"
+          }
+        ],
+        "outputs": [
+          "{workspaceRoot}/.nx/pr-artifacts/coverage"
+        ],
+        "options": {
+          "command": "node scripts/coverage-ci.mjs compare"
+        }
+      },
+      "build:preview": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "dependsOn": [
+          {
+            "projects": [
+              "directory:packages/*"
+            ],
+            "target": "build"
+          }
+        ],
+        "inputs": [
+          "default",
+          {
+            "dependentTasksOutputFiles": "**/*",
+            "transitive": true
+          }
+        ],
+        "outputs": [
+          "{workspaceRoot}/.nx/pr-artifacts/preview-builds.tar.gz"
+        ],
+        "options": {
+          "command": "node scripts/preview-ci.mjs"
+        }
+      },
+      "test:react-native": {
+        "executor": "nx:noop",
+        "cache": true,
+        "outputs": [],
+        "dependsOn": [
+          {
+            "projects": [
+              "@tanstack/ai-react-native-smoke"
+            ],
+            "target": "smoke"
+          }
+        ]
+      },
+      "test:coverage:base": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "parallelism": false,
+        "inputs": [
+          "default",
+          {
+            "env": "NX_BASE"
+          },
+          {
+            "env": "NX_HEAD"
+          }
+        ],
+        "outputs": [
+          "{workspaceRoot}/.nx/pr-artifacts/coverage-base"
+        ],
+        "options": {
+          "command": "node scripts/coverage-ci.mjs base"
+        }
+      }
+    },
     "includedScripts": [
       "test:docs",
       "test:dts",
@@ -72,6 +160,7 @@
     "@changesets/changelog-github": "^0.7.0",
     "@changesets/cli": "^2.30.0",
     "@faker-js/faker": "^10.1.0",
+    "@nx/playwright": "23.1.1",
     "@stylistic/eslint-plugin": "^5.10.0",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-grok-build": "workspace:*",

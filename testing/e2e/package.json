@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev --port 3010",
-    "build": "vite build",
+    "build": "NODE_OPTIONS=--max-old-space-size=4096 vite build",
     "test:types": "tsc --noEmit",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
@@ -79,5 +79,160 @@
     "miniflare": "^4.20260609.0",
     "typescript": "5.9.3",
     "vite": "^8.2.1"
+  },
+  "nx": {
+    "implicitDependencies": [
+      "@tanstack/ai-sandbox-boxd",
+      "@tanstack/ai-sandbox-railway",
+      "@tanstack/ai-sandbox-cloudflare"
+    ],
+    "targets": {
+      "build": {
+        "parallelism": false
+      },
+      "test:e2e:ci--shard-1": {
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "testing/e2e",
+          "command": "playwright test --config=playwright.shards.config.ts --shard=1/6 --output=test-results/shard-1",
+          "env": {
+            "PLAYWRIGHT_BLOB_OUTPUT_DIR": "blob-report/shard-1",
+            "PLAYWRIGHT_HTML_OUTPUT_DIR": "playwright-report/shard-1"
+          }
+        },
+        "outputs": [
+          "{projectRoot}/test-results/shard-1",
+          "{projectRoot}/blob-report/shard-1",
+          "{projectRoot}/playwright-report/shard-1"
+        ]
+      },
+      "test:e2e:ci--shard-2": {
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "testing/e2e",
+          "command": "playwright test --config=playwright.shards.config.ts --shard=2/6 --output=test-results/shard-2",
+          "env": {
+            "PLAYWRIGHT_BLOB_OUTPUT_DIR": "blob-report/shard-2",
+            "PLAYWRIGHT_HTML_OUTPUT_DIR": "playwright-report/shard-2"
+          }
+        },
+        "outputs": [
+          "{projectRoot}/test-results/shard-2",
+          "{projectRoot}/blob-report/shard-2",
+          "{projectRoot}/playwright-report/shard-2"
+        ]
+      },
+      "test:e2e:ci--shard-3": {
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "testing/e2e",
+          "command": "playwright test --config=playwright.shards.config.ts --shard=3/6 --output=test-results/shard-3",
+          "env": {
+            "PLAYWRIGHT_BLOB_OUTPUT_DIR": "blob-report/shard-3",
+            "PLAYWRIGHT_HTML_OUTPUT_DIR": "playwright-report/shard-3"
+          }
+        },
+        "outputs": [
+          "{projectRoot}/test-results/shard-3",
+          "{projectRoot}/blob-report/shard-3",
+          "{projectRoot}/playwright-report/shard-3"
+        ]
+      },
+      "test:e2e:ci--shard-4": {
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "testing/e2e",
+          "command": "playwright test --config=playwright.shards.config.ts --shard=4/6 --output=test-results/shard-4",
+          "env": {
+            "PLAYWRIGHT_BLOB_OUTPUT_DIR": "blob-report/shard-4",
+            "PLAYWRIGHT_HTML_OUTPUT_DIR": "playwright-report/shard-4"
+          }
+        },
+        "outputs": [
+          "{projectRoot}/test-results/shard-4",
+          "{projectRoot}/blob-report/shard-4",
+          "{projectRoot}/playwright-report/shard-4"
+        ]
+      },
+      "test:e2e:ci--shard-5": {
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "testing/e2e",
+          "command": "playwright test --config=playwright.shards.config.ts --shard=5/6 --output=test-results/shard-5",
+          "env": {
+            "PLAYWRIGHT_BLOB_OUTPUT_DIR": "blob-report/shard-5",
+            "PLAYWRIGHT_HTML_OUTPUT_DIR": "playwright-report/shard-5"
+          }
+        },
+        "outputs": [
+          "{projectRoot}/test-results/shard-5",
+          "{projectRoot}/blob-report/shard-5",
+          "{projectRoot}/playwright-report/shard-5"
+        ]
+      },
+      "test:e2e:ci--shard-6": {
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "testing/e2e",
+          "command": "playwright test --config=playwright.shards.config.ts --shard=6/6 --output=test-results/shard-6",
+          "env": {
+            "PLAYWRIGHT_BLOB_OUTPUT_DIR": "blob-report/shard-6",
+            "PLAYWRIGHT_HTML_OUTPUT_DIR": "playwright-report/shard-6"
+          }
+        },
+        "outputs": [
+          "{projectRoot}/test-results/shard-6",
+          "{projectRoot}/blob-report/shard-6",
+          "{projectRoot}/playwright-report/shard-6"
+        ]
+      },
+      "test:e2e:ci": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "dependsOn": [
+          "test:e2e:ci--shard-1",
+          "test:e2e:ci--shard-2",
+          "test:e2e:ci--shard-3",
+          "test:e2e:ci--shard-4",
+          "test:e2e:ci--shard-5",
+          "test:e2e:ci--shard-6",
+          "test:e2e:ci--shard-performance"
+        ],
+        "options": {
+          "cwd": "testing/e2e",
+          "command": "rm -f blob-report/*.zip && cp blob-report/shard-*/*.zip blob-report/"
+        },
+        "outputs": [
+          "{projectRoot}/blob-report/*.zip"
+        ]
+      },
+      "test:e2e:ci--merge-reports": {
+        "executor": "@nx/playwright:merge-reports",
+        "cache": true,
+        "options": {
+          "config": "playwright.config.ts",
+          "expectedSuites": 7
+        },
+        "outputs": [
+          "{projectRoot}/playwright-report"
+        ]
+      },
+      "test:e2e:ci--shard-performance": {
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "testing/e2e",
+          "command": "playwright test chat-client-stream-processing.spec.ts --workers=1 --output=test-results/shard-performance",
+          "env": {
+            "PLAYWRIGHT_BLOB_OUTPUT_DIR": "blob-report/shard-performance",
+            "PLAYWRIGHT_HTML_OUTPUT_DIR": "playwright-report/shard-performance"
+          }
+        },
+        "outputs": [
+          "{projectRoot}/test-results/shard-performance",
+          "{projectRoot}/blob-report/shard-performance",
+          "{projectRoot}/playwright-report/shard-performance"
+        ]
+      }
+    }
   }
 }
