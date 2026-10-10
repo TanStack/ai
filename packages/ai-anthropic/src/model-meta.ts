@@ -607,6 +607,9 @@ const CLAUDE_FABLE_5_1 = {
     AnthropicOutputConfigOptions
 >
 
+// Claude Opus 5.5: adaptive-only thinking; non-default sampling parameters
+// (`temperature`, `top_p`, `top_k`) return a 400. Provider options use
+// `max_tokens` without the sampling knobs (Anthropic Opus 5.5 migration guide).
 const CLAUDE_OPUS_5_5 = {
   name: 'claude-opus-5-5',
   id: 'claude-opus-5-5',
@@ -643,7 +646,7 @@ const CLAUDE_OPUS_5_5 = {
     AnthropicStopSequencesOptions &
     AnthropicAdaptiveOnlyThinkingOptions &
     AnthropicToolChoiceOptions &
-    AnthropicSamplingOptions &
+    AnthropicMaxTokensOptions &
     AnthropicOutputConfigOptions
 >
 
@@ -758,6 +761,33 @@ export const ANTHROPIC_MODELS = [
   CLAUDE_FABLE_5.id,
   CLAUDE_SONNET_5.id,
 ] as const
+
+/**
+ * Models whose Messages API rejects non-default `temperature` / `top_p` /
+ * `top_k`. Keep in sync with `AnthropicChatModelProviderOptionsByName`
+ * entries that use `AnthropicMaxTokensOptions` instead of
+ * `AnthropicSamplingOptions`. Type tests in `model-meta.test.ts` enforce both
+ * directions so a new model id must pick one.
+ */
+export const ANTHROPIC_MODELS_WITHOUT_SAMPLING = [
+  CLAUDE_OPUS_4_7.id,
+  CLAUDE_OPUS_4_8.id,
+  CLAUDE_FABLE_5.id,
+  CLAUDE_FABLE_5_1.id,
+  CLAUDE_SONNET_5.id,
+  CLAUDE_SONNET_5_5.id,
+  CLAUDE_OPUS_5_5.id,
+  CLAUDE_HAIKU_5_5.id,
+] as const
+
+const ANTHROPIC_MODELS_WITHOUT_SAMPLING_SET: ReadonlySet<string> = new Set(
+  ANTHROPIC_MODELS_WITHOUT_SAMPLING,
+)
+
+/** `false` when the model rejects non-default sampling parameters. */
+export function anthropicModelSupportsSampling(model: string): boolean {
+  return !ANTHROPIC_MODELS_WITHOUT_SAMPLING_SET.has(model)
+}
 
 /**
  * Claude chat models on Vertex AI / Gemini Enterprise Agent Platform.
@@ -1030,6 +1060,7 @@ export type AnthropicChatModelProviderOptionsByName = {
     AnthropicToolChoiceOptions &
     AnthropicMaxTokensOptions &
     AnthropicOutputConfigOptions
+  // Claude Opus 5.5: adaptive-only thinking, no sampling — see constant above.
   [CLAUDE_OPUS_5_5.id]: AnthropicCacheControlOptions &
     AnthropicContainerOptions &
     AnthropicContextManagementOptions &
@@ -1038,7 +1069,7 @@ export type AnthropicChatModelProviderOptionsByName = {
     AnthropicStopSequencesOptions &
     AnthropicAdaptiveOnlyThinkingOptions &
     AnthropicToolChoiceOptions &
-    AnthropicSamplingOptions &
+    AnthropicMaxTokensOptions &
     AnthropicOutputConfigOptions
   // Claude Sonnet 5.5: adaptive-only thinking config, no sampling
   // parameters — see the CLAUDE_SONNET_5_5 constant above.

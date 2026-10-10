@@ -364,6 +364,39 @@ describe('Anthropic per-model chat modelOptions gating', () => {
     })
   })
 
+  describe('claude-opus-5-5 — adaptive-only thinking, no sampling', () => {
+    it('accepts adaptive thinking + output_config + max_tokens', () => {
+      chat({
+        adapter: anthropicText('claude-opus-5-5'),
+        messages: [{ role: 'user', content: 'hi' }],
+        modelOptions: {
+          thinking: { type: 'adaptive', display: 'summarized' },
+          output_config: { effort: 'high' },
+          max_tokens: 2048,
+        },
+      })
+    })
+
+    it('rejects sampling parameters', () => {
+      chat({
+        adapter: anthropicText('claude-opus-5-5'),
+        messages: [{ role: 'user', content: 'hi' }],
+        modelOptions: {
+          // @ts-expect-error - 'temperature' is not available on claude-opus-5-5
+          temperature: 0.5,
+        },
+      })
+      chat({
+        adapter: anthropicText('claude-opus-5-5'),
+        messages: [{ role: 'user', content: 'hi' }],
+        modelOptions: {
+          // @ts-expect-error - 'top_k' is not available on claude-opus-5-5
+          top_k: 5,
+        },
+      })
+    })
+  })
+
   describe('Model name type safety', () => {
     it('rejects unknown model names at the factory', () => {
       // @ts-expect-error - 'claude-fake-9000' is not a valid Anthropic chat model
@@ -461,6 +494,21 @@ describe('Anthropic provider options shape assertions', () => {
 
   describe('claude-sonnet-5-5 — adaptive-only thinking without sampling', () => {
     type Options = AnthropicChatModelProviderOptionsByName['claude-sonnet-5-5']
+
+    it('has thinking and output_config', () => {
+      expectTypeOf<Options>().toHaveProperty('thinking')
+      expectTypeOf<Options>().toHaveProperty('output_config')
+    })
+    it('has max_tokens but NOT temperature/top_p/top_k', () => {
+      expectTypeOf<Options>().toHaveProperty('max_tokens')
+      expectTypeOf<Options>().not.toHaveProperty('temperature')
+      expectTypeOf<Options>().not.toHaveProperty('top_p')
+      expectTypeOf<Options>().not.toHaveProperty('top_k')
+    })
+  })
+
+  describe('claude-opus-5-5 — adaptive-only thinking without sampling', () => {
+    type Options = AnthropicChatModelProviderOptionsByName['claude-opus-5-5']
 
     it('has thinking and output_config', () => {
       expectTypeOf<Options>().toHaveProperty('thinking')

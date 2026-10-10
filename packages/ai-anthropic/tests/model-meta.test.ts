@@ -4,6 +4,8 @@ import {
   ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS,
   ANTHROPIC_MAX_NONSTREAMING_TOKENS,
   ANTHROPIC_MODELS,
+  ANTHROPIC_MODELS_WITHOUT_SAMPLING,
+  anthropicModelSupportsSampling,
   getAnthropicDefaultMaxTokens,
 } from '../src/model-meta'
 import type {
@@ -186,6 +188,40 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
       expectTypeOf<'claude-fable-5'>().toExtend<Keys>()
       expectTypeOf<'claude-sonnet-5'>().toExtend<Keys>()
       expectTypeOf<'claude-haiku-5-5'>().toExtend<Keys>()
+    })
+  })
+
+  describe('ANTHROPIC_MODELS_WITHOUT_SAMPLING stays in sync with provider options', () => {
+    type WithoutSampling = (typeof ANTHROPIC_MODELS_WITHOUT_SAMPLING)[number]
+    type WithSampling = Exclude<(typeof ANTHROPIC_MODELS)[number], WithoutSampling>
+
+    it('without-sampling models have max_tokens but not temperature/top_p/top_k', () => {
+      type Options = AnthropicChatModelProviderOptionsByName[WithoutSampling]
+      expectTypeOf<Options>().toHaveProperty('max_tokens')
+      expectTypeOf<Options>().not.toHaveProperty('temperature')
+      expectTypeOf<Options>().not.toHaveProperty('top_p')
+      expectTypeOf<Options>().not.toHaveProperty('top_k')
+    })
+
+    it('every other registered model exposes AnthropicSamplingOptions', () => {
+      type Options = AnthropicChatModelProviderOptionsByName[WithSampling]
+      expectTypeOf<Options>().toExtend<AnthropicSamplingOptions>()
+    })
+
+    it('without-sampling ids are a subset of ANTHROPIC_MODELS', () => {
+      const registered = new Set<string>(ANTHROPIC_MODELS)
+      for (const id of ANTHROPIC_MODELS_WITHOUT_SAMPLING) {
+        expect(registered.has(id)).toBe(true)
+      }
+    })
+
+    it('anthropicModelSupportsSampling matches the const list', () => {
+      for (const id of ANTHROPIC_MODELS) {
+        const expected = !(
+          ANTHROPIC_MODELS_WITHOUT_SAMPLING as ReadonlyArray<string>
+        ).includes(id)
+        expect(anthropicModelSupportsSampling(id)).toBe(expected)
+      }
     })
   })
 })

@@ -612,6 +612,55 @@ describe('Anthropic adapter option mapping', () => {
     expect(payload.max_tokens).toBe(2048)
   })
 
+  it('strips sampling keys on no-sampling models even when cast in (#1703)', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
+
+    const adapter = new AnthropicTextAdapter(
+      { apiKey: 'test-key' },
+      'claude-sonnet-5-5',
+    )
+    expect(adapter.supportsSamplingTemperature).toBe(false)
+
+    const logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+      // Escape the per-model options type: temperature is rejected at the
+      // type level on this model, but the wire layer must still strip it.
+      modelOptions: {
+        temperature: 0.3,
+        top_p: 0.9,
+        top_k: 5,
+        max_tokens: 1024,
+      } as never,
+      debug: { logger, errors: true },
+    })) {
+      // consume stream
+    }
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+    expect(payload.temperature).toBeUndefined()
+    expect(payload.top_p).toBeUndefined()
+    expect(payload.top_k).toBeUndefined()
+    expect(payload.max_tokens).toBe(1024)
+
+    const stripWarning = logger.warn.mock.calls.find((call) =>
+      String(call[0]).includes('omitted sampling key(s)'),
+    )
+    expect(stripWarning).toBeDefined()
+  })
+
+  it('keeps supportsSamplingTemperature true on sampling models', () => {
+    const adapter = createAdapter('claude-opus-4-1')
+    expect(adapter.supportsSamplingTemperature).toBe(true)
+  })
+
   it('forwards context_management and attaches the required beta (issue #1074)', async () => {
     mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
 
