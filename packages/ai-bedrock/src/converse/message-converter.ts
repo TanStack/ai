@@ -177,11 +177,20 @@ function messageToBlocks(
       )
     }
     const textContent = stringContent(msg.content)
-    const toolResult: ToolResultContentBlock = { text: textContent }
+    const content: Array<ToolResultContentBlock> = textContent
+      ? [{ text: textContent }]
+      : []
+    for (const part of Array.isArray(msg.content) ? msg.content : []) {
+      // Converse takes only inline bytes. Skip other sources, as before.
+      if (!isImagePart(part) || !isDataSource(part.source)) continue
+      const { image } = contentPartToBlock(part, 0)
+      if (image) content.push({ image })
+    }
+    if (content.length === 0) content.push({ text: textContent })
     blocks.push({
       toolResult: {
         toolUseId: msg.toolCallId,
-        content: [toolResult],
+        content,
         status: msg.error !== undefined ? 'error' : 'success',
       },
     })
@@ -363,4 +372,35 @@ export function toConverseMessages(
   }
 
   return { system, messages: converseMessages }
+}
+
+/**
+ * Write the `toolUse` and `toolResult` blocks as text blocks. Bedrock rejects
+ * these blocks in a request with no `toolConfig`, so a request with no tools
+ * sends its tool history this way.
+ */
+export function toolBlocksToText(messages: Array<Message>): Array<Message> {
+  return messages.map((message) => ({
+    ...message,
+    content: message.content?.flatMap((block): Array<ContentBlock> => {
+      if (block.toolUse) {
+        const { toolUseId, name, input } = block.toolUse
+        return [
+          {
+            text: `[Tool call ${toolUseId} ${name}(${JSON.stringify(input)})]`,
+          },
+        ]
+      }
+      if (block.toolResult) {
+        const { toolUseId, content = [] } = block.toolResult
+        const text = content.map((part) => part.text ?? '').join('')
+        // Keep the images of the result as image blocks after the text.
+        const images = content.flatMap((part) =>
+          part.image ? [{ image: part.image }] : [],
+        )
+        return [{ text: `[Tool result ${toolUseId}: ${text}]` }, ...images]
+      }
+      return [block]
+    }),
+  }))
 }

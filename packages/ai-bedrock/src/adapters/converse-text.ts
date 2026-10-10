@@ -2,7 +2,10 @@ import { EventType, convertSchemaToJsonSchema } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { resolveBedrockAuth } from '../utils/auth'
-import { toConverseMessages } from '../converse/message-converter'
+import {
+  toConverseMessages,
+  toolBlocksToText,
+} from '../converse/message-converter'
 import { toToolConfig } from '../converse/tool-converter'
 import {
   processConverseStream,
@@ -248,6 +251,11 @@ export class BedrockConverseTextAdapter<
         { provider: this.name, model: this.model },
       )
       const input = this.buildInput(options)
+      // Bedrock rejects toolUse and toolResult blocks without a toolConfig,
+      // so a request with no tools sends its tool history as text.
+      if (!input.toolConfig && input.messages) {
+        input.messages = toolBlocksToText(input.messages)
+      }
       const stream = await this.sendStream(input)
       for await (const chunk of processConverseStream(
         stream,
