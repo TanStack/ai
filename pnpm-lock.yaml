@@ -2406,7 +2406,7 @@ importers:
         version: 0.5.1(csstype@3.2.3)(solid-js@1.9.10)
       '@tanstack/devtools-utils':
         specifier: ^0.7.0
-        version: 0.7.0(@angular/core@21.2.20(@angular/compiler@21.2.20)(rxjs@7.8.2)(zone.js@0.15.1))(@types/react@19.2.18)(preact@10.28.2)(react@19.2.3)(solid-js@1.9.10)(svelte@5.56.9(@typescript-eslint/types@8.59.4))(vue@3.5.25(typescript@7.0.2))
+        version: 0.7.0(@angular/core@21.2.20(@angular/compiler@21.2.20)(rxjs@7.8.2)(zone.js@0.15.1))(@types/react@19.2.18)(preact@11.0.1)(react@19.2.3)(solid-js@1.9.10)(svelte@5.56.9(@typescript-eslint/types@8.59.4))(vue@3.5.25(typescript@7.0.2))
       goober:
         specifier: ^2.1.18
         version: 2.1.18(csstype@3.2.3)
@@ -2979,7 +2979,7 @@ importers:
         version: link:../ai
       '@testing-library/preact':
         specifier: ^3.2.4
-        version: 3.2.4(preact@10.28.2)
+        version: 3.2.4(preact@11.0.1)
       '@vitest/coverage-v8':
         specifier: 4.1.10
         version: 4.1.10(vitest@4.1.11)
@@ -2987,8 +2987,8 @@ importers:
         specifier: ^27.4.0
         version: 27.4.0(@noble/hashes@2.3.0)
       preact:
-        specifier: ^10.26.9
-        version: 10.28.2
+        specifier: ^11.0.1
+        version: 11.0.1
       vite:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
@@ -3581,7 +3581,7 @@ importers:
         version: link:../ai-devtools
       '@tanstack/devtools-utils':
         specifier: ^0.7.0
-        version: 0.7.0(@angular/core@21.2.20(@angular/compiler@21.2.20)(rxjs@7.8.2)(zone.js@0.15.1))(@types/react@19.2.7)(preact@10.28.2)(react@19.2.3)(solid-js@1.9.10)(svelte@5.56.9(@typescript-eslint/types@8.59.4))(vue@3.5.25(typescript@7.0.2))
+        version: 0.7.0(@angular/core@21.2.20(@angular/compiler@21.2.20)(rxjs@7.8.2)(zone.js@0.15.1))(@types/react@19.2.7)(preact@11.0.1)(react@19.2.3)(solid-js@1.9.10)(svelte@5.56.9(@typescript-eslint/types@8.59.4))(vue@3.5.25(typescript@7.0.2))
     devDependencies:
       '@types/react':
         specifier: ^19.2.7
@@ -3600,7 +3600,7 @@ importers:
         version: link:../ai-devtools
       '@tanstack/devtools-utils':
         specifier: ^0.7.0
-        version: 0.7.0(@angular/core@21.2.20(@angular/compiler@21.2.20)(rxjs@7.8.2)(zone.js@0.15.1))(@types/react@19.2.18)(preact@10.28.2)(react@19.2.3)(solid-js@1.9.10)(svelte@5.56.9(@typescript-eslint/types@8.59.4))(vue@3.5.25(typescript@7.0.2))
+        version: 0.7.0(@angular/core@21.2.20(@angular/compiler@21.2.20)(rxjs@7.8.2)(zone.js@0.15.1))(@types/react@19.2.18)(preact@11.0.1)(react@19.2.3)(solid-js@1.9.10)(svelte@5.56.9(@typescript-eslint/types@8.59.4))(vue@3.5.25(typescript@7.0.2))
     devDependencies:
       solid-js:
         specifier: ^1.9.10
@@ -3619,7 +3619,7 @@ importers:
         version: link:../ai-devtools
       '@tanstack/devtools-utils':
         specifier: ^0.7.0
-        version: 0.7.0(@angular/core@21.2.20(@angular/compiler@21.2.20)(rxjs@7.8.2)(zone.js@0.15.1))(@types/react@19.2.18)(preact@10.28.2)(react@19.2.3)(solid-js@1.9.10)(svelte@5.56.9(@typescript-eslint/types@8.59.4))(vue@3.5.25(typescript@7.0.2))
+        version: 0.7.0(@angular/core@21.2.20(@angular/compiler@21.2.20)(rxjs@7.8.2)(zone.js@0.15.1))(@types/react@19.2.18)(preact@11.0.1)(react@19.2.3)(solid-js@1.9.10)(svelte@5.56.9(@typescript-eslint/types@8.59.4))(vue@3.5.25(typescript@7.0.2))
     devDependencies:
       svelte:
         specifier: ^5.56.9
@@ -16015,8 +16015,13 @@ packages:
   preact@10.28.1:
     resolution: {integrity: sha512-u1/ixq/lVQI0CakKNvLDEcW5zfCjUQfZdK9qqWuIJtsezuyG6pk9TWj75GMuI/EzRSZB/VAE43sNWWZfiy8psw==}
 
-  preact@10.28.2:
-    resolution: {integrity: sha512-lbteaWGzGHdlIuiJ0l2Jq454m6kcpI1zNje6d8MlGAFlYvP2GO4ibnat7P74Esfz4sPTdM6UxtTwh/d3pwM9JA==}
+  preact@11.0.1:
+    resolution: {integrity: sha512-TNNwEq++jYNHy747LziCjPRVgEwnLSOIOAw/oYcjI3Tdnubx2EXtt76I0an8PATvUWtx/DX1kFIg1eFN+O/fkw==}
+    peerDependencies:
+      preact-render-to-string: '>=6.7.0'
+    peerDependenciesMeta:
+      preact-render-to-string:
+        optional: true
 
   prebuild-install@7.1.3:
     resolution: {integrity: sha512-8Mf2cbV7x1cXPUILADGI3wuhfqWvtiLA1iclTDbFRZkgRQS0NqsPZphna9V+HyTEadheuPmjaJMsbzKQFOzLug==}
@@ -26593,21 +26598,21 @@ snapshots:
       svelte: 5.56.9(@typescript-eslint/types@8.59.4)
       vue: 3.5.25(typescript@7.0.2)
 
-  '@tanstack/devtools-utils@0.7.0(@angular/core@21.2.20(@angular/compiler@21.2.20)(rxjs@7.8.2)(zone.js@0.15.1))(@types/react@19.2.18)(preact@10.28.2)(react@19.2.3)(solid-js@1.9.10)(svelte@5.56.9(@typescript-eslint/types@8.59.4))(vue@3.5.25(typescript@7.0.2))':
+  '@tanstack/devtools-utils@0.7.0(@angular/core@21.2.20(@angular/compiler@21.2.20)(rxjs@7.8.2)(zone.js@0.15.1))(@types/react@19.2.18)(preact@11.0.1)(react@19.2.3)(solid-js@1.9.10)(svelte@5.56.9(@typescript-eslint/types@8.59.4))(vue@3.5.25(typescript@7.0.2))':
     optionalDependencies:
       '@angular/core': 21.2.20(@angular/compiler@21.2.20)(rxjs@7.8.2)(zone.js@0.15.1)
       '@types/react': 19.2.18
-      preact: 10.28.2
+      preact: 11.0.1
       react: 19.2.3
       solid-js: 1.9.10
       svelte: 5.56.9(@typescript-eslint/types@8.59.4)
       vue: 3.5.25(typescript@7.0.2)
 
-  '@tanstack/devtools-utils@0.7.0(@angular/core@21.2.20(@angular/compiler@21.2.20)(rxjs@7.8.2)(zone.js@0.15.1))(@types/react@19.2.7)(preact@10.28.2)(react@19.2.3)(solid-js@1.9.10)(svelte@5.56.9(@typescript-eslint/types@8.59.4))(vue@3.5.25(typescript@7.0.2))':
+  '@tanstack/devtools-utils@0.7.0(@angular/core@21.2.20(@angular/compiler@21.2.20)(rxjs@7.8.2)(zone.js@0.15.1))(@types/react@19.2.7)(preact@11.0.1)(react@19.2.3)(solid-js@1.9.10)(svelte@5.56.9(@typescript-eslint/types@8.59.4))(vue@3.5.25(typescript@7.0.2))':
     optionalDependencies:
       '@angular/core': 21.2.20(@angular/compiler@21.2.20)(rxjs@7.8.2)(zone.js@0.15.1)
       '@types/react': 19.2.7
-      preact: 10.28.2
+      preact: 11.0.1
       react: 19.2.3
       solid-js: 1.9.10
       svelte: 5.56.9(@typescript-eslint/types@8.59.4)
@@ -27478,10 +27483,10 @@ snapshots:
       lz-string: 1.5.0
       pretty-format: 27.5.1
 
-  '@testing-library/preact@3.2.4(preact@10.28.2)':
+  '@testing-library/preact@3.2.4(preact@11.0.1)':
     dependencies:
       '@testing-library/dom': 8.20.1
-      preact: 10.28.2
+      preact: 11.0.1
 
   '@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
     dependencies:
@@ -34300,7 +34305,7 @@ snapshots:
 
   preact@10.28.1: {}
 
-  preact@10.28.2: {}
+  preact@11.0.1: {}
 
   prebuild-install@7.1.3:
     dependencies:
