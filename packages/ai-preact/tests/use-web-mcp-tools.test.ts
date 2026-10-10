@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { renderHook, waitFor } from '@testing-library/preact'
+import { act, renderHook, waitFor } from '@testing-library/preact'
 import { toolDefinition } from '@tanstack/ai/client'
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import {
@@ -84,7 +84,7 @@ describe('useRegisterWebMCPTools', () => {
     const { unmount } = renderHook(() => useRegisterWebMCPTools(tools))
 
     await waitFor(() => expect(modelContext.tools.has('status')).toBe(true))
-    unmount()
+    act(() => unmount())
 
     expect(modelContext.tools.size).toBe(0)
   })
@@ -105,7 +105,7 @@ describe('useRegisterWebMCPTools', () => {
     await waitFor(() =>
       expect([...modelContext.tools.keys()]).toEqual(['second']),
     )
-    unmount()
+    act(() => unmount())
   })
 
   it('replaces registered tools when options change', async () => {
@@ -130,7 +130,7 @@ describe('useRegisterWebMCPTools', () => {
     await waitFor(() =>
       expect(modelContext.tools.get('status')?.title).toBe('Current status'),
     )
-    unmount()
+    act(() => unmount())
   })
 
   it('reports asynchronous registration failures', async () => {
@@ -145,7 +145,7 @@ describe('useRegisterWebMCPTools', () => {
     expect(onError).toHaveBeenCalledWith(
       expect.objectContaining({ message: 'status registration failed' }),
     )
-    unmount()
+    act(() => unmount())
   })
 
   it('does not report aborted pending registrations', async () => {
@@ -165,7 +165,7 @@ describe('useRegisterWebMCPTools', () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(onError).not.toHaveBeenCalled()
 
-    unmount()
+    act(() => unmount())
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(modelContext.tools.size).toBe(0)
     expect(onError).not.toHaveBeenCalled()
@@ -254,6 +254,6 @@ describe('usePageWebMCPTools', () => {
       ]),
     )
     await expect(result.current[0]?.execute?.({})).resolves.toBe('done')
-    unmount()
+    act(() => unmount())
   })
 })
