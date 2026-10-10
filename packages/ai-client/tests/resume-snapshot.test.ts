@@ -799,6 +799,64 @@ describe('ChatClient auto-rejoin after reload', () => {
     void client
   })
 
+  it('rejoins from an async store that resolves BEFORE attach()', async () => {
+    // React Native (AsyncStorage) and IndexedDB can finish reading before the
+    // view mounts. The hydrate must not open a connection while detached, but
+    // the restored run id has to survive until `attach()` rejoins it.
+    const record: ChatPersistedState = {
+      messages: [createUIMessage('user-1', 'hi', 'user')],
+      resume: {
+        resumeState: { threadId: 't1', runId: 'r1' },
+      },
+    }
+    let hydrated = false
+    const asyncAdapter: ChatClientPersistence = {
+      getItem: () =>
+        Promise.resolve(record).then((value) => {
+          hydrated = true
+          return value
+        }),
+      setItem: () => Promise.resolve(),
+      removeItem: () => Promise.resolve(),
+    }
+
+    const joinRun = vi.fn(async function* (_runId: string) {
+      for (const chunk of runChunks('r1', 't1')) {
+        yield chunk
+      }
+    })
+    const connection: ResumableConnectConnectionAdapter = {
+      connect: async function* () {},
+      joinRun,
+    }
+
+    let latest: Array<UIMessage> = []
+    const client = new ChatClient({
+      threadId: 't1',
+      connection,
+      persistence: asyncAdapter,
+      onMessagesChange: (messages) => {
+        latest = messages
+      },
+    })
+
+    await vi.waitFor(() => {
+      expect(hydrated).toBe(true)
+      expect(latest.some((m) => m.id === 'user-1')).toBe(true)
+    })
+    expect(joinRun).not.toHaveBeenCalled()
+
+    client.attach()
+
+    await vi.waitFor(() => {
+      const assistant = latest.find((m) => m.role === 'assistant')
+      const text = assistant?.parts.find((p) => p.type === 'text')
+      expect(text && 'content' in text && text.content).toBe('world')
+    })
+    expect(joinRun).toHaveBeenCalledTimes(1)
+    expect(joinRun).toHaveBeenCalledWith('r1', expect.anything())
+  })
+
   it('KEEPS the resume pointer when joinRun times out before attaching', async () => {
     const { adapter, read } = memoryAdapter({
       messages: [createUIMessage('user-1', 'hi', 'user')],

@@ -551,8 +551,11 @@ export class ChatClient<
   private storeHydrating = false
   /** See {@link getIsHydrating}. */
   private isHydrating = false
-  /** Constructor inputs `attach()` needs on every re-attach, not just the first. */
-  private readonly rejoinRunId: string | null | undefined
+  /**
+   * In-flight run `attach()` rejoins: read synchronously in the constructor, or
+   * restored later by an async store's hydrate (see `applyPersistedResume`).
+   */
+  private rejoinRunId: string | null | undefined
   private readonly cachesMessages: boolean
   /**
    * Newest-window size from `history.pageSize`. Only set when
@@ -1056,8 +1059,9 @@ export class ChatClient<
 
     // Full page reload with an in-flight run persisted (synchronous store):
     // re-attach to it off the server's delivery-durability log so the stream
-    // finishes here. Async stores rejoin from `applyPersistedResume` once the
-    // hydrate resolves. Best-effort and non-blocking.
+    // finishes here. An async store rejoins from `applyPersistedResume` when its
+    // hydrate resolves after this; one that resolved earlier left the run id in
+    // `rejoinRunId`. Best-effort and non-blocking.
     if (this.rejoinRunId) {
       this.maybeRejoinInFlight(this.rejoinRunId)
     }
@@ -1143,6 +1147,9 @@ export class ChatClient<
     // (Server-authoritative reconnect is resolved from the server by threadId in
     // `hydrateFromServer`.)
     if (!hasInterrupts && runId) {
+      // Keep the run id for `attach()`: an async store can resolve before the
+      // view mounts, and `maybeRejoinInFlight` does nothing while detached.
+      this.rejoinRunId = runId
       this.maybeRejoinInFlight(runId)
     }
   }
