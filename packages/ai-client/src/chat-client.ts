@@ -556,6 +556,8 @@ export class ChatClient<
    * restored later by an async store's hydrate (see `applyPersistedResume`).
    */
   private rejoinRunId: string | null | undefined
+  /** Set by `stop()`: a store read that resolves later must not restore the run. */
+  private persistedResumeDiscarded = false
   private readonly cachesMessages: boolean
   /**
    * Newest-window size from `history.pageSize`. Only set when
@@ -1137,6 +1139,7 @@ export class ChatClient<
    * (`indexedDBPersistence`) would otherwise never rejoin a mid-stream run.
    */
   private applyPersistedResume(snapshot: ChatResumeSnapshot): void {
+    if (this.persistedResumeDiscarded) return
     this.applyResumeSnapshot(snapshot)
     const hasInterrupts =
       Array.isArray(snapshot.pendingInterrupts) &&
@@ -2934,6 +2937,7 @@ export class ChatClient<
     this.discardPendingSends()
     this.lastResume = null
     this.rejoinRunId = null
+    this.persistedResumeDiscarded = true
     this.activeInterruptSubmission = undefined
     this.interruptManager.reset()
     if (hadLocalStream) {

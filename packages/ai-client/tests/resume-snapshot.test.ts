@@ -905,6 +905,45 @@ describe('ChatClient auto-rejoin after reload', () => {
     },
   )
 
+  it('does not restore a run when stop() lands before the async store read', async () => {
+    let resolveRead: (state: ChatPersistedState) => void = () => {}
+    const asyncAdapter: ChatClientPersistence = {
+      getItem: () =>
+        new Promise<ChatPersistedState>((resolve) => {
+          resolveRead = resolve
+        }),
+      setItem: () => Promise.resolve(),
+      removeItem: () => Promise.resolve(),
+    }
+    const joinRun = vi.fn(async function* (_runId: string) {
+      for (const chunk of runChunks('r1', 't1')) {
+        yield chunk
+      }
+    })
+    let latest: Array<UIMessage> = []
+    const client = new ChatClient({
+      threadId: 't1',
+      connection: { connect: async function* () {}, joinRun },
+      persistence: asyncAdapter,
+      onMessagesChange: (messages) => {
+        latest = messages
+      },
+    })
+
+    client.stop()
+    resolveRead({
+      messages: [createUIMessage('user-1', 'hi', 'user')],
+      resume: { resumeState: { threadId: 't1', runId: 'r1' } },
+    })
+    await vi.waitFor(() => {
+      expect(latest.some((m) => m.id === 'user-1')).toBe(true)
+    })
+    client.attach()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(joinRun).not.toHaveBeenCalled()
+  })
+
   it('does not retry a refused join of a restored run after a view switch', async () => {
     const { client, joinRun } = await restoreFromAsyncStoreBeforeAttach({
       joinRunImpl: async function* () {
