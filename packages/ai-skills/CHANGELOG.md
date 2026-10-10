@@ -1,5 +1,12 @@
 # @tanstack/ai-skills
 
+## 0.1.19
+
+### Patch Changes
+
+- Updated dependencies [[`1bfcee3`](https://github.com/TanStack/ai/commit/1bfcee35bb3cf0ff3aac005440c842e66c3d687d), [`1bfcee3`](https://github.com/TanStack/ai/commit/1bfcee35bb3cf0ff3aac005440c842e66c3d687d)]:
+  - @tanstack/ai@0.69.0
+
 ## 0.1.18
 
 ### Patch Changes

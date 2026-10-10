@@ -1,5 +1,19 @@
 # @tanstack/ai-octane
 
+## 0.8.0
+
+### Minor Changes
+
+- [#1700](https://github.com/TanStack/ai/pull/1700) [`77140d1`](https://github.com/TanStack/ai/commit/77140d1d1d612f374e0c339b0bc5f2b7eff51d1e) - Require octane `>=0.12.0`.
+  - Octane 0.12 removed `Context.Provider`. `UI.Provider` and the other chat UI parts now render each context directly.
+  - Projects that compile the adapter's `.tsrx` source need `@tsrx/oxc` installed. Octane 0.12 made it an optional peer.
+
+### Patch Changes
+
+- Updated dependencies [[`1bfcee3`](https://github.com/TanStack/ai/commit/1bfcee35bb3cf0ff3aac005440c842e66c3d687d), [`1bfcee3`](https://github.com/TanStack/ai/commit/1bfcee35bb3cf0ff3aac005440c842e66c3d687d)]:
+  - @tanstack/ai@0.69.0
+  - @tanstack/ai-client@0.39.3
+
 ## 0.7.3
 
 ### Patch Changes

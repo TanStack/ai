@@ -1,5 +1,13 @@
 # @tanstack/ai-claude-code
 
+## 0.8.2
+
+### Patch Changes
+
+- Updated dependencies [[`1bfcee3`](https://github.com/TanStack/ai/commit/1bfcee35bb3cf0ff3aac005440c842e66c3d687d), [`1bfcee3`](https://github.com/TanStack/ai/commit/1bfcee35bb3cf0ff3aac005440c842e66c3d687d)]:
+  - @tanstack/ai@0.69.0
+  - @tanstack/ai-sandbox@0.5.23
+
 ## 0.8.1
 
 ### Patch Changes
