@@ -15,6 +15,7 @@ import { buildConverseUsage } from '../converse/usage'
 import { converseThinking } from '../converse/reasoning'
 import {
   BEDROCK_CLAUDE_NO_FORCED_TOOL_FAMILIES,
+  BEDROCK_MODEL_INPUT_MODALITIES,
   BEDROCK_MODEL_REASONING,
 } from '../model-meta'
 import { addPromptCachePoints } from '../converse/prompt-cache'
@@ -113,6 +114,7 @@ export class BedrockConverseTextAdapter<
   override readonly name = 'bedrock-converse' as const
   override readonly api = 'bedrock-converse-stream'
   override readonly provider = 'amazon-bedrock'
+  override readonly inputModalities = BEDROCK_MODEL_INPUT_MODALITIES[this.model]
 
   private sourceMetadata(model: string) {
     return {

@@ -1,7 +1,10 @@
 import OpenAI from 'openai'
 import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
 import { withBedrockDefaults } from '../utils/client'
-import { BEDROCK_MODEL_REASONING } from '../model-meta'
+import {
+  BEDROCK_MODEL_INPUT_MODALITIES,
+  BEDROCK_MODEL_REASONING,
+} from '../model-meta'
 import type { Modality } from '@tanstack/ai'
 import type { BedrockClientConfig } from '../utils/client'
 import type { BedrockMessageMetadataByModality } from '../message-types'
@@ -61,6 +64,7 @@ export class BedrockTextAdapter<
   override readonly kind = 'text' as const
   override readonly name = 'bedrock' as const
   override readonly provider = 'amazon-bedrock'
+  override readonly inputModalities = BEDROCK_MODEL_INPUT_MODALITIES[this.model]
 
   constructor(config: BedrockTextConfig, model: TModel) {
     // No `forced` -> honors config.endpoint ('runtime' default, 'mantle' allowed).
