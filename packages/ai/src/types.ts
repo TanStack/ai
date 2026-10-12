@@ -1260,6 +1260,23 @@ export interface TextOptions<
    */
   toolExecution?: 'parallel' | 'sequential'
   /**
+   * Retry a model call when the provider error has a wait time (usually a
+   * 429). `chat()` waits for the `retryAfterMs` time of the `RUN_ERROR`, then
+   * calls the model again. It retries only when the wait time is at most
+   * `maxWaitMs` and the call has streamed no output yet. The structured-output
+   * call is not retried. Off by default.
+   */
+  retry?: {
+    /**
+     * Extra model calls after the first, for each model call of the run. `0`
+     * means no retry. The provider SDK does its own retries first, from the
+     * `maxRetries` of the adapter config.
+     */
+    maxRetries: number
+    /** Longest wait time to accept, in milliseconds. Default 60 000. */
+    maxWaitMs?: number
+  }
+  /**
    * Optional configuration for lazy-tool discovery (tools marked `lazy: true`).
    * Tunes how much of each lazy tool's description appears in the discovery
    * catalog. Optional — defaults to `{ includeDescription: 'none' }`.

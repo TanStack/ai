@@ -122,6 +122,36 @@ const { messages } = useChat({
 
 No `retryAfterMs`? The provider sent no wait header, so pick your own backoff. The provider SDKs also retry a 429 by themselves first. To handle every 429 yourself, set `maxRetries: 0` in the adapter config.
 
+### Let `chat()` retry for you
+
+You do not have to wait and retry in your own code. Pass `retry`, and `chat()` waits for the `retryAfterMs` time, then calls the model again:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { anthropicText } from "@tanstack/ai-anthropic";
+
+const stream = chat({
+  adapter: anthropicText("claude-sonnet-5-5"),
+  messages: [{ role: "user", content: "Hello!" }],
+  retry: { maxRetries: 3, maxWaitMs: 30_000 },
+});
+```
+
+When it retries:
+
+- Only when the `RUN_ERROR` has a wait time (`metadata.tanstack.retryAfterMs`). Only the adapters named above set it.
+- Only when the wait time is at most `maxWaitMs` (default 60 000). For a longer wait time, you get the `RUN_ERROR`.
+- Only when the call streamed no output, so no text repeats.
+
+Limits:
+
+- `maxRetries` is the limit for each model call, not for the full run.
+- The provider SDK retries a 429 first, then `chat()` retries. To count only the `chat()` retries, set `maxRetries: 0` in the adapter config.
+- With `outputSchema`, `chat()` does not retry the structured-output call.
+- An abort stops the wait immediately. You then get the `RUN_ERROR`.
+
+On a serverless route, a long wait keeps the request open. If your host has a short time limit, keep `maxWaitMs` low. Then retry the longer wait times from the client.
+
 ## Read the provider response identity
 
 You want to find a reply in the provider's logs, or see which model really answered. Read `metadata.tanstack` on `RUN_FINISHED`:

@@ -566,6 +566,15 @@ export interface TextActivityOptions<
   /** How the server tools of one model turn run. Default `'parallel'`. */
   toolExecution?: TextOptions['toolExecution']
   /**
+   * Retry a rate-limited model call after the wait the provider asks for.
+   *
+   * @example
+   * ```ts
+   * chat({ adapter, messages, retry: { maxRetries: 3 } })
+   * ```
+   */
+  retry?: TextOptions['retry']
+  /**
    * Optional configuration for lazy-tool discovery (tools marked `lazy: true`).
    * Tunes how much of each lazy tool's description appears in the discovery
    * catalog. Optional — defaults to `{ includeDescription: 'none' }`.
@@ -875,6 +884,21 @@ function combineAbortSignals(
   return controller.signal
 }
 
+/** Wait `ms`, or less when the signal aborts. It never rejects. */
+function waitOrAbort(ms: number, signal: AbortSignal | undefined) {
+  return new Promise<void>((resolve) => {
+    if (signal?.aborted) return resolve()
+    const done = () => {
+      clearTimeout(timer)
+      signal?.removeEventListener('abort', done)
+      resolve()
+    }
+    // A longer delay overflows `setTimeout` and fires at once.
+    const timer = setTimeout(done, Math.min(ms, 2 ** 31 - 1))
+    signal?.addEventListener('abort', done, { once: true })
+  })
+}
+
 class TextEngine<
   TAdapter extends AnyTextAdapter,
   TContext = unknown,
@@ -944,6 +968,8 @@ class TextEngine<
   private currentThinkingRedacted = false
   private eventOptions?: Record<string, unknown> | undefined
   private currentCallMetadata: TanStackMessageMetadata = {}
+  /** An abort ended the wait of `retryRateLimited`. Its last chunks still go to the caller. */
+  private retryAbandoned = false
   private structuredCallMetadata: TanStackMessageMetadata = {}
   private eventToolNames?: Array<string>
   private finishedEvent: RunFinishedEvent | null = null
@@ -1627,6 +1653,75 @@ class TextEngine<
     })
   }
 
+  /**
+   * Calls the model again after a rate-limit `RUN_ERROR`, as the `retry`
+   * option allows. A call that yielded a chunk after `RUN_STARTED` is not
+   * retried, so no output repeats. `RUN_STARTED` is held until the attempt is
+   * kept, so the public start has the same `runId` as the `RUN_FINISHED` of
+   * the kept attempt. When an abort ends the wait, the held error is yielded.
+   */
+  private async *retryRateLimited(
+    call: () => AsyncIterable<AdapterYieldChunk>,
+  ): AsyncGenerator<AdapterYieldChunk> {
+    const retry = this.params.retry
+    if (!retry) {
+      yield* call()
+      return
+    }
+    const maxWaitMs = retry.maxWaitMs ?? 60_000
+    if (
+      !Number.isInteger(retry.maxRetries) ||
+      retry.maxRetries < 0 ||
+      !(maxWaitMs >= 0)
+    ) {
+      throw new TypeError(
+        'chat() retry: maxRetries must be an integer of 0 or more, and maxWaitMs must be 0 or more.',
+      )
+    }
+    let start: AdapterYieldChunk | undefined
+    for (let attempt = 1; ; attempt++) {
+      let streamed = false
+      let waitMs: number | undefined
+      let rateLimitError: AdapterYieldChunk | undefined
+      for await (const chunk of call()) {
+        if (
+          chunk.type === EventType.RUN_ERROR &&
+          !streamed &&
+          attempt <= retry.maxRetries &&
+          chunk.retryAfterMs !== undefined &&
+          chunk.retryAfterMs <= maxWaitMs
+        ) {
+          // Wait after the loop, so the adapter stream closes first.
+          waitMs = chunk.retryAfterMs
+          rateLimitError = chunk
+          break
+        }
+        if (chunk.type === EventType.RUN_STARTED && !streamed) {
+          start = chunk
+          continue
+        }
+        if (start) yield start
+        start = undefined
+        streamed = true
+        yield chunk
+      }
+      if (waitMs === undefined || !rateLimitError) break
+      this.logger.warn(
+        `activity=chat provider asked to wait, retry ${attempt} of ${retry.maxRetries} in ${waitMs}ms`,
+        { attempt, waitMs, model: this.params.model },
+      )
+      // Also wakes on a middleware `ctx.abort()`, not only the caller's.
+      await waitOrAbort(waitMs, this.toolAbortSignal)
+      if (this.isCancelled()) {
+        this.retryAbandoned = true
+        if (start) yield start
+        yield rateLimitError
+        return
+      }
+    }
+    if (start) yield start
+  }
+
   private async *streamModelResponse(): AsyncGenerator<StreamChunk> {
     const { metadata, modelOptions } = this.params
     const tools = this.tools
@@ -1705,7 +1800,7 @@ class TextEngine<
         : undefined
     this.pendingMidConversationChange = midConversation?.record
 
-    for await (const adapterChunk of this.adapter.chatStream({
+    const streamOptions = {
       model: this.params.model,
       ...sanitizeProviderRequest(replayMessages, this.systemPrompts),
       tools: toolsWithJsonSchemas,
@@ -1726,9 +1821,13 @@ class TextEngine<
       approvals: adapterApprovals,
       ...(this.callWrapFetch ? { wrapFetch: this.callWrapFetch } : {}),
       ...(combinedSchema ? { outputSchema: combinedSchema } : {}),
-    })) {
+    }
+    for await (const adapterChunk of this.retryRateLimited(() =>
+      this.adapter.chatStream(streamOptions),
+    )) {
       const raw = this.withCallMetadata(adapterChunk, this.currentCallMetadata)
-      if (this.isCancelled()) {
+      // An abandoned retry still sends its start and its rate-limit error.
+      if (this.isCancelled() && !this.retryAbandoned) {
         break
       }
 
@@ -1849,6 +1948,13 @@ class TextEngine<
           if (spec.type === EventType.RUN_STARTED) {
             if (this.hasPublicRunStarted) continue
             this.hasPublicRunStarted = true
+          }
+          // An adapter can fail before it sends `RUN_STARTED`. The public
+          // stream still starts with one.
+          if (spec.type === EventType.RUN_ERROR) {
+            yield* this.emitSyntheticRunStarted(
+              this.createSyntheticFinishedEvent(),
+            )
           }
           this.logger.output(`type=${spec.type}`, { chunk: spec })
           yield spec
