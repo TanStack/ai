@@ -1,4 +1,3 @@
-import type { ModelReasoning } from '@tanstack/ai'
 import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
 import type {
   OllamaChatRequest,
@@ -9,6 +8,13 @@ import type {
   OllamaModelMeta,
 } from './models-meta'
 
+// Reasoning shapes: the levels a model has for `chat({ reasoning })`, and
+// the provider value to send for each. Each model points at one of them.
+const EFFORT_LOW_TO_HIGH = {
+  levels: { low: 'low', medium: 'medium', high: 'high' },
+  budget: false,
+} as const
+
 const OPT_OSS_LATEST = {
   name: 'gpt-oss:latest',
   supports: {
@@ -18,16 +24,7 @@ const OPT_OSS_LATEST = {
   },
   size: '14gb',
   context: 128_000,
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
@@ -43,16 +40,7 @@ const OPT_OSS_20b = {
   },
   size: '14gb',
   context: 128_000,
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
@@ -68,16 +56,7 @@ const OPT_OSS_120b = {
   },
   size: '65gb',
   context: 128_000,
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
@@ -121,18 +100,16 @@ export type GptOssModelInputModalitiesByName = {
   [OPT_OSS_120b.name]: typeof OPT_OSS_120b.supports.input
 }
 
-/** Each model's reasoning levels, for `chat({ reasoning })`. */
-export type GptOssModelReasoningByName = {
-  [OPT_OSS_LATEST.name]: ModelReasoningCapability<
-    typeof OPT_OSS_LATEST.reasoning
-  >
-  [OPT_OSS_20b.name]: ModelReasoningCapability<typeof OPT_OSS_20b.reasoning>
-  [OPT_OSS_120b.name]: ModelReasoningCapability<typeof OPT_OSS_120b.reasoning>
-}
-
 /** Each model's reasoning data at runtime. */
 export const GPT_OSS_MODEL_REASONING = {
   [OPT_OSS_LATEST.name]: OPT_OSS_LATEST.reasoning,
   [OPT_OSS_20b.name]: OPT_OSS_20b.reasoning,
   [OPT_OSS_120b.name]: OPT_OSS_120b.reasoning,
-} satisfies Record<keyof GptOssModelReasoningByName, ModelReasoning>
+}
+
+/** Each model's reasoning levels, for `chat({ reasoning })`. */
+export type GptOssModelReasoningByName = {
+  [K in keyof typeof GPT_OSS_MODEL_REASONING]: ModelReasoningCapability<
+    (typeof GPT_OSS_MODEL_REASONING)[K]
+  >
+}

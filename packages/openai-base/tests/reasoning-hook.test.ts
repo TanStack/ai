@@ -14,7 +14,7 @@ const client = new OpenAI({ apiKey: 'test-api-key' })
 
 const DATA: ModelReasoning = {
   budget: false,
-  map: { off: 'none', minimal: null, medium: null, high: 'high' },
+  levels: { off: 'none', low: 'low', high: 'high' },
 }
 
 class ChatAdapter extends OpenAIBaseChatCompletionsTextAdapter<string> {

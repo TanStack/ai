@@ -7,6 +7,213 @@ import type {
   OpenRouterCommonOptions,
 } from './text/text-provider-options'
 
+// Reasoning shapes: the levels a model has for `chat({ reasoning })`, and
+// the provider value to send for each. Each model points at one of them.
+const BUDGET_MINIMAL_TO_HIGH = {
+  levels: { minimal: 'minimal', low: 'low', medium: 'medium', high: 'high' },
+  budget: true,
+} as const
+const BUDGET_NONE_LOW_MEDIUM = {
+  levels: { off: 'none', low: 'low', medium: 'medium' },
+  budget: true,
+} as const
+const BUDGET_NONE_LOW_TO_HIGH_MAX = {
+  levels: {
+    off: 'none',
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    max: 'max',
+  },
+  budget: true,
+} as const
+const BUDGET_NONE_MEDIUM_HIGH = {
+  levels: { off: 'none', medium: 'medium', high: 'high' },
+  budget: true,
+} as const
+const BUDGET_OFF_HIGH = {
+  levels: { off: 'off', high: 'high' },
+  budget: true,
+} as const
+const EFFORT_HIGH = { levels: { high: 'high' }, budget: false } as const
+const EFFORT_HIGH_TO_MAX = {
+  levels: { high: 'high', xhigh: 'xhigh', max: 'max' },
+  budget: false,
+} as const
+const EFFORT_LOW_HIGH_MAX = {
+  levels: { low: 'low', high: 'high', max: 'max' },
+  budget: false,
+} as const
+const EFFORT_LOW_MEDIUM_XHIGH = {
+  levels: { low: 'low', medium: 'medium', xhigh: 'xhigh' },
+  budget: false,
+} as const
+const EFFORT_LOW_TO_HIGH = {
+  levels: { low: 'low', medium: 'medium', high: 'high' },
+  budget: false,
+} as const
+const EFFORT_LOW_TO_HIGH_MAX = {
+  levels: { low: 'low', medium: 'medium', high: 'high', max: 'max' },
+  budget: false,
+} as const
+const EFFORT_LOW_TO_MAX = {
+  levels: {
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    xhigh: 'xhigh',
+    max: 'max',
+  },
+  budget: false,
+} as const
+const EFFORT_LOW_TO_XHIGH = {
+  levels: { low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh' },
+  budget: false,
+} as const
+const EFFORT_MEDIUM_TO_XHIGH = {
+  levels: { medium: 'medium', high: 'high', xhigh: 'xhigh' },
+  budget: false,
+} as const
+const EFFORT_MINIMAL_TO_HIGH = {
+  levels: { minimal: 'minimal', low: 'low', medium: 'medium', high: 'high' },
+  budget: false,
+} as const
+const EFFORT_MINIMAL_TO_MAX = {
+  levels: {
+    minimal: 'minimal',
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    xhigh: 'xhigh',
+    max: 'max',
+  },
+  budget: false,
+} as const
+const EFFORT_MINIMAL_TO_XHIGH = {
+  levels: {
+    minimal: 'minimal',
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    xhigh: 'xhigh',
+  },
+  budget: false,
+} as const
+const EFFORT_NONE_HIGH = {
+  levels: { off: 'none', high: 'high' },
+  budget: false,
+} as const
+const EFFORT_NONE_HIGH_XHIGH = {
+  levels: { off: 'none', high: 'high', xhigh: 'xhigh' },
+  budget: false,
+} as const
+const EFFORT_NONE_LOW_HIGH = {
+  levels: { off: 'none', low: 'low', high: 'high' },
+  budget: false,
+} as const
+const EFFORT_NONE_LOW_HIGH_MAX = {
+  levels: { off: 'none', low: 'low', high: 'high', max: 'max' },
+  budget: false,
+} as const
+const EFFORT_NONE_LOW_MEDIUM_XHIGH = {
+  levels: { off: 'none', low: 'low', medium: 'medium', xhigh: 'xhigh' },
+  budget: false,
+} as const
+const EFFORT_NONE_LOW_TO_HIGH = {
+  levels: { off: 'none', low: 'low', medium: 'medium', high: 'high' },
+  budget: false,
+} as const
+const EFFORT_NONE_LOW_TO_HIGH_MAX = {
+  levels: {
+    off: 'none',
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    max: 'max',
+  },
+  budget: false,
+} as const
+const EFFORT_NONE_LOW_TO_MAX = {
+  levels: {
+    off: 'none',
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    xhigh: 'xhigh',
+    max: 'max',
+  },
+  budget: false,
+} as const
+const EFFORT_NONE_LOW_TO_XHIGH = {
+  levels: {
+    off: 'none',
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    xhigh: 'xhigh',
+  },
+  budget: false,
+} as const
+const EFFORT_NONE_MEDIUM_HIGH = {
+  levels: { off: 'none', medium: 'medium', high: 'high' },
+  budget: false,
+} as const
+const EFFORT_NONE_MEDIUM_XHIGH = {
+  levels: { off: 'none', medium: 'medium', xhigh: 'xhigh' },
+  budget: false,
+} as const
+const EFFORT_NONE_MINIMAL_HIGH = {
+  levels: { off: 'none', minimal: 'minimal', high: 'high' },
+  budget: false,
+} as const
+const EFFORT_NONE_MINIMAL_TO_HIGH = {
+  levels: {
+    off: 'none',
+    minimal: 'minimal',
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+  },
+  budget: false,
+} as const
+const EFFORT_NONE_MINIMAL_TO_HIGH_MAX = {
+  levels: {
+    off: 'none',
+    minimal: 'minimal',
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    max: 'max',
+  },
+  budget: false,
+} as const
+const EFFORT_NONE_MINIMAL_TO_MAX = {
+  levels: {
+    off: 'none',
+    minimal: 'minimal',
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    xhigh: 'xhigh',
+    max: 'max',
+  },
+  budget: false,
+} as const
+const EFFORT_OFF_HIGH = {
+  levels: { off: 'off', high: 'high' },
+  budget: false,
+} as const
+const EFFORT_OFF_TO_HIGH = {
+  levels: {
+    off: 'off',
+    minimal: 'minimal',
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+  },
+  budget: false,
+} as const
+
 const _ANTHROPIC_CLAUDE_FABLE_LATEST = {
   id: '~anthropic/claude-fable-latest',
   name: 'Anthropic: Claude Fable Latest',
@@ -36,18 +243,7 @@ const _ANTHROPIC_CLAUDE_FABLE_LATEST = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const _ANTHROPIC_CLAUDE_HAIKU_LATEST = {
   id: '~anthropic/claude-haiku-latest',
@@ -80,10 +276,7 @@ const _ANTHROPIC_CLAUDE_HAIKU_LATEST = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const _ANTHROPIC_CLAUDE_OPUS_LATEST = {
   id: '~anthropic/claude-opus-latest',
@@ -115,18 +308,7 @@ const _ANTHROPIC_CLAUDE_OPUS_LATEST = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const _ANTHROPIC_CLAUDE_SONNET_LATEST = {
   id: '~anthropic/claude-sonnet-latest',
@@ -158,18 +340,7 @@ const _ANTHROPIC_CLAUDE_SONNET_LATEST = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const _DEEPSEEK_DEEPSEEK_FLASH_LATEST = {
   id: '~deepseek/deepseek-flash-latest',
@@ -207,18 +378,7 @@ const _DEEPSEEK_DEEPSEEK_FLASH_LATEST = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_HIGH_MAX,
 } as const
 const _DEEPSEEK_DEEPSEEK_PRO_LATEST = {
   id: '~deepseek/deepseek-pro-latest',
@@ -256,18 +416,7 @@ const _DEEPSEEK_DEEPSEEK_PRO_LATEST = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_HIGH_MAX,
 } as const
 const _DEEPSEEK_DEEPSEEK_V4_FLASH_LATEST = {
   id: '~deepseek/deepseek-v4-flash-latest',
@@ -306,18 +455,7 @@ const _DEEPSEEK_DEEPSEEK_V4_FLASH_LATEST = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_HIGH_MAX,
 } as const
 const _GOOGLE_GEMINI_FLASH_LATEST = {
   id: '~google/gemini-flash-latest',
@@ -350,18 +488,7 @@ const _GOOGLE_GEMINI_FLASH_LATEST = {
     },
     image: 7.5e-7,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const
 const _GOOGLE_GEMINI_PRO_LATEST = {
   id: '~google/gemini-pro-latest',
@@ -394,18 +521,7 @@ const _GOOGLE_GEMINI_PRO_LATEST = {
     },
     image: 0.000002,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const
 const _MOONSHOTAI_KIMI_LATEST = {
   id: '~moonshotai/kimi-latest',
@@ -443,18 +559,7 @@ const _MOONSHOTAI_KIMI_LATEST = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_HIGH_MAX,
 } as const
 const _OPENAI_GPT_ASTRA_LATEST = {
   id: '~openai/gpt-astra-latest',
@@ -485,18 +590,7 @@ const _OPENAI_GPT_ASTRA_LATEST = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const _OPENAI_GPT_LUNA_LATEST = {
   id: '~openai/gpt-luna-latest',
@@ -527,18 +621,7 @@ const _OPENAI_GPT_LUNA_LATEST = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const _OPENAI_GPT_MINI_LATEST = {
   id: '~openai/gpt-mini-latest',
@@ -569,18 +652,7 @@ const _OPENAI_GPT_MINI_LATEST = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const
 const _OPENAI_GPT_SOL_LATEST = {
   id: '~openai/gpt-sol-latest',
@@ -611,18 +683,7 @@ const _OPENAI_GPT_SOL_LATEST = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const _OPENAI_GPT_TERRA_LATEST = {
   id: '~openai/gpt-terra-latest',
@@ -653,18 +714,7 @@ const _OPENAI_GPT_TERRA_LATEST = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const _X_AI_GROK_LATEST = {
   id: '~x-ai/grok-latest',
@@ -698,18 +748,7 @@ const _X_AI_GROK_LATEST = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_XHIGH,
 } as const
 const _Z_AI_GLM_FLASH_LATEST = {
   id: '~z-ai/glm-flash-latest',
@@ -748,18 +787,7 @@ const _Z_AI_GLM_FLASH_LATEST = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_HIGH_MAX,
 } as const
 const _Z_AI_GLM_LATEST = {
   id: '~z-ai/glm-latest',
@@ -798,18 +826,7 @@ const _Z_AI_GLM_LATEST = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_HIGH_MAX,
 } as const
 const AION_LABS_AION_2_0 = {
   id: 'aion-labs/aion-2.0',
@@ -840,7 +857,7 @@ const AION_LABS_AION_2_0 = {
     },
     image: 0,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const AION_LABS_AION_3_0 = {
   id: 'aion-labs/aion-3.0',
@@ -871,7 +888,7 @@ const AION_LABS_AION_3_0 = {
     },
     image: 0,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const AION_LABS_AION_3_0_MINI = {
   id: 'aion-labs/aion-3.0-mini',
@@ -902,7 +919,7 @@ const AION_LABS_AION_3_0_MINI = {
     },
     image: 0,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const AION_LABS_AION_3_5 = {
   id: 'aion-labs/aion-3.5',
@@ -933,18 +950,7 @@ const AION_LABS_AION_3_5 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_HIGH_MAX,
 } as const
 const AION_LABS_AION_3_5_MINI = {
   id: 'aion-labs/aion-3.5-mini',
@@ -975,18 +981,7 @@ const AION_LABS_AION_3_5_MINI = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_HIGH_MAX,
 } as const
 const AION_LABS_AION_RP_LLAMA_3_1_8B = {
   id: 'aion-labs/aion-rp-llama-3.1-8b',
@@ -1040,10 +1035,7 @@ const AMAZON_NOVA_2_LITE_V1 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const AMAZON_NOVA_LITE_V1 = {
   id: 'amazon/nova-lite-v1',
@@ -1201,18 +1193,7 @@ const ANTHROPIC_CLAUDE_FABLE_5 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const ANTHROPIC_CLAUDE_FABLE_5_BATCH = {
   id: 'anthropic/claude-fable-5:batch',
@@ -1242,18 +1223,7 @@ const ANTHROPIC_CLAUDE_FABLE_5_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const ANTHROPIC_CLAUDE_FABLE_5_1 = {
   id: 'anthropic/claude-fable-5.1',
@@ -1284,18 +1254,7 @@ const ANTHROPIC_CLAUDE_FABLE_5_1 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const ANTHROPIC_CLAUDE_FABLE_5_1_BATCH = {
   id: 'anthropic/claude-fable-5.1:batch',
@@ -1325,18 +1284,7 @@ const ANTHROPIC_CLAUDE_FABLE_5_1_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const ANTHROPIC_CLAUDE_HAIKU_4_5 = {
   id: 'anthropic/claude-haiku-4.5',
@@ -1369,10 +1317,7 @@ const ANTHROPIC_CLAUDE_HAIKU_4_5 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const ANTHROPIC_CLAUDE_HAIKU_4_5_BATCH = {
   id: 'anthropic/claude-haiku-4.5:batch',
@@ -1404,7 +1349,7 @@ const ANTHROPIC_CLAUDE_HAIKU_4_5_BATCH = {
     },
     image: 0,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_OFF_TO_HIGH,
 } as const
 const ANTHROPIC_CLAUDE_OPUS_4_1 = {
   id: 'anthropic/claude-opus-4.1',
@@ -1435,10 +1380,7 @@ const ANTHROPIC_CLAUDE_OPUS_4_1 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const ANTHROPIC_CLAUDE_OPUS_4_1_BATCH = {
   id: 'anthropic/claude-opus-4.1:batch',
@@ -1469,7 +1411,7 @@ const ANTHROPIC_CLAUDE_OPUS_4_1_BATCH = {
     },
     image: 0,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_OFF_TO_HIGH,
 } as const
 const ANTHROPIC_CLAUDE_OPUS_4_5 = {
   id: 'anthropic/claude-opus-4.5',
@@ -1501,10 +1443,7 @@ const ANTHROPIC_CLAUDE_OPUS_4_5 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const ANTHROPIC_CLAUDE_OPUS_4_5_BATCH = {
   id: 'anthropic/claude-opus-4.5:batch',
@@ -1535,7 +1474,7 @@ const ANTHROPIC_CLAUDE_OPUS_4_5_BATCH = {
     },
     image: 0,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_OFF_TO_HIGH,
 } as const
 const ANTHROPIC_CLAUDE_OPUS_4_6 = {
   id: 'anthropic/claude-opus-4.6',
@@ -1568,18 +1507,7 @@ const ANTHROPIC_CLAUDE_OPUS_4_6 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: 'max',
-    },
-    budget: true,
-  },
+  reasoning: BUDGET_NONE_LOW_TO_HIGH_MAX,
 } as const
 const ANTHROPIC_CLAUDE_OPUS_4_6_BATCH = {
   id: 'anthropic/claude-opus-4.6:batch',
@@ -1611,18 +1539,7 @@ const ANTHROPIC_CLAUDE_OPUS_4_6_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH_MAX,
 } as const
 const ANTHROPIC_CLAUDE_OPUS_4_7 = {
   id: 'anthropic/claude-opus-4.7',
@@ -1653,18 +1570,7 @@ const ANTHROPIC_CLAUDE_OPUS_4_7 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const ANTHROPIC_CLAUDE_OPUS_4_7_BATCH = {
   id: 'anthropic/claude-opus-4.7:batch',
@@ -1694,18 +1600,7 @@ const ANTHROPIC_CLAUDE_OPUS_4_7_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const ANTHROPIC_CLAUDE_OPUS_4_8 = {
   id: 'anthropic/claude-opus-4.8',
@@ -1737,18 +1632,7 @@ const ANTHROPIC_CLAUDE_OPUS_4_8 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const ANTHROPIC_CLAUDE_OPUS_4_8_BATCH = {
   id: 'anthropic/claude-opus-4.8:batch',
@@ -1778,18 +1662,7 @@ const ANTHROPIC_CLAUDE_OPUS_4_8_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const ANTHROPIC_CLAUDE_OPUS_5 = {
   id: 'anthropic/claude-opus-5',
@@ -1821,18 +1694,7 @@ const ANTHROPIC_CLAUDE_OPUS_5 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const ANTHROPIC_CLAUDE_OPUS_5_BATCH = {
   id: 'anthropic/claude-opus-5:batch',
@@ -1862,18 +1724,7 @@ const ANTHROPIC_CLAUDE_OPUS_5_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const ANTHROPIC_CLAUDE_OPUS_5_5 = {
   id: 'anthropic/claude-opus-5.5',
@@ -1905,18 +1756,7 @@ const ANTHROPIC_CLAUDE_OPUS_5_5 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const ANTHROPIC_CLAUDE_OPUS_5_5_BATCH = {
   id: 'anthropic/claude-opus-5.5:batch',
@@ -1946,18 +1786,7 @@ const ANTHROPIC_CLAUDE_OPUS_5_5_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const ANTHROPIC_CLAUDE_SONNET_4 = {
   id: 'anthropic/claude-sonnet-4',
@@ -1988,10 +1817,7 @@ const ANTHROPIC_CLAUDE_SONNET_4 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const ANTHROPIC_CLAUDE_SONNET_4_5 = {
   id: 'anthropic/claude-sonnet-4.5',
@@ -2024,10 +1850,7 @@ const ANTHROPIC_CLAUDE_SONNET_4_5 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const ANTHROPIC_CLAUDE_SONNET_4_5_BATCH = {
   id: 'anthropic/claude-sonnet-4.5:batch',
@@ -2059,7 +1882,7 @@ const ANTHROPIC_CLAUDE_SONNET_4_5_BATCH = {
     },
     image: 0,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_OFF_TO_HIGH,
 } as const
 const ANTHROPIC_CLAUDE_SONNET_4_6 = {
   id: 'anthropic/claude-sonnet-4.6',
@@ -2092,18 +1915,7 @@ const ANTHROPIC_CLAUDE_SONNET_4_6 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_HIGH_MAX,
 } as const
 const ANTHROPIC_CLAUDE_SONNET_4_6_BATCH = {
   id: 'anthropic/claude-sonnet-4.6:batch',
@@ -2135,18 +1947,7 @@ const ANTHROPIC_CLAUDE_SONNET_4_6_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH_MAX,
 } as const
 const ANTHROPIC_CLAUDE_SONNET_5 = {
   id: 'anthropic/claude-sonnet-5',
@@ -2177,18 +1978,7 @@ const ANTHROPIC_CLAUDE_SONNET_5 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const ANTHROPIC_CLAUDE_SONNET_5_BATCH = {
   id: 'anthropic/claude-sonnet-5:batch',
@@ -2218,18 +2008,7 @@ const ANTHROPIC_CLAUDE_SONNET_5_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const ANTHROPIC_CLAUDE_SONNET_5_5 = {
   id: 'anthropic/claude-sonnet-5.5',
@@ -2261,18 +2040,7 @@ const ANTHROPIC_CLAUDE_SONNET_5_5 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const ANTHROPIC_CLAUDE_SONNET_5_5_BATCH = {
   id: 'anthropic/claude-sonnet-5.5:batch',
@@ -2302,18 +2070,7 @@ const ANTHROPIC_CLAUDE_SONNET_5_5_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const APODEX_APODEX_1_1_MINI_FREE = {
   id: 'apodex/apodex-1.1-mini:free',
@@ -2377,7 +2134,7 @@ const ARCEE_AI_TRINITY_LARGE_THINKING = {
     },
     image: 0,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const BAIDU_ERNIE_4_5_VL_424B_A47B = {
   id: 'baidu/ernie-4.5-vl-424b-a47b',
@@ -2410,10 +2167,7 @@ const BAIDU_ERNIE_4_5_VL_424B_A47B = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const BYTEDANCE_SEED_SEED_1_6 = {
   id: 'bytedance-seed/seed-1.6',
@@ -2446,10 +2200,7 @@ const BYTEDANCE_SEED_SEED_1_6 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const BYTEDANCE_SEED_SEED_1_6_FLASH = {
   id: 'bytedance-seed/seed-1.6-flash',
@@ -2482,10 +2233,7 @@ const BYTEDANCE_SEED_SEED_1_6_FLASH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const BYTEDANCE_SEED_SEED_2_1_TURBO = {
   id: 'bytedance-seed/seed-2-1-turbo',
@@ -2518,10 +2266,7 @@ const BYTEDANCE_SEED_SEED_2_1_TURBO = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const BYTEDANCE_SEED_SEED_2_0_CODE = {
   id: 'bytedance-seed/seed-2.0-code',
@@ -2554,18 +2299,7 @@ const BYTEDANCE_SEED_SEED_2_0_CODE = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_HIGH,
 } as const
 const BYTEDANCE_SEED_SEED_2_0_LITE = {
   id: 'bytedance-seed/seed-2.0-lite',
@@ -2598,18 +2332,7 @@ const BYTEDANCE_SEED_SEED_2_0_LITE = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_MINIMAL_TO_HIGH,
 } as const
 const BYTEDANCE_SEED_SEED_2_0_MINI = {
   id: 'bytedance-seed/seed-2.0-mini',
@@ -2642,18 +2365,7 @@ const BYTEDANCE_SEED_SEED_2_0_MINI = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_MINIMAL_TO_HIGH,
 } as const
 const BYTEDANCE_UI_TARS_1_5_7B = {
   id: 'bytedance/ui-tars-1.5-7b',
@@ -2784,10 +2496,7 @@ const COHERE_COMMAND_A_PLUS = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const COHERE_COMMAND_R_08_2024 = {
   id: 'cohere/command-r-08-2024',
@@ -2919,10 +2628,7 @@ const COHERE_NORTH_MINI_CODE_FREE = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const DEEPSEEK_DEEPSEEK_CHAT = {
   id: 'deepseek/deepseek-chat',
@@ -3027,10 +2733,7 @@ const DEEPSEEK_DEEPSEEK_CHAT_V3_1 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const DEEPSEEK_DEEPSEEK_R1 = {
   id: 'deepseek/deepseek-r1',
@@ -3065,7 +2768,7 @@ const DEEPSEEK_DEEPSEEK_R1 = {
     },
     image: 0,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const DEEPSEEK_DEEPSEEK_R1_0528 = {
   id: 'deepseek/deepseek-r1-0528',
@@ -3103,7 +2806,7 @@ const DEEPSEEK_DEEPSEEK_R1_0528 = {
     },
     image: 0,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const DEEPSEEK_DEEPSEEK_V3_1_TERMINUS = {
   id: 'deepseek/deepseek-v3.1-terminus',
@@ -3136,10 +2839,7 @@ const DEEPSEEK_DEEPSEEK_V3_1_TERMINUS = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const DEEPSEEK_DEEPSEEK_V3_2 = {
   id: 'deepseek/deepseek-v3.2',
@@ -3177,10 +2877,7 @@ const DEEPSEEK_DEEPSEEK_V3_2 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const DEEPSEEK_DEEPSEEK_V3_2_EXP = {
   id: 'deepseek/deepseek-v3.2-exp',
@@ -3212,10 +2909,7 @@ const DEEPSEEK_DEEPSEEK_V3_2_EXP = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const DEEPSEEK_DEEPSEEK_V4_FLASH = {
   id: 'deepseek/deepseek-v4-flash',
@@ -3254,18 +2948,7 @@ const DEEPSEEK_DEEPSEEK_V4_FLASH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: null,
-      medium: null,
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_HIGH_XHIGH,
 } as const
 const DEEPSEEK_DEEPSEEK_V4_FLASH_0731 = {
   id: 'deepseek/deepseek-v4-flash-0731',
@@ -3304,18 +2987,7 @@ const DEEPSEEK_DEEPSEEK_V4_FLASH_0731 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_HIGH_MAX,
 } as const
 const DEEPSEEK_DEEPSEEK_V4_FLASH_VISION_EXP = {
   id: 'deepseek/deepseek-v4-flash-vision-exp',
@@ -3353,18 +3025,7 @@ const DEEPSEEK_DEEPSEEK_V4_FLASH_VISION_EXP = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_HIGH_MAX,
 } as const
 const DEEPSEEK_DEEPSEEK_V4_PRO = {
   id: 'deepseek/deepseek-v4-pro',
@@ -3403,18 +3064,7 @@ const DEEPSEEK_DEEPSEEK_V4_PRO = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: null,
-      medium: null,
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_HIGH_XHIGH,
 } as const
 const DEEPSEEK_DEEPSEEK_V4_PRO_0813 = {
   id: 'deepseek/deepseek-v4-pro-0813',
@@ -3452,18 +3102,7 @@ const DEEPSEEK_DEEPSEEK_V4_PRO_0813 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_HIGH_MAX,
 } as const
 const DEEPSEEK_DEEPSEEK_V4_1_FLASH = {
   id: 'deepseek/deepseek-v4.1-flash',
@@ -3501,18 +3140,7 @@ const DEEPSEEK_DEEPSEEK_V4_1_FLASH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_HIGH_MAX,
 } as const
 const DEEPSEEK_DEEPSEEK_V4_1_FLASH_BATCH = {
   id: 'deepseek/deepseek-v4.1-flash:batch',
@@ -3548,18 +3176,7 @@ const DEEPSEEK_DEEPSEEK_V4_1_FLASH_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_HIGH_MAX,
 } as const
 const DOTS_STUDIO_DOTS_3_NOTE_PREVIEW_FREE = {
   id: 'dots-studio/dots-3-note-preview:free',
@@ -3590,10 +3207,7 @@ const DOTS_STUDIO_DOTS_3_NOTE_PREVIEW_FREE = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const FIREWORKS_EMBER_1 = {
   id: 'fireworks/ember-1',
@@ -3630,18 +3244,7 @@ const FIREWORKS_EMBER_1 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_HIGH_MAX,
 } as const
 const GOOGLE_GEMINI_2_5_FLASH = {
   id: 'google/gemini-2.5-flash',
@@ -3674,10 +3277,7 @@ const GOOGLE_GEMINI_2_5_FLASH = {
     },
     image: 3e-7,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const GOOGLE_GEMINI_2_5_FLASH_IMAGE = {
   id: 'google/gemini-2.5-flash-image',
@@ -3740,10 +3340,7 @@ const GOOGLE_GEMINI_2_5_FLASH_LITE = {
     },
     image: 1e-7,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const GOOGLE_GEMINI_2_5_FLASH_LITE_BATCH = {
   id: 'google/gemini-2.5-flash-lite:batch',
@@ -3776,7 +3373,7 @@ const GOOGLE_GEMINI_2_5_FLASH_LITE_BATCH = {
     },
     image: 5e-8,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_OFF_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_2_5_FLASH_BATCH = {
   id: 'google/gemini-2.5-flash:batch',
@@ -3809,7 +3406,7 @@ const GOOGLE_GEMINI_2_5_FLASH_BATCH = {
     },
     image: 1.5e-7,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_OFF_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_2_5_PRO = {
   id: 'google/gemini-2.5-pro',
@@ -3842,7 +3439,7 @@ const GOOGLE_GEMINI_2_5_PRO = {
     },
     image: 0.00000125,
   },
-  reasoning: { budget: true },
+  reasoning: BUDGET_MINIMAL_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_2_5_PRO_PREVIEW = {
   id: 'google/gemini-2.5-pro-preview',
@@ -3875,7 +3472,7 @@ const GOOGLE_GEMINI_2_5_PRO_PREVIEW = {
     },
     image: 0.00000125,
   },
-  reasoning: { budget: true },
+  reasoning: BUDGET_MINIMAL_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_2_5_PRO_BATCH = {
   id: 'google/gemini-2.5-pro:batch',
@@ -3908,7 +3505,7 @@ const GOOGLE_GEMINI_2_5_PRO_BATCH = {
     },
     image: 6.25e-7,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_FLASH_PREVIEW = {
   id: 'google/gemini-3-flash-preview',
@@ -3941,18 +3538,7 @@ const GOOGLE_GEMINI_3_FLASH_PREVIEW = {
     },
     image: 5e-7,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_MINIMAL_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_FLASH_PREVIEW_BATCH = {
   id: 'google/gemini-3-flash-preview:batch',
@@ -3985,18 +3571,7 @@ const GOOGLE_GEMINI_3_FLASH_PREVIEW_BATCH = {
     },
     image: 2.5e-7,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_PRO_IMAGE = {
   id: 'google/gemini-3-pro-image',
@@ -4029,7 +3604,7 @@ const GOOGLE_GEMINI_3_PRO_IMAGE = {
     },
     image: 0.000002,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_PRO_IMAGE_PREVIEW = {
   id: 'google/gemini-3-pro-image-preview',
@@ -4061,7 +3636,7 @@ const GOOGLE_GEMINI_3_PRO_IMAGE_PREVIEW = {
     },
     image: 0.000002,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_1_FLASH_IMAGE = {
   id: 'google/gemini-3.1-flash-image',
@@ -4092,18 +3667,7 @@ const GOOGLE_GEMINI_3_1_FLASH_IMAGE = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: 'minimal',
-      low: null,
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_MINIMAL_HIGH,
 } as const
 const GOOGLE_GEMINI_3_1_FLASH_IMAGE_PREVIEW = {
   id: 'google/gemini-3.1-flash-image-preview',
@@ -4134,18 +3698,7 @@ const GOOGLE_GEMINI_3_1_FLASH_IMAGE_PREVIEW = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: 'minimal',
-      low: null,
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_MINIMAL_HIGH,
 } as const
 const GOOGLE_GEMINI_3_1_FLASH_LITE = {
   id: 'google/gemini-3.1-flash-lite',
@@ -4178,18 +3731,7 @@ const GOOGLE_GEMINI_3_1_FLASH_LITE = {
     },
     image: 2.5e-7,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_MINIMAL_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_1_FLASH_LITE_IMAGE = {
   id: 'google/gemini-3.1-flash-lite-image',
@@ -4220,18 +3762,7 @@ const GOOGLE_GEMINI_3_1_FLASH_LITE_IMAGE = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: 'minimal',
-      low: null,
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_MINIMAL_HIGH,
 } as const
 const GOOGLE_GEMINI_3_1_FLASH_LITE_PREVIEW = {
   id: 'google/gemini-3.1-flash-lite-preview',
@@ -4263,18 +3794,7 @@ const GOOGLE_GEMINI_3_1_FLASH_LITE_PREVIEW = {
     },
     image: 2.5e-7,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_MINIMAL_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_1_FLASH_LITE_BATCH = {
   id: 'google/gemini-3.1-flash-lite:batch',
@@ -4307,18 +3827,7 @@ const GOOGLE_GEMINI_3_1_FLASH_LITE_BATCH = {
     },
     image: 1.25e-7,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_1_PRO_PREVIEW = {
   id: 'google/gemini-3.1-pro-preview',
@@ -4351,18 +3860,7 @@ const GOOGLE_GEMINI_3_1_PRO_PREVIEW = {
     },
     image: 0.000002,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_1_PRO_PREVIEW_CUSTOMTOOLS = {
   id: 'google/gemini-3.1-pro-preview-customtools',
@@ -4394,18 +3892,7 @@ const GOOGLE_GEMINI_3_1_PRO_PREVIEW_CUSTOMTOOLS = {
     },
     image: 0.000002,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_1_PRO_PREVIEW_BATCH = {
   id: 'google/gemini-3.1-pro-preview:batch',
@@ -4438,18 +3925,7 @@ const GOOGLE_GEMINI_3_1_PRO_PREVIEW_BATCH = {
     },
     image: 0.000001,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_5_FLASH = {
   id: 'google/gemini-3.5-flash',
@@ -4482,18 +3958,7 @@ const GOOGLE_GEMINI_3_5_FLASH = {
     },
     image: 0.0000015,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_5_FLASH_LITE = {
   id: 'google/gemini-3.5-flash-lite',
@@ -4526,18 +3991,7 @@ const GOOGLE_GEMINI_3_5_FLASH_LITE = {
     },
     image: 3e-7,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_5_FLASH_LITE_BATCH = {
   id: 'google/gemini-3.5-flash-lite:batch',
@@ -4568,18 +4022,7 @@ const GOOGLE_GEMINI_3_5_FLASH_LITE_BATCH = {
     },
     image: 1.5e-7,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_5_FLASH_BATCH = {
   id: 'google/gemini-3.5-flash:batch',
@@ -4612,18 +4055,7 @@ const GOOGLE_GEMINI_3_5_FLASH_BATCH = {
     },
     image: 7.5e-7,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_6_FLASH = {
   id: 'google/gemini-3.6-flash',
@@ -4656,18 +4088,7 @@ const GOOGLE_GEMINI_3_6_FLASH = {
     },
     image: 7.5e-7,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_6_FLASH_BATCH = {
   id: 'google/gemini-3.6-flash:batch',
@@ -4698,18 +4119,7 @@ const GOOGLE_GEMINI_3_6_FLASH_BATCH = {
     },
     image: 3.75e-7,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_7_FLASH = {
   id: 'google/gemini-3.7-flash',
@@ -4742,18 +4152,7 @@ const GOOGLE_GEMINI_3_7_FLASH = {
     },
     image: 7.5e-7,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_7_FLASH_BATCH = {
   id: 'google/gemini-3.7-flash:batch',
@@ -4784,18 +4183,7 @@ const GOOGLE_GEMINI_3_7_FLASH_BATCH = {
     },
     image: 3.75e-7,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_8_FLASH = {
   id: 'google/gemini-3.8-flash',
@@ -4828,18 +4216,7 @@ const GOOGLE_GEMINI_3_8_FLASH = {
     },
     image: 7.5e-7,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_3_8_FLASH_BATCH = {
   id: 'google/gemini-3.8-flash:batch',
@@ -4870,18 +4247,7 @@ const GOOGLE_GEMINI_3_8_FLASH_BATCH = {
     },
     image: 3.75e-7,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const
 const GOOGLE_GEMINI_NANO_BANANA_2_1 = {
   id: 'google/gemini-nano-banana-2.1',
@@ -5085,10 +4451,7 @@ const GOOGLE_GEMMA_4_26B_A4B_IT = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const GOOGLE_GEMMA_4_26B_A4B_IT_FREE = {
   id: 'google/gemma-4-26b-a4b-it:free',
@@ -5120,10 +4483,7 @@ const GOOGLE_GEMMA_4_26B_A4B_IT_FREE = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const GOOGLE_GEMMA_4_31B_IT = {
   id: 'google/gemma-4-31b-it',
@@ -5161,10 +4521,7 @@ const GOOGLE_GEMMA_4_31B_IT = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const GOOGLE_GEMMA_4_31B_IT_FREE = {
   id: 'google/gemma-4-31b-it:free',
@@ -5196,10 +4553,7 @@ const GOOGLE_GEMMA_4_31B_IT_FREE = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const GOOGLE_LYRIA_3_CLIP_PREVIEW = {
   id: 'google/lyria-3-clip-preview',
@@ -5365,18 +4719,7 @@ const IBM_GRANITE_GRANITE_4_2_8B = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_HIGH,
 } as const
 const INCEPTION_MERCURY_2 = {
   id: 'inception/mercury-2',
@@ -5407,18 +4750,7 @@ const INCEPTION_MERCURY_2 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_HIGH,
 } as const
 const INCEPTION_MERCURY_2_5 = {
   id: 'inception/mercury-2.5',
@@ -5449,18 +4781,7 @@ const INCEPTION_MERCURY_2_5 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_HIGH,
 } as const
 const INCLUSIONAI_LING_3_0_FLASH = {
   id: 'inclusionai/ling-3.0-flash',
@@ -5498,10 +4819,7 @@ const INCLUSIONAI_LING_3_0_FLASH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const INCLUSIONAI_LING_3_0_FLASH_FIN = {
   id: 'inclusionai/ling-3.0-flash-fin',
@@ -5538,10 +4856,7 @@ const INCLUSIONAI_LING_3_0_FLASH_FIN = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const INCLUSIONAI_LING_3_0_FLASH_SANTE_FREE = {
   id: 'inclusionai/ling-3.0-flash-sante:free',
@@ -5577,10 +4892,7 @@ const INCLUSIONAI_LING_3_0_FLASH_SANTE_FREE = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const INCLUSIONAI_LING_3_0_FLASH_VL = {
   id: 'inclusionai/ling-3.0-flash-vl',
@@ -5618,10 +4930,7 @@ const INCLUSIONAI_LING_3_0_FLASH_VL = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const INCLUSIONAI_LING_3_1_FLASH = {
   id: 'inclusionai/ling-3.1-flash',
@@ -5760,7 +5069,7 @@ const LIQUID_LFM_2_5_2_6B_FREE = {
     },
     image: 0,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const MANCER_WEAVER = {
   id: 'mancer/weaver',
@@ -5830,10 +5139,7 @@ const MEITUAN_LONGCAT_2_0 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: true,
-  },
+  reasoning: BUDGET_OFF_HIGH,
 } as const
 const META_LLAMA_LLAMA_3_1_70B_INSTRUCT = {
   id: 'meta-llama/llama-3.1-70b-instruct',
@@ -6143,18 +5449,7 @@ const META_MUSE_GLIMMER_30B = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_XHIGH,
 } as const
 const META_MUSE_SPARK_1_1 = {
   id: 'meta/muse-spark-1.1',
@@ -6185,18 +5480,7 @@ const META_MUSE_SPARK_1_1 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MINIMAL_TO_XHIGH,
 } as const
 const META_MUSE_SPARK_1_2 = {
   id: 'meta/muse-spark-1.2',
@@ -6227,18 +5511,7 @@ const META_MUSE_SPARK_1_2 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MINIMAL_TO_XHIGH,
 } as const
 const META_MUSE_SPARK_1_2_CONTRIBUTOR = {
   id: 'meta/muse-spark-1.2-contributor',
@@ -6269,18 +5542,7 @@ const META_MUSE_SPARK_1_2_CONTRIBUTOR = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MINIMAL_TO_XHIGH,
 } as const
 const META_MUSE_SPARK_1_3 = {
   id: 'meta/muse-spark-1.3',
@@ -6311,18 +5573,7 @@ const META_MUSE_SPARK_1_3 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MINIMAL_TO_MAX,
 } as const
 const META_MUSE_SPARK_1_3_CONTRIBUTOR = {
   id: 'meta/muse-spark-1.3-contributor',
@@ -6353,18 +5604,7 @@ const META_MUSE_SPARK_1_3_CONTRIBUTOR = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MINIMAL_TO_MAX,
 } as const
 const MICROSOFT_PHI_4 = {
   id: 'microsoft/phi-4',
@@ -6486,10 +5726,7 @@ const MINIMAX_MINIMAX_M1 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const MINIMAX_MINIMAX_M2 = {
   id: 'minimax/minimax-m2',
@@ -6526,7 +5763,7 @@ const MINIMAX_MINIMAX_M2 = {
     },
     image: 0,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const MINIMAX_MINIMAX_M2_HER = {
   id: 'minimax/minimax-m2-her',
@@ -6584,7 +5821,7 @@ const MINIMAX_MINIMAX_M2_1 = {
     },
     image: 0,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const MINIMAX_MINIMAX_M2_5 = {
   id: 'minimax/minimax-m2.5',
@@ -6622,7 +5859,7 @@ const MINIMAX_MINIMAX_M2_5 = {
     },
     image: 0,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const MINIMAX_MINIMAX_M2_7 = {
   id: 'minimax/minimax-m2.7',
@@ -6658,7 +5895,7 @@ const MINIMAX_MINIMAX_M2_7 = {
     },
     image: 0,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const MINIMAX_MINIMAX_M3 = {
   id: 'minimax/minimax-m3',
@@ -6696,10 +5933,7 @@ const MINIMAX_MINIMAX_M3 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const MISTRALAI_CODESTRAL_2508 = {
   id: 'mistralai/codestral-2508',
@@ -7166,18 +6400,7 @@ const MISTRALAI_MISTRAL_MEDIUM_3_5 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: null,
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_HIGH,
 } as const
 const MISTRALAI_MISTRAL_MEDIUM_3_5_BATCH = {
   id: 'mistralai/mistral-medium-3-5:batch',
@@ -7212,18 +6435,7 @@ const MISTRALAI_MISTRAL_MEDIUM_3_5_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: null,
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_HIGH,
 } as const
 const MISTRALAI_MISTRAL_MEDIUM_3_1 = {
   id: 'mistralai/mistral-medium-3.1',
@@ -7426,18 +6638,7 @@ const MISTRALAI_MISTRAL_SMALL_2603 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: null,
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_HIGH,
 } as const
 const MISTRALAI_MISTRAL_SMALL_2603_BATCH = {
   id: 'mistralai/mistral-small-2603:batch',
@@ -7472,18 +6673,7 @@ const MISTRALAI_MISTRAL_SMALL_2603_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: null,
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_HIGH,
 } as const
 const MISTRALAI_MISTRAL_SMALL_3_1_24B_INSTRUCT = {
   id: 'mistralai/mistral-small-3.1-24b-instruct',
@@ -7722,7 +6912,7 @@ const MOONSHOTAI_KIMI_K2_THINKING = {
     },
     image: 0,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const MOONSHOTAI_KIMI_K2_5 = {
   id: 'moonshotai/kimi-k2.5',
@@ -7760,10 +6950,7 @@ const MOONSHOTAI_KIMI_K2_5 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const MOONSHOTAI_KIMI_K2_6 = {
   id: 'moonshotai/kimi-k2.6',
@@ -7802,10 +6989,7 @@ const MOONSHOTAI_KIMI_K2_6 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const MOONSHOTAI_KIMI_K2_7_CODE = {
   id: 'moonshotai/kimi-k2.7-code',
@@ -7844,7 +7028,7 @@ const MOONSHOTAI_KIMI_K2_7_CODE = {
     },
     image: 0,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const MOONSHOTAI_KIMI_K3 = {
   id: 'moonshotai/kimi-k3',
@@ -7882,18 +7066,7 @@ const MOONSHOTAI_KIMI_K3 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_HIGH_MAX,
 } as const
 const MOONSHOTAI_KIMI_K3_BATCH = {
   id: 'moonshotai/kimi-k3:batch',
@@ -7929,18 +7102,7 @@ const MOONSHOTAI_KIMI_K3_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_HIGH_MAX,
 } as const
 const MORPH_MORPH_V3_FAST = {
   id: 'morph/morph-v3-fast',
@@ -8024,18 +7186,7 @@ const NEX_AGI_NEX_N2_5_MINI = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: null,
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_MEDIUM_HIGH,
 } as const
 const NEX_AGI_NEX_N2_5_PRO = {
   id: 'nex-agi/nex-n2.5-pro',
@@ -8067,18 +7218,7 @@ const NEX_AGI_NEX_N2_5_PRO = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: null,
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_MEDIUM_HIGH,
 } as const
 const NOUSRESEARCH_HERMES_3_LLAMA_3_1_405B = {
   id: 'nousresearch/hermes-3-llama-3.1-405b',
@@ -8175,10 +7315,7 @@ const NOUSRESEARCH_HERMES_4_405B = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const NVIDIA_NEMOTRON_3_NANO_30B_A3B = {
   id: 'nvidia/nemotron-3-nano-30b-a3b',
@@ -8216,10 +7353,7 @@ const NVIDIA_NEMOTRON_3_NANO_30B_A3B = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const NVIDIA_NEMOTRON_3_NANO_OMNI_30B_A3B_REASONING_FREE = {
   id: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
@@ -8250,10 +7384,7 @@ const NVIDIA_NEMOTRON_3_NANO_OMNI_30B_A3B_REASONING_FREE = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: true,
-  },
+  reasoning: BUDGET_OFF_HIGH,
 } as const
 const NVIDIA_NEMOTRON_3_SUPER_120B_A12B = {
   id: 'nvidia/nemotron-3-super-120b-a12b',
@@ -8291,18 +7422,7 @@ const NVIDIA_NEMOTRON_3_SUPER_120B_A12B = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: null,
-      xhigh: null,
-      max: null,
-    },
-    budget: true,
-  },
+  reasoning: BUDGET_NONE_LOW_MEDIUM,
 } as const
 const NVIDIA_NEMOTRON_3_SUPER_120B_A12B_FREE = {
   id: 'nvidia/nemotron-3-super-120b-a12b:free',
@@ -8334,18 +7454,7 @@ const NVIDIA_NEMOTRON_3_SUPER_120B_A12B_FREE = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: null,
-      xhigh: null,
-      max: null,
-    },
-    budget: true,
-  },
+  reasoning: BUDGET_NONE_LOW_MEDIUM,
 } as const
 const NVIDIA_NEMOTRON_3_ULTRA_550B_A55B = {
   id: 'nvidia/nemotron-3-ultra-550b-a55b',
@@ -8381,18 +7490,7 @@ const NVIDIA_NEMOTRON_3_ULTRA_550B_A55B = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: null,
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: true,
-  },
+  reasoning: BUDGET_NONE_MEDIUM_HIGH,
 } as const
 const NVIDIA_NEMOTRON_3_ULTRA_550B_A55B_FREE = {
   id: 'nvidia/nemotron-3-ultra-550b-a55b:free',
@@ -8423,18 +7521,7 @@ const NVIDIA_NEMOTRON_3_ULTRA_550B_A55B_FREE = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: null,
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: true,
-  },
+  reasoning: BUDGET_NONE_MEDIUM_HIGH,
 } as const
 const NVIDIA_NEMOTRON_3_5_CONTENT_SAFETY = {
   id: 'nvidia/nemotron-3.5-content-safety',
@@ -8468,10 +7555,7 @@ const NVIDIA_NEMOTRON_3_5_CONTENT_SAFETY = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const NVIDIA_NEMOTRON_3_5_CONTENT_SAFETY_FREE = {
   id: 'nvidia/nemotron-3.5-content-safety:free',
@@ -8501,10 +7585,7 @@ const NVIDIA_NEMOTRON_3_5_CONTENT_SAFETY_FREE = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const NVIDIA_NEMOTRON_3_5_LIGHTNING = {
   id: 'nvidia/nemotron-3.5-lightning',
@@ -8542,10 +7623,7 @@ const NVIDIA_NEMOTRON_3_5_LIGHTNING = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const NVIDIA_NEMOTRON_3_5_LIGHTNING_FREE = {
   id: 'nvidia/nemotron-3.5-lightning:free',
@@ -8576,10 +7654,7 @@ const NVIDIA_NEMOTRON_3_5_LIGHTNING_FREE = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const OPENAI_GPT_3_5_TURBO = {
   id: 'openai/gpt-3.5-turbo',
@@ -9374,18 +8449,7 @@ const OPENAI_GPT_5 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const OPENAI_GPT_5_IMAGE = {
   id: 'openai/gpt-5-image',
@@ -9418,7 +8482,7 @@ const OPENAI_GPT_5_IMAGE = {
     },
     image: 0,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const OPENAI_GPT_5_IMAGE_MINI = {
   id: 'openai/gpt-5-image-mini',
@@ -9451,7 +8515,7 @@ const OPENAI_GPT_5_IMAGE_MINI = {
     },
     image: 0,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const OPENAI_GPT_5_MINI = {
   id: 'openai/gpt-5-mini',
@@ -9482,18 +8546,7 @@ const OPENAI_GPT_5_MINI = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const OPENAI_GPT_5_MINI_BATCH = {
   id: 'openai/gpt-5-mini:batch',
@@ -9523,18 +8576,7 @@ const OPENAI_GPT_5_MINI_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const OPENAI_GPT_5_NANO = {
   id: 'openai/gpt-5-nano',
@@ -9565,18 +8607,7 @@ const OPENAI_GPT_5_NANO = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const OPENAI_GPT_5_NANO_BATCH = {
   id: 'openai/gpt-5-nano:batch',
@@ -9606,18 +8637,7 @@ const OPENAI_GPT_5_NANO_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const OPENAI_GPT_5_PRO = {
   id: 'openai/gpt-5-pro',
@@ -9647,18 +8667,7 @@ const OPENAI_GPT_5_PRO = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: null,
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_HIGH,
 } as const
 const OPENAI_GPT_5_PRO_BATCH = {
   id: 'openai/gpt-5-pro:batch',
@@ -9688,18 +8697,7 @@ const OPENAI_GPT_5_PRO_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: null,
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_HIGH,
 } as const
 const OPENAI_GPT_5_BATCH = {
   id: 'openai/gpt-5:batch',
@@ -9729,18 +8727,7 @@ const OPENAI_GPT_5_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const OPENAI_GPT_5_1 = {
   id: 'openai/gpt-5.1',
@@ -9771,18 +8758,7 @@ const OPENAI_GPT_5_1 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_HIGH,
 } as const
 const OPENAI_GPT_5_1_CODEX = {
   id: 'openai/gpt-5.1-codex',
@@ -9812,18 +8788,7 @@ const OPENAI_GPT_5_1_CODEX = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const
 const OPENAI_GPT_5_1_CODEX_MAX = {
   id: 'openai/gpt-5.1-codex-max',
@@ -9853,18 +8818,7 @@ const OPENAI_GPT_5_1_CODEX_MAX = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_1_CODEX_MINI = {
   id: 'openai/gpt-5.1-codex-mini',
@@ -9894,18 +8848,7 @@ const OPENAI_GPT_5_1_CODEX_MINI = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_HIGH,
 } as const
 const OPENAI_GPT_5_1_BATCH = {
   id: 'openai/gpt-5.1:batch',
@@ -9935,18 +8878,7 @@ const OPENAI_GPT_5_1_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_HIGH,
 } as const
 const OPENAI_GPT_5_2 = {
   id: 'openai/gpt-5.2',
@@ -9977,18 +8909,7 @@ const OPENAI_GPT_5_2 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_2_CHAT = {
   id: 'openai/gpt-5.2-chat',
@@ -10041,18 +8962,7 @@ const OPENAI_GPT_5_2_CODEX = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_2_PRO = {
   id: 'openai/gpt-5.2-pro',
@@ -10082,18 +8992,7 @@ const OPENAI_GPT_5_2_PRO = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: null,
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MEDIUM_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_2_PRO_BATCH = {
   id: 'openai/gpt-5.2-pro:batch',
@@ -10123,18 +9022,7 @@ const OPENAI_GPT_5_2_PRO_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: null,
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MEDIUM_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_2_BATCH = {
   id: 'openai/gpt-5.2:batch',
@@ -10164,18 +9052,7 @@ const OPENAI_GPT_5_2_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_3_CODEX = {
   id: 'openai/gpt-5.3-codex',
@@ -10206,18 +9083,7 @@ const OPENAI_GPT_5_3_CODEX = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_4 = {
   id: 'openai/gpt-5.4',
@@ -10248,18 +9114,7 @@ const OPENAI_GPT_5_4 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_4_IMAGE_2 = {
   id: 'openai/gpt-5.4-image-2',
@@ -10290,18 +9145,7 @@ const OPENAI_GPT_5_4_IMAGE_2 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_4_MINI = {
   id: 'openai/gpt-5.4-mini',
@@ -10332,18 +9176,7 @@ const OPENAI_GPT_5_4_MINI = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_4_MINI_BATCH = {
   id: 'openai/gpt-5.4-mini:batch',
@@ -10373,18 +9206,7 @@ const OPENAI_GPT_5_4_MINI_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_4_NANO = {
   id: 'openai/gpt-5.4-nano',
@@ -10415,18 +9237,7 @@ const OPENAI_GPT_5_4_NANO = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_4_NANO_BATCH = {
   id: 'openai/gpt-5.4-nano:batch',
@@ -10456,18 +9267,7 @@ const OPENAI_GPT_5_4_NANO_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_4_PRO = {
   id: 'openai/gpt-5.4-pro',
@@ -10498,18 +9298,7 @@ const OPENAI_GPT_5_4_PRO = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: null,
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MEDIUM_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_4_PRO_BATCH = {
   id: 'openai/gpt-5.4-pro:batch',
@@ -10539,18 +9328,7 @@ const OPENAI_GPT_5_4_PRO_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: null,
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MEDIUM_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_4_BATCH = {
   id: 'openai/gpt-5.4:batch',
@@ -10580,18 +9358,7 @@ const OPENAI_GPT_5_4_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_5 = {
   id: 'openai/gpt-5.5',
@@ -10622,18 +9389,7 @@ const OPENAI_GPT_5_5 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_5_PRO = {
   id: 'openai/gpt-5.5-pro',
@@ -10663,18 +9419,7 @@ const OPENAI_GPT_5_5_PRO = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: null,
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MEDIUM_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_5_PRO_BATCH = {
   id: 'openai/gpt-5.5-pro:batch',
@@ -10704,18 +9449,7 @@ const OPENAI_GPT_5_5_PRO_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: null,
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MEDIUM_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_5_BATCH = {
   id: 'openai/gpt-5.5:batch',
@@ -10745,18 +9479,7 @@ const OPENAI_GPT_5_5_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const
 const OPENAI_GPT_5_6_LUNA = {
   id: 'openai/gpt-5.6-luna',
@@ -10787,18 +9510,7 @@ const OPENAI_GPT_5_6_LUNA = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_5_6_LUNA_PRO = {
   id: 'openai/gpt-5.6-luna-pro',
@@ -10829,18 +9541,7 @@ const OPENAI_GPT_5_6_LUNA_PRO = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_5_6_LUNA_PRO_BATCH = {
   id: 'openai/gpt-5.6-luna-pro:batch',
@@ -10870,18 +9571,7 @@ const OPENAI_GPT_5_6_LUNA_PRO_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_5_6_LUNA_BATCH = {
   id: 'openai/gpt-5.6-luna:batch',
@@ -10911,18 +9601,7 @@ const OPENAI_GPT_5_6_LUNA_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_5_6_SOL = {
   id: 'openai/gpt-5.6-sol',
@@ -10953,18 +9632,7 @@ const OPENAI_GPT_5_6_SOL = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_5_6_SOL_PRO = {
   id: 'openai/gpt-5.6-sol-pro',
@@ -10995,18 +9663,7 @@ const OPENAI_GPT_5_6_SOL_PRO = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_5_6_SOL_PRO_BATCH = {
   id: 'openai/gpt-5.6-sol-pro:batch',
@@ -11036,18 +9693,7 @@ const OPENAI_GPT_5_6_SOL_PRO_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_5_6_SOL_BATCH = {
   id: 'openai/gpt-5.6-sol:batch',
@@ -11077,18 +9723,7 @@ const OPENAI_GPT_5_6_SOL_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_5_6_TERRA = {
   id: 'openai/gpt-5.6-terra',
@@ -11119,18 +9754,7 @@ const OPENAI_GPT_5_6_TERRA = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_5_6_TERRA_PRO = {
   id: 'openai/gpt-5.6-terra-pro',
@@ -11161,18 +9785,7 @@ const OPENAI_GPT_5_6_TERRA_PRO = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_5_6_TERRA_PRO_BATCH = {
   id: 'openai/gpt-5.6-terra-pro:batch',
@@ -11202,18 +9815,7 @@ const OPENAI_GPT_5_6_TERRA_PRO_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_5_6_TERRA_BATCH = {
   id: 'openai/gpt-5.6-terra:batch',
@@ -11243,18 +9845,7 @@ const OPENAI_GPT_5_6_TERRA_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_6_ASTRA = {
   id: 'openai/gpt-6-astra',
@@ -11285,18 +9876,7 @@ const OPENAI_GPT_6_ASTRA = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_6_ASTRA_PRO = {
   id: 'openai/gpt-6-astra-pro',
@@ -11327,18 +9907,7 @@ const OPENAI_GPT_6_ASTRA_PRO = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_6_ASTRA_PRO_BATCH = {
   id: 'openai/gpt-6-astra-pro:batch',
@@ -11368,18 +9937,7 @@ const OPENAI_GPT_6_ASTRA_PRO_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_6_ASTRA_BATCH = {
   id: 'openai/gpt-6-astra:batch',
@@ -11409,18 +9967,7 @@ const OPENAI_GPT_6_ASTRA_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_6_LUNA = {
   id: 'openai/gpt-6-luna',
@@ -11451,18 +9998,7 @@ const OPENAI_GPT_6_LUNA = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_6_LUNA_PRO = {
   id: 'openai/gpt-6-luna-pro',
@@ -11493,18 +10029,7 @@ const OPENAI_GPT_6_LUNA_PRO = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_6_LUNA_PRO_BATCH = {
   id: 'openai/gpt-6-luna-pro:batch',
@@ -11534,18 +10059,7 @@ const OPENAI_GPT_6_LUNA_PRO_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_6_LUNA_BATCH = {
   id: 'openai/gpt-6-luna:batch',
@@ -11575,18 +10089,7 @@ const OPENAI_GPT_6_LUNA_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_6_SOL = {
   id: 'openai/gpt-6-sol',
@@ -11617,18 +10120,7 @@ const OPENAI_GPT_6_SOL = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_6_SOL_PRO = {
   id: 'openai/gpt-6-sol-pro',
@@ -11659,18 +10151,7 @@ const OPENAI_GPT_6_SOL_PRO = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_6_SOL_PRO_BATCH = {
   id: 'openai/gpt-6-sol-pro:batch',
@@ -11700,18 +10181,7 @@ const OPENAI_GPT_6_SOL_PRO_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_6_SOL_BATCH = {
   id: 'openai/gpt-6-sol:batch',
@@ -11741,18 +10211,7 @@ const OPENAI_GPT_6_SOL_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_6_1_SOL = {
   id: 'openai/gpt-6.1-sol',
@@ -11783,18 +10242,7 @@ const OPENAI_GPT_6_1_SOL = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_6_1_SOL_PRO = {
   id: 'openai/gpt-6.1-sol-pro',
@@ -11825,18 +10273,7 @@ const OPENAI_GPT_6_1_SOL_PRO = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_MAX,
 } as const
 const OPENAI_GPT_AUDIO = {
   id: 'openai/gpt-audio',
@@ -11969,18 +10406,7 @@ const OPENAI_GPT_OSS_120B = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const
 const OPENAI_GPT_OSS_120B_BATCH = {
   id: 'openai/gpt-oss-120b:batch',
@@ -12016,18 +10442,7 @@ const OPENAI_GPT_OSS_120B_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const
 const OPENAI_GPT_OSS_20B = {
   id: 'openai/gpt-oss-20b',
@@ -12065,18 +10480,7 @@ const OPENAI_GPT_OSS_20B = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const
 const OPENAI_GPT_OSS_20B_BATCH = {
   id: 'openai/gpt-oss-20b:batch',
@@ -12112,18 +10516,7 @@ const OPENAI_GPT_OSS_20B_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const
 const OPENAI_GPT_OSS_SAFEGUARD_20B = {
   id: 'openai/gpt-oss-safeguard-20b',
@@ -12156,18 +10549,7 @@ const OPENAI_GPT_OSS_SAFEGUARD_20B = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const
 const OPENAI_O1 = {
   id: 'openai/o1',
@@ -12197,10 +10579,7 @@ const OPENAI_O1 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const OPENAI_O1_PRO = {
   id: 'openai/o1-pro',
@@ -12224,10 +10603,7 @@ const OPENAI_O1_PRO = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const OPENAI_O3 = {
   id: 'openai/o3',
@@ -12257,10 +10633,7 @@ const OPENAI_O3 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const OPENAI_O3_MINI = {
   id: 'openai/o3-mini',
@@ -12290,10 +10663,7 @@ const OPENAI_O3_MINI = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const OPENAI_O3_MINI_HIGH = {
   id: 'openai/o3-mini-high',
@@ -12323,18 +10693,7 @@ const OPENAI_O3_MINI_HIGH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: null,
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_HIGH,
 } as const
 const OPENAI_O3_MINI_BATCH = {
   id: 'openai/o3-mini:batch',
@@ -12364,7 +10723,7 @@ const OPENAI_O3_MINI_BATCH = {
     },
     image: 0,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const OPENAI_O3_PRO = {
   id: 'openai/o3-pro',
@@ -12394,10 +10753,7 @@ const OPENAI_O3_PRO = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const OPENAI_O3_BATCH = {
   id: 'openai/o3:batch',
@@ -12427,7 +10783,7 @@ const OPENAI_O3_BATCH = {
     },
     image: 0,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const OPENAI_O4_MINI = {
   id: 'openai/o4-mini',
@@ -12457,10 +10813,7 @@ const OPENAI_O4_MINI = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const OPENAI_O4_MINI_HIGH = {
   id: 'openai/o4-mini-high',
@@ -12490,18 +10843,7 @@ const OPENAI_O4_MINI_HIGH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: null,
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_HIGH,
 } as const
 const OPENAI_O4_MINI_BATCH = {
   id: 'openai/o4-mini:batch',
@@ -12531,7 +10873,7 @@ const OPENAI_O4_MINI_BATCH = {
     },
     image: 0,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const PERCEPTRON_PERCEPTRON_MK1 = {
   id: 'perceptron/perceptron-mk1',
@@ -12562,10 +10904,7 @@ const PERCEPTRON_PERCEPTRON_MK1 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const PERCEPTRON_PERCEPTRON_MK1_5 = {
   id: 'perceptron/perceptron-mk1.5',
@@ -12597,18 +10936,7 @@ const PERCEPTRON_PERCEPTRON_MK1_5 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_MINIMAL_TO_HIGH,
 } as const
 const PERPLEXITY_SONAR = {
   id: 'perplexity/sonar',
@@ -12668,10 +10996,7 @@ const PERPLEXITY_SONAR_DEEP_RESEARCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const PERPLEXITY_SONAR_PRO = {
   id: 'perplexity/sonar-pro',
@@ -12731,7 +11056,7 @@ const PERPLEXITY_SONAR_PRO_SEARCH = {
     },
     image: 0,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const PERPLEXITY_SONAR_REASONING_PRO = {
   id: 'perplexity/sonar-reasoning-pro',
@@ -12762,10 +11087,7 @@ const PERPLEXITY_SONAR_REASONING_PRO = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const POOLSIDE_LAGUNA_S_2_1 = {
   id: 'poolside/laguna-s-2.1',
@@ -12789,10 +11111,7 @@ const POOLSIDE_LAGUNA_S_2_1 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const POOLSIDE_LAGUNA_S_2_1_FREE = {
   id: 'poolside/laguna-s-2.1:free',
@@ -12816,10 +11135,7 @@ const POOLSIDE_LAGUNA_S_2_1_FREE = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const POOLSIDE_LAGUNA_XS_2_1 = {
   id: 'poolside/laguna-xs-2.1',
@@ -12843,10 +11159,7 @@ const POOLSIDE_LAGUNA_XS_2_1 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const POOLSIDE_LAGUNA_XS_2_1_FREE = {
   id: 'poolside/laguna-xs-2.1:free',
@@ -12870,10 +11183,7 @@ const POOLSIDE_LAGUNA_XS_2_1_FREE = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const PRISM_ML_TERNARY_BONSAI_2_27B = {
   id: 'prism-ml/ternary-bonsai-2-27b',
@@ -12910,18 +11220,7 @@ const PRISM_ML_TERNARY_BONSAI_2_27B = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: null,
-      medium: 'medium',
-      high: null,
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_MEDIUM_XHIGH,
 } as const
 const QWEN_QWEN_2_5_72B_INSTRUCT = {
   id: 'qwen/qwen-2.5-72b-instruct',
@@ -13164,10 +11463,7 @@ const QWEN_QWEN3_14B = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_235B_A22B = {
   id: 'qwen/qwen3-235b-a22b',
@@ -13202,10 +11498,7 @@ const QWEN_QWEN3_235B_A22B = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_235B_A22B_2507 = {
   id: 'qwen/qwen3-235b-a22b-2507',
@@ -13278,7 +11571,7 @@ const QWEN_QWEN3_235B_A22B_THINKING_2507 = {
     },
     image: 0,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const QWEN_QWEN3_30B_A3B = {
   id: 'qwen/qwen3-30b-a3b',
@@ -13314,10 +11607,7 @@ const QWEN_QWEN3_30B_A3B = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_30B_A3B_INSTRUCT_2507 = {
   id: 'qwen/qwen3-30b-a3b-instruct-2507',
@@ -13388,7 +11678,7 @@ const QWEN_QWEN3_30B_A3B_THINKING_2507 = {
     },
     image: 0,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const QWEN_QWEN3_32B = {
   id: 'qwen/qwen3-32b',
@@ -13426,10 +11716,7 @@ const QWEN_QWEN3_32B = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_8B = {
   id: 'qwen/qwen3-8b',
@@ -13464,10 +11751,7 @@ const QWEN_QWEN3_8B = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_CODER = {
   id: 'qwen/qwen3-coder',
@@ -13716,10 +12000,7 @@ const QWEN_QWEN3_MAX_THINKING = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_NEXT_80B_A3B_INSTRUCT = {
   id: 'qwen/qwen3-next-80b-a3b-instruct',
@@ -13792,7 +12073,7 @@ const QWEN_QWEN3_NEXT_80B_A3B_THINKING = {
     },
     image: 0,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const QWEN_QWEN3_VL_235B_A22B_INSTRUCT = {
   id: 'qwen/qwen3-vl-235b-a22b-instruct',
@@ -13865,7 +12146,7 @@ const QWEN_QWEN3_VL_235B_A22B_THINKING = {
     },
     image: 0,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const QWEN_QWEN3_VL_30B_A3B_INSTRUCT = {
   id: 'qwen/qwen3-vl-30b-a3b-instruct',
@@ -13938,7 +12219,7 @@ const QWEN_QWEN3_VL_30B_A3B_THINKING = {
     },
     image: 0,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const QWEN_QWEN3_VL_32B_INSTRUCT = {
   id: 'qwen/qwen3-vl-32b-instruct',
@@ -14046,7 +12327,7 @@ const QWEN_QWEN3_VL_8B_THINKING = {
     },
     image: 0,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const QWEN_QWEN3_5_122B_A10B = {
   id: 'qwen/qwen3.5-122b-a10b',
@@ -14084,10 +12365,7 @@ const QWEN_QWEN3_5_122B_A10B = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_5_27B = {
   id: 'qwen/qwen3.5-27b',
@@ -14125,10 +12403,7 @@ const QWEN_QWEN3_5_27B = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_5_35B_A3B = {
   id: 'qwen/qwen3.5-35b-a3b',
@@ -14166,10 +12441,7 @@ const QWEN_QWEN3_5_35B_A3B = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_5_397B_A17B = {
   id: 'qwen/qwen3.5-397b-a17b',
@@ -14207,10 +12479,7 @@ const QWEN_QWEN3_5_397B_A17B = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_5_9B = {
   id: 'qwen/qwen3.5-9b',
@@ -14248,10 +12517,7 @@ const QWEN_QWEN3_5_9B = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_5_FLASH_02_23 = {
   id: 'qwen/qwen3.5-flash-02-23',
@@ -14286,10 +12552,7 @@ const QWEN_QWEN3_5_FLASH_02_23 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_5_PLUS_02_15 = {
   id: 'qwen/qwen3.5-plus-02-15',
@@ -14326,10 +12589,7 @@ const QWEN_QWEN3_5_PLUS_02_15 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_5_PLUS_20260420 = {
   id: 'qwen/qwen3.5-plus-20260420',
@@ -14366,10 +12626,7 @@ const QWEN_QWEN3_5_PLUS_20260420 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_6_27B = {
   id: 'qwen/qwen3.6-27b',
@@ -14407,10 +12664,7 @@ const QWEN_QWEN3_6_27B = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_6_35B_A3B = {
   id: 'qwen/qwen3.6-35b-a3b',
@@ -14448,10 +12702,7 @@ const QWEN_QWEN3_6_35B_A3B = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_6_FLASH = {
   id: 'qwen/qwen3.6-flash',
@@ -14488,10 +12739,7 @@ const QWEN_QWEN3_6_FLASH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_6_MAX_PREVIEW = {
   id: 'qwen/qwen3.6-max-preview',
@@ -14528,10 +12776,7 @@ const QWEN_QWEN3_6_MAX_PREVIEW = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_6_PLUS = {
   id: 'qwen/qwen3.6-plus',
@@ -14568,10 +12813,7 @@ const QWEN_QWEN3_6_PLUS = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_7_FLASH = {
   id: 'qwen/qwen3.7-flash',
@@ -14606,10 +12848,7 @@ const QWEN_QWEN3_7_FLASH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: true,
-  },
+  reasoning: BUDGET_OFF_HIGH,
 } as const
 const QWEN_QWEN3_7_MAX = {
   id: 'qwen/qwen3.7-max',
@@ -14646,10 +12885,7 @@ const QWEN_QWEN3_7_MAX = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_7_PLUS = {
   id: 'qwen/qwen3.7-plus',
@@ -14686,10 +12922,7 @@ const QWEN_QWEN3_7_PLUS = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const QWEN_QWEN3_8_2_4T_A95B = {
   id: 'qwen/qwen3.8-2.4t-a95b',
@@ -14727,18 +12960,7 @@ const QWEN_QWEN3_8_2_4T_A95B = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: null,
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_MEDIUM_XHIGH,
 } as const
 const QWEN_QWEN3_8_27B = {
   id: 'qwen/qwen3.8-27b',
@@ -14776,18 +12998,7 @@ const QWEN_QWEN3_8_27B = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: null,
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_MEDIUM_XHIGH,
 } as const
 const QWEN_QWEN3_8_FLASH = {
   id: 'qwen/qwen3.8-flash',
@@ -14824,10 +13035,7 @@ const QWEN_QWEN3_8_FLASH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: true,
-  },
+  reasoning: BUDGET_OFF_HIGH,
 } as const
 const QWEN_QWEN3_8_MAX_0902 = {
   id: 'qwen/qwen3.8-max-0902',
@@ -14864,18 +13072,7 @@ const QWEN_QWEN3_8_MAX_0902 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MINIMAL_TO_XHIGH,
 } as const
 const QWEN_QWEN3_8_MAX_PRIME = {
   id: 'qwen/qwen3.8-max-prime',
@@ -14912,18 +13109,7 @@ const QWEN_QWEN3_8_MAX_PRIME = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MINIMAL_TO_XHIGH,
 } as const
 const QWEN_QWEN3_8_OMNI_FLASH = {
   id: 'qwen/qwen3.8-omni-flash',
@@ -14960,10 +13146,7 @@ const QWEN_QWEN3_8_OMNI_FLASH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: true,
-  },
+  reasoning: BUDGET_OFF_HIGH,
 } as const
 const REKAAI_REKA_EDGE = {
   id: 'rekaai/reka-edge',
@@ -15032,7 +13215,7 @@ const REKAAI_REKA_FLASH_3 = {
     },
     image: 0,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const RELACE_RELACE_APPLY_3 = {
   id: 'relace/relace-apply-3',
@@ -15110,18 +13293,7 @@ const SAKANA_FUGU_MAX = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: null,
-      medium: null,
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_HIGH_TO_MAX,
 } as const
 const SAKANA_FUGU_ULTRA = {
   id: 'sakana/fugu-ultra',
@@ -15145,18 +13317,7 @@ const SAKANA_FUGU_ULTRA = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: null,
-      medium: null,
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_HIGH_TO_MAX,
 } as const
 const SAKANA_FUGU_ULTRA_V2 = {
   id: 'sakana/fugu-ultra-v2',
@@ -15180,18 +13341,7 @@ const SAKANA_FUGU_ULTRA_V2 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: null,
-      medium: null,
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_HIGH_TO_MAX,
 } as const
 const SAKANA_SAKANA_NAMAZU = {
   id: 'sakana/sakana-namazu',
@@ -15215,18 +13365,7 @@ const SAKANA_SAKANA_NAMAZU = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: null,
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_HIGH,
 } as const
 const SAO10K_L3_LUNARIS_8B = {
   id: 'sao10k/l3-lunaris-8b',
@@ -15359,7 +13498,7 @@ const STEPFUN_STEP_3_5_FLASH = {
     },
     image: 0,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const STEPFUN_STEP_3_7_FLASH = {
   id: 'stepfun/step-3.7-flash',
@@ -15396,18 +13535,7 @@ const STEPFUN_STEP_3_7_FLASH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const
 const TENCENT_HUNYUAN_A13B_INSTRUCT = {
   id: 'tencent/hunyuan-a13b-instruct',
@@ -15438,10 +13566,7 @@ const TENCENT_HUNYUAN_A13B_INSTRUCT = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const TENCENT_HY_MT2_1_8B = {
   id: 'tencent/hy-mt2-1.8b',
@@ -15564,18 +13689,7 @@ const TENCENT_HY3 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_HIGH,
 } as const
 const TENCENT_HY3_PREVIEW = {
   id: 'tencent/hy3-preview',
@@ -15606,18 +13720,7 @@ const TENCENT_HY3_PREVIEW = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_HIGH,
 } as const
 const TENCENT_HY4_PREVIEW = {
   id: 'tencent/hy4-preview',
@@ -15654,18 +13757,7 @@ const TENCENT_HY4_PREVIEW = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_HIGH,
 } as const
 const THEDRUMMER_CYDONIA_24B_V4_1 = {
   id: 'thedrummer/cydonia-24b-v4.1',
@@ -15804,18 +13896,7 @@ const THINKINGMACHINES_INKLING = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_MINIMAL_TO_HIGH_MAX,
 } as const
 const THINKINGMACHINES_INKLING_SMALL = {
   id: 'thinkingmachines/inkling-small',
@@ -15850,18 +13931,7 @@ const THINKINGMACHINES_INKLING_SMALL = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_MINIMAL_TO_HIGH_MAX,
 } as const
 const THINKINGMACHINES_INKLING_SMALL_FREE = {
   id: 'thinkingmachines/inkling-small:free',
@@ -15894,18 +13964,7 @@ const THINKINGMACHINES_INKLING_SMALL_FREE = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_MINIMAL_TO_HIGH_MAX,
 } as const
 const THINKINGMACHINES_INKLING_FREE = {
   id: 'thinkingmachines/inkling:free',
@@ -15938,18 +13997,7 @@ const THINKINGMACHINES_INKLING_FREE = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_MINIMAL_TO_HIGH_MAX,
 } as const
 const UNBIASED_PARETO = {
   id: 'unbiased/pareto',
@@ -16070,18 +14118,7 @@ const UPSTAGE_SOLAR_MINI4 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_MINIMAL_TO_MAX,
 } as const
 const UPSTAGE_SOLAR_PRO_3 = {
   id: 'upstage/solar-pro-3',
@@ -16115,18 +14152,7 @@ const UPSTAGE_SOLAR_PRO_3 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_MINIMAL_TO_HIGH,
 } as const
 const UPSTAGE_SOLAR_PRO4 = {
   id: 'upstage/solar-pro4',
@@ -16160,18 +14186,7 @@ const UPSTAGE_SOLAR_PRO4 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_MINIMAL_TO_MAX,
 } as const
 const WRITER_PALMYRA_X5 = {
   id: 'writer/palmyra-x5',
@@ -16228,10 +14243,7 @@ const X_AI_GROK_4_20 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const X_AI_GROK_4_20_MULTI_AGENT = {
   id: 'x-ai/grok-4.20-multi-agent',
@@ -16264,18 +14276,7 @@ const X_AI_GROK_4_20_MULTI_AGENT = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_XHIGH,
 } as const
 const X_AI_GROK_4_3 = {
   id: 'x-ai/grok-4.3',
@@ -16309,18 +14310,7 @@ const X_AI_GROK_4_3 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_HIGH,
 } as const
 const X_AI_GROK_4_3_BATCH = {
   id: 'x-ai/grok-4.3:batch',
@@ -16354,18 +14344,7 @@ const X_AI_GROK_4_3_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_HIGH,
 } as const
 const X_AI_GROK_4_5 = {
   id: 'x-ai/grok-4.5',
@@ -16399,18 +14378,7 @@ const X_AI_GROK_4_5 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const
 const X_AI_GROK_4_6 = {
   id: 'x-ai/grok-4.6',
@@ -16445,18 +14413,7 @@ const X_AI_GROK_4_6 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_XHIGH,
 } as const
 const X_AI_GROK_4_7 = {
   id: 'x-ai/grok-4.7',
@@ -16490,18 +14447,7 @@ const X_AI_GROK_4_7 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_XHIGH,
 } as const
 const X_AI_GROK_BUILD_0_1 = {
   id: 'x-ai/grok-build-0.1',
@@ -16535,7 +14481,7 @@ const X_AI_GROK_BUILD_0_1 = {
     },
     image: 0,
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const
 const XIAOMI_MIMO_V2_5 = {
   id: 'xiaomi/mimo-v2.5',
@@ -16570,10 +14516,7 @@ const XIAOMI_MIMO_V2_5 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const XIAOMI_MIMO_V2_5_PRO = {
   id: 'xiaomi/mimo-v2.5-pro',
@@ -16610,10 +14553,7 @@ const XIAOMI_MIMO_V2_5_PRO = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const XIAOMI_MIMO_V2_6_FLASH = {
   id: 'xiaomi/mimo-v2.6-flash',
@@ -16651,10 +14591,7 @@ const XIAOMI_MIMO_V2_6_FLASH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const XIAOMI_MIMO_V2_6_PRO = {
   id: 'xiaomi/mimo-v2.6-pro',
@@ -16690,10 +14627,7 @@ const XIAOMI_MIMO_V2_6_PRO = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const XIAOMI_MIMO_V2_6_PRO_ULTRASPEED = {
   id: 'xiaomi/mimo-v2.6-pro-ultraspeed',
@@ -16727,10 +14661,7 @@ const XIAOMI_MIMO_V2_6_PRO_ULTRASPEED = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const Z_AI_GLM_4_5 = {
   id: 'z-ai/glm-4.5',
@@ -16761,10 +14692,7 @@ const Z_AI_GLM_4_5 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const Z_AI_GLM_4_5_AIR = {
   id: 'z-ai/glm-4.5-air',
@@ -16798,10 +14726,7 @@ const Z_AI_GLM_4_5_AIR = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const Z_AI_GLM_4_5V = {
   id: 'z-ai/glm-4.5v',
@@ -16836,10 +14761,7 @@ const Z_AI_GLM_4_5V = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const Z_AI_GLM_4_6 = {
   id: 'z-ai/glm-4.6',
@@ -16875,10 +14797,7 @@ const Z_AI_GLM_4_6 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const Z_AI_GLM_4_6V = {
   id: 'z-ai/glm-4.6v',
@@ -16913,10 +14832,7 @@ const Z_AI_GLM_4_6V = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const Z_AI_GLM_4_7 = {
   id: 'z-ai/glm-4.7',
@@ -16952,10 +14868,7 @@ const Z_AI_GLM_4_7 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const Z_AI_GLM_4_7_FLASH = {
   id: 'z-ai/glm-4.7-flash',
@@ -16993,10 +14906,7 @@ const Z_AI_GLM_4_7_FLASH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const Z_AI_GLM_5 = {
   id: 'z-ai/glm-5',
@@ -17033,10 +14943,7 @@ const Z_AI_GLM_5 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const Z_AI_GLM_5_TURBO = {
   id: 'z-ai/glm-5-turbo',
@@ -17067,10 +14974,7 @@ const Z_AI_GLM_5_TURBO = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const Z_AI_GLM_5_1 = {
   id: 'z-ai/glm-5.1',
@@ -17108,10 +15012,7 @@ const Z_AI_GLM_5_1 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 const Z_AI_GLM_5_2 = {
   id: 'z-ai/glm-5.2',
@@ -17150,18 +15051,7 @@ const Z_AI_GLM_5_2 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: null,
-      medium: null,
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_HIGH_XHIGH,
 } as const
 const Z_AI_GLM_5_3 = {
   id: 'z-ai/glm-5.3',
@@ -17200,18 +15090,7 @@ const Z_AI_GLM_5_3 = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_HIGH_MAX,
 } as const
 const Z_AI_GLM_5_3_FLASH = {
   id: 'z-ai/glm-5.3-flash',
@@ -17250,18 +15129,7 @@ const Z_AI_GLM_5_3_FLASH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_HIGH_MAX,
 } as const
 const Z_AI_GLM_5_3_FLASH_BATCH = {
   id: 'z-ai/glm-5.3-flash:batch',
@@ -17297,18 +15165,7 @@ const Z_AI_GLM_5_3_FLASH_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_HIGH_MAX,
 } as const
 const Z_AI_GLM_5_3_FLASHX = {
   id: 'z-ai/glm-5.3-flashx',
@@ -17339,18 +15196,7 @@ const Z_AI_GLM_5_3_FLASHX = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_HIGH_MAX,
 } as const
 const Z_AI_GLM_5_3_PRIME = {
   id: 'z-ai/glm-5.3-prime',
@@ -17387,18 +15233,7 @@ const Z_AI_GLM_5_3_PRIME = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_HIGH_MAX,
 } as const
 const Z_AI_GLM_5_3_BATCH = {
   id: 'z-ai/glm-5.3:batch',
@@ -17434,18 +15269,7 @@ const Z_AI_GLM_5_3_BATCH = {
     },
     image: 0,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_HIGH_MAX,
 } as const
 const Z_AI_GLM_5V_TURBO = {
   id: 'z-ai/glm-5v-turbo',
@@ -17476,10 +15300,7 @@ const Z_AI_GLM_5V_TURBO = {
     },
     image: 0,
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: false,
-  },
+  reasoning: EFFORT_OFF_HIGH,
 } as const
 
 export type OpenRouterModelOptionsByName = {
@@ -24250,945 +22071,12 @@ export const OPENROUTER_MODEL_INPUT_MODALITIES: Readonly<
 // Reasoning
 //
 // Each model's `reasoning` field holds its data for `chat({ reasoning })`:
-// the provider value for each level (`null`: the model does not have it),
-// and whether it takes a thinking token budget. The data comes from
-// models.dev. The generator that writes it comes with the model catalog
-// later. Until then, scripts/convert-openrouter-models.ts keeps the entries
-// of the current file.
+// the levels it has, with the provider value for each, and whether it takes
+// a thinking token budget. The data comes from models.dev. The generator
+// that writes it comes with the model catalog later. Until then,
+// scripts/convert-openrouter-models.ts keeps the entries of the current file.
 
-/**
- * Generated: each chat model's reasoning levels, and whether it takes a token
- * budget, for `chat({ reasoning })`. A model that is not here does not reason.
- */
-export type OpenRouterModelReasoningByName = {
-  [_ANTHROPIC_CLAUDE_FABLE_LATEST.id]: ModelReasoningCapability<
-    typeof _ANTHROPIC_CLAUDE_FABLE_LATEST.reasoning
-  >
-  [_ANTHROPIC_CLAUDE_HAIKU_LATEST.id]: ModelReasoningCapability<
-    typeof _ANTHROPIC_CLAUDE_HAIKU_LATEST.reasoning
-  >
-  [_ANTHROPIC_CLAUDE_OPUS_LATEST.id]: ModelReasoningCapability<
-    typeof _ANTHROPIC_CLAUDE_OPUS_LATEST.reasoning
-  >
-  [_ANTHROPIC_CLAUDE_SONNET_LATEST.id]: ModelReasoningCapability<
-    typeof _ANTHROPIC_CLAUDE_SONNET_LATEST.reasoning
-  >
-  [_DEEPSEEK_DEEPSEEK_FLASH_LATEST.id]: ModelReasoningCapability<
-    typeof _DEEPSEEK_DEEPSEEK_FLASH_LATEST.reasoning
-  >
-  [_DEEPSEEK_DEEPSEEK_PRO_LATEST.id]: ModelReasoningCapability<
-    typeof _DEEPSEEK_DEEPSEEK_PRO_LATEST.reasoning
-  >
-  [_DEEPSEEK_DEEPSEEK_V4_FLASH_LATEST.id]: ModelReasoningCapability<
-    typeof _DEEPSEEK_DEEPSEEK_V4_FLASH_LATEST.reasoning
-  >
-  [_GOOGLE_GEMINI_FLASH_LATEST.id]: ModelReasoningCapability<
-    typeof _GOOGLE_GEMINI_FLASH_LATEST.reasoning
-  >
-  [_GOOGLE_GEMINI_PRO_LATEST.id]: ModelReasoningCapability<
-    typeof _GOOGLE_GEMINI_PRO_LATEST.reasoning
-  >
-  [_MOONSHOTAI_KIMI_LATEST.id]: ModelReasoningCapability<
-    typeof _MOONSHOTAI_KIMI_LATEST.reasoning
-  >
-  [_OPENAI_GPT_ASTRA_LATEST.id]: ModelReasoningCapability<
-    typeof _OPENAI_GPT_ASTRA_LATEST.reasoning
-  >
-  [_OPENAI_GPT_LUNA_LATEST.id]: ModelReasoningCapability<
-    typeof _OPENAI_GPT_LUNA_LATEST.reasoning
-  >
-  [_OPENAI_GPT_MINI_LATEST.id]: ModelReasoningCapability<
-    typeof _OPENAI_GPT_MINI_LATEST.reasoning
-  >
-  [_OPENAI_GPT_SOL_LATEST.id]: ModelReasoningCapability<
-    typeof _OPENAI_GPT_SOL_LATEST.reasoning
-  >
-  [_OPENAI_GPT_TERRA_LATEST.id]: ModelReasoningCapability<
-    typeof _OPENAI_GPT_TERRA_LATEST.reasoning
-  >
-  [_X_AI_GROK_LATEST.id]: ModelReasoningCapability<
-    typeof _X_AI_GROK_LATEST.reasoning
-  >
-  [_Z_AI_GLM_FLASH_LATEST.id]: ModelReasoningCapability<
-    typeof _Z_AI_GLM_FLASH_LATEST.reasoning
-  >
-  [_Z_AI_GLM_LATEST.id]: ModelReasoningCapability<
-    typeof _Z_AI_GLM_LATEST.reasoning
-  >
-  [AION_LABS_AION_2_0.id]: ModelReasoningCapability<
-    typeof AION_LABS_AION_2_0.reasoning
-  >
-  [AION_LABS_AION_3_0.id]: ModelReasoningCapability<
-    typeof AION_LABS_AION_3_0.reasoning
-  >
-  [AION_LABS_AION_3_0_MINI.id]: ModelReasoningCapability<
-    typeof AION_LABS_AION_3_0_MINI.reasoning
-  >
-  [AION_LABS_AION_3_5.id]: ModelReasoningCapability<
-    typeof AION_LABS_AION_3_5.reasoning
-  >
-  [AION_LABS_AION_3_5_MINI.id]: ModelReasoningCapability<
-    typeof AION_LABS_AION_3_5_MINI.reasoning
-  >
-  [AMAZON_NOVA_2_LITE_V1.id]: ModelReasoningCapability<
-    typeof AMAZON_NOVA_2_LITE_V1.reasoning
-  >
-  [ANTHROPIC_CLAUDE_FABLE_5.id]: ModelReasoningCapability<
-    typeof ANTHROPIC_CLAUDE_FABLE_5.reasoning
-  >
-  [ANTHROPIC_CLAUDE_FABLE_5_BATCH.id]: ModelReasoningCapability<
-    typeof ANTHROPIC_CLAUDE_FABLE_5_BATCH.reasoning
-  >
-  [ANTHROPIC_CLAUDE_FABLE_5_1.id]: ModelReasoningCapability<
-    typeof ANTHROPIC_CLAUDE_FABLE_5_1.reasoning
-  >
-  [ANTHROPIC_CLAUDE_FABLE_5_1_BATCH.id]: ModelReasoningCapability<
-    typeof ANTHROPIC_CLAUDE_FABLE_5_1_BATCH.reasoning
-  >
-  [ANTHROPIC_CLAUDE_HAIKU_4_5.id]: ModelReasoningCapability<
-    typeof ANTHROPIC_CLAUDE_HAIKU_4_5.reasoning
-  >
-  [ANTHROPIC_CLAUDE_HAIKU_4_5_BATCH.id]: ModelReasoningCapability<
-    typeof ANTHROPIC_CLAUDE_HAIKU_4_5_BATCH.reasoning
-  >
-  [ANTHROPIC_CLAUDE_OPUS_4_1.id]: ModelReasoningCapability<
-    typeof ANTHROPIC_CLAUDE_OPUS_4_1.reasoning
-  >
-  [ANTHROPIC_CLAUDE_OPUS_4_1_BATCH.id]: ModelReasoningCapability<
-    typeof ANTHROPIC_CLAUDE_OPUS_4_1_BATCH.reasoning
-  >
-  [ANTHROPIC_CLAUDE_OPUS_4_5.id]: ModelReasoningCapability<
-    typeof ANTHROPIC_CLAUDE_OPUS_4_5.reasoning
-  >
-  [ANTHROPIC_CLAUDE_OPUS_4_5_BATCH.id]: ModelReasoningCapability<
-    typeof ANTHROPIC_CLAUDE_OPUS_4_5_BATCH.reasoning
-  >
-  [ANTHROPIC_CLAUDE_OPUS_4_6.id]: ModelReasoningCapability<
-    typeof ANTHROPIC_CLAUDE_OPUS_4_6.reasoning
-  >
-  [ANTHROPIC_CLAUDE_OPUS_4_6_BATCH.id]: ModelReasoningCapability<
-    typeof ANTHROPIC_CLAUDE_OPUS_4_6_BATCH.reasoning
-  >
-  [ANTHROPIC_CLAUDE_OPUS_4_7.id]: ModelReasoningCapability<
-    typeof ANTHROPIC_CLAUDE_OPUS_4_7.reasoning
-  >
-  [ANTHROPIC_CLAUDE_OPUS_4_7_BATCH.id]: ModelReasoningCapability<
-    typeof ANTHROPIC_CLAUDE_OPUS_4_7_BATCH.reasoning
-  >
-  [ANTHROPIC_CLAUDE_OPUS_4_8.id]: ModelReasoningCapability<
-    typeof ANTHROPIC_CLAUDE_OPUS_4_8.reasoning
-  >
-  [ANTHROPIC_CLAUDE_OPUS_4_8_BATCH.id]: ModelReasoningCapability<
-    typeof ANTHROPIC_CLAUDE_OPUS_4_8_BATCH.reasoning
-  >
-  [ANTHROPIC_CLAUDE_OPUS_5.id]: ModelReasoningCapability<
-    typeof ANTHROPIC_CLAUDE_OPUS_5.reasoning
-  >
-  [ANTHROPIC_CLAUDE_OPUS_5_BATCH.id]: ModelReasoningCapability<
-    typeof ANTHROPIC_CLAUDE_OPUS_5_BATCH.reasoning
-  >
-  [ANTHROPIC_CLAUDE_OPUS_5_5.id]: ModelReasoningCapability<
-    typeof ANTHROPIC_CLAUDE_OPUS_5_5.reasoning
-  >
-  [ANTHROPIC_CLAUDE_OPUS_5_5_BATCH.id]: ModelReasoningCapability<
-    typeof ANTHROPIC_CLAUDE_OPUS_5_5_BATCH.reasoning
-  >
-  [ANTHROPIC_CLAUDE_SONNET_4.id]: ModelReasoningCapability<
-    typeof ANTHROPIC_CLAUDE_SONNET_4.reasoning
-  >
-  [ANTHROPIC_CLAUDE_SONNET_4_5.id]: ModelReasoningCapability<
-    typeof ANTHROPIC_CLAUDE_SONNET_4_5.reasoning
-  >
-  [ANTHROPIC_CLAUDE_SONNET_4_5_BATCH.id]: ModelReasoningCapability<
-    typeof ANTHROPIC_CLAUDE_SONNET_4_5_BATCH.reasoning
-  >
-  [ANTHROPIC_CLAUDE_SONNET_4_6.id]: ModelReasoningCapability<
-    typeof ANTHROPIC_CLAUDE_SONNET_4_6.reasoning
-  >
-  [ANTHROPIC_CLAUDE_SONNET_4_6_BATCH.id]: ModelReasoningCapability<
-    typeof ANTHROPIC_CLAUDE_SONNET_4_6_BATCH.reasoning
-  >
-  [ANTHROPIC_CLAUDE_SONNET_5.id]: ModelReasoningCapability<
-    typeof ANTHROPIC_CLAUDE_SONNET_5.reasoning
-  >
-  [ANTHROPIC_CLAUDE_SONNET_5_BATCH.id]: ModelReasoningCapability<
-    typeof ANTHROPIC_CLAUDE_SONNET_5_BATCH.reasoning
-  >
-  [ANTHROPIC_CLAUDE_SONNET_5_5.id]: ModelReasoningCapability<
-    typeof ANTHROPIC_CLAUDE_SONNET_5_5.reasoning
-  >
-  [ANTHROPIC_CLAUDE_SONNET_5_5_BATCH.id]: ModelReasoningCapability<
-    typeof ANTHROPIC_CLAUDE_SONNET_5_5_BATCH.reasoning
-  >
-  [ARCEE_AI_TRINITY_LARGE_THINKING.id]: ModelReasoningCapability<
-    typeof ARCEE_AI_TRINITY_LARGE_THINKING.reasoning
-  >
-  [BAIDU_ERNIE_4_5_VL_424B_A47B.id]: ModelReasoningCapability<
-    typeof BAIDU_ERNIE_4_5_VL_424B_A47B.reasoning
-  >
-  [BYTEDANCE_SEED_SEED_1_6.id]: ModelReasoningCapability<
-    typeof BYTEDANCE_SEED_SEED_1_6.reasoning
-  >
-  [BYTEDANCE_SEED_SEED_1_6_FLASH.id]: ModelReasoningCapability<
-    typeof BYTEDANCE_SEED_SEED_1_6_FLASH.reasoning
-  >
-  [BYTEDANCE_SEED_SEED_2_1_TURBO.id]: ModelReasoningCapability<
-    typeof BYTEDANCE_SEED_SEED_2_1_TURBO.reasoning
-  >
-  [BYTEDANCE_SEED_SEED_2_0_CODE.id]: ModelReasoningCapability<
-    typeof BYTEDANCE_SEED_SEED_2_0_CODE.reasoning
-  >
-  [BYTEDANCE_SEED_SEED_2_0_LITE.id]: ModelReasoningCapability<
-    typeof BYTEDANCE_SEED_SEED_2_0_LITE.reasoning
-  >
-  [BYTEDANCE_SEED_SEED_2_0_MINI.id]: ModelReasoningCapability<
-    typeof BYTEDANCE_SEED_SEED_2_0_MINI.reasoning
-  >
-  [COHERE_COMMAND_A_PLUS.id]: ModelReasoningCapability<
-    typeof COHERE_COMMAND_A_PLUS.reasoning
-  >
-  [COHERE_NORTH_MINI_CODE_FREE.id]: ModelReasoningCapability<
-    typeof COHERE_NORTH_MINI_CODE_FREE.reasoning
-  >
-  [DEEPSEEK_DEEPSEEK_CHAT_V3_1.id]: ModelReasoningCapability<
-    typeof DEEPSEEK_DEEPSEEK_CHAT_V3_1.reasoning
-  >
-  [DEEPSEEK_DEEPSEEK_R1.id]: ModelReasoningCapability<
-    typeof DEEPSEEK_DEEPSEEK_R1.reasoning
-  >
-  [DEEPSEEK_DEEPSEEK_R1_0528.id]: ModelReasoningCapability<
-    typeof DEEPSEEK_DEEPSEEK_R1_0528.reasoning
-  >
-  [DEEPSEEK_DEEPSEEK_V3_1_TERMINUS.id]: ModelReasoningCapability<
-    typeof DEEPSEEK_DEEPSEEK_V3_1_TERMINUS.reasoning
-  >
-  [DEEPSEEK_DEEPSEEK_V3_2.id]: ModelReasoningCapability<
-    typeof DEEPSEEK_DEEPSEEK_V3_2.reasoning
-  >
-  [DEEPSEEK_DEEPSEEK_V3_2_EXP.id]: ModelReasoningCapability<
-    typeof DEEPSEEK_DEEPSEEK_V3_2_EXP.reasoning
-  >
-  [DEEPSEEK_DEEPSEEK_V4_FLASH.id]: ModelReasoningCapability<
-    typeof DEEPSEEK_DEEPSEEK_V4_FLASH.reasoning
-  >
-  [DEEPSEEK_DEEPSEEK_V4_FLASH_0731.id]: ModelReasoningCapability<
-    typeof DEEPSEEK_DEEPSEEK_V4_FLASH_0731.reasoning
-  >
-  [DEEPSEEK_DEEPSEEK_V4_FLASH_VISION_EXP.id]: ModelReasoningCapability<
-    typeof DEEPSEEK_DEEPSEEK_V4_FLASH_VISION_EXP.reasoning
-  >
-  [DEEPSEEK_DEEPSEEK_V4_PRO.id]: ModelReasoningCapability<
-    typeof DEEPSEEK_DEEPSEEK_V4_PRO.reasoning
-  >
-  [DEEPSEEK_DEEPSEEK_V4_PRO_0813.id]: ModelReasoningCapability<
-    typeof DEEPSEEK_DEEPSEEK_V4_PRO_0813.reasoning
-  >
-  [DEEPSEEK_DEEPSEEK_V4_1_FLASH.id]: ModelReasoningCapability<
-    typeof DEEPSEEK_DEEPSEEK_V4_1_FLASH.reasoning
-  >
-  [DEEPSEEK_DEEPSEEK_V4_1_FLASH_BATCH.id]: ModelReasoningCapability<
-    typeof DEEPSEEK_DEEPSEEK_V4_1_FLASH_BATCH.reasoning
-  >
-  [DOTS_STUDIO_DOTS_3_NOTE_PREVIEW_FREE.id]: ModelReasoningCapability<
-    typeof DOTS_STUDIO_DOTS_3_NOTE_PREVIEW_FREE.reasoning
-  >
-  [FIREWORKS_EMBER_1.id]: ModelReasoningCapability<
-    typeof FIREWORKS_EMBER_1.reasoning
-  >
-  [GOOGLE_GEMINI_2_5_FLASH.id]: ModelReasoningCapability<
-    typeof GOOGLE_GEMINI_2_5_FLASH.reasoning
-  >
-  [GOOGLE_GEMINI_2_5_FLASH_LITE.id]: ModelReasoningCapability<
-    typeof GOOGLE_GEMINI_2_5_FLASH_LITE.reasoning
-  >
-  [GOOGLE_GEMINI_2_5_FLASH_LITE_BATCH.id]: ModelReasoningCapability<
-    typeof GOOGLE_GEMINI_2_5_FLASH_LITE_BATCH.reasoning
-  >
-  [GOOGLE_GEMINI_2_5_FLASH_BATCH.id]: ModelReasoningCapability<
-    typeof GOOGLE_GEMINI_2_5_FLASH_BATCH.reasoning
-  >
-  [GOOGLE_GEMINI_2_5_PRO.id]: ModelReasoningCapability<
-    typeof GOOGLE_GEMINI_2_5_PRO.reasoning
-  >
-  [GOOGLE_GEMINI_2_5_PRO_PREVIEW.id]: ModelReasoningCapability<
-    typeof GOOGLE_GEMINI_2_5_PRO_PREVIEW.reasoning
-  >
-  [GOOGLE_GEMINI_2_5_PRO_BATCH.id]: ModelReasoningCapability<
-    typeof GOOGLE_GEMINI_2_5_PRO_BATCH.reasoning
-  >
-  [GOOGLE_GEMINI_3_FLASH_PREVIEW.id]: ModelReasoningCapability<
-    typeof GOOGLE_GEMINI_3_FLASH_PREVIEW.reasoning
-  >
-  [GOOGLE_GEMINI_3_FLASH_PREVIEW_BATCH.id]: ModelReasoningCapability<
-    typeof GOOGLE_GEMINI_3_FLASH_PREVIEW_BATCH.reasoning
-  >
-  [GOOGLE_GEMINI_3_PRO_IMAGE.id]: ModelReasoningCapability<
-    typeof GOOGLE_GEMINI_3_PRO_IMAGE.reasoning
-  >
-  [GOOGLE_GEMINI_3_PRO_IMAGE_PREVIEW.id]: ModelReasoningCapability<
-    typeof GOOGLE_GEMINI_3_PRO_IMAGE_PREVIEW.reasoning
-  >
-  [GOOGLE_GEMINI_3_1_FLASH_IMAGE.id]: ModelReasoningCapability<
-    typeof GOOGLE_GEMINI_3_1_FLASH_IMAGE.reasoning
-  >
-  [GOOGLE_GEMINI_3_1_FLASH_IMAGE_PREVIEW.id]: ModelReasoningCapability<
-    typeof GOOGLE_GEMINI_3_1_FLASH_IMAGE_PREVIEW.reasoning
-  >
-  [GOOGLE_GEMINI_3_1_FLASH_LITE.id]: ModelReasoningCapability<
-    typeof GOOGLE_GEMINI_3_1_FLASH_LITE.reasoning
-  >
-  [GOOGLE_GEMINI_3_1_FLASH_LITE_IMAGE.id]: ModelReasoningCapability<
-    typeof GOOGLE_GEMINI_3_1_FLASH_LITE_IMAGE.reasoning
-  >
-  [GOOGLE_GEMINI_3_1_FLASH_LITE_PREVIEW.id]: ModelReasoningCapability<
-    typeof GOOGLE_GEMINI_3_1_FLASH_LITE_PREVIEW.reasoning
-  >
-  [GOOGLE_GEMINI_3_1_FLASH_LITE_BATCH.id]: ModelReasoningCapability<
-    typeof GOOGLE_GEMINI_3_1_FLASH_LITE_BATCH.reasoning
-  >
-  [GOOGLE_GEMINI_3_1_PRO_PREVIEW.id]: ModelReasoningCapability<
-    typeof GOOGLE_GEMINI_3_1_PRO_PREVIEW.reasoning
-  >
-  [GOOGLE_GEMINI_3_1_PRO_PREVIEW_CUSTOMTOOLS.id]: ModelReasoningCapability<
-    typeof GOOGLE_GEMINI_3_1_PRO_PREVIEW_CUSTOMTOOLS.reasoning
-  >
-  [GOOGLE_GEMINI_3_1_PRO_PREVIEW_BATCH.id]: ModelReasoningCapability<
-    typeof GOOGLE_GEMINI_3_1_PRO_PREVIEW_BATCH.reasoning
-  >
-  [GOOGLE_GEMINI_3_5_FLASH.id]: ModelReasoningCapability<
-    typeof GOOGLE_GEMINI_3_5_FLASH.reasoning
-  >
-  [GOOGLE_GEMINI_3_5_FLASH_LITE.id]: ModelReasoningCapability<
-    typeof GOOGLE_GEMINI_3_5_FLASH_LITE.reasoning
-  >
-  [GOOGLE_GEMINI_3_5_FLASH_LITE_BATCH.id]: ModelReasoningCapability<
-    typeof GOOGLE_GEMINI_3_5_FLASH_LITE_BATCH.reasoning
-  >
-  [GOOGLE_GEMINI_3_5_FLASH_BATCH.id]: ModelReasoningCapability<
-    typeof GOOGLE_GEMINI_3_5_FLASH_BATCH.reasoning
-  >
-  [GOOGLE_GEMINI_3_6_FLASH.id]: ModelReasoningCapability<
-    typeof GOOGLE_GEMINI_3_6_FLASH.reasoning
-  >
-  [GOOGLE_GEMINI_3_6_FLASH_BATCH.id]: ModelReasoningCapability<
-    typeof GOOGLE_GEMINI_3_6_FLASH_BATCH.reasoning
-  >
-  [GOOGLE_GEMINI_3_7_FLASH.id]: ModelReasoningCapability<
-    typeof GOOGLE_GEMINI_3_7_FLASH.reasoning
-  >
-  [GOOGLE_GEMINI_3_7_FLASH_BATCH.id]: ModelReasoningCapability<
-    typeof GOOGLE_GEMINI_3_7_FLASH_BATCH.reasoning
-  >
-  [GOOGLE_GEMINI_3_8_FLASH.id]: ModelReasoningCapability<
-    typeof GOOGLE_GEMINI_3_8_FLASH.reasoning
-  >
-  [GOOGLE_GEMINI_3_8_FLASH_BATCH.id]: ModelReasoningCapability<
-    typeof GOOGLE_GEMINI_3_8_FLASH_BATCH.reasoning
-  >
-  [GOOGLE_GEMMA_4_26B_A4B_IT.id]: ModelReasoningCapability<
-    typeof GOOGLE_GEMMA_4_26B_A4B_IT.reasoning
-  >
-  [GOOGLE_GEMMA_4_26B_A4B_IT_FREE.id]: ModelReasoningCapability<
-    typeof GOOGLE_GEMMA_4_26B_A4B_IT_FREE.reasoning
-  >
-  [GOOGLE_GEMMA_4_31B_IT.id]: ModelReasoningCapability<
-    typeof GOOGLE_GEMMA_4_31B_IT.reasoning
-  >
-  [GOOGLE_GEMMA_4_31B_IT_FREE.id]: ModelReasoningCapability<
-    typeof GOOGLE_GEMMA_4_31B_IT_FREE.reasoning
-  >
-  [IBM_GRANITE_GRANITE_4_2_8B.id]: ModelReasoningCapability<
-    typeof IBM_GRANITE_GRANITE_4_2_8B.reasoning
-  >
-  [INCEPTION_MERCURY_2.id]: ModelReasoningCapability<
-    typeof INCEPTION_MERCURY_2.reasoning
-  >
-  [INCEPTION_MERCURY_2_5.id]: ModelReasoningCapability<
-    typeof INCEPTION_MERCURY_2_5.reasoning
-  >
-  [INCLUSIONAI_LING_3_0_FLASH.id]: ModelReasoningCapability<
-    typeof INCLUSIONAI_LING_3_0_FLASH.reasoning
-  >
-  [INCLUSIONAI_LING_3_0_FLASH_FIN.id]: ModelReasoningCapability<
-    typeof INCLUSIONAI_LING_3_0_FLASH_FIN.reasoning
-  >
-  [INCLUSIONAI_LING_3_0_FLASH_SANTE_FREE.id]: ModelReasoningCapability<
-    typeof INCLUSIONAI_LING_3_0_FLASH_SANTE_FREE.reasoning
-  >
-  [INCLUSIONAI_LING_3_0_FLASH_VL.id]: ModelReasoningCapability<
-    typeof INCLUSIONAI_LING_3_0_FLASH_VL.reasoning
-  >
-  [LIQUID_LFM_2_5_2_6B_FREE.id]: ModelReasoningCapability<
-    typeof LIQUID_LFM_2_5_2_6B_FREE.reasoning
-  >
-  [MEITUAN_LONGCAT_2_0.id]: ModelReasoningCapability<
-    typeof MEITUAN_LONGCAT_2_0.reasoning
-  >
-  [META_MUSE_GLIMMER_30B.id]: ModelReasoningCapability<
-    typeof META_MUSE_GLIMMER_30B.reasoning
-  >
-  [META_MUSE_SPARK_1_1.id]: ModelReasoningCapability<
-    typeof META_MUSE_SPARK_1_1.reasoning
-  >
-  [META_MUSE_SPARK_1_2.id]: ModelReasoningCapability<
-    typeof META_MUSE_SPARK_1_2.reasoning
-  >
-  [META_MUSE_SPARK_1_2_CONTRIBUTOR.id]: ModelReasoningCapability<
-    typeof META_MUSE_SPARK_1_2_CONTRIBUTOR.reasoning
-  >
-  [META_MUSE_SPARK_1_3.id]: ModelReasoningCapability<
-    typeof META_MUSE_SPARK_1_3.reasoning
-  >
-  [META_MUSE_SPARK_1_3_CONTRIBUTOR.id]: ModelReasoningCapability<
-    typeof META_MUSE_SPARK_1_3_CONTRIBUTOR.reasoning
-  >
-  [MINIMAX_MINIMAX_M1.id]: ModelReasoningCapability<
-    typeof MINIMAX_MINIMAX_M1.reasoning
-  >
-  [MINIMAX_MINIMAX_M2.id]: ModelReasoningCapability<
-    typeof MINIMAX_MINIMAX_M2.reasoning
-  >
-  [MINIMAX_MINIMAX_M2_1.id]: ModelReasoningCapability<
-    typeof MINIMAX_MINIMAX_M2_1.reasoning
-  >
-  [MINIMAX_MINIMAX_M2_5.id]: ModelReasoningCapability<
-    typeof MINIMAX_MINIMAX_M2_5.reasoning
-  >
-  [MINIMAX_MINIMAX_M2_7.id]: ModelReasoningCapability<
-    typeof MINIMAX_MINIMAX_M2_7.reasoning
-  >
-  [MINIMAX_MINIMAX_M3.id]: ModelReasoningCapability<
-    typeof MINIMAX_MINIMAX_M3.reasoning
-  >
-  [MISTRALAI_MISTRAL_MEDIUM_3_5.id]: ModelReasoningCapability<
-    typeof MISTRALAI_MISTRAL_MEDIUM_3_5.reasoning
-  >
-  [MISTRALAI_MISTRAL_MEDIUM_3_5_BATCH.id]: ModelReasoningCapability<
-    typeof MISTRALAI_MISTRAL_MEDIUM_3_5_BATCH.reasoning
-  >
-  [MISTRALAI_MISTRAL_SMALL_2603.id]: ModelReasoningCapability<
-    typeof MISTRALAI_MISTRAL_SMALL_2603.reasoning
-  >
-  [MISTRALAI_MISTRAL_SMALL_2603_BATCH.id]: ModelReasoningCapability<
-    typeof MISTRALAI_MISTRAL_SMALL_2603_BATCH.reasoning
-  >
-  [MOONSHOTAI_KIMI_K2_THINKING.id]: ModelReasoningCapability<
-    typeof MOONSHOTAI_KIMI_K2_THINKING.reasoning
-  >
-  [MOONSHOTAI_KIMI_K2_5.id]: ModelReasoningCapability<
-    typeof MOONSHOTAI_KIMI_K2_5.reasoning
-  >
-  [MOONSHOTAI_KIMI_K2_6.id]: ModelReasoningCapability<
-    typeof MOONSHOTAI_KIMI_K2_6.reasoning
-  >
-  [MOONSHOTAI_KIMI_K2_7_CODE.id]: ModelReasoningCapability<
-    typeof MOONSHOTAI_KIMI_K2_7_CODE.reasoning
-  >
-  [MOONSHOTAI_KIMI_K3.id]: ModelReasoningCapability<
-    typeof MOONSHOTAI_KIMI_K3.reasoning
-  >
-  [MOONSHOTAI_KIMI_K3_BATCH.id]: ModelReasoningCapability<
-    typeof MOONSHOTAI_KIMI_K3_BATCH.reasoning
-  >
-  [NEX_AGI_NEX_N2_5_MINI.id]: ModelReasoningCapability<
-    typeof NEX_AGI_NEX_N2_5_MINI.reasoning
-  >
-  [NEX_AGI_NEX_N2_5_PRO.id]: ModelReasoningCapability<
-    typeof NEX_AGI_NEX_N2_5_PRO.reasoning
-  >
-  [NOUSRESEARCH_HERMES_4_405B.id]: ModelReasoningCapability<
-    typeof NOUSRESEARCH_HERMES_4_405B.reasoning
-  >
-  [NVIDIA_NEMOTRON_3_NANO_30B_A3B.id]: ModelReasoningCapability<
-    typeof NVIDIA_NEMOTRON_3_NANO_30B_A3B.reasoning
-  >
-  [NVIDIA_NEMOTRON_3_NANO_OMNI_30B_A3B_REASONING_FREE.id]: ModelReasoningCapability<
-    typeof NVIDIA_NEMOTRON_3_NANO_OMNI_30B_A3B_REASONING_FREE.reasoning
-  >
-  [NVIDIA_NEMOTRON_3_SUPER_120B_A12B.id]: ModelReasoningCapability<
-    typeof NVIDIA_NEMOTRON_3_SUPER_120B_A12B.reasoning
-  >
-  [NVIDIA_NEMOTRON_3_SUPER_120B_A12B_FREE.id]: ModelReasoningCapability<
-    typeof NVIDIA_NEMOTRON_3_SUPER_120B_A12B_FREE.reasoning
-  >
-  [NVIDIA_NEMOTRON_3_ULTRA_550B_A55B.id]: ModelReasoningCapability<
-    typeof NVIDIA_NEMOTRON_3_ULTRA_550B_A55B.reasoning
-  >
-  [NVIDIA_NEMOTRON_3_ULTRA_550B_A55B_FREE.id]: ModelReasoningCapability<
-    typeof NVIDIA_NEMOTRON_3_ULTRA_550B_A55B_FREE.reasoning
-  >
-  [NVIDIA_NEMOTRON_3_5_CONTENT_SAFETY.id]: ModelReasoningCapability<
-    typeof NVIDIA_NEMOTRON_3_5_CONTENT_SAFETY.reasoning
-  >
-  [NVIDIA_NEMOTRON_3_5_CONTENT_SAFETY_FREE.id]: ModelReasoningCapability<
-    typeof NVIDIA_NEMOTRON_3_5_CONTENT_SAFETY_FREE.reasoning
-  >
-  [NVIDIA_NEMOTRON_3_5_LIGHTNING.id]: ModelReasoningCapability<
-    typeof NVIDIA_NEMOTRON_3_5_LIGHTNING.reasoning
-  >
-  [NVIDIA_NEMOTRON_3_5_LIGHTNING_FREE.id]: ModelReasoningCapability<
-    typeof NVIDIA_NEMOTRON_3_5_LIGHTNING_FREE.reasoning
-  >
-  [OPENAI_GPT_5.id]: ModelReasoningCapability<typeof OPENAI_GPT_5.reasoning>
-  [OPENAI_GPT_5_IMAGE.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_IMAGE.reasoning
-  >
-  [OPENAI_GPT_5_IMAGE_MINI.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_IMAGE_MINI.reasoning
-  >
-  [OPENAI_GPT_5_MINI.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_MINI.reasoning
-  >
-  [OPENAI_GPT_5_MINI_BATCH.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_MINI_BATCH.reasoning
-  >
-  [OPENAI_GPT_5_NANO.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_NANO.reasoning
-  >
-  [OPENAI_GPT_5_NANO_BATCH.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_NANO_BATCH.reasoning
-  >
-  [OPENAI_GPT_5_PRO.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_PRO.reasoning
-  >
-  [OPENAI_GPT_5_PRO_BATCH.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_PRO_BATCH.reasoning
-  >
-  [OPENAI_GPT_5_BATCH.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_BATCH.reasoning
-  >
-  [OPENAI_GPT_5_1.id]: ModelReasoningCapability<typeof OPENAI_GPT_5_1.reasoning>
-  [OPENAI_GPT_5_1_CODEX.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_1_CODEX.reasoning
-  >
-  [OPENAI_GPT_5_1_CODEX_MAX.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_1_CODEX_MAX.reasoning
-  >
-  [OPENAI_GPT_5_1_CODEX_MINI.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_1_CODEX_MINI.reasoning
-  >
-  [OPENAI_GPT_5_1_BATCH.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_1_BATCH.reasoning
-  >
-  [OPENAI_GPT_5_2.id]: ModelReasoningCapability<typeof OPENAI_GPT_5_2.reasoning>
-  [OPENAI_GPT_5_2_CODEX.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_2_CODEX.reasoning
-  >
-  [OPENAI_GPT_5_2_PRO.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_2_PRO.reasoning
-  >
-  [OPENAI_GPT_5_2_PRO_BATCH.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_2_PRO_BATCH.reasoning
-  >
-  [OPENAI_GPT_5_2_BATCH.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_2_BATCH.reasoning
-  >
-  [OPENAI_GPT_5_3_CODEX.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_3_CODEX.reasoning
-  >
-  [OPENAI_GPT_5_4.id]: ModelReasoningCapability<typeof OPENAI_GPT_5_4.reasoning>
-  [OPENAI_GPT_5_4_IMAGE_2.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_4_IMAGE_2.reasoning
-  >
-  [OPENAI_GPT_5_4_MINI.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_4_MINI.reasoning
-  >
-  [OPENAI_GPT_5_4_MINI_BATCH.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_4_MINI_BATCH.reasoning
-  >
-  [OPENAI_GPT_5_4_NANO.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_4_NANO.reasoning
-  >
-  [OPENAI_GPT_5_4_NANO_BATCH.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_4_NANO_BATCH.reasoning
-  >
-  [OPENAI_GPT_5_4_PRO.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_4_PRO.reasoning
-  >
-  [OPENAI_GPT_5_4_PRO_BATCH.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_4_PRO_BATCH.reasoning
-  >
-  [OPENAI_GPT_5_4_BATCH.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_4_BATCH.reasoning
-  >
-  [OPENAI_GPT_5_5.id]: ModelReasoningCapability<typeof OPENAI_GPT_5_5.reasoning>
-  [OPENAI_GPT_5_5_PRO.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_5_PRO.reasoning
-  >
-  [OPENAI_GPT_5_5_PRO_BATCH.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_5_PRO_BATCH.reasoning
-  >
-  [OPENAI_GPT_5_5_BATCH.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_5_BATCH.reasoning
-  >
-  [OPENAI_GPT_5_6_LUNA.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_6_LUNA.reasoning
-  >
-  [OPENAI_GPT_5_6_LUNA_PRO.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_6_LUNA_PRO.reasoning
-  >
-  [OPENAI_GPT_5_6_LUNA_PRO_BATCH.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_6_LUNA_PRO_BATCH.reasoning
-  >
-  [OPENAI_GPT_5_6_LUNA_BATCH.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_6_LUNA_BATCH.reasoning
-  >
-  [OPENAI_GPT_5_6_SOL.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_6_SOL.reasoning
-  >
-  [OPENAI_GPT_5_6_SOL_PRO.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_6_SOL_PRO.reasoning
-  >
-  [OPENAI_GPT_5_6_SOL_PRO_BATCH.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_6_SOL_PRO_BATCH.reasoning
-  >
-  [OPENAI_GPT_5_6_SOL_BATCH.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_6_SOL_BATCH.reasoning
-  >
-  [OPENAI_GPT_5_6_TERRA.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_6_TERRA.reasoning
-  >
-  [OPENAI_GPT_5_6_TERRA_PRO.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_6_TERRA_PRO.reasoning
-  >
-  [OPENAI_GPT_5_6_TERRA_PRO_BATCH.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_6_TERRA_PRO_BATCH.reasoning
-  >
-  [OPENAI_GPT_5_6_TERRA_BATCH.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_5_6_TERRA_BATCH.reasoning
-  >
-  [OPENAI_GPT_6_ASTRA.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_6_ASTRA.reasoning
-  >
-  [OPENAI_GPT_6_ASTRA_PRO.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_6_ASTRA_PRO.reasoning
-  >
-  [OPENAI_GPT_6_ASTRA_PRO_BATCH.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_6_ASTRA_PRO_BATCH.reasoning
-  >
-  [OPENAI_GPT_6_ASTRA_BATCH.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_6_ASTRA_BATCH.reasoning
-  >
-  [OPENAI_GPT_6_LUNA.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_6_LUNA.reasoning
-  >
-  [OPENAI_GPT_6_LUNA_PRO.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_6_LUNA_PRO.reasoning
-  >
-  [OPENAI_GPT_6_LUNA_PRO_BATCH.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_6_LUNA_PRO_BATCH.reasoning
-  >
-  [OPENAI_GPT_6_LUNA_BATCH.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_6_LUNA_BATCH.reasoning
-  >
-  [OPENAI_GPT_6_SOL.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_6_SOL.reasoning
-  >
-  [OPENAI_GPT_6_SOL_PRO.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_6_SOL_PRO.reasoning
-  >
-  [OPENAI_GPT_6_SOL_PRO_BATCH.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_6_SOL_PRO_BATCH.reasoning
-  >
-  [OPENAI_GPT_6_SOL_BATCH.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_6_SOL_BATCH.reasoning
-  >
-  [OPENAI_GPT_6_1_SOL.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_6_1_SOL.reasoning
-  >
-  [OPENAI_GPT_6_1_SOL_PRO.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_6_1_SOL_PRO.reasoning
-  >
-  [OPENAI_GPT_OSS_120B.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_OSS_120B.reasoning
-  >
-  [OPENAI_GPT_OSS_120B_BATCH.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_OSS_120B_BATCH.reasoning
-  >
-  [OPENAI_GPT_OSS_20B.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_OSS_20B.reasoning
-  >
-  [OPENAI_GPT_OSS_20B_BATCH.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_OSS_20B_BATCH.reasoning
-  >
-  [OPENAI_GPT_OSS_SAFEGUARD_20B.id]: ModelReasoningCapability<
-    typeof OPENAI_GPT_OSS_SAFEGUARD_20B.reasoning
-  >
-  [OPENAI_O1.id]: ModelReasoningCapability<typeof OPENAI_O1.reasoning>
-  [OPENAI_O1_PRO.id]: ModelReasoningCapability<typeof OPENAI_O1_PRO.reasoning>
-  [OPENAI_O3.id]: ModelReasoningCapability<typeof OPENAI_O3.reasoning>
-  [OPENAI_O3_MINI.id]: ModelReasoningCapability<typeof OPENAI_O3_MINI.reasoning>
-  [OPENAI_O3_MINI_HIGH.id]: ModelReasoningCapability<
-    typeof OPENAI_O3_MINI_HIGH.reasoning
-  >
-  [OPENAI_O3_MINI_BATCH.id]: ModelReasoningCapability<
-    typeof OPENAI_O3_MINI_BATCH.reasoning
-  >
-  [OPENAI_O3_PRO.id]: ModelReasoningCapability<typeof OPENAI_O3_PRO.reasoning>
-  [OPENAI_O3_BATCH.id]: ModelReasoningCapability<
-    typeof OPENAI_O3_BATCH.reasoning
-  >
-  [OPENAI_O4_MINI.id]: ModelReasoningCapability<typeof OPENAI_O4_MINI.reasoning>
-  [OPENAI_O4_MINI_HIGH.id]: ModelReasoningCapability<
-    typeof OPENAI_O4_MINI_HIGH.reasoning
-  >
-  [OPENAI_O4_MINI_BATCH.id]: ModelReasoningCapability<
-    typeof OPENAI_O4_MINI_BATCH.reasoning
-  >
-  [PERCEPTRON_PERCEPTRON_MK1.id]: ModelReasoningCapability<
-    typeof PERCEPTRON_PERCEPTRON_MK1.reasoning
-  >
-  [PERCEPTRON_PERCEPTRON_MK1_5.id]: ModelReasoningCapability<
-    typeof PERCEPTRON_PERCEPTRON_MK1_5.reasoning
-  >
-  [PERPLEXITY_SONAR_DEEP_RESEARCH.id]: ModelReasoningCapability<
-    typeof PERPLEXITY_SONAR_DEEP_RESEARCH.reasoning
-  >
-  [PERPLEXITY_SONAR_PRO_SEARCH.id]: ModelReasoningCapability<
-    typeof PERPLEXITY_SONAR_PRO_SEARCH.reasoning
-  >
-  [PERPLEXITY_SONAR_REASONING_PRO.id]: ModelReasoningCapability<
-    typeof PERPLEXITY_SONAR_REASONING_PRO.reasoning
-  >
-  [POOLSIDE_LAGUNA_S_2_1.id]: ModelReasoningCapability<
-    typeof POOLSIDE_LAGUNA_S_2_1.reasoning
-  >
-  [POOLSIDE_LAGUNA_S_2_1_FREE.id]: ModelReasoningCapability<
-    typeof POOLSIDE_LAGUNA_S_2_1_FREE.reasoning
-  >
-  [POOLSIDE_LAGUNA_XS_2_1.id]: ModelReasoningCapability<
-    typeof POOLSIDE_LAGUNA_XS_2_1.reasoning
-  >
-  [POOLSIDE_LAGUNA_XS_2_1_FREE.id]: ModelReasoningCapability<
-    typeof POOLSIDE_LAGUNA_XS_2_1_FREE.reasoning
-  >
-  [PRISM_ML_TERNARY_BONSAI_2_27B.id]: ModelReasoningCapability<
-    typeof PRISM_ML_TERNARY_BONSAI_2_27B.reasoning
-  >
-  [QWEN_QWEN3_14B.id]: ModelReasoningCapability<typeof QWEN_QWEN3_14B.reasoning>
-  [QWEN_QWEN3_235B_A22B.id]: ModelReasoningCapability<
-    typeof QWEN_QWEN3_235B_A22B.reasoning
-  >
-  [QWEN_QWEN3_235B_A22B_THINKING_2507.id]: ModelReasoningCapability<
-    typeof QWEN_QWEN3_235B_A22B_THINKING_2507.reasoning
-  >
-  [QWEN_QWEN3_30B_A3B.id]: ModelReasoningCapability<
-    typeof QWEN_QWEN3_30B_A3B.reasoning
-  >
-  [QWEN_QWEN3_30B_A3B_THINKING_2507.id]: ModelReasoningCapability<
-    typeof QWEN_QWEN3_30B_A3B_THINKING_2507.reasoning
-  >
-  [QWEN_QWEN3_32B.id]: ModelReasoningCapability<typeof QWEN_QWEN3_32B.reasoning>
-  [QWEN_QWEN3_8B.id]: ModelReasoningCapability<typeof QWEN_QWEN3_8B.reasoning>
-  [QWEN_QWEN3_MAX_THINKING.id]: ModelReasoningCapability<
-    typeof QWEN_QWEN3_MAX_THINKING.reasoning
-  >
-  [QWEN_QWEN3_NEXT_80B_A3B_THINKING.id]: ModelReasoningCapability<
-    typeof QWEN_QWEN3_NEXT_80B_A3B_THINKING.reasoning
-  >
-  [QWEN_QWEN3_VL_235B_A22B_THINKING.id]: ModelReasoningCapability<
-    typeof QWEN_QWEN3_VL_235B_A22B_THINKING.reasoning
-  >
-  [QWEN_QWEN3_VL_30B_A3B_THINKING.id]: ModelReasoningCapability<
-    typeof QWEN_QWEN3_VL_30B_A3B_THINKING.reasoning
-  >
-  [QWEN_QWEN3_VL_8B_THINKING.id]: ModelReasoningCapability<
-    typeof QWEN_QWEN3_VL_8B_THINKING.reasoning
-  >
-  [QWEN_QWEN3_5_122B_A10B.id]: ModelReasoningCapability<
-    typeof QWEN_QWEN3_5_122B_A10B.reasoning
-  >
-  [QWEN_QWEN3_5_27B.id]: ModelReasoningCapability<
-    typeof QWEN_QWEN3_5_27B.reasoning
-  >
-  [QWEN_QWEN3_5_35B_A3B.id]: ModelReasoningCapability<
-    typeof QWEN_QWEN3_5_35B_A3B.reasoning
-  >
-  [QWEN_QWEN3_5_397B_A17B.id]: ModelReasoningCapability<
-    typeof QWEN_QWEN3_5_397B_A17B.reasoning
-  >
-  [QWEN_QWEN3_5_9B.id]: ModelReasoningCapability<
-    typeof QWEN_QWEN3_5_9B.reasoning
-  >
-  [QWEN_QWEN3_5_FLASH_02_23.id]: ModelReasoningCapability<
-    typeof QWEN_QWEN3_5_FLASH_02_23.reasoning
-  >
-  [QWEN_QWEN3_5_PLUS_02_15.id]: ModelReasoningCapability<
-    typeof QWEN_QWEN3_5_PLUS_02_15.reasoning
-  >
-  [QWEN_QWEN3_5_PLUS_20260420.id]: ModelReasoningCapability<
-    typeof QWEN_QWEN3_5_PLUS_20260420.reasoning
-  >
-  [QWEN_QWEN3_6_27B.id]: ModelReasoningCapability<
-    typeof QWEN_QWEN3_6_27B.reasoning
-  >
-  [QWEN_QWEN3_6_35B_A3B.id]: ModelReasoningCapability<
-    typeof QWEN_QWEN3_6_35B_A3B.reasoning
-  >
-  [QWEN_QWEN3_6_FLASH.id]: ModelReasoningCapability<
-    typeof QWEN_QWEN3_6_FLASH.reasoning
-  >
-  [QWEN_QWEN3_6_MAX_PREVIEW.id]: ModelReasoningCapability<
-    typeof QWEN_QWEN3_6_MAX_PREVIEW.reasoning
-  >
-  [QWEN_QWEN3_6_PLUS.id]: ModelReasoningCapability<
-    typeof QWEN_QWEN3_6_PLUS.reasoning
-  >
-  [QWEN_QWEN3_7_FLASH.id]: ModelReasoningCapability<
-    typeof QWEN_QWEN3_7_FLASH.reasoning
-  >
-  [QWEN_QWEN3_7_MAX.id]: ModelReasoningCapability<
-    typeof QWEN_QWEN3_7_MAX.reasoning
-  >
-  [QWEN_QWEN3_7_PLUS.id]: ModelReasoningCapability<
-    typeof QWEN_QWEN3_7_PLUS.reasoning
-  >
-  [QWEN_QWEN3_8_2_4T_A95B.id]: ModelReasoningCapability<
-    typeof QWEN_QWEN3_8_2_4T_A95B.reasoning
-  >
-  [QWEN_QWEN3_8_27B.id]: ModelReasoningCapability<
-    typeof QWEN_QWEN3_8_27B.reasoning
-  >
-  [QWEN_QWEN3_8_FLASH.id]: ModelReasoningCapability<
-    typeof QWEN_QWEN3_8_FLASH.reasoning
-  >
-  [QWEN_QWEN3_8_MAX_0902.id]: ModelReasoningCapability<
-    typeof QWEN_QWEN3_8_MAX_0902.reasoning
-  >
-  [QWEN_QWEN3_8_MAX_PRIME.id]: ModelReasoningCapability<
-    typeof QWEN_QWEN3_8_MAX_PRIME.reasoning
-  >
-  [QWEN_QWEN3_8_OMNI_FLASH.id]: ModelReasoningCapability<
-    typeof QWEN_QWEN3_8_OMNI_FLASH.reasoning
-  >
-  [REKAAI_REKA_FLASH_3.id]: ModelReasoningCapability<
-    typeof REKAAI_REKA_FLASH_3.reasoning
-  >
-  [SAKANA_FUGU_MAX.id]: ModelReasoningCapability<
-    typeof SAKANA_FUGU_MAX.reasoning
-  >
-  [SAKANA_FUGU_ULTRA.id]: ModelReasoningCapability<
-    typeof SAKANA_FUGU_ULTRA.reasoning
-  >
-  [SAKANA_FUGU_ULTRA_V2.id]: ModelReasoningCapability<
-    typeof SAKANA_FUGU_ULTRA_V2.reasoning
-  >
-  [SAKANA_SAKANA_NAMAZU.id]: ModelReasoningCapability<
-    typeof SAKANA_SAKANA_NAMAZU.reasoning
-  >
-  [STEPFUN_STEP_3_5_FLASH.id]: ModelReasoningCapability<
-    typeof STEPFUN_STEP_3_5_FLASH.reasoning
-  >
-  [STEPFUN_STEP_3_7_FLASH.id]: ModelReasoningCapability<
-    typeof STEPFUN_STEP_3_7_FLASH.reasoning
-  >
-  [TENCENT_HUNYUAN_A13B_INSTRUCT.id]: ModelReasoningCapability<
-    typeof TENCENT_HUNYUAN_A13B_INSTRUCT.reasoning
-  >
-  [TENCENT_HY3.id]: ModelReasoningCapability<typeof TENCENT_HY3.reasoning>
-  [TENCENT_HY3_PREVIEW.id]: ModelReasoningCapability<
-    typeof TENCENT_HY3_PREVIEW.reasoning
-  >
-  [TENCENT_HY4_PREVIEW.id]: ModelReasoningCapability<
-    typeof TENCENT_HY4_PREVIEW.reasoning
-  >
-  [THINKINGMACHINES_INKLING.id]: ModelReasoningCapability<
-    typeof THINKINGMACHINES_INKLING.reasoning
-  >
-  [THINKINGMACHINES_INKLING_SMALL.id]: ModelReasoningCapability<
-    typeof THINKINGMACHINES_INKLING_SMALL.reasoning
-  >
-  [THINKINGMACHINES_INKLING_SMALL_FREE.id]: ModelReasoningCapability<
-    typeof THINKINGMACHINES_INKLING_SMALL_FREE.reasoning
-  >
-  [THINKINGMACHINES_INKLING_FREE.id]: ModelReasoningCapability<
-    typeof THINKINGMACHINES_INKLING_FREE.reasoning
-  >
-  [UPSTAGE_SOLAR_MINI4.id]: ModelReasoningCapability<
-    typeof UPSTAGE_SOLAR_MINI4.reasoning
-  >
-  [UPSTAGE_SOLAR_PRO_3.id]: ModelReasoningCapability<
-    typeof UPSTAGE_SOLAR_PRO_3.reasoning
-  >
-  [UPSTAGE_SOLAR_PRO4.id]: ModelReasoningCapability<
-    typeof UPSTAGE_SOLAR_PRO4.reasoning
-  >
-  [X_AI_GROK_4_20.id]: ModelReasoningCapability<typeof X_AI_GROK_4_20.reasoning>
-  [X_AI_GROK_4_20_MULTI_AGENT.id]: ModelReasoningCapability<
-    typeof X_AI_GROK_4_20_MULTI_AGENT.reasoning
-  >
-  [X_AI_GROK_4_3.id]: ModelReasoningCapability<typeof X_AI_GROK_4_3.reasoning>
-  [X_AI_GROK_4_3_BATCH.id]: ModelReasoningCapability<
-    typeof X_AI_GROK_4_3_BATCH.reasoning
-  >
-  [X_AI_GROK_4_5.id]: ModelReasoningCapability<typeof X_AI_GROK_4_5.reasoning>
-  [X_AI_GROK_4_6.id]: ModelReasoningCapability<typeof X_AI_GROK_4_6.reasoning>
-  [X_AI_GROK_4_7.id]: ModelReasoningCapability<typeof X_AI_GROK_4_7.reasoning>
-  [X_AI_GROK_BUILD_0_1.id]: ModelReasoningCapability<
-    typeof X_AI_GROK_BUILD_0_1.reasoning
-  >
-  [XIAOMI_MIMO_V2_5.id]: ModelReasoningCapability<
-    typeof XIAOMI_MIMO_V2_5.reasoning
-  >
-  [XIAOMI_MIMO_V2_5_PRO.id]: ModelReasoningCapability<
-    typeof XIAOMI_MIMO_V2_5_PRO.reasoning
-  >
-  [XIAOMI_MIMO_V2_6_FLASH.id]: ModelReasoningCapability<
-    typeof XIAOMI_MIMO_V2_6_FLASH.reasoning
-  >
-  [XIAOMI_MIMO_V2_6_PRO.id]: ModelReasoningCapability<
-    typeof XIAOMI_MIMO_V2_6_PRO.reasoning
-  >
-  [XIAOMI_MIMO_V2_6_PRO_ULTRASPEED.id]: ModelReasoningCapability<
-    typeof XIAOMI_MIMO_V2_6_PRO_ULTRASPEED.reasoning
-  >
-  [Z_AI_GLM_4_5.id]: ModelReasoningCapability<typeof Z_AI_GLM_4_5.reasoning>
-  [Z_AI_GLM_4_5_AIR.id]: ModelReasoningCapability<
-    typeof Z_AI_GLM_4_5_AIR.reasoning
-  >
-  [Z_AI_GLM_4_5V.id]: ModelReasoningCapability<typeof Z_AI_GLM_4_5V.reasoning>
-  [Z_AI_GLM_4_6.id]: ModelReasoningCapability<typeof Z_AI_GLM_4_6.reasoning>
-  [Z_AI_GLM_4_6V.id]: ModelReasoningCapability<typeof Z_AI_GLM_4_6V.reasoning>
-  [Z_AI_GLM_4_7.id]: ModelReasoningCapability<typeof Z_AI_GLM_4_7.reasoning>
-  [Z_AI_GLM_4_7_FLASH.id]: ModelReasoningCapability<
-    typeof Z_AI_GLM_4_7_FLASH.reasoning
-  >
-  [Z_AI_GLM_5.id]: ModelReasoningCapability<typeof Z_AI_GLM_5.reasoning>
-  [Z_AI_GLM_5_TURBO.id]: ModelReasoningCapability<
-    typeof Z_AI_GLM_5_TURBO.reasoning
-  >
-  [Z_AI_GLM_5_1.id]: ModelReasoningCapability<typeof Z_AI_GLM_5_1.reasoning>
-  [Z_AI_GLM_5_2.id]: ModelReasoningCapability<typeof Z_AI_GLM_5_2.reasoning>
-  [Z_AI_GLM_5_3.id]: ModelReasoningCapability<typeof Z_AI_GLM_5_3.reasoning>
-  [Z_AI_GLM_5_3_FLASH.id]: ModelReasoningCapability<
-    typeof Z_AI_GLM_5_3_FLASH.reasoning
-  >
-  [Z_AI_GLM_5_3_FLASH_BATCH.id]: ModelReasoningCapability<
-    typeof Z_AI_GLM_5_3_FLASH_BATCH.reasoning
-  >
-  [Z_AI_GLM_5_3_FLASHX.id]: ModelReasoningCapability<
-    typeof Z_AI_GLM_5_3_FLASHX.reasoning
-  >
-  [Z_AI_GLM_5_3_PRIME.id]: ModelReasoningCapability<
-    typeof Z_AI_GLM_5_3_PRIME.reasoning
-  >
-  [Z_AI_GLM_5_3_BATCH.id]: ModelReasoningCapability<
-    typeof Z_AI_GLM_5_3_BATCH.reasoning
-  >
-  [Z_AI_GLM_5V_TURBO.id]: ModelReasoningCapability<
-    typeof Z_AI_GLM_5V_TURBO.reasoning
-  >
-  'openrouter/auto': ModelReasoningCapability<{ budget: false }>
-}
-
-/**
- * Generated: runtime map from chat model id to its reasoning data, for the
- * text adapters. `satisfies` keeps its keys equal to
- * `OpenRouterModelReasoningByName`.
- */
-export const OPENROUTER_MODEL_REASONING: Readonly<
-  Record<string, ModelReasoning>
-> = {
+const OPENROUTER_REASONING = {
   [_ANTHROPIC_CLAUDE_FABLE_LATEST.id]: _ANTHROPIC_CLAUDE_FABLE_LATEST.reasoning,
   [_ANTHROPIC_CLAUDE_HAIKU_LATEST.id]: _ANTHROPIC_CLAUDE_HAIKU_LATEST.reasoning,
   [_ANTHROPIC_CLAUDE_OPUS_LATEST.id]: _ANTHROPIC_CLAUDE_OPUS_LATEST.reasoning,
@@ -25564,8 +22452,26 @@ export const OPENROUTER_MODEL_REASONING: Readonly<
   [Z_AI_GLM_5_3_PRIME.id]: Z_AI_GLM_5_3_PRIME.reasoning,
   [Z_AI_GLM_5_3_BATCH.id]: Z_AI_GLM_5_3_BATCH.reasoning,
   [Z_AI_GLM_5V_TURBO.id]: Z_AI_GLM_5V_TURBO.reasoning,
-  'openrouter/auto': { budget: false },
-} satisfies Record<keyof OpenRouterModelReasoningByName, ModelReasoning>
+  'openrouter/auto': EFFORT_MINIMAL_TO_HIGH,
+}
+
+/**
+ * Generated: each chat model's reasoning levels, and whether it takes a token
+ * budget, for `chat({ reasoning })`. A model that is not here does not reason.
+ */
+export type OpenRouterModelReasoningByName = {
+  [K in keyof typeof OPENROUTER_REASONING]: ModelReasoningCapability<
+    (typeof OPENROUTER_REASONING)[K]
+  >
+}
+
+/**
+ * Generated: runtime map from chat model id to its reasoning data, for the
+ * text adapters.
+ */
+export const OPENROUTER_MODEL_REASONING: Readonly<
+  Record<string, ModelReasoning>
+> = OPENROUTER_REASONING
 
 export type OpenRouterChatModelToolCapabilitiesByName = {
   [K in (typeof OPENROUTER_CHAT_MODELS)[number]]: readonly [

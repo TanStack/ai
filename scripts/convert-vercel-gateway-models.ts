@@ -9,8 +9,13 @@ import { writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { models } from './vercel-gateway.models'
+import {
+  reasoningShapeName,
+  reasoningShapeTable,
+} from './model-sync/reasoning-shapes'
 import type { VercelGatewayCatalogModel } from './vercel-gateway.models'
 import type { ModelReasoning } from '@tanstack/ai'
+import type { ReasoningShape } from './model-sync/reasoning-shapes'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const OUTPUT_PATH = resolve(
@@ -151,23 +156,29 @@ function formatReasoning(
   chatIds: Array<string>,
   existing: Readonly<Record<string, ModelReasoning>>,
 ): string {
-  const entries = chatIds
-    .filter((id) => existing[id])
-    .map((id) => `  ${JSON.stringify(id)}: ${JSON.stringify(existing[id])},`)
+  const shapes: Array<ReasoningShape> = []
+  const entries: Array<string> = []
+  for (const id of chatIds) {
+    const reasoning = existing[id]
+    if (!reasoning) continue
+    shapes.push(reasoning)
+    entries.push(`  ${JSON.stringify(id)}: ${reasoningShapeName(reasoning)},`)
+  }
   if (entries.length === 0) return ''
   return `
 // Reasoning
 //
-// Each model's data for \`chat({ reasoning })\`: the provider value for each
-// level (\`null\`: the model does not have it), and whether it takes a
-// thinking token budget. The data comes from models.dev. The generator that
-// writes it comes with the model catalog later. Until then,
-// scripts/convert-vercel-gateway-models.ts keeps the entries of the current
-// file.
+// Each model's data for \`chat({ reasoning })\`: the levels it has, with the
+// provider value for each, and whether it takes a thinking token budget. The
+// data comes from models.dev. The generator that writes it comes with the
+// model catalog later. Until then, scripts/convert-vercel-gateway-models.ts
+// keeps the entries of the current file. Each model points at one shape.
+
+${reasoningShapeTable(shapes).code}
 
 const VERCEL_GATEWAY_REASONING = {
 ${entries.join('\n')}
-} as const satisfies Partial<Record<VercelGatewayChatModel, ModelReasoning>>
+} satisfies Partial<Record<VercelGatewayChatModel, ModelReasoning>>
 
 /**
  * Each chat model's reasoning levels, and whether it takes a token budget,

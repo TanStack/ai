@@ -41,10 +41,10 @@ export function geminiThinkingConfig(
   if (!resolved || !reasoning) return undefined
   if (resolved.level === 'off') return { thinkingBudget: 0 }
   const includeThoughts = resolved.summary
-  if (!reasoning.budget && resolved.value !== null) {
+  if (!reasoning.budget) {
     return {
       includeThoughts,
-      // The map values are the lowercase names of the SDK enum values.
+      // The level values are the lowercase names of the SDK enum values.
       thinkingLevel: resolved.value.toUpperCase() as ThinkingLevel,
     }
   }
@@ -62,7 +62,7 @@ export function interactionsThinking(
   const resolved = resolveReasoning(request, reasoning)
   if (!resolved || resolved.level === 'off') return {}
   return {
-    thinking_level: resolved.value ?? resolved.level,
+    thinking_level: resolved.value,
     thinking_summaries: resolved.summary ? 'auto' : 'none',
   }
 }

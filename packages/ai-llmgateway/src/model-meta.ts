@@ -2,6 +2,60 @@ import type { Modality, ModelReasoning } from '@tanstack/ai'
 import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
 import type { LLMGatewayTextProviderOptions } from './text/text-provider-options'
 
+// Reasoning shapes: the levels a model has for `chat({ reasoning })`, and
+// the provider value to send for each. Each model points at one of them.
+const EFFORT_LOW_TO_HIGH = {
+  levels: { low: 'low', medium: 'medium', high: 'high' },
+  budget: false,
+} as const
+const EFFORT_LOW_TO_MAX = {
+  levels: {
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    xhigh: 'xhigh',
+    max: 'max',
+  },
+  budget: false,
+} as const
+const EFFORT_MINIMAL_TO_HIGH = {
+  levels: { minimal: 'minimal', low: 'low', medium: 'medium', high: 'high' },
+  budget: false,
+} as const
+const EFFORT_NONE_LOW_TO_MAX = {
+  levels: {
+    off: 'none',
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    xhigh: 'xhigh',
+    max: 'max',
+  },
+  budget: false,
+} as const
+const EFFORT_NONE_LOW_TO_XHIGH = {
+  levels: {
+    off: 'none',
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    xhigh: 'xhigh',
+  },
+  budget: false,
+} as const
+const EFFORT_NONE_MINIMAL_TO_MAX = {
+  levels: {
+    off: 'none',
+    minimal: 'minimal',
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    xhigh: 'xhigh',
+    max: 'max',
+  },
+  budget: false,
+} as const
+
 /**
  * Internal metadata structure describing an LLM Gateway model's capabilities
  * and pricing.
@@ -75,18 +129,7 @@ const GPT_5_6_TERRA = {
     ],
     tools: [] as const,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<LLMGatewayTextProviderOptions>
 
 const GPT_5_5 = {
@@ -116,18 +159,7 @@ const GPT_5_5 = {
     ],
     tools: [] as const,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const satisfies ModelMeta<LLMGatewayTextProviderOptions>
 
 const GPT_5_4_MINI = {
@@ -157,18 +189,7 @@ const GPT_5_4_MINI = {
     ],
     tools: [] as const,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const satisfies ModelMeta<LLMGatewayTextProviderOptions>
 
 const CLAUDE_OPUS_5 = {
@@ -191,18 +212,7 @@ const CLAUDE_OPUS_5 = {
     features: ['streaming', 'tools', 'reasoning', 'vision'],
     tools: [] as const,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_MAX,
 } as const satisfies ModelMeta<LLMGatewayTextProviderOptions>
 
 const CLAUDE_SONNET_5 = {
@@ -225,18 +235,7 @@ const CLAUDE_SONNET_5 = {
     features: ['streaming', 'tools', 'reasoning', 'vision'],
     tools: [] as const,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_MAX,
 } as const satisfies ModelMeta<LLMGatewayTextProviderOptions>
 
 const CLAUDE_HAIKU_4_5 = {
@@ -266,18 +265,7 @@ const CLAUDE_HAIKU_4_5 = {
     ],
     tools: [] as const,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_MAX,
 } as const satisfies ModelMeta<LLMGatewayTextProviderOptions>
 
 const GEMINI_PRO_LATEST = {
@@ -307,18 +295,7 @@ const GEMINI_PRO_LATEST = {
     ],
     tools: [] as const,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<LLMGatewayTextProviderOptions>
 
 const GEMINI_3_6_FLASH = {
@@ -348,18 +325,7 @@ const GEMINI_3_6_FLASH = {
     ],
     tools: [] as const,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta<LLMGatewayTextProviderOptions>
 
 const KIMI_K3 = {
@@ -389,18 +355,7 @@ const KIMI_K3 = {
     ],
     tools: [] as const,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_MINIMAL_TO_MAX,
 } as const satisfies ModelMeta<LLMGatewayTextProviderOptions>
 
 const GLM_5_2 = {
@@ -423,18 +378,7 @@ const GLM_5_2 = {
     features: ['streaming', 'tools', 'json_object', 'json_schema', 'reasoning'],
     tools: [] as const,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_MINIMAL_TO_MAX,
 } as const satisfies ModelMeta<LLMGatewayTextProviderOptions>
 
 const DEEPSEEK_V4_PRO = {
@@ -456,18 +400,7 @@ const DEEPSEEK_V4_PRO = {
     features: ['streaming', 'tools', 'json_object', 'json_schema', 'reasoning'],
     tools: [] as const,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_MINIMAL_TO_MAX,
 } as const satisfies ModelMeta<LLMGatewayTextProviderOptions>
 
 const QWEN_3_7_MAX = {
@@ -490,18 +423,7 @@ const QWEN_3_7_MAX = {
     features: ['streaming', 'tools', 'json_object', 'json_schema', 'reasoning'],
     tools: [] as const,
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_MINIMAL_TO_MAX,
 } as const satisfies ModelMeta<LLMGatewayTextProviderOptions>
 
 const MINIMAX_M2_5 = {
@@ -524,18 +446,7 @@ const MINIMAX_M2_5 = {
     features: ['streaming', 'tools', 'reasoning'],
     tools: [] as const,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_MAX,
 } as const satisfies ModelMeta<LLMGatewayTextProviderOptions>
 
 const GROK_4_5 = {
@@ -564,18 +475,7 @@ const GROK_4_5 = {
     ],
     tools: [] as const,
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<LLMGatewayTextProviderOptions>
 
 /**
@@ -713,52 +613,13 @@ export type ResolveInputModalities<TModel extends string> =
 
 // Reasoning
 //
-// Each model's `reasoning` field holds its data for `chat({ reasoning })`:
-// the provider value for each level (`null`: the model does not have it),
-// and whether it takes a thinking token budget. The data comes from
-// models.dev. The generator that writes it comes with the model catalog
-// later. Until then, the sync scripts keep these fields as they are.
+// Each model's `reasoning` field holds its data for `chat({ reasoning })`: the
+// levels it has, with the provider value for each, and whether it takes a
+// thinking token budget. The data comes from models.dev. The generator that
+// writes it comes with the model catalog later. Until then, the sync scripts
+// keep these fields as they are.
 
-/**
- * Each chat model's reasoning levels, and whether it takes a token budget,
- * for `chat({ reasoning })`. Derived from the `reasoning` field. A model
- * that is not here does not reason.
- */
-export type LLMGatewayModelReasoningByName = {
-  [GPT_5_6_TERRA.name]: ModelReasoningCapability<typeof GPT_5_6_TERRA.reasoning>
-  [GPT_5_5.name]: ModelReasoningCapability<typeof GPT_5_5.reasoning>
-  [GPT_5_4_MINI.name]: ModelReasoningCapability<typeof GPT_5_4_MINI.reasoning>
-  [CLAUDE_OPUS_5.name]: ModelReasoningCapability<typeof CLAUDE_OPUS_5.reasoning>
-  [CLAUDE_SONNET_5.name]: ModelReasoningCapability<
-    typeof CLAUDE_SONNET_5.reasoning
-  >
-  [CLAUDE_HAIKU_4_5.name]: ModelReasoningCapability<
-    typeof CLAUDE_HAIKU_4_5.reasoning
-  >
-  [GEMINI_PRO_LATEST.name]: ModelReasoningCapability<
-    typeof GEMINI_PRO_LATEST.reasoning
-  >
-  [GEMINI_3_6_FLASH.name]: ModelReasoningCapability<
-    typeof GEMINI_3_6_FLASH.reasoning
-  >
-  [KIMI_K3.name]: ModelReasoningCapability<typeof KIMI_K3.reasoning>
-  [GLM_5_2.name]: ModelReasoningCapability<typeof GLM_5_2.reasoning>
-  [DEEPSEEK_V4_PRO.name]: ModelReasoningCapability<
-    typeof DEEPSEEK_V4_PRO.reasoning
-  >
-  [QWEN_3_7_MAX.name]: ModelReasoningCapability<typeof QWEN_3_7_MAX.reasoning>
-  [MINIMAX_M2_5.name]: ModelReasoningCapability<typeof MINIMAX_M2_5.reasoning>
-  [GROK_4_5.name]: ModelReasoningCapability<typeof GROK_4_5.reasoning>
-}
-
-/**
- * Runtime map from chat model name to its reasoning data, for the text
- * adapter. `satisfies` keeps its keys equal to {@link LLMGatewayModelReasoningByName}. An unknown
- * name gives `undefined`: the adapter sends no reasoning field.
- */
-export const LLMGATEWAY_MODEL_REASONING: Readonly<
-  Record<string, ModelReasoning>
-> = {
+const LLMGATEWAY_REASONING = {
   [GPT_5_6_TERRA.name]: GPT_5_6_TERRA.reasoning,
   [GPT_5_5.name]: GPT_5_5.reasoning,
   [GPT_5_4_MINI.name]: GPT_5_4_MINI.reasoning,
@@ -773,4 +634,23 @@ export const LLMGATEWAY_MODEL_REASONING: Readonly<
   [QWEN_3_7_MAX.name]: QWEN_3_7_MAX.reasoning,
   [MINIMAX_M2_5.name]: MINIMAX_M2_5.reasoning,
   [GROK_4_5.name]: GROK_4_5.reasoning,
-} satisfies Record<keyof LLMGatewayModelReasoningByName, ModelReasoning>
+}
+
+/**
+ * Each chat model's reasoning levels, and whether it takes a token budget,
+ * for `chat({ reasoning })`. Derived from the `reasoning` field. A model
+ * that is not here does not reason.
+ */
+export type LLMGatewayModelReasoningByName = {
+  [K in keyof typeof LLMGATEWAY_REASONING]: ModelReasoningCapability<
+    (typeof LLMGATEWAY_REASONING)[K]
+  >
+}
+
+/**
+ * Runtime map from chat model name to its reasoning data, for the text adapter.
+ * An unknown name gives `undefined`: the adapter sends no reasoning field.
+ */
+export const LLMGATEWAY_MODEL_REASONING: Readonly<
+  Record<string, ModelReasoning>
+> = LLMGATEWAY_REASONING

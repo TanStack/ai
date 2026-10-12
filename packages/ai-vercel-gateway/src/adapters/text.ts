@@ -34,7 +34,7 @@ function gatewayReasoning(resolved: ResolvedReasoning) {
   if (resolved.budgetTokens !== undefined) {
     return { enabled: true, max_tokens: resolved.budgetTokens, ...exclude }
   }
-  return { effort: resolved.value ?? resolved.level, ...exclude }
+  return { effort: resolved.value, ...exclude }
 }
 
 type ResolveToolCapabilities<TModel extends string> =

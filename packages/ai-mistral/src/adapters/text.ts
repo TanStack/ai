@@ -121,22 +121,20 @@ type ResolveReasoning<TModel extends string> =
  * The Mistral reasoning fields for `chat({ reasoning })`, by pi's rule:
  * - a model with effort levels (Mistral Small, Mistral Medium):
  *   `reasoningEffort` with the level's value, `none` for `off`.
- * - another reasoning model (Magistral): `promptMode: 'reasoning'`, and
- *   nothing for `off`.
+ * - Magistral: `promptMode: 'reasoning'`, and nothing for `off`.
  */
 function mistralReasoning(
+  model: string,
   request: ReasoningRequest | undefined,
   reasoning: ModelReasoning | undefined,
 ): Pick<ChatCompletionStreamRequest, 'promptMode' | 'reasoningEffort'> {
   const resolved = resolveReasoning(request, reasoning)
-  if (!resolved || !reasoning) return {}
-  if (reasoning.map) {
-    // `ReasoningEffort` is an open enum, so a newer value still goes out.
-    return resolved.value === null
-      ? {}
-      : { reasoningEffort: resolved.value as ReasoningEffort }
+  if (!resolved) return {}
+  if (model.startsWith('magistral')) {
+    return resolved.level === 'off' ? {} : { promptMode: 'reasoning' }
   }
-  return resolved.level === 'off' ? {} : { promptMode: 'reasoning' }
+  // `ReasoningEffort` is an open enum, so a newer value still goes out.
+  return { reasoningEffort: resolved.value as ReasoningEffort }
 }
 
 /** Maps `chat({ toolChoice })` to the Mistral `toolChoice`. */
@@ -1093,6 +1091,7 @@ export class MistralTextAdapter<
       tools: tools as ChatCompletionStreamRequest['tools'],
       stream: true,
       ...mistralReasoning(
+        options.model,
         options.reasoning,
         MISTRAL_MODEL_REASONING[options.model],
       ),

@@ -56,6 +56,15 @@ test.describe('chat({ reasoning }) — wire format', () => {
     expect(bodies[0]?.['max_tokens']).toBeGreaterThan(8192)
   })
 
+  test('grok sends no reasoning for a model with no levels', async ({
+    request,
+    testId,
+  }) => {
+    const { bodies } = await run(request, 'grok', testId)
+    expect(bodies[0]?.['model']).toBe('xai/grok-4.20-reasoning')
+    expect(bodies[0]).not.toHaveProperty('reasoning')
+  })
+
   test('gemini sends a thinking budget with includeThoughts', async ({
     request,
     testId,

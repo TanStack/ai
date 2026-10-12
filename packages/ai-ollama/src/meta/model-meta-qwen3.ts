@@ -1,4 +1,3 @@
-import type { ModelReasoning } from '@tanstack/ai'
 import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
 import type {
   OllamaChatRequest,
@@ -9,6 +8,13 @@ import type {
   OllamaModelMeta,
 } from './models-meta'
 
+// Reasoning shapes: the levels a model has for `chat({ reasoning })`, and
+// the provider value to send for each. Each model points at one of them.
+const EFFORT_FALSE_TRUE = {
+  levels: { off: 'false', high: 'true' },
+  budget: false,
+} as const
+
 const QWEN3_LATEST = {
   name: 'qwen3:latest',
   supports: {
@@ -18,10 +24,7 @@ const QWEN3_LATEST = {
   },
   size: '5.2gb',
   context: 40_000,
-  reasoning: {
-    map: { off: 'false', minimal: null, low: null, medium: null, high: 'true' },
-    budget: false,
-  },
+  reasoning: EFFORT_FALSE_TRUE,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
@@ -37,10 +40,7 @@ const QWEN3_0_6b = {
   },
   size: '523mb',
   context: 40_000,
-  reasoning: {
-    map: { off: 'false', minimal: null, low: null, medium: null, high: 'true' },
-    budget: false,
-  },
+  reasoning: EFFORT_FALSE_TRUE,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
@@ -56,10 +56,7 @@ const QWEN3_1_7b = {
   },
   size: '1.4gb',
   context: 40_000,
-  reasoning: {
-    map: { off: 'false', minimal: null, low: null, medium: null, high: 'true' },
-    budget: false,
-  },
+  reasoning: EFFORT_FALSE_TRUE,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
@@ -75,10 +72,7 @@ const QWEN3_4b = {
   },
   size: '2.5gb',
   context: 256_000,
-  reasoning: {
-    map: { off: 'false', minimal: null, low: null, medium: null, high: 'true' },
-    budget: false,
-  },
+  reasoning: EFFORT_FALSE_TRUE,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
@@ -94,10 +88,7 @@ const QWEN3_8b = {
   },
   size: '5.2gb',
   context: 40_000,
-  reasoning: {
-    map: { off: 'false', minimal: null, low: null, medium: null, high: 'true' },
-    budget: false,
-  },
+  reasoning: EFFORT_FALSE_TRUE,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
@@ -113,10 +104,7 @@ const QWEN3_14b = {
   },
   size: '9.3gb',
   context: 40_000,
-  reasoning: {
-    map: { off: 'false', minimal: null, low: null, medium: null, high: 'true' },
-    budget: false,
-  },
+  reasoning: EFFORT_FALSE_TRUE,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
@@ -132,10 +120,7 @@ const QWEN3_30b = {
   },
   size: '19gb',
   context: 256_000,
-  reasoning: {
-    map: { off: 'false', minimal: null, low: null, medium: null, high: 'true' },
-    budget: false,
-  },
+  reasoning: EFFORT_FALSE_TRUE,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
@@ -151,10 +136,7 @@ const QWEN3_32b = {
   },
   size: '20gb',
   context: 40_000,
-  reasoning: {
-    map: { off: 'false', minimal: null, low: null, medium: null, high: 'true' },
-    budget: false,
-  },
+  reasoning: EFFORT_FALSE_TRUE,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
@@ -170,10 +152,7 @@ const QWEN3_235b = {
   },
   size: '142gb',
   context: 256_000,
-  reasoning: {
-    map: { off: 'false', minimal: null, low: null, medium: null, high: 'true' },
-    budget: false,
-  },
+  reasoning: EFFORT_FALSE_TRUE,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
@@ -247,19 +226,6 @@ export type Qwen3ModelInputModalitiesByName = {
   [QWEN3_235b.name]: typeof QWEN3_235b.supports.input
 }
 
-/** Each model's reasoning levels, for `chat({ reasoning })`. */
-export type Qwen3ModelReasoningByName = {
-  [QWEN3_LATEST.name]: ModelReasoningCapability<typeof QWEN3_LATEST.reasoning>
-  [QWEN3_0_6b.name]: ModelReasoningCapability<typeof QWEN3_0_6b.reasoning>
-  [QWEN3_1_7b.name]: ModelReasoningCapability<typeof QWEN3_1_7b.reasoning>
-  [QWEN3_4b.name]: ModelReasoningCapability<typeof QWEN3_4b.reasoning>
-  [QWEN3_8b.name]: ModelReasoningCapability<typeof QWEN3_8b.reasoning>
-  [QWEN3_14b.name]: ModelReasoningCapability<typeof QWEN3_14b.reasoning>
-  [QWEN3_30b.name]: ModelReasoningCapability<typeof QWEN3_30b.reasoning>
-  [QWEN3_32b.name]: ModelReasoningCapability<typeof QWEN3_32b.reasoning>
-  [QWEN3_235b.name]: ModelReasoningCapability<typeof QWEN3_235b.reasoning>
-}
-
 /** Each model's reasoning data at runtime. */
 export const QWEN3_MODEL_REASONING = {
   [QWEN3_LATEST.name]: QWEN3_LATEST.reasoning,
@@ -271,4 +237,11 @@ export const QWEN3_MODEL_REASONING = {
   [QWEN3_30b.name]: QWEN3_30b.reasoning,
   [QWEN3_32b.name]: QWEN3_32b.reasoning,
   [QWEN3_235b.name]: QWEN3_235b.reasoning,
-} satisfies Record<keyof Qwen3ModelReasoningByName, ModelReasoning>
+}
+
+/** Each model's reasoning levels, for `chat({ reasoning })`. */
+export type Qwen3ModelReasoningByName = {
+  [K in keyof typeof QWEN3_MODEL_REASONING]: ModelReasoningCapability<
+    (typeof QWEN3_MODEL_REASONING)[K]
+  >
+}

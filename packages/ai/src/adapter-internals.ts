@@ -6,7 +6,6 @@ export type { ResolvedCategories } from './logger/internal-logger'
 export {
   DEFAULT_REASONING_BUDGETS,
   reasoningBudget,
-  reasoningValue,
   resolveReasoning,
 } from './reasoning'
 export type { ModelReasoningCapability, ResolvedReasoning } from './reasoning'

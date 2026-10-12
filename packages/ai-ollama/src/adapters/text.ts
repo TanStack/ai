@@ -70,15 +70,7 @@ type ResolveReasoning<TModel extends string> =
 
 /** The on/off toggle for a model name this package does not list. */
 const UNLISTED_MODEL_REASONING: ModelReasoning = {
-  map: {
-    off: 'false',
-    minimal: null,
-    low: null,
-    medium: null,
-    high: 'true',
-    xhigh: null,
-    max: null,
-  },
+  levels: { off: 'false', high: 'true' },
   budget: false,
 }
 

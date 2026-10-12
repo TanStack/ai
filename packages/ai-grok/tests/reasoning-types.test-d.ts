@@ -1,5 +1,6 @@
 import { chat } from '@tanstack/ai'
 import { createGrokText } from '../src/adapters/text'
+import { grokVertexText } from '../src/vertex'
 
 const messages = [{ role: 'user' as const, content: 'hi' }]
 
@@ -15,6 +16,13 @@ chat({
   messages,
   // @ts-expect-error the xAI API refuses reasoning for grok-build-0.1
   reasoning: 'high',
+})
+
+chat({
+  adapter: grokVertexText('grok-4.20-reasoning', { project: 'p' }),
+  messages,
+  // @ts-expect-error grok-4.20-reasoning always thinks, and has no levels
+  reasoning: 'off',
 })
 
 chat({

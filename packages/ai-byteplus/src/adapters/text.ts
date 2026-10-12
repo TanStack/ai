@@ -107,7 +107,7 @@ function arkThinking(resolved: ResolvedReasoning | undefined) {
   if (!resolved) return {}
   if (resolved.level === 'off') return { thinking: { type: 'disabled' } }
   const effort = resolved.value
-  return effort === null || effort === 'enabled'
+  return effort === 'enabled'
     ? { thinking: { type: 'enabled' } }
     : { thinking: { type: 'enabled' }, reasoning_effort: effort }
 }

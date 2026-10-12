@@ -124,8 +124,7 @@ export class CloudflareTextAdapter<
     )
     if (resolved) {
       Object.assign(request, {
-        reasoning_effort:
-          resolved.level === 'off' ? null : (resolved.value ?? resolved.level),
+        reasoning_effort: resolved.level === 'off' ? null : resolved.value,
       })
     }
     return request

@@ -10,6 +10,21 @@ import type {
   BedrockTitanTextEmbeddingProviderOptions,
 } from './embedding/embedding-provider-options'
 
+// Reasoning shapes: the levels a model has for `chat({ reasoning })`, and
+// the provider value to send for each. Each model points at one of them.
+const BUDGET_OFF_HIGH = {
+  levels: { off: 'off', high: 'high' },
+  budget: true,
+} as const
+const EFFORT_LOW_TO_HIGH = {
+  levels: { low: 'low', medium: 'medium', high: 'high' },
+  budget: false,
+} as const
+const EFFORT_NONE_HIGH = {
+  levels: { off: 'none', high: 'high' },
+  budget: false,
+} as const
+
 type Entry = (typeof GENERATED_BEDROCK_MODELS)[number]
 
 /**
@@ -80,83 +95,21 @@ export type ResolveInputModalities<TModel extends string> =
 // Reasoning
 // ============================================================================
 //
-// Each model's data for `chat({ reasoning })`: the provider value for each
-// level (`null`: the model does not have it), and whether it takes a
-// thinking token budget. The data comes from models.dev. The generator that
-// writes it comes with the model catalog later. Until then, edit these
-// entries by hand. scripts/fetch-bedrock-models.ts does not touch them.
+// Each model's data for `chat({ reasoning })`: the levels it has, with the
+// provider value for each, and whether it takes a thinking token budget. The
+// data comes from models.dev. The generator that writes it comes with the model
+// catalog later. Until then, edit these entries by hand.
+// scripts/fetch-bedrock-models.ts does not touch them.
 
 const BEDROCK_REASONING = {
-  'openai.gpt-oss-120b-1:0': {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
-  'openai.gpt-oss-20b-1:0': {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
-  'us.anthropic.claude-sonnet-4-5-20250929-v1:0': {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: true,
-  },
-  'us.anthropic.claude-haiku-4-5-20251001-v1:0': {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: true,
-  },
-  'us.deepseek.r1-v1:0': { budget: false },
-  'google.gemma-4-31b': {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: null,
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
-  'google.gemma-4-26b-a4b': {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: null,
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
-  'google.gemma-4-e2b': {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: null,
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
-} as const satisfies Partial<Record<Entry['id'], ModelReasoning>>
+  'openai.gpt-oss-120b-1:0': EFFORT_LOW_TO_HIGH,
+  'openai.gpt-oss-20b-1:0': EFFORT_LOW_TO_HIGH,
+  'us.anthropic.claude-sonnet-4-5-20250929-v1:0': BUDGET_OFF_HIGH,
+  'us.anthropic.claude-haiku-4-5-20251001-v1:0': BUDGET_OFF_HIGH,
+  'google.gemma-4-31b': EFFORT_NONE_HIGH,
+  'google.gemma-4-26b-a4b': EFFORT_NONE_HIGH,
+  'google.gemma-4-e2b': EFFORT_NONE_HIGH,
+} satisfies Partial<Record<Entry['id'], ModelReasoning>>
 
 /**
  * Each model's reasoning levels, and whether it takes a token budget, for

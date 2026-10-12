@@ -181,23 +181,25 @@ type ResolveReasoning<TModel extends string> =
     ? ClaudeCodeModelReasoningByName[TModel]
     : never
 
+/** The models that take `--effort`. The same list as the Anthropic adapter's adaptive thinking. */
+const EFFORT_MODELS =
+  /^(opus|sonnet)$|opus-4-[6-9]|sonnet-4-[6-9]|opus-5|sonnet-5|fable-5/
+
 /**
  * The CLI settings for `chat({ reasoning })`, from the Claude Code docs:
- * - a model with effort levels: `--effort <level>`.
- * - a budget model (Haiku): `MAX_THINKING_TOKENS`, the budget (pi's table
- *   when the request sets none), or `0` for `off`.
+ * - Claude 4.6 and later, and the `opus` and `sonnet` aliases:
+ *   `--effort <level>`.
+ * - an older model (Haiku 4.5): `MAX_THINKING_TOKENS`, the budget (pi's
+ *   table when the request sets none), or `0` for `off`.
  */
 export function claudeCodeReasoning(
   model: string,
   request: ReasoningRequest | undefined,
 ): { args: Array<string>; env: Record<string, string> } {
-  const reasoning = CLAUDE_CODE_MODEL_REASONING[model]
-  const resolved = resolveReasoning(request, reasoning)
-  if (!resolved || !reasoning) return { args: [], env: {} }
-  if (reasoning.map) {
-    return resolved.value === null
-      ? { args: [], env: {} }
-      : { args: ['--effort', resolved.value], env: {} }
+  const resolved = resolveReasoning(request, CLAUDE_CODE_MODEL_REASONING[model])
+  if (!resolved) return { args: [], env: {} }
+  if (EFFORT_MODELS.test(model)) {
+    return { args: ['--effort', resolved.value], env: {} }
   }
   const budget =
     resolved.level === 'off'

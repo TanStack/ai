@@ -53,9 +53,7 @@ export function anthropicThinking(
   if (resolved.level === 'off') return { thinking: { type: 'disabled' } }
   const budgetOnly =
     reasoning.budget &&
-    (resolved.budgetTokens !== undefined ||
-      !reasoning.map ||
-      !ADAPTIVE_THINKING.test(model))
+    (resolved.budgetTokens !== undefined || !ADAPTIVE_THINKING.test(model))
   if (budgetOnly)
     return {
       thinking: {
@@ -74,8 +72,7 @@ export function anthropicThinking(
     display: resolved.summary ? ('summarized' as const) : ('omitted' as const),
   }
   const effort = resolved.value
-  if (!reasoning.map || effort === null || !isEffort(effort))
-    return { thinking }
+  if (!isEffort(effort)) return { thinking }
   return TOP_LEVEL_EFFORT.has(model)
     ? { thinking, effort }
     : { thinking, output_config: { effort } }

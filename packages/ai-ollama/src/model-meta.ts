@@ -566,8 +566,8 @@ export type OllamaEmbeddingModel =
 // Reasoning
 //
 // Each model's data for `chat({ reasoning })` sits in its family file: the
-// provider value for each level (`null`: the model does not have it), and
-// whether it takes a thinking token budget. The data comes from models.dev.
+// levels it has, with the provider value for each, and whether it takes a
+// thinking token budget. The data comes from models.dev.
 // The generator that writes it comes with the model catalog later. Until
 // then, edit those entries by hand.
 

@@ -1,5 +1,32 @@
 import type { ModelReasoning } from '@tanstack/ai'
 import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
+
+// Reasoning shapes: the levels a model has for `chat({ reasoning })`, and
+// the provider value to send for each. Each model points at one of them.
+const BUDGET_LOW_TO_HIGH_MAX = {
+  levels: { low: 'low', medium: 'medium', high: 'high', max: 'max' },
+  budget: true,
+} as const
+const BUDGET_OFF_TO_HIGH = {
+  levels: {
+    off: 'off',
+    minimal: 'minimal',
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+  },
+  budget: true,
+} as const
+const EFFORT_LOW_TO_MAX = {
+  levels: {
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    xhigh: 'xhigh',
+    max: 'max',
+  },
+  budget: false,
+} as const
 /**
  * Models known to work with Claude Code. The harness accepts any Anthropic
  * model id (and the `opus` / `sonnet` / `haiku` aliases resolved by the CLI),
@@ -24,88 +51,21 @@ export type ClaudeCodeModel = KnownClaudeCodeModel | (string & {})
 
 // Reasoning
 //
-// Each model's data for `chat({ reasoning })`: the provider value for each
-// level (`null`: the model does not have it), and whether it takes a
-// thinking token budget. The data comes from models.dev. The generator that
-// writes it comes with the model catalog later. Until then, edit these
-// entries by hand.
+// Each model's data for `chat({ reasoning })`: the levels it has, with the
+// provider value for each, and whether it takes a thinking token budget. The
+// data comes from models.dev. The generator that writes it comes with the model
+// catalog later. Until then, edit these entries by hand.
 
 const CLAUDE_CODE_REASONING = {
-  'claude-opus-4-8': {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
-  'claude-opus-4-7': {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
-  'claude-opus-4-6': {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: 'max',
-    },
-    budget: true,
-  },
-  'claude-sonnet-4-6': {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: 'max',
-    },
-    budget: true,
-  },
-  'claude-haiku-4-5': { budget: true },
-  opus: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
-  sonnet: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: 'max',
-    },
-    budget: true,
-  },
-  haiku: { budget: true },
-} as const satisfies Partial<Record<KnownClaudeCodeModel, ModelReasoning>>
+  'claude-opus-4-8': EFFORT_LOW_TO_MAX,
+  'claude-opus-4-7': EFFORT_LOW_TO_MAX,
+  'claude-opus-4-6': BUDGET_LOW_TO_HIGH_MAX,
+  'claude-sonnet-4-6': BUDGET_LOW_TO_HIGH_MAX,
+  'claude-haiku-4-5': BUDGET_OFF_TO_HIGH,
+  opus: EFFORT_LOW_TO_MAX,
+  sonnet: BUDGET_LOW_TO_HIGH_MAX,
+  haiku: BUDGET_OFF_TO_HIGH,
+} satisfies Partial<Record<KnownClaudeCodeModel, ModelReasoning>>
 
 /**
  * Each model's reasoning levels, and whether it takes a token budget, for

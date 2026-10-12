@@ -53,7 +53,6 @@ export function converseThinking(
       minMaxTokens: budget + MIN_ANSWER_TOKENS,
     }
   }
-  if (resolved.value === null) return {}
   return {
     additionalModelRequestFields: {
       thinking: { type: 'adaptive' },

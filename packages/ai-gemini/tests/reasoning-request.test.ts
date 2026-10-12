@@ -96,6 +96,13 @@ describe('Gemini chat({ reasoning }) request shape', () => {
       thinkingBudget: 0,
     })
   })
+
+  it('off on Gemini 2.5 Pro, which cannot stop thinking: the minimal budget', async () => {
+    expect(await thinkingConfig('gemini-2.5-pro', on('off'))).toEqual({
+      includeThoughts: true,
+      thinkingBudget: 128,
+    })
+  })
 })
 
 describe('Gemini Interactions chat({ reasoning }) request shape', () => {

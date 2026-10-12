@@ -13,6 +13,50 @@ import type {
   LovableVideoSize,
 } from './video/video-provider-options'
 
+// Reasoning shapes: the levels a model has for `chat({ reasoning })`, and
+// the provider value to send for each. Each model points at one of them.
+const BUDGET_MINIMAL_TO_HIGH = {
+  levels: { minimal: 'minimal', low: 'low', medium: 'medium', high: 'high' },
+  budget: true,
+} as const
+const BUDGET_OFF_HIGH = {
+  levels: { off: 'off', high: 'high' },
+  budget: true,
+} as const
+const EFFORT_LOW_TO_HIGH = {
+  levels: { low: 'low', medium: 'medium', high: 'high' },
+  budget: false,
+} as const
+const EFFORT_MEDIUM_TO_XHIGH = {
+  levels: { medium: 'medium', high: 'high', xhigh: 'xhigh' },
+  budget: false,
+} as const
+const EFFORT_MINIMAL_TO_HIGH = {
+  levels: { minimal: 'minimal', low: 'low', medium: 'medium', high: 'high' },
+  budget: false,
+} as const
+const EFFORT_NONE_LOW_TO_MAX = {
+  levels: {
+    off: 'none',
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    xhigh: 'xhigh',
+    max: 'max',
+  },
+  budget: false,
+} as const
+const EFFORT_NONE_LOW_TO_XHIGH = {
+  levels: {
+    off: 'none',
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    xhigh: 'xhigh',
+  },
+  budget: false,
+} as const
+
 /**
  * Chat models listed on https://docs.lovable.dev/features/ai.
  * Ids use the `google/` and `openai/` form that the gateway accepts.
@@ -163,251 +207,35 @@ export type LovableTranscriptionModel =
 
 // Reasoning
 //
-// Each model's data for `chat({ reasoning })`: the provider value for each
-// level (`null`: the model does not have it), and whether it takes a
-// thinking token budget. The data comes from models.dev. The generator that
-// writes it comes with the model catalog later. Until then, edit these
-// entries by hand.
+// Each model's data for `chat({ reasoning })`: the levels it has, with the
+// provider value for each, and whether it takes a thinking token budget. The
+// data comes from models.dev. The generator that writes it comes with the model
+// catalog later. Until then, edit these entries by hand.
 
 const LOVABLE_REASONING = {
-  'google/gemini-3.7-flash': {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
-  'google/gemini-3.6-flash': {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
-  'google/gemini-3.5-flash': {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
-  'google/gemini-3.1-pro-preview': {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
-  'google/gemini-3.1-flash-lite': {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
-  'google/gemini-3-flash-preview': {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
-  'google/gemini-2.5-pro': { budget: true },
-  'google/gemini-2.5-flash': {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: true,
-  },
-  'google/gemini-2.5-flash-lite': {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: true,
-  },
-  'openai/gpt-5.6-sol': {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
-  'openai/gpt-5.6-terra': {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
-  'openai/gpt-5.6-luna': {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
-  'openai/gpt-5.5-pro': {
-    map: {
-      off: null,
-      minimal: null,
-      low: null,
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
-  'openai/gpt-5.5': {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
-  'openai/gpt-5.4-pro': {
-    map: {
-      off: null,
-      minimal: null,
-      low: null,
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
-  'openai/gpt-5.4': {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
-  'openai/gpt-5.4-mini': {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
-  'openai/gpt-5.4-nano': {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
-  'openai/gpt-5.2': {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
-  'openai/gpt-5': {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
-  'openai/gpt-5-mini': {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
-  'openai/gpt-5-nano': {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
-} as const satisfies Partial<Record<LovableChatModel, ModelReasoning>>
+  'google/gemini-3.7-flash': EFFORT_LOW_TO_HIGH,
+  'google/gemini-3.6-flash': EFFORT_MINIMAL_TO_HIGH,
+  'google/gemini-3.5-flash': EFFORT_MINIMAL_TO_HIGH,
+  'google/gemini-3.1-pro-preview': EFFORT_LOW_TO_HIGH,
+  'google/gemini-3.1-flash-lite': EFFORT_MINIMAL_TO_HIGH,
+  'google/gemini-3-flash-preview': EFFORT_MINIMAL_TO_HIGH,
+  'google/gemini-2.5-pro': BUDGET_MINIMAL_TO_HIGH,
+  'google/gemini-2.5-flash': BUDGET_OFF_HIGH,
+  'google/gemini-2.5-flash-lite': BUDGET_OFF_HIGH,
+  'openai/gpt-5.6-sol': EFFORT_NONE_LOW_TO_MAX,
+  'openai/gpt-5.6-terra': EFFORT_NONE_LOW_TO_MAX,
+  'openai/gpt-5.6-luna': EFFORT_NONE_LOW_TO_MAX,
+  'openai/gpt-5.5-pro': EFFORT_MEDIUM_TO_XHIGH,
+  'openai/gpt-5.5': EFFORT_NONE_LOW_TO_XHIGH,
+  'openai/gpt-5.4-pro': EFFORT_MEDIUM_TO_XHIGH,
+  'openai/gpt-5.4': EFFORT_NONE_LOW_TO_XHIGH,
+  'openai/gpt-5.4-mini': EFFORT_NONE_LOW_TO_XHIGH,
+  'openai/gpt-5.4-nano': EFFORT_NONE_LOW_TO_XHIGH,
+  'openai/gpt-5.2': EFFORT_NONE_LOW_TO_XHIGH,
+  'openai/gpt-5': EFFORT_MINIMAL_TO_HIGH,
+  'openai/gpt-5-mini': EFFORT_MINIMAL_TO_HIGH,
+  'openai/gpt-5-nano': EFFORT_MINIMAL_TO_HIGH,
+} satisfies Partial<Record<LovableChatModel, ModelReasoning>>
 
 /**
  * Each model's reasoning levels, and whether it takes a token budget, for

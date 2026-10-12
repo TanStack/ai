@@ -432,7 +432,7 @@ export type {
   ModelReasoning,
   ReasoningCapability,
   ReasoningLevel,
-  ReasoningMap,
+  ReasoningLevels,
   ReasoningOption,
   ReasoningOptionFor,
   ReasoningRequest,

@@ -9,6 +9,25 @@ import type {
 } from './text/text-provider-options'
 import type { GeminiEmbeddingProviderOptions } from './embedding/embedding-provider-options'
 
+// Reasoning shapes: the levels a model has for `chat({ reasoning })`, and
+// the provider value to send for each. Each model points at one of them.
+const BUDGET_MINIMAL_TO_HIGH = {
+  levels: { minimal: 'minimal', low: 'low', medium: 'medium', high: 'high' },
+  budget: true,
+} as const
+const BUDGET_OFF_HIGH = {
+  levels: { off: 'off', high: 'high' },
+  budget: true,
+} as const
+const EFFORT_LOW_TO_HIGH = {
+  levels: { low: 'low', medium: 'medium', high: 'high' },
+  budget: false,
+} as const
+const EFFORT_MINIMAL_TO_HIGH = {
+  levels: { minimal: 'minimal', low: 'low', medium: 'medium', high: 'high' },
+  budget: false,
+} as const
+
 interface ModelMeta<TProviderOptions = unknown> {
   name: string
   supports: {
@@ -79,18 +98,7 @@ const GEMINI_3_1_PRO = {
       normal: 15,
     },
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
@@ -124,18 +132,7 @@ const GEMINI_3_FLASH = {
       normal: 3,
     },
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
@@ -361,18 +358,7 @@ const GEMINI_3_1_FLASH_LITE = {
       normal: 1.5,
     },
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
@@ -406,18 +392,7 @@ const GEMINI_3_1_FLASH_LITE_PREVIEW = {
       normal: 1.5,
     },
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
@@ -457,7 +432,7 @@ const GEMINI_2_5_PRO = {
       normal: 15,
     },
   },
-  reasoning: { budget: true },
+  reasoning: BUDGET_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
@@ -522,10 +497,7 @@ const GEMINI_2_5_FLASH = {
       normal: 2.5,
     },
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: true,
-  },
+  reasoning: BUDGET_OFF_HIGH,
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
@@ -730,10 +702,7 @@ const GEMINI_2_5_FLASH_LITE = {
       normal: 0.4,
     },
   },
-  reasoning: {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: true,
-  },
+  reasoning: BUDGET_OFF_HIGH,
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
@@ -953,18 +922,7 @@ const GEMINI_3_8_FLASH = {
       normal: 3.75,
     },
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
@@ -1009,18 +967,7 @@ const GEMINI_3_7_FLASH = {
       normal: 3.75,
     },
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
@@ -1063,18 +1010,7 @@ const GEMINI_3_6_FLASH = {
       normal: 7.5,
     },
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
@@ -1115,18 +1051,7 @@ const GEMINI_3_5_FLASH = {
       normal: 9,
     },
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
@@ -1168,18 +1093,7 @@ const GEMINI_3_5_FLASH_LITE = {
       normal: 2.5,
     },
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
@@ -1503,11 +1417,26 @@ export const GEMINI_MODEL_INPUT_MODALITIES: Readonly<
 
 // Reasoning
 //
-// Each model's `reasoning` field holds its data for `chat({ reasoning })`:
-// the provider value for each level (`null`: the model does not have it),
-// and whether it takes a thinking token budget. The data comes from
-// models.dev. The generator that writes it comes with the model catalog
-// later. Until then, the sync scripts keep these fields as they are.
+// Each model's `reasoning` field holds its data for `chat({ reasoning })`: the
+// levels it has, with the provider value for each, and whether it takes a
+// thinking token budget. The data comes from models.dev. The generator that
+// writes it comes with the model catalog later. Until then, the sync scripts
+// keep these fields as they are.
+
+const GEMINI_REASONING = {
+  [GEMINI_3_8_FLASH.name]: GEMINI_3_8_FLASH.reasoning,
+  [GEMINI_3_7_FLASH.name]: GEMINI_3_7_FLASH.reasoning,
+  [GEMINI_3_6_FLASH.name]: GEMINI_3_6_FLASH.reasoning,
+  [GEMINI_3_5_FLASH.name]: GEMINI_3_5_FLASH.reasoning,
+  [GEMINI_3_5_FLASH_LITE.name]: GEMINI_3_5_FLASH_LITE.reasoning,
+  [GEMINI_3_1_PRO.name]: GEMINI_3_1_PRO.reasoning,
+  [GEMINI_3_FLASH.name]: GEMINI_3_FLASH.reasoning,
+  [GEMINI_3_1_FLASH_LITE.name]: GEMINI_3_1_FLASH_LITE.reasoning,
+  [GEMINI_3_1_FLASH_LITE_PREVIEW.name]: GEMINI_3_1_FLASH_LITE_PREVIEW.reasoning,
+  [GEMINI_2_5_PRO.name]: GEMINI_2_5_PRO.reasoning,
+  [GEMINI_2_5_FLASH_LITE.name]: GEMINI_2_5_FLASH_LITE.reasoning,
+  [GEMINI_2_5_FLASH.name]: GEMINI_2_5_FLASH.reasoning,
+}
 
 /**
  * Each chat model's reasoning levels, and whether it takes a token budget,
@@ -1515,62 +1444,14 @@ export const GEMINI_MODEL_INPUT_MODALITIES: Readonly<
  * that is not here does not reason.
  */
 export type GeminiModelReasoningByName = {
-  [GEMINI_3_8_FLASH.name]: ModelReasoningCapability<
-    typeof GEMINI_3_8_FLASH.reasoning
-  >
-  [GEMINI_3_7_FLASH.name]: ModelReasoningCapability<
-    typeof GEMINI_3_7_FLASH.reasoning
-  >
-  [GEMINI_3_6_FLASH.name]: ModelReasoningCapability<
-    typeof GEMINI_3_6_FLASH.reasoning
-  >
-  [GEMINI_3_5_FLASH.name]: ModelReasoningCapability<
-    typeof GEMINI_3_5_FLASH.reasoning
-  >
-  [GEMINI_3_5_FLASH_LITE.name]: ModelReasoningCapability<
-    typeof GEMINI_3_5_FLASH_LITE.reasoning
-  >
-  [GEMINI_3_1_PRO.name]: ModelReasoningCapability<
-    typeof GEMINI_3_1_PRO.reasoning
-  >
-  [GEMINI_3_FLASH.name]: ModelReasoningCapability<
-    typeof GEMINI_3_FLASH.reasoning
-  >
-  [GEMINI_3_1_FLASH_LITE.name]: ModelReasoningCapability<
-    typeof GEMINI_3_1_FLASH_LITE.reasoning
-  >
-  [GEMINI_3_1_FLASH_LITE_PREVIEW.name]: ModelReasoningCapability<
-    typeof GEMINI_3_1_FLASH_LITE_PREVIEW.reasoning
-  >
-  [GEMINI_2_5_PRO.name]: ModelReasoningCapability<
-    typeof GEMINI_2_5_PRO.reasoning
-  >
-  [GEMINI_2_5_FLASH_LITE.name]: ModelReasoningCapability<
-    typeof GEMINI_2_5_FLASH_LITE.reasoning
-  >
-  [GEMINI_2_5_FLASH.name]: ModelReasoningCapability<
-    typeof GEMINI_2_5_FLASH.reasoning
+  [K in keyof typeof GEMINI_REASONING]: ModelReasoningCapability<
+    (typeof GEMINI_REASONING)[K]
   >
 }
 
 /**
- * Runtime map from chat model name to its reasoning data, for the text
- * adapter. `satisfies` keeps its keys equal to {@link GeminiModelReasoningByName}. An unknown
- * name gives `undefined`: the adapter sends no reasoning field.
+ * Runtime map from chat model name to its reasoning data, for the text adapter.
+ * An unknown name gives `undefined`: the adapter sends no reasoning field.
  */
 export const GEMINI_MODEL_REASONING: Readonly<Record<string, ModelReasoning>> =
-  {
-    [GEMINI_3_8_FLASH.name]: GEMINI_3_8_FLASH.reasoning,
-    [GEMINI_3_7_FLASH.name]: GEMINI_3_7_FLASH.reasoning,
-    [GEMINI_3_6_FLASH.name]: GEMINI_3_6_FLASH.reasoning,
-    [GEMINI_3_5_FLASH.name]: GEMINI_3_5_FLASH.reasoning,
-    [GEMINI_3_5_FLASH_LITE.name]: GEMINI_3_5_FLASH_LITE.reasoning,
-    [GEMINI_3_1_PRO.name]: GEMINI_3_1_PRO.reasoning,
-    [GEMINI_3_FLASH.name]: GEMINI_3_FLASH.reasoning,
-    [GEMINI_3_1_FLASH_LITE.name]: GEMINI_3_1_FLASH_LITE.reasoning,
-    [GEMINI_3_1_FLASH_LITE_PREVIEW.name]:
-      GEMINI_3_1_FLASH_LITE_PREVIEW.reasoning,
-    [GEMINI_2_5_PRO.name]: GEMINI_2_5_PRO.reasoning,
-    [GEMINI_2_5_FLASH_LITE.name]: GEMINI_2_5_FLASH_LITE.reasoning,
-    [GEMINI_2_5_FLASH.name]: GEMINI_2_5_FLASH.reasoning,
-  } satisfies Record<keyof GeminiModelReasoningByName, ModelReasoning>
+  GEMINI_REASONING

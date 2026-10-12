@@ -66,14 +66,13 @@ chat({ adapter: plainModel, messages })
 
 // A model's levels, derived from its reasoning data.
 const metaData = {
-  map: { off: null, minimal: null, low: 'low', high: 'high', max: 'max' },
+  levels: { low: 'low', high: 'high', max: 'max' },
   budget: false,
 } as const
 expectTypeOf<ModelReasoningCapability<typeof metaData>>().toEqualTypeOf<{
-  levels: 'low' | 'medium' | 'high' | 'max'
+  levels: 'low' | 'high' | 'max'
   budget: false
 }>()
-expectTypeOf<ModelReasoningCapability<{ budget: true }>>().toEqualTypeOf<{
-  levels: 'off' | 'minimal' | 'low' | 'medium' | 'high'
-  budget: true
-}>()
+expectTypeOf<
+  ModelReasoningCapability<{ levels: {}; budget: true }>
+>().toEqualTypeOf<{ levels: never; budget: true }>()

@@ -1,4 +1,3 @@
-import type { ModelReasoning } from '@tanstack/ai'
 import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
 import type {
   OllamaChatRequest,
@@ -9,6 +8,13 @@ import type {
   OllamaModelMeta,
 } from './models-meta'
 
+// Reasoning shapes: the levels a model has for `chat({ reasoning })`, and
+// the provider value to send for each. Each model points at one of them.
+const EFFORT_FALSE_TRUE = {
+  levels: { off: 'false', high: 'true' },
+  budget: false,
+} as const
+
 const DEEPSEEK_R1_LATEST = {
   name: 'deepseek-r1:latest',
   supports: {
@@ -18,10 +24,7 @@ const DEEPSEEK_R1_LATEST = {
   },
   size: '5.2gb',
   context: 128_000,
-  reasoning: {
-    map: { off: 'false', minimal: null, low: null, medium: null, high: 'true' },
-    budget: false,
-  },
+  reasoning: EFFORT_FALSE_TRUE,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
@@ -37,10 +40,7 @@ const DEEPSEEK_R1_1_5b = {
   },
   size: '1.1gb',
   context: 128_000,
-  reasoning: {
-    map: { off: 'false', minimal: null, low: null, medium: null, high: 'true' },
-    budget: false,
-  },
+  reasoning: EFFORT_FALSE_TRUE,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
@@ -56,10 +56,7 @@ const DEEPSEEK_R1_7b = {
   },
   size: '4.7gb',
   context: 128_000,
-  reasoning: {
-    map: { off: 'false', minimal: null, low: null, medium: null, high: 'true' },
-    budget: false,
-  },
+  reasoning: EFFORT_FALSE_TRUE,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
@@ -75,10 +72,7 @@ const DEEPSEEK_R1_8b = {
   },
   size: '5.2gb',
   context: 128_000,
-  reasoning: {
-    map: { off: 'false', minimal: null, low: null, medium: null, high: 'true' },
-    budget: false,
-  },
+  reasoning: EFFORT_FALSE_TRUE,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
@@ -94,10 +88,7 @@ const DEEPSEEK_R1_32b = {
   },
   size: '20gb',
   context: 128_000,
-  reasoning: {
-    map: { off: 'false', minimal: null, low: null, medium: null, high: 'true' },
-    budget: false,
-  },
+  reasoning: EFFORT_FALSE_TRUE,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
@@ -113,10 +104,7 @@ const DEEPSEEK_R1_70b = {
   },
   size: '43gb',
   context: 128_000,
-  reasoning: {
-    map: { off: 'false', minimal: null, low: null, medium: null, high: 'true' },
-    budget: false,
-  },
+  reasoning: EFFORT_FALSE_TRUE,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
@@ -132,10 +120,7 @@ const DEEPSEEK_R1_671b = {
   },
   size: '404gb',
   context: 160_000,
-  reasoning: {
-    map: { off: 'false', minimal: null, low: null, medium: null, high: 'true' },
-    budget: false,
-  },
+  reasoning: EFFORT_FALSE_TRUE,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
@@ -199,31 +184,6 @@ export type DeepseekR1ModelInputModalitiesByName = {
   [DEEPSEEK_R1_671b.name]: typeof DEEPSEEK_R1_671b.supports.input
 }
 
-/** Each model's reasoning levels, for `chat({ reasoning })`. */
-export type DeepseekR1ModelReasoningByName = {
-  [DEEPSEEK_R1_LATEST.name]: ModelReasoningCapability<
-    typeof DEEPSEEK_R1_LATEST.reasoning
-  >
-  [DEEPSEEK_R1_1_5b.name]: ModelReasoningCapability<
-    typeof DEEPSEEK_R1_1_5b.reasoning
-  >
-  [DEEPSEEK_R1_7b.name]: ModelReasoningCapability<
-    typeof DEEPSEEK_R1_7b.reasoning
-  >
-  [DEEPSEEK_R1_8b.name]: ModelReasoningCapability<
-    typeof DEEPSEEK_R1_8b.reasoning
-  >
-  [DEEPSEEK_R1_32b.name]: ModelReasoningCapability<
-    typeof DEEPSEEK_R1_32b.reasoning
-  >
-  [DEEPSEEK_R1_70b.name]: ModelReasoningCapability<
-    typeof DEEPSEEK_R1_70b.reasoning
-  >
-  [DEEPSEEK_R1_671b.name]: ModelReasoningCapability<
-    typeof DEEPSEEK_R1_671b.reasoning
-  >
-}
-
 /** Each model's reasoning data at runtime. */
 export const DEEPSEEK_R1_MODEL_REASONING = {
   [DEEPSEEK_R1_LATEST.name]: DEEPSEEK_R1_LATEST.reasoning,
@@ -233,4 +193,11 @@ export const DEEPSEEK_R1_MODEL_REASONING = {
   [DEEPSEEK_R1_32b.name]: DEEPSEEK_R1_32b.reasoning,
   [DEEPSEEK_R1_70b.name]: DEEPSEEK_R1_70b.reasoning,
   [DEEPSEEK_R1_671b.name]: DEEPSEEK_R1_671b.reasoning,
-} satisfies Record<keyof DeepseekR1ModelReasoningByName, ModelReasoning>
+}
+
+/** Each model's reasoning levels, for `chat({ reasoning })`. */
+export type DeepseekR1ModelReasoningByName = {
+  [K in keyof typeof DEEPSEEK_R1_MODEL_REASONING]: ModelReasoningCapability<
+    (typeof DEEPSEEK_R1_MODEL_REASONING)[K]
+  >
+}

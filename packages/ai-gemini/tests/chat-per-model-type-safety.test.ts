@@ -121,7 +121,7 @@ describe('Gemini per-model chat modelOptions gating', () => {
       })
     })
 
-    it('Gemini 2.5 models take off and a token budget', () => {
+    it('Gemini 2.5 models take a token budget, and Flash takes off', () => {
       chat({
         adapter: geminiText('gemini-2.5-pro'),
         messages: [{ role: 'user', content: 'hi' }],
@@ -130,6 +130,12 @@ describe('Gemini per-model chat modelOptions gating', () => {
       chat({
         adapter: geminiText('gemini-2.5-flash'),
         messages: [{ role: 'user', content: 'hi' }],
+        reasoning: 'off',
+      })
+      chat({
+        adapter: geminiText('gemini-2.5-pro'),
+        messages: [{ role: 'user', content: 'hi' }],
+        // @ts-expect-error - gemini-2.5-pro cannot turn thinking off
         reasoning: 'off',
       })
     })

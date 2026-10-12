@@ -1946,7 +1946,7 @@ describe('OpenRouter modelOptions pass-through', () => {
 
   it('sends effort none for reasoning off (#1006)', async () => {
     setupMockSdkClient(minimalStreamChunks)
-    const adapter = createOpenRouterText('deepseek/deepseek-r1', 'test-key')
+    const adapter = createOpenRouterText('deepseek/deepseek-v3.2', 'test-key')
 
     for await (const _ of chat({
       adapter,

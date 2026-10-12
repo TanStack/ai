@@ -3,6 +3,8 @@ import { chat } from '@tanstack/ai'
 import { createGeminiChat } from '@tanstack/ai-gemini'
 import { createAnthropicChat } from '@tanstack/ai-anthropic'
 import { createOpenaiChat } from '@tanstack/ai-openai'
+import { grokVertexText } from '@tanstack/ai-grok/vertex'
+import { vertexE2eAuthClient } from '@/lib/vertex-e2e'
 import type {
   AnyTextAdapter,
   FetchWrapper,
@@ -20,6 +22,9 @@ const geminiReasoning: ReasoningRequest = {
   summary: true,
   budgetTokens: 8192,
 }
+// grok-4.20-reasoning always thinks and has no levels, so even `off` sends
+// no reasoning field.
+const grokReasoning: ReasoningRequest = { level: 'off', summary: true }
 const messages = [
   {
     role: 'user' as const,
@@ -59,17 +64,30 @@ export const Route = createFileRoute('/api/reasoning-wire')({
                   baseURL: LLMOCK_DEFAULT_BASE,
                   defaultHeaders: headers,
                 })
-              : createOpenaiChat('o3', DUMMY_KEY, {
-                  baseURL: `${LLMOCK_DEFAULT_BASE}/v1`,
-                  defaultHeaders: headers,
-                })
+              : provider === 'grok'
+                ? grokVertexText('grok-4.20-reasoning', {
+                    project: 'e2e-project',
+                    location: 'global',
+                    baseURL: `${LLMOCK_DEFAULT_BASE}/v1`,
+                    authClient: vertexE2eAuthClient(),
+                    defaultHeaders: headers,
+                  })
+                : createOpenaiChat('o3', DUMMY_KEY, {
+                    baseURL: `${LLMOCK_DEFAULT_BASE}/v1`,
+                    defaultHeaders: headers,
+                  })
 
         let text = ''
         try {
           for await (const chunk of chat({
             adapter,
             messages,
-            reasoning: provider === 'gemini' ? geminiReasoning : reasoning,
+            reasoning:
+              provider === 'gemini'
+                ? geminiReasoning
+                : provider === 'grok'
+                  ? grokReasoning
+                  : reasoning,
             wrapFetch: capture,
           })) {
             if (chunk.type === 'TEXT_MESSAGE_CONTENT') text += chunk.delta

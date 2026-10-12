@@ -4,55 +4,32 @@ import {
   clampReasoningLevel,
   normalizeReasoning,
   reasoningBudget,
-  reasoningValue,
   resolveReasoning,
   supportedReasoningLevels,
 } from '../src/reasoning'
 import { createMockAdapter, ev } from './test-utils'
 import type { ModelReasoning, ReasoningLevel } from '../src/reasoning'
 
-describe('supportedReasoningLevels (pi rules)', () => {
-  it('a model that does not reason supports only off', () => {
+describe('supportedReasoningLevels', () => {
+  it('a model that does not reason, or has no data, supports only off', () => {
     expect(supportedReasoningLevels(false)).toEqual(['off'])
+    expect(supportedReasoningLevels(undefined)).toEqual(['off'])
   })
 
-  it('a reasoning model with no map supports off to high, not xhigh or max', () => {
-    expect(supportedReasoningLevels({ budget: false })).toEqual([
-      'off',
-      'minimal',
-      'low',
-      'medium',
-      'high',
-    ])
-    expect(supportedReasoningLevels(undefined)).toEqual(
-      supportedReasoningLevels({ budget: false }),
-    )
-  })
-
-  it('drops a level mapped to null, and needs an entry for xhigh and max', () => {
+  it('supports only the listed levels, from least to most thinking', () => {
     const reasoning: ModelReasoning = {
       budget: false,
-      map: { off: null, minimal: null, medium: null, xhigh: 'xhigh' },
+      levels: { xhigh: 'xhigh', off: 'none', low: 'low' },
     }
-    expect(supportedReasoningLevels(reasoning)).toEqual([
-      'low',
-      'high',
-      'xhigh',
-    ])
+    expect(supportedReasoningLevels(reasoning)).toEqual(['off', 'low', 'xhigh'])
+    expect(supportedReasoningLevels({ budget: false, levels: {} })).toEqual([])
   })
 })
 
 describe('clampReasoningLevel (pi rules)', () => {
   const lowHighMax: ModelReasoning = {
     budget: false,
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: null,
-      high: 'high',
-      max: 'max',
-    },
+    levels: { low: 'low', high: 'high', max: 'max' },
   }
 
   it.each<[ReasoningLevel, ReasoningLevel]>([
@@ -67,8 +44,12 @@ describe('clampReasoningLevel (pi rules)', () => {
   })
 
   it('goes below when there is nothing above', () => {
-    expect(clampReasoningLevel({ budget: false }, 'max')).toBe('high')
-    expect(clampReasoningLevel({ budget: false }, 'xhigh')).toBe('high')
+    const offToHigh: ModelReasoning = {
+      budget: false,
+      levels: { off: 'off', low: 'low', high: 'high' },
+    }
+    expect(clampReasoningLevel(offToHigh, 'max')).toBe('high')
+    expect(clampReasoningLevel(offToHigh, 'xhigh')).toBe('high')
   })
 
   it('gives off for a model that does not reason', () => {
@@ -76,20 +57,7 @@ describe('clampReasoningLevel (pi rules)', () => {
   })
 })
 
-describe('reasoningValue and reasoningBudget', () => {
-  it('sends the map value, else the level name, and null for "send nothing"', () => {
-    const reasoning: ModelReasoning = {
-      budget: false,
-      map: { off: 'none', high: 'HIGH' },
-    }
-    expect(reasoningValue(reasoning, 'off')).toBe('none')
-    expect(reasoningValue(reasoning, 'high')).toBe('HIGH')
-    expect(reasoningValue(reasoning, 'low')).toBe('low')
-    expect(reasoningValue({ budget: false, map: { off: null } }, 'off')).toBe(
-      null,
-    )
-  })
-
+describe('reasoningBudget', () => {
   it("uses pi's budget table unless budgetTokens is set", () => {
     expect(reasoningBudget({ level: 'minimal', summary: true })).toBe(1024)
     expect(reasoningBudget({ level: 'medium', summary: true })).toBe(8192)
@@ -160,16 +128,31 @@ describe('chat({ reasoning })', () => {
 
 describe('resolveReasoning', () => {
   it('clamps the level and gives its value', () => {
+    const reasoning: ModelReasoning = {
+      budget: false,
+      levels: { off: 'none', high: 'HIGH' },
+    }
     expect(
-      resolveReasoning(
-        { level: 'medium', summary: true },
-        { budget: false, map: { medium: null, high: 'HIGH' } },
-      ),
+      resolveReasoning({ level: 'medium', summary: true }, reasoning),
     ).toEqual({ level: 'high', value: 'HIGH', summary: true })
+    expect(
+      resolveReasoning({ level: 'off', summary: true }, reasoning),
+    ).toEqual({ level: 'off', value: 'none', summary: true })
   })
 
-  it('gives nothing to send without a request or for a model that does not reason', () => {
-    expect(resolveReasoning(undefined, { budget: false })).toBeUndefined()
+  it('gives nothing to send without a request, for a model that does not reason, or one with no levels', () => {
+    expect(
+      resolveReasoning(undefined, { budget: false, levels: { high: 'high' } }),
+    ).toBeUndefined()
+    expect(
+      resolveReasoning(
+        { level: 'high', summary: true },
+        {
+          budget: true,
+          levels: {},
+        },
+      ),
+    ).toBeUndefined()
     expect(
       resolveReasoning({ level: 'high', summary: true }, false),
     ).toBeUndefined()

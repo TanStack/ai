@@ -6,6 +6,17 @@ import type {
   MistralEmbedProviderOptions,
 } from './embedding/embedding-provider-options'
 
+// Reasoning shapes: the levels a model has for `chat({ reasoning })`, and
+// the provider value to send for each. Each model points at one of them.
+const EFFORT_NONE_HIGH = {
+  levels: { off: 'none', high: 'high' },
+  budget: false,
+} as const
+const EFFORT_OFF_HIGH = {
+  levels: { off: 'off', high: 'high' },
+  budget: false,
+} as const
+
 /** Provider options for vision-capable Mistral models (pixtral-*). */
 export type MistralVisionProviderOptions = MistralTextProviderOptions
 
@@ -74,18 +85,7 @@ const MISTRAL_MEDIUM_LATEST = {
     endpoints: ['chat'],
     features: ['streaming', 'tools', 'json_object', 'json_schema', 'vision'],
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: null,
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_HIGH,
 } as const satisfies ModelMeta<MistralTextProviderOptions>
 
 const MISTRAL_SMALL_LATEST = {
@@ -102,18 +102,7 @@ const MISTRAL_SMALL_LATEST = {
     endpoints: ['chat'],
     features: ['streaming', 'tools', 'json_object', 'json_schema', 'vision'],
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: null,
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_HIGH,
 } as const satisfies ModelMeta<MistralTextProviderOptions>
 
 const MINISTRAL_8B_LATEST = {
@@ -210,7 +199,7 @@ const MAGISTRAL_MEDIUM_LATEST = {
     endpoints: ['chat'],
     features: ['streaming', 'tools', 'reasoning', 'json_object', 'json_schema'],
   },
-  reasoning: { budget: false },
+  reasoning: EFFORT_OFF_HIGH,
 } as const satisfies ModelMeta<MistralTextProviderOptions>
 
 const MAGISTRAL_SMALL_LATEST = {
@@ -228,7 +217,7 @@ const MAGISTRAL_SMALL_LATEST = {
     features: ['streaming', 'tools', 'reasoning', 'json_object', 'json_schema'],
   },
   // Not in models.dev. The same as Magistral Medium: prompt_mode only.
-  reasoning: { budget: false },
+  reasoning: EFFORT_OFF_HIGH,
 } as const satisfies ModelMeta<MistralTextProviderOptions>
 
 const OPEN_MISTRAL_NEMO = {
@@ -448,11 +437,18 @@ export type ResolveInputModalities<TModel extends string> =
 
 // Reasoning
 //
-// Each model's `reasoning` field holds its data for `chat({ reasoning })`:
-// the provider value for each level (`null`: the model does not have it),
-// and whether it takes a thinking token budget. The data comes from
-// models.dev. The generator that writes it comes with the model catalog
-// later. Until then, the sync scripts keep these fields as they are.
+// Each model's `reasoning` field holds its data for `chat({ reasoning })`: the
+// levels it has, with the provider value for each, and whether it takes a
+// thinking token budget. The data comes from models.dev. The generator that
+// writes it comes with the model catalog later. Until then, the sync scripts
+// keep these fields as they are.
+
+const MISTRAL_REASONING = {
+  [MISTRAL_MEDIUM_LATEST.name]: MISTRAL_MEDIUM_LATEST.reasoning,
+  [MISTRAL_SMALL_LATEST.name]: MISTRAL_SMALL_LATEST.reasoning,
+  [MAGISTRAL_MEDIUM_LATEST.name]: MAGISTRAL_MEDIUM_LATEST.reasoning,
+  [MAGISTRAL_SMALL_LATEST.name]: MAGISTRAL_SMALL_LATEST.reasoning,
+}
 
 /**
  * Each chat model's reasoning levels, and whether it takes a token budget,
@@ -460,29 +456,14 @@ export type ResolveInputModalities<TModel extends string> =
  * that is not here does not reason.
  */
 export type MistralModelReasoningByName = {
-  [MISTRAL_MEDIUM_LATEST.name]: ModelReasoningCapability<
-    typeof MISTRAL_MEDIUM_LATEST.reasoning
-  >
-  [MISTRAL_SMALL_LATEST.name]: ModelReasoningCapability<
-    typeof MISTRAL_SMALL_LATEST.reasoning
-  >
-  [MAGISTRAL_MEDIUM_LATEST.name]: ModelReasoningCapability<
-    typeof MAGISTRAL_MEDIUM_LATEST.reasoning
-  >
-  [MAGISTRAL_SMALL_LATEST.name]: ModelReasoningCapability<
-    typeof MAGISTRAL_SMALL_LATEST.reasoning
+  [K in keyof typeof MISTRAL_REASONING]: ModelReasoningCapability<
+    (typeof MISTRAL_REASONING)[K]
   >
 }
 
 /**
- * Runtime map from chat model name to its reasoning data, for the text
- * adapter. `satisfies` keeps its keys equal to {@link MistralModelReasoningByName}. An unknown
- * name gives `undefined`: the adapter sends no reasoning field.
+ * Runtime map from chat model name to its reasoning data, for the text adapter.
+ * An unknown name gives `undefined`: the adapter sends no reasoning field.
  */
 export const MISTRAL_MODEL_REASONING: Readonly<Record<string, ModelReasoning>> =
-  {
-    [MISTRAL_MEDIUM_LATEST.name]: MISTRAL_MEDIUM_LATEST.reasoning,
-    [MISTRAL_SMALL_LATEST.name]: MISTRAL_SMALL_LATEST.reasoning,
-    [MAGISTRAL_MEDIUM_LATEST.name]: MAGISTRAL_MEDIUM_LATEST.reasoning,
-    [MAGISTRAL_SMALL_LATEST.name]: MAGISTRAL_SMALL_LATEST.reasoning,
-  } satisfies Record<keyof MistralModelReasoningByName, ModelReasoning>
+  MISTRAL_REASONING

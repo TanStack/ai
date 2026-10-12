@@ -121,7 +121,6 @@ export function opencodeReasoningOptions(
       },
     }
   }
-  if (resolved.value === null) return undefined
   return {
     reasoningEffort: resolved.value,
     ...(resolved.summary && resolved.level !== 'off'

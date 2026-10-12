@@ -81,15 +81,19 @@ describe('applyChatModelCatalogInserts', () => {
 
   it('keeps the reasoning maps as they are', () => {
     const reasoning = `
+const ANTHROPIC_REASONING = {
+  [FOO.id]: FOO.reasoning,
+}
+
 export type AnthropicModelReasoningByName = {
-  [FOO.id]: ModelReasoningCapability<typeof FOO.reasoning>
+  [K in keyof typeof ANTHROPIC_REASONING]: ModelReasoningCapability<
+    (typeof ANTHROPIC_REASONING)[K]
+  >
 }
 
 export const ANTHROPIC_MODEL_REASONING: Readonly<
   Record<string, ModelReasoning>
-> = {
-  [FOO.id]: FOO.reasoning,
-} satisfies Record<keyof AnthropicModelReasoningByName, ModelReasoning>
+> = ANTHROPIC_REASONING
 `
     const result = applyChatModelCatalogInserts(
       STUB + reasoning,

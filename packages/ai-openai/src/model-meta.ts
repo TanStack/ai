@@ -9,6 +9,58 @@ import type {
 } from './text/text-provider-options'
 import type { OpenAIEmbeddingProviderOptions } from './embedding/embedding-provider-options'
 
+// Reasoning shapes: the levels a model has for `chat({ reasoning })`, and
+// the provider value to send for each. Each model points at one of them.
+const EFFORT_HIGH = { levels: { high: 'high' }, budget: false } as const
+const EFFORT_LOW_TO_HIGH = {
+  levels: { low: 'low', medium: 'medium', high: 'high' },
+  budget: false,
+} as const
+const EFFORT_LOW_TO_MAX = {
+  levels: {
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    xhigh: 'xhigh',
+    max: 'max',
+  },
+  budget: false,
+} as const
+const EFFORT_MEDIUM = { levels: { medium: 'medium' }, budget: false } as const
+const EFFORT_MEDIUM_TO_XHIGH = {
+  levels: { medium: 'medium', high: 'high', xhigh: 'xhigh' },
+  budget: false,
+} as const
+const EFFORT_MINIMAL_TO_HIGH = {
+  levels: { minimal: 'minimal', low: 'low', medium: 'medium', high: 'high' },
+  budget: false,
+} as const
+const EFFORT_NONE_LOW_TO_HIGH = {
+  levels: { off: 'none', low: 'low', medium: 'medium', high: 'high' },
+  budget: false,
+} as const
+const EFFORT_NONE_LOW_TO_MAX = {
+  levels: {
+    off: 'none',
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    xhigh: 'xhigh',
+    max: 'max',
+  },
+  budget: false,
+} as const
+const EFFORT_NONE_LOW_TO_XHIGH = {
+  levels: {
+    off: 'none',
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    xhigh: 'xhigh',
+  },
+  budget: false,
+} as const
+
 interface ModelMeta<TProviderOptions = unknown> {
   name: string
   supports: {
@@ -108,18 +160,7 @@ const GPT5_2 = {
       normal: 14,
     },
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -158,18 +199,7 @@ const GPT5_2_PRO = {
       normal: 168,
     },
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: null,
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MEDIUM_TO_XHIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIToolsOptions &
@@ -205,18 +235,7 @@ const GPT5_2_CHAT = {
       normal: 14,
     },
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: null,
-      medium: 'medium',
-      high: null,
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MEDIUM,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -261,18 +280,7 @@ const GPT5_1 = {
       normal: 10,
     },
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_HIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -309,18 +317,7 @@ const GPT5_1_CODEX = {
       normal: 10,
     },
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -366,18 +363,7 @@ const GPT5 = {
       normal: 10,
     },
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -418,18 +404,7 @@ const GPT5_MINI = {
       normal: 2,
     },
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -470,18 +445,7 @@ const GPT5_NANO = {
       'apply_patch',
     ],
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: 'minimal',
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -521,18 +485,7 @@ const GPT5_PRO = {
       'apply_patch',
     ],
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: null,
-      medium: null,
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_HIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -569,18 +522,7 @@ const GPT5_CODEX = {
       'apply_patch',
     ],
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -852,18 +794,7 @@ const O3_PRO = {
       'apply_patch',
     ],
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -1016,18 +947,7 @@ const O3 = {
       'apply_patch',
     ],
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -1073,18 +993,7 @@ const O4_MINI = {
       'apply_patch',
     ],
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -1268,18 +1177,7 @@ const O1_PRO = {
     features: ['function_calling', 'structured_outputs'],
     tools: ['file_search', 'code_interpreter', 'mcp'],
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -1395,18 +1293,7 @@ const O3_MINI = {
       'apply_patch',
     ],
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -1492,18 +1379,7 @@ const O1 = {
     features: ['function_calling', 'structured_outputs', 'streaming'],
     tools: ['file_search', 'code_interpreter', 'mcp'],
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -1769,18 +1645,7 @@ const GPT_5_1_CODEX_MINI = {
       'apply_patch',
     ],
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -2165,18 +2030,7 @@ const GPT_5_4_MINI = {
       normal: 4.5,
     },
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -2221,18 +2075,7 @@ const GPT_5_4_NANO = {
       normal: 1.25,
     },
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -2277,18 +2120,7 @@ const GPT_5_4_IMAGE_2 = {
       normal: 15,
     },
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -2334,18 +2166,7 @@ const GPT_5_6 = {
       normal: 30,
     },
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -2391,18 +2212,7 @@ const GPT_5_6_SOL = {
       normal: 30,
     },
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -2448,18 +2258,7 @@ const GPT_5_6_TERRA = {
       normal: 12,
     },
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -2505,18 +2304,7 @@ const GPT_5_6_LUNA = {
       normal: 1.2,
     },
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -2561,18 +2349,7 @@ const GPT_5_5 = {
       normal: 30,
     },
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -2616,18 +2393,7 @@ const GPT_5_5_PRO = {
       normal: 180,
     },
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: null,
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_MEDIUM_TO_XHIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -2672,18 +2438,7 @@ const GPT_CHAT_LATEST = {
       normal: 30,
     },
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: null,
-      max: null,
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -2712,18 +2467,7 @@ const GPT_5_6_LUNA_PRO = {
       normal: 1.2,
     },
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -2752,18 +2496,7 @@ const GPT_5_6_SOL_PRO = {
       normal: 15,
     },
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -2792,18 +2525,7 @@ const GPT_5_6_TERRA_PRO = {
       normal: 12,
     },
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -2841,18 +2563,7 @@ const GPT_6_ASTRA = {
       normal: 50,
     },
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -2881,18 +2592,7 @@ const GPT_6_ASTRA_PRO = {
       normal: 50,
     },
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -2930,18 +2630,7 @@ const GPT_6_LUNA = {
       normal: 0.5,
     },
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -2970,18 +2659,7 @@ const GPT_6_LUNA_PRO = {
       normal: 0.5,
     },
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -3019,18 +2697,7 @@ const GPT_6_SOL = {
       normal: 10,
     },
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -3059,18 +2726,7 @@ const GPT_6_SOL_PRO = {
       normal: 10,
     },
   },
-  reasoning: {
-    map: {
-      off: 'none',
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -3110,18 +2766,7 @@ const GPT_6_1_SOL = {
       normal: 10,
     },
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -3161,18 +2806,7 @@ const GPT_6_1_SOL_PRO = {
       normal: 10,
     },
   },
-  reasoning: {
-    map: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    budget: false,
-  },
+  reasoning: EFFORT_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -3846,11 +3480,52 @@ export const OPENAI_MODEL_INPUT_MODALITIES: Readonly<
 
 // Reasoning
 //
-// Each model's `reasoning` field holds its data for `chat({ reasoning })`:
-// the provider value for each level (`null`: the model does not have it),
-// and whether it takes a thinking token budget. The data comes from
-// models.dev. The generator that writes it comes with the model catalog
-// later. Until then, the sync scripts keep these fields as they are.
+// Each model's `reasoning` field holds its data for `chat({ reasoning })`: the
+// levels it has, with the provider value for each, and whether it takes a
+// thinking token budget. The data comes from models.dev. The generator that
+// writes it comes with the model catalog later. Until then, the sync scripts
+// keep these fields as they are.
+
+const OPENAI_REASONING = {
+  [GPT5_2.name]: GPT5_2.reasoning,
+  [GPT5_2_PRO.name]: GPT5_2_PRO.reasoning,
+  [GPT5_2_CHAT.name]: GPT5_2_CHAT.reasoning,
+  [GPT5_1.name]: GPT5_1.reasoning,
+  [GPT5_1_CODEX.name]: GPT5_1_CODEX.reasoning,
+  [GPT5.name]: GPT5.reasoning,
+  [GPT5_MINI.name]: GPT5_MINI.reasoning,
+  [GPT5_NANO.name]: GPT5_NANO.reasoning,
+  [GPT5_PRO.name]: GPT5_PRO.reasoning,
+  [GPT5_CODEX.name]: GPT5_CODEX.reasoning,
+  [GPT_5_1_CODEX_MINI.name]: GPT_5_1_CODEX_MINI.reasoning,
+  [O3.name]: O3.reasoning,
+  [O3_PRO.name]: O3_PRO.reasoning,
+  [O4_MINI.name]: O4_MINI.reasoning,
+  [O1.name]: O1.reasoning,
+  [O1_PRO.name]: O1_PRO.reasoning,
+  [O3_MINI.name]: O3_MINI.reasoning,
+  [GPT_5_4_MINI.name]: GPT_5_4_MINI.reasoning,
+  [GPT_5_4_NANO.name]: GPT_5_4_NANO.reasoning,
+  [GPT_5_4_IMAGE_2.name]: GPT_5_4_IMAGE_2.reasoning,
+  [GPT_5_6.name]: GPT_5_6.reasoning,
+  [GPT_5_6_SOL.name]: GPT_5_6_SOL.reasoning,
+  [GPT_5_6_TERRA.name]: GPT_5_6_TERRA.reasoning,
+  [GPT_5_6_LUNA.name]: GPT_5_6_LUNA.reasoning,
+  [GPT_5_5.name]: GPT_5_5.reasoning,
+  [GPT_5_5_PRO.name]: GPT_5_5_PRO.reasoning,
+  [GPT_CHAT_LATEST.name]: GPT_CHAT_LATEST.reasoning,
+  [GPT_5_6_LUNA_PRO.name]: GPT_5_6_LUNA_PRO.reasoning,
+  [GPT_5_6_SOL_PRO.name]: GPT_5_6_SOL_PRO.reasoning,
+  [GPT_5_6_TERRA_PRO.name]: GPT_5_6_TERRA_PRO.reasoning,
+  [GPT_6_ASTRA.name]: GPT_6_ASTRA.reasoning,
+  [GPT_6_ASTRA_PRO.name]: GPT_6_ASTRA_PRO.reasoning,
+  [GPT_6_LUNA.name]: GPT_6_LUNA.reasoning,
+  [GPT_6_LUNA_PRO.name]: GPT_6_LUNA_PRO.reasoning,
+  [GPT_6_SOL.name]: GPT_6_SOL.reasoning,
+  [GPT_6_SOL_PRO.name]: GPT_6_SOL_PRO.reasoning,
+  [GPT_6_1_SOL.name]: GPT_6_1_SOL.reasoning,
+  [GPT_6_1_SOL_PRO.name]: GPT_6_1_SOL_PRO.reasoning,
+}
 
 /**
  * Each chat model's reasoning levels, and whether it takes a token budget,
@@ -3858,107 +3533,14 @@ export const OPENAI_MODEL_INPUT_MODALITIES: Readonly<
  * that is not here does not reason.
  */
 export type OpenAIModelReasoningByName = {
-  [GPT5_2.name]: ModelReasoningCapability<typeof GPT5_2.reasoning>
-  [GPT5_2_PRO.name]: ModelReasoningCapability<typeof GPT5_2_PRO.reasoning>
-  [GPT5_2_CHAT.name]: ModelReasoningCapability<typeof GPT5_2_CHAT.reasoning>
-  [GPT5_1.name]: ModelReasoningCapability<typeof GPT5_1.reasoning>
-  [GPT5_1_CODEX.name]: ModelReasoningCapability<typeof GPT5_1_CODEX.reasoning>
-  [GPT5.name]: ModelReasoningCapability<typeof GPT5.reasoning>
-  [GPT5_MINI.name]: ModelReasoningCapability<typeof GPT5_MINI.reasoning>
-  [GPT5_NANO.name]: ModelReasoningCapability<typeof GPT5_NANO.reasoning>
-  [GPT5_PRO.name]: ModelReasoningCapability<typeof GPT5_PRO.reasoning>
-  [GPT5_CODEX.name]: ModelReasoningCapability<typeof GPT5_CODEX.reasoning>
-  [GPT_5_1_CODEX_MINI.name]: ModelReasoningCapability<
-    typeof GPT_5_1_CODEX_MINI.reasoning
-  >
-  [O3.name]: ModelReasoningCapability<typeof O3.reasoning>
-  [O3_PRO.name]: ModelReasoningCapability<typeof O3_PRO.reasoning>
-  [O4_MINI.name]: ModelReasoningCapability<typeof O4_MINI.reasoning>
-  [O1.name]: ModelReasoningCapability<typeof O1.reasoning>
-  [O1_PRO.name]: ModelReasoningCapability<typeof O1_PRO.reasoning>
-  [O3_MINI.name]: ModelReasoningCapability<typeof O3_MINI.reasoning>
-  [GPT_5_4_MINI.name]: ModelReasoningCapability<typeof GPT_5_4_MINI.reasoning>
-  [GPT_5_4_NANO.name]: ModelReasoningCapability<typeof GPT_5_4_NANO.reasoning>
-  [GPT_5_4_IMAGE_2.name]: ModelReasoningCapability<
-    typeof GPT_5_4_IMAGE_2.reasoning
-  >
-  [GPT_5_6.name]: ModelReasoningCapability<typeof GPT_5_6.reasoning>
-  [GPT_5_6_SOL.name]: ModelReasoningCapability<typeof GPT_5_6_SOL.reasoning>
-  [GPT_5_6_TERRA.name]: ModelReasoningCapability<typeof GPT_5_6_TERRA.reasoning>
-  [GPT_5_6_LUNA.name]: ModelReasoningCapability<typeof GPT_5_6_LUNA.reasoning>
-  [GPT_5_5.name]: ModelReasoningCapability<typeof GPT_5_5.reasoning>
-  [GPT_5_5_PRO.name]: ModelReasoningCapability<typeof GPT_5_5_PRO.reasoning>
-  [GPT_CHAT_LATEST.name]: ModelReasoningCapability<
-    typeof GPT_CHAT_LATEST.reasoning
-  >
-  [GPT_5_6_LUNA_PRO.name]: ModelReasoningCapability<
-    typeof GPT_5_6_LUNA_PRO.reasoning
-  >
-  [GPT_5_6_SOL_PRO.name]: ModelReasoningCapability<
-    typeof GPT_5_6_SOL_PRO.reasoning
-  >
-  [GPT_5_6_TERRA_PRO.name]: ModelReasoningCapability<
-    typeof GPT_5_6_TERRA_PRO.reasoning
-  >
-  [GPT_6_ASTRA.name]: ModelReasoningCapability<typeof GPT_6_ASTRA.reasoning>
-  [GPT_6_ASTRA_PRO.name]: ModelReasoningCapability<
-    typeof GPT_6_ASTRA_PRO.reasoning
-  >
-  [GPT_6_LUNA.name]: ModelReasoningCapability<typeof GPT_6_LUNA.reasoning>
-  [GPT_6_LUNA_PRO.name]: ModelReasoningCapability<
-    typeof GPT_6_LUNA_PRO.reasoning
-  >
-  [GPT_6_SOL.name]: ModelReasoningCapability<typeof GPT_6_SOL.reasoning>
-  [GPT_6_SOL_PRO.name]: ModelReasoningCapability<typeof GPT_6_SOL_PRO.reasoning>
-  [GPT_6_1_SOL.name]: ModelReasoningCapability<typeof GPT_6_1_SOL.reasoning>
-  [GPT_6_1_SOL_PRO.name]: ModelReasoningCapability<
-    typeof GPT_6_1_SOL_PRO.reasoning
+  [K in keyof typeof OPENAI_REASONING]: ModelReasoningCapability<
+    (typeof OPENAI_REASONING)[K]
   >
 }
 
 /**
- * Runtime map from chat model name to its reasoning data, for the text
- * adapter. `satisfies` keeps its keys equal to {@link OpenAIModelReasoningByName}. An unknown
- * name gives `undefined`: the adapter sends no reasoning field.
+ * Runtime map from chat model name to its reasoning data, for the text adapter.
+ * An unknown name gives `undefined`: the adapter sends no reasoning field.
  */
 export const OPENAI_MODEL_REASONING: Readonly<Record<string, ModelReasoning>> =
-  {
-    [GPT5_2.name]: GPT5_2.reasoning,
-    [GPT5_2_PRO.name]: GPT5_2_PRO.reasoning,
-    [GPT5_2_CHAT.name]: GPT5_2_CHAT.reasoning,
-    [GPT5_1.name]: GPT5_1.reasoning,
-    [GPT5_1_CODEX.name]: GPT5_1_CODEX.reasoning,
-    [GPT5.name]: GPT5.reasoning,
-    [GPT5_MINI.name]: GPT5_MINI.reasoning,
-    [GPT5_NANO.name]: GPT5_NANO.reasoning,
-    [GPT5_PRO.name]: GPT5_PRO.reasoning,
-    [GPT5_CODEX.name]: GPT5_CODEX.reasoning,
-    [GPT_5_1_CODEX_MINI.name]: GPT_5_1_CODEX_MINI.reasoning,
-    [O3.name]: O3.reasoning,
-    [O3_PRO.name]: O3_PRO.reasoning,
-    [O4_MINI.name]: O4_MINI.reasoning,
-    [O1.name]: O1.reasoning,
-    [O1_PRO.name]: O1_PRO.reasoning,
-    [O3_MINI.name]: O3_MINI.reasoning,
-    [GPT_5_4_MINI.name]: GPT_5_4_MINI.reasoning,
-    [GPT_5_4_NANO.name]: GPT_5_4_NANO.reasoning,
-    [GPT_5_4_IMAGE_2.name]: GPT_5_4_IMAGE_2.reasoning,
-    [GPT_5_6.name]: GPT_5_6.reasoning,
-    [GPT_5_6_SOL.name]: GPT_5_6_SOL.reasoning,
-    [GPT_5_6_TERRA.name]: GPT_5_6_TERRA.reasoning,
-    [GPT_5_6_LUNA.name]: GPT_5_6_LUNA.reasoning,
-    [GPT_5_5.name]: GPT_5_5.reasoning,
-    [GPT_5_5_PRO.name]: GPT_5_5_PRO.reasoning,
-    [GPT_CHAT_LATEST.name]: GPT_CHAT_LATEST.reasoning,
-    [GPT_5_6_LUNA_PRO.name]: GPT_5_6_LUNA_PRO.reasoning,
-    [GPT_5_6_SOL_PRO.name]: GPT_5_6_SOL_PRO.reasoning,
-    [GPT_5_6_TERRA_PRO.name]: GPT_5_6_TERRA_PRO.reasoning,
-    [GPT_6_ASTRA.name]: GPT_6_ASTRA.reasoning,
-    [GPT_6_ASTRA_PRO.name]: GPT_6_ASTRA_PRO.reasoning,
-    [GPT_6_LUNA.name]: GPT_6_LUNA.reasoning,
-    [GPT_6_LUNA_PRO.name]: GPT_6_LUNA_PRO.reasoning,
-    [GPT_6_SOL.name]: GPT_6_SOL.reasoning,
-    [GPT_6_SOL_PRO.name]: GPT_6_SOL_PRO.reasoning,
-    [GPT_6_1_SOL.name]: GPT_6_1_SOL.reasoning,
-    [GPT_6_1_SOL_PRO.name]: GPT_6_1_SOL_PRO.reasoning,
-  } satisfies Record<keyof OpenAIModelReasoningByName, ModelReasoning>
+  OPENAI_REASONING

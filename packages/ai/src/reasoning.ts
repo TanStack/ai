@@ -23,12 +23,10 @@ export const REASONING_LEVELS: ReadonlyArray<ReasoningLevel> = [
 ]
 
 /**
- * A model's level map: the provider value to send for a level, or `null` when
- * the model does not support that level. A level with no entry passes as its
- * own name (except `xhigh` and `max`, which need an entry). `off: null` means
- * "send nothing" for no thinking.
+ * A model's levels: the provider value to send for each level the model has.
+ * A level with no entry is not supported.
  */
-export type ReasoningMap = Partial<Record<ReasoningLevel, string | null>>
+export type ReasoningLevels = Partial<Record<ReasoningLevel, string>>
 
 /**
  * What a model supports, at the type level. Adapters declare it per model in
@@ -79,17 +77,11 @@ export interface ReasoningRequest {
 
 /**
  * A model's reasoning data at runtime. `false`: the model does not reason.
- * Otherwise its level map (none means every level up to `high` passes as its
- * own name) and whether it takes a token budget.
+ * Otherwise the levels it has, and whether it takes a token budget.
  */
-export type ModelReasoning = false | { map?: ReasoningMap; budget: boolean }
-
-/** The levels a level map supports, with the rules of `supportedReasoningLevels`. */
-type MapLevels<TMap> = Exclude<
-  ReasoningLevel,
-  | { [L in keyof TMap]: TMap[L] extends string ? never : L }[keyof TMap]
-  | Exclude<'xhigh' | 'max', keyof TMap>
->
+export type ModelReasoning =
+  | false
+  | { levels: ReasoningLevels; budget: boolean }
 
 /**
  * The type-level capability of a model's reasoning data, for an adapter's
@@ -97,9 +89,9 @@ type MapLevels<TMap> = Exclude<
  * `as const`, and derive the levels from it with this type.
  */
 export type ModelReasoningCapability<
-  TReasoning extends { map?: ReasoningMap; budget: boolean },
+  TReasoning extends { levels: ReasoningLevels; budget: boolean },
 > = {
-  levels: MapLevels<NonNullable<TReasoning['map']>>
+  levels: keyof TReasoning['levels'] & ReasoningLevel
   budget: TReasoning['budget']
 }
 
@@ -119,25 +111,14 @@ export function normalizeReasoning(
 }
 
 /**
- * The levels a model supports, with pi's rules:
- * - a model that does not reason supports only `off`
- * - a level whose map value is `null` is not supported
- * - `xhigh` and `max` are supported only when the map has a value for them
- * - every other level is supported
- *
- * `undefined` (a model with no data) counts as a reasoning model with no map.
+ * The levels a model supports, from least to most thinking: the levels in its
+ * data. A model that does not reason, or has no data, supports only `off`.
  */
 export function supportedReasoningLevels(
   reasoning: ModelReasoning | undefined,
 ): ReadonlyArray<ReasoningLevel> {
-  if (reasoning === false) return ['off']
-  const map = reasoning?.map
-  return REASONING_LEVELS.filter((level) => {
-    const mapped = map?.[level]
-    if (mapped === null) return false
-    if (level === 'xhigh' || level === 'max') return mapped !== undefined
-    return true
-  })
+  if (!reasoning) return ['off']
+  return REASONING_LEVELS.filter((level) => level in reasoning.levels)
 }
 
 /**
@@ -159,19 +140,6 @@ export function clampReasoningLevel(
     .reverse()
     .find((candidate) => supported.includes(candidate))
   return below ?? supported[0] ?? 'off'
-}
-
-/**
- * The provider value for a supported `level`: the map value, else the level's
- * own name. `null` means "send nothing" (only `off` can map to `null` here,
- * because a `null` on any other level makes it unsupported).
- */
-export function reasoningValue(
-  reasoning: ModelReasoning | undefined,
-  level: ReasoningLevel,
-): string | null {
-  const mapped = reasoning === false ? undefined : reasoning?.map?.[level]
-  return mapped === undefined ? level : mapped
 }
 
 /**
@@ -198,8 +166,8 @@ export function reasoningBudget(request: ReasoningRequest): number {
 /** A request resolved for one model: the clamped level and its provider value. */
 export interface ResolvedReasoning {
   level: ReasoningLevel
-  /** The value to send for `level`. `null`: send nothing. */
-  value: string | null
+  /** The provider value to send for `level`. */
+  value: string
   summary: boolean
   budgetTokens?: number
 }
@@ -207,7 +175,7 @@ export interface ResolvedReasoning {
 /**
  * Resolve `request` for a model: clamp the level to the model's levels, and
  * look up its provider value. `undefined` when there is nothing to send: no
- * request, or a model that does not reason or has no reasoning data.
+ * request, or a model that does not reason, has no data, or has no levels.
  */
 export function resolveReasoning(
   request: ReasoningRequest | undefined,
@@ -215,9 +183,11 @@ export function resolveReasoning(
 ): ResolvedReasoning | undefined {
   if (!request || !reasoning) return undefined
   const level = clampReasoningLevel(reasoning, request.level)
+  const value = reasoning.levels[level]
+  if (value === undefined) return undefined
   return {
     level,
-    value: reasoningValue(reasoning, level),
+    value,
     summary: request.summary,
     ...(request.budgetTokens !== undefined
       ? { budgetTokens: request.budgetTokens }

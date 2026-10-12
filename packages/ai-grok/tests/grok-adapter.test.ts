@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { EventType, generateImage, summarize } from '@tanstack/ai'
 import { createGrokText, grokText } from '../src/adapters/text'
+import { grokVertexText } from '../src/vertex'
 import { createGrokImage, grokImage } from '../src/adapters/image'
 import { createGrokSummarize, grokSummarize } from '../src/adapters/summarize'
 import { GROK_CHAT_MODELS } from '../src/model-meta'
@@ -229,24 +230,37 @@ describe('Grok adapters', () => {
       })
     })
 
-    it('sends no reasoning for grok-build-0.1, which refuses it', async () => {
-      const adapter = createGrokText('grok-build-0.1', 'test-api-key')
-      const mockCreate = injectMockResponsesClient(adapter, [
-        responseCreated,
-        responseCompleted,
-      ])
+    it.each([
+      ['grok-build-0.1', () => createGrokText('grok-build-0.1', 'k')],
+      [
+        'grok-4.20-reasoning',
+        () =>
+          grokVertexText('grok-4.20-reasoning', {
+            project: 'p',
+            getAccessToken: async () => 'token',
+          }),
+      ],
+    ] as const)(
+      'sends no reasoning for %s, which has no levels',
+      async (model, createAdapter) => {
+        const adapter = createAdapter()
+        const mockCreate = injectMockResponsesClient(adapter, [
+          responseCreated,
+          responseCompleted,
+        ])
 
-      await consume(
-        adapter.chatStream({
-          model: 'grok-build-0.1',
-          messages: [{ role: 'user', content: 'Hello' }],
-          reasoning: { level: 'high', summary: true },
-          logger: testLogger,
-        }),
-      )
+        await consume(
+          adapter.chatStream({
+            model,
+            messages: [{ role: 'user', content: 'Hello' }],
+            reasoning: { level: 'off', summary: true },
+            logger: testLogger,
+          }),
+        )
 
-      expect(mockCreate.mock.calls[0]?.[0]).not.toHaveProperty('reasoning')
-    })
+        expect(mockCreate.mock.calls[0]?.[0]).not.toHaveProperty('reasoning')
+      },
+    )
 
     it('converts function tools to Responses API tools', async () => {
       const adapter = createGrokText('grok-build-0.1', 'test-api-key')
