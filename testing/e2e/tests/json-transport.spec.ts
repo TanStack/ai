@@ -23,12 +23,18 @@ const LONG_PROMPT = '[json-transport-long] tell me about the lighthouse'
 const LONG_START = 'The lighthouse keeper climbed the stairs'
 const LONG_END = 'JSON_LONG_END'
 
-function pageUrl(testId: string, aimockPort: number, maxWaitMs?: number) {
+function pageUrl(
+  testId: string,
+  aimockPort: number,
+  maxWaitMs?: number,
+  structured = false,
+) {
   const query = new URLSearchParams({
     testId,
     aimockPort: String(aimockPort),
   })
   if (maxWaitMs !== undefined) query.set('maxWaitMs', String(maxWaitMs))
+  if (structured) query.set('structured', '1')
   return `/json-transport?${query.toString()}`
 }
 
@@ -72,6 +78,34 @@ test.describe('json transport', () => {
 
     // No maxWaitMs: the POST waits for the run to end, so there is no poll.
     expect(logReads).toEqual([])
+  })
+
+  test('an awaited structured output shows as a structured-output part', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await openPage(page, pageUrl(testId, aimockPort, undefined, true))
+
+    await sendMessage(page, '[json-transport-structured] recommend a guitar')
+    await waitForResponse(page)
+
+    const first = page.getByTestId('assistant-message').last()
+    await expect(first.getByTestId('structured-output-part')).toHaveCount(1)
+    await expect(first.getByTestId('text-part')).toHaveCount(0)
+    await expect(first).toContainText('"name":"Fender Stratocaster"')
+    await expect(first).toContainText('"price":1299')
+    // The strict-mode `null` for the optional field is dropped.
+    await expect(first).not.toContainText('condition')
+
+    // The second turn sends the first object back as the assistant turn.
+    await sendMessage(page, '[json-transport-structured] a cheaper one')
+    await waitForResponse(page)
+
+    await expect(page.getByTestId('assistant-message')).toHaveCount(2)
+    const second = page.getByTestId('assistant-message').last()
+    await expect(second.getByTestId('structured-output-part')).toHaveCount(1)
+    await expect(second).toContainText('"name":"Squier Classic Vibe"')
   })
 
   test('a server tool completes over JSON', async ({

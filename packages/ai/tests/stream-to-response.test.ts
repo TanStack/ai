@@ -1,4 +1,8 @@
 import { describe, it, expect, expectTypeOf, vi } from 'vitest'
+import { z } from 'zod'
+import { chat } from '../src/activities/chat/index'
+import { uiMessageToModelMessages } from '../src/activities/chat/messages'
+import { StreamProcessor } from '../src/activities/chat/stream/processor'
 import {
   resumeJsonResponse,
   streamToText,
@@ -14,6 +18,7 @@ import { InMemoryLockStore } from '../src/locks'
 import { memoryStream } from '../src/stream-durability'
 import { EventType } from '../src/types'
 import { ev } from './test-utils'
+import type { AnyTextAdapter } from '../src/activities/chat/adapter'
 import type { ChatResult, RunDriverOptions } from '../src/stream-to-response'
 import type { StreamChunk } from '../src/types'
 
@@ -1235,6 +1240,103 @@ describe('toJsonResponse', () => {
     expectTypeOf(toJsonResponse(result)).toEqualTypeOf<Promise<Response>>()
     // @ts-expect-error durability needs a stream input
     void toJsonResponse(result, { durability: { adapter } })
+  })
+})
+
+describe('toJsonResponse with a structured-output result', () => {
+  const GuitarSchema = z.object({ name: z.string(), price: z.number() })
+  const guitar = { name: 'Fender Stratocaster', price: 1299 }
+
+  function structuredAdapter(): AnyTextAdapter {
+    return {
+      kind: 'text',
+      name: 'mock',
+      model: 'test-model',
+      chatStream: () => (async function* () {})(),
+      structuredOutput: async () => ({
+        data: guitar,
+        rawText: JSON.stringify(guitar),
+      }),
+    } as unknown as AnyTextAdapter
+  }
+
+  function extractGuitar() {
+    return chat({
+      adapter: structuredAdapter(),
+      messages: [{ role: 'user', content: 'recommend a guitar' }],
+      outputSchema: GuitarSchema,
+    })
+  }
+
+  it('sends the object from chat({ outputSchema }) as a complete structured output', async () => {
+    const result = await extractGuitar()
+    expectTypeOf(toJsonResponse(result)).toEqualTypeOf<Promise<Response>>()
+
+    const body = await readJsonBody(await toJsonResponse(result))
+
+    expect(body.done).toBe(true)
+    expect(body.chunks.map(label)).toEqual([
+      '[RUN_STARTED]',
+      '[CUSTOM]',
+      '[RUN_FINISHED]',
+    ])
+    expect(body.chunks[1]).toMatchObject({
+      name: 'structured-output.complete',
+      value: { object: guitar, raw: JSON.stringify(guitar) },
+    })
+  })
+
+  it('awaits a Promise input', async () => {
+    const fromObject = await readJsonBody(await toJsonResponse(extractGuitar()))
+    expect(fromObject.chunks[1]).toMatchObject({ value: { object: guitar } })
+
+    const chatResult: ChatResult = {
+      text: 'Hi',
+      chunks: [ev.textContent('Hi'), ev.runFinished('stop')],
+    }
+    const fromChatResult = await readJsonBody(
+      await toJsonResponse(Promise.resolve(chatResult)),
+    )
+    expect(fromChatResult.chunks.map(label)).toEqual(['Hi', '[RUN_FINISHED]'])
+  })
+
+  it('sends an object with text and chunks fields as a structured output', async () => {
+    const document = {
+      text: 'A long document',
+      chunks: [{ id: 'c1', content: 'A long' }],
+    }
+
+    const body = await readJsonBody(await toJsonResponse(document))
+
+    expect(body.chunks.map(label)).toEqual([
+      '[RUN_STARTED]',
+      '[CUSTOM]',
+      '[RUN_FINISHED]',
+    ])
+    expect(body.chunks[1]).toMatchObject({ value: { object: document } })
+  })
+
+  it('gives the client a complete structured-output part it can send back', async () => {
+    const body = await readJsonBody(await toJsonResponse(await extractGuitar()))
+    const processor = new StreamProcessor()
+
+    await processor.process(streamOf(body.chunks as Array<StreamChunk>))
+
+    const assistant = processor
+      .getMessages()
+      .find((message) => message.role === 'assistant')
+    expect(assistant?.parts).toEqual([
+      {
+        type: 'structured-output',
+        status: 'complete',
+        data: guitar,
+        partial: guitar,
+        raw: JSON.stringify(guitar),
+      },
+    ])
+    expect(uiMessageToModelMessages(assistant!)).toMatchObject([
+      { role: 'assistant', content: JSON.stringify(guitar) },
+    ])
   })
 })
 
