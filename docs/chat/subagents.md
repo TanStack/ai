@@ -174,10 +174,14 @@ const pricer = defineAgent({
   description: 'Compares the plans and prices of one vendor',
   inputSchema: z.object({ vendor: z.string() }),
   run: (ctx) =>
-    ctx.chat({
+    chat({
       adapter: openaiText('gpt-6.1-sol'),
       messages: [{ role: 'user', content: `Compare the plans of ${ctx.input.vendor}` }],
-      stream: false,
+      threadId: ctx.threadId,
+      runId: ctx.runId,
+      parentRunId: ctx.parentRunId,
+      subagentRunId: ctx.subagentRunId,
+      resume: ctx.resume,
     }),
 })
 const messages = [
