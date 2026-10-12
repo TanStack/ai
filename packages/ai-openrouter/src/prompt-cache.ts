@@ -101,7 +101,16 @@ export function addPromptCacheMarkers(
     promptCache.retention === 'long'
       ? { type: 'ephemeral', ttl: '1h' }
       : { type: 'ephemeral' }
-  const lastMessage = request.messages.length - 1
+  // A last message with no text block (the images of tool results) cannot
+  // take a marker, so the message before it gets the marker.
+  const last = request.messages.at(-1)
+  const lastMessage =
+    request.messages.length -
+    (last?.role === 'user' &&
+    Array.isArray(last.content) &&
+    !last.content.some((part) => part.type === 'text')
+      ? 2
+      : 1)
   const lastTool =
     request.tools?.findLastIndex((tool) => tool.type === 'function') ?? -1
   return {

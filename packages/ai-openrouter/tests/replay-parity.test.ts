@@ -416,4 +416,100 @@ describe('native OpenRouter replay parity', () => {
       }
     },
   )
+
+  it.each(['chat', 'responses'] as const)(
+    'sends tool-result images through %s',
+    async (api) => {
+      const mock = sdk(api)
+      await collect(
+        mock.adapter.chatStream({
+          logger,
+          model,
+          messages: [
+            {
+              role: 'assistant',
+              content: null,
+              toolCalls: ['a', 'b'].map((id) => ({
+                id,
+                type: 'function',
+                function: { name: 'inspect', arguments: '{}' },
+              })),
+            },
+            {
+              role: 'tool',
+              toolCallId: 'a',
+              content: [
+                {
+                  type: 'image',
+                  source: { type: 'data', value: 'AAA', mimeType: 'image/png' },
+                },
+              ],
+            },
+            {
+              role: 'tool',
+              toolCallId: 'b',
+              content: [
+                { type: 'text', content: 'text' },
+                {
+                  type: 'image',
+                  source: { type: 'url', value: 'https://example.com/b.png' },
+                },
+              ],
+            },
+          ],
+        }),
+      )
+      if (api === 'chat')
+        expect(mock.bodies[0]).toMatchObject({
+          messages: [
+            { role: 'assistant', content: null },
+            {
+              role: 'tool',
+              tool_call_id: 'a',
+              content: '(see attached image)',
+            },
+            { role: 'tool', tool_call_id: 'b', content: 'text' },
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'image_url',
+                  image_url: { url: 'data:image/png;base64,AAA' },
+                },
+                {
+                  type: 'image_url',
+                  image_url: { url: 'https://example.com/b.png' },
+                },
+              ],
+            },
+          ],
+        })
+      else
+        expect(mock.bodies[0]).toMatchObject({
+          input: [
+            { type: 'function_call' },
+            { type: 'function_call' },
+            {
+              type: 'function_call_output',
+              output: [
+                {
+                  type: 'input_image',
+                  image_url: 'data:image/png;base64,AAA',
+                },
+              ],
+            },
+            {
+              type: 'function_call_output',
+              output: [
+                { type: 'input_text', text: 'text' },
+                {
+                  type: 'input_image',
+                  image_url: 'https://example.com/b.png',
+                },
+              ],
+            },
+          ],
+        })
+    },
+  )
 })

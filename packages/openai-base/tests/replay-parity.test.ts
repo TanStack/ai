@@ -932,6 +932,76 @@ describe('OpenAI replay parity', () => {
     expect(messages[0]?.toolCalls?.[0]?.id).toBe('call|fc/item')
   })
 
+  it.each([true, false])(
+    'batches tool-result images with runtime image capability %s',
+    async (images) => {
+      const mock = sdk([completed])
+      await collect(
+        new Completions(mock.client, images).chatStream({
+          logger,
+          model,
+          messages: [
+            {
+              role: 'assistant',
+              content: null,
+              toolCalls: ['a', 'b'].map((id) => ({
+                id,
+                type: 'function',
+                function: { name: 'inspect', arguments: '{}' },
+              })),
+            },
+            {
+              role: 'tool',
+              toolCallId: 'a',
+              content: [
+                {
+                  type: 'image',
+                  source: { type: 'data', value: 'AAA', mimeType: 'image/png' },
+                },
+              ],
+            },
+            {
+              role: 'tool',
+              toolCallId: 'b',
+              content: [
+                { type: 'text', content: 'text' },
+                {
+                  type: 'image',
+                  source: { type: 'data', value: 'BBB', mimeType: 'image/png' },
+                },
+              ],
+            },
+          ],
+        }),
+      )
+      expect(mock.bodies[0]).toMatchObject({
+        messages: [
+          { role: 'assistant', content: null },
+          { role: 'tool', tool_call_id: 'a', content: '(see attached image)' },
+          { role: 'tool', tool_call_id: 'b', content: 'text' },
+          ...(images
+            ? [
+                {
+                  role: 'user',
+                  content: [
+                    {
+                      type: 'image_url',
+                      image_url: { url: 'data:image/png;base64,AAA' },
+                    },
+                    {
+                      type: 'image_url',
+                      image_url: { url: 'data:image/png;base64,BBB' },
+                    },
+                  ],
+                },
+              ]
+            : []),
+        ],
+      })
+      if (!images) expect(JSON.stringify(mock.bodies)).not.toContain('AAA')
+    },
+  )
+
   it.each(['completions', 'responses'] as const)(
     'keeps genuine response identity from %s',
     async (api) => {

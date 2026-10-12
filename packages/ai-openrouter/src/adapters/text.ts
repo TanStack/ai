@@ -1433,9 +1433,26 @@ export class OpenRouterTextAdapter<
         return id.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40)
       },
     )
+    // Tool rows cannot carry images. The images of a run of tool results go
+    // in one user message after that run.
+    const toolImages: Array<ChatContentItems> = []
     for (const m of replay.messages) {
+      if (m.role !== 'tool' && toolImages.length > 0)
+        messages.push({ role: 'user', content: toolImages.splice(0) })
       messages.push(this.convertMessage(m))
+      if (
+        m.role === 'tool' &&
+        Array.isArray(m.content) &&
+        (this.inputModalities?.includes('image') ?? true)
+      ) {
+        for (const part of m.content) {
+          const image = part.type === 'image' && this.convertContentPart(part)
+          if (image) toolImages.push(image)
+        }
+      }
     }
+    if (toolImages.length > 0)
+      messages.push({ role: 'user', content: toolImages })
 
     const tools = options.tools
       ? convertToolsToProviderFormat(options.tools)
@@ -1516,12 +1533,17 @@ export class OpenRouterTextAdapter<
       // ContentPart shape (e.g. `[{"type":"text","content":"…"}]`) into the
       // tool message's `content` field would feed the literal JSON of the
       // parts back to the model instead of the tool's textual result.
+      // `mapOptionsToRequest` sends the images in a user message after the
+      // tool results.
+      const text = this.extractTextContent(message.content)
       return {
         role: 'tool',
         content:
-          typeof message.content === 'string'
-            ? message.content
-            : this.extractTextContent(message.content),
+          !text &&
+          Array.isArray(message.content) &&
+          message.content.some((part) => part.type === 'image')
+            ? '(see attached image)'
+            : text,
         toolCallId: message.toolCallId || '',
       }
     }

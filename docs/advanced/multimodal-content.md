@@ -90,6 +90,35 @@ const response = await chat({
 })
 ```
 
+## Images in Tool Results
+
+A tool can return an array of `ContentPart`. Use it to give the model a screenshot or a chart:
+
+```typescript
+import { toolDefinition } from '@tanstack/ai'
+import type { ContentPart } from '@tanstack/ai'
+import { z } from 'zod'
+
+const getScreenshot = toolDefinition({
+  name: 'get_screenshot',
+  description: 'Get a screenshot of the page',
+  inputSchema: z.object({}),
+}).server(async (): Promise<Array<ContentPart>> => [
+  { type: 'text', content: 'Page screenshot' },
+  {
+    type: 'image',
+    source: { type: 'data', value: 'iVBORw0KGgo...', mimeType: 'image/png' },
+  },
+])
+```
+
+The adapter sends the image in the form that its API accepts:
+
+- **Responses APIs** (`openaiText`, `openRouterResponsesText`): the image stays in the tool output.
+- **Chat Completions APIs** (`openRouterText`, `openaiChatCompletions`, and the adapters built on it): a tool message holds text only. The text goes in the tool message. The images go in one user message after the tool results. If a result has only images, its tool text is `(see attached image)`.
+
+A model without image input gets only the text.
+
 ## Provider Support
 
 ### OpenAI
