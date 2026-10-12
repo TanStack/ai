@@ -66,6 +66,7 @@ import type {
   ProviderExecutedToolSource,
   ModelReasoning,
   ReasoningCapability,
+  TanStackMessageMetadata,
   TextOptions,
   AnyTool,
   NormalizedSystemPrompt,
@@ -159,7 +160,8 @@ function answerItems(
   message: ModelMessage,
   text: string,
 ): ResponseInput | undefined {
-  const items = message.metadata?.tanstack?.responseItems
+  const items: TanStackMessageMetadata['responseItems'] =
+    message.metadata?.tanstack?.responseItems
   const texts = orderedAssistantBlocks(message)?.flatMap((block) =>
     block.type === 'text' ? [block.text] : [],
   ) ?? [text]
