@@ -371,6 +371,15 @@ export type ConstrainedContent<
   | null
   | Array<ContentPartForInputModalitiesTypes<TInputModalitiesTypes>>
 
+/**
+ * One block of an assistant `ModelMessage`, in the order the model sent it.
+ * Each entry points into a field of the message. See `ModelMessage.blockOrder`.
+ */
+export type ModelMessageBlock =
+  | { type: 'thinking'; index: number }
+  | { type: 'text'; length: number }
+  | { type: 'tool-call'; id: string }
+
 export interface ModelMessage<
   TContent extends string | null | Array<ContentPart> =
     | string
@@ -388,6 +397,14 @@ export interface ModelMessage<
    * opaque data. See `ThinkingPart.signature` for the planned rename.
    */
   thinking?: Array<{ content: string; signature?: string; redacted?: boolean }>
+  /**
+   * The order of the blocks of an assistant message, when it is not the
+   * default order (all thinking, then the text, then the tool calls). Each
+   * entry points into `thinking`, into `content` (a string, by UTF-16 length),
+   * or into `toolCalls`. The library writes and reads this field. A reader
+   * that finds a map that does not match the message uses the default order.
+   */
+  blockOrder?: Array<ModelMessageBlock>
   /** Error reported by an AG-UI tool message. */
   error?: string
   /** Optional AG-UI message metadata. TanStack-owned fields live under `tanstack`. */
@@ -617,6 +634,13 @@ export type MessagePart<TData = unknown> =
   | UIResourcePart
   | SubagentPart
 
+/** Provider, wire API, and requested model of an assistant message. */
+export interface MessageSource {
+  provider: string
+  api: string
+  model: string
+}
+
 /**
  * Shape of `metadata.tanstack` on a message.
  * `createdAt` is an ISO-8601 string.
@@ -624,6 +648,9 @@ export type MessagePart<TData = unknown> =
 export interface TanStackMessageMetadata {
   createdAt?: string
   model?: string
+  source?: MessageSource
+  stopReason?: 'error' | 'aborted'
+  responseId?: string
   /** Parent chat run that produced this assistant message. */
   runId?: string
   /**
@@ -654,13 +681,21 @@ export interface TanStackMessageMetadata {
     errorMessage?: string
   }
   uiResources?: Array<UIResourcePart>
+  /**
+   * On an assistant wire row that exists only to keep the block order: the
+   * id of the assistant row before it. Our server joins the two rows into
+   * one message with a `blockOrder` map. See `uiMessagesToWire`.
+   */
+  continues?: string
 }
 
 /**
  * Shape of `metadata.tanstack` on run events.
  */
 export interface TanStackRunMetadata {
+  source?: MessageSource
   model?: string
+  responseId?: string
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
   /** TokenUsage fields that have no AG-UI `usage[]` equivalent. */
   usage?: TokenUsageLeftover
@@ -1381,6 +1416,8 @@ export interface RunFinishedEvent extends Pick<
   usage?: Array<SpecTokenUsage> | TokenUsage
   /** Restored on the client from `metadata.tanstack`. */
   model?: string
+  /** Provider generation ID. Restored from `metadata.tanstack`. */
+  responseId?: string
   /** Restored on the client from `metadata.tanstack`. */
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
   metadata?: { tanstack?: TanStackRunMetadata } & Record<string, any>

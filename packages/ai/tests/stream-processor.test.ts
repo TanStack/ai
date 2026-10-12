@@ -486,7 +486,7 @@ describe('StreamProcessor', () => {
       expect(Number.isNaN(msg.createdAt!.getTime())).toBe(false)
     })
 
-    it('RUN_FINISHED metadata does not merge onto the assistant message', () => {
+    it('merges terminal metadata onto the current assistant message', () => {
       const processor = new StreamProcessor()
 
       processor.processChunk({
@@ -505,7 +505,10 @@ describe('StreamProcessor', () => {
       })
 
       const msg = processor.getMessages()[0]!
-      expect(msg.metadata).toEqual({ tanstack: { model: 'gpt-5.5' } })
+      expect(msg.metadata).toEqual({
+        author: { id: 'run' },
+        tanstack: { model: 'gpt-5.5', finishReason: 'stop' },
+      })
     })
 
     it('MESSAGES_SNAPSHOT keeps per-message metadata and ignores event-level metadata', () => {
@@ -5750,7 +5753,11 @@ describe('StreamProcessor', () => {
           ev.runFinished(),
         ),
       )
-      expect(chunked[0]?.metadata).toEqual({ note: 'last chunk' })
+      // RUN_FINISHED adds its finish reason to the message metadata.
+      expect(chunked[0]?.metadata).toEqual({
+        note: 'last chunk',
+        tanstack: { finishReason: 'stop' },
+      })
     })
 
     it('keeps the parent message and the metadata of a tool call chunk', () => {
@@ -5816,7 +5823,11 @@ describe('StreamProcessor', () => {
         }),
         ev.runFinished(),
       )
-      expect(reasoning[0]?.metadata).toEqual({ note: 'r' })
+      // RUN_FINISHED adds its finish reason to the message metadata.
+      expect(reasoning[0]?.metadata).toEqual({
+        note: 'r',
+        tanstack: { finishReason: 'stop' },
+      })
     })
 
     it.each([

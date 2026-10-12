@@ -44,6 +44,10 @@ export interface StructuredOutputResult<T = unknown> {
   rawText: string
   /** Token usage information (if provided by the adapter) */
   usage?: TokenUsage
+  /** Provider generation ID, when available. */
+  responseId?: string
+  /** Model reported by the provider. */
+  model?: string
 }
 
 /**
@@ -77,6 +81,10 @@ export interface TextAdapter<
   readonly kind: 'text'
   /** Provider name identifier (e.g., 'openai', 'anthropic') */
   readonly name: string
+  /** Wire API identity. Defaults to the adapter kind when omitted. */
+  readonly api?: string
+  /** Provider identity. Defaults to `name` when omitted. */
+  readonly provider?: string
   /** The model this adapter is configured for */
   readonly model: TModel
 
@@ -223,6 +231,8 @@ export abstract class BaseTextAdapter<
 > {
   readonly kind = 'text' as const
   abstract readonly name: string
+  readonly api?: string = undefined
+  readonly provider?: string = undefined
   readonly model: TModel
   readonly requires?: ReadonlyArray<CapabilityHandle> = undefined
   readonly supportsFileSources: boolean = false

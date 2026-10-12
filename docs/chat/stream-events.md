@@ -27,7 +27,7 @@ Do now:
 - `RUN_STARTED`: `threadId`, `runId`
 - `TEXT_MESSAGE_START` / `CONTENT` / `END`: `messageId`, `delta`
 - `TOOL_CALL_START` / `ARGS` / `END`: `toolCallId`, `toolCallName`, args `delta`
-- `RUN_FINISHED` / `RUN_ERROR`: usage and finish reason. A rate-limited `RUN_ERROR` also says how long to wait. See [Rate limits](#rate-limits)
+- `RUN_FINISHED` / `RUN_ERROR`: usage and finish reason. A rate-limited `RUN_ERROR` also says how long to wait. See [Rate limits](#rate-limits). For the provider's response ID, see [Read the provider response identity](#read-the-provider-response-identity)
 
 Later:
 
@@ -121,6 +121,52 @@ const { messages } = useChat({
 ```
 
 No `retryAfterMs`? The provider sent no wait header, so pick your own backoff. The provider SDKs also retry a 429 by themselves first. To handle every 429 yourself, set `maxRetries: 0` in the adapter config.
+
+## Read the provider response identity
+
+You want to find a reply in the provider's logs, or see which model really answered. Read `metadata.tanstack` on `RUN_FINISHED`:
+
+- `responseId`: the generation ID from the provider, when it sends one.
+- `model`: the model that the provider says it used. It can differ from the model that you asked for.
+- `source`: `{ provider, api, model }` for the call. Here `model` is the one that you asked for.
+
+On the server:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { anthropicText } from "@tanstack/ai-anthropic";
+
+const stream = chat({
+  adapter: anthropicText("claude-sonnet-5-5"),
+  messages: [{ role: "user", content: "Hello!" }],
+});
+
+for await (const chunk of stream) {
+  if (chunk.type === "RUN_FINISHED") {
+    const tanstack = chunk.metadata?.tanstack;
+    console.log(tanstack?.responseId, tanstack?.model, tanstack?.source);
+  }
+}
+```
+
+The same fields land on each assistant message. `StreamProcessor` merges the metadata of `RUN_FINISHED` and `RUN_ERROR` into the messages of that model call. A failed call also gets `stopReason: "error"`, and an aborted one gets `stopReason: "aborted"`.
+
+On the client:
+
+```typescript
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
+const { messages } = useChat({
+  connection: fetchServerSentEvents("/api/chat"),
+});
+
+for (const message of messages) {
+  const tanstack = message.metadata?.tanstack;
+  console.log(tanstack?.responseId, tanstack?.source, tanstack?.stopReason);
+}
+```
+
+No `responseId`? The provider sent no generation ID. The adapter never fills it with an HTTP request ID.
 
 ## Threads and runs
 

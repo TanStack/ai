@@ -102,22 +102,22 @@ function text(index: number, value: string) {
   ]
 }
 
-function clientToolUse(index: number) {
+function clientToolUse(
+  index: number,
+  id = 'toolu_pick',
+  name = 'pick_arena',
+  args = '{}',
+) {
   return [
     {
       type: 'content_block_start',
       index,
-      content_block: {
-        type: 'tool_use',
-        id: 'toolu_pick',
-        name: 'pick_arena',
-        input: {},
-      },
+      content_block: { type: 'tool_use', id, name, input: {} },
     },
     {
       type: 'content_block_delta',
       index,
-      delta: { type: 'input_json_delta', partial_json: '{}' },
+      delta: { type: 'input_json_delta', partial_json: args },
     },
     { type: 'content_block_stop', index },
   ]
@@ -179,19 +179,32 @@ function blockTypes(message: { content: unknown } | undefined) {
     : []
 }
 
+/** Each block as `type:signature` or `type:id`, to check the order. */
+function blockKeys(message: { content: unknown } | undefined) {
+  return Array.isArray(message?.content)
+    ? message.content.map(
+        (block: { type: string; signature?: string; id?: string }) =>
+          `${block.type}:${block.signature ?? block.id ?? ''}`,
+      )
+    : []
+}
+
 /**
  * Anthropic signs every thinking block against the blocks before it. When
  * web_search runs inside the response, the next request must replay
  * `thinking, server_tool_use, web_search_tool_result, thinking, text` in that
  * order, or Claude rejects it with "thinking blocks ... cannot be modified".
  *
- * Two scripted runs, answered by a capturing `fetch` (no aimock fixture):
+ * Three scripted runs, answered by a capturing `fetch` (no aimock fixture):
  *
  * - `replay` — two turns through `StreamProcessor` → `uiMessagesToWire` →
  *   `chatParamsFromRequestBody` → `chat()`, as a browser client and
  *   `/api/chat` do. Returns the block order of the second request.
  * - `interrupt` — the same turn ends with a client tool. Returns the client
  *   tool requests and the client view after the interrupt snapshot.
+ * - `clientTools` — Claude answers thinking, tool_use, thinking, tool_use
+ *   with two client tools. The client sends both results back over the wire.
+ *   Returns the client view of the answer and the replayed blocks.
  */
 export const Route = createFileRoute('/api/anthropic-thinking-order-wire')({
   server: {
@@ -257,8 +270,77 @@ export const Route = createFileRoute('/api/anthropic-thinking-order-wire')({
           }
           interruptClient.finalizeStream()
 
+          const clientTools = scriptedFetch([
+            [
+              messageStart,
+              ...thinking(0, 'Check Stockholm first.', 'sig-c'),
+              ...clientToolUse(
+                1,
+                'toolu_stockholm',
+                'arena_size',
+                '{"city":"Stockholm"}',
+              ),
+              ...thinking(2, 'Now check Oslo.', 'sig-d'),
+              ...clientToolUse(
+                3,
+                'toolu_oslo',
+                'arena_size',
+                '{"city":"Oslo"}',
+              ),
+              ...end('tool_use'),
+            ],
+          ])
+          const clientToolsAdapter = createAnthropicChat(
+            'claude-sonnet-4-5',
+            DUMMY_KEY,
+            { fetch: clientTools.fetchImpl },
+          )
+          const sizeTool = {
+            name: 'arena_size',
+            description: 'Read the size of an arena.',
+          }
+          const toolClient = new StreamProcessor({})
+          toolClient.addUserMessage('Compare the two arenas')
+          /** One request, as a browser client and `/api/chat` send it. */
+          const sendClientToolTurn = async (runId: string) => {
+            const params = await chatParamsFromRequestBody({
+              threadId: 'thinking-order-client-tools',
+              runId,
+              // `JSON.parse(JSON.stringify(...))` stands in for the HTTP hop.
+              messages: JSON.parse(
+                JSON.stringify(uiMessagesToWire(toolClient.getMessages())),
+              ),
+              tools: [],
+              context: [],
+            })
+            for await (const chunk of chat({
+              ...createChatOptions({ adapter: clientToolsAdapter }),
+              messages: params.messages,
+              tools: [sizeTool],
+              stream: true,
+            })) {
+              toolClient.processChunk(chunk)
+            }
+            toolClient.finalizeStream()
+          }
+          await sendClientToolTurn('thinking-order-client-tools-1')
+          const clientToolView = toolClient
+            .getMessages()
+            .filter((message) => message.role === 'assistant')
+            .map((message) => message.parts.map((part) => part.type))
+          // The browser runs both tools and sends the results back.
+          toolClient.addToolResult('toolu_stockholm', { seats: 16000 })
+          toolClient.addToolResult('toolu_oslo', { seats: 9000 })
+          await sendClientToolTurn('thinking-order-client-tools-2')
+
           return Response.json({
             ok: true,
+            clientToolView,
+            clientToolReplay: blockKeys(
+              clientTools.bodies[1]?.messages.find(
+                (m) => m.role === 'assistant',
+              ),
+            ),
             replayedBlocks: blockTypes(
               replay.bodies[1]?.messages.find((m) => m.role === 'assistant'),
             ),

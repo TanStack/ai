@@ -51,8 +51,11 @@ import {
   toolResultErrorText,
 } from '../../utilities/tool-result'
 import { isProviderExecutedToolCall } from '../../utilities/provider-executed'
+import { buildBlockOrder } from '../../utilities/block-order'
+import type { BlockOrderEntry } from '../../utilities/block-order'
 import { assertMessagesFileSourceSupport } from '../../utilities/content-source'
 import { sanitizeProviderRequest } from '../../utilities/sanitize-unicode'
+import { transformMessagesForReplay } from '../../utilities/replay-messages'
 import { LazyToolManager } from './tools/lazy-tool-manager'
 import { assertUniqueToolNames } from './tools/unique-tool-names'
 import type { DefinedAgent } from './agents/define-agent'
@@ -144,6 +147,7 @@ import type {
   JSONSchema,
   LazyToolsConfig,
   ModelMessage,
+  ModelMessageBlock,
   ProviderTool,
   RunFinishedEvent,
   SchemaInput,
@@ -151,6 +155,7 @@ import type {
   StructuredOutputCompleteEvent,
   StructuredOutputPart,
   StructuredOutputStream,
+  TanStackMessageMetadata,
   TextMessageContentEvent,
   TextOptions,
   ToolCall,
@@ -193,6 +198,25 @@ type TurnPart =
   | { type: 'thinking'; index: number }
   | { type: 'text'; content: string }
   | { type: 'call'; id: string; providerExecuted: boolean }
+
+/**
+ * The order map for one assistant message built from `parts`. Calls that are
+ * not in `toolCalls` are left out, because the message does not carry them.
+ * Calls that the stream did not report go last, their default place.
+ */
+function turnBlockOrder(
+  parts: ReadonlyArray<TurnPart>,
+  toolCalls: ReadonlyArray<ToolCall>,
+): Array<ModelMessageBlock> | undefined {
+  const unplaced = new Set(toolCalls.map((toolCall) => toolCall.id))
+  const entries = parts.flatMap((part): Array<BlockOrderEntry> => {
+    if (part.type === 'thinking') return [{ type: 'thinking' }]
+    if (part.type === 'text') return [{ type: 'text', text: part.content }]
+    return unplaced.delete(part.id) ? [{ type: 'tool-call', id: part.id }] : []
+  })
+  for (const id of unplaced) entries.push({ type: 'tool-call', id })
+  return buildBlockOrder(entries)
+}
 
 // ===========================
 // Activity Kind
@@ -896,6 +920,8 @@ class TextEngine<
   private currentThinkingSignature = ''
   private currentThinkingRedacted = false
   private eventOptions?: Record<string, unknown> | undefined
+  private currentCallMetadata: TanStackMessageMetadata = {}
+  private structuredCallMetadata: TanStackMessageMetadata = {}
   private eventToolNames?: Array<string>
   private finishedEvent: RunFinishedEvent | null = null
   private readonly streamedToolErrorResults = new Map<string, ToolResult>()
@@ -1547,6 +1573,13 @@ class TextEngine<
   }
 
   private async beginIteration(): Promise<void> {
+    this.currentCallMetadata = {
+      source: {
+        provider: this.adapter.provider ?? this.adapter.name,
+        api: this.adapter.api ?? this.adapter.kind,
+        model: this.params.model,
+      },
+    }
     this.currentMessageId = this.createId('msg')
     this.currentMessageCreatedAt = new Date()
     this.streamIdentityCaptured = false
@@ -1628,9 +1661,14 @@ class TextEngine<
     // covered too.
     assertMessagesFileSourceSupport(this.adapter, this.messages)
 
-    for await (const raw of this.adapter.chatStream({
+    // Clean history for the request. The adapter knows its wire API, so it
+    // does the source-sensitive part of replay.
+    const replayMessages = transformMessagesForReplay(
+      this.providerMessages,
+    ).messages
+    for await (const adapterChunk of this.adapter.chatStream({
       model: this.params.model,
-      ...sanitizeProviderRequest(this.providerMessages, this.systemPrompts),
+      ...sanitizeProviderRequest(replayMessages, this.systemPrompts),
       tools: toolsWithJsonSchemas,
       metadata,
       request: this.effectiveRequest,
@@ -1646,6 +1684,7 @@ class TextEngine<
       ...(this.callWrapFetch ? { wrapFetch: this.callWrapFetch } : {}),
       ...(combinedSchema ? { outputSchema: combinedSchema } : {}),
     })) {
+      const raw = this.withCallMetadata(adapterChunk, this.currentCallMetadata)
       if (this.isCancelled()) {
         break
       }
@@ -1876,6 +1915,48 @@ class TextEngine<
   private setActivities(activities: Array<ActivityRecord>): void {
     this.activities = activities
     this.middlewareCtx.activities = this.activities
+  }
+
+  /**
+   * Stamp the source, response identity, and stop reason of this model call
+   * on the chunk, and remember them in `metadata` for the assistant messages
+   * that the call produces.
+   */
+  private withCallMetadata(
+    chunk: AdapterYieldChunk,
+    metadata: TanStackMessageMetadata,
+  ) {
+    if ('subagentRunId' in chunk && typeof chunk.subagentRunId === 'string')
+      return chunk
+    // Activity records keep their own metadata. The call metadata is for the
+    // assistant message.
+    if (
+      chunk.type === EventType.ACTIVITY_SNAPSHOT ||
+      chunk.type === EventType.ACTIVITY_DELTA
+    )
+      return chunk
+    const incoming = tanstackMetadata(chunk)
+    if (incoming?.source !== undefined) metadata.source = incoming.source
+    if (incoming?.stopReason !== undefined)
+      metadata.stopReason = incoming.stopReason
+    if (chunk.type === EventType.RUN_FINISHED) {
+      const model = chunk.model ?? incoming?.model
+      const responseId = chunk.responseId ?? incoming?.responseId
+      if (model !== undefined) metadata.model = model
+      if (responseId !== undefined) metadata.responseId = responseId
+    }
+    if (chunk.type === EventType.RUN_ERROR) {
+      metadata.stopReason ??= 'error'
+    }
+    const merged = withTanstackMetadata(chunk, {
+      ...metadata,
+      ...(incoming ?? {}),
+      ...(metadata.source !== undefined ? { source: metadata.source } : {}),
+      ...(metadata.stopReason !== undefined
+        ? { stopReason: metadata.stopReason }
+        : {}),
+    })
+    return { ...chunk, metadata: merged.metadata }
   }
 
   // ===========================
@@ -2627,7 +2708,8 @@ class TextEngine<
    * Split this iteration into assistant ModelMessages that keep the provider's
    * block order: a new segment starts at every thinking step that follows a
    * provider-executed tool call (the rule buildAssistantMessages applies to
-   * UIMessages). Segments after the first get `${id}-segment-${n}` ids.
+   * UIMessages). Segments after the first get `${id}-segment-${n}` ids. A
+   * segment whose own blocks leave the default order gets a `blockOrder` map.
    * Returns null when no split is needed or the order could not be tracked,
    * so callers fall back to the single-message shape.
    */
@@ -2647,8 +2729,9 @@ class TextEngine<
       thinking: NonNullable<ModelMessage['thinking']>
       text: string
       callIds: Array<string>
+      parts: Array<TurnPart>
     }
-    let current: Segment = { thinking: [], text: '', callIds: [] }
+    let current: Segment = { thinking: [], text: '', callIds: [], parts: [] }
     const segments: Array<Segment> = [current]
     let split = false
     for (const part of parts) {
@@ -2656,7 +2739,7 @@ class TextEngine<
         const thinking = this.accumulatedThinking[part.index]
         if (!thinking) return null
         if (current.callIds.some((callId) => providerCallIds.has(callId))) {
-          current = { thinking: [thinking], text: '', callIds: [] }
+          current = { thinking: [thinking], text: '', callIds: [], parts: [] }
           segments.push(current)
           split = true
         } else {
@@ -2667,6 +2750,7 @@ class TextEngine<
       } else {
         current.callIds.push(part.id)
       }
+      current.parts.push(part)
     }
     if (!split) return null
     if (
@@ -2689,9 +2773,11 @@ class TextEngine<
       const segmentCalls = toolCalls.filter((toolCall) =>
         segment.callIds.includes(toolCall.id),
       )
+      const blockOrder = turnBlockOrder(segment.parts, segmentCalls)
       return {
         role: 'assistant',
         content: segment.text || null,
+        metadata: { tanstack: { ...this.currentCallMetadata } },
         ...(segmentCalls.length > 0 && { toolCalls: segmentCalls }),
         id:
           id === undefined
@@ -2701,8 +2787,38 @@ class TextEngine<
               : `${id}-segment-${index}`,
         createdAt,
         ...(segment.thinking.length > 0 && { thinking: segment.thinking }),
+        ...(blockOrder && { blockOrder }),
       }
     })
+  }
+
+  /**
+   * `{ blockOrder }` for this iteration kept as one assistant message that
+   * carries `toolCalls`, or `{}` when the order is the default one or was not
+   * tracked. This is the fallback when `buildOrderedAssistantSegments` does
+   * not split, so it is the common client-tool case.
+   */
+  private singleMessageBlockOrder(toolCalls: ReadonlyArray<ToolCall>): {
+    blockOrder?: Array<ModelMessageBlock>
+  } {
+    const parts = this.turnParts
+    if (!parts) return {}
+    const thinking = parts.filter(
+      (part): part is Extract<TurnPart, { type: 'thinking' }> =>
+        part.type === 'thinking',
+    )
+    const text = parts
+      .map((part) => (part.type === 'text' ? part.content : ''))
+      .join('')
+    if (
+      text !== this.accumulatedContent ||
+      thinking.length !== this.accumulatedThinking.length ||
+      thinking.some((part, index) => part.index !== index)
+    ) {
+      return {}
+    }
+    const blockOrder = turnBlockOrder(parts, toolCalls)
+    return blockOrder ? { blockOrder } : {}
   }
 
   private addAssistantToolCallMessage(toolCalls: Array<ToolCall>): void {
@@ -2719,12 +2835,14 @@ class TextEngine<
         {
           role: 'assistant' as const,
           content: this.accumulatedContent || null,
+          metadata: { tanstack: { ...this.currentCallMetadata } },
           toolCalls,
           id: this.currentMessageId ?? undefined,
           createdAt: this.currentMessageCreatedAt ?? undefined,
           ...(this.accumulatedThinking.length > 0 && {
             thinking: this.accumulatedThinking,
           }),
+          ...this.singleMessageBlockOrder(toolCalls),
         },
       ]),
     ]
@@ -2781,7 +2899,12 @@ class TextEngine<
       const existing = messages[existingStructuredIndex]
       if (existing) {
         messages[existingStructuredIndex] = {
-          ...existing,
+          ...withTanstackMetadata(
+            existing,
+            nativeCombined
+              ? this.currentCallMetadata
+              : this.structuredCallMetadata,
+          ),
           content: raw || existing.content,
           structuredOutput,
         }
@@ -2791,6 +2914,13 @@ class TextEngine<
         messages.push({
           role: 'assistant',
           content: this.accumulatedContent || raw || null,
+          metadata: {
+            tanstack: {
+              ...(nativeCombined
+                ? this.currentCallMetadata
+                : this.structuredCallMetadata),
+            },
+          },
           id: structuredId,
           createdAt:
             this.currentMessageCreatedAt ??
@@ -2816,9 +2946,12 @@ class TextEngine<
             {
               role: 'assistant',
               content: this.accumulatedContent || null,
+              metadata: { tanstack: { ...this.currentCallMetadata } },
               id,
               createdAt,
               ...(thinking ? { thinking } : {}),
+              // This message carries no tool calls, so its map has none.
+              ...this.singleMessageBlockOrder([]),
             },
           ]),
         )
@@ -2827,6 +2960,7 @@ class TextEngine<
         messages.push({
           role: 'assistant',
           content: raw || null,
+          metadata: { tanstack: { ...this.structuredCallMetadata } },
           id: structuredId,
           createdAt: this.structuredOutputMessageCreatedAt ?? new Date(),
           structuredOutput,
@@ -3643,8 +3777,40 @@ class TextEngine<
 
     const pending: Array<ToolCall> = []
 
+    // A later user or assistant closes the previous execution batch.
+    // Old orphan calls remain in history for request-local replay cleanup.
+    const activeCallIds = new Set<string>()
+    let assistantId: string | undefined
+    for (const message of this.messages) {
+      if (message.role === 'tool') continue
+      const segmentSuffix =
+        assistantId === undefined || message.id === undefined
+          ? undefined
+          : message.id.slice(assistantId.length)
+      const sameAssistant =
+        message.role === 'assistant' &&
+        assistantId !== undefined &&
+        message.id?.startsWith(assistantId) &&
+        /^-segment-[1-9]\d*$/.test(segmentSuffix ?? '')
+      if (!sameAssistant) {
+        activeCallIds.clear()
+        assistantId = message.role === 'assistant' ? message.id : undefined
+      }
+      const stopReason = tanstackMetadata(message)?.stopReason
+      if (
+        message.role === 'assistant' &&
+        stopReason !== 'error' &&
+        stopReason !== 'aborted'
+      ) {
+        for (const call of message.toolCalls ?? []) activeCallIds.add(call.id)
+      }
+    }
+    const { approvals } = this.collectClientState()
+
     for (const message of this.messages) {
       if (message.role === 'assistant' && message.toolCalls) {
+        const stopReason = tanstackMetadata(message)?.stopReason
+        if (stopReason === 'error' || stopReason === 'aborted') continue
         for (const toolCall of message.toolCalls) {
           // Provider-executed tool calls (e.g. Anthropic `web_search`) were
           // already run by the provider; they carry no client result, so they
@@ -3653,7 +3819,16 @@ class TextEngine<
           if (isProviderExecutedToolCall(toolCall)) {
             continue
           }
-          if (!completedToolIds.has(toolCall.id)) {
+          const explicitlyResumed =
+            approvals.has(toolCall.id) ||
+            approvals.has(`approval_${toolCall.id}`) ||
+            this.resumeClientToolResults.has(toolCall.id) ||
+            this.resumeClientToolErrors.has(toolCall.id) ||
+            this.resumeCancelledToolCallIds.has(toolCall.id)
+          if (
+            !completedToolIds.has(toolCall.id) &&
+            (activeCallIds.has(toolCall.id) || explicitlyResumed)
+          ) {
             pending.push(toolCall)
           }
         }
@@ -3945,7 +4120,7 @@ class TextEngine<
       chatOptions: {
         model: this.params.model,
         ...sanitizeProviderRequest(
-          this.providerMessages,
+          transformMessagesForReplay(this.providerMessages).messages,
           postOnConfig.systemPrompts,
         ),
         metadata: postOnConfig.metadata,
@@ -3965,6 +4140,13 @@ class TextEngine<
     // attach it as `finalizationError.cause` (the RUN_ERROR wire shape only
     // carries `message` and `code`, losing stack/cause/provider properties).
     let fallbackAdapterError: unknown = undefined
+    this.structuredCallMetadata = {
+      source: {
+        provider: this.adapter.provider ?? this.adapter.name,
+        api: this.adapter.api ?? this.adapter.kind,
+        model: structuredCallOptions.chatOptions.model,
+      },
+    }
     const providerStream = this.adapter.structuredOutputStream
       ? this.adapter.structuredOutputStream(structuredCallOptions)
       : fallbackStructuredOutputStream(
@@ -4038,7 +4220,7 @@ class TextEngine<
       }
 
       {
-        const chunk = raw
+        const chunk = this.withCallMetadata(raw, this.structuredCallMetadata)
         // Detect adapter-emitted structured-output.start so we don't duplicate
         if (
           !startEmitted &&
@@ -6130,7 +6312,10 @@ async function* fallbackStructuredOutputStream(
     type: EventType.RUN_FINISHED,
     runId,
     threadId,
-    model,
+    model: result.model ?? model,
+    ...(result.responseId !== undefined
+      ? { responseId: result.responseId }
+      : {}),
     timestamp: Date.now(),
     finishReason: 'stop',
     // Forward adapter-reported token usage so consumers reading
