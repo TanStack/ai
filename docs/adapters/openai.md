@@ -300,6 +300,8 @@ Click **Continue with ChatGPT**, approve, save, then send a message. The relay c
 
 The `ts-react-chat` example has this flow in its key dialog.
 
+To send a ChatGPT sign-in to the ChatGPT Codex backend, see [ChatGPT Codex backend](./openai-compatible#chatgpt-codex-backend).
+
 ## Configuration
 
 ```typescript

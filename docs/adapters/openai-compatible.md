@@ -169,6 +169,15 @@ Any provider implementing the OpenAI Chat Completions API works. Common ones are
 | Baseten | `https://inference.baseten.co/v1` | model-dependent |
 | Hugging Face (router) | `https://router.huggingface.co/v1` | `meta-llama/Llama-3.3-70B-Instruct` |
 | NVIDIA NIM | `https://integrate.api.nvidia.com/v1` | `meta/llama-3.3-70b-instruct` |
+| Kilo Gateway | `https://api.kilo.ai/api/gateway` | `anthropic/claude-opus-5.5` |
+| ZenMux | `https://zenmux.ai/api/v1` | `openai/gpt-5.5` |
+| Poe | `https://api.poe.com/v1` | `openai/gpt-5.5` |
+| DigitalOcean | `https://inference.do-ai.run/v1` | `openai-gpt-5.5` |
+| Modal | `https://inference.us-west.modal.direct/v1` | `moonshotai/Kimi-K3` |
+| Snowflake Cortex | `https://<account>.snowflakecomputing.com/api/v2/cortex/v1` | `claude-opus-5` |
+
+Some providers sign the user in with OAuth instead of an API key. For Poe, DigitalOcean, and Snowflake Cortex, pass the access token from your sign-in code as `apiKey`.
+
 
 On Chat Completions, `RUN_FINISHED.usage` carries the prompt cache counts that the provider reports. Cache reads arrive on `promptTokensDetails.cachedTokens`, and cache writes arrive on `promptTokensDetails.cacheWriteTokens`. Moonshot / Kimi reports both.
 
@@ -243,6 +252,232 @@ const adapter = createAzureOpenaiText("gpt-5.6", process.env.AZURE_OPENAI_API_KE
 ```
 
 See [Azure OpenAI](./openai#azure-openai) for `azureOpenaiText`, which reads the key and the other values from the environment.
+
+## GitHub Copilot
+
+Your users can pay for model calls with their GitHub Copilot plan. Your sign-in code gets a GitHub token for the user. The adapters send that token as `Authorization: Bearer`.
+
+Copilot serves each model on one of three APIs. `GET {baseURL}/models` lists the `supported_endpoints` of each model. Choose the adapter in this order:
+
+1. `/v1/messages`: use `createAnthropicChat` from `@tanstack/ai-anthropic`, with the token and `auth: "bearer"`.
+2. `/responses`: use `openaiCompatible` with `api: "responses"`.
+3. `/chat/completions`: use `openaiCompatible` without `api` and without `modelOptions`.
+
+Copilot reads a set of headers on every request. One `wrapFetch` in `copilot-headers.ts` sets all of them for each route:
+
+```typescript
+import type { FetchWrapper } from "@tanstack/ai";
+
+/** The Copilot interaction types: the main loop, a subagent, a title, or a compaction. */
+type Interaction =
+  | "conversation-agent"
+  | "conversation-subagent"
+  | "conversation-background"
+  | "conversation-compaction";
+
+export function copilotHeaders(
+  sessionId: string,
+  interaction: Interaction = "conversation-agent",
+): FetchWrapper {
+  return (next) => (input, init) => {
+    const body = typeof init?.body === "string" ? JSON.parse(init.body) : {};
+    const items = body.input ?? body.messages ?? [];
+    const last = items.at(-1);
+    // A user turn has text from the user. A tool result alone is an agent turn.
+    const userTurn =
+      last?.role === "user" &&
+      (!Array.isArray(last.content) ||
+        last.content.some(
+          (part: { type?: string }) => part.type !== "tool_result",
+        ));
+    const url = input instanceof Request ? input.url : String(input);
+    const headers = new Headers(init?.headers);
+    headers.set("User-Agent", "my-app/1.0.0");
+    headers.set("Openai-Intent", "conversation-edits");
+    headers.set("X-GitHub-Api-Version", "2026-08-01");
+    headers.set("X-Interaction-Type", interaction);
+    headers.set("X-Interaction-Id", sessionId);
+    headers.set(
+      "x-initiator",
+      interaction === "conversation-agent" && userTurn ? "user" : "agent",
+    );
+    if (/"type":"(image|image_url|input_image)"/.test(JSON.stringify(items))) {
+      headers.set("Copilot-Vision-Request", "true");
+    }
+    if (url.includes("/v1/messages")) {
+      // Keep the betas that the adapter already set.
+      const betas = headers.get("anthropic-beta");
+      const thinking = "interleaved-thinking-2025-05-14";
+      headers.set("anthropic-beta", betas ? `${betas},${thinking}` : thinking);
+    }
+    return next(input, { ...init, headers });
+  };
+}
+```
+
+- `x-initiator`: Copilot bills the requests that a user starts (`user`). Tool loop requests and the other interaction types are `agent`.
+- `X-Interaction-Id`: use one stable id for each chat session.
+- `X-Interaction-Type`: use `conversation-subagent` in a subagent, `conversation-background` for a title, and `conversation-compaction` for a summary of old messages.
+- `Copilot-Vision-Request`: set it when a request has images.
+
+### Claude models
+
+Set the Copilot host as `baseURL`. The Anthropic SDK adds `/v1/messages`. Set `auth: "bearer"`. Do not use `"oauth"`, because it adds the Claude Code headers:
+
+```typescript
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { createAnthropicChat } from "@tanstack/ai-anthropic";
+import { copilotHeaders } from "./copilot-headers";
+import { getCopilotToken } from "./copilot-auth"; // your sign-in code
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request);
+  const stream = chat({
+    adapter: createAnthropicChat(
+      "claude-sonnet-5-5",
+      await getCopilotToken(request),
+      { baseURL: "https://api.githubcopilot.com", auth: "bearer" },
+    ),
+    messages: params.messages,
+    wrapFetch: copilotHeaders(params.threadId),
+  });
+  return toServerSentEventsResponse(stream);
+}
+```
+
+`auth: "bearer"` sends `Authorization: Bearer` and no `x-api-key`. With a custom `baseURL`, the adapter sends no mid-conversation betas. It adds cache markers only when you set `promptCache`.
+
+### OpenAI models
+
+Pass the token as `apiKey`:
+
+```typescript
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { openaiCompatible } from "@tanstack/ai-openai/compatible";
+import { copilotHeaders } from "./copilot-headers";
+import { getCopilotToken } from "./copilot-auth"; // your sign-in code
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request);
+  const copilot = openaiCompatible({
+    name: "github-copilot",
+    baseURL: "https://api.githubcopilot.com",
+    apiKey: await getCopilotToken(request),
+    api: "responses",
+    models: ["gpt-6.1-sol"],
+  });
+
+  const stream = chat({
+    adapter: copilot("gpt-6.1-sol"),
+    messages: params.messages,
+    modelOptions: { store: false, include: ["reasoning.encrypted_content"] },
+    wrapFetch: copilotHeaders(params.threadId),
+  });
+  return toServerSentEventsResponse(stream);
+}
+```
+
+- `store: false`: Copilot keeps no responses. With `include`, the stream gives the encrypted reasoning. The adapter sends it back on the next turn when your history keeps it.
+- The Chat Completions adapter reads the thinking that Copilot streams on `delta.reasoning_text`.
+
+### Business and enterprise hosts
+
+Business and enterprise accounts can get a different host. Find the `baseURL` in this order:
+
+1. `endpoints.api` from `GET https://api.github.com/copilot_internal/user`, when it is set. For GitHub Enterprise, call `https://api.<your-domain>/copilot_internal/user`.
+2. `https://copilot-api.<your-domain>` for GitHub Enterprise.
+3. `https://api.githubcopilot.com` for all other accounts.
+
+## ChatGPT plan
+
+A user with a ChatGPT plan can sign in with ChatGPT instead of an API key. The access token works with `createOpenaiChat` on the default OpenAI URL:
+
+```typescript
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { createOpenaiChat } from "@tanstack/ai-openai";
+import { getChatGptToken } from "./chatgpt-auth"; // your sign-in code
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request);
+  const stream = chat({
+    adapter: createOpenaiChat("gpt-6.1-sol", await getChatGptToken(request)),
+    messages: params.messages,
+    modelOptions: { store: false },
+  });
+  return toServerSentEventsResponse(stream);
+}
+```
+
+The ChatGPT route requires `store: false`. Do not set `max_output_tokens`. [Sign in with ChatGPT](./openai#sign-in-with-chatgpt-byok) has the browser sign-in helpers and the other limits.
+
+## ChatGPT Codex backend
+
+Your app can also send a ChatGPT sign-in to the ChatGPT Codex backend at `https://chatgpt.com/backend-api/codex`. Your sign-in code gets the access token and the account id.
+
+This backend is not a public OpenAI API. OpenAI can change it at any time.
+
+```typescript
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { createOpenaiChat } from "@tanstack/ai-openai";
+import type { FetchWrapper } from "@tanstack/ai";
+import { getChatGptSignIn } from "./chatgpt-auth"; // your sign-in code
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request);
+  const { token, accountId } = await getChatGptSignIn(request);
+
+  /** ChatGPT routes its prompt cache on the session id. */
+  const session: FetchWrapper = (next) => (input, init) => {
+    const headers = new Headers(init?.headers);
+    headers.set("session-id", params.threadId);
+    return next(input, { ...init, headers });
+  };
+
+  const stream = chat({
+    adapter: createOpenaiChat("gpt-6.1-sol", token, {
+      baseURL: "https://chatgpt.com/backend-api/codex",
+      defaultHeaders: {
+        originator: "my-app",
+        "x-codex-beta-features": "remote_compaction_v2",
+        "chatgpt-account-id": accountId,
+      },
+    }),
+    messages: params.messages,
+    modelOptions: { store: false, include: ["reasoning.encrypted_content"] },
+    wrapFetch: session,
+  });
+  return toServerSentEventsResponse(stream);
+}
+```
+
+The headers:
+
+- `originator`: the name of your app.
+- `x-codex-beta-features`: the beta features of the backend, here `remote_compaction_v2`.
+- `chatgpt-account-id`: the ChatGPT account of the user. The token claims have it as `chatgpt_account_id`, at the top level or under `https://api.openai.com/auth`.
+- `session-id`: a stable id for the conversation. Each request of the conversation sends the same id. Give a child session the id of its parent, so they share the cache.
+
+The request:
+
+- `store: false`: the backend keeps no responses. With `include`, the stream gives the encrypted reasoning for the next turn.
+- Do not set `max_output_tokens`. The backend rejects an output limit. The adapter sends none unless you set it in `modelOptions`.
+- Use a model that the user's ChatGPT plan includes for Codex.
 
 ## Example: With Tools
 
