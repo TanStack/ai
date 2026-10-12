@@ -945,8 +945,8 @@ class TextEngine<
   private currentThinkingRedacted = false
   private eventOptions?: Record<string, unknown> | undefined
   private currentCallMetadata: TanStackMessageMetadata = {}
-  /** The rate-limit `RUN_ERROR` that `retryRateLimited` held when an abort ended its wait. */
-  private abandonedRetryError: AdapterYieldChunk | undefined
+  /** An abort ended the wait of `retryRateLimited`. Its last chunks still go to the caller. */
+  private retryAbandoned = false
   private structuredCallMetadata: TanStackMessageMetadata = {}
   private eventToolNames?: Array<string>
   private finishedEvent: RunFinishedEvent | null = null
@@ -1690,7 +1690,8 @@ class TextEngine<
       // Also wakes on a middleware `ctx.abort()`, not only the caller's.
       await waitOrAbort(waitMs, this.toolAbortSignal)
       if (this.isCancelled()) {
-        this.abandonedRetryError = rateLimitError
+        this.retryAbandoned = true
+        if (start) yield start
         yield rateLimitError
         return
       }
@@ -1782,8 +1783,8 @@ class TextEngine<
       this.adapter.chatStream(streamOptions),
     )) {
       const raw = this.withCallMetadata(adapterChunk, this.currentCallMetadata)
-      // The rate-limit error of an abandoned retry still goes to the caller.
-      if (this.isCancelled() && adapterChunk !== this.abandonedRetryError) {
+      // An abandoned retry still sends its start and its rate-limit error.
+      if (this.isCancelled() && !this.retryAbandoned) {
         break
       }
 

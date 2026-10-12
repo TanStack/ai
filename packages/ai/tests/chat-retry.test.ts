@@ -119,8 +119,8 @@ describe('chat({ retry })', () => {
       }),
     )
     expect(calls).toHaveLength(1)
+    expect(types(chunks)).toEqual([EventType.RUN_STARTED, EventType.RUN_ERROR])
     expect(chunks.at(-1)).toMatchObject({
-      type: EventType.RUN_ERROR,
       metadata: { tanstack: { retryAfterMs: 60_000 } },
     })
     expect(Date.now() - started).toBeLessThan(5_000)
