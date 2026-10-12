@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { undoNullWidening } from '@tanstack/ai-utils'
 import { makeMistralStructuredOutputCompatibleWithMap } from './schema-converter'
 
 describe('makeMistralStructuredOutputCompatibleWithMap', () => {
@@ -252,5 +253,28 @@ describe('makeMistralStructuredOutputCompatibleWithMap', () => {
       nullWideningMap: undefined,
       strict: false,
     })
+  })
+})
+
+describe('own keys named __proto__ and constructor', () => {
+  it('keeps them in the null-widening map', () => {
+    const schema = JSON.parse(
+      '{"type":"object","properties":{"__proto__":{"type":"string"},"constructor":{"type":"string"}},"required":["constructor"]}',
+    )
+    const { schema: strict, nullWideningMap } =
+      makeMistralStructuredOutputCompatibleWithMap(schema, schema.required)
+
+    expect(Object.hasOwn(strict.properties, '__proto__')).toBe(true)
+    expect(Object.hasOwn(nullWideningMap?.properties ?? {}, '__proto__')).toBe(
+      true,
+    )
+    expect(
+      JSON.stringify(
+        undoNullWidening(
+          JSON.parse('{"__proto__":null,"constructor":"kept"}'),
+          nullWideningMap,
+        ),
+      ),
+    ).toBe('{"constructor":"kept"}')
   })
 })

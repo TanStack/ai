@@ -346,3 +346,38 @@ describe.each(openaiAdapters)(
     })
   },
 )
+
+describe('Bedrock Converse documents', () => {
+  it('keeps own keys named __proto__ in a tool schema and a tool input', async () => {
+    const body = await converseBody(nova, {
+      tools: [
+        {
+          name: 'inspect',
+          description: 'Inspect a value',
+          inputSchema: JSON.parse(
+            '{"type":"object","properties":{"__proto__":{"type":"string"}},"required":["__proto__"]}',
+          ),
+        },
+      ],
+      messages: [
+        { role: 'user', content: 'Inspect it' },
+        {
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'call_1',
+              type: 'function',
+              function: { name: 'inspect', arguments: '{"__proto__":"value"}' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_1', content: 'done' },
+      ],
+    })
+    // The AWS SDK serializer drops these keys unless the adapter restores them.
+    const wire = JSON.stringify(body)
+    expect(wire).toContain('"properties":{"__proto__":{"type":"string"}}')
+    expect(wire).toContain('"input":{"__proto__":"value"}')
+  })
+})

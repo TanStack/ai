@@ -3,6 +3,7 @@ import { EventType, chat } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { ResponsesRequest$outboundSchema } from '@openrouter/sdk/models'
 import { createOpenRouterResponsesText } from '../src/adapters/responses-text'
+import { createToolInputNormalizer } from '../src/internal/responses-tool-converter'
 import { webSearchTool } from '../src/tools/web-search-tool'
 import { webFetchTool } from '../src/tools/web-fetch-tool'
 import type { AdapterYieldChunk, Tool } from '@tanstack/ai'
@@ -2176,6 +2177,46 @@ describe('OpenRouter responses adapter — cost tracking', () => {
           upstreamOutputCost: 0.0026,
         },
       },
+    })
+  })
+})
+
+describe('OpenRouter responses tool input normalizer — own keys', () => {
+  it('strips the widened null of a property named __proto__', () => {
+    const normalize = createToolInputNormalizer([
+      {
+        name: 'inspect',
+        description: 'Inspect',
+        inputSchema: JSON.parse(
+          '{"type":"object","properties":{"__proto__":{"type":"string"},"keep":{"type":["string","null"]}},"required":["keep"]}',
+        ),
+      },
+    ])
+    expect(
+      JSON.stringify(
+        normalize('inspect', JSON.parse('{"__proto__":null,"keep":null}')),
+      ),
+    ).toBe('{"keep":null}')
+  })
+
+  it('ignores a schema property that is only inherited', () => {
+    const properties = JSON.parse('{"owned":{"type":"string"}}')
+    Object.setPrototypeOf(properties, { ghost: { type: 'string' } })
+    const wire = JSON.parse(
+      '{"type":"object","properties":{"ghost":{"type":["string","null"]},"owned":{"type":["string","null"]}},"required":["ghost","owned"]}',
+    )
+    const normalize = createToolInputNormalizer(
+      [
+        {
+          name: 'inspect',
+          description: 'Inspect',
+          inputSchema: { type: 'object', properties, required: [] },
+        },
+      ],
+      () => wire,
+    )
+    expect(normalize('inspect', { ghost: null, owned: null })).toEqual({
+      ghost: null,
     })
   })
 })

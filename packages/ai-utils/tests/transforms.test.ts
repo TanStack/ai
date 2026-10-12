@@ -154,3 +154,25 @@ describe('undoNullWidening', () => {
     expect(result).toEqual({ req: 'a', extra: null })
   })
 })
+
+describe('own keys named __proto__', () => {
+  it('keeps them in transformNullsToUndefined', () => {
+    const result = transformNullsToUndefined(
+      JSON.parse('{"__proto__":{"a":1,"b":null},"c":null}'),
+    )
+    expect(Object.getPrototypeOf(result)).toBe(Object.prototype)
+    expect(JSON.stringify(result)).toBe('{"__proto__":{"a":1}}')
+  })
+
+  it('keeps them in undoNullWidening', () => {
+    const map: NullWideningMap = JSON.parse(
+      '{"properties":{"__proto__":{"properties":{"x":{"widened":true}}}}}',
+    )
+    const result = undoNullWidening(
+      JSON.parse('{"__proto__":{"x":null,"y":1}}'),
+      map,
+    )
+    expect(Object.getPrototypeOf(result)).toBe(Object.prototype)
+    expect(JSON.stringify(result)).toBe('{"__proto__":{"y":1}}')
+  })
+})
