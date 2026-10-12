@@ -225,9 +225,8 @@ const stream = chat({
 | `grok-4.7`, `grok-4.6` | `low` to `xhigh` |
 | `grok-4.5` | `low`, `medium`, `high` |
 | `grok-4.3` | `off`, `low`, `medium`, `high` |
-| `grok-4.20-reasoning`, `grok-4.1-fast-reasoning` | `off` to `high` |
 
-`grok-build-0.1` and the `non-reasoning` models take no `reasoning`.
+`grok-build-0.1` and the `non-reasoning` models take no `reasoning`. `grok-4.20-reasoning` and `grok-4.1-fast-reasoning` take no `reasoning` either: they always think, and have no levels.
 
 ## Summarization
 

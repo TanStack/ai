@@ -452,7 +452,7 @@ The levels of each model:
 | --- | --- | --- |
 | `gemini-3.8-flash`, `gemini-3.7-flash`, `gemini-3.1-pro-preview` | `low`, `medium`, `high` | no |
 | `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.5-flash-lite`, `gemini-3.1-flash-lite`, `gemini-3.1-flash-lite-preview`, `gemini-3-flash-preview` | `minimal` to `high` | no |
-| `gemini-2.5-pro` | `off` to `high` | yes |
+| `gemini-2.5-pro` | `minimal` to `high` | yes |
 | `gemini-2.5-flash`, `gemini-2.5-flash-lite` | `off`, `high` | yes |
 
 A Gemini 2.5 budget:

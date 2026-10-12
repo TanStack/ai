@@ -276,7 +276,6 @@ const stream = chat({
 - `@cf/zai-org/glm-5.3`, `@cf/zai-org/glm-5.3-flash`: `low`, `high`, `max`.
 - `@cf/deepseek-ai/deepseek-v4-pro-0813`, `@cf/deepseek-ai/deepseek-v4-flash-0731`: `off`, `low`, `high`, `max`.
 - `@cf/openai/gpt-oss-120b`, `@cf/openai/gpt-oss-20b`: `low`, `medium`, `high`.
-- `@cf/qwen/qwq-32b`, `@cf/moonshotai/kimi-k2.7-code`: `off` to `high`.
 
 The types take the levels of each model. A model with no reasoning data takes no `reasoning`.
 

@@ -300,7 +300,7 @@ const stream = chat({
 What goes on the wire:
 
 - `mistral-medium-latest`, `mistral-small-latest`: `reasoning_effort`. They take `off` (sent as `none`) and `high`.
-- `magistral-medium-latest`, `magistral-small-latest`: `prompt_mode: "reasoning"` for any level from `minimal` to `high`. `off` sends nothing.
+- `magistral-medium-latest`, `magistral-small-latest`: they take `off` and `high`. `high` sends `prompt_mode: "reasoning"`. `off` sends nothing.
 
 The other models take no `reasoning`.
 

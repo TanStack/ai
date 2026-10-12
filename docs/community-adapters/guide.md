@@ -129,28 +129,37 @@ Your provider has a thinking model? Users set it with `chat({ reasoning })`, and
 import type { ModelReasoning } from '@tanstack/ai'
 import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
 
+const EFFORT_NONE_LOW_TO_XHIGH = {
+  levels: { off: 'none', low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh' },
+  budget: false,
+} as const
+
 const GPT5_2 = {
   name: 'gpt-5.2',
   // ...supports, pricing
-  reasoning: {
-    map: { off: 'none', minimal: null, low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh' },
-    budget: false,
-  },
+  reasoning: EFFORT_NONE_LOW_TO_XHIGH,
 } as const
+
+// One object lists each model once.
+const OPENAI_REASONING = {
+  [GPT5_2.name]: GPT5_2.reasoning,
+}
 
 // The levels per model, for the types.
 export type OpenAIModelReasoningByName = {
-  [GPT5_2.name]: ModelReasoningCapability<typeof GPT5_2.reasoning>
+  [K in keyof typeof OPENAI_REASONING]: ModelReasoningCapability<
+    (typeof OPENAI_REASONING)[K]
+  >
 }
 
-// The same data at run time. `satisfies` keeps the keys equal.
-export const OPENAI_MODEL_REASONING: Readonly<Record<string, ModelReasoning>> = {
-  [GPT5_2.name]: GPT5_2.reasoning,
-} satisfies Record<keyof OpenAIModelReasoningByName, ModelReasoning>
+// The same data at run time.
+export const OPENAI_MODEL_REASONING: Readonly<Record<string, ModelReasoning>> =
+  OPENAI_REASONING
 ```
 
-- `map` gives the value your provider takes for each level. `null` means the model does not have that level.
+- `levels` lists only the levels the model has, with the value your provider takes for each. A level that is not in the list is not supported.
 - `budget` is `true` when the model takes a thinking token budget.
+- Many models share the same levels. Define each shape once, and point each model at it.
 - A model that does not reason gets no `reasoning` field.
 
 Step 8 passes these levels to the adapter type. See [Add reasoning to your adapter](../advanced/extend-adapter#add-reasoning-to-your-adapter) for the adapter side.

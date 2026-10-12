@@ -235,23 +235,28 @@ import type {
 } from '@tanstack/ai'
 import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
 
-// 1. The model's data: the value for each level. `null`: no such level.
+// 1. The model's data: only the levels it has, with the value for each.
 const MY_MODEL = {
   name: 'my-model',
   reasoning: {
-    map: { off: 'none', minimal: null, low: 'low', medium: 'medium', high: 'high' },
+    levels: { off: 'none', low: 'low', medium: 'medium', high: 'high' },
     budget: false,
   },
 } as const
 
 // 2. The levels for the types, and the same data at run time.
-type MyModelReasoningByName = {
-  [MY_MODEL.name]: ModelReasoningCapability<typeof MY_MODEL.reasoning>
+const MY_REASONING = {
+  [MY_MODEL.name]: MY_MODEL.reasoning,
 }
 
-const MY_MODEL_REASONING: Readonly<Record<string, ModelReasoning>> = {
-  [MY_MODEL.name]: MY_MODEL.reasoning,
-} satisfies Record<keyof MyModelReasoningByName, ModelReasoning>
+type MyModelReasoningByName = {
+  [K in keyof typeof MY_REASONING]: ModelReasoningCapability<
+    (typeof MY_REASONING)[K]
+  >
+}
+
+const MY_MODEL_REASONING: Readonly<Record<string, ModelReasoning>> =
+  MY_REASONING
 
 type MyModel = keyof MyModelReasoningByName
 

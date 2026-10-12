@@ -312,7 +312,9 @@ The levels of each model:
 
 - `us.anthropic.claude-haiku-4-5-*`, `us.anthropic.claude-sonnet-4-5-*`: `off`, `high`, with `budgetTokens`.
 - `openai.gpt-oss-120b-1:0`, `openai.gpt-oss-20b-1:0`: `low`, `medium`, `high`.
-- `us.deepseek.r1-v1:0`: `off` to `high`. The `google.gemma-4` models: `off`, `high`.
+- The `google.gemma-4` models: `off`, `high`.
+
+The other models take no `reasoning`. `us.deepseek.r1-v1:0` always thinks, and has no levels.
 
 ## Embeddings
 
