@@ -67,10 +67,12 @@ import { Route as ApiAudioRouteImport } from './routes/api.audio'
 import { Route as ApiAzureOpenaiWireRouteImport } from './routes/api.azure-openai-wire'
 import { Route as ApiBedrockConverseCacheRouteImport } from './routes/api.bedrock-converse-cache'
 import { Route as ApiByokChatRouteImport } from './routes/api.byok-chat'
+import { Route as ApiByteplusEncryptedReasoningWireRouteImport } from './routes/api.byteplus-encrypted-reasoning-wire'
 import { Route as ApiByteplusSeedance1080pWireRouteImport } from './routes/api.byteplus-seedance-1080p-wire'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiChatCompletionsIncompleteStreamRouteImport } from './routes/api.chat-completions-incomplete-stream'
 import { Route as ApiCompactionWireRouteImport } from './routes/api.compaction-wire'
+import { Route as ApiCrossModelReplayWireRouteImport } from './routes/api.cross-model-replay-wire'
 import { Route as ApiDevtoolsMemoryRouteImport } from './routes/api.devtools-memory'
 import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-delivery'
 import { Route as ApiDurableTakeoverRouteImport } from './routes/api.durable-takeover'
@@ -140,6 +142,7 @@ import { Route as ApiRetryAfterRouteImport } from './routes/api.retry-after'
 import { Route as ApiSandboxDurabilityRouteImport } from './routes/api.sandbox-durability'
 import { Route as ApiSandboxFilePersistenceRouteImport } from './routes/api.sandbox-file-persistence'
 import { Route as ApiSandboxToolHistoryRouteImport } from './routes/api.sandbox-tool-history'
+import { Route as ApiServerToolStoreWireRouteImport } from './routes/api.server-tool-store-wire'
 import { Route as ApiStructuredOutputLengthWireRouteImport } from './routes/api.structured-output-length-wire'
 import { Route as ApiSubagentsTestRouteImport } from './routes/api.subagents-test'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
@@ -464,6 +467,12 @@ const ApiByokChatRoute = ApiByokChatRouteImport.update({
   path: '/api/byok-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiByteplusEncryptedReasoningWireRoute =
+  ApiByteplusEncryptedReasoningWireRouteImport.update({
+    id: '/api/byteplus-encrypted-reasoning-wire',
+    path: '/api/byteplus-encrypted-reasoning-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiByteplusSeedance1080pWireRoute =
   ApiByteplusSeedance1080pWireRouteImport.update({
     id: '/api/byteplus-seedance-1080p-wire',
@@ -484,6 +493,11 @@ const ApiChatCompletionsIncompleteStreamRoute =
 const ApiCompactionWireRoute = ApiCompactionWireRouteImport.update({
   id: '/api/compaction-wire',
   path: '/api/compaction-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCrossModelReplayWireRoute = ApiCrossModelReplayWireRouteImport.update({
+  id: '/api/cross-model-replay-wire',
+  path: '/api/cross-model-replay-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiDevtoolsMemoryRoute = ApiDevtoolsMemoryRouteImport.update({
@@ -850,6 +864,11 @@ const ApiSandboxToolHistoryRoute = ApiSandboxToolHistoryRouteImport.update({
   path: '/api/sandbox-tool-history',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiServerToolStoreWireRoute = ApiServerToolStoreWireRouteImport.update({
+  id: '/api/server-tool-store-wire',
+  path: '/api/server-tool-store-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiStructuredOutputLengthWireRoute =
   ApiStructuredOutputLengthWireRouteImport.update({
     id: '/api/structured-output-length-wire',
@@ -1016,10 +1035,12 @@ export interface FileRoutesByFullPath {
   '/api/azure-openai-wire': typeof ApiAzureOpenaiWireRoute
   '/api/bedrock-converse-cache': typeof ApiBedrockConverseCacheRoute
   '/api/byok-chat': typeof ApiByokChatRoute
+  '/api/byteplus-encrypted-reasoning-wire': typeof ApiByteplusEncryptedReasoningWireRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
+  '/api/cross-model-replay-wire': typeof ApiCrossModelReplayWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
@@ -1089,6 +1110,7 @@ export interface FileRoutesByFullPath {
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
+  '/api/server-tool-store-wire': typeof ApiServerToolStoreWireRoute
   '/api/structured-output-length-wire': typeof ApiStructuredOutputLengthWireRoute
   '/api/subagents-test': typeof ApiSubagentsTestRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -1170,10 +1192,12 @@ export interface FileRoutesByTo {
   '/api/azure-openai-wire': typeof ApiAzureOpenaiWireRoute
   '/api/bedrock-converse-cache': typeof ApiBedrockConverseCacheRoute
   '/api/byok-chat': typeof ApiByokChatRoute
+  '/api/byteplus-encrypted-reasoning-wire': typeof ApiByteplusEncryptedReasoningWireRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
+  '/api/cross-model-replay-wire': typeof ApiCrossModelReplayWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
@@ -1243,6 +1267,7 @@ export interface FileRoutesByTo {
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
+  '/api/server-tool-store-wire': typeof ApiServerToolStoreWireRoute
   '/api/structured-output-length-wire': typeof ApiStructuredOutputLengthWireRoute
   '/api/subagents-test': typeof ApiSubagentsTestRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -1325,10 +1350,12 @@ export interface FileRoutesById {
   '/api/azure-openai-wire': typeof ApiAzureOpenaiWireRoute
   '/api/bedrock-converse-cache': typeof ApiBedrockConverseCacheRoute
   '/api/byok-chat': typeof ApiByokChatRoute
+  '/api/byteplus-encrypted-reasoning-wire': typeof ApiByteplusEncryptedReasoningWireRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
+  '/api/cross-model-replay-wire': typeof ApiCrossModelReplayWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
@@ -1398,6 +1425,7 @@ export interface FileRoutesById {
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
+  '/api/server-tool-store-wire': typeof ApiServerToolStoreWireRoute
   '/api/structured-output-length-wire': typeof ApiStructuredOutputLengthWireRoute
   '/api/subagents-test': typeof ApiSubagentsTestRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -1481,10 +1509,12 @@ export interface FileRouteTypes {
     | '/api/azure-openai-wire'
     | '/api/bedrock-converse-cache'
     | '/api/byok-chat'
+    | '/api/byteplus-encrypted-reasoning-wire'
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
     | '/api/chat-completions-incomplete-stream'
     | '/api/compaction-wire'
+    | '/api/cross-model-replay-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
     | '/api/durable-takeover'
@@ -1554,6 +1584,7 @@ export interface FileRouteTypes {
     | '/api/sandbox-durability'
     | '/api/sandbox-file-persistence'
     | '/api/sandbox-tool-history'
+    | '/api/server-tool-store-wire'
     | '/api/structured-output-length-wire'
     | '/api/subagents-test'
     | '/api/summarize'
@@ -1635,10 +1666,12 @@ export interface FileRouteTypes {
     | '/api/azure-openai-wire'
     | '/api/bedrock-converse-cache'
     | '/api/byok-chat'
+    | '/api/byteplus-encrypted-reasoning-wire'
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
     | '/api/chat-completions-incomplete-stream'
     | '/api/compaction-wire'
+    | '/api/cross-model-replay-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
     | '/api/durable-takeover'
@@ -1708,6 +1741,7 @@ export interface FileRouteTypes {
     | '/api/sandbox-durability'
     | '/api/sandbox-file-persistence'
     | '/api/sandbox-tool-history'
+    | '/api/server-tool-store-wire'
     | '/api/structured-output-length-wire'
     | '/api/subagents-test'
     | '/api/summarize'
@@ -1789,10 +1823,12 @@ export interface FileRouteTypes {
     | '/api/azure-openai-wire'
     | '/api/bedrock-converse-cache'
     | '/api/byok-chat'
+    | '/api/byteplus-encrypted-reasoning-wire'
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
     | '/api/chat-completions-incomplete-stream'
     | '/api/compaction-wire'
+    | '/api/cross-model-replay-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
     | '/api/durable-takeover'
@@ -1862,6 +1898,7 @@ export interface FileRouteTypes {
     | '/api/sandbox-durability'
     | '/api/sandbox-file-persistence'
     | '/api/sandbox-tool-history'
+    | '/api/server-tool-store-wire'
     | '/api/structured-output-length-wire'
     | '/api/subagents-test'
     | '/api/summarize'
@@ -1944,10 +1981,12 @@ export interface RootRouteChildren {
   ApiAzureOpenaiWireRoute: typeof ApiAzureOpenaiWireRoute
   ApiBedrockConverseCacheRoute: typeof ApiBedrockConverseCacheRoute
   ApiByokChatRoute: typeof ApiByokChatRoute
+  ApiByteplusEncryptedReasoningWireRoute: typeof ApiByteplusEncryptedReasoningWireRoute
   ApiByteplusSeedance1080pWireRoute: typeof ApiByteplusSeedance1080pWireRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiChatCompletionsIncompleteStreamRoute: typeof ApiChatCompletionsIncompleteStreamRoute
   ApiCompactionWireRoute: typeof ApiCompactionWireRoute
+  ApiCrossModelReplayWireRoute: typeof ApiCrossModelReplayWireRoute
   ApiDevtoolsMemoryRoute: typeof ApiDevtoolsMemoryRoute
   ApiDurableDeliveryRoute: typeof ApiDurableDeliveryRoute
   ApiDurableTakeoverRoute: typeof ApiDurableTakeoverRoute
@@ -2017,6 +2056,7 @@ export interface RootRouteChildren {
   ApiSandboxDurabilityRoute: typeof ApiSandboxDurabilityRoute
   ApiSandboxFilePersistenceRoute: typeof ApiSandboxFilePersistenceRoute
   ApiSandboxToolHistoryRoute: typeof ApiSandboxToolHistoryRoute
+  ApiServerToolStoreWireRoute: typeof ApiServerToolStoreWireRoute
   ApiStructuredOutputLengthWireRoute: typeof ApiStructuredOutputLengthWireRoute
   ApiSubagentsTestRoute: typeof ApiSubagentsTestRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
@@ -2444,6 +2484,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiByokChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/byteplus-encrypted-reasoning-wire': {
+      id: '/api/byteplus-encrypted-reasoning-wire'
+      path: '/api/byteplus-encrypted-reasoning-wire'
+      fullPath: '/api/byteplus-encrypted-reasoning-wire'
+      preLoaderRoute: typeof ApiByteplusEncryptedReasoningWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/byteplus-seedance-1080p-wire': {
       id: '/api/byteplus-seedance-1080p-wire'
       path: '/api/byteplus-seedance-1080p-wire'
@@ -2470,6 +2517,13 @@ declare module '@tanstack/react-router' {
       path: '/api/compaction-wire'
       fullPath: '/api/compaction-wire'
       preLoaderRoute: typeof ApiCompactionWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cross-model-replay-wire': {
+      id: '/api/cross-model-replay-wire'
+      path: '/api/cross-model-replay-wire'
+      fullPath: '/api/cross-model-replay-wire'
+      preLoaderRoute: typeof ApiCrossModelReplayWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/devtools-memory': {
@@ -2955,6 +3009,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSandboxToolHistoryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/server-tool-store-wire': {
+      id: '/api/server-tool-store-wire'
+      path: '/api/server-tool-store-wire'
+      fullPath: '/api/server-tool-store-wire'
+      preLoaderRoute: typeof ApiServerToolStoreWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/structured-output-length-wire': {
       id: '/api/structured-output-length-wire'
       path: '/api/structured-output-length-wire'
@@ -3223,11 +3284,14 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAzureOpenaiWireRoute: ApiAzureOpenaiWireRoute,
   ApiBedrockConverseCacheRoute: ApiBedrockConverseCacheRoute,
   ApiByokChatRoute: ApiByokChatRoute,
+  ApiByteplusEncryptedReasoningWireRoute:
+    ApiByteplusEncryptedReasoningWireRoute,
   ApiByteplusSeedance1080pWireRoute: ApiByteplusSeedance1080pWireRoute,
   ApiChatRoute: ApiChatRoute,
   ApiChatCompletionsIncompleteStreamRoute:
     ApiChatCompletionsIncompleteStreamRoute,
   ApiCompactionWireRoute: ApiCompactionWireRoute,
+  ApiCrossModelReplayWireRoute: ApiCrossModelReplayWireRoute,
   ApiDevtoolsMemoryRoute: ApiDevtoolsMemoryRoute,
   ApiDurableDeliveryRoute: ApiDurableDeliveryRoute,
   ApiDurableTakeoverRoute: ApiDurableTakeoverRoute,
@@ -3297,6 +3361,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSandboxDurabilityRoute: ApiSandboxDurabilityRoute,
   ApiSandboxFilePersistenceRoute: ApiSandboxFilePersistenceRoute,
   ApiSandboxToolHistoryRoute: ApiSandboxToolHistoryRoute,
+  ApiServerToolStoreWireRoute: ApiServerToolStoreWireRoute,
   ApiStructuredOutputLengthWireRoute: ApiStructuredOutputLengthWireRoute,
   ApiSubagentsTestRoute: ApiSubagentsTestRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,

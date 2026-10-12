@@ -7,9 +7,12 @@ import {
 } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
+  hashToolCallId,
   resolveReasoning,
+  tanstackMetadata,
   toRunErrorPayload,
   toRunErrorRawEvent,
+  transformMessagesForReplay,
 } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../internal/request-options'
@@ -153,6 +156,8 @@ export class OpenRouterTextAdapter<
 > {
   override readonly kind = 'text' as const
   readonly name = 'openrouter' as const
+  override readonly provider = 'openrouter'
+  override readonly api = 'openai-completions'
   override readonly inputModalities =
     OPENROUTER_MODEL_INPUT_MODALITIES[this.model]
 
@@ -169,6 +174,24 @@ export class OpenRouterTextAdapter<
   }
 
   async *chatStream(
+    options: TextOptions<ResolveProviderOptions<TModel>>,
+  ): AsyncIterable<AdapterYieldChunk> {
+    const source = {
+      provider: this.provider,
+      api: this.api,
+      model: options.model,
+    }
+    for await (const chunk of this.chatStreamRequest(options))
+      yield {
+        ...chunk,
+        metadata: {
+          ...chunk.metadata,
+          tanstack: { ...tanstackMetadata(chunk), source },
+        },
+      }
+  }
+
+  private async *chatStreamRequest(
     options: TextOptions<ResolveProviderOptions<TModel>>,
   ): AsyncIterable<AdapterYieldChunk> {
     // AG-UI lifecycle tracking (mutable state object for ESLint compatibility)
@@ -359,6 +382,8 @@ export class OpenRouterTextAdapter<
       return {
         data: transformed,
         rawText,
+        ...(response.id && { responseId: response.id }),
+        ...(response.model && { model: response.model }),
         ...(baseUsage && {
           usage: { ...baseUsage, ...extractUsageCost(response.usage) },
         }),
@@ -392,6 +417,24 @@ export class OpenRouterTextAdapter<
   async *structuredOutputStream(
     options: StructuredOutputOptions<ResolveProviderOptions<TModel>>,
   ): AsyncIterable<AdapterYieldChunk> {
+    const source = {
+      provider: this.provider,
+      api: this.api,
+      model: options.chatOptions.model,
+    }
+    for await (const chunk of this.structuredOutputRequestStream(options))
+      yield {
+        ...chunk,
+        metadata: {
+          ...chunk.metadata,
+          tanstack: { ...tanstackMetadata(chunk), source },
+        },
+      }
+  }
+
+  private async *structuredOutputRequestStream(
+    options: StructuredOutputOptions<ResolveProviderOptions<TModel>>,
+  ): AsyncIterable<AdapterYieldChunk> {
     const { chatOptions, outputSchema } = options
     const chatRequest = this.mapOptionsToRequest(chatOptions)
     const responseFormat = this.resolveStructuredResponseFormat(
@@ -413,6 +456,7 @@ export class OpenRouterTextAdapter<
     let hasClosedReasoning = false
     let stepId: string | undefined
     let lastModel: string | undefined
+    let responseId: string | undefined
     let finishReason: string | null | undefined
     let lastUsage: ReturnType<typeof buildOpenRouterUsage>
 
@@ -497,6 +541,7 @@ export class OpenRouterTextAdapter<
       )
 
       for await (const chunk of stream) {
+        if (chunk.id) responseId = chunk.id
         const choiceForLog = chunk.choices[0]
         chatOptions.logger.provider(
           `provider=${this.name} finishReason=${choiceForLog?.finishReason ?? 'none'} hasContent=${!!choiceForLog?.delta.content} hasUsage=${!!chunk.usage}`,
@@ -672,6 +717,13 @@ export class OpenRouterTextAdapter<
 
       yield {
         type: EventType.RUN_FINISHED,
+        ...(responseId && { responseId }),
+        metadata: {
+          tanstack: {
+            ...(responseId && { responseId }),
+            ...(lastModel && { model: lastModel }),
+          },
+        },
         runId: aguiState.runId,
         threadId: aguiState.threadId,
         model: lastModel || chatOptions.model,
@@ -803,6 +855,7 @@ export class OpenRouterTextAdapter<
     let accumulatedContent = ''
     let hasEmittedTextMessageStart = false
     let lastModel: string | undefined
+    let responseId: string | undefined
     // Track usage from any chunk that carries it. With
     // `streamOptions: { includeUsage: true }` OpenRouter emits a terminal
     // chunk whose `choices` is `[]` and only the `usage` field is populated;
@@ -841,6 +894,7 @@ export class OpenRouterTextAdapter<
 
     try {
       for await (const chunk of stream) {
+        if (chunk.id) responseId = chunk.id
         const choiceForLog = chunk.choices[0]
         options.logger.provider(
           `provider=${this.name} finishReason=${choiceForLog?.finishReason ?? 'none'} hasContent=${!!choiceForLog?.delta.content} hasToolCalls=${!!choiceForLog?.delta.toolCalls} hasUsage=${!!chunk.usage}`,
@@ -1254,6 +1308,13 @@ export class OpenRouterTextAdapter<
 
         yield {
           type: EventType.RUN_FINISHED,
+          ...(responseId && { responseId }),
+          metadata: {
+            tanstack: {
+              ...(responseId && { responseId }),
+              ...(lastModel && { model: lastModel }),
+            },
+          },
           runId: aguiState.runId,
           threadId: aguiState.threadId,
           model: lastModel || options.model,
@@ -1346,7 +1407,32 @@ export class OpenRouterTextAdapter<
           : systemPrompts.map((p) => p.content).join('\n'),
       })
     }
-    for (const m of options.messages) {
+    // History from another model loses its signatures, and its tool IDs are
+    // rewritten to a shape the Chat Completions API accepts.
+    const replay = transformMessagesForReplay(
+      options.messages,
+      { provider: this.provider, api: this.api, model: options.model },
+      (id, { attempt }) => {
+        if (attempt > 0)
+          return `${
+            id
+              .split('|')[0]
+              ?.replace(/[^a-zA-Z0-9_-]/g, '_')
+              .slice(0, 31) || 'call'
+          }_${hashToolCallId(`${id}:${attempt}`).slice(0, 8)}`
+        if (id.includes('|')) {
+          const separator = id.indexOf('|')
+          const call = id.slice(0, separator).replace(/[^a-zA-Z0-9_-]/g, '_')
+          const item = id.slice(separator + 1).replace(/[^a-zA-Z0-9_-]/g, '_')
+          const combined = item ? `${call}_${item}` : call
+          return combined.length <= 40
+            ? combined
+            : `${call.slice(0, 31)}_${hashToolCallId(id).slice(0, 8)}`
+        }
+        return id.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40)
+      },
+    )
+    for (const m of replay.messages) {
       messages.push(this.convertMessage(m))
     }
 

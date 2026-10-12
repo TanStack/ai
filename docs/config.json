@@ -154,7 +154,7 @@
           "label": "Stream Events",
           "to": "chat/stream-events",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-10-09"
+          "updatedAt": "2026-10-12"
         },
         {
           "label": "Subagents",
@@ -1156,7 +1156,7 @@
           "label": "Runtime Adapter Switching",
           "to": "advanced/runtime-adapter-switching",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "Tree-Shaking",
@@ -1179,7 +1179,8 @@
         {
           "label": "Test with a Fake Model",
           "to": "advanced/testing",
-          "addedAt": "2026-10-09"
+          "addedAt": "2026-10-09",
+          "updatedAt": "2026-10-09"
         },
         {
           "label": "Approval Flow Processing",
@@ -1221,7 +1222,7 @@
           "label": "Ollama",
           "to": "adapters/ollama",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-09"
+          "updatedAt": "2026-10-11"
         },
         {
           "label": "Grok (xAI)",

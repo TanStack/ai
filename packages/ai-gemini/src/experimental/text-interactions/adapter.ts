@@ -13,6 +13,10 @@ import {
 import { assertUniqueToolNames } from '@tanstack/ai/adapter-internals'
 import { interactionsThinking } from '../../text/reasoning'
 import { GEMINI_MODEL_REASONING } from '../../model-meta'
+import {
+  prepareGeminiMessagesForReplay,
+  withGeminiSource,
+} from '../../adapters/text'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
   GeminiChatModelToolCapabilitiesByName,
@@ -198,6 +202,8 @@ export class GeminiTextInteractionsAdapter<
 > {
   override readonly kind = 'text' as const
   override readonly name = 'gemini-text-interactions' as const
+  override readonly api = 'google-interactions'
+  override readonly provider: string
   // Consumes Gemini Files API references (geminiFiles()) as content `uri`s.
   override readonly supportsFileSources = true
 
@@ -220,10 +226,30 @@ export class GeminiTextInteractionsAdapter<
 
   constructor(config: GeminiTextInteractionsConfig, model: TModel) {
     super({}, model)
+    this.provider =
+      config.vertexai === true || config.enterprise === true
+        ? 'google-vertex'
+        : 'google'
     this.client = createGeminiClient(config)
   }
 
   async *chatStream(
+    options: TextOptions<GeminiTextInteractionsProviderOptions>,
+  ): AsyncIterable<AdapterYieldChunk> {
+    const source = {
+      provider: this.provider,
+      api: this.api,
+      model: options.model,
+    }
+    const prepared = {
+      ...options,
+      messages: prepareGeminiMessagesForReplay(options.messages, source),
+    }
+    for await (const chunk of this.chatStreamRequest(prepared))
+      yield withGeminiSource(chunk, source)
+  }
+
+  private async *chatStreamRequest(
     options: TextOptions<GeminiTextInteractionsProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
     const runId = options.runId ?? generateId(this.name)
@@ -397,6 +423,11 @@ export class GeminiTextInteractionsAdapter<
 
     const baseRequest = buildInteractionsRequest({
       ...chatOptions,
+      messages: prepareGeminiMessagesForReplay(chatOptions.messages, {
+        provider: this.provider,
+        api: this.api,
+        model: chatOptions.model,
+      }),
       modelOptions: {
         ...chatOptions.modelOptions,
         previous_interaction_id: effectivePreviousInteractionId,
@@ -445,7 +476,12 @@ export class GeminiTextInteractionsAdapter<
         throw new Error(jsonContentParseError(rawText, 'structured output'))
       }
 
-      return { data: parsed, rawText }
+      return {
+        data: parsed,
+        rawText,
+        ...(result.id && { responseId: result.id }),
+        ...(result.model && { model: result.model }),
+      }
     } catch (error) {
       logger.errors('gemini-text-interactions.structuredOutput fatal', {
         error,
@@ -463,6 +499,27 @@ export class GeminiTextInteractionsAdapter<
   }
 
   async *structuredOutputStream(
+    options: StructuredOutputOptions<GeminiTextInteractionsProviderOptions>,
+  ): AsyncIterable<AdapterYieldChunk> {
+    const source = {
+      provider: this.provider,
+      api: this.api,
+      model: options.chatOptions.model,
+    }
+    for await (const chunk of this.structuredOutputRequestStream({
+      ...options,
+      chatOptions: {
+        ...options.chatOptions,
+        messages: prepareGeminiMessagesForReplay(
+          options.chatOptions.messages,
+          source,
+        ),
+      },
+    }))
+      yield withGeminiSource(chunk, source)
+  }
+
+  private async *structuredOutputRequestStream(
     options: StructuredOutputOptions<GeminiTextInteractionsProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
     const { chatOptions, outputSchema } = options
@@ -1123,6 +1180,7 @@ async function* translateInteractionEvents(
   let hasEmittedTextMessageStart = false
   let textAccumulated = ''
   let interactionId: string | undefined
+  let reportedModel: string | undefined
   let sawFunctionCall = false
   const toolCalls = new Map<string, ToolCallState>()
   let nextToolIndex = 0
@@ -1202,6 +1260,12 @@ async function* translateInteractionEvents(
       hasEmittedRunStarted = true
       yield {
         type: EventType.RUN_STARTED,
+        metadata: {
+          tanstack: {
+            ...(interactionId && { responseId: interactionId }),
+            ...(reportedModel && { model: reportedModel }),
+          },
+        },
         runId,
         threadId,
         model,
@@ -1216,6 +1280,7 @@ async function* translateInteractionEvents(
     switch (event.event_type) {
       case 'interaction.created': {
         interactionId = event.interaction.id
+        if (event.interaction.model) reportedModel = event.interaction.model
         yield* emitRunStartedIfNeeded()
         break
       }
@@ -1637,6 +1702,7 @@ async function* translateInteractionEvents(
       }
 
       case 'interaction.completed': {
+        if (event.interaction.model) reportedModel = event.interaction.model
         if (event.interaction.id) {
           interactionId = event.interaction.id
         }
@@ -1681,6 +1747,12 @@ async function* translateInteractionEvents(
 
         yield {
           type: EventType.RUN_FINISHED,
+          metadata: {
+            tanstack: {
+              ...(interactionId && { responseId: interactionId }),
+              ...(reportedModel && { model: reportedModel }),
+            },
+          },
           runId,
           threadId,
           model,

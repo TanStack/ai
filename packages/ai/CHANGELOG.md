@@ -1,5 +1,15 @@
 # @tanstack/ai
 
+## 0.68.0
+
+### Minor Changes
+
+- [#1695](https://github.com/TanStack/ai/pull/1695) [`723b4a4`](https://github.com/TanStack/ai/commit/723b4a4e8432825374d4980cc74c5f66dc7d1122) - `fakeText()` takes an `input` option, for example `fakeText({ input: ['text', 'image'] })`. It sets the fake's `inputModalities`, so you can test code that checks what a model accepts. It also sets the adapter's input modality type.
+
+### Patch Changes
+
+- [#1605](https://github.com/TanStack/ai/pull/1605) [`d84a49e`](https://github.com/TanStack/ai/commit/d84a49e5fef03499b10f63255880d056a55767a3) - Fix a server tool call that the next turn sent twice when you use `withPersistence`. When a model call starts with a tool call and no text (often after thinking), `StreamProcessor` gave that message the id of the next model call. The next turn then replaced the stored answer with a copy that also held the tool call, so the provider got the same `tool_use` twice. The client now keeps the id of the message the tool call belongs to.
+
 ## 0.67.0
 
 ### Minor Changes

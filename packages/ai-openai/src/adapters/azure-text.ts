@@ -76,6 +76,7 @@ export class AzureOpenAITextAdapter<
   ReadonlyArray<string>,
   ResolveReasoning<TModel>
 > {
+  override readonly api = 'azure-openai-responses'
   private readonly deploymentName: string
 
   constructor(config: AzureOpenAITextConfig, model: TModel) {

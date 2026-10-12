@@ -6,8 +6,10 @@ import {
 } from '@tanstack/ai'
 import {
   REDACTED_THINKING_ID_PREFIX,
+  orderedAssistantBlocks,
   toRetryAfterMs,
   toRunErrorRawEvent,
+  transformMessagesForReplay,
 } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
@@ -75,6 +77,7 @@ import type {
   AdapterYieldChunk,
   TextOptions,
   ToolChoice,
+  ToolCall,
 } from '@tanstack/ai'
 import type {
   AnthropicSystemPromptMetadata,
@@ -278,11 +281,20 @@ export function computeAnthropicBetas(
 /**
  * Configuration for Anthropic text adapter
  */
-export interface AnthropicTextConfig extends AnthropicClientConfig {}
+export interface AnthropicTextConfig extends AnthropicClientConfig {
+  /** Replay ordinary thinking without a signature. The default is false. */
+  allowEmptySignature?: boolean
+  /** Identify a gateway separately from the direct Anthropic API. */
+  provider?: string
+}
 
 export type AnthropicTextAdapterConfig =
   | AnthropicTextConfig
-  | { client: AnthropicMessagesClient }
+  | {
+      client: AnthropicMessagesClient
+      allowEmptySignature?: boolean
+      provider?: string
+    }
 
 /** The headers that Claude Code sends with an OAuth token. */
 const OAUTH_IDENTITY_HEADERS = {
@@ -378,12 +390,15 @@ export class AnthropicTextAdapter<
 > {
   override readonly kind = 'text' as const
   readonly name = 'anthropic' as const
+  override readonly api = 'anthropic-messages'
+  override readonly provider: string
   // Consumes `file_id` sources issued by anthropicFiles() (Files API beta).
   override readonly supportsFileSources = true
   override readonly inputModalities =
     ANTHROPIC_MODEL_INPUT_MODALITIES[this.model]
 
   private readonly client: SdkAnthropicMessagesClient
+  private readonly allowEmptySignature: boolean
   /**
    * With `auth: 'oauth'`: add the Claude Code identity system block, the CLI
    * headers, and the `claude-code-20250219` and `oauth-2025-04-20` betas.
@@ -400,6 +415,8 @@ export class AnthropicTextAdapter<
 
   constructor(config: AnthropicTextAdapterConfig, model: TModel) {
     super({}, model)
+    this.provider = config.provider ?? this.name
+    this.allowEmptySignature = config.allowEmptySignature ?? false
     if ('client' in config) {
       this.client = asSdkAnthropicMessagesClient(config.client)
       return
@@ -540,6 +557,15 @@ export class AnthropicTextAdapter<
       yield {
         type: EventType.RUN_ERROR,
         model: options.model,
+        metadata: {
+          tanstack: {
+            source: {
+              provider: this.provider,
+              api: this.api,
+              model: options.model,
+            },
+          },
+        },
         timestamp: Date.now(),
         message: err.message || 'Unknown error occurred',
         code: err.code || String(err.status),
@@ -659,6 +685,8 @@ export class AnthropicTextAdapter<
         data: parsed,
         rawText,
         usage: buildAnthropicUsage(response.usage),
+        responseId: response.id,
+        model: response.model,
       }
     } catch (error: unknown) {
       const err = error as Error
@@ -678,7 +706,18 @@ export class AnthropicTextAdapter<
   ) {
     const modelOptions = options.modelOptions
 
-    const formattedMessages = this.formatMessages(options.messages)
+    // Another model's history loses its signatures, and its tool IDs are
+    // rewritten to the shape Anthropic accepts.
+    const replay = transformMessagesForReplay(
+      options.messages,
+      { provider: this.provider, api: this.api, model: options.model },
+      (id, { attempt }) => {
+        const clean = id.replace(/[^a-zA-Z0-9_-]/g, '_')
+        const suffix = attempt === 0 ? '' : `_${attempt}`
+        return clean.slice(0, 64 - suffix.length) + suffix
+      },
+    )
+    const formattedMessages = this.formatMessages(replay.messages)
     const tools = options.tools
       ? convertToolsToProviderFormat(options.tools)
       : undefined
@@ -1017,6 +1056,28 @@ export class AnthropicTextAdapter<
         continue
       }
 
+      // A valid block order map: send the blocks in the order the model
+      // sent them. Unsigned thinking is still skipped at its place.
+      const ordered =
+        role === 'assistant' ? orderedAssistantBlocks(message) : undefined
+      if (ordered) {
+        const contentBlocks: Array<BetaContentBlockParam> = []
+        for (const block of ordered) {
+          if (block.type === 'thinking') {
+            this.appendThinkingBlocks(contentBlocks, [block.thinking])
+          } else if (block.type === 'tool-call') {
+            this.appendToolCallBlocks(contentBlocks, block.toolCall)
+          } else {
+            contentBlocks.push({ type: 'text', text: block.text })
+          }
+        }
+        formattedMessages.push({
+          role: 'assistant',
+          content: contentBlocks.length > 0 ? contentBlocks : '',
+        })
+        continue
+      }
+
       if (role === 'assistant' && message.toolCalls?.length) {
         const contentBlocks: Array<BetaContentBlockParam> = []
 
@@ -1033,42 +1094,7 @@ export class AnthropicTextAdapter<
         }
 
         for (const toolCall of message.toolCalls) {
-          let parsedInput: unknown = {}
-          try {
-            const parsed = toolCall.function.arguments
-              ? JSON.parse(toolCall.function.arguments)
-              : {}
-            parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
-          } catch {
-            parsedInput = {}
-          }
-
-          // Provider-executed server tools (e.g. web_search) replay as the
-          // original `server_tool_use` + result blocks so the model still sees
-          // the prior evidence. Their result was captured verbatim during
-          // streaming (see processAnthropicStream).
-          const serverMeta = readAnthropicServerToolMetadata(toolCall.metadata)
-          if (serverMeta) {
-            const serverToolUseBlock: ServerToolUseBlockParam = {
-              type: 'server_tool_use',
-              id: toolCall.id,
-              name: serverMeta.serverToolType,
-              input: parsedInput,
-            }
-            contentBlocks.push(serverToolUseBlock)
-            contentBlocks.push(
-              buildServerToolResultBlock(toolCall.id, serverMeta),
-            )
-            continue
-          }
-
-          const toolUseBlock: ToolUseBlockParam = {
-            type: 'tool_use',
-            id: toolCall.id,
-            name: toolCall.function.name,
-            input: parsedInput,
-          }
-          contentBlocks.push(toolUseBlock)
+          this.appendToolCallBlocks(contentBlocks, toolCall)
         }
 
         formattedMessages.push({
@@ -1138,8 +1164,13 @@ export class AnthropicTextAdapter<
     if (!thinkingParts?.length) return
 
     for (const thinking of thinkingParts) {
-      if (!thinking.signature) continue
+      if (
+        !thinking.signature &&
+        (thinking.redacted || !this.allowEmptySignature)
+      )
+        continue
       if (thinking.redacted) {
+        if (!thinking.signature) continue
         contentBlocks.push({
           type: 'redacted_thinking',
           data: thinking.signature,
@@ -1149,10 +1180,51 @@ export class AnthropicTextAdapter<
       const block: ThinkingBlockParam = {
         type: 'thinking',
         thinking: thinking.content,
-        signature: thinking.signature,
+        signature: thinking.signature ?? '',
       }
       contentBlocks.push(block)
     }
+  }
+
+  /** A tool call as a `tool_use` block, or a server tool as its two blocks. */
+  private appendToolCallBlocks(
+    contentBlocks: Array<BetaContentBlockParam>,
+    toolCall: ToolCall,
+  ): void {
+    let parsedInput: unknown = {}
+    try {
+      const parsed = toolCall.function.arguments
+        ? JSON.parse(toolCall.function.arguments)
+        : {}
+      parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
+    } catch {
+      parsedInput = {}
+    }
+
+    // Provider-executed server tools (e.g. web_search) replay as the
+    // original `server_tool_use` + result blocks so the model still sees
+    // the prior evidence. Their result was captured verbatim during
+    // streaming (see processAnthropicStream).
+    const serverMeta = readAnthropicServerToolMetadata(toolCall.metadata)
+    if (serverMeta) {
+      const serverToolUseBlock: ServerToolUseBlockParam = {
+        type: 'server_tool_use',
+        id: toolCall.id,
+        name: serverMeta.serverToolType,
+        input: parsedInput,
+      }
+      contentBlocks.push(serverToolUseBlock)
+      contentBlocks.push(buildServerToolResultBlock(toolCall.id, serverMeta))
+      return
+    }
+
+    const toolUseBlock: ToolUseBlockParam = {
+      type: 'tool_use',
+      id: toolCall.id,
+      name: toolCall.function.name,
+      input: parsedInput,
+    }
+    contentBlocks.push(toolUseBlock)
   }
 
   /**
@@ -1241,7 +1313,13 @@ export class AnthropicTextAdapter<
     genId: () => string,
     logger: InternalLogger,
   ): AsyncIterable<AdapterYieldChunk> {
-    const model = options.model
+    let model = options.model
+    let responseId: string | undefined
+    const source = {
+      provider: this.provider,
+      api: this.api,
+      model: options.model,
+    }
     let accumulatedContent = ''
     let accumulatedThinking = ''
     let accumulatedSignature = ''
@@ -1282,6 +1360,10 @@ export class AnthropicTextAdapter<
 
     try {
       for await (const event of stream) {
+        if (event.type === 'message_start') {
+          responseId = event.message.id
+          model = event.message.model
+        }
         logger.provider(`provider=anthropic type=${event.type}`, {
           chunk: event,
         })
@@ -1295,6 +1377,7 @@ export class AnthropicTextAdapter<
             model,
             timestamp: Date.now(),
             parentRunId: options.parentRunId,
+            metadata: { tanstack: { source } },
           }
         }
 
@@ -1401,6 +1484,7 @@ export class AnthropicTextAdapter<
           } else if (event.content_block.type === 'thinking') {
             accumulatedThinking = ''
             accumulatedSignature = ''
+            hasClosedReasoning = false
             // Emit REASONING and STEP_STARTED for thinking
             stepId = genId()
             reasoningMessageId = genId()
@@ -1626,6 +1710,23 @@ export class AnthropicTextAdapter<
                 timestamp: Date.now(),
               }
             }
+            // End this block's reasoning message here, so the next thinking
+            // block gets its own end events.
+            if (reasoningMessageId && !hasClosedReasoning) {
+              hasClosedReasoning = true
+              yield {
+                type: EventType.REASONING_MESSAGE_END,
+                messageId: reasoningMessageId,
+                model,
+                timestamp: Date.now(),
+              }
+              yield {
+                type: EventType.REASONING_END,
+                messageId: reasoningMessageId,
+                model,
+                timestamp: Date.now(),
+              }
+            }
           } else if (currentBlockType === 'tool_use') {
             const existing = toolCallsMap.get(currentToolIndex)
             if (existing) {
@@ -1725,6 +1826,7 @@ export class AnthropicTextAdapter<
           if (!hasEmittedRunFinished) {
             yield {
               type: EventType.RUN_FINISHED,
+              ...(responseId !== undefined && { responseId }),
               runId,
               threadId,
               model,
@@ -1758,6 +1860,7 @@ export class AnthropicTextAdapter<
               case 'tool_use': {
                 yield {
                   type: EventType.RUN_FINISHED,
+                  ...(responseId !== undefined && { responseId }),
                   runId,
                   threadId,
                   model,
@@ -1774,7 +1877,9 @@ export class AnthropicTextAdapter<
                 // nothing" (issue #849). When the caller set `max_tokens`
                 // themselves, hitting it is their own deliberate ceiling.
                 if (options.modelOptions?.max_tokens == null) {
-                  const defaultedMaxTokens = getAnthropicDefaultMaxTokens(model)
+                  const defaultedMaxTokens = getAnthropicDefaultMaxTokens(
+                    options.model,
+                  )
                   logger.warn(
                     `anthropic response truncated at the default max_tokens (${defaultedMaxTokens}) for model=${model}; pass maxTokens (or modelOptions.max_tokens) to raise the output ceiling`,
                     {
@@ -1813,6 +1918,7 @@ export class AnthropicTextAdapter<
                 // shape is identical.
                 yield {
                   type: EventType.RUN_FINISHED,
+                  ...(responseId !== undefined && { responseId }),
                   runId,
                   threadId,
                   model,
@@ -1837,6 +1943,7 @@ export class AnthropicTextAdapter<
       yield {
         type: EventType.RUN_ERROR,
         model,
+        metadata: { tanstack: { source } },
         timestamp: Date.now(),
         message: err.message || 'Unknown error occurred',
         code: err.code || String(err.status),
