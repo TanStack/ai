@@ -42,13 +42,13 @@ test('chat({ retry }) calls the model again after a 429', async ({
   )
   expect(res.ok()).toBe(true)
 
-  const { ok, types, text } = (await res.json()) as {
-    ok: boolean
+  const { types, text } = (await res.json()) as {
     types: Array<string>
     text: string
   }
 
-  expect(ok).toBe(true)
   expect(types).not.toContain('RUN_ERROR')
+  expect(types.filter((t) => t === 'RUN_STARTED')).toHaveLength(1)
+  expect(types).toContain('RUN_FINISHED')
   expect(text).toBe('hello after the wait')
 })

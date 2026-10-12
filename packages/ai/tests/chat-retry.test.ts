@@ -65,18 +65,22 @@ describe('chat({ retry })', () => {
     const { adapter, calls } = createMockAdapter({
       iterations: [rateLimited(5_000), answer],
     })
-    await collectChunks(
+    const chunks = await collectChunks(
       chat({ adapter, messages, retry: { maxRetries: 2, maxWaitMs: 1_000 } }),
     )
     expect(calls).toHaveLength(1)
+    expect(types(chunks)).toContain(EventType.RUN_ERROR)
   })
 
   it('does not retry an error without a wait time', async () => {
     const { adapter, calls } = createMockAdapter({
       iterations: [[ev.runStarted(), ev.runError('boom')], answer],
     })
-    await collectChunks(chat({ adapter, messages, retry: { maxRetries: 2 } }))
+    const chunks = await collectChunks(
+      chat({ adapter, messages, retry: { maxRetries: 2 } }),
+    )
     expect(calls).toHaveLength(1)
+    expect(types(chunks)).toContain(EventType.RUN_ERROR)
   })
 
   it('does not retry after the call streamed output', async () => {
@@ -91,8 +95,12 @@ describe('chat({ retry })', () => {
         answer,
       ],
     })
-    await collectChunks(chat({ adapter, messages, retry: { maxRetries: 2 } }))
+    const chunks = await collectChunks(
+      chat({ adapter, messages, retry: { maxRetries: 2 } }),
+    )
     expect(calls).toHaveLength(1)
+    expect(chunks).toContainEqual(expect.objectContaining({ delta: 'part' }))
+    expect(chunks.at(-1)).toMatchObject({ type: EventType.RUN_ERROR })
   })
 
   it('stops waiting when the run aborts', async () => {
@@ -102,7 +110,7 @@ describe('chat({ retry })', () => {
     })
     const started = Date.now()
     setTimeout(() => abortController.abort(), 20)
-    await collectChunks(
+    const chunks = await collectChunks(
       chat({
         adapter,
         messages,
@@ -111,7 +119,44 @@ describe('chat({ retry })', () => {
       }),
     )
     expect(calls).toHaveLength(1)
+    expect(chunks.at(-1)).toMatchObject({
+      type: EventType.RUN_ERROR,
+      metadata: { tanstack: { retryAfterMs: 60_000 } },
+    })
     expect(Date.now() - started).toBeLessThan(5_000)
+  })
+
+  it('waits for the retryAfterMs time before the next call', async () => {
+    const callTimes: Array<number> = []
+    const iterations = [rateLimited(50), answer]
+    const { adapter } = createMockAdapter({
+      chatStreamFn: () => {
+        callTimes.push(Date.now())
+        const chunks = iterations.shift() ?? []
+        return (async function* () {
+          yield* chunks
+        })()
+      },
+    })
+    await collectChunks(chat({ adapter, messages, retry: { maxRetries: 1 } }))
+    expect(callTimes).toHaveLength(2)
+    // Timers can fire a few ms early, so the bound is under 50.
+    const [first = 0, second = 0] = callTimes
+    expect(second - first).toBeGreaterThanOrEqual(40)
+  })
+
+  it.each([
+    { maxRetries: -1 },
+    { maxRetries: 1.5 },
+    { maxRetries: Number.NaN },
+    { maxRetries: Infinity },
+    { maxRetries: 1, maxWaitMs: -1 },
+  ])('rejects the bad retry config %o', async (retry) => {
+    const { adapter, calls } = createMockAdapter({ iterations: [answer] })
+    await expect(
+      collectChunks(chat({ adapter, messages, retry })),
+    ).rejects.toThrow(TypeError)
+    expect(calls).toHaveLength(0)
   })
 
   it('sends the runId of the kept attempt on RUN_STARTED', async () => {

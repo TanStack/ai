@@ -30,11 +30,6 @@ const adapters = {
 }
 
 /**
- * Streams one chat against the aimock fixture in `fixtures/retry-after`. aimock
- * answers with a 429 and `Retry-After: 7`. Returns the `retryAfterMs` of the
- * `RUN_ERROR` that `chat()` yields. `?api=` picks the adapter.
- */
-/**
  * `chat({ retry })` against `[chat-retry]`: aimock answers the first call with
  * a 429 and `Retry-After: 1`, and the second call with text. `testId` gives the
  * test its own aimock `sequenceIndex` count.
@@ -55,9 +50,15 @@ async function retryThenAnswer(testId: string | undefined) {
     types.push(chunk.type)
     if (chunk.type === 'TEXT_MESSAGE_CONTENT') text += chunk.delta
   }
-  return Response.json({ ok: true, types, text })
+  return Response.json({ types, text })
 }
 
+/**
+ * Streams one chat against the aimock fixture in `fixtures/retry-after`. aimock
+ * answers with a 429 and `Retry-After: 7`. Returns the `retryAfterMs` of the
+ * `RUN_ERROR` that `chat()` yields. `?api=` picks the adapter.
+ * `?mode=retry` runs `retryThenAnswer`.
+ */
 export const Route = createFileRoute('/api/retry-after')({
   server: {
     handlers: {
