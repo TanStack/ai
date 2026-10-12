@@ -119,8 +119,8 @@ Claude caches a start only when it is longer than a model minimum (512 to 4096 t
 | `anthropicText`, `anthropicVertexText` | `cache_control` markers on the last start tool, the last block of the last user or mid-conversation system message, and the system blocks. At most 4. The last start tool is the tool before the deferred placeholder, or the last tool. | The same markers with `ttl: '1h'` |
 | `bedrockText` (Converse), Claude models only | A `cachePoint` after the system prompt and at the end of the last user message | Both with `ttl: '1h'` |
 | `openRouterText` | `sessionId` set to the key. `anthropic/*` models also get markers on the system message, the last tool, and the last message. | The markers with `ttl: '1h'` |
-| `openaiText` (Responses) | `prompt_cache_key`, cut to 64 characters, only to `api.openai.com` | Also `prompt_cache_retention: '24h'`. On gpt-5.6 and later, `prompt_cache_options: { ttl: '30m' }` in its place. |
-| `openaiChatCompletions` | `prompt_cache_key`, only to `api.openai.com` | The key and `prompt_cache_retention: '24h'` |
+| `openaiText` (Responses) | `prompt_cache_key`, cut to 64 characters, only to `api.openai.com` and its regional hosts | Also `prompt_cache_retention: '24h'`. On gpt-5.6 and later, `prompt_cache_options: { ttl: '30m' }` in its place. |
+| `openaiChatCompletions` | `prompt_cache_key`, only to `api.openai.com` and its regional hosts | The key and `prompt_cache_retention: '24h'` |
 | `mistralText` | `prompt_cache_key`, only to `api.mistral.ai`, on `chat()` and on structured output | The same |
 
 Other adapters send no cache fields. On gpt-5.6 and later, `openaiText` with `'none'` sends `prompt_cache_options: { mode: 'explicit' }`, so OpenAI caches nothing.

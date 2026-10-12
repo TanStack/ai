@@ -9,6 +9,19 @@ export function clampPromptCacheKey(key: string | undefined) {
 }
 
 /**
+ * True when `baseURL` points at OpenAI's own API: `api.openai.com` or a
+ * subdomain, such as the data residency hosts (`eu.api.openai.com`).
+ */
+function isOpenAIHost(baseURL: string) {
+  try {
+    const host = new URL(baseURL).hostname
+    return host === 'api.openai.com' || host.endsWith('.api.openai.com')
+  } catch {
+    return false
+  }
+}
+
+/**
  * The prompt cache fields of a Responses request.
  *
  * - `explicitMode`: the model takes `prompt_cache_options` in place of
@@ -27,7 +40,7 @@ export function responsesPromptCacheFields(
   const { retention } = promptCache
   const key = clampPromptCacheKey(promptCache.key)
   const isLong = retention === 'long' && flags.longRetention
-  const sendsKey = isLong || flags.baseURL.includes('api.openai.com')
+  const sendsKey = isLong || isOpenAIHost(flags.baseURL)
   if (retention !== 'none' && key && sendsKey) fields.prompt_cache_key = key
   if (!flags.explicitMode) {
     if (isLong) fields.prompt_cache_retention = '24h'
@@ -53,7 +66,7 @@ export function chatPromptCacheFields(
   if (!promptCache || promptCache.retention === 'none') return fields
   const key = clampPromptCacheKey(promptCache.key)
   const isLong = promptCache.retention === 'long' && flags.longRetention
-  const sendsKey = isLong || flags.baseURL.includes('api.openai.com')
+  const sendsKey = isLong || isOpenAIHost(flags.baseURL)
   if (key && sendsKey) fields.prompt_cache_key = key
   if (isLong) fields.prompt_cache_retention = '24h'
   return fields

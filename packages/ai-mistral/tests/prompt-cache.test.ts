@@ -91,6 +91,14 @@ describe('Mistral chat({ promptCache }) cache key', () => {
     expect(body).not.toHaveProperty('prompt_cache_key')
   })
 
+  it('sends no prompt_cache_key to a host that only contains api.mistral.ai', async () => {
+    const { body } = await stream({
+      promptCache: { retention: 'short', key: 'k-1' },
+      config: { baseURL: 'https://proxy.example.com/api.mistral.ai' },
+    })
+    expect(body).not.toHaveProperty('prompt_cache_key')
+  })
+
   it('sends no prompt_cache_key on Vertex', async () => {
     const { body } = await stream({
       promptCache: { retention: 'long', key: 'k-1' },

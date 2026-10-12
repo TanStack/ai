@@ -225,6 +225,28 @@ describe('responsesPromptCacheFields', () => {
     ).toEqual({})
   })
 
+  it('sends the short key to an OpenAI data residency host', () => {
+    expect(
+      responsesPromptCacheFields(
+        { retention: 'short', key: 'k-1' },
+        { ...classic, baseURL: 'https://eu.api.openai.com/v1' },
+      ),
+    ).toEqual({ prompt_cache_key: 'k-1' })
+  })
+
+  it('sends no short key to a host that only contains api.openai.com', () => {
+    for (const baseURL of [
+      'https://api.openai.com.example.com/v1',
+      'https://proxy.example.com/api.openai.com/v1',
+    ])
+      expect(
+        responsesPromptCacheFields(
+          { retention: 'short', key: 'k-1' },
+          { ...classic, baseURL },
+        ),
+      ).toEqual({})
+  })
+
   it('sends the long key to another server', () => {
     expect(
       responsesPromptCacheFields(

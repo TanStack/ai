@@ -118,7 +118,11 @@ function mistralOwnApi(config: MistralClientConfig, provider: string) {
   if (provider === 'google-vertex') return false
   const serverURL =
     config.baseURL ?? config.serverURL ?? 'https://api.mistral.ai'
-  return serverURL.includes('api.mistral.ai')
+  try {
+    return new URL(serverURL).hostname === 'api.mistral.ai'
+  } catch {
+    return false
+  }
 }
 
 /** Add `prompt_cache_key` to a JSON body the SDK has already serialized. */
