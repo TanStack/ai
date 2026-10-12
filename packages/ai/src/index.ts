@@ -351,6 +351,9 @@ export {
   MetadataCapability,
   getMetadata,
   provideMetadata,
+  LogRecordsCapability,
+  getLogRecords,
+  provideLogRecords,
 } from './activities/chat/middleware/index'
 export type {
   Capability,
@@ -361,6 +364,7 @@ export type {
   DefinedChatMiddleware,
   AnyChatMiddleware,
   MetadataStore,
+  LogRecordsWriter,
 } from './activities/chat/middleware/index'
 // Locks are a distributed-mutex primitive — coordination, not chat state — and
 // live behind their own subpath: `@tanstack/ai/locks` (see ./locks.ts).
