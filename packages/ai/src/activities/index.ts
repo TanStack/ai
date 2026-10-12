@@ -45,7 +45,14 @@ export {
   type DefinedAgent,
   type SubagentChoiceOptions,
   type SubagentRunContext,
+  type SubagentRunInput,
+  type AgentProduces,
 } from './chat/agents/define-agent'
+export type {
+  BoundActivities,
+  SubagentBinding,
+  SubagentForward,
+} from './chat/agents/bound'
 export { subagentRoute, type SubagentRouteOptions } from './chat/agents/route'
 export type {
   SubagentOrder,

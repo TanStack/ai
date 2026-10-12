@@ -231,7 +231,14 @@ export {
   type DefinedAgent,
   type SubagentChoiceOptions,
   type SubagentRunContext,
+  type SubagentRunInput,
+  type AgentProduces,
 } from './activities/chat/agents/define-agent'
+export type {
+  BoundActivities,
+  SubagentBinding,
+  SubagentForward,
+} from './activities/chat/agents/bound'
 export {
   subagentRoute,
   type SubagentRouteOptions,

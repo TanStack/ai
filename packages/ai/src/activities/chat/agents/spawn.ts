@@ -26,7 +26,13 @@ import type {
   Tool,
   UIMessage,
 } from '../../../types'
-import type { DefinedAgent, SubagentRunContext } from './define-agent'
+import { createBoundActivities } from './bound'
+import type { SubagentBinding } from './bound'
+import type {
+  DefinedAgent,
+  SubagentRunContext,
+  SubagentRunInput,
+} from './define-agent'
 import type { ChatMiddleware } from '../middleware/types'
 import type { SubagentTurn } from './turn'
 
@@ -76,6 +82,11 @@ export interface SubagentsBag<
    */
   order?: 'parallel' | 'sequence'
   sandbox?: 'own' | 'inherit'
+  /**
+   * What a host adds to every activity call a child makes through `ctx`
+   * (`ctx.chat`, `ctx.generateImage`, and the rest). Apps do not set it.
+   */
+  binding?: SubagentBinding
 }
 
 /** What the children of one parent run left behind for the parent terminal. */
@@ -114,6 +125,8 @@ interface SpawnContext {
   parentRunId: string
   /** The interrupted parent run, on a resume. */
   interruptedRunId?: string
+  /** The parent chat's own subagentRunId, when that chat is a child too. */
+  parentSubagentRunId?: string
 }
 
 export function createSubagentId() {
@@ -185,10 +198,10 @@ function linkAbort(parent?: AbortSignal) {
   const controller = new AbortController()
   if (!parent) return { controller, dispose: () => {} }
   if (parent.aborted) {
-    controller.abort()
+    controller.abort(parent.reason)
     return { controller, dispose: () => {} }
   }
-  const onAbort = () => controller.abort()
+  const onAbort = () => controller.abort(parent.reason)
   parent.addEventListener('abort', onAbort, { once: true })
   return {
     controller,
@@ -229,6 +242,7 @@ function openAgentStream(
   ctx: SpawnContext,
   sink?: SubagentSink,
   parentToolCallId?: string,
+  binding: SubagentBinding | undefined = bag.binding,
 ) {
   const agent = agentByName(bag.agents, entry.name)
   const resume = entry.resume
@@ -258,10 +272,14 @@ function openAgentStream(
       runId: childRunId(ctx.parentRunId, subagentRunId),
       parentRunId: resumed?.parentRunId ?? ctx.parentRunId,
       subagentRunId,
+      ...(ctx.parentSubagentRunId !== undefined
+        ? { parentSubagentRunId: ctx.parentSubagentRunId }
+        : {}),
       ...(resumed ? { resume: resumed.resume } : {}),
     },
     sink,
     parentToolCallId,
+    binding,
   )
 }
 
@@ -403,33 +421,138 @@ export function withChildUsage(
   return withTanstackMetadata(next, { usage: leftover }) as ParentTerminal
 }
 
+function isAsyncIterable(value: unknown): value is AsyncIterable<StreamChunk> {
+  return (
+    typeof value === 'object' && value !== null && Symbol.asyncIterator in value
+  )
+}
+
+/**
+ * The chunks of a `chat({ stream: false })` result, else `undefined`. A `run`
+ * that resolves to a chat result streams like a `run` that returns the chat
+ * stream: its text, usage, and interrupts reach the parent.
+ */
+function chatResultChunks(value: unknown) {
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    !('text' in value) ||
+    typeof value.text !== 'string' ||
+    !('chunks' in value) ||
+    !Array.isArray(value.chunks)
+  ) {
+    return undefined
+  }
+  const chunks: Array<StreamChunk> = value.chunks
+  return (async function* () {
+    yield* chunks
+  })()
+}
+
+/**
+ * Chunks for an agent whose `run` resolved to a plain value instead of a
+ * stream. A string also streams as the child's text, so the parent model, a
+ * `sequence` router, and the UI all read it like chat output. `messageId` is
+ * new for each run and call.
+ */
+function* valueResultChunks(
+  value: unknown,
+  id: string,
+  messageId: string,
+): Generator<StreamChunk> {
+  if (typeof value === 'string' && value !== '') {
+    const timestamp = Date.now()
+    yield attributeChunk(
+      {
+        type: EventType.TEXT_MESSAGE_START,
+        messageId,
+        role: 'assistant',
+        timestamp,
+      },
+      id,
+    )
+    yield attributeChunk(
+      {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId,
+        delta: value,
+        timestamp,
+      },
+      id,
+    )
+    yield attributeChunk(
+      { type: EventType.TEXT_MESSAGE_END, messageId, timestamp },
+      id,
+    )
+  }
+  yield {
+    type: SUBAGENT_FINISHED,
+    subagentRunId: id,
+    ...(value !== undefined ? { result: value } : {}),
+    timestamp: Date.now(),
+  } satisfies SubagentFinishedEvent
+}
+
+/**
+ * Build the context `run` receives: the spawn input plus `forward` and the
+ * bound activity functions.
+ */
+function runContext(
+  agentName: string,
+  input: SubagentRunInput,
+  abortController: AbortController,
+  binding?: SubagentBinding,
+) {
+  return {
+    ...input,
+    forward: {
+      threadId: input.threadId,
+      runId: input.runId,
+      parentRunId: input.parentRunId,
+      subagentRunId: input.subagentRunId,
+      subagentName: agentName,
+      ...(input.parentSubagentRunId !== undefined
+        ? { parentSubagentRunId: input.parentSubagentRunId }
+        : {}),
+      ...(input.resume ? { resume: input.resume } : {}),
+      abortController,
+      ...(binding?.promptCache ? { promptCache: binding.promptCache } : {}),
+    },
+    ...createBoundActivities(agentName, input, abortController, binding),
+  } satisfies SubagentRunContext
+}
+
 /**
  * Run one agent and stream its chunks, from `SUBAGENT_STARTED` to
  * `SUBAGENT_FINISHED` or `SUBAGENT_ERROR`. The package root exports it as
  * `runAgentStream` for hosts that run an agent outside a parent chat turn.
- * The caller checks `ctx.input` against `agent.inputSchema` first. Without a
+ * The caller checks `input.input` against `agent.inputSchema` first. Without a
  * `sink`, the child's interrupts and usage reach the caller only on the
  * `SUBAGENT_FINISHED` outcome.
  */
 export async function* spawnAgentStream(
   agent: DefinedAgent,
-  ctx: SubagentRunContext,
+  input: SubagentRunInput,
   sink?: SubagentSink,
   parentToolCallId?: string,
+  binding?: SubagentBinding,
 ): AsyncIterable<StreamChunk> {
-  const id = ctx.subagentRunId
+  const id = input.subagentRunId
+  // No parentSubagentRunId here, also for a nested child: the chat that
+  // started this child lists it as a direct child. attributeChunk adds the id
+  // one level up, in the stream of the parent child.
   yield {
     type: SUBAGENT_STARTED,
     subagentRunId: id,
     name: agent.name,
     description: agent.description,
-    ...(ctx.parentSubagentRunId !== undefined
-      ? { parentSubagentRunId: ctx.parentSubagentRunId }
-      : {}),
     ...(parentToolCallId !== undefined ? { parentToolCallId } : {}),
     timestamp: Date.now(),
   } satisfies SubagentStartedEvent
 
+  // No yield between here and the `try`, so `finally` always disposes it.
+  const link = linkAbort(input.abortSignal)
+  const ctx = runContext(agent.name, input, link.controller, binding)
   let iterator: AsyncIterator<StreamChunk> | undefined
   let finished: StreamChunk | undefined
   try {
@@ -437,10 +560,25 @@ export async function* spawnAgentStream(
       yield stoppedEvent(id)
       return
     }
-    const stream = await orAbort(
+    const produced: unknown = await orAbort(
       Promise.resolve(agent.run(ctx)),
       ctx.abortSignal,
     )
+    const stream = isAsyncIterable(produced)
+      ? produced
+      : chatResultChunks(produced)
+    if (!stream) {
+      if (ctx.abortSignal?.aborted) {
+        yield stoppedEvent(id)
+        return
+      }
+      const messageId =
+        parentToolCallId === undefined
+          ? `${ctx.runId}-text`
+          : `${ctx.runId}-${parentToolCallId}-text`
+      yield* valueResultChunks(produced, id, messageId)
+      return
+    }
     iterator = stream[Symbol.asyncIterator]()
     while (true) {
       if (ctx.abortSignal?.aborted) {
@@ -531,6 +669,7 @@ export async function* spawnAgentStream(
     } catch {
       // Child stream may already be closed or aborted.
     }
+    link.dispose()
   }
 }
 
@@ -695,6 +834,8 @@ export function createSyntheticSubagentTools(
     threadId: string
     runId: string
     interruptedRunId?: string
+    /** The parent chat's own subagentRunId, when that chat is a child too. */
+    parentSubagentRunId?: string
     abortSignal?: AbortSignal
     turn?: SubagentTurn
     sink: SubagentSink
@@ -739,6 +880,7 @@ export function createSyntheticSubagentTools(
       let subagentRunId = suspended?.subagentRunId ?? ''
       let text = suspended?.text ?? ''
       let error: string | undefined
+      let result: unknown
       try {
         for await (const chunk of openAgentStream(
           entry,
@@ -750,6 +892,9 @@ export function createSyntheticSubagentTools(
             parentRunId: parent.runId,
             ...(parent.interruptedRunId !== undefined
               ? { interruptedRunId: parent.interruptedRunId }
+              : {}),
+            ...(parent.parentSubagentRunId !== undefined
+              ? { parentSubagentRunId: parent.parentSubagentRunId }
               : {}),
           },
           sink,
@@ -771,6 +916,13 @@ export function createSyntheticSubagentTools(
           ) {
             error = chunk.message
           }
+          if (
+            chunk.type === SUBAGENT_FINISHED &&
+            chunk.subagentRunId === subagentRunId &&
+            chunk.result !== undefined
+          ) {
+            result = chunk.result
+          }
           toolContext?.[EMIT_STREAM_CHUNK]?.(chunk)
         }
       } finally {
@@ -785,6 +937,7 @@ export function createSyntheticSubagentTools(
       return {
         subagentRunId,
         text,
+        ...(result !== undefined ? { result } : {}),
         ...(error !== undefined ? { error } : {}),
         ...(sink.interrupts.length > 0 ? { interrupts: sink.interrupts } : {}),
       } satisfies SubagentToolOutcome

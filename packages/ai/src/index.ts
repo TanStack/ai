@@ -91,7 +91,14 @@ export {
   type DefinedAgent,
   type SubagentChoiceOptions,
   type SubagentRunContext,
+  type SubagentRunInput,
+  type AgentProduces,
 } from './activities/chat/agents/define-agent'
+export type {
+  BoundActivities,
+  SubagentBinding,
+  SubagentForward,
+} from './activities/chat/agents/bound'
 export {
   keyedAdapter,
   keyedAdapters,
@@ -116,6 +123,7 @@ export {
   spawnAgentStream as runAgentStream,
   createSubagentId,
 } from './activities/chat/agents/spawn'
+export { compactForModel } from './activities/chat/tools/tool-calls'
 
 // Tool definition
 export {
@@ -384,6 +392,9 @@ export type {
   RunStatus,
   TerminalRunStatus,
   RunRecord,
+  RunKind,
+  RunArtifactRef,
+  RunCheckpoint,
   RunError,
   RunStore,
 } from './activities/chat/middleware/index'
