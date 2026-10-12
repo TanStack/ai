@@ -1906,6 +1906,13 @@ class TextEngine<
             if (this.hasPublicRunStarted) continue
             this.hasPublicRunStarted = true
           }
+          // An adapter can fail before it sends `RUN_STARTED`. The public
+          // stream still starts with one.
+          if (spec.type === EventType.RUN_ERROR) {
+            yield* this.emitSyntheticRunStarted(
+              this.createSyntheticFinishedEvent(),
+            )
+          }
           this.logger.output(`type=${spec.type}`, { chunk: spec })
           yield spec
           this.middlewareCtx.chunkIndex++

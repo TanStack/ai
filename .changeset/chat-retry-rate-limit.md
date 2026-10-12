@@ -12,3 +12,5 @@
 - A `maxRetries` or `maxWaitMs` that is not valid throws a `TypeError`.
 
 `retry` is off by default.
+
+`chat()` now also sends `RUN_STARTED` before a `RUN_ERROR` when the adapter failed before it sent a start.

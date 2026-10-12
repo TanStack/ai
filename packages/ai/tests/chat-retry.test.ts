@@ -38,6 +38,14 @@ describe('chat({ retry })', () => {
     expect(chunks).toContainEqual(expect.objectContaining({ delta: 'hello' }))
   })
 
+  it('sends RUN_STARTED before an error from a call that sent no start', async () => {
+    const { adapter } = createMockAdapter({
+      iterations: [[ev.runError('boom')]],
+    })
+    const chunks = await collectChunks(chat({ adapter, messages }))
+    expect(types(chunks)).toEqual([EventType.RUN_STARTED, EventType.RUN_ERROR])
+  })
+
   it('does not retry without the option', async () => {
     const { adapter, calls } = createMockAdapter({
       iterations: [rateLimited(5), answer],
