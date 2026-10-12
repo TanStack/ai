@@ -543,13 +543,13 @@
           "label": "MCP Server Tools",
           "to": "tools/mcp",
           "addedAt": "2026-06-05",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-10-12"
         },
         {
           "label": "Managed MCP with chat()",
           "to": "tools/mcp-managed",
           "addedAt": "2026-06-05",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-10-12"
         },
         {
           "label": "Manual MCP",
@@ -584,7 +584,7 @@
           "label": "Serve Resources and Prompts",
           "to": "mcp/server-content",
           "addedAt": "2026-09-22",
-          "updatedAt": "2026-10-02"
+          "updatedAt": "2026-10-12"
         },
         {
           "label": "Ask for Input",
