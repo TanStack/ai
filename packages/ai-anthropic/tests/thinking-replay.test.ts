@@ -350,6 +350,7 @@ describe('Anthropic replay', () => {
     await drain(
       chat({
         adapter: adapter(),
+        promptCache: 'none',
         messages: [
           { role: 'user', content: 'Hi' },
           {

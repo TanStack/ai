@@ -296,6 +296,86 @@ Another wire format? Extend `BaseTextAdapter`, pass the levels as its last type 
 
 A model added with `extendAdapter` has no reasoning data, so it takes no `reasoning`.
 
+## Send the prompt cache
+
+`chat()` asks every adapter for [prompt caching](./prompt-caching) by default. It passes the setting as `options.promptCache`: a `retention` (`'none'`, `'short'`, or `'long'`) and an optional `key`. Map it to your provider's cache fields when you build the request:
+
+```typescript
+import type { TextOptions } from '@tanstack/ai'
+
+export function cacheFields(options: TextOptions) {
+  const cache = options.promptCache
+  if (!cache || cache.retention === 'none') return {}
+  return {
+    ...(cache.key ? { cache_key: cache.key } : {}),
+    ...(cache.retention === 'long' ? { cache_ttl: '1h' } : {}),
+  }
+}
+```
+
+- If `promptCache` is `undefined` (a call outside `chat()`), send no cache fields.
+- Put the cache fields first and the user's `modelOptions` after them, so a value the user sets wins.
+
+## Send mid-conversation changes
+
+Tools or system prompts can grow between model calls. If your provider takes them inside the conversation, the cached start of the request can stay the same. To support it:
+
+1. Set `midConversationChannels` on the adapter: `{ tools, systemPrompts }`. Then `chat()` passes the changes as `options.midConversationChanges`.
+2. Read them with `splitMidConversationChanges`. You get the start lists and the changes by message index. You get `undefined` when the names or counts do not match the current lists.
+3. Send the start lists at the top of the request. Send each change right before the message at its index. A change at `options.messages.length` goes at the end.
+
+Extending the Responses adapter of `@tanstack/openai-base`? Set the field and you are done. The base sends `additional_tools` and `developer` messages:
+
+```typescript
+import { OpenAIBaseResponsesTextAdapter } from '@tanstack/openai-base'
+
+export class MyResponsesAdapter extends OpenAIBaseResponsesTextAdapter<'my-model'> {
+  override readonly midConversationChannels = { tools: true, systemPrompts: true }
+}
+```
+
+With another wire format, do the steps yourself:
+
+```typescript
+import { splitMidConversationChanges } from '@tanstack/ai'
+import type { ModelMessage, TextOptions } from '@tanstack/ai'
+
+type WireTool = { name: string; description: string }
+type WireItem =
+  | { kind: 'message'; message: ModelMessage }
+  | { kind: 'change'; tools: Array<WireTool>; prompts: Array<string> }
+
+export function buildRequest(
+  options: TextOptions,
+  tools: Array<WireTool>,
+  prompts: Array<string>,
+) {
+  const changes = options.midConversationChanges
+  const split = changes
+    ? splitMidConversationChanges({ changes, tools, systemPrompts: prompts })
+    : undefined
+  if (!split) {
+    // No changes, or names that do not match: send the full lists.
+    const items = options.messages.map((message): WireItem => ({ kind: 'message', message }))
+    return { tools, system: prompts, items }
+  }
+  const items: Array<WireItem> = []
+  const pushChange = (index: number) => {
+    const change = split.at.get(index)
+    if (change) items.push({ kind: 'change', tools: change.tools, prompts: change.systemPrompts })
+  }
+  options.messages.forEach((message, index) => {
+    pushChange(index)
+    items.push({ kind: 'message', message })
+  })
+  pushChange(options.messages.length)
+  return { tools: split.startTools, system: split.startSystemPrompts, items }
+}
+```
+
+- `split.addedTools` lists every added tool, in order. Use it if your provider also wants them in its tool list.
+- If your provider cannot add a kind of tool later (a hosted search tool, for example), send the full tool list for that request. Keep the prompt changes in the conversation.
+
 ## Send assistant blocks in order
 
 Your provider wants thinking, text, and tool calls in the order the model sent them. A `ModelMessage` keeps them in three separate fields: `thinking`, `content`, and `toolCalls`. Use `orderedAssistantBlocks` to get them back in order:

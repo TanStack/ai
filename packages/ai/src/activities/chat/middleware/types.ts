@@ -9,6 +9,7 @@ import type {
   Interrupt,
   JSONSchema,
   ModelMessage,
+  ResolvedPromptCache,
   UIMessage,
   RunAgentResumeItem,
   StreamChunk,
@@ -357,6 +358,11 @@ export interface ChatMiddlewareConfig {
    * option. A call with no tools sends no tool choice.
    */
   toolChoice?: ToolChoice | undefined
+  /**
+   * The prompt cache of the next model call. A returned value stays until a
+   * middleware changes it.
+   */
+  promptCache?: ResolvedPromptCache | undefined
   /**
    * Wraps the fetch of the next model call. A returned wrapper chains inside
    * the wrappers before it, so it does not replace them. It applies to that

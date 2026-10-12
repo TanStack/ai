@@ -231,6 +231,11 @@ Adapters are implemented per capability, so only implement what your provider su
 
 Refer to the [OpenAI adapter](https://github.com/TanStack/ai/blob/main/packages/ai-openai/src/adapters/text.ts) for a complete, end-to-end implementation example.
 
+For a text adapter, `chat()` also passes two optional fields. Your adapter works without them, but they make repeated requests cheaper:
+
+- `options.promptCache`: map it to your provider's cache fields. See [Send the prompt cache](../advanced/extend-adapter#send-the-prompt-cache).
+- `options.midConversationChanges`: send added tools and prompts inside the conversation. See [Send mid-conversation changes](../advanced/extend-adapter#send-mid-conversation-changes).
+
 #### Keep history valid across models
 
 A user can switch to your adapter in the middle of a thread. The history then holds signatures and tool call IDs from another provider, and your API rejects them.

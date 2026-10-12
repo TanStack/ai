@@ -412,6 +412,12 @@ const stream = chat({
 
 `user` (a unique user identifier), `sessionId`, and `metadata` (up to 16 key-value pairs) are forwarded unchanged. `sessionId` doubles as OpenRouter's sticky routing key: requests that share it are routed to the same provider to maximize prompt-cache hits, and grouped together for observability.
 
+### Prompt caching
+
+`chat()` sets `sessionId` to the cache key by default, which is the `threadId` that you pass. So one conversation stays on one provider and reads its cache. `anthropic/*` models also get cache markers on the system message, the last tool, and the last message. `promptCache: 'long'` asks for the 1-hour cache, and `promptCache: 'none'` sends nothing. See [Prompt Caching](../advanced/prompt-caching).
+
+Your own `modelOptions.sessionId` wins. A cache marker of your own turns the automatic markers off for that request.
+
 ## Model Options
 
 OpenRouter supports various provider-specific options. Sampling parameters live here too — `temperature`, `topP`, and `maxCompletionTokens` (OpenRouter's token-limit key for the chat adapter) — rather than as root-level props on `chat()`:

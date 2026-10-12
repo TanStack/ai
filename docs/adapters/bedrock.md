@@ -181,7 +181,9 @@ const adapter = createBedrockText(
 
 ### Prompt caching
 
-Add a `cachePoint` to make a prompt prefix eligible for caching. Later requests can read matching tokens at the reduced cache rate. Bedrock bills cache misses at the standard input rate.
+`chat()` adds cache points for Claude models by default: one after the system prompt, and one at the end of the last user message. Pass `promptCache: 'long'` for the 1-hour cache, or `promptCache: 'none'` to turn it off. Other models get no automatic cache point. For the cost, see [Prompt Caching](../advanced/prompt-caching).
+
+To pick the places yourself, add a `cachePoint`. One cache point of your own turns the automatic ones off for that request. Later requests can read matching tokens at the reduced cache rate. Bedrock bills cache misses at the standard input rate.
 
 Explicit prompt caching is model-dependent. Use `cachePoint` only with a model that AWS lists as supporting it. The minimum checkpoint size and the TTL options also vary by model.
 

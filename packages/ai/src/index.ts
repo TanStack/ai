@@ -579,6 +579,8 @@ export {
   getProviderExecutedMetadata,
   isProviderExecutedToolCall,
 } from './utilities/provider-executed'
+export { splitMidConversationChanges } from './utilities/mid-conversation'
+export type { MidConversationRequest } from './utilities/mid-conversation'
 export { orderedAssistantBlocks } from './utilities/block-order'
 export type { OrderedAssistantBlock } from './utilities/block-order'
 

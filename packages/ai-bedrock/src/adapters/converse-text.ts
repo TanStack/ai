@@ -17,6 +17,7 @@ import {
   BEDROCK_CLAUDE_NO_FORCED_TOOL_FAMILIES,
   BEDROCK_MODEL_REASONING,
 } from '../model-meta'
+import { addPromptCachePoints } from '../converse/prompt-cache'
 import {
   STRUCTURED_TOOL_NAME,
   buildStructuredToolConfig,
@@ -692,7 +693,7 @@ export class BedrockConverseTextAdapter<
           }
         : undefined
 
-    return {
+    const input: ConverseCommandInput = {
       modelId: this.model,
       messages,
       ...(system.length > 0 && { system }),
@@ -700,6 +701,7 @@ export class BedrockConverseTextAdapter<
       ...(inferenceConfig && { inferenceConfig }),
       ...(additionalModelRequestFields && { additionalModelRequestFields }),
     }
+    return addPromptCachePoints(this.model, input, options.promptCache)
   }
 }
 
