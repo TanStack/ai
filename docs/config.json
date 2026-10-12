@@ -160,7 +160,7 @@
           "label": "Subagents",
           "to": "chat/subagents",
           "addedAt": "2026-09-21",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-10-12"
         },
         {
           "label": "Agentic Cycle",
@@ -293,7 +293,7 @@
           "label": "Server Tools",
           "to": "tools/server-tools",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-17"
+          "updatedAt": "2026-10-12"
         },
         {
           "label": "Client Tools",
@@ -565,7 +565,7 @@
           "label": "MCP Client Input",
           "to": "tools/mcp-input",
           "addedAt": "2026-09-22",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-10-12"
         },
         {
           "label": "MCP Apps",
@@ -760,7 +760,7 @@
           "label": "Store Reference",
           "to": "persistence/store-reference",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-09-24"
+          "updatedAt": "2026-10-12"
         },
         {
           "label": "How Persistence Works",

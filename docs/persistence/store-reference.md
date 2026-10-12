@@ -305,8 +305,29 @@ interface MetadataStore {
   get(scope: string, key: string): Promise<unknown | null>
   set(scope: string, key: string, value: unknown): Promise<void>
   delete(scope: string, key: string): Promise<void>
+  // Optional: compare-and-set.
+  getVersioned?(
+    scope: string,
+    key: string,
+  ): Promise<{ value: unknown; revision: string } | null>
+  setIf?(
+    scope: string,
+    key: string,
+    value: unknown,
+    expectedRevision: string | null,
+  ): Promise<{ ok: true; revision: string } | { ok: false; reason: 'conflict' }>
 }
 ```
+
+Two writers can change the same key at the same time. Add `getVersioned` and
+`setIf` so that the second write does not remove the first:
+
+- `getVersioned` returns the value and its revision, or `null` when the key is absent.
+- `setIf` writes only when the current revision is `expectedRevision`. Use `null` to write only when the key is absent. Otherwise it returns `{ ok: false, reason: 'conflict' }`.
+- Every write gives the key a new revision, also a plain `set`. Do not give a revision again after a `delete`.
+
+`memoryPersistence()` has both. The conformance suite checks them when your
+store has them.
 
 Namespaces and value schemas are application-owned, and `(scope, key)` is the
 composite identity. A stored `null` is indistinguishable from absence at the type

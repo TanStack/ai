@@ -202,6 +202,9 @@ If the thrown value is a plain `Error`, the result is a tool error. The run does
 - `name`: `MCPInputRequiredError`
 - `kind`: `form` or `sampling`
 - `request`: the MCP input body
+- `reason` (optional): the `reason` of the interrupt. The default is `'mcp_input'`.
+
+A tool can throw this shape with its own `reason`, for example `'auth_required'` when the user must sign in first. The interrupt id stays `mcp_input_<toolCallId>`, so the resume is the same.
 
 ## Outside chat()
 

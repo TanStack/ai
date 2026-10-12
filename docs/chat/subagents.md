@@ -316,6 +316,29 @@ Inside a child, the middleware context has `subagentRunId`. Use it to tell a chi
 
 On a routed turn where a child runs and main does not, the parent's middleware does not run. Only `withPersistence` records that turn. A turn where main runs, including a handoff, runs the parent's middleware as usual.
 
+## Run a child from code
+
+A server job or a host can run an agent without a parent chat turn. `runAgentStream` streams the child's chunks, from `SUBAGENT_STARTED` to `SUBAGENT_FINISHED`:
+
+```ts group=subagents
+import { createSubagentId, runAgentStream } from '@tanstack/ai'
+
+const subagentRunId = createSubagentId()
+for await (const chunk of runAgentStream(researcher, {
+  input: undefined,
+  messages: [{ role: 'user', content: 'Find three facts about squids' }],
+  threadId: 'thread-1',
+  runId: `job-1:${subagentRunId}`,
+  parentRunId: 'job-1',
+  subagentRunId,
+})) {
+  if (chunk.type === 'TEXT_MESSAGE_CONTENT') console.log(chunk.delta)
+}
+```
+
+- `runAgentStream` does not check `input`. For an agent with an `inputSchema`, check the input before the call.
+- A child that stops for an interrupt ends with a `SUBAGENT_FINISHED` outcome of `type: 'suspended'` and its `interruptIds`.
+
 ## Persistence
 
 Put `withPersistence` on the parent `chat()` only. The parent stores each child:

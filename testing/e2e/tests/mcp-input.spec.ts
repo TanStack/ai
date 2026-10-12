@@ -144,4 +144,41 @@ test.describe('mcp input: pause and resume chat()', () => {
       .join('')
     expect(finalText).toContain('sunny')
   })
+
+  test('a tool can set the reason of the pause', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const response = await request.post('/api/mcp-input-test', {
+      headers: { 'Content-Type': 'application/json' },
+      data: {
+        threadId: `mcp-input-reason-thread-${testId}`,
+        runId: `mcp-input-reason-run-${testId}`,
+        state: {},
+        messages: [{ id: 'mcp-input-msg-1', role: 'user', content: question }],
+        tools: [],
+        context: [],
+        forwardedProps: {
+          testId,
+          aimockPort,
+          interruptReason: 'auth_required',
+        },
+      },
+    })
+    const body = await response.text()
+    expect(response.ok(), `run failed: ${body}`).toBe(true)
+    const events = parseSse(body)
+
+    const toolCallId = events.find(
+      (event) =>
+        event.type === 'TOOL_CALL_START' && event.toolCallName === 'ask_city',
+    )?.toolCallId
+    const finished = events.find((event) => event.type === 'RUN_FINISHED')
+    expect(finished?.outcome?.type, body).toBe('interrupt')
+    expect(finished?.outcome?.interrupts?.[0]).toMatchObject({
+      id: `mcp_input_${toolCallId}`,
+      reason: 'auth_required',
+    })
+  })
 })
