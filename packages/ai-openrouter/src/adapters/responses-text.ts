@@ -81,6 +81,7 @@ interface StreamedFunctionCallMetadata {
   index: number
   itemId: string
   name: string
+  namespace?: string
   started: boolean
   ended?: boolean
   pendingArguments?: string
@@ -357,6 +358,7 @@ export class OpenRouterResponsesTextAdapter<
             promptTokens: usage.inputTokens ?? 0,
             completionTokens: usage.outputTokens ?? 0,
             totalTokens: usage.totalTokens ?? 0,
+            ...cachedTokensDetails(usage),
             ...cost,
           },
         }),
@@ -432,6 +434,7 @@ export class OpenRouterResponsesTextAdapter<
     let usage:
       | {
           inputTokens?: number
+          inputTokensDetails?: { cachedTokens?: number }
           outputTokens?: number
           totalTokens?: number
         }
@@ -787,6 +790,7 @@ export class OpenRouterResponsesTextAdapter<
             promptTokens: usage.inputTokens ?? 0,
             completionTokens: usage.outputTokens ?? 0,
             totalTokens: usage.totalTokens ?? 0,
+            ...cachedTokensDetails(usage),
             ...extractUsageCost(usage),
           },
         }),
@@ -871,7 +875,10 @@ export class OpenRouterResponsesTextAdapter<
     const observedItemTypes = new Set<string>()
 
     for (const rawItem of response.output) {
-      const item = rawItem as { type: string; content?: ReadonlyArray<unknown> }
+      const item = camelCaseOutputItem(rawItem) as {
+        type: string
+        content?: ReadonlyArray<unknown>
+      }
       observedItemTypes.add(item.type)
       if (item.type === 'message') {
         sawMessageItem = true
@@ -1357,12 +1364,14 @@ export class OpenRouterResponsesTextAdapter<
                 index: chunk.outputIndex ?? 0,
                 itemId: item.id,
                 name: item.name || '',
+                ...(item.namespace && { namespace: item.namespace }),
                 started: false,
               }
               toolCallMetadata.set(item.id, metadata)
             } else {
               if (item.callId) metadata.callId = item.callId
               if (!metadata.name && item.name) metadata.name = item.name
+              if (item.namespace) metadata.namespace = item.namespace
             }
             if (!metadata.started && metadata.name) {
               yield {
@@ -1376,6 +1385,7 @@ export class OpenRouterResponsesTextAdapter<
                 index: chunk.outputIndex ?? 0,
                 metadata: {
                   itemId: metadata.itemId,
+                  ...(metadata.namespace && { namespace: metadata.namespace }),
                 } satisfies OpenRouterResponsesToolCallMetadata,
               }
               metadata.started = true
@@ -1483,6 +1493,7 @@ export class OpenRouterResponsesTextAdapter<
               index: chunk.outputIndex ?? 0,
               itemId: item.id,
               name: item.name || '',
+              ...(item.namespace && { namespace: item.namespace }),
               started: false,
             }
             if (!toolCallMetadata.has(item.id)) {
@@ -1490,6 +1501,7 @@ export class OpenRouterResponsesTextAdapter<
             } else {
               if (item.callId) metadata.callId = item.callId
               if (!metadata.name && item.name) metadata.name = item.name
+              if (item.namespace) metadata.namespace = item.namespace
             }
             if (!metadata.started && metadata.name) {
               yield {
@@ -1503,6 +1515,7 @@ export class OpenRouterResponsesTextAdapter<
                 index: metadata.index,
                 metadata: {
                   itemId: metadata.itemId,
+                  ...(metadata.namespace && { namespace: metadata.namespace }),
                 } satisfies OpenRouterResponsesToolCallMetadata,
               }
               metadata.started = true
@@ -1607,6 +1620,7 @@ export class OpenRouterResponsesTextAdapter<
               index: 0,
               itemId: item.id,
               name: item.name || '',
+              ...(item.namespace && { namespace: item.namespace }),
               started: false,
             }
             if (!toolCallMetadata.has(item.id)) {
@@ -1614,6 +1628,7 @@ export class OpenRouterResponsesTextAdapter<
             } else {
               if (item.callId) metadata.callId = item.callId
               if (!metadata.name && item.name) metadata.name = item.name
+              if (item.namespace) metadata.namespace = item.namespace
             }
             if (!metadata.started && metadata.name) {
               yield {
@@ -1627,6 +1642,7 @@ export class OpenRouterResponsesTextAdapter<
                 index: metadata.index,
                 metadata: {
                   itemId: metadata.itemId,
+                  ...(metadata.namespace && { namespace: metadata.namespace }),
                 } satisfies OpenRouterResponsesToolCallMetadata,
               }
               metadata.started = true
@@ -1721,6 +1737,7 @@ export class OpenRouterResponsesTextAdapter<
               promptTokens: responseObj.usage?.inputTokens || 0,
               completionTokens: responseObj.usage?.outputTokens || 0,
               totalTokens: responseObj.usage?.totalTokens || 0,
+              ...cachedTokensDetails(responseObj.usage),
               ...extractUsageCost(responseObj.usage),
             },
             finishReason,
@@ -2062,19 +2079,20 @@ export class OpenRouterResponsesTextAdapter<
               typeof toolCall.function.arguments === 'string'
                 ? toolCall.function.arguments
                 : JSON.stringify(toolCall.function.arguments)
-            const itemId = (
-              toolCall.metadata as
-                | OpenRouterResponsesToolCallMetadata
-                | undefined
-            )?.itemId
+            const metadata = toolCall.metadata as
+              | OpenRouterResponsesToolCallMetadata
+              | undefined
             result.push({
               type: 'function_call',
               callId: callIdFor(toolCall.id),
               id: normalizedCompositeIds.has(toolCall.id)
                 ? (toolCall.id.split('|')[1] ?? toolCall.id)
-                : itemId || toolCall.id,
+                : metadata?.itemId || toolCall.id,
               name: toolCall.function.name,
               arguments: argumentsString,
+              // Without its namespace, the API cannot find a tool of a
+              // namespace tool group.
+              ...(metadata?.namespace && { namespace: metadata.namespace }),
             })
           }
         }
@@ -2291,7 +2309,8 @@ interface NormalizedStreamEvent {
  * snake_case keys to camelCase for those unknown events so the rest of the
  * processor reads a uniform shape.
  *
- * Known events already have camelCase fields and are passed through.
+ * Known events already have camelCase fields. Their output items can still
+ * be the SDK's `UNKNOWN` fallback, so those are read from the raw item.
  */
 function normalizeStreamEvent(event: StreamEvents): NormalizedStreamEvent {
   const e = event as {
@@ -2332,8 +2351,21 @@ function normalizeStreamEvent(event: StreamEvents): NormalizedStreamEvent {
     return out as unknown as NormalizedStreamEvent
   }
 
+  // The SDK falls back to the raw item for an output item that fails its
+  // schema, inside a known event too.
+  if (!e.item && !e.response) {
+    // oxlint-disable-next-line eslint-js/no-restricted-syntax -- NormalizedStreamEvent is a discriminated union; the upstream `event` is a passthrough whose variant TS can't infer here.
+    return event as unknown as NormalizedStreamEvent
+  }
+  const out: Record<string, unknown> = { ...e }
+  if (e.item && typeof e.item === 'object') {
+    out.item = camelCaseOutputItem(e.item as Record<string, unknown>)
+  }
+  if (e.response && typeof e.response === 'object') {
+    out.response = camelCaseResponseShape(e.response as Record<string, unknown>)
+  }
   // oxlint-disable-next-line eslint-js/no-restricted-syntax -- NormalizedStreamEvent is a discriminated union; the upstream `event` is a passthrough whose variant TS can't infer here.
-  return event as unknown as NormalizedStreamEvent
+  return out as unknown as NormalizedStreamEvent
 }
 
 /** Translate snake_case keys in a `response` payload to camelCase for the
@@ -2359,6 +2391,12 @@ function camelCaseResponseShape(
       ...('input_tokens' in u && { inputTokens: u.input_tokens }),
       ...('output_tokens' in u && { outputTokens: u.output_tokens }),
       ...('total_tokens' in u && { totalTokens: u.total_tokens }),
+      ...(isRecord(u.input_tokens_details) &&
+        typeof u.input_tokens_details.cached_tokens === 'number' && {
+          inputTokensDetails: {
+            cachedTokens: u.input_tokens_details.cached_tokens,
+          },
+        }),
     }
   }
   if (Array.isArray(src.output)) {
@@ -2371,13 +2409,28 @@ function camelCaseResponseShape(
   return out
 }
 
-/** Translate snake_case keys in an output item to camelCase. */
+/** Translate snake_case keys in an output item to camelCase. An item the
+ *  SDK could not parse (`{ raw, type: 'UNKNOWN', isUnknown: true }`) is read
+ *  from its raw wire shape. */
 function camelCaseOutputItem(
-  src: Record<string, unknown>,
+  item: Record<string, unknown>,
 ): Record<string, unknown> {
+  const src = item.isUnknown === true && isRecord(item.raw) ? item.raw : item
   const out: Record<string, unknown> = { ...src }
   if ('call_id' in src) out.callId = src.call_id
   return out
+}
+
+/** `promptTokensDetails` with the cached input tokens, when there are any. */
+function cachedTokensDetails(
+  usage: { inputTokensDetails?: { cachedTokens?: number } } | null | undefined,
+) {
+  const cachedTokens = usage?.inputTokensDetails?.cachedTokens
+  return cachedTokens ? { promptTokensDetails: { cachedTokens } } : {}
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /** Normalize an `error.code` to the string slot our RUN_ERROR event reads. */
