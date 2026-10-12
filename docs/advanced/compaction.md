@@ -164,6 +164,40 @@ withCompaction({
 });
 ```
 
+## Let the provider compact
+
+Some providers can compact the conversation on their own servers. The model then keeps more of the old turns than a marker gives. It costs one compaction call.
+
+Pass the adapter of the `chat()` call as `native`. When the count passes `maxTokens`, the adapter's `compact` method runs in place of `strategy`.
+
+```typescript
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { withCompaction } from "@tanstack/ai-compaction";
+
+const adapter = openaiText("gpt-6.1-sol");
+
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter,
+    messages,
+    middleware: [withCompaction({ maxTokens: 100_000, native: adapter })],
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+- An adapter with no `compact` method uses `strategy`.
+- When `compact` fails, `strategy` runs in its place. `onCompact` and `compaction:ended` get the failure in `error`. Some providers on the OpenAI Responses base have no compaction endpoint.
+- After a failure, that adapter object and model use `strategy` until the process restarts. Create the adapter once, outside the request handler, so that no more compaction calls go out.
+- The compaction call gets the system prompts and the tools of the `chat()` call.
+- The compacted messages can hold an encrypted provider item. The adapter sends it back as it is to the same model. Another model does not get it.
+
+The OpenAI Responses adapters have `compact`. See [Native compaction](../adapters/openai#native-compaction).
+
 ## Options
 
 ### withCompaction
@@ -174,7 +208,8 @@ withCompaction({
 | `strategy` | `CompactionStrategy` | `evictOldest()` | How to shrink the messages. |
 | `estimateTokens` | `(message: ModelMessage) => number` | characters / 4 | Per-message token estimate. Pass a real tokenizer if you need exact counts. |
 | `strategyKey` | `string` | built-in strategy identity | Stable checkpoint identity. Set it for custom strategies, custom estimators, or a custom eviction marker. Change it when your `summarize` function can change. |
-| `onCompact` | `(info: CompactionInfo) => void` | - | Runs after each compaction. `info` is `{ before, after, messagesBefore, messagesAfter }` (token and message counts). |
+| `onCompact` | `(info: CompactionInfo) => void` | - | Runs after each compaction. `info` is `{ before, after, messagesBefore, messagesAfter, error }` (token and message counts). `error` is set when `native` compaction failed and `strategy` ran in its place. |
+| `native` | `{ compact?: (options) => Promise<ModelMessage[]> }` | - | The adapter of the `chat()` call. When it has `compact`, the provider compacts in place of `strategy`. See [Let the provider compact](#let-the-provider-compact). |
 
 ### Strategy options
 

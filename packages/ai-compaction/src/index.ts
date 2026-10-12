@@ -14,7 +14,9 @@
  */
 import { MetadataCapability, getMetadata } from '@tanstack/ai'
 import type {
+  AnyTextAdapter,
   ChatMiddleware,
+  ChatMiddlewareConfig,
   ChatMiddlewareContext,
   ModelMessage,
 } from '@tanstack/ai'
@@ -73,7 +75,15 @@ export interface CompactionEndedEventValue {
   maxTokens: number
   durationMs: number
   strategyKey?: string
+  /** Set when the adapter's `compact` failed and the strategy ran in its place. */
+  error?: { message: string }
 }
+
+/**
+ * The models whose native compaction failed, by adapter. They use the
+ * strategy for the rest of the process.
+ */
+const failedNative = new WeakMap<object, Set<string>>()
 
 function emitCompactionStarted(
   ctx: ChatMiddlewareContext,
@@ -259,6 +269,8 @@ export interface CompactionInfo {
   messagesBefore: number
   /** Message count after compaction (unchanged for {@link clearToolResults}). */
   messagesAfter: number
+  /** Set when the adapter's `compact` failed and the strategy ran in its place. */
+  error?: { message: string }
 }
 
 export interface CompactionOptions {
@@ -275,6 +287,14 @@ export interface CompactionOptions {
   strategyKey?: string
   /** Observe each compaction (logging, metrics). */
   onCompact?: (info: CompactionInfo) => void
+  /**
+   * Compact with the provider's own endpoint. Pass the adapter of the
+   * `chat()` call. When the adapter has `compact`, it runs in place of
+   * `strategy`. Else, or when `compact` fails, `strategy` runs. A failure
+   * sets `error` in `onCompact` and `compaction:ended`. Then that adapter
+   * and model use `strategy` for the rest of the process. Default: off.
+   */
+  native?: Pick<AnyTextAdapter, 'compact'>
 }
 
 const sum = (
@@ -471,13 +491,58 @@ export function composeStrategies(
  */
 export function withCompaction(options: CompactionOptions): ChatMiddleware {
   const estimate = options.estimateTokens ?? estimateMessageTokens
-  const strategy = options.strategy ?? evictOldest()
+  const configured = options.strategy ?? evictOldest()
+  const native = options.native
+  const nativeCompact = native?.compact?.bind(native)
+  /**
+   * The strategy of a call: the adapter's `compact` when `native` has it.
+   * When `compact` fails, the configured strategy runs, and `spent.error`
+   * gets the failure. An adapter can get `compact` from a shared base and
+   * point at a provider with no such endpoint.
+   */
+  const strategyOf = (
+    ctx: ChatMiddlewareContext,
+    spent: { error?: { message: string } },
+    config: ChatMiddlewareConfig,
+  ): CompactionStrategy =>
+    native && nativeCompact
+      ? async (messages, compaction) => {
+          if (failedNative.get(native)?.has(ctx.model)) {
+            return configured(messages, compaction)
+          }
+          try {
+            return await nativeCompact({
+              messages: [...messages],
+              model: ctx.model,
+              ...(ctx.signal ? { signal: ctx.signal } : {}),
+              ...(config.wrapFetch ? { wrapFetch: config.wrapFetch } : {}),
+              systemPrompts: config.systemPrompts,
+              tools: config.tools,
+            })
+          } catch (error) {
+            if (ctx.signal?.aborted) throw error
+            const models = failedNative.get(native) ?? new Set<string>()
+            failedNative.set(native, models.add(ctx.model))
+            spent.error = {
+              message: error instanceof Error ? error.message : String(error),
+            }
+            return configured(messages, compaction)
+          }
+        }
+      : configured
   const strategyKey =
     options.strategyKey ??
-    (options.estimateTokens ? undefined : strategyKeys.get(strategy))
-  const checkpointStrategyKey = strategyKey
-    ? `${strategyKey}:maxTokens=${options.maxTokens}`
-    : undefined
+    (nativeCompact
+      ? 'native'
+      : options.estimateTokens
+        ? undefined
+        : strategyKeys.get(configured))
+  // A native checkpoint holds an item that only its model reads, so the
+  // model is part of its key.
+  const checkpointKeyOf = (model: string) =>
+    strategyKey
+      ? `${strategyKey}${nativeCompact && !options.strategyKey ? `:${model}` : ''}:maxTokens=${options.maxTokens}`
+      : undefined
 
   return {
     name: 'compaction',
@@ -487,6 +552,7 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
       // hydrates the thread. Compact only on model-bound phases.
       if (ctx.phase === 'init') return
 
+      const checkpointKey = checkpointKeyOf(ctx.model)
       const startedAt = Date.now()
       const { messages } = config
       const inputMessages = config.providerMessages ?? messages
@@ -494,11 +560,11 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
       let workingMessages = inputMessages
       let reusedCheckpoint = false
 
-      if (metadata && checkpointStrategyKey && inputMessages === messages) {
+      if (metadata && checkpointKey && inputMessages === messages) {
         const stored = await metadata.get(CHECKPOINT_NAMESPACE, ctx.threadId)
         if (
           isCompactionCheckpoint(stored) &&
-          stored.strategyKey === checkpointStrategyKey &&
+          stored.strategyKey === checkpointKey &&
           stored.sourceMessageCount <= messages.length &&
           stored.sourceHash ===
             (await hashMessages(messages.slice(0, stored.sourceMessageCount)))
@@ -517,9 +583,7 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
         messagesBefore: workingMessages.length,
         reusedCheckpoint,
         maxTokens: options.maxTokens,
-        ...(checkpointStrategyKey
-          ? { strategyKey: checkpointStrategyKey }
-          : {}),
+        ...(checkpointKey ? { strategyKey: checkpointKey } : {}),
       }
 
       if (before <= options.maxTokens) {
@@ -532,7 +596,7 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
             messagesAfter: workingMessages.length,
             reusedCheckpoint: true,
             maxTokens: options.maxTokens,
-            strategyKey: checkpointStrategyKey,
+            strategyKey: checkpointKey,
             afterMessages: workingMessages,
             estimate,
           })
@@ -543,9 +607,7 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
             reusedCheckpoint: true,
             maxTokens: options.maxTokens,
             durationMs: Date.now() - startedAt,
-            ...(checkpointStrategyKey
-              ? { strategyKey: checkpointStrategyKey }
-              : {}),
+            ...(checkpointKey ? { strategyKey: checkpointKey } : {}),
           })
           return { providerMessages: workingMessages }
         }
@@ -553,7 +615,13 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
       }
 
       emitCompactionStarted(ctx, startedValue)
-      const next = await strategy(workingMessages, {
+      // An object, so the closure below can write it and TypeScript reads it.
+      const spent: { error?: { message: string } } = {}
+      const next = await strategyOf(
+        ctx,
+        spent,
+        config,
+      )(workingMessages, {
         maxTokens: options.maxTokens,
         estimate,
       })
@@ -564,9 +632,8 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
           reusedCheckpoint,
           maxTokens: options.maxTokens,
           durationMs: Date.now() - startedAt,
-          ...(checkpointStrategyKey
-            ? { strategyKey: checkpointStrategyKey }
-            : {}),
+          ...(checkpointKey ? { strategyKey: checkpointKey } : {}),
+          ...(spent.error ? { error: spent.error } : {}),
         })
         if (reusedCheckpoint) {
           return { providerMessages: workingMessages }
@@ -579,6 +646,7 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
         after: sum(next, estimate),
         messagesBefore: workingMessages.length,
         messagesAfter: next.length,
+        ...(spent.error ? { error: spent.error } : {}),
       }
       options.onCompact?.(info)
       emitCompactionState(
@@ -587,7 +655,7 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
           ...info,
           reusedCheckpoint,
           maxTokens: options.maxTokens,
-          strategyKey: checkpointStrategyKey,
+          strategyKey: checkpointKey,
           beforeMessages: workingMessages,
           afterMessages: next,
           estimate,
@@ -599,17 +667,16 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
         reusedCheckpoint,
         maxTokens: options.maxTokens,
         durationMs: Date.now() - startedAt,
-        ...(checkpointStrategyKey
-          ? { strategyKey: checkpointStrategyKey }
-          : {}),
+        ...(checkpointKey ? { strategyKey: checkpointKey } : {}),
+        ...(spent.error ? { error: spent.error } : {}),
       })
 
-      if (metadata && checkpointStrategyKey && inputMessages === messages) {
+      if (metadata && checkpointKey && inputMessages === messages) {
         const checkpoint: CompactionCheckpoint = {
           schemaVersion: 1,
           sourceMessageCount: messages.length,
           sourceHash: await hashMessages(messages),
-          strategyKey: checkpointStrategyKey,
+          strategyKey: checkpointKey,
           compactedMessages: next,
         }
         if (!ctx.signal?.aborted) {

@@ -446,6 +446,30 @@ The levels of each model:
 
 The other models, such as `gpt-4.1` and `gpt-4o`, take no `reasoning`.
 
+### Native compaction
+
+OpenAI can compact a long conversation on its side, with `POST /responses/compact`. The Responses adapters (`openaiText` and `createOpenaiChat`) have a `compact` method for it. Turn it on with the `native` option of `withCompaction`:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { withCompaction } from "@tanstack/ai-compaction";
+
+const adapter = openaiText("gpt-6.1-sol");
+
+const stream = chat({
+  adapter,
+  messages: [{ role: "user", content: "Hello!" }],
+  middleware: [withCompaction({ maxTokens: 100_000, native: adapter })],
+});
+```
+
+- The result holds your user messages and one encrypted `compaction` item.
+- The adapter sends that item back as it is on each later request to the same model.
+- `openaiChatCompletions` has no `compact` method, so `withCompaction` uses its `strategy`.
+
+See [Let the provider compact](../advanced/compaction#let-the-provider-compact).
+
 ### Prompt caching
 
 `chat()` sends `prompt_cache_key` by default, set to the `threadId` that you pass. OpenAI uses the key to send requests with the same start to the same cache. With `promptCache: 'long'`, it also asks for the long retention. See [Prompt Caching](../advanced/prompt-caching).
