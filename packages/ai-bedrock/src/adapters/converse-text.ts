@@ -326,8 +326,11 @@ export class BedrockConverseTextAdapter<
         `activity=structuredOutput provider=${this.name} model=${this.model} messages=${chatOptions.messages.length}`,
         { provider: this.name, model: this.model },
       )
+      // Claude rejects a forced tool while thinking is on, so the forced
+      // structured-output tool goes without `chat({ reasoning })`.
+      const { reasoning: _reasoning, ...requestOptions } = chatOptions
       const input: ConverseCommandInput = {
-        ...this.buildInput(chatOptions),
+        ...this.buildInput(requestOptions),
         toolConfig: buildStructuredToolConfig(outputSchema),
       }
       const res = await this.send(input)
@@ -387,8 +390,11 @@ export class BedrockConverseTextAdapter<
         `activity=structuredOutputStream provider=${this.name} model=${this.model} messages=${chatOptions.messages.length}`,
         { provider: this.name, model: this.model },
       )
+      // Claude rejects a forced tool while thinking is on, so the forced
+      // structured-output tool goes without `chat({ reasoning })`.
+      const { reasoning: _reasoning, ...requestOptions } = chatOptions
       const input: ConverseStreamCommandInput = {
-        ...this.buildInput(chatOptions),
+        ...this.buildInput(requestOptions),
         toolConfig: buildStructuredToolConfig(outputSchema),
       }
       const stream = await this.sendStream(input)
@@ -644,28 +650,19 @@ export class BedrockConverseTextAdapter<
     )
 
     // `chat({ toolChoice })`. Converse has no `none` choice, so `none` sends
-    // no tool config. But Bedrock rejects `toolUse` or `toolResult` blocks
-    // without a tool config, so with tool blocks in the history `none` sends
-    // the tools with auto (the model can still call one). Claude rejects a
-    // forced tool while thinking is on (only Claude gets thinking fields), and
-    // some Claude models reject it on every request. Then a forced choice
-    // falls back to auto.
+    // no tool config, and `chatStream` sends any tool history as text. Claude
+    // rejects a forced tool while thinking is on (only Claude gets thinking
+    // fields), and some Claude models reject it on every request. Then a
+    // forced choice falls back to auto.
     const canForceTool =
       additionalModelRequestFields === undefined &&
       !BEDROCK_CLAUDE_NO_FORCED_TOOL_FAMILIES.some((name) =>
         this.model.includes(name),
       )
-    const hasToolBlocks = messages.some((message) =>
-      message.content?.some((block) => block.toolUse || block.toolResult),
-    )
     const toolChoice =
-      options.toolChoice === 'none'
-        ? hasToolBlocks
-          ? 'auto'
-          : 'none'
-        : canForceTool
-          ? options.toolChoice
-          : 'auto'
+      options.toolChoice === 'none' || canForceTool
+        ? options.toolChoice
+        : 'auto'
     const toolConfig = options.tools
       ? toToolConfig(convertTools(options.tools), toolChoice)
       : undefined

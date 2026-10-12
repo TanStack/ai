@@ -25,3 +25,5 @@ chat({
   reasoning: 'high',
 })
 ```
+
+Structured output sends no thinking, because Claude cannot think while a tool is forced.

@@ -671,7 +671,10 @@ export class AnthropicTextAdapter<
     // `structuredOutput()` issues a non-streaming `messages.create({ stream:
     // false })` below, so the defaulted `max_tokens` must stay under the SDK's
     // non-streaming 10-minute guard (issue #849) — pass `stream: false`.
-    const requestParams = this.mapCommonOptionsToAnthropic(chatOptions, {
+    // The API rejects a forced tool while thinking is on, so the forced
+    // structured-output tool goes without `chat({ reasoning })`.
+    const { reasoning: _reasoning, ...requestOptions } = chatOptions
+    const requestParams = this.mapCommonOptionsToAnthropic(requestOptions, {
       stream: false,
     })
 

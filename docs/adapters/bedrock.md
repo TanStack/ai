@@ -318,6 +318,8 @@ The levels of each model:
 
 The other models take no `reasoning`. `us.deepseek.r1-v1:0` always thinks, and has no levels.
 
+On Converse, structured output forces a tool, and Claude cannot think while a tool is forced. So the structured output call sends no thinking.
+
 ## Embeddings
 
 Generate embedding vectors with Titan or Cohere embedding models via `InvokeModel`:

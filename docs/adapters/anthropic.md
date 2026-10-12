@@ -349,6 +349,8 @@ const stream = chat({
 
 Claude Sonnet 5, Claude Opus 4.7 and later, and the 5-generation models reject the sampling options (`temperature`, `top_p`, `top_k`). The types take them only on the models that accept them. See [Reasoning](../chat/reasoning) for the levels and the nearest-level rule.
 
+Structured output forces a tool, and Claude cannot think while a tool is forced. So the structured output call sends no thinking.
+
 ### Prompt Caching
 
 `chat()` caches Claude prompts by default. It adds `cache_control` markers to the last start tool, the last block of the last user or mid-conversation system message, and the system blocks. At most 4 markers. The last start tool is the tool before the deferred placeholder, or the last tool. Pass `promptCache: 'long'` for the 1-hour cache, or `promptCache: 'none'` to send no markers. For the key and the cost, see [Prompt Caching](../advanced/prompt-caching).

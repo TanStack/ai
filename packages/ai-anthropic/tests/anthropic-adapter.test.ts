@@ -950,6 +950,46 @@ describe('Anthropic adapter option mapping', () => {
     ).rejects.toThrow(/maximum token limit was reached/)
   })
 
+  it('sends no thinking with the forced structuredOutput tool', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce({
+      id: 'msg_structured',
+      type: 'message',
+      role: 'assistant',
+      model: 'claude-opus-4-1',
+      content: [
+        {
+          type: 'tool_use',
+          id: 'toolu_structured_output',
+          name: 'structured_output',
+          input: { recommendation: 'Fender' },
+        },
+      ],
+      stop_reason: 'tool_use',
+      usage: { input_tokens: 10, output_tokens: 10 },
+    })
+
+    await createAdapter('claude-opus-4-1').structuredOutput({
+      chatOptions: {
+        model: 'claude-opus-4-1',
+        messages: [{ role: 'user', content: 'recommend a guitar as json' }],
+        reasoning: { level: 'high', summary: true },
+        logger: resolveDebugOption(false),
+      },
+      outputSchema: {
+        type: 'object',
+        properties: { recommendation: { type: 'string' } },
+        required: ['recommendation'],
+      },
+    })
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+    expect(payload.tool_choice).toEqual({
+      type: 'tool',
+      name: 'structured_output',
+    })
+    expect(payload).not.toHaveProperty('thinking')
+  })
+
   it('native combined mode (#605): wires outputSchema into output_format alongside tools on Claude 4.5+', async () => {
     // Final-turn JSON the model emits when output_format is in play.
     const finalJson = JSON.stringify({ city: 'Berlin', temp: 18 })

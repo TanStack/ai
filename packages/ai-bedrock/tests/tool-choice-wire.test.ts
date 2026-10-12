@@ -57,7 +57,11 @@ type ConverseRequest = Partial<
  * Runs one Converse stream call through the installed AWS SDK and returns the
  * model id and the JSON body that the SDK sent over HTTP.
  */
-async function converseRequest(model: string, request: ConverseRequest) {
+async function converseRequest(
+  model: string,
+  request: ConverseRequest,
+  call: 'chat' | 'structured' = 'chat',
+) {
   let path = ''
   let body: unknown
   const client = new BedrockRuntimeClient({
@@ -81,14 +85,17 @@ async function converseRequest(model: string, request: ConverseRequest) {
   // The adapter type takes only catalog ids, and the Claude 5.x models are
   // not in the Bedrock catalog yet. So the test sets the id at runtime.
   Object.defineProperty(adapter, 'model', { value: model })
+  const options = { logger, model, messages, ...request }
   try {
-    for await (const _ of adapter.chatStream({
-      logger,
-      model,
-      messages,
-      ...request,
-    })) {
-      // drain: the probe ends the call with RUN_ERROR
+    if (call === 'structured') {
+      // The probe makes the call throw after it records the body.
+      await adapter
+        .structuredOutput({ chatOptions: options, outputSchema: {} })
+        .catch(() => undefined)
+    } else {
+      for await (const _ of adapter.chatStream(options)) {
+        // drain: the probe ends the call with RUN_ERROR
+      }
     }
   } finally {
     client.destroy()
@@ -146,22 +153,22 @@ describe('Bedrock Converse toolChoice', () => {
     expect(body).not.toHaveProperty('toolConfig')
   })
 
-  // Bedrock rejects toolUse and toolResult blocks without a toolConfig.
-  it('sends the tools with auto for none after a tool call', async () => {
+  // Bedrock rejects toolUse and toolResult blocks without a toolConfig, so
+  // the tool history goes out as text.
+  it('sends no toolConfig for none after a tool call, with the history as text', async () => {
     const body = await converseBody(nova, {
       messages: toolHistory,
       tools: [weatherTool],
       toolChoice: 'none',
     })
+    expect(body).not.toHaveProperty('toolConfig')
     expect(body).toHaveProperty(
-      'messages.1.content.0.toolUse.name',
-      'lookup_weather',
+      'messages.1.content.0.text',
+      '[Tool call call_1 lookup_weather({"location":"Paris"})]',
     )
-    expect(body).toHaveProperty('messages.2.content.0.toolResult.toolUseId')
-    expect(body).toHaveProperty('toolConfig.toolChoice', { auto: {} })
     expect(body).toHaveProperty(
-      'toolConfig.tools.0.toolSpec.name',
-      'lookup_weather',
+      'messages.2.content.0.text',
+      '[Tool result call_1: Sunny]',
     )
   })
 
@@ -196,6 +203,17 @@ describe('Bedrock Converse toolChoice', () => {
     },
   )
 
+  // Claude rejects a forced tool while thinking is on.
+  it('sends no thinking on the forced structured-output tool', async () => {
+    const { body } = await converseRequest(
+      sonnet45,
+      { reasoning: { level: 'high', summary: false } },
+      'structured',
+    )
+    expect(body).not.toHaveProperty('additionalModelRequestFields')
+    expect(body).toHaveProperty('toolConfig.toolChoice.tool.name')
+  })
+
   it('with thinking on an older Claude model, still sends no toolConfig for none', async () => {
     const body = await converseBody(sonnet45, {
       tools: [weatherTool],
@@ -229,13 +247,13 @@ describe('Bedrock Converse toolChoice', () => {
     expect(body).not.toHaveProperty('toolConfig')
   })
 
-  it('on a Claude model that rejects a forced tool, sends auto for none after a tool call', async () => {
+  it('on a Claude model that rejects a forced tool, sends no toolConfig for none after a tool call', async () => {
     const body = await converseBody('us.anthropic.claude-opus-5-5-v1:0', {
       messages: toolHistory,
       tools: [weatherTool],
       toolChoice: 'none',
     })
-    expect(body).toHaveProperty('toolConfig.toolChoice', { auto: {} })
+    expect(body).not.toHaveProperty('toolConfig')
   })
 })
 

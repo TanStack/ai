@@ -524,7 +524,7 @@ OpenAI, Grok, Groq, Mistral, OpenRouter, and the other OpenAI-compatible adapter
 - **Claude** (Anthropic and Amazon Bedrock): some calls cannot force a tool. Then `'required'` and a named tool become `'auto'`.
   - `claude-fable-5-1`, `claude-mythos-5-1`, `claude-opus-5-5`, and `claude-sonnet-5-5` never take a forced tool.
   - No Claude model takes a forced tool while thinking is on. See [Reasoning](../chat/reasoning).
-- **Amazon Bedrock (Converse API)**: Converse has no `none` value, so `'none'` sends no tools. After a tool call in the history, Bedrock needs the tools. Then `'none'` sends them with `auto`, and the model can still call a tool.
+- **Amazon Bedrock (Converse API)**: Converse has no `none` value, so `'none'` sends no tools. The tool calls in the history go out as text.
 - **Gemini**: the value becomes `functionCallingConfig` (`AUTO`, `NONE`, or `ANY`). A named tool is `ANY` with `allowedFunctionNames`. With only provider tools, such as Google Search, Gemini gets no tool config.
 - **Ollama**: Ollama has no tool choice. See [Ollama](../adapters/ollama#tool-choice).
 - **CLI-style adapters**: each page says which values work. See [Claude Code](../adapters/claude-code#tool-choice), [Codex](../adapters/codex#tool-choice), [OpenCode](../adapters/opencode#tool-choice), [Grok Build](../adapters/grok-build#tool-choice), and [ACP-compatible](../adapters/acp-compatible#tool-choice).
