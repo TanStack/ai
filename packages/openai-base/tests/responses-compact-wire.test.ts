@@ -124,7 +124,7 @@ describe('Responses adapter compact', () => {
     ])
   })
 
-  it('sends the system prompts as instructions and the tools', async () => {
+  it('sends the system prompts as instructions', async () => {
     const { client, sent } = recordingClient(() => Response.json(compacted))
     const adapter = new Responses(model, 'openai', client)
 
@@ -132,22 +132,10 @@ describe('Responses adapter compact', () => {
       model,
       messages: [{ role: 'user', content: 'Plan the trip' }],
       systemPrompts: ['Be brief.', 'Answer in English.'],
-      tools: [
-        {
-          name: 'search',
-          description: 'Search the web',
-          inputSchema: {
-            type: 'object',
-            properties: { query: { type: 'string' } },
-            required: ['query'],
-          },
-        },
-      ],
     })
 
     expect(sent[0]?.body).toMatchObject({
       instructions: 'Be brief.\nAnswer in English.',
-      tools: [{ type: 'function', name: 'search' }],
     })
   })
 

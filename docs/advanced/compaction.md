@@ -193,7 +193,7 @@ export async function POST(request: Request) {
 - An adapter with no `compact` method uses `strategy`.
 - When `compact` fails, `strategy` runs in its place. `onCompact` and `compaction:ended` get the failure in `error`. Some providers on the OpenAI Responses base have no compaction endpoint.
 - After a failure, that adapter object and model use `strategy` until the process restarts. Create the adapter once, outside the request handler, so that no more compaction calls go out.
-- The compaction call gets the system prompts and the tools of the `chat()` call.
+- The compaction call gets the system prompts of the `chat()` call. It does not get the tools: the compaction endpoint does not take them.
 - The compacted messages can hold an encrypted provider item. The adapter sends it back as it is to the same model. Another model does not get it.
 
 The OpenAI Responses adapters have `compact`. See [Native compaction](../adapters/openai#native-compaction).

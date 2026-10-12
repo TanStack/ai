@@ -689,24 +689,21 @@ describe('withCompaction native', () => {
     expect(compact).toHaveBeenCalledTimes(2)
   })
 
-  it('passes the system prompts and the tools to the adapter compact', async () => {
+  it('passes the system prompts to the adapter compact', async () => {
     const compact = vi.fn((_options: TextCompactOptions) =>
       Promise.resolve([text('user', 'kept')]),
     )
     const mw = withCompaction({ maxTokens: 50, native: { compact } })
-    const tool = { name: 'search', description: 'Search the web' }
     await mw.onConfig?.(
       recordingContext('beforeModel', { model: 'gpt-5.5' }).ctx,
       {
         messages: [big('user'), big('assistant'), big('user')],
         systemPrompts: ['Be brief.'],
-        tools: [tool],
       },
     )
 
     expect(compact.mock.calls[0]?.[0]).toMatchObject({
       systemPrompts: ['Be brief.'],
-      tools: [tool],
     })
   })
 })

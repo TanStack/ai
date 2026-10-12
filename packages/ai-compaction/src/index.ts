@@ -517,7 +517,6 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
               ...(ctx.signal ? { signal: ctx.signal } : {}),
               ...(config.wrapFetch ? { wrapFetch: config.wrapFetch } : {}),
               systemPrompts: config.systemPrompts,
-              tools: config.tools,
             })
           } catch (error) {
             if (ctx.signal?.aborted) throw error

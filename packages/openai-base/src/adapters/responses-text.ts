@@ -1089,9 +1089,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         ...(prompts.length > 0 && {
           instructions: prompts.map((p) => p.content).join('\n'),
         }),
-        ...(options.tools?.length && {
-          tools: this.convertTools(options.tools),
-        }),
       },
       options.signal ? { signal: options.signal } : {},
     )
