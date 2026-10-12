@@ -105,6 +105,7 @@ The fake also reports token usage on each call: `ceil(characters / 4)` over the 
 | Option | What it does |
 |---|---|
 | `model` | The model id. Default `'fake-model'`. |
+| `input` | The input kinds the model reads, for example `['text', 'image']`. Read it back as `fake.inputModalities`, to test code that checks what a model accepts. |
 | `contextWindow` | The context window in tokens. Read it back as `fake.contextWindow`. |
 | `tokensPerSecond` | Stream the text at this speed, 4 characters per token. |
 | `cache` | With a `threadId`, the part of the request that matches the previous request of the thread counts as cached tokens. |

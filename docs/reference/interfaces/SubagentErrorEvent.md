@@ -3,7 +3,7 @@ id: SubagentErrorEvent
 title: SubagentErrorEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1893](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1893)
+Defined in: [packages/ai/src/types.ts:1914](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1914)
 
 A child agent failed. The parent run can continue.
 

@@ -190,6 +190,40 @@ Adapters are implemented per capability, so only implement what your provider su
 
 Refer to the [OpenAI adapter](https://github.com/TanStack/ai/blob/main/packages/ai-openai/src/adapters/text.ts) for a complete, end-to-end implementation example.
 
+#### Keep history valid across models
+
+A user can switch to your adapter in the middle of a thread. The history then holds signatures and tool call IDs from another provider, and your API rejects them.
+
+1. Name your text adapter's source. `chat()` records it on each answer as `metadata.tanstack.source`:
+   - `name`: the adapter name.
+   - `provider`: optional. Defaults to `name`.
+   - `api`: optional, the wire API. Defaults to the adapter kind.
+2. Before you build the request, run the history through `transformMessagesForReplay`. Pass your source and a rule for tool call IDs:
+
+```typescript
+import { hashToolCallId, transformMessagesForReplay } from '@tanstack/ai/adapter-internals'
+import type { ModelMessage } from '@tanstack/ai'
+
+export function prepareMessages(messages: ReadonlyArray<ModelMessage>, model: string) {
+  const { messages: replay } = transformMessagesForReplay(
+    messages,
+    { provider: 'example-provider', api: 'example-messages', model },
+    (id, { attempt }) => {
+      const clean = id.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64)
+      return attempt === 0 ? clean : `${clean.slice(0, 40)}_${hashToolCallId(id)}_${attempt}`
+    },
+  )
+  return replay
+}
+```
+
+For history from another source, the helper:
+
+- Drops signatures and redacted thinking. Turns readable thinking into text.
+- Calls your ID rule for each tool call, and gives each result the new ID of its call. If the new ID is taken, it calls the rule again with a higher `attempt`.
+
+`chat()` already drops failed answers and adds `No result provided` for unanswered tool calls before it calls your adapter. Your saved history does not change.
+
 ### 8. Publish and submit a PR
 
 Once your adapter is complete:

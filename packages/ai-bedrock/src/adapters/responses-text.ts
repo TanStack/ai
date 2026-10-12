@@ -51,6 +51,7 @@ export class BedrockResponsesTextAdapter<
 > {
   override readonly kind = 'text' as const
   override readonly name = 'bedrock-responses' as const
+  override readonly provider = 'amazon-bedrock'
 
   constructor(config: BedrockResponsesConfig, model: TModel) {
     // Responses is mantle-only — force the mantle base URL (an explicit

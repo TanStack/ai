@@ -3,7 +3,7 @@ id: ApprovalRequestedEvent
 title: ApprovalRequestedEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1562](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1562)
+Defined in: [packages/ai/src/types.ts:1583](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1583)
 
 ## Deprecated
 
@@ -22,7 +22,7 @@ compatibility event remains readable until 1.0.
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1510](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1510)
+Defined in: [packages/ai/src/types.ts:1531](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1531)
 
 Extra information attached to this event.
 
@@ -38,7 +38,7 @@ Extra information attached to this event.
 name: "approval-requested";
 ```
 
-Defined in: [packages/ai/src/types.ts:1563](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1563)
+Defined in: [packages/ai/src/types.ts:1584](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1584)
 
 What this custom event is. Required: without it a consumer cannot route
 the value.
@@ -57,7 +57,7 @@ CustomEvent.name
 type: "CUSTOM";
 ```
 
-Defined in: [packages/ai/src/types.ts:1509](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1509)
+Defined in: [packages/ai/src/types.ts:1530](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1530)
 
 #### Inherited from
 
@@ -71,7 +71,7 @@ Defined in: [packages/ai/src/types.ts:1509](https://github.com/TanStack/ai/blob/
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1564](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1564)
+Defined in: [packages/ai/src/types.ts:1585](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1585)
 
 The payload. Any JSON value, and required.
 

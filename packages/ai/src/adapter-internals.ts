@@ -61,3 +61,19 @@ export {
 export { tanstackMetadata } from './utilities/merge-metadata'
 export { isSpecTopLevelKey } from './utilities/spec-event-keys'
 export { REDACTED_THINKING_ID_PREFIX } from './utilities/reasoning-encrypted-value'
+export {
+  buildBlockOrder,
+  orderedAssistantBlocks,
+} from './utilities/block-order'
+export type {
+  BlockOrderEntry,
+  OrderedAssistantBlock,
+} from './utilities/block-order'
+export {
+  transformMessagesForReplay,
+  hashToolCallId,
+} from './utilities/replay-messages'
+export type {
+  ReplayMessages,
+  ReplayToolIdRule,
+} from './utilities/replay-messages'

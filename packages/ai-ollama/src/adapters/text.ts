@@ -5,6 +5,7 @@ import {
   unsupportedFileSourceError,
 } from '@tanstack/ai'
 import {
+  tanstackMetadata,
   toRunErrorPayload,
   toRunErrorRawEvent,
 } from '@tanstack/ai/adapter-internals'
@@ -88,6 +89,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
 > {
   override readonly kind = 'text' as const
   readonly name = 'ollama' as const
+  override readonly api = 'ollama' as const
 
   private readonly client: Ollama
   /** The config of the adapter's own client. An injected client has none. */
@@ -126,6 +128,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
   ): AsyncIterable<AdapterYieldChunk> {
     const mappedOptions = this.mapCommonOptionsToOllama(options)
     const { logger } = options
+    const source = { provider: 'ollama', api: this.api, model: options.model }
     try {
       logger.request(
         `activity=chat provider=ollama model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
@@ -135,7 +138,19 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
         ...mappedOptions,
         stream: true,
       })
-      yield* this.processOllamaStreamChunks(response, options, logger)
+      for await (const chunk of this.processOllamaStreamChunks(
+        response,
+        options,
+        logger,
+      )) {
+        yield {
+          ...chunk,
+          metadata: {
+            ...chunk.metadata,
+            tanstack: { ...tanstackMetadata(chunk), source },
+          },
+        }
+      }
     } catch (error: unknown) {
       const errorPayload = toRunErrorPayload(
         error,
@@ -148,6 +163,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
       })
       yield {
         type: EventType.RUN_ERROR,
+        metadata: { tanstack: { source } },
         model: options.model,
         timestamp: Date.now(),
         message: errorPayload.message,

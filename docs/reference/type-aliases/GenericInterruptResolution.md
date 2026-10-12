@@ -17,7 +17,7 @@ type GenericInterruptResolution<TDefinition> = TDefinition extends AnyInterruptD
 } : never;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:123](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L123)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:124](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L124)
 
 ## Type Parameters
 

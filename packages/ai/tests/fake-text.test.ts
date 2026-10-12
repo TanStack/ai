@@ -170,6 +170,14 @@ describe('fakeText', () => {
     expect(finished(events)).toMatchObject({ usage: { promptTokens: 6 } })
   })
 
+  it('sets inputModalities from the input option', () => {
+    expect(fakeText({ input: ['text', 'image'] }).inputModalities).toEqual([
+      'text',
+      'image',
+    ])
+    expect(fakeText().inputModalities).toBeUndefined()
+  })
+
   it('estimates cache reads from the previous request of the same thread', async () => {
     const fake = fakeText({ cache: true })
     fake.setResponses([{ text: 'One' }, { text: 'Two' }])
