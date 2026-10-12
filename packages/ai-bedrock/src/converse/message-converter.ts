@@ -37,6 +37,14 @@ function base64ToBytes(b64: string): Uint8Array {
   return new Uint8Array(Buffer.from(b64, 'base64'))
 }
 
+// AWS ToolResultContentBlock.image: Nova and Claude 3/4 ids only.
+// ponytail: id substring, not the image-input catalog (Llama accepts user images).
+function supportsToolResultImage(model: string | undefined): boolean {
+  return /amazon\.nova|anthropic\.claude-(?:3|(?:opus|sonnet|haiku)-4)/i.test(
+    model ?? '',
+  )
+}
+
 function imageFormat(mime: string): 'png' | 'jpeg' | 'gif' | 'webp' {
   switch (mime) {
     case 'image/png':
@@ -181,9 +189,19 @@ function messageToBlocks(
       ? [{ text: textContent }]
       : []
     for (const part of Array.isArray(msg.content) ? msg.content : []) {
-      // Converse takes only inline bytes. Skip other sources, as before.
-      if (!isImagePart(part) || !isDataSource(part.source)) continue
-      const { image } = contentPartToBlock(part, 0)
+      // Inline bytes on Nova and Claude 3/4 only. Skip the rest, as before.
+      if (
+        !supportsToolResultImage(context?.model) ||
+        !isImagePart(part) ||
+        !isDataSource(part.source)
+      )
+        continue
+      let image: ContentBlock['image']
+      try {
+        image = contentPartToBlock(part, 0).image
+      } catch {
+        continue
+      }
       if (image) content.push({ image })
     }
     if (content.length === 0) content.push({ text: textContent })

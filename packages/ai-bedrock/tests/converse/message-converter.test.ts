@@ -190,20 +190,56 @@ describe('toConverseMessages', () => {
     const imageBlock = {
       image: { format: 'png', source: { bytes: new Uint8Array([120, 121]) } },
     }
-    const { messages } = toConverseMessages([
-      {
-        role: 'tool',
-        content: [{ type: 'text', content: 'screenshot' }, image],
-        toolCallId: 't1',
-      },
-      { role: 'assistant', content: 'ok' },
-      { role: 'tool', content: [image], toolCallId: 't2' },
-    ])
+    const { messages } = toConverseMessages(
+      [
+        {
+          role: 'tool',
+          content: [{ type: 'text', content: 'screenshot' }, image],
+          toolCallId: 't1',
+        },
+        { role: 'assistant', content: 'ok' },
+        { role: 'tool', content: [image], toolCallId: 't2' },
+      ],
+      undefined,
+      { model: 'us.amazon.nova-pro-v1:0' },
+    )
     expect(messages[0]!.content![0]!.toolResult?.content).toEqual([
       { text: 'screenshot' },
       imageBlock,
     ])
     expect(messages[2]!.content![0]!.toolResult?.content).toEqual([imageBlock])
+  })
+
+  it('drops a tool result image the model or the MIME cannot send', () => {
+    const image = (mimeType: string) => ({
+      type: 'image' as const,
+      source: { type: 'data' as const, value: btoa('xy'), mimeType },
+    })
+    const content = (model: string, mimeType: string) =>
+      toConverseMessages(
+        [
+          {
+            role: 'tool',
+            content: [
+              { type: 'text', content: 'screenshot' },
+              image(mimeType),
+            ],
+            toolCallId: 't1',
+          },
+        ],
+        undefined,
+        { model },
+      ).messages[0]!.content![0]!.toolResult?.content
+
+    expect(
+      content('us.meta.llama4-maverick-17b-instruct-v1:0', 'image/png'),
+    ).toEqual([{ text: 'screenshot' }])
+    expect(content('us.amazon.nova-pro-v1:0', 'image/svg+xml')).toEqual([
+      { text: 'screenshot' },
+    ])
+    expect(
+      content('us.anthropic.claude-sonnet-4-5-20250929-v1:0', 'image/png')?.[1],
+    ).toMatchObject({ image: { format: 'png' } })
   })
 
   it('keeps the text of a tool result whose image has a URL source', () => {
