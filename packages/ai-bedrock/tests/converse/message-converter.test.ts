@@ -220,10 +220,7 @@ describe('toConverseMessages', () => {
         [
           {
             role: 'tool',
-            content: [
-              { type: 'text', content: 'screenshot' },
-              image(mimeType),
-            ],
+            content: [{ type: 'text', content: 'screenshot' }, image(mimeType)],
             toolCallId: 't1',
           },
         ],
