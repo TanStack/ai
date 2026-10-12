@@ -6,6 +6,11 @@ const KEYS_URL = `${AUTH_ORIGIN}/api/v1/auth/keys`
 const PENDING_STORAGE_KEY = 'byok:openrouter:pkce:v1'
 const VERIFIER_CHARS =
   'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'
+const SIGN_IN_TIMEOUT_MS = 10 * 60_000
+const SIGNED_IN_PAGE =
+  '<!doctype html><title>Signed in</title><p>You are signed in to OpenRouter. You can close this tab.</p>'
+const SIGN_IN_FAILED_PAGE =
+  '<!doctype html><title>Sign-in failed</title><p>OpenRouter sign-in failed. You can close this tab and try again.</p>'
 
 export type OpenRouterPkceChallengeMethod = 'S256'
 
@@ -38,6 +43,12 @@ export interface CompleteOpenRouterPkceFromUrlOptions {
   fetchImpl?: typeof fetch
   clearPending?: boolean
   cleanUrl?: boolean
+}
+
+export interface OpenRouterSignInOptions {
+  /** How long to wait for the browser to come back. Default: 10 minutes. */
+  timeoutMs?: number
+  fetchImpl?: typeof fetch
 }
 
 /**
@@ -252,4 +263,123 @@ export async function completeOpenRouterPkceIntoByok(
   if (!key) return null
   await byok.update(openrouterByok.id, key)
   return key
+}
+
+/**
+ * OpenRouter sign-in for a local app, such as a CLI. The user signs in with a
+ * browser and the app gets an API key (PKCE with S256), so nobody copies a
+ * key by hand.
+ *
+ * The returned `signIn` starts a one-time listener on `127.0.0.1`, calls
+ * `open` with the OpenRouter sign-in URL, and waits for the browser to come
+ * back. Then it trades the code for a key and resolves with the key. The
+ * listener closes when `signIn` settles. `signIn` rejects when the state does
+ * not match, after `timeoutMs`, or when `signal` aborts.
+ *
+ * `node:http` loads only when `signIn` runs, so this module stays safe to
+ * import in a browser.
+ *
+ * @example
+ * const signIn = openrouterSignIn()
+ * const key = await signIn({ open: (url) => console.log(`Open ${url}`) })
+ */
+export function openrouterSignIn(
+  options: OpenRouterSignInOptions = {},
+): (ctx: {
+  open: (url: string) => void | Promise<void>
+  signal?: AbortSignal
+}) => Promise<string> {
+  return async (ctx) => {
+    const { createServer } = await import('node:http')
+    const codeVerifier = generateCodeVerifier()
+    const codeChallenge = await createS256CodeChallenge(codeVerifier)
+    // The state goes in the callback path, so only our own redirect matches.
+    const state = base64UrlEncode(crypto.getRandomValues(new Uint8Array(16)))
+    const server = createServer()
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject)
+      server.listen(0, '127.0.0.1', () => {
+        server.off('error', reject)
+        resolve()
+      })
+    })
+    const address = server.address()
+    const port = typeof address === 'object' && address ? address.port : 0
+    const callbackPath = `/callback/${state}`
+    const callbackUrl = `http://127.0.0.1:${port}${callbackPath}`
+    // Aborts when `signIn` settles: it stops the timer and the abort listener.
+    const settled = new AbortController()
+    try {
+      return await new Promise<string>((resolve, reject) => {
+        const { signal } = ctx
+        if (signal?.aborted) {
+          reject(signal.reason)
+          return
+        }
+        signal?.addEventListener('abort', () => reject(signal.reason), {
+          signal: settled.signal,
+        })
+        const timer = setTimeout(
+          () => reject(new Error('OpenRouter sign-in timed out.')),
+          options.timeoutMs ?? SIGN_IN_TIMEOUT_MS,
+        )
+        settled.signal.addEventListener('abort', () => clearTimeout(timer))
+        let answered = false
+        server.on('request', (req, res) => {
+          const url = new URL(req.url ?? '/', callbackUrl)
+          // Another path, such as a wrong state, is not our redirect. Ignore it.
+          if (url.pathname !== callbackPath || answered) {
+            res.writeHead(404).end()
+            return
+          }
+          answered = true
+          const page = (signedIn: boolean) =>
+            res
+              .writeHead(signedIn ? 200 : 400, {
+                'content-type': 'text/html; charset=utf-8',
+                // The browser does not keep the connection, so the listener can close.
+                connection: 'close',
+              })
+              .end(signedIn ? SIGNED_IN_PAGE : SIGN_IN_FAILED_PAGE)
+          const code = url.searchParams.get('code')
+          if (!code) {
+            page(false)
+            reject(
+              new Error('OpenRouter sign-in failed: the callback has no code.'),
+            )
+            return
+          }
+          // The browser shows the result after the code is traded for a key.
+          exchangeOpenRouterCode({
+            code,
+            codeVerifier,
+            codeChallengeMethod: 'S256',
+            fetchImpl: options.fetchImpl,
+          }).then(
+            (key) => {
+              page(true)
+              resolve(key)
+            },
+            (error: unknown) => {
+              page(false)
+              reject(error)
+            },
+          )
+        })
+        Promise.resolve(
+          ctx.open(
+            buildOpenRouterAuthUrl({
+              callbackUrl,
+              codeChallenge,
+              codeChallengeMethod: 'S256',
+            }),
+          ),
+        ).catch(reject)
+      })
+    } finally {
+      settled.abort()
+      server.close()
+      server.closeIdleConnections()
+    }
+  }
 }
