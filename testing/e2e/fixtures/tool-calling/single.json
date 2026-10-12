@@ -22,6 +22,14 @@
       "response": {
         "content": "Here's what we have in stock:\n\n1. **Fender Stratocaster** - $1,299\n2. **Gibson Les Paul** - $2,499\n3. **Taylor 814ce** - $3,299\n4. **Martin D-28** - $2,999\n\nWould you like more details on any of these?"
       }
+    },
+    {
+      "match": {
+        "userMessage": "[toolcall-followup] which one is the cheapest"
+      },
+      "response": {
+        "content": "The Fender Stratocaster at $1,299 is the cheapest."
+      }
     }
   ]
 }
