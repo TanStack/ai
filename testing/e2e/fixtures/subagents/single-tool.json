@@ -1,0 +1,59 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[subagent-session] take squid notes",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "subagent",
+            "arguments": "{\"agent\":\"researcher\",\"prompt\":\"[subagent-session-task] Note one squid fact.\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-session-task] Note one squid fact.",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "Squids have three hearts."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-session] take squid notes",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "subagent",
+            "arguments": "{\"agent\":\"researcher\",\"sessionId\":\"first-child\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-session-task] Note one squid fact.",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Squids also have blue blood."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-session] take squid notes",
+        "sequenceIndex": 2
+      },
+      "response": {
+        "content": "Both notes are ready."
+      }
+    }
+  ]
+}

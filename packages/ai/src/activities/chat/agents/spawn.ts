@@ -12,10 +12,18 @@ import {
 import { mergeStreams } from '../../../utilities/merge-streams'
 import { INTERRUPT_BINDING_METADATA_KEY } from '../../../interrupt-resume'
 import { EMIT_STREAM_CHUNK, SUBAGENT_TOOL } from '../tools/tool-calls'
+import {
+  convertSchemaToJsonSchema,
+  validateWithStandardSchema,
+} from '../tools/schema-converter'
+import { getLoadChild } from '../middleware/load-child'
+import type { LoadChild } from '../middleware/load-child'
 import type { SubagentToolOutcome } from '../tools/tool-calls'
 import type { SpecTokenUsage } from '../../../utilities/ag-ui-usage'
 import type {
+  InferSchemaType,
   Interrupt,
+  JSONSchema,
   ModelMessage,
   RunAgentResumeItem,
   StreamChunk,
@@ -24,6 +32,7 @@ import type {
   SubagentStartedEvent,
   TokenUsage,
   Tool,
+  ToolExecutionContext,
   UIMessage,
 } from '../../../types'
 import { envProviderKeys } from '../../../byok/env-keys'
@@ -97,6 +106,50 @@ export interface SubagentsBag<
    * apply: a nested chat in a child uses the root's budget.
    */
   limits?: SubagentLimits
+  /**
+   * The tools the parent model gets. `per-agent` (the default) gives one tool
+   * per agent, with the agent's name. `single` gives one tool named
+   * `subagent`. It takes the agent name, plus `sessionId` to continue a
+   * stored child and `background` to start a child without waiting.
+   */
+  tool?: 'per-agent' | 'single'
+}
+
+/** The name of the one tool in `subagents: { tool: 'single' }`. */
+export const SINGLE_SUBAGENT_TOOL = 'subagent'
+
+/** Fields every call of the single `subagent` tool can add. */
+interface SubagentCallOptions {
+  /** The `subagentRunId` of a stored, finished child. The call continues it. */
+  sessionId?: string
+  /** Start the child and return at once. Needs a host with `binding.start`. */
+  background?: boolean
+}
+
+/** One agent's call: `input` for an agent with `inputSchema`, else `prompt`. */
+type SubagentCallFor<TAgent extends DefinedAgent> = TAgent extends DefinedAgent
+  ? ([NonNullable<TAgent['inputSchema']>] extends [never]
+      ? { agent: TAgent['name']; prompt?: string }
+      : {
+          agent: TAgent['name']
+          input: InferSchemaType<NonNullable<TAgent['inputSchema']>>
+        }) &
+      SubagentCallOptions
+  : never
+
+/**
+ * The input of the single `subagent` tool (`subagents: { tool: 'single' }`).
+ * A union on `agent`: an agent with an `inputSchema` needs `input`, and an
+ * agent without one takes an optional `prompt`.
+ */
+export type SubagentToolInput<TAgents extends ReadonlyArray<DefinedAgent>> =
+  SubagentCallFor<TAgents[number]>
+
+/** A call of the single `subagent` tool, after the wire schema check. */
+interface SubagentCall extends SubagentCallOptions {
+  agent: string
+  input?: unknown
+  prompt?: string
 }
 
 /** What the children of one parent run left behind for the parent terminal. */
@@ -117,6 +170,13 @@ export interface SpawnEntry {
   name: string
   /** The checked tool input for an agent with `inputSchema`. */
   input?: unknown
+  /** Text for an agent without `inputSchema`. One user message at the end. */
+  prompt?: string
+  /** A stored, finished child to run again from its transcript. */
+  continued?: {
+    subagentRunId: string
+    messages: Array<UIMessage | ModelMessage>
+  }
   resume?: {
     subagentRunId: string
     /** The child's own messages from the interrupted run. */
@@ -279,7 +339,9 @@ function openAgentStream(
 ) {
   const agent = agentByName(bag.agents, entry.name)
   const resume = entry.resume
-  const subagentRunId = resume?.subagentRunId ?? createSubagentId()
+  const continued = entry.continued
+  const subagentRunId =
+    resume?.subagentRunId ?? continued?.subagentRunId ?? createSubagentId()
   // The parent binds child interrupts to its own run (see rebindInterrupts),
   // so the resumed child continues from the interrupted parent run id.
   if (resume !== undefined && ctx.interruptedRunId === undefined) {
@@ -287,10 +349,29 @@ function openAgentStream(
       `Subagent "${entry.name}" has interrupt answers, but the run has no parentRunId. Pass the interrupted run id as parentRunId.`,
     )
   }
+  // A continued child starts from its stored transcript, not from the parent
+  // messages. A prompt is one more user message at the end.
+  const base = continued?.messages ?? ctx.messages
+  const messages =
+    entry.prompt === undefined
+      ? base
+      : [
+          ...base,
+          { role: 'user', content: entry.prompt } satisfies ModelMessage,
+        ]
+  // The card of a continued child also holds its stored messages. Keep only
+  // the messages that the stored transcript does not have.
+  const storedIds = new Set(continued?.messages.map((message) => message.id))
   const resumed =
     resume !== undefined
       ? {
-          messages: [...ctx.messages, ...resume.messages],
+          messages: [
+            ...messages,
+            ...resume.messages.filter(
+              (message) =>
+                message.id === undefined || !storedIds.has(message.id),
+            ),
+          ],
           parentRunId: ctx.interruptedRunId,
           resume: resume.entries,
         }
@@ -299,7 +380,7 @@ function openAgentStream(
     agent,
     {
       input: entry.input,
-      messages: resumed?.messages ?? ctx.messages,
+      messages: resumed?.messages ?? messages,
       ...(ctx.abortSignal ? { abortSignal: ctx.abortSignal } : {}),
       threadId: childThreadId(bag.sandbox, ctx.threadId, entry.name),
       runId: childRunId(ctx.parentRunId, subagentRunId),
@@ -848,12 +929,17 @@ function messagesBeforeCall(
 
 /**
  * Record the parent messages when the model calls a subagent tool, so the
- * child reads the conversation as it is at that call.
+ * child reads the conversation as it is at that call. Also read the run's
+ * `loadChild` service, so a call can continue a stored child.
  */
 export function subagentCallMessages(names: ReadonlySet<string>) {
   const byCall = new Map<string, Array<ModelMessage>>()
+  let loadChild: LoadChild | undefined
   const middleware: ChatMiddleware = {
     name: 'subagent-call-messages',
+    onStart(ctx) {
+      loadChild = getLoadChild(ctx, { optional: true })
+    },
     onBeforeToolCall(ctx, hook) {
       if (!names.has(hook.toolName)) return undefined
       byCall.set(
@@ -867,7 +953,82 @@ export function subagentCallMessages(names: ReadonlySet<string>) {
     middleware,
     messagesFor: (toolCallId: string | undefined) =>
       toolCallId === undefined ? undefined : byCall.get(toolCallId),
+    childLoader: () => loadChild,
   }
+}
+
+/** The JSON Schema of each agent `input`, by agent name. */
+function agentInputSchemas(agents: ReadonlyArray<DefinedAgent>) {
+  const schemas = new Map<string, JSONSchema>()
+  for (const agent of agents) {
+    const schema = convertSchemaToJsonSchema(agent.inputSchema, { io: 'input' })
+    if (schema) schemas.set(agent.name, schema)
+  }
+  return schemas
+}
+
+/**
+ * The description and the wire schema of the single `subagent` tool.
+ * Providers need one object at the top, so `input` is an `anyOf` of the agent
+ * schemas. `execute` checks each field against the picked agent.
+ */
+function singleToolShape(agents: ReadonlyArray<DefinedAgent>) {
+  const inputs = agentInputSchemas(agents)
+  const takesPrompt = agents.some((agent) => !inputs.has(agent.name))
+  const lines = agents.map((agent) => {
+    const schema = inputs.get(agent.name)
+    const how = schema
+      ? `Pass \`input\`: ${JSON.stringify(schema)}`
+      : 'Pass `prompt`: the task as text.'
+    return `- ${agent.name}: ${agent.description} ${how}`
+  })
+  const inputSchema: JSONSchema = {
+    type: 'object',
+    properties: {
+      agent: { type: 'string', enum: agents.map((agent) => agent.name) },
+      ...(inputs.size > 0 && { input: { anyOf: [...inputs.values()] } }),
+      ...(takesPrompt && { prompt: { type: 'string' } }),
+      sessionId: { type: 'string' },
+      background: { type: 'boolean' },
+    },
+    required: ['agent'],
+  }
+  return {
+    description: [
+      'Run a subagent. Set `agent` to one of these names:',
+      ...lines,
+      'Set `sessionId` to the subagentRunId of an earlier result to continue that child.',
+      'Set `background` to true to start the child and get its subagentRunId at once.',
+    ].join('\n'),
+    inputSchema,
+  }
+}
+
+/** The checked `input` of a single-tool call. A wrong field throws a tool error. */
+async function callInput(agent: DefinedAgent, call: SubagentCall) {
+  if (agent.inputSchema === undefined) {
+    if (call.input !== undefined) {
+      throw new Error(`Agent "${agent.name}" takes prompt, not input.`)
+    }
+    return undefined
+  }
+  if (call.prompt !== undefined) {
+    throw new Error(`Agent "${agent.name}" takes input, not prompt.`)
+  }
+  if (call.input === undefined) {
+    throw new Error(`Agent "${agent.name}" needs input.`)
+  }
+  const checked = await validateWithStandardSchema(
+    agent.inputSchema,
+    call.input,
+  )
+  if (!checked.success) {
+    const issues = checked.issues.map((issue) => issue.message).join(', ')
+    throw new Error(
+      `Input validation failed for agent ${agent.name}: ${issues}`,
+    )
+  }
+  return checked.data
 }
 
 export function createSyntheticSubagentTools(
@@ -887,6 +1048,8 @@ export function createSyntheticSubagentTools(
     abortSignal?: AbortSignal
     turn?: SubagentTurn
     sink: SubagentSink
+    /** The run's `loadChild` service. See subagentCallMessages. */
+    childLoader?: () => LoadChild | undefined
   },
 ): Array<Tool> {
   // One budget per root run. A child run inherits its parent's budget.
@@ -1020,7 +1183,105 @@ export function createSyntheticSubagentTools(
       ...(result !== undefined ? { result } : {}),
       ...(error !== undefined ? { error } : {}),
       ...(sink.interrupts.length > 0 ? { interrupts: sink.interrupts } : {}),
+      // Only a stored child can be continued, and only by the single tool.
+      ...(bag.tool === 'single' &&
+      subagentRunId !== '' &&
+      parent.childLoader?.()
+        ? { keepRunId: true as const }
+        : {}),
     } satisfies SubagentToolOutcome
+  }
+
+  /**
+   * The stored child that a `sessionId` names, for `agent`. Throws a tool
+   * error, also when the child ran under another agent.
+   */
+  async function storedChild(sessionId: string, agent: string) {
+    const load = parent.childLoader?.()
+    if (!load) throw new Error('sessionId needs a persistence store.')
+    const stored = await load(sessionId)
+    if (!stored) throw new Error(`Unknown sessionId "${sessionId}".`)
+    if (stored.agent !== undefined && stored.agent !== agent) {
+      throw new Error(
+        `Session "${sessionId}" belongs to agent "${stored.agent}", not "${agent}".`,
+      )
+    }
+    return { subagentRunId: sessionId, messages: stored.messages }
+  }
+
+  if (bag.tool === 'single') {
+    // A thrown error in `execute` goes back to the model as a tool error.
+    const single = {
+      name: SINGLE_SUBAGENT_TOOL,
+      ...singleToolShape(bag.agents),
+      [SUBAGENT_TOOL]: true,
+      execute: async (call: SubagentCall, context?: ToolExecutionContext) => {
+        const wrongType =
+          (call.prompt !== undefined && typeof call.prompt !== 'string') ||
+          (call.sessionId !== undefined &&
+            typeof call.sessionId !== 'string') ||
+          (call.background !== undefined &&
+            typeof call.background !== 'boolean')
+        if (wrongType) {
+          throw new Error(
+            'prompt and sessionId must be strings, and background a boolean.',
+          )
+        }
+        const agent = bag.agents.find((entry) => entry.name === call.agent)
+        if (!agent) throw new Error(`Unknown agent "${call.agent}".`)
+        const input = await callInput(agent, call)
+        const fields = {
+          ...(input !== undefined && { input }),
+          ...(call.prompt !== undefined && { prompt: call.prompt }),
+        }
+        const child = { name: agent.name, ...fields }
+        if (call.background === true) {
+          if (call.sessionId !== undefined) {
+            throw new Error('background cannot continue a sessionId.')
+          }
+          const start = bag.binding?.start
+          if (!start) {
+            throw new Error(
+              'background needs a host that runs children in the background.',
+            )
+          }
+          // A background child counts against the tree budget too.
+          const refusal = budget.reserve(active)
+          if (refusal !== undefined) throw new Error(refusal)
+          const { subagentRunId } = await start(
+            {
+              agent: agent.name,
+              ...fields,
+              ...(context?.toolCallId !== undefined && {
+                parentToolCallId: context.toolCallId,
+              }),
+            },
+            { wake: true },
+          )
+          return {
+            subagentRunId,
+            text: '',
+            result: { status: 'started' },
+            keepRunId: true,
+          } satisfies SubagentToolOutcome
+        }
+        const { sessionId } = call
+        const work =
+          sessionId === undefined
+            ? runChild(child, context)
+            : storedChild(sessionId, agent.name).then((continued) =>
+                runChild({ ...child, continued }, context),
+              )
+        // The host can move the child to the background. It keeps running.
+        const detach = context?.detach
+        if (!detach) return work
+        const moved = detach(work).then(
+          (text) => ({ subagentRunId: '', text }) satisfies SubagentToolOutcome,
+        )
+        return Promise.race([work, moved])
+      },
+    }
+    return [single]
   }
 
   return bag.agents.map((agent) => ({
