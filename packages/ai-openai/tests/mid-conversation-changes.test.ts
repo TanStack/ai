@@ -67,7 +67,13 @@ async function send(
   const create = vi.fn<(...args: Array<any>) => any>(() =>
     Promise.resolve(completedStream()),
   )
-  Object.assign(adapter, { client: { responses: { create } } })
+  // Keep the base URL of the real client: the cache key depends on it.
+  Object.assign(adapter, {
+    client: {
+      baseURL: extra.baseURL ?? 'https://api.openai.com/v1',
+      responses: { create },
+    },
+  })
   for await (const chunk of adapter.chatStream({
     logger,
     model,
@@ -276,7 +282,10 @@ describe('OpenAI mid-conversation request', () => {
       expect(today.tools).toEqual(
         convertToolsToProviderFormat([lookup, fetchPage]),
       )
-      expect(today.prompt_cache_key).toBe('thread-1')
+      // A short key goes only to api.openai.com.
+      expect(today.prompt_cache_key).toBe(
+        'baseURL' in extra ? undefined : 'thread-1',
+      )
     }
   })
 })
