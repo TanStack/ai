@@ -31,6 +31,10 @@ export interface SubagentForward {
   runId: string
   parentRunId: string
   subagentRunId: string
+  /** The agent name. Middleware reads it as `ctx.subagentName`. */
+  subagentName: string
+  /** The subagentRunId of the child that started this one, for a nested child. */
+  parentSubagentRunId?: string
   resume?: Array<RunAgentResumeItem>
   /** Aborts when the parent run or the subagent group stops. */
   abortController: AbortController
