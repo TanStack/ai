@@ -148,6 +148,36 @@ function collectWebSearchSources(
   return [...sources.values()]
 }
 
+/**
+ * The saved answer items of a message as Responses input, one per text
+ * block, each with its item `id` and `phase`. `undefined` when the message
+ * has no items or its blocks do not match them: then it replays as plain
+ * text. Another model's message never gets here with its items: the caller
+ * rebuilds it as plain text.
+ */
+function answerItems(
+  message: ModelMessage,
+  text: string,
+): ResponseInput | undefined {
+  const items = message.metadata?.tanstack?.responseItems
+  const texts = orderedAssistantBlocks(message)?.flatMap((block) =>
+    block.type === 'text' ? [block.text] : [],
+  ) ?? [text]
+  if (!items || items.length !== texts.length) return undefined
+  return items.map((item, index) => ({
+    type: 'message',
+    role: 'assistant',
+    id: item.id,
+    status: 'completed',
+    content: [
+      { type: 'output_text', text: texts[index] ?? '', annotations: [] },
+    ],
+    ...(item.phase === 'commentary' || item.phase === 'final_answer'
+      ? { phase: item.phase }
+      : {}),
+  }))
+}
+
 function packResponsesReasoningSignature(
   id: string | undefined,
   encryptedContent: string | undefined,
@@ -2170,9 +2200,23 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 ? 'content_filter'
                 : 'stop'
 
+          // Each answer item's id and phase, for a same-model replay. Only a
+          // model that sends a phase gets them: an OpenAI-compatible server
+          // keeps the plain-text replay.
+          const answers = responseOutput.flatMap((item) =>
+            item.type === 'message' && item.id
+              ? [{ id: item.id, ...(item.phase ? { phase: item.phase } : {}) }]
+              : [],
+          )
+          const responseItems = answers.some((item) => item.phase)
+            ? answers
+            : []
           yield {
             type: EventType.RUN_FINISHED,
             ...(responseId ? { responseId } : {}),
+            ...(responseItems.length > 0
+              ? { metadata: { tanstack: { responseItems } } }
+              : {}),
             runId: aguiState.runId,
             threadId: aguiState.threadId,
             model: model || options.model,
@@ -2656,6 +2700,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         const canPairReasoning =
           reasoningCandidates === 0 ||
           (reasoningCandidates === 1 && emittedReasoning === 1)
+        const firstCall = result.length
 
         // If the assistant message has tool calls, add them as FunctionToolCall objects
         // Responses API expects arguments as a string (JSON string)
@@ -2723,13 +2768,19 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         } else if (message.content) {
           // Add the assistant's text message if there is content
           const contentStr = this.extractTextContent(message.content)
-          if (contentStr) {
+          const items =
+            contentStr && canPairReasoning
+              ? answerItems(message, contentStr)
+              : undefined
+          // The model writes an answer item before its calls, so it goes
+          // back right after this message's reasoning.
+          if (items) result.splice(firstCall, 0, ...items)
+          else if (contentStr)
             result.push({
               type: 'message',
               role: 'assistant',
               content: contentStr,
             })
-          }
         }
 
         // Another model's answer: plain text and calls in the order the
