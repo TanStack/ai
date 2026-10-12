@@ -505,7 +505,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       )
 
       for await (const chunk of stream) {
-        const choiceForLog = chunk.choices[0]
+        const choiceForLog = chunk.choices?.[0]
         chatOptions.logger.provider(
           `provider=${this.name} finish_reason=${choiceForLog?.finish_reason ?? 'none'} hasContent=${!!choiceForLog?.delta.content} hasUsage=${!!chunk.usage}`,
           { provider: this.name, model: chunk.model },
@@ -574,7 +574,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           }
         }
 
-        const choice = chunk.choices[0]
+        const choice = chunk.choices?.[0]
         if (!choice) continue
         if (choice.finish_reason) finishReason = choice.finish_reason
 
@@ -878,9 +878,8 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
 
     try {
       for await (const chunk of stream) {
-        endsWithUsageOnlyChunk =
-          chunk.choices.length === 0 && chunk.usage != null
-        const choiceForLog = chunk.choices[0]
+        endsWithUsageOnlyChunk = !chunk.choices?.length && chunk.usage != null
+        const choiceForLog = chunk.choices?.[0]
         options.logger.provider(
           `provider=${this.name} finish_reason=${choiceForLog?.finish_reason ?? 'none'} hasContent=${!!choiceForLog?.delta.content} hasToolCalls=${!!choiceForLog?.delta.tool_calls} hasUsage=${!!chunk.usage}`,
           { provider: this.name, model: chunk.model },
@@ -958,7 +957,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           }
         }
 
-        const choice = chunk.choices[0]
+        const choice = chunk.choices?.[0]
 
         if (!choice) continue
 

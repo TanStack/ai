@@ -176,7 +176,7 @@ export class GroqTextAdapter<
   protected override extractReasoning(
     chunk: OpenAI.Chat.Completions.ChatCompletionChunk,
   ): { text: string } | undefined {
-    const delta = chunk.choices[0]?.delta as
+    const delta = chunk.choices?.[0]?.delta as
       | { reasoning?: unknown; reasoning_content?: unknown }
       | undefined
     const raw = delta?.reasoning ?? delta?.reasoning_content
