@@ -74,4 +74,35 @@ describe('lone UTF-16 surrogates in provider requests', () => {
 
     expectClean(request!)
   })
+
+  it('keeps the block order map valid after cleaning the text', async () => {
+    const { adapter, calls } = createMockAdapter({
+      iterations: [[ev.runStarted(), ev.runFinished('stop')]],
+    })
+    const ordered: ModelMessage = {
+      role: 'assistant',
+      content: 'A\ud800B',
+      thinking: [{ content: 'think', signature: 'sig' }],
+      blockOrder: [
+        { type: 'text', length: 2 },
+        { type: 'thinking', index: 0 },
+        { type: 'text', length: 1 },
+      ],
+    }
+
+    await collectChunks(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'hi' }, ordered],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    const sent = calls[0]!.messages[1]!
+    expect(sent.content).toBe('AB')
+    expect(sent.blockOrder).toEqual([
+      { type: 'text', length: 1 },
+      { type: 'thinking', index: 0 },
+      { type: 'text', length: 1 },
+    ])
+  })
 })

@@ -118,6 +118,26 @@ const adapter = createAnthropicChat("claude-sonnet-4-6", process.env.ANTHROPIC_A
 
 Need a header on each request, or a log of each model call? This adapter supports [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call). An adapter with your own client (Claude on Vertex, or `createAnthropicChatWithClient`) ignores it, because the adapter cannot reach the fetch of that client.
 
+## Replay thinking through a gateway
+
+Your gateway speaks the Anthropic protocol, but it returns thinking with no signature. By default the adapter does not send unsigned thinking back, so the next turn loses it. Turn on `allowEmptySignature`:
+
+```typescript
+import { anthropicText } from "@tanstack/ai-anthropic";
+
+const gateway = anthropicText("claude-sonnet-5-5", {
+  baseURL: "https://gateway.example.com",
+  provider: "my-gateway",
+  allowEmptySignature: true,
+});
+
+console.log(gateway.provider); // "my-gateway"
+```
+
+- `allowEmptySignature` is `false` by default. It sends unsigned thinking back only for history from the same source.
+- Redacted thinking still needs its encrypted data.
+- `provider` names the gateway. History from the gateway then counts as a different source from Anthropic itself. See [Keep saved history when you switch](../advanced/runtime-adapter-switching#keep-saved-history-when-you-switch).
+
 ## Claude on Vertex
 
 Use `@tanstack/ai-anthropic/vertex` when Claude must run on Vertex AI. That
@@ -356,7 +376,7 @@ Per-model rules (enforced by the adapter's types):
 
 ### Prompt Caching
 
-`chat()` caches Claude prompts by default. It adds `cache_control` markers to the last tool, the last user message, and the system prompt. Pass `promptCache: 'long'` for the 1-hour cache, or `promptCache: 'none'` to send no markers. For the key and the cost, see [Prompt Caching](../advanced/prompt-caching).
+`chat()` caches Claude prompts by default. It adds `cache_control` markers to the last start tool, the last block of the last user or mid-conversation system message, and the system blocks. At most 4 markers. The last start tool is the tool before the deferred placeholder, or the last tool. Pass `promptCache: 'long'` for the 1-hour cache, or `promptCache: 'none'` to send no markers. For the key and the cost, see [Prompt Caching](../advanced/prompt-caching).
 
 Want the markers in other places? Set `cache_control` in the `metadata` of a message part, a system prompt, or a tool. One marker of your own turns the automatic markers off for that request:
 
@@ -470,6 +490,8 @@ Creates an Anthropic chat adapter.
 - `apiKey` - API key, Bearer token, or Claude OAuth token (`createAnthropicChat` only)
 - `config?.baseURL` - Custom base URL (optional)
 - `config?.auth` - How to send the credential: `"api-key"`, `"bearer"`, or `"oauth"` (optional, see [Bearer and OAuth tokens](#bearer-and-oauth-tokens))
+- `config?.allowEmptySignature` - Send unsigned thinking back to the same source (optional, default `false`, see [Replay thinking through a gateway](#replay-thinking-through-a-gateway))
+- `config?.provider` - The source name for a gateway (optional, default `"anthropic"`)
 
 ### `anthropicVertexText(model, config?)`
 

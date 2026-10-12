@@ -14,17 +14,21 @@ export function clampPromptCacheKey(key: string | undefined) {
  * - `explicitMode`: the model takes `prompt_cache_options` in place of
  *   `prompt_cache_retention` (see `openAIModelUsesExplicitPromptCache`).
  * - `longRetention`: the endpoint keeps a cache for longer than a few minutes.
+ * - `baseURL`: a short retention sends the key only to `api.openai.com`.
+ *   Another server can reject a field it does not know. A long retention
+ *   still sends the key.
  */
 export function responsesPromptCacheFields(
   promptCache: ResolvedPromptCache | undefined,
-  flags: { explicitMode: boolean; longRetention: boolean },
+  flags: { explicitMode: boolean; longRetention: boolean; baseURL: string },
 ) {
   const fields: Record<string, unknown> = {}
   if (!promptCache) return fields
   const { retention } = promptCache
   const key = clampPromptCacheKey(promptCache.key)
   const isLong = retention === 'long' && flags.longRetention
-  if (retention !== 'none' && key) fields.prompt_cache_key = key
+  const sendsKey = isLong || flags.baseURL.includes('api.openai.com')
+  if (retention !== 'none' && key && sendsKey) fields.prompt_cache_key = key
   if (!flags.explicitMode) {
     if (isLong) fields.prompt_cache_retention = '24h'
     return fields

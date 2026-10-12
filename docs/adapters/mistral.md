@@ -341,7 +341,7 @@ const stream = chat({
 
 ## Prompt caching
 
-Mistral caches the start of your requests by itself. `chat()` also sends `prompt_cache_key` by default, set to the `threadId` that you pass, so the requests of one conversation share a cache. With `promptCache: 'none'`, no key goes out. See [Prompt Caching](../advanced/prompt-caching).
+Mistral caches the start of your requests by itself. `chat()` sends `prompt_cache_key` by default. The key is the `threadId` that you pass, so one conversation shares a cache. The key goes only to `api.mistral.ai`, on `chat()` and on structured output. With `promptCache: 'none'`, no key goes out. See [Prompt Caching](../advanced/prompt-caching).
 
 Cache reads show up in `usage.promptTokensDetails.cachedTokens`.
 

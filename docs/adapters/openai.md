@@ -441,7 +441,7 @@ const stream = chat({
 });
 ```
 
-`modelOptions.prompt_cache_retention` also wins over the automatic retention. `openaiChatCompletions` sends the key only to `api.openai.com`, unless you pass `promptCache: 'long'`.
+On gpt-5.6 and later, `modelOptions.prompt_cache_options` wins over the automatic options. On earlier models, `modelOptions.prompt_cache_retention` wins over the automatic retention. `openaiChatCompletions` sends the key only to `api.openai.com`, unless you pass `promptCache: 'long'`.
 
 #### Tools and prompts added during a conversation
 

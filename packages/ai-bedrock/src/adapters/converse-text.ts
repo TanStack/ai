@@ -2,7 +2,10 @@ import { EventType, convertSchemaToJsonSchema } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { resolveBedrockAuth } from '../utils/auth'
-import { toConverseMessages } from '../converse/message-converter'
+import {
+  toConverseMessages,
+  toolBlocksToText,
+} from '../converse/message-converter'
 import { toToolConfig } from '../converse/tool-converter'
 import {
   processConverseStream,
@@ -95,6 +98,14 @@ export class BedrockConverseTextAdapter<
 > {
   override readonly kind = 'text' as const
   override readonly name = 'bedrock-converse' as const
+  override readonly api = 'bedrock-converse-stream'
+  override readonly provider = 'amazon-bedrock'
+
+  private sourceMetadata(model: string) {
+    return {
+      tanstack: { source: { provider: this.provider, api: this.api, model } },
+    }
+  }
   private clientPromise?: Promise<BedrockRuntimeClient>
   private readonly clientConfig: BedrockConverseConfig
 
@@ -241,12 +252,26 @@ export class BedrockConverseTextAdapter<
         { provider: this.name, model: this.model },
       )
       const input = this.buildInput(options)
+      // Bedrock rejects toolUse and toolResult blocks without a toolConfig,
+      // so a request with no tools sends its tool history as text.
+      if (!input.toolConfig && input.messages) {
+        input.messages = toolBlocksToText(input.messages)
+      }
       const stream = await this.sendStream(input)
-      yield* processConverseStream(stream, () => this.generateId(), {
-        threadId: options.threadId,
-        parentRunId: options.parentRunId,
-        model: options.model,
-      })
+      for await (const chunk of processConverseStream(
+        stream,
+        () => this.generateId(),
+        {
+          threadId: options.threadId,
+          parentRunId: options.parentRunId,
+          model: options.model,
+        },
+      )) {
+        yield chunk.type === EventType.RUN_STARTED ||
+        chunk.type === EventType.RUN_FINISHED
+          ? { ...chunk, metadata: this.sourceMetadata(options.model) }
+          : chunk
+      }
     } catch (error: unknown) {
       const errorPayload = toRunErrorPayload(
         error,
@@ -260,6 +285,7 @@ export class BedrockConverseTextAdapter<
       // `exactOptionalPropertyTypes` (AG-UI's `RunErrorEvent.code` is optional).
       yield {
         type: EventType.RUN_ERROR,
+        metadata: this.sourceMetadata(options.model),
         model: options.model,
         timestamp: Date.now(),
         message: errorPayload.message,
@@ -363,6 +389,7 @@ export class BedrockConverseTextAdapter<
           hasEmittedRunStarted = true
           yield {
             type: EventType.RUN_STARTED,
+            metadata: this.sourceMetadata(chatOptions.model),
             runId,
             threadId,
             model: chatOptions.model,
@@ -430,6 +457,7 @@ export class BedrockConverseTextAdapter<
         hasEmittedRunStarted = true
         yield {
           type: EventType.RUN_STARTED,
+          metadata: this.sourceMetadata(chatOptions.model),
           runId,
           threadId,
           model: chatOptions.model,
@@ -453,6 +481,7 @@ export class BedrockConverseTextAdapter<
         const message = `${this.name}.structuredOutputStream: the response was cut off because the maximum token limit was reached (stopReason=max_tokens); raise modelOptions.max_completion_tokens`
         yield {
           type: EventType.RUN_ERROR,
+          metadata: this.sourceMetadata(chatOptions.model),
           runId,
           model: chatOptions.model,
           timestamp: Date.now(),
@@ -466,6 +495,7 @@ export class BedrockConverseTextAdapter<
       if (accumulatedRaw.length === 0) {
         yield {
           type: EventType.RUN_ERROR,
+          metadata: this.sourceMetadata(chatOptions.model),
           runId,
           model: chatOptions.model,
           timestamp: Date.now(),
@@ -485,6 +515,7 @@ export class BedrockConverseTextAdapter<
       } catch {
         yield {
           type: EventType.RUN_ERROR,
+          metadata: this.sourceMetadata(chatOptions.model),
           runId,
           model: chatOptions.model,
           timestamp: Date.now(),
@@ -511,6 +542,7 @@ export class BedrockConverseTextAdapter<
 
       yield {
         type: EventType.RUN_FINISHED,
+        metadata: this.sourceMetadata(chatOptions.model),
         runId,
         threadId,
         model: chatOptions.model,
@@ -523,6 +555,7 @@ export class BedrockConverseTextAdapter<
         hasEmittedRunStarted = true
         yield {
           type: EventType.RUN_STARTED,
+          metadata: this.sourceMetadata(chatOptions.model),
           runId,
           threadId,
           model: chatOptions.model,
@@ -540,6 +573,7 @@ export class BedrockConverseTextAdapter<
       })
       yield {
         type: EventType.RUN_ERROR,
+        metadata: this.sourceMetadata(chatOptions.model),
         runId,
         model: chatOptions.model,
         timestamp: Date.now(),
@@ -578,6 +612,7 @@ export class BedrockConverseTextAdapter<
     const { system, messages } = toConverseMessages(
       options.messages,
       options.systemPrompts,
+      { model: options.model, provider: this.provider },
     )
 
     const toolConfig = options.tools

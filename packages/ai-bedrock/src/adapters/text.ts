@@ -51,6 +51,7 @@ export class BedrockTextAdapter<
 > {
   override readonly kind = 'text' as const
   override readonly name = 'bedrock' as const
+  override readonly provider = 'amazon-bedrock'
 
   constructor(config: BedrockTextConfig, model: TModel) {
     // No `forced` -> honors config.endpoint ('runtime' default, 'mantle' allowed).

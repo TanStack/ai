@@ -72,6 +72,7 @@ import { Route as ApiByteplusSeedance1080pWireRouteImport } from './routes/api.b
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiChatCompletionsIncompleteStreamRouteImport } from './routes/api.chat-completions-incomplete-stream'
 import { Route as ApiCompactionWireRouteImport } from './routes/api.compaction-wire'
+import { Route as ApiCrossModelReplayWireRouteImport } from './routes/api.cross-model-replay-wire'
 import { Route as ApiDevtoolsMemoryRouteImport } from './routes/api.devtools-memory'
 import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-delivery'
 import { Route as ApiDurableTakeoverRouteImport } from './routes/api.durable-takeover'
@@ -492,6 +493,11 @@ const ApiChatCompletionsIncompleteStreamRoute =
 const ApiCompactionWireRoute = ApiCompactionWireRouteImport.update({
   id: '/api/compaction-wire',
   path: '/api/compaction-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCrossModelReplayWireRoute = ApiCrossModelReplayWireRouteImport.update({
+  id: '/api/cross-model-replay-wire',
+  path: '/api/cross-model-replay-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiDevtoolsMemoryRoute = ApiDevtoolsMemoryRouteImport.update({
@@ -1035,6 +1041,7 @@ export interface FileRoutesByFullPath {
   '/api/chat': typeof ApiChatRoute
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
+  '/api/cross-model-replay-wire': typeof ApiCrossModelReplayWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
@@ -1191,6 +1198,7 @@ export interface FileRoutesByTo {
   '/api/chat': typeof ApiChatRoute
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
+  '/api/cross-model-replay-wire': typeof ApiCrossModelReplayWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
@@ -1348,6 +1356,7 @@ export interface FileRoutesById {
   '/api/chat': typeof ApiChatRoute
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
+  '/api/cross-model-replay-wire': typeof ApiCrossModelReplayWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
@@ -1506,6 +1515,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/chat-completions-incomplete-stream'
     | '/api/compaction-wire'
+    | '/api/cross-model-replay-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
     | '/api/durable-takeover'
@@ -1662,6 +1672,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/chat-completions-incomplete-stream'
     | '/api/compaction-wire'
+    | '/api/cross-model-replay-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
     | '/api/durable-takeover'
@@ -1818,6 +1829,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/chat-completions-incomplete-stream'
     | '/api/compaction-wire'
+    | '/api/cross-model-replay-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
     | '/api/durable-takeover'
@@ -1975,6 +1987,7 @@ export interface RootRouteChildren {
   ApiChatRoute: typeof ApiChatRoute
   ApiChatCompletionsIncompleteStreamRoute: typeof ApiChatCompletionsIncompleteStreamRoute
   ApiCompactionWireRoute: typeof ApiCompactionWireRoute
+  ApiCrossModelReplayWireRoute: typeof ApiCrossModelReplayWireRoute
   ApiDevtoolsMemoryRoute: typeof ApiDevtoolsMemoryRoute
   ApiDurableDeliveryRoute: typeof ApiDurableDeliveryRoute
   ApiDurableTakeoverRoute: typeof ApiDurableTakeoverRoute
@@ -2505,6 +2518,13 @@ declare module '@tanstack/react-router' {
       path: '/api/compaction-wire'
       fullPath: '/api/compaction-wire'
       preLoaderRoute: typeof ApiCompactionWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cross-model-replay-wire': {
+      id: '/api/cross-model-replay-wire'
+      path: '/api/cross-model-replay-wire'
+      fullPath: '/api/cross-model-replay-wire'
+      preLoaderRoute: typeof ApiCrossModelReplayWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/devtools-memory': {
@@ -3272,6 +3292,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiChatCompletionsIncompleteStreamRoute:
     ApiChatCompletionsIncompleteStreamRoute,
   ApiCompactionWireRoute: ApiCompactionWireRoute,
+  ApiCrossModelReplayWireRoute: ApiCrossModelReplayWireRoute,
   ApiDevtoolsMemoryRoute: ApiDevtoolsMemoryRoute,
   ApiDurableDeliveryRoute: ApiDurableDeliveryRoute,
   ApiDurableTakeoverRoute: ApiDurableTakeoverRoute,

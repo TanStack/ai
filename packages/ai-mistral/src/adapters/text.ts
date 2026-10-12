@@ -10,6 +10,11 @@ import {
 import { makeMistralStructuredOutputCompatibleWithMap } from '../utils/schema-converter'
 import { createToolInputNormalizer } from '../utils/tool-input-normalizer'
 import { MISTRAL_MODEL_INPUT_MODALITIES } from '../model-meta'
+import {
+  hashToolCallId,
+  orderedAssistantBlocks,
+  transformMessagesForReplay,
+} from '@tanstack/ai/adapter-internals'
 import type {
   ContentPart,
   FetchWrapper,
@@ -31,6 +36,7 @@ import type {
 } from '@tanstack/ai/adapters'
 import type { Mistral } from '@mistralai/mistralai'
 import type {
+  AssistantMessage,
   ChatCompletionStreamRequest,
   ContentChunk,
 } from '@mistralai/mistralai/models/components'
@@ -40,7 +46,6 @@ import type {
 } from '../text/text-provider-options'
 import type {
   ChatCompletionContentPart,
-  ChatCompletionMessageParam,
   MistralImageMetadata,
   MistralMessageMetadataByModality,
 } from '../message-types'
@@ -99,14 +104,52 @@ type ResolveProviderOptions<TModel extends string> =
     : MistralTextProviderOptions
 
 /**
- * The Mistral wire field for `chat({ promptCache })`, by pi's rule. Mistral
- * caches without a flag, so only the key goes out. There is no key for
- * `'none'`. The SDK request type has no cache key field, so only the raw
- * stream path sends it.
+ * The Mistral wire field for `chat({ promptCache })`. Mistral caches without
+ * a flag, so only the key goes out. There is no key for `'none'`. Send the
+ * key only to `api.mistral.ai`. The SDK request schema drops unknown fields,
+ * so structured output adds the key after that schema runs.
  */
 function mistralPromptCacheKey(promptCache: ResolvedPromptCache | undefined) {
-  if (!promptCache?.key || promptCache.retention === 'none') return {}
-  return { prompt_cache_key: promptCache.key }
+  if (!promptCache?.key || promptCache.retention === 'none') return undefined
+  return promptCache.key
+}
+
+function mistralOwnApi(config: MistralClientConfig, provider: string) {
+  if (provider === 'google-vertex') return false
+  const serverURL =
+    config.baseURL ?? config.serverURL ?? 'https://api.mistral.ai'
+  return serverURL.includes('api.mistral.ai')
+}
+
+/** Add `prompt_cache_key` to a JSON body the SDK has already serialized. */
+function withPromptCacheKey(next: typeof fetch, key: string): typeof fetch {
+  return async (input, init) => {
+    const body = init?.body
+    const text =
+      typeof body === 'string'
+        ? body
+        : body instanceof ArrayBuffer
+          ? new TextDecoder().decode(body)
+          : undefined
+    if (text === undefined) return next(input, init)
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(text)
+    } catch {
+      return next(input, init)
+    }
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      Array.isArray(parsed)
+    ) {
+      return next(input, init)
+    }
+    return next(input, {
+      ...init,
+      body: JSON.stringify({ ...parsed, prompt_cache_key: key }),
+    })
+  }
 }
 
 /**
@@ -216,6 +259,8 @@ export class MistralTextAdapter<
   MistralMessageMetadataByModality
 > {
   readonly name = 'mistral' as const
+  override readonly api = 'mistral-conversations' as const
+  override readonly provider: string
   override readonly inputModalities = MISTRAL_MODEL_INPUT_MODALITIES[this.model]
 
   private readonly client: Mistral
@@ -228,6 +273,10 @@ export class MistralTextAdapter<
     // the SDK's Zod schemas reject partial tool-call argument deltas.
     this.client = createMistralClient(config)
     this.rawConfig = config
+    this.provider =
+      config.getAccessToken && config.resolveRequestUrl
+        ? 'google-vertex'
+        : this.name
   }
 
   async *chatStream(
@@ -245,16 +294,40 @@ export class MistralTextAdapter<
     }
 
     try {
+      const cacheKey = mistralOwnApi(this.rawConfig, this.provider)
+        ? mistralPromptCacheKey(options.promptCache)
+        : undefined
       const body = {
         ...this.toWireBody(requestParams),
-        ...mistralPromptCacheKey(options.promptCache),
+        ...(cacheKey !== undefined && { prompt_cache_key: cacheKey }),
       }
       const stream = this.fetchRawMistralStream(
         body,
         this.rawConfig,
         options.wrapFetch,
       )
-      yield* this.processMistralStreamChunks(stream, options, aguiState)
+      for await (const chunk of this.processMistralStreamChunks(
+        stream,
+        options,
+        aguiState,
+      )) {
+        yield chunk.type === 'RUN_STARTED' || chunk.type === 'RUN_ERROR'
+          ? {
+              ...chunk,
+              metadata: {
+                ...chunk.metadata,
+                tanstack: {
+                  ...chunk.metadata?.tanstack,
+                  source: {
+                    provider: this.provider,
+                    api: this.api,
+                    model: options.model,
+                  },
+                },
+              },
+            }
+          : chunk
+      }
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
 
@@ -264,6 +337,15 @@ export class MistralTextAdapter<
           type: 'RUN_STARTED',
           runId: aguiState.runId,
           threadId: aguiState.threadId,
+          metadata: {
+            tanstack: {
+              source: {
+                provider: this.provider,
+                api: this.api,
+                model: options.model,
+              },
+            },
+          },
           model: options.model,
           timestamp,
         })
@@ -271,6 +353,15 @@ export class MistralTextAdapter<
 
       yield asChunk({
         type: 'RUN_ERROR',
+        metadata: {
+          tanstack: {
+            source: {
+              provider: this.provider,
+              api: this.api,
+              model: options.model,
+            },
+          },
+        },
         runId: aguiState.runId,
         model: options.model,
         timestamp,
@@ -305,9 +396,15 @@ export class MistralTextAdapter<
       outputSchema.required || [],
     )
 
-    const client = chatOptions.wrapFetch
-      ? createMistralClient(this.rawConfig, chatOptions.wrapFetch(fetch))
-      : this.client
+    const cacheKey = mistralOwnApi(this.rawConfig, this.provider)
+      ? mistralPromptCacheKey(chatOptions.promptCache)
+      : undefined
+    const next = chatOptions.wrapFetch ? chatOptions.wrapFetch(fetch) : fetch
+    const client = cacheKey
+      ? createMistralClient(this.rawConfig, withPromptCacheKey(next, cacheKey))
+      : chatOptions.wrapFetch
+        ? createMistralClient(this.rawConfig, next)
+        : this.client
     const response = await client.chat.complete({
       ...nonStreamParams,
       responseFormat: {
@@ -343,6 +440,8 @@ export class MistralTextAdapter<
     const usage = response.usage
     return {
       data: undoNullWidening(parsed, nullWideningMap),
+      ...(response.id && { responseId: response.id }),
+      ...(response.model && { model: response.model }),
       rawText: textContent,
       ...(usage && {
         usage: {
@@ -376,6 +475,7 @@ export class MistralTextAdapter<
     let hasEmittedToolCall = false
     let hasEmittedRunFinished = false
     let lastChunkModel = options.model
+    let responseId: string | undefined
     const normalizeToolInput = createToolInputNormalizer(options.tools)
 
     // Reasoning lifecycle (magistral-* models stream `thinking` content
@@ -398,7 +498,8 @@ export class MistralTextAdapter<
 
     try {
       for await (const chunk of stream) {
-        lastChunkModel = chunk.model || options.model
+        lastChunkModel = chunk.model || lastChunkModel
+        if (chunk.id) responseId = chunk.id
         const choice = chunk.choices?.[0]
         if (!choice) continue
 
@@ -643,6 +744,7 @@ export class MistralTextAdapter<
           hasEmittedRunFinished = true
           yield asChunk({
             type: 'RUN_FINISHED',
+            ...(responseId && { responseId }),
             runId: aguiState.runId,
             threadId: aguiState.threadId,
             model: chunkModel,
@@ -706,6 +808,7 @@ export class MistralTextAdapter<
         hasEmittedRunFinished = true
         yield asChunk({
           type: 'RUN_FINISHED',
+          ...(responseId && { responseId }),
           runId: aguiState.runId,
           threadId: aguiState.threadId,
           model: lastChunkModel,
@@ -980,7 +1083,21 @@ export class MistralTextAdapter<
       ? convertToolsToProviderFormat(options.tools)
       : undefined
 
-    const messages: Array<ChatCompletionMessageParam> = []
+    // History from another model loses its signatures, and its tool IDs are
+    // rewritten to the 9-character IDs Mistral accepts.
+    const replay = transformMessagesForReplay(
+      options.messages,
+      { provider: this.provider, api: this.api, model: options.model },
+      (id, { attempt }) => {
+        const normalized = id.replace(/[^a-zA-Z0-9]/g, '')
+        if (attempt === 0 && normalized.length === 9) return normalized
+        const seed = normalized || id
+        return hashToolCallId(attempt === 0 ? seed : `${seed}:${attempt}`)
+          .replace(/[^a-zA-Z0-9]/g, '')
+          .slice(0, 9)
+      },
+    )
+    const messages: ChatCompletionStreamRequest['messages'] = []
 
     if (options.systemPrompts && options.systemPrompts.length > 0) {
       messages.push({
@@ -989,7 +1106,7 @@ export class MistralTextAdapter<
       })
     }
 
-    for (const message of options.messages) {
+    for (const message of replay.messages) {
       messages.push(this.convertMessageToMistral(message))
     }
 
@@ -1037,7 +1154,7 @@ export class MistralTextAdapter<
    */
   private convertMessageToMistral(
     message: ModelMessage,
-  ): ChatCompletionMessageParam {
+  ): ChatCompletionStreamRequest['messages'][number] {
     if (message.role === 'tool') {
       if (!message.toolCallId) {
         throw new Error('Missing toolCallId for tool message')
@@ -1071,7 +1188,7 @@ export class MistralTextAdapter<
 
       return {
         role: 'assistant',
-        content: this.extractTextContent(message.content),
+        content: this.assistantContent(message),
         ...(toolCalls && toolCalls.length > 0 ? { toolCalls } : {}),
       }
     }
@@ -1093,6 +1210,35 @@ export class MistralTextAdapter<
       role: 'user',
       content: parts.length > 0 ? parts : '',
     }
+  }
+
+  /** Readable thinking and text, in the stored block order. */
+  private assistantContent(message: ModelMessage): AssistantMessage['content'] {
+    if (!message.thinking?.length)
+      return this.extractTextContent(message.content)
+    const blocks = orderedAssistantBlocks(message) ?? [
+      ...message.thinking.map((thinking) => ({
+        type: 'thinking' as const,
+        thinking,
+      })),
+      { type: 'text' as const, text: this.extractTextContent(message.content) },
+    ]
+    const content: Array<ContentChunk> = []
+    for (const block of blocks) {
+      if (block.type === 'text')
+        content.push({ type: 'text', text: block.text })
+      else if (
+        block.type === 'thinking' &&
+        !block.thinking.redacted &&
+        block.thinking.content.trim()
+      ) {
+        content.push({
+          type: 'thinking',
+          thinking: [{ type: 'text', text: block.thinking.content }],
+        })
+      }
+    }
+    return content
   }
 
   /**

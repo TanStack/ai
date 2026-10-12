@@ -149,8 +149,17 @@ describe('openAIModelUsesExplicitPromptCache', () => {
 })
 
 describe('responsesPromptCacheFields', () => {
-  const classic = { explicitMode: false, longRetention: true }
-  const explicit = { explicitMode: true, longRetention: true }
+  const openai = 'https://api.openai.com/v1'
+  const classic = {
+    explicitMode: false,
+    longRetention: true,
+    baseURL: openai,
+  }
+  const explicit = {
+    explicitMode: true,
+    longRetention: true,
+    baseURL: openai,
+  }
 
   it('sends nothing without the option', () => {
     expect(responsesPromptCacheFields(undefined, explicit)).toEqual({})
@@ -184,7 +193,7 @@ describe('responsesPromptCacheFields', () => {
     expect(
       responsesPromptCacheFields(
         { retention: 'long', key: 'k-1' },
-        { explicitMode: false, longRetention: false },
+        { explicitMode: false, longRetention: false, baseURL: openai },
       ),
     ).toEqual({ prompt_cache_key: 'k-1' })
   })
@@ -205,6 +214,33 @@ describe('responsesPromptCacheFields', () => {
     expect(
       responsesPromptCacheFields({ retention: 'short', key: 'k-1' }, explicit),
     ).toEqual({ prompt_cache_key: 'k-1' })
+  })
+
+  it('sends no short key to another server', () => {
+    expect(
+      responsesPromptCacheFields(
+        { retention: 'short', key: 'k-1' },
+        { ...classic, baseURL: CUSTOM_URL },
+      ),
+    ).toEqual({})
+  })
+
+  it('sends the long key to another server', () => {
+    expect(
+      responsesPromptCacheFields(
+        { retention: 'long', key: 'k-1' },
+        { ...classic, baseURL: CUSTOM_URL },
+      ),
+    ).toEqual({ prompt_cache_key: 'k-1', prompt_cache_retention: '24h' })
+  })
+
+  it('still turns automatic caching off on another server', () => {
+    expect(
+      responsesPromptCacheFields(
+        { retention: 'none', key: 'k-1' },
+        { ...explicit, baseURL: CUSTOM_URL },
+      ),
+    ).toEqual({ prompt_cache_options: { mode: 'explicit' } })
   })
 })
 

@@ -48,8 +48,8 @@
   ],
   "//lint": "The .tsrx.d.ts companions are generated declaration emits of the .tsrx implementations, so they are not hand-formatted and are excluded from lint rather than edited in place (a regeneration would undo any fix).",
   "scripts": {
-    "lint:fix": "oxlint src --type-aware --ignore-pattern '**/*.tsrx.d.ts' --fix",
-    "test:oxlint": "oxlint src --type-aware --ignore-pattern '**/*.tsrx.d.ts'",
+    "lint:fix": "oxlint src --type-aware --fix",
+    "test:oxlint": "oxlint src --type-aware",
     "test:coverage": "vitest run --coverage --coverage.include='src/**' --coverage.reporter=text-summary --coverage.reporter=json-summary",
     "test:lib": "vitest run",
     "test:lib:dev": "pnpm test:lib --watch",
@@ -60,16 +60,17 @@
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
-    "octane": "^0.1.17"
+    "octane": ">=0.12.0"
   },
   "devDependencies": {
-    "@octanejs/testing-library": "0.1.14",
+    "@octanejs/testing-library": "0.1.62",
     "@standard-schema/spec": "^1.1.0",
     "@tanstack/ai": "workspace:*",
+    "@tsrx/oxc": "0.20.0",
     "@types/node": "^24.10.1",
     "@vitest/coverage-v8": "4.1.10",
     "happy-dom": "^20.11.2",
-    "octane": "0.1.17",
+    "octane": "0.12.1",
     "vite": "^8.2.1",
     "zod": "^4.2.0"
   }

@@ -190,6 +190,7 @@ export class OpenAITextAdapter<
     const promptCacheFields = responsesPromptCacheFields(options.promptCache, {
       explicitMode: openAIModelUsesExplicitPromptCache(options.model),
       longRetention: true,
+      baseURL: this.client.baseURL ?? '',
     })
     const request: Omit<ResponseCreateParams, 'stream'> = {
       ...promptCacheFields,

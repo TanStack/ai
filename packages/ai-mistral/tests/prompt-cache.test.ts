@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { createMistralText } from '../src/adapters/text'
 import type { ResolvedPromptCache } from '@tanstack/ai'
+import type { MistralClientConfig } from '../src/utils/client'
 
 const logger = resolveDebugOption(false)
 const model = 'mistral-large-latest'
@@ -36,6 +37,7 @@ function stubFetch(response: Response) {
 async function stream(options: {
   promptCache?: ResolvedPromptCache
   usage?: WireUsage
+  config?: Omit<MistralClientConfig, 'apiKey'>
 }) {
   const chunk = {
     id: 'cmpl-1',
@@ -46,7 +48,7 @@ async function stream(options: {
   const fetchMock = stubFetch(
     new Response(`data: ${JSON.stringify(chunk)}\n\ndata: [DONE]\n\n`),
   )
-  const adapter = createMistralText(model, 'test-key')
+  const adapter = createMistralText(model, 'test-key', options.config)
   let usage: unknown
   for await (const event of adapter.chatStream({
     logger,
@@ -78,6 +80,25 @@ describe('Mistral chat({ promptCache }) cache key', () => {
     ['no promptCache', undefined],
   ])('sends no prompt_cache_key for %s', async (_name, promptCache) => {
     const { body } = await stream({ promptCache })
+    expect(body).not.toHaveProperty('prompt_cache_key')
+  })
+
+  it('sends no prompt_cache_key to another host', async () => {
+    const { body } = await stream({
+      promptCache: { retention: 'short', key: 'k-1' },
+      config: { baseURL: 'https://llm.example.com' },
+    })
+    expect(body).not.toHaveProperty('prompt_cache_key')
+  })
+
+  it('sends no prompt_cache_key on Vertex', async () => {
+    const { body } = await stream({
+      promptCache: { retention: 'long', key: 'k-1' },
+      config: {
+        getAccessToken: async () => 'tok',
+        resolveRequestUrl: () => 'https://vertex.example/rawPredict',
+      },
+    })
     expect(body).not.toHaveProperty('prompt_cache_key')
   })
 })
@@ -117,7 +138,7 @@ describe('Mistral cache-read usage', () => {
   })
 
   it('structured output reads cachedTokens through the SDK', async () => {
-    stubFetch(
+    const fetchMock = stubFetch(
       Response.json({
         id: 'cmpl-1',
         object: 'chat.completion',
@@ -135,14 +156,57 @@ describe('Mistral cache-read usage', () => {
     )
     const adapter = createMistralText(model, 'test-key')
     const result = await adapter.structuredOutput({
-      chatOptions: { logger, model, messages },
+      chatOptions: {
+        logger,
+        model,
+        messages,
+        promptCache: { retention: 'short', key: 'k-1' },
+      },
       outputSchema: { type: 'object', properties: {}, required: [] },
     })
+    const [, init] = fetchMock.mock.calls[0] ?? []
+    expect(JSON.parse(String(init?.body)).prompt_cache_key).toBe('k-1')
     expect(result.usage).toStrictEqual({
       promptTokens: 100,
       completionTokens: 5,
       totalTokens: 105,
       promptTokensDetails: { cachedTokens: 80 },
     })
+  })
+
+  it('structured output sends no key to another host', async () => {
+    const fetchMock = stubFetch(
+      Response.json({
+        id: 'cmpl-1',
+        object: 'chat.completion',
+        model,
+        created: 0,
+        choices: [
+          {
+            index: 0,
+            message: { role: 'assistant', content: '{}' },
+            finish_reason: 'stop',
+          },
+        ],
+        usage: baseUsage,
+      }),
+    )
+    const adapter = createMistralText(model, 'test-key', {
+      baseURL: 'https://llm.example.com',
+    })
+    await adapter.structuredOutput({
+      chatOptions: {
+        logger,
+        model,
+        messages,
+        promptCache: { retention: 'short', key: 'k-1' },
+      },
+      outputSchema: { type: 'object', properties: {}, required: [] },
+    })
+    const [input, init] = fetchMock.mock.calls[0] ?? []
+    const raw =
+      init?.body ??
+      (input instanceof Request ? await input.clone().text() : undefined)
+    expect(JSON.parse(String(raw))).not.toHaveProperty('prompt_cache_key')
   })
 })

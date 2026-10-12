@@ -14,7 +14,7 @@ keywords:
 
 Your agent gets a new tool halfway through a chat. A middleware adds it, a [lazy tool](../tools/lazy-tool-discovery) is found, or the user turns on a feature. The tool list sits at the start of each request, so the new tool changes the start. The provider can no longer use its [prompt cache](./prompt-caching), and the next call costs more.
 
-On some GPT and Claude models, TanStack AI sends the new tool inside the conversation instead. The start stays the same, and the cache keeps working. You change no code.
+On some GPT and Claude models, TanStack AI sends an added tool inside the conversation when the first call already had a tool. The start stays the same, and the cache keeps working. You change no code.
 
 ## Add a tool during a run
 
@@ -140,6 +140,6 @@ These changes still break the cache one time:
 - A tool that you remove, or a tool that keeps its name but gets a new definition.
 - A system prompt that you edit, move, or add anywhere but the end.
 - A provider tool, such as `webSearchTool()`, in the request. That request sends the full `tools` list. Prompt changes still go into the conversation.
-- The structured-output call at the end of a run with `outputSchema`. It sends the full request.
+- The first tool, when the recorded start had no tools. That request sends the full tool list.
 
 You now keep the prompt cache when your agent picks up new tools or prompts mid-conversation.

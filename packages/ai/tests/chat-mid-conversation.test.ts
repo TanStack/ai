@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
 import { chat } from '../src/activities/chat/index'
 import { defineChatMiddleware } from '../src/activities/chat/middleware/define'
 import { DISCOVERY_TOOL_NAME } from '../src/activities/chat/tools/lazy-tool-manager'
@@ -335,5 +336,60 @@ describe('chat() mid-conversation changes', () => {
       undefined,
       { toolsAdded: ['b'] },
     ])
+  })
+
+  it('saves the record when structured output updates an assistant message in place', async () => {
+    const mock = createMockAdapter({
+      supportsCombinedToolsAndSchema: true,
+      combinedStructuredOutputSource: 'event',
+      iterations: [
+        [
+          ev.runStarted(),
+          ev.textStart('msg-1'),
+          ev.textContent('{"ok":true}'),
+          ev.textEnd('msg-1'),
+          {
+            type: 'CUSTOM',
+            name: 'structured-output.complete',
+            timestamp: 1,
+            value: {
+              object: { ok: true },
+              raw: '{"ok":true}',
+              messageId: 'msg-1',
+            },
+          },
+          ev.runFinished('stop'),
+        ],
+      ],
+    })
+    const adapter: AnyTextAdapter = {
+      ...mock.adapter,
+      midConversationChannels: ON,
+    }
+    let messages: Array<ModelMessage> = []
+    await chat({
+      adapter,
+      messages: [
+        { role: 'user', content: 'q1' },
+        { role: 'assistant', content: 'old', id: 'msg-1' },
+        { role: 'user', content: 'q2' },
+      ],
+      tools: [serverTool('a', () => ({ ok: true }))],
+      outputSchema: z.object({ ok: z.boolean() }),
+      middleware: [
+        defineChatMiddleware({
+          name: 'test/in-place-record',
+          onFinish(ctx) {
+            messages = [...ctx.messages]
+          },
+        }),
+      ],
+    })
+
+    expect(messages).toHaveLength(3)
+    expect(records(messages)[1]).toEqual({
+      tools: ['a'],
+      systemPrompts: [],
+    })
   })
 })

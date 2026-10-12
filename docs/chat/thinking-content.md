@@ -152,6 +152,26 @@ The typical streaming order is:
 
 If you use `useChat` from `@tanstack/ai-react` (or the Solid/Vue/Svelte equivalents), your `messages` array updates with both thinking and text parts as they arrive.
 
+## Thinking and tool calls in order
+
+Claude can think, call a tool, think again, then call another tool. You want your UI to show that order, not all the thinking in one lump at the top.
+
+You get it by default. `message.parts` keeps the order the model used. For that answer, the part types are:
+
+```text
+thinking, tool-call, thinking, tool-call
+```
+
+What this means for your UI:
+
+- Each thinking block is its own `ThinkingPart`. Each one gets its own `REASONING_MESSAGE_END` and `REASONING_END`.
+- Text after a second thinking block starts a new text part. You get "A" and "B" as two parts, not "AB".
+- The render loop from [Rendering in React](#rendering-in-react) already walks the parts in order. You do not need extra code.
+
+The order also goes back to the model. The stored message keeps a `blockOrder` map, and the next request sends the blocks in the same order. Claude needs this, because it signs each thinking block against the blocks before it.
+
+Gemini, Mistral, and Bedrock Converse also send thinking back on the next request, for history from the same model. History from another model goes in as plain text. See [Keep saved history when you switch](../advanced/runtime-adapter-switching#keep-saved-history-when-you-switch).
+
 ## Next Steps
 
 - [Streaming](./streaming) -- Connection adapters and stream events

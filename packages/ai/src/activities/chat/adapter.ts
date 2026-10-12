@@ -45,6 +45,10 @@ export interface StructuredOutputResult<T = unknown> {
   rawText: string
   /** Token usage information (if provided by the adapter) */
   usage?: TokenUsage
+  /** Provider generation ID, when available. */
+  responseId?: string
+  /** Model reported by the provider. */
+  model?: string
 }
 
 /**
@@ -78,6 +82,10 @@ export interface TextAdapter<
   readonly kind: 'text'
   /** Provider name identifier (e.g., 'openai', 'anthropic') */
   readonly name: string
+  /** Wire API identity. Defaults to the adapter kind when omitted. */
+  readonly api?: string
+  /** Provider identity. Defaults to `name` when omitted. */
+  readonly provider?: string
   /** The model this adapter is configured for */
   readonly model: TModel
 
@@ -102,9 +110,10 @@ export interface TextAdapter<
   /**
    * The input kinds the model reads, at runtime, from the provider's model
    * metadata. `undefined` means not known. This mirrors the type-level
-   * `'~types'.inputModalities`, which has no runtime value.
+   * `'~types'.inputModalities`, which has no runtime value. `| undefined`
+   * keeps model lookups assignable under `exactOptionalPropertyTypes`.
    */
-  readonly inputModalities?: ReadonlyArray<Modality>
+  readonly inputModalities?: ReadonlyArray<Modality> | undefined
 
   /**
    * The mid-conversation channels of the model: tools and system prompts
@@ -232,6 +241,8 @@ export abstract class BaseTextAdapter<
 > {
   readonly kind = 'text' as const
   abstract readonly name: string
+  readonly api?: string = undefined
+  readonly provider?: string = undefined
   readonly model: TModel
   readonly requires?: ReadonlyArray<CapabilityHandle> = undefined
   readonly supportsFileSources: boolean = false
@@ -239,12 +250,13 @@ export abstract class BaseTextAdapter<
    * Provider subclasses override this from their model metadata, for example
    * `override readonly inputModalities = INPUT_BY_MODEL[this.model]`.
    */
-  readonly inputModalities?: ReadonlyArray<Modality> = undefined
+  readonly inputModalities?: ReadonlyArray<Modality> | undefined = undefined
   /**
    * Provider subclasses override this from their model metadata, the same
    * way as `inputModalities`. No channels by default.
    */
-  readonly midConversationChannels?: MidConversationChannels = undefined
+  readonly midConversationChannels?: MidConversationChannels | undefined =
+    undefined
 
   // Type-only property - never assigned at runtime
   declare '~types': {
