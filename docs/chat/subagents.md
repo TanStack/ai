@@ -261,6 +261,51 @@ const researcher = defineAgent({
 
 A child that `ctx.chat` starts gets the prompt cache retention of the parent call, unless the call sets its own `promptCache`.
 
+## Limit the tree
+
+A child can have children of its own, and a model can call a child many times. Set `limits` so one request cannot start an unbounded tree:
+
+```ts group=subagent-values
+const limited = chat({
+  adapter: openaiText('gpt-6.1-sol'),
+  messages: [{ role: 'user', content: 'Research squids in depth' }],
+  subagents: {
+    agents: [researcher],
+    limits: { maxDepth: 2, maxConcurrent: 3, maxCalls: 12, timeoutMs: 120_000 },
+  },
+})
+```
+
+- `maxDepth`: how deep the tree can grow. The first chat is depth 0.
+- `maxCalls`: how many children the whole tree can start.
+- `maxConcurrent`: how many children one run can have running at once.
+- `timeoutMs`: how long one child can run. A child never gets more time than its parent has left.
+
+The whole tree shares one budget. A child that calls `ctx.chat({ subagents })` passes it on, so a child cannot reset it. A refused start reaches the model as a tool error, for example `subagent limit reached (maxCalls 12)`.
+
+- Set `limits` on the first `chat()`. A nested chat in a child uses that budget, so its own `limits` do not apply.
+- A child that a router picks does not count against the limits. The children it starts do count, one level deeper.
+- A child that runs past `timeoutMs` stops, and the model gets `subagent timed out after 120000 ms`.
+
+## Run context for hosts
+
+A host that runs agents for a long session can give each run more on `subagents.binding`:
+
+- `keys`: the provider keys that the agent reads as `ctx.keys`. See [Keys inside agents](../advanced/byok#keys-inside-agents).
+- `step`: what `ctx.step.do(name, fn)` uses. A host can store the value of `fn`, so that a side effect does not run again when the host runs the agent again after a crash. Without a host, `fn` runs each time.
+- `agents`: what `ctx.agents.start(agent, input)` uses to start an agent in the background. Without a host, `ctx.agents.start` throws.
+
+```ts group=subagent-values
+const charger = defineAgent({
+  name: 'charger',
+  description: 'Charges the card once',
+  run: async (ctx) => {
+    const receipt = await ctx.step.do('charge', () => ({ id: 'rcpt-1' }))
+    return receipt
+  },
+})
+```
+
 ## Strategy
 
 - `exclusive` (default): the chosen child owns the turn. Main does not answer after it.

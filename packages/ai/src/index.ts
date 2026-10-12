@@ -96,15 +96,23 @@ export {
 } from './activities/chat/agents/define-agent'
 export type {
   BoundActivities,
+  AgentRunHandle,
+  AgentStarter,
+  AgentStep,
   SubagentBinding,
   SubagentForward,
 } from './activities/chat/agents/bound'
+export {
+  SubagentBudget,
+  type SubagentLimits,
+} from './activities/chat/agents/limits'
 export {
   keyedAdapter,
   keyedAdapters,
   isKeyedAdapter,
   type KeyedAdapter,
   type KeyedAdapterResult,
+  type ProviderKeys,
 } from './byok/keyed'
 export {
   subagentRoute,

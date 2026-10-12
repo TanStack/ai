@@ -140,6 +140,41 @@
       "response": {
         "content": "Pricing is ready."
       }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-limits] research two topics",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "researcher",
+            "arguments": "{\"task\":\"[subagent-limits-task] squids\"}"
+          },
+          {
+            "name": "researcher",
+            "arguments": "{\"task\":\"[subagent-limits-task] octopuses\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-limits-task] squids"
+      },
+      "response": {
+        "content": "Squids have three hearts."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-limits] research two topics",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "One topic is done."
+      }
     }
   ]
 }

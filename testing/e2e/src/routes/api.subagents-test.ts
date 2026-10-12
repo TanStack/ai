@@ -30,6 +30,8 @@ import type { SubagentScenario } from '@/lib/subagents-test'
  *   child answers, and the parent reads its result.
  * - `brief`: no router. The parent model writes a `task` for `researcher`,
  *   and the child's only message is that task.
+ * - `limits`: like `brief`, with `limits: { maxCalls: 1 }`. The parent model
+ *   calls `researcher` twice in one turn. The second call gets a tool error.
  * - `result`: no router. `pricer` calls the bound `ctx.chat` with
  *   `stream: false`, so its `run` resolves to a string. The string streams as
  *   the child's text and goes back to the parent model as the result.
@@ -78,7 +80,7 @@ function subagentsFor(
     ])
     return { agents: [cleaner], router: () => 'cleaner' }
   }
-  if (scenario === 'brief') {
+  if (scenario === 'brief' || scenario === 'limits') {
     const researcher = defineAgent({
       name: 'researcher',
       description: 'Researches one focused task',
@@ -96,7 +98,9 @@ function subagentsFor(
     })
     // Each branch returns its own bag, so give them one agent type.
     const agents: Array<DefinedAgent> = [researcher]
-    return { agents }
+    return scenario === 'limits'
+      ? { agents, limits: { maxCalls: 1 } }
+      : { agents }
   }
   if (scenario === 'result') {
     const pricer = defineAgent({

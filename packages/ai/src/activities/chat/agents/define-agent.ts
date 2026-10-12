@@ -10,7 +10,13 @@ import type {
   UIMessage,
 } from '../../../types'
 import type { AnyClientTool } from '../tools/tool-definition'
-import type { BoundActivities, SubagentForward } from './bound'
+import type {
+  AgentStarter,
+  AgentStep,
+  BoundActivities,
+  SubagentForward,
+} from './bound'
+import type { ProviderKeys } from '../../../byok/keyed'
 
 /**
  * What the library knows about a child run before `run` starts.
@@ -55,11 +61,22 @@ export interface SubagentRunInput<
  * - The activity functions (`ctx.chat`, `ctx.generateImage`, and the rest)
  *   take the same options as the plain functions and fill in the thread id,
  *   a run id, the abort signal, and any middleware a host adds.
+ * - `keys` finds provider keys. `await ctx.keys.adapter(adapter)` builds a
+ *   `keyedAdapter(...)`. A host sets the keys. Without a host, they come
+ *   from each provider's `env` names, and a missing key throws an error that
+ *   names the env var.
+ * - `step.do(name, fn)` keeps a side effect from running twice when a host
+ *   runs the agent again after a crash. See {@link AgentStep}.
+ * - `agents.start(agent, input, options)` starts an agent in the
+ *   background, when a host runs this agent. Without such a host it throws.
  */
 export type SubagentRunContext<TInput extends SchemaInput | undefined = any> =
   SubagentRunInput<TInput> &
     BoundActivities & {
       forward: SubagentForward
+      keys: ProviderKeys
+      step: AgentStep
+      agents: AgentStarter
     }
 
 /**

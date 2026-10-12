@@ -14,7 +14,7 @@ async function run(page: Page) {
 
 function open(
   page: Page,
-  scenario: 'route' | 'approval' | 'tool' | 'brief' | 'result',
+  scenario: 'route' | 'approval' | 'tool' | 'brief' | 'result' | 'limits',
   testId: string,
   aimockPort: number,
 ) {
@@ -171,5 +171,42 @@ test.describe('subagents', () => {
     await expect(page.getByTestId('card-pricer')).toContainText(
       'text:Vendor A costs 42 EUR.',
     )
+  })
+
+  test('subagents.limits refuses a call past maxCalls with a tool error', async ({
+    page,
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    await open(page, 'limits', testId, aimockPort)
+    await run(page)
+
+    await expect(page.getByTestId('parent-text')).toHaveText(
+      'One topic is done.',
+    )
+    await expect(page.getByTestId('card-researcher')).toHaveCount(1)
+    await expect(page.getByTestId('card-researcher')).toContainText(
+      'text:Squids have three hearts.',
+    )
+
+    const journal = await request.get(
+      `http://127.0.0.1:${aimockPort}/v1/_requests`,
+    )
+    const entries = (await journal.json()) as Array<{
+      headers?: Record<string, string>
+      body?: {
+        messages?: Array<{ role?: string; content?: string | null }>
+      } | null
+    }>
+    const toolMessages = entries
+      .filter((entry) => entry.headers?.['x-test-id'] === testId)
+      .flatMap((entry) => entry.body?.messages ?? [])
+      .filter((message) => message.role === 'tool')
+    expect(
+      toolMessages.some((message) =>
+        message.content?.includes('subagent limit reached (maxCalls 1)'),
+      ),
+    ).toBe(true)
   })
 })

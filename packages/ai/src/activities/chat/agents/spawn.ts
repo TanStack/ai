@@ -26,8 +26,11 @@ import type {
   Tool,
   UIMessage,
 } from '../../../types'
+import { envProviderKeys } from '../../../byok/env-keys'
 import { createBoundActivities } from './bound'
-import type { SubagentBinding } from './bound'
+import { SubagentBudget } from './limits'
+import type { AgentStarter, AgentStep, SubagentBinding } from './bound'
+import type { SubagentLimits } from './limits'
 import type {
   DefinedAgent,
   SubagentRunContext,
@@ -87,6 +90,13 @@ export interface SubagentsBag<
    * (`ctx.chat`, `ctx.generateImage`, and the rest). Apps do not set it.
    */
   binding?: SubagentBinding
+  /**
+   * Limits for the whole tree of children the model starts through tools:
+   * depth, total calls, children at once, and time per child. A refused
+   * start returns to the model as a tool error. Only the root chat's limits
+   * apply: a nested chat in a child uses the root's budget.
+   */
+  limits?: SubagentLimits
 }
 
 /** What the children of one parent run left behind for the parent terminal. */
@@ -236,13 +246,36 @@ function agentByName(agents: ReadonlyArray<DefinedAgent>, name: string) {
   return agent
 }
 
+/** The root budget of each bag that has no budget from its parent. */
+const rootBudgets = new WeakMap<SubagentsBag, SubagentBudget>()
+
+/**
+ * The subagent tree budget of `bag`: the one its parent passed down, else
+ * one root budget per bag. The `limits` of a bag apply only at the root.
+ */
+function treeBudget(bag: SubagentsBag) {
+  const inherited = bag.binding?.budget
+  if (inherited) return inherited
+  let budget = rootBudgets.get(bag)
+  if (!budget) {
+    budget = SubagentBudget.root(bag.limits)
+    rootBudgets.set(bag, budget)
+  }
+  return budget
+}
+
 function openAgentStream(
   entry: SpawnEntry,
   bag: SubagentsBag,
   ctx: SpawnContext,
   sink?: SubagentSink,
   parentToolCallId?: string,
-  binding: SubagentBinding | undefined = bag.binding,
+  // A child that a router picks does not count against the budget, but its
+  // own children do, one level deeper.
+  binding: SubagentBinding = {
+    ...bag.binding,
+    budget: treeBudget(bag).child(),
+  },
 ) {
   const agent = agentByName(bag.agents, entry.name)
   const resume = entry.resume
@@ -494,8 +527,8 @@ function* valueResultChunks(
 }
 
 /**
- * Build the context `run` receives: the spawn input plus `forward` and the
- * bound activity functions.
+ * Build the context `run` receives: the spawn input plus `forward`, the
+ * provider keys, the steps, `agents`, and the bound activity functions.
  */
 function runContext(
   agentName: string,
@@ -518,8 +551,23 @@ function runContext(
       abortController,
       ...(binding?.promptCache ? { promptCache: binding.promptCache } : {}),
     },
+    keys: binding?.keys ?? envProviderKeys,
+    step: binding?.step ?? runEachTime,
+    agents: binding?.agents ?? noAgents,
     ...createBoundActivities(agentName, input, abortController, binding),
   } satisfies SubagentRunContext
+}
+
+/** The steps of an agent run that no host can run again: `fn` runs each time. */
+const runEachTime: AgentStep = { do: async (_name, fn) => fn() }
+
+/** `ctx.agents` of a run that no host binds: a start throws. */
+const noAgents: AgentStarter = {
+  start: () => {
+    throw new Error(
+      'ctx.agents.start needs a host that runs agents in the background.',
+    )
+  },
 }
 
 /**
@@ -841,106 +889,155 @@ export function createSyntheticSubagentTools(
     sink: SubagentSink
   },
 ): Array<Tool> {
+  // One budget per root run. A child run inherits its parent's budget.
+  const budget = treeBudget(bag)
+  let active = 0
+
+  /** Run one child for a tool call. The model gets its text or result. */
+  async function runChild(child: SpawnEntry, context: unknown) {
+    const toolContext = context as
+      | {
+          toolCallId?: string
+          [EMIT_STREAM_CHUNK]?: (chunk: StreamChunk) => void
+        }
+      | undefined
+    const toolCallId = toolContext?.toolCallId
+    const suspended = parent.turn?.children.find(
+      (turnChild) =>
+        turnChild.status === 'suspended' &&
+        turnChild.parentToolCallId !== undefined &&
+        turnChild.parentToolCallId === toolCallId,
+    )
+    const entry: SpawnEntry = {
+      ...child,
+      ...(suspended && {
+        resume: {
+          subagentRunId: suspended.subagentRunId,
+          messages: suspended.messages,
+          entries: suspended.resume,
+          text: suspended.text,
+        },
+      }),
+    }
+    const timeout = budget.childTimeout()
+    // A resumed child already counted when it first started. A parent with
+    // no time left starts no child.
+    const refusal = suspended
+      ? undefined
+      : timeout === 0
+        ? `subagent limit reached (timeoutMs ${budget.limits.timeoutMs ?? 0})`
+        : budget.reserve(active)
+    if (refusal !== undefined) {
+      return {
+        subagentRunId: '',
+        text: '',
+        error: refusal,
+      } satisfies SubagentToolOutcome
+    }
+    active += 1
+    const sink = createSubagentSink()
+    const link = linkAbort(parent.abortSignal)
+    let timedOut = false
+    const timer =
+      timeout === undefined
+        ? undefined
+        : setTimeout(() => {
+            timedOut = true
+            link.controller.abort(
+              new Error(`subagent timed out after ${timeout} ms`),
+            )
+          }, timeout)
+    const childBinding: SubagentBinding = {
+      ...bag.binding,
+      budget: budget.child(
+        timeout === undefined ? undefined : Date.now() + timeout,
+      ),
+    }
+    let subagentRunId = suspended?.subagentRunId ?? ''
+    let text = suspended?.text ?? ''
+    let error: string | undefined
+    let result: unknown
+    try {
+      for await (const chunk of openAgentStream(
+        entry,
+        bag,
+        {
+          messages: parent.messagesFor?.(toolCallId) ?? parent.messages,
+          abortSignal: link.controller.signal,
+          threadId: parent.threadId,
+          parentRunId: parent.runId,
+          ...(parent.interruptedRunId !== undefined
+            ? { interruptedRunId: parent.interruptedRunId }
+            : {}),
+          ...(parent.parentSubagentRunId !== undefined
+            ? { parentSubagentRunId: parent.parentSubagentRunId }
+            : {}),
+        },
+        sink,
+        toolCallId,
+        childBinding,
+      )) {
+        if (chunk.type === SUBAGENT_STARTED && subagentRunId === '') {
+          subagentRunId = chunk.subagentRunId
+        }
+        if (
+          chunk.type === EventType.TEXT_MESSAGE_CONTENT &&
+          'subagentRunId' in chunk &&
+          chunk.subagentRunId === subagentRunId
+        ) {
+          text += chunk.delta
+        }
+        if (
+          chunk.type === SUBAGENT_ERROR &&
+          chunk.subagentRunId === subagentRunId
+        ) {
+          error = chunk.message
+        }
+        if (
+          chunk.type === SUBAGENT_FINISHED &&
+          chunk.subagentRunId === subagentRunId &&
+          chunk.result !== undefined
+        ) {
+          result = chunk.result
+        }
+        toolContext?.[EMIT_STREAM_CHUNK]?.(chunk)
+      }
+    } finally {
+      active -= 1
+      if (timer !== undefined) clearTimeout(timer)
+      link.dispose()
+    }
+    if (timedOut) error = `subagent timed out after ${timeout} ms`
+    parent.sink.usage.push(...sink.usage)
+    if (sink.total) {
+      parent.sink.total = parent.sink.total
+        ? addTokenUsage(parent.sink.total, sink.total)
+        : sink.total
+    }
+    return {
+      subagentRunId,
+      text,
+      ...(result !== undefined ? { result } : {}),
+      ...(error !== undefined ? { error } : {}),
+      ...(sink.interrupts.length > 0 ? { interrupts: sink.interrupts } : {}),
+    } satisfies SubagentToolOutcome
+  }
+
   return bag.agents.map((agent) => ({
     name: agent.name,
     description: agent.description,
     ...(agent.inputSchema !== undefined && { inputSchema: agent.inputSchema }),
     [SUBAGENT_TOOL]: true,
     // The tool loop checks `input` against `inputSchema` before this runs.
-    execute: async (input: unknown, context?: unknown) => {
-      const toolContext = context as
-        | {
-            toolCallId?: string
-            [EMIT_STREAM_CHUNK]?: (chunk: StreamChunk) => void
-          }
-        | undefined
-      const toolCallId = toolContext?.toolCallId
-      const suspended = parent.turn?.children.find(
-        (child) =>
-          child.status === 'suspended' &&
-          child.parentToolCallId !== undefined &&
-          child.parentToolCallId === toolCallId,
-      )
-      // An agent without `inputSchema` still gets `{}` from the model. Its
-      // `ctx.input` stays undefined.
-      const entry: SpawnEntry = {
-        name: agent.name,
-        ...(agent.inputSchema !== undefined && { input }),
-        ...(suspended && {
-          resume: {
-            subagentRunId: suspended.subagentRunId,
-            messages: suspended.messages,
-            entries: suspended.resume,
-            text: suspended.text,
-          },
-        }),
-      }
-      const sink = createSubagentSink()
-      const link = linkAbort(parent.abortSignal)
-      let subagentRunId = suspended?.subagentRunId ?? ''
-      let text = suspended?.text ?? ''
-      let error: string | undefined
-      let result: unknown
-      try {
-        for await (const chunk of openAgentStream(
-          entry,
-          bag,
-          {
-            messages: parent.messagesFor?.(toolCallId) ?? parent.messages,
-            abortSignal: link.controller.signal,
-            threadId: parent.threadId,
-            parentRunId: parent.runId,
-            ...(parent.interruptedRunId !== undefined
-              ? { interruptedRunId: parent.interruptedRunId }
-              : {}),
-            ...(parent.parentSubagentRunId !== undefined
-              ? { parentSubagentRunId: parent.parentSubagentRunId }
-              : {}),
-          },
-          sink,
-          toolCallId,
-        )) {
-          if (chunk.type === SUBAGENT_STARTED && subagentRunId === '') {
-            subagentRunId = chunk.subagentRunId
-          }
-          if (
-            chunk.type === EventType.TEXT_MESSAGE_CONTENT &&
-            'subagentRunId' in chunk &&
-            chunk.subagentRunId === subagentRunId
-          ) {
-            text += chunk.delta
-          }
-          if (
-            chunk.type === SUBAGENT_ERROR &&
-            chunk.subagentRunId === subagentRunId
-          ) {
-            error = chunk.message
-          }
-          if (
-            chunk.type === SUBAGENT_FINISHED &&
-            chunk.subagentRunId === subagentRunId &&
-            chunk.result !== undefined
-          ) {
-            result = chunk.result
-          }
-          toolContext?.[EMIT_STREAM_CHUNK]?.(chunk)
-        }
-      } finally {
-        link.dispose()
-      }
-      parent.sink.usage.push(...sink.usage)
-      if (sink.total) {
-        parent.sink.total = parent.sink.total
-          ? addTokenUsage(parent.sink.total, sink.total)
-          : sink.total
-      }
-      return {
-        subagentRunId,
-        text,
-        ...(result !== undefined ? { result } : {}),
-        ...(error !== undefined ? { error } : {}),
-        ...(sink.interrupts.length > 0 ? { interrupts: sink.interrupts } : {}),
-      } satisfies SubagentToolOutcome
-    },
+    // An agent without `inputSchema` still gets `{}` from the model. Its
+    // `ctx.input` stays undefined.
+    execute: (input: unknown, context?: unknown) =>
+      runChild(
+        {
+          name: agent.name,
+          ...(agent.inputSchema !== undefined && { input }),
+        },
+        context,
+      ),
   }))
 }

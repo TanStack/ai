@@ -50,9 +50,13 @@ export {
 } from './chat/agents/define-agent'
 export type {
   BoundActivities,
+  AgentRunHandle,
+  AgentStarter,
+  AgentStep,
   SubagentBinding,
   SubagentForward,
 } from './chat/agents/bound'
+export { SubagentBudget, type SubagentLimits } from './chat/agents/limits'
 export { subagentRoute, type SubagentRouteOptions } from './chat/agents/route'
 export type {
   SubagentOrder,
