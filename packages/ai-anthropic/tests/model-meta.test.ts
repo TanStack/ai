@@ -193,7 +193,10 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
 
   describe('ANTHROPIC_MODELS_WITHOUT_SAMPLING stays in sync with provider options', () => {
     type WithoutSampling = (typeof ANTHROPIC_MODELS_WITHOUT_SAMPLING)[number]
-    type WithSampling = Exclude<(typeof ANTHROPIC_MODELS)[number], WithoutSampling>
+    type WithSampling = Exclude<
+      (typeof ANTHROPIC_MODELS)[number],
+      WithoutSampling
+    >
 
     it('without-sampling models have max_tokens but not temperature/top_p/top_k', () => {
       type Options = AnthropicChatModelProviderOptionsByName[WithoutSampling]

@@ -751,7 +751,9 @@ export class AnthropicTextAdapter<
         )
       }
       if (!modelAllowsSampling) {
-        const strippedSampling = samplingKeys.filter((key) => key in modelOptions)
+        const strippedSampling = samplingKeys.filter(
+          (key) => key in modelOptions,
+        )
         if (strippedSampling.length > 0) {
           options.logger.warn(
             `anthropic.mapCommonOptionsToAnthropic omitted sampling key(s) for model=${this.model}: ${strippedSampling.join(', ')} (this model rejects non-default sampling parameters)`,
