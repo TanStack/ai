@@ -2627,6 +2627,9 @@ export class StreamProcessor {
     if (this.activeRuns.size === 0) {
       this.runToolCallIds = []
       this.toolCallsSentToClient.clear()
+      // A new run owes its own stream end. A client that only watches never
+      // resets between runs, so without this only its first run would end.
+      this.streamEndEmitted = false
     }
     this.activeRuns.add(chunk.runId)
   }

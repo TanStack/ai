@@ -14,6 +14,7 @@ import { Route as ActivityTestRouteImport } from './routes/activity-test'
 import { Route as ByokRouteImport } from './routes/byok'
 import { Route as ChatClientDefaultBridgeRouteImport } from './routes/chat-client-default-bridge'
 import { Route as ChatClientStreamProcessingRouteImport } from './routes/chat-client-stream-processing'
+import { Route as ChatClientWatcherStatusRouteImport } from './routes/chat-client-watcher-status'
 import { Route as ClientMountHydrateRouteImport } from './routes/client-mount-hydrate'
 import { Route as DevtoolsChatRouteImport } from './routes/devtools-chat'
 import { Route as DevtoolsGenerationHooksRouteImport } from './routes/devtools-generation-hooks'
@@ -193,6 +194,11 @@ const ChatClientStreamProcessingRoute =
     path: '/chat-client-stream-processing',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ChatClientWatcherStatusRoute = ChatClientWatcherStatusRouteImport.update({
+  id: '/chat-client-watcher-status',
+  path: '/chat-client-watcher-status',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ClientMountHydrateRoute = ClientMountHydrateRouteImport.update({
   id: '/client-mount-hydrate',
   path: '/client-mount-hydrate',
@@ -996,6 +1002,7 @@ export interface FileRoutesByFullPath {
   '/byok': typeof ByokRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/chat-client-stream-processing': typeof ChatClientStreamProcessingRoute
+  '/chat-client-watcher-status': typeof ChatClientWatcherStatusRoute
   '/client-mount-hydrate': typeof ClientMountHydrateRoute
   '/devtools-chat': typeof DevtoolsChatRoute
   '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
@@ -1155,6 +1162,7 @@ export interface FileRoutesByTo {
   '/byok': typeof ByokRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/chat-client-stream-processing': typeof ChatClientStreamProcessingRoute
+  '/chat-client-watcher-status': typeof ChatClientWatcherStatusRoute
   '/client-mount-hydrate': typeof ClientMountHydrateRoute
   '/devtools-chat': typeof DevtoolsChatRoute
   '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
@@ -1315,6 +1323,7 @@ export interface FileRoutesById {
   '/byok': typeof ByokRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/chat-client-stream-processing': typeof ChatClientStreamProcessingRoute
+  '/chat-client-watcher-status': typeof ChatClientWatcherStatusRoute
   '/client-mount-hydrate': typeof ClientMountHydrateRoute
   '/devtools-chat': typeof DevtoolsChatRoute
   '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
@@ -1476,6 +1485,7 @@ export interface FileRouteTypes {
     | '/byok'
     | '/chat-client-default-bridge'
     | '/chat-client-stream-processing'
+    | '/chat-client-watcher-status'
     | '/client-mount-hydrate'
     | '/devtools-chat'
     | '/devtools-generation-hooks'
@@ -1635,6 +1645,7 @@ export interface FileRouteTypes {
     | '/byok'
     | '/chat-client-default-bridge'
     | '/chat-client-stream-processing'
+    | '/chat-client-watcher-status'
     | '/client-mount-hydrate'
     | '/devtools-chat'
     | '/devtools-generation-hooks'
@@ -1794,6 +1805,7 @@ export interface FileRouteTypes {
     | '/byok'
     | '/chat-client-default-bridge'
     | '/chat-client-stream-processing'
+    | '/chat-client-watcher-status'
     | '/client-mount-hydrate'
     | '/devtools-chat'
     | '/devtools-generation-hooks'
@@ -1954,6 +1966,7 @@ export interface RootRouteChildren {
   ByokRoute: typeof ByokRoute
   ChatClientDefaultBridgeRoute: typeof ChatClientDefaultBridgeRoute
   ChatClientStreamProcessingRoute: typeof ChatClientStreamProcessingRoute
+  ChatClientWatcherStatusRoute: typeof ChatClientWatcherStatusRoute
   ClientMountHydrateRoute: typeof ClientMountHydrateRoute
   DevtoolsChatRoute: typeof DevtoolsChatRoute
   DevtoolsGenerationHooksRoute: typeof DevtoolsGenerationHooksRoute
@@ -2138,6 +2151,13 @@ declare module '@tanstack/react-router' {
       path: '/chat-client-stream-processing'
       fullPath: '/chat-client-stream-processing'
       preLoaderRoute: typeof ChatClientStreamProcessingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chat-client-watcher-status': {
+      id: '/chat-client-watcher-status'
+      path: '/chat-client-watcher-status'
+      fullPath: '/chat-client-watcher-status'
+      preLoaderRoute: typeof ChatClientWatcherStatusRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/client-mount-hydrate': {
@@ -3271,6 +3291,7 @@ const rootRouteChildren: RootRouteChildren = {
   ByokRoute: ByokRoute,
   ChatClientDefaultBridgeRoute: ChatClientDefaultBridgeRoute,
   ChatClientStreamProcessingRoute: ChatClientStreamProcessingRoute,
+  ChatClientWatcherStatusRoute: ChatClientWatcherStatusRoute,
   ClientMountHydrateRoute: ClientMountHydrateRoute,
   DevtoolsChatRoute: DevtoolsChatRoute,
   DevtoolsGenerationHooksRoute: DevtoolsGenerationHooksRoute,
