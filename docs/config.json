@@ -1332,7 +1332,7 @@
           "label": "Cloudflare",
           "to": "adapters/cloudflare",
           "addedAt": "2026-09-03",
-          "updatedAt": "2026-10-09"
+          "updatedAt": "2026-10-12"
         },
         {
           "label": "Claude Code",

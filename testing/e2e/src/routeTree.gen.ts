@@ -71,6 +71,7 @@ import { Route as ApiByteplusEncryptedReasoningWireRouteImport } from './routes/
 import { Route as ApiByteplusSeedance1080pWireRouteImport } from './routes/api.byteplus-seedance-1080p-wire'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiChatCompletionsIncompleteStreamRouteImport } from './routes/api.chat-completions-incomplete-stream'
+import { Route as ApiCloudflareBindingWireRouteImport } from './routes/api.cloudflare-binding-wire'
 import { Route as ApiCompactionWireRouteImport } from './routes/api.compaction-wire'
 import { Route as ApiCrossModelReplayWireRouteImport } from './routes/api.cross-model-replay-wire'
 import { Route as ApiDevtoolsMemoryRouteImport } from './routes/api.devtools-memory'
@@ -490,6 +491,12 @@ const ApiChatCompletionsIncompleteStreamRoute =
   ApiChatCompletionsIncompleteStreamRouteImport.update({
     id: '/api/chat-completions-incomplete-stream',
     path: '/api/chat-completions-incomplete-stream',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiCloudflareBindingWireRoute =
+  ApiCloudflareBindingWireRouteImport.update({
+    id: '/api/cloudflare-binding-wire',
+    path: '/api/cloudflare-binding-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiCompactionWireRoute = ApiCompactionWireRouteImport.update({
@@ -1052,6 +1059,7 @@ export interface FileRoutesByFullPath {
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
+  '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
   '/api/cross-model-replay-wire': typeof ApiCrossModelReplayWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
@@ -1211,6 +1219,7 @@ export interface FileRoutesByTo {
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
+  '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
   '/api/cross-model-replay-wire': typeof ApiCrossModelReplayWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
@@ -1371,6 +1380,7 @@ export interface FileRoutesById {
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
+  '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
   '/api/cross-model-replay-wire': typeof ApiCrossModelReplayWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
@@ -1532,6 +1542,7 @@ export interface FileRouteTypes {
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
     | '/api/chat-completions-incomplete-stream'
+    | '/api/cloudflare-binding-wire'
     | '/api/compaction-wire'
     | '/api/cross-model-replay-wire'
     | '/api/devtools-memory'
@@ -1691,6 +1702,7 @@ export interface FileRouteTypes {
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
     | '/api/chat-completions-incomplete-stream'
+    | '/api/cloudflare-binding-wire'
     | '/api/compaction-wire'
     | '/api/cross-model-replay-wire'
     | '/api/devtools-memory'
@@ -1850,6 +1862,7 @@ export interface FileRouteTypes {
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
     | '/api/chat-completions-incomplete-stream'
+    | '/api/cloudflare-binding-wire'
     | '/api/compaction-wire'
     | '/api/cross-model-replay-wire'
     | '/api/devtools-memory'
@@ -2010,6 +2023,7 @@ export interface RootRouteChildren {
   ApiByteplusSeedance1080pWireRoute: typeof ApiByteplusSeedance1080pWireRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiChatCompletionsIncompleteStreamRoute: typeof ApiChatCompletionsIncompleteStreamRoute
+  ApiCloudflareBindingWireRoute: typeof ApiCloudflareBindingWireRoute
   ApiCompactionWireRoute: typeof ApiCompactionWireRoute
   ApiCrossModelReplayWireRoute: typeof ApiCrossModelReplayWireRoute
   ApiDevtoolsMemoryRoute: typeof ApiDevtoolsMemoryRoute
@@ -2537,6 +2551,13 @@ declare module '@tanstack/react-router' {
       path: '/api/chat-completions-incomplete-stream'
       fullPath: '/api/chat-completions-incomplete-stream'
       preLoaderRoute: typeof ApiChatCompletionsIncompleteStreamRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cloudflare-binding-wire': {
+      id: '/api/cloudflare-binding-wire'
+      path: '/api/cloudflare-binding-wire'
+      fullPath: '/api/cloudflare-binding-wire'
+      preLoaderRoute: typeof ApiCloudflareBindingWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/compaction-wire': {
@@ -3331,6 +3352,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiChatRoute: ApiChatRoute,
   ApiChatCompletionsIncompleteStreamRoute:
     ApiChatCompletionsIncompleteStreamRoute,
+  ApiCloudflareBindingWireRoute: ApiCloudflareBindingWireRoute,
   ApiCompactionWireRoute: ApiCompactionWireRoute,
   ApiCrossModelReplayWireRoute: ApiCrossModelReplayWireRoute,
   ApiDevtoolsMemoryRoute: ApiDevtoolsMemoryRoute,
