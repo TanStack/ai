@@ -699,6 +699,7 @@ describe('withCompaction native', () => {
       {
         messages: [big('user'), big('assistant'), big('user')],
         systemPrompts: ['Be brief.'],
+        tools: [],
       },
     )
 
