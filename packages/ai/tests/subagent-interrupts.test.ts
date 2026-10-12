@@ -548,6 +548,88 @@ describe('subagent interrupts', () => {
     expect(inputs).toEqual([{ folder: 'old' }, { folder: 'old' }])
     expect(execute).toHaveBeenCalledTimes(1)
   })
+
+  it('keeps the router inputs of a steps plan across a resume', async () => {
+    const { run, execute } = cleanerChild()
+    const cleanerInputs: Array<{ folder: string }> = []
+    const pricerInputs: Array<{ vendor: string }> = []
+    const cleaner = defineAgent({
+      name: 'cleaner',
+      description: 'Deletes files',
+      inputSchema: z.object({ folder: z.string() }),
+      run: (ctx) => {
+        cleanerInputs.push(ctx.input)
+        return run(ctx)
+      },
+    })
+    const pricer = defineAgent({
+      name: 'pricer',
+      description: 'Prices a vendor',
+      inputSchema: z.object({ vendor: z.string() }),
+      run: async function* (ctx) {
+        pricerInputs.push(ctx.input)
+      },
+    })
+    const parent = createMockAdapter({ iterations: [] }).adapter
+    const router = vi.fn(() => ({
+      steps: [
+        { names: [{ name: 'cleaner', input: { folder: 'old' } }] },
+        { names: [{ name: 'pricer', input: { vendor: 'acme' } }] },
+      ],
+    }))
+    const subagents = { agents: [cleaner, pricer], router }
+
+    const first = await collectChunks(
+      chat({
+        adapter: parent,
+        threadId: 't',
+        runId: 'run-1',
+        messages: [user],
+        subagents,
+      }),
+    )
+    // The plan on the start event keeps each input for the resume.
+    expect(
+      first.find((chunk) => chunk.type === EventType.SUBAGENT_STARTED),
+    ).toMatchObject({
+      metadata: {
+        tanstack: {
+          subagentPlan: {
+            steps: [
+              { names: ['cleaner'], inputs: { cleaner: { folder: 'old' } } },
+              { names: ['pricer'], inputs: { pricer: { vendor: 'acme' } } },
+            ],
+          },
+        },
+      },
+    })
+    expect(pricerInputs).toEqual([])
+
+    const processor = new StreamProcessor({ initialMessages: [user] })
+    replay(processor, first)
+    processor.addToolApprovalResponse('approval_call_c', true)
+    const second = await collectChunks(
+      chat({
+        adapter: parent,
+        threadId: 't',
+        runId: 'run-2',
+        parentRunId: 'run-1',
+        messages: requestMessages(processor.getMessages()),
+        resume: [
+          { interruptId: 'approval_call_c', status: 'resolved', payload: true },
+        ],
+        subagents,
+      }),
+    )
+
+    expect(second.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
+      false,
+    )
+    expect(router).toHaveBeenCalledTimes(1)
+    expect(execute).toHaveBeenCalledTimes(1)
+    expect(cleanerInputs).toEqual([{ folder: 'old' }, { folder: 'old' }])
+    expect(pricerInputs).toEqual([{ vendor: 'acme' }])
+  })
 })
 
 describe('subagent cards', () => {

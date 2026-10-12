@@ -30,6 +30,8 @@ import type { SubagentScenario } from '@/lib/subagents-test'
  *   child answers, and the parent reads its result.
  * - `brief`: no router. The parent model writes a `task` for `researcher`,
  *   and the child's only message is that task.
+ * - `routed-brief`: a router picks `researcher` and gives it the `task` as
+ *   `{ name, input }`. The child's only message is that task.
  */
 function subagentsFor(
   scenario: SubagentScenario,
@@ -75,7 +77,7 @@ function subagentsFor(
     ])
     return { agents: [cleaner], router: () => 'cleaner' }
   }
-  if (scenario === 'brief') {
+  if (scenario === 'brief' || scenario === 'routed-brief') {
     const researcher = defineAgent({
       name: 'researcher',
       description: 'Researches one focused task',
@@ -93,7 +95,14 @@ function subagentsFor(
     })
     // Each branch returns its own bag, so give them one agent type.
     const agents: Array<DefinedAgent> = [researcher]
-    return { agents }
+    if (scenario === 'brief') return { agents }
+    return {
+      agents,
+      router: () => ({
+        name: 'researcher',
+        input: { task: '[subagent-brief-task] List two squid facts.' },
+      }),
+    }
   }
   return { agents: [child('researcher', [])] }
 }

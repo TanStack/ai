@@ -9,11 +9,26 @@ import { chat } from '../src/activities/chat'
 import { collectChunks, createMockAdapter, ev } from './test-utils'
 import { EventType } from '../src/types'
 import type { StreamChunk } from '../src/types'
+import type { SubagentRouterPick } from '../src/activities/chat/agents/spawn'
 
 function parentAdapter() {
   return createMockAdapter({
     iterations: [[ev.runStarted(), ev.runFinished('stop')]],
   })
+}
+
+/** Run one routed turn whose router returns `pick`. */
+function routeTo(
+  agents: ReadonlyArray<DefinedAgent>,
+  pick: SubagentRouterPick,
+) {
+  return collectChunks(
+    chat({
+      adapter: parentAdapter().adapter,
+      messages: [{ role: 'user', content: 'Go' }],
+      subagents: { agents, router: () => pick },
+    }),
+  )
 }
 
 function childTextAdapter(text: string) {
@@ -162,6 +177,101 @@ describe('subagentRoute', () => {
         }),
       ]),
     ).toThrow('subagentRoute cannot use an agent named "order"')
+  })
+
+  const skuSchema = z.object({ sku: z.string() })
+  const topicSchema = z.object({ topic: z.string() })
+  const inputDesk = [
+    defineAgent({
+      name: 'researcher',
+      description: 'Looks up facts',
+      run: async function* () {},
+    }),
+    defineAgent({
+      name: 'pricer',
+      description: 'Prices one product',
+      inputSchema: skuSchema,
+      run: async function* () {},
+    }),
+    defineAgent({
+      name: 'writer',
+      description: 'Writes the post',
+      inputSchema: topicSchema,
+      run: async function* () {},
+    }),
+    defineAgent({
+      name: 'seo',
+      description: 'Suggests titles',
+      run: async function* () {},
+    }),
+  ] as const
+  const inputs = { pricer: { sku: 'A-1' }, writer: { topic: 'Pricing' } }
+
+  /** `decide()` answers where only the given agents say yes. */
+  function yesTo(...names: Array<(typeof inputDesk)[number]['name']>) {
+    return {
+      researcher: { value: names.includes('researcher') },
+      pricer: { value: names.includes('pricer') },
+      writer: { value: names.includes('writer') },
+      seo: { value: names.includes('seo') },
+      order: { value: 'parallel' as const },
+    }
+  }
+
+  it('lists the picked agents that need input, in agent-list order', () => {
+    const route = subagentRoute(inputDesk)
+
+    expect(route.needsInput(yesTo('researcher', 'pricer', 'seo'))).toEqual([
+      { name: 'pricer', inputSchema: skuSchema },
+    ])
+    expect(route.needsInput(yesTo('writer', 'pricer'))).toEqual([
+      { name: 'pricer', inputSchema: skuSchema },
+      { name: 'writer', inputSchema: topicSchema },
+    ])
+    expect(route.needsInput(yesTo('researcher', 'seo'))).toEqual([])
+  })
+
+  it('puts each input on its name in a single pick and in names', () => {
+    const route = subagentRoute(inputDesk)
+
+    expect(route.pick(yesTo('pricer'), { inputs })).toEqual({
+      name: 'pricer',
+      input: { sku: 'A-1' },
+    })
+    expect(
+      route.pick(yesTo('researcher', 'pricer', 'writer'), { inputs }),
+    ).toEqual({
+      names: [
+        'researcher',
+        { name: 'pricer', input: { sku: 'A-1' } },
+        { name: 'writer', input: { topic: 'Pricing' } },
+      ],
+      order: 'parallel',
+    })
+  })
+
+  it('puts each input on its name in each step', () => {
+    const route = subagentRoute(inputDesk, { then: ['writer'] })
+
+    expect(
+      route.pick(yesTo('researcher', 'pricer', 'writer'), { inputs }),
+    ).toEqual({
+      steps: [
+        {
+          names: ['researcher', { name: 'pricer', input: { sku: 'A-1' } }],
+          order: 'parallel',
+        },
+        { names: [{ name: 'writer', input: { topic: 'Pricing' } }] },
+      ],
+    })
+  })
+
+  it('throws when a picked agent with a schema has no input', () => {
+    const route = subagentRoute(inputDesk)
+
+    expect(() => route.pick(yesTo('researcher', 'pricer'))).toThrow(
+      'Agent "pricer" needs input. Pass it in inputs.',
+    )
   })
 })
 
@@ -712,7 +822,10 @@ describe('chat({ subagents }) synthetic tools', () => {
 })
 
 describe('defineAgent inputSchema', () => {
-  const briefSchema = z.object({ task: z.string() })
+  const briefSchema = z.object({
+    task: z.string({ error: 'task must be text' }),
+  })
+  const brief = { task: 'Price Vendor A' }
 
   /** A parent model that calls `researcher` once per args string, then stops. */
   function parentCalling(...args: Array<string>) {
@@ -875,26 +988,59 @@ describe('defineAgent inputSchema', () => {
     expect(inputs).toEqual([undefined])
   })
 
-  it('throws when a router meets an agent with inputSchema', async () => {
-    const { agent } = briefResearcher()
-    let routerCalls = 0
+  const routedPicks: Array<[string, SubagentRouterPick]> = [
+    ['a single pick', { name: 'researcher', input: brief }],
+    ['a list', ['writer', { name: 'researcher', input: brief }]],
+    [
+      'a names plan',
+      { names: [{ name: 'researcher', input: brief }], order: 'sequence' },
+    ],
+    [
+      'a later step',
+      {
+        steps: [
+          { names: ['writer'] },
+          { names: [{ name: 'researcher', input: brief }] },
+        ],
+      },
+    ],
+  ]
+  it.each(routedPicks)(
+    'passes the router input to run as ctx.input for %s',
+    async (_label, pick) => {
+      const { agent, inputs } = briefResearcher()
+      await routeTo([agent, namedAgent('writer')], pick)
+      expect(inputs).toEqual([{ task: 'Price Vendor A' }])
+    },
+  )
+
+  it('fails before any child starts when a picked agent has no input', async () => {
+    const { agent, inputs } = briefResearcher()
+    let writerRuns = 0
+    const writer = namedAgent('writer', async function* () {
+      writerRuns += 1
+    })
 
     await expect(
-      collectChunks(
-        chat({
-          adapter: parentAdapter().adapter,
-          messages: [{ role: 'user', content: 'Compare pricing' }],
-          subagents: {
-            agents: [agent],
-            router: () => {
-              routerCalls += 1
-              return 'main'
-            },
-          },
-        }) as AsyncIterable<StreamChunk>,
-      ),
-    ).rejects.toThrow('Subagent "researcher" has an inputSchema')
-    expect(routerCalls).toBe(0)
+      routeTo([agent, writer], {
+        steps: [{ names: ['writer'] }, { names: ['researcher'] }],
+      }),
+    ).rejects.toThrow(
+      `Agent "researcher" needs input. Return { name: 'researcher', input } from the router.`,
+    )
+    expect(writerRuns).toBe(0)
+    expect(inputs).toEqual([])
+  })
+
+  it('fails when the router input does not match the schema', async () => {
+    const { agent, inputs } = briefResearcher()
+
+    await expect(
+      routeTo([agent], { name: 'researcher', input: { task: 42 } }),
+    ).rejects.toThrow(
+      'Input validation failed for agent researcher: task must be text',
+    )
+    expect(inputs).toEqual([])
   })
 })
 
