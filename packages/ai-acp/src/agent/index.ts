@@ -301,7 +301,9 @@ export function createAcpAgent(options: AcpAgentOptions): AgentApp {
             stopReason,
             error: { code: -32603, message: failure ?? 'The turn failed.' },
           }
-        : { sessionUpdate: 'state_update', state: 'idle', stopReason },
+        : stopReason === 'cancelled'
+          ? { sessionUpdate: 'state_update', state: 'idle', stopReason }
+          : { sessionUpdate: 'state_update', state: 'idle', stopReason },
     )
   }
 
