@@ -77,9 +77,9 @@ const terminal = createInterface({
 })
 
 // Send each line as a prompt. Print the answer. Ask the user each
-// question that a risky call waits on.
-for (;;) {
-  const line = await terminal.question('\n> ')
+// question that a risky call waits on. Type `exit` to stop.
+let line = await terminal.question('\n> ')
+while (line !== 'exit') {
   for await (const chunk of session.prompt(line).stream()) {
     if (chunk.type === 'TEXT_MESSAGE_CONTENT') process.stdout.write(chunk.delta)
     if (chunk.type === 'CUSTOM' && chunk.name === HARNESS_EVENTS.question) {
@@ -90,7 +90,10 @@ for (;;) {
       }
     }
   }
+  line = await terminal.question('\n> ')
 }
+terminal.close()
+await host.close()
 ```
 
 `@tanstack/ai-harness/plugins/coding` runs only in Node. The tools use the file system and the shell of the machine. For code that you do not trust, [run the tools in a sandbox](./coding-tools-backends#run-the-tools-in-a-sandbox).
