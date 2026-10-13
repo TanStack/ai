@@ -9,6 +9,5 @@ Images in tool results now reach the model on Chat Completions and on OpenRouter
 - OpenRouter Responses sends the images as `input_image` parts of the function call output. Before this fix, it dropped them.
 - On Chat Completions, a result with only images gets the tool text `(see attached image)`.
 - A model without image input gets no images. A result with only images then has the text `(image omitted: this model has no image input)`. The OpenAI Responses adapter now uses this text too.
-- On Chat Completions, the other non-text parts of a tool result with images go in the same user message. A part that the adapter cannot send is an error, and so is an image with a `file` source.
-- On OpenRouter Responses, a tool result with images holds text and images only. Another part is an error.
+- Other media (audio, video, documents) in a tool result with images is not sent on these adapters.
 - OpenRouter chat with automatic prompt caching on an `anthropic/*` model puts the cache marker on the tool result before that image message, because the image message has no text block.

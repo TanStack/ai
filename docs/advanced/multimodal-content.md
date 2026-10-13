@@ -119,7 +119,9 @@ The adapter sends the image in the form that its API accepts:
 
 When these adapters know that the model has no image input, they send only the text. A result with only images then has the text `(image omitted: this model has no image input)`.
 
-An image with a `file` source in a tool result is an error on these adapters, except `openaiText`. Use a `data` or `url` source.
+The Chat Completions adapters and `openRouterResponsesText` send only the text and the images of such a result. They do not send audio, video, or documents from it.
+
+An image with a `file` source is an error on these adapters, except `openaiText`. Use a `data` or `url` source.
 
 ## Provider Support
 

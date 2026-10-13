@@ -2041,8 +2041,7 @@ export class OpenRouterResponsesTextAdapter<
       if (message.role === 'tool') {
         const content = message.content
         // Images stay in the tool output as `input_image` parts. A model
-        // without image input gets the text only. A function call output holds
-        // no other media, so another part is an error.
+        // without image input gets the text only. Other media is not sent.
         const hasImage =
           Array.isArray(content) &&
           content.some((part) => part.type === 'image')
@@ -2050,15 +2049,14 @@ export class OpenRouterResponsesTextAdapter<
           Array.isArray(content) &&
           hasImage &&
           (this.inputModalities?.includes('image') ?? true)
-            ? content.map((part): FunctionCallOutputItemOutputUnion1 => {
-                if (part.type === 'text')
-                  return { type: 'input_text', text: part.content }
-                if (part.type === 'image')
-                  return this.convertImagePartToInput(part)
-                throw new Error(
-                  `Unsupported content part type in a tool result for ${this.name}: ${part.type}.`,
-                )
-              })
+            ? content.flatMap(
+                (part): Array<FunctionCallOutputItemOutputUnion1> =>
+                  part.type === 'text'
+                    ? [{ type: 'input_text', text: part.content }]
+                    : part.type === 'image'
+                      ? [this.convertImagePartToInput(part)]
+                      : [],
+              )
             : this.extractTextContent(content) ||
               (hasImage ? '(image omitted: this model has no image input)' : '')
         result.push({

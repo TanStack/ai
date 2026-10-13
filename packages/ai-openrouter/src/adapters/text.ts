@@ -1433,34 +1433,27 @@ export class OpenRouterTextAdapter<
         return id.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40)
       },
     )
-    // Tool messages cannot carry media. The non-text parts of a run of tool
-    // results that have images go in one user message after that run.
-    const imageInput = this.inputModalities?.includes('image') ?? true
-    const toolMedia: Array<ChatContentItems> = []
+    // Tool messages cannot carry images. The images of a run of tool results
+    // go in one user message after that run. Other media in a tool result is
+    // not sent.
+    const toolImages: Array<ChatContentItems> = []
     for (const m of replay.messages) {
-      if (m.role !== 'tool' && toolMedia.length > 0)
-        messages.push({ role: 'user', content: toolMedia.splice(0) })
+      if (m.role !== 'tool' && toolImages.length > 0)
+        messages.push({ role: 'user', content: toolImages.splice(0) })
       messages.push(this.convertMessage(m))
       if (
         m.role === 'tool' &&
         Array.isArray(m.content) &&
-        m.content.some((part) => part.type === 'image')
+        (this.inputModalities?.includes('image') ?? true)
       ) {
         for (const part of m.content) {
-          if (part.type === 'text' || (part.type === 'image' && !imageInput))
-            continue
-          const converted = this.convertContentPart(part)
-          if (!converted) {
-            throw new Error(
-              `Unsupported content part type in a tool result for ${this.name}: ${part.type}.`,
-            )
-          }
-          toolMedia.push(converted)
+          const image = part.type === 'image' && this.convertContentPart(part)
+          if (image) toolImages.push(image)
         }
       }
     }
-    if (toolMedia.length > 0)
-      messages.push({ role: 'user', content: toolMedia })
+    if (toolImages.length > 0)
+      messages.push({ role: 'user', content: toolImages })
 
     const tools = options.tools
       ? convertToolsToProviderFormat(options.tools)
@@ -1541,8 +1534,8 @@ export class OpenRouterTextAdapter<
       // ContentPart shape (e.g. `[{"type":"text","content":"…"}]`) into the
       // tool message's `content` field would feed the literal JSON of the
       // parts back to the model instead of the tool's textual result.
-      // For a result with images, `mapOptionsToRequest` sends the non-text
-      // parts in a user message after the tool results.
+      // `mapOptionsToRequest` sends the images in a user message after the
+      // tool results.
       const text = this.extractTextContent(message.content)
       return {
         role: 'tool',

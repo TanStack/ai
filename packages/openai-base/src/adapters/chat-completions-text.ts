@@ -1411,34 +1411,27 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         return (this.provider ?? this.name) === 'openai' ? id.slice(0, 40) : id
       },
     )
-    // Tool messages cannot carry media. The non-text parts of a run of tool
-    // results that have images go in one user message after that run.
-    const imageInput = this.inputModalities?.includes('image') ?? true
-    const toolMedia: Array<ChatCompletionContentPart> = []
+    // Tool messages cannot carry images. The images of a run of tool results
+    // go in one user message after that run. Other media in a tool result is
+    // not sent.
+    const toolImages: Array<ChatCompletionContentPart> = []
     for (const message of replay.messages) {
-      if (message.role !== 'tool' && toolMedia.length > 0)
-        messages.push({ role: 'user', content: toolMedia.splice(0) })
+      if (message.role !== 'tool' && toolImages.length > 0)
+        messages.push({ role: 'user', content: toolImages.splice(0) })
       messages.push(this.convertMessage(message))
       if (
         message.role === 'tool' &&
         Array.isArray(message.content) &&
-        message.content.some((part) => part.type === 'image')
+        (this.inputModalities?.includes('image') ?? true)
       ) {
         for (const part of message.content) {
-          if (part.type === 'text' || (part.type === 'image' && !imageInput))
-            continue
-          const converted = this.convertContentPart(part)
-          if (!converted) {
-            throw new Error(
-              `Unsupported content part type in a tool result for ${this.name}: ${part.type}.`,
-            )
-          }
-          toolMedia.push(converted)
+          const image = part.type === 'image' && this.convertContentPart(part)
+          if (image) toolImages.push(image)
         }
       }
     }
-    if (toolMedia.length > 0)
-      messages.push({ role: 'user', content: toolMedia })
+    if (toolImages.length > 0)
+      messages.push({ role: 'user', content: toolImages })
 
     const modelOptions = options.modelOptions
 
@@ -1528,7 +1521,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     if (message.role === 'tool') {
       // A Chat Completions `tool` message carries text only. For a result
       // with images, the text parts go here and `mapOptionsToRequest` sends
-      // the other parts in a user message after the tool results. Other
+      // the images in a user message after the tool results. Other
       // `Array<ContentPart>` results are JSON-stringified, text-only arrays
       // included.
       const content = message.content

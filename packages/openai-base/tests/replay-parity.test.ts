@@ -1065,50 +1065,6 @@ describe('OpenAI replay parity', () => {
     })
   })
 
-  it.each([
-    { type: 'image', source: { type: 'file', value: 'file_1' } },
-    {
-      type: 'document',
-      source: { type: 'data', value: 'AAA', mimeType: 'application/pdf' },
-    },
-  ] as const)(
-    'sends no request for a tool result with an image and an unsupported $type part',
-    async (part) => {
-      const mock = sdk([completed])
-      await collect(
-        new Completions(mock.client).chatStream({
-          logger,
-          model,
-          messages: [
-            {
-              role: 'assistant',
-              content: null,
-              toolCalls: [
-                {
-                  id: 'a',
-                  type: 'function',
-                  function: { name: 'inspect', arguments: '{}' },
-                },
-              ],
-            },
-            {
-              role: 'tool',
-              toolCallId: 'a',
-              content: [
-                {
-                  type: 'image',
-                  source: { type: 'url', value: 'https://example.com/a.png' },
-                },
-                part,
-              ],
-            },
-          ],
-        }),
-      ).catch(() => [])
-      expect(mock.bodies).toHaveLength(0)
-    },
-  )
-
   it.each(['completions', 'responses'] as const)(
     'keeps genuine response identity from %s',
     async (api) => {
