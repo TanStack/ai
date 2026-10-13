@@ -11,7 +11,7 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@fal-ai/client": "1.11.0-alpha.2",
+    "@fal-ai/client": "1.11.0-alpha.5",
     "@reactor-team/js-sdk": "^3.0.1",
     "@sparkjsdev/spark": "^2.2.0",
     "@tailwindcss/vite": "^4.1.18",

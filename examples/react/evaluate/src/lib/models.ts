@@ -9,6 +9,7 @@ export const PROVIDERS = [
   'openrouter',
   'vercel',
   'cloudflare',
+  'openai',
 ] as const
 
 export type Provider = (typeof PROVIDERS)[number]
@@ -19,6 +20,7 @@ export const PROVIDER_LABELS: Record<Provider, string> = {
   openrouter: 'OpenRouter',
   vercel: 'Vercel Gateway',
   cloudflare: 'Cloudflare',
+  openai: 'OpenAI',
 }
 
 export const PROVIDER_MODELS: Record<Provider, string> = {
@@ -27,6 +29,7 @@ export const PROVIDER_MODELS: Record<Provider, string> = {
   openrouter: '~typesafe/jev-latest',
   vercel: 'typesafe-ai/jev',
   cloudflare: 'typesafe/jev',
+  openai: 'gpt-6-luna',
 }
 
 /** Env vars each adapter reads, shown in the "no key" hint. */
@@ -37,6 +40,7 @@ export const PROVIDER_ENV_VARS: Record<Provider, ReadonlyArray<string>> = {
   openrouter: ['OPENROUTER_API_KEY'],
   vercel: ['AI_GATEWAY_API_KEY'],
   cloudflare: ['CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN'],
+  openai: ['OPENAI_API_KEY'],
 }
 
 export function isProvider(value: string): value is Provider {

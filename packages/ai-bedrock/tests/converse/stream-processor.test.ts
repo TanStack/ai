@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { EventType } from '@tanstack/ai'
 import type { AdapterYieldChunk } from '@tanstack/ai'
 import { processConverseStream } from '../../src/converse/stream-processor'
-import type { ConverseStreamOutput } from '@aws-sdk/client-bedrock-runtime'
+import type {
+  ConverseStreamOutput,
+  TokenUsage as ConverseTokenUsage,
+} from '@aws-sdk/client-bedrock-runtime'
 
 // Test fixtures use the minimal field subset the processor reads. Cast at the
 // generator boundary to the SDK union type — the SDK marks every field as
@@ -175,31 +178,51 @@ describe('processConverseStream', () => {
     }
   })
 
-  it('forwards cache read/write counts as promptTokensDetails', async () => {
+  // Run one text turn with this metadata usage and return the usage on the
+  // terminal RUN_FINISHED.
+  async function finishedUsage(usage: ConverseTokenUsage) {
     const events = await collect(
       { contentBlockDelta: { delta: { text: 'hi' }, contentBlockIndex: 0 } },
       { messageStop: { stopReason: 'end_turn' } },
-      {
-        metadata: {
-          // inputTokens is the uncached part only; the cached prefix comes as
-          // its own fields.
-          usage: {
-            inputTokens: 3,
-            outputTokens: 4,
-            totalTokens: 8416,
-            cacheReadInputTokens: 0,
-            cacheWriteInputTokens: 8409,
-          },
-        },
-      },
+      { metadata: { usage } },
     )
     const finished = events.find((e) => e.type === EventType.RUN_FINISHED)
-    expect((finished as { usage?: unknown }).usage).toEqual({
-      promptTokens: 3,
+    return (finished as { usage?: unknown }).usage
+  }
+
+  it('forwards cache read/write counts as promptTokensDetails', async () => {
+    // inputTokens is the uncached part only; the cached prefix comes as its
+    // own fields. promptTokens is the total input: 3 + 0 + 8409.
+    const usage = await finishedUsage({
+      inputTokens: 3,
+      outputTokens: 4,
+      totalTokens: 8416,
+      cacheReadInputTokens: 0,
+      cacheWriteInputTokens: 8409,
+    })
+    expect(usage).toEqual({
+      promptTokens: 8412,
       completionTokens: 4,
       totalTokens: 8416,
       // Zero is a real value here. The checkpoint was served, not missing.
       promptTokensDetails: { cachedTokens: 0, cacheWriteTokens: 8409 },
+    })
+  })
+
+  it('adds uncached, cache read, and cache write into promptTokens', async () => {
+    // No provider total here, so the total comes from the parts.
+    const usage = await finishedUsage({
+      inputTokens: 5,
+      outputTokens: 7,
+      totalTokens: undefined,
+      cacheReadInputTokens: 100,
+      cacheWriteInputTokens: 20,
+    })
+    expect(usage).toEqual({
+      promptTokens: 125,
+      completionTokens: 7,
+      totalTokens: 132,
+      promptTokensDetails: { cachedTokens: 100, cacheWriteTokens: 20 },
     })
   })
 

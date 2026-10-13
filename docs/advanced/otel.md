@@ -48,7 +48,7 @@ const otel = otelMiddleware({
   meter: metrics.getMeter('my-app'),
 })
 
-const result = await chat({
+const { text } = await chat({
   adapter: openaiText('gpt-5.5'),
   messages: [{ role: 'user', content: 'hi' }],
   middleware: [otel],

@@ -486,7 +486,7 @@ describe('StreamProcessor', () => {
       expect(Number.isNaN(msg.createdAt!.getTime())).toBe(false)
     })
 
-    it('RUN_FINISHED metadata does not merge onto the assistant message', () => {
+    it('merges terminal metadata onto the current assistant message', () => {
       const processor = new StreamProcessor()
 
       processor.processChunk({
@@ -505,7 +505,10 @@ describe('StreamProcessor', () => {
       })
 
       const msg = processor.getMessages()[0]!
-      expect(msg.metadata).toEqual({ tanstack: { model: 'gpt-5.5' } })
+      expect(msg.metadata).toEqual({
+        author: { id: 'run' },
+        tanstack: { model: 'gpt-5.5', finishReason: 'stop' },
+      })
     })
 
     it('MESSAGES_SNAPSHOT keeps per-message metadata and ignores event-level metadata', () => {
@@ -3943,6 +3946,97 @@ describe('StreamProcessor', () => {
     })
   })
 
+  it('keeps message ids unique when a tool call names a message that already exists', () => {
+    const processor = new StreamProcessor()
+    processor.setMessages([
+      { id: 'u1', role: 'user', parts: [{ type: 'text', content: 'hi' }] },
+      { id: 'm1', role: 'assistant', parts: [{ type: 'text', content: 'so' }] },
+    ])
+    processor.prepareAssistantMessage()
+
+    processor.processChunk({
+      type: 'REASONING_MESSAGE_CONTENT',
+      messageId: 'think-1',
+      delta: 'plan',
+      timestamp: Date.now(),
+    } as StreamChunk)
+    processor.processChunk({
+      type: 'TOOL_CALL_START',
+      toolCallId: 'call_1',
+      toolCallName: 'lookup',
+      parentMessageId: 'm1',
+      timestamp: Date.now(),
+    } as StreamChunk)
+
+    const ids = processor.getMessages().map((m) => m.id)
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  it('keeps the thinking and the tool call in the existing parent message', () => {
+    const processor = new StreamProcessor()
+    processor.setMessages([
+      { id: 'u1', role: 'user', parts: [{ type: 'text', content: 'hi' }] },
+      { id: 'm1', role: 'assistant', parts: [{ type: 'text', content: 'so' }] },
+    ])
+    processor.prepareAssistantMessage()
+
+    processor.processChunk(ev.reasoningContent('plan', 'think-1'))
+    processor.processChunk(
+      chunk(EventType.TOOL_CALL_START, {
+        toolCallId: 'call_1',
+        toolCallName: 'lookup',
+        parentMessageId: 'm1',
+      }),
+    )
+    processor.processChunk(ev.toolEnd('call_1', 'lookup'))
+    processor.processChunk(ev.textStart('m2'))
+    processor.processChunk(ev.textContent('done', 'm2'))
+
+    expect(
+      processor.getMessages().map((m) => [m.id, m.parts.map((p) => p.type)]),
+    ).toEqual([
+      ['u1', ['text']],
+      ['m1', ['text', 'thinking', 'tool-call']],
+      ['m2', ['text']],
+    ])
+  })
+
+  it('puts a tool call in its parent message, not in the active one', () => {
+    const processor = new StreamProcessor()
+    processor.prepareAssistantMessage()
+
+    processor.processChunk(ev.textStart('m1'))
+    processor.processChunk(ev.textContent('hi', 'm1'))
+    processor.processChunk(
+      chunk(EventType.TOOL_CALL_START, {
+        toolCallId: 'call_1',
+        toolCallName: 'lookup',
+        parentMessageId: 'm1',
+      }),
+    )
+    processor.processChunk(ev.toolEnd('call_1', 'lookup'))
+    processor.processChunk(
+      chunk(EventType.TOOL_CALL_START, {
+        toolCallId: 'call_2',
+        toolCallName: 'lookup',
+        parentMessageId: 'm2',
+      }),
+    )
+    processor.processChunk(ev.toolEnd('call_2', 'lookup'))
+
+    expect(
+      processor
+        .getMessages()
+        .map((m) => [
+          m.id,
+          m.parts.flatMap((p) => (p.type === 'tool-call' ? [p.id] : [])),
+        ]),
+    ).toEqual([
+      ['m1', ['call_1']],
+      ['m2', ['call_2']],
+    ])
+  })
+
   describe('backward compat: startAssistantMessage without TEXT_MESSAGE_START', () => {
     it('should still work when only startAssistantMessage is used', () => {
       const processor = new StreamProcessor()
@@ -5659,7 +5753,11 @@ describe('StreamProcessor', () => {
           ev.runFinished(),
         ),
       )
-      expect(chunked[0]?.metadata).toEqual({ note: 'last chunk' })
+      // RUN_FINISHED adds its finish reason to the message metadata.
+      expect(chunked[0]?.metadata).toEqual({
+        note: 'last chunk',
+        tanstack: { finishReason: 'stop' },
+      })
     })
 
     it('keeps the parent message and the metadata of a tool call chunk', () => {
@@ -5725,7 +5823,11 @@ describe('StreamProcessor', () => {
         }),
         ev.runFinished(),
       )
-      expect(reasoning[0]?.metadata).toEqual({ note: 'r' })
+      // RUN_FINISHED adds its finish reason to the message metadata.
+      expect(reasoning[0]?.metadata).toEqual({
+        note: 'r',
+        tanstack: { finishReason: 'stop' },
+      })
     })
 
     it.each([
@@ -6717,6 +6819,35 @@ describe('StreamProcessor', () => {
         'thinking',
         'structured-output',
       ])
+    })
+
+    it('keeps a queued structured-output update when the placeholder gets its real id', () => {
+      const updates: Array<string> = []
+      const processor = new StreamProcessor({
+        events: {
+          onStructuredOutputChange: ({ phase, delta }) => {
+            if (phase === 'update') updates.push(delta ?? '')
+          },
+        },
+      })
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.reasoningContent('hm', 'reason-1'))
+      processor.processChunk(
+        ev.custom('structured-output.start', { messageId: 'msg-1' }),
+      )
+      processor.processChunk(ev.textContent('{"a":', 'msg-1'))
+      processor.processChunk(ev.textStart('msg-1'))
+      processor.processChunk(ev.textContent('1}', 'msg-1'))
+      processor.processChunk(
+        ev.custom('structured-output.complete', {
+          object: { a: 1 },
+          raw: '{"a":1}',
+          messageId: 'msg-1',
+        }),
+      )
+
+      expect(updates.join('')).toBe('{"a":1}')
     })
 
     it('attaches a late structured-output.complete to the open assistant when the event uses a new messageId', () => {

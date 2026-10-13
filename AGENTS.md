@@ -209,6 +209,6 @@ only for non-package READMEs (examples, testing, live-tests).
 
 ## Everything Else
 
-For package manager (`pnpm@10.17.0`), monorepo layout, adapter architecture,
+For package manager (`pnpm@11.9.0`), monorepo layout, adapter architecture,
 tool system, framework integrations, E2E requirements, and all other
 conventions, read `CLAUDE.md` in this directory.

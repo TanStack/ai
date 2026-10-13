@@ -20,12 +20,16 @@ export interface OllamaClientConfig {
 }
 
 /**
- * Creates an Ollama client instance
+ * Creates an Ollama client instance. A `fetch` replaces the client's fetch.
  */
-export function createOllamaClient(config: OllamaClientConfig = {}): Ollama {
+export function createOllamaClient(
+  config: OllamaClientConfig = {},
+  fetch?: typeof globalThis.fetch,
+): Ollama {
   return new Ollama({
     host: config.baseURL || config.host || 'http://localhost:11434',
     headers: config.defaultHeaders ?? config.headers,
+    ...(fetch && { fetch }),
   })
 }
 

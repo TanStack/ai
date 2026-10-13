@@ -139,6 +139,8 @@ const adapter = createBedrockText("us.amazon.nova-pro-v1:0", process.env.BEDROCK
 
 All three Bedrock APIs accept these options. On the Converse API the headers are added before SigV4 signing, so a signed request still includes them.
 
+Need more than a fixed header, such as a log of each model call? The Chat Completions API (`api: 'chat'`) and the Responses API (`api: 'responses'`) support [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call). The Converse API ignores it, because the AWS SDK does not send its requests through `fetch`.
+
 ## Converse API (default)
 
 `bedrockText(model)` or `bedrockText(model, { api: 'converse' })` returns a `bedrock-converse` adapter backed by `@aws-sdk/client-bedrock-runtime`. This is Bedrock's model-agnostic conversational API and is the recommended path for most use cases.
@@ -179,7 +181,9 @@ const adapter = createBedrockText(
 
 ### Prompt caching
 
-Add a `cachePoint` to make a prompt prefix eligible for caching. Later requests can read matching tokens at the reduced cache rate. Bedrock bills cache misses at the standard input rate.
+`chat()` adds cache points for Claude models by default: one after the system prompt, and one at the end of the last user message. Pass `promptCache: 'long'` for the 1-hour cache, or `promptCache: 'none'` to turn it off. Other models get no automatic cache point. For the cost, see [Prompt Caching](../advanced/prompt-caching).
+
+To pick the places yourself, add a `cachePoint`. One cache point of your own turns the automatic ones off for that request. Later requests can read matching tokens at the reduced cache rate. Bedrock bills cache misses at the standard input rate.
 
 Explicit prompt caching is model-dependent. Use `cachePoint` only with a model that AWS lists as supporting it. The minimum checkpoint size and the TTL options also vary by model.
 
@@ -229,7 +233,7 @@ Tools take the same metadata. Pass `metadata: { cachePoint: { type: 'default' } 
 
 ### Token usage
 
-`onUsage` and `RUN_FINISHED.usage` report Bedrock's counts as `promptTokens`, `completionTokens`, and `totalTokens`. When a request hits or writes a prompt cache, the cache counts arrive on `promptTokensDetails.cachedTokens` and `promptTokensDetails.cacheWriteTokens`. Bedrock counts only the uncached part of the input in `promptTokens`, so add the two cache counts to it to get the full input size.
+`onUsage` and `RUN_FINISHED.usage` report Bedrock's counts as `promptTokens`, `completionTokens`, and `totalTokens`. `promptTokens` is the full input, cached tokens included. When a request hits or writes a prompt cache, the cache parts are also on `promptTokensDetails.cachedTokens` and `promptTokensDetails.cacheWriteTokens`. To read these counts, see [Token usage](../chat/stream-events#token-usage).
 
 ## Chat Completions API (`api: 'chat'`)
 
@@ -284,6 +288,37 @@ for await (const chunk of chat({
   if (chunk.type === 'TEXT_MESSAGE_CONTENT') process.stdout.write(chunk.delta ?? '')
 }
 ```
+
+## Reasoning
+
+Set `reasoning` on `chat()`. What goes on the wire depends on the API:
+
+- Converse (the default): only Claude gets thinking. A budget model gets `thinking` with a budget in `additionalModelRequestFields`, and `maxTokens` grows past the budget. `off` sends nothing.
+- Chat Completions (`api: 'chat'`): `reasoning_effort`.
+- Responses (`api: 'responses'`): `reasoning.effort`.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { bedrockText } from "@tanstack/ai-bedrock";
+
+const stream = chat({
+  adapter: bedrockText("us.anthropic.claude-haiku-4-5-20251001-v1:0", {
+    region: "us-east-1",
+  }),
+  messages: [{ role: "user", content: "Check this proof." }],
+  reasoning: { level: "high", budgetTokens: 8000 },
+});
+```
+
+The levels of each model:
+
+- `us.anthropic.claude-haiku-4-5-*`, `us.anthropic.claude-sonnet-4-5-*`: `off`, `high`, with `budgetTokens`.
+- `openai.gpt-oss-120b-1:0`, `openai.gpt-oss-20b-1:0`: `low`, `medium`, `high`.
+- The `google.gemma-4` models: `off`, `high`.
+
+The other models take no `reasoning`. `us.deepseek.r1-v1:0` always thinks, and has no levels.
+
+On Converse, structured output forces a tool, and Claude cannot think while a tool is forced. So the structured output call sends no thinking.
 
 ## Embeddings
 
@@ -369,6 +404,8 @@ For the full list of models and which API endpoints they support, see the [AWS A
 ### `bedrockText(model, config?)`
 
 Creates a Bedrock adapter using environment-variable auth.
+
+`adapter.inputModalities` lists the input kinds of a model in the catalog. If this package does not know the model id, `bedrockText` and `createBedrockText` throw. `createBedrockChat`, `createBedrockResponsesText`, and `createBedrockConverse` return `undefined` for that id. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
 
 - `model` — Model ID (e.g. `'us.anthropic.claude-haiku-4-5-20251001-v1:0'`)
 - `config.api` — `'converse'` (default), `'chat'`, or `'responses'`

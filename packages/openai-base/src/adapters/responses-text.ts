@@ -1,4 +1,5 @@
 import {
+  CONTEXT_OVERFLOW_CODE,
   EventType,
   fileReferenceFor,
   isFileSource,
@@ -7,11 +8,18 @@ import {
 } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
+  hashToolCallId,
+  orderedAssistantBlocks,
+  resolveReasoning,
+  splitMidConversationChanges,
   toRunErrorPayload,
+  toRetryAfterMs,
   toRunErrorRawEvent,
+  transformMessagesForReplay,
 } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
-import { extractRequestOptions } from '../utils/request-options'
+import { clientFor, extractRequestOptions } from '../utils/request-options'
+import type { Fetch } from '../utils/request-options'
 import {
   makeStructuredOutputCompatibleWithMap,
   warnStrictFallback,
@@ -22,6 +30,8 @@ import type {
   StructuredOutputCompatibility,
 } from '../utils/schema-converter'
 import { buildResponsesUsage } from '../usage'
+import { toResponsesToolChoice } from '../tools/tool-choice'
+import { getOpenAIProviderToolKind } from '../tools/openai-provider-tool'
 import { convertToolsToResponsesFormat } from './responses-tool-converter'
 import {
   hostedShellCallIds,
@@ -45,6 +55,7 @@ import type {
   ResponseOutputMessage,
   ResponseOutputText,
   ResponseStreamEvent,
+  Tool as ResponsesTool,
 } from 'openai/resources/responses/responses'
 import type {
   ContentPart,
@@ -54,7 +65,11 @@ import type {
   AdapterYieldChunk,
   ProviderExecutedToolMetadata,
   ProviderExecutedToolSource,
+  ModelReasoning,
+  ReasoningCapability,
   TextOptions,
+  AnyTool,
+  NormalizedSystemPrompt,
 } from '@tanstack/ai'
 
 // Base64 encoding of the '%PDF' file header — every PDF payload starts with
@@ -192,6 +207,11 @@ function readReasoningItem(
  */
 export interface OpenAIResponsesToolCallMetadata extends ProviderExecutedToolMetadata {
   itemId?: string
+  /**
+   * The namespace of the called function. A tool that came through
+   * `additional_tools` has one, and the API needs it on the replayed call.
+   */
+  namespace?: string
   /** Set for shell, local_shell, and apply_patch calls the app must run. */
   openaiUserTool?: OpenAIUserToolName
   /** Shell `action.max_output_length`, echoed on `shell_call_output`. */
@@ -200,6 +220,17 @@ export interface OpenAIResponsesToolCallMetadata extends ProviderExecutedToolMet
     webSearchCall: ResponseFunctionWebSearch
     urlCitations: Array<ResponseOutputText.URLCitation>
     assistantMessage?: ResponseOutputMessage
+  }
+}
+
+/** The tool call metadata of a streamed `function_call` item. */
+function functionCallMetadata(item: {
+  id?: string
+  namespace?: string
+}): OpenAIResponsesToolCallMetadata {
+  return {
+    ...(item.id ? { itemId: item.id } : {}),
+    ...(item.namespace ? { namespace: item.namespace } : {}),
   }
 }
 
@@ -235,31 +266,63 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   TMessageMetadata extends DefaultMessageMetadataByModality =
     DefaultMessageMetadataByModality,
   TToolCapabilities extends ReadonlyArray<string> = ReadonlyArray<string>,
+  TReasoning extends ReasoningCapability = never,
 > extends BaseTextAdapter<
   TModel,
   TProviderOptions,
   TInputModalities,
   TMessageMetadata,
   TToolCapabilities,
-  OpenAIResponsesToolCallMetadata
+  OpenAIResponsesToolCallMetadata,
+  never,
+  TReasoning
 > {
   override readonly kind = 'text' as const
+  override readonly api: string = 'openai-responses'
   readonly name: string
   protected client: OpenAI
+
+  private sourceMetadata(
+    model: string,
+    stopReason?: 'error' | 'aborted',
+  ): Record<string, unknown> {
+    return {
+      tanstack: {
+        source: { provider: this.provider ?? this.name, api: this.api, model },
+        ...(stopReason ? { stopReason } : {}),
+      },
+    }
+  }
 
   /** See {@link OpenAIBaseTextAdapterOptions.strictFallbackWarning}. */
   protected readonly strictFallbackWarning: boolean
 
+  /** The fetch that the adapter gave the client. */
+  private readonly baseFetch: Fetch | undefined
+
+  /**
+   * `options.fetch` must be the fetch that the client uses. A `wrapFetch`
+   * call wraps it.
+   */
   constructor(
     model: TModel,
     name: string,
     client: OpenAI,
-    options: OpenAIBaseTextAdapterOptions = {},
+    options: OpenAIBaseTextAdapterOptions & { fetch?: Fetch | undefined } = {},
   ) {
     super({}, model)
     this.name = name
     this.client = client
     this.strictFallbackWarning = options.strictFallbackWarning ?? true
+    this.baseFetch = options.fetch
+  }
+
+  /**
+   * A copy of the client that sends its requests through `fetch`. Override it
+   * when the SDK copy loses an option of your client.
+   */
+  protected withFetch(fetch: Fetch): OpenAI {
+    return this.client.withOptions({ fetch })
   }
 
   async *chatStream(
@@ -291,7 +354,12 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         `activity=chat provider=${this.name} model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
         { provider: this.name, model: this.model },
       )
-      const response = await this.client.responses.create(
+      const response = await clientFor(
+        this.client,
+        options,
+        this.baseFetch,
+        (fetch) => this.withFetch(fetch),
+      ).responses.create(
         {
           ...requestParams,
           stream: true,
@@ -308,17 +376,19 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     } catch (error: unknown) {
       // Narrow before logging: raw SDK errors can carry request metadata
       // (including auth headers) which we must never surface to user loggers.
-      const errorPayload = toRunErrorPayload(
+      const errorPayload = this.runErrorPayload(
         error,
         `${this.name}.chatStream failed`,
       )
       const rawEvent = toRunErrorRawEvent(error)
+      const retryAfterMs = toRetryAfterMs(error)
 
       // Emit RUN_STARTED if not yet emitted
       if (!aguiState.hasEmittedRunStarted) {
         aguiState.hasEmittedRunStarted = true
         yield {
           type: EventType.RUN_STARTED,
+          metadata: this.sourceMetadata(options.model),
           runId: aguiState.runId,
           threadId: aguiState.threadId,
           model: options.model,
@@ -333,6 +403,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       // matter), so we omit the key when there's no code.
       yield {
         type: EventType.RUN_ERROR,
+        metadata: this.sourceMetadata(
+          options.model,
+          this.isAbortError(error) ? 'aborted' : 'error',
+        ),
         model: options.model,
         timestamp: Date.now(),
         message: errorPayload.message,
@@ -340,6 +414,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         // Forward the provider's structured error body when present (see
         // toRunErrorRawEvent); omitted otherwise.
         ...(rawEvent !== undefined && { rawEvent }),
+        ...(retryAfterMs !== undefined && { retryAfterMs }),
         error: {
           message: errorPayload.message,
           code: errorPayload.code,
@@ -392,7 +467,12 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         `activity=structuredOutput provider=${this.name} model=${this.model} messages=${chatOptions.messages.length}`,
         { provider: this.name, model: this.model },
       )
-      const response = await this.client.responses.create(
+      const response = await clientFor(
+        this.client,
+        chatOptions,
+        this.baseFetch,
+        (fetch) => this.withFetch(fetch),
+      ).responses.create(
         {
           ...(cleanParams as Omit<ResponseCreateParams, 'stream'>),
           stream: false,
@@ -445,6 +525,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       return {
         data: transformed,
         rawText,
+        ...(response.id ? { responseId: response.id } : {}),
+        ...(response.model ? { model: response.model } : {}),
         ...(usage && { usage }),
       }
     } catch (error: unknown) {
@@ -497,6 +579,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     let stepId: string | undefined
     let hasClosedReasoning = false
     let model: string = chatOptions.model
+    let responseId: string | undefined
     let usage: OpenAI.Responses.Response['usage'] | undefined
     let responseCompleted = false
 
@@ -573,7 +656,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
       const stream: AsyncIterable<
         ResponseStreamEvent | LegacyReasoningDeltaEvent
-      > = await this.client.responses.create(
+      > = await clientFor(this.client, chatOptions, this.baseFetch, (fetch) =>
+        this.withFetch(fetch),
+      ).responses.create(
         {
           ...cleanParams,
           stream: true,
@@ -599,6 +684,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           aguiState.hasEmittedRunStarted = true
           yield {
             type: EventType.RUN_STARTED,
+            metadata: this.sourceMetadata(chatOptions.model),
             runId: aguiState.runId,
             threadId: aguiState.threadId,
             model,
@@ -624,6 +710,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               : ''
           yield {
             type: EventType.RUN_ERROR,
+            metadata: this.sourceMetadata(chatOptions.model),
             runId: aguiState.runId,
             model,
             timestamp: Date.now(),
@@ -697,6 +784,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         if (chunk.type === 'response.completed') {
           responseCompleted = true
           const response = chunk.response
+          if (response.id) responseId = response.id
           if (response.usage) usage = response.usage
           if (response.model) model = response.model
           // Terminal event: do not wait for the HTTP body to close (#1445).
@@ -716,6 +804,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           // under `exactOptionalPropertyTypes` (see chatStream catch).
           yield {
             type: EventType.RUN_ERROR,
+            metadata: this.sourceMetadata(chatOptions.model),
             runId: aguiState.runId,
             model,
             timestamp: Date.now(),
@@ -742,6 +831,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         const message = 'Response stream ended before response.completed'
         yield {
           type: EventType.RUN_ERROR,
+          metadata: this.sourceMetadata(chatOptions.model),
           runId: aguiState.runId,
           model,
           timestamp: Date.now(),
@@ -755,6 +845,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       if (accumulatedContent.length === 0) {
         yield {
           type: EventType.RUN_ERROR,
+          metadata: this.sourceMetadata(chatOptions.model),
           runId: aguiState.runId,
           model,
           timestamp: Date.now(),
@@ -774,6 +865,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       } catch {
         yield {
           type: EventType.RUN_ERROR,
+          metadata: this.sourceMetadata(chatOptions.model),
           runId: aguiState.runId,
           model,
           timestamp: Date.now(),
@@ -806,6 +898,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
       yield {
         type: EventType.RUN_FINISHED,
+        ...(responseId ? { responseId } : {}),
         runId: aguiState.runId,
         threadId: aguiState.threadId,
         model,
@@ -820,6 +913,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         aguiState.hasEmittedRunStarted = true
         yield {
           type: EventType.RUN_STARTED,
+          metadata: this.sourceMetadata(chatOptions.model),
           runId: aguiState.runId,
           threadId: aguiState.threadId,
           model,
@@ -829,7 +923,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       }
 
       const isAbort = this.isAbortError(error)
-      const errorPayload = toRunErrorPayload(
+      const errorPayload = this.runErrorPayload(
         error,
         `${this.name}.structuredOutputStream failed`,
       )
@@ -840,6 +934,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       const rawEvent = isAbort ? undefined : toRunErrorRawEvent(error)
       yield {
         type: EventType.RUN_ERROR,
+        metadata: this.sourceMetadata(
+          chatOptions.model,
+          isAbort ? 'aborted' : 'error',
+        ),
         runId: aguiState.runId,
         model,
         timestamp: Date.now(),
@@ -857,6 +955,32 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         source: `${this.name}.structuredOutputStream`,
       })
     }
+  }
+
+  /**
+   * `toRunErrorPayload`, with `code` set to `CONTEXT_OVERFLOW_CODE` when the
+   * provider says the input does not fit in the model's context window.
+   */
+  protected runErrorPayload(
+    error: unknown,
+    fallbackMessage: string,
+  ): { message: string; code: string | undefined } {
+    const payload = toRunErrorPayload(error, fallbackMessage)
+    return this.isContextOverflow(payload)
+      ? { ...payload, code: CONTEXT_OVERFLOW_CODE }
+      : payload
+  }
+
+  /**
+   * True when a provider error says the input does not fit in the context
+   * window. OpenAI sends `code: 'context_length_exceeded'`. Override this for
+   * a provider that reports it another way.
+   */
+  protected isContextOverflow(error: {
+    message: string
+    code: string | undefined
+  }): boolean {
+    return error.code === 'context_length_exceeded'
   }
 
   /**
@@ -911,6 +1035,15 @@ export abstract class OpenAIBaseResponsesTextAdapter<
    */
   protected transformStructuredOutput(parsed: unknown): unknown {
     return parsed
+  }
+
+  /**
+   * The model's reasoning data for `chat({ reasoning })`. The default is
+   * none, so the base sends no reasoning field. A subclass returns the
+   * model's entry from the reasoning map in its `model-meta.ts`.
+   */
+  protected modelReasoning(_model: string): ModelReasoning | undefined {
+    return undefined
   }
 
   /**
@@ -1011,6 +1144,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
     // Preserve response metadata across events
     let model: string = options.model
+    let responseId: string | undefined
 
     // AG-UI lifecycle tracking
     let stepId: string | null = null
@@ -1281,6 +1415,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           aguiState.hasEmittedRunStarted = true
           yield {
             type: EventType.RUN_STARTED,
+            metadata: this.sourceMetadata(options.model),
             runId: aguiState.runId,
             threadId: aguiState.threadId,
             model: model || options.model,
@@ -1316,6 +1451,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           const code = isRefusal ? 'refusal' : contentPart.type
           return {
             type: EventType.RUN_ERROR,
+            metadata: this.sourceMetadata(options.model),
             model: model || options.model,
             timestamp: Date.now(),
             message,
@@ -1331,6 +1467,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           chunk.type === 'response.incomplete' ||
           chunk.type === 'response.failed'
         ) {
+          if (chunk.response.id) responseId = chunk.response.id
           model = chunk.response.model
         }
 
@@ -1384,10 +1521,16 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             (chunk.type === 'response.failed'
               ? 'Response failed'
               : 'Response ended incomplete')
-          const errorCode =
+          const providerCode =
             chunk.response.error?.code ??
             (chunk.response.incomplete_details ? 'incomplete' : undefined) ??
             undefined
+          const errorCode = this.isContextOverflow({
+            message: errorMessage,
+            code: providerCode,
+          })
+            ? CONTEXT_OVERFLOW_CODE
+            : providerCode
           // Always emit RUN_ERROR for terminal failure events, even when the
           // upstream omitted both `error` and `incomplete_details`. Skipping
           // emission on a `response.incomplete` with no detail would let the
@@ -1395,6 +1538,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           // `RUN_FINISHED { finishReason: 'stop' }` — masking the failure.
           yield {
             type: EventType.RUN_ERROR,
+            metadata: this.sourceMetadata(options.model),
             model: chunk.response.model,
             timestamp: Date.now(),
             message: errorMessage,
@@ -1618,9 +1762,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 model: model || options.model,
                 timestamp: Date.now(),
                 index: chunk.output_index,
-                metadata: {
-                  itemId: item.id,
-                } satisfies OpenAIResponsesToolCallMetadata,
+                metadata: functionCallMetadata(item),
               }
               metadata.started = true
             }
@@ -1755,6 +1897,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           if (item.type === 'reasoning') {
             captureReasoningItem(item)
             yield* openReasoning()
+            // One response can carry several reasoning items (reason, search,
+            // reason again). Close each one at its end, so the next item opens
+            // its own step and does not overwrite this id and encrypted_content.
+            yield* closeReasoning()
           }
           if (item.type === 'function_call' && item.id) {
             const metadata = toolCallMetadata.get(item.id) ?? {
@@ -1780,9 +1926,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 model: model || options.model,
                 timestamp: Date.now(),
                 index: metadata.index,
-                metadata: {
-                  itemId: item.id,
-                } satisfies OpenAIResponsesToolCallMetadata,
+                metadata: functionCallMetadata(item),
               }
               metadata.started = true
             }
@@ -1842,6 +1986,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         }
 
         if (chunk.type === 'response.completed') {
+          if (chunk.response.id) responseId = chunk.response.id
+          if (chunk.response.model) model = chunk.response.model
           const responseOutput = Array.isArray(chunk.response.output)
             ? chunk.response.output
             : []
@@ -1948,9 +2094,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 model: model || options.model,
                 timestamp: Date.now(),
                 index: metadata.index,
-                metadata: {
-                  itemId: item.id,
-                } satisfies OpenAIResponsesToolCallMetadata,
+                metadata: functionCallMetadata(item),
               }
               metadata.started = true
             }
@@ -2061,6 +2205,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
           yield {
             type: EventType.RUN_FINISHED,
+            ...(responseId ? { responseId } : {}),
             runId: aguiState.runId,
             threadId: aguiState.threadId,
             model: model || options.model,
@@ -2080,9 +2225,16 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         if (chunk.type === 'error') {
           // Conditional `code` spread keeps the wire shape spec-compliant
           // under `exactOptionalPropertyTypes` (see chatStream catch).
-          const code = chunk.code ?? undefined
+          const providerCode = chunk.code ?? undefined
+          const code = this.isContextOverflow({
+            message: chunk.message,
+            code: providerCode,
+          })
+            ? CONTEXT_OVERFLOW_CODE
+            : providerCode
           yield {
             type: EventType.RUN_ERROR,
+            metadata: this.sourceMetadata(options.model),
             model: model || options.model,
             timestamp: Date.now(),
             message: chunk.message,
@@ -2120,6 +2272,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         const message = 'Response stream ended before response.completed'
         yield {
           type: EventType.RUN_ERROR,
+          metadata: this.sourceMetadata(options.model),
           model: model || options.model,
           timestamp: Date.now(),
           message,
@@ -2130,11 +2283,12 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     } catch (error: unknown) {
       // Narrow before logging: raw SDK errors can carry request metadata
       // (including auth headers) which we must never surface to user loggers.
-      const errorPayload = toRunErrorPayload(
+      const errorPayload = this.runErrorPayload(
         error,
         `${this.name}.processStreamChunks failed`,
       )
       const rawEvent = toRunErrorRawEvent(error)
+      const retryAfterMs = toRetryAfterMs(error)
       options.logger.errors(`${this.name}.processStreamChunks fatal`, {
         error: errorPayload,
         source: `${this.name}.processStreamChunks`,
@@ -2144,11 +2298,16 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       // error body when present.
       yield {
         type: EventType.RUN_ERROR,
+        metadata: this.sourceMetadata(
+          options.model,
+          this.isAbortError(error) ? 'aborted' : 'error',
+        ),
         model: options.model,
         timestamp: Date.now(),
         message: errorPayload.message,
         ...(errorPayload.code !== undefined && { code: errorPayload.code }),
         ...(rawEvent !== undefined && { rawEvent }),
+        ...(retryAfterMs !== undefined && { retryAfterMs }),
         error: {
           message: errorPayload.message,
           ...(errorPayload.code !== undefined && { code: errorPayload.code }),
@@ -2164,16 +2323,18 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   protected mapOptionsToRequest(
     options: TextOptions<TProviderOptions>,
   ): Omit<ResponseCreateParams, 'stream'> {
-    const input = this.convertMessagesToInput(options.messages)
+    const mid = this.midConversationRequest(options)
+    const input = this.convertMessagesToInput(
+      options.messages,
+      options.model,
+      mid?.items,
+    )
 
     if (this.strictFallbackWarning) {
       warnStrictFallback(options.tools, options.logger)
     }
     const tools = options.tools
-      ? convertToolsToResponsesFormat(
-          options.tools,
-          this.makeStructuredOutputCompatible.bind(this),
-        )
+      ? this.convertTools(mid?.tools ?? options.tools)
       : undefined
 
     const modelOptions = options.modelOptions
@@ -2205,18 +2366,27 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         }
       : undefined
 
+    // `chat({ toolChoice })` is sent only when the request has tools. It goes
+    // before the `modelOptions` spread, so a `tool_choice` there wins.
+    const toolChoiceField =
+      tools?.length && options.toolChoice !== undefined
+        ? { tool_choice: toResponsesToolChoice(options.toolChoice) }
+        : undefined
+
     // `modelOptions` is the sole sampling surface: `temperature`, `top_p`, and
     // `max_output_tokens` live there (typed via OpenAISamplingOptions) and are
     // spread first. Engine-managed fields (`model`, `metadata`, `instructions`,
     // `input`, `tools`, `textFormat`) are layered on top afterward so they
     // always win over any same-named key a caller happened to put in
     // `modelOptions`.
-    return {
+    const params: Omit<ResponseCreateParams, 'stream'> = {
+      ...toolChoiceField,
       ...modelOptions,
       model: options.model,
       ...(options.metadata !== undefined && { metadata: options.metadata }),
       ...(() => {
-        const prompts = normalizeSystemPrompts(options.systemPrompts)
+        const prompts =
+          mid?.systemPrompts ?? normalizeSystemPrompts(options.systemPrompts)
         if (prompts.length === 0) return {}
         return { instructions: prompts.map((p) => p.content).join('\n') }
       })(),
@@ -2225,6 +2395,91 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       // modelOptions.tools the caller set above.
       ...(tools && tools.length > 0 && { tools }),
       ...(textFormat ?? {}),
+    }
+    // `chat({ reasoning })`: the model's effort for the level, and a summary
+    // so the thinking text streams back. The SDK type does not list every
+    // provider's effort values, so the field goes on with Object.assign.
+    const reasoning = resolveReasoning(
+      options.reasoning,
+      this.modelReasoning(options.model),
+    )
+    if (reasoning?.value) {
+      Object.assign(params, {
+        reasoning: {
+          effort: reasoning.value,
+          ...(reasoning.summary && reasoning.level !== 'off'
+            ? { summary: 'auto' }
+            : {}),
+        },
+      })
+    }
+    return params
+  }
+
+  /**
+   * Converts the tools for the request. A subclass with its own tool
+   * converter overrides this, so the start set and the `additional_tools`
+   * items of a mid-conversation change use that converter too.
+   */
+  protected convertTools(tools: Array<AnyTool>): Array<ResponsesTool> {
+    return convertToolsToResponsesFormat(
+      tools,
+      this.makeStructuredOutputCompatible.bind(this),
+    )
+  }
+
+  /**
+   * Mid-conversation changes: the start tools for `tools`, the start prompts
+   * for `instructions`, and the input items of each change by message index.
+   * Undefined when the request stays as today: the adapter has no channels,
+   * the engine passed no changes, or the changes do not fit the current lists.
+   */
+  private midConversationRequest(options: TextOptions<TProviderOptions>):
+    | {
+        tools?: Array<AnyTool>
+        systemPrompts?: Array<NormalizedSystemPrompt>
+        items: Map<number, ResponseInput>
+      }
+    | undefined {
+    const channels = this.midConversationChannels
+    if (!channels || !options.midConversationChanges) return undefined
+    const split = splitMidConversationChanges({
+      changes: options.midConversationChanges,
+      tools: options.tools ?? [],
+      systemPrompts: normalizeSystemPrompts(options.systemPrompts),
+    })
+    if (!split) return undefined
+    // A provider tool (web search, MCP, ...) cannot go in `additional_tools`,
+    // so its request keeps the full `tools` list.
+    const toolChannel =
+      channels.tools &&
+      ![...split.startTools, ...split.addedTools].some(
+        (tool) => getOpenAIProviderToolKind(tool) !== undefined,
+      )
+    const items = new Map<number, ResponseInput>()
+    for (const [before, change] of split.at) {
+      const changeItems: ResponseInput = []
+      if (toolChannel && change.tools.length > 0) {
+        changeItems.push({
+          type: 'additional_tools',
+          role: 'developer',
+          tools: this.convertTools(change.tools),
+        })
+      }
+      if (channels.systemPrompts && change.systemPrompts.length > 0) {
+        changeItems.push({
+          role: 'developer',
+          content: change.systemPrompts.map((p) => p.content).join('\n'),
+        })
+      }
+      if (changeItems.length > 0) items.set(before, changeItems)
+    }
+    return {
+      ...(toolChannel && { tools: split.startTools }),
+      ...(channels.systemPrompts && {
+        systemPrompts: split.startSystemPrompts,
+      }),
+      items,
     }
   }
 
@@ -2249,7 +2504,88 @@ export abstract class OpenAIBaseResponsesTextAdapter<
    */
   protected convertMessagesToInput(
     messages: Array<ModelMessage>,
+    targetModel: string = this.model,
+    /** Items to send directly before `messages[index]`, or at the end. */
+    insertBefore?: ReadonlyMap<number, ResponseInput>,
   ): ResponseInput {
+    // History from another model loses its signatures, and its tool IDs are
+    // rewritten to `call|item` IDs this API accepts. Each call stays paired.
+    const target = {
+      provider: this.provider ?? this.name,
+      api: this.api,
+      model: targetModel,
+    }
+    const itemIds = new Map<string, string>()
+    const usedCallIds = new Set<string>()
+    const usedItemIds = new Set<string>()
+    const normalizedCompositeIds = new Set<string>()
+    for (const message of messages) {
+      const source = message.metadata?.tanstack?.source
+      const sameSource =
+        !source ||
+        (source.provider === target.provider &&
+          source.api === target.api &&
+          source.model === target.model)
+      for (const call of message.toolCalls ?? []) {
+        if (sameSource) usedCallIds.add(call.id)
+        const metadata = call.metadata
+        const itemId =
+          metadata !== null &&
+          typeof metadata === 'object' &&
+          'itemId' in metadata &&
+          typeof metadata.itemId === 'string'
+            ? metadata.itemId
+            : undefined
+        if (itemId) itemIds.set(call.id, itemId)
+        if (sameSource && itemId) usedItemIds.add(itemId)
+      }
+    }
+    const normalizePart = (part: string) =>
+      part
+        .replace(/[^a-zA-Z0-9_-]/g, '_')
+        .slice(0, 64)
+        .replace(/_+$/, '')
+    const replay = transformMessagesForReplay(
+      messages,
+      target,
+      (id, { source, attempt }) => {
+        const [call = '', compositeItem] = id.split('|')
+        const item = compositeItem ?? itemIds.get(id)
+        let retry = attempt
+        let callId = normalizePart(
+          retry
+            ? `${call.slice(0, 48)}_${hashToolCallId(`${id}:${retry}`)}`
+            : call,
+        )
+        while (!callId || usedCallIds.has(callId)) {
+          retry++
+          callId = normalizePart(
+            `${call.slice(0, 48)}_${hashToolCallId(`${id}:${retry}`)}`,
+          )
+        }
+        usedCallIds.add(callId)
+        if (item === undefined) return callId
+        let itemId =
+          source &&
+          (source.provider !== target.provider || source.api !== target.api)
+            ? `fc_${hashToolCallId(item)}`
+            : normalizePart(item)
+        if (!itemId.startsWith('fc_')) itemId = normalizePart(`fc_${itemId}`)
+        if (itemId === 'fc') itemId = `fc_${hashToolCallId(item)}`
+        let itemRetry = attempt
+        while (usedItemIds.has(itemId)) {
+          itemRetry++
+          itemId = `fc_${hashToolCallId(`${item}:${itemRetry}`)}`
+        }
+        usedItemIds.add(itemId)
+        const composite = `${callId}|${itemId}`
+        normalizedCompositeIds.add(composite)
+        return composite
+      },
+    )
+    const callIdFor = (id: string) =>
+      normalizedCompositeIds.has(id) ? (id.split('|')[0] ?? id) : id
+    messages = replay.messages
     const result: ResponseInput = []
     // A reasoning item id may only appear once in `input`; replaying the same
     // id twice fails with "Duplicate item found with id rs_...". Providers have
@@ -2265,7 +2601,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       }
     >()
 
-    for (const message of messages) {
+    for (const [index, message] of messages.entries()) {
+      result.push(...(insertBefore?.get(index) ?? []))
       // Handle tool messages - convert to FunctionToolCallOutput
       if (message.role === 'tool') {
         const owner = message.toolCallId
@@ -2279,15 +2616,24 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           continue
         }
         const toolContent = message.content
-        const output: string | Array<ResponseFunctionCallOutputItem> =
-          Array.isArray(toolContent)
-            ? toolContent.map((part) => this.convertContentPartToInput(part))
-            : typeof toolContent === 'string'
-              ? toolContent
-              : JSON.stringify(toolContent)
+        // A model without image input gets no images from a tool result.
+        const parts = Array.isArray(toolContent)
+          ? toolContent.filter(
+              (part) =>
+                part.type !== 'image' ||
+                (this.inputModalities?.includes('image') ?? true),
+            )
+          : undefined
+        const output: string | Array<ResponseFunctionCallOutputItem> = parts
+          ? parts.length > 0 || parts.length === toolContent?.length
+            ? parts.map((part) => this.convertContentPartToInput(part))
+            : '(image omitted: this model has no image input)'
+          : typeof toolContent === 'string'
+            ? toolContent
+            : JSON.stringify(toolContent)
         result.push({
           type: 'function_call_output',
-          call_id: message.toolCallId || '',
+          call_id: message.toolCallId ? callIdFor(message.toolCallId) : '',
           output,
         })
         continue
@@ -2295,6 +2641,13 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
       // Handle assistant messages
       if (message.role === 'assistant') {
+        const firstItem = result.length
+        const source = message.metadata?.tanstack?.source
+        const foreign =
+          source &&
+          (source.provider !== target.provider ||
+            source.api !== target.api ||
+            source.model !== target.model)
         // Every reasoning item this message could contribute, and how many of
         // them actually made it into `input` after de-duplication. Both counts
         // are needed below to decide whether the function calls can still be
@@ -2356,7 +2709,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               // The raw ws_/msg_ items carry ids that must pair with their
               // reasoning item, the same as function calls above. When they
               // cannot pair, skip them and send the plain message with no id.
-              if (webSearchCall && canPairReasoning) {
+              if (webSearchCall && canPairReasoning && !foreign) {
                 result.push(webSearchCall)
                 rawAssistantMessage ??= metadata.openai?.assistantMessage
               }
@@ -2368,14 +2721,20 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               typeof toolCall.function.arguments === 'string'
                 ? toolCall.function.arguments
                 : JSON.stringify(toolCall.function.arguments)
+            const replayItemId = normalizedCompositeIds.has(toolCall.id)
+              ? toolCall.id.split('|')[1]
+              : undefined
+            const replayMetadata = replayItemId
+              ? { ...metadata, itemId: replayItemId }
+              : toolCall.metadata
             const replayCall = {
-              id: toolCall.id,
+              id: callIdFor(toolCall.id),
               function: {
                 name: toolCall.function.name,
                 arguments: argumentsString,
               },
-              ...(toolCall.metadata !== undefined
-                ? { metadata: toolCall.metadata }
+              ...(replayMetadata !== undefined
+                ? { metadata: replayMetadata }
                 : {}),
             }
             const userItem = userToolRequestItem(replayCall)
@@ -2384,14 +2743,16 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               result.push(userItem)
               continue
             }
-            const itemId = metadata?.itemId
+            const itemId = replayItemId ?? metadata?.itemId
 
             result.push({
               type: 'function_call',
-              call_id: toolCall.id,
+              call_id: callIdFor(toolCall.id),
               ...(itemId && canPairReasoning && { id: itemId }),
               name: toolCall.function.name,
               arguments: argumentsString,
+              // Without its namespace, the API cannot find an added tool.
+              ...(metadata?.namespace && { namespace: metadata.namespace }),
             })
           }
         }
@@ -2410,6 +2771,34 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           }
         }
 
+        // Another model's answer: plain text and calls in the order the
+        // model sent them. Its raw items are not sent.
+        if (foreign) {
+          const emitted = result.splice(firstItem)
+          const text = this.extractTextContent(message.content)
+          const blocks = orderedAssistantBlocks(message) ?? [
+            ...(text ? [{ type: 'text' as const, text }] : []),
+            ...(message.toolCalls ?? []).map((toolCall) => ({
+              type: 'tool-call' as const,
+              toolCall,
+            })),
+          ]
+          for (const block of blocks) {
+            if (block.type === 'text') {
+              result.push({
+                type: 'message',
+                role: 'assistant',
+                content: block.text,
+              })
+            } else if (block.type === 'tool-call') {
+              const callId = callIdFor(block.toolCall.id)
+              const item = emitted.find(
+                (item) => 'call_id' in item && item.call_id === callId,
+              )
+              if (item) result.push(item)
+            }
+          }
+        }
         continue
       }
 
@@ -2440,6 +2829,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       })
     }
 
+    result.push(...(insertBefore?.get(messages.length) ?? []))
     return result
   }
 

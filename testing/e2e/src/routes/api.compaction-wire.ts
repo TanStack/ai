@@ -4,6 +4,7 @@ import { createOpenaiChat } from '@tanstack/ai-openai'
 import {
   clearToolResults,
   evictOldest,
+  summarizeOldest,
   withCompaction,
 } from '@tanstack/ai-compaction'
 import type { CompactionStrategy } from '@tanstack/ai-compaction'
@@ -102,15 +103,17 @@ const clearMessages: Array<ModelMessage> = [
  * Wire-format verification for `withCompaction`. A capturing `fetch` records the
  * outgoing request body so the spec can assert what each strategy sent.
  *
- * `?strategy=clear` uses `clearToolResults` on a tool-heavy history; anything
- * else uses `evictOldest` on a plain chat history.
+ * `?strategy=clear` uses `clearToolResults` on a tool-heavy history.
+ * `?strategy=empty-summary` uses `summarizeOldest` with a summarizer that
+ * returns an empty summary, so the compaction fails before any model call.
+ * Anything else uses `evictOldest` on a plain chat history.
  */
 export const Route = createFileRoute('/api/compaction-wire')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const clear =
-          new URL(request.url).searchParams.get('strategy') === 'clear'
+        const strategyParam = new URL(request.url).searchParams.get('strategy')
+        const clear = strategyParam === 'clear'
 
         const requestBodies: Array<unknown> = []
 
@@ -126,7 +129,12 @@ export const Route = createFileRoute('/api/compaction-wire')({
         const messages = clear ? clearMessages : evictMessages
         const strategy: CompactionStrategy = clear
           ? clearToolResults({ keepRecentToolResults: 1 })
-          : evictOldest({ keepRecentTokens: 45 })
+          : strategyParam === 'empty-summary'
+            ? summarizeOldest({
+                summarize: async () => '',
+                keepRecentTokens: 45,
+              })
+            : evictOldest({ keepRecentTokens: 45 })
 
         const adapter = createOpenaiChat('gpt-5.2', DUMMY_KEY, {
           fetch: mockFetch,
@@ -174,6 +182,7 @@ export const Route = createFileRoute('/api/compaction-wire')({
           return Response.json({
             ok: false,
             error: error instanceof Error ? error.message : String(error),
+            requestCount: requestBodies.length,
           })
         }
 

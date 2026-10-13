@@ -89,15 +89,17 @@ function buildUsage(
   totalCostUsd: number | undefined,
 ): TokenUsage<ClaudeCodeProviderUsageDetails> | undefined {
   if (!usage) return undefined
-  const promptTokens = usage.input_tokens ?? 0
+  const cacheWrite = usage.cache_creation_input_tokens ?? 0
+  const cacheRead = usage.cache_read_input_tokens ?? 0
+  // `input_tokens` counts only the uncached input. Add the cache reads and
+  // writes so promptTokens is the total input, the same as other providers.
+  const promptTokens = (usage.input_tokens ?? 0) + cacheRead + cacheWrite
   const completionTokens = usage.output_tokens ?? 0
   const result = buildBaseUsage<ClaudeCodeProviderUsageDetails>({
     promptTokens,
     completionTokens,
     totalTokens: promptTokens + completionTokens,
   })
-  const cacheWrite = usage.cache_creation_input_tokens
-  const cacheRead = usage.cache_read_input_tokens
   const promptTokensDetails = {
     ...(cacheWrite ? { cacheWriteTokens: cacheWrite } : {}),
     ...(cacheRead ? { cachedTokens: cacheRead } : {}),

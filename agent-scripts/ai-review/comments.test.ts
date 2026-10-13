@@ -32,9 +32,10 @@ function createFakeGitHub(initial: Array<StoredComment> = []) {
       throw new Error('not used')
     },
     async rest(method, path, body) {
-      const listMatch = /^\/repos\/[^/]+\/[^/]+\/issues\/(\d+)\/comments$/.exec(
-        path,
-      )
+      const listMatch =
+        /^\/repos\/[^/]+\/[^/]+\/issues\/(\d+)\/comments(?:\?per_page=100)?$/.exec(
+          path,
+        )
       const patchMatch =
         /^\/repos\/[^/]+\/[^/]+\/issues\/comments\/(\d+)$/.exec(path)
 

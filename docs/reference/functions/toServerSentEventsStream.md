@@ -10,7 +10,7 @@ function toServerSentEventsStream(
 getId?): ReadableStream<Uint8Array<ArrayBufferLike>>;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:296](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L296)
+Defined in: [packages/ai/src/stream-to-response.ts:421](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L421)
 
 Convert a StreamChunk async iterable to a ReadableStream in Server-Sent Events format
 

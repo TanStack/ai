@@ -79,6 +79,7 @@ export {
   type WebStoragePersistenceOptions,
   type IndexedDBPersistenceOptions,
   fetchHttpStream,
+  fetchJson,
   xhrServerSentEvents,
   xhrHttpStream,
   stream,
@@ -92,6 +93,7 @@ export {
   type SubscribeConnectionAdapter,
   type RunAgentInputContext,
   type FetchConnectionOptions,
+  type FetchJsonOptions,
   type XhrConnectionOptions,
   type InferChatMessages,
 } from '@tanstack/ai-client'

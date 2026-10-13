@@ -59,6 +59,51 @@ const stream = chat({
 });
 ```
 
+## Bearer and OAuth tokens
+
+Got a Bearer token instead of an API key? Pass it as the credential and set `auth: "bearer"`. The adapter sends `Authorization: Bearer <token>` and no `x-api-key` header:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { createAnthropicChat } from "@tanstack/ai-anthropic";
+
+const adapter = createAnthropicChat("claude-sonnet-5-5", process.env.MY_CLAUDE_TOKEN!, {
+  auth: "bearer",
+});
+
+const stream = chat({
+  adapter,
+  messages: [{ role: "user", content: "Hello!" }],
+});
+```
+
+`auth` takes one of three values:
+
+- `"api-key"`: sends the `x-api-key` header. This is the default.
+- `"bearer"`: sends `Authorization: Bearer <token>` and no `x-api-key` header.
+- `"oauth"`: sends the token like `"bearer"`, plus the Claude Code extras below.
+
+Got a Claude OAuth token? It contains `sk-ant-oat`, and the adapter picks `"oauth"` for you, so you can leave `auth` out. In OAuth mode, every request also gets:
+
+- the Claude Code identity system block, before your own system prompts.
+- the Claude Code CLI headers (`user-agent` and `x-app`).
+- the `claude-code-20250219` and `oauth-2025-04-20` betas.
+
+An explicit `auth` always wins. To send an `sk-ant-oat` token as a plain Bearer token, without the extras, set `auth: "bearer"`.
+
+Is the token in your environment? Then `anthropicText` finds it and picks `auth` for you. See [Environment Variables](#environment-variables) for the order:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { anthropicText } from "@tanstack/ai-anthropic";
+
+// ANTHROPIC_AUTH_TOKEN=my-token in your environment
+const stream = chat({
+  adapter: anthropicText("claude-sonnet-5-5"),
+  messages: [{ role: "user", content: "Hello!" }],
+});
+```
+
 ## Configuration
 
 ```typescript
@@ -70,6 +115,28 @@ const config: Omit<AnthropicTextConfig, "apiKey"> = {
 
 const adapter = createAnthropicChat("claude-sonnet-4-6", process.env.ANTHROPIC_API_KEY!, config);
 ```
+
+Need a header on each request, or a log of each model call? This adapter supports [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call). An adapter with your own client (Claude on Vertex, or `createAnthropicChatWithClient`) ignores it, because the adapter cannot reach the fetch of that client.
+
+## Replay thinking through a gateway
+
+Your gateway speaks the Anthropic protocol, but it returns thinking with no signature. By default the adapter does not send unsigned thinking back, so the next turn loses it. Turn on `allowEmptySignature`:
+
+```typescript
+import { anthropicText } from "@tanstack/ai-anthropic";
+
+const gateway = anthropicText("claude-sonnet-5-5", {
+  baseURL: "https://gateway.example.com",
+  provider: "my-gateway",
+  allowEmptySignature: true,
+});
+
+console.log(gateway.provider); // "my-gateway"
+```
+
+- `allowEmptySignature` is `false` by default. It sends unsigned thinking back only for history from the same source.
+- Redacted thinking still needs its encrypted data.
+- `provider` names the gateway. History from the gateway then counts as a different source from Anthropic itself. See [Keep saved history when you switch](../advanced/runtime-adapter-switching#keep-saved-history-when-you-switch).
 
 ## Claude on Vertex
 
@@ -233,81 +300,68 @@ A streamed response that stops at `max_tokens` ends in a `RUN_ERROR` with `code:
 
 One exception: structured output (`chat({ outputSchema })`) on models that use the non-streaming finalization path clamps this default to ~21K tokens. The Anthropic SDK rejects a non-streaming request whose `max_tokens` could exceed its 10-minute timeout, so the full ceiling can't be used there. Streaming chat is unaffected. To raise the structured-output ceiling toward a model's true max, stream the response.
 
-### Thinking (Extended Thinking)
+### Reasoning
 
-Enable extended thinking with a token budget. This allows Claude to show its reasoning process, which is streamed as `thinking` chunks:
-
-```typescript ignore
-modelOptions: {
-  thinking: {
-    type: "enabled",
-    budget_tokens: 2048, // Maximum tokens for thinking
-  },
-}
-```
-
-**Note:** `budget_tokens` must be less than `modelOptions.max_tokens` — set `max_tokens` high enough to leave room for the visible response alongside the thinking budget, or the request is rejected.
-
-### Adaptive Thinking (Claude 4.6+, Sonnet 5, Fable 5)
-
-Newer Claude models use adaptive thinking — the model decides when and how
-much to think, and depth is tuned with `output_config.effort` instead of a
-token budget:
+Want Claude to think harder, or not at all? Set `reasoning` on `chat()`. The adapter turns the level into the right thinking fields for the model.
 
 ```typescript
 import { chat } from "@tanstack/ai";
 import { anthropicText } from "@tanstack/ai-anthropic";
 
 const stream = chat({
-  adapter: anthropicText("claude-sonnet-5"),
+  adapter: anthropicText("claude-opus-5-5"),
   messages: [{ role: "user", content: "Plan a database migration." }],
-  modelOptions: {
-    thinking: { type: "adaptive", display: "summarized" },
-    output_config: { effort: "xhigh" },
-    max_tokens: 64_000,
-  },
+  reasoning: "xhigh",
 });
 ```
 
-Per-model rules (enforced by the adapter's types):
+What goes on the wire:
 
-- **`claude-sonnet-5`, `claude-opus-4-8`, `claude-opus-4-7`** — adaptive
-  thinking with an explicit `{ type: "disabled" }` opt-out. The manual
-  `{ type: "enabled", budget_tokens }` shape is rejected with a 400, and
-  the sampling parameters (`temperature`, `top_p`, `top_k`) are not
-  accepted (on Sonnet 5 the API rejects non-default values; on Opus
-  4.7/4.8 the parameters are removed entirely).
-- **`claude-fable-5`** — thinking is always on. The only accepted explicit
-  config is `{ type: "adaptive" }` (both `disabled` and `budget_tokens`
-  return a 400), and sampling parameters are rejected.
-- **`claude-sonnet-5-5`** — the types accept only `{ type: "adaptive" }`.
-  Both `disabled` and `budget_tokens` return a 400, and so do non-default
-  sampling values. To turn off up-front thinking, the API takes
-  `{ type: "between_tools" }`, which the adapter does not type yet.
-- **`claude-opus-4-6` / `claude-sonnet-4-6`** — accept
-  `{ type: "adaptive" }` alongside the deprecated
-  `{ type: "enabled", budget_tokens }` shape, and still accept sampling
-  parameters.
-- **`display`** defaults to `"omitted"` on Opus 4.7+ and the 5-generation
-  models — set `"summarized"` to stream the reasoning text.
-- **`effort`** accepts `"low" | "medium" | "high" | "xhigh" | "max"`;
-  `"xhigh"` is available on Claude Opus 4.7+, Claude Sonnet 5, Claude
-  Sonnet 5.5, and Claude Fable 5.
-- **`output_config`** is accepted on Claude Opus 4.7, Opus 4.8, Sonnet 5,
-  Fable 5, Opus 5, Fable 5.1, Opus 5.5, and Sonnet 5.5. When you also pass
-  an `outputSchema`, the adapter adds `output_config.format` and keeps the
-  `effort` you set.
+- `off` sends `thinking: { type: "disabled" }` on the models with `off` in the table below. On a model without `off`, such as `claude-fable-5`, the types reject it, and at run time it moves to the lowest level that the model has.
+- Claude 4.6 and later get adaptive thinking and `output_config.effort`. With an `outputSchema`, the adapter adds `output_config.format` next to the effort.
+- Budget models get `thinking: { type: "enabled", budget_tokens }`. The level picks the budget, or you set it with `budgetTokens`. The adapter raises `max_tokens` when it is below the budget.
+- `summary: false` sends `display: "omitted"`, so the thinking text does not stream.
 
-### Prompt Caching
+The levels of each model:
 
-Cache prompts for better performance and reduced costs:
+| Model | Levels | `budgetTokens` |
+| --- | --- | --- |
+| `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-fable-5-1`, `claude-fable-5`, `claude-opus-5`, `claude-opus-4-8`, `claude-opus-4-7` | `low` to `max` | no |
+| `claude-haiku-5-5`, `claude-sonnet-5` | `off`, `low` to `max` | no |
+| `claude-opus-5-fast` | `off`, `low` to `max` | yes |
+| `claude-opus-4-6`, `claude-sonnet-4-6` | `low`, `medium`, `high`, `max` | yes |
+| `claude-opus-4-5` | `low`, `medium`, `high` | yes |
+| `claude-haiku-4-5`, `claude-sonnet-4-5`, `claude-opus-4-1` | `off` to `high` | yes |
+
+A budget model with `budgetTokens`:
 
 ```typescript
 import { chat } from "@tanstack/ai";
 import { anthropicText } from "@tanstack/ai-anthropic";
 
 const stream = chat({
-  adapter: anthropicText("claude-sonnet-4-6"),
+  adapter: anthropicText("claude-haiku-4-5"),
+  messages: [{ role: "user", content: "Check this proof." }],
+  reasoning: { level: "high", budgetTokens: 8000 },
+});
+```
+
+Claude Sonnet 5, Claude Opus 4.7 and later, and the 5-generation models reject the sampling options (`temperature`, `top_p`, `top_k`). The types take them only on the models that accept them. See [Reasoning](../chat/reasoning) for the levels and the nearest-level rule.
+
+Structured output forces a tool, and Claude cannot think while a tool is forced. So the structured output call sends no thinking.
+
+### Prompt Caching
+
+`chat()` caches Claude prompts by default. It adds `cache_control` markers to the last start tool, the last block of the last user or mid-conversation system message, and the system blocks. At most 4 markers. The last start tool is the tool before the deferred placeholder, or the last tool. Pass `promptCache: 'long'` for the 1-hour cache, or `promptCache: 'none'` to send no markers. For the key and the cost, see [Prompt Caching](../advanced/prompt-caching).
+
+Want the markers in other places? Set `cache_control` in the `metadata` of a message part, a system prompt, or a tool. One marker of your own turns the automatic markers off for that request:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { anthropicText } from "@tanstack/ai-anthropic";
+
+const stream = chat({
+  adapter: anthropicText("claude-opus-5-5"),
   messages: [
     {
       role: "user",
@@ -326,6 +380,41 @@ const stream = chat({
   ],
 });
 ```
+
+`modelOptions.cache_control` also turns the automatic markers off.
+
+`usage.promptTokens` counts the full input, cached tokens included. The cache reads and writes are also on `usage.promptTokensDetails`. See [Token usage](../chat/stream-events#token-usage).
+
+#### Tools and prompts added during a conversation
+
+On `claude-opus-4-8`, `claude-opus-5`, `claude-opus-5-5`, `claude-fable-5`, and `claude-fable-5-1`, a tool or a system prompt that you add between model calls goes into the conversation. The cached start of the request stays the same.
+
+What the adapter sends on these models:
+
+- `system` keeps the system prompts of the first call.
+- A request with tools gets the `mid-conversation-tool-changes-2026-07-01` beta and one placeholder tool, `__tanstack_deferred_placeholder__`. The model never calls it.
+- An added tool goes at the end of `tools` with `defer_loading: true`. A `system` message names it in a `tool_addition` block.
+- An added system prompt goes into a `system` message, before the next assistant message or at the end.
+- With a provider tool such as `webSearchTool()`, `tools` is the full list and has no placeholder.
+
+The automatic tool marker stays on the last tool of the first call, so the marked start does not move.
+
+The channels are on by default with Anthropic's own API. A custom `baseURL`, a custom `fetch`, `ANTHROPIC_BASE_URL`, or your own client turns them off. Set `midConversationChannels` to choose:
+
+```typescript
+import { anthropicText } from "@tanstack/ai-anthropic";
+
+export const fullLists = anthropicText("claude-opus-5-5", {
+  midConversationChannels: false,
+});
+
+export const throughProxy = anthropicText("claude-opus-5-5", {
+  baseURL: "https://llm-proxy.example.com",
+  midConversationChannels: true,
+});
+```
+
+If that endpoint sends the request and the `anthropic-beta` header on to Anthropic as they are, set `true`. See [Mid-Conversation Changes](../advanced/mid-conversation-changes).
 
 ## Summarization
 
@@ -347,24 +436,38 @@ console.log(result.summary);
 
 ## Environment Variables
 
-Set your API key in environment variables:
+Set one of these. `anthropicText`, `anthropicSummarize`, and `anthropicFiles` use the first one that is set:
+
+1. `ANTHROPIC_AUTH_TOKEN`: sent as a Bearer token. An `sk-ant-oat` token here turns on OAuth mode.
+2. `ANTHROPIC_OAUTH_TOKEN`: sent as a Bearer token, in OAuth mode.
+3. `ANTHROPIC_API_KEY`: sent as `x-api-key`.
 
 ```bash
 ANTHROPIC_API_KEY=sk-ant-...
 ```
 
+If none of them is set, these factories throw. An `auth` in the config wins over the kind that the adapter picks. See [Bearer and OAuth tokens](#bearer-and-oauth-tokens) for what OAuth mode adds.
+
+The `create*` factories (`createAnthropicChat`, `createAnthropicSummarize`, `createAnthropicFiles`) never read a credential from the environment. They use only the credential that you pass.
+
 ## API Reference
 
-Every factory pair follows the same shape: the short factory (`anthropicText`, `anthropicSummarize`) reads `ANTHROPIC_API_KEY` from the environment, while `createAnthropicChat` / `createAnthropicSummarize` take an explicit API key. Both take `model` as the first argument. For Claude on Vertex, use `anthropicVertexText` from `@tanstack/ai-anthropic/vertex`. For any other custom transport, `createAnthropicChatWithClient` accepts an Anthropic-compatible Messages client.
+Every factory pair has the same shape. The short factory (`anthropicText`, `anthropicSummarize`) reads the credential from the [environment](#environment-variables). `createAnthropicChat` / `createAnthropicSummarize` take an explicit credential and never read one from the environment. Both take `model` as the first argument. For Claude on Vertex, use `anthropicVertexText` from `@tanstack/ai-anthropic/vertex`. For any other custom transport, `createAnthropicChatWithClient` accepts an Anthropic-compatible Messages client.
 
 ### `anthropicText(model, config?)` / `createAnthropicChat(model, apiKey, config?)`
 
 Creates an Anthropic chat adapter.
 
+`adapter.inputModalities` lists the input kinds of the selected model. It is `undefined` for a model that this package does not know. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
+
 **Parameters:**
 
 - `model` - Claude model id (e.g. `"claude-sonnet-5"`, `"claude-fable-5"`, `"claude-opus-4-8"`)
+- `apiKey` - API key, Bearer token, or Claude OAuth token (`createAnthropicChat` only)
 - `config?.baseURL` - Custom base URL (optional)
+- `config?.auth` - How to send the credential: `"api-key"`, `"bearer"`, or `"oauth"` (optional, see [Bearer and OAuth tokens](#bearer-and-oauth-tokens))
+- `config?.allowEmptySignature` - Send unsigned thinking back to the same source (optional, default `false`, see [Replay thinking through a gateway](#replay-thinking-through-a-gateway))
+- `config?.provider` - The source name for a gateway (optional, default `"anthropic"`)
 
 ### `anthropicVertexText(model, config?)`
 
@@ -536,7 +639,7 @@ const stream = chat({
 });
 ```
 
-**Supported models:** Claude Sonnet 3.5 and above, with two exceptions. `claude-opus-5-fast` takes no provider tools. Claude Opus 5.5 and Claude Sonnet 5.5 accept only the `computer_toolset_20260801` toolset, which the adapter does not offer yet. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+**Supported models:** Claude Sonnet 3.5 and above, with two exceptions. `claude-opus-5-fast` takes no provider tools. Claude Opus 5.5, Claude Sonnet 5.5, and Claude Haiku 5.5 accept only the `computer_toolset_20260801` toolset, which the adapter does not offer yet. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
 
 ### `bashTool`
 

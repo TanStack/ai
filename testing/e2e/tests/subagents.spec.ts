@@ -1,5 +1,6 @@
 import { test, expect } from './fixtures'
 import type { Page } from '@playwright/test'
+import type { SubagentScenario } from '../src/lib/subagents-test'
 
 /** Click Run once the page hydrated. A click before hydration does nothing. */
 async function run(page: Page) {
@@ -14,7 +15,7 @@ async function run(page: Page) {
 
 function open(
   page: Page,
-  scenario: 'route' | 'approval' | 'tool' | 'brief',
+  scenario: SubagentScenario,
   testId: string,
   aimockPort: number,
 ) {
@@ -95,6 +96,7 @@ test.describe('subagents', () => {
 
   test('without a router the model starts the child and reads its result', async ({
     page,
+    request,
     testId,
     aimockPort,
   }) => {
@@ -109,6 +111,28 @@ test.describe('subagents', () => {
     )
     await expect(page.getByTestId('card-researcher')).toContainText(
       'text:Squids have three hearts.',
+    )
+
+    const journal = await request.get(
+      `http://127.0.0.1:${aimockPort}/v1/_requests`,
+    )
+    const entries = (await journal.json()) as Array<{
+      headers?: Record<string, string>
+      body?: {
+        messages?: Array<{ role?: string; content?: string | null }>
+      } | null
+    }>
+    const parentRequest = entries.find(
+      (entry) =>
+        entry.headers?.['x-test-id'] === testId &&
+        entry.body?.messages?.some((message) => message.role === 'tool'),
+    )
+    const toolMessage = parentRequest?.body?.messages?.find(
+      (message) => message.role === 'tool',
+    )
+
+    expect(toolMessage?.content).toBe(
+      JSON.stringify({ result: 'Squids have three hearts.' }),
     )
   })
 
@@ -128,6 +152,23 @@ test.describe('subagents', () => {
     )
     // The child's fixture matches only the brief. A child that got the
     // transcript instead would get no reply.
+    await expect(page.getByTestId('card-researcher')).toContainText(
+      'text:Squids have three hearts and blue blood.',
+    )
+  })
+
+  test('the router gives the child its input', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await open(page, 'routed-brief', testId, aimockPort)
+    await run(page)
+
+    await expect(page.getByTestId('card-status-researcher')).toHaveText(
+      'finished',
+    )
+    // The child's fixture matches only the task from the router pick.
     await expect(page.getByTestId('card-researcher')).toContainText(
       'text:Squids have three hearts and blue blood.',
     )

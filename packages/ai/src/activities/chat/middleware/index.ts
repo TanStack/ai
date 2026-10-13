@@ -8,6 +8,7 @@ export type {
   StructuredOutputMiddlewareConfig,
   ToolCallHookContext,
   BeforeToolCallDecision,
+  AfterToolCallDecision,
   AfterToolCallInfo,
   IterationInfo,
   ToolPhaseCompleteInfo,
@@ -69,6 +70,13 @@ export type { LockStore } from './locks'
 
 export { MetadataCapability, getMetadata, provideMetadata } from './metadata'
 export type { MetadataStore } from './metadata'
+
+export {
+  LogRecordsCapability,
+  getLogRecords,
+  provideLogRecords,
+} from './log-records'
+export type { LogRecord, LogRecordsWriter } from './log-records'
 
 export {
   isRunStatus,

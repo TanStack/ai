@@ -1,0 +1,8 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "[anthropic-auth] say hello" },
+      "response": { "content": "Hello from aimock" }
+    }
+  ]
+}

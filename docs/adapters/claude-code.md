@@ -66,6 +66,8 @@ const stream = chat({
 });
 ```
 
+`RUN_FINISHED.usage.promptTokens` counts the full input, cached tokens included. See [Token usage](../chat/stream-events#token-usage).
+
 ## Configuration
 
 | Option                       | Description                                                                                                                                       |
@@ -86,6 +88,25 @@ const stream = chat({
 | `settingSources`             | Claude Code settings tiers to load. Default `['project']`: the workspace's `CLAUDE.md`, `.claude/skills`, and `.mcp.json` apply, and the host's `~/.claude` (plugins, hooks, skills) is not loaded. Pass `['user', 'project', 'local']` for CLI-equivalent behavior, or `[]` to load no settings. |
 
 **Permissions on headless servers.** Without an explicit `permissionMode` or `canUseTool`, the adapter installs a safe default handler: bridged TanStack tools always run, and any built-in tool call that would normally prompt a human is denied with guidance instead of hanging the request. To let the harness edit files or run commands, set `permissionMode: 'acceptEdits'` / `'bypassPermissions'`, or enumerate `allowedTools`.
+
+## Reasoning
+
+Set `reasoning` on `chat()`. The adapter turns it into a Claude Code setting:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { claudeCodeText } from "@tanstack/ai-claude-code";
+
+const stream = chat({
+  adapter: claudeCodeText("claude-opus-4-8"),
+  messages: [{ role: "user", content: "Refactor the auth module" }],
+  reasoning: "xhigh",
+});
+```
+
+- `claude-opus-4-8`, `claude-opus-4-7`, `opus`: `--effort`, `low` to `max`.
+- `claude-opus-4-6`, `claude-sonnet-4-6`, `sonnet`: `--effort`, `low`, `medium`, `high`, `max`.
+- `claude-haiku-4-5`, `haiku`: `MAX_THINKING_TOKENS`, `off` to `high`. The level picks the budget, or you set it with `budgetTokens`. `off` sends `0`.
 
 ## Stateful Sessions
 
@@ -167,7 +188,7 @@ Two kinds of tools flow through this adapter:
 
 2. **Your TanStack tools** are bridged *into* the harness as an in-process MCP server. Define them as usual with `toolDefinition().server()`; the model sees them as `mcp__tanstack__<name>` and the adapter strips the prefix on the way back out, so events match the names you registered.
 
-```typescript
+```typescript group=tools
 import { z } from "zod";
 import { chat, toolDefinition } from "@tanstack/ai";
 import { claudeCodeText } from "@tanstack/ai-claude-code";
@@ -188,6 +209,30 @@ const stream = chat({
 ```
 
 **Client-side and approval-gated tools are not supported.** The harness executes tools inside a live subprocess, which cannot pause across HTTP requests to wait for a browser round-trip or a human approval. Passing a tool without a server `execute()` implementation — or one marked `needsApproval` — fails fast with a descriptive error. Run those tools outside the harness with a regular provider adapter.
+
+## Tool choice
+
+You want Claude Code to answer in text only, or to use just one of your tools. Pass `toolChoice` to `chat()`:
+
+```typescript group=tools
+const onlyLookup = chat({
+  adapter: claudeCodeText("claude-opus-4-8"),
+  messages: [{ role: "user", content: "What's the status of ticket T-123?" }],
+  tools: [lookupTicket],
+  toolChoice: { type: "tool", name: "lookup_ticket" },
+});
+```
+
+| Value | What the adapter does |
+| --- | --- |
+| `'auto'` | No change. Claude Code can call every tool. |
+| `'none'` | Turns off the built-in tools and bridges none of your tools. Claude Code answers in text. |
+| `{ type: 'tool', name }` | Turns off the built-in tools and bridges only the named tool. Claude Code can call only this tool, but it does not have to. |
+| `'required'` | No change. Claude Code cannot force a tool call, so the adapter logs a warning the first time. |
+
+For `'none'` and a named tool, the adapter passes `--tools ""` and `--strict-mcp-config`. Then other MCP servers, for example from the workspace or a settings file, do not load.
+
+For the values on other adapters, see [Choose when the model calls a tool](../tools/tools#choose-when-the-model-calls-a-tool).
 
 ## Structured Output
 
@@ -258,3 +303,5 @@ Full walkthrough, including the client: [Harness Agents](../structured-outputs/h
 - **No sampling controls.** `temperature`-style options don't exist here.
 - **Sessions are machine-local.** Resume requires hitting the same server instance.
 - **Cold starts.** Each call spawns a harness turn; expect higher first-token latency than HTTP adapters.
+
+This adapter ignores [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call), because the harness process sends the model requests.

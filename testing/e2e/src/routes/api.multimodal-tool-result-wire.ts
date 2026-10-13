@@ -12,8 +12,8 @@ const PNG_1x1 =
  * Wire-format verification for multimodal tool-result messages (#363).
  *
  * A tool message's `content` can now be `Array<ContentPart>`, and the
- * OpenAI / Anthropic / Gemini adapters convert it to structured provider tool
- * output instead of `JSON.stringify`. This route drives a single `chat()` call
+ * OpenAI / Anthropic / Gemini / Mistral adapters convert it to structured
+ * provider tool output instead of `JSON.stringify`. This route drives a single `chat()` call
  * whose `messages` already contain a multimodal tool result so the companion
  * spec can inspect aimock's journal (`GET /v1/_requests`) and assert the
  * adapter emitted STRUCTURED tool output (image block present) per provider.

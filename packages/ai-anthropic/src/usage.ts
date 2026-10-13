@@ -21,9 +21,16 @@ export type AnthropicProviderUsageDetails = {
 
 /**
  * Build normalized TokenUsage from Anthropic's usage object.
- * Handles cache tokens and server tool use metrics. Returns `undefined` when
- * the provider reported no usage object, so callers omit the field rather than
- * fabricating zeroed totals.
+ *
+ * `promptTokens` is the total input: uncached + cache read + cache write.
+ * Anthropic's `input_tokens` counts only the uncached part, so this function
+ * adds the cache parts. The cache parts are also in `promptTokensDetails`:
+ * `cachedTokens` (read) and `cacheWriteTokens` (write). `totalTokens` is
+ * `promptTokens + completionTokens`.
+ *
+ * Also handles server tool use metrics. Returns `undefined` when the provider
+ * reported no usage object, so callers omit the field rather than fabricating
+ * zeroed totals.
  */
 export function buildAnthropicUsage(
   usage:
@@ -40,21 +47,23 @@ export function buildAnthropicUsage(
   // against a runtime-absent count without tripping no-unnecessary-condition
   // (the SDK types output_tokens as a required number).
   const outputTokens = usage.output_tokens || 0
+  const cacheCreation =
+    usage.cache_creation_input_tokens ?? start?.cache_creation_input_tokens
+  const cacheRead =
+    usage.cache_read_input_tokens ?? start?.cache_read_input_tokens
+  // `input_tokens` is only the uncached part. Add the cache parts so
+  // promptTokens is the total input, the same as the other adapters.
+  const promptTokens = inputTokens + (cacheRead ?? 0) + (cacheCreation ?? 0)
 
   const result = buildBaseUsage<AnthropicProviderUsageDetails>({
-    promptTokens: inputTokens,
+    promptTokens,
     completionTokens: outputTokens,
-    totalTokens: inputTokens + outputTokens,
+    totalTokens: promptTokens + outputTokens,
   })
 
   // Add prompt token details for cache tokens. Only attach the details object
   // when at least one field is present so we don't emit an empty `{}` (every
   // other adapter guards with the same Object.keys check).
-  const cacheCreation =
-    usage.cache_creation_input_tokens ?? start?.cache_creation_input_tokens
-  const cacheRead =
-    usage.cache_read_input_tokens ?? start?.cache_read_input_tokens
-
   const promptTokensDetails = {
     ...(cacheCreation ? { cacheWriteTokens: cacheCreation } : {}),
     ...(cacheRead ? { cachedTokens: cacheRead } : {}),

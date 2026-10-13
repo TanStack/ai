@@ -116,7 +116,7 @@ export const Route = createFileRoute('/api/openai-completed-response-text')({
           return Response.json({ events, text, errorCode, completed })
         }
 
-        const text = await chat({
+        const { text } = await chat({
           adapter,
           messages: [
             {

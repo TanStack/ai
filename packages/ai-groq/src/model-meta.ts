@@ -1,5 +1,18 @@
+import type { Modality, ModelReasoning } from '@tanstack/ai'
+import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
 import type { GroqTextProviderOptions } from './text/text-provider-options'
 import type { GroqTTSProviderOptions } from './audio/tts-provider-options'
+
+// Reasoning shapes: the levels a model has for `chat({ reasoning })`, and
+// the provider value to send for each. Each model points at one of them.
+const EFFORT_LOW_TO_HIGH = {
+  levels: { low: 'low', medium: 'medium', high: 'high' },
+  budget: false,
+} as const
+const EFFORT_NONE_DEFAULT = {
+  levels: { off: 'none', high: 'default' },
+  budget: false,
+} as const
 
 /**
  * Internal metadata structure describing a Groq model's capabilities and pricing.
@@ -34,6 +47,8 @@ interface ModelMeta<TProviderOptions = unknown> {
    * Type-level description of which provider options this model supports.
    */
   providerOptions?: TProviderOptions
+  /** The model's data for `chat({ reasoning })`. None: it does not reason. */
+  reasoning?: ModelReasoning
 }
 
 const LLAMA_3_3_70B_VERSATILE = {
@@ -211,6 +226,7 @@ const GPT_OSS_120B = {
     ],
     tools: [] as const,
   },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<GroqTextProviderOptions>
 
 const GPT_OSS_SAFEGUARD_20B = {
@@ -242,6 +258,7 @@ const GPT_OSS_SAFEGUARD_20B = {
     ],
     tools: [] as const,
   },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<GroqTextProviderOptions>
 
 const GPT_OSS_20B = {
@@ -272,6 +289,7 @@ const GPT_OSS_20B = {
     ],
     tools: [] as const,
   },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta<GroqTextProviderOptions>
 
 const KIMI_K2_INSTRUCT_0905 = {
@@ -315,6 +333,7 @@ const QWEN3_32B = {
     features: ['streaming', 'json_object', 'tools', 'reasoning'],
     tools: [] as const,
   },
+  reasoning: EFFORT_NONE_DEFAULT,
 } as const satisfies ModelMeta<GroqTextProviderOptions>
 
 /**
@@ -357,6 +376,30 @@ export type GroqModelInputModalitiesByName = {
   [KIMI_K2_INSTRUCT_0905.name]: typeof KIMI_K2_INSTRUCT_0905.supports.input
   [QWEN3_32B.name]: typeof QWEN3_32B.supports.input
 }
+
+/**
+ * Runtime map from chat model name to its supported input modalities, for the
+ * text adapter's `inputModalities`. `satisfies` keeps it equal to
+ * {@link GroqModelInputModalitiesByName}. An unknown name gives `undefined`.
+ */
+export const GROQ_MODEL_INPUT_MODALITIES: Readonly<
+  Record<string, ReadonlyArray<Modality>>
+> = {
+  [LLAMA_3_1_8B_INSTANT.name]: LLAMA_3_1_8B_INSTANT.supports.input,
+  [LLAMA_3_3_70B_VERSATILE.name]: LLAMA_3_3_70B_VERSATILE.supports.input,
+  [LLAMA_4_MAVERICK_17B_128E_INSTRUCT.name]:
+    LLAMA_4_MAVERICK_17B_128E_INSTRUCT.supports.input,
+  [LLAMA_4_SCOUT_17B_16E_INSTRUCT.name]:
+    LLAMA_4_SCOUT_17B_16E_INSTRUCT.supports.input,
+  [LLAMA_GUARD_4_12B.name]: LLAMA_GUARD_4_12B.supports.input,
+  [LLAMA_PROMPT_GUARD_2_86M.name]: LLAMA_PROMPT_GUARD_2_86M.supports.input,
+  [LLAMA_PROMPT_GUARD_2_22M.name]: LLAMA_PROMPT_GUARD_2_22M.supports.input,
+  [GPT_OSS_20B.name]: GPT_OSS_20B.supports.input,
+  [GPT_OSS_120B.name]: GPT_OSS_120B.supports.input,
+  [GPT_OSS_SAFEGUARD_20B.name]: GPT_OSS_SAFEGUARD_20B.supports.input,
+  [KIMI_K2_INSTRUCT_0905.name]: KIMI_K2_INSTRUCT_0905.supports.input,
+  [QWEN3_32B.name]: QWEN3_32B.supports.input,
+} satisfies GroqModelInputModalitiesByName
 
 /**
  * Type-only map from Groq chat model name to its provider options type.
@@ -472,3 +515,36 @@ export const GROQ_TTS_MODELS = [
  * Union type of all supported Groq TTS model names.
  */
 export type GroqTTSModel = (typeof GROQ_TTS_MODELS)[number]
+
+// Reasoning
+//
+// Each model's `reasoning` field holds its data for `chat({ reasoning })`: the
+// levels it has, with the provider value for each, and whether it takes a
+// thinking token budget. The data comes from models.dev. The generator that
+// writes it comes with the model catalog later. Until then, the sync scripts
+// keep these fields as they are.
+
+const GROQ_REASONING = {
+  [GPT_OSS_20B.name]: GPT_OSS_20B.reasoning,
+  [GPT_OSS_120B.name]: GPT_OSS_120B.reasoning,
+  [GPT_OSS_SAFEGUARD_20B.name]: GPT_OSS_SAFEGUARD_20B.reasoning,
+  [QWEN3_32B.name]: QWEN3_32B.reasoning,
+}
+
+/**
+ * Each chat model's reasoning levels, and whether it takes a token budget,
+ * for `chat({ reasoning })`. Derived from the `reasoning` field. A model
+ * that is not here does not reason.
+ */
+export type GroqModelReasoningByName = {
+  [K in keyof typeof GROQ_REASONING]: ModelReasoningCapability<
+    (typeof GROQ_REASONING)[K]
+  >
+}
+
+/**
+ * Runtime map from chat model name to its reasoning data, for the text adapter.
+ * An unknown name gives `undefined`: the adapter sends no reasoning field.
+ */
+export const GROQ_MODEL_REASONING: Readonly<Record<string, ModelReasoning>> =
+  GROQ_REASONING

@@ -82,6 +82,20 @@ function addToObjectMap(
   return content.replace(pattern, () => `${match[1]}\n${newEntries}${match[2]}`)
 }
 
+/**
+ * Append entries to the runtime map that ends with `} satisfies <typeName>`.
+ * A file without that map is left as it is.
+ */
+function addToSatisfyingMap(
+  content: string,
+  typeName: string,
+  entries: Array<string>,
+): string {
+  // ponytail: found by its `satisfies` tail, so the sync config needs no map name.
+  const pattern = new RegExp(`\\n\\} satisfies ${typeName}\\b`)
+  return content.replace(pattern, (close) => `\n${entries.join('\n')}${close}`)
+}
+
 interface ChatModelInsert {
   constName: string
   providerOptionsEntry: string
@@ -103,8 +117,9 @@ interface ChatModelCatalogInsertConfig {
 
 /**
  * Write a new chat model into the catalog tables the adapter types read:
- * the exported id array, provider-options map, input-modalities map,
- * tool-capabilities map, and (Anthropic) max-output-tokens object.
+ * the exported id array, provider-options map, input-modalities type map and
+ * its runtime map (when the file has one), tool-capabilities map, and
+ * (Anthropic) max-output-tokens object.
  */
 export function applyChatModelCatalogInserts(
   content: string,
@@ -137,6 +152,14 @@ export function applyChatModelCatalogInserts(
     chatModels.map(
       ({ constName }) =>
         `  [${constName}${config.arrayRef}]: typeof ${constName}.supports.input`,
+    ),
+  )
+  next = addToSatisfyingMap(
+    next,
+    config.inputModalitiesTypeName,
+    chatModels.map(
+      ({ constName }) =>
+        `  [${constName}${config.arrayRef}]: ${constName}.supports.input,`,
     ),
   )
 

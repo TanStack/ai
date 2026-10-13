@@ -361,4 +361,34 @@ test.describe('server persistence', () => {
       }),
     )
   })
+
+  test('restores the error of a stopped child', async ({ request }) => {
+    const threadId = `subagent-stopped-${crypto.randomUUID()}`
+    const runId = crypto.randomUUID()
+    const seed = await request.post(
+      '/api/persistence-durability?scenario=subagent-stopped',
+      { data: { threadId, runId } },
+    )
+    expect(seed.ok()).toBe(true)
+
+    const hydration = await request.get(
+      `/api/persistence-durability?scenario=subagent-stopped&threadId=${encodeURIComponent(threadId)}`,
+    )
+    expect(hydration.ok()).toBe(true)
+    const body = (await hydration.json()) as {
+      messages: Array<{ parts: Array<Record<string, unknown>> }>
+    }
+    const parts = body.messages.flatMap((message) => message.parts)
+
+    expect(parts).toContainEqual(
+      expect.objectContaining({
+        type: 'subagent',
+        subagent: expect.objectContaining({
+          name: 'researcher',
+          status: 'error',
+          error: { message: 'Stopped' },
+        }),
+      }),
+    )
+  })
 })

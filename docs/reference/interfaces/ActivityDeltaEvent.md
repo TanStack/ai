@@ -3,7 +3,7 @@ id: ActivityDeltaEvent
 title: ActivityDeltaEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1813](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1813)
+Defined in: [packages/ai/src/types.ts:1834](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1834)
 
 RFC 6902 JSON Patch against an existing activity's `content`.
 
@@ -22,4 +22,4 @@ RFC 6902 JSON Patch against an existing activity's `content`.
 type: "ACTIVITY_DELTA";
 ```
 
-Defined in: [packages/ai/src/types.ts:1817](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1817)
+Defined in: [packages/ai/src/types.ts:1838](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1838)

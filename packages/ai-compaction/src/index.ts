@@ -364,6 +364,11 @@ export function summarizeOldest(options: {
     const cut = splitAtRecent(messages, ctx.estimate, keep)
     if (cut <= 0) return null
     const summary = await options.summarize(messages.slice(0, cut))
+    // An empty summary would replace the history with nothing. Fail the
+    // compaction instead, so the history stays as it is.
+    if (summary.trim() === '') {
+      throw new Error('The summarizer returned an empty summary.')
+    }
     return [
       {
         role: options.summaryRole ?? 'assistant',

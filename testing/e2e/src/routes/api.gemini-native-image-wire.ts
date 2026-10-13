@@ -3,30 +3,18 @@ import { generateImage } from '@tanstack/ai'
 import { createImageAdapter } from '@/lib/media-providers'
 
 /**
- * Wire-format verification for Gemini-native `modelOptions` on the image
- * generation path (fix/gemini-native-image-model-options).
+ * Wire-format verification for Gemini-native image `modelOptions`.
  *
- * Before that fix, `GeminiImageAdapter`'s `generateWithGeminiApi` only ever
- * forwarded `modelOptions.seed` into the `generateContent` request —
- * `safetySettings`, `thinkingConfig`, `imageConfig`, and `systemInstruction`
- * were silently dropped even though the adapter's provider-options type
- * (`GeminiNativeImageProviderOptions`) already declared them. This route
- * drives `generateImage()` against `gemini-2.5-flash-image` with
- * `modelOptions: { safetySettings, thinkingConfig }` set, hitting
- * `geminiNativeImageMount` in global-setup.ts — a hand-mocked
- * `POST /v1beta/models/gemini-2.5-flash-image:generateContent` endpoint that
- * reads the raw, untranslated request body (aimock's own journal cannot see
- * these fields for this endpoint — see that mount's comment) and rejects
- * with 400 unless `safetySettings` is present at the request root and
- * `generationConfig.thinkingConfig` is present nested, and rejects unless no
- * Imagen-only field (`personGeneration`, `negativePrompt`, a root-level
- * `aspectRatio`, …) is present anywhere in the body.
+ * `geminiNativeImageMount` reads the Interactions request and 400s unless
+ * `safety_settings` is `[{ type: "dangerous_content", threshold:
+ * "block_only_high" }]`, `generation_config.thinking_level` is `"low"`, and
+ * no Imagen or generateContent field is present. A second call chains
+ * `previous_interaction_id` from the first result and must not resend an
+ * image. The mount answers `int_e2e_create` then `int_e2e_edit`.
  *
- * A regression that stops forwarding `modelOptions` on this path — reverting
- * to only `seed`, or reverting to a wholesale `...modelOptions` spread that
- * lets an Imagen field cross over — makes the mount reject the request, the
- * adapter's `client.models.generateContent()` call throws, and this route
- * returns `ok: false`. The companion spec asserts `ok: true`.
+ * A dropped `modelOptions` field, a `thinkingBudget` that is sent instead of
+ * `thinkingLevel`, or a chained turn that re-sends the image makes the mount
+ * reject the request and this route returns `ok: false`.
  */
 export const Route = createFileRoute('/api/gemini-native-image-wire')({
   server: {
@@ -35,7 +23,7 @@ export const Route = createFileRoute('/api/gemini-native-image-wire')({
         const adapter = createImageAdapter('gemini')
 
         try {
-          const result = await generateImage({
+          const first = await generateImage({
             adapter,
             prompt: 'a guitar in a music store',
             stream: false,
@@ -46,11 +34,23 @@ export const Route = createFileRoute('/api/gemini-native-image-wire')({
                   threshold: 'BLOCK_ONLY_HIGH',
                 },
               ],
-              thinkingConfig: { thinkingBudget: 128 },
+              thinkingConfig: { thinkingLevel: 'LOW' },
             },
           })
+          const edit = await generateImage({
+            adapter,
+            prompt: 'Make the guitar red',
+            stream: false,
+            modelOptions: { previous_interaction_id: first.id },
+          })
           return new Response(
-            JSON.stringify({ ok: true, images: result.images.length }),
+            JSON.stringify({
+              ok: true,
+              images: first.images.length,
+              editImages: edit.images.length,
+              firstId: first.id,
+              editId: edit.id,
+            }),
             {
               status: 200,
               headers: { 'Content-Type': 'application/json' },

@@ -80,12 +80,7 @@ export const Route = createFileRoute('/api/chat')({
             messages: params.messages,
             threadId: params.threadId,
             runId: params.runId,
-            modelOptions: {
-              thinking: {
-                type: 'enabled',
-                budget_tokens: 10000,
-              },
-            },
+            reasoning: { level: 'high', budgetTokens: 10000 },
             abortController,
           })
 

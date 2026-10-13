@@ -3,7 +3,7 @@ id: BaseAGUIEvent
 title: BaseAGUIEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1310](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1310)
+Defined in: [packages/ai/src/types.ts:1325](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1325)
 
 Base structure for AG-UI events.
 Extends @ag-ui/core BaseEvent. TanStack extras ride in `metadata`.
@@ -28,7 +28,7 @@ Extends @ag-ui/core BaseEvent. TanStack extras ride in `metadata`.
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1311](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1311)
+Defined in: [packages/ai/src/types.ts:1326](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1326)
 
 Extra information attached to this event.
 

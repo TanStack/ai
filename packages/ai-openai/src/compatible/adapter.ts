@@ -3,6 +3,7 @@ import {
   OpenAIBaseResponsesTextAdapter,
 } from '@tanstack/openai-base'
 import type OpenAI from 'openai'
+import type { ClientOptions } from 'openai'
 import type { Modality } from '@tanstack/ai'
 import type { OpenAIMessageMetadataByModality } from '../message-types'
 import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
@@ -31,7 +32,7 @@ export class OpenAICompatibleChatAdapter<
     client: OpenAI,
     model: TModel,
     name: string,
-    options?: OpenAIBaseTextAdapterOptions,
+    options?: OpenAIBaseTextAdapterOptions & Pick<ClientOptions, 'fetch'>,
   ) {
     super(model, name, client, options)
   }
@@ -51,7 +52,7 @@ export class OpenAICompatibleChatAdapter<
   protected override extractReasoning(
     chunk: OpenAI.Chat.Completions.ChatCompletionChunk,
   ): { text: string } | undefined {
-    const delta = chunk.choices[0]?.delta as
+    const delta = chunk.choices?.[0]?.delta as
       | { reasoning?: unknown; reasoning_content?: unknown }
       | undefined
     const raw = delta?.reasoning_content ?? delta?.reasoning
@@ -83,7 +84,7 @@ export class OpenAICompatibleResponsesAdapter<
     client: OpenAI,
     model: TModel,
     name: string,
-    options?: OpenAIBaseTextAdapterOptions,
+    options?: OpenAIBaseTextAdapterOptions & Pick<ClientOptions, 'fetch'>,
   ) {
     super(model, name, client, options)
   }

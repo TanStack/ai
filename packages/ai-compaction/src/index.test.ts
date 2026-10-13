@@ -439,6 +439,31 @@ describe('summarizeOldest', () => {
     expect(summarize).toHaveBeenCalledOnce()
     expect(second?.providerMessages?.at(-1)?.content).toBe('new')
   })
+
+  it('fails the compaction and keeps the history when the summary is empty', async () => {
+    const set = vi.fn<MetadataStore['set']>()
+    const store: MetadataStore = {
+      get: async () => null,
+      set,
+      delete: async () => undefined,
+    }
+    const mw = withCompaction({
+      maxTokens: 100,
+      strategy: summarizeOldest({
+        summarize: async () => '  \n',
+        keepRecentTokens: 50,
+      }),
+    })
+
+    await expect(
+      runOnConfig(
+        mw,
+        [big('user'), big('assistant'), big('user'), big('assistant')],
+        checkpointContext(store),
+      ),
+    ).rejects.toThrow('The summarizer returned an empty summary.')
+    expect(set).not.toHaveBeenCalled()
+  })
 })
 
 describe('clearToolResults', () => {

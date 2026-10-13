@@ -19,7 +19,8 @@
     "**/dist/**",
     "**/snap/**",
     "**/vite.config.*.timestamp-*.*",
-    "**/src/generated/**"
+    "**/src/generated/**",
+    "**/*.tsrx.d.ts"
   ],
   "rules": {
     "unused-imports/no-unused-imports": "warn"

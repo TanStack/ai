@@ -24,6 +24,8 @@ The main breaking changes in this release are:
 3. **`providerOptions` renamed** - Now called `modelOptions` for clarity
 4. **`toResponseStream` renamed** - Now called `toServerSentEventsStream` for clarity
 5. **Embeddings removed, then reintroduced** - The old `embedding()` API was removed; embeddings are back as the new `embed()` activity with multimodal support
+6. **Provider tools moved to `/tools`** - Import provider tools from each adapter's `/tools` subpath
+7. **`stream: false` returns `{ text, chunks }`** - `chat({ stream: false })` and `streamToText()` resolve to an object, not a string
 
 ## 1. Adapter Functions Split
 
@@ -417,6 +419,52 @@ const tools = [
 
 For the full list of available provider tools and which models support each
 one, see [Provider Tools](../tools/provider-tools.md).
+
+## 7. `stream: false` Returns `{ text, chunks }`
+
+`chat({ stream: false })` and `streamToText(stream)` now resolve to a `ChatResult` object, not a string. Take `text` from the result.
+
+### Before
+
+```typescript ignore
+import { chat, streamToText } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
+const text = await chat({
+  adapter: openaiText('gpt-5.6'),
+  messages: [{ role: 'user', content: 'Hello!' }],
+  stream: false,
+})
+
+const stream = chat({
+  adapter: openaiText('gpt-5.6'),
+  messages: [{ role: 'user', content: 'Hello!' }],
+})
+const streamedText = await streamToText(stream)
+```
+
+### After
+
+```typescript
+import { chat, streamToText } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
+const { text } = await chat({
+  adapter: openaiText('gpt-5.6'),
+  messages: [{ role: 'user', content: 'Hello!' }],
+  stream: false,
+})
+
+const stream = chat({
+  adapter: openaiText('gpt-5.6'),
+  messages: [{ role: 'user', content: 'Hello!' }],
+})
+const { text: streamedText } = await streamToText(stream)
+```
+
+`text` is the same string as before. The new `chunks` array holds every chunk of the run, so you can also read tool calls, usage, and interrupts. See [`chat()` returns](../api/ai.md#returns).
+
+With `outputSchema`, `stream: false` still resolves to the parsed object.
 
 ## Complete Migration Example
 

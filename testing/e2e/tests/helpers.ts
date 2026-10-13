@@ -1,5 +1,34 @@
 import { expect, type Page } from '@playwright/test'
 
+declare global {
+  interface Window {
+    __e2eLoadingSeen?: boolean
+    __e2eLoadingObserver?: MutationObserver
+  }
+}
+
+/** Call right before an action that starts a run. Records in the page whether
+ *  the loading indicator showed after this call, so `waitForResponse` also
+ *  sees a run that started and ended before Playwright looked. */
+async function markRunStart(page: Page) {
+  await page.evaluate(() => {
+    window.__e2eLoadingSeen = false
+    if (window.__e2eLoadingObserver) return
+    window.__e2eLoadingObserver = new MutationObserver(() => {
+      if (
+        !window.__e2eLoadingSeen &&
+        document.querySelector('[data-testid="loading-indicator"]')
+      ) {
+        window.__e2eLoadingSeen = true
+      }
+    })
+    window.__e2eLoadingObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+    })
+  })
+}
+
 export function featureUrl(
   provider: string,
   feature: string,
@@ -14,21 +43,18 @@ export function featureUrl(
 
 export async function sendMessage(page: Page, text: string) {
   const input = page.getByTestId('chat-input')
-  await input.click()
-  await input.fill(text)
-  // Dispatch an input event to trigger React's onChange for controlled inputs
-  await input.dispatchEvent('input', { bubbles: true })
-  await page
-    .getByTestId('send-button')
-    .click({ timeout: 5000 })
-    .catch(async (err) => {
-      // Only retry if button was disabled (fill() didn't trigger React onChange)
-      const isDisabled = await page.getByTestId('send-button').isDisabled()
-      if (!isDisabled) throw err
-      await input.clear()
-      await input.pressSequentially(text, { delay: 30 })
-      await page.getByTestId('send-button').click()
-    })
+  const button = page.getByTestId('send-button')
+  // A fill that lands before hydration never reaches React state, so the send
+  // button stays disabled. Clear and refill until the button turns on. Do not
+  // wait on one long click timeout: that cost ~5s on the first send of almost
+  // every test in CI.
+  await expect(async () => {
+    await input.fill('')
+    await input.fill(text)
+    await expect(button).toBeEnabled({ timeout: 500 })
+  }).toPass({ timeout: 15_000 })
+  await markRunStart(page)
+  await button.click()
 }
 
 /** Types a prompt and attaches an image; attaching auto-sends. Retries until
@@ -53,6 +79,7 @@ export async function sendMessageWithImage(
   // retrying both the typing and the attach until the send actually fires with
   // the full prompt. A redundant re-attach is harmless: the client ignores a
   // second send while the first is still streaming.
+  await markRunStart(page)
   await expect(async () => {
     await input.click()
     await input.fill('')
@@ -79,6 +106,7 @@ export async function sendMessageWithDocument(
   const userMessages = page.getByTestId('user-message')
 
   // Same retry-to-observable-outcome pattern as sendMessageWithImage above.
+  await markRunStart(page)
   await expect(async () => {
     await input.click()
     await input.fill('')
@@ -91,13 +119,20 @@ export async function sendMessageWithDocument(
 }
 
 export async function waitForResponse(page: Page, timeout = 15_000) {
-  try {
-    await page
-      .getByTestId('loading-indicator')
-      .waitFor({ state: 'visible', timeout: 5_000 })
-  } catch {
-    // Loading may have already finished
-  }
+  // Wait for the run to start. A fast mocked run can start and end before
+  // Playwright looks, so also accept the markRunStart record. Without that
+  // record (for example after a reload), this waits up to 5s as before.
+  await page
+    .waitForFunction(
+      () =>
+        window.__e2eLoadingSeen === true ||
+        document.querySelector('[data-testid="loading-indicator"]') !== null,
+      undefined,
+      { timeout: 5_000 },
+    )
+    .catch(() => {
+      // Loading may have already finished
+    })
   await page
     .getByTestId('loading-indicator')
     .waitFor({ state: 'hidden', timeout })
@@ -146,10 +181,12 @@ export async function getStructuredOutput(page: Page): Promise<string> {
 }
 
 export async function approveToolCall(page: Page, toolName: string) {
+  await markRunStart(page)
   await page.getByTestId(`approve-button-${toolName}`).click()
 }
 
 export async function denyToolCall(page: Page, toolName: string) {
+  await markRunStart(page)
   await page.getByTestId(`deny-button-${toolName}`).click()
 }
 

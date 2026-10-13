@@ -147,6 +147,37 @@ describe('OpenAIBaseChatCompletionsTextAdapter.structuredOutputStream', () => {
       expect(complete!.value.raw).toBe(json)
     })
 
+    it('skips a usage-only chunk that has no choices field at all', async () => {
+      setupStreamingMock([
+        deltaChunk('{"name":"John","age":30}', 'stop'),
+        {
+          id: 'chatcmpl-1',
+          model: 'test-model',
+          usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
+        },
+      ])
+      const adapter = new TestAdapter()
+
+      const chunks = await collect(
+        adapter.structuredOutputStream!({
+          chatOptions: {
+            model: 'test-model',
+            messages: [{ role: 'user', content: 'extract' }],
+            logger: testLogger,
+          },
+          outputSchema: personSchema,
+        }),
+      )
+
+      expect(chunks.find((c) => c.type === 'RUN_ERROR')).toBeUndefined()
+      const complete = chunks.find(
+        (c) =>
+          c.type === 'CUSTOM' &&
+          (c as { name?: string }).name === 'structured-output.complete',
+      ) as { value: { object: unknown } } | undefined
+      expect(complete?.value.object).toEqual({ name: 'John', age: 30 })
+    })
+
     it('timestamps lifecycle events when they are emitted', async () => {
       vi.useFakeTimers()
       try {

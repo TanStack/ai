@@ -61,4 +61,23 @@ test.describe('withCompaction — wire format', () => {
     // The old tool result content is gone.
     expect(wire).not.toContain('SECRET_TOOL_ALPHA')
   })
+
+  test('an empty summary fails the compaction and sends no request', async ({
+    request,
+  }) => {
+    const response = await request.post(
+      '/api/compaction-wire?strategy=empty-summary',
+    )
+    expect(response.ok()).toBe(true)
+    const result = (await response.json()) as {
+      ok: boolean
+      error?: string
+      requestCount?: number
+    }
+
+    // The history was not replaced with an empty summary and sent on.
+    expect(result.ok).toBe(false)
+    expect(result.error).toBe('The summarizer returned an empty summary.')
+    expect(result.requestCount).toBe(0)
+  })
 })

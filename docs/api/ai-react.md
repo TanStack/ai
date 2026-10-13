@@ -233,11 +233,13 @@ Re-exported from `@tanstack/ai-client` for convenience:
 import {
   fetchServerSentEvents,
   fetchHttpStream,
+  fetchJson,
   xhrServerSentEvents,
   xhrHttpStream,
   stream,
   type ConnectionAdapter,
   type FetchConnectionOptions,
+  type FetchJsonOptions,
   type XhrConnectionOptions,
 } from "@tanstack/ai-react";
 ```
@@ -249,9 +251,12 @@ Use `fetchHttpStream()` only when the runtime supports streaming `fetch`,
 `Response.body.getReader()`, and `TextDecoder`; otherwise it throws
 `UnsupportedResponseStreamError`.
 
+If the host cannot stream at all, use `fetchJson()` with a server route that
+returns `toJsonResponse()`. See [JSON](../transports/json).
+
 XHR adapter options include `headers`, `withCredentials`, `signal`, `body`, and
 `xhrFactory`. Fetch adapter options include `headers`, `credentials`, `signal`,
-`body`, and `fetchClient`. Both option objects may be provided directly or as a
+`body`, and `fetchClient`. `fetchJson()` also takes `pollIntervalMs`. Both option objects may be provided directly or as a
 function that resolves per request.
 
 For error narrowing, import `UnsupportedResponseStreamError` and

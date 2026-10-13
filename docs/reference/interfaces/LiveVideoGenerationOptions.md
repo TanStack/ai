@@ -3,7 +3,7 @@ id: LiveVideoGenerationOptions
 title: LiveVideoGenerationOptions
 ---
 
-Defined in: [packages/ai/src/types.ts:2570](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2570)
+Defined in: [packages/ai/src/types.ts:2591](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2591)
 
 **`Experimental`**
 
@@ -25,7 +25,7 @@ Options for live generation (prompt-steerable video sessions).
 optional abortSignal?: AbortSignal;
 ```
 
-Defined in: [packages/ai/src/types.ts:2593](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2593)
+Defined in: [packages/ai/src/types.ts:2614](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2614)
 
 **`Experimental`**
 
@@ -41,7 +41,7 @@ supported. Request-specific — never store on a global client config.
 logger: InternalLogger;
 ```
 
-Defined in: [packages/ai/src/types.ts:2587](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2587)
+Defined in: [packages/ai/src/types.ts:2608](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2608)
 
 **`Experimental`**
 
@@ -57,7 +57,7 @@ catch blocks.
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2574](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2574)
+Defined in: [packages/ai/src/types.ts:2595](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2595)
 
 **`Experimental`**
 
@@ -71,7 +71,7 @@ The model to use for live generation
 optional modelOptions?: TProviderOptions;
 ```
 
-Defined in: [packages/ai/src/types.ts:2581](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2581)
+Defined in: [packages/ai/src/types.ts:2602](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2602)
 
 **`Experimental`**
 
@@ -86,7 +86,7 @@ resolution/seed/audio are browser `sendCommand` fields.
 prompt: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2576](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2576)
+Defined in: [packages/ai/src/types.ts:2597](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2597)
 
 **`Experimental`**
 

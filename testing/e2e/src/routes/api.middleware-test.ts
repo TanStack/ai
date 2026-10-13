@@ -166,6 +166,17 @@ const toolSkipMiddleware: ChatMiddleware = {
   },
 }
 
+const toolReplaceMiddleware: ChatMiddleware = {
+  name: 'tool-replace',
+  onAfterToolCall(_ctx, info) {
+    if (info.toolName !== 'get_weather') return
+    return {
+      type: 'replaceResult',
+      result: { replaced: true, reason: 'middleware' },
+    }
+  },
+}
+
 /**
  * Capability provide/consume flow (`capability` mode).
  *
@@ -577,6 +588,8 @@ export const Route = createFileRoute('/api/middleware-test')({
               },
             })
           }
+          if (middlewareMode === 'tool-replace')
+            middleware.push(toolReplaceMiddleware)
           if (middlewareMode === 'capability') {
             // Order matters: the provider's setup() must run before the
             // consumer reads the capability. Array order is preserved.

@@ -3,7 +3,7 @@ id: SessionIdEvent
 title: SessionIdEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1623](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1623)
+Defined in: [packages/ai/src/types.ts:1644](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1644)
 
 Custom event for extensibility.
 
@@ -21,7 +21,7 @@ Custom event for extensibility.
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1510](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1510)
+Defined in: [packages/ai/src/types.ts:1531](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1531)
 
 Extra information attached to this event.
 
@@ -37,7 +37,7 @@ Extra information attached to this event.
 name: `${string}.session-id`;
 ```
 
-Defined in: [packages/ai/src/types.ts:1624](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1624)
+Defined in: [packages/ai/src/types.ts:1645](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1645)
 
 What this custom event is. Required: without it a consumer cannot route
 the value.
@@ -56,7 +56,7 @@ CustomEvent.name
 type: "CUSTOM";
 ```
 
-Defined in: [packages/ai/src/types.ts:1509](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1509)
+Defined in: [packages/ai/src/types.ts:1530](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1530)
 
 #### Inherited from
 
@@ -70,7 +70,7 @@ Defined in: [packages/ai/src/types.ts:1509](https://github.com/TanStack/ai/blob/
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1625](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1625)
+Defined in: [packages/ai/src/types.ts:1646](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1646)
 
 The payload. Any JSON value, and required.
 

@@ -348,8 +348,9 @@ await client.addToolApprovalResponse({
 ## Connection Adapters
 
 For a complete transport walkthrough, see
-[Connection Adapters](../chat/connection-adapters). For React Native and Expo,
-see [Quick Start: React Native](../getting-started/quick-start-react-native).
+[Transports](../transports/overview). For React Native and Expo,
+see [React Native](../transports/react-native) and
+[Quick Start: React Native](../getting-started/quick-start-react-native).
 
 ### `fetchServerSentEvents(url, options?)`
 
@@ -380,6 +381,24 @@ const adapter = fetchHttpStream("/api/chat");
 `Response.body.getReader()`, and `TextDecoder`. If the runtime cannot expose an
 incremental response body, it throws `UnsupportedResponseStreamError`; use the
 XHR adapters in React Native or Expo.
+
+### `fetchJson(url, options?)`
+
+Creates a connection adapter for one JSON body per request. Pair it with
+`toJsonResponse()` on the server. It does not need a streaming response body.
+
+```typescript
+import { fetchJson } from "@tanstack/ai-client";
+
+const adapter = fetchJson("/api/chat", {
+  pollIntervalMs: 500,
+});
+```
+
+It takes the fetch adapter options, plus `pollIntervalMs` (default 250). When a
+reply has `done: false`, the adapter waits `pollIntervalMs` and sends
+`GET ?runId=<id>&offset=<offset>`. Serve that `GET` with `resumeJsonResponse()`.
+See [JSON](../transports/json).
 
 ### `xhrHttpStream(url, options?)`
 
@@ -769,5 +788,5 @@ const client = new ChatClient({
 
 - [Getting Started](../getting-started/quick-start) - Learn the basics
 - [Bring Your Own Key](../advanced/byok) - Store keys in the browser and send `x-byok-*` headers
-- [Connection Adapters](../chat/connection-adapters) - Learn about adapters
+- [Transports](../transports/overview) - Learn about adapters
 - [@tanstack/ai-react API](./ai-react) - React hooks wrapper

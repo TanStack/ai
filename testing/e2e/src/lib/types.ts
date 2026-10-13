@@ -32,6 +32,7 @@ export type Feature =
   | 'reasoning'
   | 'multi-turn'
   | 'tool-calling'
+  | 'tool-choice'
   | 'parallel-tool-calls'
   | 'tool-approval'
   | 'text-tool-text'
@@ -93,6 +94,7 @@ export const ALL_FEATURES: Feature[] = [
   'reasoning',
   'multi-turn',
   'tool-calling',
+  'tool-choice',
   'parallel-tool-calls',
   'tool-approval',
   'text-tool-text',

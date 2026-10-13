@@ -118,5 +118,5 @@ examples/ag-ui/
 ## Related docs
 
 - [AG-UI compliance migration](../../docs/migration/ag-ui-compliance.md)
-- [Connection adapters](../../docs/chat/connection-adapters.md)
+- [Transports](../../docs/transports/overview.md)
 - [Chat architecture](../../packages/ai/docs/chat-architecture.md)

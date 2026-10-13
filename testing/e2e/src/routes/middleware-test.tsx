@@ -18,6 +18,7 @@ const MIDDLEWARE_MODES = [
   { id: 'none', label: 'No Middleware' },
   { id: 'chunk-transform', label: 'Chunk Transform (prefix text)' },
   { id: 'tool-skip', label: 'Tool Skip (skip with custom result)' },
+  { id: 'tool-replace', label: 'Tool Replace (replace result after call)' },
   { id: 'capability', label: 'Capability (provide/consume prefix)' },
   { id: 'phase-recorder', label: 'Phase Recorder (capture phase + chunks)' },
   { id: 'otel', label: 'OpenTelemetry (capture spans/metrics)' },

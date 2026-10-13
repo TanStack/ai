@@ -427,7 +427,7 @@ export function createChatUI<
     chat: ChatUIHost<TOptions>
     children?: OctaneNode
   }) {
-    return <ChatContext.Provider value={chat}>{children}</ChatContext.Provider>
+    return <ChatContext value={chat}>{children}</ChatContext>
   }
 
   // Backstop for when the conditional `Input` type cannot be inferred (see the
@@ -560,11 +560,11 @@ export function createChatUI<
     })
     if (children) return <>{children(selected.parts)}</>
     return (
-      <MessageRenderContext.Provider
+      <MessageRenderContext
         value={{ message, interrupts, inlineToolNames: names }}
       >
         <MessageComponent message={message} Parts={Parts} />
-      </MessageRenderContext.Provider>
+      </MessageRenderContext>
     )
   })
 
@@ -650,9 +650,9 @@ export function createChatUI<
     selected: ChatUISelectedPart
   }) {
     return (
-      <PartContext.Provider value={selected}>
+      <PartContext value={selected}>
         <SelectedPartInner selected={selected} />
-      </PartContext.Provider>
+      </PartContext>
     )
   })
 
@@ -677,13 +677,13 @@ export function createChatUI<
         ).parts[0]
     if (!selected) return null
     return (
-      <PartContext.Provider value={selected}>
+      <PartContext value={selected}>
         {children ? (
           children(mixPart(selected))
         ) : (
           <SelectedPartInner selected={selected} />
         )}
-      </PartContext.Provider>
+      </PartContext>
     )
   }
 
@@ -739,13 +739,13 @@ export function createChatUI<
     children?: (mixed: ChatUIInterrupt & InterruptMixins<TOptions>) => OctaneNode
   }) {
     return (
-      <InterruptContext.Provider value={interrupt}>
+      <InterruptContext value={interrupt}>
         {children ? (
           children(mixInterrupt(interrupt))
         ) : (
           <InterruptInner interrupt={interrupt} />
         )}
-      </InterruptContext.Provider>
+      </InterruptContext>
     )
   })
 

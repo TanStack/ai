@@ -179,7 +179,9 @@ function coerceMistralStrictSchema(
     }
     const properties = { ...result.properties }
     const allPropertyNames = Object.keys(properties)
-    const propertyMaps: Record<string, NullWideningMap> = {}
+    // Entries, not assignment: `map['__proto__'] = x` sets the prototype
+    // and drops a property that is really named `__proto__`.
+    const propertyMaps: Array<[string, NullWideningMap]> = []
 
     for (const propName of allPropertyNames) {
       let prop = properties[propName]
@@ -244,10 +246,13 @@ function coerceMistralStrictSchema(
 
       properties[propName] = prop
       if (childMap || widenedHere) {
-        propertyMaps[propName] = {
-          ...(childMap ?? {}),
-          ...(widenedHere ? { widened: true } : {}),
-        }
+        propertyMaps.push([
+          propName,
+          {
+            ...(childMap ?? {}),
+            ...(widenedHere ? { widened: true } : {}),
+          },
+        ])
       }
     }
 
@@ -258,8 +263,8 @@ function coerceMistralStrictSchema(
       delete result.required
     }
     result.additionalProperties = false
-    if (Object.keys(propertyMaps).length > 0) {
-      nullWideningMap.properties = propertyMaps
+    if (propertyMaps.length > 0) {
+      nullWideningMap.properties = Object.fromEntries(propertyMaps)
     }
   }
 

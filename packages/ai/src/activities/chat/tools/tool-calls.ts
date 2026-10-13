@@ -31,6 +31,7 @@ import type {
   ToolOutputState,
 } from '../../../types'
 import type {
+  AfterToolCallDecision,
   AfterToolCallInfo,
   BeforeToolCallDecision,
 } from '../middleware/types'
@@ -165,7 +166,7 @@ export interface ToolExecutionMiddlewareHooks {
     tool: Tool | undefined,
     args: unknown,
   ) => Promise<BeforeToolCallDecision>
-  onAfterToolCall?: (info: AfterToolCallInfo) => Promise<void>
+  onAfterToolCall?: (info: AfterToolCallInfo) => Promise<AfterToolCallDecision>
 }
 
 /**
@@ -507,12 +508,34 @@ export interface McpInputRequest {
   toolName: string
   kind: 'form' | 'sampling'
   request: unknown
+  /**
+   * The interrupt reason. Default: `'mcp_input'`. An empty reason, and a
+   * reason that clients read as another kind of interrupt, use the default.
+   */
+  reason?: string
 }
 
 interface McpInputRequiredThrow {
   name: 'MCPInputRequiredError'
   kind: 'form' | 'sampling'
   request: unknown
+  reason?: unknown
+}
+
+/** Reasons that clients read as another kind of interrupt. */
+const RESERVED_INTERRUPT_REASONS = new Set([
+  'approval_required',
+  'client_tool_input',
+  'tanstack:client_tool_execution',
+])
+
+/** The reason a thrown input request names, when it can use it. */
+function inputRequestReason(reason: unknown) {
+  return typeof reason === 'string' &&
+    reason !== '' &&
+    !RESERVED_INTERRUPT_REASONS.has(reason)
+    ? reason
+    : undefined
 }
 
 function isMcpInputRequired(value: unknown): value is McpInputRequiredThrow {
@@ -614,6 +637,22 @@ async function* executeWithEventPolling<T>(
 }
 
 /**
+ * Push a tool result, then run the onAfterToolCall hook. A `replaceResult`
+ * decision sets the pushed result, so the model and the stream see it.
+ * The state does not change: an error result stays an error.
+ */
+async function pushResultAndRunAfterHook(
+  results: Array<ToolResult>,
+  entry: ToolResult,
+  info: AfterToolCallInfo,
+  middlewareHooks?: ToolExecutionMiddlewareHooks,
+) {
+  results.push(entry)
+  const decision = await middlewareHooks?.onAfterToolCall?.(info)
+  if (decision?.type === 'replaceResult') entry.result = decision.result
+}
+
+/**
  * Apply a middleware onBeforeToolCall decision.
  * Returns the (possibly transformed) input if execution should proceed,
  * or undefined if the tool call was skipped (result already pushed).
@@ -641,18 +680,15 @@ async function applyBeforeToolCallDecision(
   }
 
   if (decision.type === 'skip') {
-    const skipResult = decision.result
-    results.push({
-      toolCallId: toolCall.id,
-      toolName,
-      result:
-        typeof skipResult === 'string'
-          ? safeJsonParse(skipResult)
-          : (skipResult ?? null),
-      duration: 0,
-    })
-    if (middlewareHooks.onAfterToolCall) {
-      await middlewareHooks.onAfterToolCall({
+    // One parsed value: the hook sees the same value that is pushed.
+    const skipResult =
+      typeof decision.result === 'string'
+        ? safeJsonParse(decision.result)
+        : (decision.result ?? null)
+    await pushResultAndRunAfterHook(
+      results,
+      { toolCallId: toolCall.id, toolName, result: skipResult, duration: 0 },
+      {
         toolCall,
         tool,
         toolName,
@@ -660,8 +696,9 @@ async function applyBeforeToolCallDecision(
         ok: true,
         duration: 0,
         result: skipResult,
-      })
-    }
+      },
+      middlewareHooks,
+    )
     return { proceed: false }
   }
 
@@ -709,28 +746,32 @@ export async function* executeServerTool<TContext = unknown>(
         return
       }
       const modelResult = outcome.error
-        ? { subagentRunId: outcome.subagentRunId, error: outcome.error }
-        : { subagentRunId: outcome.subagentRunId, result: outcome.text }
-      results.push({
-        toolCallId: toolCall.id,
-        toolName,
-        result: modelResult,
-        input,
-        output: modelResult,
-        duration,
-        ...(outcome.error ? { state: 'output-error' as const } : {}),
-      })
+        ? { error: outcome.error }
+        : { result: outcome.text }
       resultRecorded = true
-      await middlewareHooks?.onAfterToolCall?.({
-        toolCall,
-        tool,
-        toolName,
-        toolCallId: toolCall.id,
-        duration,
-        ...(outcome.error
-          ? { ok: false as const, error: new Error(outcome.error) }
-          : { ok: true as const, result: modelResult }),
-      })
+      await pushResultAndRunAfterHook(
+        results,
+        {
+          toolCallId: toolCall.id,
+          toolName,
+          result: modelResult,
+          input,
+          output: modelResult,
+          duration,
+          ...(outcome.error ? { state: 'output-error' as const } : {}),
+        },
+        {
+          toolCall,
+          tool,
+          toolName,
+          toolCallId: toolCall.id,
+          duration,
+          ...(outcome.error
+            ? { ok: false as const, error: new Error(outcome.error) }
+            : { ok: true as const, result: modelResult }),
+        },
+        middlewareHooks,
+      )
       return
     }
 
@@ -756,18 +797,18 @@ export async function* executeServerTool<TContext = unknown>(
     const finalResult =
       typeof result === 'string' ? safeJsonParse(result) : (result ?? null)
 
-    results.push({
-      toolCallId: toolCall.id,
-      toolName,
-      result: finalResult,
-      input,
-      output: finalResult,
-      duration,
-    })
     resultRecorded = true
-
-    if (middlewareHooks?.onAfterToolCall) {
-      await middlewareHooks.onAfterToolCall({
+    await pushResultAndRunAfterHook(
+      results,
+      {
+        toolCallId: toolCall.id,
+        toolName,
+        result: finalResult,
+        input,
+        output: finalResult,
+        duration,
+      },
+      {
         toolCall,
         tool,
         toolName,
@@ -775,8 +816,9 @@ export async function* executeServerTool<TContext = unknown>(
         ok: true,
         duration,
         result: finalResult,
-      })
-    }
+      },
+      middlewareHooks,
+    )
   } catch (error: unknown) {
     // A post-execution hook failed after the tool result was recorded. Let the
     // run handle that failure; reporting it as a second tool result would give
@@ -797,27 +839,29 @@ export async function* executeServerTool<TContext = unknown>(
     // Same shape as MCPInputRequiredError. Pause instead of a tool error.
     if (isMcpInputRequired(error)) {
       if (!inputRequired) throw error
+      const reason = inputRequestReason(error.reason)
       inputRequired.push({
         toolCallId: toolCall.id,
         toolName,
         kind: error.kind,
         request: error.request,
+        ...(reason !== undefined ? { reason } : {}),
       })
       return
     }
 
     const message = error instanceof Error ? error.message : 'Unknown error'
-    results.push({
-      toolCallId: toolCall.id,
-      toolName,
-      result: { error: message },
-      input,
-      state: 'output-error',
-      duration,
-    })
-
-    if (middlewareHooks?.onAfterToolCall) {
-      await middlewareHooks.onAfterToolCall({
+    await pushResultAndRunAfterHook(
+      results,
+      {
+        toolCallId: toolCall.id,
+        toolName,
+        result: { error: message },
+        input,
+        state: 'output-error',
+        duration,
+      },
+      {
         toolCall,
         tool,
         toolName,
@@ -825,8 +869,9 @@ export async function* executeServerTool<TContext = unknown>(
         ok: false,
         duration,
         error,
-      })
-    }
+      },
+      middlewareHooks,
+    )
   }
 }
 
@@ -949,23 +994,27 @@ export async function* executeToolCalls<TContext = unknown>(
   ): AsyncGenerator<CustomEvent | StreamChunk, void, void> {
     try {
       if (abortSignal?.aborted) {
-        results.push({
-          toolCallId: toolCall.id,
-          toolName,
-          result: { error: 'Operation aborted' },
-          input,
-          state: 'output-error',
-          duration: 0,
-        })
-        await middlewareHooks?.onAfterToolCall?.({
-          toolCall,
-          tool,
-          toolName,
-          toolCallId: toolCall.id,
-          ok: false,
-          duration: 0,
-          error: new Error('Operation aborted'),
-        })
+        await pushResultAndRunAfterHook(
+          results,
+          {
+            toolCallId: toolCall.id,
+            toolName,
+            result: { error: 'Operation aborted' },
+            input,
+            state: 'output-error',
+            duration: 0,
+          },
+          {
+            toolCall,
+            tool,
+            toolName,
+            toolCallId: toolCall.id,
+            ok: false,
+            duration: 0,
+            error: new Error('Operation aborted'),
+          },
+          middlewareHooks,
+        )
         return
       }
       const interrupts: Array<Interrupt> = []

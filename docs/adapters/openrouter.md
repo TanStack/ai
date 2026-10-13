@@ -59,6 +59,8 @@ const adapter = createOpenRouterText(
 );
 ```
 
+Need a header on each request, or a log of each model call? Both text adapters support [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call). If you set an `httpClient`, each wrapped request still goes through it.
+
 ### Retry rate limits
 
 A busy upstream provider can reply with HTTP 429. The adapter retries only 5XX errors by default. Add `"429"` to `retryCodes` to retry rate limits too:
@@ -90,6 +92,38 @@ const adapter = createOpenRouterText(
 
 Now a 429 waits, then retries, and the chat continues with the next response.
 
+### Retry an error in the stream
+
+Most provider errors come as an HTTP status, and the SDK retries them as shown above. But OpenRouter can send status 200 first. Then a provider error comes as an error chunk in the stream, and the SDK cannot retry it.
+
+To retry that error, pass `retry` to `chat()`:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { createOpenRouterText } from "@tanstack/ai-openrouter";
+
+const adapter = createOpenRouterText(
+  "openai/gpt-5.5",
+  process.env.OPENROUTER_API_KEY!,
+  { retryCodes: ["429", "5XX"] },
+);
+
+const stream = chat({
+  adapter,
+  messages: [{ role: "user", content: "Hello!" }],
+  retry: { maxRetries: 3 },
+});
+```
+
+When `chat()` retries:
+
+- Only for an error code in `retryCodes`. The default is 5XX only, so add `"429"` to retry a rate limit.
+- Only when the call streamed no output yet. An error after part of the answer reaches you as a `RUN_ERROR`.
+- Not when `retryConfig` has `strategy: "none"`.
+- Only with the Chat Completions adapter (`openRouterText`). The Responses adapter does not do this.
+
+The wait is the `initialInterval` of `retryConfig` (default 500 ms). It is the same for each try and does not grow. See [Let `chat()` retry for you](../chat/stream-events#let-chat-retry-for-you).
+
 ## Available Models
 
 OpenRouter provides access to 300+ models from various providers. Models use the format `provider/model-name`:
@@ -103,6 +137,8 @@ model: "deepseek/deepseek-v3.2"
 ```
 
 See the full list at [openrouter.ai/models](https://openrouter.ai/models).
+
+`adapter.inputModalities` lists the input kinds of the selected model. It is `undefined` for a model that this package does not know. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
 
 ## Example: Chat Completion
 
@@ -387,26 +423,32 @@ Plugin ids include `web`, `file-parser`, `response-healing`, `moderation`, and `
 
 ### Reasoning
 
-`reasoning` is OpenRouter's unified reasoning configuration:
+Set `reasoning` on `chat()`. OpenRouter gets it as `reasoning.effort`:
 
 ```typescript
 import { chat } from "@tanstack/ai";
 import { openRouterText } from "@tanstack/ai-openrouter";
 
 const stream = chat({
-  adapter: openRouterText("anthropic/claude-sonnet-5"),
+  adapter: openRouterText("anthropic/claude-opus-5.5"),
   messages: [{ role: "user", content: "Hello!" }],
-  modelOptions: {
-    reasoning: { effort: "high" },
-  },
+  reasoning: "high",
 });
 ```
 
-`effort` accepts `"none"`, `"minimal"`, `"low"`, `"medium"`, `"high"`, `"xhigh"`, and `"max"`. To switch reasoning off for a request, pass `reasoning: { enabled: false }`; the adapter sends it as `effort: "none"` because the SDK's request schema drops `enabled`.
+- `off` sends `effort: "none"`.
+- `openRouterText` takes no `budgetTokens`. `openRouterResponsesText` sends `budgetTokens` as `reasoning.maxTokens`, and adds `summary: "auto"` so the thinking text streams.
+- The types take the levels of each model. Your editor shows them when you type `reasoning`.
 
 ### Session and metadata
 
 `user` (a unique user identifier), `sessionId`, and `metadata` (up to 16 key-value pairs) are forwarded unchanged. `sessionId` doubles as OpenRouter's sticky routing key: requests that share it are routed to the same provider to maximize prompt-cache hits, and grouped together for observability.
+
+### Prompt caching
+
+`chat()` sets `sessionId` to the cache key by default, which is the `threadId` that you pass. So one conversation stays on one provider and reads its cache. `anthropic/*` models also get cache markers on the system message, the last tool, and the last message. `promptCache: 'long'` asks for the 1-hour cache, and `promptCache: 'none'` sends nothing. See [Prompt Caching](../advanced/prompt-caching).
+
+Your own `modelOptions.sessionId` wins. A cache marker of your own turns the automatic markers off for that request.
 
 ## Model Options
 
@@ -505,6 +547,17 @@ the `onUsage` and `onFinish` hooks. When OpenRouter does not report a cost, the
 fields are simply absent and the stream completes normally. Both
 `openRouterText` and `openRouterResponsesText` populate cost when OpenRouter
 returns it.
+
+The `openRouterText` adapter's `structuredOutputStream()` method includes
+received usage on its terminal `RUN_ERROR` event. This covers parse failures,
+truncated responses, empty responses, and SDK errors. When `chat()` uses this
+path, middleware `onChunk` receives the error event even if the promise rejects.
+The `onUsage` hook reports successful calls. Each adapter call reports usage on
+one terminal event.
+
+A reported `completionTokensDetails.reasoningTokens` value of `0` stays zero.
+A missing count stays absent. Errors before any usage arrives have no `usage`
+field. If the consumer stops reading the stream, it cannot receive later events.
 
 ## Reranking
 
@@ -847,3 +900,32 @@ export async function POST(request: Request) {
 ```
 
 See [Bring Your Own Key](../advanced/byok) for the keyring and passkey storage.
+
+### Sign in from a CLI
+
+A CLI or a desktop app has no web page for the redirect, so the user would have to copy a key by hand. `openrouterSignIn()` signs the user in with the browser and gives your app the key:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { createOpenRouterText } from "@tanstack/ai-openrouter";
+import { openrouterSignIn } from "@tanstack/ai-openrouter/pkce";
+
+const signIn = openrouterSignIn();
+const apiKey = await signIn({
+  open: (url) => console.log(`Open this URL to sign in: ${url}`),
+});
+
+const stream = chat({
+  adapter: createOpenRouterText("openai/gpt-6.1-sol", apiKey),
+  messages: [{ role: "user", content: "Hello!" }],
+});
+```
+
+1. `signIn` starts a one-time listener on `127.0.0.1`, on a random port.
+2. It calls `open` with the OpenRouter sign-in URL. Open that URL in the browser.
+3. The user signs in and approves. The browser shows `You are signed in to OpenRouter. You can close this tab.`
+4. `signIn` resolves with the API key, and the listener closes.
+
+The sign-in uses PKCE and a random state. It stops after 10 minutes. To change the time, pass `openrouterSignIn({ timeoutMs })`. To cancel it, pass `signal` to `signIn`.
+
+The listener runs on the computer of your app. So the sign-in works only when your app and the browser are on the same computer. In a hosted app, use the browser flow above.

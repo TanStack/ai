@@ -3,7 +3,7 @@ id: UIResourceEvent
 title: UIResourceEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1593](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1593)
+Defined in: [packages/ai/src/types.ts:1614](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1614)
 
 Emitted when an MCP tool returns a ui:// resource (MCP Apps). Reconciled into
  a UIResourcePart on the assistant UIMessage. Never enters model input.
@@ -20,7 +20,7 @@ Emitted when an MCP tool returns a ui:// resource (MCP Apps). Reconciled into
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1510](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1510)
+Defined in: [packages/ai/src/types.ts:1531](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1531)
 
 Extra information attached to this event.
 
@@ -36,7 +36,7 @@ Extra information attached to this event.
 name: "ui-resource";
 ```
 
-Defined in: [packages/ai/src/types.ts:1594](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1594)
+Defined in: [packages/ai/src/types.ts:1615](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1615)
 
 What this custom event is. Required: without it a consumer cannot route
 the value.
@@ -55,7 +55,7 @@ CustomEvent.name
 type: "CUSTOM";
 ```
 
-Defined in: [packages/ai/src/types.ts:1509](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1509)
+Defined in: [packages/ai/src/types.ts:1530](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1530)
 
 #### Inherited from
 
@@ -69,7 +69,7 @@ Defined in: [packages/ai/src/types.ts:1509](https://github.com/TanStack/ai/blob/
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1595](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1595)
+Defined in: [packages/ai/src/types.ts:1616](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1616)
 
 The payload. Any JSON value, and required.
 

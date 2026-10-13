@@ -441,4 +441,62 @@ describe('subagent run recorder', () => {
     expect(second).toContain('second thread notes')
     expect(second).not.toContain('first thread notes')
   })
+
+  /** Start one child, end it with this error, then end the parent run. */
+  async function settleChild(
+    error: { message: string; code?: string },
+    end: 'finish' | 'abort',
+  ) {
+    const persistence = memoryPersistence()
+    const { messages, runs } = persistence.stores
+    if (!messages || !runs) throw new Error('memory store has messages')
+    const recorder = createSubagentRunRecorder({
+      messages,
+      runs,
+      intervalMs: 0,
+    })
+    const base = { threadId: 'desk', runId: 'parent-run' }
+    await recorder.start({
+      ...base,
+      messages: [{ role: 'user', content: 'Research this' }],
+    })
+    await recorder.chunk({
+      ...base,
+      chunk: {
+        type: EventType.SUBAGENT_STARTED,
+        subagentRunId: 'child-run',
+        name: 'researcher',
+        timestamp: t,
+      },
+    })
+    await recorder.chunk({
+      ...base,
+      chunk: {
+        type: EventType.SUBAGENT_ERROR,
+        subagentRunId: 'child-run',
+        ...error,
+        timestamp: t,
+      },
+    })
+    await recorder[end](base)
+    return cardOf((await loadDesk(persistence)).messages).subagent
+  }
+
+  it('keeps the error of a stopped child after a reload', async () => {
+    const child = await settleChild({ message: 'Stopped' }, 'abort')
+    expect(child.status).toBe('error')
+    expect(child.error).toEqual({ message: 'Stopped' })
+  })
+
+  it('keeps the error code of a failed child after a reload', async () => {
+    const child = await settleChild(
+      { message: 'Provider failed', code: 'provider_error' },
+      'finish',
+    )
+    expect(child.status).toBe('error')
+    expect(child.error).toEqual({
+      message: 'Provider failed',
+      code: 'provider_error',
+    })
+  })
 })

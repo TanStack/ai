@@ -163,12 +163,120 @@ const dynamicTemperature: ChatMiddleware = {
 | `tools` | `Tool[]` | Available tools |
 | `metadata` | `Record<string, unknown>` | Request metadata |
 | `modelOptions` | `Record<string, unknown>` | Provider-native options — this is where sampling params (`temperature`, `top_p` / `topP`, the provider's `max*Tokens` key) now live, alongside every other model-specific knob. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options). |
+| `toolChoice` | `ToolChoice \| undefined` | How the model uses the tools at the next model call. See [Change the tool choice of a call](#change-the-tool-choice-of-a-call). |
+| `wrapFetch` | `FetchWrapper \| undefined` | Wraps the HTTP fetch of the next model call. See [Change the HTTP requests of a call](#change-the-http-requests-of-a-call). |
+| `promptCache` | `ResolvedPromptCache \| undefined` | The prompt cache of the next model call: its `retention` and `key`. See [Change the prompt cache of a call](#change-the-prompt-cache-of-a-call). |
 
 When multiple middleware define `onConfig`, the config is **piped** through them in order — each receives the merged config from the previous middleware.
 
 Return `providerMessages` when a transform must affect only the model call. For
 compatibility, returning `messages` also updates provider input unless the same
 result sets `providerMessages` explicitly.
+
+#### Change the tool choice of a call
+
+Your agent hits its last model call, and the model calls a tool again. The run ends after the tool result, and the user gets no answer. Return `toolChoice: 'none'` on that last call, and the model answers in text:
+
+```typescript
+import { chat, maxIterations, toolDefinition, type ChatMiddleware } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { z } from "zod";
+
+const MAX_CALLS = 10;
+
+const search = toolDefinition({
+  name: "search",
+  description: "Search the docs",
+  inputSchema: z.object({ query: z.string() }),
+}).server(async ({ query }) => ({ hits: [`A page about ${query}`] }));
+
+const answerOnLastCall: ChatMiddleware = {
+  name: "answer-on-last-call",
+  onConfig: (ctx) => {
+    if (ctx.phase === "beforeModel" && ctx.iteration === MAX_CALLS - 1) {
+      return { toolChoice: "none" };
+    }
+  },
+};
+
+const stream = chat({
+  adapter: openaiText("gpt-6.1-sol"),
+  messages: [{ role: "user", content: "How do I add a tool?" }],
+  tools: [search],
+  agentLoopStrategy: maxIterations(MAX_CALLS),
+  middleware: [answerOnLastCall],
+});
+```
+
+- `config.toolChoice` is the `chat()` option.
+- The value you return applies to the next model call only. The call after it starts again from the `chat()` option.
+- Return it in the `beforeModel` phase. A value from the `init` phase does not reach a model call.
+- For the values, and what each provider does with them, see [Choose when the model calls a tool](../tools/tools#choose-when-the-model-calls-a-tool).
+
+#### Change the HTTP requests of a call
+
+Your proxy wants a header on each request. Or you want to log each model call. You do not need your own client for that. Return `wrapFetch` from `onConfig`:
+
+```typescript
+import { type ChatMiddleware } from "@tanstack/ai";
+
+const traceHeader: ChatMiddleware = {
+  name: "trace-header",
+  onConfig: (ctx) => {
+    if (ctx.phase !== "beforeModel") return;
+    return {
+      wrapFetch: (next) => (input, init) => {
+        const headers = new Headers(init?.headers);
+        headers.set("x-trace-id", `${ctx.requestId}-${ctx.iteration}`);
+        return next(input, { ...init, headers });
+      },
+    };
+  },
+};
+```
+
+You want the same wrapper on every call of the run? Pass it to `chat()`:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+const stream = chat({
+  adapter: openaiText("gpt-5.6"),
+  messages: [{ role: "user", content: "Hi" }],
+  wrapFetch: (next) => async (input, init) => {
+    const started = Date.now();
+    const response = await next(input, init);
+    console.log(`model call: ${response.status} in ${Date.now() - started} ms`);
+    return response;
+  },
+});
+```
+
+- A wrapper gets the next `fetch` and gives back a new one. It can change the URL, the headers, the request, or the response.
+- A wrapper from `onConfig` applies to the next model call only.
+- Wrappers chain. The `chat()` wrapper runs first, then the middleware wrappers in middleware order, then the fetch of the adapter.
+- Each adapter page says if that adapter supports `wrapFetch`.
+
+#### Change the prompt cache of a call
+
+A slow tool, like a build or a test run, can pause your agent for more than 5 minutes. The short Claude cache is gone by then. Return `promptCache` from `onConfig` to keep the cache longer from the next call on:
+
+```typescript
+import { type ChatMiddleware } from "@tanstack/ai";
+
+const longCacheAfterTools: ChatMiddleware = {
+  name: "long-cache-after-tools",
+  onConfig: (ctx, config) => {
+    if (ctx.phase !== "beforeModel" || ctx.iteration === 0) return;
+    return { promptCache: { ...config.promptCache, retention: "long" } };
+  },
+};
+```
+
+- `config.promptCache` is the current value, with its `retention` and its `key`.
+- The value you return goes to the adapter on the next model call. It stays until a middleware returns another one.
+- For the retention values and what they cost, see [Prompt Caching](./prompt-caching#turn-it-off-or-keep-it-longer).
 
 ### onStructuredOutputConfig
 
@@ -510,7 +618,7 @@ capability, then return those fields from `onConfig` when
 | --- | --- |
 | `onInterruptBoundary` | Nothing. It can only pause. |
 | `onInterruptResolution` | Pending-tool policy (`toolResume`) |
-| `onConfig` | `messages`, `systemPrompts`, `tools`, `modelOptions`, `metadata` |
+| `onConfig` | `messages`, `systemPrompts`, `tools`, `modelOptions`, `metadata`, `toolChoice` |
 
 The full resume order, plus an example that writes a user note into the
 system prompt, is in [Apply Answers](../interrupts/apply-answers).
@@ -596,8 +704,42 @@ The `info` object provides:
 | `toolCallId` | `string` | Tool call ID |
 | `ok` | `boolean` | Whether execution succeeded |
 | `duration` | `number` | Execution time in milliseconds |
-| `result` | `unknown` | Result (when `ok` is true) |
+| `result` | `unknown` | Result (when `ok` is true). After a `replaceResult` from an earlier middleware, the new result. |
 | `error` | `unknown` | Error (when `ok` is false) |
+
+#### Replace a tool result
+
+Some tools return way more than the model needs: 500 rows, a huge log, a secret you want to hide. The model reads every token of it. Return `{ type: 'replaceResult', result }` and the model gets your version instead:
+
+```typescript
+import { type ChatMiddleware } from "@tanstack/ai";
+
+const firstTwentyRows: ChatMiddleware = {
+  name: "first-twenty-rows",
+  onAfterToolCall: (ctx, info) => {
+    if (!info.ok || !Array.isArray(info.result)) return;
+    if (info.result.length <= 20) return;
+    return {
+      type: "replaceResult",
+      result: {
+        rows: info.result.slice(0, 20),
+        omitted: info.result.length - 20,
+      },
+    };
+  },
+};
+```
+
+| Return | What happens |
+|--------|--------|
+| nothing | The result stays the same. |
+| `{ type: 'replaceResult', result }` | The model gets `result`. The stream sends it in `TOOL_CALL_RESULT`, so the client shows it too. |
+
+Good to know:
+
+- Each middleware gets the result of the one before it as `info.result`. The last replacement wins.
+- A failed call stays failed. Your replacement becomes the error that the model reads.
+- A `skip` result from `onBeforeToolCall` goes through this hook too. `info.result` is the parsed skip result, the same value the model gets.
 
 ### Tool hook order in one turn
 
@@ -823,7 +965,7 @@ const stream = chat({
 | `onChunk` | **Piped** — chunks flow through each middleware | If first drops a chunk, later middleware never see it |
 | `onBeforeToolCall` | **First-win** — first non-void decision wins | Earlier middleware has priority |
 | `onShouldContinue` | **AND** — any explicit `false` stops the loop | Order only affects which middleware runs first when short-circuiting |
-| `onAfterToolCall` | Sequential | All run in order |
+| `onAfterToolCall` | **Piped**: each gets the result of the previous `replaceResult` | The last replacement wins |
 | `onUsage` | Sequential | All run in order |
 | `onFinish/onAbort/onError` | Sequential | All run in order |
 
@@ -977,6 +1119,56 @@ The capability system fails loudly and early:
 - **Post-`setup` assertion.** If a middleware declares a capability in `provides` but never calls its `provide` accessor during `setup`, `chat()` throws after the setup phase — you can't silently forget to provision.
 - **Duplicate provide → last-wins + warning.** If two middleware provide the same capability, the last write wins and a development warning is emitted.
 - **Unique names.** Capability `name`s must be unique across your app; the compile-time coverage check keys on the name literal (runtime keys on the handle reference).
+
+### Append records to the session log
+
+A host is a middleware that keeps a session log and provides `LogRecordsCapability`. `chat()` does not provide it, so without a host there is no log. With a host, your middleware can write its own records to that log, for example a note that a run started. Read the writer with `getLogRecords`:
+
+```typescript
+import {
+  LogRecordsCapability,
+  defineChatMiddleware,
+  getLogRecords,
+} from "@tanstack/ai";
+
+const noteStart = defineChatMiddleware({
+  name: "note-start",
+  optionalRequires: [LogRecordsCapability],
+  async onStart(ctx) {
+    const log = getLogRecords(ctx, { optional: true });
+    await log?.append([{ type: "app.note", text: "run started" }]);
+  },
+});
+```
+
+- Each record needs a `type`. The other fields are yours.
+- The host decides which record types it accepts. If the host refuses a record, `append` rejects.
+- Without a host log, `getLogRecords(ctx, { optional: true })` returns `undefined`. Use the optional read when your middleware also runs without a log.
+- If your middleware cannot work without the log, list the capability in `requires` and call `getLogRecords(ctx)`. Then `chat()` throws when no host provides the log.
+
+If you write a host, provide the log in `setup` and list it in `provides`:
+
+```typescript
+import {
+  LogRecordsCapability,
+  defineChatMiddleware,
+  provideLogRecords,
+} from "@tanstack/ai";
+
+const withSessionLog = defineChatMiddleware({
+  name: "with-session-log",
+  provides: [LogRecordsCapability],
+  setup(ctx) {
+    // One log per run. A real host writes to its durable store here.
+    const records: Array<{ type: string }> = [];
+    provideLogRecords(ctx, {
+      append: async (batch) => {
+        records.push(...batch);
+      },
+    });
+  },
+});
+```
 
 ## Built-in Middleware
 
@@ -1165,6 +1357,7 @@ import type {
   ToolCallHookContext,
   BeforeToolCallDecision,
   AfterToolCallInfo,
+  AfterToolCallDecision,
   IterationInfo,
   ToolPhaseCompleteInfo,
   UsageInfo,

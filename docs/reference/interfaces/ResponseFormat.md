@@ -3,7 +3,7 @@ id: ResponseFormat
 title: ResponseFormat
 ---
 
-Defined in: [packages/ai/src/types.ts:990](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L990)
+Defined in: [packages/ai/src/types.ts:992](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L992)
 
 Structured output format specification.
 
@@ -31,7 +31,7 @@ TypeScript type of the expected data structure (for type safety)
 optional __data?: TData;
 ```
 
-Defined in: [packages/ai/src/types.ts:1068](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1068)
+Defined in: [packages/ai/src/types.ts:1070](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1070)
 
 **`Internal`**
 
@@ -48,7 +48,7 @@ Allows the SDK to know what type to expect when parsing the response.
 optional json_schema?: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1007](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1007)
+Defined in: [packages/ai/src/types.ts:1009](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1009)
 
 JSON schema specification (required when type is "json_schema").
 
@@ -137,7 +137,7 @@ https://platform.openai.com/docs/guides/structured-outputs#strict-mode
 type: "json_object" | "json_schema";
 ```
 
-Defined in: [packages/ai/src/types.ts:999](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L999)
+Defined in: [packages/ai/src/types.ts:1001](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1001)
 
 Type of structured output.
 

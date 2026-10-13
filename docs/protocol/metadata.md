@@ -92,6 +92,8 @@ AG-UI `RUN_ERROR` has `message` and optional `code` at the top. Put correlation 
 }
 ```
 
+Rate limit? Put the wait in `metadata.tanstack.retryAfterMs`, in milliseconds. Clients read it from there. See [Rate limits](../chat/stream-events#rate-limits).
+
 ## Later
 
 Add these when you use the matching feature:

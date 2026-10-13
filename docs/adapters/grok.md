@@ -70,6 +70,8 @@ const config: Omit<GrokTextConfig, "apiKey"> = {
 const adapter = createGrokText("grok-build-0.1", process.env.XAI_API_KEY!, config);
 ```
 
+Need a header on each request, or a log of each model call? The chat adapters on this page support [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call).
+
 ## Grok on Vertex
 
 Use `@tanstack/ai-grok/vertex` when Grok must run on Vertex AI. That path
@@ -202,6 +204,29 @@ export async function POST(request: Request) {
 ```
 
 > If you previously passed `temperature` / `topP` / `maxTokens` at the root of `chat()`, see [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
+
+## Reasoning
+
+Want Grok to think harder? Set `reasoning` on `chat()`. It goes out as `reasoning.effort`, with a summary so the thinking text streams:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { grokText } from "@tanstack/ai-grok";
+
+const stream = chat({
+  adapter: grokText("grok-4.7"),
+  messages: [{ role: "user", content: "Plan a database migration." }],
+  reasoning: "xhigh",
+});
+```
+
+| Model | Levels |
+| --- | --- |
+| `grok-4.7`, `grok-4.6` | `low` to `xhigh` |
+| `grok-4.5` | `low`, `medium`, `high` |
+| `grok-4.3` | `off`, `low`, `medium`, `high` |
+
+`grok-build-0.1` and the `non-reasoning` models take no `reasoning`. `grok-4.20-reasoning` and `grok-4.1-fast-reasoning` take no `reasoning` either: they always think, and have no levels.
 
 ## Summarization
 
@@ -482,6 +507,8 @@ The shared Responses implementation supports streaming text, reasoning events, s
 ### `grokText(model, config?)`
 
 Creates a Grok text adapter using environment variables.
+
+`adapter.inputModalities` lists the input kinds of the selected model. It is `undefined` for a model that this package does not know. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
 
 **Parameters:**
 
