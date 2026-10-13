@@ -132,6 +132,41 @@ test.describe('Middleware Lifecycle', () => {
     expect(toolResults[0].content).toContain('skipped')
   })
 
+  test('onBeforeToolCall args that fail the inputSchema become a tool error', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    const params = new URLSearchParams()
+    if (testId) params.set('testId', testId)
+    if (aimockPort) params.set('aimockPort', String(aimockPort))
+    const qs = params.toString()
+    await page.goto(`/middleware-test${qs ? '?' + qs : ''}`)
+    await page.waitForTimeout(2000)
+    await page.locator('#mw-scenario-select').selectOption('with-tool')
+    await page.locator('#mw-mode-select').selectOption('tool-bad-args')
+    await page.locator('#mw-run-button').click()
+
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector('#mw-metadata')
+          ?.getAttribute('data-test-complete') === 'true',
+      { timeout: 10000 },
+    )
+
+    const messagesJson = await page.locator('#mw-messages-json').textContent()
+    const messages = JSON.parse(messagesJson || '[]')
+    const toolResults = messages.flatMap((m: any) =>
+      m.parts.filter((p: any) => p.type === 'tool-result'),
+    )
+    // The middleware rewrote { city: 'NYC' } to { city: 42 }. The schema
+    // checks the rewritten args, so get_weather never runs.
+    expect(toolResults).toHaveLength(1)
+    expect(toolResults[0].content).toContain('Input validation failed')
+    expect(toolResults[0].content).not.toContain('temperature')
+  })
+
   test('onAfterToolCall replaceResult changes what the client and the model see', async ({
     page,
     request,

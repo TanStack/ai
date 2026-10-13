@@ -357,6 +357,12 @@ const getUserData = getUserDataDef.server(async ({ userId }) => {
 
 Malformed JSON arguments and Standard Schema input validation failures are also surfaced as tool-result errors. The tool implementation is not called, and the agent loop can return the error to the model so it can repair the tool call. This also applies to Chat Completions tools with no required input fields.
 
+The `inputSchema` checks the input just before the tool runs:
+
+- The check runs after approval edits and after middleware `onBeforeToolCall`. An edited input that does not fit the schema becomes a tool error.
+- An async validator is awaited.
+- The tool gets the schema's output, so a transform such as `z.string().transform(Number)` applies once.
+
 ## Using JSON Schema
 
 If you have existing JSON Schema definitions or prefer not to use Zod, you can define tool schemas using raw JSON Schema objects:

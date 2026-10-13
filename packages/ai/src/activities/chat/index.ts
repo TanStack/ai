@@ -3928,7 +3928,15 @@ class TextEngine<
         this.addTerminalAssistantMessages()
       }
     }
-    const actionable = this.getBoundaryActionableToolRequests(toolCalls)
+    const actionable = yield* this.runWhileYielding(
+      this.getBoundaryActionableToolRequests(toolCalls),
+    )
+    for (const chunk of this.buildToolResultChunks(
+      actionable.results,
+      finishEvent,
+    )) {
+      yield* this.pipeThroughMiddleware(chunk)
+    }
     yield* this.emitActionableInterruptBoundary(
       finishEvent,
       actionable.approvals,
@@ -3939,51 +3947,65 @@ class TextEngine<
     return true
   }
 
-  private getBoundaryActionableToolRequests(
+  private async getBoundaryActionableToolRequests(
     toolCalls: ReadonlyArray<ToolCall>,
-  ): {
+  ): Promise<{
     approvals: Array<ApprovalRequest>
     clientRequests: Array<ClientToolRequest>
-  } {
+    results: Array<ToolResult>
+  }> {
     const { approvals, clientToolResults } = this.collectClientState()
-    const approvalRequests: Array<ApprovalRequest> = []
-    const clientRequests: Array<ClientToolRequest> = []
-    for (const toolCall of toolCalls) {
+    const pendingCalls = toolCalls.filter((toolCall) => {
       // Provider-executed calls are complete; never surface them as client work.
-      if (isProviderExecutedToolCall(toolCall)) continue
+      if (isProviderExecutedToolCall(toolCall)) return false
       const tool = this.resolveExecutableTools([toolCall]).find(
         (candidate) => candidate.name === toolCall.function.name,
-      ) as RuntimeToolWithApproval | undefined
-      if (!tool) continue
-      let input: unknown = {}
-      try {
-        const parsed = JSON.parse(toolCall.function.arguments.trim() || '{}')
-        input = parsed && typeof parsed === 'object' ? parsed : {}
-      } catch {
-        input = {}
-      }
-      const approvalId = `approval_${toolCall.id}`
-      if (tool.needsApproval && !approvals.has(approvalId)) {
-        approvalRequests.push({
-          toolCallId: toolCall.id,
-          toolName: toolCall.function.name,
-          input,
-          approvalId,
-        })
-      } else if (
+      )
+      if (!tool) return false
+      const resolution =
+        approvals.get(toolCall.id) ?? approvals.get(`approval_${toolCall.id}`)
+      if (tool.needsApproval && resolution === undefined) return true
+      return (
         !tool.execute &&
         !clientToolResults.has(toolCall.id) &&
         !this.resumeClientToolErrors.has(toolCall.id) &&
         !this.resumeCancelledToolCallIds.has(toolCall.id)
-      ) {
-        clientRequests.push({
-          toolCallId: toolCall.id,
-          toolName: toolCall.function.name,
-          input,
-        })
+      )
+    })
+    // Approval previews and client requests get the same final input check
+    // as the tool phase. No server tool runs here: a server tool is in the
+    // list only while it waits for approval.
+    const generator = executeToolCalls(
+      pendingCalls,
+      this.resolveExecutableTools(pendingCalls),
+      approvals,
+      clientToolResults,
+      undefined,
+      {
+        onBeforeToolCall: (toolCall, tool, args) =>
+          this.middlewareRunner.runOnBeforeToolCall(this.middlewareCtx, {
+            toolCall,
+            tool,
+            args,
+            toolName: toolCall.function.name,
+            toolCallId: toolCall.id,
+          }),
+        onAfterToolCall: (info) =>
+          this.middlewareRunner.runOnAfterToolCall(this.middlewareCtx, info),
+      },
+      this.middlewareCtx.context,
+      this.toolAbortSignal,
+    )
+    while (true) {
+      const next = await generator.next()
+      if (next.done) {
+        return {
+          approvals: next.value.needsApproval,
+          clientRequests: next.value.needsClientExecution,
+          results: next.value.results,
+        }
       }
     }
-    return { approvals: approvalRequests, clientRequests }
   }
 
   private completeEphemeralInterruptBindings(chunk: StreamChunk): StreamChunk {
