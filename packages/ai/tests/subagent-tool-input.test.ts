@@ -507,9 +507,10 @@ describe('agent tool input', () => {
     [
       'a background that is not a boolean',
       'writer',
-      { background: 'true' },
+      { background: 'yes' },
       { binding: host },
-      'prompt and sessionId must be strings, and background a boolean.',
+      // The JSON Schema of the tool checks the reserved fields too.
+      'Input validation failed for tool writer: #/background: Instance type "string" is invalid. Expected "boolean".',
     ],
     [
       'background with a sessionId',
@@ -524,7 +525,9 @@ describe('agent tool input', () => {
     async (_label, agent, args, options, error) => {
       const { chunks, result } = await callSubagent(agent, args, options)
 
-      expect(result).toEqual({ error })
+      // A schema error also shows the received arguments after the message.
+      expect(Object.keys(result)).toEqual(['error'])
+      expect(result.error.startsWith(error)).toBe(true)
       expect(runs).toEqual([])
       // The parent run goes on after the tool error.
       expect(chunks.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
