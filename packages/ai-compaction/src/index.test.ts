@@ -644,7 +644,11 @@ describe('withCompaction native', () => {
 
   it('reports a failed adapter compact, and skips it for that model after', async () => {
     const strategy = vi.fn<CompactionStrategy>(() => [text('user', 'cut')])
-    const compact = vi.fn(() => Promise.reject(new Error('404 Not Found')))
+    const compact = vi.fn(() =>
+      Promise.reject(
+        Object.assign(new Error('404 Not Found'), { status: 404 }),
+      ),
+    )
     const adapter = { compact }
     const infos: Array<CompactionInfo> = []
     const options = {
@@ -687,6 +691,57 @@ describe('withCompaction native', () => {
       recordingContext('beforeModel', { model: 'gpt-5.4' }).ctx,
     )
     expect(compact).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([400, 429])('tries compact again after a %i', async (status) => {
+    const strategy = vi.fn<CompactionStrategy>(() => [text('user', 'cut')])
+    const compact = vi.fn(() =>
+      Promise.reject(Object.assign(new Error(`${status}`), { status })),
+    )
+    const options = { maxTokens: 50, strategy, native: { compact } }
+    for (let run = 0; run < 2; run++) {
+      await runOnConfig(
+        withCompaction(options),
+        [big('user'), big('assistant'), big('user')],
+        recordingContext('beforeModel', { model: 'gpt-5.5' }).ctx,
+      )
+    }
+
+    expect(compact).toHaveBeenCalledTimes(2)
+    expect(strategy).toHaveBeenCalledTimes(2)
+  })
+
+  it('keys a native checkpoint by model, also with a custom strategyKey', async () => {
+    const store = memoryStore()
+    const compact = vi.fn((options: TextCompactOptions) =>
+      Promise.resolve([text('user', options.model), sealed]),
+    )
+    const options = {
+      maxTokens: 50,
+      strategyKey: 'mine',
+      native: { compact },
+    }
+    const contextFor = (model: string) => {
+      // oxlint-disable-next-line eslint-js/no-restricted-syntax -- focused hook stub
+      const ctx = {
+        ...recordingContext('beforeModel', { model }).ctx,
+        threadId: 'thread-1',
+        capabilities: { markProvided: () => undefined },
+      } as unknown as ChatMiddlewareContext
+      provideMetadata(ctx, store)
+      return ctx
+    }
+    const messages = [big('user'), big('assistant'), big('user')]
+    await runOnConfig(withCompaction(options), messages, contextFor('gpt-5.5'))
+    const other = await runOnConfig(
+      withCompaction(options),
+      messages,
+      contextFor('gpt-5.4'),
+    )
+
+    // gpt-5.4 does not get the item that only gpt-5.5 reads.
+    expect(compact).toHaveBeenCalledTimes(2)
+    expect(other?.providerMessages?.[0]?.content).toBe('gpt-5.4')
   })
 
   it('passes the system prompts to the adapter compact', async () => {

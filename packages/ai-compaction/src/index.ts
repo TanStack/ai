@@ -80,10 +80,24 @@ export interface CompactionEndedEventValue {
 }
 
 /**
- * The models whose native compaction failed, by adapter. They use the
- * strategy for the rest of the process.
+ * The models whose native compaction failed for good, by adapter. They use
+ * the strategy for the rest of the process.
  */
 const failedNative = new WeakMap<object, Set<string>>()
+
+/**
+ * True when the provider has no compaction endpoint: a 404, 405, or 501.
+ * Other failures can belong to one request, thread, or key (a 400 for a
+ * too-long history, a 401, a 429, a network error), so the next compaction
+ * tries again.
+ */
+function isPermanentFailure(error: unknown): boolean {
+  const status =
+    typeof error === 'object' && error !== null && 'status' in error
+      ? error.status
+      : undefined
+  return typeof status === 'number' && [404, 405, 501].includes(status)
+}
 
 function emitCompactionStarted(
   ctx: ChatMiddlewareContext,
@@ -291,8 +305,9 @@ export interface CompactionOptions {
    * Compact with the provider's own endpoint. Pass the adapter of the
    * `chat()` call. When the adapter has `compact`, it runs in place of
    * `strategy`. Else, or when `compact` fails, `strategy` runs. A failure
-   * sets `error` in `onCompact` and `compaction:ended`. Then that adapter
-   * and model use `strategy` for the rest of the process. Default: off.
+   * sets `error` in `onCompact` and `compaction:ended`. After a 404, 405,
+   * or 501 (no compaction endpoint), that adapter and model use `strategy`
+   * for the rest of the process. Default: off.
    */
   native?: Pick<AnyTextAdapter, 'compact'>
 }
@@ -520,8 +535,10 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
             })
           } catch (error) {
             if (ctx.signal?.aborted) throw error
-            const models = failedNative.get(native) ?? new Set<string>()
-            failedNative.set(native, models.add(ctx.model))
+            if (isPermanentFailure(error)) {
+              const models = failedNative.get(native) ?? new Set<string>()
+              failedNative.set(native, models.add(ctx.model))
+            }
             spent.error = {
               message: error instanceof Error ? error.message : String(error),
             }
@@ -537,10 +554,10 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
         ? undefined
         : strategyKeys.get(configured))
   // A native checkpoint holds an item that only its model reads, so the
-  // model is part of its key.
+  // model is part of its key, also with a custom `strategyKey`.
   const checkpointKeyOf = (model: string) =>
     strategyKey
-      ? `${strategyKey}${nativeCompact && !options.strategyKey ? `:${model}` : ''}:maxTokens=${options.maxTokens}`
+      ? `${strategyKey}${nativeCompact ? `:${model}` : ''}:maxTokens=${options.maxTokens}`
       : undefined
 
   return {
