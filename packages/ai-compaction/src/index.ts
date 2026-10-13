@@ -39,7 +39,9 @@ import {
   toUsageCount,
 } from './usage-count'
 import type {
+  AnyTextAdapter,
   ChatMiddleware,
+  ChatMiddlewareConfig,
   ChatMiddlewareContext,
   ModelMessage,
   TokenUsage,
@@ -117,10 +119,33 @@ export interface CompactionEndedEventValue {
   reason: CompactionReason
   /** The sum of the strategy's `addUsage` calls, for example its summary call. */
   usage?: TokenUsage
-  /** Set when the strategy threw. */
+  /**
+   * Set when the strategy threw, or when the adapter's `compact` failed and
+   * the strategy ran in its place.
+   */
   error?: { message: string }
   /** `true`: a ready background summary no longer fit the messages, and was dropped. */
   stale?: boolean
+}
+
+/**
+ * The models whose native compaction failed for good, by adapter. They use
+ * the strategy for the rest of the process.
+ */
+const failedNative = new WeakMap<object, Set<string>>()
+
+/**
+ * True when the provider has no compaction endpoint: a 404, 405, or 501.
+ * Other failures can belong to one request, thread, or key (a 400 for a
+ * too-long history, a 401, a 429, a network error), so the next compaction
+ * tries again.
+ */
+function isPermanentFailure(error: unknown): boolean {
+  const status =
+    typeof error === 'object' && error !== null && 'status' in error
+      ? error.status
+      : undefined
+  return typeof status === 'number' && [404, 405, 501].includes(status)
 }
 
 function emitCompactionStarted(
@@ -356,7 +381,8 @@ export interface CompactionInfo {
   /**
    * Set when the after-turn check failed (the strategy, the store, or
    * `onCompact` threw), or when a background summary failed. The run goes
-   * on. When the strategy failed, a later check tries again.
+   * on. When the strategy failed, a later check tries again. Also set when
+   * the adapter's `compact` failed and the strategy ran in its place.
    */
   error?: { message: string }
   /** `true`: a ready background summary no longer fit the messages, and was dropped. */
@@ -377,6 +403,15 @@ export interface CompactionOptions {
   strategyKey?: string
   /** Observe each compaction (logging, metrics). */
   onCompact?: (info: CompactionInfo) => void
+  /**
+   * Compact with the provider's own endpoint. Pass the adapter of the
+   * `chat()` call. When the adapter has `compact`, it runs in place of
+   * `strategy`. Else, or when `compact` fails, `strategy` runs. A failure
+   * sets `error` in `onCompact` and `compaction:ended`. After a 404, 405,
+   * or 501 (no compaction endpoint), that adapter and model use `strategy`
+   * for the rest of the process. Default: off.
+   */
+  native?: Pick<AnyTextAdapter, 'compact'>
   /**
    * How to count the tokens of the list. `'usage'`: the usage the provider
    * reported for the last model call, plus the estimate of each message after
@@ -742,13 +777,60 @@ export function withCompaction(
     )
   }
   const estimate = options.estimateTokens ?? estimateMessageTokens
-  const strategy = options.strategy ?? evictOldest()
+  const configured = options.strategy ?? evictOldest()
+  const native = options.native
+  const nativeCompact = native?.compact?.bind(native)
+  /**
+   * The strategy of a call: the adapter's `compact` when `native` has it.
+   * When `compact` fails, the configured strategy runs, and `spent.error`
+   * gets the failure. An adapter can get `compact` from a shared base and
+   * point at a provider with no such endpoint.
+   */
+  const strategyOf = (
+    ctx: ChatMiddlewareContext,
+    spent: { error?: { message: string } },
+    config?: ChatMiddlewareConfig,
+  ): CompactionStrategy =>
+    native && nativeCompact
+      ? async (messages, compaction) => {
+          if (failedNative.get(native)?.has(ctx.model)) {
+            return configured(messages, compaction)
+          }
+          try {
+            return await nativeCompact({
+              messages: [...messages],
+              model: ctx.model,
+              // A background summary has no signal, so the run does not stop it.
+              ...(compaction.signal ? { signal: compaction.signal } : {}),
+              ...(config?.wrapFetch ? { wrapFetch: config.wrapFetch } : {}),
+              ...(config ? { systemPrompts: config.systemPrompts } : {}),
+            })
+          } catch (error) {
+            if (compaction.signal?.aborted) throw error
+            if (isPermanentFailure(error)) {
+              const models = failedNative.get(native) ?? new Set<string>()
+              failedNative.set(native, models.add(ctx.model))
+            }
+            spent.error = {
+              message: error instanceof Error ? error.message : String(error),
+            }
+            return configured(messages, compaction)
+          }
+        }
+      : configured
   const strategyKey =
     options.strategyKey ??
-    (options.estimateTokens ? undefined : strategyKeys.get(strategy))
-  const checkpointStrategyKey = strategyKey
-    ? `${strategyKey}:maxTokens=${options.maxTokens}`
-    : undefined
+    (nativeCompact
+      ? 'native'
+      : options.estimateTokens
+        ? undefined
+        : strategyKeys.get(configured))
+  // A native checkpoint holds an item that only its model reads, so the
+  // model is part of its key, also with a custom `strategyKey`.
+  const checkpointKeyOf = (model: string) =>
+    strategyKey
+      ? `${strategyKey}${nativeCompact ? `:${model}` : ''}:maxTokens=${options.maxTokens}`
+      : undefined
   const countUsage = options.countTokens === 'usage'
   const auto = options.auto !== false
   const memory = memoryMetadata()
@@ -758,7 +840,7 @@ export function withCompaction(
   // usage fits that list.
   const storeOf = (ctx: ChatMiddlewareContext) => {
     const shared = getMetadata(ctx, { optional: true })
-    if (shared && checkpointStrategyKey) return shared
+    if (shared && checkpointKeyOf(ctx.model)) return shared
     return countUsage ? memory : undefined
   }
   // True when the last model call of a run got a compacted view. The usage of
@@ -784,12 +866,14 @@ export function withCompaction(
    */
   function startBackground(
     ctx: ChatMiddlewareContext,
+    config: ChatMiddlewareConfig,
     snapshot: Array<ModelMessage>,
     before: number,
     reusedCheckpoint: boolean,
   ) {
     const startedAt = Date.now()
     const store = backgroundStore(ctx)
+    const checkpointStrategyKey = checkpointKeyOf(ctx.model)
     const strategyField = checkpointStrategyKey
       ? { strategyKey: checkpointStrategyKey }
       : {}
@@ -801,7 +885,7 @@ export function withCompaction(
       ...strategyField,
       reason: 'background',
     })
-    const spent: { usage?: TokenUsage } = {}
+    const spent: { usage?: TokenUsage; error?: { message: string } } = {}
     // This event reaches the stream only while the run that started the job
     // still runs. onCompact always gets a failure.
     const end = (error?: { message: string }) =>
@@ -820,7 +904,11 @@ export function withCompaction(
     // still removes its entry.
     const done = Promise.resolve().then(async () => {
       try {
-        const next = await strategy(snapshot, {
+        const next = await strategyOf(
+          ctx,
+          spent,
+          config,
+        )(snapshot, {
           maxTokens: options.maxTokens,
           estimate,
           addUsage: (usage) => {
@@ -882,7 +970,7 @@ export function withCompaction(
     const store = storeOf(ctx)
     if (!logRecords || !store || providerOnly.get(ctx) === true) return
     const messages = [...ctx.messages]
-    const spent: { usage?: TokenUsage } = {}
+    const spent: { usage?: TokenUsage; error?: { message: string } } = {}
     let tokens = 0
     const info = (after: number, messagesAfter: number): CompactionInfo => ({
       before: tokens,
@@ -924,7 +1012,7 @@ export function withCompaction(
       const isOverflow =
         options.contextWindow !== undefined && tokens > options.contextWindow
       if (!isOverflow && !(auto && tokens > options.maxTokens)) return
-      next = await strategy(messages, {
+      next = await strategyOf(ctx, spent)(messages, {
         maxTokens: options.maxTokens,
         estimate,
         signal: ctx.signal,
@@ -990,6 +1078,7 @@ export function withCompaction(
       const force = forced.delete(ctx.threadId)
       const reason: CompactionReason = force ? 'forced' : 'threshold'
 
+      const checkpointStrategyKey = checkpointKeyOf(ctx.model)
       const startedAt = Date.now()
       const { messages } = config
       const inputMessages = config.providerMessages ?? messages
@@ -1048,6 +1137,7 @@ export function withCompaction(
         tokensBefore: number,
         why: CompactionReason,
         usage: TokenUsage | undefined,
+        error?: { message: string },
       ) => {
         const info: CompactionInfo = {
           before: tokensBefore,
@@ -1056,6 +1146,7 @@ export function withCompaction(
           messagesAfter: next.length,
           reason: why,
           ...(usage ? { usage } : {}),
+          ...(error ? { error } : {}),
         }
         if (countUsage) {
           // The saved usage counted the list before this compaction.
@@ -1118,6 +1209,7 @@ export function withCompaction(
             : {}),
           reason: why,
           ...(usage ? { usage } : {}),
+          ...(error ? { error } : {}),
         })
 
         compactedViews.set(ctx, true)
@@ -1225,7 +1317,13 @@ export function withCompaction(
             ))
         ) {
           // The model call goes on at once, with the messages as they are.
-          startBackground(ctx, [...workingMessages], before, reusedCheckpoint)
+          startBackground(
+            ctx,
+            config,
+            [...workingMessages],
+            before,
+            reusedCheckpoint,
+          )
         }
       }
       const startedValue: CompactionStartedEventValue = {
@@ -1274,10 +1372,14 @@ export function withCompaction(
 
       emitCompactionStarted(ctx, startedValue)
       // An object, so the closure below can write it and TypeScript reads it.
-      const spent: { usage?: TokenUsage } = {}
+      const spent: { usage?: TokenUsage; error?: { message: string } } = {}
       let next: Array<ModelMessage> | null
       try {
-        next = await strategy(workingMessages, {
+        next = await strategyOf(
+          ctx,
+          spent,
+          config,
+        )(workingMessages, {
           maxTokens: options.maxTokens,
           estimate,
           signal: ctx.signal,
@@ -1319,6 +1421,7 @@ export function withCompaction(
             : {}),
           reason,
           ...(spent.usage ? { usage: spent.usage } : {}),
+          ...(spent.error ? { error: spent.error } : {}),
         })
         if (reusedCheckpoint) {
           return { providerMessages: workingMessages }
@@ -1326,7 +1429,14 @@ export function withCompaction(
         return
       }
 
-      await commit(workingMessages, next, before, reason, spent.usage)
+      await commit(
+        workingMessages,
+        next,
+        before,
+        reason,
+        spent.usage,
+        spent.error,
+      )
       return { providerMessages: next }
     },
     onUsage: countUsage

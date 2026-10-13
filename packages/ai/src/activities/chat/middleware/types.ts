@@ -853,6 +853,10 @@ export interface ChatMiddleware<
    * Return `{ type: 'replaceResult', result }` to change the result that the
    * model and the stream see. Middleware run in order. Each one sees the
    * result of the one before it.
+   *
+   * Also called for a tool call that did not run because the output limit
+   * cut its answer. Then `ok` is false, and `error` is an `Error` with the
+   * code `'max_tokens'`.
    */
   onAfterToolCall?: (
     ctx: ChatMiddlewareContext<TContext>,

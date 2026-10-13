@@ -779,6 +779,7 @@ Good to know:
 - Each middleware gets the result of the one before it as `info.result`. The last replacement wins.
 - A failed call stays failed. Your replacement becomes the error that the model reads.
 - A `skip` result from `onBeforeToolCall` goes through this hook too. `info.result` is the parsed skip result, the same value the model gets.
+- A call that the output limit cut goes through this hook too. It did not run, so `ok` is false, and `error` has the code `max_tokens`. See [When the output limit cuts a tool call](../chat/agentic-cycle#when-the-output-limit-cuts-a-tool-call).
 
 ### Tool hook order in one turn
 

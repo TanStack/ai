@@ -446,6 +446,30 @@ The levels of each model:
 
 The other models, such as `gpt-4.1` and `gpt-4o`, take no `reasoning`.
 
+### Native compaction
+
+OpenAI can compact a long conversation on its side, with `POST /responses/compact`. The Responses adapters (`openaiText` and `createOpenaiChat`) have a `compact` method for it. Turn it on with the `native` option of `withCompaction`:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { withCompaction } from "@tanstack/ai-compaction";
+
+const adapter = openaiText("gpt-6.1-sol");
+
+const stream = chat({
+  adapter,
+  messages: [{ role: "user", content: "Hello!" }],
+  middleware: [withCompaction({ maxTokens: 100_000, native: adapter })],
+});
+```
+
+- The result holds your user messages and one encrypted `compaction` item.
+- The adapter sends that item back as it is on each later request to the same model.
+- `openaiChatCompletions` has no `compact` method, so `withCompaction` uses its `strategy`.
+
+See [Let the provider compact](../advanced/compaction#let-the-provider-compact).
+
 ### Answers on the next request
 
 OpenAI gives each answer item an `id` and a `phase`: `commentary` for text before a tool call, and `final_answer` for the answer. The Responses adapters (`openaiText` and `createOpenaiChat`) keep both in the assistant message, in `metadata.tanstack.responseItems`. When the same model gets that message again, for example on the next turn, the adapter sends each item back with its `id` and `phase`. Another model gets the plain text.

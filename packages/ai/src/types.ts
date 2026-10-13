@@ -703,6 +703,11 @@ export interface TanStackMessageMetadata {
   stopReason?: 'error' | 'aborted'
   responseId?: string
   /**
+   * Why the model call of this assistant message ended. A `'length'` message
+   * stopped at the output limit, so its tool calls are not complete.
+   */
+  finishReason?: TanStackRunMetadata['finishReason']
+  /**
    * The provider's answer items of this assistant message, in order, for a
    * same-model replay. The OpenAI Responses adapter keeps each output
    * message item's `id` and `phase` (`commentary` or `final_answer`).
@@ -1487,6 +1492,18 @@ export interface TextOptions<
    * here). Undefined for direct adapter usage outside the chat engine.
    */
   approvals?: ReadonlyMap<string, boolean>
+}
+
+/** What `TextAdapter.compact` receives. */
+export interface TextCompactOptions {
+  /** The history to compact. */
+  messages: Array<ModelMessage>
+  model: string
+  signal?: AbortSignal
+  /** Wraps the fetch of the compaction request. */
+  wrapFetch?: FetchWrapper
+  /** The system prompts of the chat call. */
+  systemPrompts?: Array<SystemPrompt>
 }
 
 // ============================================================================

@@ -166,6 +166,41 @@ withCompaction({
 });
 ```
 
+## Let the provider compact
+
+Some providers can compact the conversation on their own servers. The model then keeps more of the old turns than a marker gives. It costs one compaction call.
+
+Pass the adapter of the `chat()` call as `native`. When the count passes `maxTokens`, the adapter's `compact` method runs in place of `strategy`.
+
+```typescript
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { withCompaction } from "@tanstack/ai-compaction";
+
+const adapter = openaiText("gpt-6.1-sol");
+
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter,
+    messages,
+    middleware: [withCompaction({ maxTokens: 100_000, native: adapter })],
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+- An adapter with no `compact` method uses `strategy`.
+- When `compact` fails, `strategy` runs in its place. `onCompact` and `compaction:ended` get the failure in `error`. Some providers on the OpenAI Responses base have no compaction endpoint.
+- After a 404, 405, or 501 (the provider has no compaction endpoint), that adapter object and model use `strategy` until the process restarts. Create the adapter once, outside the request handler, so that no more compaction calls go out.
+- After any other failure, such as a 400, a 429, or a network error, the next compaction tries `compact` again.
+- The compaction call gets the system prompts of the `chat()` call. It does not get the tools: the compaction endpoint does not take them.
+- The compacted messages can hold an encrypted provider item. The adapter sends it back as it is to the same model. Another model does not get it.
+
+The OpenAI Responses adapters have `compact`. See [Native compaction](../adapters/openai#native-compaction).
+
 ## When the chat is still too long
 
 The token count is an estimate. So once in a while a call is still too long for the model, and the provider rejects it.
@@ -222,13 +257,14 @@ compaction.compactNext("thread-1");
 | `strategy` | `CompactionStrategy` | `evictOldest()` | How to shrink the messages. |
 | `estimateTokens` | `(message: ModelMessage) => number` | characters / 4 | Per-message token estimate. Pass a real tokenizer if you need exact counts. |
 | `strategyKey` | `string` | built-in strategy identity | Stable checkpoint identity. Set it for custom strategies, custom estimators, or a custom eviction marker. Change it when your `summarize` function can change. |
-| `onCompact` | `(info: CompactionInfo) => void` | - | Runs after each compaction. `info` is `{ before, after, messagesBefore, messagesAfter, reason, usage, error, stale }`. `error` is set when the check after a run fails or a background summary fails. `stale` is set when a background summary no longer fits. |
+| `onCompact` | `(info: CompactionInfo) => void` | - | Runs after each compaction. `info` is `{ before, after, messagesBefore, messagesAfter, reason, usage, error, stale }`. `error` is set when the check after a run fails, a background summary fails, or `native` compaction failed and `strategy` ran in its place. `stale` is set when a background summary no longer fits. |
 | `countTokens` | `'estimate' \| 'usage'` | `'estimate'` | `'usage'` counts with the usage the provider reported for the last call. See [Count with real usage](#count-with-real-usage). |
 | `auto` | `boolean` | `true` | `false` turns off compaction at `maxTokens`. `compactNext`, the overflow retry, and the overflow check still run. |
 | `contextWindow` | `number` | - | The model's context window. With `countTokens: 'usage'` and `durable: true` on a host with a session log, compaction also runs after a run whose usage passed it, even with `auto: false`. |
 | `durable` | `boolean` | `false` | On a host with a session log, write the result into the log. See [Keep compaction in a session log](#keep-compaction-in-a-session-log). |
 | `continueOnError` | `boolean` | `false` | When the strategy fails, send the full messages and go on. By default the run fails. |
 | `background` | `{ atTokens: number }` | - | Prepare the summary when the count passes `atTokens`, and apply it at the next run. `atTokens` must be below `maxTokens`. See [Prepare the summary in the background](#prepare-the-summary-in-the-background). |
+| `native` | `{ compact?: (options) => Promise<ModelMessage[]> }` | - | The adapter of the `chat()` call. When it has `compact`, the provider compacts in place of `strategy`. See [Let the provider compact](#let-the-provider-compact). |
 
 ### Strategy options
 
