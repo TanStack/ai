@@ -111,6 +111,51 @@ describe('openrouterSignIn', () => {
     ).rejects.toThrow('OpenRouter sign-in timed out')
   })
 
+  it('returns the key when the exchange outlasts the wait', async () => {
+    const fetchImpl: typeof fetch = async () => {
+      await new Promise((resolve) => setTimeout(resolve, 250))
+      return new Response(JSON.stringify({ key: 'sk-or-v1-live' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    }
+    const browser = fakeBrowser((callback) => {
+      callback.searchParams.set('code', 'abc')
+    })
+
+    const key = await openrouterSignIn({ fetchImpl, timeoutMs: 100 })({
+      open: browser.open,
+    })
+
+    expect(key).toBe('sk-or-v1-live')
+    expect(await browser.pages[0]).toContain('You are signed in to OpenRouter')
+    await expectListenerClosed(browser.authUrls[0])
+  })
+
+  it('cancels the key exchange when the signal aborts', async () => {
+    const controller = new AbortController()
+    const browser = fakeBrowser((callback) => {
+      callback.searchParams.set('code', 'abc')
+    })
+    const fetchImpl: typeof fetch = (_input, init) =>
+      new Promise((_resolve, reject) => {
+        const signal = init?.signal
+        expect(signal).toBeDefined()
+        if (signal === undefined) return
+        // The callback response is aborted with the exchange.
+        void browser.pages[0]?.catch(() => undefined)
+        signal.addEventListener('abort', () => reject(signal.reason))
+        controller.abort()
+      })
+    await expect(
+      openrouterSignIn({ fetchImpl })({
+        open: browser.open,
+        signal: controller.signal,
+      }),
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    await expectListenerClosed(browser.authUrls[0])
+  })
+
   it('rejects on abort and closes the listener', async () => {
     const controller = new AbortController()
     const browser = fakeBrowser()
