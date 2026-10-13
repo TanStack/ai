@@ -33,6 +33,14 @@
     "./client": {
       "types": "./dist/esm/client.d.ts",
       "import": "./dist/esm/client.js"
+    },
+    "./build": {
+      "types": "./dist/esm/build.d.ts",
+      "import": "./dist/esm/build.js"
+    },
+    "./worker": {
+      "types": "./dist/esm/worker.d.ts",
+      "import": "./dist/esm/worker.js"
     }
   },
   "scripts": {

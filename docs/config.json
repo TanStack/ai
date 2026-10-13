@@ -939,6 +939,11 @@
           "addedAt": "2026-10-13"
         },
         {
+          "label": "Deploy a harness",
+          "to": "harness/deploy",
+          "addedAt": "2026-10-13"
+        },
+        {
           "label": "Send inputs safely",
           "to": "harness/inputs",
           "addedAt": "2026-10-13"
