@@ -58,7 +58,11 @@ const collect = async (stream: AsyncIterable<AdapterYieldChunk>) => {
   return chunks
 }
 
-function sdk(api: 'chat' | 'responses', events?: Array<unknown>) {
+function sdk(
+  api: 'chat' | 'responses',
+  events?: Array<unknown>,
+  id: typeof model | 'aion-labs/aion-2.0' = model,
+) {
   const bodies: Array<unknown> = []
   const requests: Array<Request> = []
   const httpClient = new HTTPClient({
@@ -112,8 +116,8 @@ function sdk(api: 'chat' | 'responses', events?: Array<unknown>) {
   }
   const adapter =
     api === 'chat'
-      ? new OpenRouterTextAdapter(config, model)
-      : new OpenRouterResponsesTextAdapter(config, model)
+      ? new OpenRouterTextAdapter(config, id)
+      : new OpenRouterResponsesTextAdapter(config, id)
   return { adapter, bodies, requests, config }
 }
 
@@ -510,6 +514,97 @@ describe('native OpenRouter replay parity', () => {
             },
           ],
         })
+    },
+  )
+
+  const imageTurn = (id: string): Array<ModelMessage> => [
+    {
+      role: 'assistant',
+      content: null,
+      toolCalls: [
+        {
+          id,
+          type: 'function',
+          function: { name: 'inspect', arguments: '{}' },
+        },
+      ],
+    },
+    {
+      role: 'tool',
+      toolCallId: id,
+      content: [
+        {
+          type: 'image',
+          source: { type: 'url', value: `https://example.com/${id}.png` },
+        },
+      ],
+    },
+  ]
+
+  it('sends the images of each tool run before the next message', async () => {
+    const mock = sdk('chat')
+    await collect(
+      mock.adapter.chatStream({
+        logger,
+        model,
+        messages: [
+          ...imageTurn('a'),
+          ...imageTurn('b'),
+          { role: 'user', content: 'Next' },
+        ],
+      }),
+    )
+    const images = (id: string) => ({
+      role: 'user',
+      content: [
+        {
+          type: 'image_url',
+          image_url: { url: `https://example.com/${id}.png` },
+        },
+      ],
+    })
+    expect(mock.bodies[0]).toMatchObject({
+      messages: [
+        { role: 'assistant' },
+        { role: 'tool', tool_call_id: 'a' },
+        images('a'),
+        { role: 'assistant' },
+        { role: 'tool', tool_call_id: 'b' },
+        images('b'),
+        { role: 'user', content: 'Next' },
+      ],
+    })
+  })
+
+  it.each(['chat', 'responses'] as const)(
+    'sends no tool-result image through %s to a model without image input',
+    async (api) => {
+      const textOnly = 'aion-labs/aion-2.0'
+      const mock = sdk(api, undefined, textOnly)
+      await collect(
+        mock.adapter.chatStream({
+          logger,
+          model: textOnly,
+          messages: imageTurn('a'),
+        }),
+      )
+      const omitted = '(image omitted: this model has no image input)'
+      expect(mock.bodies[0]).toMatchObject(
+        api === 'chat'
+          ? {
+              messages: [
+                { role: 'assistant' },
+                { role: 'tool', tool_call_id: 'a', content: omitted },
+              ],
+            }
+          : {
+              input: [
+                { type: 'function_call' },
+                { type: 'function_call_output', output: omitted },
+              ],
+            },
+      )
+      expect(JSON.stringify(mock.bodies[0])).not.toContain('example.com')
     },
   )
 })

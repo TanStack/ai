@@ -1411,26 +1411,34 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         return (this.provider ?? this.name) === 'openai' ? id.slice(0, 40) : id
       },
     )
-    // Tool rows cannot carry images. The images of a run of tool results go
-    // in one user message after that run.
-    const toolImages: Array<ChatCompletionContentPart> = []
+    // Tool messages cannot carry media. The non-text parts of a run of tool
+    // results that have images go in one user message after that run.
+    const imageInput = this.inputModalities?.includes('image') ?? true
+    const toolMedia: Array<ChatCompletionContentPart> = []
     for (const message of replay.messages) {
-      if (message.role !== 'tool' && toolImages.length > 0)
-        messages.push({ role: 'user', content: toolImages.splice(0) })
+      if (message.role !== 'tool' && toolMedia.length > 0)
+        messages.push({ role: 'user', content: toolMedia.splice(0) })
       messages.push(this.convertMessage(message))
       if (
         message.role === 'tool' &&
         Array.isArray(message.content) &&
-        (this.inputModalities?.includes('image') ?? true)
+        message.content.some((part) => part.type === 'image')
       ) {
         for (const part of message.content) {
-          const image = part.type === 'image' && this.convertContentPart(part)
-          if (image) toolImages.push(image)
+          if (part.type === 'text' || (part.type === 'image' && !imageInput))
+            continue
+          const converted = this.convertContentPart(part)
+          if (!converted) {
+            throw new Error(
+              `Unsupported content part type in a tool result for ${this.name}: ${part.type}.`,
+            )
+          }
+          toolMedia.push(converted)
         }
       }
     }
-    if (toolImages.length > 0)
-      messages.push({ role: 'user', content: toolImages })
+    if (toolMedia.length > 0)
+      messages.push({ role: 'user', content: toolMedia })
 
     const modelOptions = options.modelOptions
 
@@ -1520,8 +1528,9 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     if (message.role === 'tool') {
       // A Chat Completions `tool` message carries text only. For a result
       // with images, the text parts go here and `mapOptionsToRequest` sends
-      // the images in a user message after the tool results. Other
-      // `Array<ContentPart>` results are stringified.
+      // the other parts in a user message after the tool results. Other
+      // `Array<ContentPart>` results are JSON-stringified, text-only arrays
+      // included.
       const content = message.content
       return {
         role: 'tool',
@@ -1531,7 +1540,10 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             ? content
             : Array.isArray(content) &&
                 content.some((part) => part.type === 'image')
-              ? this.extractTextContent(content) || '(see attached image)'
+              ? this.extractTextContent(content) ||
+                ((this.inputModalities?.includes('image') ?? true)
+                  ? '(see attached image)'
+                  : '(image omitted: this model has no image input)')
               : JSON.stringify(content),
       }
     }

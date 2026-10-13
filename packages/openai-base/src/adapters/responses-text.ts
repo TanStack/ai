@@ -2588,7 +2588,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         const output: string | Array<ResponseFunctionCallOutputItem> = parts
           ? parts.length > 0 || parts.length === toolContent?.length
             ? parts.map((part) => this.convertContentPartToInput(part))
-            : '(see attached image)'
+            : '(image omitted: this model has no image input)'
           : typeof toolContent === 'string'
             ? toolContent
             : JSON.stringify(toolContent)

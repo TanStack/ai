@@ -1433,7 +1433,7 @@ export class OpenRouterTextAdapter<
         return id.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40)
       },
     )
-    // Tool rows cannot carry images. The images of a run of tool results go
+    // Tool messages cannot carry images. The images of a run of tool results go
     // in one user message after that run.
     const toolImages: Array<ChatContentItems> = []
     for (const m of replay.messages) {
@@ -1542,7 +1542,9 @@ export class OpenRouterTextAdapter<
           !text &&
           Array.isArray(message.content) &&
           message.content.some((part) => part.type === 'image')
-            ? '(see attached image)'
+            ? (this.inputModalities?.includes('image') ?? true)
+              ? '(see attached image)'
+              : '(image omitted: this model has no image input)'
             : text,
         toolCallId: message.toolCallId || '',
       }

@@ -2041,10 +2041,13 @@ export class OpenRouterResponsesTextAdapter<
       if (message.role === 'tool') {
         const content = message.content
         // Images stay in the tool output as `input_image` parts. A model
-        // without image input gets the text only.
+        // without image input gets the text only. Other media is not sent.
+        const hasImage =
+          Array.isArray(content) &&
+          content.some((part) => part.type === 'image')
         const output =
           Array.isArray(content) &&
-          content.some((part) => part.type === 'image') &&
+          hasImage &&
           (this.inputModalities?.includes('image') ?? true)
             ? content.flatMap(
                 (part): Array<FunctionCallOutputItemOutputUnion1> =>
@@ -2054,7 +2057,8 @@ export class OpenRouterResponsesTextAdapter<
                       ? [this.convertImagePartToInput(part)]
                       : [],
               )
-            : this.extractTextContent(content)
+            : this.extractTextContent(content) ||
+              (hasImage ? '(image omitted: this model has no image input)' : '')
         result.push({
           type: 'function_call_output',
           callId: message.toolCallId ? callIdFor(message.toolCallId) : '',

@@ -977,7 +977,13 @@ describe('OpenAI replay parity', () => {
       expect(mock.bodies[0]).toMatchObject({
         messages: [
           { role: 'assistant', content: null },
-          { role: 'tool', tool_call_id: 'a', content: '(see attached image)' },
+          {
+            role: 'tool',
+            tool_call_id: 'a',
+            content: images
+              ? '(see attached image)'
+              : '(image omitted: this model has no image input)',
+          },
           { role: 'tool', tool_call_id: 'b', content: 'text' },
           ...(images
             ? [
@@ -998,7 +1004,108 @@ describe('OpenAI replay parity', () => {
             : []),
         ],
       })
-      if (!images) expect(JSON.stringify(mock.bodies)).not.toContain('AAA')
+    },
+  )
+
+  it('sends the images of each tool run before the next message', async () => {
+    const mock = sdk([completed])
+    const turn = (id: string): Array<ModelMessage> => [
+      {
+        role: 'assistant',
+        content: null,
+        toolCalls: [
+          {
+            id,
+            type: 'function',
+            function: { name: 'inspect', arguments: '{}' },
+          },
+        ],
+      },
+      {
+        role: 'tool',
+        toolCallId: id,
+        content: [
+          {
+            type: 'image',
+            source: { type: 'url', value: `https://example.com/${id}.png` },
+          },
+        ],
+      },
+    ]
+    await collect(
+      new Completions(mock.client).chatStream({
+        logger,
+        model,
+        messages: [
+          ...turn('a'),
+          ...turn('b'),
+          { role: 'user', content: 'Next' },
+        ],
+      }),
+    )
+    const images = (id: string) => ({
+      role: 'user',
+      content: [
+        {
+          type: 'image_url',
+          image_url: { url: `https://example.com/${id}.png` },
+        },
+      ],
+    })
+    expect(mock.bodies[0]).toMatchObject({
+      messages: [
+        { role: 'assistant' },
+        { role: 'tool', tool_call_id: 'a' },
+        images('a'),
+        { role: 'assistant' },
+        { role: 'tool', tool_call_id: 'b' },
+        images('b'),
+        { role: 'user', content: 'Next' },
+      ],
+    })
+  })
+
+  it.each([
+    { type: 'image', source: { type: 'file', value: 'file_1' } },
+    {
+      type: 'document',
+      source: { type: 'data', value: 'AAA', mimeType: 'application/pdf' },
+    },
+  ] as const)(
+    'sends no request for a tool result with an image and an unsupported $type part',
+    async (part) => {
+      const mock = sdk([completed])
+      await collect(
+        new Completions(mock.client).chatStream({
+          logger,
+          model,
+          messages: [
+            {
+              role: 'assistant',
+              content: null,
+              toolCalls: [
+                {
+                  id: 'a',
+                  type: 'function',
+                  function: { name: 'inspect', arguments: '{}' },
+                },
+              ],
+            },
+            {
+              role: 'tool',
+              toolCallId: 'a',
+              content: [
+                {
+                  type: 'image',
+                  source: { type: 'url', value: 'https://example.com/a.png' },
+                },
+                part,
+              ],
+            },
+          ],
+        }),
+      ).catch(() => [])
+      expect(mock.bodies).toHaveLength(0)
     },
   )
 

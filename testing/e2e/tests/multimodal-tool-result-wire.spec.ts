@@ -161,4 +161,68 @@ test.describe('multimodal tool result — wire format', () => {
       ),
     ).toBe(true)
   })
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Chat Completions (/v1/chat/completions) on `@tanstack/openai-base` and
+  // OpenRouter chat
+  //
+  // A Chat Completions tool message holds text only. The text goes in the
+  // tool message and the image goes in a user message after it.
+  // ──────────────────────────────────────────────────────────────────────────
+  for (const provider of ['openai-compatible', 'openrouter']) {
+    test(`${provider}: the image follows the tool message in a user message`, async ({
+      request,
+      aimockPort,
+      testId,
+    }) => {
+      await request.post(
+        `/api/multimodal-tool-result-wire?provider=${provider}&testId=${encodeURIComponent(testId)}`,
+      )
+      const journal = await request.get(
+        `http://127.0.0.1:${aimockPort}/v1/_requests`,
+      )
+      const entries = (await journal.json()) as Array<{ body: any }>
+      expect(entries[0]?.body?.messages?.slice(-2)).toMatchObject([
+        { role: 'tool', content: 'screenshot' },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image_url',
+              image_url: {
+                url: expect.stringMatching(/^data:image\/png;base64,/),
+              },
+            },
+          ],
+        },
+      ])
+    })
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // OpenRouter Responses (/v1/responses)
+  //
+  // The image stays in the function call output, the same as OpenAI above.
+  // ──────────────────────────────────────────────────────────────────────────
+  test('openrouter-responses: tool message content is a structured array with an image part', async ({
+    request,
+    aimockPort,
+    testId,
+  }) => {
+    await request.post(
+      `/api/multimodal-tool-result-wire?provider=openrouter-responses&testId=${encodeURIComponent(testId)}`,
+    )
+    const journal = await request.get(
+      `http://127.0.0.1:${aimockPort}/v1/_requests`,
+    )
+    const entries = (await journal.json()) as Array<{ body: any }>
+    const toolMsg = entries[0]?.body?.messages?.find(
+      (m: any) => m.role === 'tool',
+    )
+    expect(Array.isArray(toolMsg?.content)).toBe(true)
+    expect(toolMsg.content.some((p: any) => p.type === 'input_image')).toBe(
+      true,
+    )
+    expect(toolMsg.content.some((p: any) => p.type === 'input_text')).toBe(true)
+  })
 })
