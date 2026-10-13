@@ -25,12 +25,13 @@ function runFinished(): StreamChunk {
   }
 }
 
-function subagentStarted(): StreamChunk {
+function subagentStarted(metadata?: Record<string, unknown>): StreamChunk {
   return {
     type: EventType.SUBAGENT_STARTED,
     subagentRunId: 'sub-1',
     name: 'researcher',
     timestamp: now(),
+    ...(metadata && { metadata }),
   }
 }
 
@@ -91,6 +92,27 @@ describe('ChatClient subagents', () => {
     expect(typeof part.subagent.stop).toBe('function')
     expect(typeof subagents[0]?.stop).toBe('function')
     expect(part.subagent.stop).toBe(subagents[0]?.stop)
+  })
+
+  it('gives the handle the checked input from the card metadata', async () => {
+    const chunks: Array<StreamChunk> = [
+      runStarted(),
+      subagentStarted({
+        tanstack: { subagentInput: { task: 'Find squids' } },
+      }),
+      childTextStart(),
+      childTextContent('Hello'),
+      subagentFinished(),
+      runFinished(),
+    ]
+
+    const client = new ChatClient({
+      connection: createMockConnectionAdapter({ chunks }),
+    })
+    await client.sendMessage('hi')
+
+    // The handle keeps the input after later chunks update the card.
+    expect(client.getSubagents()[0]?.input).toEqual({ task: 'Find squids' })
   })
 
   it('keeps status error after stop when SUBAGENT_FINISHED arrives later', async () => {
@@ -253,6 +275,7 @@ describe('ChatClient subagent handles for restored messages', () => {
                 name: 'researcher',
                 status: 'finished',
                 messages: [],
+                metadata: { tanstack: { subagentInput: { task: 'Saved' } } },
               },
             },
           ],
@@ -261,7 +284,11 @@ describe('ChatClient subagent handles for restored messages', () => {
     })
 
     const [handle] = client.getSubagents()
-    expect(handle).toMatchObject({ id: 'sub-restored', name: 'researcher' })
+    expect(handle).toMatchObject({
+      id: 'sub-restored',
+      name: 'researcher',
+      input: { task: 'Saved' },
+    })
     expect(typeof handle?.stop).toBe('function')
     const part = client.getMessages()[0]?.parts[0]
     expect(part?.type === 'subagent' ? part.subagent : undefined).toBe(handle)

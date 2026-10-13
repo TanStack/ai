@@ -71,6 +71,9 @@ function SubagentsTestPage() {
       {cards.map((card) => (
         <section key={card.id} data-testid={`card-${card.name}`}>
           <span data-testid={`card-status-${card.name}`}>{card.status}</span>
+          <span data-testid={`card-input-${card.name}`}>
+            {card.input === undefined ? '' : JSON.stringify(card.input)}
+          </span>
           <ul>
             {describeParts(card.messages).map((line, index) => (
               <li key={index}>{line}</li>

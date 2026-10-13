@@ -64,6 +64,7 @@ import { assertUniqueToolNames } from './tools/unique-tool-names'
 import type { DefinedAgent } from './agents/define-agent'
 import { providerKeys } from '../../byok/env-keys'
 import {
+  assertNoReservedFields,
   collectNamedText,
   createSubagentSink,
   createSyntheticSubagentTools,
@@ -114,6 +115,7 @@ import {
 } from './messages'
 import { MiddlewareRunner } from './middleware/compose'
 import { getRunDetached } from './middleware/run-store'
+import { LoadChildCapability } from './middleware/load-child'
 import { publishRunDetachedSignal } from '../../delivery-detach'
 import { publishRunDisconnectHandler } from '../../delivery-disconnect'
 import { provideSandboxRuntime } from './middleware/sandbox-runtime'
@@ -5651,6 +5653,12 @@ export function chat<
   if (options.tools) {
     assertUniqueToolNames(options.tools)
   }
+  if (options.subagents) {
+    assertNoReservedFields(
+      options.subagents,
+      continuesChildren(readRuntimeMiddleware(options.middleware)),
+    )
+  }
 
   const { outputSchema, stream } = options
 
@@ -5940,6 +5948,8 @@ async function* streamTextChunks(
     const synthetic = createSyntheticSubagentTools(bag, {
       messages: turn?.before ?? messages,
       messagesFor: calls.messagesFor,
+      childLoader: calls.childLoader,
+      canContinue: continuesChildren(options.middleware),
       threadId,
       runId,
       ...(options.parentRunId !== undefined && {
@@ -6321,6 +6331,15 @@ function withPlan(
     return chunk
   }
   return withTanstackMetadata(chunk, { [SUBAGENT_PLAN_KEY]: plan })
+}
+
+/** A middleware provides `loadChild`, so agent tools take `sessionId`. */
+function continuesChildren(
+  middleware: ReadonlyArray<{ provides?: ReadonlyArray<unknown> }> | undefined,
+) {
+  return (middleware ?? []).some((item) =>
+    item.provides?.includes(LoadChildCapability),
+  )
 }
 
 function readRoutedSubagentPersistence(

@@ -154,7 +154,7 @@ const stream = chat({
 })
 ```
 
-**Without a router.** The library adds one synthetic server tool per agent. The main model calls that tool. The public stream still emits `SUBAGENT_STARTED` / `SUBAGENT_FINISHED` (or `SUBAGENT_ERROR`) and nested parts. The UI does not treat spawn as a normal tool card. The child's events stream while the tool runs, and the child's text becomes the tool result. The child reads the conversation as it is at that tool call.
+**Without a router.** The library adds one synthetic server tool per agent. The main model calls that tool. The public stream still emits `SUBAGENT_STARTED` / `SUBAGENT_FINISHED` (or `SUBAGENT_ERROR`) and nested parts. The UI does not treat spawn as a normal tool card. The child's events stream while the tool runs, and the child's text becomes the tool result. The child reads the conversation as it is at that tool call. The model can also pass the task as `prompt`. The child gets it as the last user message. For all fields of the tool input, see [The tool input](#the-tool-input).
 
 ## Let the model write the brief
 
@@ -205,6 +205,71 @@ const stream = chat({
 - `inputSchema` needs tool mode. If `subagents.router` is set and an agent has `inputSchema`, `chat()` throws.
 
 To show the brief in the UI, see [Show the brief on a card](#show-the-brief-on-a-card).
+
+## Continue a child
+
+Each tool call starts a new child. Sometimes the model must send a follow-up to a child that already answered, like "make it shorter". Add `withPersistence` to the parent `chat()`. Each result then gives the model the `subagentRunId` of the child, and the model continues that child with `sessionId`.
+
+```ts
+import {
+  chat,
+  chatParamsFromRequest,
+  defineAgent,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { memoryPersistence, withPersistence } from '@tanstack/ai-persistence'
+
+const writer = defineAgent({
+  name: 'writer',
+  description: 'Writes and edits drafts',
+  run: (ctx) => ctx.chat({ adapter: openaiText('gpt-6.1-sol') }),
+})
+
+// A continued child loads from this store. Use a durable backend in production.
+const persistence = memoryPersistence()
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request)
+  const stream = chat({
+    adapter: openaiText('gpt-6.1-sol'),
+    messages: params.messages,
+    threadId: params.threadId,
+    runId: params.runId,
+    middleware: [withPersistence(persistence)],
+    subagents: { agents: [writer] },
+  })
+  return toServerSentEventsResponse(stream)
+}
+```
+
+The model continues the writer like this:
+
+1. The model calls `writer` with `{ "prompt": "Draft a post about tides" }`.
+2. It gets `{ "subagentRunId": "subagent-1767225600000-x7k2m9q", "result": "Tides rise twice a day..." }`.
+3. In a later turn, it calls `writer` with `{ "sessionId": "subagent-1767225600000-x7k2m9q", "prompt": "Make it shorter" }`.
+
+The writer gets the task of its first call, its stored transcript, then `Make it shorter` as the last user message. The stream uses the same `subagentRunId`, so the client shows the new work on the same card.
+
+### The tool input
+
+Every agent tool takes the agent's own fields, plus two more:
+
+- The fields of `inputSchema`, for an agent with one. The tool checks them against the schema.
+- `prompt`: the task as text, for an agent without `inputSchema`. The child gets it as the last user message.
+- `sessionId`: the `subagentRunId` of an earlier result. The call continues that child. The tool has this field only when `withPersistence` is on the parent `chat()`.
+- `background`: `true` starts the child and returns its `subagentRunId` at once. The tool has this field only when the host sets `subagents.binding.start`.
+
+When the run uses `sessionId` or `background`, that name is reserved. If an `inputSchema` has a field with that name, `chat()` throws before the run starts.
+
+### Wrong calls
+
+A wrong call goes back to the model as a tool error, and the run continues. For example:
+
+- `Input validation failed for tool researcher: ...`: the fields do not match `inputSchema`.
+- `Unknown sessionId "..."`: no child of this thread has that id. A thread can continue only its own children.
+- `Session "..." belongs to agent "writer", not "researcher".`: the call must use the tool of the agent that ran the child.
+- `background needs a host that runs children in the background.`
 
 ## Return a value, or call any activity
 
@@ -393,7 +458,7 @@ export function CleanupPanel() {
 
 The resume uses the plan that the router picked in the first run. It does not call the router again. While the child waits, its card has `status: 'suspended'` and `interruptIds`. After you approve, the card shows the tool result and the child's reply. Client tools in a child work the same way.
 
-The same flow works without a router. The child's tool call stays open until the resume, then the parent model reads the child's result. The result content carries the child's output or error; `subagentRunId` stays in subagent tracking events.
+The same flow works without a router. The child's tool call stays open until the resume, then the parent model reads the child's result. The result content carries the child's output or error. It carries `subagentRunId` only when the model can continue the child: with a persistence store, or for a background child. Else the id stays in the subagent events.
 
 ## Middleware
 
@@ -661,38 +726,39 @@ When `run` imports server code, do not import the agent into the browser. Declar
 
 ### Show the brief on a card
 
-When an agent has `inputSchema`, the brief is the input of the tool call that started the child. That `tool-call` part is on the same assistant message as the card. `part.subagent.parentToolCallId` is its id:
+When an agent has `inputSchema`, the card keeps the checked input that the parent model wrote, as `part.subagent.input`. Put `inputSchema` in the shared declaration, and pass the declaration to `useChat` to type it:
 
-```tsx
-import type { UIMessage } from '@tanstack/ai-react'
+```typescript title="agents.ts"
+import { z } from 'zod'
 
-function briefOf(message: UIMessage, toolCallId: string) {
-  for (const part of message.parts) {
-    if (part.type !== 'tool-call' || part.id !== toolCallId) continue
-    const input = part.input
-    if (
-      typeof input === 'object' &&
-      input !== null &&
-      'task' in input &&
-      typeof input.task === 'string'
-    ) {
-      return input.task
-    }
-  }
-  return undefined
-}
+export const researcher = {
+  name: 'researcher',
+  description: 'Researches one focused question and returns sourced findings',
+  inputSchema: z.object({ task: z.string() }),
+} as const
+```
 
-function Briefs({ message }: { message: UIMessage }) {
-  return message.parts.map((part) => {
-    if (part.type !== 'subagent') return null
-    const toolCallId = part.subagent.parentToolCallId
-    if (toolCallId === undefined) return null
-    return <p key={part.subagent.id}>{briefOf(message, toolCallId)}</p>
+```tsx title="briefs.tsx"
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import { researcher } from './agents'
+
+export function Briefs() {
+  const { messages } = useChat({
+    connection: fetchServerSentEvents('/api/chat'),
+    subagents: [researcher],
   })
+  return messages.flatMap((message) =>
+    message.parts.map((part) =>
+      part.type === 'subagent' ? (
+        <p key={part.subagent.id}>{part.subagent.input?.task}</p>
+      ) : null,
+    ),
+  )
 }
 ```
 
-A child that a router started has no `parentToolCallId`, so it has no brief.
+- `part.subagent.input` is the same value as `ctx.input` in `run`, with the output type of the schema. Here it is `{ task: string } | undefined`.
+- It is `undefined` for an agent without `inputSchema`.
 
 ### Style one child's parts
 

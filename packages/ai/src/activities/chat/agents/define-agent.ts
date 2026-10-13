@@ -121,8 +121,11 @@ export interface DefinedAgent<
   produces?: TProduces
   /**
    * The input the parent model writes when it calls this agent's tool, such
-   * as a short brief. `run` reads it as `ctx.input`. Tool mode only: a
-   * `subagents.router` cannot start an agent that has `inputSchema`.
+   * as a short brief. `run` reads it as `ctx.input`, and the client card
+   * as `part.subagent.input`. When the run uses `sessionId` or
+   * `background`, that name is reserved. Without it, the tool takes a text
+   * `prompt`. Tool mode only: a `subagents.router` cannot start an agent
+   * that has `inputSchema`.
    */
   inputSchema?: TInput
   tools?: TTools

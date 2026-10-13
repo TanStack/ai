@@ -7,8 +7,14 @@ import {
   maxIterations,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
+import { memoryPersistence, withPersistence } from '@tanstack/ai-persistence'
 import { z } from 'zod'
-import type { DefinedAgent, ReasoningRequest, Tool } from '@tanstack/ai'
+import type {
+  ChatMiddleware,
+  DefinedAgent,
+  ReasoningRequest,
+  Tool,
+} from '@tanstack/ai'
 import { createOpenaiChat } from '@tanstack/ai-openai'
 import { openaiByok } from '@tanstack/ai-openai/byok'
 import { getByokKey } from '@tanstack/ai/byok/server'
@@ -45,6 +51,9 @@ import type { SubagentScenario } from '@/lib/subagents-test'
  * - `result`: no router. `pricer` calls the bound `ctx.chat` with
  *   `stream: false`, so its `run` resolves to a string. The string streams as
  *   the child's text and goes back to the parent model as the result.
+ * - `session`: no router. The parent model starts `researcher`, then a
+ *   second `researcher` call continues it by its `sessionId`.
+ *   `withPersistence` stores the child, so that call loads its transcript.
  */
 /** Send `Authorization` again as `x-e2e-authorization`, which aimock keeps. */
 const echoAuthorization: typeof fetch = (input, init) => {
@@ -163,6 +172,42 @@ function subagentsFor(
   return { agents: [child('researcher', [])] }
 }
 
+/**
+ * aimock replies are fixed, so the second `researcher` call in
+ * `fixtures/subagents/session.json` cannot hold the random id of the
+ * first child. It sends `sessionId: 'first-child'`. This middleware does what
+ * a real model does: it copies the `subagentRunId` of the first result.
+ */
+function fillSessionId(): ChatMiddleware {
+  let first: string | undefined
+  return {
+    name: 'fill-session-id',
+    onAfterToolCall(_ctx, { result }) {
+      if (
+        first === undefined &&
+        typeof result === 'object' &&
+        result !== null &&
+        'subagentRunId' in result &&
+        typeof result.subagentRunId === 'string'
+      ) {
+        first = result.subagentRunId
+      }
+    },
+    onBeforeToolCall(_ctx, { args }) {
+      if (
+        first === undefined ||
+        typeof args !== 'object' ||
+        args === null ||
+        !('sessionId' in args) ||
+        args.sessionId !== 'first-child'
+      ) {
+        return undefined
+      }
+      return { type: 'transformArgs', args: { ...args, sessionId: first } }
+    },
+  }
+}
+
 export const Route = createFileRoute('/api/subagents-test')({
   server: {
     handlers: {
@@ -194,6 +239,15 @@ export const Route = createFileRoute('/api/subagents-test')({
             ...(params.parentRunId ? { parentRunId: params.parentRunId } : {}),
             ...(params.resume ? { resume: params.resume } : {}),
             subagents: subagentsFor(request, scenario, aimockPort, testId),
+            // One run holds both calls, so a store per request is enough.
+            ...(scenario === 'session'
+              ? {
+                  middleware: [
+                    withPersistence(memoryPersistence()),
+                    fillSessionId(),
+                  ],
+                }
+              : {}),
             agentLoopStrategy: maxIterations(4),
             abortController,
           })

@@ -21,6 +21,7 @@ function open(
     | 'brief'
     | 'result'
     | 'limits'
+    | 'session'
     | 'keys',
   testId: string,
   aimockPort: number,
@@ -161,6 +162,10 @@ test.describe('subagents', () => {
     await expect(page.getByTestId('card-researcher')).toContainText(
       'text:Squids have three hearts and blue blood.',
     )
+    // The card keeps the checked input the parent model wrote.
+    await expect(page.getByTestId('card-input-researcher')).toHaveText(
+      JSON.stringify({ task: '[subagent-brief-task] List two squid facts.' }),
+    )
   })
 
   test('a child whose run resolves to a string reports it to the parent', async ({
@@ -215,6 +220,32 @@ test.describe('subagents', () => {
         message.content?.includes('subagent limit reached (maxCalls 1)'),
       ),
     ).toBe(true)
+  })
+
+  test('an agent tool continues a child by its sessionId', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await open(page, 'session', testId, aimockPort)
+    await run(page)
+
+    // The parent model runs a third time only after the second call gave it
+    // the child's result.
+    await expect(page.getByTestId('parent-text')).toHaveText(
+      'Both notes are ready.',
+    )
+    await expect(page.getByTestId('card-status-researcher')).toHaveText(
+      'finished',
+    )
+    const card = page.getByTestId('card-researcher')
+    await expect(card).toContainText('text:Squids have three hearts.')
+    // The second call has no prompt, so the child's last user message is the
+    // task it stored from the first call. Only that fixture gives this reply.
+    // A child that did not get its earlier messages would get no reply.
+    await expect(card).toContainText('text:Squids also have blue blood.')
+    // One card: the second call continued the same child.
+    await expect(card).toHaveCount(1)
   })
 
   test('subagents.keys gives the child its key', async ({

@@ -383,6 +383,13 @@ export type {
   AnyChatMiddleware,
   MetadataStore,
 } from './activities/chat/middleware/index'
+// A persistence store gives the agent tools the stored children.
+export {
+  LoadChildCapability,
+  getLoadChild,
+  provideLoadChild,
+} from './activities/chat/middleware/load-child'
+export type { LoadChild } from './activities/chat/middleware/load-child'
 // Locks are a distributed-mutex primitive — coordination, not chat state — and
 // live behind their own subpath: `@tanstack/ai/locks` (see ./locks.ts).
 
@@ -575,6 +582,7 @@ export { uiMessagesToWire } from './utilities/ag-ui-wire'
 export type { SubagentWireInfo } from './utilities/subagent-wire'
 export {
   subagentHostMessageId,
+  subagentInputOf,
   wireSubagentInfo,
 } from './utilities/subagent-wire'
 export { mergeMetadata, withTanstackMetadata } from './utilities/merge-metadata'
