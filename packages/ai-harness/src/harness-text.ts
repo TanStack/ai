@@ -1,6 +1,6 @@
 import { EventType, uiMessagesToWire } from '@tanstack/ai'
 import { createHarnessHost } from './host'
-import { acceptedKinds } from './session'
+import { acceptedKinds } from './session/index'
 import type {
   AnyTextAdapter,
   Modality,
