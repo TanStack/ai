@@ -341,7 +341,7 @@ describe('codingAgents', () => {
     await apart.host.close()
   })
 
-  it('starts delegates read-only in plan mode', async () => {
+  it('starts delegates read-only in plan mode, and refuses one without plan options', async () => {
     const claude = codingAgent('claude-code')
     const codex = codingAgent('codex')
     const other = codingAgent('grok-build')
@@ -375,7 +375,8 @@ describe('codingAgents', () => {
     expect(codex.calls[0].modelOptions).toMatchObject({
       sandboxMode: 'read-only',
     })
-    expect(other.calls[0].modelOptions).toBeUndefined()
+    // No plan options for grok-build: it does not run in plan mode.
+    expect(other.calls).toHaveLength(0)
     expect(custom.calls[0].modelOptions).toMatchObject({ readOnly: true })
     await host.close()
   })
