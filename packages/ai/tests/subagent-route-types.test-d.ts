@@ -1,7 +1,7 @@
 import { expectTypeOf } from 'vitest'
 import { z } from 'zod'
 import { defineAgent, subagentRoute } from '../src'
-import type { DefinedAgent } from '../src'
+import type { DefinedAgent, SubagentPick, SubagentRouterPick } from '../src'
 
 const skuSchema = z.object({ sku: z.string() })
 const topicSchema = z.object({ topic: z.string() })
@@ -35,6 +35,17 @@ expectTypeOf<Need['name']>().toEqualTypeOf<'pricer' | 'writer'>()
 expectTypeOf<Extract<Need, { name: 'pricer' }>['inputSchema']>().toEqualTypeOf<
   typeof skuSchema
 >()
+
+expectTypeOf<Extract<Need, { name: 'writer' }>['inputSchema']>().toEqualTypeOf<
+  typeof topicSchema
+>()
+
+// A router can return what `pick` returns.
+expectTypeOf(route.pick(result)).toEqualTypeOf<SubagentRouterPick>()
+expectTypeOf<{
+  name: string
+  input: { sku: string }
+}>().toExtend<SubagentPick>()
 
 // `inputs` has one optional key for each agent with a schema.
 expectTypeOf<

@@ -1038,9 +1038,107 @@ describe('defineAgent inputSchema', () => {
     await expect(
       routeTo([agent], { name: 'researcher', input: { task: 42 } }),
     ).rejects.toThrow(
-      'Input validation failed for agent researcher: task must be text',
+      'Input validation failed for agent researcher: task: task must be text',
     )
     expect(inputs).toEqual([])
+  })
+
+  const badPicks: Array<[string, SubagentRouterPick, string]> = [
+    ['an unknown agent', { name: 'ghost', input: brief }, 'Unknown subagent'],
+    [
+      'an unknown agent in a later step',
+      { steps: [{ names: ['writer'] }, { names: ['ghost'] }] },
+      'Unknown subagent: ghost',
+    ],
+    [
+      'an input for an agent with no inputSchema',
+      ['researcher', { name: 'writer', input: brief }],
+      'Agent "writer" has no inputSchema, so it takes no input.',
+    ],
+    ['an input for main', { name: 'main', input: brief }, 'main takes no'],
+    [
+      'two picks of an agent with an input in one step',
+      [
+        { name: 'researcher', input: brief },
+        { name: 'researcher', input: { task: 'Price Vendor B' } },
+      ],
+      'Agent "researcher" has an input and is in one step more than once.',
+    ],
+    [
+      'a pick with a wrong key',
+      { agent: 'writer' } as unknown as SubagentRouterPick,
+      'subagents.router must return',
+    ],
+    [
+      'no pick',
+      undefined as unknown as SubagentRouterPick,
+      'subagents.router must return',
+    ],
+  ]
+  it.each(badPicks)(
+    'fails before any child starts for %s',
+    async (_label, pick, message) => {
+      const { agent, inputs } = briefResearcher()
+      let writerRuns = 0
+      const writer = namedAgent('writer', async function* () {
+        writerRuns += 1
+      })
+
+      await expect(routeTo([agent, writer], pick)).rejects.toThrow(message)
+      expect(writerRuns).toBe(0)
+      expect(inputs).toEqual([])
+    },
+  )
+
+  it('gives the same agent its own input in each step', async () => {
+    const { agent, inputs } = briefResearcher()
+
+    await routeTo([agent], {
+      steps: [
+        { names: [{ name: 'researcher', input: brief }] },
+        { names: [{ name: 'researcher', input: { task: 'Price Vendor B' } }] },
+      ],
+    })
+
+    expect(inputs).toEqual([brief, { task: 'Price Vendor B' }])
+  })
+
+  it('gives run the checked input and keeps the raw input on the plan', async () => {
+    const inputs: Array<unknown> = []
+    const agent = defineAgent({
+      name: 'researcher',
+      description: 'Looks up facts',
+      inputSchema: z.object({
+        task: z.string().transform((task) => task.toUpperCase()),
+      }),
+      run: async function* (ctx) {
+        inputs.push(ctx.input)
+      },
+    })
+
+    const chunks = await routeTo([agent], {
+      name: 'researcher',
+      input: { task: 'price' },
+    })
+
+    expect(inputs).toEqual([{ task: 'PRICE' }])
+    // A resume checks the plan again, so the plan keeps the raw input.
+    expect(
+      chunks.find((chunk) => chunk.type === EventType.SUBAGENT_STARTED),
+    ).toMatchObject({
+      metadata: {
+        tanstack: {
+          subagentPlan: {
+            steps: [
+              {
+                names: ['researcher'],
+                inputs: { researcher: { task: 'price' } },
+              },
+            ],
+          },
+        },
+      },
+    })
   })
 })
 

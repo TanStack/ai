@@ -105,7 +105,7 @@ export {
 } from './activities/chat/agents/route'
 export type {
   SubagentOrder,
-  SubagentPickName,
+  SubagentPick,
   SubagentRouterPick,
   SubagentRouterPlan,
   SubagentStep,

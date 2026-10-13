@@ -90,7 +90,9 @@ The router can return:
 - `{ names, order }`
 - `{ steps }`
 
-Anywhere a name goes, `{ name, input }` can go too, for example `{ name: 'pricer', input: { vendor: 'Acme' } }`. An agent with `inputSchema` needs it.
+Anywhere a name goes, `{ name, input }` can go too, for example `{ name: 'pricer', input: { vendor: 'Acme' } }`. An agent with `inputSchema` needs it. No other agent takes an input. `chat()` throws when the pick breaks either rule.
+
+One step holds one input for each agent. To give one agent two inputs, put each pick in its own step of `{ steps }`.
 
 `subagents.order` is the default for an array. `parallel` starts the names together. `sequence` runs them one after another, and each later child reads the earlier child text. Omit `order` to get `parallel`.
 
@@ -218,11 +220,11 @@ const stream = chat({
 })
 ```
 
-- `inputs` is typed. Each key is the name of an agent with `inputSchema`, and the value has the type of that schema.
+- `pick` types `inputs` when you write it as an object, such as `{ pricer: { vendor: 'Acme' } }`. Each key is the name of an agent with `inputSchema`, and the value has the type of that schema. `Object.fromEntries` returns `any`, so the sample above has no such check.
 - If a picked agent with a schema has no input, `pick` throws `Agent "pricer" needs input. Pass it in inputs.`
-- `chat()` checks each input against the schema before the child starts. If an input does not match, `chat()` throws, and the child does not start.
+- `chat()` checks each input against the schema before any child starts. If one input does not match, `chat()` throws, and no child starts. `chat()` does not check an input against a plain JSON Schema.
 - `run` reads the input as `ctx.input`. A resumed child gets the same input.
-- The plan with each input goes to the client on the `SUBAGENT_STARTED` event, and a resume reads it back from the client. Use JSON values only, and do not put secrets in an input. `chat()` checks each input against the schema again on a resume.
+- The plan with each input goes to the client on the `SUBAGENT_STARTED` event, and a resume reads it back from the client. Use JSON values only, and do not put secrets in an input. `chat()` checks each input against the schema again on a resume. If the plan is absent or an input does not match, the resume fails.
 
 **Without a router.** The library adds one synthetic server tool per agent. The main model calls that tool. The public stream still emits `SUBAGENT_STARTED` / `SUBAGENT_FINISHED` (or `SUBAGENT_ERROR`) and nested parts. The UI does not treat spawn as a normal tool card. The child's events stream while the tool runs, and the child's text becomes the tool result. The child reads the conversation as it is at that tool call.
 

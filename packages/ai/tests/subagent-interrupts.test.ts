@@ -630,6 +630,72 @@ describe('subagent interrupts', () => {
     expect(cleanerInputs).toEqual([{ folder: 'old' }, { folder: 'old' }])
     expect(pricerInputs).toEqual([{ vendor: 'acme' }])
   })
+
+  // The client sends the plan back, so the client can change it.
+  it.each([
+    [
+      'an input that fails the schema',
+      {
+        subagentPlan: {
+          steps: [{ names: ['cleaner'], inputs: { cleaner: { folder: 42 } } }],
+        },
+      },
+    ],
+    ['no input', { subagentPlan: { steps: [{ names: ['cleaner'] }] } }],
+    ['no plan', {}],
+  ])('rejects a resume whose saved plan has %s', async (_label, tanstack) => {
+    const { run, execute } = cleanerChild()
+    const runs = vi.fn()
+    const cleaner = defineAgent({
+      name: 'cleaner',
+      description: 'Deletes files',
+      inputSchema: z.object({ folder: z.string() }),
+      run: (ctx) => {
+        runs()
+        return run(ctx)
+      },
+    })
+    const parent = createMockAdapter({ iterations: [] }).adapter
+    const router = vi.fn(() => ({ name: 'cleaner', input: { folder: 'old' } }))
+    const subagents = { agents: [cleaner], router }
+    const first = await collectChunks(
+      chat({
+        adapter: parent,
+        threadId: 't',
+        runId: 'run-1',
+        messages: [user],
+        subagents,
+      }),
+    )
+    const processor = new StreamProcessor({ initialMessages: [user] })
+    replay(processor, first)
+    processor.addToolApprovalResponse('approval_call_c', true)
+    cardOf(processor.getMessages()).subagent.metadata = { tanstack }
+
+    await expect(
+      collectChunks(
+        chat({
+          adapter: parent,
+          threadId: 't',
+          runId: 'run-2',
+          parentRunId: 'run-1',
+          messages: requestMessages(processor.getMessages()),
+          resume: [
+            {
+              interruptId: 'approval_call_c',
+              status: 'resolved',
+              payload: true,
+            },
+          ],
+          subagents,
+        }),
+      ),
+    ).rejects.toThrow(/saved subagent plan/)
+    // The router did not run again, and the child did not start again.
+    expect(router).toHaveBeenCalledTimes(1)
+    expect(runs).toHaveBeenCalledTimes(1)
+    expect(execute).not.toHaveBeenCalled()
+  })
 })
 
 describe('subagent cards', () => {

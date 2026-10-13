@@ -74,7 +74,8 @@ export interface DefinedAgent<
    * The input this agent needs, such as a short brief. `run` reads it as
    * `ctx.input`. In tool mode, the parent model writes it when it calls this
    * agent's tool. A `subagents.router` gives it in its pick as
-   * `{ name, input }`. The input is checked against this schema first.
+   * `{ name, input }`. The input is checked against this schema first. A plain
+   * JSON Schema is not checked.
    */
   inputSchema?: TInput
   tools?: TTools

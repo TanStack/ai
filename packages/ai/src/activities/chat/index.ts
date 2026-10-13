@@ -69,6 +69,7 @@ import {
   normalizeRouterPick,
   rebindInterrupts,
   spawnNamedAgents,
+  stepInput,
   subagentCallMessages,
   withChildUsage,
 } from './agents/spawn'
@@ -5998,12 +5999,15 @@ async function* runRoutedSubagents(
     // A resume reuses the plan that the first run put on each child's
     // SUBAGENT_STARTED metadata. Children that finished keep their result.
     // Suspended children continue.
-    const plan =
-      savedPlan(turn?.plan, bag.agents, {
+    const saved =
+      turn &&
+      (await savedPlan(turn.plan, bag.agents, {
         threadId,
         interruptedRunId: options.parentRunId ?? runId,
         interruptIds: options.resume?.map((entry) => entry.interruptId) ?? [],
-      }) ??
+      }))
+    const plan =
+      saved?.plan ??
       normalizeRouterPick(
         await bag.router({
           messages: turnMessages,
@@ -6024,7 +6028,8 @@ async function* runRoutedSubagents(
     }
     // Check every input before a child starts, so a bad input in a later
     // step fails the turn like a bad pick.
-    const checked = await checkRoutedInputs(plan, bag.agents)
+    const checked =
+      saved?.checked ?? (await checkRoutedInputs(plan, bag.agents))
     const onlyStep = plan.steps.length === 1 ? plan.steps[0] : undefined
     if (onlyStep?.names.length === 1 && onlyStep.names[0] === 'main') {
       // Earlier children own answers in this resume. Commit them first.
@@ -6070,7 +6075,7 @@ async function* runRoutedSubagents(
           continue
         }
         // A suspended child gets its input again, like a tool-mode child.
-        const input = step.inputs?.[name]
+        const input = stepInput(step, name)
         entries.push({
           name,
           ...(input !== undefined && { input }),
@@ -6234,11 +6239,13 @@ async function* runRoutedSubagents(
 }
 
 /**
- * The plan from a resumed turn, or undefined when it is absent. A plan that
- * names agents this chat does not have is stale: re-routing would strand the
- * suspended child that owns the answers, so fail the resume instead.
+ * The plan from a resumed turn, and the same plan with the checked inputs.
+ * The plan comes back from the client, so this puts each input back on its
+ * name and checks the plan like a router pick. A plan that is absent, or that
+ * does not match the agents of this chat, is stale: a new route would strand
+ * the suspended child that owns the answers, so fail the resume instead.
  */
-function savedPlan(
+async function savedPlan(
   plan: unknown,
   agents: ReadonlyArray<DefinedAgent>,
   run: {
@@ -6246,19 +6253,18 @@ function savedPlan(
     interruptedRunId: string
     interruptIds: ReadonlyArray<string>
   },
-) {
-  if (typeof plan !== 'object' || plan === null || !('steps' in plan)) {
-    return undefined
-  }
+): Promise<{ plan: RoutedPlan; checked: RoutedPlan }> {
   try {
-    // The plan comes back from the client. Put each input back on its name
-    // and check it like a router pick.
+    if (typeof plan !== 'object' || plan === null || !('steps' in plan)) {
+      throw new Error('The plan is absent.')
+    }
+    // The cast names the shape only. normalizeRouterPick checks it.
     const saved = plan as RoutedPlan
-    return normalizeRouterPick(
+    const raw = normalizeRouterPick(
       {
         steps: saved.steps.map((step) => ({
           names: step.names.map((name) => {
-            const input = step.inputs?.[name]
+            const input = stepInput(step, name)
             return input === undefined ? name : { name, input }
           }),
           order: step.order,
@@ -6266,6 +6272,7 @@ function savedPlan(
       },
       agents,
     )
+    return { plan: raw, checked: await checkRoutedInputs(raw, agents) }
   } catch (error) {
     throw new InterruptResumeValidationError([
       {
@@ -6287,20 +6294,22 @@ function savedPlan(
 
 /**
  * Check the input of each picked agent that has `inputSchema`, and return the
- * plan with the checked inputs. The saved plan keeps the raw inputs, so a
- * resume checks the same values again.
+ * plan with the checked inputs. Throws when an agent with a schema has no
+ * input, or when an input does not match. A plain JSON Schema is not checked.
+ * The saved plan keeps the raw inputs, so a resume checks the same values
+ * again.
  */
 async function checkRoutedInputs(
   plan: RoutedPlan,
   agents: ReadonlyArray<DefinedAgent>,
-) {
+): Promise<RoutedPlan> {
   const steps: Array<RoutedPlan['steps'][number]> = []
   for (const step of plan.steps) {
     const inputs: Record<string, unknown> = {}
     for (const name of step.names) {
       const schema = agents.find((agent) => agent.name === name)?.inputSchema
       if (schema === undefined) continue
-      const input = step.inputs?.[name]
+      const input = stepInput(step, name)
       if (input === undefined) {
         throw new Error(
           `Agent "${name}" needs input. Return { name: '${name}', input } from the router.`,
@@ -6308,7 +6317,10 @@ async function checkRoutedInputs(
       }
       const result = await validateWithStandardSchema(schema, input)
       if (!result.success) {
-        const issues = result.issues.map((issue) => issue.message).join(', ')
+        const issues = result.issues
+          .map((issue) => [issue.path?.join('.'), issue.message])
+          .map(([path, message]) => (path ? `${path}: ${message}` : message))
+          .join(', ')
         throw new Error(`Input validation failed for agent ${name}: ${issues}`)
       }
       inputs[name] = result.data
