@@ -1028,6 +1028,43 @@ describe('GeminiTextInteractionsAdapter', () => {
     ])
   })
 
+  it('keeps a tool parameter named __proto__', async () => {
+    mocks.interactionsCreateSpy.mockResolvedValue(
+      mkStream([
+        {
+          event_type: 'interaction.created',
+          interaction: { id: 'int_proto', status: 'in_progress' },
+        },
+        {
+          event_type: 'interaction.completed',
+          interaction: { id: 'int_proto', status: 'completed' },
+        },
+      ]),
+    )
+
+    const adapter = createAdapter()
+    await collectChunks(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        tools: [
+          {
+            name: 'inspect',
+            description: 'Inspect',
+            inputSchema: JSON.parse(
+              '{"type":"object","properties":{"__proto__":{"type":"string"}},"required":["__proto__"]}',
+            ),
+          },
+        ],
+      }),
+    )
+
+    const [payload] = mocks.interactionsCreateSpy.mock.calls[0]!
+    expect(JSON.stringify(payload.tools[0].parameters)).toBe(
+      '{"type":"object","properties":{"__proto__":{"type":"string"}},"required":["__proto__"]}',
+    )
+  })
+
   it('surfaces built-in tool deltas as gemini.* CUSTOM events and keeps finish reason "stop"', async () => {
     mocks.interactionsCreateSpy.mockResolvedValue(
       mkStream([

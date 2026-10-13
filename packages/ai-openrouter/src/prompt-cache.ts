@@ -73,7 +73,8 @@ function markMessage(
  * - Only `anthropic/*` models get cache markers, and only when the request
  *   has no manual marker (system prompt, tool, or content block). Then the
  *   system message, the last function tool, and the last message each get a
- *   marker on their last text block.
+ *   marker on their last text block. If the last message is a user message
+ *   with no text block, the message before it gets that marker.
  *
  * `'none'` returns the request with no change. `'long'` asks for the 1-hour
  * TTL. The function returns a new request and does not change `request`.
@@ -101,7 +102,16 @@ export function addPromptCacheMarkers(
     promptCache.retention === 'long'
       ? { type: 'ephemeral', ttl: '1h' }
       : { type: 'ephemeral' }
-  const lastMessage = request.messages.length - 1
+  // A last message with no text block (e.g. the images of tool results) cannot
+  // take a marker, so the message before it gets the marker.
+  const last = request.messages.at(-1)
+  const lastMessage =
+    request.messages.length -
+    (last?.role === 'user' &&
+    Array.isArray(last.content) &&
+    !last.content.some((part) => part.type === 'text')
+      ? 2
+      : 1)
   const lastTool =
     request.tools?.findLastIndex((tool) => tool.type === 'function') ?? -1
   return {

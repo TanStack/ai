@@ -61,6 +61,24 @@ test('Chat Completions keeps usage after a normal finish reason', async ({
   expect(result.events).not.toContain('RUN_ERROR')
 })
 
+test('Chat Completions skips a usage chunk that has no choices field', async ({
+  request,
+}) => {
+  const response = await request.post(
+    '/api/chat-completions-incomplete-stream?scenario=no-choices',
+  )
+  expect(response.ok()).toBe(true)
+  const result = await response.json()
+  expect(result).toMatchObject({
+    text: 'partial',
+    finishCount: 1,
+    errorCount: 0,
+    totalTokens: 12,
+  })
+  expect(result.events.at(-1)).toBe('RUN_FINISHED')
+  expect(result.events).not.toContain('RUN_ERROR')
+})
+
 test('Chat Completions rejects object text content instead of streaming it', async ({
   request,
 }) => {

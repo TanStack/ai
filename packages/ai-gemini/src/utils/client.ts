@@ -67,3 +67,20 @@ export function getGeminiApiKeyFromEnv(): string {
 export function generateId(prefix: string): string {
   return _generateId(prefix)
 }
+
+/**
+ * True when a Gemini API error says the input does not fit in the model's
+ * context window. The API has no error status for it. It answers 400
+ * `INVALID_ARGUMENT`, the same as every bad request, so the message text is
+ * the only signal.
+ */
+export function isGeminiContextOverflow(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    'status' in error &&
+    error.status === 400 &&
+    /input token count.*exceeds the maximum number of tokens/.test(
+      error.message,
+    )
+  )
+}

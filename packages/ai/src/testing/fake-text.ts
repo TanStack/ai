@@ -221,7 +221,8 @@ export class FakeTextAdapter<
   }
 
   async *chatStream(options: TextOptions): AsyncIterable<AdapterYieldChunk> {
-    const signal = options.abortController?.signal
+    // chat() passes the run's signal as `request.signal`.
+    const signal = options.request?.signal ?? options.abortController?.signal
     const runId = options.runId ?? `fake-run-${this.state.callCount + 1}`
     const threadId = options.threadId ?? 'fake-thread'
     const model = this.model

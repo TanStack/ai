@@ -60,7 +60,7 @@ When the next call goes to a different source, the adapter changes the request:
 - It drops signatures and redacted thinking.
 - It sends readable thinking as plain text.
 - It rewrites tool call IDs to the shape that the new API accepts. Each result keeps its call.
-- On the OpenAI Responses API, a model without image input gets no images from tool results.
+- When an OpenAI-compatible or OpenRouter adapter knows that the model has no image input, it sends no images from tool results. See [Images in Tool Results](./multimodal-content#images-in-tool-results).
 
 Each request also cleans the history:
 

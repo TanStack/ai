@@ -1,4 +1,5 @@
 import {
+  CONTEXT_OVERFLOW_CODE,
   EventType,
   fileReferenceFor,
   isFileSource,
@@ -148,6 +149,37 @@ function collectWebSearchSources(
   }
 
   return [...sources.values()]
+}
+
+/**
+ * The saved answer items of a message as Responses input, one per text
+ * block, each with its item `id` and `phase`. `undefined` when the message
+ * has no items or its blocks do not match them: then it replays as plain
+ * text. Another model's message never gets here with its items: the caller
+ * rebuilds it as plain text.
+ */
+function answerItems(
+  message: ModelMessage,
+  text: string,
+): ResponseInput | undefined {
+  const items: TanStackMessageMetadata['responseItems'] =
+    message.metadata?.tanstack?.responseItems
+  const texts = orderedAssistantBlocks(message)?.flatMap((block) =>
+    block.type === 'text' ? [block.text] : [],
+  ) ?? [text]
+  if (!items || items.length !== texts.length) return undefined
+  return items.map((item, index) => ({
+    type: 'message',
+    role: 'assistant',
+    id: item.id,
+    status: 'completed',
+    content: [
+      { type: 'output_text', text: texts[index] ?? '', annotations: [] },
+    ],
+    ...(item.phase === 'commentary' || item.phase === 'final_answer'
+      ? { phase: item.phase }
+      : {}),
+  }))
 }
 
 function packResponsesReasoningSignature(
@@ -489,7 +521,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     } catch (error: unknown) {
       // Narrow before logging: raw SDK errors can carry request metadata
       // (including auth headers) which we must never surface to user loggers.
-      const errorPayload = toRunErrorPayload(
+      const errorPayload = this.runErrorPayload(
         error,
         `${this.name}.chatStream failed`,
       )
@@ -1036,7 +1068,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       }
 
       const isAbort = this.isAbortError(error)
-      const errorPayload = toRunErrorPayload(
+      const errorPayload = this.runErrorPayload(
         error,
         `${this.name}.structuredOutputStream failed`,
       )
@@ -1105,6 +1137,32 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       },
     }
     return response.output.map((item) => fromCompactedItem(item, metadata))
+  }
+
+  /**
+   * `toRunErrorPayload`, with `code` set to `CONTEXT_OVERFLOW_CODE` when the
+   * provider says the input does not fit in the model's context window.
+   */
+  protected runErrorPayload(
+    error: unknown,
+    fallbackMessage: string,
+  ): { message: string; code: string | undefined } {
+    const payload = toRunErrorPayload(error, fallbackMessage)
+    return this.isContextOverflow(payload)
+      ? { ...payload, code: CONTEXT_OVERFLOW_CODE }
+      : payload
+  }
+
+  /**
+   * True when a provider error says the input does not fit in the context
+   * window. OpenAI sends `code: 'context_length_exceeded'`. Override this for
+   * a provider that reports it another way.
+   */
+  protected isContextOverflow(error: {
+    message: string
+    code: string | undefined
+  }): boolean {
+    return error.code === 'context_length_exceeded'
   }
 
   /**
@@ -1460,6 +1518,23 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       accumulatedReasoning = ''
     }
 
+    // A stateless stream (the ChatGPT plan route) can stream a tool call, then
+    // send `response.completed` with an empty `output`.
+    let streamedToolCall = false
+
+    // A stateless GitHub Copilot stream gives a new item id on each event of
+    // one output item. A new id joins the call with the same `call_id`, or,
+    // for an argument event that has no `call_id`, the same output index.
+    const trackedCall = (id: string, outputIndex: number, callId?: string) => {
+      const tracked =
+        toolCallMetadata.get(id) ??
+        [...toolCallMetadata.values()].find((metadata) =>
+          callId ? metadata.callId === callId : metadata.index === outputIndex,
+        )
+      if (tracked) toolCallMetadata.set(id, tracked)
+      return tracked
+    }
+
     const userToolChunks = (
       item: unknown,
       outputIndex: number,
@@ -1477,6 +1552,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       tracked.started = true
       tracked.ended = true
       tracked.name = call.name
+      streamedToolCall = true
       const timestamp = Date.now()
       const modelName = model || options.model
       const metadata: OpenAIResponsesToolCallMetadata = {
@@ -1645,10 +1721,16 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             (chunk.type === 'response.failed'
               ? 'Response failed'
               : 'Response ended incomplete')
-          const errorCode =
+          const providerCode =
             chunk.response.error?.code ??
             (chunk.response.incomplete_details ? 'incomplete' : undefined) ??
             undefined
+          const errorCode = this.isContextOverflow({
+            message: errorMessage,
+            code: providerCode,
+          })
+            ? CONTEXT_OVERFLOW_CODE
+            : providerCode
           // Always emit RUN_ERROR for terminal failure events, even when the
           // upstream omitted both `error` and `incomplete_details`. Skipping
           // emission on a `response.incomplete` with no detail would let the
@@ -1853,7 +1935,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             // name would propagate into TOOL_CALL_END (which reads the same
             // metadata) and route the tool call to whatever name happens to
             // match `''` downstream — a silent misroute.
-            let metadata = toolCallMetadata.get(item.id)
+            let metadata = trackedCall(
+              item.id,
+              chunk.output_index,
+              item.call_id,
+            )
             if (!metadata) {
               metadata = {
                 callId: item.call_id || item.id,
@@ -1883,6 +1969,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 metadata: functionCallMetadata(item),
               }
               metadata.started = true
+              streamedToolCall = true
             }
           }
           yield* userToolChunks(item, chunk.output_index, false)
@@ -1904,7 +1991,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           chunk.type === 'response.function_call_arguments.delta' &&
           chunk.delta
         ) {
-          const metadata = toolCallMetadata.get(chunk.item_id)
+          const metadata = trackedCall(chunk.item_id, chunk.output_index)
           if (!metadata?.started) {
             options.logger.errors(
               `${this.name}.processStreamChunks orphan function_call_arguments.delta`,
@@ -1931,7 +2018,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           const { item_id } = chunk
 
           // Get the function name from metadata (captured in output_item.added)
-          const metadata = toolCallMetadata.get(item_id)
+          const metadata = trackedCall(item_id, chunk.output_index)
           // If the matching START was never emitted (the upstream sent an
           // `output_item.added` without a name and no later event has filled
           // it in yet), defer END until `output_item.done` or
@@ -2021,7 +2108,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             yield* closeReasoning()
           }
           if (item.type === 'function_call' && item.id) {
-            const metadata = toolCallMetadata.get(item.id) ?? {
+            const metadata = trackedCall(
+              item.id,
+              chunk.output_index,
+              item.call_id,
+            ) ?? {
               callId: item.call_id || item.id,
               index: chunk.output_index,
               name: item.name || '',
@@ -2047,6 +2138,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 metadata: functionCallMetadata(item),
               }
               metadata.started = true
+              streamedToolCall = true
             }
             // Emit END if we have args (either from a previously-deferred
             // args.done OR from item.arguments) and haven't already ended.
@@ -2190,7 +2282,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           // leaving consumers waiting for tool results they never saw start.
           for (const [outputIndex, item] of responseOutput.entries()) {
             if (item.type !== 'function_call' || !item.id) continue
-            const metadata = toolCallMetadata.get(item.id) ?? {
+            const metadata = trackedCall(
+              item.id,
+              outputIndex,
+              item.call_id,
+            ) ?? {
               callId: item.call_id || item.id,
               index: outputIndex,
               name: item.name || '',
@@ -2215,6 +2311,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 metadata: functionCallMetadata(item),
               }
               metadata.started = true
+              streamedToolCall = true
             }
             const rawArgs =
               typeof item.arguments === 'string' && item.arguments.length > 0
@@ -2296,18 +2393,20 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           // The Responses API's incomplete_details.reason ('max_output_tokens'
           // | 'content_filter') maps to the AG-UI finishReason vocabulary:
           // max_output_tokens → 'length', content_filter → 'content_filter'.
-          const hasFunctionCalls = responseOutput.some((item) => {
-            if (!isRecord(item)) return false
-            if (item.type === 'function_call') return true
-            if (
-              item.type === 'shell_call' &&
-              typeof item.call_id === 'string' &&
-              shellOutputs.has(item.call_id)
-            ) {
-              return false
-            }
-            return readUserExecutedCall(item, { bareShell: true }) !== null
-          })
+          const hasFunctionCalls =
+            streamedToolCall ||
+            responseOutput.some((item) => {
+              if (!isRecord(item)) return false
+              if (item.type === 'function_call') return true
+              if (
+                item.type === 'shell_call' &&
+                typeof item.call_id === 'string' &&
+                shellOutputs.has(item.call_id)
+              ) {
+                return false
+              }
+              return readUserExecutedCall(item, { bareShell: true }) !== null
+            })
           const incompleteReason = chunk.response.incomplete_details?.reason
           const finishReason:
             | 'tool_calls'
@@ -2321,9 +2420,23 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 ? 'content_filter'
                 : 'stop'
 
+          // Each answer item's id and phase, for a same-model replay. Only a
+          // model that sends a phase gets them: an OpenAI-compatible server
+          // keeps the plain-text replay.
+          const answers = responseOutput.flatMap((item) =>
+            item.type === 'message' && item.id
+              ? [{ id: item.id, ...(item.phase ? { phase: item.phase } : {}) }]
+              : [],
+          )
+          const responseItems = answers.some((item) => item.phase)
+            ? answers
+            : []
           yield {
             type: EventType.RUN_FINISHED,
             ...(responseId ? { responseId } : {}),
+            ...(responseItems.length > 0
+              ? { metadata: { tanstack: { responseItems } } }
+              : {}),
             runId: aguiState.runId,
             threadId: aguiState.threadId,
             model: model || options.model,
@@ -2343,7 +2456,13 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         if (chunk.type === 'error') {
           // Conditional `code` spread keeps the wire shape spec-compliant
           // under `exactOptionalPropertyTypes` (see chatStream catch).
-          const code = chunk.code ?? undefined
+          const providerCode = chunk.code ?? undefined
+          const code = this.isContextOverflow({
+            message: chunk.message,
+            code: providerCode,
+          })
+            ? CONTEXT_OVERFLOW_CODE
+            : providerCode
           yield {
             type: EventType.RUN_ERROR,
             metadata: this.sourceMetadata(options.model),
@@ -2395,7 +2514,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     } catch (error: unknown) {
       // Narrow before logging: raw SDK errors can carry request metadata
       // (including auth headers) which we must never surface to user loggers.
-      const errorPayload = toRunErrorPayload(
+      const errorPayload = this.runErrorPayload(
         error,
         `${this.name}.processStreamChunks failed`,
       )
@@ -2739,7 +2858,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         const output: string | Array<ResponseFunctionCallOutputItem> = parts
           ? parts.length > 0 || parts.length === toolContent?.length
             ? parts.map((part) => this.convertContentPartToInput(part))
-            : '(see attached image)'
+            : '(image omitted: this model has no image input)'
           : typeof toolContent === 'string'
             ? toolContent
             : JSON.stringify(toolContent)
@@ -2812,6 +2931,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         const canPairReasoning =
           reasoningCandidates === 0 ||
           (reasoningCandidates === 1 && emittedReasoning === 1)
+        const firstCall = result.length
 
         // If the assistant message has tool calls, add them as FunctionToolCall objects
         // Responses API expects arguments as a string (JSON string)
@@ -2879,13 +2999,19 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         } else if (message.content) {
           // Add the assistant's text message if there is content
           const contentStr = this.extractTextContent(message.content)
-          if (contentStr) {
+          const items =
+            contentStr && canPairReasoning
+              ? answerItems(message, contentStr)
+              : undefined
+          // The model writes an answer item before its calls, so it goes
+          // back right after this message's reasoning.
+          if (items) result.splice(firstCall, 0, ...items)
+          else if (contentStr)
             result.push({
               type: 'message',
               role: 'assistant',
               content: contentStr,
             })
-          }
         }
 
         // Another model's answer: plain text and calls in the order the

@@ -88,12 +88,15 @@ describe('Anthropic chat({ reasoning }) request shape', () => {
     expect(body.thinking).toEqual({ type: 'adaptive', display: 'omitted' })
   })
 
-  it('Claude 4.6: the effort is a top-level field', async () => {
-    const body = await send('claude-opus-4-6', on('max'))
-    expect(body.thinking).toEqual({ type: 'adaptive', display: 'summarized' })
-    expect(body.effort).toBe('max')
-    expect(body).not.toHaveProperty('output_config')
-  })
+  it.each(['claude-opus-4-6', 'claude-sonnet-4-6'] as const)(
+    '%s: adaptive thinking with output_config.effort',
+    async (model) => {
+      const body = await send(model, on('low'))
+      expect(body.thinking).toEqual({ type: 'adaptive', display: 'summarized' })
+      expect(body.output_config).toEqual({ effort: 'low' })
+      expect(body).not.toHaveProperty('effort')
+    },
+  )
 
   it('Claude 4.6 with budgetTokens: budget thinking', async () => {
     const body = await send('claude-opus-4-6', {

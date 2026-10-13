@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { createAnthropicChat } from '@tanstack/ai-anthropic'
+import { createBedrockText } from '@tanstack/ai-bedrock'
 import { createGeminiChat } from '@tanstack/ai-gemini'
 import { createOpenaiChat } from '@tanstack/ai-openai'
 
@@ -17,6 +18,13 @@ export const Route = createFileRoute('/api/adapter-input-modalities')({
             .inputModalities,
           gemini: createGeminiChat('gemini-2.5-flash', DUMMY_KEY)
             .inputModalities,
+          bedrock: createBedrockText('google.gemma-4-31b', DUMMY_KEY, {
+            api: 'chat',
+          }).inputModalities,
+          bedrockConverse: createBedrockText(
+            'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
+            DUMMY_KEY,
+          ).inputModalities,
         }),
     },
   },

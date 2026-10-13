@@ -146,6 +146,22 @@ export class BytePlusTextAdapter<
   }
 
   /**
+   * Ark has no error code for a context overflow. It answers
+   * `InvalidParameter` for every bad request, so the message text is the
+   * only signal.
+   */
+  protected override isContextOverflow(error: {
+    message: string
+    code: string | undefined
+  }): boolean {
+    return (
+      super.isContextOverflow(error) ||
+      (error.code === 'InvalidParameter' &&
+        error.message.includes('exceed max message tokens'))
+    )
+  }
+
+  /**
    * Adds Ark's thinking fields for `chat({ reasoning })`. They are Ark
    * fields that the OpenAI SDK type does not list, so they go on with
    * Object.assign.
@@ -171,7 +187,7 @@ export class BytePlusTextAdapter<
   protected override extractReasoning(
     chunk: OpenAI.Chat.Completions.ChatCompletionChunk,
   ): { text: string } | undefined {
-    const delta = chunk.choices[0]?.delta as
+    const delta = chunk.choices?.[0]?.delta as
       | BytePlusStreamDeltaExtras
       | undefined
     const raw = delta?.reasoning_content
@@ -449,7 +465,7 @@ async function* captureEncryptedContent(
   captured: { encryptedContent?: string },
 ): AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk> {
   for await (const chunk of stream) {
-    const delta = chunk.choices[0]?.delta as
+    const delta = chunk.choices?.[0]?.delta as
       | BytePlusStreamDeltaExtras
       | undefined
     const blob = delta?.encrypted_content

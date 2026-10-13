@@ -35,18 +35,18 @@ export function stripUnsupportedFormats(node: any): any {
   if (Array.isArray(node)) return node.map(stripUnsupportedFormats)
   if (node === null || typeof node !== 'object') return node
 
-  const out: Record<string, any> = {}
-  for (const [key, value] of Object.entries(node)) {
-    if (
-      key === 'format' &&
-      typeof value === 'string' &&
-      !SUPPORTED_STRING_FORMATS.has(value)
-    ) {
-      continue
-    }
-    out[key] = stripUnsupportedFormats(value)
-  }
-  return out
+  // `Object.fromEntries` keeps an own key named `__proto__`. An assignment
+  // `out['__proto__'] = x` would set the prototype instead.
+  return Object.fromEntries(
+    Object.entries(node)
+      .filter(
+        ([key, value]) =>
+          key !== 'format' ||
+          typeof value !== 'string' ||
+          SUPPORTED_STRING_FORMATS.has(value),
+      )
+      .map(([key, value]) => [key, stripUnsupportedFormats(value)]),
+  )
 }
 
 /**
@@ -380,7 +380,9 @@ function coerceStrictSchema(
   if (result.type === 'object' && result.properties) {
     const properties = { ...result.properties }
     const allPropertyNames = Object.keys(properties)
-    const propertyMaps: Record<string, NullWideningMap> = {}
+    // Entries, not assignment: `map['__proto__'] = x` sets the prototype
+    // and drops a property that is really named `__proto__`.
+    const propertyMaps: Array<[string, NullWideningMap]> = []
 
     for (const propName of allPropertyNames) {
       let prop = properties[propName]
@@ -453,18 +455,21 @@ function coerceStrictSchema(
 
       properties[propName] = prop
       if (childMap || widenedHere) {
-        propertyMaps[propName] = {
-          ...(childMap ?? {}),
-          ...(widenedHere ? { widened: true } : {}),
-        }
+        propertyMaps.push([
+          propName,
+          {
+            ...(childMap ?? {}),
+            ...(widenedHere ? { widened: true } : {}),
+          },
+        ])
       }
     }
 
     result.properties = properties
     result.required = allPropertyNames
     result.additionalProperties = false
-    if (Object.keys(propertyMaps).length > 0) {
-      nullWideningMap.properties = propertyMaps
+    if (propertyMaps.length > 0) {
+      nullWideningMap.properties = Object.fromEntries(propertyMaps)
     }
   }
 

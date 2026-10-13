@@ -153,6 +153,63 @@ The first argument is the provider slug from your gateway dashboard (`openai`, `
 
 The `ts-react-chat` example does this. Set `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, and `CLOUDFLARE_AI_GATEWAY_ID` in its `.env`, and the Cloudflare, OpenAI, Anthropic, and Groq models in its picker all go through your gateway.
 
+### Claude and GPT from a Worker
+
+Inside a Worker, the AI Gateway `anthropic/...` and `openai/...` models use their provider's own API, not Chat Completions. Keep the provider adapter, and give it `cloudflareBindingFetch` as its `fetch`. The binding signs the requests, so the Worker needs no provider key:
+
+```typescript
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { createAnthropicChat } from "@tanstack/ai-anthropic";
+import { cloudflareBindingFetch } from "@tanstack/ai-cloudflare";
+import type { Ai } from "@cloudflare/workers-types";
+
+interface Env {
+  AI: Ai;
+}
+
+export default {
+  async fetch(request: Request, env: Env) {
+    const { messages } = await request.json();
+
+    // The SDK needs a key value. The binding does not use it.
+    const adapter = createAnthropicChat("claude-opus-5-5", "cloudflare-binding", {
+      fetch: cloudflareBindingFetch({
+        binding: env.AI,
+        vendor: "anthropic",
+        gateway: { id: "default" },
+      }),
+    });
+
+    const stream = chat({ adapter, messages, reasoning: "high" });
+    return toServerSentEventsResponse(stream);
+  },
+};
+```
+
+- `vendor: "anthropic"` sends Anthropic Messages requests to `anthropic/<model>`. Use it with `createAnthropicChat`.
+- `vendor: "openai"` sends OpenAI Responses requests to `openai/<model>`. Use it with `createOpenaiChat`.
+- The adapter keeps all of its options: `chat({ reasoning })`, tools, `cache_control` for prompt caching, and Anthropic betas, which go out as the `anthropic-beta` header.
+- For `@cf/...` models and other gateway vendors, keep `createCloudflareText` with `binding: env.AI`.
+
+An adapter with a gateway `baseURL` (`cloudflareGateway()`) or with `cloudflareBindingFetch` sends the full tools and system prompts on every call, also on a model with a [mid-conversation channel](../advanced/mid-conversation-changes). AI Gateway then gets the same request as on any other model. To send tools and prompts added during a conversation through the channel, set `midConversationChannels: true`:
+
+```typescript
+import { createAnthropicChat } from "@tanstack/ai-anthropic";
+import { cloudflareBindingFetch } from "@tanstack/ai-cloudflare";
+import type { Ai } from "@cloudflare/workers-types";
+
+export function gatewayClaude(env: { AI: Ai }) {
+  return createAnthropicChat("claude-opus-5-5", "cloudflare-binding", {
+    fetch: cloudflareBindingFetch({
+      binding: env.AI,
+      vendor: "anthropic",
+      gateway: { id: "default" },
+    }),
+    midConversationChannels: true,
+  });
+}
+```
+
 ## Bring your own key
 
 Two different things go by this name. Both work.
