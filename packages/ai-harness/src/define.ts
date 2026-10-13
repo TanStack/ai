@@ -17,7 +17,7 @@ import type {
 import type { AnyAgent } from './agents'
 import type { MediaOptions } from './media'
 import type { HarnessPlugin, PluginMetadataCheck } from './plugins'
-import type { HarnessSession } from './session'
+import type { HarnessSession } from './session/index'
 import type { MetadataOf } from './session-entry'
 import type { HarnessTurnOptions, RecoverHook } from './turn'
 import type { BusyPolicy, Principal, ThreadSettings, UserInput } from './types'
