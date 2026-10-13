@@ -50,11 +50,11 @@ chat({
 
 Pass `strategy` to change how the history shrinks. Three are built in.
 
-| Strategy                | What it does                                            | Cost                                        |
-| ----------------------- | ------------------------------------------------------- | ------------------------------------------- |
-| `evictOldest` (default) | Drop the oldest messages, leave a marker                | No extra model call                         |
-| `summarizeOldest`       | Replace the oldest messages with an LLM summary         | One summarize call (two with `cut: 'turn'`) |
-| `clearToolResults`      | Stub the content of old tool results, keep the messages | No extra model call                         |
+| Strategy                | What it does                                            | Cost                                              |
+| ----------------------- | ------------------------------------------------------- | ------------------------------------------------- |
+| `evictOldest` (default) | Drop the oldest messages, leave a marker                | No extra model call                               |
+| `summarizeOldest`       | Replace the oldest messages with an LLM summary         | One summarize call (up to two with `cut: 'turn'`) |
+| `clearToolResults`      | Stub the content of old tool results, keep the messages | No extra model call                               |
 
 ```ts
 import {

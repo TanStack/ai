@@ -451,7 +451,7 @@ For a full per-turn + cumulative tool budget recipe, see [Tool-call budgets](../
 
 ### onModelError
 
-Some model calls fail for a reason your middleware can fix. For example, the prompt is too long for the model. `onModelError` gets the `RUN_ERROR` before anyone else sees it. Fix the request, call `ctx.retry()`, and the run goes on as if the call never failed.
+Some model calls fail for a reason your middleware can fix. For example, the prompt is too long for the model. `onModelError` gets the `RUN_ERROR` before anyone else sees it. Fix the request and call `ctx.retry()`. While the call has retries left, the run goes on as if the call never failed.
 
 This middleware adds retrieved documents as a second system prompt. When the call is too long, it drops them and tries again:
 
@@ -477,7 +477,7 @@ const dropDocsWhenTooLong: ChatMiddleware = {
 };
 ```
 
-What `ctx.retry()` does:
+What `ctx.retry()` does while the call has retries left:
 
 - It drops the failed call. `onChunk` and the caller never see its `RUN_STARTED` or `RUN_ERROR`.
 - It runs `onConfig` again (phase `beforeModel`), then calls the model again.
@@ -486,7 +486,7 @@ What `ctx.retry()` does:
 When the hook runs:
 
 - Only when the call fails before it streams any output. A call that already sent text is not retried, so no output repeats.
-- Not for the structured-output call.
+- Not for the separate structured-output call that runs after the agent loop. The model calls of the agent loop get the hook as usual.
 - Every time, also after the last retry. A model call retries at most 2 times. After that, the error goes to the caller.
 
 `withCompaction` uses this hook to [compact and retry after a context overflow](./compaction#when-the-chat-is-still-too-long).
@@ -1006,7 +1006,7 @@ const stream = chat({
 | `onChunk` | **Piped** — chunks flow through each middleware | If first drops a chunk, later middleware never see it |
 | `onBeforeToolCall` | **First-win** — first non-void decision wins | Earlier middleware has priority |
 | `onShouldContinue` | **AND** — any explicit `false` stops the loop | Order only affects which middleware runs first when short-circuiting |
-| `onModelError` | Sequential. If any middleware calls `ctx.retry()`, the model is called again | All run in order, so each one sees the error |
+| `onModelError` | Sequential. If any middleware calls `ctx.retry()` and the call has retries left, the model is called again | All run in order, so each one sees the error |
 | `onAfterToolCall` | **Piped**: each gets the result of the previous `replaceResult` | The last replacement wins |
 | `onUsage` | Sequential | All run in order |
 | `onFinish/onAbort/onError` | Sequential | All run in order |
