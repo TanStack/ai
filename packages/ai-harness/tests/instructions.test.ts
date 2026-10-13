@@ -5,8 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
 import { projectInstructions } from '../src/first-party'
-import { mockAdapter, text } from './helpers'
-import type { AnyTextAdapter } from '@tanstack/ai'
+import { workspaceTools } from '../src/first-party/coding'
+import { mockAdapter, text, toolCall } from './helpers'
+import type { AnyTextAdapter, ModelMessage } from '@tanstack/ai'
 import type { HarnessPlugin } from '../src'
 
 // `~` in a global path is the home folder. Each test points it into its own
@@ -230,5 +231,37 @@ describe('projectInstructions', () => {
 
     const [environment] = await promptsOfOneTurn({ root })
     expect(environment).toMatch(/- Git repository: yes$/)
+  })
+
+  it('adds a nested instruction file to read_file once', async () => {
+    await put('project/AGENTS.md', 'Root rule.')
+    await put('project/src/AGENTS.md', 'Src rule.')
+    await put('project/src/lib/AGENTS.md', 'Lib rule.')
+    await put('project/src/lib/a.ts', 'a')
+    await put('project/src/b.ts', 'b')
+    const { adapter, calls } = mockAdapter([
+      () => toolCall('read_file', { path: 'src/b.ts' }, 'c1'),
+      () => toolCall('read_file', { path: 'src/lib/AGENTS.md' }, 'c2'),
+      () => toolCall('read_file', { path: 'src/lib/a.ts' }, 'c3'),
+      () => text('done'),
+    ])
+    const { host, session } = await open(adapter, [
+      workspaceTools({ root }),
+      projectInstructions({ root, env: false }),
+    ])
+
+    await session.prompt('read')
+    await host.close()
+
+    // What each read added after the lines of the file.
+    const messages: Array<ModelMessage> = calls[3].messages
+    const added = messages
+      .filter((message) => message.role === 'tool')
+      .map((message) => String(message.content).split('\n\n').slice(1))
+    expect(added).toEqual([
+      ['Instructions from src/AGENTS.md:\nSrc rule.'],
+      [],
+      [],
+    ])
   })
 })

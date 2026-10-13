@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -10,10 +10,12 @@ import {
   fileCommands,
   globToRegExp,
   modelPicker,
+  permissions,
   projectInstructions,
   todos,
   usage,
 } from '../src/first-party'
+import { workspaceTools } from '../src/first-party/coding'
 import { messageTexts, mockAdapter, text, toolCall } from './helpers'
 import type { HarnessPlugin } from '../src'
 import type { AnyTextAdapter } from '@tanstack/ai'
@@ -58,7 +60,53 @@ describe('decidePermission', () => {
   })
 })
 
-describe('globToRegExp', () => {
+describe('workspace tools with permissions', () => {
+  it('reads freely, asks before writing, and stays inside the root', async () => {
+    await writeFile(join(root, 'notes.txt'), 'hello\nworld\n')
+    const { adapter, calls } = mockAdapter([
+      () => toolCall('read_file', { path: 'notes.txt' }, 'c1'),
+      () =>
+        toolCall('write_file', { path: 'out.txt', content: 'written' }, 'c2'),
+      () => toolCall('read_file', { path: '../escape.txt' }, 'c3'),
+      () => text('done'),
+    ])
+    const { host, session } = await open(adapter, [
+      permissions(),
+      workspaceTools({ root }),
+    ])
+
+    const turn = session.prompt('work')
+    await vi.waitFor(() =>
+      expect(session.snapshot().pendingQuestions).toHaveLength(1),
+    )
+    const [question] = session.snapshot().pendingQuestions
+    expect(question?.message).toContain('write_file')
+    await session.answer(question!.questionId, { answer: 'once' })
+    await turn
+
+    expect(await readFile(join(root, 'out.txt'), 'utf8')).toBe('written')
+    const toolResults = JSON.stringify(calls[3].messages)
+    expect(toolResults).toContain('1\\thello')
+    expect(toolResults).toContain('outside the workspace')
+    await host.close()
+  })
+
+  it('denies edits in plan mode without asking', async () => {
+    const { adapter } = mockAdapter([
+      () => toolCall('write_file', { path: 'x.txt', content: 'x' }, 'c1'),
+      () => text('ok'),
+    ])
+    const { host, session } = await open(adapter, [
+      permissions(),
+      workspaceTools({ root }),
+    ])
+    expect(await session.command('mode', 'plan')).toBe('Mode: plan.')
+    await session.prompt('write')
+    await expect(readFile(join(root, 'x.txt'), 'utf8')).rejects.toThrow()
+    expect(session.snapshot().pendingQuestions).toHaveLength(0)
+    await host.close()
+  })
+
   it('matches globs like the list tool', () => {
     expect(globToRegExp('src/**/*.ts').test('src/a/b.ts')).toBe(true)
     expect(globToRegExp('src/**/*.ts').test('src/b.ts')).toBe(true)

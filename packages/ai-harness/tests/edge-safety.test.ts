@@ -17,9 +17,13 @@ const srcDir = resolve(here, '..', 'src')
 
 /**
  * Node-only entry points, relative to `src`. A path that ends with `/` allows
- * the whole folder.
+ * the whole folder: `first-party/coding/` is the Node-only `plugins/coding` entry.
  */
-const ALLOWED = ['first-party/files.ts', 'first-party/bound-output.ts']
+const ALLOWED = [
+  'first-party/files.ts',
+  'first-party/bound-output.ts',
+  'first-party/coding/',
+]
 
 const isAllowed = (file: string) =>
   ALLOWED.some((entry) =>
