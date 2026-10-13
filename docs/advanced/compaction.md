@@ -166,57 +166,51 @@ withCompaction({
 });
 ```
 
-## Retry after a context overflow
+## When the chat is still too long
 
-The token count is an estimate, so a call can still be too large for the model. The provider then rejects the call. Catch that one error, give compaction a smaller budget, and call `chat()` again.
+The token count is an estimate. So once in a while a call is still too long for the model, and the provider rejects it.
 
-Every provider words this error differently, so do not match on the text. The text adapters put one code on the `RUN_ERROR` chunk: `CONTEXT_OVERFLOW_CODE` (`'context_overflow'`). The provider's own text stays in `message`.
+You do not have to catch that error. When a call fails with `CONTEXT_OVERFLOW_CODE`, `withCompaction` compacts and calls the model again, in the same run. Your code only sees the answer. This works with `auto: false` too.
 
-```typescript
-import { CONTEXT_OVERFLOW_CODE, chat } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
-import { withCompaction } from "@tanstack/ai-compaction";
-import type { ModelMessage } from "@tanstack/ai";
+It retries once per model call. If the compacted call is still too long, the run ends with a `RUN_ERROR`:
 
-// Each retry gives compaction a smaller budget.
-const budgets = [100_000, 50_000, 25_000];
-
-export async function answer(messages: Array<ModelMessage>): Promise<string> {
-  let providerError = "";
-
-  for (const maxTokens of budgets) {
-    let text = "";
-    let overflow = false;
-
-    const stream = chat({
-      adapter: openaiText("gpt-5.5"),
-      messages,
-      middleware: [withCompaction({ maxTokens })],
-    });
-
-    for await (const chunk of stream) {
-      if (chunk.type === "TEXT_MESSAGE_CONTENT") text += chunk.delta;
-      if (chunk.type === "RUN_ERROR") {
-        // A smaller budget does not fix any other error.
-        if (chunk.code !== CONTEXT_OVERFLOW_CODE) throw new Error(chunk.message);
-        overflow = true;
-        providerError = chunk.message;
-      }
-    }
-
-    if (!overflow) return text;
-  }
-
-  // Every budget failed. Keep the provider's own message.
-  throw new Error(providerError);
-}
-```
-
-A retry starts the run again from the first message, so tools that ran before the error run again. If a tool sends an email or charges a card, do not retry the run.
+- `code` is `CONTEXT_OVERFLOW_CODE` (`'context_overflow'`).
+- `message` is the provider's own text.
 
 The OpenAI, Anthropic, Gemini, Bedrock, OpenRouter, Grok, Cloudflare, and BytePlus adapters set this code. Other OpenAI-compatible adapters set it when the provider sends `context_length_exceeded`.
 
-A call that is too large now gets two more tries. If all three fail, you get the provider's message.
+### Give the retry something to cut
+
+The retry compacts even under `maxTokens`. But a strategy can still find nothing to cut:
+
+- `composeStrategies` stops when the estimate is under `maxTokens`.
+- `evictOldest` keeps `maxTokens / 2` by default.
+
+Set a small `keepRecentTokens`, so the retry always drops something:
+
+```typescript
+import { evictOldest, withCompaction } from "@tanstack/ai-compaction";
+
+withCompaction({
+  maxTokens: 100_000,
+  strategy: evictOldest({ keepRecentTokens: 20_000 }),
+});
+```
+
+### Compact on your own schedule
+
+Want the next call on a thread to compact, even under `maxTokens`? Call `compactNext(threadId)`. For example, do this before you switch the thread to a model with a smaller context window.
+
+Create the middleware once, so `compactNext` reaches the same instance:
+
+```typescript
+import { withCompaction } from "@tanstack/ai-compaction";
+
+const compaction = withCompaction({ maxTokens: 100_000 });
+
+// The next model call on this thread compacts first.
+compaction.compactNext("thread-1");
+```
 
 ## Options
 
@@ -230,7 +224,7 @@ A call that is too large now gets two more tries. If all three fail, you get the
 | `strategyKey` | `string` | built-in strategy identity | Stable checkpoint identity. Set it for custom strategies, custom estimators, or a custom eviction marker. Change it when your `summarize` function can change. |
 | `onCompact` | `(info: CompactionInfo) => void` | - | Runs after each compaction. `info` is `{ before, after, messagesBefore, messagesAfter, reason, usage, error, stale }`. `error` is set when the check after a run fails or a background summary fails. `stale` is set when a background summary no longer fits. |
 | `countTokens` | `'estimate' \| 'usage'` | `'estimate'` | `'usage'` counts with the usage the provider reported for the last call. See [Count with real usage](#count-with-real-usage). |
-| `auto` | `boolean` | `true` | `false` turns off compaction at `maxTokens`. `compactNext` and the overflow check still run. |
+| `auto` | `boolean` | `true` | `false` turns off compaction at `maxTokens`. `compactNext`, the overflow retry, and the overflow check still run. |
 | `contextWindow` | `number` | - | The model's context window. With `countTokens: 'usage'` and `durable: true` on a host with a session log, compaction also runs after a run whose usage passed it, even with `auto: false`. |
 | `durable` | `boolean` | `false` | On a host with a session log, write the result into the log. See [Keep compaction in a session log](#keep-compaction-in-a-session-log). |
 | `continueOnError` | `boolean` | `false` | When the strategy fails, send the full messages and go on. By default the run fails. |
@@ -371,48 +365,6 @@ Sometimes a summary does not apply:
 - **It runs before every model call.** Compaction skips `init`. It runs on `beforeModel` and `structuredOutput`. Each later call can compact again.
 - **The canonical transcript stays complete.** Compaction writes provider-only context. Persistence and other middleware still read `ctx.messages`.
 
-## Compact now after an overflow
-
-A call can still pass the model's context limit and fail. When that happens, call `compactNext(threadId)`, then send the request again. The next model call on that thread compacts first, even when the count is under `maxTokens`.
-
-```ts group=compaction-overflow
-import { chat } from '@tanstack/ai'
-import type { ModelMessage } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai'
-import { withCompaction } from '@tanstack/ai-compaction'
-
-// Create it once, so compactNext reaches the same instance.
-const compaction = withCompaction({ maxTokens: 100_000, countTokens: 'usage' })
-
-// Match the overflow error text of your provider.
-const isOverflow = (message: string) =>
-  /context (length|window)|too many tokens|too long/i.test(message)
-
-async function answer(threadId: string, messages: Array<ModelMessage>) {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    let text = ''
-    let overflow = false
-    for await (const chunk of chat({
-      adapter: openaiText('gpt-6.1-sol'),
-      messages,
-      threadId,
-      middleware: [compaction],
-    })) {
-      if (chunk.type === 'TEXT_MESSAGE_CONTENT') text += chunk.delta
-      if (chunk.type === 'RUN_ERROR') {
-        if (!isOverflow(chunk.message)) throw new Error(chunk.message)
-        overflow = true
-      }
-    }
-    if (!overflow) return text
-    compaction.compactNext(threadId)
-  }
-  throw new Error('The conversation is too long, even after compaction.')
-}
-```
-
-`compactNext` runs the strategy even under `maxTokens`, but a strategy can still find nothing to cut. `composeStrategies` stops when the estimate is under `maxTokens`, and `evictOldest` keeps `maxTokens / 2` by default. For an overflow retry, set a small `keepRecentTokens` on the strategy.
-
 ## Better summaries
 
 The basic `summarizeOldest` setup works for a chat. A coding agent needs more. It must keep the goal, the decisions, and the files it touched across many compactions. Three opt-in parts help:
@@ -484,7 +436,7 @@ the strategy returns.
 
 `compaction:ended` also says why compaction ran and what it cost:
 
-- `reason`: `'threshold'` (the count passed `maxTokens`), `'forced'` (`compactNext`), or `'background'` (a [background summary](#prepare-the-summary-in-the-background)).
+- `reason`: `'threshold'` (the count passed `maxTokens`), `'forced'` (`compactNext`, or the retry after a context overflow), or `'background'` (a [background summary](#prepare-the-summary-in-the-background)).
 - `usage`: the token usage of the summary calls.
 - `error`: the message when the strategy failed. By default the run then fails. Set `continueOnError: true` to send the full messages instead.
 - `stale`: `true` when a ready background summary no longer fit the messages and was dropped.

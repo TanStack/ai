@@ -133,13 +133,15 @@ withCompaction({
 | `strategyKey`     | built-in key    | Stable checkpoint identity. Set it for custom strategies or estimators.                                                                                                           |
 | `onCompact`       | (none)          | Observe each compaction (`before`, `after`, `messagesBefore`, `messagesAfter`, `reason`, `usage`, `error`).                                                                       |
 | `countTokens`     | `'estimate'`    | `'usage'`: count with the usage the provider reported for the last call, plus an estimate of the messages after it.                                                               |
-| `auto`            | `true`          | `false`: do not compact when the count passes `maxTokens`. `compactNext` and the `contextWindow` check still compact.                                                             |
+| `auto`            | `true`          | `false`: do not compact when the count passes `maxTokens`. `compactNext`, the overflow retry, and the `contextWindow` check still compact.                                        |
 | `contextWindow`   | (none)          | The model's context window. With `countTokens: 'usage'` and `durable: true` on a host with a session log, the check after the last model call compacts when the usage is over it. |
 | `durable`         | `false`         | On a host that provides `LogRecordsCapability`, write each compaction as a session log record.                                                                                    |
 | `continueOnError` | `false`         | When the strategy throws, send the messages without compaction instead of failing the run.                                                                                        |
 | `background`      | (none)          | `{ atTokens }`: prepare the summary when the count passes `atTokens`, and apply it at the next run. `atTokens` must be below `maxTokens`.                                         |
 
-`withCompaction` returns a middleware with `compactNext(threadId)`. Call it to compact at the next model call on that thread, for example after a context overflow.
+When a model call fails with `CONTEXT_OVERFLOW_CODE`, `withCompaction` compacts and calls the model again in the same run, once per model call.
+
+`withCompaction` returns a middleware with `compactNext(threadId)`. Call it to compact at the next model call on that thread, even under `maxTokens`.
 
 ### Strategy options
 
