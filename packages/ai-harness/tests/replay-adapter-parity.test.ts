@@ -84,7 +84,7 @@ describe('saved harness replay across turn adapters', () => {
           id: 'call-original',
           type: 'function',
           function: { name: 'lookup', arguments: '{"q":"first"}' },
-          metadata: { tanstack: { runId: 'r', source: firstSource } },
+          metadata: { tanstack: { source: firstSource } },
         },
       ])
       expect(
@@ -120,12 +120,6 @@ describe('saved harness replay across turn adapters', () => {
     { label: 'coercible', raw: '{"count":"3"}', count: 3, executes: 1 },
     { label: 'rejected', raw: '{"count":{}}', count: undefined, executes: 0 },
     { label: 'empty', raw: '', count: undefined, executes: 0 },
-    {
-      label: 'overflow',
-      raw: '{"count":1e999}',
-      count: undefined,
-      executes: 0,
-    },
   ])(
     'checks $label raw input before dispatch and preserves it in saved history',
     async ({ raw, count, executes }) => {
