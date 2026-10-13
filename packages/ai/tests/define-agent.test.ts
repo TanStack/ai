@@ -1090,6 +1090,28 @@ describe('defineAgent inputSchema', () => {
     },
   )
 
+  it('does not start a routed agent whose inputSchema is a plain JSON Schema', async () => {
+    let runs = 0
+    const agent = defineAgent({
+      name: 'researcher',
+      description: 'Looks up facts',
+      inputSchema: {
+        type: 'object',
+        properties: { task: { type: 'string' } },
+        required: ['task'],
+      },
+      run: async function* () {
+        runs += 1
+      },
+    })
+
+    // Nothing here can check the input, so a bad one must not get through.
+    await expect(
+      routeTo([agent], { name: 'researcher', input: { task: 42 } }),
+    ).rejects.toThrow('has a plain JSON Schema as inputSchema')
+    expect(runs).toBe(0)
+  })
+
   it('gives the same agent its own input in each step', async () => {
     const { agent, inputs } = briefResearcher()
 

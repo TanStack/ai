@@ -222,7 +222,7 @@ const stream = chat({
 
 - `pick` types `inputs` when you write it as an object, such as `{ pricer: { vendor: 'Acme' } }`. Each key is the name of an agent with `inputSchema`, and the value has the type of that schema. `Object.fromEntries` returns `any`, so the sample above has no such check.
 - If a picked agent with a schema has no input, `pick` throws `Agent "pricer" needs input. Pass it in inputs.`
-- `chat()` checks each input against the schema before any child starts. If one input does not match, `chat()` throws, and no child starts. `chat()` does not check an input against a plain JSON Schema.
+- `chat()` checks each input against the schema before any child starts. If one input does not match, `chat()` throws, and no child starts. The `inputSchema` must be a Standard Schema, such as a zod schema. If it is a plain JSON Schema, `chat()` throws.
 - `run` reads the input as `ctx.input`. A resumed child gets the same input.
 - The plan with each input goes to the client on the `SUBAGENT_STARTED` event, and a resume reads it back from the client. Use JSON values only, and do not put secrets in an input. `chat()` checks each input against the schema again on a resume. If the plan is absent or an input does not match, the resume fails.
 

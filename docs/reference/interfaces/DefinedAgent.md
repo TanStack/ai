@@ -66,8 +66,9 @@ Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:78](https://
 The input this agent needs, such as a short brief. `run` reads it as
 `ctx.input`. In tool mode, the parent model writes it when it calls this
 agent's tool. A `subagents.router` gives it in its pick as
-`{ name, input }`. The input is checked against this schema first. A plain
-JSON Schema is not checked.
+`{ name, input }`. The input is checked against this schema first. A
+router can start this agent only when the schema is a Standard Schema,
+such as a zod schema. A plain JSON Schema works in tool mode only.
 
 ***
 

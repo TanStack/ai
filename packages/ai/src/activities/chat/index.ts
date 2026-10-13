@@ -6295,9 +6295,10 @@ async function savedPlan(
 /**
  * Check the input of each picked agent that has `inputSchema`, and return the
  * plan with the checked inputs. Throws when an agent with a schema has no
- * input, or when an input does not match. A plain JSON Schema is not checked.
- * The saved plan keeps the raw inputs, so a resume checks the same values
- * again.
+ * input, or when an input does not match. Throws for a plain JSON Schema
+ * too: this code cannot check an input against one, and a resume reads the
+ * input back from the client. The saved plan keeps the raw inputs, so a
+ * resume checks the same values again.
  */
 async function checkRoutedInputs(
   plan: RoutedPlan,
@@ -6309,6 +6310,11 @@ async function checkRoutedInputs(
     for (const name of step.names) {
       const schema = agents.find((agent) => agent.name === name)?.inputSchema
       if (schema === undefined) continue
+      if (!isStandardSchema(schema)) {
+        throw new Error(
+          `Agent "${name}" has a plain JSON Schema as inputSchema. A router can start it only when inputSchema is a Standard Schema, such as a zod schema.`,
+        )
+      }
       const input = stepInput(step, name)
       if (input === undefined) {
         throw new Error(
