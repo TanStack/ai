@@ -76,7 +76,7 @@ export {
   getLogRecords,
   provideLogRecords,
 } from './log-records'
-export type { LogRecordsWriter } from './log-records'
+export type { LogRecord, LogRecordsWriter } from './log-records'
 
 export {
   isRunStatus,

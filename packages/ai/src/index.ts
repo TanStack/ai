@@ -364,6 +364,7 @@ export type {
   DefinedChatMiddleware,
   AnyChatMiddleware,
   MetadataStore,
+  LogRecord,
   LogRecordsWriter,
 } from './activities/chat/middleware/index'
 // Locks are a distributed-mutex primitive — coordination, not chat state — and
