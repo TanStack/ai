@@ -140,8 +140,10 @@ describe('openrouterSignIn', () => {
     const fetchImpl: typeof fetch = (_input, init) =>
       new Promise((_resolve, reject) => {
         const signal = init?.signal
-        expect(signal).toBeDefined()
-        if (signal === undefined) return
+        if (signal == null) {
+          reject(new Error('missing abort signal'))
+          return
+        }
         // The callback response is aborted with the exchange.
         void browser.pages[0]?.catch(() => undefined)
         signal.addEventListener('abort', () => reject(signal.reason))
