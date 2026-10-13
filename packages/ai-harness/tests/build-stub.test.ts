@@ -28,8 +28,9 @@ const send = (frame) => process.stdout.write(JSON.stringify(frame) + '\\n')
 let turns = 0
 createInterface({ input: process.stdin }).on('line', (line) => {
   const frame = JSON.parse(line)
-  if (frame.type !== 'harness.input') return
-  const message = frame.input.message
+  if (frame.type !== 'harness.input' || frame.input.op !== 'prompt') return
+  const input = frame.input.message
+  const message = typeof input === 'string' ? input : input.map((part) => part.content).join('')
   if (message === 'reject') {
     send({ type: 'harness.receipt', requestId: frame.requestId, status: 'rejected', reason: 'busy' })
     return
@@ -278,12 +279,12 @@ describe('artifactText with a built stub', () => {
       )
       await expect(drain('crash')).rejects.toThrow('worker crashed')
       await expect(drain('fail')).rejects.toThrow('turn failed')
-      // A message without text content is sent as an empty prompt.
+      // A message of content parts is sent with its parts.
       let text = ''
       for await (const chunk of stream([{ type: 'text', content: 'x' }])) {
         if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) text += chunk.delta
       }
-      expect(text).toBe('turn 2: ')
+      expect(text).toBe('turn 2: x')
     } finally {
       model.dispose()
     }
