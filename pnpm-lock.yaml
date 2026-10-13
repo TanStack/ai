@@ -2603,6 +2603,31 @@ importers:
         specifier: ^4.2.0
         version: 4.2.1
 
+  packages/ai-harness-cli:
+    dependencies:
+      '@tanstack/ai-acp':
+        specifier: workspace:^
+        version: link:../ai-acp
+      '@tanstack/ai-mcp':
+        specifier: workspace:^
+        version: link:../ai-mcp
+    devDependencies:
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../ai
+      '@tanstack/ai-harness':
+        specifier: workspace:*
+        version: link:../ai-harness
+      '@tanstack/ai-persistence':
+        specifier: workspace:*
+        version: link:../ai-persistence
+      '@vitest/coverage-v8':
+        specifier: 4.1.10
+        version: 4.1.10(vitest@4.1.11)
+      zod:
+        specifier: ^4.2.0
+        version: 4.2.1
+
   packages/ai-isolate-cloudflare:
     dependencies:
       '@tanstack/ai-code-mode':

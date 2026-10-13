@@ -328,4 +328,4 @@ If a plugin picks the model of the harness, the harness has no adapter to read i
 - Messages from the browser to a running agent.
 - A WebSocket, and a harness you can call from `chat()`.
 
-Next: send more than a prompt with [inputs](./inputs).
+Next: run the same harness in a terminal with the [CLI](./cli).
