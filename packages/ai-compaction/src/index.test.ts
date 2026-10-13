@@ -2784,6 +2784,51 @@ describe('background compaction', () => {
     expect(gated.calls).toHaveLength(1)
   })
 
+  it.each([
+    ['returns null', () => null],
+    [
+      'throws with continueOnError',
+      () => {
+        throw new Error('strategy failed')
+      },
+    ],
+  ])(
+    'keeps an applied summary when a forced strategy %s',
+    async (_name, later) => {
+      const inner = summarizeOldest({
+        summarize: async () => 'the gist',
+        keepRecentTokens: 50,
+      })
+      let calls = 0
+      const strategy: CompactionStrategy = (messages, compaction) =>
+        ++calls === 1 ? inner(messages, compaction) : later()
+      const store = memoryStore()
+      const mw = backgroundCompaction(async () => 'unused', {
+        strategy,
+        continueOnError: true,
+      })
+      await runOnConfig(mw, list(4), runContext('r1', { store }).ctx)
+      await vi.waitFor(async () =>
+        expect(await store.get(BACKGROUND, 'thread-1')).not.toBeNull(),
+      )
+
+      // The next run applies the summary, then the forced strategy runs.
+      mw.compactNext('thread-1')
+      const grown = [...list(4), small('m5')]
+      const result = await runOnConfig(
+        mw,
+        grown,
+        runContext('r2', { store }).ctx,
+      )
+      expect(calls).toBe(2)
+      expect(result?.providerMessages).toEqual([
+        summaryOf('the gist'),
+        grown[3],
+        grown[4],
+      ])
+    },
+  )
+
   it('reports the usage of a background summary when the next run applies it', async () => {
     const usage = tokenUsage(120, 30)
     const onCompact = vi.fn()

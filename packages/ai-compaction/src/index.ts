@@ -1405,7 +1405,8 @@ export function withCompaction(
         })
         // An aborted run must stop. Do not call the adapter with its signal.
         if (!options.continueOnError || ctx.signal?.aborted) throw error
-        return reusedCheckpoint
+        // A reused checkpoint or an applied summary still goes to the model.
+        return reusedCheckpoint || applied
           ? { providerMessages: workingMessages }
           : undefined
       }
@@ -1423,7 +1424,7 @@ export function withCompaction(
           ...(spent.usage ? { usage: spent.usage } : {}),
           ...(spent.error ? { error: spent.error } : {}),
         })
-        if (reusedCheckpoint) {
+        if (reusedCheckpoint || applied) {
           return { providerMessages: workingMessages }
         }
         return
