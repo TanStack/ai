@@ -76,7 +76,8 @@ export interface DefinedAgent<
    * agent's tool. A `subagents.router` gives it in its pick as
    * `{ name, input }`. The input is checked against this schema first. A
    * router can start this agent only when the schema is a Standard Schema,
-   * such as a zod schema. A plain JSON Schema works in tool mode only.
+   * such as a zod schema. A plain JSON Schema works in tool mode only. A
+   * turn with a router input cannot resume after an interrupt.
    */
   inputSchema?: TInput
   tools?: TTools

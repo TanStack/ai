@@ -223,8 +223,8 @@ const stream = chat({
 - `pick` types `inputs` when you write it as an object, such as `{ pricer: { vendor: 'Acme' } }`. Each key is the name of an agent with `inputSchema`, and the value has the type of that schema. `Object.fromEntries` returns `any`, so the sample above has no such check.
 - If a picked agent with a schema has no input, `pick` throws `Agent "pricer" needs input. Pass it in inputs.`
 - `chat()` checks each input against the schema before any child starts. If one input does not match, `chat()` throws, and no child starts. The `inputSchema` must be a Standard Schema, such as a zod schema. If it is a plain JSON Schema, `chat()` throws.
-- `run` reads the input as `ctx.input`. A resumed child gets the same input.
-- The plan with each input goes to the client on the `SUBAGENT_STARTED` event, and a resume reads it back from the client. Use JSON values only, and do not put secrets in an input. `chat()` checks each input against the schema again on a resume. If the plan is absent or an input does not match, the resume fails.
+- `run` reads the input as `ctx.input`. The input stays on the server. It does not go to the client.
+- A turn with a router input cannot resume after an interrupt. Do not give a tool that needs approval, or a client tool, to an agent in such a turn.
 
 **Without a router.** The library adds one synthetic server tool per agent. The main model calls that tool. The public stream still emits `SUBAGENT_STARTED` / `SUBAGENT_FINISHED` (or `SUBAGENT_ERROR`) and nested parts. The UI does not treat spawn as a normal tool card. The child's events stream while the tool runs, and the child's text becomes the tool result. The child reads the conversation as it is at that tool call.
 
@@ -376,7 +376,7 @@ export function CleanupPanel() {
 }
 ```
 
-The resume uses the plan that the router picked in the first run. It does not call the router again. While the child waits, its card has `status: 'suspended'` and `interruptIds`. After you approve, the card shows the tool result and the child's reply. Client tools in a child work the same way.
+The resume uses the plan that the router picked in the first run. It does not call the router again. If the router gave an agent of that plan an input, the resume fails. While the child waits, its card has `status: 'suspended'` and `interruptIds`. After you approve, the card shows the tool result and the child's reply. Client tools in a child work the same way.
 
 The same flow works without a router. The child's tool call stays open until the resume, then the parent model reads the child's result. The result content carries the child's output or error; `subagentRunId` stays in subagent tracking events.
 

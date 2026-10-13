@@ -7,12 +7,7 @@ import {
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { z } from 'zod'
-import type {
-  DefinedAgent,
-  ReasoningRequest,
-  SubagentRunContext,
-  Tool,
-} from '@tanstack/ai'
+import type { DefinedAgent, ReasoningRequest, Tool } from '@tanstack/ai'
 import { createTextAdapter } from '@/lib/providers'
 import {
   deleteLogs,
@@ -28,9 +23,8 @@ import type { SubagentScenario } from '@/lib/subagents-test'
  *
  * - `route`: a router picks `researcher`. The child thinks, calls a server
  *   tool, then answers.
- * - `approval`: a router picks `cleaner` and gives it an input. The child's
- *   tool needs approval, so the parent run ends with the child's interrupt.
- *   The client sends the plan and its input back, and the resume continues
+ * - `approval`: a router picks `cleaner`. The child's tool needs approval,
+ *   so the parent run ends with the child's interrupt. The resume continues
  *   the same child.
  * - `tool`: no router. The parent model calls the `researcher` tool, the
  *   child answers, and the parent reads its result.
@@ -44,21 +38,6 @@ function subagentsFor(
   aimockPort: number | undefined,
   testId: string | undefined,
 ) {
-  const childRun =
-    (tools: Array<Tool>, model?: string, reasoning?: ReasoningRequest) =>
-    (ctx: SubagentRunContext) =>
-      chat({
-        ...createTextAdapter('openai', model, aimockPort, testId),
-        messages: ctx.messages,
-        threadId: ctx.threadId,
-        runId: ctx.runId,
-        parentRunId: ctx.parentRunId,
-        subagentRunId: ctx.subagentRunId,
-        resume: ctx.resume,
-        tools,
-        ...(reasoning ? { reasoning } : {}),
-        agentLoopStrategy: maxIterations(4),
-      })
   const child = (
     name: string,
     tools: Array<Tool>,
@@ -68,7 +47,19 @@ function subagentsFor(
     defineAgent({
       name,
       description: `${name} agent`,
-      run: childRun(tools, model, reasoning),
+      run: (ctx) =>
+        chat({
+          ...createTextAdapter('openai', model, aimockPort, testId),
+          messages: ctx.messages,
+          threadId: ctx.threadId,
+          runId: ctx.runId,
+          parentRunId: ctx.parentRunId,
+          subagentRunId: ctx.subagentRunId,
+          resume: ctx.resume,
+          tools,
+          ...(reasoning ? { reasoning } : {}),
+          agentLoopStrategy: maxIterations(4),
+        }),
     })
 
   if (scenario === 'route') {
@@ -81,18 +72,10 @@ function subagentsFor(
     return { agents: [researcher], router: () => 'researcher' }
   }
   if (scenario === 'approval') {
-    // The resume fails if the client does not send this input back.
-    const cleaner = defineAgent({
-      name: 'cleaner',
-      description: 'cleaner agent',
-      inputSchema: z.object({ folder: z.string() }),
-      run: childRun([deleteLogs.server(({ folder }) => ({ deleted: folder }))]),
-    })
-    const agents: Array<DefinedAgent> = [cleaner]
-    return {
-      agents,
-      router: () => ({ name: 'cleaner', input: { folder: 'old' } }),
-    }
+    const cleaner = child('cleaner', [
+      deleteLogs.server(({ folder }) => ({ deleted: folder })),
+    ])
+    return { agents: [cleaner], router: () => 'cleaner' }
   }
   if (scenario === 'brief' || scenario === 'routed-brief') {
     const researcher = defineAgent({

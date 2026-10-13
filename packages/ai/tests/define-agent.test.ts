@@ -1125,7 +1125,7 @@ describe('defineAgent inputSchema', () => {
     expect(inputs).toEqual([brief, { task: 'Price Vendor B' }])
   })
 
-  it('gives run the checked input and keeps the raw input on the plan', async () => {
+  it('gives run the checked input and keeps it off the plan', async () => {
     const inputs: Array<unknown> = []
     const agent = defineAgent({
       name: 'researcher',
@@ -1144,22 +1144,12 @@ describe('defineAgent inputSchema', () => {
     })
 
     expect(inputs).toEqual([{ task: 'PRICE' }])
-    // A resume checks the plan again, so the plan keeps the raw input.
+    // The plan goes to the client, so it has the names only.
     expect(
-      chunks.find((chunk) => chunk.type === EventType.SUBAGENT_STARTED),
-    ).toMatchObject({
-      metadata: {
-        tanstack: {
-          subagentPlan: {
-            steps: [
-              {
-                names: ['researcher'],
-                inputs: { researcher: { task: 'price' } },
-              },
-            ],
-          },
-        },
-      },
+      chunks.find((chunk) => chunk.type === EventType.SUBAGENT_STARTED)
+        ?.metadata,
+    ).toEqual({
+      tanstack: { subagentPlan: { steps: [{ names: ['researcher'] }] } },
     })
   })
 })

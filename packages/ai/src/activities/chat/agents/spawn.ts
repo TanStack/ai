@@ -69,9 +69,9 @@ export type SubagentRouterPick =
 
 /**
  * A router pick after `normalizeRouterPick`. Each step has plain names, and
- * `inputs` holds the raw input of each name that has one. This is the plan
- * on `SUBAGENT_STARTED` metadata. `checkRoutedInputs` returns the same shape
- * with the checked inputs.
+ * `inputs` holds the raw input of each name that has one.
+ * `checkRoutedInputs` returns the same shape with the checked inputs. The
+ * plan on `SUBAGENT_STARTED` metadata has the names and the order only.
  */
 export interface RoutedPlan {
   steps: ReadonlyArray<{

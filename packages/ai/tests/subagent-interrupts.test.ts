@@ -549,131 +549,67 @@ describe('subagent interrupts', () => {
     expect(execute).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps the router inputs of a steps plan across a resume', async () => {
-    const { run, execute } = cleanerChild()
-    const cleanerInputs: Array<{ folder: string }> = []
-    const pricerInputs: Array<{ vendor: string }> = []
-    const cleaner = defineAgent({
-      name: 'cleaner',
-      description: 'Deletes files',
-      inputSchema: z.object({ folder: z.string() }),
-      run: (ctx) => {
-        cleanerInputs.push(ctx.input)
-        return run(ctx)
-      },
-    })
-    const pricer = defineAgent({
-      name: 'pricer',
-      description: 'Prices a vendor',
-      inputSchema: z.object({ vendor: z.string() }),
-      run: async function* (ctx) {
-        pricerInputs.push(ctx.input)
-      },
-    })
-    const parent = createMockAdapter({ iterations: [] }).adapter
-    const router = vi.fn(() => ({
-      steps: [
-        { names: [{ name: 'cleaner', input: { folder: 'old' } }] },
-        { names: [{ name: 'pricer', input: { vendor: 'acme' } }] },
-      ],
-    }))
-    const subagents = { agents: [cleaner, pricer], router }
-
-    const first = await collectChunks(
-      chat({
-        adapter: parent,
-        threadId: 't',
-        runId: 'run-1',
-        messages: [user],
-        subagents,
-      }),
-    )
-    // The plan on the start event keeps each input for the resume.
-    expect(
-      first.find((chunk) => chunk.type === EventType.SUBAGENT_STARTED),
-    ).toMatchObject({
-      metadata: {
-        tanstack: {
-          subagentPlan: {
-            steps: [
-              { names: ['cleaner'], inputs: { cleaner: { folder: 'old' } } },
-              { names: ['pricer'], inputs: { pricer: { vendor: 'acme' } } },
-            ],
-          },
-        },
-      },
-    })
-    expect(pricerInputs).toEqual([])
-
-    const processor = new StreamProcessor({ initialMessages: [user] })
-    replay(processor, first)
-    processor.addToolApprovalResponse('approval_call_c', true)
-    const second = await collectChunks(
-      chat({
-        adapter: parent,
-        threadId: 't',
-        runId: 'run-2',
-        parentRunId: 'run-1',
-        messages: requestMessages(processor.getMessages()),
-        resume: [
-          { interruptId: 'approval_call_c', status: 'resolved', payload: true },
-        ],
-        subagents,
-      }),
-    )
-
-    expect(second.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
-      false,
-    )
-    expect(router).toHaveBeenCalledTimes(1)
-    expect(execute).toHaveBeenCalledTimes(1)
-    expect(cleanerInputs).toEqual([{ folder: 'old' }, { folder: 'old' }])
-    expect(pricerInputs).toEqual([{ vendor: 'acme' }])
-  })
-
-  // The client sends the plan back, so the client can change it.
-  it.each([
+  // A router input stays on the server, so a turn that has one cannot
+  // resume. The client sends the plan back, and the client can change it.
+  it.each<[string, Record<string, unknown> | undefined, RegExp]>([
+    ['the plan as the server sent it', undefined, /cannot resume/],
     [
-      'an input that fails the schema',
+      'inputs that the client added',
       {
         subagentPlan: {
-          steps: [{ names: ['cleaner'], inputs: { cleaner: { folder: 42 } } }],
+          steps: [{ names: ['cleaner'], inputs: { cleaner: { folder: 'x' } } }],
         },
       },
+      /cannot resume/,
     ],
-    ['no input', { subagentPlan: { steps: [{ names: ['cleaner'] }] } }],
-    ['no plan', {}],
-  ])('rejects a resume whose saved plan has %s', async (_label, tanstack) => {
-    const { run, execute } = cleanerChild()
-    const runs = vi.fn()
-    const cleaner = defineAgent({
-      name: 'cleaner',
-      description: 'Deletes files',
-      inputSchema: z.object({ folder: z.string() }),
-      run: (ctx) => {
-        runs()
-        return run(ctx)
-      },
-    })
-    const parent = createMockAdapter({ iterations: [] }).adapter
-    const router = vi.fn(() => ({ name: 'cleaner', input: { folder: 'old' } }))
-    const subagents = { agents: [cleaner], router }
-    const first = await collectChunks(
-      chat({
-        adapter: parent,
-        threadId: 't',
-        runId: 'run-1',
-        messages: [user],
-        subagents,
-      }),
-    )
-    const processor = new StreamProcessor({ initialMessages: [user] })
-    replay(processor, first)
-    processor.addToolApprovalResponse('approval_call_c', true)
-    cardOf(processor.getMessages()).subagent.metadata = { tanstack }
+    ['no plan', {}, /The plan is absent/],
+  ])(
+    'rejects the resume of a turn with a router input, with %s',
+    async (_label, tanstack, message) => {
+      const { run, execute } = cleanerChild()
+      const inputs: Array<{ folder: string }> = []
+      const cleaner = defineAgent({
+        name: 'cleaner',
+        description: 'Deletes files',
+        inputSchema: z.object({ folder: z.string() }),
+        run: (ctx) => {
+          inputs.push(ctx.input)
+          return run(ctx)
+        },
+      })
+      const parent = createMockAdapter({ iterations: [] }).adapter
+      const router = vi.fn(() => ({
+        name: 'cleaner',
+        input: { folder: 'old' },
+      }))
+      const subagents = { agents: [cleaner], router }
+      const first = await collectChunks(
+        chat({
+          adapter: parent,
+          threadId: 't',
+          runId: 'run-1',
+          messages: [user],
+          subagents,
+        }),
+      )
+      // The plan on the start event has the names only.
+      expect(
+        first.find((chunk) => chunk.type === EventType.SUBAGENT_STARTED),
+      ).toMatchObject({
+        metadata: {
+          tanstack: { subagentPlan: { steps: [{ names: ['cleaner'] }] } },
+        },
+      })
+      expect(JSON.stringify(first)).not.toContain('folder')
 
-    await expect(
-      collectChunks(
+      const processor = new StreamProcessor({ initialMessages: [user] })
+      replay(processor, first)
+      processor.addToolApprovalResponse('approval_call_c', true)
+      if (tanstack) {
+        cardOf(processor.getMessages()).subagent.metadata = { tanstack }
+      }
+
+      const resume = collectChunks(
         chat({
           adapter: parent,
           threadId: 't',
@@ -689,13 +625,15 @@ describe('subagent interrupts', () => {
           ],
           subagents,
         }),
-      ),
-    ).rejects.toThrow(/saved subagent plan/)
-    // The router did not run again, and the child did not start again.
-    expect(router).toHaveBeenCalledTimes(1)
-    expect(runs).toHaveBeenCalledTimes(1)
-    expect(execute).not.toHaveBeenCalled()
-  })
+      )
+      await expect(resume).rejects.toThrow(/saved subagent plan/)
+      await expect(resume).rejects.toThrow(message)
+      // The router did not run again, and the child did not start again.
+      expect(router).toHaveBeenCalledTimes(1)
+      expect(inputs).toEqual([{ folder: 'old' }])
+      expect(execute).not.toHaveBeenCalled()
+    },
+  )
 })
 
 describe('subagent cards', () => {
