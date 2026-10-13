@@ -17,9 +17,10 @@ const srcDir = resolve(here, '..', 'src')
 
 /**
  * Node-only entry points, relative to `src`. A path that ends with `/` allows
- * the whole folder. The core has none.
+ * the whole folder. `build.ts` and `worker.ts` are the Node-only `./build`
+ * and `./worker` entries.
  */
-const ALLOWED: Array<string> = []
+const ALLOWED: Array<string> = ['build.ts', 'worker.ts']
 
 const isAllowed = (file: string) =>
   ALLOWED.some((entry) =>
