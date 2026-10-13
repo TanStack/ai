@@ -1,4 +1,8 @@
-import { EventType, convertSchemaToJsonSchema } from '@tanstack/ai'
+import {
+  CONTEXT_OVERFLOW_CODE,
+  EventType,
+  convertSchemaToJsonSchema,
+} from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { resolveBedrockAuth } from '../utils/auth'
@@ -288,7 +292,7 @@ export class BedrockConverseTextAdapter<
           : chunk
       }
     } catch (error: unknown) {
-      const errorPayload = toRunErrorPayload(
+      const errorPayload = converseRunErrorPayload(
         error,
         `${this.name}.chatStream failed`,
       )
@@ -584,7 +588,7 @@ export class BedrockConverseTextAdapter<
           parentRunId: chatOptions.parentRunId,
         }
       }
-      const errorPayload = toRunErrorPayload(
+      const errorPayload = converseRunErrorPayload(
         error,
         `${this.name}.structuredOutputStream failed`,
       )
@@ -709,6 +713,32 @@ export class BedrockConverseTextAdapter<
  * the SAME `convertSchemaToJsonSchema` the other adapters use so the Converse
  * tool input schemas match what every other provider sends.
  */
+/**
+ * The text Bedrock models use for a context overflow. Converse has no error
+ * type for it: it is a `ValidationException` like every bad request, and over
+ * a stream the SDK does not keep that name. So the message is the only signal.
+ * Each model family has its own text.
+ */
+const CONTEXT_OVERFLOW_MESSAGE =
+  /Input Tokens Exceeded|maximum context length|Input is too long for requested model|prompt is too long/
+
+/**
+ * `toRunErrorPayload`, with `code` set to `CONTEXT_OVERFLOW_CODE` for a
+ * context overflow. A `ThrottlingException` is never an overflow, whatever
+ * its text says about tokens.
+ */
+function converseRunErrorPayload(
+  error: unknown,
+  fallbackMessage: string,
+): { message: string; code: string | undefined } {
+  const payload = toRunErrorPayload(error, fallbackMessage)
+  const throttled =
+    error instanceof Error && error.name === 'ThrottlingException'
+  return !throttled && CONTEXT_OVERFLOW_MESSAGE.test(payload.message)
+    ? { ...payload, code: CONTEXT_OVERFLOW_CODE }
+    : payload
+}
+
 function convertTools(tools: Array<Tool>): Array<ConverseToolInput> {
   return tools.map((tool) => {
     const inputSchema: JSONSchema = convertSchemaToJsonSchema(

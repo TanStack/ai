@@ -1,6 +1,9 @@
 import OpenAI from 'openai'
 import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
-import { withBedrockDefaults } from '../utils/client'
+import {
+  isBedrockOpenAIContextOverflow,
+  withBedrockDefaults,
+} from '../utils/client'
 import {
   BEDROCK_MODEL_INPUT_MODALITIES,
   BEDROCK_MODEL_REASONING,
@@ -73,6 +76,15 @@ export class BedrockTextAdapter<
       ...config,
       fetch: options.fetch,
     })
+  }
+
+  protected override isContextOverflow(error: {
+    message: string
+    code: string | undefined
+  }): boolean {
+    return (
+      super.isContextOverflow(error) || isBedrockOpenAIContextOverflow(error)
+    )
   }
 
   protected override modelReasoning(model: string) {

@@ -1010,6 +1010,11 @@ for await (const chunk of stream) {
 
 If not handled, the UI appears to hang with no feedback.
 
+`chunk.code === CONTEXT_OVERFLOW_CODE` (`'context_overflow'`, exported from
+`@tanstack/ai`) means the input did not fit in the model's context window.
+Text adapters set the same code for every provider. Shorten the messages, then
+call `chat()` again. Do not match on the provider's message text.
+
 ## Cross-References
 
 - See also: **ai-core/tool-calling/SKILL.md** -- Most chats include tools

@@ -112,6 +112,14 @@ export class CloudflareTextAdapter<
     })
   }
 
+  /** Workers AI reports a context overflow as error code 5021. */
+  protected override isContextOverflow(error: {
+    message: string
+    code: string | undefined
+  }): boolean {
+    return super.isContextOverflow(error) || error.code === '5021'
+  }
+
   /**
    * `chat({ reasoning })` as `reasoning_effort`. Workers AI turns reasoning
    * off with `null`, so `off` sends `null`, not the model's off value.

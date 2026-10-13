@@ -92,6 +92,20 @@ export class GrokTextAdapter<
     super(model, 'grok', new OpenAI(options), { fetch: options.fetch })
   }
 
+  /**
+   * xAI has no error code for a context overflow. It answers 400 with the
+   * tag `[input_too_large]` in the error text.
+   */
+  protected override isContextOverflow(error: {
+    message: string
+    code: string | undefined
+  }): boolean {
+    return (
+      super.isContextOverflow(error) ||
+      (error.code === '400' && error.message.includes('[input_too_large]'))
+    )
+  }
+
   protected override modelReasoning(model: string) {
     return GROK_MODEL_REASONING[model]
   }

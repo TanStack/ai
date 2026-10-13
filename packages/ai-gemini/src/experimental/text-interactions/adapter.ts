@@ -1,10 +1,16 @@
-import { EventType, fileReferenceFor, isFileSource } from '@tanstack/ai'
+import {
+  CONTEXT_OVERFLOW_CODE,
+  EventType,
+  fileReferenceFor,
+  isFileSource,
+} from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { parse as parsePartialJSON } from 'partial-json'
 import {
   createGeminiClient,
   generateId,
   getGeminiApiKeyFromEnv,
+  isGeminiContextOverflow,
 } from '../../utils/client'
 import {
   getGeminiProviderToolKind,
@@ -382,13 +388,17 @@ export class GeminiTextInteractionsAdapter<
         error,
         source: 'gemini-text-interactions.chatStream',
       })
+      const code = isGeminiContextOverflow(error)
+        ? CONTEXT_OVERFLOW_CODE
+        : undefined
       yield {
         type: EventType.RUN_ERROR,
         runId,
         model: options.model,
         timestamp,
         message,
-        error: { message },
+        ...(code && { code }),
+        error: { message, ...(code && { code }) },
       }
     } finally {
       // Abandonment cleanup — consumer `.return()` (upstream `break` /

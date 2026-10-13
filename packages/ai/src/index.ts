@@ -434,6 +434,7 @@ export type {
 
 // All types
 export * from './types'
+export { CONTEXT_OVERFLOW_CODE } from './activities/error-payload'
 
 // One reasoning option for every provider: `chat({ reasoning })`.
 export {

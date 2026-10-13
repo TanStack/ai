@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { z } from 'zod'
-import { EventType, chat, summarize } from '@tanstack/ai'
+import { CONTEXT_OVERFLOW_CODE, EventType, chat, summarize } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import type { AdapterYieldChunk, Tool } from '@tanstack/ai'
 import {
@@ -1612,5 +1612,45 @@ describe('Gemini adapter error handling', () => {
       // toRunErrorRawEvent picks up the `.error` object when present
       expect(runError.rawEvent).toEqual(providerBody.error)
     }
+  })
+
+  /** Runs one call that fails with an SDK error. Gives back its RUN_ERROR. */
+  async function runErrorFor(status: number, message: string) {
+    mocks.generateContentStreamSpy.mockRejectedValueOnce(
+      Object.assign(new Error(JSON.stringify({ error: { message } })), {
+        status,
+      }),
+    )
+    const chunks: AdapterYieldChunk[] = []
+    for await (const chunk of createTextAdapter().chatStream({
+      model: 'gemini-2.5-pro',
+      messages: [{ role: 'user', content: 'hi' }],
+      logger: { request: () => {}, errors: () => {} } as any,
+    })) {
+      chunks.push(chunk)
+    }
+    return chunks.find((c) => c.type === 'RUN_ERROR')
+  }
+
+  it('sets the context_overflow code on a context overflow', async () => {
+    const message =
+      'The input token count exceeds the maximum number of tokens allowed (1048576).'
+    const runError = await runErrorFor(400, message)
+    expect(runError).toMatchObject({ code: CONTEXT_OVERFLOW_CODE })
+    expect(runError?.message).toContain(message)
+  })
+
+  it('does not set it on a quota error that talks about tokens', async () => {
+    const runError = await runErrorFor(
+      429,
+      'Quota exceeded for metric: generate_content_paid_tier_input_token_count',
+    )
+    expect(runError?.type).toBe('RUN_ERROR')
+    expect(runError).not.toHaveProperty('code')
+  })
+
+  it('does not set it on another bad request', async () => {
+    const runError = await runErrorFor(400, 'Invalid JSON payload received.')
+    expect(runError).not.toHaveProperty('code')
   })
 })

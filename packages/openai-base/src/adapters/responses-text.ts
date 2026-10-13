@@ -1,4 +1,5 @@
 import {
+  CONTEXT_OVERFLOW_CODE,
   EventType,
   fileReferenceFor,
   isFileSource,
@@ -375,7 +376,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     } catch (error: unknown) {
       // Narrow before logging: raw SDK errors can carry request metadata
       // (including auth headers) which we must never surface to user loggers.
-      const errorPayload = toRunErrorPayload(
+      const errorPayload = this.runErrorPayload(
         error,
         `${this.name}.chatStream failed`,
       )
@@ -922,7 +923,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       }
 
       const isAbort = this.isAbortError(error)
-      const errorPayload = toRunErrorPayload(
+      const errorPayload = this.runErrorPayload(
         error,
         `${this.name}.structuredOutputStream failed`,
       )
@@ -954,6 +955,32 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         source: `${this.name}.structuredOutputStream`,
       })
     }
+  }
+
+  /**
+   * `toRunErrorPayload`, with `code` set to `CONTEXT_OVERFLOW_CODE` when the
+   * provider says the input does not fit in the model's context window.
+   */
+  protected runErrorPayload(
+    error: unknown,
+    fallbackMessage: string,
+  ): { message: string; code: string | undefined } {
+    const payload = toRunErrorPayload(error, fallbackMessage)
+    return this.isContextOverflow(payload)
+      ? { ...payload, code: CONTEXT_OVERFLOW_CODE }
+      : payload
+  }
+
+  /**
+   * True when a provider error says the input does not fit in the context
+   * window. OpenAI sends `code: 'context_length_exceeded'`. Override this for
+   * a provider that reports it another way.
+   */
+  protected isContextOverflow(error: {
+    message: string
+    code: string | undefined
+  }): boolean {
+    return error.code === 'context_length_exceeded'
   }
 
   /**
@@ -1494,10 +1521,16 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             (chunk.type === 'response.failed'
               ? 'Response failed'
               : 'Response ended incomplete')
-          const errorCode =
+          const providerCode =
             chunk.response.error?.code ??
             (chunk.response.incomplete_details ? 'incomplete' : undefined) ??
             undefined
+          const errorCode = this.isContextOverflow({
+            message: errorMessage,
+            code: providerCode,
+          })
+            ? CONTEXT_OVERFLOW_CODE
+            : providerCode
           // Always emit RUN_ERROR for terminal failure events, even when the
           // upstream omitted both `error` and `incomplete_details`. Skipping
           // emission on a `response.incomplete` with no detail would let the
@@ -2192,7 +2225,13 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         if (chunk.type === 'error') {
           // Conditional `code` spread keeps the wire shape spec-compliant
           // under `exactOptionalPropertyTypes` (see chatStream catch).
-          const code = chunk.code ?? undefined
+          const providerCode = chunk.code ?? undefined
+          const code = this.isContextOverflow({
+            message: chunk.message,
+            code: providerCode,
+          })
+            ? CONTEXT_OVERFLOW_CODE
+            : providerCode
           yield {
             type: EventType.RUN_ERROR,
             metadata: this.sourceMetadata(options.model),
@@ -2244,7 +2283,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     } catch (error: unknown) {
       // Narrow before logging: raw SDK errors can carry request metadata
       // (including auth headers) which we must never surface to user loggers.
-      const errorPayload = toRunErrorPayload(
+      const errorPayload = this.runErrorPayload(
         error,
         `${this.name}.processStreamChunks failed`,
       )

@@ -33,6 +33,13 @@ export function isAbortShapedError(error: unknown): boolean {
   return false
 }
 
+/**
+ * The `RUN_ERROR.code` a text adapter sets when the provider says the input
+ * does not fit in the model's context window. Shorten the messages, then call
+ * the model again. The provider's own text stays in `message`.
+ */
+export const CONTEXT_OVERFLOW_CODE = 'context_overflow'
+
 // HTTP status codes carried as numbers (e.g. `error.status = 429`) are a
 // common variant on SDK error classes; coerce so the resulting `code` field
 // is stable as a string for downstream consumers.
