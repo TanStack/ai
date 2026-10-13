@@ -5,6 +5,7 @@ import {
   createCapability,
   EventType,
   maxIterations,
+  memoryStream,
   toServerSentEventsResponse,
   toolDefinition,
 } from '@tanstack/ai'
@@ -577,14 +578,18 @@ export const Route = createFileRoute('/api/middleware-test')({
             middleware.push(chunkTransformMiddleware)
           if (middlewareMode === 'tool-skip')
             middleware.push(toolSkipMiddleware)
-          if (middlewareMode === 'after-tool-error') {
+          if (
+            middlewareMode === 'after-tool-error' ||
+            middlewareMode === 'after-tool-error-durable'
+          ) {
             let calls = 0
+            const failingCall =
+              middlewareMode === 'after-tool-error-durable' ? 2 : 1
             middleware.push({
               name: 'after-tool-error',
               onAfterToolCall() {
-                // Return on a second call so the old behavior would emit two
-                // conflicting results instead of a RUN_ERROR.
-                if (++calls === 1) throw new Error('post-hook failed')
+                // Throw once so retrying the hook would hide the failure.
+                if (++calls === failingCall) throw new Error('post-hook failed')
               },
             })
           }
@@ -741,7 +746,12 @@ export const Route = createFileRoute('/api/middleware-test')({
               ? teeForPhaseCapture(rawStream, testId)
               : rawStream
 
-          return toServerSentEventsResponse(stream, { abortController })
+          return toServerSentEventsResponse(stream, {
+            abortController,
+            ...(middlewareMode === 'after-tool-error-durable' && {
+              durability: { adapter: memoryStream(request) },
+            }),
+          })
         } catch (error: any) {
           console.error('[api.middleware-test] Error:', error.message)
           if (error.name === 'AbortError' || abortController.signal.aborted) {
