@@ -160,7 +160,7 @@
           "label": "Subagents",
           "to": "chat/subagents",
           "addedAt": "2026-09-21",
-          "updatedAt": "2026-10-12"
+          "updatedAt": "2026-10-13"
         },
         {
           "label": "Agentic Cycle",
@@ -1128,7 +1128,7 @@
           "label": "Bring Your Own Key",
           "to": "advanced/byok",
           "addedAt": "2026-08-18",
-          "updatedAt": "2026-10-12"
+          "updatedAt": "2026-10-13"
         },
         {
           "label": "Debug Logging",

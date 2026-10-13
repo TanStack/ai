@@ -175,6 +175,37 @@
       "response": {
         "content": "One topic is done."
       }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-keys] write a draft",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "writer",
+            "arguments": "{\"task\":\"[subagent-keys-task] Write a draft.\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-keys-task] Write a draft."
+      },
+      "response": {
+        "content": "The draft is written."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-keys] write a draft",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "The writer is done."
+      }
     }
   ]
 }

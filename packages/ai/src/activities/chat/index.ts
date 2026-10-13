@@ -62,6 +62,7 @@ import { transformMessagesForReplay } from '../../utilities/replay-messages'
 import { LazyToolManager } from './tools/lazy-tool-manager'
 import { assertUniqueToolNames } from './tools/unique-tool-names'
 import type { DefinedAgent } from './agents/define-agent'
+import { providerKeys } from '../../byok/env-keys'
 import {
   collectNamedText,
   createSubagentSink,
@@ -5902,11 +5903,20 @@ async function* streamTextChunks(
   engineRef: DeliveryEngineRef,
 ): AsyncIterable<StreamChunk> {
   // Children inherit the retention of this call. Their key is their own
-  // threadId.
+  // threadId. The keys of this call win over the keys of a parent agent,
+  // one provider at a time.
   const bag = options.subagents && {
     ...options.subagents,
     binding: {
       ...options.subagents.binding,
+      ...(options.subagents.keys
+        ? {
+            keys: providerKeys(
+              options.subagents.keys,
+              options.subagents.binding?.keys,
+            ),
+          }
+        : {}),
       promptCache:
         options.subagents.binding?.promptCache ?? options.promptCache.retention,
     },

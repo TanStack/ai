@@ -287,24 +287,11 @@ The whole tree shares one budget. A child that calls `ctx.chat({ subagents })` p
 - A child that a router picks does not count against the limits. The children it starts do count, one level deeper.
 - A child that runs past `timeoutMs` stops, and the model gets `subagent timed out after 120000 ms`.
 
-## Run context for hosts
+## Keys for agents
 
-A host that runs agents for a long session can give each run more on `subagents.binding`:
+An agent that calls a model needs a provider key. An adapter such as `openaiText` reads its env var, for example `OPENAI_API_KEY`.
 
-- `keys`: the provider keys that the agent reads as `ctx.keys`. See [Keys inside agents](../advanced/byok#keys-inside-agents).
-- `step`: what `ctx.step.do(name, fn)` uses. A host can store the value of `fn`, so that a side effect does not run again when the host runs the agent again after a crash. Without a host, `fn` runs each time.
-- `agents`: what `ctx.agents.start(agent, input)` uses to start an agent in the background. Without a host, `ctx.agents.start` throws.
-
-```ts group=subagent-values
-const charger = defineAgent({
-  name: 'charger',
-  description: 'Charges the card once',
-  run: async (ctx) => {
-    const receipt = await ctx.step.do('charge', () => ({ id: 'rcpt-1' }))
-    return receipt
-  },
-})
-```
+To use the key of the user, pass it on `subagents.keys`. The agent then builds its adapter with `ctx.keys`. See [Keys inside agents](../advanced/byok#keys-inside-agents).
 
 ## Strategy
 

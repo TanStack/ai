@@ -328,9 +328,11 @@ Then a send with no pasted key still POSTs. The relay uses the env key. If that 
 
 ## Keys inside agents
 
-An agent that calls a model needs a key too. Wrap the adapter in `keyedAdapter`. Before the call, the agent makes it with `ctx.keys`:
+Your [subagents](../chat/subagents) call models too, and those calls need the user's key. Pass the key on `subagents.keys`. Each agent builds its adapter with `ctx.keys`.
 
-```typescript
+1. Define the agent. Wrap its adapter in `keyedAdapter`, then build it with `ctx.keys.adapter`:
+
+```typescript group=agent-keys
 import { defineAgent, keyedAdapter } from "@tanstack/ai";
 import { createOpenaiChat } from "@tanstack/ai-openai";
 import { openaiByok } from "@tanstack/ai-openai/byok";
@@ -351,9 +353,41 @@ export const writer = defineAgent({
 });
 ```
 
-- Without a host, `ctx.keys` reads the env var of the provider, here `OPENAI_API_KEY`. If it is empty, the call throws `Missing OpenAI API key. Set OPENAI_API_KEY.`
-- A host can give its own keys in `subagents.binding.keys`. A child agent gives them to its own children.
+2. In the route, read the user's key. Pass it on `subagents.keys`, by provider id:
+
+```typescript group=agent-keys
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { byokMissing, getByokKey } from "@tanstack/ai/byok/server";
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request);
+  const apiKey = getByokKey(request, openaiByok);
+  if (!apiKey) return byokMissing(openaiByok);
+
+  const stream = chat({
+    adapter: gpt.create(apiKey),
+    messages: params.messages,
+    threadId: params.threadId,
+    runId: params.runId,
+    subagents: { agents: [writer], keys: { openai: apiKey } },
+  });
+  return toServerSentEventsResponse(stream);
+}
+```
+
+How `ctx.keys` finds a key:
+
+- It reads `subagents.keys` by provider id. The id of `openaiByok` is `openai`.
+- If `subagents.keys` has no key for the provider, it reads the env var of the provider, here `OPENAI_API_KEY`.
+- If both are empty, the call throws `Missing OpenAI API key. Set OPENAI_API_KEY.`
+- A child that calls `ctx.chat({ subagents })` passes the keys on to its own children. Keys that the child sets itself win for those providers.
 - `ctx.keys.get(provider)` returns the key or `null`. `ctx.keys.require(provider)` throws when there is no key.
+
+The writer now calls OpenAI with the key that the user pasted.
 
 ## Image, audio, and other providers
 

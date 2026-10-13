@@ -3,16 +3,20 @@ import {
   chat,
   chatParamsFromRequestBody,
   defineAgent,
+  keyedAdapter,
   maxIterations,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { z } from 'zod'
 import type { DefinedAgent, ReasoningRequest, Tool } from '@tanstack/ai'
-import { createTextAdapter } from '@/lib/providers'
+import { createOpenaiChat } from '@tanstack/ai-openai'
+import { openaiByok } from '@tanstack/ai-openai/byok'
+import { LLMOCK_DEFAULT_BASE, createTextAdapter } from '@/lib/providers'
 import {
   deleteLogs,
   isSubagentScenario,
   lookupFacts,
+  SUBAGENT_E2E_KEY,
 } from '@/lib/subagents-test'
 import type { SubagentScenario } from '@/lib/subagents-test'
 
@@ -32,10 +36,21 @@ import type { SubagentScenario } from '@/lib/subagents-test'
  *   and the child's only message is that task.
  * - `limits`: like `brief`, with `limits: { maxCalls: 1 }`. The parent model
  *   calls `researcher` twice in one turn. The second call gets a tool error.
+ * - `keys`: like `result`, but `writer` builds its adapter with
+ *   `ctx.keys.adapter(...)` from `subagents.keys`. The child request carries
+ *   that key. aimock hides `Authorization` in its journal, so the request
+ *   also sends it as `x-e2e-authorization`.
  * - `result`: no router. `pricer` calls the bound `ctx.chat` with
  *   `stream: false`, so its `run` resolves to a string. The string streams as
  *   the child's text and goes back to the parent model as the result.
  */
+/** Send `Authorization` again as `x-e2e-authorization`, which aimock keeps. */
+const echoAuthorization: typeof fetch = (input, init) => {
+  const headers = new Headers(init?.headers)
+  headers.set('x-e2e-authorization', headers.get('authorization') ?? '')
+  return fetch(input, { ...init, headers })
+}
+
 function subagentsFor(
   scenario: SubagentScenario,
   aimockPort: number | undefined,
@@ -116,6 +131,28 @@ function subagentsFor(
     })
     const agents: Array<DefinedAgent> = [pricer]
     return { agents }
+  }
+  if (scenario === 'keys') {
+    const gpt = keyedAdapter(openaiByok, (key) =>
+      createOpenaiChat('gpt-4o', key, {
+        baseURL: `${LLMOCK_DEFAULT_BASE}/v1`,
+        fetch: echoAuthorization,
+        ...(testId ? { defaultHeaders: { 'X-Test-Id': testId } } : {}),
+      }),
+    )
+    const writer = defineAgent({
+      name: 'writer',
+      description: 'Writes a short draft',
+      inputSchema: z.object({ task: z.string() }),
+      run: async (ctx) =>
+        ctx.chat({
+          adapter: await ctx.keys.adapter(gpt),
+          messages: [{ role: 'user', content: ctx.input.task }],
+          stream: false,
+        }),
+    })
+    const agents: Array<DefinedAgent> = [writer]
+    return { agents, keys: { openai: SUBAGENT_E2E_KEY } }
   }
   return { agents: [child('researcher', [])] }
 }
