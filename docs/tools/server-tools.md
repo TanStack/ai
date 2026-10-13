@@ -363,6 +363,20 @@ The `inputSchema` checks the input just before the tool runs:
 - An async validator is awaited.
 - The tool gets the schema's output, so a transform such as `z.string().transform(Number)` applies once.
 
+Models often send a value with the wrong type, such as `"5"` for a number. The check repairs these against the schema before it fails the call:
+
+| The model sends | The schema wants | The tool gets |
+| --- | --- | --- |
+| `"5"` | `number` or `integer` | `5` |
+| `"true"` | `boolean` | `true` |
+| `5` | `string` | `"5"` |
+| `null` for an optional field | a type with no `null` | no field |
+| `null` for a required field | `string`, `number`, or `boolean` | `""`, `0`, or `false` |
+
+- A JSON Schema tool, and an MCP tool, gets the repair when its input fails the check. A valid input runs as it is.
+- A Standard Schema that can export JSON Schema (Zod, ArkType, Valibot) runs first as written. If it fails, the input is repaired and the schema runs again. If it still fails, the error shows the issues of the first run.
+- An input that cannot be repaired, such as `"many"` for a number, becomes a tool error.
+
 ## Using JSON Schema
 
 If you have existing JSON Schema definitions or prefer not to use Zod, you can define tool schemas using raw JSON Schema objects:

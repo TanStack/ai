@@ -1,14 +1,23 @@
-import { Validator } from '@cfworker/json-schema'
+import { dereference, validate } from '@cfworker/json-schema'
 import {
   StandardSchemaValidationError,
   convertSchemaToJsonSchema,
+  isStandardJSONSchema,
   isStandardSchema,
   validateWithStandardSchema,
 } from './schema-converter'
+import type { StandardSchemaV1 } from '@standard-schema/spec'
 import type { Schema, SchemaDraft } from '@cfworker/json-schema'
 import type { JSONSchema, SchemaInput } from '../../../types'
 
-const validators = new WeakMap<JSONSchema, Validator>()
+/** A JSON Schema ready for `validate`: the copy, its draft, its `$ref` lookup. */
+interface CompiledSchema {
+  schema: Schema | boolean
+  draft: SchemaDraft
+  lookup: Record<string, Schema | boolean>
+}
+
+const compiled = new WeakMap<JSONSchema, CompiledSchema>()
 
 /**
  * The draft named by `$schema`. Default: 2020-12. A schema with no `$schema`
@@ -23,11 +32,13 @@ function draftOf(schema: JSONSchema, json: string): SchemaDraft {
   return '2020-12'
 }
 
-function validatorFor(schema: JSONSchema | boolean) {
-  if (typeof schema === 'boolean') return new Validator(schema)
-  const cached = validators.get(schema)
+function compile(schema: JSONSchema | boolean): CompiledSchema {
+  if (typeof schema === 'boolean') {
+    return { schema, draft: '2020-12', lookup: dereference(schema) }
+  }
+  const cached = compiled.get(schema)
   if (cached) return cached
-  // The validator writes lookup data onto the schema it gets. A JSON copy
+  // `dereference` writes lookup data onto the schema it gets. A JSON copy
   // keeps the tool's own schema, which also goes to the provider, unchanged.
   // `format` is an annotation, as in 2019-09 and later: a tool that declares
   // `format: 'uri'` still gets a plain path.
@@ -35,9 +46,229 @@ function validatorFor(schema: JSONSchema | boolean) {
   const copy: Schema = JSON.parse(json, (key, value) =>
     key === 'format' && typeof value === 'string' ? undefined : value,
   )
-  const validator = new Validator(copy, draftOf(schema, json), false)
-  validators.set(schema, validator)
-  return validator
+  const result = {
+    schema: copy,
+    draft: draftOf(schema, json),
+    lookup: dereference(copy),
+  }
+  compiled.set(schema, result)
+  return result
+}
+
+const DECIMAL = /^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/
+
+function convertPrimitive(value: unknown, type: string) {
+  switch (type) {
+    case 'number':
+    case 'integer': {
+      if (value === null) return 0
+      if (typeof value === 'boolean') return value ? 1 : 0
+      // Decimal text only: no hex, and no integer past the safe range.
+      if (typeof value !== 'string' || !DECIMAL.test(value)) return value
+      const number = Number(value)
+      const valid =
+        type === 'integer'
+          ? Number.isSafeInteger(number)
+          : Number.isFinite(number)
+      return valid ? number : value
+    }
+    case 'boolean':
+      if (value === null || value === 'false' || value === 0) return false
+      if (value === 'true' || value === 1) return true
+      return value
+    case 'string':
+      if (value === null) return ''
+      return typeof value === 'number' || typeof value === 'boolean'
+        ? String(value)
+        : value
+    case 'null':
+      return value === '' || value === 0 || value === false ? null : value
+    default:
+      return value
+  }
+}
+
+function matchesType(value: unknown, type: string) {
+  switch (type) {
+    case 'null':
+      return value === null
+    case 'array':
+      return Array.isArray(value)
+    case 'object':
+      return (
+        typeof value === 'object' && value !== null && !Array.isArray(value)
+      )
+    case 'integer':
+      return typeof value === 'number' && Number.isInteger(value)
+    default:
+      return typeof value === type
+  }
+}
+
+/**
+ * Repair common model mistakes against the schema before the check: `"5"`
+ * for 5, `"true"` for true, `null` for an optional field. It walks unions,
+ * `$ref`, `if`/`then`/`else`, tuples, and pattern and additional properties.
+ * A value that cannot be repaired stays as it is, so the check reports it.
+ */
+function coerceArguments(value: unknown, root: CompiledSchema) {
+  const { draft, lookup } = root
+
+  function check(schema: Schema | boolean, candidate: unknown) {
+    if (typeof schema === 'boolean') return schema
+    return validate(candidate, schema, draft, lookup).valid
+  }
+
+  function refTarget(schema: Schema) {
+    const uri = schema.__absolute_ref__
+    const target = uri === undefined ? undefined : lookup[uri]
+    return typeof target === 'object' ? target : undefined
+  }
+
+  function coerceUnion(
+    candidate: unknown,
+    schemas: Array<Schema>,
+    seen: Set<Schema>,
+    required: Set<string>,
+  ) {
+    if (schemas.some((schema) => check(schema, candidate))) return candidate
+    for (const schema of schemas) {
+      const converted = coerce(
+        structuredClone(candidate),
+        schema,
+        seen,
+        required,
+      )
+      if (check(schema, converted)) return converted
+    }
+    return candidate
+  }
+
+  function requiredKeys(
+    schema: Schema | boolean,
+    candidate: unknown,
+    seen = new Set<Schema>(),
+  ): Set<string> {
+    if (typeof schema === 'boolean' || seen.has(schema)) return new Set()
+    const nextSeen = new Set(seen).add(schema)
+    const required = new Set(
+      Array.isArray(schema.required) ? schema.required : [],
+    )
+    const children: Array<Schema | boolean> = [...(schema.allOf ?? [])]
+    const target = refTarget(schema)
+    if (target) children.push(target)
+    if (schema.if !== undefined) {
+      const branch = check(schema.if, candidate) ? schema.then : schema.else
+      if (branch) children.push(branch)
+    }
+    for (const child of children) {
+      for (const key of requiredKeys(child, candidate, nextSeen)) {
+        required.add(key)
+      }
+    }
+    return required
+  }
+
+  function coerce(
+    candidate: unknown,
+    schema: Schema | boolean,
+    seen = new Set<Schema>(),
+    inheritedRequired = new Set<string>(),
+  ): unknown {
+    if (typeof schema === 'boolean') return candidate
+    // A reference cycle at the same value cannot add another conversion.
+    if (seen.has(schema)) return candidate
+    const nextSeen = new Set(seen).add(schema)
+    const required = requiredKeys(schema, candidate)
+    for (const key of inheritedRequired) required.add(key)
+    let next = candidate
+    const target = refTarget(schema)
+    if (target) next = coerce(next, target, nextSeen, required)
+    for (const nested of schema.allOf ?? []) {
+      next = coerce(next, nested, nextSeen, required)
+    }
+    if (schema.anyOf) next = coerceUnion(next, schema.anyOf, nextSeen, required)
+    if (schema.oneOf) next = coerceUnion(next, schema.oneOf, nextSeen, required)
+
+    const types =
+      typeof schema.type === 'string' ? [schema.type] : (schema.type ?? [])
+    if (!types.some((type) => matchesType(next, type))) {
+      // `null` last: `0` for `['null', 'string']` is `"0"`, not `null`.
+      const order = types.filter((type) => type !== 'null')
+      if (types.includes('null')) order.push('null')
+      for (const type of order) {
+        const converted = convertPrimitive(next, type)
+        if (converted !== next) {
+          next = converted
+          break
+        }
+      }
+    }
+
+    if (typeof next === 'object' && next !== null && !Array.isArray(next)) {
+      // Own keys only, `__proto__` included.
+      const object: Record<string, unknown> = Object.fromEntries(
+        Object.entries(next),
+      )
+      const properties = Object.entries(schema.properties ?? {})
+      const knownKeys = new Set(properties.map(([key]) => key))
+      for (const [key, property] of properties) {
+        if (!Object.hasOwn(object, key)) continue
+        if (
+          object[key] === null &&
+          !required.has(key) &&
+          !check(property, null)
+        ) {
+          // A strict-mode provider sends `null` for an optional field.
+          delete object[key]
+        } else {
+          object[key] = coerce(object[key], property)
+        }
+      }
+      for (const [pattern, property] of Object.entries(
+        schema.patternProperties ?? {},
+      )) {
+        const expression = new RegExp(pattern, 'u')
+        for (const key of Object.keys(object)) {
+          if (!expression.test(key)) continue
+          knownKeys.add(key)
+          object[key] = coerce(object[key], property)
+        }
+      }
+      const additional = schema.additionalProperties
+      if (typeof additional === 'object') {
+        for (const [key, entry] of Object.entries(object)) {
+          if (!knownKeys.has(key)) object[key] = coerce(entry, additional)
+        }
+      }
+      next = object
+    }
+    if (Array.isArray(next)) {
+      const tuple =
+        schema.prefixItems ??
+        (Array.isArray(schema.items) ? schema.items : undefined)
+      const rest = Array.isArray(schema.items) ? undefined : schema.items
+      next = next.map((item: unknown, index) => {
+        const itemSchema = tuple?.[index] ?? rest
+        return itemSchema === undefined ? item : coerce(item, itemSchema)
+      })
+    }
+    if (schema.if !== undefined) {
+      const branch = check(schema.if, next) ? schema.then : schema.else
+      if (branch) next = coerce(next, branch, nextSeen, required)
+    }
+    return next
+  }
+
+  return coerce(value, root.schema)
+}
+
+function receivedArgumentsText(received: unknown) {
+  try {
+    return JSON.stringify(received, null, 2) ?? String(received)
+  } catch {
+    return '[Arguments cannot be serialized as JSON]'
+  }
 }
 
 /** Errors that only say that a nested check failed. The nested error says why. */
@@ -50,14 +281,6 @@ const WRAPPER_KEYWORDS = new Set([
   'allOf',
 ])
 
-function receivedArgumentsText(received: unknown) {
-  try {
-    return JSON.stringify(received, null, 2) ?? String(received)
-  } catch {
-    return '[Arguments cannot be serialized as JSON]'
-  }
-}
-
 function validateJsonInput(
   schema: JSONSchema | boolean,
   received: unknown,
@@ -66,10 +289,23 @@ function validateJsonInput(
   let errors: string
   try {
     // Check the JSON form: a key set to `undefined` is the same as no key.
-    const result = validatorFor(schema).validate(
-      JSON.parse(JSON.stringify(received)),
-    )
+    const json = JSON.stringify(received)
+    const value: unknown = JSON.parse(json)
+    const root = compile(schema)
+    const check = (candidate: unknown) =>
+      validate(candidate, root.schema, root.draft, root.lookup, false)
+    const result = check(value)
     if (result.valid) return received
+    // Repair only an input that fails. The error reports the input as sent.
+    let converted = value
+    try {
+      converted = coerceArguments(value, root)
+    } catch {
+      // A schema that cannot be used: the first check reports it.
+    }
+    if (JSON.stringify(converted) !== json && check(converted).valid) {
+      return converted
+    }
     const leaves = result.errors.filter(
       (error) => !WRAPPER_KEYWORDS.has(error.keyword),
     )
@@ -87,12 +323,23 @@ function validateJsonInput(
   )
 }
 
+function standardInputError(
+  issues: ReadonlyArray<StandardSchemaV1.Issue>,
+  received: unknown,
+  toolName: string,
+) {
+  const error = new StandardSchemaValidationError(issues)
+  error.message = `Input validation failed for tool ${toolName}: ${error.message}\nReceived arguments:\n${receivedArgumentsText(received)}`
+  return error
+}
+
 /**
  * The final check of a tool input, just before the tool runs or the client
  * gets the call. A Standard Schema runs here (an async validator too), and
  * its output is the input, so transforms apply once. A JSON Schema (an MCP
  * tool, a plain JSON Schema tool) is checked with `@cfworker/json-schema`.
- * The error goes back to the model as the tool result.
+ * Common model mistakes are repaired against the schema first. The error
+ * goes back to the model as the tool result.
  */
 export async function validateToolInput(
   schema: SchemaInput | boolean | undefined,
@@ -109,9 +356,24 @@ export async function validateToolInput(
       ? validateJsonInput(jsonSchema, received, toolName)
       : received
   }
-  const validation = await validateWithStandardSchema<unknown>(schema, received)
-  if (validation.success) return validation.data
-  const error = new StandardSchemaValidationError(validation.issues)
-  error.message = `Input validation failed for tool ${toolName}: ${error.message}\nReceived arguments:\n${receivedArgumentsText(received)}`
-  throw error
+  const first = await validateWithStandardSchema<unknown>(schema, received)
+  if (first.success) return first.data
+  // The authored schema runs first. When it fails and it can export JSON
+  // Schema, repair the input and run the authored schema again. A failure
+  // reports the issues of the first run.
+  const original = standardInputError(first.issues, received, toolName)
+  if (!isStandardJSONSchema(schema)) throw original
+  let converted: unknown
+  try {
+    const jsonSchema = convertSchemaToJsonSchema(schema, { io: 'input' })
+    if (!jsonSchema) throw original
+    converted = validateJsonInput(jsonSchema, received, toolName)
+  } catch {
+    throw original
+  }
+  // Nothing was repaired: a second run gives the same issues.
+  if (converted === received) throw original
+  const retried = await validateWithStandardSchema<unknown>(schema, converted)
+  if (!retried.success) throw original
+  return retried.data
 }

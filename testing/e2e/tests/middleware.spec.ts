@@ -160,7 +160,7 @@ test.describe('Middleware Lifecycle', () => {
     const toolResults = messages.flatMap((m: any) =>
       m.parts.filter((p: any) => p.type === 'tool-result'),
     )
-    // The middleware rewrote { city: 'NYC' } to { city: 42 }. The schema
+    // The middleware rewrote { city: 'NYC' } to { city: { name: 'NYC' } }. The schema
     // checks the rewritten args, so get_weather never runs.
     expect(toolResults).toHaveLength(1)
     expect(toolResults[0].content).toContain('Input validation failed')

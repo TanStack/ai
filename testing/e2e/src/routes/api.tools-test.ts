@@ -65,9 +65,10 @@ function createProviderFreeAdapter(scenario: string): AnyTextAdapter {
           : scenario === 'client-tool-input-error' ||
               scenario === 'invalid-client-tool-retry'
             ? {
-                arguments: '{"message":42,"type":"info"}',
+                // An object cannot be repaired into the string `message`.
+                arguments: '{"message":{"text":"hi"},"type":"info"}',
                 initialText: 'Showing a notification.',
-                input: { message: 42, type: 'info' },
+                input: { message: { text: 'hi' }, type: 'info' },
                 name:
                   scenario === 'invalid-client-tool-retry'
                     ? 'invalid-client-tool-retry-test'

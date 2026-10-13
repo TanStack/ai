@@ -1,13 +1,15 @@
 import { test, expect } from './fixtures'
 
-test('a JSON Schema tool with invalid input returns a tool error and does not run', async ({
+test('a JSON Schema tool repairs "3" to 3, and returns a tool error for input it cannot repair', async ({
   request,
 }) => {
   const response = await request.post('/api/json-schema-tool-input')
 
   expect(response.ok()).toBe(true)
   const body = await response.json()
-  expect(body.runs).toEqual([])
+  // Only the repaired call ran.
+  expect(body.runs).toEqual([{ count: 3 }])
   expect(body.text).toContain('Input validation failed for tool count_items')
   expect(body.text).toContain('#/count')
+  expect(body.text).toContain('counted')
 })

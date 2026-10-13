@@ -3,17 +3,26 @@ import { chat, toolDefinition } from '@tanstack/ai'
 import { fakeText } from '@tanstack/ai/testing'
 
 // No network: `fakeText` answers from a script. The first answer calls a
-// JSON Schema tool with a wrong type, the second answer repeats the tool
-// result. MCP tools have the same raw JSON Schema input.
+// JSON Schema tool twice: once with a value that cannot be repaired, once
+// with a number sent as a string. The second answer repeats the tool
+// results. MCP tools have the same raw JSON Schema input.
 export const Route = createFileRoute('/api/json-schema-tool-input')({
   server: {
     handlers: {
       POST: async () => {
         const fake = fakeText()
         fake.setResponses([
-          { toolCalls: [{ name: 'count_items', input: { count: 'many' } }] },
+          {
+            toolCalls: [
+              { name: 'count_items', input: { count: 'many' } },
+              { name: 'count_items', input: { count: '3' } },
+            ],
+          },
           ({ request }) => ({
-            text: `Tool said: ${String(request.messages.at(-1)?.content)}`,
+            text: `Tool said: ${request.messages
+              .filter((message) => message.role === 'tool')
+              .map((message) => String(message.content))
+              .join(' | ')}`,
           }),
         ])
 
