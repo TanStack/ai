@@ -524,7 +524,9 @@ describe('agent tool input', () => {
     async (_label, agent, args, options, error) => {
       const { chunks, result } = await callSubagent(agent, args, options)
 
-      expect(result).toEqual({ error })
+      // A schema error also shows the received arguments after the message.
+      expect(Object.keys(result)).toEqual(['error'])
+      expect(result.error.startsWith(error)).toBe(true)
       expect(runs).toEqual([])
       // The parent run goes on after the tool error.
       expect(chunks.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
