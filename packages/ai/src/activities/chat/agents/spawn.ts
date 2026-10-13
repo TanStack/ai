@@ -748,8 +748,9 @@ export async function* spawnAgentStream(
     ...(parentToolCallId !== undefined ? { parentToolCallId } : {}),
     timestamp: Date.now(),
   } satisfies SubagentStartedEvent
-  // The card keeps the checked input, so a UI can show the brief.
-  yield input.input === undefined
+  // The card keeps the checked input that the model wrote in a tool call, so
+  // a UI can show the brief. A router input stays on the server.
+  yield input.input === undefined || parentToolCallId === undefined
     ? started
     : withTanstackMetadata(started, { [SUBAGENT_INPUT_KEY]: input.input })
 
