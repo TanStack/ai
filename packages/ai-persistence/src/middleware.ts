@@ -3,8 +3,10 @@ import {
   fromSpecTokenUsage,
   getDetachableRun,
   InterruptResumeValidationError,
+  LoadChildCapability,
   MetadataCapability,
   modelMessagesToUIMessages,
+  provideLoadChild,
   provideMetadata,
   readInterruptBinding,
   validateInterruptResumeBatch,
@@ -2086,6 +2088,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
   const provides = [
     PersistenceCapability,
     PersistenceCompletionCapability,
+    LoadChildCapability,
     ...(persistence.stores.metadata ? [MetadataCapability] : []),
     ...(wantsInterrupts ? [InterruptsCapability] : []),
   ]
@@ -2150,6 +2153,16 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       if (persistence.stores.metadata) {
         provideMetadata(ctx, persistence.stores.metadata)
       }
+      // The agent tools read stored children through this, to continue
+      // one by `sessionId`. Only the children of this chat can load.
+      provideLoadChild(ctx, (subagentRunId) =>
+        subagentRuns.loadChild(subagentRunId, {
+          threadId: ctx.threadId,
+          ...(ctx.subagentRunId !== undefined && {
+            subagentRunId: ctx.subagentRunId,
+          }),
+        }),
+      )
 
       let resolveCompletion: () => void = () => undefined
       let rejectCompletion: (error: unknown) => void = () => undefined
@@ -2323,6 +2336,9 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       await subagentRuns.chunk({
         threadId: ctx.threadId,
         runId: ctx.runId,
+        ...(ctx.subagentRunId !== undefined && {
+          subagentRunId: ctx.subagentRunId,
+        }),
         chunk,
       })
       const current = runState.get(ctx)

@@ -63,7 +63,9 @@ import { transformMessagesForReplay } from '../../utilities/replay-messages'
 import { LazyToolManager } from './tools/lazy-tool-manager'
 import { assertUniqueToolNames } from './tools/unique-tool-names'
 import type { DefinedAgent } from './agents/define-agent'
+import { providerKeys } from '../../byok/env-keys'
 import {
+  assertNoReservedFields,
   collectNamedText,
   createSubagentSink,
   createSyntheticSubagentTools,
@@ -119,6 +121,7 @@ import {
 } from './messages'
 import { MiddlewareRunner } from './middleware/compose'
 import { getRunDetached } from './middleware/run-store'
+import { LoadChildCapability } from './middleware/load-child'
 import { publishRunDetachedSignal } from '../../delivery-detach'
 import { publishRunDisconnectHandler } from '../../delivery-disconnect'
 import { provideSandboxRuntime } from './middleware/sandbox-runtime'
@@ -674,6 +677,10 @@ export interface TextActivityOptions<
   parentRunId?: TextOptions['parentRunId']
   /** Subagent run id when this chat runs as a child. See `defineAgent`. */
   subagentRunId?: TextOptions['subagentRunId']
+  /** The agent name when this chat runs as a subagent. Middleware reads `ctx.subagentName`. */
+  subagentName?: TextOptions['subagentName']
+  /** The subagentRunId of the child that started this one, for a nested child. */
+  parentSubagentRunId?: TextOptions['parentSubagentRunId']
   /** Application state mirrored in a STATE_SNAPSHOT before an interrupt terminal. */
   state?: TextOptions['state']
   /**
@@ -1241,6 +1248,8 @@ class TextEngine<
       runId: this.runIdOverride ?? this.requestId,
       parentRunId: this.parentRunIdOverride,
       subagentRunId: this.subagentRunIdOverride,
+      subagentName: config.params.subagentName,
+      parentSubagentRunId: config.params.parentSubagentRunId,
       threadId: this.threadId,
       // Legacy alias kept on the ctx so middleware that reads
       // `ctx.conversationId` keeps working. Always equals `threadId`.
@@ -5904,6 +5913,12 @@ export function chat<
   if (options.tools) {
     assertUniqueToolNames(options.tools)
   }
+  if (options.subagents) {
+    assertNoReservedFields(
+      options.subagents,
+      continuesChildren(readRuntimeMiddleware(options.middleware)),
+    )
+  }
 
   const { outputSchema, stream } = options
 
@@ -6155,10 +6170,28 @@ async function* streamTextChunks(
   options: RuntimeTextActivityOptions<AnyTextAdapter, undefined, boolean>,
   engineRef: DeliveryEngineRef,
 ): AsyncIterable<StreamChunk> {
-  const bag = options.subagents
+  // Children inherit the retention of this call. Their key is their own
+  // threadId. The keys of this call win over the keys of a parent agent,
+  // one provider at a time.
+  const bag = options.subagents && {
+    ...options.subagents,
+    binding: {
+      ...options.subagents.binding,
+      ...(options.subagents.keys
+        ? {
+            keys: providerKeys(
+              options.subagents.keys,
+              options.subagents.binding?.keys,
+            ),
+          }
+        : {}),
+      promptCache:
+        options.subagents.binding?.promptCache ?? options.promptCache.retention,
+    },
+  }
   const agents = bag?.agents ?? []
   if (bag && agents.length > 0 && bag.router) {
-    yield* runRoutedSubagents(options, engineRef)
+    yield* runRoutedSubagents({ ...options, subagents: bag }, engineRef)
     return
   }
   if (bag && agents.length > 0) {
@@ -6175,10 +6208,15 @@ async function* streamTextChunks(
     const synthetic = createSyntheticSubagentTools(bag, {
       messages: turn?.before ?? messages,
       messagesFor: calls.messagesFor,
+      childLoader: calls.childLoader,
+      canContinue: continuesChildren(options.middleware),
       threadId,
       runId,
       ...(options.parentRunId !== undefined && {
         interruptedRunId: options.parentRunId,
+      }),
+      ...(options.subagentRunId !== undefined && {
+        parentSubagentRunId: options.subagentRunId,
       }),
       ...(options.abortController && {
         abortSignal: options.abortController.signal,
@@ -6356,6 +6394,9 @@ async function* runRoutedSubagents(
             parentRunId: runId,
             ...(options.parentRunId !== undefined && {
               interruptedRunId: options.parentRunId,
+            }),
+            ...(options.subagentRunId !== undefined && {
+              parentSubagentRunId: options.subagentRunId,
             }),
           },
           sink,
@@ -6605,6 +6646,15 @@ function withPlan(chunk: StreamChunk, plan: RoutedPlan): StreamChunk {
     ...(order !== undefined && { order }),
   }))
   return withTanstackMetadata(chunk, { [SUBAGENT_PLAN_KEY]: { steps } })
+}
+
+/** A middleware provides `loadChild`, so agent tools take `sessionId`. */
+function continuesChildren(
+  middleware: ReadonlyArray<{ provides?: ReadonlyArray<unknown> }> | undefined,
+) {
+  return (middleware ?? []).some((item) =>
+    item.provides?.includes(LoadChildCapability),
+  )
 }
 
 function readRoutedSubagentPersistence(
