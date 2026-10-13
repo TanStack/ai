@@ -137,6 +137,82 @@ export interface EvaluateAdapterResult {
   provider?: string
 }
 
+/** `EvaluateError.code` when the provider declined to answer a question. */
+export const EVALUATE_REFUSAL_CODE = 'refusal'
+
+/** Fields for {@link EvaluateError}. */
+export interface EvaluateErrorInit {
+  /** Human-readable error text. */
+  message: string
+  /** Stable code to branch on, for example `EVALUATE_REFUSAL_CODE`. */
+  code: string
+  /** Tokens the provider reported for this call. */
+  usage?: TokenUsage
+  /** Resolved model id from the provider. */
+  model?: string
+  /**
+   * Wire answers the provider did return, before `decide()` maps them. A
+   * `choice()` answer has `choice`, and a `boolean()` answer is
+   * `{ type: 'noul', noul }`. A refused question has no key.
+   */
+  answers?: Record<string, WireAnswer>
+}
+
+/**
+ * Thrown by an evaluate adapter when the provider answered, but the call
+ * cannot become a result. It carries what the provider already returned,
+ * so callers can still read the billed usage and the answers that came back.
+ *
+ * The `name` is always `EvaluateError`.
+ * Another package can read this shape without an import of this class.
+ * Use {@link isEvaluateError} to narrow a caught value. `instanceof` fails
+ * when the app has more than one copy of `@tanstack/ai`.
+ */
+export class EvaluateError extends Error {
+  /** Stable code to branch on, for example `EVALUATE_REFUSAL_CODE`. */
+  readonly code: string
+  /** Tokens the provider reported for this call. */
+  readonly usage?: TokenUsage
+  /** Resolved model id from the provider. */
+  readonly model?: string
+  /**
+   * Wire answers the provider did return, before `decide()` maps them. A
+   * `choice()` answer has `choice`, and a `boolean()` answer is
+   * `{ type: 'noul', noul }`. A refused question has no key.
+   */
+  readonly answers?: Record<string, WireAnswer>
+
+  constructor(init: EvaluateErrorInit) {
+    super(init.message)
+    this.name = 'EvaluateError'
+    this.code = init.code
+    this.usage = init.usage
+    this.model = init.model
+    this.answers = init.answers
+  }
+}
+
+/**
+ * This function returns true when `value` has the evaluate error shape.
+ *
+ * The check reads `name` and `code`.
+ * A plain object with those fields passes.
+ * The check does not use `instanceof`, so it also matches an error from
+ * another copy of `@tanstack/ai`.
+ *
+ * @param value - A thrown value, or a plain object
+ *
+ * @example
+ * if (isEvaluateError(error) && error.code === EVALUATE_REFUSAL_CODE) {
+ *   error.usage
+ * }
+ */
+export function isEvaluateError(value: unknown): value is EvaluateError {
+  if (typeof value !== 'object' || value === null) return false
+  if (!('name' in value) || value.name !== 'EvaluateError') return false
+  return 'code' in value && typeof value.code === 'string'
+}
+
 /**
  * Evaluate adapter interface with pre-resolved generics.
  *
