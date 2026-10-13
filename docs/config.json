@@ -160,7 +160,7 @@
           "label": "Subagents",
           "to": "chat/subagents",
           "addedAt": "2026-09-21",
-          "updatedAt": "2026-10-12"
+          "updatedAt": "2026-10-13"
         },
         {
           "label": "Agentic Cycle",
@@ -1457,6 +1457,11 @@
           "label": "Reasoning option",
           "to": "migration/reasoning-option",
           "addedAt": "2026-10-09"
+        },
+        {
+          "label": "Subagent tool input",
+          "to": "migration/subagent-tool-input",
+          "addedAt": "2026-10-13"
         },
         {
           "label": "TextPart markdown",

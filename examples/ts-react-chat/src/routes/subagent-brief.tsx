@@ -7,11 +7,18 @@ export const Route = createFileRoute('/subagent-brief')({
   component: SubagentBriefPage,
 })
 
-/** The `task` the parent model wrote on the tool call that started a child. */
+/**
+ * The `task` the parent model wrote on the tool call that started a child.
+ * The agent's input is the `input` field of the call.
+ */
 function briefOf(message: UIMessage, toolCallId: string) {
   for (const part of message.parts) {
     if (part.type !== 'tool-call' || part.id !== toolCallId) continue
-    const input = part.input
+    const call = part.input
+    const input =
+      typeof call === 'object' && call !== null && 'input' in call
+        ? call.input
+        : undefined
     if (
       typeof input === 'object' &&
       input !== null &&

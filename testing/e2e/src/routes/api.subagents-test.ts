@@ -41,8 +41,8 @@ import type { SubagentScenario } from '@/lib/subagents-test'
  * - `result`: no router. `pricer` calls the bound `ctx.chat` with
  *   `stream: false`, so its `run` resolves to a string. The string streams as
  *   the child's text and goes back to the parent model as the result.
- * - `session`: no router, one `subagent` tool. The parent model starts
- *   `researcher`, then a second call continues it by its `sessionId`.
+ * - `session`: no router. The parent model starts `researcher`, then a
+ *   second `researcher` call continues it by its `sessionId`.
  *   `withPersistence` stores the child, so that call loads its transcript.
  */
 function subagentsFor(
@@ -126,15 +126,12 @@ function subagentsFor(
     const agents: Array<DefinedAgent> = [pricer]
     return { agents }
   }
-  if (scenario === 'session') {
-    return { agents: [child('researcher', [])], tool: 'single' as const }
-  }
   return { agents: [child('researcher', [])] }
 }
 
 /**
- * aimock replies are fixed, so the second `subagent` call in
- * `fixtures/subagents/single-tool.json` cannot hold the random id of the
+ * aimock replies are fixed, so the second `researcher` call in
+ * `fixtures/subagents/session.json` cannot hold the random id of the
  * first child. It sends `sessionId: 'first-child'`. This middleware does what
  * a real model does: it copies the `subagentRunId` of the first result.
  */

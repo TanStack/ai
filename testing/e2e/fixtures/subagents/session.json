@@ -8,8 +8,8 @@
       "response": {
         "toolCalls": [
           {
-            "name": "subagent",
-            "arguments": "{\"agent\":\"researcher\",\"prompt\":\"[subagent-session-task] Note one squid fact.\"}"
+            "name": "researcher",
+            "arguments": "{\"prompt\":\"[subagent-session-task] Note one squid fact.\"}"
           }
         ]
       }
@@ -31,8 +31,8 @@
       "response": {
         "toolCalls": [
           {
-            "name": "subagent",
-            "arguments": "{\"agent\":\"researcher\",\"sessionId\":\"first-child\"}"
+            "name": "researcher",
+            "arguments": "{\"sessionId\":\"first-child\"}"
           }
         ]
       }

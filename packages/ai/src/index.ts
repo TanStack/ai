@@ -125,7 +125,6 @@ export type {
   SubagentStep,
   SubagentStepsPlan,
   SubagentsBag,
-  SubagentToolInput,
 } from './activities/chat/agents/spawn'
 // For hosts that run an agent outside a parent chat turn.
 export {
@@ -386,7 +385,7 @@ export type {
   AnyChatMiddleware,
   MetadataStore,
 } from './activities/chat/middleware/index'
-// A persistence store gives the single `subagent` tool the stored children.
+// A persistence store gives the agent tools the stored children.
 export {
   LoadChildCapability,
   getLoadChild,

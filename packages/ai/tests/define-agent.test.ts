@@ -714,7 +714,10 @@ describe('chat({ subagents }) synthetic tools', () => {
 describe('defineAgent inputSchema', () => {
   const briefSchema = z.object({ task: z.string() })
 
-  /** A parent model that calls `researcher` once per args string, then stops. */
+  /**
+   * A parent model that calls `researcher` once per args string, then stops.
+   * The agent input goes under `input` in the tool call.
+   */
   function parentCalling(...args: Array<string>) {
     return createMockAdapter({
       iterations: [
@@ -748,7 +751,9 @@ describe('defineAgent inputSchema', () => {
 
   it('shows the schema to the model and passes the input to run', async () => {
     const { agent, inputs } = briefResearcher()
-    const { adapter, calls } = parentCalling('{"task":"Price Vendor A"}')
+    const { adapter, calls } = parentCalling(
+      '{"input":{"task":"Price Vendor A"}}',
+    )
 
     await collectChunks(
       chat({
@@ -761,7 +766,10 @@ describe('defineAgent inputSchema', () => {
     const tool = calls[0]?.tools?.find((entry) => entry.name === 'researcher')
     expect(tool?.inputSchema).toMatchObject({
       type: 'object',
-      properties: { task: { type: 'string' } },
+      properties: {
+        input: { type: 'object', properties: { task: { type: 'string' } } },
+      },
+      required: ['input'],
     })
     expect(inputs).toEqual([{ task: 'Price Vendor A' }])
   })
@@ -769,8 +777,8 @@ describe('defineAgent inputSchema', () => {
   it('gives each call to the same agent its own input', async () => {
     const { agent, inputs } = briefResearcher()
     const { adapter } = parentCalling(
-      '{"task":"Price Vendor A"}',
-      '{"task":"Price Vendor B"}',
+      '{"input":{"task":"Price Vendor A"}}',
+      '{"input":{"task":"Price Vendor B"}}',
     )
 
     await collectChunks(
@@ -792,7 +800,7 @@ describe('defineAgent inputSchema', () => {
 
   it('returns a bad input to the model and does not start the child', async () => {
     const { agent, inputs } = briefResearcher()
-    const { adapter } = parentCalling('{}')
+    const { adapter } = parentCalling('{"input":{}}')
 
     const chunks = await collectChunks(
       chat({
@@ -832,7 +840,9 @@ describe('defineAgent inputSchema', () => {
         inputs.push(ctx.input)
       },
     })
-    const { adapter, calls } = parentCalling('{"task":"Price Vendor A"}')
+    const { adapter, calls } = parentCalling(
+      '{"input":{"task":"Price Vendor A"}}',
+    )
 
     await collectChunks(
       chat({
@@ -844,7 +854,7 @@ describe('defineAgent inputSchema', () => {
 
     const tool = calls[0]?.tools?.find((entry) => entry.name === 'researcher')
     expect(tool?.inputSchema).toMatchObject({
-      properties: { task: { type: 'string' } },
+      properties: { input: { properties: { task: { type: 'string' } } } },
     })
     expect(inputs).toEqual([{ task: 'Price Vendor A' }])
   })
@@ -870,8 +880,10 @@ describe('defineAgent inputSchema', () => {
     )
 
     const tool = calls[0]?.tools?.find((entry) => entry.name === 'researcher')
-    // The engine gives a tool with no schema an empty object schema.
-    expect(tool?.inputSchema?.properties ?? {}).toEqual({})
+    // An agent without inputSchema takes only a prompt.
+    expect(tool?.inputSchema?.properties).toEqual({
+      prompt: { type: 'string' },
+    })
     expect(inputs).toEqual([undefined])
   })
 

@@ -1,20 +1,21 @@
-import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { defineAgent } from '../src/activities/chat/agents/define-agent'
 import { chat } from '../src/activities/chat'
-import { provideLoadChild } from '../src/activities/chat/middleware/load-child'
+import {
+  LoadChildCapability,
+  provideLoadChild,
+} from '../src/activities/chat/middleware/load-child'
 import {
   createSubagentSink,
   createSyntheticSubagentTools,
 } from '../src/activities/chat/agents/spawn'
 import { EventType } from '../src/types'
-import { collectChunks, createMockAdapter, ev, serverTool } from './test-utils'
-import type { DefinedAgent } from '../src/activities/chat/agents/define-agent'
-import type { SubagentToolInput } from '../src/activities/chat/agents/spawn'
+import { collectChunks, createMockAdapter, ev } from './test-utils'
 import type { SubagentTurn } from '../src/activities/chat/agents/turn'
 import type { SubagentBinding } from '../src/activities/chat/agents/bound'
 import type { ChatMiddleware } from '../src/activities/chat/middleware/types'
-import type { ModelMessage, StreamChunk, Tool, UIMessage } from '../src/types'
+import type { ModelMessage, StreamChunk, UIMessage } from '../src/types'
 
 /** What one child run saw. */
 interface ChildRun {
@@ -46,17 +47,15 @@ const writer = defineAgent({
 
 const agents = [researcher, writer]
 
-type Call = SubagentToolInput<typeof agents>
-
 beforeEach(() => {
   runs.length = 0
 })
 
 /**
- * A parent model that writes a line of text, calls the `subagent` tool once
+ * A parent model that writes a line of text, calls the tool of `agent` once
  * with `args`, then stops.
  */
-function parentCalling(args: object) {
+function parentCalling(agent: string, args: object) {
   return createMockAdapter({
     iterations: [
       [
@@ -64,7 +63,7 @@ function parentCalling(args: object) {
         ev.textStart(),
         ev.textContent('Asking a subagent.'),
         ev.textEnd(),
-        ev.toolStart('call_1', 'subagent'),
+        ev.toolStart('call_1', agent),
         ev.toolArgs('call_1', JSON.stringify(args)),
         ev.runFinished('tool_calls'),
       ],
@@ -87,8 +86,9 @@ function toolResult(chunks: Array<StreamChunk>) {
   throw new Error('No result for call_1')
 }
 
-/** Run a parent chat with the single tool. The model calls it with `args`. */
+/** Run a parent chat. The model calls the tool of `agent` with `args`. */
 async function callSubagent(
+  agent: string,
   args: object,
   options: {
     middleware?: Array<ChatMiddleware>
@@ -96,7 +96,7 @@ async function callSubagent(
     runId?: string
   } = {},
 ) {
-  const { adapter, calls } = parentCalling(args)
+  const { adapter, calls } = parentCalling(agent, args)
   const chunks = await collectChunks(
     chat({
       adapter,
@@ -104,7 +104,6 @@ async function callSubagent(
       messages: [{ role: 'user', content: 'Go' }],
       subagents: {
         agents,
-        tool: 'single',
         ...(options.binding && { binding: options.binding }),
       },
       ...(options.middleware && { middleware: options.middleware }),
@@ -122,6 +121,7 @@ function storedChildren(
 ): ChatMiddleware {
   return {
     name: 'stored-children',
+    provides: [LoadChildCapability],
     setup(ctx) {
       provideLoadChild(ctx, async (subagentRunId) => {
         const messages = stored.get(subagentRunId)
@@ -143,17 +143,32 @@ const oldChild = new Map<string, Array<ModelMessage>>([
   ],
 ])
 
-describe('subagents tool: single', () => {
-  it('gives the model one subagent tool and runs an agent with its input', async () => {
-    const call: Call = { agent: 'researcher', input: { topic: 'tides' } }
-    const { calls, result } = await callSubagent(call)
+/** The wire schema of each agent tool, by name. */
+function toolSchemas(
+  calls: Array<{ tools?: Array<{ name: string; inputSchema?: unknown }> }>,
+) {
+  return Object.fromEntries(
+    (calls[0]?.tools ?? []).map((tool) => [tool.name, tool.inputSchema]),
+  )
+}
 
-    const tools = calls[0]?.tools ?? []
-    expect(tools.map((tool) => tool.name)).toEqual(['subagent'])
-    expect(tools[0]?.inputSchema).toMatchObject({
+describe('agent tool input', () => {
+  it('puts the agent schema under input, and gives an agent without one a prompt', async () => {
+    const { calls, result } = await callSubagent('researcher', {
+      input: { topic: 'tides' },
+    })
+
+    const schemas = toolSchemas(calls)
+    expect(Object.keys(schemas)).toEqual(['researcher', 'writer'])
+    expect(schemas.researcher).toMatchObject({
       type: 'object',
-      properties: { agent: { enum: ['researcher', 'writer'] } },
-      required: ['agent'],
+      properties: { input: { properties: { topic: { type: 'string' } } } },
+      required: ['input'],
+    })
+    expect(schemas.writer).toMatchObject({
+      type: 'object',
+      properties: { prompt: { type: 'string' } },
+      required: [],
     })
     expect(runs).toMatchObject([
       { agent: 'researcher', input: { topic: 'tides' } },
@@ -161,9 +176,82 @@ describe('subagents tool: single', () => {
     expect(result.result).toBe('facts about tides')
   })
 
+  it('points the refs of a recursive input schema at input', async () => {
+    const node: z.ZodType<{ name: string; children?: Array<unknown> }> =
+      z.object({
+        name: z.string(),
+        get children() {
+          return z.array(node).optional()
+        },
+      })
+    const tree = defineAgent({
+      name: 'tree',
+      description: 'Reads a tree',
+      inputSchema: node,
+      run: async (ctx) => {
+        runs.push({ agent: 'tree', input: ctx.input, messages: ctx.messages })
+        return 'ok'
+      },
+    })
+    const { adapter, calls } = parentCalling('tree', {
+      input: { name: 'root', children: [{ name: 'leaf' }] },
+    })
+    await collectChunks(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Go' }],
+        subagents: { agents: [tree] },
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(JSON.stringify(toolSchemas(calls).tree)).toContain(
+      '"$ref":"#/properties/input"',
+    )
+    expect(runs[0]?.input).toEqual({
+      name: 'root',
+      children: [{ name: 'leaf' }],
+    })
+  })
+
+  it('has sessionId and background only when the run can use them', async () => {
+    const plain = await callSubagent('writer', {})
+    const able = await callSubagent(
+      'writer',
+      {},
+      {
+        middleware: [storedChildren(oldChild)],
+        binding: { start: async () => ({ subagentRunId: 'unused' }) },
+      },
+    )
+
+    expect(toolSchemas(plain.calls).writer).not.toHaveProperty(
+      'properties.sessionId',
+    )
+    expect(toolSchemas(plain.calls).writer).not.toHaveProperty(
+      'properties.background',
+    )
+    expect(toolSchemas(able.calls).writer).toMatchObject({
+      properties: {
+        sessionId: { type: 'string' },
+        background: { type: 'boolean' },
+      },
+    })
+  })
+
+  it('reads the conversation when an agent without inputSchema gets no prompt', async () => {
+    const { result } = await callSubagent('writer', {})
+
+    expect(runs[0]?.input).toBeUndefined()
+    expect(runs[0]?.messages).toMatchObject([
+      { role: 'user', content: 'Go' },
+      { role: 'assistant', content: 'Asking a subagent.' },
+    ])
+    // No persistence store, so the model gets no subagentRunId.
+    expect(result).toEqual({ result: 'draft' })
+  })
+
   it('adds the prompt as the last user message of a child without inputSchema', async () => {
-    const call: Call = { agent: 'writer', prompt: 'Write a haiku' }
-    await callSubagent(call)
+    await callSubagent('writer', { prompt: 'Write a haiku' })
 
     expect(runs).toHaveLength(1)
     expect(runs[0]?.input).toBeUndefined()
@@ -175,14 +263,11 @@ describe('subagents tool: single', () => {
   })
 
   it('continues a stored child by sessionId', async () => {
-    const call: Call = {
-      agent: 'writer',
-      sessionId: 'subagent-old',
-      prompt: 'Make it shorter',
-    }
-    const { result } = await callSubagent(call, {
-      middleware: [storedChildren(oldChild)],
-    })
+    const { result } = await callSubagent(
+      'writer',
+      { sessionId: 'subagent-old', prompt: 'Make it shorter' },
+      { middleware: [storedChildren(oldChild)] },
+    )
 
     expect(runs[0]?.messages).toEqual([
       { role: 'user', content: 'Draft a tide report' },
@@ -193,13 +278,13 @@ describe('subagents tool: single', () => {
   })
 
   it('gives the text of each continue its own message', async () => {
-    const call: Call = { agent: 'writer', sessionId: 'subagent-old' }
     const ids: Array<string> = []
     for (const runId of ['run-1', 'run-2']) {
-      const { chunks } = await callSubagent(call, {
-        middleware: [storedChildren(oldChild)],
-        runId,
-      })
+      const { chunks } = await callSubagent(
+        'writer',
+        { sessionId: 'subagent-old' },
+        { middleware: [storedChildren(oldChild)], runId },
+      )
       for (const chunk of chunks) {
         const isChildText =
           chunk.type === EventType.TEXT_MESSAGE_START &&
@@ -242,8 +327,8 @@ describe('subagents tool: single', () => {
       ],
       rest: [],
     }
-    const [tool] = createSyntheticSubagentTools(
-      { agents, tool: 'single' },
+    const [, tool] = createSyntheticSubagentTools(
+      { agents },
       {
         messages: [],
         threadId: 'thread-1',
@@ -255,7 +340,7 @@ describe('subagents tool: single', () => {
       },
     )
     await tool?.execute?.(
-      { agent: 'writer', sessionId: 'subagent-old', prompt: 'Make it shorter' },
+      { sessionId: 'subagent-old', prompt: 'Make it shorter' },
       { toolCallId: 'call_1', emitCustomEvent: () => {} },
     )
 
@@ -268,8 +353,11 @@ describe('subagents tool: single', () => {
 
   it('starts a background child through the start hook', async () => {
     const start = vi.fn(async () => ({ subagentRunId: 'subagent-bg' }))
-    const call: Call = { agent: 'writer', prompt: 'Draft', background: true }
-    const { result } = await callSubagent(call, { binding: { start } })
+    const { result } = await callSubagent(
+      'writer',
+      { prompt: 'Draft', background: true },
+      { binding: { start } },
+    )
 
     expect(result).toEqual({
       subagentRunId: 'subagent-bg',
@@ -282,66 +370,86 @@ describe('subagents tool: single', () => {
     expect(runs).toEqual([])
   })
 
-  const toolErrors: Array<[string, object, Array<ChatMiddleware>, string]> = [
+  const toolErrors: Array<
+    [string, string, object, Array<ChatMiddleware>, string]
+  > = [
     [
       'a prompt for an agent with inputSchema',
-      { agent: 'researcher', prompt: 'tides' },
+      'researcher',
+      { prompt: 'tides' },
       [],
       'Agent "researcher" takes input, not prompt.',
     ],
     [
       'no input for an agent with inputSchema',
-      { agent: 'researcher' },
+      'researcher',
+      {},
       [],
       'Agent "researcher" needs input.',
     ],
     [
+      'an input that fails the agent schema',
+      'researcher',
+      { input: { topic: 3 } },
+      [],
+      'Input validation failed for tool researcher: Invalid input: expected string, received number',
+    ],
+    [
       'an input for an agent without inputSchema',
-      { agent: 'writer', input: { topic: 'tides' } },
+      'writer',
+      { input: { topic: 'tides' } },
       [],
       'Agent "writer" takes prompt, not input.',
     ],
     [
       'a sessionId without a persistence store',
-      { agent: 'writer', sessionId: 'subagent-old' },
+      'writer',
+      { sessionId: 'subagent-old' },
       [],
       'sessionId needs a persistence store.',
     ],
     [
       'an unknown sessionId',
-      { agent: 'writer', sessionId: 'subagent-missing' },
+      'writer',
+      { sessionId: 'subagent-missing' },
       [storedChildren(oldChild)],
       'Unknown sessionId "subagent-missing".',
     ],
     [
       'a sessionId of a child of another agent',
-      { agent: 'researcher', sessionId: 'subagent-old', input: { topic: 'x' } },
+      'researcher',
+      { sessionId: 'subagent-old', input: { topic: 'x' } },
       [storedChildren(oldChild)],
       'Session "subagent-old" belongs to agent "writer", not "researcher".',
     ],
     [
       'background without a host',
-      { agent: 'writer', background: true },
+      'writer',
+      { background: true },
       [],
       'background needs a host that runs children in the background.',
     ],
     [
       'a background that is not a boolean',
-      { agent: 'writer', background: 'true' },
+      'writer',
+      { background: 'true' },
       [],
       'prompt and sessionId must be strings, and background a boolean.',
     ],
     [
       'background with a sessionId',
-      { agent: 'writer', background: true, sessionId: 'subagent-old' },
+      'writer',
+      { background: true, sessionId: 'subagent-old' },
       [],
       'background cannot continue a sessionId.',
     ],
   ]
   it.each(toolErrors)(
     'returns a tool error for %s',
-    async (_label, args, middleware, error) => {
-      const { chunks, result } = await callSubagent(args, { middleware })
+    async (_label, agent, args, middleware, error) => {
+      const { chunks, result } = await callSubagent(agent, args, {
+        middleware,
+      })
 
       expect(result).toEqual({ error })
       expect(runs).toEqual([])
@@ -351,33 +459,4 @@ describe('subagents tool: single', () => {
       )
     },
   )
-
-  const namedSubagent = defineAgent({ ...writer, name: 'subagent' })
-  const takenNames: Array<[string, Array<DefinedAgent>, Array<Tool>]> = [
-    ['an agent', [researcher, namedSubagent], []],
-    ['a tool', agents, [serverTool('subagent', () => 'ok')]],
-  ]
-  it.each(takenNames)(
-    'throws when %s is named subagent',
-    (_label, named, tools) => {
-      const { adapter } = parentCalling({})
-      expect(() =>
-        chat({
-          adapter,
-          messages: [{ role: 'user', content: 'Go' }],
-          tools,
-          subagents: { agents: named, tool: 'single' },
-        }),
-      ).toThrow(`subagents.tool 'single' adds a tool named "subagent"`)
-    },
-  )
-
-  it('types the input as a union on agent', () => {
-    expectTypeOf<
-      Extract<Call, { agent: 'researcher' }>['input']
-    >().toEqualTypeOf<{ topic: string }>()
-    expectTypeOf<Extract<Call, { agent: 'writer' }>>().not.toHaveProperty(
-      'input',
-    )
-  })
 })

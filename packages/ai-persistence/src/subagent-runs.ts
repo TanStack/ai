@@ -70,12 +70,8 @@ function ownerThread(caller: { threadId: string; subagentRunId?: string }) {
     : childStoreId(caller.subagentRunId)
 }
 
-// ponytail: only the `subagent` tool has `prompt` and `input` fields. Core does
-// not export its name.
-const SINGLE_TOOL = 'subagent'
-
-/** One field of the JSON arguments of a `subagent` tool call. */
-function singleToolField(call: { args: string }, key: 'prompt' | 'input') {
+/** One field of the JSON arguments of an agent tool call. */
+function callField(call: { args: string }, key: 'prompt' | 'input') {
   let args: unknown
   try {
     args = JSON.parse(call.args)
@@ -88,23 +84,23 @@ function singleToolField(call: { args: string }, key: 'prompt' | 'input') {
 }
 
 /**
- * The task of a child that a tool call started: the `prompt` of the `subagent`
- * tool, else its `input` as JSON. A `subagent` call with neither has no task.
- * Other tools pass their whole arguments.
+ * The task of a child that a tool call started: the `prompt` of the agent
+ * tool, else its `input` as JSON. A call with neither has no task.
  */
-function callPrompt(call: { name: string; args: string }) {
+// ponytail: a non-agent tool that starts a child with its own call id stores
+// no task. Read its whole arguments here if a host needs that.
+function callPrompt(call: { args: string }) {
   if (call.args === '') return undefined
-  if (call.name !== SINGLE_TOOL) return call.args
-  const prompt = singleToolField(call, 'prompt')
+  const prompt = callField(call, 'prompt')
   if (typeof prompt === 'string') return prompt
-  const input = singleToolField(call, 'input')
+  const input = callField(call, 'input')
   return input === undefined ? undefined : JSON.stringify(input)
 }
 
-/** The `prompt` of a `subagent` call that continues a child, if any. */
-function followUpPrompt(call: { name: string; args: string } | undefined) {
-  if (call?.name !== SINGLE_TOOL) return undefined
-  const prompt = singleToolField(call, 'prompt')
+/** The `prompt` of an agent tool call that continues a child, if any. */
+function followUpPrompt(call: { args: string } | undefined) {
+  if (call === undefined) return undefined
+  const prompt = callField(call, 'prompt')
   return typeof prompt === 'string' ? prompt : undefined
 }
 

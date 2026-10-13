@@ -137,7 +137,7 @@ export interface SubagentBinding {
   promptCache?: PromptCacheRetention
   /**
    * Starts a child without waiting for it and returns its id at once. The
-   * single `subagent` tool calls it for `background: true`. With
+   * agent tools call it for `background: true`. With
    * `wake: true`, the host starts a new parent turn when the child ends. It
    * does not pass down to nested children.
    */

@@ -505,7 +505,7 @@ describe('subagent interrupts', () => {
         return run(ctx)
       },
     })
-    const parent = toolParent('{"folder":"old"}')
+    const parent = toolParent('{"input":{"folder":"old"}}')
     const subagents = { agents: [agent] }
 
     const first = await collectChunks(
@@ -526,7 +526,7 @@ describe('subagent interrupts', () => {
       expect.objectContaining({
         type: 'tool-call',
         id: 'call_p',
-        arguments: '{"folder":"old"}',
+        arguments: '{"input":{"folder":"old"}}',
       }),
     )
 

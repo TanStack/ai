@@ -63,7 +63,6 @@ import { LazyToolManager } from './tools/lazy-tool-manager'
 import { assertUniqueToolNames } from './tools/unique-tool-names'
 import type { DefinedAgent } from './agents/define-agent'
 import {
-  SINGLE_SUBAGENT_TOOL,
   collectNamedText,
   createSubagentSink,
   createSyntheticSubagentTools,
@@ -114,6 +113,7 @@ import {
 } from './messages'
 import { MiddlewareRunner } from './middleware/compose'
 import { getRunDetached } from './middleware/run-store'
+import { LoadChildCapability } from './middleware/load-child'
 import { publishRunDetachedSignal } from '../../delivery-detach'
 import { publishRunDisconnectHandler } from '../../delivery-disconnect'
 import { provideSandboxRuntime } from './middleware/sandbox-runtime'
@@ -5660,17 +5660,6 @@ export function chat<
     )
   }
 
-  const singleToolNameTaken =
-    options.subagents?.tool === 'single' &&
-    [...options.subagents.agents, ...(options.tools ?? [])].some(
-      (entry) => entry.name === SINGLE_SUBAGENT_TOOL,
-    )
-  if (singleToolNameTaken) {
-    throw new Error(
-      `subagents.tool 'single' adds a tool named "${SINGLE_SUBAGENT_TOOL}". Rename the agent or tool that uses this name.`,
-    )
-  }
-
   if (outputSchema && stream === true) {
     return runStreamingStructuredOutput(
       toRuntimeTextActivityOptions(options, {
@@ -5937,16 +5926,15 @@ async function* streamTextChunks(
     const turn = readSubagentTurn(messages, options.resume)
     const sink = createSubagentSink()
     const calls = subagentCallMessages(
-      new Set(
-        bag.tool === 'single'
-          ? [SINGLE_SUBAGENT_TOOL]
-          : bag.agents.map((agent: DefinedAgent) => agent.name),
-      ),
+      new Set(bag.agents.map((agent: DefinedAgent) => agent.name)),
     )
     const synthetic = createSyntheticSubagentTools(bag, {
       messages: turn?.before ?? messages,
       messagesFor: calls.messagesFor,
       childLoader: calls.childLoader,
+      canContinue: (options.middleware ?? []).some((item) =>
+        item.provides?.includes(LoadChildCapability),
+      ),
       threadId,
       runId,
       ...(options.parentRunId !== undefined && {

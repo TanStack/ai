@@ -154,13 +154,13 @@ const stream = chat({
 })
 ```
 
-**Without a router.** The library adds one synthetic server tool per agent. The main model calls that tool. The public stream still emits `SUBAGENT_STARTED` / `SUBAGENT_FINISHED` (or `SUBAGENT_ERROR`) and nested parts. The UI does not treat spawn as a normal tool card. The child's events stream while the tool runs, and the child's text becomes the tool result. The child reads the conversation as it is at that tool call. For one tool that can start every agent, see [Give the model one subagent tool](#give-the-model-one-subagent-tool).
+**Without a router.** The library adds one synthetic server tool per agent. The main model calls that tool. The public stream still emits `SUBAGENT_STARTED` / `SUBAGENT_FINISHED` (or `SUBAGENT_ERROR`) and nested parts. The UI does not treat spawn as a normal tool card. The child's events stream while the tool runs, and the child's text becomes the tool result. The child reads the conversation as it is at that tool call. The model can also pass the task as `prompt`. The child gets it as the last user message. For all fields of the tool input, see [The tool input](#the-tool-input).
 
 ## Let the model write the brief
 
 In a long thread, the child gets the full conversation at the tool call, with every earlier tool result. Each parallel child gets its own copy. The child must also find its task in that conversation.
 
-Add `inputSchema` to the agent. The main model then writes the child's input when it calls the tool. `run` reads that input as `ctx.input`:
+Add `inputSchema` to the agent. The main model then writes the child's input in the `input` field of the tool call, for example `{ "input": { "task": "Price Vendor A" } }`. `run` reads that input as `ctx.input`:
 
 ```ts
 import { chat, defineAgent } from '@tanstack/ai'
@@ -206,9 +206,9 @@ const stream = chat({
 
 To show the brief in the UI, see [Show the brief on a card](#show-the-brief-on-a-card).
 
-## Give the model one subagent tool
+## Continue a child
 
-Without a router, the model gets one tool per agent, and each call starts a new child. The model cannot send a follow-up to a child that already answered. Set `tool: 'single'`. The model then gets one tool, `subagent`, and names the agent in each call. A call can also continue a child from an earlier turn.
+Each tool call starts a new child. Sometimes the model must send a follow-up to a child that already answered, like "make it shorter". Add `withPersistence` to the parent `chat()`. Each result then gives the model the `subagentRunId` of the child, and the model continues that child with `sessionId`.
 
 ```ts
 import {
@@ -219,18 +219,6 @@ import {
 } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { memoryPersistence, withPersistence } from '@tanstack/ai-persistence'
-import { z } from 'zod'
-
-const researcher = defineAgent({
-  name: 'researcher',
-  description: 'Researches one question and returns sourced findings',
-  inputSchema: z.object({ question: z.string() }),
-  run: (ctx) =>
-    ctx.chat({
-      adapter: openaiText('gpt-6.1-sol'),
-      messages: [{ role: 'user', content: ctx.input.question }],
-    }),
-})
 
 const writer = defineAgent({
   name: 'writer',
@@ -249,47 +237,37 @@ export async function POST(request: Request) {
     threadId: params.threadId,
     runId: params.runId,
     middleware: [withPersistence(persistence)],
-    subagents: { agents: [researcher, writer], tool: 'single' },
+    subagents: { agents: [writer] },
   })
   return toServerSentEventsResponse(stream)
 }
 ```
 
-The model fills these fields of the tool input:
+The model continues the writer like this:
 
-- `agent`: the agent name. Each call needs it.
+1. The model calls `writer` with `{ "prompt": "Draft a post about tides" }`.
+2. It gets `{ "subagentRunId": "subagent-1767225600000-x7k2m9q", "result": "Tides rise twice a day..." }`.
+3. In a later turn, it calls `writer` with `{ "sessionId": "subagent-1767225600000-x7k2m9q", "prompt": "Make it shorter" }`.
+
+The writer gets the task of its first call, its stored transcript, then `Make it shorter` as the last user message. The stream uses the same `subagentRunId`, so the client shows the new work on the same card.
+
+### The tool input
+
+Every agent tool takes the same fields:
+
 - `input`: the input of an agent with `inputSchema`. That agent needs it.
 - `prompt`: the task as text, for an agent without `inputSchema`. The child gets it as the last user message.
-- `sessionId`: the `subagentRunId` of an earlier result. The call continues that child.
-- `background`: `true` starts the child and returns at once. Only a host with `subagents.binding.start` can do this.
-
-On the client, each child is a `type: 'subagent'` part, the same as with one tool per agent. `part.subagent.name` is the agent name.
-
-### Continue a child
-
-With `withPersistence` on the parent `chat()`, each result gives the model the `subagentRunId` of the child. The model uses it in a later turn:
-
-1. The model calls `{ "agent": "writer", "prompt": "Draft a post about tides" }`.
-2. It gets `{ "subagentRunId": "subagent-1767225600000-x7k2m9q", "result": "Tides rise twice a day..." }`.
-3. In the next turn, it calls `{ "agent": "writer", "sessionId": "subagent-1767225600000-x7k2m9q", "prompt": "Make it shorter" }`.
-
-The writer gets the task of its first call, its stored transcript, then `Make it shorter` as the last user message.
-
-- `sessionId` needs `withPersistence` on the parent `chat()`. The stored child comes from that store.
-- A thread can continue only its own children. An id from another thread gives the tool error `Unknown sessionId "..."`.
-- The call must name the agent that the child ran under. Another agent gives the tool error `Session "..." belongs to agent "writer", not "researcher".`
-- The stream uses the same `subagentRunId`, so the client shows the new work on the card with that id.
+- `sessionId`: the `subagentRunId` of an earlier result. The call continues that child. The tool has this field only when `withPersistence` is on the parent `chat()`.
+- `background`: `true` starts the child and returns its `subagentRunId` at once. The tool has this field only when the host sets `subagents.binding.start`.
 
 ### Wrong calls
 
-A wrong call returns to the model as a tool error, and the run continues. For example:
+A wrong call goes back to the model as a tool error, and the run continues. For example:
 
 - `Agent "researcher" takes input, not prompt.`
-- `Agent "researcher" needs input.`
-- `sessionId needs a persistence store.`
+- `Unknown sessionId "..."`: no child of this thread has that id. A thread can continue only its own children.
+- `Session "..." belongs to agent "writer", not "researcher".`: the call must use the tool of the agent that ran the child.
 - `background needs a host that runs children in the background.`
-
-If an agent or a tool already has the name `subagent`, `chat()` throws before the run starts.
 
 ## Return a value, or call any activity
 
@@ -759,7 +737,7 @@ When `run` imports server code, do not import the agent into the browser. Declar
 
 ### Show the brief on a card
 
-When an agent has `inputSchema`, the brief is the input of the tool call that started the child. That `tool-call` part is on the same assistant message as the card. `part.subagent.parentToolCallId` is its id:
+The brief is in the tool call that started the child: the `input` field for an agent with `inputSchema`, else the `prompt` field. That `tool-call` part is on the same assistant message as the card. `part.subagent.parentToolCallId` is its id:
 
 ```tsx
 import type { UIMessage } from '@tanstack/ai-react'
@@ -767,7 +745,10 @@ import type { UIMessage } from '@tanstack/ai-react'
 function briefOf(message: UIMessage, toolCallId: string) {
   for (const part of message.parts) {
     if (part.type !== 'tool-call' || part.id !== toolCallId) continue
-    const input = part.input
+    const call = part.input
+    if (typeof call !== 'object' || call === null) continue
+    if ('prompt' in call && typeof call.prompt === 'string') return call.prompt
+    const input = 'input' in call ? call.input : undefined
     if (
       typeof input === 'object' &&
       input !== null &&
@@ -791,8 +772,6 @@ function Briefs({ message }: { message: UIMessage }) {
 ```
 
 A child that a router started has no `parentToolCallId`, so it has no brief.
-
-With `tool: 'single'`, that tool call is a call of the `subagent` tool. The brief is in the `input` field or the `prompt` field of its input.
 
 ### Style one child's parts
 

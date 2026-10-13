@@ -2153,7 +2153,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       if (persistence.stores.metadata) {
         provideMetadata(ctx, persistence.stores.metadata)
       }
-      // The `subagent` tool reads stored children through this, to continue
+      // The agent tools read stored children through this, to continue
       // one by `sessionId`. Only the children of this chat can load.
       provideLoadChild(ctx, (subagentRunId) =>
         subagentRuns.loadChild(subagentRunId, {

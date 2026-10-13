@@ -218,14 +218,14 @@ function noteTaker() {
   return { agent, seen }
 }
 
-/** A parent model that calls the `subagent` tool once, then stops. */
+/** A parent model that calls the `writer` agent tool once, then stops. */
 function callingSubagent(toolCallId: string, args: object) {
   return scriptedAdapter([
     [
       {
         type: EventType.TOOL_CALL_START,
         toolCallId,
-        toolCallName: 'subagent',
+        toolCallName: 'writer',
         timestamp: t,
       },
       {
@@ -254,7 +254,7 @@ function callingSubagent(toolCallId: string, args: object) {
   ])
 }
 
-/** One parent turn with the single `subagent` tool. The thread is `desk`. */
+/** One parent turn that calls the `writer` tool. The thread is `desk`. */
 function subagentTurn(
   middleware: ChatMiddleware,
   agent: DefinedAgent,
@@ -267,7 +267,7 @@ function subagentTurn(
       runId: turn.runId,
       messages: [{ id: `u-${turn.runId}`, role: 'user', content: 'Notes' }],
       middleware: [middleware],
-      subagents: { agents: [agent], tool: 'single' },
+      subagents: { agents: [agent] },
     }),
   )
 }
@@ -729,13 +729,13 @@ describe('subagent run recorder', () => {
       {
         type: EventType.TOOL_CALL_START,
         toolCallId: 'call_1',
-        toolCallName: 'subagent',
+        toolCallName: 'writer',
         timestamp: t,
       },
       {
         type: EventType.TOOL_CALL_ARGS,
         toolCallId: 'call_1',
-        delta: '{"agent":"writer","input":{"topic":"tides"}}',
+        delta: '{"input":{"topic":"tides"}}',
         timestamp: t,
       },
       childStarted('child', { parentToolCallId: 'call_1' }),
@@ -747,7 +747,7 @@ describe('subagent run recorder', () => {
       { role: 'user', content: '{"topic":"tides"}' },
       { role: 'assistant', content: 'Tide notes' },
     ])
-    // The `subagent` tool lets only this agent continue the child.
+    // Only this agent can continue the child.
     expect(loaded?.agent).toBe('writer')
   })
 
@@ -761,14 +761,14 @@ describe('subagent run recorder', () => {
   })
 })
 
-describe('single subagent tool with persistence', () => {
+describe('agent tools with persistence', () => {
   it('continues a stored child by sessionId', async () => {
     const middleware = withPersistence(memoryPersistence())
     const { agent, seen } = noteTaker()
     const first = await subagentTurn(middleware, agent, {
       runId: 'run-1',
       toolCallId: 'call_1',
-      args: { agent: 'writer', prompt: 'Take notes' },
+      args: { prompt: 'Take notes' },
     })
     expect(toolResult(first, 'call_1')).toMatchObject({
       subagentRunId: startedId(first),
@@ -776,7 +776,7 @@ describe('single subagent tool with persistence', () => {
     const second = await subagentTurn(middleware, agent, {
       runId: 'run-2',
       toolCallId: 'call_2',
-      args: { agent: 'writer', sessionId: startedId(first), prompt: 'More' },
+      args: { sessionId: startedId(first), prompt: 'More' },
     })
 
     expect(startedId(second)).toBe(startedId(first))
@@ -792,7 +792,7 @@ describe('single subagent tool with persistence', () => {
     await subagentTurn(middleware, agent, {
       runId: 'run-3',
       toolCallId: 'call_3',
-      args: { agent: 'writer', sessionId: startedId(first), prompt: 'Again' },
+      args: { sessionId: startedId(first), prompt: 'Again' },
     })
     expect(seen[2]).toMatchObject([
       { role: 'user', content: 'Take notes' },
@@ -809,14 +809,14 @@ describe('single subagent tool with persistence', () => {
     const first = await subagentTurn(middleware, agent, {
       runId: 'run-1',
       toolCallId: 'call_1',
-      args: { agent: 'writer', prompt: 'Take notes' },
+      args: { prompt: 'Take notes' },
     })
     const id = startedId(first)
     const other = await subagentTurn(middleware, agent, {
       threadId: 'other',
       runId: 'run-2',
       toolCallId: 'call_2',
-      args: { agent: 'writer', sessionId: id, prompt: 'Show me' },
+      args: { sessionId: id, prompt: 'Show me' },
     })
 
     expect(toolResult(other, 'call_2')).toEqual({

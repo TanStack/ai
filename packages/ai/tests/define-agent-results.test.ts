@@ -344,7 +344,7 @@ describe('agent run context', () => {
 
     const { adapter: parent } = parentCalling(
       'illustrator',
-      '{"prompt":"a cat"}',
+      '{"input":{"prompt":"a cat"}}',
     )
     const chunks = await collectChunks(
       chat({

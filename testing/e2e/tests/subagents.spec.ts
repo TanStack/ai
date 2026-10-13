@@ -217,7 +217,7 @@ test.describe('subagents', () => {
     ).toBe(true)
   })
 
-  test('the single subagent tool continues a child by its sessionId', async ({
+  test('an agent tool continues a child by its sessionId', async ({
     page,
     testId,
     aimockPort,
