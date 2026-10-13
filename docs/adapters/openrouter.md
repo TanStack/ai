@@ -900,3 +900,32 @@ export async function POST(request: Request) {
 ```
 
 See [Bring Your Own Key](../advanced/byok) for the keyring and passkey storage.
+
+### Sign in from a CLI
+
+A CLI or a desktop app has no web page for the redirect, so the user would have to copy a key by hand. `openrouterSignIn()` signs the user in with the browser and gives your app the key:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { createOpenRouterText } from "@tanstack/ai-openrouter";
+import { openrouterSignIn } from "@tanstack/ai-openrouter/pkce";
+
+const signIn = openrouterSignIn();
+const apiKey = await signIn({
+  open: (url) => console.log(`Open this URL to sign in: ${url}`),
+});
+
+const stream = chat({
+  adapter: createOpenRouterText("openai/gpt-6.1-sol", apiKey),
+  messages: [{ role: "user", content: "Hello!" }],
+});
+```
+
+1. `signIn` starts a one-time listener on `127.0.0.1`, on a random port.
+2. It calls `open` with the OpenRouter sign-in URL. Open that URL in the browser.
+3. The user signs in and approves. The browser shows `You are signed in to OpenRouter. You can close this tab.`
+4. `signIn` resolves with the API key, and the listener closes.
+
+The sign-in uses PKCE and a random state. It stops after 10 minutes. To change the time, pass `openrouterSignIn({ timeoutMs })`. To cancel it, pass `signal` to `signIn`.
+
+The listener runs on the computer of your app. So the sign-in works only when your app and the browser are on the same computer. In a hosted app, use the browser flow above.

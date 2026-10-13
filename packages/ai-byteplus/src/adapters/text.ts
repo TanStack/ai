@@ -187,7 +187,7 @@ export class BytePlusTextAdapter<
   protected override extractReasoning(
     chunk: OpenAI.Chat.Completions.ChatCompletionChunk,
   ): { text: string } | undefined {
-    const delta = chunk.choices[0]?.delta as
+    const delta = chunk.choices?.[0]?.delta as
       | BytePlusStreamDeltaExtras
       | undefined
     const raw = delta?.reasoning_content
@@ -465,7 +465,7 @@ async function* captureEncryptedContent(
   captured: { encryptedContent?: string },
 ): AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk> {
   for await (const chunk of stream) {
-    const delta = chunk.choices[0]?.delta as
+    const delta = chunk.choices?.[0]?.delta as
       | BytePlusStreamDeltaExtras
       | undefined
     const blob = delta?.encrypted_content

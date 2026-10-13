@@ -82,15 +82,17 @@ function diffNullWidening(
   if (allowsNull(wire) && !allowsNull(original)) map.widened = true
 
   if (original.properties && wire.properties) {
-    const properties: Record<string, NullWideningMap> = {}
+    // Entries, not assignment: `map['__proto__'] = x` sets the prototype and
+    // drops a property that is really named `__proto__`.
+    const properties: Array<[string, NullWideningMap]> = []
     for (const key of Object.keys(wire.properties)) {
       const child = diffNullWidening(
         original.properties[key],
         wire.properties[key],
       )
-      if (child) properties[key] = child
+      if (child) properties.push([key, child])
     }
-    if (Object.keys(properties).length > 0) map.properties = properties
+    if (properties.length > 0) map.properties = Object.fromEntries(properties)
   }
 
   if (

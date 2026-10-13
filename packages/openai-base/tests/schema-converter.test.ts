@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { undoNullWidening } from '@tanstack/ai-utils'
 import {
   isStrictModeCompatible,
   makeStructuredOutputCompatible,
@@ -650,5 +651,31 @@ describe('isStrictModeCompatible', () => {
         additionalProperties: false,
       }),
     ).toBe(true)
+  })
+})
+
+describe('own keys named __proto__ and constructor', () => {
+  it('keeps them in the strict schema and the null-widening map', () => {
+    const schema = JSON.parse(
+      '{"type":"object","properties":{"__proto__":{"type":"string","format":"color"},"constructor":{"type":"string"}},"required":["constructor"]}',
+    )
+    const { schema: strict, nullWideningMap } =
+      makeStructuredOutputCompatibleWithMap(schema, schema.required)
+
+    expect(Object.hasOwn(strict.properties, '__proto__')).toBe(true)
+    expect(strict.properties['__proto__']).toEqual({ type: ['string', 'null'] })
+    expect(strict.properties.constructor).toEqual({ type: 'string' })
+    expect(strict.required).toEqual(['__proto__', 'constructor'])
+    expect(Object.hasOwn(nullWideningMap?.properties ?? {}, '__proto__')).toBe(
+      true,
+    )
+    expect(
+      JSON.stringify(
+        undoNullWidening(
+          JSON.parse('{"__proto__":null,"constructor":"kept"}'),
+          nullWideningMap,
+        ),
+      ),
+    ).toBe('{"constructor":"kept"}')
   })
 })

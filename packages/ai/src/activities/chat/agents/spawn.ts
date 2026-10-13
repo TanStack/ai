@@ -36,14 +36,22 @@ export const SUBAGENT_ERROR = EventType.SUBAGENT_ERROR
 
 export type SubagentOrder = 'parallel' | 'sequence'
 
+/**
+ * One agent in a router pick: its name, or its name and its input. An agent
+ * with `inputSchema` needs `{ name, input }`, and no other agent takes an
+ * input. `chat()` checks both when the turn starts. The type does not. The
+ * input is checked against the schema, and `run` reads it as `ctx.input`.
+ */
+export type SubagentPick = string | { name: string; input?: unknown }
+
 export interface SubagentRouterPlan {
-  names: ReadonlyArray<string>
+  names: ReadonlyArray<SubagentPick>
   /** Overrides `subagents.order` for this turn. */
   order?: SubagentOrder
 }
 
 export interface SubagentStep {
-  names: ReadonlyArray<string>
+  names: ReadonlyArray<SubagentPick>
   /** Overrides `subagents.order` for this step. */
   order?: SubagentOrder
 }
@@ -54,10 +62,24 @@ export interface SubagentStepsPlan {
 
 export type SubagentRouterPick =
   | 'main'
-  | string
-  | ReadonlyArray<string>
+  | SubagentPick
+  | ReadonlyArray<SubagentPick>
   | SubagentRouterPlan
   | SubagentStepsPlan
+
+/**
+ * A router pick after `normalizeRouterPick`. Each step has plain names, and
+ * `inputs` holds the raw input of each name that has one.
+ * `checkRoutedInputs` returns the same shape with the checked inputs. The
+ * plan on `SUBAGENT_STARTED` metadata has the names and the order only.
+ */
+export interface RoutedPlan {
+  steps: ReadonlyArray<{
+    names: ReadonlyArray<string>
+    inputs?: Record<string, unknown>
+    order?: SubagentOrder
+  }>
+}
 
 export interface SubagentsBag<
   TAgents extends ReadonlyArray<DefinedAgent> = ReadonlyArray<DefinedAgent>,
@@ -94,7 +116,7 @@ export function createSubagentSink(): SubagentSink {
 /** One child to start, or a suspended child to continue. */
 export interface SpawnEntry {
   name: string
-  /** The checked tool input for an agent with `inputSchema`. */
+  /** The checked input of an agent with `inputSchema`, from a tool or a router. */
   input?: unknown
   resume?: {
     subagentRunId: string
@@ -266,7 +288,7 @@ function openAgentStream(
 }
 
 const ROUTER_PICK_ERROR =
-  'subagents.router must return main, a name, a list of names, { names, order }, or { steps }.'
+  'subagents.router must return main, a name, { name, input }, a list of them, { names, order }, or { steps }.'
 
 function assertOrder(order: SubagentOrder | undefined) {
   if (order !== undefined && order !== 'parallel' && order !== 'sequence') {
@@ -274,54 +296,89 @@ function assertOrder(order: SubagentOrder | undefined) {
   }
 }
 
-function normalizeNames(
-  names: ReadonlyArray<string>,
+/** One step of a pick: plain names, the input of each name that has one, and the order. */
+function normalizeStep(
+  picks: ReadonlyArray<SubagentPick>,
   agents: ReadonlyArray<DefinedAgent>,
-): ReadonlyArray<string> {
-  if (names.length === 0) throw new Error(ROUTER_PICK_ERROR)
-  const hasMain = names.includes('main')
-  if (hasMain && names.length > 1) {
+  order?: SubagentOrder,
+): RoutedPlan['steps'][number] {
+  assertOrder(order)
+  if (!isPickList(picks) || picks.length === 0) {
+    throw new Error(ROUTER_PICK_ERROR)
+  }
+  const names = picks.map((pick) =>
+    typeof pick === 'string' ? pick : pick.name,
+  )
+  if (names.includes('main') && names.length > 1) {
     throw new Error('Do not mix main into a subagent list.')
   }
-  if (hasMain) return ['main']
-  for (const name of names) agentByName(agents, name)
-  return [...names]
+  // ponytail: one input per name in a step, so a name with an input cannot
+  // repeat in that step. Key inputs by position if a router needs two.
+  const inputs: Record<string, unknown> = {}
+  for (const pick of picks) {
+    if (typeof pick === 'string') {
+      if (pick !== 'main') agentByName(agents, pick)
+      continue
+    }
+    if (pick.input === undefined) {
+      if (pick.name !== 'main') agentByName(agents, pick.name)
+      continue
+    }
+    if (pick.name === 'main') throw new Error('main takes no input.')
+    if (agentByName(agents, pick.name).inputSchema === undefined) {
+      throw new Error(
+        `Agent "${pick.name}" has no inputSchema, so it takes no input.`,
+      )
+    }
+    if (names.filter((name) => name === pick.name).length > 1) {
+      throw new Error(
+        `Agent "${pick.name}" has an input and is in one step more than once. Put each pick in its own step.`,
+      )
+    }
+    inputs[pick.name] = pick.input
+  }
+  return {
+    names,
+    ...(Object.keys(inputs).length > 0 && { inputs }),
+    ...(order !== undefined && { order }),
+  }
 }
 
-function isStringList(pick: SubagentRouterPick): pick is ReadonlyArray<string> {
+function isPickList(pick: unknown): pick is ReadonlyArray<SubagentPick> {
   return Array.isArray(pick)
 }
 
 export function normalizeRouterPick(
   pick: SubagentRouterPick,
   agents: ReadonlyArray<DefinedAgent>,
-): { steps: ReadonlyArray<SubagentStep> } {
-  if (pick === 'main' || typeof pick === 'string') {
-    return { steps: [{ names: normalizeNames([pick], agents) }] }
+): RoutedPlan {
+  if (isPickList(pick)) return { steps: [normalizeStep(pick, agents)] }
+  if (typeof pick === 'string')
+    return { steps: [normalizeStep([pick], agents)] }
+  // A router in plain JavaScript can return anything.
+  if (typeof pick !== 'object' || pick === null) {
+    throw new Error(ROUTER_PICK_ERROR)
   }
-  if (isStringList(pick)) {
-    return { steps: [{ names: normalizeNames(pick, agents) }] }
-  }
+  if ('name' in pick) return { steps: [normalizeStep([pick], agents)] }
   if ('steps' in pick) {
     if (pick.steps.length === 0) throw new Error(ROUTER_PICK_ERROR)
-    const steps = pick.steps.map((step) => {
-      assertOrder(step.order)
-      const names = normalizeNames(step.names, agents)
-      return step.order === undefined ? { names } : { names, order: step.order }
-    })
+    const steps = pick.steps.map((step) =>
+      normalizeStep(step.names, agents, step.order),
+    )
     const flat = steps.flatMap((step) => step.names)
     if (flat.includes('main') && flat.length > 1) {
       throw new Error('Do not mix main into a subagent list.')
     }
     return { steps }
   }
-  assertOrder(pick.order)
-  const names = normalizeNames(pick.names, agents)
-  return {
-    steps: [
-      pick.order === undefined ? { names } : { names, order: pick.order },
-    ],
-  }
+  return { steps: [normalizeStep(pick.names, agents, pick.order)] }
+}
+
+/** The input of `name` in a step. Skips keys that `Object.prototype` has. */
+export function stepInput(step: RoutedPlan['steps'][number], name: string) {
+  return step.inputs && Object.hasOwn(step.inputs, name)
+    ? step.inputs[name]
+    : undefined
 }
 
 /**

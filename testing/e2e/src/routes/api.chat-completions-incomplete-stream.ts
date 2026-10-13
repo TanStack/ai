@@ -66,7 +66,8 @@ export const Route = createFileRoute('/api/chat-completions-incomplete-stream')(
             },
             {
               ...envelope,
-              choices: [],
+              // Some gateways omit `choices` on the usage trailer.
+              ...(scenario === 'no-choices' ? {} : { choices: [] }),
               usage: {
                 prompt_tokens: 10,
                 completion_tokens: 2,
@@ -84,6 +85,7 @@ export const Route = createFileRoute('/api/chat-completions-incomplete-stream')(
                 // Finish a follow-up request if a regression executes the tool.
                 const complete =
                   scenario === 'complete' ||
+                  scenario === 'no-choices' ||
                   scenario === 'object-content' ||
                   scenario === 'unknown-finish' ||
                   requests++ > 0

@@ -1853,14 +1853,16 @@ function extractTextFromInteraction(interaction: Interaction): string {
 function sanitizeToolParameters(schema: unknown): unknown {
   if (!schema || typeof schema !== 'object') return schema
   if (Array.isArray(schema)) return schema.map(sanitizeToolParameters)
-  const out: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(schema)) {
-    if (key === 'required' && Array.isArray(value) && value.length === 0) {
-      continue
-    }
-    out[key] = sanitizeToolParameters(value)
-  }
-  return out
+  // `Object.fromEntries` keeps an own key named `__proto__`. An assignment
+  // `out['__proto__'] = x` would set the prototype instead.
+  return Object.fromEntries(
+    Object.entries(schema)
+      .filter(
+        ([key, value]) =>
+          key !== 'required' || !Array.isArray(value) || value.length > 0,
+      )
+      .map(([key, value]) => [key, sanitizeToolParameters(value)]),
+  )
 }
 
 // Re-export the stream type so consumers can import it alongside the

@@ -506,7 +506,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       )
 
       for await (const chunk of stream) {
-        const choiceForLog = chunk.choices[0]
+        const choiceForLog = chunk.choices?.[0]
         chatOptions.logger.provider(
           `provider=${this.name} finish_reason=${choiceForLog?.finish_reason ?? 'none'} hasContent=${!!choiceForLog?.delta.content} hasUsage=${!!chunk.usage}`,
           { provider: this.name, model: chunk.model },
@@ -575,7 +575,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           }
         }
 
-        const choice = chunk.choices[0]
+        const choice = chunk.choices?.[0]
         if (!choice) continue
         if (choice.finish_reason) finishReason = choice.finish_reason
 
@@ -905,9 +905,8 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
 
     try {
       for await (const chunk of stream) {
-        endsWithUsageOnlyChunk =
-          chunk.choices.length === 0 && chunk.usage != null
-        const choiceForLog = chunk.choices[0]
+        endsWithUsageOnlyChunk = !chunk.choices?.length && chunk.usage != null
+        const choiceForLog = chunk.choices?.[0]
         options.logger.provider(
           `provider=${this.name} finish_reason=${choiceForLog?.finish_reason ?? 'none'} hasContent=${!!choiceForLog?.delta.content} hasToolCalls=${!!choiceForLog?.delta.tool_calls} hasUsage=${!!chunk.usage}`,
           { provider: this.name, model: chunk.model },
@@ -985,7 +984,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           }
         }
 
-        const choice = chunk.choices[0]
+        const choice = chunk.choices?.[0]
 
         if (!choice) continue
 
@@ -1438,9 +1437,27 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         return (this.provider ?? this.name) === 'openai' ? id.slice(0, 40) : id
       },
     )
+    // Tool messages cannot carry images. The images of a run of tool results
+    // go in one user message after that run. Other media in a tool result is
+    // not sent.
+    const toolImages: Array<ChatCompletionContentPart> = []
     for (const message of replay.messages) {
+      if (message.role !== 'tool' && toolImages.length > 0)
+        messages.push({ role: 'user', content: toolImages.splice(0) })
       messages.push(this.convertMessage(message))
+      if (
+        message.role === 'tool' &&
+        Array.isArray(message.content) &&
+        (this.inputModalities?.includes('image') ?? true)
+      ) {
+        for (const part of message.content) {
+          const image = part.type === 'image' && this.convertContentPart(part)
+          if (image) toolImages.push(image)
+        }
+      }
     }
+    if (toolImages.length > 0)
+      messages.push({ role: 'user', content: toolImages })
 
     const modelOptions = options.modelOptions
 
@@ -1528,19 +1545,25 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   protected convertMessage(message: ModelMessage): ChatCompletionMessageParam {
     // Handle tool messages
     if (message.role === 'tool') {
-      // The Chat Completions API has no multimodal `tool` message support
-      // (unlike the Responses API's `function_call_output`). A tool that
-      // returns an `Array<ContentPart>` is therefore stringified here — the
-      // documented fallback for providers on the chat-completions path
-      // (Groq, Ollama, Grok, OpenRouter chat). Multimodal tool results are
-      // only delivered structurally via the Responses adapter.
+      // A Chat Completions `tool` message carries text only. For a result
+      // with images, the text parts go here and `mapOptionsToRequest` sends
+      // the images in a user message after the tool results. Other
+      // `Array<ContentPart>` results are JSON-stringified, text-only arrays
+      // included.
+      const content = message.content
       return {
         role: 'tool',
         tool_call_id: message.toolCallId || '',
         content:
-          typeof message.content === 'string'
-            ? message.content
-            : JSON.stringify(message.content),
+          typeof content === 'string'
+            ? content
+            : Array.isArray(content) &&
+                content.some((part) => part.type === 'image')
+              ? this.extractTextContent(content) ||
+                ((this.inputModalities?.includes('image') ?? true)
+                  ? '(see attached image)'
+                  : '(image omitted: this model has no image input)')
+              : JSON.stringify(content),
       }
     }
 

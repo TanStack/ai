@@ -1,5 +1,6 @@
 import { test, expect } from './fixtures'
 import type { Page } from '@playwright/test'
+import type { SubagentScenario } from '../src/lib/subagents-test'
 
 /** Click Run once the page hydrated. A click before hydration does nothing. */
 async function run(page: Page) {
@@ -14,7 +15,7 @@ async function run(page: Page) {
 
 function open(
   page: Page,
-  scenario: 'route' | 'approval' | 'tool' | 'brief',
+  scenario: SubagentScenario,
   testId: string,
   aimockPort: number,
 ) {
@@ -151,6 +152,23 @@ test.describe('subagents', () => {
     )
     // The child's fixture matches only the brief. A child that got the
     // transcript instead would get no reply.
+    await expect(page.getByTestId('card-researcher')).toContainText(
+      'text:Squids have three hearts and blue blood.',
+    )
+  })
+
+  test('the router gives the child its input', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await open(page, 'routed-brief', testId, aimockPort)
+    await run(page)
+
+    await expect(page.getByTestId('card-status-researcher')).toHaveText(
+      'finished',
+    )
+    // The child's fixture matches only the task from the router pick.
     await expect(page.getByTestId('card-researcher')).toContainText(
       'text:Squids have three hearts and blue blood.',
     )

@@ -257,6 +257,46 @@ describe('OpenRouter automatic prompt cache', () => {
     })
   })
 
+  it('marks the tool result before the user message of its images', async () => {
+    const request = await sentRequest({
+      promptCache: short,
+      messages: [
+        { role: 'user', content: 'Weather in Berlin?' },
+        toolCallTurn,
+        {
+          role: 'tool',
+          toolCallId: 'call-1',
+          content: [
+            { type: 'text', content: 'Radar' },
+            {
+              type: 'image',
+              source: { type: 'url', value: 'https://example.com/radar.png' },
+            },
+          ],
+        },
+      ],
+    })
+
+    expect(request.messages.slice(3)).toEqual([
+      {
+        role: 'tool',
+        toolCallId: 'call-1',
+        content: [
+          { type: 'text', text: 'Radar', cacheControl: { type: 'ephemeral' } },
+        ],
+      },
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'image_url',
+            imageUrl: { url: 'https://example.com/radar.png', detail: 'auto' },
+          },
+        ],
+      },
+    ])
+  })
+
   it('marks the text block of a last message that also has an image', async () => {
     const request = await sentRequest({
       promptCache: short,
