@@ -134,17 +134,14 @@ describe('MCP input interrupt', () => {
     'tanstack:client_tool_execution',
     0,
     { reason: 'auth_required' },
-  ])(
-    'keeps mcp_input for the reason %j',
-    async (reason) => {
-      const finished = await runInputRequiredChat('form', {}, reason)
+  ])('keeps mcp_input for the reason %j', async (reason) => {
+    const finished = await runInputRequiredChat('form', {}, reason)
 
-      expect(finished?.outcome).toMatchObject({
-        type: 'interrupt',
-        interrupts: [{ id: 'mcp_input_call_1', reason: 'mcp_input' }],
-      })
-    },
-  )
+    expect(finished?.outcome).toMatchObject({
+      type: 'interrupt',
+      interrupts: [{ id: 'mcp_input_call_1', reason: 'mcp_input' }],
+    })
+  })
 
   it('pauses a sampling request as a different interrupt', async () => {
     const request = { messages: [{ role: 'user', content: 'Hi' }] }
