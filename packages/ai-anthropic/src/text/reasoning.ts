@@ -11,12 +11,6 @@ const isEffort = (value: string): value is AnthropicEffort =>
   EFFORTS.includes(value)
 
 /**
- * Claude 4.6 takes the effort as the top-level `effort` field. Claude 4.7 and
- * later take `output_config.effort`.
- */
-const TOP_LEVEL_EFFORT = new Set(['claude-opus-4-6', 'claude-sonnet-4-6'])
-
-/**
  * The Claude models with adaptive thinking: 4.6 and later (pi's list). An
  * older model with effort levels, such as Opus 4.5, still thinks with a
  * token budget.
@@ -29,7 +23,6 @@ export interface AnthropicThinkingFields {
     | { type: 'adaptive'; display: 'summarized' | 'omitted' }
     | { type: 'enabled'; budget_tokens: number }
     | { type: 'disabled' }
-  effort?: AnthropicEffort
   output_config?: { effort: AnthropicEffort }
 }
 
@@ -73,7 +66,5 @@ export function anthropicThinking(
   }
   const effort = resolved.value
   if (!isEffort(effort)) return { thinking }
-  return TOP_LEVEL_EFFORT.has(model)
-    ? { thinking, effort }
-    : { thinking, output_config: { effort } }
+  return { thinking, output_config: { effort } }
 }

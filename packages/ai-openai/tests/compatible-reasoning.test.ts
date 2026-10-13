@@ -124,4 +124,19 @@ describe('OpenAICompatibleChatAdapter reasoning', () => {
       chunks.some((chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT),
     ).toBe(true)
   })
+
+  it('skips a usage chunk that has no choices field', async () => {
+    // Some gateways omit `choices` on the usage trailer.
+    const chunks = await collect([
+      ...textChunks,
+      { usage: { prompt_tokens: 3, completion_tokens: 1, total_tokens: 4 } },
+    ])
+
+    expect(chunks.find((c) => c.type === EventType.RUN_ERROR)).toBeUndefined()
+    expect(chunks.find((c) => c.type === EventType.RUN_FINISHED)).toMatchObject(
+      {
+        usage: { totalTokens: 4 },
+      },
+    )
+  })
 })

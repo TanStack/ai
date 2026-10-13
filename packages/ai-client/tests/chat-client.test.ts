@@ -345,6 +345,59 @@ describe('ChatClient', () => {
       expect(adapter.send).toHaveBeenCalled()
     })
 
+    it('returns a client that only watches to ready after each run ends', async () => {
+      // A second tab watches the thread and never sends, so nothing resets
+      // its processor between runs.
+      const threadId = 'thread-watch'
+      const run = (runId: string, answer: string): Array<StreamChunk> => {
+        const base = { threadId, runId, timestamp: 1 }
+        const messageId = `${runId}-answer`
+        return [
+          { ...base, type: EventType.RUN_STARTED },
+          {
+            type: EventType.TEXT_MESSAGE_START,
+            messageId,
+            role: 'assistant',
+            timestamp: 1,
+          },
+          {
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId,
+            delta: answer,
+            timestamp: 1,
+          },
+          { type: EventType.TEXT_MESSAGE_END, messageId, timestamp: 1 },
+          { ...base, type: EventType.RUN_FINISHED, finishReason: 'stop' },
+        ]
+      }
+      let fedAll!: () => void
+      // The feed reaches fedAll() only when the client asks for the chunk
+      // after the last one, so the client has handled every chunk.
+      const handledAll = new Promise<void>((resolve) => (fedAll = resolve))
+      const client = new ChatClient({
+        threadId,
+        connection: {
+          subscribe: (signal) =>
+            (async function* () {
+              yield* run('run-1', 'First answer.')
+              yield* run('run-2', 'Second answer.')
+              fedAll()
+              await new Promise((resolve) => {
+                signal?.addEventListener('abort', resolve, { once: true })
+              })
+            })(),
+          send: () => Promise.resolve(),
+        },
+      })
+
+      client.subscribe()
+      await handledAll
+      expect(JSON.stringify(client.getMessages())).toContain('Second answer.')
+      expect(client.getSessionGenerating()).toBe(false)
+      expect(client.getStatus()).toBe('ready')
+      client.unsubscribe()
+    })
+
     it('should ignore native subscribe/send chunks from a cleared persisted request without runId', async () => {
       let storedMessages: Array<UIMessage> | undefined
       const releaseFirstResponse = createDeferred<void>()

@@ -32,11 +32,13 @@ import { openRouterEffort } from '../internal/reasoning'
 import { isWebSearchTool } from '../tools/web-search-tool'
 import { isWebFetchTool } from '../tools/web-fetch-tool'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
+import { toOpenRouterRunErrorPayload } from '../utils/run-error'
 import { extractUsageCost } from './cost'
 import type { SDKOptions } from '@openrouter/sdk'
 import type { ResponsesFunctionTool } from '../internal/responses-tool-converter'
 import type {
   ContentPartAddedEventPart,
+  FunctionCallOutputItemOutputUnion1,
   InputsUnion,
   OpenResponsesResult,
   OutputItems,
@@ -50,6 +52,7 @@ import type {
 } from '@tanstack/ai/adapters'
 import type {
   ContentPart,
+  ImagePart,
   JSONSchema,
   ModelMessage,
   AdapterYieldChunk,
@@ -230,7 +233,7 @@ export class OpenRouterResponsesTextAdapter<
     } catch (error: unknown) {
       // Narrow before logging: raw SDK errors can carry request metadata
       // (including auth headers) which we must never surface to user loggers.
-      const errorPayload = toRunErrorPayload(
+      const errorPayload = toOpenRouterRunErrorPayload(
         error,
         `${this.name}.chatStream failed`,
       )
@@ -818,7 +821,7 @@ export class OpenRouterResponsesTextAdapter<
           : ''
       const isAbort =
         errName === 'AbortError' || errName === 'RequestAbortedError'
-      const errorPayload = toRunErrorPayload(
+      const errorPayload = toOpenRouterRunErrorPayload(
         error,
         `${this.name}.structuredOutputStream failed`,
       )
@@ -1789,7 +1792,7 @@ export class OpenRouterResponsesTextAdapter<
         }
       }
     } catch (error: unknown) {
-      const errorPayload = toRunErrorPayload(
+      const errorPayload = toOpenRouterRunErrorPayload(
         error,
         `${this.name}.processStreamChunks failed`,
       )
@@ -2054,13 +2057,30 @@ export class OpenRouterResponsesTextAdapter<
 
     for (const message of messages) {
       if (message.role === 'tool') {
+        const content = message.content
+        // Images stay in the tool output as `input_image` parts. A model
+        // without image input gets the text only. Other media is not sent.
+        const hasImage =
+          Array.isArray(content) &&
+          content.some((part) => part.type === 'image')
+        const output =
+          Array.isArray(content) &&
+          hasImage &&
+          (this.inputModalities?.includes('image') ?? true)
+            ? content.flatMap(
+                (part): Array<FunctionCallOutputItemOutputUnion1> =>
+                  part.type === 'text'
+                    ? [{ type: 'input_text', text: part.content }]
+                    : part.type === 'image'
+                      ? [this.convertImagePartToInput(part)]
+                      : [],
+              )
+            : this.extractTextContent(content) ||
+              (hasImage ? '(image omitted: this model has no image input)' : '')
         result.push({
           type: 'function_call_output',
           callId: message.toolCallId ? callIdFor(message.toolCallId) : '',
-          output:
-            typeof message.content === 'string'
-              ? message.content
-              : this.extractTextContent(message.content),
+          output,
         })
         continue
       }
@@ -2161,6 +2181,27 @@ export class OpenRouterResponsesTextAdapter<
     return result
   }
 
+  /** An image part as `input_image`, for user content and tool outputs. */
+  protected convertImagePartToInput(part: ImagePart) {
+    const source = part.source
+    if (isFileSource(source)) {
+      throw unsupportedFileSourceError(this.name)
+    }
+    const meta = part.metadata as
+      | { detail?: 'auto' | 'low' | 'high' }
+      | undefined
+    const value = source.value
+    const imageUrl =
+      source.type === 'data' && !value.startsWith('data:')
+        ? `data:${source.mimeType || 'application/octet-stream'};base64,${value}`
+        : value
+    return {
+      type: 'input_image' as const,
+      imageUrl,
+      detail: meta?.detail || 'auto',
+    }
+  }
+
   protected convertContentPartToInput(
     part: ContentPart,
   ): ResponsesInputContent {
@@ -2184,21 +2225,8 @@ export class OpenRouterResponsesTextAdapter<
       throw unsupportedFileSourceError(this.name)
     }
     switch (part.type) {
-      case 'image': {
-        const meta = part.metadata as
-          | { detail?: 'auto' | 'low' | 'high' }
-          | undefined
-        const value = source.value
-        const imageUrl =
-          source.type === 'data' && !value.startsWith('data:')
-            ? `data:${source.mimeType || 'application/octet-stream'};base64,${value}`
-            : value
-        return {
-          type: 'input_image',
-          imageUrl,
-          detail: meta?.detail || 'auto',
-        }
-      }
+      case 'image':
+        return this.convertImagePartToInput(part)
       case 'audio': {
         if (source.type === 'url') {
           // OpenRouter's `input_audio` carries `{ data, format }` not a URL —

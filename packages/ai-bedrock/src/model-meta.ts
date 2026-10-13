@@ -1,5 +1,5 @@
 import { GENERATED_BEDROCK_MODELS } from './model-catalog.generated.js'
-import type { ModelReasoning } from '@tanstack/ai'
+import type { Modality, ModelReasoning } from '@tanstack/ai'
 import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
 import type { BedrockTextProviderOptions } from './text/text-provider-options'
 import type { BedrockConverseProviderOptions } from './converse/provider-options'
@@ -60,6 +60,14 @@ export const BEDROCK_RESPONSES_MODELS: ReadonlyArray<BedrockResponsesModels> =
 export type BedrockModelInputModalitiesByName = {
   [E in Entry as E['id']]: E['input']
 }
+
+/**
+ * Runtime map from model id to its input modalities, for the text adapters'
+ * `inputModalities`. An unknown id gives `undefined`.
+ */
+export const BEDROCK_MODEL_INPUT_MODALITIES: Readonly<
+  Record<string, ReadonlyArray<Modality>>
+> = Object.fromEntries(GENERATED_BEDROCK_MODELS.map((m) => [m.id, m.input]))
 
 /** Provider options per model. Same options for every model; keyed over the full catalog. */
 export type BedrockChatModelProviderOptionsByName = {

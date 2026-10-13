@@ -5,8 +5,8 @@ import {
   maxIterations,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { createMCPClient } from '@tanstack/ai-mcp'
-import type { StreamChunk } from '@tanstack/ai'
+import { createMCPClient, isMCPInputRequiredError } from '@tanstack/ai-mcp'
+import type { AnyTool, StreamChunk } from '@tanstack/ai'
 import type { MCPClient } from '@tanstack/ai-mcp'
 import { createTextAdapter } from '@/lib/providers'
 
@@ -24,11 +24,32 @@ async function* closeMcpOnDrain(
 }
 
 /**
+ * Give each input request of `tool` the interrupt `reason`. The thrown
+ * value keeps its MCP input-required shape.
+ */
+function withInterruptReason(tool: AnyTool, reason: string): AnyTool {
+  const { execute } = tool
+  if (!execute) return tool
+  return {
+    ...tool,
+    execute: async (args, context) => {
+      try {
+        return await execute(args, context)
+      } catch (error) {
+        if (isMCPInputRequiredError(error)) Object.assign(error, { reason })
+        throw error
+      }
+    },
+  }
+}
+
+/**
  * Runs `chat()` with the tools of `api.mcp-input-server`.
  *
  * The first request pauses with an `mcp_input` interrupt.
  * A second request with `parentRunId` and `resume` sends the answer.
  * The tool then runs again and returns the forecast.
+ * `forwardedProps.interruptReason` sets the reason of the pause.
  */
 export const Route = createFileRoute('/api/mcp-input-test')({
   server: {
@@ -55,7 +76,14 @@ export const Route = createFileRoute('/api/mcp-input-test')({
           mcp = await createMCPClient({
             transport: { type: 'http', url: `${origin}/api/mcp-input-server` },
           })
-          const tools = await mcp.tools()
+          const reason =
+            typeof fp.interruptReason === 'string'
+              ? fp.interruptReason
+              : undefined
+          const mcpTools = await mcp.tools()
+          const tools = reason
+            ? mcpTools.map((tool) => withInterruptReason(tool, reason))
+            : mcpTools
           const stream = chat({
             ...createTextAdapter('openai', undefined, aimockPort, testId),
             messages: params.messages,
