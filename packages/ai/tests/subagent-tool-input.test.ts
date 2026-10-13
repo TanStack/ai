@@ -507,9 +507,10 @@ describe('agent tool input', () => {
     [
       'a background that is not a boolean',
       'writer',
-      { background: 'true' },
+      { background: 'yes' },
       { binding: host },
-      'prompt and sessionId must be strings, and background a boolean.',
+      // The JSON Schema of the tool checks the reserved fields too.
+      'Input validation failed for tool writer: #/background: Instance type "string" is invalid. Expected "boolean".',
     ],
     [
       'background with a sessionId',
