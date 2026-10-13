@@ -16,4 +16,8 @@ export {
 } from './byok/errors'
 export { maskKey, scrubSecrets } from './byok/scrub'
 export { keyedAdapter, keyedAdapters, isKeyedAdapter } from './byok/keyed'
-export type { KeyedAdapter, KeyedAdapterResult } from './byok/keyed'
+export type {
+  KeyedAdapter,
+  KeyedAdapterResult,
+  ProviderKeys,
+} from './byok/keyed'

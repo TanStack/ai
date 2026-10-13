@@ -18,6 +18,25 @@ export interface KeyedAdapter<TAdapter> {
 }
 
 /**
+ * Finds provider keys for a run. An agent reads it as `ctx.keys`. A host sets
+ * it on the binding and reads each user's own keys. Without a host,
+ * `ctx.keys` reads each provider's `env` names.
+ */
+export interface ProviderKeys {
+  /** The key for `provider`, or `null` when there is none. */
+  get: (provider: ByokProvider | ProviderId) => Promise<string | null>
+  /** The key for `provider`. Throws when there is none. */
+  require: (provider: ByokProvider | ProviderId) => Promise<string>
+  /**
+   * The adapter to call. A plain adapter comes back unchanged. A
+   * {@link KeyedAdapter} is built with the key from `require`.
+   */
+  adapter: <TAdapter>(
+    adapter: TAdapter | KeyedAdapter<TAdapter>,
+  ) => Promise<TAdapter>
+}
+
+/**
  * Wrap an adapter factory that needs a provider key. The host finds the key
  * and calls `create` just before each call, so the key is not in your code
  * or in a `.env` file. Works for every adapter kind: text, image, speech,
