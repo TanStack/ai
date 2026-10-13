@@ -194,7 +194,7 @@ function coerceArguments(value: unknown, root: CompiledSchema) {
       typeof schema.type === 'string' ? [schema.type] : (schema.type ?? [])
     if (!types.some((type) => matchesType(next, type))) {
       // `null` last: `0` for `['null', 'string']` is `"0"`, not `null`.
-      const order = types.filter((type) => type !== 'null')
+      const order: Array<string> = types.filter((type) => type !== 'null')
       if (types.includes('null')) order.push('null')
       for (const type of order) {
         const converted = convertPrimitive(next, type)
