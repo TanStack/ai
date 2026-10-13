@@ -161,6 +161,10 @@ test.describe('subagents', () => {
     await expect(page.getByTestId('card-researcher')).toContainText(
       'text:Squids have three hearts and blue blood.',
     )
+    // The card keeps the checked input the parent model wrote.
+    await expect(page.getByTestId('card-input-researcher')).toHaveText(
+      JSON.stringify({ task: '[subagent-brief-task] List two squid facts.' }),
+    )
   })
 
   test('a child whose run resolves to a string reports it to the parent', async ({

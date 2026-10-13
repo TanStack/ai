@@ -153,64 +153,134 @@ function toolSchemas(
 }
 
 describe('agent tool input', () => {
-  it('puts the agent schema under input, and gives an agent without one a prompt', async () => {
-    const { calls, result } = await callSubagent('researcher', {
-      input: { topic: 'tides' },
+  it('takes the agent schema fields, and gives an agent without one a prompt', async () => {
+    const { calls, chunks, result } = await callSubagent('researcher', {
+      topic: 'tides',
     })
 
     const schemas = toolSchemas(calls)
     expect(Object.keys(schemas)).toEqual(['researcher', 'writer'])
     expect(schemas.researcher).toMatchObject({
       type: 'object',
-      properties: { input: { properties: { topic: { type: 'string' } } } },
-      required: ['input'],
+      properties: { topic: { type: 'string' } },
+      required: ['topic'],
     })
-    expect(schemas.writer).toMatchObject({
+    expect(schemas.writer).toEqual({
       type: 'object',
       properties: { prompt: { type: 'string' } },
-      required: [],
     })
     expect(runs).toMatchObject([
       { agent: 'researcher', input: { topic: 'tides' } },
     ])
     expect(result.result).toBe('facts about tides')
+    // The card keeps the checked input for the UI.
+    expect(
+      chunks.find((chunk) => chunk.type === EventType.SUBAGENT_STARTED),
+    ).toMatchObject({
+      metadata: { tanstack: { subagentInput: { topic: 'tides' } } },
+    })
   })
 
-  it('points the refs of a recursive input schema at input', async () => {
-    const node: z.ZodType<{ name: string; children?: Array<unknown> }> =
-      z.object({
-        name: z.string(),
-        get children() {
-          return z.array(node).optional()
-        },
-      })
-    const tree = defineAgent({
-      name: 'tree',
-      description: 'Reads a tree',
-      inputSchema: node,
+  it('takes sessionId next to the fields of a strict schema', async () => {
+    const strict = defineAgent({
+      name: 'strict',
+      description: 'Takes a strict input',
+      inputSchema: z.object({ topic: z.string() }).strict(),
       run: async (ctx) => {
-        runs.push({ agent: 'tree', input: ctx.input, messages: ctx.messages })
+        runs.push({ agent: 'strict', input: ctx.input, messages: ctx.messages })
         return 'ok'
       },
     })
-    const { adapter, calls } = parentCalling('tree', {
-      input: { name: 'root', children: [{ name: 'leaf' }] },
+    const { adapter } = parentCalling('strict', {
+      topic: 'tides',
+      sessionId: 'subagent-missing',
     })
+    const chunks = await collectChunks(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Go' }],
+        middleware: [storedChildren(oldChild)],
+        subagents: { agents: [strict] },
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    // The schema check passes. The unknown sessionId is the only error.
+    expect(toolResult(chunks)).toEqual({
+      error: 'Unknown sessionId "subagent-missing".',
+    })
+  })
+
+  const taken = defineAgent({
+    name: 'taken',
+    description: 'Uses sessionId',
+    inputSchema: z.object({ sessionId: z.string() }),
+    run: async (ctx) => {
+      runs.push({ agent: 'taken', input: ctx.input, messages: ctx.messages })
+      return 'ok'
+    },
+  })
+
+  it('checks the agent fields before middleware, with sessionId in the args', async () => {
+    const deep = defineAgent({
+      name: 'deep',
+      description: 'Takes a depth',
+      inputSchema: z.object({
+        topic: z.string(),
+        depth: z.number().default(2),
+      }),
+      run: async (ctx) => {
+        runs.push({ agent: 'deep', input: ctx.input, messages: ctx.messages })
+        return 'ok'
+      },
+    })
+    const seen: Array<unknown> = []
+    const spy: ChatMiddleware = {
+      name: 'spy',
+      onBeforeToolCall: (_ctx, hook) => {
+        seen.push(hook.args)
+      },
+    }
+    const { adapter } = parentCalling('deep', { topic: 'tides' })
     await collectChunks(
       chat({
         adapter,
         messages: [{ role: 'user', content: 'Go' }],
-        subagents: { agents: [tree] },
+        middleware: [storedChildren(oldChild), spy],
+        subagents: { agents: [deep] },
       }) as AsyncIterable<StreamChunk>,
     )
 
-    expect(JSON.stringify(toolSchemas(calls).tree)).toContain(
-      '"$ref":"#/properties/input"',
+    // The schema default is in place when middleware runs.
+    expect(seen).toEqual([{ topic: 'tides', depth: 2 }])
+    expect(runs[0]?.input).toEqual({ topic: 'tides', depth: 2 })
+  })
+
+  it('throws when an inputSchema uses a reserved field that the run uses', () => {
+    const { adapter } = parentCalling('taken', {})
+
+    expect(() =>
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Go' }],
+        middleware: [storedChildren(oldChild)],
+        subagents: { agents: [taken] },
+      }),
+    ).toThrow(
+      'Agent "taken" uses the reserved input field "sessionId". Rename that field.',
     )
-    expect(runs[0]?.input).toEqual({
-      name: 'root',
-      children: [{ name: 'leaf' }],
-    })
+  })
+
+  it('keeps a reserved name as an agent field when the run does not use it', async () => {
+    const { adapter } = parentCalling('taken', { sessionId: 'mine' })
+    await collectChunks(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Go' }],
+        subagents: { agents: [taken] },
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(runs[0]?.input).toEqual({ sessionId: 'mine' })
   })
 
   it('has sessionId and background only when the run can use them', async () => {
@@ -337,6 +407,7 @@ describe('agent tool input', () => {
         turn,
         sink: createSubagentSink(),
         childLoader: () => async () => ({ messages: stored }),
+        canContinue: true,
       },
     )
     await tool?.execute?.(
@@ -370,86 +441,65 @@ describe('agent tool input', () => {
     expect(runs).toEqual([])
   })
 
+  const host: SubagentBinding = {
+    start: async () => ({ subagentRunId: 'unused' }),
+  }
   const toolErrors: Array<
-    [string, string, object, Array<ChatMiddleware>, string]
+    [
+      string,
+      string,
+      object,
+      { middleware?: Array<ChatMiddleware>; binding?: SubagentBinding },
+      string,
+    ]
   > = [
     [
-      'a prompt for an agent with inputSchema',
-      'researcher',
-      { prompt: 'tides' },
-      [],
-      'Agent "researcher" takes input, not prompt.',
-    ],
-    [
-      'no input for an agent with inputSchema',
+      'a missing field of the agent schema',
       'researcher',
       {},
-      [],
-      'Agent "researcher" needs input.',
+      {},
+      'Input validation failed for tool researcher: Validation failed: Invalid input: expected string, received undefined',
     ],
     [
-      'an input that fails the agent schema',
+      'a field that fails the agent schema',
       'researcher',
-      { input: { topic: 3 } },
-      [],
-      'Input validation failed for tool researcher: Invalid input: expected string, received number',
-    ],
-    [
-      'an input for an agent without inputSchema',
-      'writer',
-      { input: { topic: 'tides' } },
-      [],
-      'Agent "writer" takes prompt, not input.',
-    ],
-    [
-      'a sessionId without a persistence store',
-      'writer',
-      { sessionId: 'subagent-old' },
-      [],
-      'sessionId needs a persistence store.',
+      { topic: 3 },
+      {},
+      'Input validation failed for tool researcher: Validation failed: Invalid input: expected string, received number',
     ],
     [
       'an unknown sessionId',
       'writer',
       { sessionId: 'subagent-missing' },
-      [storedChildren(oldChild)],
+      { middleware: [storedChildren(oldChild)] },
       'Unknown sessionId "subagent-missing".',
     ],
     [
       'a sessionId of a child of another agent',
       'researcher',
-      { sessionId: 'subagent-old', input: { topic: 'x' } },
-      [storedChildren(oldChild)],
+      { sessionId: 'subagent-old', topic: 'x' },
+      { middleware: [storedChildren(oldChild)] },
       'Session "subagent-old" belongs to agent "writer", not "researcher".',
-    ],
-    [
-      'background without a host',
-      'writer',
-      { background: true },
-      [],
-      'background needs a host that runs children in the background.',
     ],
     [
       'a background that is not a boolean',
       'writer',
       { background: 'true' },
-      [],
+      { binding: host },
       'prompt and sessionId must be strings, and background a boolean.',
     ],
     [
       'background with a sessionId',
       'writer',
       { background: true, sessionId: 'subagent-old' },
-      [],
+      { middleware: [storedChildren(oldChild)], binding: host },
       'background cannot continue a sessionId.',
     ],
   ]
   it.each(toolErrors)(
     'returns a tool error for %s',
-    async (_label, agent, args, middleware, error) => {
-      const { chunks, result } = await callSubagent(agent, args, {
-        middleware,
-      })
+    async (_label, agent, args, options, error) => {
+      const { chunks, result } = await callSubagent(agent, args, options)
 
       expect(result).toEqual({ error })
       expect(runs).toEqual([])

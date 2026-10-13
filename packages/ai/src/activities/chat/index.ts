@@ -63,6 +63,7 @@ import { LazyToolManager } from './tools/lazy-tool-manager'
 import { assertUniqueToolNames } from './tools/unique-tool-names'
 import type { DefinedAgent } from './agents/define-agent'
 import {
+  assertNoReservedFields,
   collectNamedText,
   createSubagentSink,
   createSyntheticSubagentTools,
@@ -5651,6 +5652,12 @@ export function chat<
   if (options.tools) {
     assertUniqueToolNames(options.tools)
   }
+  if (options.subagents) {
+    assertNoReservedFields(
+      options.subagents,
+      continuesChildren(readRuntimeMiddleware(options.middleware)),
+    )
+  }
 
   const { outputSchema, stream } = options
 
@@ -5932,9 +5939,7 @@ async function* streamTextChunks(
       messages: turn?.before ?? messages,
       messagesFor: calls.messagesFor,
       childLoader: calls.childLoader,
-      canContinue: (options.middleware ?? []).some((item) =>
-        item.provides?.includes(LoadChildCapability),
-      ),
+      canContinue: continuesChildren(options.middleware),
       threadId,
       runId,
       ...(options.parentRunId !== undefined && {
@@ -6316,6 +6321,15 @@ function withPlan(
     return chunk
   }
   return withTanstackMetadata(chunk, { [SUBAGENT_PLAN_KEY]: plan })
+}
+
+/** A middleware provides `loadChild`, so agent tools take `sessionId`. */
+function continuesChildren(
+  middleware: ReadonlyArray<{ provides?: ReadonlyArray<unknown> }> | undefined,
+) {
+  return (middleware ?? []).some((item) =>
+    item.provides?.includes(LoadChildCapability),
+  )
 }
 
 function readRoutedSubagentPersistence(

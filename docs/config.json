@@ -1459,11 +1459,6 @@
           "addedAt": "2026-10-09"
         },
         {
-          "label": "Subagent tool input",
-          "to": "migration/subagent-tool-input",
-          "addedAt": "2026-10-13"
-        },
-        {
           "label": "TextPart markdown",
           "to": "migration/text-part-markdown",
           "addedAt": "2026-09-15"

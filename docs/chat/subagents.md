@@ -160,7 +160,7 @@ const stream = chat({
 
 In a long thread, the child gets the full conversation at the tool call, with every earlier tool result. Each parallel child gets its own copy. The child must also find its task in that conversation.
 
-Add `inputSchema` to the agent. The main model then writes the child's input in the `input` field of the tool call, for example `{ "input": { "task": "Price Vendor A" } }`. `run` reads that input as `ctx.input`:
+Add `inputSchema` to the agent. The main model then writes the child's input when it calls the tool. `run` reads that input as `ctx.input`:
 
 ```ts
 import { chat, defineAgent } from '@tanstack/ai'
@@ -253,18 +253,20 @@ The writer gets the task of its first call, its stored transcript, then `Make it
 
 ### The tool input
 
-Every agent tool takes the same fields:
+Every agent tool takes the agent's own fields, plus two more:
 
-- `input`: the input of an agent with `inputSchema`. That agent needs it.
+- The fields of `inputSchema`, for an agent with one. The tool checks them against the schema.
 - `prompt`: the task as text, for an agent without `inputSchema`. The child gets it as the last user message.
 - `sessionId`: the `subagentRunId` of an earlier result. The call continues that child. The tool has this field only when `withPersistence` is on the parent `chat()`.
 - `background`: `true` starts the child and returns its `subagentRunId` at once. The tool has this field only when the host sets `subagents.binding.start`.
+
+When the run uses `sessionId` or `background`, that name is reserved. If an `inputSchema` has a field with that name, `chat()` throws before the run starts.
 
 ### Wrong calls
 
 A wrong call goes back to the model as a tool error, and the run continues. For example:
 
-- `Agent "researcher" takes input, not prompt.`
+- `Input validation failed for tool researcher: ...`: the fields do not match `inputSchema`.
 - `Unknown sessionId "..."`: no child of this thread has that id. A thread can continue only its own children.
 - `Session "..." belongs to agent "writer", not "researcher".`: the call must use the tool of the agent that ran the child.
 - `background needs a host that runs children in the background.`
@@ -737,41 +739,39 @@ When `run` imports server code, do not import the agent into the browser. Declar
 
 ### Show the brief on a card
 
-The brief is in the tool call that started the child: the `input` field for an agent with `inputSchema`, else the `prompt` field. That `tool-call` part is on the same assistant message as the card. `part.subagent.parentToolCallId` is its id:
+When an agent has `inputSchema`, the card keeps the checked input that the parent model wrote, as `part.subagent.input`. Put `inputSchema` in the shared declaration, and pass the declaration to `useChat` to type it:
 
-```tsx
-import type { UIMessage } from '@tanstack/ai-react'
+```typescript title="agents.ts"
+import { z } from 'zod'
 
-function briefOf(message: UIMessage, toolCallId: string) {
-  for (const part of message.parts) {
-    if (part.type !== 'tool-call' || part.id !== toolCallId) continue
-    const call = part.input
-    if (typeof call !== 'object' || call === null) continue
-    if ('prompt' in call && typeof call.prompt === 'string') return call.prompt
-    const input = 'input' in call ? call.input : undefined
-    if (
-      typeof input === 'object' &&
-      input !== null &&
-      'task' in input &&
-      typeof input.task === 'string'
-    ) {
-      return input.task
-    }
-  }
-  return undefined
-}
+export const researcher = {
+  name: 'researcher',
+  description: 'Researches one focused question and returns sourced findings',
+  inputSchema: z.object({ task: z.string() }),
+} as const
+```
 
-function Briefs({ message }: { message: UIMessage }) {
-  return message.parts.map((part) => {
-    if (part.type !== 'subagent') return null
-    const toolCallId = part.subagent.parentToolCallId
-    if (toolCallId === undefined) return null
-    return <p key={part.subagent.id}>{briefOf(message, toolCallId)}</p>
+```tsx title="briefs.tsx"
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import { researcher } from './agents'
+
+export function Briefs() {
+  const { messages } = useChat({
+    connection: fetchServerSentEvents('/api/chat'),
+    subagents: [researcher],
   })
+  return messages.flatMap((message) =>
+    message.parts.map((part) =>
+      part.type === 'subagent' ? (
+        <p key={part.subagent.id}>{part.subagent.input?.task}</p>
+      ) : null,
+    ),
+  )
 }
 ```
 
-A child that a router started has no `parentToolCallId`, so it has no brief.
+- `part.subagent.input` is the same value as `ctx.input` in `run`, with the output type of the schema. Here it is `{ task: string } | undefined`.
+- It is `undefined` for an agent without `inputSchema`.
 
 ### Style one child's parts
 

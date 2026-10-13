@@ -735,10 +735,14 @@ describe('subagent run recorder', () => {
       {
         type: EventType.TOOL_CALL_ARGS,
         toolCallId: 'call_1',
-        delta: '{"input":{"topic":"tides"}}',
+        delta: '{"topic":"tides"}',
         timestamp: t,
       },
-      childStarted('child', { parentToolCallId: 'call_1' }),
+      // Core puts the checked input of an agent with inputSchema on the card.
+      {
+        ...childStarted('child', { parentToolCallId: 'call_1' }),
+        metadata: { tanstack: { subagentInput: { topic: 'tides' } } },
+      },
       ...textMessage('m1', 'Tide notes', { subagentRunId: 'child' }),
     ])
 
@@ -749,6 +753,40 @@ describe('subagent run recorder', () => {
     ])
     // Only this agent can continue the child.
     expect(loaded?.agent).toBe('writer')
+  })
+
+  it('stores the input of an agent whose schema has a prompt field as JSON', async () => {
+    const { stores } = memoryPersistence()
+    const recorder = createSubagentRunRecorder({
+      messages: stores.messages,
+      intervalMs: 0,
+    })
+    await feed(recorder, 'run-1', [
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: 'call_1',
+        toolCallName: 'writer',
+        timestamp: t,
+      },
+      {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId: 'call_1',
+        delta: '{"prompt":"a cat"}',
+        timestamp: t,
+      },
+      {
+        ...childStarted('child', { parentToolCallId: 'call_1' }),
+        metadata: { tanstack: { subagentInput: { prompt: 'a cat' } } },
+      },
+      ...textMessage('m1', 'Cat image', { subagentRunId: 'child' }),
+    ])
+
+    const loaded = await recorder.loadChild('child', { threadId: 'desk' })
+    // The child got `ctx.input`, not a user message with the text.
+    expect(loaded?.messages[0]).toMatchObject({
+      role: 'user',
+      content: '{"prompt":"a cat"}',
+    })
   })
 
   it('loads nothing for an unknown child', async () => {

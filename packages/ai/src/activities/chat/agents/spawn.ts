@@ -10,20 +10,26 @@ import {
   withTanstackMetadata,
 } from '../../../utilities/merge-metadata'
 import { mergeStreams } from '../../../utilities/merge-streams'
+import { SUBAGENT_INPUT_KEY } from '../../../utilities/subagent-wire'
 import { INTERRUPT_BINDING_METADATA_KEY } from '../../../interrupt-resume'
 import { EMIT_STREAM_CHUNK, SUBAGENT_TOOL } from '../tools/tool-calls'
 import {
   convertSchemaToJsonSchema,
-  validateWithStandardSchema,
+  isStandardSchema,
 } from '../tools/schema-converter'
 import { getLoadChild } from '../middleware/load-child'
 import type { LoadChild } from '../middleware/load-child'
 import type { SubagentToolOutcome } from '../tools/tool-calls'
 import type { SpecTokenUsage } from '../../../utilities/ag-ui-usage'
 import type {
+  StandardJSONSchemaV1,
+  StandardSchemaV1,
+} from '@standard-schema/spec'
+import type {
   Interrupt,
   JSONSchema,
   ModelMessage,
+  SchemaInput,
   RunAgentResumeItem,
   StreamChunk,
   SubagentErrorEvent,
@@ -108,17 +114,59 @@ export interface SubagentsBag<
 }
 
 /**
- * The input of an agent tool. `input` is for an agent with `inputSchema`,
- * `prompt` for an agent without one. `sessionId` continues a stored child,
- * and `background` starts the child without waiting.
+ * Fields an agent tool takes next to the agent's own fields, when the run
+ * can use them. An `inputSchema` cannot use a name that the run uses.
+ * - `sessionId`: the `subagentRunId` of a stored child. The call continues
+ *   it. Needs a middleware that provides `LoadChildCapability`.
+ * - `background`: start the child and return at once. Needs `binding.start`.
  */
-interface SubagentCall {
-  input?: unknown
-  prompt?: string
-  /** The `subagentRunId` of a stored, finished child. The call continues it. */
-  sessionId?: string
-  /** Start the child and return at once. Needs a host with `binding.start`. */
-  background?: boolean
+const RESERVED_FIELDS = ['sessionId', 'background'] as const
+
+type ReservedField = (typeof RESERVED_FIELDS)[number]
+
+/** The reserved fields that a run uses. */
+function reservedFields(
+  bag: Pick<SubagentsBag, 'binding'>,
+  canContinue: boolean,
+) {
+  const can: Record<ReservedField, boolean> = {
+    sessionId: canContinue,
+    background: bag.binding?.start !== undefined,
+  }
+  return RESERVED_FIELDS.filter((name) => can[name])
+}
+
+/** Throws when an agent's `inputSchema` uses a reserved field of the run. */
+export function assertNoReservedFields(
+  bag: Pick<SubagentsBag, 'agents' | 'binding'>,
+  canContinue: boolean,
+) {
+  const names = reservedFields(bag, canContinue)
+  for (const agent of names.length > 0 ? bag.agents : []) {
+    const schema = convertSchemaToJsonSchema(agent.inputSchema, { io: 'input' })
+    const taken = names.find((name) => schema?.properties?.[name])
+    if (taken !== undefined) {
+      throw new Error(
+        `Agent "${agent.name}" uses the reserved input field "${taken}". Rename that field.`,
+      )
+    }
+  }
+}
+
+/** Split the reserved fields off a tool call. */
+function splitReserved(value: unknown, names: ReadonlyArray<ReservedField>) {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return { fields: value, reserved: {} as Record<string, unknown> }
+  }
+  const fields: Record<string, unknown> = {}
+  const reserved: Record<string, unknown> = {}
+  for (const [key, entry] of Object.entries(value)) {
+    const target = (names as ReadonlyArray<string>).includes(key)
+      ? reserved
+      : fields
+    target[key] = entry
+  }
+  return { fields, reserved }
 }
 
 /** What the children of one parent run left behind for the parent terminal. */
@@ -639,7 +687,7 @@ export async function* spawnAgentStream(
   // No parentSubagentRunId here, also for a nested child: the chat that
   // started this child lists it as a direct child. attributeChunk adds the id
   // one level up, in the stream of the parent child.
-  yield {
+  const started = {
     type: SUBAGENT_STARTED,
     subagentRunId: id,
     name: agent.name,
@@ -647,6 +695,10 @@ export async function* spawnAgentStream(
     ...(parentToolCallId !== undefined ? { parentToolCallId } : {}),
     timestamp: Date.now(),
   } satisfies SubagentStartedEvent
+  // The card keeps the checked input, so a UI can show the brief.
+  yield input.input === undefined
+    ? started
+    : withTanstackMetadata(started, { [SUBAGENT_INPUT_KEY]: input.input })
 
   // No yield between here and the `try`, so `finally` always disposes it.
   const link = linkAbort(input.abortSignal)
@@ -927,30 +979,35 @@ export function subagentCallMessages(names: ReadonlySet<string>) {
 }
 
 /**
- * The wire schema of an agent tool. `input` holds the agent's `inputSchema`,
- * and an agent without one takes `prompt`. `sessionId` and `background` are
- * there only when the run can use them.
+ * The wire schema of an agent tool: the agent's `inputSchema`, or a `prompt`
+ * for an agent without one. The reserved fields of the run sit next to
+ * those fields.
  */
 function agentToolSchema(
   agent: DefinedAgent,
-  can: { sessionId: boolean; background: boolean },
+  names: ReadonlyArray<ReservedField>,
 ): JSONSchema {
-  const schema = convertSchemaToJsonSchema(agent.inputSchema, { io: 'input' })
-  const nested = schema && (nestRefs(schema) as JSONSchema)
-  // A ref resolves from the top of the tool schema, so the definitions move up.
-  const { $defs, definitions, ...input } = nested ?? {}
-  return {
+  const schema = convertSchemaToJsonSchema(agent.inputSchema, {
+    io: 'input',
+  }) ?? {
     type: 'object',
+    properties: { prompt: { type: 'string' } },
+  }
+  // ponytail: a schema with no top-level properties (a top-level anyOf) gets
+  // no sessionId or background. Wrap it in allOf if one needs them.
+  if (schema.properties === undefined || names.length === 0) return schema
+  return {
+    ...schema,
     properties: {
-      ...(nested ? { input } : { prompt: { type: 'string' } }),
-      ...(can.sessionId && {
+      ...schema.properties,
+      ...(names.includes('sessionId') && {
         sessionId: {
           type: 'string',
           description:
             'The subagentRunId of an earlier result. The call continues that child.',
         },
       }),
-      ...(can.background && {
+      ...(names.includes('background') && {
         background: {
           type: 'boolean',
           description:
@@ -958,59 +1015,91 @@ function agentToolSchema(
         },
       }),
     },
-    required: nested ? ['input'] : [],
-    ...($defs !== undefined && { $defs }),
-    ...(definitions !== undefined && { definitions }),
   }
 }
 
 /**
- * The refs of an agent schema point at its own top. In the tool schema it
- * sits under `input`, so `#` and paths under it point at `input`. Refs into
- * `$defs` and `definitions` stay, because those move to the top.
+ * The input schema of an agent tool. The tool loop checks a Standard Schema
+ * before middleware runs, as for any tool. With reserved fields, a wrapper
+ * checks the agent's fields and passes the reserved ones through.
  */
-function nestRefs(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(nestRefs)
-  if (value === null || typeof value !== 'object') return value
-  return Object.fromEntries(
-    Object.entries(value).map(([key, entry]) => [
-      key,
-      key === '$ref' && typeof entry === 'string'
-        ? nestedRef(entry)
-        : nestRefs(entry),
-    ]),
-  )
+function agentToolInput(
+  agent: DefinedAgent,
+  names: ReadonlyArray<ReservedField>,
+): SchemaInput {
+  const inner = agent.inputSchema
+  if (isStandardSchema(inner) && names.length === 0) return inner
+  const schema = agentToolSchema(agent, names)
+  if (!isStandardSchema(inner)) return schema
+  const toJson = () => schema
+  const wrapped: StandardSchemaV1 & StandardJSONSchemaV1 = {
+    '~standard': {
+      version: 1,
+      vendor: 'tanstack-ai',
+      validate: (value) => {
+        const { fields, reserved } = splitReserved(value, names)
+        // ponytail: a schema that turns the input into a non-object (a
+        // top-level transform) loses the reserved fields.
+        const add = (result: StandardSchemaV1.Result<unknown>) =>
+          result.issues !== undefined ||
+          Object.keys(reserved).length === 0 ||
+          typeof result.value !== 'object' ||
+          result.value === null ||
+          Array.isArray(result.value)
+            ? result
+            : {
+                value: {
+                  ...(result.value as Record<string, unknown>),
+                  ...reserved,
+                },
+              }
+        const result = inner['~standard'].validate(fields)
+        return result instanceof Promise ? result.then(add) : add(result)
+      },
+      jsonSchema: { input: toJson, output: toJson },
+    },
+  }
+  return wrapped
 }
 
-function nestedRef(ref: string) {
-  if (ref === '#') return '#/properties/input'
-  if (/^#\/(\$defs|definitions)\//.test(ref)) return ref
-  return ref.startsWith('#/') ? `#/properties/input${ref.slice(1)}` : ref
-}
-
-/** The checked `input` of an agent tool call. A wrong field throws a tool error. */
-async function callInput(agent: DefinedAgent, call: SubagentCall) {
-  if (agent.inputSchema === undefined) {
-    if (call.input !== undefined) {
-      throw new Error(`Agent "${agent.name}" takes prompt, not input.`)
-    }
-    return undefined
+/**
+ * Split a checked agent tool call into the agent's input and the reserved
+ * fields. A reserved field of the wrong type throws a tool error.
+ */
+function readCall(
+  agent: DefinedAgent,
+  args: unknown,
+  names: ReadonlyArray<ReservedField>,
+): {
+  input?: unknown
+  prompt?: string
+  sessionId?: string
+  background: boolean
+} {
+  const { fields, reserved } = splitReserved(args, names)
+  const { sessionId, background } = reserved
+  const prompt =
+    agent.inputSchema === undefined &&
+    typeof fields === 'object' &&
+    fields !== null
+      ? Reflect.get(fields, 'prompt')
+      : undefined
+  const wrongType =
+    (prompt !== undefined && typeof prompt !== 'string') ||
+    (sessionId !== undefined && typeof sessionId !== 'string') ||
+    (background !== undefined && typeof background !== 'boolean')
+  if (wrongType) {
+    throw new Error(
+      'prompt and sessionId must be strings, and background a boolean.',
+    )
   }
-  if (call.prompt !== undefined) {
-    throw new Error(`Agent "${agent.name}" takes input, not prompt.`)
+  return {
+    // The tool loop checked these fields against `inputSchema`.
+    ...(agent.inputSchema !== undefined && { input: fields }),
+    ...(typeof prompt === 'string' && { prompt }),
+    ...(typeof sessionId === 'string' && { sessionId }),
+    background: background === true,
   }
-  if (call.input === undefined) {
-    throw new Error(`Agent "${agent.name}" needs input.`)
-  }
-  const checked = await validateWithStandardSchema(
-    agent.inputSchema,
-    call.input,
-  )
-  if (!checked.success) {
-    const issues = checked.issues.map((issue) => issue.message).join(', ')
-    throw new Error(`Input validation failed for tool ${agent.name}: ${issues}`)
-  }
-  return checked.data
 }
 
 export function createSyntheticSubagentTools(
@@ -1191,35 +1280,21 @@ export function createSyntheticSubagentTools(
     return { subagentRunId: sessionId, messages: stored.messages }
   }
 
-  const can = {
-    sessionId: parent.canContinue === true,
-    background: bag.binding?.start !== undefined,
-  }
+  const names = reservedFields(bag, parent.canContinue === true)
   // A thrown error in `execute` goes back to the model as a tool error.
   return bag.agents.map((agent) => ({
     name: agent.name,
     description: agent.description,
-    inputSchema: agentToolSchema(agent, can),
+    inputSchema: agentToolInput(agent, names),
     [SUBAGENT_TOOL]: true,
-    execute: async (call: SubagentCall, context?: ToolExecutionContext) => {
-      const wrongType =
-        (call.prompt !== undefined && typeof call.prompt !== 'string') ||
-        (call.sessionId !== undefined && typeof call.sessionId !== 'string') ||
-        (call.background !== undefined && typeof call.background !== 'boolean')
-      if (wrongType) {
-        throw new Error(
-          'prompt and sessionId must be strings, and background a boolean.',
-        )
-      }
-      // An agent without `inputSchema` and without `prompt` leaves
-      // `ctx.input` undefined. The child reads the parent conversation.
-      const input = await callInput(agent, call)
+    execute: async (args: unknown, context?: ToolExecutionContext) => {
+      const call = readCall(agent, args, names)
       const fields = {
-        ...(input !== undefined && { input }),
+        ...(call.input !== undefined && { input: call.input }),
         ...(call.prompt !== undefined && { prompt: call.prompt }),
       }
       const child = { name: agent.name, ...fields }
-      if (call.background === true) {
+      if (call.background) {
         if (call.sessionId !== undefined) {
           throw new Error('background cannot continue a sessionId.')
         }

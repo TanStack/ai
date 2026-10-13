@@ -326,6 +326,7 @@ export type {
 } from './activities/chat/stream/index'
 
 export { uiMessagesToWire } from './utilities/ag-ui-wire'
+export { subagentInputOf } from './utilities/subagent-wire'
 export {
   mergeMetadata,
   tanstackMetadata,

@@ -88,7 +88,7 @@
         "toolCalls": [
           {
             "name": "researcher",
-            "arguments": "{\"input\":{\"task\":\"[subagent-brief-task] List two squid facts.\"}}"
+            "arguments": "{\"task\":\"[subagent-brief-task] List two squid facts.\"}"
           }
         ]
       }
@@ -119,7 +119,7 @@
         "toolCalls": [
           {
             "name": "pricer",
-            "arguments": "{\"input\":{\"task\":\"[subagent-result-task] Price Vendor A.\"}}"
+            "arguments": "{\"task\":\"[subagent-result-task] Price Vendor A.\"}"
           }
         ]
       }
@@ -150,11 +150,11 @@
         "toolCalls": [
           {
             "name": "researcher",
-            "arguments": "{\"input\":{\"task\":\"[subagent-limits-task] squids\"}}"
+            "arguments": "{\"task\":\"[subagent-limits-task] squids\"}"
           },
           {
             "name": "researcher",
-            "arguments": "{\"input\":{\"task\":\"[subagent-limits-task] octopuses\"}}"
+            "arguments": "{\"task\":\"[subagent-limits-task] octopuses\"}"
           }
         ]
       }

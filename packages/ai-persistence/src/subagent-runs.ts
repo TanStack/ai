@@ -3,6 +3,7 @@ import {
   convertMessagesToModelMessages,
   modelMessagesToUIMessages,
   subagentHostMessageId,
+  subagentInputOf,
   wireSubagentInfo,
 } from '@tanstack/ai'
 import type {
@@ -70,37 +71,19 @@ function ownerThread(caller: { threadId: string; subagentRunId?: string }) {
     : childStoreId(caller.subagentRunId)
 }
 
-/** One field of the JSON arguments of an agent tool call. */
-function callField(call: { args: string }, key: 'prompt' | 'input') {
+/** The `prompt` of an agent tool call, if any. */
+function promptOf(call: { args: string } | undefined) {
+  if (call === undefined) return undefined
   let args: unknown
   try {
     args = JSON.parse(call.args)
   } catch {
     return undefined
   }
-  return args !== null && typeof args === 'object'
-    ? Reflect.get(args, key)
-    : undefined
-}
-
-/**
- * The task of a child that a tool call started: the `prompt` of the agent
- * tool, else its `input` as JSON. A call with neither has no task.
- */
-// ponytail: a non-agent tool that starts a child with its own call id stores
-// no task. Read its whole arguments here if a host needs that.
-function callPrompt(call: { args: string }) {
-  if (call.args === '') return undefined
-  const prompt = callField(call, 'prompt')
-  if (typeof prompt === 'string') return prompt
-  const input = callField(call, 'input')
-  return input === undefined ? undefined : JSON.stringify(input)
-}
-
-/** The `prompt` of an agent tool call that continues a child, if any. */
-function followUpPrompt(call: { args: string } | undefined) {
-  if (call === undefined) return undefined
-  const prompt = callField(call, 'prompt')
+  const prompt =
+    args !== null && typeof args === 'object'
+      ? Reflect.get(args, 'prompt')
+      : undefined
   return typeof prompt === 'string' ? prompt : undefined
 }
 
@@ -433,12 +416,21 @@ export function createSubagentRunRecorder(stores: {
       // A resume keeps the base of the call it resumes. A new call starts
       // after the whole stored transcript.
       const resumes = storedSubagentInfo(raw)?.status === 'suspended'
-      // Only the first call gives the prompt. A later call keeps it.
-      const prompt = raw.length > 0 ? marker.prompt : call && callPrompt(call)
-      // A call that continues the child adds its prompt as a user message.
-      // Core does not stream it, so store it here.
+      // An agent with `inputSchema` has its checked input on the card. An
+      // agent without one gets the `prompt` of the call as a user message.
+      const checked = subagentInputOf(chunk.metadata)
+      // Only the first call gives the task. A later call keeps it.
+      const prompt =
+        raw.length > 0
+          ? marker.prompt
+          : checked === undefined
+            ? promptOf(call)
+            : JSON.stringify(checked)
+      // Core does not stream that user message, so store it here.
       const followUp =
-        raw.length > 0 && !resumes ? followUpPrompt(call) : undefined
+        raw.length > 0 && !resumes && checked === undefined
+          ? promptOf(call)
+          : undefined
       const initial: Array<ModelMessage> =
         followUp === undefined
           ? stored

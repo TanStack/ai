@@ -584,6 +584,7 @@ export { uiMessagesToWire } from './utilities/ag-ui-wire'
 export type { SubagentWireInfo } from './utilities/subagent-wire'
 export {
   subagentHostMessageId,
+  subagentInputOf,
   wireSubagentInfo,
 } from './utilities/subagent-wire'
 export { mergeMetadata, withTanstackMetadata } from './utilities/merge-metadata'
