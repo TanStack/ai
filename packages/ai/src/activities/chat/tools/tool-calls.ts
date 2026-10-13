@@ -1,3 +1,4 @@
+import { reconcileToolCallArguments } from '../../../utilities/tool-call-arguments'
 import { normalizeToolResult } from '../../../utilities/tool-result'
 import { tanstackMetadata } from '../../../utilities/merge-metadata'
 import { isProviderExecutedToolCall } from '../../../utilities/provider-executed'
@@ -313,10 +314,32 @@ export class ToolCallManager<
   completeToolCall(event: ToolCallEndEvent): void {
     for (const toolCall of this.toolCallsMap.values()) {
       if (toolCall.id !== event.toolCallId) continue
-      if (event.input === undefined) return
-      const normalized =
-        event.input && typeof event.input === 'object' ? event.input : {}
-      toolCall.function.arguments = JSON.stringify(normalized)
+      // The provider's raw argument string wins when the parsed input is the
+      // same JSON value, so replay sends the exact bytes back. Malformed raw
+      // JSON stays as it is, for the tool error.
+      const extra = event as AdapterYieldChunk
+      const snapshot = extra.args ?? tanstackMetadata(extra)?.args
+      // A non-object input (an empty tool_use block) is `{}`.
+      const input =
+        event.input === undefined
+          ? undefined
+          : event.input && typeof event.input === 'object'
+            ? event.input
+            : {}
+      let raw: string | undefined = snapshot ?? toolCall.function.arguments
+      if (snapshot === undefined && input !== undefined) {
+        try {
+          JSON.parse(raw)
+        } catch {
+          raw = undefined
+        }
+      }
+      try {
+        toolCall.function.arguments = reconcileToolCallArguments(raw, input)
+      } catch {
+        // An input with no JSON form (a cycle): keep the raw arguments.
+        if (raw !== undefined) toolCall.function.arguments = raw
+      }
       return
     }
   }

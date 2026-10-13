@@ -542,6 +542,7 @@ export class MistralTextAdapter<
         id: string
         name: string
         arguments: string
+        hasArguments: boolean
         started: boolean
         ended: boolean
       }
@@ -664,6 +665,7 @@ export class MistralTextAdapter<
                 id: toolCallDelta.id || '',
                 name: toolCallDelta.function?.name || '',
                 arguments: '',
+                hasArguments: false,
                 started: false,
                 ended: false,
               }
@@ -684,6 +686,7 @@ export class MistralTextAdapter<
                   : JSON.stringify(rawArgs)
 
             if (argsDelta !== undefined) {
+              toolCall.hasArguments = true
               toolCall.arguments += argsDelta
             }
 
@@ -750,6 +753,7 @@ export class MistralTextAdapter<
                 toolName: toolCall.name,
                 model: chunkModel,
                 timestamp,
+                ...(toolCall.hasArguments && { args: toolCall.arguments }),
                 input: parsedInput,
               })
             }
@@ -834,6 +838,9 @@ export class MistralTextAdapter<
         }
         for (const [, toolCall] of toolCallsInProgress) {
           if (toolCall.started && !toolCall.ended) {
+            // Parse before marking ended, so a parse error still lets the
+            // catch below send TOOL_CALL_END with the raw args.
+            const parsedInput = parseToolCallInput(toolCall, normalizeToolInput)
             toolCall.ended = true
             hasEmittedToolCall = true
             yield asChunk({
@@ -843,7 +850,8 @@ export class MistralTextAdapter<
               toolName: toolCall.name,
               model: lastChunkModel,
               timestamp,
-              input: parseToolCallInput(toolCall, normalizeToolInput),
+              ...(toolCall.hasArguments && { args: toolCall.arguments }),
+              input: parsedInput,
             })
           }
         }
@@ -900,9 +908,9 @@ export class MistralTextAdapter<
       for (const [, toolCall] of toolCallsInProgress) {
         if (toolCall.started && !toolCall.ended) {
           toolCall.ended = true
-          // Best-effort parse for the partial args; if invalid, surface
-          // empty input rather than throwing inside the cleanup path.
-          let partialInput: unknown = {}
+          // Best-effort parse for the partial args. If invalid, leave input
+          // out and send the raw args, so core reports the parse error.
+          let partialInput: unknown
           try {
             partialInput = toolCall.arguments
               ? normalizeToolInput(
@@ -911,7 +919,7 @@ export class MistralTextAdapter<
                 )
               : {}
           } catch {
-            partialInput = {}
+            partialInput = undefined
           }
           yield asChunk({
             type: 'TOOL_CALL_END',
@@ -920,7 +928,8 @@ export class MistralTextAdapter<
             toolName: toolCall.name,
             model: lastChunkModel,
             timestamp,
-            input: partialInput,
+            ...(toolCall.hasArguments && { args: toolCall.arguments }),
+            ...(partialInput !== undefined && { input: partialInput }),
           })
         }
       }

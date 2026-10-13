@@ -1158,12 +1158,14 @@ export class GeminiTextAdapter<
         // this chunk (including UNEXPECTED_TOOL_CALL finishes) were already
         // registered and started by the per-part loop above.
         for (const [toolCallId, toolCallData] of toolCallMap.entries()) {
-          let parsedInput: unknown = {}
+          // Malformed JSON sends no `input`, so core reports the error from
+          // the raw `args`.
+          let parsedInput: unknown
           try {
             const parsed = JSON.parse(toolCallData.args)
             parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
           } catch {
-            parsedInput = {}
+            // Keep `parsedInput` undefined for the tool error.
           }
 
           yield {
@@ -1173,7 +1175,8 @@ export class GeminiTextAdapter<
             toolName: toolCallData.name,
             model,
             timestamp: Date.now(),
-            input: parsedInput,
+            args: toolCallData.args,
+            ...(parsedInput !== undefined && { input: parsedInput }),
           }
         }
 

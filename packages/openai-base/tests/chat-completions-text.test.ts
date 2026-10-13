@@ -1240,7 +1240,8 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
 
           const toolEnd = chunks.find((chunk) => chunk.type === 'TOOL_CALL_END')
           expect(toolEnd).toBeDefined()
-          expect(toolEnd?.input).toBeUndefined()
+          expect(toolEnd).toMatchObject({ args: '{"location":' })
+          expect(toolEnd).not.toHaveProperty('input')
           expect(
             chunks.find((chunk) => chunk.type === 'TOOL_CALL_ARGS'),
           ).toMatchObject({
@@ -1259,6 +1260,64 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
         } finally {
           errorsSpy.mockRestore()
         }
+      },
+    )
+  })
+
+  describe('raw tool arguments', () => {
+    it.each([true, false])(
+      'sends the accumulated argument string as args on TOOL_CALL_END (finish_reason=%s)',
+      async (withFinishReason) => {
+        setupMockSdkClient([
+          {
+            id: 'chatcmpl-raw',
+            model: 'test-model',
+            choices: [
+              {
+                delta: {
+                  tool_calls: [
+                    {
+                      index: 0,
+                      id: 'call_raw',
+                      type: 'function',
+                      function: { name: 'lookup_weather', arguments: '{"n": ' },
+                    },
+                  ],
+                },
+                finish_reason: null,
+              },
+            ],
+          },
+          {
+            id: 'chatcmpl-raw',
+            model: 'test-model',
+            choices: [
+              {
+                delta: {
+                  tool_calls: [{ index: 0, function: { arguments: '1.50}' } }],
+                },
+                finish_reason: withFinishReason ? 'tool_calls' : null,
+              },
+            ],
+          },
+        ])
+        const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
+        const chunks: Array<AdapterYieldChunk> = []
+        for await (const chunk of adapter.chatStream({
+          logger: testLogger,
+          model: 'test-model',
+          messages: [{ role: 'user', content: 'Weather?' }],
+          tools: [weatherTool],
+        })) {
+          chunks.push(chunk)
+        }
+
+        const toolEnd = chunks.find((chunk) => chunk.type === 'TOOL_CALL_END')
+        expect(toolEnd).toMatchObject({
+          toolCallId: 'call_raw',
+          args: '{"n": 1.50}',
+          input: { n: 1.5 },
+        })
       },
     )
   })

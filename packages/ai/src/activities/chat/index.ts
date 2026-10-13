@@ -39,6 +39,7 @@ import {
   tanstackMetadata,
   withTanstackMetadata,
 } from '../../utilities/merge-metadata'
+import { isToolInputJsonLossless } from '../../utilities/tool-call-arguments'
 import { subagentHostMessageId } from '../../utilities/subagent-wire'
 import { withDurabilityBatchHint } from '../../utilities/durability-batch'
 import { normalizeStreamChunk } from '../../utilities/normalize-stream-chunk'
@@ -2345,6 +2346,25 @@ class TextEngine<
   private handleToolCallEndEvent(chunk: ToolCallEndEvent): void {
     this.toolCallManager.completeToolCall(chunk)
     const end = chunk as AdapterYieldChunk
+    const call = this.toolCallManager
+      .getToolCalls()
+      .find((candidate) => candidate.id === chunk.toolCallId)
+    if (call) {
+      // The client stores the same argument string as the server history.
+      // `input` rides along only when JSON keeps it exactly.
+      const args = call.function.arguments
+      end.args = args
+      end.metadata = withTanstackMetadata(end, { args }).metadata
+      try {
+        const projection: unknown = args.trim() === '' ? {} : JSON.parse(args)
+        if (isToolInputJsonLossless(projection)) end.input = projection
+        else delete end.input
+      } catch {
+        delete end.input
+      }
+      const metadata = tanstackMetadata(end)
+      if (metadata) delete metadata.input
+    }
     const state = end.state ?? tanstackMetadata(end)?.state
     if (state !== 'output-error' || end.result === undefined) return
     this.handleToolCallResultEvent({

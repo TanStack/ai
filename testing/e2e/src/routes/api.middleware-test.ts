@@ -675,7 +675,7 @@ export const Route = createFileRoute('/api/middleware-test')({
           const tools =
             genericScenario && testId
               ? genericTools(testId, genericScenario)
-              : scenario === 'with-tool'
+              : scenario === 'with-tool' || scenario === 'raw-tool-args'
                 ? [weatherTool]
                 : scenario === 'structured-client-tool-wait'
                   ? [clientContextToolDefinition]
