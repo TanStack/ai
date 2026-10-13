@@ -33,7 +33,7 @@ import type { SessionIndexEntry } from '@tanstack/ai-persistence'
 import type { AnyHarness } from './define'
 import type { HarnessHost, HostEvent } from './host'
 import type { HostFrame } from './protocol'
-import type { HarnessSession } from './session'
+import type { HarnessSession } from './session/index'
 import type { Principal, UserInput } from './types'
 
 /**
