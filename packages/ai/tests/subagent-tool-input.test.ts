@@ -486,9 +486,10 @@ describe('agent tool input', () => {
     [
       'a field that fails the agent schema',
       'researcher',
-      { topic: 3 },
+      // A number would be repaired into a string. A list cannot be.
+      { topic: [] },
       {},
-      'Input validation failed for tool researcher: Validation failed: Invalid input: expected string, received number',
+      'Input validation failed for tool researcher: Validation failed: Invalid input: expected string, received array',
     ],
     [
       'an unknown sessionId',
