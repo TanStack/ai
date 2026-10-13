@@ -33,6 +33,10 @@
     "./client": {
       "types": "./dist/esm/client.d.ts",
       "import": "./dist/esm/client.js"
+    },
+    "./view": {
+      "types": "./dist/esm/view/index.d.ts",
+      "import": "./dist/esm/view/index.js"
     }
   },
   "scripts": {
@@ -45,6 +49,9 @@
     "test:lib": "vitest --passWithNoTests",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
+  },
+  "dependencies": {
+    "@tanstack/store": "^0.11.1"
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",

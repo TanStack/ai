@@ -69,7 +69,7 @@ export const team = defineHarness({
 | `agents` | Run these agents, for example with `client.agents.<name>.start(input)`. |
 | `settings` | Change these [thread settings](./thread-settings) with `client.configure(settings)`. |
 | `config` | Set these plugin config keys with `client.setConfig(key, value)`. |
-| `commands` | Run these commands with `client.command(name)`. |
+| `commands` | Run these commands with `client.command(name)`, or with `/name` in a [session view](./custom-ui) on a client. |
 
 - Any other input of these kinds gets `{ status: 'rejected', reason: 'not_exposed' }`.
 - `GET describe` and `client.describe()` list only the exposed commands and config keys. A UI built from them shows only what a client can use.
@@ -163,7 +163,7 @@ export function addTitle(operationId: string) {
 }
 ```
 
-The id of the run is the `operationId` in the receipt of `client.agents.drafter.start()`.
+The id of the run is the `operationId` in the receipt of `client.agents.drafter.start()`. A [session view](./custom-ui#3-act-on-the-session) also lists the running agents with their ids.
 
 - `mode: 'steer'` (the default): the message joins the next model call of the run.
 - `mode: 'followUp'`: the agent runs again after the run ends. `receipt.operationId` is the id of the new run.

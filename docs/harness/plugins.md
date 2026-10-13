@@ -115,7 +115,7 @@ export const macros = definePlugin({
 
 - `ctx.commands.set(name, command)` adds a command of this plugin, or replaces it. A name that another plugin owns throws.
 - `ctx.commands.delete(name)` removes a command of this plugin. Another plugin's name does nothing.
-- Each change sends a `harness.commands.changed` event, so a client can read `session.commands()` again.
+- Each change sends a `harness.commands.changed` event, so a client can read `session.commands()` again. A [session view](./custom-ui) reads the new list by itself.
 - During `setup`, wait for `ctx.commands.ready` before you call `has` or `set`. The plugins after this one add their commands later, so a name can look free and still be taken.
 
 ```ts group=harness-plugins
