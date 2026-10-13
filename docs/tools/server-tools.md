@@ -355,7 +355,7 @@ const getUserData = getUserDataDef.server(async ({ userId }) => {
 
 **Throwing vs. returning an error:** if your `.server()` function throws, the SDK catches it and surfaces it as a tool-result *error* (the model sees the failure but you lose control over the message). Returning a structured `{ error }` shape keeps the model in control of how to recover and is usually preferable. Either way, when an `outputSchema` is defined the returned value is validated against it (Zod) before being added to the conversation — so include the `error` field in your `outputSchema` if you return it.
 
-Malformed JSON arguments and Standard Schema input validation failures are also surfaced as tool-result errors. The tool implementation is not called, and the agent loop can return the error to the model so it can repair the tool call. This also applies to Chat Completions tools with no required input fields.
+Malformed JSON arguments and input validation failures (Standard Schema or JSON Schema) are also surfaced as tool-result errors. The tool implementation is not called, and the agent loop can return the error to the model so it can repair the tool call. This also applies to Chat Completions tools with no required input fields.
 
 The `inputSchema` checks the input just before the tool runs:
 
@@ -409,14 +409,23 @@ const getUserData = getUserDataDef.server(async (args) => {
 });
 ```
 
-> **Note:** JSON Schema tools skip runtime validation. Zod schemas are recommended for full type safety and validation.
+The JSON Schema checks each call before the tool runs. MCP tools get the same check. If the input does not fit, the call gets a tool error, and the error names each failed field:
+
+```text
+Input validation failed for tool get_user_data: #: Instance does not have required property "userId".
+```
+
+- The check uses the draft that `$schema` names: draft-04, draft-07, 2019-09, or 2020-12. With no `$schema`, it uses 2020-12.
+- The check does not test `format` (such as `uri` or `email`). A `format` only describes the value.
+- The check does not compile code, so it also runs on Cloudflare Workers.
+- `args` is still typed as `unknown`. A Zod schema gives you the type too.
 
 > **Tip:** When you pass `.client()` tools to `useChat`, a check on `part.name` narrows `part.input` and `part.output`. See [Type-safe tool call events](../chat/stream-events#type-safe-tool-call-events).
 
 ## Best Practices
 
 1. **Keep tools focused** - Each tool should do one thing well
-2. **Validate inputs** - Use Zod schemas to ensure type safety (JSON Schema skips validation)
+2. **Validate inputs** - The `inputSchema` checks every call. A Zod schema also gives you types
 3. **Handle errors** - Return meaningful error messages
 4. **Use descriptions** - Clear descriptions help the model use tools correctly
 5. **Secure sensitive operations** - Never expose API keys or secrets to the client

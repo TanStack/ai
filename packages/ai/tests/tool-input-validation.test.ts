@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { chat } from '../src/activities/chat/index'
 import { defineChatMiddleware } from '../src/activities/chat/middleware/define'
@@ -13,6 +13,7 @@ import type { ChatMiddleware } from '../src/activities/chat/middleware/types'
 import type { ToolExecutionMiddlewareHooks } from '../src/activities/chat/tools/tool-calls'
 import type { ToolApprovalResolution } from '../src/interrupts'
 import type {
+  JSONSchema,
   ModelMessage,
   SchemaInput,
   StreamChunk,
@@ -299,6 +300,189 @@ describe('final tool input validation', () => {
       expect(result.executed).toEqual([])
     },
   )
+})
+
+describe('JSON Schema tool input', () => {
+  const jsonSchema: JSONSchema = {
+    type: 'object',
+    properties: { count: { type: 'integer', minimum: 1 } },
+    required: ['count'],
+    additionalProperties: false,
+  }
+
+  it('runs valid input', async () => {
+    const result = await runTool('{"count":2}', jsonSchema)
+    expect(result.executed).toEqual([{ count: 2 }])
+  })
+
+  it.each(['{}', '{"count":"2"}', '{"count":0}', '{"count":2,"extra":true}'])(
+    'rejects invalid input without executing: %s',
+    async (raw) => {
+      const result = await runTool(raw, jsonSchema)
+      expect(result.executed).toEqual([])
+      expect(result.results[0]?.state).toBe('output-error')
+      expect(result.results[0]?.result).toEqual({
+        error: expect.stringContaining(
+          'Input validation failed for tool check',
+        ),
+      })
+    },
+  )
+
+  it('names the failed location and shows the received arguments', async () => {
+    const result = await runTool('{"count":0}', jsonSchema)
+    expect(result.results[0]?.result).toEqual({
+      error: expect.stringMatching(/#\/count: .*\n.*Received arguments:/s),
+    })
+    expect(result.results[0]?.result).toEqual({
+      error: expect.stringContaining('"count": 0'),
+    })
+  })
+
+  it('checks local references and conditional fields', async () => {
+    const schema: JSONSchema = {
+      type: 'object',
+      $defs: { count: { type: 'integer' } },
+      properties: {
+        mode: { type: 'string' },
+        count: { $ref: '#/$defs/count' },
+      },
+      if: { properties: { mode: { const: 'count' } }, required: ['mode'] },
+      then: { required: ['count'] },
+    }
+    expect(
+      (await runTool('{"mode":"count","count":3}', schema)).executed,
+    ).toEqual([{ mode: 'count', count: 3 }])
+    expect((await runTool('{"mode":"count"}', schema)).executed).toEqual([])
+    expect((await runTool('{"count":"3"}', schema)).executed).toEqual([])
+  })
+
+  it('uses the draft named by $schema', async () => {
+    // Draft 4 spells an exclusive bound as a boolean next to `maximum`.
+    const schema: JSONSchema = JSON.parse(
+      JSON.stringify({
+        $schema: 'http://json-schema.org/draft-04/schema#',
+        type: 'object',
+        properties: {
+          count: { type: 'number', maximum: 5, exclusiveMaximum: true },
+        },
+      }),
+    )
+    expect((await runTool('{"count":4}', schema)).executed).toEqual([
+      { count: 4 },
+    ])
+    expect((await runTool('{"count":5}', schema)).executed).toEqual([])
+  })
+
+  it('runs empty and null arguments as {} when nothing is required', async () => {
+    for (const raw of ['', 'null']) {
+      const result = await runTool(raw, { type: 'object', properties: {} })
+      expect(result.executed).toEqual([{}])
+    }
+  })
+
+  it('rejects empty arguments when a field is required', async () => {
+    const result = await runTool('', jsonSchema)
+    expect(result.executed).toEqual([])
+    expect(result.results[0]?.state).toBe('output-error')
+  })
+
+  it('checks a middleware rewrite and an approval edit', async () => {
+    const rewritten = await runTool('{"count":2}', jsonSchema, {
+      middleware: {
+        onBeforeToolCall: async () => ({
+          type: 'transformArgs',
+          args: { count: 'wrong' },
+        }),
+      },
+    })
+    expect(rewritten.executed).toEqual([])
+    const edited = await runTool('{"count":2}', jsonSchema, {
+      needsApproval: true,
+      approvals: new Map([
+        ['call-1', { approved: true, editedArgs: { count: -1 } }],
+      ]),
+    })
+    expect(edited.executed).toEqual([])
+    expect(edited.results[0]?.state).toBe('output-error')
+  })
+
+  it('turns an unusable schema into a tool error', async () => {
+    const result = await runTool('{"count":2}', {
+      type: 'object',
+      properties: { count: { $ref: 'https://example.com/count.json' } },
+    })
+    expect(result.executed).toEqual([])
+    expect(result.results[0]?.result).toEqual({
+      error: expect.stringContaining('Unresolved $ref'),
+    })
+    expect(JSON.stringify(result.results[0]?.result)).not.toContain(
+      'Known schemas',
+    )
+  })
+
+  it('reads a boolean exclusive bound with no $schema as draft-04', async () => {
+    const schema: JSONSchema = JSON.parse(
+      '{"type":"object","properties":{"count":{"type":"number","maximum":5,"exclusiveMaximum":true}}}',
+    )
+    expect((await runTool('{"count":4}', schema)).executed).toEqual([
+      { count: 4 },
+    ])
+    expect((await runTool('{"count":5}', schema)).executed).toEqual([])
+  })
+
+  it('treats format as an annotation', async () => {
+    const result = await runTool('{"path":"/tmp/report.txt"}', {
+      type: 'object',
+      properties: { path: { type: 'string', format: 'uri' } },
+      required: ['path'],
+    })
+    expect(result.executed).toEqual([{ path: '/tmp/report.txt' }])
+  })
+
+  it('treats a key set to undefined as a missing key', async () => {
+    const result = await runTool('{"count":2}', jsonSchema, {
+      middleware: {
+        onBeforeToolCall: async () => ({
+          type: 'transformArgs',
+          args: { count: 2, note: undefined },
+        }),
+      },
+    })
+    expect(result.executed).toEqual([{ count: 2, note: undefined }])
+  })
+
+  it('does not change the tool schema', async () => {
+    const schema: JSONSchema = {
+      type: 'object',
+      $defs: { count: { type: 'integer' } },
+      properties: { count: { $ref: '#/$defs/count' } },
+    }
+    const before = JSON.stringify(schema)
+    await runTool('{"count":2}', schema)
+    expect(JSON.stringify(schema)).toBe(before)
+    expect(Object.getOwnPropertyNames(schema.properties?.count)).toEqual([
+      '$ref',
+    ])
+  })
+
+  it('works when runtime code generation is blocked', async () => {
+    vi.stubGlobal('Function', function blockedCodeGeneration() {
+      throw new Error('Code generation is blocked')
+    })
+    try {
+      const schema: JSONSchema = {
+        type: 'object',
+        properties: { count: { type: 'integer' } },
+      }
+      expect((await runTool('{"count":2}', schema)).executed).toEqual([
+        { count: 2 },
+      ])
+      expect((await runTool('{"count":"2"}', schema)).executed).toEqual([])
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
 })
 
 const clientCheck = (
