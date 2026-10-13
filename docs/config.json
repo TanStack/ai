@@ -1262,7 +1262,8 @@
         {
           "label": "TypeSafe",
           "to": "adapters/typesafe",
-          "addedAt": "2026-09-18"
+          "addedAt": "2026-09-18",
+          "updatedAt": "2026-10-13"
         },
         {
           "label": "Ollaya",

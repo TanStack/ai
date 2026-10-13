@@ -131,6 +131,29 @@ const adapter = createTypesafeDecider(
 
 `baseUrl` and `headers` are aliases of the same two options. If you set both forms, `baseURL` and `defaultHeaders` win.
 
+## Handle a failed request
+
+A rate limit needs a retry, but a bad API key does not. When TypeSafe sends an error response, the thrown error has the HTTP status code in `status`:
+
+```typescript
+import { decide, boolean } from "@tanstack/ai";
+import { typesafeDecider } from "@tanstack/ai-typesafe";
+
+try {
+  await decide({
+    adapter: typesafeDecider("jev-latest"),
+    state: { body: "Please refund the extra payment." },
+    questions: {
+      refund: boolean({ instructions: "Is the customer asking for a refund?" }),
+    },
+  });
+} catch (error) {
+  if (error instanceof Error && "status" in error && error.status === 429) {
+    // Rate limited. Wait, then call decide() again.
+  }
+}
+```
+
 ## API Reference
 
 ### `typesafeDecider(model, config?)`
