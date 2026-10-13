@@ -2,7 +2,7 @@ import { EventType } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { SharedLog, loadLogState } from './log'
 import { LEASE } from './resume'
-import { HarnessSession } from './session'
+import { HarnessSession } from './session/index'
 import { HARNESS_EVENTS } from './types'
 import { isRecord } from './utils'
 import { changedEntry } from './session-entry'
@@ -482,28 +482,6 @@ function statusAfter(session: HarnessSession, event: StreamChunk) {
   }
 }
 
-/** How each host finds the open session of a chat turn. Not public API. */
-const turnFinders = new WeakMap<
-  object,
-  (harness: string, operationId: string) => Promise<HarnessSession | undefined>
->()
-
-/**
- * @internal The open session of `harness` in `host` that has the chat turn
- * `operationId`, running or ended. A turn's events live in the host that runs
- * it, so the handler joins a run through this.
- */
-export function sessionOfTurn(
-  host: HarnessHost,
-  harness: AnyHarness,
-  operationId: string,
-): Promise<HarnessSession | undefined> {
-  return (
-    turnFinders.get(host)?.(harness.name, operationId) ??
-    Promise.resolve(undefined)
-  )
-}
-
 /** Throw a clear error for a durable store set that cannot work. */
 function checkDurableStores(persistence: HarnessPersistence) {
   const { stores } = persistence
@@ -919,13 +897,5 @@ export function createHarnessHost<TLogState = undefined>(
       }
     },
   }
-  turnFinders.set(host, async (name, operationId) => {
-    for (const [key, opening] of sessions) {
-      if (!key.startsWith(`${name}\u0000`)) continue
-      const session = await opening.catch(() => undefined)
-      if (session?.operation(operationId)?.kind === 'chat') return session
-    }
-    return undefined
-  })
   return host
 }
