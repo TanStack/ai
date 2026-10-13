@@ -54,6 +54,8 @@ import type { SubagentScenario } from '@/lib/subagents-test'
  * - `session`: no router. The parent model starts `researcher`, then a
  *   second `researcher` call continues it by its `sessionId`.
  *   `withPersistence` stores the child, so that call loads its transcript.
+ * - `routed-brief`: a router picks `researcher` and gives it the `task` as
+ *   `{ name, input }`. The child's only message is that task.
  */
 /** Send `Authorization` again as `x-e2e-authorization`, which aimock keeps. */
 const echoAuthorization: typeof fetch = (input, init) => {
@@ -107,7 +109,11 @@ function subagentsFor(
     ])
     return { agents: [cleaner], router: () => 'cleaner' }
   }
-  if (scenario === 'brief' || scenario === 'limits') {
+  if (
+    scenario === 'brief' ||
+    scenario === 'limits' ||
+    scenario === 'routed-brief'
+  ) {
     const researcher = defineAgent({
       name: 'researcher',
       description: 'Researches one focused task',
@@ -125,9 +131,17 @@ function subagentsFor(
     })
     // Each branch returns its own bag, so give them one agent type.
     const agents: Array<DefinedAgent> = [researcher]
-    return scenario === 'limits'
-      ? { agents, limits: { maxCalls: 1 } }
-      : { agents }
+    if (scenario === 'limits') {
+      return { agents, limits: { maxCalls: 1 } }
+    }
+    if (scenario === 'brief') return { agents }
+    return {
+      agents,
+      router: () => ({
+        name: 'researcher',
+        input: { task: '[subagent-brief-task] List two squid facts.' },
+      }),
+    }
   }
   if (scenario === 'result') {
     const pricer = defineAgent({

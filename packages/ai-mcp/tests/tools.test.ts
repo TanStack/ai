@@ -41,7 +41,11 @@ function mcpToolDef(def: {
   name: string
   title?: string
   description?: string
-  inputSchema?: { type: 'object'; properties?: Record<string, unknown> }
+  inputSchema?: {
+    type?: 'object'
+    properties?: Record<string, unknown>
+    required?: Array<string>
+  }
   execution?: { taskSupport?: 'optional' | 'required' | 'forbidden' }
   annotations?: {
     title?: string
@@ -551,6 +555,45 @@ describe('makeMcpExecute', () => {
     )
   })
 
+  it('sends requestOptions with the abortSignal to client.callTool', async () => {
+    const callTool = vi
+      .fn()
+      .mockResolvedValue({ content: [{ type: 'text', text: 'ok' }] })
+    const controller = new AbortController()
+    const execute = makeMcpExecute(fakeMcpClient(callTool), 'x', false, false, {
+      timeout: 5000,
+      resetTimeoutOnProgress: true,
+    })
+    await expect(execute({}, { abortSignal: controller.signal })).resolves.toBe(
+      'ok',
+    )
+    expect(callTool).toHaveBeenCalledWith(
+      { name: 'x', arguments: {} },
+      {
+        timeout: 5000,
+        resetTimeoutOnProgress: true,
+        // The SDK asks the server for progress only with an onprogress callback.
+        onprogress: expect.any(Function),
+        signal: controller.signal,
+        allowInputRequired: true,
+      },
+    )
+  })
+
+  it('adds no onprogress when resetTimeoutOnProgress is not set', async () => {
+    const callTool = vi
+      .fn()
+      .mockResolvedValue({ content: [{ type: 'text', text: 'ok' }] })
+    const execute = makeMcpExecute(fakeMcpClient(callTool), 'x', false, false, {
+      timeout: 5000,
+    })
+    await execute({})
+    expect(callTool).toHaveBeenCalledWith(
+      { name: 'x', arguments: {} },
+      { timeout: 5000, allowInputRequired: true },
+    )
+  })
+
   it('rejects without calling the server when the signal is already aborted', async () => {
     const callTool = vi.fn()
     const client = fakeMcpClient(callTool)
@@ -681,6 +724,116 @@ describe('toServerTools — annotations + title', () => {
     // The title is display-only — it must never leak into the model-facing name.
     expect(tool.name).toBe('wx_get_weather')
     expect(tool.metadata.mcp.title).toBe('Weather Lookup')
+  })
+
+  it('gives a frozen copy of the title and all 5 annotation fields', () => {
+    const annotations = {
+      title: 'Weather Lookup',
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    }
+    const def = mcpToolDef({ name: 'get_weather', annotations })
+    const [tool] = toServerTools(fakeMcpClient(vi.fn()), [def], {})
+    const mcp = tool!.metadata.mcp
+    expect(mcp.title).toBe('Weather Lookup')
+    expect(mcp.annotations).toStrictEqual({
+      title: 'Weather Lookup',
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    })
+    expect(Object.isFrozen(mcp.annotations)).toBe(true)
+    // A copy: the server's own object stays as it was.
+    expect(mcp.annotations).not.toBe(def.annotations)
+    expect(Object.isFrozen(def.annotations)).toBe(false)
+  })
+})
+
+describe('toServerTools — input schema defaults', () => {
+  it('adds properties: {} to a schema without properties', () => {
+    const [tool] = toServerTools(
+      fakeMcpClient(vi.fn()),
+      [mcpToolDef({ name: 'ping', inputSchema: { type: 'object' } })],
+      {},
+    )
+    expect(tool!.inputSchema).toEqual({ type: 'object', properties: {} })
+  })
+
+  it("adds type: 'object' to a schema without type and keeps its other keys", () => {
+    const [tool] = toServerTools(
+      fakeMcpClient(vi.fn()),
+      [
+        mcpToolDef({
+          name: 'search',
+          inputSchema: {
+            properties: { query: { type: 'string' } },
+            required: ['query'],
+          },
+        }),
+      ],
+      {},
+    )
+    expect(tool!.inputSchema).toEqual({
+      type: 'object',
+      properties: { query: { type: 'string' } },
+      required: ['query'],
+    })
+  })
+
+  it('gives a tool without an input schema an empty object schema', () => {
+    const def = mcpToolDef({ name: 'bare' })
+    Reflect.deleteProperty(def, 'inputSchema')
+    const [tool] = toServerTools(fakeMcpClient(vi.fn()), [def], {})
+    expect(tool!.inputSchema).toEqual({ type: 'object', properties: {} })
+  })
+
+  it('keeps a full schema as the server sent it', () => {
+    const inputSchema = {
+      type: 'object' as const,
+      properties: { city: { type: 'string' } },
+      required: ['city'],
+    }
+    const [tool] = toServerTools(
+      fakeMcpClient(vi.fn()),
+      [mcpToolDef({ name: 'get_weather', inputSchema })],
+      {},
+    )
+    expect(tool!.inputSchema).toEqual(inputSchema)
+  })
+})
+
+describe('toServerTools — toolName', () => {
+  it('names each tool with toolName, which wins over the prefix', () => {
+    const [tool] = toServerTools(
+      fakeMcpClient(vi.fn()),
+      [mcpToolDef({ name: 'get_weather' })],
+      { prefix: 'wx', toolName: (def) => `mcp__wx__${def.name}` },
+    )
+    expect(tool!.name).toBe('mcp__wx__get_weather')
+    expect(tool!.metadata.mcp).toMatchObject({
+      serverToolName: 'get_weather',
+      serverId: 'wx',
+    })
+  })
+
+  it('calls the server tool by its own name', async () => {
+    const callTool = vi
+      .fn()
+      .mockResolvedValue({ content: [{ type: 'text', text: 'ok' }] })
+    const [tool] = toServerTools(
+      fakeMcpClient(callTool),
+      [mcpToolDef({ name: 'get_weather' })],
+      { toolName: () => 'renamed' },
+    )
+    expect(tool!.name).toBe('renamed')
+    await expect(tool!.execute!({})).resolves.toBe('ok')
+    expect(callTool).toHaveBeenCalledWith(
+      { name: 'get_weather', arguments: {} },
+      expect.anything(),
+    )
   })
 })
 
@@ -898,6 +1051,30 @@ describe('callMcpTool — spec 2026 raw requests', () => {
     }
   })
 
+  it('uses the requestOptions timeout', async () => {
+    vi.useFakeTimers()
+    try {
+      const { client } = scriptedModernClient(() => [])
+      const outcome = callMcpTool(
+        client,
+        'ask',
+        {},
+        false,
+        undefined,
+        undefined,
+        {
+          timeout: 1000,
+        },
+      ).catch((error: unknown) => error)
+      await vi.advanceTimersByTimeAsync(1000)
+      const error = await outcome
+      expect(error).toBeInstanceOf(Error)
+      expect(String(error)).toContain('timed out after 1000 ms')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('reads every input request shape', async () => {
     const call = (result: unknown) =>
       callMcpTool(
@@ -1072,6 +1249,23 @@ describe('callMcpTool — spec 2025 task replies', () => {
     await expect(callMcpTool(client, 'job', {}, true)).resolves.toEqual(
       okResult,
     )
+  })
+
+  it('sends requestOptions with the task tools/call', async () => {
+    const seen: Array<unknown> = []
+    const client = {
+      getProtocolEra: () => 'legacy',
+      async request(_rpc: unknown, _schema: unknown, options?: unknown) {
+        seen.push(options)
+        return okResult
+      },
+    } as unknown as Client
+    await expect(
+      callMcpTool(client, 'job', {}, true, undefined, undefined, {
+        timeout: 5000,
+      }),
+    ).resolves.toEqual(okResult)
+    expect(seen).toEqual([{ timeout: 5000 }])
   })
 
   it('throws the abort reason when the request fails after an abort', async () => {

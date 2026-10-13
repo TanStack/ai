@@ -90,6 +90,10 @@ The router can return:
 - `{ names, order }`
 - `{ steps }`
 
+Anywhere a name goes, `{ name, input }` can go too, for example `{ name: 'pricer', input: { vendor: 'Acme' } }`. An agent with `inputSchema` needs it. No other agent takes an input. `chat()` throws when the pick breaks either rule.
+
+One step holds one input for each agent. To give one agent two inputs, put each pick in its own step of `{ steps }`.
+
 `subagents.order` is the default for an array. `parallel` starts the names together. `sequence` runs them one after another, and each later child reads the earlier child text. Omit `order` to get `parallel`.
 
 `subagentRoute` asks Jev for the order. Jev picks `parallel` when no agent must read text from another agent. The same topic is not a reason to wait. Jev picks `sequence` only when a later agent must read the earlier text, such as research notes and then a draft.
@@ -154,6 +158,74 @@ const stream = chat({
 })
 ```
 
+**Give a routed agent its input.** An agent with `inputSchema` gets its input from the router. `route.needsInput(result)` lists the picked agents that need one, each with its schema. Make each input. Then pass them to `route.pick(result, { inputs })`. Here the model writes each input, with the schema as `outputSchema`:
+
+```ts
+import { chat, decide, defineAgent, subagentRoute } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { typesafeDecider } from '@tanstack/ai-typesafe'
+import { z } from 'zod'
+
+const writer = defineAgent({
+  name: 'writer',
+  description: 'Writes the post',
+  run: async function* () {},
+})
+const pricer = defineAgent({
+  name: 'pricer',
+  description: 'Compares the plans and prices of one vendor',
+  inputSchema: z.object({ vendor: z.string() }),
+  run: (ctx) =>
+    chat({
+      adapter: openaiText('gpt-6.1-sol'),
+      messages: [{ role: 'user', content: `Compare the plans of ${ctx.input.vendor}` }],
+      threadId: ctx.threadId,
+      runId: ctx.runId,
+      parentRunId: ctx.parentRunId,
+      subagentRunId: ctx.subagentRunId,
+      resume: ctx.resume,
+    }),
+})
+const messages = [
+  { role: 'user' as const, content: 'What does Acme cost? Write a post about it.' },
+]
+
+const stream = chat({
+  adapter: openaiText('gpt-6.1-sol'),
+  messages,
+  subagents: {
+    agents: [pricer, writer],
+    router: async ({ messages: turnMessages, agents }) => {
+      const route = subagentRoute(agents, { then: ['writer'] })
+      const result = await decide({
+        adapter: typesafeDecider('jev-latest'),
+        state: turnMessages,
+        questions: route.questions,
+      })
+      const inputs = Object.fromEntries(
+        await Promise.all(
+          route.needsInput(result).map(async ({ name, inputSchema }) => [
+            name,
+            await chat({
+              adapter: openaiText('gpt-6.1-sol'),
+              messages: turnMessages,
+              outputSchema: inputSchema,
+            }),
+          ]),
+        ),
+      )
+      return route.pick(result, { inputs })
+    },
+  },
+})
+```
+
+- `pick` types `inputs` when you write it as an object, such as `{ pricer: { vendor: 'Acme' } }`. Each key is the name of an agent with `inputSchema`, and the value has the type of that schema. `Object.fromEntries` returns `any`, so the sample above has no such check.
+- If a picked agent with a schema has no input, `pick` throws `Agent "pricer" needs input. Pass it in inputs.`
+- `chat()` checks each input against the schema before any child starts. If one input does not match, `chat()` throws, and no child starts. The `inputSchema` must be a Standard Schema, such as a zod schema. If it is a plain JSON Schema, `chat()` throws.
+- `run` reads the input as `ctx.input`. The input stays on the server. It does not go to the client.
+- A turn with a router input cannot resume after an interrupt. Do not give a tool that needs approval, or a client tool, to an agent in such a turn.
+
 **Without a router.** The library adds one synthetic server tool per agent. The main model calls that tool. The public stream still emits `SUBAGENT_STARTED` / `SUBAGENT_FINISHED` (or `SUBAGENT_ERROR`) and nested parts. The UI does not treat spawn as a normal tool card. The child's events stream while the tool runs, and the child's text becomes the tool result. The child reads the conversation as it is at that tool call. The model can also pass the task as `prompt`. The child gets it as the last user message. For all fields of the tool input, see [The tool input](#the-tool-input).
 
 ## Let the model write the brief
@@ -202,7 +274,7 @@ const stream = chat({
 - If the input does not match the schema, the model gets a tool error and can call the tool again. The child does not start.
 - `ctx.messages` still holds the parent conversation. Add parts of it when the child needs more context.
 - A resumed child gets the same `ctx.input` as the first run.
-- `inputSchema` needs tool mode. If `subagents.router` is set and an agent has `inputSchema`, `chat()` throws.
+- With `subagents.router`, the router gives the input. See [Route, or let the model pick](#route-or-let-the-model-pick).
 
 To show the brief in the UI, see [Show the brief on a card](#show-the-brief-on-a-card).
 
@@ -456,7 +528,7 @@ export function CleanupPanel() {
 }
 ```
 
-The resume uses the plan that the router picked in the first run. It does not call the router again. While the child waits, its card has `status: 'suspended'` and `interruptIds`. After you approve, the card shows the tool result and the child's reply. Client tools in a child work the same way.
+The resume uses the plan that the router picked in the first run. It does not call the router again. If the router gave an agent of that plan an input, the resume fails. While the child waits, its card has `status: 'suspended'` and `interruptIds`. After you approve, the card shows the tool result and the child's reply. Client tools in a child work the same way.
 
 The same flow works without a router. The child's tool call stays open until the resume, then the parent model reads the child's result. The result content carries the child's output or error. It carries `subagentRunId` only when the model can continue the child: with a persistence store, or for a background child. Else the id stays in the subagent events.
 
@@ -472,26 +544,41 @@ On a routed turn where a child runs and main does not, the parent's middleware d
 
 ## Run a child from code
 
-A server job or a host can run an agent without a parent chat turn. `runAgentStream` streams the child's chunks, from `SUBAGENT_STARTED` to `SUBAGENT_FINISHED`:
+A server job can run an agent with no parent chat turn. Pass a sink when the job must read a pause or the token counts.
 
 ```ts group=subagents
-import { createSubagentId, runAgentStream } from '@tanstack/ai'
+import {
+  createSubagentId,
+  createSubagentSink,
+  runAgentStream,
+} from '@tanstack/ai'
 
 const subagentRunId = createSubagentId()
-for await (const chunk of runAgentStream(researcher, {
-  input: undefined,
-  messages: [{ role: 'user', content: 'Find three facts about squids' }],
-  threadId: 'thread-1',
-  runId: `job-1:${subagentRunId}`,
-  parentRunId: 'job-1',
-  subagentRunId,
-})) {
+const sink = createSubagentSink()
+for await (const chunk of runAgentStream(
+  researcher,
+  {
+    input: undefined,
+    messages: [{ role: 'user', content: 'Find three facts about squids' }],
+    threadId: 'thread-1',
+    runId: `job-1:${subagentRunId}`,
+    parentRunId: 'job-1',
+    subagentRunId,
+  },
+  sink,
+)) {
   if (chunk.type === 'TEXT_MESSAGE_CONTENT') console.log(chunk.delta)
 }
 ```
 
-- `runAgentStream` does not check `input`. For an agent with an `inputSchema`, check the input before the call.
-- A child that stops for an interrupt ends with a `SUBAGENT_FINISHED` outcome of `type: 'suspended'` and its `interruptIds`.
+The sink holds the pause and the token counts:
+
+- `sink.interrupts` has the interrupt objects. The finished event has `interruptIds` only.
+- `sink.usage` has one entry per model call.
+- `runAgentStream` does not check `input`. If the agent has an `inputSchema`, check the input before the call.
+- A failure ends as `SUBAGENT_ERROR`. The stream omits `RUN_STARTED`, `MESSAGES_SNAPSHOT`, and `RUN_FINISHED`.
+
+After the loop, read `sink.interrupts` to show the pause.
 
 ## Persistence
 
@@ -758,7 +845,7 @@ export function Briefs() {
 ```
 
 - `part.subagent.input` is the same value as `ctx.input` in `run`, with the output type of the schema. Here it is `{ task: string } | undefined`.
-- It is `undefined` for an agent without `inputSchema`.
+- It is `undefined` for an agent without `inputSchema`. A router input stays on the server, so a child that a router started has no `part.subagent.input`.
 
 ### Style one child's parts
 

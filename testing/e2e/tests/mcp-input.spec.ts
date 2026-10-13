@@ -145,16 +145,18 @@ test.describe('mcp input: pause and resume chat()', () => {
     expect(finalText).toContain('sunny')
   })
 
-  test('a tool can set the reason of the pause', async ({
+  test('a custom reason still resumes by interrupt id', async ({
     request,
     testId,
     aimockPort,
   }) => {
+    const threadId = `mcp-input-reason-thread-${testId}`
+    const firstRunId = `mcp-input-reason-run-${testId}`
     const response = await request.post('/api/mcp-input-test', {
       headers: { 'Content-Type': 'application/json' },
       data: {
-        threadId: `mcp-input-reason-thread-${testId}`,
-        runId: `mcp-input-reason-run-${testId}`,
+        threadId,
+        runId: firstRunId,
         state: {},
         messages: [{ id: 'mcp-input-msg-1', role: 'user', content: question }],
         tools: [],
@@ -180,5 +182,49 @@ test.describe('mcp input: pause and resume chat()', () => {
       id: `mcp_input_${toolCallId}`,
       reason: 'auth_required',
     })
+
+    const second = await request.post('/api/mcp-input-test', {
+      headers: { 'Content-Type': 'application/json' },
+      data: {
+        threadId,
+        runId: `mcp-input-reason-run-2-${testId}`,
+        parentRunId: firstRunId,
+        resume: [
+          {
+            interruptId: `mcp_input_${toolCallId}`,
+            status: 'resolved',
+            payload: { value: 'Paris' },
+          },
+        ],
+        state: {},
+        messages: [
+          { id: 'mcp-input-msg-1', role: 'user', content: question },
+          {
+            id: 'mcp-input-msg-2',
+            role: 'assistant',
+            content: 'Let me ask for the city.',
+            toolCalls: [
+              {
+                id: toolCallId,
+                type: 'function',
+                function: { name: 'ask_city', arguments: '{}' },
+              },
+            ],
+          },
+        ],
+        tools: [],
+        context: [],
+        forwardedProps: { testId, aimockPort },
+      },
+    })
+    const secondBody = await second.text()
+    expect(second.ok(), `resume run failed: ${secondBody}`).toBe(true)
+    const secondEvents = parseSse(secondBody)
+    const toolResult = secondEvents.find(
+      (event) => event.type === 'TOOL_CALL_RESULT',
+    )
+    expect(JSON.stringify(toolResult?.content ?? '')).toContain(
+      'Forecast for Paris: sunny',
+    )
   })
 })

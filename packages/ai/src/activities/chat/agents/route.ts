@@ -1,4 +1,5 @@
 import { boolean, choice } from '../../evaluate/index'
+import type { InferSchemaType, SchemaInput } from '../../../types'
 import type { DefinedAgent } from './define-agent'
 import type { SubagentOrder, SubagentRouterPick } from './spawn'
 
@@ -38,6 +39,32 @@ type RouteAnswers<TAgents extends ReadonlyArray<DefinedAgent>> = {
   order: { value: SubagentOrder }
 }
 
+/** The name and the `inputSchema` of an agent that has one. Else `never`. */
+type InputNeed<TAgent> = TAgent extends {
+  name: infer TName
+  inputSchema?: infer TSchema
+}
+  ? TSchema extends SchemaInput
+    ? { name: TName; inputSchema: TSchema }
+    : never
+  : never
+
+/** One input for each agent with an `inputSchema`, typed from that schema. */
+type RouteInputs<TAgents extends ReadonlyArray<DefinedAgent>> = {
+  [TNeed in InputNeed<TAgents[number]> as TNeed['name']]?: InferSchemaType<
+    TNeed['inputSchema']
+  >
+}
+
+interface RoutePickOptions<TAgents extends ReadonlyArray<DefinedAgent>> {
+  /**
+   * The input of each picked agent that has an `inputSchema`. The key is the
+   * agent name. `needsInput` lists the agents that need one. An input for an
+   * agent that is not picked is not used.
+   */
+  inputs?: RouteInputs<TAgents>
+}
+
 /**
  * Build `decide()` questions for a subagent router.
  *
@@ -49,6 +76,20 @@ type RouteAnswers<TAgents extends ReadonlyArray<DefinedAgent>> = {
  * starts together. The `then` agents then run one after another in list
  * order, and each reads the text so far. Used only when the router picks at
  * least one agent from each group. Otherwise `pick` returns `{ names, order }`.
+ *
+ * An agent with `inputSchema` needs input. `needsInput(result)` lists the
+ * picked agents that need it, with their schemas. Make each input, then pass
+ * them as `pick(result, { inputs })`. Each name with an input becomes
+ * `{ name, input }`. `pick` throws when a picked agent with a schema has no
+ * input.
+ *
+ * @example
+ * ```ts
+ * const route = subagentRoute(agents)
+ * const result = await decide({ adapter, state, questions: route.questions })
+ * const inputs = { pricer: { sku: 'A-1' } }
+ * return route.pick(result, { inputs })
+ * ```
  */
 export function subagentRoute<
   const TAgents extends ReadonlyArray<DefinedAgent>,
@@ -86,30 +127,61 @@ export function subagentRoute<
     })
   }
 
-  function pick(result: RouteAnswers<TAgents>): SubagentRouterPick {
-    const names = agents
-      .map((agent) => agent.name)
-      .filter((name) => result[name as TAgents[number]['name']].value)
+  /** The agents with a yes answer, in agent-list order. */
+  function picked(result: RouteAnswers<TAgents>) {
+    return agents.filter(
+      (agent) => result[agent.name as TAgents[number]['name']].value,
+    )
+  }
+
+  /**
+   * The picked agents that have an `inputSchema`, in agent-list order. Make
+   * an input for each one and pass it to `pick` in `inputs`.
+   */
+  function needsInput(result: RouteAnswers<TAgents>) {
+    const needs = picked(result).flatMap(({ name, inputSchema }) =>
+      inputSchema === undefined ? [] : [{ name, inputSchema }],
+    )
+    // In this function each agent has only the wide `DefinedAgent` type,
+    // which loses the link between a name and its schema. The cast names
+    // the entry type of each agent again.
+    return needs as Array<InputNeed<TAgents[number]>>
+  }
+
+  function pick(
+    result: RouteAnswers<TAgents>,
+    pickOptions?: RoutePickOptions<TAgents>,
+  ): SubagentRouterPick {
+    const inputs: Readonly<Partial<Record<string, unknown>>> =
+      pickOptions?.inputs ?? {}
+    const toPickName = ({ name, inputSchema }: DefinedAgent) => {
+      const input = Object.hasOwn(inputs, name) ? inputs[name] : undefined
+      if (input !== undefined) return { name, input }
+      if (inputSchema !== undefined) {
+        throw new Error(`Agent "${name}" needs input. Pass it in inputs.`)
+      }
+      return name
+    }
+    const chosen = picked(result)
+    const names = chosen.map(toPickName)
     if (names.length === 0) return 'main'
     const only = names.length === 1 ? names[0] : undefined
     if (only !== undefined) return only
-    const later = new Set(options?.then ?? [])
-    const lead = names.filter((name) => !later.has(name))
-    const tail = names.filter((name) => later.has(name))
+    const later = new Set<string>(options?.then ?? [])
+    const lead = chosen
+      .filter((agent) => !later.has(agent.name))
+      .map(toPickName)
+    const tail = chosen.filter((agent) => later.has(agent.name)).map(toPickName)
     if (lead.length === 0 || tail.length === 0) {
       return { names, order: result.order.value }
     }
     return {
       steps: [
-        lead.length > 1
-          ? { names: lead, order: 'parallel' as const }
-          : { names: lead },
-        tail.length > 1
-          ? { names: tail, order: 'sequence' as const }
-          : { names: tail },
+        lead.length > 1 ? { names: lead, order: 'parallel' } : { names: lead },
+        tail.length > 1 ? { names: tail, order: 'sequence' } : { names: tail },
       ],
     }
   }
 
-  return { questions: questions as RouteQuestions<TAgents>, pick }
+  return { questions: questions as RouteQuestions<TAgents>, pick, needsInput }
 }

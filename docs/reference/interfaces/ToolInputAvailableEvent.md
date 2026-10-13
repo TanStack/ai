@@ -3,7 +3,7 @@ id: ToolInputAvailableEvent
 title: ToolInputAvailableEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1603](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1603)
+Defined in: [packages/ai/src/types.ts:1819](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1819)
 
 ## Deprecated
 
@@ -22,7 +22,7 @@ compatibility event remains readable until 1.0.
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1531](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1531)
+Defined in: [packages/ai/src/types.ts:1747](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1747)
 
 Extra information attached to this event.
 
@@ -38,7 +38,7 @@ Extra information attached to this event.
 name: "tool-input-available";
 ```
 
-Defined in: [packages/ai/src/types.ts:1604](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1604)
+Defined in: [packages/ai/src/types.ts:1820](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1820)
 
 What this custom event is. Required: without it a consumer cannot route
 the value.
@@ -57,7 +57,7 @@ CustomEvent.name
 type: "CUSTOM";
 ```
 
-Defined in: [packages/ai/src/types.ts:1530](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1530)
+Defined in: [packages/ai/src/types.ts:1746](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1746)
 
 #### Inherited from
 
@@ -71,7 +71,7 @@ Defined in: [packages/ai/src/types.ts:1530](https://github.com/TanStack/ai/blob/
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1605](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1605)
+Defined in: [packages/ai/src/types.ts:1821](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1821)
 
 The payload. Any JSON value, and required.
 

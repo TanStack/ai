@@ -7,7 +7,7 @@ title: subagentRoute
 function subagentRoute<TAgents>(agents, options?): object;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/route.ts:53](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/route.ts#L53)
+Defined in: [packages/ai/src/activities/chat/agents/route.ts:94](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/route.ts#L94)
 
 Build `decide()` questions for a subagent router.
 
@@ -19,6 +19,12 @@ Names follow the `agents` array order.
 starts together. The `then` agents then run one after another in list
 order, and each reads the text so far. Used only when the router picks at
 least one agent from each group. Otherwise `pick` returns `{ names, order }`.
+
+An agent with `inputSchema` needs input. `needsInput(result)` lists the
+picked agents that need it, with their schemas. Make each input, then pass
+them as `pick(result, { inputs })`. Each name with an input becomes
+`{ name, input }`. `pick` throws when a picked agent with a schema has no
+input.
 
 ## Type Parameters
 
@@ -38,13 +44,14 @@ least one agent from each group. Otherwise `pick` returns `{ names, order }`.
 
 ## Returns
 
-`object`
-
-### pick
+### needsInput
 
 ```ts
-pick: (result) => SubagentRouterPick;
+needsInput: (result) => InputNeed<TAgents[number]>[];
 ```
+
+The picked agents that have an `inputSchema`, in agent-list order. Make
+an input for each one and pass it to `pick` in `inputs`.
 
 #### Parameters
 
@@ -54,10 +61,39 @@ pick: (result) => SubagentRouterPick;
 
 #### Returns
 
+`InputNeed`\<`TAgents`\[`number`\]\>[]
+
+### pick
+
+```ts
+pick: (result, pickOptions?) => SubagentRouterPick;
+```
+
+#### Parameters
+
+##### result
+
+`RouteAnswers`\<`TAgents`\>
+
+##### pickOptions?
+
+`RoutePickOptions`\<`TAgents`\>
+
+#### Returns
+
 [`SubagentRouterPick`](../type-aliases/SubagentRouterPick.md)
 
 ### questions
 
 ```ts
 questions: RouteQuestions<TAgents>;
+```
+
+## Example
+
+```ts
+const route = subagentRoute(agents)
+const result = await decide({ adapter, state, questions: route.questions })
+const inputs = { pricer: { sku: 'A-1' } }
+return route.pick(result, { inputs })
 ```

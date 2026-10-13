@@ -702,6 +702,17 @@ export interface TanStackMessageMetadata {
   source?: MessageSource
   stopReason?: 'error' | 'aborted'
   responseId?: string
+  /**
+   * Why the model call of this assistant message ended. A `'length'` message
+   * stopped at the output limit, so its tool calls are not complete.
+   */
+  finishReason?: TanStackRunMetadata['finishReason']
+  /**
+   * The provider's answer items of this assistant message, in order, for a
+   * same-model replay. The OpenAI Responses adapter keeps each output
+   * message item's `id` and `phase` (`commentary` or `final_answer`).
+   */
+  responseItems?: Array<{ id: string; phase?: string }>
   /** Parent chat run that produced this assistant message. */
   runId?: string
   /**
@@ -747,6 +758,8 @@ export interface TanStackRunMetadata {
   source?: MessageSource
   model?: string
   responseId?: string
+  /** The answer items of this model call. See `TanStackMessageMetadata.responseItems`. */
+  responseItems?: TanStackMessageMetadata['responseItems']
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
   /** TokenUsage fields that have no AG-UI `usage[]` equivalent. */
   usage?: TokenUsageLeftover
@@ -876,7 +889,8 @@ export type ToolExecutionContext<TContext = unknown> =
      * note for the model when the user moves the call. The work keeps
      * running, and the host tells the model its result when it ends.
      * `chat()` does not set it: a host wraps the tool's `execute` to add it.
-     * The note is a string, so a tool with `outputSchema` cannot use it.
+     * The note is a string. An object `outputSchema` rejects it. A string
+     * schema, or no schema, accepts it.
      *
      * @example
      * ```ts
@@ -1053,8 +1067,9 @@ export interface Tool<
 
   /**
    * Whether a host may run this tool again after a crash cut the run
-   * between the call and its result. `'safe'` runs it again. `'never'`
-   * (default) gives the model a note that the tool may or may not have run.
+   * between the call and its result. `'safe'` runs it again. Omit the
+   * field, or set `'never'`, when a second run is not safe. The host
+   * writes the model note. `chat()` does not read this field.
    */
   replay?: 'safe' | 'never'
 
@@ -1487,6 +1502,18 @@ export interface TextOptions<
    * here). Undefined for direct adapter usage outside the chat engine.
    */
   approvals?: ReadonlyMap<string, boolean>
+}
+
+/** What `TextAdapter.compact` receives. */
+export interface TextCompactOptions {
+  /** The history to compact. */
+  messages: Array<ModelMessage>
+  model: string
+  signal?: AbortSignal
+  /** Wraps the fetch of the compaction request. */
+  wrapFetch?: FetchWrapper
+  /** The system prompts of the chat call. */
+  systemPrompts?: Array<SystemPrompt>
 }
 
 // ============================================================================

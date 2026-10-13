@@ -242,6 +242,24 @@ describe('fakeText', () => {
     expect(deltas).toEqual(['abcd'])
   })
 
+  it('stops streaming when the request signal chat() passes aborts', async () => {
+    const fake = fakeText({ tokensPerSecond: 100 })
+    fake.setResponses([{ text: 'abcdefghijkl' }])
+    const abortController = new AbortController()
+
+    const deltas: Array<string> = []
+    for await (const event of fake.chatStream(
+      request(hi, { request: { signal: abortController.signal } }),
+    )) {
+      if (event.type === EventType.TEXT_MESSAGE_CONTENT) {
+        deltas.push(event.delta)
+        abortController.abort()
+      }
+    }
+
+    expect(deltas).toEqual(['abcd'])
+  })
+
   it('answers structured output with the next response as JSON', async () => {
     const fake = fakeText()
     fake.setResponses([{ text: '{"city":"Oslo"}' }])

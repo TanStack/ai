@@ -118,8 +118,10 @@ export {
 } from './activities/chat/agents/route'
 export type {
   SubagentOrder,
+  SubagentPick,
   SubagentRouterPick,
   SubagentRouterPlan,
+  SubagentSink,
   SubagentStep,
   SubagentStepsPlan,
   SubagentsBag,
@@ -128,6 +130,7 @@ export type {
 export {
   spawnAgentStream as runAgentStream,
   createSubagentId,
+  createSubagentSink,
 } from './activities/chat/agents/spawn'
 export { compactForModel } from './activities/chat/tools/tool-calls'
 
@@ -372,6 +375,9 @@ export {
   MetadataCapability,
   getMetadata,
   provideMetadata,
+  LogRecordsCapability,
+  getLogRecords,
+  provideLogRecords,
 } from './activities/chat/middleware/index'
 export type {
   Capability,
@@ -382,6 +388,8 @@ export type {
   DefinedChatMiddleware,
   AnyChatMiddleware,
   MetadataStore,
+  LogRecord,
+  LogRecordsWriter,
 } from './activities/chat/middleware/index'
 // A persistence store gives the agent tools the stored children.
 export {
@@ -451,6 +459,7 @@ export type {
 
 // All types
 export * from './types'
+export { CONTEXT_OVERFLOW_CODE } from './activities/error-payload'
 
 // One reasoning option for every provider: `chat({ reasoning })`.
 export {

@@ -331,6 +331,8 @@ function PersonExtractor() {
 
 For non-streaming adapters (Anthropic, Gemini, Ollama), the object arrives as a single event — `partial` stays `{}` and `final` snaps in one step. The consumer code above is identical regardless of adapter.
 
+If you want to keep the awaited object on the server and still use `useChat`, send it with `toJsonResponse(person)`. See [Send a structured output](../transports/json#send-a-structured-output).
+
 > Want the result to fill in field-by-field, or to keep a history of objects across turns? Those are the [Streaming UIs](./streaming) and [Multi-Turn Chat](./multi-turn) journeys — both build on this same `useChat({ outputSchema })` surface.
 
 ## Best Practices

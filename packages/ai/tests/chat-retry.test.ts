@@ -218,3 +218,131 @@ describe('chat({ retry })', () => {
     expect(Date.now() - started).toBeLessThan(5_000)
   })
 })
+
+describe('ctx.retry() in onModelError', () => {
+  const overflow: Array<StreamChunk> = [
+    ev.runStarted(),
+    { ...ev.runError('too long'), code: 'context_overflow' },
+  ]
+
+  it('drops the failed call, runs onConfig again, and calls the model again', async () => {
+    const { adapter, calls } = createMockAdapter({
+      iterations: [overflow, answer],
+    })
+    const phases: Array<string> = []
+    const seen: Array<string | undefined> = []
+    const retrier = defineChatMiddleware({
+      name: 'retrier',
+      onConfig(ctx, config) {
+        phases.push(ctx.phase)
+        if (seen.length === 0) return
+        return {
+          messages: [
+            { role: 'user', content: 'shorter' },
+            ...config.messages.slice(-1),
+          ],
+        }
+      },
+      onModelError(ctx, error) {
+        seen.push(error.code)
+        ctx.retry()
+      },
+    })
+    const chunks = await collectChunks(
+      chat({ adapter, messages, middleware: [retrier] }),
+    )
+    expect(seen).toEqual(['context_overflow'])
+    expect(calls).toHaveLength(2)
+    expect(phases.filter((p) => p === 'beforeModel')).toHaveLength(2)
+    expect(JSON.stringify(calls[1]?.messages)).toContain('shorter')
+    expect(types(chunks)).not.toContain(EventType.RUN_ERROR)
+    expect(
+      types(chunks).filter((t) => t === EventType.RUN_STARTED),
+    ).toHaveLength(1)
+    expect(chunks).toContainEqual(expect.objectContaining({ delta: 'hello' }))
+  })
+
+  it('passes the error on when no middleware calls ctx.retry()', async () => {
+    const { adapter, calls } = createMockAdapter({
+      iterations: [overflow, answer],
+    })
+    const watcher = defineChatMiddleware({
+      name: 'watcher',
+      onModelError() {},
+    })
+    const chunks = await collectChunks(
+      chat({ adapter, messages, middleware: [watcher] }),
+    )
+    expect(calls).toHaveLength(1)
+    expect(types(chunks)).toEqual([EventType.RUN_STARTED, EventType.RUN_ERROR])
+  })
+
+  it('stops after 2 retries and passes the last error on', async () => {
+    const { adapter, calls } = createMockAdapter({
+      iterations: [overflow, overflow, overflow, answer],
+    })
+    let errors = 0
+    const always = defineChatMiddleware({
+      name: 'always',
+      onModelError(ctx) {
+        errors++
+        ctx.retry()
+      },
+    })
+    const chunks = await collectChunks(
+      chat({ adapter, messages, middleware: [always] }),
+    )
+    expect(calls).toHaveLength(3)
+    // The hook still sees the last error, but it does not retry.
+    expect(errors).toBe(3)
+    expect(chunks.at(-1)).toMatchObject({
+      type: EventType.RUN_ERROR,
+      code: 'context_overflow',
+    })
+  })
+
+  it('does not call onModelError after the call streamed output', async () => {
+    const { adapter, calls } = createMockAdapter({
+      iterations: [
+        [
+          ev.runStarted(),
+          ev.textStart(),
+          ev.textContent('part'),
+          { ...ev.runError('too long'), code: 'context_overflow' },
+        ],
+        answer,
+      ],
+    })
+    let called = false
+    const retrier = defineChatMiddleware({
+      name: 'retrier',
+      onModelError(ctx) {
+        called = true
+        ctx.retry()
+      },
+    })
+    const chunks = await collectChunks(
+      chat({ adapter, messages, middleware: [retrier] }),
+    )
+    expect(called).toBe(false)
+    expect(calls).toHaveLength(1)
+    expect(chunks.at(-1)).toMatchObject({ type: EventType.RUN_ERROR })
+  })
+
+  it('throws when ctx.retry() is called outside onModelError', async () => {
+    const { adapter } = createMockAdapter({ iterations: [answer] })
+    let thrown: unknown
+    const early = defineChatMiddleware({
+      name: 'early',
+      onStart(ctx) {
+        try {
+          ctx.retry()
+        } catch (error) {
+          thrown = error
+        }
+      },
+    })
+    await collectChunks(chat({ adapter, messages, middleware: [early] }))
+    expect(thrown).toBeInstanceOf(Error)
+  })
+})

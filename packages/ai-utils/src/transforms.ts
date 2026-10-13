@@ -40,14 +40,13 @@ export function transformNullsToUndefined<T>(obj: T): T {
     return obj.map((item) => transformNullsToUndefined(item)) as T
   }
 
-  const result: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
-    if (value === null) {
-      continue
-    }
-    result[key] = transformNullsToUndefined(value)
-  }
-  return result as T
+  // `Object.fromEntries` keeps an own key named `__proto__`. An assignment
+  // `result['__proto__'] = x` would set the prototype instead.
+  return Object.fromEntries(
+    Object.entries(obj as Record<string, unknown>)
+      .filter(([, value]) => value !== null)
+      .map(([key, value]) => [key, transformNullsToUndefined(value)]),
+  ) as T
 }
 
 /**
@@ -92,16 +91,17 @@ function walk(value: unknown, map: NullWideningMap | undefined): unknown {
 
   const { properties } = map
   if (!properties) return value
-  const result: Record<string, unknown> = {}
+  const result: Array<[string, unknown]> = []
   for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
     const next = walk(child, properties[key])
     // A synthesized null collapsed to undefined → omit the key so the field
     // reads as absent (`key in result === false`), matching how `.optional()`
     // treats absence.
     if (next === undefined) continue
-    result[key] = next
+    result.push([key, next])
   }
-  return result
+  // `Object.fromEntries` keeps an own key named `__proto__`.
+  return Object.fromEntries(result)
 }
 
 /**

@@ -154,7 +154,7 @@
           "label": "Stream Events",
           "to": "chat/stream-events",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-10-12"
+          "updatedAt": "2026-10-13"
         },
         {
           "label": "Subagents",
@@ -166,7 +166,7 @@
           "label": "Agentic Cycle",
           "to": "chat/agentic-cycle",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-21"
+          "updatedAt": "2026-10-13"
         },
         {
           "label": "Thinking & Reasoning",
@@ -209,7 +209,8 @@
         {
           "label": "JSON",
           "to": "transports/json",
-          "addedAt": "2026-10-08"
+          "addedAt": "2026-10-08",
+          "updatedAt": "2026-10-12"
         },
         {
           "label": "WebSockets",
@@ -252,7 +253,7 @@
           "label": "One-Shot Extraction",
           "to": "structured-outputs/one-shot",
           "addedAt": "2026-05-19",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-10-12"
         },
         {
           "label": "Streaming UIs",
@@ -293,7 +294,7 @@
           "label": "Server Tools",
           "to": "tools/server-tools",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-12"
+          "updatedAt": "2026-10-13"
         },
         {
           "label": "Client Tools",
@@ -352,7 +353,7 @@
           "label": "Middleware",
           "to": "advanced/middleware",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-09"
+          "updatedAt": "2026-10-13"
         },
         {
           "label": "Built-in Middleware",
@@ -376,7 +377,7 @@
           "label": "Compaction",
           "to": "advanced/compaction",
           "addedAt": "2026-08-24",
-          "updatedAt": "2026-08-27"
+          "updatedAt": "2026-10-13"
         }
       ],
       "tab": "guides"
@@ -542,13 +543,13 @@
           "label": "MCP Server Tools",
           "to": "tools/mcp",
           "addedAt": "2026-06-05",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-10-12"
         },
         {
           "label": "Managed MCP with chat()",
           "to": "tools/mcp-managed",
           "addedAt": "2026-06-05",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-10-12"
         },
         {
           "label": "Manual MCP",
@@ -565,7 +566,7 @@
           "label": "MCP Client Input",
           "to": "tools/mcp-input",
           "addedAt": "2026-09-22",
-          "updatedAt": "2026-10-12"
+          "updatedAt": "2026-10-13"
         },
         {
           "label": "MCP Apps",
@@ -583,7 +584,7 @@
           "label": "Serve Resources and Prompts",
           "to": "mcp/server-content",
           "addedAt": "2026-09-22",
-          "updatedAt": "2026-10-02"
+          "updatedAt": "2026-10-12"
         },
         {
           "label": "Ask for Input",
@@ -760,7 +761,7 @@
           "label": "Store Reference",
           "to": "persistence/store-reference",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-10-12"
+          "updatedAt": "2026-10-13"
         },
         {
           "label": "How Persistence Works",
@@ -1139,7 +1140,7 @@
           "label": "Multimodal Content",
           "to": "advanced/multimodal-content",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-07"
+          "updatedAt": "2026-10-12"
         },
         {
           "label": "Files API",
@@ -1208,7 +1209,7 @@
           "label": "OpenAI",
           "to": "adapters/openai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-09"
+          "updatedAt": "2026-10-12"
         },
         {
           "label": "Anthropic",
@@ -1296,7 +1297,7 @@
           "label": "OpenRouter Adapter",
           "to": "adapters/openrouter",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-09"
+          "updatedAt": "2026-10-13"
         },
         {
           "label": "Perplexity Search",
@@ -1319,7 +1320,7 @@
           "label": "OpenAI-Compatible",
           "to": "adapters/openai-compatible",
           "addedAt": "2026-06-01",
-          "updatedAt": "2026-10-09"
+          "updatedAt": "2026-10-13"
         },
         {
           "label": "LLM Gateway",
@@ -1331,7 +1332,7 @@
           "label": "Cloudflare",
           "to": "adapters/cloudflare",
           "addedAt": "2026-09-03",
-          "updatedAt": "2026-10-09"
+          "updatedAt": "2026-10-12"
         },
         {
           "label": "Claude Code",
@@ -1367,7 +1368,7 @@
           "label": "Amazon Bedrock",
           "to": "adapters/bedrock",
           "addedAt": "2026-06-25",
-          "updatedAt": "2026-10-09"
+          "updatedAt": "2026-10-12"
         },
         {
           "label": "BytePlus",
@@ -1478,7 +1479,7 @@
           "label": "@tanstack/ai",
           "to": "api/ai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-08"
+          "updatedAt": "2026-10-13"
         },
         {
           "label": "@tanstack/ai-client",

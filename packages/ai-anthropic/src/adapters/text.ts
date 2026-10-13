@@ -1,4 +1,5 @@
 import {
+  CONTEXT_OVERFLOW_CODE,
   EventType,
   fileReferenceFor,
   isFileSource,
@@ -623,6 +624,7 @@ export class AnthropicTextAdapter<
       )
     } catch (error: unknown) {
       const err = error as Error & { status?: number; code?: string }
+      const code = runErrorCode(err)
       const rawEvent = toRunErrorRawEvent(error)
       const retryAfterMs = toRetryAfterMs(error)
       logger.errors('anthropic.chatStream fatal', {
@@ -643,14 +645,14 @@ export class AnthropicTextAdapter<
         },
         timestamp: Date.now(),
         message: err.message || 'Unknown error occurred',
-        code: err.code || String(err.status),
+        code,
         // Forward the Anthropic SDK error's `.error` response body (e.g.
         // `{ type, message }`) when present; never the raw exception object.
         ...(rawEvent !== undefined && { rawEvent }),
         ...(retryAfterMs !== undefined && { retryAfterMs }),
         error: {
           message: err.message || 'Unknown error occurred',
-          code: err.code || String(err.status),
+          code,
         },
       }
     }
@@ -2090,11 +2092,27 @@ export class AnthropicTextAdapter<
                 }
                 break
               }
+              case 'model_context_window_exceeded': {
+                // The model filled its context window before it finished.
+                // Like `max_tokens`, the answer is cut off, so this is an
+                // error and not a clean stop.
+                const message =
+                  'The response was cut off because the model reached the end of its context window.'
+                yield {
+                  type: EventType.RUN_ERROR,
+                  model,
+                  timestamp: Date.now(),
+                  message,
+                  code: CONTEXT_OVERFLOW_CODE,
+                  error: { message, code: CONTEXT_OVERFLOW_CODE },
+                  usage,
+                }
+                break
+              }
               case 'stop_sequence':
               case 'end_turn':
               case 'pause_turn':
               case 'refusal':
-              case 'model_context_window_exceeded':
               case 'compaction':
               default: {
                 // All remaining Anthropic stop_reason variants map to the
@@ -2118,6 +2136,7 @@ export class AnthropicTextAdapter<
       }
     } catch (error: unknown) {
       const err = error as Error & { status?: number; code?: string }
+      const code = runErrorCode(err)
       const rawEvent = toRunErrorRawEvent(error)
       const retryAfterMs = toRetryAfterMs(error)
 
@@ -2131,17 +2150,28 @@ export class AnthropicTextAdapter<
         metadata: { tanstack: { source } },
         timestamp: Date.now(),
         message: err.message || 'Unknown error occurred',
-        code: err.code || String(err.status),
+        code,
         // Forward the Anthropic SDK error's `.error` response body when present.
         ...(rawEvent !== undefined && { rawEvent }),
         ...(retryAfterMs !== undefined && { retryAfterMs }),
         error: {
           message: err.message || 'Unknown error occurred',
-          code: err.code || String(err.status),
+          code,
         },
       }
     }
   }
+}
+
+/**
+ * The `RUN_ERROR.code` for an Anthropic SDK error. The Messages API has no
+ * error type for a context overflow. It answers 400 `invalid_request_error`,
+ * the same as every bad request, so the message text is the only signal.
+ */
+function runErrorCode(err: Error & { status?: number; code?: string }): string {
+  return err.status === 400 && err.message.includes('prompt is too long')
+    ? CONTEXT_OVERFLOW_CODE
+    : err.code || String(err.status)
 }
 
 /**

@@ -1,5 +1,6 @@
 import { test, expect } from './fixtures'
 import type { Page } from '@playwright/test'
+import type { SubagentScenario } from '../src/lib/subagents-test'
 
 /** Click Run once the page hydrated. A click before hydration does nothing. */
 async function run(page: Page) {
@@ -14,15 +15,7 @@ async function run(page: Page) {
 
 function open(
   page: Page,
-  scenario:
-    | 'route'
-    | 'approval'
-    | 'tool'
-    | 'brief'
-    | 'result'
-    | 'limits'
-    | 'session'
-    | 'keys',
+  scenario: SubagentScenario,
   testId: string,
   aimockPort: number,
 ) {
@@ -282,6 +275,23 @@ test.describe('subagents', () => {
     )
     expect(child?.headers?.['x-e2e-authorization']).toBe(
       'Bearer sk-e2e-subagent-key',
+    )
+  })
+
+  test('the router gives the child its input', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await open(page, 'routed-brief', testId, aimockPort)
+    await run(page)
+
+    await expect(page.getByTestId('card-status-researcher')).toHaveText(
+      'finished',
+    )
+    // The child's fixture matches only the task from the router pick.
+    await expect(page.getByTestId('card-researcher')).toContainText(
+      'text:Squids have three hearts and blue blood.',
     )
   })
 })

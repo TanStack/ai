@@ -2627,6 +2627,9 @@ export class StreamProcessor {
     if (this.activeRuns.size === 0) {
       this.runToolCallIds = []
       this.toolCallsSentToClient.clear()
+      // A new run owes its own stream end. A client that only watches never
+      // resets between runs, so without this only its first run would end.
+      this.streamEndEmitted = false
     }
     this.activeRuns.add(chunk.runId)
   }
@@ -2730,6 +2733,9 @@ export class StreamProcessor {
       ) {
         continue
       }
+      // A call of an answer cut at the output limit never runs, also when
+      // its arguments parse. This is expected, so it logs nothing.
+      if (this.finishReason === 'length') continue
       // A snapshot can carry a part with arguments but no input. Parse them
       // strictly, as completeToolCall() does. An empty argument string is a
       // call with no arguments.

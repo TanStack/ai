@@ -86,6 +86,8 @@ You got a 429 and want to know how long to wait. If the provider sends a `retry-
 
 The Anthropic adapter and the adapters built on `@tanstack/openai-base` (for example OpenAI, Grok, and Groq) set it.
 
+The OpenRouter adapter also sets it for [an error in the stream](../adapters/openrouter#retry-an-error-in-the-stream). That value is the adapter's own backoff wait, not a wait from the provider.
+
 On the server:
 
 ```typescript

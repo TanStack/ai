@@ -21,8 +21,8 @@ export interface SubagentRunInput<
   TInput extends SchemaInput | undefined = any,
 > {
   /**
-   * The input the parent model wrote for this child, checked against
-   * `inputSchema`. `undefined` when the agent has no `inputSchema`.
+   * The input the parent model or the router gave this child, checked
+   * against `inputSchema`. `undefined` when the agent has no `inputSchema`.
    */
   input: TInput extends SchemaInput ? InferSchemaType<TInput> : undefined
   messages: Array<UIMessage | ModelMessage>
@@ -120,12 +120,15 @@ export interface DefinedAgent<
   /** What this agent makes. See {@link AgentProduces}. */
   produces?: TProduces
   /**
-   * The input the parent model writes when it calls this agent's tool, such
-   * as a short brief. `run` reads it as `ctx.input`, and the client card
-   * as `part.subagent.input`. When the run uses `sessionId` or
-   * `background`, that name is reserved. Without it, the tool takes a text
-   * `prompt`. Tool mode only: a `subagents.router` cannot start an agent
-   * that has `inputSchema`.
+   * The input this agent needs, such as a short brief. `run` reads it as
+   * `ctx.input`, and the client card as `part.subagent.input`. In tool mode,
+   * the parent model writes it when it calls this agent's tool. Without it,
+   * the tool takes a text `prompt`. When the run uses `sessionId` or
+   * `background`, that name is reserved. A `subagents.router` gives it in
+   * its pick as `{ name, input }`. The input is checked against this schema
+   * first. A router can start this agent only when the schema is a Standard
+   * Schema, such as a zod schema. A plain JSON Schema works in tool mode
+   * only. A turn with a router input cannot resume after an interrupt.
    */
   inputSchema?: TInput
   tools?: TTools

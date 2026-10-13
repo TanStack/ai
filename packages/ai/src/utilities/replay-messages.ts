@@ -50,6 +50,17 @@ function isForeign(
   )
 }
 
+/** A string input that does not parse. Some adapters keep an object here. */
+function isCutInput(input: unknown): boolean {
+  if (typeof input !== 'string') return false
+  try {
+    JSON.parse(input || '{}')
+    return false
+  } catch {
+    return true
+  }
+}
+
 function isFailed(message: ModelMessage): boolean {
   const stop = tanstackMetadata(message.metadata)?.stopReason
   return (
@@ -220,6 +231,23 @@ export function transformMessagesForReplay(
       }
     } else {
       for (const call of message.toolCalls ?? []) idMap.set(call.id, call.id)
+    }
+    // The output limit can cut a call in the middle of its input. Such a
+    // call did not run, and some providers (Bedrock) reject input that is not
+    // JSON. Other input that is not JSON stays, so such a provider still fails
+    // loudly on it.
+    if (
+      tanstackMetadata(message.metadata)?.finishReason === 'length' &&
+      mapped.toolCalls?.some((call) => isCutInput(call.function.arguments))
+    ) {
+      mapped = {
+        ...mapped,
+        toolCalls: mapped.toolCalls.map((call) =>
+          isCutInput(call.function.arguments)
+            ? { ...call, function: { ...call.function, arguments: '{}' } }
+            : call,
+        ),
+      }
     }
     pending = [...pending, ...(mapped.toolCalls ?? [])]
     turnId ??= message.id

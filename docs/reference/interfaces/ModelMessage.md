@@ -3,7 +3,7 @@ id: ModelMessage
 title: ModelMessage
 ---
 
-Defined in: [packages/ai/src/types.ts:374](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L374)
+Defined in: [packages/ai/src/types.ts:428](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L428)
 
 ## Type Parameters
 
@@ -13,13 +13,29 @@ Defined in: [packages/ai/src/types.ts:374](https://github.com/TanStack/ai/blob/m
 
 ## Properties
 
+### blockOrder?
+
+```ts
+optional blockOrder?: ModelMessageBlock[];
+```
+
+Defined in: [packages/ai/src/types.ts:452](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L452)
+
+The order of the blocks of an assistant message, when it is not the
+default order (all thinking, then the text, then the tool calls). Each
+entry points into `thinking`, into `content` (a string, by UTF-16 length),
+or into `toolCalls`. The library writes and reads this field. A reader
+that finds a map that does not match the message uses the default order.
+
+***
+
 ### content
 
 ```ts
 content: TContent;
 ```
 
-Defined in: [packages/ai/src/types.ts:381](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L381)
+Defined in: [packages/ai/src/types.ts:435](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L435)
 
 ***
 
@@ -29,7 +45,7 @@ Defined in: [packages/ai/src/types.ts:381](https://github.com/TanStack/ai/blob/m
 optional createdAt?: Date;
 ```
 
-Defined in: [packages/ai/src/types.ts:414](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L414)
+Defined in: [packages/ai/src/types.ts:482](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L482)
 
 Optional message creation timestamp. When present, message converters
 preserve it across persist → hydrate round-trips.
@@ -42,7 +58,7 @@ preserve it across persist → hydrate round-trips.
 optional error?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:392](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L392)
+Defined in: [packages/ai/src/types.ts:454](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L454)
 
 Error reported by an AG-UI tool message.
 
@@ -54,7 +70,7 @@ Error reported by an AG-UI tool message.
 optional id?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:409](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L409)
+Defined in: [packages/ai/src/types.ts:477](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L477)
 
 Optional stable message id. Providers ignore it; it exists so a persisted
 transcript can retain the streaming `messageId` and survive the
@@ -71,9 +87,23 @@ resume the SAME message bubble in place (see `@tanstack/ai-persistence`).
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:394](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L394)
+Defined in: [packages/ai/src/types.ts:462](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L462)
 
 Optional AG-UI message metadata. TanStack-owned fields live under `tanstack`.
+
+***
+
+### midConversationChange?
+
+```ts
+optional midConversationChange?: MidConversationChange;
+```
+
+Defined in: [packages/ai/src/types.ts:460](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L460)
+
+The tools and system prompts that changed before this assistant message.
+`chat()` writes it when the adapter has a mid-conversation channel.
+Providers ignore it: adapters read `TextOptions.midConversationChanges`.
 
 ***
 
@@ -83,7 +113,7 @@ Optional AG-UI message metadata. TanStack-owned fields live under `tanstack`.
 optional name?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:382](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L382)
+Defined in: [packages/ai/src/types.ts:436](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L436)
 
 ***
 
@@ -93,7 +123,7 @@ Defined in: [packages/ai/src/types.ts:382](https://github.com/TanStack/ai/blob/m
 role: "assistant" | "user" | "tool";
 ```
 
-Defined in: [packages/ai/src/types.ts:380](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L380)
+Defined in: [packages/ai/src/types.ts:434](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L434)
 
 ***
 
@@ -103,7 +133,7 @@ Defined in: [packages/ai/src/types.ts:380](https://github.com/TanStack/ai/blob/m
 optional structuredOutput?: StructuredOutputPart<unknown>;
 ```
 
-Defined in: [packages/ai/src/types.ts:400](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L400)
+Defined in: [packages/ai/src/types.ts:468](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L468)
 
 Completed structured output represented by this assistant message.
 `content` remains the provider-facing JSON text; this field preserves the
@@ -117,7 +147,7 @@ typed UI part across persistence and message conversion.
 optional thinking?: object[];
 ```
 
-Defined in: [packages/ai/src/types.ts:390](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L390)
+Defined in: [packages/ai/src/types.ts:444](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L444)
 
 Signed thinking to send back to the provider. `redacted: true` marks a
 block the provider encrypted: `content` is empty and `signature` holds its
@@ -149,7 +179,7 @@ optional signature?: string;
 optional toolCallId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:384](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L384)
+Defined in: [packages/ai/src/types.ts:438](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L438)
 
 ***
 
@@ -159,4 +189,4 @@ Defined in: [packages/ai/src/types.ts:384](https://github.com/TanStack/ai/blob/m
 optional toolCalls?: ToolCall<unknown>[];
 ```
 
-Defined in: [packages/ai/src/types.ts:383](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L383)
+Defined in: [packages/ai/src/types.ts:437](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L437)

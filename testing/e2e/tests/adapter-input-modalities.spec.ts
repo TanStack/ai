@@ -11,5 +11,7 @@ test('text adapters report the input modalities of their model at run time', asy
     openaiAudio: ['text', 'audio'],
     anthropic: ['text', 'image', 'document'],
     gemini: ['text', 'image', 'audio', 'video'],
+    bedrock: ['text', 'image'],
+    bedrockConverse: ['text', 'image', 'document'],
   })
 })

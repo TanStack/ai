@@ -350,8 +350,8 @@ Two writers can change the same key at the same time. Add `getVersioned` and
 `setIf` so that the second write does not remove the first:
 
 - `getVersioned` returns the value and its revision, or `null` when the key is absent.
-- `setIf` writes only when the current revision is `expectedRevision`. Use `null` to write only when the key is absent. Otherwise it returns `{ ok: false, reason: 'conflict' }`.
-- Every write gives the key a new revision, also a plain `set`. Do not give a revision again after a `delete`.
+- `setIf` writes when the stored revision equals `expectedRevision`. Pass `null` to write only when the key is absent. Success returns `{ ok: true, revision }`. A different revision returns `{ ok: false, reason: 'conflict' }` and does not write.
+- Every write gives the key a new revision. A plain `set` does this too. After `delete`, the next write gets a new revision. The deleted revision is never used again.
 
 `memoryPersistence()` has both. The conformance suite checks them when your
 store has them.

@@ -1,5 +1,39 @@
 # @tanstack/ai-vercel-gateway
 
+## 0.4.0
+
+### Minor Changes
+
+- [#1692](https://github.com/TanStack/ai/pull/1692) [`7532b2b`](https://github.com/TanStack/ai/commit/7532b2b09188ebd1095a60a7c5df6ef08b06916c) - Set reasoning with `chat({ reasoning })`.
+  - The chat adapter sends the AI Gateway `reasoning` object: `{ effort }`, `{ enabled: false }` for `off`, or `{ enabled: true, max_tokens }` for `budgetTokens`. `exclude: true` hides the thinking text when the summary is off.
+  - The Responses adapter sends `reasoning.effort`. Its types take no `budgetTokens`.
+  - Each chat model has its reasoning data in `model-meta.ts`. `VercelGatewayModelReasoningByName` and `VERCEL_GATEWAY_MODEL_REASONING` come from it.
+
+  Breaking: `reasoning` and `include_reasoning` are no longer in `modelOptions`.
+
+  ```ts
+  // Before
+  chat({
+    adapter: vercelGatewayText('openai/gpt-5.5'),
+    messages,
+    modelOptions: { reasoning: { effort: 'high' } },
+  })
+
+  // After
+  chat({
+    adapter: vercelGatewayText('openai/gpt-5.5'),
+    messages,
+    reasoning: 'high',
+  })
+  ```
+
+### Patch Changes
+
+- Updated dependencies [[`1bfcee3`](https://github.com/TanStack/ai/commit/1bfcee35bb3cf0ff3aac005440c842e66c3d687d), [`b881627`](https://github.com/TanStack/ai/commit/b881627d51076dcc1af031ac951046e2fb7d84c4), [`412b0fe`](https://github.com/TanStack/ai/commit/412b0fea4f4bb569998c3d253d174efd7b501e3c), [`a0150c2`](https://github.com/TanStack/ai/commit/a0150c26b9e2b6050663450171e36a9dfa80915b), [`20954cc`](https://github.com/TanStack/ai/commit/20954ccbe62c6e1c44a5bb57f3d73215670488aa), [`b881627`](https://github.com/TanStack/ai/commit/b881627d51076dcc1af031ac951046e2fb7d84c4), [`fac0555`](https://github.com/TanStack/ai/commit/fac055559de98eb0fa23a0bc725808033ba3c2fc), [`6774e80`](https://github.com/TanStack/ai/commit/6774e803da3205101613ab2857c9ed4fbf975681), [`5bd27f2`](https://github.com/TanStack/ai/commit/5bd27f2fc94ebfb6d11bfb28d46d5d858310805e), [`c20f7b0`](https://github.com/TanStack/ai/commit/c20f7b021aa618fbfcc114b3f0bef5e888ff6b84), [`cef1911`](https://github.com/TanStack/ai/commit/cef19119c76fc5f618d6c971efbc486323b213c3), [`51f72fb`](https://github.com/TanStack/ai/commit/51f72fbf60e201f9c8d014aefa6406e777c05d6a), [`6f1e559`](https://github.com/TanStack/ai/commit/6f1e55934fe95ddf2bf3fb3031488a713e48c7af), [`eb4eea0`](https://github.com/TanStack/ai/commit/eb4eea05b6c53b748bba5fd414b04ce387ead05d), [`cef1911`](https://github.com/TanStack/ai/commit/cef19119c76fc5f618d6c971efbc486323b213c3), [`7532b2b`](https://github.com/TanStack/ai/commit/7532b2b09188ebd1095a60a7c5df6ef08b06916c), [`7532b2b`](https://github.com/TanStack/ai/commit/7532b2b09188ebd1095a60a7c5df6ef08b06916c), [`1bfcee3`](https://github.com/TanStack/ai/commit/1bfcee35bb3cf0ff3aac005440c842e66c3d687d), [`78edeb2`](https://github.com/TanStack/ai/commit/78edeb20a5ba89f2513c3f46f1267a7ed7185045), [`44e3a0a`](https://github.com/TanStack/ai/commit/44e3a0a89c86defebd38b2221dd3b7725a12839a), [`7532b2b`](https://github.com/TanStack/ai/commit/7532b2b09188ebd1095a60a7c5df6ef08b06916c), [`ce99a17`](https://github.com/TanStack/ai/commit/ce99a17e4814cd564b693112bda87020af6cb57c), [`7a5c0d6`](https://github.com/TanStack/ai/commit/7a5c0d6fc1541187a7f01b444bc07a0478274bcb), [`b881627`](https://github.com/TanStack/ai/commit/b881627d51076dcc1af031ac951046e2fb7d84c4)]:
+  - @tanstack/ai@0.69.0
+  - @tanstack/openai-base@0.14.0
+  - @tanstack/ai-utils@0.4.2
+
 ## 0.3.9
 
 ### Patch Changes

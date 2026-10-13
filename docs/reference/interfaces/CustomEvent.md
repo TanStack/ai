@@ -3,7 +3,7 @@ id: CustomEvent
 title: CustomEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1529](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1529)
+Defined in: [packages/ai/src/types.ts:1745](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1745)
 
 Custom event for extensibility.
 
@@ -42,7 +42,7 @@ Custom event for extensibility.
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1531](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1531)
+Defined in: [packages/ai/src/types.ts:1747](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1747)
 
 Extra information attached to this event.
 
@@ -60,4 +60,4 @@ Omit.metadata
 type: "CUSTOM";
 ```
 
-Defined in: [packages/ai/src/types.ts:1530](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1530)
+Defined in: [packages/ai/src/types.ts:1746](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1746)

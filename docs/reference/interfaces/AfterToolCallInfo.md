@@ -3,7 +3,7 @@ id: AfterToolCallInfo
 title: AfterToolCallInfo
 ---
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:441](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L441)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:458](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L458)
 
 Outcome information provided to onAfterToolCall.
 
@@ -15,7 +15,7 @@ Outcome information provided to onAfterToolCall.
 duration: number;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:453](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L453)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:470](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L470)
 
 Duration of tool execution in milliseconds
 
@@ -27,7 +27,7 @@ Duration of tool execution in milliseconds
 optional error?: unknown;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:456](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L456)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:473](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L473)
 
 ***
 
@@ -37,7 +37,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:456](https://gi
 ok: boolean;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:451](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L451)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:468](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L468)
 
 Whether the execution succeeded
 
@@ -49,7 +49,7 @@ Whether the execution succeeded
 optional result?: unknown;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:455](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L455)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:472](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L472)
 
 The result (if ok) or error (if not ok)
 
@@ -63,7 +63,7 @@ tool:
   | undefined;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:445](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L445)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:462](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L462)
 
 The resolved tool definition
 
@@ -75,7 +75,7 @@ The resolved tool definition
 toolCall: ToolCall;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:443](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L443)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:460](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L460)
 
 The tool call that was executed
 
@@ -87,7 +87,7 @@ The tool call that was executed
 toolCallId: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:449](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L449)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:466](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L466)
 
 ID of the tool call
 
@@ -99,6 +99,6 @@ ID of the tool call
 toolName: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:447](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L447)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:464](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L464)
 
 Name of the tool

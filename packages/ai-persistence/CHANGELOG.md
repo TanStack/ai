@@ -1,5 +1,35 @@
 # @tanstack/ai-persistence
 
+## 0.9.0
+
+### Minor Changes
+
+- [#1715](https://github.com/TanStack/ai/pull/1715) [`fac0555`](https://github.com/TanStack/ai/commit/fac055559de98eb0fa23a0bc725808033ba3c2fc) - New hooks for hosts that run `chat()` for a long session.
+  - `@tanstack/ai` exports `runAgentStream` (runs a `defineAgent` agent outside a parent chat turn), `createSubagentId`, `createSubagentSink`, `CapabilityRegistry`, and the `SubagentsBag` and `SubagentSink` types. Pass the sink to keep interrupt objects and token usage. The finished event has `interruptIds` only.
+  - `MetadataStore` has optional `getVersioned` and `setIf` for compare-and-set writes. The memory store of `@tanstack/ai-persistence` has both, and the conformance testkit checks them.
+  - `toolDefinition({ replay: 'safe' | 'never' })` tells a host if it can run the tool again after a crash.
+  - The tool context has an optional `detach` field. A host sets it when it can move the call to the background. A tool passes its work to `detach` and races the two promises.
+  - A tool that throws the MCP input-required shape can set the interrupt `reason`. The default is `'mcp_input'`. The interrupt id stays `mcp_input_<toolCallId>`.
+
+### Patch Changes
+
+- [#1697](https://github.com/TanStack/ai/pull/1697) [`cef1911`](https://github.com/TanStack/ai/commit/cef19119c76fc5f618d6c971efbc486323b213c3) - A message store now keeps the mid-conversation change record of an assistant message when a client sends the same message again without it. With `useChat`, the prompt cache then holds across turns on models that get tool and prompt changes inside the conversation.
+
+- [#1698](https://github.com/TanStack/ai/pull/1698) [`1bfcee3`](https://github.com/TanStack/ai/commit/1bfcee35bb3cf0ff3aac005440c842e66c3d687d) - Keep a conversation valid when the next request goes to a different model.
+  - Each assistant message records `metadata.tanstack.source` (`{ provider, api, model }`), and `responseId` and the resolved `model` when the provider sends them. A failed or aborted answer gets `stopReason: 'error'` or `'aborted'`. `RUN_FINISHED` has a new `responseId` field. `TextAdapter` has new optional `provider` and `api` fields.
+  - When the next request goes to a different source, the adapter removes signatures and redacted thinking, turns readable thinking into text, and rewrites tool call IDs to the shape the target API accepts. Each call stays paired with its result.
+  - Every request drops failed and aborted assistant batches and adds a `No result provided` result for an unanswered tool call. The saved history does not change.
+  - `RUN_FINISHED` and `RUN_ERROR` metadata now merge onto the assistant messages of that model call in `StreamProcessor`.
+  - Anthropic: the new `allowEmptySignature` option (default `false`) replays unsigned thinking from the same source, for gateways. The new `provider` option names a gateway.
+  - Azure OpenAI reports the `azure-openai-responses` API.
+  - Gemini, Mistral, and Bedrock Converse send same-source thinking back to the model, in block order.
+  - `withPersistence` writes the source and the stop reason onto streaming snapshot rows.
+  - Adapter authors get `transformMessagesForReplay()` and `hashToolCallId()` from `@tanstack/ai/adapter-internals`.
+
+- Updated dependencies [[`1bfcee3`](https://github.com/TanStack/ai/commit/1bfcee35bb3cf0ff3aac005440c842e66c3d687d), [`412b0fe`](https://github.com/TanStack/ai/commit/412b0fea4f4bb569998c3d253d174efd7b501e3c), [`a0150c2`](https://github.com/TanStack/ai/commit/a0150c26b9e2b6050663450171e36a9dfa80915b), [`b881627`](https://github.com/TanStack/ai/commit/b881627d51076dcc1af031ac951046e2fb7d84c4), [`fac0555`](https://github.com/TanStack/ai/commit/fac055559de98eb0fa23a0bc725808033ba3c2fc), [`6774e80`](https://github.com/TanStack/ai/commit/6774e803da3205101613ab2857c9ed4fbf975681), [`5bd27f2`](https://github.com/TanStack/ai/commit/5bd27f2fc94ebfb6d11bfb28d46d5d858310805e), [`c20f7b0`](https://github.com/TanStack/ai/commit/c20f7b021aa618fbfcc114b3f0bef5e888ff6b84), [`cef1911`](https://github.com/TanStack/ai/commit/cef19119c76fc5f618d6c971efbc486323b213c3), [`51f72fb`](https://github.com/TanStack/ai/commit/51f72fbf60e201f9c8d014aefa6406e777c05d6a), [`6f1e559`](https://github.com/TanStack/ai/commit/6f1e55934fe95ddf2bf3fb3031488a713e48c7af), [`eb4eea0`](https://github.com/TanStack/ai/commit/eb4eea05b6c53b748bba5fd414b04ce387ead05d), [`cef1911`](https://github.com/TanStack/ai/commit/cef19119c76fc5f618d6c971efbc486323b213c3), [`7532b2b`](https://github.com/TanStack/ai/commit/7532b2b09188ebd1095a60a7c5df6ef08b06916c), [`1bfcee3`](https://github.com/TanStack/ai/commit/1bfcee35bb3cf0ff3aac005440c842e66c3d687d), [`78edeb2`](https://github.com/TanStack/ai/commit/78edeb20a5ba89f2513c3f46f1267a7ed7185045), [`44e3a0a`](https://github.com/TanStack/ai/commit/44e3a0a89c86defebd38b2221dd3b7725a12839a), [`7532b2b`](https://github.com/TanStack/ai/commit/7532b2b09188ebd1095a60a7c5df6ef08b06916c), [`7a5c0d6`](https://github.com/TanStack/ai/commit/7a5c0d6fc1541187a7f01b444bc07a0478274bcb), [`b881627`](https://github.com/TanStack/ai/commit/b881627d51076dcc1af031ac951046e2fb7d84c4)]:
+  - @tanstack/ai@0.69.0
+  - @tanstack/ai-utils@0.4.2
+
 ## 0.8.3
 
 ### Patch Changes

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { chat, createChatOptions } from '../src/activities/chat/index'
+import { maxIterations } from '../src/activities/chat/agent-loop-strategies'
 import { defineInterrupt } from '../src/interrupt-definition'
 import {
   genericInterruptContinuationFromDescriptor,
@@ -3047,6 +3048,511 @@ describe('chat()', () => {
       )
       expect(toolMessages).toHaveLength(1)
       expect(toolMessages[0]!.content).toBe(JSON.stringify({ status: 'ok' }))
+    })
+  })
+
+  // ==========================================================================
+  // Answers cut at the output limit
+  // ==========================================================================
+  describe('answers cut at the output limit', () => {
+    const DEFAULT_TEXT =
+      'The answer stopped at the output limit, so no tool call in it ran. Send the tool calls again. Do not repeat text you already wrote. If one call has a large input, split the work into smaller calls.'
+    // A strategy with no `length` stop: the model sends the cut calls again.
+    const retry = maxIterations(5)
+    const done = [
+      ev.runStarted(),
+      ev.textStart('msg-2'),
+      ev.textContent('Done.', 'msg-2'),
+      ev.textEnd('msg-2'),
+      ev.runFinished('stop'),
+    ]
+
+    it('with a strategy that goes on, gives a cut call the text, does not run it, and calls the model again', async () => {
+      const lookup = vi.fn(() => ({ found: true }))
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('call_1', 'lookup'),
+            ev.toolArgs('call_1', '{"q":'),
+            ev.runFinished('length'),
+          ],
+          done,
+        ],
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'Look it up' }],
+          tools: [serverTool('lookup', lookup)],
+          agentLoopStrategy: retry,
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect(lookup).not.toHaveBeenCalled()
+      expect(calls).toHaveLength(2)
+      expect((calls[1]!.messages as Array<ModelMessage>).slice(1)).toEqual([
+        expect.objectContaining({
+          role: 'assistant',
+          toolCalls: [expect.objectContaining({ id: 'call_1' })],
+          metadata: {
+            tanstack: expect.objectContaining({ finishReason: 'length' }),
+          },
+        }),
+        {
+          role: 'tool',
+          toolCallId: 'call_1',
+          content: DEFAULT_TEXT,
+          error: DEFAULT_TEXT,
+        },
+      ])
+      expect(chunks).toContainEqual(
+        expect.objectContaining({
+          type: EventType.TOOL_CALL_RESULT,
+          toolCallId: 'call_1',
+          content: DEFAULT_TEXT,
+        }),
+      )
+      // The client reads the cut answer as a tool turn.
+      expect(
+        chunks
+          .filter((item) => item.type === EventType.RUN_FINISHED)
+          .map((item) => tanstackMetadata(item)?.finishReason),
+      ).toEqual(['tool_calls', 'stop'])
+    })
+
+    it('lets onAfterToolCall replace the text of a cut call', async () => {
+      const seen: Array<unknown> = []
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('call_1', 'lookup'),
+            ev.toolArgs('call_1', '{"q":'),
+            ev.runFinished('length'),
+          ],
+          done,
+        ],
+      })
+      const rewrite = defineChatMiddleware({
+        onAfterToolCall(_ctx, info) {
+          seen.push(info.error)
+          const cut =
+            !info.ok &&
+            info.error instanceof Error &&
+            'code' in info.error &&
+            info.error.code === 'max_tokens'
+          if (!cut) return
+          return {
+            type: 'replaceResult',
+            result: `The ${info.toolName} call was cut off. Send it again.`,
+          }
+        },
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'Look it up' }],
+          tools: [serverTool('lookup', () => ({ found: true }))],
+          agentLoopStrategy: retry,
+          middleware: [rewrite],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      const text = 'The lookup call was cut off. Send it again.'
+      expect(seen).toEqual([
+        expect.objectContaining({ message: DEFAULT_TEXT, code: 'max_tokens' }),
+      ])
+      expect(
+        (calls[1]!.messages as Array<ModelMessage>).find(
+          (message) => message.role === 'tool',
+        ),
+      ).toEqual({
+        role: 'tool',
+        toolCallId: 'call_1',
+        content: text,
+        error: text,
+      })
+      expect(chunks).toContainEqual(
+        expect.objectContaining({
+          type: EventType.TOOL_CALL_RESULT,
+          toolCallId: 'call_1',
+          content: text,
+        }),
+      )
+    })
+
+    it('gives each call of a cut answer the text, and asks nothing', async () => {
+      const remove = vi.fn(() => ({ ok: true }))
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('call_1', 'remove'),
+            ev.toolArgs('call_1', '{"path":"a.txt"}'),
+            ev.toolEnd('call_1'),
+            ev.toolStart('call_2', 'ask'),
+            ev.toolArgs('call_2', '{"q":'),
+            ev.runFinished('length'),
+          ],
+          done,
+        ],
+      })
+      const onToolCall = vi.fn()
+      const onStreamEnd = vi.fn()
+      const processor = new StreamProcessor({
+        events: { onToolCall, onStreamEnd },
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'Remove and ask' }],
+          tools: [
+            { ...serverTool('remove', remove), needsApproval: true },
+            clientTool('ask'),
+          ],
+          agentLoopStrategy: retry,
+        }) as AsyncIterable<StreamChunk>,
+      )
+      for (const item of chunks) processor.processChunk(item)
+
+      expect(remove).not.toHaveBeenCalled()
+      expect(calls).toHaveLength(2)
+      expect(
+        (calls[1]!.messages as Array<ModelMessage>).filter(
+          (message) => message.role === 'tool',
+        ),
+      ).toEqual(
+        ['call_1', 'call_2'].map((toolCallId) => ({
+          role: 'tool',
+          toolCallId,
+          content: DEFAULT_TEXT,
+          error: DEFAULT_TEXT,
+        })),
+      )
+      expect(
+        chunks.some(
+          (item) =>
+            item.type === EventType.RUN_FINISHED &&
+            item.outcome?.type === 'interrupt',
+        ),
+      ).toBe(false)
+      // The client waits through the cut call, and runs no tool.
+      expect(onToolCall).not.toHaveBeenCalled()
+      expect(onStreamEnd).toHaveBeenCalledTimes(1)
+    })
+
+    it('counts each cut answer as an iteration of the loop strategy', async () => {
+      const cut = (id: string) => [
+        ev.runStarted(),
+        ev.toolStart(id, 'lookup'),
+        ev.toolArgs(id, '{"q":'),
+        ev.runFinished('length'),
+      ]
+      const { adapter, calls } = createMockAdapter({
+        iterations: [cut('call_1'), cut('call_2'), cut('call_3')],
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'Look it up' }],
+          tools: [serverTool('lookup', () => ({ found: true }))],
+          agentLoopStrategy: (state) => state.iterationCount < 2,
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect(calls).toHaveLength(2)
+      // The second cut answer stops the loop, so it keeps `length`.
+      expect(
+        chunks
+          .filter((item) => item.type === EventType.RUN_FINISHED)
+          .map((item) => tanstackMetadata(item)?.finishReason),
+      ).toEqual(['tool_calls', 'length'])
+    })
+
+    it('by default, gives the cut call its result and ends the run with length', async () => {
+      const lookup = vi.fn(() => ({ found: true }))
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Let me look.'),
+            ev.textEnd(),
+            ev.toolStart('call_1', 'lookup'),
+            ev.toolArgs('call_1', '{"q":'),
+            ev.runFinished('length'),
+          ],
+          done,
+        ],
+      })
+      let transcript: Array<ModelMessage> = []
+      const afterToolCall = vi.fn()
+      const keep = defineChatMiddleware({
+        onFinish(ctx) {
+          transcript = [...ctx.messages]
+        },
+        onAfterToolCall: afterToolCall,
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'Look it up' }],
+          tools: [serverTool('lookup', lookup)],
+          middleware: [keep],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect(lookup).not.toHaveBeenCalled()
+      expect(afterToolCall).toHaveBeenCalledTimes(1)
+      expect(calls).toHaveLength(1)
+      expect(
+        tanstackMetadata(expectSingleRunFinished(chunks))?.finishReason,
+      ).toBe('length')
+      // The result comes before the RUN_FINISHED that ends the run.
+      expect(
+        chunks
+          .filter(
+            (item) =>
+              item.type === EventType.TOOL_CALL_RESULT ||
+              item.type === EventType.RUN_FINISHED,
+          )
+          .map((item) => item.type),
+      ).toEqual([EventType.TOOL_CALL_RESULT, EventType.RUN_FINISHED])
+      expect(transcript.slice(1)).toEqual([
+        expect.objectContaining({
+          role: 'assistant',
+          content: 'Let me look.',
+          toolCalls: [expect.objectContaining({ id: 'call_1' })],
+          metadata: {
+            tanstack: expect.objectContaining({ finishReason: 'length' }),
+          },
+        }),
+        {
+          role: 'tool',
+          toolCallId: 'call_1',
+          content: DEFAULT_TEXT,
+          error: DEFAULT_TEXT,
+        },
+      ])
+    })
+
+    it('ends the run with length when onShouldContinue stops after a cut answer', async () => {
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('call_1', 'lookup'),
+            ev.toolArgs('call_1', '{"q":'),
+            ev.runFinished('length'),
+          ],
+          done,
+        ],
+      })
+      const onShouldContinue = vi.fn(() => false)
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'Look it up' }],
+          tools: [serverTool('lookup', () => ({ found: true }))],
+          agentLoopStrategy: retry,
+          middleware: [defineChatMiddleware({ onShouldContinue })],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect(calls).toHaveLength(1)
+      // One loop decision for the cut answer.
+      expect(onShouldContinue).toHaveBeenCalledTimes(1)
+      expect(
+        tanstackMetadata(expectSingleRunFinished(chunks))?.finishReason,
+      ).toBe('length')
+    })
+
+    it('sends the input of a cut call that is not JSON as an empty object', async () => {
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('call_1', 'lookup'),
+            ev.toolArgs('call_1', '{"q":'),
+            ev.runFinished('length'),
+          ],
+          done,
+        ],
+      })
+
+      await collectChunks(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'Look it up' }],
+          tools: [serverTool('lookup', () => ({ found: true }))],
+          agentLoopStrategy: retry,
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      const assistant = (calls[1]!.messages as Array<ModelMessage>).find(
+        (message) => message.role === 'assistant',
+      )
+      expect(assistant?.toolCalls?.[0]?.function.arguments).toBe('{}')
+    })
+
+    it('by default, the client runs no client tool of a cut answer', async () => {
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('call_1', 'ask'),
+            ev.toolArgs('call_1', '{}'),
+            ev.toolEnd('call_1'),
+            ev.toolStart('call_2', 'ask'),
+            ev.toolArgs('call_2', '{"q":'),
+            ev.runFinished('length'),
+          ],
+        ],
+      })
+      const onToolCall = vi.fn()
+      const processor = new StreamProcessor({ events: { onToolCall } })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'Ask' }],
+          tools: [clientTool('ask')],
+        }) as AsyncIterable<StreamChunk>,
+      )
+      for (const item of chunks) processor.processChunk(item)
+
+      expect(onToolCall).not.toHaveBeenCalled()
+    })
+
+    it('does not run or ask for the calls of a cut answer in the history', async () => {
+      const executeSpy = vi.fn().mockReturnValue({ ok: true })
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Going on.'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+      const call = (id: string, name: string) => ({
+        id,
+        type: 'function' as const,
+        function: { name, arguments: '{}' },
+      })
+
+      // A client history that still has the cut calls without results.
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          messages: [
+            { role: 'user', content: 'Look up, remove, and ask' },
+            {
+              role: 'assistant',
+              content: null,
+              metadata: { tanstack: { finishReason: 'length' } },
+              toolCalls: [
+                call('call_1', 'lookup'),
+                call('call_2', 'remove'),
+                call('call_3', 'ask'),
+              ],
+            },
+          ],
+          tools: [
+            serverTool('lookup', executeSpy),
+            { ...serverTool('remove', executeSpy), needsApproval: true },
+            clientTool('ask'),
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect(executeSpy).not.toHaveBeenCalled()
+      expect(expectSingleRunFinished(chunks).outcome?.type).not.toBe(
+        'interrupt',
+      )
+      expect(calls).toHaveLength(1)
+    })
+
+    it('gives the calls of a cut answer a result at an afterModel interrupt', async () => {
+      const review = defineInterrupt({
+        id: 'after-model-cut',
+        responseSchema: z.object({ approved: z.boolean() }),
+      })
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('call-draft', 'saveDraft'),
+            ev.toolArgs('call-draft', '{}'),
+            ev.toolEnd('call-draft'),
+            ev.toolStart('call-remove', 'remove'),
+            ev.toolArgs('call-remove', '{"path":'),
+            ev.runFinished('length'),
+          ],
+        ],
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          interrupts: [review],
+          middleware: [
+            defineChatMiddleware({
+              onInterruptBoundary(ctx) {
+                if (ctx.phase !== 'afterModel') return
+                return {
+                  interrupts: [
+                    review.interrupt({
+                      key: 'after-model',
+                      reason: 'review',
+                      message: 'Review the answer',
+                    }),
+                  ],
+                }
+              },
+            }),
+          ],
+          messages: [{ role: 'user', content: 'Save and remove' }],
+          tools: [
+            clientTool('saveDraft'),
+            {
+              ...serverTool('remove', () => ({ ok: true })),
+              needsApproval: true,
+            },
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      const terminal = expectSingleRunFinished(chunks)
+      if (terminal.outcome?.type !== 'interrupt') {
+        throw new Error('Expected afterModel interrupt')
+      }
+      expect(terminal.outcome.interrupts).toEqual([
+        expect.objectContaining({ reason: 'review' }),
+      ])
+      const snapshot = chunks.find(
+        (item) => item.type === EventType.MESSAGES_SNAPSHOT,
+      )
+      if (!snapshot || snapshot.type !== EventType.MESSAGES_SNAPSHOT) {
+        throw new Error('Expected messages snapshot')
+      }
+      expect(
+        snapshot.messages
+          .filter((message) => message.role === 'tool')
+          .map((message) => [message.toolCallId, message.content]),
+      ).toEqual([
+        ['call-draft', DEFAULT_TEXT],
+        ['call-remove', DEFAULT_TEXT],
+      ])
     })
   })
 

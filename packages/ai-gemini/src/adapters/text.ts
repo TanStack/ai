@@ -1,5 +1,6 @@
 import { FinishReason, FunctionCallingConfigMode } from '@google/genai'
 import {
+  CONTEXT_OVERFLOW_CODE,
   EventType,
   fileReferenceFor,
   isFileSource,
@@ -20,6 +21,7 @@ import {
   createGeminiClient,
   generateId,
   getGeminiApiKeyFromEnv,
+  isGeminiContextOverflow,
 } from '../utils'
 import {
   GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS,
@@ -475,6 +477,7 @@ export class GeminiTextAdapter<
 
       yield* this.processStreamChunks(result, options, logger)
     } catch (error) {
+      const overflow = isGeminiContextOverflow(error)
       const rawEvent = toRunErrorRawEvent(error)
       logger.errors('gemini.chatStream fatal', {
         error,
@@ -488,6 +491,7 @@ export class GeminiTextAdapter<
           error instanceof Error
             ? error.message
             : 'An unknown error occurred during the chat stream.',
+        ...(overflow && { code: CONTEXT_OVERFLOW_CODE }),
         // Forward the provider's structured error body when present (see
         // toRunErrorRawEvent); omitted otherwise.
         ...(rawEvent !== undefined && { rawEvent }),
@@ -496,6 +500,7 @@ export class GeminiTextAdapter<
             error instanceof Error
               ? error.message
               : 'An unknown error occurred during the chat stream.',
+          ...(overflow && { code: CONTEXT_OVERFLOW_CODE }),
         },
       }
     }
@@ -599,6 +604,7 @@ export class GeminiTextAdapter<
         finishReason: 'stop',
       }
     } catch (error) {
+      const overflow = isGeminiContextOverflow(error)
       const rawEvent = toRunErrorRawEvent(error)
       logger.errors('gemini.interactionsStream fatal', {
         error,
@@ -612,12 +618,14 @@ export class GeminiTextAdapter<
           error instanceof Error
             ? error.message
             : 'An unknown error occurred during the chat stream.',
+        ...(overflow && { code: CONTEXT_OVERFLOW_CODE }),
         ...(rawEvent !== undefined && { rawEvent }),
         error: {
           message:
             error instanceof Error
               ? error.message
               : 'An unknown error occurred during the chat stream.',
+          ...(overflow && { code: CONTEXT_OVERFLOW_CODE }),
         },
       }
     }
