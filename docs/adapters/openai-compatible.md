@@ -261,9 +261,11 @@ Your users can pay for model calls with their GitHub Copilot plan. Each user sig
 
 1. On GitHub, open **Settings > Developer settings > OAuth Apps**. Click **New OAuth App**.
 2. Set **Authorization callback URL** to your callback route, for example `https://my-app.com/auth/github/callback`.
-3. If your app runs in a terminal, select **Enable Device Flow**.
-4. Set `GITHUB_CLIENT_ID` to the client ID.
-5. For a web app, generate a client secret. Set `GITHUB_CLIENT_SECRET` to it.
+3. Clear **Expire user access tokens**. The examples below keep one token and do not refresh it.
+4. If your app runs in a terminal, select **Enable Device Flow**.
+5. Set `GITHUB_CLIENT_ID` to the client ID. For a web app, also generate a client secret and set `GITHUB_CLIENT_SECRET` to it.
+
+If you keep **Expire user access tokens** on, a token lasts 8 hours. Refresh it with its refresh token, as [Authorizing OAuth apps](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps) describes.
 
 ### 2. Sign the user in
 
@@ -290,7 +292,12 @@ function env(name: string): string {
 function readCookie(request: Request, name: string): string | undefined {
   for (const pair of (request.headers.get("cookie") ?? "").split(";")) {
     const [key, ...rest] = pair.trim().split("=");
-    if (key === name) return decodeURIComponent(rest.join("="));
+    if (key !== name) continue;
+    try {
+      return decodeURIComponent(rest.join("="));
+    } catch {
+      return undefined; // A malformed value counts as no cookie.
+    }
   }
   return undefined;
 }
@@ -433,7 +440,7 @@ export async function signInWithDevice(): Promise<string> {
 - `slow_down`: GitHub wants a longer wait. The loop waits longer.
 - Any other error stops the sign-in. For example, the code expires after 15 minutes.
 
-Keep the token in the OS keychain, or in a file that only the user can read. A GitHub OAuth token does not expire by default, so the user signs in one time.
+Keep the token in the OS keychain, or in a file that only the user can read. With **Expire user access tokens** cleared, the token does not expire, so the user signs in one time.
 
 ### 3. Find the Copilot host
 
