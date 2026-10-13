@@ -643,6 +643,11 @@ export interface SubagentHandle extends SubagentHandleData {
    * keeps going.
    */
   stop?: () => void
+  /**
+   * The checked input of an agent with `inputSchema`: what the parent model
+   * wrote when it started this child. Set by ChatClient from the card.
+   */
+  input?: unknown
 }
 
 export interface SubagentPart {
@@ -660,6 +665,8 @@ export type SubagentClientAgent = {
   description?: string
   tools?: ReadonlyArray<{ name: string }>
   interrupts?: ReadonlyArray<InterruptDefinition<any, any, any, any>>
+  /** Types `part.subagent.input`. */
+  inputSchema?: unknown
   outputSchema?: SchemaInput
 }
 
@@ -687,13 +694,28 @@ type AgentOutputData<TAgent> = TAgent extends { outputSchema?: infer TSchema }
     : unknown
   : unknown
 
+// The card holds the checked value, so a Standard Schema gives its output type.
+type AgentInputData<TAgent> = TAgent extends { inputSchema?: infer TSchema }
+  ? [Exclude<TSchema, undefined>] extends [never]
+    ? undefined
+    : Exclude<TSchema, undefined> extends {
+          '~standard': { types?: { output: infer TOutput } }
+        }
+      ? TOutput
+      : Exclude<TSchema, undefined> extends SchemaInput
+        ? InferSchemaType<Exclude<TSchema, undefined>>
+        : unknown
+  : undefined
+
 /** One child handle. `name` is the discriminant. */
 export type SubagentHandleOf<TAgent extends SubagentClientAgent> = Omit<
   SubagentHandle,
-  'name' | 'messages'
+  'name' | 'messages' | 'input'
 > & {
   name: TAgent['name']
   messages: Array<UIMessage<AgentToolList<TAgent>, AgentOutputData<TAgent>>>
+  /** Unset on a card saved before the input was kept. */
+  input?: AgentInputData<TAgent>
 }
 
 export type SubagentHandles<

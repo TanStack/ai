@@ -34,6 +34,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+/** Key of a child's checked input in `SUBAGENT_STARTED` metadata (`metadata.tanstack`). */
+export const SUBAGENT_INPUT_KEY = 'subagentInput'
+
+/**
+ * The checked input of a child that an agent with `inputSchema` got, read
+ * from the `metadata` of its card or of its `SUBAGENT_STARTED` event.
+ */
+export function subagentInputOf(metadata: unknown): unknown {
+  if (!isRecord(metadata) || !isRecord(metadata.tanstack)) return undefined
+  return metadata.tanstack[SUBAGENT_INPUT_KEY]
+}
+
 export function wireSubagentRunId(message: unknown): string | undefined {
   if (!isRecord(message) || 'parts' in message) return undefined
   const id = message.subagentRunId

@@ -983,8 +983,10 @@ describe('defineAgent inputSchema', () => {
     )
 
     const tool = calls[0]?.tools?.find((entry) => entry.name === 'researcher')
-    // The engine gives a tool with no schema an empty object schema.
-    expect(tool?.inputSchema?.properties ?? {}).toEqual({})
+    // An agent without inputSchema takes only a prompt.
+    expect(tool?.inputSchema?.properties).toEqual({
+      prompt: { type: 'string' },
+    })
     expect(inputs).toEqual([undefined])
   })
 
