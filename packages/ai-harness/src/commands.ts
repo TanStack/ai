@@ -1,7 +1,7 @@
 import type { InferSchemaType, ModelMessage, SchemaInput } from '@tanstack/ai'
 import type { SessionIndexEntry } from '@tanstack/ai-persistence'
 import type { CredentialsAccess } from './auth'
-import type { SessionSnapshot } from './session'
+import type { SessionSnapshot } from './session/index'
 import type { SessionEntryChange, SessionEntryUpdate } from './session-entry'
 import type {
   ChatTurnResult,
