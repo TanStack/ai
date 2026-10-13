@@ -209,7 +209,8 @@
         {
           "label": "JSON",
           "to": "transports/json",
-          "addedAt": "2026-10-08"
+          "addedAt": "2026-10-08",
+          "updatedAt": "2026-10-12"
         },
         {
           "label": "WebSockets",
@@ -252,7 +253,7 @@
           "label": "One-Shot Extraction",
           "to": "structured-outputs/one-shot",
           "addedAt": "2026-05-19",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-10-12"
         },
         {
           "label": "Streaming UIs",
