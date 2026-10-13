@@ -3,7 +3,7 @@ import type { APIRequestContext } from '@playwright/test'
 
 /**
  * First-party harness plugins in a session: `agents()`, `permissions()`,
- * `projectInstructions()`, and `title()`. Each test runs one scenario of
+ * `projectInstructions()`, `title()`, and `goal()`. Each test runs one scenario of
  * `/api/harness-first-party`. The model is the OpenAI adapter against
  * aimock, and aimock's journal shows what each model call sent.
  */
@@ -121,5 +121,31 @@ test.describe('harness first-party plugins', () => {
       title: 'Trip to Rome',
       failures: [],
     })
+  })
+
+  test('goal(): the judge says that the goal is met after one turn', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    expect(await runScenario(request, 'goal', testId)).toEqual({
+      goal: {
+        text: '[first-party-goal] finish the report',
+        status: 'met',
+        round: 1,
+        reason: 'The report is done.',
+        note: '',
+        queued: '',
+      },
+      shown: [
+        'Goal: [first-party-goal] finish the report',
+        'Status: met, round 1 of 20.',
+        'Last check: The report is done.',
+      ].join('\n'),
+    })
+
+    // One turn of the main model and one check of the judge.
+    const calls = await modelCalls(request, aimockPort, testId)
+    expect(calls).toHaveLength(2)
   })
 })

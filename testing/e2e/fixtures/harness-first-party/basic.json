@@ -102,6 +102,24 @@
       "response": {
         "content": "Here is a plan for Rome."
       }
+    },
+    {
+      "match": {
+        "userMessage": "Work toward this goal: [first-party-goal] finish the report",
+        "model": "gpt-5.4-nano"
+      },
+      "response": {
+        "content": "{\"met\":true,\"reason\":\"The report is done.\"}"
+      }
+    },
+    {
+      "match": {
+        "userMessage": "Work toward this goal: [first-party-goal] finish the report",
+        "model": "gpt-5.5"
+      },
+      "response": {
+        "content": "The report is done."
+      }
     }
   ]
 }

@@ -13,8 +13,10 @@ import {
 import {
   TitleFailed,
   agents,
+  goal,
   permissions,
   projectInstructions,
+  selectGoal,
   title,
 } from '@tanstack/ai-harness/plugins'
 import { memoryPersistence } from '@tanstack/ai-persistence'
@@ -195,8 +197,39 @@ async function sessionTitle(
 }
 
 /**
+ * `goal()`: `/goal` starts a turn, the judge says that the goal is met, and
+ * no next turn starts.
+ */
+async function goalLoop(
+  host: HarnessHost,
+  model: () => AnyTextAdapter,
+  judgeModel: AnyTextAdapter,
+) {
+  const session = await host.open(
+    defineHarness({
+      name: 'e2e/harness-goal',
+      adapter: model(),
+      plugins: () => [goal({ judge: judgeModel })],
+    }),
+    { threadId: 'e2e-goal' },
+  )
+  await session.command('goal', '[first-party-goal] finish the report')
+  const deadline = Date.now() + 10_000
+  while (
+    selectGoal(session.snapshot())?.status !== 'met' &&
+    Date.now() < deadline
+  ) {
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
+  return {
+    goal: selectGoal(session.snapshot()),
+    shown: await session.command('goal'),
+  }
+}
+
+/**
  * First-party harness plugins, one scenario per request:
- * `?scenario=agents|plan-subagent|env|title&testId=...`. The models are
+ * `?scenario=agents|plan-subagent|env|title|goal&testId=...`. The models are
  * OpenAI adapters against aimock.
  */
 export const Route = createFileRoute('/api/harness-first-party')({
@@ -227,6 +260,15 @@ export const Route = createFileRoute('/api/harness-first-party')({
               testId,
             ).adapter
             return Response.json(await sessionTitle(host, model, titleModel))
+          }
+          if (scenario === 'goal') {
+            const judgeModel = createTextAdapter(
+              'openai',
+              'gpt-5.4-nano',
+              undefined,
+              testId,
+            ).adapter
+            return Response.json(await goalLoop(host, model, judgeModel))
           }
           return Response.json(
             { error: `Unknown scenario ${scenario}` },
