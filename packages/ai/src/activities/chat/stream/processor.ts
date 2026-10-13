@@ -2734,13 +2734,8 @@ export class StreamProcessor {
         continue
       }
       // A call of an answer cut at the output limit never runs, also when
-      // its arguments parse.
-      if (this.finishReason === 'length') {
-        console.warn(
-          `[StreamProcessor] Did not run tool call ${toolCallId}: the answer stopped at the output limit`,
-        )
-        continue
-      }
+      // its arguments parse. This is expected, so it logs nothing.
+      if (this.finishReason === 'length') continue
       // A snapshot can carry a part with arguments but no input. Parse them
       // strictly, as completeToolCall() does. An empty argument string is a
       // call with no arguments.
