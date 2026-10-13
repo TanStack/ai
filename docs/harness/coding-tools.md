@@ -93,7 +93,7 @@ for (;;) {
 }
 ```
 
-`@tanstack/ai-harness/plugins/coding` runs only in Node. The tools use the file system and the shell of the machine.
+`@tanstack/ai-harness/plugins/coding` runs only in Node. The tools use the file system and the shell of the machine. For code that you do not trust, [run the tools in a sandbox](./coding-tools-backends#run-the-tools-in-a-sandbox).
 
 ## 3. Run it
 
@@ -282,4 +282,4 @@ await session.configure({ cwd: 'web-app' })
 - A question before each edit, command, and web fetch.
 - A working folder for each thread, and a question before a path outside `root`.
 
-Next: run the same tools on your own backend, or format each file after a write. See [Extend the coding tools](./coding-tools-backends).
+Next: run the same tools in a sandbox, or format each file after a write. See [Sandbox and extend the coding tools](./coding-tools-backends).

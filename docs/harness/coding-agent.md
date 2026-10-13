@@ -164,7 +164,11 @@ export const noDeploys = definePlugin({
 
 A trailing `*` matches every tool that starts with the text. The last matching rule wins. [Ask before risky tool calls](./permissions) explains the rules, the modes, and the saved answers.
 
-The workspace tools run on your machine with your permissions. To run them on another machine, [write your own backend](./coding-tools-backends#write-your-own-backend).
+The workspace tools run on your machine with your permissions. For code that you do not trust, [run the tools in a sandbox](./coding-tools-backends#run-the-tools-in-a-sandbox).
+
+## Hand work to Claude Code or Codex
+
+Your agent can also give tasks to coding agents you already use. [Delegate to coding agents](./coding-agents) shows how.
 
 ## What you have now
 

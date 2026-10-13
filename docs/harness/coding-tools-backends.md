@@ -1,18 +1,76 @@
 ---
-title: Extend the coding tools
+title: Sandbox and extend the coding tools
 id: harness-coding-tools-backends
 order: 7
-description: "Run the coding tools on your own backend, format each written file, and keep tool output small."
+description: "Run the coding tools in a sandbox or on your own backend, format each written file, and keep tool output small."
 keywords:
   - tanstack ai
   - harness
   - coding agent
   - workspace tools
+  - sandbox
   - formatter
   - workspace hooks
 ---
 
-Your agent must work on files that are not on this machine. Or you want code to run after each write, like a formatter. The [coding tools](./coding-tools) send every read, write, and command through a backend, and they run hooks after each read and write. This page shows how to change both.
+Your agent must work on files that are not on this machine, or on code that you do not trust. Or you want code to run after each write, like a formatter. The [coding tools](./coding-tools) send every read, write, and command through a backend, and they run hooks after each read and write. This page shows how to change both.
+
+## Run the tools in a sandbox
+
+By default, the tools run on your machine, with the rights of your user. For code that you do not trust, run them in a sandbox. `sandboxWorkspaceBackend()` sends every read, write, and command to the sandbox.
+
+1. Install the sandbox packages:
+
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+vue: @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+solid: @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+svelte: @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+preact: @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+angular: @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+octane: @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+vanilla: @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+
+<!-- ::end:tabs -->
+
+2. Start a sandbox, and give its backend to `workspaceTools()`:
+
+```ts group=harness-coding-tools-sandbox
+import { defineHarness } from '@tanstack/ai-harness'
+import { permissions } from '@tanstack/ai-harness/plugins'
+import { workspaceTools } from '@tanstack/ai-harness/plugins/coding'
+import { openaiText } from '@tanstack/ai-openai'
+import { sandboxWorkspaceBackend } from '@tanstack/ai-sandbox/harness'
+import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
+
+const sandbox = await dockerSandbox({ image: 'node:22' }).create({})
+// Without `dir`, the clone goes to the workspace root, /workspace.
+await sandbox.git.clone({ url: 'https://github.com/acme/web-app.git' })
+
+const root = '/workspace'
+
+export const sandboxed = defineHarness({
+  name: 'acme/sandboxed-coder',
+  adapter: openaiText('gpt-6.1-sol'),
+  plugins: () => [
+    permissions({ root }),
+    workspaceTools({ root, backend: sandboxWorkspaceBackend(sandbox) }),
+  ],
+})
+```
+
+3. When you are done, stop the sandbox with `await sandbox.destroy()`.
+
+Every provider works. Get the handle from `create()`, or from `resume()` for a sandbox that runs already. See [Providers](../sandbox/providers).
+
+In a sandbox, some things are different:
+
+- Paths are POSIX paths in the sandbox, like `/workspace/src/a.ts`, also on a Windows host.
+- The tools do not check where links lead. The sandbox backend has no `realpath`.
+- `background: true` needs a sandbox with `capabilities.backgroundProcesses`.
+- A sandbox with `capabilities.killableProcesses` off cannot stop a command after the time limit. The call returns, and the command continues in the sandbox.
+- `list_files` and `grep` use `rg` in the sandbox. The `@vscode/ripgrep` binary is a host file, so the sandbox does not use it.
 
 ## Write your own backend
 
@@ -152,7 +210,7 @@ export const withToml = formatter({
 - `when(project)` limits a formatter to some projects. Without it, the formatter is used in every project.
 - `builtins: false` turns the built-in formatters off.
 - `timeoutMs` limits each run. The default is 20 seconds.
-- On your own backend, give `formatter()` the same `backend` as `workspaceTools()`.
+- In a sandbox or on your own backend, give `formatter()` the same `backend` as `workspaceTools()`.
 
 A formatter that fails, stops at the time limit, or is not installed does not fail the tool call. The file stays as the tool wrote it, and the plugin sends `FormatFailed`:
 
@@ -208,6 +266,7 @@ export const bounded = defineHarness({
 
 ## What you have now
 
+- The coding tools in a sandbox, with one option.
 - A backend of your own for another place.
 - Code that runs after each read and each write.
 - Formatted files after each write, and tool results that fit the context.

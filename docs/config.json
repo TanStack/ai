@@ -999,21 +999,30 @@
         {
           "label": "Give your agent coding tools",
           "to": "harness/coding-tools",
-          "addedAt": "2026-10-13"
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-13"
         },
         {
-          "label": "Extend the coding tools",
+          "label": "Sandbox and extend the coding tools",
           "to": "harness/coding-tools-backends",
-          "addedAt": "2026-10-13"
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-13"
         },
         {
           "label": "Undo a turn",
           "to": "harness/snapshots",
-          "addedAt": "2026-10-13"
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-13"
         },
         {
           "label": "Build a coding agent",
           "to": "harness/coding-agent",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-13"
+        },
+        {
+          "label": "Delegate to coding agents",
+          "to": "harness/coding-agents",
           "addedAt": "2026-10-13"
         },
         {

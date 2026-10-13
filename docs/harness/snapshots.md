@@ -111,6 +111,26 @@ await session.unrevert()
 
 In your own UI, call `client.revert(messageId)` and `client.unrevert()`. The client needs `'undo'` in `expose.commands`. More about reverts: [Go back to an earlier message](./sessions#go-back-to-an-earlier-message).
 
+## In a sandbox
+
+When the [coding tools run in a sandbox](./coding-tools-backends#run-the-tools-in-a-sandbox), give `snapshots()` the same `backend`:
+
+```ts group=harness-snapshots-sandbox
+import { snapshots } from '@tanstack/ai-harness/plugins/coding'
+import { sandboxWorkspaceBackend } from '@tanstack/ai-sandbox/harness'
+import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
+
+const sandbox = await dockerSandbox({ image: 'node:22' }).create({})
+
+export const sandboxHistory = snapshots({
+  root: '/workspace',
+  dataDir: '/tmp/snapshots',
+  backend: sandboxWorkspaceBackend(sandbox),
+})
+```
+
+Git then runs in the sandbox, and `dataDir` is a path in the sandbox. The sandbox image needs `git`.
+
 ## Known limits
 
 - One level of undo. A second `/undo` answers `Nothing to undo.` After a `/redo`, `/undo` works again.

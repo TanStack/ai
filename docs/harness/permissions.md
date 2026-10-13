@@ -292,6 +292,7 @@ The same check runs in every agent run of the session:
 - A question from a child waits in the same session. Answer it the same way.
 - In `plan` mode, a child cannot change a file. Its call gets the tool error `This tool is not allowed in plan mode.`
 - The `permissions` of an [agent profile](./agents) count only while that profile is the primary agent. They do not apply when the profile runs as a subagent.
+- [Coding agents](./coding-agents#plan-mode) such as Claude Code start read-only in `plan` mode.
 
 ## Rules for your own tool
 

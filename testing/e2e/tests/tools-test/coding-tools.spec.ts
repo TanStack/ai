@@ -149,6 +149,20 @@ test.describe('Coding tools', () => {
     expect(await read('bash.txt')).toBe('AGENT=1')
   })
 
+  test('edit_file works in a sandbox with sandboxWorkspaceBackend', async ({
+    request,
+    testId,
+  }) => {
+    await writeFile(file('notes.txt'), 'alpha\nbeta\n')
+
+    // The sandbox maps its /workspace to the test folder.
+    expect(await runScenario(request, 'coding-sandbox', testId)).toEqual({
+      results: ['Edited notes.txt (1 change).'],
+      text: 'Edited notes.txt in the sandbox.',
+    })
+    expect(await read('notes.txt')).toBe('sandboxed\nbeta\n')
+  })
+
   test('revert puts back the files of the turns and keeps the edit of the user', async ({
     request,
     testId,

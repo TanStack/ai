@@ -14,6 +14,8 @@ import {
   snapshots,
   workspaceTools,
 } from '@tanstack/ai-harness/plugins/coding'
+import { sandboxWorkspaceBackend } from '@tanstack/ai-sandbox/harness'
+import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
 import { createTextAdapter } from '@/lib/providers'
 
@@ -100,6 +102,40 @@ async function* revertTurns(
 }
 
 /**
+ * The `coding-sandbox` scenario: one `edit_file` turn with the tools in a
+ * local-process sandbox on `root`. The tools see `/workspace`, and the
+ * sandbox maps it to `root`.
+ */
+async function* sandboxTurn(
+  root: string,
+  adapter: AnyTextAdapter,
+): AsyncGenerator<StreamChunk> {
+  const sandbox = await localProcessSandbox({ dir: root }).create({})
+  const host = createHarnessHost()
+  try {
+    const session = await host.open(
+      defineHarness({
+        name: 'e2e/coding-tools-sandbox',
+        adapter,
+        plugins: () => [
+          workspaceTools({
+            root: '/workspace',
+            editStyle: 'edit',
+            backend: sandboxWorkspaceBackend(sandbox),
+          }),
+        ],
+      }),
+      { threadId: 'coding-sandbox' },
+    )
+    yield* session.prompt('[coding-sandbox] run test').stream()
+  } finally {
+    await host.close()
+    // With `dir`, destroy keeps the folder.
+    await sandbox.destroy()
+  }
+}
+
+/**
  * The coding tools of `@tanstack/ai-harness/plugins/coding` on real files.
  * Body: `{ scenario, testId, root }`. `root` must be a folder in the temp
  * folder, because the tools write files and run commands there. The answer
@@ -135,7 +171,9 @@ export const Route = createFileRoute('/api/coding-tools')({
         return toServerSentEventsResponse(
           scenario === 'coding-revert'
             ? revertTurns(root, adapter)
-            : codingTurn(scenario, root, adapter),
+            : scenario === 'coding-sandbox'
+              ? sandboxTurn(root, adapter)
+              : codingTurn(scenario, root, adapter),
         )
       },
     },

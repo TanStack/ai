@@ -7,7 +7,10 @@
       },
       "response": {
         "toolCalls": [
-          { "name": "read_file", "arguments": "{\"path\":\"notes.txt\"}" }
+          {
+            "name": "read_file",
+            "arguments": "{\"path\":\"notes.txt\"}"
+          }
         ]
       }
     },
@@ -72,7 +75,12 @@
         "sequenceIndex": 0
       },
       "response": {
-        "toolCalls": [{ "name": "grep", "arguments": "{\"pattern\":\"beta\"}" }]
+        "toolCalls": [
+          {
+            "name": "grep",
+            "arguments": "{\"pattern\":\"beta\"}"
+          }
+        ]
       }
     },
     {
@@ -172,7 +180,32 @@
         "userMessage": "[coding-format-ask] run test",
         "sequenceIndex": 1
       },
-      "response": { "content": "Wrote a.ts." }
+      "response": {
+        "content": "Wrote a.ts."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[coding-sandbox] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "edit_file",
+            "arguments": "{\"path\":\"notes.txt\",\"old\":\"alpha\",\"new\":\"sandboxed\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[coding-sandbox] run test",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Edited notes.txt in the sandbox."
+      }
     }
   ]
 }
