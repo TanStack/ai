@@ -522,6 +522,54 @@ describe('OpenRouter adapter option mapping', () => {
     }
   })
 
+  // finishReason=null closes the call in the post-stream drain.
+  it.each([
+    { raw: '{"n": 1.50}', finishReason: 'tool_calls' },
+    { raw: '{"n": 1.50}', finishReason: null },
+    { raw: '{"a":', finishReason: 'tool_calls' },
+    { raw: '{"a":', finishReason: null },
+  ])(
+    'sends the raw argument string $raw as args on TOOL_CALL_END (finishReason=$finishReason)',
+    async ({ raw, finishReason }) => {
+      setupMockSdkClient([
+        {
+          id: 'chatcmpl-raw',
+          model: 'openai/gpt-4o-mini',
+          choices: [
+            {
+              delta: {
+                toolCalls: [
+                  {
+                    index: 0,
+                    id: 'call_raw',
+                    type: 'function',
+                    function: { name: 'lookup_weather', arguments: raw },
+                  },
+                ],
+              },
+              finishReason,
+            },
+          ],
+        },
+      ])
+
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of createAdapter().chatStream({
+        model: 'openai/gpt-4o-mini',
+        messages: [{ role: 'user', content: 'Weather?' }],
+        tools: [weatherTool],
+        logger: testLogger,
+      })) {
+        chunks.push(chunk)
+      }
+
+      const toolEnd = chunks.find((c) => c.type === 'TOOL_CALL_END')
+      expect(toolEnd).toMatchObject({ toolCallId: 'call_raw', args: raw })
+      if (raw === '{"a":') expect(toolEnd).not.toHaveProperty('input')
+      else expect(toolEnd).toMatchObject({ input: { n: 1.5 } })
+    },
+  )
+
   it('emits parentMessageId on tool-first tool calls matching the assistant message id', async () => {
     // Tool call streams before any text content. parentMessageId must bind the
     // tool call to the same assistant message id the eventual TEXT_MESSAGE_START

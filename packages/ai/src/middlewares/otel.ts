@@ -899,6 +899,9 @@ export function otelMiddleware(
 
     onBeforeToolCall(ctx, hookCtx) {
       safeCall('otel.onBeforeToolCall', () => {
+        // A client tool runs in the client, not here, so it gets no
+        // execute_tool span. Middleware sees its input before dispatch.
+        if (hookCtx.tool && !hookCtx.tool.execute) return
         const state = stateByCtx.get(ctx)
         if (!state) return
         const parent = state.currentIterationSpan ?? state.rootSpan

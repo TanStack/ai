@@ -238,7 +238,7 @@ The media generation hooks take a `threadId` too. There it names a slot, not a c
 
 ## Tool input and output
 
-SSE and HTTP `TOOL_CALL_END` does not carry parsed `input`. In-process `chat()` still has `input`. Tool input and output also live on `UIMessage` parts.
+SSE and HTTP `TOOL_CALL_END` does not carry parsed `input` at the top level. In-process `chat()` still has `input`. `metadata.tanstack.args` carries the tool argument string as the provider sent it. Tool input and output also live on `UIMessage` parts.
 
 On the server, feed chunks into `StreamProcessor`. On the client, read `useChat` `messages`.
 

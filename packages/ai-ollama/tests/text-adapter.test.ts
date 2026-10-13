@@ -276,6 +276,53 @@ describe('OllamaTextAdapter.chatStream (tool calls)', () => {
     expect(startChunk!.toolCallId).toMatch(/^search_\d+/)
   })
 
+  async function toolCallEnd(args: unknown) {
+    chatMock.mockResolvedValueOnce(
+      asyncIterable([
+        {
+          message: {
+            role: 'assistant',
+            content: '',
+            tool_calls: [
+              { id: 'tc-raw', function: { name: 'search', arguments: args } },
+            ],
+          },
+          done: true,
+          done_reason: 'stop',
+        },
+      ]),
+    )
+    const chunks = await collectStream(
+      createOllamaChat('llama3.2').chatStream({
+        logger: testLogger,
+        model: 'llama3.2',
+        messages: [{ role: 'user', content: 'find cats' }],
+        tools: [searchTool],
+      }),
+    )
+    return chunks.find((c) => c.type === 'TOOL_CALL_END')
+  }
+
+  it('puts the raw argument string on TOOL_CALL_END', async () => {
+    const end = await toolCallEnd('{"q": "cats", "n": 1.50}')
+    expect(end).toMatchObject({
+      toolCallId: 'tc-raw',
+      args: '{"q": "cats", "n": 1.50}',
+      input: { q: 'cats', n: 1.5 },
+    })
+  })
+
+  it('puts the serialized object arguments on TOOL_CALL_END', async () => {
+    const end = await toolCallEnd({ q: 'cats' })
+    expect(end).toMatchObject({ args: '{"q":"cats"}', input: { q: 'cats' } })
+  })
+
+  it('sends malformed raw arguments on TOOL_CALL_END without an input', async () => {
+    const end = await toolCallEnd('{"a":')
+    expect(end).toMatchObject({ toolCallId: 'tc-raw', args: '{"a":' })
+    expect(end).not.toHaveProperty('input')
+  })
+
   it('forwards tools to the ollama client in provider format', async () => {
     chatMock.mockResolvedValueOnce(
       asyncIterable([

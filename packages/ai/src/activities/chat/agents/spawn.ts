@@ -1073,8 +1073,8 @@ function agentToolSchema(
 }
 
 /**
- * The input schema of an agent tool. The tool loop checks a Standard Schema
- * before middleware runs, as for any tool. With reserved fields, a wrapper
+ * The input schema of an agent tool. The tool loop checks it after
+ * middleware, just before the tool runs, as for any tool. With reserved fields, a wrapper
  * checks the agent's fields and passes the reserved ones through.
  */
 function agentToolInput(

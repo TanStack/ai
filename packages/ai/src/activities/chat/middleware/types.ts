@@ -845,8 +845,10 @@ export interface ChatMiddleware<
     | Promise<void | StreamChunk | Array<StreamChunk> | null>
 
   /**
-   * Called before a tool is executed.
+   * Called before a server tool runs and before a client tool is sent to the
+   * client. Not called while the call waits for approval.
    * Can observe, transform args, skip execution, or abort the run.
+   * The tool's `inputSchema` checks the args after this hook.
    */
   onBeforeToolCall?: (
     ctx: ChatMiddlewareContext<TContext>,

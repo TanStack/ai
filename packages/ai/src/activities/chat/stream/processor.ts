@@ -35,6 +35,7 @@ import {
   withTanstackMetadata,
 } from '../../../utilities/merge-metadata'
 import { getChunkRunId } from '../../../utilities/chunk-ids'
+import { reconcileToolCallArguments } from '../../../utilities/tool-call-arguments'
 import type { AdapterYieldChunk } from '../../../utilities/adapter-yield-chunk'
 import {
   isContentPartArray,
@@ -2516,8 +2517,20 @@ export class StreamProcessor {
       // `arguments` and `input` then stay with the streamed value, so the
       // two never disagree.
       const serializedInput = serializeToolInput(input)
-      if (serializedInput !== undefined) {
-        existingToolCall.arguments = serializedInput
+      // The provider's raw argument string wins when it is the same JSON
+      // value as the input, so the history keeps the exact bytes.
+      const rawArgs =
+        (chunk as AdapterYieldChunk).args ?? tanstackMetadata(chunk)?.args
+      let args = serializedInput
+      if (rawArgs !== undefined) {
+        try {
+          args = reconcileToolCallArguments(rawArgs, input)
+        } catch {
+          // An input with no JSON form keeps the canonical string.
+        }
+      }
+      if (args !== undefined) {
+        existingToolCall.arguments = args
       }
 
       const index = msgState.toolCallOrder.indexOf(chunk.toolCallId)

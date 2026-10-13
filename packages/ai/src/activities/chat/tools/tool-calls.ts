@@ -1,7 +1,9 @@
+import { reconcileToolCallArguments } from '../../../utilities/tool-call-arguments'
 import { normalizeToolResult } from '../../../utilities/tool-result'
 import { tanstackMetadata } from '../../../utilities/merge-metadata'
 import { isProviderExecutedToolCall } from '../../../utilities/provider-executed'
 import { mergeStreams } from '../../../utilities/merge-streams'
+import { validateToolInput } from './input-validation'
 import type { AdapterYieldChunk } from '../../../utilities/adapter-yield-chunk'
 import {
   StandardSchemaValidationError,
@@ -354,10 +356,32 @@ export class ToolCallManager<
   completeToolCall(event: ToolCallEndEvent): void {
     for (const toolCall of this.toolCallsMap.values()) {
       if (toolCall.id !== event.toolCallId) continue
-      if (event.input === undefined) return
-      const normalized =
-        event.input && typeof event.input === 'object' ? event.input : {}
-      toolCall.function.arguments = JSON.stringify(normalized)
+      // The provider's raw argument string wins when the parsed input is the
+      // same JSON value, so replay sends the exact bytes back. Malformed raw
+      // JSON stays as it is, for the tool error.
+      const extra = event as AdapterYieldChunk
+      const snapshot = extra.args ?? tanstackMetadata(extra)?.args
+      // A non-object input (an empty tool_use block) is `{}`.
+      const input =
+        event.input === undefined
+          ? undefined
+          : event.input && typeof event.input === 'object'
+            ? event.input
+            : {}
+      let raw: string | undefined = snapshot ?? toolCall.function.arguments
+      if (snapshot === undefined && input !== undefined) {
+        try {
+          JSON.parse(raw)
+        } catch {
+          raw = undefined
+        }
+      }
+      try {
+        toolCall.function.arguments = reconcileToolCallArguments(raw, input)
+      } catch {
+        // An input with no JSON form (a cycle): keep the raw arguments.
+        if (raw !== undefined) toolCall.function.arguments = raw
+      }
       return
     }
   }
@@ -415,20 +439,7 @@ export class ToolCallManager<
             )
           }
 
-          // Validate input against inputSchema (for Standard Schema compliant schemas)
-          if (tool.inputSchema && isStandardSchema(tool.inputSchema)) {
-            try {
-              args = parseWithStandardSchema(tool.inputSchema, args)
-            } catch (validationError: unknown) {
-              const message =
-                validationError instanceof Error
-                  ? validationError.message
-                  : 'Validation failed'
-              throw new Error(
-                `Input validation failed for tool ${tool.name}: ${message}`,
-              )
-            }
-          }
+          args = await validateToolInput(tool.inputSchema, args, tool.name)
 
           // Execute the tool
           const executionContext = {
@@ -1156,27 +1167,95 @@ export async function* executeToolCalls<TContext = unknown>(
       }
     }
 
-    // Validate input against inputSchema (for Standard Schema compliant schemas)
-    if (tool.inputSchema && isStandardSchema(tool.inputSchema)) {
+    const resolution = tool.needsApproval
+      ? approvalResolution(approvals, toolCall.id)
+      : undefined
+    // A call that waits for approval shows its checked input. Middleware
+    // runs only once the call is approved.
+    const needsPreview = tool.needsApproval && resolution === undefined
+    if (resolution !== undefined && !isApproved(resolution)) {
+      // User declined
+      results.push({
+        toolCallId: toolCall.id,
+        toolName,
+        result:
+          resumeState?.deniedToolResults?.get(toolCall.id) ??
+          deniedApprovalResult(resolution),
+        input,
+        state: 'output-error',
+        outcome: 'denied',
+      })
+      continue
+    }
+    if (resolution !== undefined) {
+      input = editedApprovalArgs(resolution) ?? input
+    }
+    // A client tool whose result came back already went through the hook
+    // before dispatch. Its input is checked again, with no second hook run.
+    const clientError = resumeState?.clientToolErrors?.get(toolCall.id)
+    const clientDone =
+      !tool.execute &&
+      (clientResults.has(toolCall.id) || clientError !== undefined)
+
+    if (!needsPreview && !clientDone && middlewareHooks) {
+      let decision: Awaited<ReturnType<typeof applyBeforeToolCallDecision>>
       try {
-        input = parseWithStandardSchema(tool.inputSchema, input)
-      } catch (validationError: unknown) {
-        const message =
-          validationError instanceof Error
-            ? validationError.message
-            : 'Validation failed'
-        results.push({
+        decision = await applyBeforeToolCallDecision(
+          toolCall,
+          tool,
+          input,
+          toolName,
+          middlewareHooks,
+          results,
+        )
+      } catch (error) {
+        // The calls prepared so far still run, as they would one at a time.
+        failures.push(error)
+        break
+      }
+      if (!decision.proceed) continue
+      input = decision.input
+    }
+
+    // The final check, after approval edits and middleware: invalid input
+    // becomes a tool error, and the checked value is what runs.
+    try {
+      input = await validateToolInput(tool.inputSchema, input, toolName)
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Validation failed'
+      await pushResultAndRunAfterHook(
+        results,
+        {
           toolCallId: toolCall.id,
           toolName,
-          result: {
-            error: `Input validation failed for tool ${tool.name}: ${message}`,
-          },
-          // raw parse may have failed validation — still attach best-effort input
+          result: { error: message },
           input,
           state: 'output-error',
-        })
-        continue
-      }
+          duration: 0,
+        },
+        {
+          toolCall,
+          tool,
+          toolName,
+          toolCallId: toolCall.id,
+          ok: false,
+          duration: 0,
+          error,
+        },
+        // A preview call and a returned client call run no hooks.
+        needsPreview || clientDone ? undefined : middlewareHooks,
+      )
+      continue
+    }
+    if (needsPreview) {
+      needsApproval.push({
+        toolCallId: toolCall.id,
+        toolName,
+        input,
+        approvalId: `approval_${toolCall.id}`,
+      })
+      continue
     }
 
     // Create a ToolExecutionContext for this tool call with event emission
@@ -1207,142 +1286,31 @@ export async function* executeToolCalls<TContext = unknown>(
       },
     } as ToolExecutionContext<TContext>
 
-    // CASE 1: Client-side tool (no execute function)
+    // Client-side tool (no execute function), approved or with no approval
     if (!tool.execute) {
-      // Check if tool needs approval
-      if (tool.needsApproval) {
-        const approvalId = `approval_${toolCall.id}`
-        const resolution = approvalResolution(approvals, toolCall.id)
-
-        // Check if approval decision exists
-        if (resolution !== undefined) {
-          const approved = isApproved(resolution)
-
-          if (approved) {
-            input = editedApprovalArgs(resolution) ?? input
-            // Approved - check if client has executed
-            const clientError = resumeState?.clientToolErrors?.get(toolCall.id)
-            if (clientResults.has(toolCall.id) || clientError !== undefined) {
-              results.push(
-                await buildClientToolResult(
-                  toolCall.id,
-                  toolName,
-                  tool,
-                  clientResults.get(toolCall.id),
-                  input,
-                  clientError,
-                ),
-              )
-            } else {
-              // Approved but not executed yet - request client execution
-              needsClientExecution.push({
-                toolCallId: toolCall.id,
-                toolName,
-                input,
-              })
-            }
-          } else {
-            // User declined
-            results.push({
-              toolCallId: toolCall.id,
-              toolName,
-              result:
-                resumeState?.deniedToolResults?.get(toolCall.id) ??
-                deniedApprovalResult(resolution),
-              input,
-              state: 'output-error',
-              outcome: 'denied',
-            })
-          }
-        } else {
-          // Need approval first
-          needsApproval.push({
-            toolCallId: toolCall.id,
-            toolName: toolCall.function.name,
-            input,
-            approvalId,
-          })
-        }
-      } else {
-        // No approval needed - check if client has executed
-        const clientError = resumeState?.clientToolErrors?.get(toolCall.id)
-        if (clientResults.has(toolCall.id) || clientError !== undefined) {
-          results.push(
-            await buildClientToolResult(
-              toolCall.id,
-              toolName,
-              tool,
-              clientResults.get(toolCall.id),
-              input,
-              clientError,
-            ),
-          )
-        } else {
-          // Request client execution
-          needsClientExecution.push({
-            toolCallId: toolCall.id,
+      if (clientDone) {
+        results.push(
+          await buildClientToolResult(
+            toolCall.id,
             toolName,
+            tool,
+            clientResults.get(toolCall.id),
             input,
-          })
-        }
+            clientError,
+          ),
+        )
+      } else {
+        // Request client execution
+        needsClientExecution.push({
+          toolCallId: toolCall.id,
+          toolName,
+          input,
+        })
       }
       continue
     }
 
-    // CASE 2: Server tool with approval required
-    if (tool.needsApproval) {
-      const approvalId = `approval_${toolCall.id}`
-      const resolution = approvalResolution(approvals, toolCall.id)
-
-      if (resolution === undefined) {
-        // Need approval
-        needsApproval.push({
-          toolCallId: toolCall.id,
-          toolName,
-          input,
-          approvalId,
-        })
-        continue
-      }
-      if (!isApproved(resolution)) {
-        // User declined
-        results.push({
-          toolCallId: toolCall.id,
-          toolName,
-          result:
-            resumeState?.deniedToolResults?.get(toolCall.id) ??
-            deniedApprovalResult(resolution),
-          input,
-          state: 'output-error',
-          outcome: 'denied',
-        })
-        continue
-      }
-      // Approved: run it like any other server tool below.
-      input = editedApprovalArgs(resolution) ?? input
-    }
-
-    // CASE 3: Server tool, approved or with no approval
-    if (middlewareHooks) {
-      let decision: Awaited<ReturnType<typeof applyBeforeToolCallDecision>>
-      try {
-        decision = await applyBeforeToolCallDecision(
-          toolCall,
-          tool,
-          input,
-          toolName,
-          middlewareHooks,
-          results,
-        )
-      } catch (error) {
-        // The calls prepared so far still run, as they would one at a time.
-        failures.push(error)
-        break
-      }
-      if (!decision.proceed) continue
-      input = decision.input
-    }
-
+    // Server tool, approved or with no approval
     const run = runServerTool(
       toolCall,
       tool,

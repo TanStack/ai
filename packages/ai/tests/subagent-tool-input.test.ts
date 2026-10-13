@@ -220,7 +220,7 @@ describe('agent tool input', () => {
     },
   })
 
-  it('checks the agent fields before middleware, with sessionId in the args', async () => {
+  it('checks the agent fields after middleware, with sessionId in the args', async () => {
     const deep = defineAgent({
       name: 'deep',
       description: 'Takes a depth',
@@ -250,9 +250,32 @@ describe('agent tool input', () => {
       }) as AsyncIterable<StreamChunk>,
     )
 
-    // The schema default is in place when middleware runs.
-    expect(seen).toEqual([{ topic: 'tides', depth: 2 }])
+    // Middleware sees the model's input. The final check adds the default.
+    expect(seen).toEqual([{ topic: 'tides' }])
     expect(runs[0]?.input).toEqual({ topic: 'tides', depth: 2 })
+  })
+
+  it('checks a middleware rewrite of the agent fields before the child starts', async () => {
+    const rewrite: ChatMiddleware = {
+      name: 'rewrite',
+      onBeforeToolCall: () => ({
+        type: 'transformArgs',
+        args: { topic: { text: 'tides' } },
+      }),
+    }
+    const { chunks, result } = await callSubagent(
+      'researcher',
+      { topic: 'tides' },
+      { middleware: [rewrite] },
+    )
+
+    expect(result.error).toContain(
+      'Input validation failed for tool researcher',
+    )
+    expect(runs).toEqual([])
+    expect(
+      chunks.some((chunk) => chunk.type === EventType.SUBAGENT_STARTED),
+    ).toBe(false)
   })
 
   it('throws when an inputSchema uses a reserved field that the run uses', () => {
@@ -463,9 +486,10 @@ describe('agent tool input', () => {
     [
       'a field that fails the agent schema',
       'researcher',
-      { topic: 3 },
+      // A number would be repaired into a string. A list cannot be.
+      { topic: [] },
       {},
-      'Input validation failed for tool researcher: Validation failed: Invalid input: expected string, received number',
+      'Input validation failed for tool researcher: Validation failed: Invalid input: expected string, received array',
     ],
     [
       'an unknown sessionId',
@@ -484,9 +508,10 @@ describe('agent tool input', () => {
     [
       'a background that is not a boolean',
       'writer',
-      { background: 'true' },
+      { background: 'yes' },
       { binding: host },
-      'prompt and sessionId must be strings, and background a boolean.',
+      // The JSON Schema of the tool checks the reserved fields too.
+      'Input validation failed for tool writer: #/background: Instance type "string" is invalid. Expected "boolean".',
     ],
     [
       'background with a sessionId',
@@ -501,7 +526,9 @@ describe('agent tool input', () => {
     async (_label, agent, args, options, error) => {
       const { chunks, result } = await callSubagent(agent, args, options)
 
-      expect(result).toEqual({ error })
+      // A schema error also shows the received arguments after the message.
+      expect(Object.keys(result)).toEqual(['error'])
+      expect(result.error.startsWith(error)).toBe(true)
       expect(runs).toEqual([])
       // The parent run goes on after the tool error.
       expect(chunks.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(

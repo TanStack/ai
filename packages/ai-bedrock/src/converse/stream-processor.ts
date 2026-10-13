@@ -72,6 +72,8 @@ export async function* processConverseStream(
       id: string
       name: string
       started: boolean
+      arguments: string
+      hasArguments: boolean
     }
   >()
 
@@ -167,6 +169,8 @@ export async function* processConverseStream(
           id,
           name,
           started: true,
+          arguments: '',
+          hasArguments: false,
         })
         yield {
           type: EventType.TOOL_CALL_START,
@@ -189,6 +193,8 @@ export async function* processConverseStream(
       if (delta && 'toolUse' in delta && delta.toolUse?.input !== undefined) {
         const toolCall = toolCallsByIndex.get(index)
         if (toolCall?.started) {
+          toolCall.arguments += delta.toolUse.input
+          toolCall.hasArguments = true
           yield {
             type: EventType.TOOL_CALL_ARGS,
             toolCallId: toolCall.id,
@@ -295,6 +301,7 @@ export async function* processConverseStream(
         yield {
           type: EventType.TOOL_CALL_END,
           toolCallId: toolCall.id,
+          ...(toolCall.hasArguments && { args: toolCall.arguments }),
           toolCallName: toolCall.name,
           toolName: toolCall.name,
           timestamp: Date.now(),
@@ -337,6 +344,7 @@ export async function* processConverseStream(
     yield {
       type: EventType.TOOL_CALL_END,
       toolCallId: toolCall.id,
+      ...(toolCall.hasArguments && { args: toolCall.arguments }),
       toolCallName: toolCall.name,
       toolName: toolCall.name,
       timestamp: Date.now(),

@@ -920,6 +920,22 @@ function parsePartialToolArguments(
   }
 }
 
+// The raw `args` and parsed `input` of a TOOL_CALL_END. The streamed argument
+// text wins over the initial `step.arguments` snapshot. Malformed JSON sends
+// no `input`, so core reports the error from the raw `args`.
+function toolCallEndArguments(
+  streamed: string | undefined,
+  state: ToolCallState,
+): { args: string; input?: unknown } {
+  const args = streamed?.trim() ? streamed : JSON.stringify(state.args)
+  try {
+    const parsed: unknown = JSON.parse(args)
+    return { args, input: parsed && typeof parsed === 'object' ? parsed : {} }
+  } catch {
+    return { args }
+  }
+}
+
 // `satisfies` pins these arrays to the SDK's narrow mime-type unions: if
 // Google removes a format the build breaks, and if they add one ours keeps
 // working (we just won't accept the new one until added here).
@@ -1251,7 +1267,7 @@ async function* translateInteractionEvents(
         toolName: state.name,
         model,
         timestamp,
-        input: state.args,
+        ...toolCallEndArguments(argStringByToolCallId.get(toolCallId), state),
       }
     }
     if (hasEmittedTextMessageStart) {
@@ -1307,8 +1323,9 @@ async function* translateInteractionEvents(
             indexToToolCallId.set(index, toolCallId)
             // `step.arguments` is required on FunctionCallStep but may
             // be an empty `{}` placeholder when streaming, where the
-            // real args arrive as `arguments_delta` events. Treat both
-            // uniformly: stash whatever we got, stringify once.
+            // real args arrive as `arguments_delta` events. Keep this
+            // initial snapshot apart from the streamed text: the first
+            // argument delta starts the raw argument string.
             const initialArgs = step.arguments
             const state: ToolCallState = {
               name: step.name,
@@ -1318,12 +1335,6 @@ async function* translateInteractionEvents(
               ended: false,
             }
             toolCalls.set(toolCallId, state)
-            argStringByToolCallId.set(
-              toolCallId,
-              Object.keys(initialArgs).length > 0
-                ? JSON.stringify(initialArgs)
-                : '',
-            )
             yield {
               type: EventType.TOOL_CALL_START,
               toolCallId,
@@ -1579,8 +1590,9 @@ async function* translateInteractionEvents(
               break
             }
             const state = toolCalls.get(toolCallId)
-            if (!state) break
-            const fragment = delta.arguments ?? ''
+            // A delta with no arguments keeps the initial snapshot.
+            if (!state || typeof delta.arguments !== 'string') break
+            const fragment = delta.arguments
             const buffer =
               (argStringByToolCallId.get(toolCallId) ?? '') + fragment
             argStringByToolCallId.set(toolCallId, buffer)
@@ -1699,7 +1711,10 @@ async function* translateInteractionEvents(
               toolName: state.name,
               model,
               timestamp,
-              input: state.args,
+              ...toolCallEndArguments(
+                argStringByToolCallId.get(toolCallId),
+                state,
+              ),
             }
           }
           indexToToolCallId.delete(event.index)
