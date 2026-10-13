@@ -405,6 +405,8 @@ For the full list of models and which API endpoints they support, see the [AWS A
 
 Creates a Bedrock adapter using environment-variable auth.
 
+`adapter.inputModalities` lists the input kinds of a model in the catalog. If this package does not know the model id, `bedrockText` and `createBedrockText` throw. `createBedrockChat`, `createBedrockResponsesText`, and `createBedrockConverse` return `undefined` for that id. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
+
 - `model` — Model ID (e.g. `'us.anthropic.claude-haiku-4-5-20251001-v1:0'`)
 - `config.api` — `'converse'` (default), `'chat'`, or `'responses'`
 - `config.region` — AWS region string (default `'us-east-1'`)

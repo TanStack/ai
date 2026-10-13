@@ -13,6 +13,29 @@ export interface MetadataStore {
   set: (namespace: string, key: string, value: unknown) => Promise<void>
   /** Delete `(namespace, key)`. Do nothing when it is absent. */
   delete: (namespace: string, key: string) => Promise<void>
+  /**
+   * Optional. The value with a revision, or `null` when it is absent. Pair it
+   * with `setIf` for compare-and-set writes: implement both or neither.
+   * Every write (also a plain `set`) gives the key a new revision, and a
+   * revision does not come back after a `delete`.
+   */
+  getVersioned?: (
+    namespace: string,
+    key: string,
+  ) => Promise<{ value: unknown; revision: string } | null>
+  /**
+   * Optional. Write only when the current revision is `expectedRevision`
+   * (`null` means the key is absent). Success is `{ ok: true, revision }`.
+   * A different revision returns `{ ok: false, reason: 'conflict' }`.
+   */
+  setIf?: (
+    namespace: string,
+    key: string,
+    value: unknown,
+    expectedRevision: string | null,
+  ) => Promise<
+    { ok: true; revision: string } | { ok: false; reason: 'conflict' }
+  >
 }
 
 export const MetadataCapability = createCapability<MetadataStore>()('metadata')

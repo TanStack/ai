@@ -871,6 +871,22 @@ export type ToolExecutionContext<TContext = unknown> =
      */
     inputResponse?: ToolInputResponse
     /**
+     * Set when the host can move this call to the background. Pass it the
+     * work of the call, and race the two promises. It resolves to a short
+     * note for the model when the user moves the call. The work keeps
+     * running, and the host tells the model its result when it ends.
+     * `chat()` does not set it: a host wraps the tool's `execute` to add it.
+     * The note is a string. An object `outputSchema` rejects it. A string
+     * schema, or no schema, accepts it.
+     *
+     * @example
+     * ```ts
+     * const work = runJob(args)
+     * return context?.detach ? Promise.race([work, context.detach(work)]) : work
+     * ```
+     */
+    detach?: (work: Promise<unknown>) => Promise<string>
+    /**
      * Emit a custom event during tool execution.
      * Events are streamed to the client in real-time as AG-UI CUSTOM events.
      *
@@ -1035,6 +1051,14 @@ export interface Tool<
 
   /** If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Works with both chat() (the synthetic discovery tool) and Code Mode (kept out of the system prompt and revealed via discover_tools). */
   lazy?: boolean
+
+  /**
+   * Whether a host may run this tool again after a crash cut the run
+   * between the call and its result. `'safe'` runs it again. Omit the
+   * field, or set `'never'`, when a second run is not safe. The host
+   * writes the model note. `chat()` does not read this field.
+   */
+  replay?: 'safe' | 'never'
 
   /** Additional metadata for adapters or custom extensions */
   metadata?: Record<string, any> | undefined

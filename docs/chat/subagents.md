@@ -316,6 +316,44 @@ Inside a child, the middleware context has `subagentRunId`. Use it to tell a chi
 
 On a routed turn where a child runs and main does not, the parent's middleware does not run. Only `withPersistence` records that turn. A turn where main runs, including a handoff, runs the parent's middleware as usual.
 
+## Run a child from code
+
+A server job can run an agent with no parent chat turn. Pass a sink when the job must read a pause or the token counts.
+
+```ts group=subagents
+import {
+  createSubagentId,
+  createSubagentSink,
+  runAgentStream,
+} from '@tanstack/ai'
+
+const subagentRunId = createSubagentId()
+const sink = createSubagentSink()
+for await (const chunk of runAgentStream(
+  researcher,
+  {
+    input: undefined,
+    messages: [{ role: 'user', content: 'Find three facts about squids' }],
+    threadId: 'thread-1',
+    runId: `job-1:${subagentRunId}`,
+    parentRunId: 'job-1',
+    subagentRunId,
+  },
+  sink,
+)) {
+  if (chunk.type === 'TEXT_MESSAGE_CONTENT') console.log(chunk.delta)
+}
+```
+
+The sink holds the pause and the token counts:
+
+- `sink.interrupts` has the interrupt objects. The finished event has `interruptIds` only.
+- `sink.usage` has one entry per model call.
+- `runAgentStream` does not check `input`. If the agent has an `inputSchema`, check the input before the call.
+- A failure ends as `SUBAGENT_ERROR`. The stream omits `RUN_STARTED`, `MESSAGES_SNAPSHOT`, and `RUN_FINISHED`.
+
+After the loop, read `sink.interrupts` to show the pause.
+
 ## Persistence
 
 Put `withPersistence` on the parent `chat()` only. The parent stores each child:

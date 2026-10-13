@@ -27,6 +27,7 @@ import { openRouterEffort } from '../internal/reasoning'
 import { addPromptCacheMarkers } from '../prompt-cache'
 import { convertToolsToProviderFormat } from '../tools'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
+import { toOpenRouterRunErrorPayload } from '../utils/run-error'
 import { buildOpenRouterUsage } from '../usage'
 import { extractUsageCost } from './cost'
 import type { SDKOptions } from '@openrouter/sdk'
@@ -243,7 +244,7 @@ export class OpenRouterTextAdapter<
     } catch (error: unknown) {
       // Narrow before logging: raw SDK errors can carry request metadata
       // (including auth headers) which we must never surface to user loggers.
-      const errorPayload = toRunErrorPayload(
+      const errorPayload = toOpenRouterRunErrorPayload(
         error,
         `${this.name}.chatStream failed`,
       )
@@ -755,7 +756,7 @@ export class OpenRouterTextAdapter<
           : ''
       const isAbort =
         errName === 'AbortError' || errName === 'RequestAbortedError'
-      const errorPayload = toRunErrorPayload(
+      const errorPayload = toOpenRouterRunErrorPayload(
         error,
         `${this.name}.structuredOutputStream failed`,
       )
@@ -892,6 +893,7 @@ export class OpenRouterTextAdapter<
     // with no matching TOOL_CALL_END would leave consumers waiting for tool
     // results that never arrive.
     let emittedAnyToolCallEnd = false
+    let streamErrorRetryAfterMs: number | undefined
 
     try {
       for await (const chunk of stream) {
@@ -913,6 +915,23 @@ export class OpenRouterTextAdapter<
           // sent in-band is already stripped here — only pre-stream HTTP errors
           // (caught in the outer catch) retain `error.metadata` via their typed
           // error class's `.error` body.
+          //
+          // OpenRouter sent status 200 before the provider failed, so the SDK
+          // cannot retry this and there is no `Retry-After`. For a code the SDK
+          // would retry (`retryCodes`, default `5XX`), set `retryAfterMs` to
+          // its backoff `initialInterval` (default 500), so `chat({ retry })`
+          // can call the model again.
+          const status = String(chunk.error.code)
+          const retryConfig = this.sdkOptions.retryConfig
+          if (
+            retryConfig?.strategy !== 'none' &&
+            (this.retryCodes ?? ['5XX']).some((c) =>
+              /^[0-9]xx$/i.test(c) ? c[0] === status[0] : c === status,
+            )
+          ) {
+            streamErrorRetryAfterMs =
+              retryConfig?.backoff?.initialInterval ?? 500
+          }
           throw Object.assign(
             new Error(chunk.error.message || 'OpenRouter stream error'),
             { code: chunk.error.code, rawEvent: chunk.error },
@@ -1329,7 +1348,7 @@ export class OpenRouterTextAdapter<
     } catch (error: unknown) {
       // Narrow before logging: raw SDK errors can carry request metadata
       // (including auth headers) which we must never surface to user loggers.
-      const errorPayload = toRunErrorPayload(
+      const errorPayload = toOpenRouterRunErrorPayload(
         error,
         `${this.name}.processStreamChunks failed`,
       )
@@ -1349,6 +1368,9 @@ export class OpenRouterTextAdapter<
         message: errorPayload.message,
         ...(errorPayload.code !== undefined && { code: errorPayload.code }),
         ...(rawEvent !== undefined && { rawEvent }),
+        ...(streamErrorRetryAfterMs !== undefined && {
+          retryAfterMs: streamErrorRetryAfterMs,
+        }),
         error: {
           message: errorPayload.message,
           ...(errorPayload.code !== undefined && { code: errorPayload.code }),

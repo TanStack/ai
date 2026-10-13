@@ -146,6 +146,22 @@ export class BytePlusTextAdapter<
   }
 
   /**
+   * Ark has no error code for a context overflow. It answers
+   * `InvalidParameter` for every bad request, so the message text is the
+   * only signal.
+   */
+  protected override isContextOverflow(error: {
+    message: string
+    code: string | undefined
+  }): boolean {
+    return (
+      super.isContextOverflow(error) ||
+      (error.code === 'InvalidParameter' &&
+        error.message.includes('exceed max message tokens'))
+    )
+  }
+
+  /**
    * Adds Ark's thinking fields for `chat({ reasoning })`. They are Ark
    * fields that the OpenAI SDK type does not list, so they go on with
    * Object.assign.

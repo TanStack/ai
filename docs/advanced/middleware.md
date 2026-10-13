@@ -1117,6 +1117,56 @@ The capability system fails loudly and early:
 - **Duplicate provide → last-wins + warning.** If two middleware provide the same capability, the last write wins and a development warning is emitted.
 - **Unique names.** Capability `name`s must be unique across your app; the compile-time coverage check keys on the name literal (runtime keys on the handle reference).
 
+### Append records to the session log
+
+A host is a middleware that keeps a session log and provides `LogRecordsCapability`. `chat()` does not provide it, so without a host there is no log. With a host, your middleware can write its own records to that log, for example a note that a run started. Read the writer with `getLogRecords`:
+
+```typescript
+import {
+  LogRecordsCapability,
+  defineChatMiddleware,
+  getLogRecords,
+} from "@tanstack/ai";
+
+const noteStart = defineChatMiddleware({
+  name: "note-start",
+  optionalRequires: [LogRecordsCapability],
+  async onStart(ctx) {
+    const log = getLogRecords(ctx, { optional: true });
+    await log?.append([{ type: "app.note", text: "run started" }]);
+  },
+});
+```
+
+- Each record needs a `type`. The other fields are yours.
+- The host decides which record types it accepts. If the host refuses a record, `append` rejects.
+- Without a host log, `getLogRecords(ctx, { optional: true })` returns `undefined`. Use the optional read when your middleware also runs without a log.
+- If your middleware cannot work without the log, list the capability in `requires` and call `getLogRecords(ctx)`. Then `chat()` throws when no host provides the log.
+
+If you write a host, provide the log in `setup` and list it in `provides`:
+
+```typescript
+import {
+  LogRecordsCapability,
+  defineChatMiddleware,
+  provideLogRecords,
+} from "@tanstack/ai";
+
+const withSessionLog = defineChatMiddleware({
+  name: "with-session-log",
+  provides: [LogRecordsCapability],
+  setup(ctx) {
+    // One log per run. A real host writes to its durable store here.
+    const records: Array<{ type: string }> = [];
+    provideLogRecords(ctx, {
+      append: async (batch) => {
+        records.push(...batch);
+      },
+    });
+  },
+});
+```
+
 ## Built-in Middleware
 
 TanStack AI ships ready-made middleware for common cases — caching tool results, redacting streamed text, and OpenTelemetry tracing:

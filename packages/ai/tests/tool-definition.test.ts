@@ -131,6 +131,18 @@ describe('toolDefinition', () => {
     expect(clientTool.needsApproval).toBe(true)
   })
 
+  it('keeps the replay field on server and client tools', () => {
+    const tool = toolDefinition({
+      name: 'readFile',
+      description: 'Read a file',
+      replay: 'safe',
+    })
+
+    expect(tool.replay).toBe('safe')
+    expect(tool.server(() => 'text').replay).toBe('safe')
+    expect(tool.client().replay).toBe('safe')
+  })
+
   it('should preserve lazy flag', () => {
     const tool = toolDefinition({
       name: 'discoverableWeather',

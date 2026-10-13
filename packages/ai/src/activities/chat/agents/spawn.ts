@@ -403,6 +403,14 @@ export function withChildUsage(
   return withTanstackMetadata(next, { usage: leftover }) as ParentTerminal
 }
 
+/**
+ * Run one agent and stream its chunks, from `SUBAGENT_STARTED` to
+ * `SUBAGENT_FINISHED` or `SUBAGENT_ERROR`. The package root exports this
+ * as `runAgentStream`. The caller checks `ctx.input` against
+ * `agent.inputSchema` first. Pass `createSubagentSink()` to keep the
+ * child's interrupt objects and token usage. The finished event carries
+ * `interruptIds` only.
+ */
 export async function* spawnAgentStream(
   agent: DefinedAgent,
   ctx: SubagentRunContext,

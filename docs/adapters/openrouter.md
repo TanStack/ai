@@ -92,6 +92,38 @@ const adapter = createOpenRouterText(
 
 Now a 429 waits, then retries, and the chat continues with the next response.
 
+### Retry an error in the stream
+
+Most provider errors come as an HTTP status, and the SDK retries them as shown above. But OpenRouter can send status 200 first. Then a provider error comes as an error chunk in the stream, and the SDK cannot retry it.
+
+To retry that error, pass `retry` to `chat()`:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { createOpenRouterText } from "@tanstack/ai-openrouter";
+
+const adapter = createOpenRouterText(
+  "openai/gpt-5.5",
+  process.env.OPENROUTER_API_KEY!,
+  { retryCodes: ["429", "5XX"] },
+);
+
+const stream = chat({
+  adapter,
+  messages: [{ role: "user", content: "Hello!" }],
+  retry: { maxRetries: 3 },
+});
+```
+
+When `chat()` retries:
+
+- Only for an error code in `retryCodes`. The default is 5XX only, so add `"429"` to retry a rate limit.
+- Only when the call streamed no output yet. An error after part of the answer reaches you as a `RUN_ERROR`.
+- Not when `retryConfig` has `strategy: "none"`.
+- Only with the Chat Completions adapter (`openRouterText`). The Responses adapter does not do this.
+
+The wait is the `initialInterval` of `retryConfig` (default 500 ms). It is the same for each try and does not grow. See [Let `chat()` retry for you](../chat/stream-events#let-chat-retry-for-you).
+
 ## Available Models
 
 OpenRouter provides access to 300+ models from various providers. Models use the format `provider/model-name`:

@@ -1,0 +1,25 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "[context-overflow-openai] say hello" },
+      "response": {
+        "error": {
+          "message": "This model's maximum context length is 128000 tokens. However, your messages resulted in 200008 tokens. Please reduce the length of the messages.",
+          "type": "invalid_request_error",
+          "code": "context_length_exceeded"
+        },
+        "status": 400
+      }
+    },
+    {
+      "match": { "userMessage": "[context-overflow-anthropic] say hello" },
+      "response": {
+        "error": {
+          "message": "prompt is too long: 260024 tokens > 200000 maximum",
+          "type": "invalid_request_error"
+        },
+        "status": 400
+      }
+    }
+  ]
+}

@@ -107,8 +107,16 @@ export type {
   SubagentOrder,
   SubagentRouterPick,
   SubagentRouterPlan,
+  SubagentSink,
   SubagentStep,
   SubagentStepsPlan,
+  SubagentsBag,
+} from './activities/chat/agents/spawn'
+// For hosts that run an agent outside a parent chat turn.
+export {
+  spawnAgentStream as runAgentStream,
+  createSubagentId,
+  createSubagentSink,
 } from './activities/chat/agents/spawn'
 
 // Tool definition
@@ -346,11 +354,15 @@ export type {
 // Capability primitives + middleware builder
 export {
   createCapability,
+  CapabilityRegistry,
   defineChatMiddleware,
   createChatMiddleware,
   MetadataCapability,
   getMetadata,
   provideMetadata,
+  LogRecordsCapability,
+  getLogRecords,
+  provideLogRecords,
 } from './activities/chat/middleware/index'
 export type {
   Capability,
@@ -361,6 +373,8 @@ export type {
   DefinedChatMiddleware,
   AnyChatMiddleware,
   MetadataStore,
+  LogRecord,
+  LogRecordsWriter,
 } from './activities/chat/middleware/index'
 // Locks are a distributed-mutex primitive — coordination, not chat state — and
 // live behind their own subpath: `@tanstack/ai/locks` (see ./locks.ts).
@@ -420,6 +434,7 @@ export type {
 
 // All types
 export * from './types'
+export { CONTEXT_OVERFLOW_CODE } from './activities/error-payload'
 
 // One reasoning option for every provider: `chat({ reasoning })`.
 export {
