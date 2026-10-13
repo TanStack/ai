@@ -191,6 +191,7 @@ Add it to the plugins like any plugin: `plugins: () => [linearWithoutWrites]`. T
 A plugin can give tools that it finds at run time, like the tools of a server that the user signed in to after the session started. Return them from `discoverTools`. The session asks each plugin before every turn:
 
 ```ts group=harness-mcp
+import { definePlugin } from '@tanstack/ai-harness'
 import type { AnyTool } from '@tanstack/ai'
 
 const found: Array<AnyTool> = []
