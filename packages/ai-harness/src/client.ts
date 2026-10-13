@@ -10,7 +10,7 @@ import type {
 import type { AgentInputOf } from './agents'
 import type { AnyHarness, HarnessAgentsOf, SessionMetadataOf } from './define'
 import type { HostEvent } from './host'
-import type { SessionDescription, SessionSnapshot } from './session'
+import type { SessionDescription, SessionSnapshot } from './session/index'
 import type { SessionEntryChange } from './session-entry'
 import type {
   BusyPolicy,

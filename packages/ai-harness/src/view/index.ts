@@ -22,7 +22,7 @@ import type {
 } from '@tanstack/ai'
 import type { ReadonlyStore } from '@tanstack/store'
 import type { PluginEvent } from '../extensions'
-import type { SessionDescription, SessionSnapshot } from '../session'
+import type { SessionDescription, SessionSnapshot } from '../session/index'
 import type {
   Cursor,
   MediaRecord,
