@@ -651,63 +651,6 @@ export async function POST(request: Request) {
 
 The ChatGPT route requires `store: false`. Do not set `max_output_tokens`. [Sign in with ChatGPT](./openai#sign-in-with-chatgpt-byok) lists the other limits.
 
-## ChatGPT Codex backend
-
-Your app can also send a ChatGPT sign-in to the ChatGPT Codex backend at `https://chatgpt.com/backend-api/codex`. Your sign-in code gets the access token and the account id.
-
-This backend is not a public OpenAI API. OpenAI can change it at any time.
-
-```typescript
-import {
-  chat,
-  chatParamsFromRequest,
-  toServerSentEventsResponse,
-} from "@tanstack/ai";
-import { createOpenaiChat } from "@tanstack/ai-openai";
-import type { FetchWrapper } from "@tanstack/ai";
-import { getChatGptSignIn } from "./chatgpt-auth"; // your sign-in code
-
-export async function POST(request: Request) {
-  const params = await chatParamsFromRequest(request);
-  const { token, accountId } = await getChatGptSignIn(request);
-
-  /** ChatGPT routes its prompt cache on the session id. */
-  const session: FetchWrapper = (next) => (input, init) => {
-    const headers = new Headers(init?.headers);
-    headers.set("session-id", params.threadId);
-    return next(input, { ...init, headers });
-  };
-
-  const stream = chat({
-    adapter: createOpenaiChat("gpt-6.1-sol", token, {
-      baseURL: "https://chatgpt.com/backend-api/codex",
-      defaultHeaders: {
-        originator: "my-app",
-        "x-codex-beta-features": "remote_compaction_v2",
-        "chatgpt-account-id": accountId,
-      },
-    }),
-    messages: params.messages,
-    modelOptions: { store: false, include: ["reasoning.encrypted_content"] },
-    wrapFetch: session,
-  });
-  return toServerSentEventsResponse(stream);
-}
-```
-
-The headers:
-
-- `originator`: the name of your app.
-- `x-codex-beta-features`: the beta features of the backend, here `remote_compaction_v2`.
-- `chatgpt-account-id`: the ChatGPT account of the user. The token claims have it as `chatgpt_account_id`, at the top level or under `https://api.openai.com/auth`.
-- `session-id`: a stable id for the conversation. Each request of the conversation sends the same id. Give a child session the id of its parent, so they share the cache.
-
-The request:
-
-- `store: false`: the backend keeps no responses. With `include`, the stream gives the encrypted reasoning for the next turn.
-- Do not set `max_output_tokens`. The backend rejects an output limit. The adapter sends none unless you set it in `modelOptions`.
-- Use a model that the user's ChatGPT plan includes for Codex.
-
 ## Example: With Tools
 
 Tools work exactly as they do with any other adapter, for models that support function calling:
