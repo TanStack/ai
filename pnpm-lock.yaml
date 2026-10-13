@@ -3298,6 +3298,9 @@ importers:
         specifier: workspace:^
         version: link:../ai
     devDependencies:
+      '@tanstack/ai-harness':
+        specifier: workspace:*
+        version: link:../ai-harness
       '@vitest/coverage-v8':
         specifier: 4.1.10
         version: 4.1.10(vitest@4.1.10)
