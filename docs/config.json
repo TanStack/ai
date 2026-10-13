@@ -993,11 +993,17 @@
         {
           "label": "Ask before risky tool calls",
           "to": "harness/permissions",
-          "addedAt": "2026-10-13"
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-13"
         },
         {
           "label": "Switch between agent profiles",
           "to": "harness/agents",
+          "addedAt": "2026-10-13"
+        },
+        {
+          "label": "Code mode in a harness",
+          "to": "harness/code-mode",
           "addedAt": "2026-10-13"
         },
         {

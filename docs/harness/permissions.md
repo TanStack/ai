@@ -326,6 +326,7 @@ export const planTools = definePlugin({
 - Pass what a call touches as a third argument, for example `decide('read_file', 'default', { paths: [file] })`. Then the path rules and `root` apply too.
 - Read it when the plugin runs, not in `setup`. Then `permissions()` can come before or after your plugin.
 - Saved `always` answers are not part of it. They can only allow, so a check that needs `'allow'` stays strict.
+- [Code mode](./code-mode) uses this answer to pick the tools that move into a program. With `default: 'ask'`, a tool with no rule stays a normal tool call.
 - `PermissionRules`, `PermissionResources`, `PermissionDecisionCapability`, and `decidePermission` come from `@tanstack/ai-harness`. They load no Node module, so a plugin for an edge runtime can use them. The plugins themselves come from `@tanstack/ai-harness/plugins`, which is Node only.
 
 ## Known limits
