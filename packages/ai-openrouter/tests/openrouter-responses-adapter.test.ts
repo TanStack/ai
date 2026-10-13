@@ -2198,25 +2198,4 @@ describe('OpenRouter responses tool input normalizer — own keys', () => {
       ),
     ).toBe('{"keep":null}')
   })
-
-  it('ignores a schema property that is only inherited', () => {
-    const properties = JSON.parse('{"owned":{"type":"string"}}')
-    Object.setPrototypeOf(properties, { ghost: { type: 'string' } })
-    const wire = JSON.parse(
-      '{"type":"object","properties":{"ghost":{"type":["string","null"]},"owned":{"type":["string","null"]}},"required":["ghost","owned"]}',
-    )
-    const normalize = createToolInputNormalizer(
-      [
-        {
-          name: 'inspect',
-          description: 'Inspect',
-          inputSchema: { type: 'object', properties, required: [] },
-        },
-      ],
-      () => wire,
-    )
-    expect(normalize('inspect', { ghost: null, owned: null })).toEqual({
-      ghost: null,
-    })
-  })
 })

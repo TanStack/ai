@@ -61,17 +61,26 @@ async function converseRequest(
   model: string,
   request: ConverseRequest,
   call: 'chat' | 'structured' = 'chat',
+  outputSchema: object = {},
 ) {
   let path = ''
   let body: unknown
+  let contentLengthMatches = false
   const client = new BedrockRuntimeClient({
     region: 'us-east-1',
     maxAttempts: 1,
     credentials: { accessKeyId: 'test', secretAccessKey: 'test' },
     requestHandler: {
-      async handle(sent: { body?: unknown; path: string }) {
+      async handle(sent: {
+        body?: unknown
+        path: string
+        headers: Record<string, string>
+      }) {
         path = sent.path
         body = JSON.parse(String(sent.body))
+        contentLengthMatches =
+          Number(sent.headers['content-length']) ===
+          Buffer.byteLength(String(sent.body))
         throw new Error('Transport probe complete')
       },
     },
@@ -90,7 +99,7 @@ async function converseRequest(
     if (call === 'structured') {
       // The probe makes the call throw after it records the body.
       await adapter
-        .structuredOutput({ chatOptions: options, outputSchema: {} })
+        .structuredOutput({ chatOptions: options, outputSchema })
         .catch(() => undefined)
     } else {
       for await (const _ of adapter.chatStream(options)) {
@@ -100,7 +109,11 @@ async function converseRequest(
   } finally {
     client.destroy()
   }
-  return { modelId: decodeURIComponent(path.split('/')[2] ?? ''), body }
+  return {
+    modelId: decodeURIComponent(path.split('/')[2] ?? ''),
+    body,
+    contentLengthMatches,
+  }
 }
 
 async function converseBody(model: string, request: ConverseRequest) {
@@ -349,7 +362,7 @@ describe.each(openaiAdapters)(
 
 describe('Bedrock Converse documents', () => {
   it('keeps own keys named __proto__ in a tool schema and a tool input', async () => {
-    const body = await converseBody(nova, {
+    const { body, contentLengthMatches } = await converseRequest(nova, {
       tools: [
         {
           name: 'inspect',
@@ -379,5 +392,23 @@ describe('Bedrock Converse documents', () => {
     const wire = JSON.stringify(body)
     expect(wire).toContain('"properties":{"__proto__":{"type":"string"}}')
     expect(wire).toContain('"input":{"__proto__":"value"}')
+    // The restored body is longer, so it must be in place before the SDK
+    // sets Content-Length.
+    expect(contentLengthMatches).toBe(true)
+  })
+
+  it('keeps an own key named __proto__ in a structured output schema', async () => {
+    const { body, contentLengthMatches } = await converseRequest(
+      nova,
+      {},
+      'structured',
+      JSON.parse(
+        '{"type":"object","properties":{"__proto__":{"type":"string"}},"required":["__proto__"]}',
+      ),
+    )
+    expect(JSON.stringify(body)).toContain(
+      '"properties":{"__proto__":{"type":"string"}}',
+    )
+    expect(contentLengthMatches).toBe(true)
   })
 })

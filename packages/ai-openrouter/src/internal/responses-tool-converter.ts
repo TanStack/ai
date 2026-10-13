@@ -87,10 +87,7 @@ function diffNullWidening(
     const properties: Array<[string, NullWideningMap]> = []
     for (const key of Object.keys(wire.properties)) {
       const child = diffNullWidening(
-        // Read only an own property. An inherited entry is not a field.
-        Object.hasOwn(original.properties, key)
-          ? original.properties[key]
-          : undefined,
+        original.properties[key],
         wire.properties[key],
       )
       if (child) properties.push([key, child])

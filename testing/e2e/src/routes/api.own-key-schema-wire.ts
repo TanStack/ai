@@ -4,7 +4,8 @@ import { createOpenaiChatCompletions } from '@tanstack/ai-openai'
 
 /**
  * Sends a tool whose schema has a property named `__proto__` and returns the
- * request body. The provider answers 400, so the run stops after one request.
+ * request body. The injected `fetch` answers 400, so the run stops after one
+ * request.
  */
 export const Route = createFileRoute('/api/own-key-schema-wire')({
   server: {

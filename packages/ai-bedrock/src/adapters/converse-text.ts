@@ -34,6 +34,7 @@ import type {
   ConverseStreamCommandInput,
   ConverseStreamOutput,
 } from '@aws-sdk/client-bedrock-runtime'
+import type { MiddlewareStack } from '@smithy/types'
 import type {
   JSONSchema,
   Modality,
@@ -238,13 +239,7 @@ export class BedrockConverseTextAdapter<
     const { ConverseStreamCommand } = await this.importBedrockRuntime()
     const client = await this.getClient()
     const command = new ConverseStreamCommand(input)
-    command.middlewareStack.add(
-      (next) => (args) => {
-        restoreDocuments(args.request, input)
-        return next(args)
-      },
-      { step: 'build', name: 'tanstackRestoreDocuments', priority: 'high' },
-    )
+    addRestoreDocuments(command, input)
     const res = await client.send(command)
     if (!res.stream) {
       throw new Error('Bedrock Converse: empty stream response')
@@ -258,13 +253,7 @@ export class BedrockConverseTextAdapter<
     const { ConverseCommand } = await this.importBedrockRuntime()
     const client = await this.getClient()
     const command = new ConverseCommand(input)
-    command.middlewareStack.add(
-      (next) => (args) => {
-        restoreDocuments(args.request, input)
-        return next(args)
-      },
-      { step: 'build', name: 'tanstackRestoreDocuments', priority: 'high' },
-    )
+    addRestoreDocuments(command, input)
     return client.send(command)
   }
 
@@ -767,68 +756,76 @@ function extractStructuredToolInput(
   return undefined
 }
 
-/** The documents of a Converse request body, as JSON. */
-interface ConverseBodyDocuments {
-  messages?: Array<{
-    content?: Array<{
-      toolUse?: { input?: unknown }
-      toolResult?: { content?: Array<{ json?: unknown }> }
-    }>
-  }>
-  toolConfig?: {
-    tools?: Array<{ toolSpec?: { inputSchema?: { json?: unknown } } }>
-  }
+/** The parts of a Converse request that hold documents the adapter fills from user data. */
+type ConverseDocuments = Pick<ConverseCommandInput, 'messages' | 'toolConfig'>
+
+function hasProtoKey(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) return false
+  return (
+    Object.hasOwn(value, '__proto__') || Object.values(value).some(hasProtoKey)
+  )
 }
 
 /**
- * The AWS SDK copies a document (tool input, tool result JSON, tool input
- * schema) with `out[key] = value`. For an own key named `__proto__`, that
- * sets the prototype and drops the key. This build step puts the original
- * documents back in the serialized body. `JSON.stringify` keeps own keys.
+ * The AWS SDK copies a document (tool input, tool input schema) with
+ * `out[key] = value`. For an own key named `__proto__`, the assignment goes
+ * to the `__proto__` setter and the key is lost. This puts each such
+ * document back in the serialized body. `JSON.stringify` keeps own keys.
  */
-function restoreDocuments(
-  request: unknown,
-  input: Pick<ConverseCommandInput, 'messages' | 'toolConfig'>,
-): void {
-  if (
-    typeof request !== 'object' ||
-    request === null ||
-    !('body' in request) ||
-    typeof request.body !== 'string'
-  )
-    return
-  // Only a document with a `__proto__` key needs the restore. This skips a
-  // second parse of a large body (for example one with image bytes).
+function restoreDocuments(request: unknown, input: ConverseDocuments): void {
   const documents = [
     ...(input.messages ?? []).flatMap((message) =>
-      (message.content ?? []).flatMap((block) => [
-        block.toolUse?.input,
-        ...(block.toolResult?.content ?? []).map((part) => part.json),
-      ]),
+      (message.content ?? []).map((block) => block.toolUse?.input),
     ),
     ...(input.toolConfig?.tools ?? []).map(
       (tool) => tool.toolSpec?.inputSchema?.json,
     ),
   ]
-  if (!JSON.stringify(documents).includes('"__proto__"')) return
-  const body: ConverseBodyDocuments = JSON.parse(request.body)
+  // Skip the parse and re-serialize of the body, which can be large (for
+  // example with image bytes), unless a document has the key.
+  if (!documents.some(hasProtoKey)) return
+  if (
+    typeof request !== 'object' ||
+    request === null ||
+    !('body' in request) ||
+    typeof request.body !== 'string'
+  ) {
+    throw new Error(
+      'Bedrock Converse: cannot keep a `__proto__` key because the request body is not a JSON string',
+    )
+  }
+  // The SDK serialized this body from `input` one step earlier, so the two
+  // line up by position.
+  const body: ConverseDocuments = JSON.parse(request.body)
   body.messages?.forEach((message, i) =>
     message.content?.forEach((block, j) => {
-      const source = input.messages?.[i]?.content?.[j]
-      if (block.toolUse && source?.toolUse)
-        block.toolUse.input = source.toolUse.input
-      block.toolResult?.content?.forEach((part, k) => {
-        const json = source?.toolResult?.content?.[k]?.json
-        if (json !== undefined) part.json = json
-      })
+      const source = input.messages?.[i]?.content?.[j]?.toolUse?.input
+      if (block.toolUse && hasProtoKey(source)) block.toolUse.input = source
     }),
   )
   body.toolConfig?.tools?.forEach((tool, i) => {
-    const json = input.toolConfig?.tools?.[i]?.toolSpec?.inputSchema?.json
-    if (tool.toolSpec?.inputSchema && json !== undefined)
-      tool.toolSpec.inputSchema.json = json
+    const source = input.toolConfig?.tools?.[i]?.toolSpec?.inputSchema?.json
+    if (tool.toolSpec?.inputSchema && hasProtoKey(source))
+      tool.toolSpec.inputSchema.json = source
   })
   request.body = JSON.stringify(body)
+}
+
+/**
+ * Adds {@link restoreDocuments} to a command. It runs at `build` with high
+ * priority, before the SDK sets Content-Length and signs the body.
+ */
+function addRestoreDocuments<TInput extends object, TOutput extends object>(
+  command: { middlewareStack: MiddlewareStack<TInput, TOutput> },
+  input: ConverseDocuments,
+): void {
+  command.middlewareStack.add(
+    (next) => (args) => {
+      restoreDocuments(args.request, input)
+      return next(args)
+    },
+    { step: 'build', name: 'tanstackRestoreDocuments', priority: 'high' },
+  )
 }
 
 /** Converse adapter with an explicit API key (low-level; mirrors createBedrockChat). */

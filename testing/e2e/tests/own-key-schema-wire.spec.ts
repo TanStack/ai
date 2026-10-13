@@ -1,9 +1,9 @@
 import { test, expect } from './fixtures'
 
 /**
- * A tool schema property named `__proto__` must reach the provider. Before
- * the fix, the strict schema converter set the prototype of its copy instead
- * and dropped the property.
+ * A tool schema property named `__proto__` must reach the provider.
+ * `stripUnsupportedFormats`, the last step of the strict schema conversion,
+ * must copy it as an own key.
  */
 test('a tool schema keeps a property named __proto__', async ({ request }) => {
   const response = await request.post('/api/own-key-schema-wire')
