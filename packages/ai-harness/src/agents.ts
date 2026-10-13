@@ -5,7 +5,7 @@ import type {
   SchemaInput,
 } from '@tanstack/ai'
 import type { ToolStep } from './durable-tool'
-import type { AgentStartOptions } from './session'
+import type { AgentStartOptions } from './session/index'
 import type { AgentRun } from './types'
 
 /** Any agent made with `defineAgent`, with its types kept. */
