@@ -9,11 +9,13 @@ import {
 import { getByokKey, keyedAdapterFromRequest } from '../src/byok/server'
 import { defineAgent } from '../src/activities/chat/agents/define-agent'
 import { spawnAgentStream } from '../src/activities/chat/agents/spawn'
+import { chat } from '../src/activities/chat'
 import { collectChunks, createMockAdapter } from './test-utils'
 import type { AnyTextAdapter } from '../src/activities/chat/adapter'
 import type { SubagentBinding } from '../src/activities/chat/agents/bound'
 import type { DefinedAgent } from '../src/activities/chat/agents/define-agent'
 import type { KeyedAdapter, ProviderKeys } from '../src/byok'
+import type { ProviderKeySource } from '../src/byok/env-keys'
 
 const acme = defineByokProvider({ id: 'acme', label: 'Acme' })
 
@@ -258,5 +260,112 @@ describe('ctx.keys', () => {
     expect(await nestedKeys({ keys: hostKeys('sk-host') }, { keys: own })).toBe(
       own,
     )
+  })
+})
+
+/**
+ * The `ctx.keys` of a probe that `chat({ subagents: { keys } })` starts.
+ * With `nested`, a lead agent starts the probe through its own
+ * `ctx.chat({ subagents: { ...nested } })`.
+ */
+async function chatKeys(
+  keys: ProviderKeySource,
+  nested?: { keys?: ProviderKeySource },
+) {
+  const { agent: target, seen } = probe()
+  const { adapter } = createMockAdapter({ iterations: [] })
+  const lead = defineAgent({
+    name: 'lead',
+    description: 'Starts the probe',
+    run: (ctx) =>
+      ctx.chat({
+        adapter,
+        subagents: { agents: [target], router: () => 'probe', ...nested },
+      }),
+  })
+  const agents: Array<DefinedAgent> = nested ? [lead] : [target]
+  const name = nested ? 'lead' : 'probe'
+  await collectChunks(
+    chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Go' }],
+      subagents: { agents, router: () => name, keys },
+    }),
+  )
+  const found = seen[0]
+  if (!found) throw new Error('the probe did not run')
+  return found
+}
+
+describe('subagents.keys', () => {
+  afterEach(() => vi.unstubAllEnvs())
+
+  it('gives agents the key of each provider id', async () => {
+    vi.stubEnv(envName, 'sk-env')
+    const keys = await chatKeys({ acme: 'sk-user' })
+    const image = keyedAdapter(acmeEnv, (key) => ({ kind: 'image', key }))
+
+    expect(await keys.require(acmeEnv)).toBe('sk-user')
+    expect(await keys.get('acme')).toBe('sk-user')
+    expect(await keys.adapter(image)).toEqual({ kind: 'image', key: 'sk-user' })
+  })
+
+  it('falls back to the env var for a missing or null key', async () => {
+    vi.stubEnv(envName, 'sk-env')
+    expect(await (await chatKeys({ acme: null })).require(acmeEnv)).toBe(
+      'sk-env',
+    )
+    expect(await (await chatKeys({ other: 'sk-other' })).get(acmeEnv)).toBe(
+      'sk-env',
+    )
+  })
+
+  it('throws an error that names the env var when no key is found', async () => {
+    const keys = await chatKeys({ acme: '' })
+    await expect(keys.require(acmeEnv)).rejects.toThrow(
+      `Missing Acme API key. Set ${envName}.`,
+    )
+  })
+
+  it('gives a nested child the keys of the chat', async () => {
+    const keys = await chatKeys({ acme: 'sk-user' }, {})
+    expect(await keys.require(acmeEnv)).toBe('sk-user')
+  })
+
+  it('lets a nested chat set its own keys', async () => {
+    const keys = await chatKeys(
+      { acme: 'sk-user' },
+      { keys: { acme: 'sk-own' } },
+    )
+    expect(await keys.require(acmeEnv)).toBe('sk-own')
+  })
+
+  it('reads keys from a function, with the provider it gets', async () => {
+    vi.stubEnv(envName, 'sk-env')
+    const asked: Array<unknown> = []
+    const keys = await chatKeys(async (provider) => {
+      asked.push(provider)
+      return provider === acmeEnv ? 'sk-fn' : null
+    })
+
+    expect(await keys.require(acmeEnv)).toBe('sk-fn')
+    expect(asked).toEqual([acmeEnv])
+    // The function has no key for a bare id, so the env name is not read.
+    expect(await keys.get('acme')).toBeNull()
+  })
+
+  it('falls back to the parent keys when a nested function has no key', async () => {
+    const keys = await chatKeys({ acme: 'sk-user' }, { keys: () => null })
+    expect(await keys.require(acmeEnv)).toBe('sk-user')
+  })
+
+  it('keeps the parent keys for providers that a nested chat does not set', async () => {
+    vi.stubEnv(envName, 'sk-env')
+    const keys = await chatKeys(
+      { acme: 'sk-user' },
+      { keys: { other: 'sk-other' } },
+    )
+    expect(await keys.require(acmeEnv)).toBe('sk-user')
+    expect(await keys.get('other')).toBe('sk-other')
   })
 })

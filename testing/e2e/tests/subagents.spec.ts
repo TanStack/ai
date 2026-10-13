@@ -21,7 +21,8 @@ function open(
     | 'brief'
     | 'result'
     | 'limits'
-    | 'session',
+    | 'session'
+    | 'keys',
   testId: string,
   aimockPort: number,
 ) {
@@ -245,5 +246,42 @@ test.describe('subagents', () => {
     await expect(card).toContainText('text:Squids also have blue blood.')
     // One card: the second call continued the same child.
     await expect(card).toHaveCount(1)
+  })
+
+  test('subagents.keys gives the child its key', async ({
+    page,
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    await open(page, 'keys', testId, aimockPort)
+    await run(page)
+
+    await expect(page.getByTestId('parent-text')).toHaveText(
+      'The writer is done.',
+    )
+    await expect(page.getByTestId('card-writer')).toContainText(
+      'text:The draft is written.',
+    )
+
+    const journal = await request.get(
+      `http://127.0.0.1:${aimockPort}/v1/_requests`,
+    )
+    const entries = (await journal.json()) as Array<{
+      headers?: Record<string, string>
+      body?: {
+        messages?: Array<{ role?: string; content?: string | null }>
+      } | null
+    }>
+    const child = entries.find(
+      (entry) =>
+        entry.headers?.['x-test-id'] === testId &&
+        entry.body?.messages?.some((message) =>
+          message.content?.includes('[subagent-keys-task]'),
+        ),
+    )
+    expect(child?.headers?.['x-e2e-authorization']).toBe(
+      'Bearer sk-e2e-subagent-key',
+    )
   })
 })

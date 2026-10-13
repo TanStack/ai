@@ -96,9 +96,6 @@ export {
 } from './activities/chat/agents/define-agent'
 export type {
   BoundActivities,
-  AgentRunHandle,
-  AgentStarter,
-  AgentStep,
   SubagentBinding,
   SubagentForward,
 } from './activities/chat/agents/bound'
@@ -114,6 +111,7 @@ export {
   type KeyedAdapterResult,
   type ProviderKeys,
 } from './byok/keyed'
+export type { ProviderKeySource } from './byok/env-keys'
 export {
   subagentRoute,
   type SubagentRouteOptions,

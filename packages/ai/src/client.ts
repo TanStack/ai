@@ -236,9 +236,6 @@ export {
 } from './activities/chat/agents/define-agent'
 export type {
   BoundActivities,
-  AgentRunHandle,
-  AgentStarter,
-  AgentStep,
   SubagentBinding,
   SubagentForward,
 } from './activities/chat/agents/bound'

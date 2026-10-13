@@ -43,8 +43,9 @@ import type {
 import { envProviderKeys } from '../../../byok/env-keys'
 import { createBoundActivities } from './bound'
 import { SubagentBudget } from './limits'
-import type { AgentStarter, AgentStep, SubagentBinding } from './bound'
+import type { SubagentBinding } from './bound'
 import type { SubagentLimits } from './limits'
+import type { ProviderKeySource } from '../../../byok/env-keys'
 import type {
   DefinedAgent,
   SubagentRunContext,
@@ -111,6 +112,15 @@ export interface SubagentsBag<
    * apply: a nested chat in a child uses the root's budget.
    */
   limits?: SubagentLimits
+  /**
+   * Provider keys that agents read as `ctx.keys`: an object by provider id,
+   * for example `{ openai: userKey }`, or a function that returns the key of
+   * a provider, for example `(provider) => getByokKey(request, provider)`.
+   * A missing or empty key falls back to the keys of the parent agent, then
+   * to the provider's `env` names. A child's `ctx.chat({ subagents })` passes
+   * them on. The keys it sets itself win for those providers.
+   */
+  keys?: ProviderKeySource
 }
 
 /**
@@ -626,7 +636,7 @@ function* valueResultChunks(
 
 /**
  * Build the context `run` receives: the spawn input plus `forward`, the
- * provider keys, the steps, `agents`, and the bound activity functions.
+ * provider keys, and the bound activity functions.
  */
 function runContext(
   agentName: string,
@@ -650,22 +660,8 @@ function runContext(
       ...(binding?.promptCache ? { promptCache: binding.promptCache } : {}),
     },
     keys: binding?.keys ?? envProviderKeys,
-    step: binding?.step ?? runEachTime,
-    agents: binding?.agents ?? noAgents,
     ...createBoundActivities(agentName, input, abortController, binding),
   } satisfies SubagentRunContext
-}
-
-/** The steps of an agent run that no host can run again: `fn` runs each time. */
-const runEachTime: AgentStep = { do: async (_name, fn) => fn() }
-
-/** `ctx.agents` of a run that no host binds: a start throws. */
-const noAgents: AgentStarter = {
-  start: () => {
-    throw new Error(
-      'ctx.agents.start needs a host that runs agents in the background.',
-    )
-  },
 }
 
 /**
