@@ -15,6 +15,8 @@ import type { GenerationMiddleware } from '../../middleware/types'
 import type { AnyChatMiddleware } from '../middleware/types'
 import type { PromptCacheRetention, RunAgentResumeItem } from '../../../types'
 import type { SubagentRunInput } from './define-agent'
+import type { SubagentBudget } from './limits'
+import type { ProviderKeys } from '../../../byok/keyed'
 
 /**
  * The fields a child `chat()` needs, in one spread:
@@ -52,10 +54,36 @@ export interface SubagentBinding {
    */
   generationMiddleware?: ReadonlyArray<GenerationMiddleware>
   /**
+   * The subagent tree budget. A child's `ctx.chat({ subagents })` passes it
+   * down, so limits hold across the whole tree.
+   */
+  budget?: SubagentBudget
+  /**
+   * The provider keys an agent reads as `ctx.keys`. `subagents.keys` sets
+   * them. A child's `ctx.chat({ subagents })` passes them down to its own
+   * children. Without them, `ctx.keys` reads each provider's `env` names.
+   */
+  keys?: ProviderKeys
+  /**
    * The prompt cache retention of the parent call. A child's `ctx.chat()`
    * uses it when the call gives no `promptCache`.
    */
   promptCache?: PromptCacheRetention
+  /**
+   * Starts a child without waiting for it and returns its id at once. The
+   * agent tools call it for `background: true`. With
+   * `wake: true`, the host starts a new parent turn when the child ends. It
+   * does not pass down to nested children.
+   */
+  start?: (
+    call: {
+      agent: string
+      input?: unknown
+      prompt?: string
+      parentToolCallId?: string
+    },
+    options: { wake: true },
+  ) => Promise<{ subagentRunId: string }>
 }
 
 /**
@@ -132,12 +160,14 @@ export function createBoundActivities(
         ...(binding?.promptCache ? { promptCache: binding.promptCache } : {}),
         abortController,
         ...options,
-        // Nested children get the host middleware before their own.
+        // Nested children get the host middleware before their own, share
+        // the tree budget, and get the host keys unless the call sets its own.
         ...(options.subagents
           ? {
               subagents: {
                 ...options.subagents,
                 binding: {
+                  ...(binding?.keys ? { keys: binding.keys } : {}),
                   ...options.subagents.binding,
                   chatMiddleware: [
                     ...chatMiddleware,
@@ -147,6 +177,7 @@ export function createBoundActivities(
                     ...generationMiddleware,
                     ...(options.subagents.binding?.generationMiddleware ?? []),
                   ],
+                  ...(binding?.budget ? { budget: binding.budget } : {}),
                 },
               },
             }

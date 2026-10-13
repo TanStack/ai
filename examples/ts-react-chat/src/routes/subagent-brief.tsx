@@ -1,28 +1,12 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import { researcher } from '../lib/researcher-agent'
 import type { UIMessage } from '@tanstack/ai-react'
 
 export const Route = createFileRoute('/subagent-brief')({
   component: SubagentBriefPage,
 })
-
-/** The `task` the parent model wrote on the tool call that started a child. */
-function briefOf(message: UIMessage, toolCallId: string) {
-  for (const part of message.parts) {
-    if (part.type !== 'tool-call' || part.id !== toolCallId) continue
-    const input = part.input
-    if (
-      typeof input === 'object' &&
-      input !== null &&
-      'task' in input &&
-      typeof input.task === 'string'
-    ) {
-      return input.task
-    }
-  }
-  return undefined
-}
 
 function childText(messages: ReadonlyArray<UIMessage>) {
   return messages
@@ -37,6 +21,8 @@ function childText(messages: ReadonlyArray<UIMessage>) {
 function SubagentBriefPage() {
   const { messages, sendMessage, isLoading } = useChat({
     connection: fetchServerSentEvents('/api/subagent-brief'),
+    // Types `part.subagent.input` from the researcher's inputSchema.
+    subagents: [researcher],
   })
   const [input, setInput] = useState(
     'We picked three sea animals earlier: squid, octopus, and cuttlefish. Find how many hearts each one has.',
@@ -63,7 +49,6 @@ function SubagentBriefPage() {
                 )
               }
               if (part.type !== 'subagent') return null
-              const toolCallId = part.subagent.parentToolCallId
               return (
                 <section key={index} data-testid="card" style={card}>
                   <div>
@@ -73,10 +58,7 @@ function SubagentBriefPage() {
                     </span>
                   </div>
                   <div data-testid="brief" style={{ color: '#444' }}>
-                    Brief:{' '}
-                    {toolCallId === undefined
-                      ? '(none)'
-                      : (briefOf(message, toolCallId) ?? '(none)')}
+                    Brief: {part.subagent.input?.task ?? '(none)'}
                   </div>
                   <p data-testid="card-text" style={{ margin: 0 }}>
                     {childText(part.subagent.messages)}

@@ -11,6 +11,7 @@ import type {
 } from '../../../types'
 import type { AnyClientTool } from '../tools/tool-definition'
 import type { BoundActivities, SubagentForward } from './bound'
+import type { ProviderKeys } from '../../../byok/keyed'
 
 /**
  * What the library knows about a child run before `run` starts.
@@ -55,11 +56,16 @@ export interface SubagentRunInput<
  * - The activity functions (`ctx.chat`, `ctx.generateImage`, and the rest)
  *   take the same options as the plain functions and fill in the thread id,
  *   a run id, the abort signal, and any middleware a host adds.
+ * - `keys` finds provider keys. `await ctx.keys.adapter(adapter)` builds a
+ *   `keyedAdapter(...)`. The keys come from `subagents.keys`, else from each
+ *   provider's `env` names. A missing key throws an error that names the env
+ *   var.
  */
 export type SubagentRunContext<TInput extends SchemaInput | undefined = any> =
   SubagentRunInput<TInput> &
     BoundActivities & {
       forward: SubagentForward
+      keys: ProviderKeys
     }
 
 /**
@@ -115,8 +121,11 @@ export interface DefinedAgent<
   produces?: TProduces
   /**
    * The input the parent model writes when it calls this agent's tool, such
-   * as a short brief. `run` reads it as `ctx.input`. Tool mode only: a
-   * `subagents.router` cannot start an agent that has `inputSchema`.
+   * as a short brief. `run` reads it as `ctx.input`, and the client card
+   * as `part.subagent.input`. When the run uses `sessionId` or
+   * `background`, that name is reserved. Without it, the tool takes a text
+   * `prompt`. Tool mode only: a `subagents.router` cannot start an agent
+   * that has `inputSchema`.
    */
   inputSchema?: TInput
   tools?: TTools

@@ -4,6 +4,21 @@ import type { ByokProvider } from './define-provider'
 import type { ProviderId } from './providers'
 
 /**
+ * Read `provider.env` in order and return the first value that is set. A
+ * slug has no env names. Where `process` is missing (a browser) it returns
+ * `null`.
+ */
+export function envKey(provider: ProviderId | ByokProvider) {
+  if (typeof provider === 'string') return null
+  const env = globalThis.process?.env
+  for (const name of provider.env ?? []) {
+    const value = env?.[name]
+    if (typeof value === 'string' && value.length > 0) return value
+  }
+  return null
+}
+
+/**
  * Read a key on the relay. Import from `@tanstack/ai/byok/server` so this
  * `process.env` access is not in the client graph.
  *
@@ -19,12 +34,7 @@ export function getByokKey(
     const trimmed = value.trim()
     if (trimmed.length > 0) return trimmed
   }
-  if (typeof provider === 'string') return null
-  for (const name of provider.env ?? []) {
-    const envValue = process.env[name]
-    if (typeof envValue === 'string' && envValue.length > 0) return envValue
-  }
-  return null
+  return envKey(provider)
 }
 
 /**
