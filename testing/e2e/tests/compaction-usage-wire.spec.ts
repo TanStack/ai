@@ -10,6 +10,7 @@ interface WireResult {
   error?: string
   bodies: Array<unknown>
   reasons: Array<string>
+  errors: Array<string | undefined>
   records: Array<{ type: string; reason?: string }>
   folded?: unknown
 }
@@ -24,7 +25,7 @@ async function runCase(
   return result
 }
 
-test.describe('withCompaction: usage, compactNext, durable, background', () => {
+test.describe('withCompaction: usage, compactNext, overflow, durable, background', () => {
   test('countTokens usage compacts when the reported usage passes maxTokens', async ({
     request,
   }) => {
@@ -49,6 +50,21 @@ test.describe('withCompaction: usage, compactNext, durable, background', () => {
     expect(first).not.toContain('SECRET_ALPHA_ONE')
     expect(first).toContain('omitted to save context')
     expect(result.reasons).toEqual(['forced'])
+  })
+
+  test('an overflow compacts and calls the model again in the same run', async ({
+    request,
+  }) => {
+    const result = await runCase(request, 'overflow')
+
+    expect(result.bodies).toHaveLength(2)
+    expect(JSON.stringify(result.bodies[0])).toContain('SECRET_ALPHA_ONE')
+    const retry = JSON.stringify(result.bodies[1])
+    expect(retry).not.toContain('SECRET_ALPHA_ONE')
+    expect(retry).toContain('KEEP_ME_LAST')
+    expect(result.reasons).toEqual(['forced'])
+    // The failed call never reaches the caller.
+    expect(result.errors).toEqual([])
   })
 
   test('durable writes a compaction record that folds to the sent list', async ({

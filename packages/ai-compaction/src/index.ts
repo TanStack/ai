@@ -13,6 +13,7 @@
  * `messages`.
  */
 import {
+  CONTEXT_OVERFLOW_CODE,
   LogRecordsCapability,
   MetadataCapability,
   getLogRecords,
@@ -386,7 +387,8 @@ export interface CompactionOptions {
   countTokens?: 'estimate' | 'usage'
   /**
    * `false`: do not compact when the count passes `maxTokens`.
-   * `compactNext` and the after-turn overflow check still compact. Default
+   * `compactNext`, the after-turn overflow check, and the retry after a
+   * context overflow still compact. Default
    * `true`.
    */
   auto?: boolean
@@ -717,6 +719,10 @@ export function composeStrategies(
 /**
  * Context-compaction middleware. Add to `chat({ middleware: [...] })`.
  *
+ * When the provider rejects a model call as too long for its context window
+ * (`CONTEXT_OVERFLOW_CODE`), it compacts and calls the model again, once per
+ * model call. This also works with `auto: false`.
+ *
  * @example
  * ```ts
  * chat({
@@ -763,6 +769,8 @@ export function withCompaction(
   const providerOnly = new WeakMap<ChatMiddlewareContext, boolean>()
   /** The threads whose next model call compacts. */
   const forced = new Set<string>()
+  /** The iteration whose model call already retried after an overflow. */
+  const overflowRetried = new WeakMap<ChatMiddlewareContext, number>()
   /** The running background summary of each thread. */
   const jobs = new Map<string, Promise<void>>()
   /** Where a ready background summary waits: the metadata store, else memory. */
@@ -961,6 +969,19 @@ export function withCompaction(
       : [MetadataCapability],
     compactNext: (threadId) => {
       forced.add(threadId)
+    },
+    onModelError(ctx, error) {
+      // Compact and retry once per model call. A second overflow goes to the
+      // caller.
+      if (
+        error.code !== CONTEXT_OVERFLOW_CODE ||
+        overflowRetried.get(ctx) === ctx.iteration
+      ) {
+        return
+      }
+      overflowRetried.set(ctx, ctx.iteration)
+      forced.add(ctx.threadId)
+      ctx.retry()
     },
     async onConfig(ctx, config) {
       // init is discarded by the engine rebuild and can run before persistence

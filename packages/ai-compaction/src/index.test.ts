@@ -10,7 +10,12 @@ import type {
   TokenUsage,
   ToolCall,
 } from '@tanstack/ai'
-import { provideLogRecords, provideMetadata } from '@tanstack/ai'
+import {
+  CONTEXT_OVERFLOW_CODE,
+  EventType,
+  provideLogRecords,
+  provideMetadata,
+} from '@tanstack/ai'
 import { fakeText } from '@tanstack/ai/testing'
 import {
   COMPACTION_ENDED_EVENT,
@@ -951,6 +956,76 @@ describe('countTokens: usage', () => {
 
   it('keeps the estimate and adds no onUsage hook without countTokens', () => {
     expect(withCompaction({ maxTokens: 100 }).onUsage).toBeUndefined()
+  })
+})
+
+describe('retry after a context overflow', () => {
+  const longList = () => [
+    big('user'),
+    big('assistant'),
+    big('user'),
+    big('assistant'),
+  ]
+  const overflow = (code: string = CONTEXT_OVERFLOW_CODE) => ({
+    type: EventType.RUN_ERROR,
+    message: 'too long',
+    code,
+    timestamp: 0,
+  })
+  const errorContext = (iteration = 0) => {
+    const retry = vi.fn()
+    const { ctx } = recordingContext('modelStream', {
+      threadId: 'thread-1',
+      iteration,
+      retry,
+    })
+    return { ctx, retry }
+  }
+
+  it('compacts and retries once on an overflow, even with auto off', async () => {
+    const onCompact = vi.fn()
+    const mw = withCompaction({
+      maxTokens: 1000,
+      auto: false,
+      onCompact,
+      strategy: evictOldest({ keepRecentTokens: 50 }),
+    })
+    const { ctx, retry } = errorContext()
+
+    await mw.onModelError?.(ctx, overflow())
+    expect(retry).toHaveBeenCalledOnce()
+
+    ctx.phase = 'beforeModel'
+    const result = await runOnConfig(mw, longList(), ctx)
+    expect(result?.providerMessages?.[0]?.content).toContain('omitted')
+    expect(onCompact).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'forced' }),
+    )
+
+    // A second overflow on the same model call goes to the caller.
+    await mw.onModelError?.(ctx, overflow())
+    expect(retry).toHaveBeenCalledOnce()
+  })
+
+  it('retries again on a later model call', async () => {
+    const mw = withCompaction({ maxTokens: 1000 })
+    const { ctx, retry } = errorContext(0)
+    await mw.onModelError?.(ctx, overflow())
+    ctx.iteration = 1
+    await mw.onModelError?.(ctx, overflow())
+    expect(retry).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not retry other errors', async () => {
+    const mw = withCompaction({
+      maxTokens: 1000,
+      strategy: evictOldest({ keepRecentTokens: 50 }),
+    })
+    const { ctx, retry } = errorContext()
+    await mw.onModelError?.(ctx, overflow('rate_limit'))
+    expect(retry).not.toHaveBeenCalled()
+    ctx.phase = 'beforeModel'
+    expect(await runOnConfig(mw, longList(), ctx)).toBeUndefined()
   })
 })
 

@@ -85,6 +85,7 @@ function makeRunnerCtx(): ChatMiddlewareContext {
     iteration: 0,
     chunkIndex: 0,
     abort: () => {},
+    retry: () => {},
     emitCustomEvent: () => {},
     context: undefined,
     defer: () => {},

@@ -96,14 +96,15 @@ const backgroundChat: Array<ModelMessage> = [
   { role: 'user', content: 'x'.repeat(40) },
 ]
 
-type Case = 'usage' | 'compact-next' | 'durable' | 'background'
+type Case = 'usage' | 'compact-next' | 'durable' | 'background' | 'overflow'
 
 function isCase(value: string | null): value is Case {
   return (
     value === 'usage' ||
     value === 'compact-next' ||
     value === 'durable' ||
-    value === 'background'
+    value === 'background' ||
+    value === 'overflow'
   )
 }
 
@@ -136,6 +137,8 @@ function mapStore(): MetadataStore {
  *   list the model got.
  * - `background`: `background: { atTokens }`. The first run starts the
  *   summary and does not wait for it. The second run applies it.
+ * - `overflow`: the first call fails with OpenAI's `context_length_exceeded`.
+ *   `withCompaction` compacts and calls the model again in the same run.
  */
 export const Route = createFileRoute('/api/compaction-usage-wire')({
   server: {
@@ -151,6 +154,19 @@ export const Route = createFileRoute('/api/compaction-usage-wire')({
           const req =
             input instanceof Request ? input : new Request(input, init)
           bodies.push(JSON.parse(await req.text()))
+          if (which === 'overflow' && bodies.length === 1) {
+            return Response.json(
+              {
+                error: {
+                  message:
+                    "This model's maximum context length is 128000 tokens.",
+                  type: 'invalid_request_error',
+                  code: 'context_length_exceeded',
+                },
+              },
+              { status: 400 },
+            )
+          }
           return new Response(
             textStream(bodies.length, bodies.length === 1 ? 500 : 20),
             { headers: { 'Content-Type': 'text/event-stream' } },
@@ -165,6 +181,7 @@ export const Route = createFileRoute('/api/compaction-usage-wire')({
           compacted.push(info)
         }
         const records: Array<{ type: string } & Record<string, unknown>> = []
+        const errors: Array<string | undefined> = []
         const store = mapStore()
         const host = defineChatMiddleware({
           name: 'e2e-host',
@@ -184,7 +201,7 @@ export const Route = createFileRoute('/api/compaction-usage-wire')({
           runId: string,
           middleware: Array<ChatMiddleware>,
         ) => {
-          for await (const _ of chat({
+          for await (const chunk of chat({
             ...createChatOptions({ adapter }),
             messages,
             threadId: THREAD,
@@ -192,7 +209,7 @@ export const Route = createFileRoute('/api/compaction-usage-wire')({
             middleware,
             agentLoopStrategy: maxIterations(1),
           })) {
-            // Drain the stream.
+            if (chunk.type === 'RUN_ERROR') errors.push(chunk.code)
           }
         }
 
@@ -217,6 +234,15 @@ export const Route = createFileRoute('/api/compaction-usage-wire')({
             })
             compaction.compactNext(THREAD)
             await run(shortChat, 'compact-next-1', [compaction])
+          }
+
+          if (which === 'overflow') {
+            const compaction = withCompaction({
+              maxTokens: 100_000,
+              strategy: evictOldest({ keepRecentTokens: 15 }),
+              onCompact,
+            })
+            await run(shortChat, 'overflow-1', [compaction])
           }
 
           if (which === 'durable') {
@@ -269,6 +295,7 @@ export const Route = createFileRoute('/api/compaction-usage-wire')({
           ok: true,
           bodies,
           reasons: compacted.map((info) => info.reason),
+          errors,
           records,
           folded: record
             ? projectCompaction({ messages: shortChat, record })
