@@ -17,6 +17,7 @@ import {
   runGenerationStart,
   runGenerationUsage,
 } from '../middleware/run'
+import { isEvaluateError } from './adapter'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
 import type { TokenUsage } from '../../types'
@@ -454,6 +455,10 @@ export function boolean(options: {
  * The question key `meta` is reserved. Throws if `questions` is empty or uses
  * that key.
  *
+ * When the adapter throws an `EvaluateError` that carries `usage`, `decide()`
+ * reports that usage through `onUsage` and the `evaluate:usage` event, then
+ * runs `onError` and rethrows the same error.
+ *
  * @param options.adapter Evaluate adapter created with a model.
  * @param options.state Shared state every question judges.
  * @param options.questions Questions built with `choice`, `score`, `boolean`.
@@ -602,15 +607,27 @@ export async function decide<
     })
   } catch (error) {
     const duration = Date.now() - startTime
-    if (isAbortError(error, abortSignal)) {
-      await runGenerationAbort(middleware, mwCtx, {
-        reason: error instanceof Error ? error.message : undefined,
-        duration,
-      })
-    } else {
-      await runGenerationError(middleware, mwCtx, { error, duration })
+    try {
+      if (isEvaluateError(error) && error.usage) {
+        aiEventClient.emit('evaluate:usage', {
+          requestId,
+          model: error.model ?? model,
+          usage: error.usage,
+          timestamp: Date.now(),
+        })
+        await runGenerationUsage(middleware, mwCtx, error.usage)
+      }
+    } finally {
+      if (isAbortError(error, abortSignal)) {
+        await runGenerationAbort(middleware, mwCtx, {
+          reason: error instanceof Error ? error.message : undefined,
+          duration,
+        })
+      } else {
+        await runGenerationError(middleware, mwCtx, { error, duration })
+      }
+      logger.errors('evaluate activity failed', { error, source: 'evaluate' })
     }
-    logger.errors('evaluate activity failed', { error, source: 'evaluate' })
     throw error
   }
 }

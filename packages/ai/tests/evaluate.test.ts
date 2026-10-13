@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { aiEventClient } from '@tanstack/ai-event-client'
-import { boolean, choice, decide, score } from '../src/index'
+import {
+  EVALUATE_REFUSAL_CODE,
+  EvaluateError,
+  boolean,
+  choice,
+  decide,
+  score,
+} from '../src/index'
 import type { EvaluateAdapter } from '../src/activities/evaluate/adapter'
 import type {
   EvaluateAdapterResult,
@@ -507,6 +514,150 @@ describe('decide()', () => {
     expect(events.error).toHaveLength(1)
     expect(events.abort).toHaveLength(0)
     expect(events.finish).toHaveLength(0)
+  })
+
+  it('reports the usage of an EvaluateError once, then fires onError and rethrows it unchanged', async () => {
+    const usage = { promptTokens: 40, completionTokens: 5, totalTokens: 45 }
+    const refusal = new EvaluateError({
+      message: 'declined to answer question "refund"',
+      code: EVALUATE_REFUSAL_CODE,
+      usage,
+      model: 'provider-model',
+    })
+    const order: Array<string> = []
+    const { middleware, events } = recordingMiddleware()
+    const usageEvents: Array<{ model: string; usage: TokenUsage }> = []
+    const unsubscribe = aiEventClient.on(
+      'evaluate:usage',
+      (event) => {
+        usageEvents.push({
+          model: event.payload.model,
+          usage: event.payload.usage,
+        })
+      },
+      { withEventTarget: true },
+    )
+    const adapter = mockEvaluateAdapter(async () => {
+      throw refusal
+    })
+
+    try {
+      await expect(
+        decide({
+          adapter,
+          state: 'ticket',
+          questions: mixedQuestions,
+          middleware: [
+            middleware,
+            {
+              onUsage: () => {
+                order.push('usage')
+              },
+              onError: () => {
+                order.push('error')
+              },
+            },
+          ],
+          debug: false,
+        }),
+      ).rejects.toBe(refusal)
+    } finally {
+      unsubscribe()
+    }
+
+    expect(events.usage).toEqual([usage])
+    expect(usageEvents).toEqual([{ model: 'provider-model', usage }])
+    expect(order).toEqual(['usage', 'error'])
+    expect(events.error).toHaveLength(1)
+    expect(events.error[0]!.error).toBe(refusal)
+    expect(events.abort).toHaveLength(0)
+    expect(events.finish).toHaveLength(0)
+  })
+
+  it('reports the usage of an EvaluateError from another copy of the package', async () => {
+    const usage = { promptTokens: 40, completionTokens: 5, totalTokens: 45 }
+    class OtherCopyEvaluateError extends Error {
+      readonly code = EVALUATE_REFUSAL_CODE
+      readonly usage = usage
+      constructor() {
+        super('declined to answer question "refund"')
+        this.name = 'EvaluateError'
+      }
+    }
+    const refusal = new OtherCopyEvaluateError()
+    const { middleware, events } = recordingMiddleware()
+    const adapter = mockEvaluateAdapter(async () => {
+      throw refusal
+    })
+
+    expect(refusal instanceof EvaluateError).toBe(false)
+    await expect(
+      decide({
+        adapter,
+        state: 'ticket',
+        questions: mixedQuestions,
+        middleware: [middleware],
+        debug: false,
+      }),
+    ).rejects.toBe(refusal)
+
+    expect(events.usage).toEqual([usage])
+    expect(events.error).toHaveLength(1)
+    expect(events.error[0]!.error).toBe(refusal)
+  })
+
+  it('still fires onError when onUsage throws while reporting an EvaluateError', async () => {
+    const refusal = new EvaluateError({
+      message: 'declined to answer question "refund"',
+      code: EVALUATE_REFUSAL_CODE,
+      usage: { promptTokens: 40, completionTokens: 5, totalTokens: 45 },
+    })
+    const { middleware, events } = recordingMiddleware()
+    const adapter = mockEvaluateAdapter(async () => {
+      throw refusal
+    })
+
+    await expect(
+      decide({
+        adapter,
+        state: 'ticket',
+        questions: mixedQuestions,
+        middleware: [
+          {
+            onUsage: () => {
+              throw new Error('usage hook boom')
+            },
+          },
+          middleware,
+        ],
+        debug: false,
+      }),
+    ).rejects.toThrow('usage hook boom')
+
+    expect(events.error).toHaveLength(1)
+    expect(events.error[0]!.error).toBe(refusal)
+    expect(events.abort).toHaveLength(0)
+    expect(events.finish).toHaveLength(0)
+  })
+
+  it('reports no usage for an EvaluateError without usage', async () => {
+    const { middleware, events } = recordingMiddleware()
+    const adapter = mockEvaluateAdapter(async () => {
+      throw new EvaluateError({ message: 'no usage', code: 'other' })
+    })
+
+    await expect(
+      decide({
+        adapter,
+        state: 'ticket',
+        questions: mixedQuestions,
+        middleware: [middleware],
+        debug: false,
+      }),
+    ).rejects.toThrow('no usage')
+
+    expect(events.usage).toHaveLength(0)
+    expect(events.error).toHaveLength(1)
   })
 
   it('fires onAbort (not onError) when the request is cancelled', async () => {
