@@ -453,7 +453,7 @@ For a full per-turn + cumulative tool budget recipe, see [Tool-call budgets](../
 
 Some model calls fail for a reason your middleware can fix. For example, the prompt is too long for the model. `onModelError` gets the `RUN_ERROR` before anyone else sees it. Fix the request and call `ctx.retry()`. While the call has retries left, the run goes on as if the call never failed.
 
-This middleware adds retrieved documents as a second system prompt. When the call is too long, it drops them and tries again:
+Say your app sends retrieved documents as a second system prompt. When the call is too long, this middleware drops them and tries again:
 
 ```typescript
 import { CONTEXT_OVERFLOW_CODE } from "@tanstack/ai";
@@ -485,7 +485,8 @@ What `ctx.retry()` does while the call has retries left:
 
 When the hook runs:
 
-- Only when the call fails before it streams any output. A call that already sent text is not retried, so no output repeats.
+- Only when the adapter sends a `RUN_ERROR` before any output. A call that already sent text is not retried, so no output repeats.
+- Not for an exception that the adapter throws. That error goes to `onError`.
 - Not for the separate structured-output call that runs after the agent loop. The model calls of the agent loop get the hook as usual.
 - Every time, also after the last retry. A model call retries at most 2 times. After that, the error goes to the caller.
 

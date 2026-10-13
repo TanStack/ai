@@ -809,8 +809,9 @@ export interface ChatMiddleware<
   ) => boolean | void | Promise<boolean | void>
 
   /**
-   * Called when a model call fails before it streams any output. The error
-   * does not reach `onChunk` or the caller yet.
+   * Called when the adapter sends a `RUN_ERROR` before any output of the
+   * model call. The error does not reach `onChunk` or the caller yet. An
+   * exception that the adapter throws goes to `onError`, not here.
    *
    * Call `ctx.retry()` to call the model again. Then `onConfig` runs again
    * (phase `beforeModel`), so the middleware can change the request first,
