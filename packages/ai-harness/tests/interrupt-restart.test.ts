@@ -325,6 +325,122 @@ describe.each([false, true])(
       },
     )
 
+    it('consumes an approval after a final input error without executing its tool', async () => {
+      const stores = memoryPersistence().stores
+      const persistence = durable
+        ? {
+            stores: {
+              log: memoryLogStore(),
+              runs: stores.runs,
+              metadata: stores.metadata,
+              interrupts: stores.interrupts,
+            },
+          }
+        : { stores }
+      const remove = removeTool()
+      const before = vi.fn()
+      const main = mockAdapter([
+        () => toolCall('remove', { path: 'a.txt' }, 'invalid-final-call'),
+        () => text('Input rejected.'),
+      ])
+      const config = defineHarness({
+        name: 'invalid-final-approval',
+        adapter: main.adapter,
+        tools: [remove.tool],
+        middleware: [{ name: 'observe', onBeforeToolCall: before }],
+      })
+      const host = createHarnessHost({ persistence })
+      const session = await host.open(config, { threadId: THREAD })
+      const initial = await session.prompt('remove')
+      const approval = initial.interrupts?.[0]
+      if (!approval) throw new Error('The turn did not stop for approval.')
+      const receipt = await session.resolve([
+        {
+          interruptId: approval.id,
+          status: 'resolved',
+          payload: { approved: true, editedArgs: { path: {} } },
+        },
+      ])
+      await expect(
+        session.operation(receipt.operationId ?? ''),
+      ).resolves.toEqual({ text: 'Input rejected.' })
+      expect(before).toHaveBeenCalledTimes(1)
+      expect(remove.execute).not.toHaveBeenCalled()
+      expect(session.snapshot().pendingInterrupts).toEqual([])
+      expect((await stores.interrupts.get(approval.id))?.status).toBe(
+        'resolved',
+      )
+      await host.close()
+    })
+
+    it('keeps approval after schema drift and retries with the original schema', async () => {
+      const stores = memoryPersistence().stores
+      const persistence = durable
+        ? {
+            stores: {
+              log: memoryLogStore(),
+              runs: stores.runs,
+              metadata: stores.metadata,
+              interrupts: stores.interrupts,
+            },
+          }
+        : { stores }
+      const original = removeTool()
+      const main = mockAdapter([
+        () => toolCall('remove', { path: 'a.txt' }, 'drift-call'),
+        () => text('Done.'),
+      ])
+      const config = defineHarness({
+        name: 'schema-drift',
+        adapter: main.adapter,
+        tools: [original.tool],
+      })
+      const first = createHarnessHost({ persistence })
+      const session = await first.open(config, { threadId: THREAD })
+      const initial = await session.prompt('remove')
+      const approval = initial.interrupts?.[0]
+      if (!approval) throw new Error('The turn did not stop for approval.')
+      await first.close()
+      const changedExecute = vi.fn(async () => 'must not run')
+      const changedTool = toolDefinition({
+        name: 'remove',
+        description: 'Remove',
+        needsApproval: true,
+        inputSchema: z.object({ path: z.number() }),
+      }).server(changedExecute)
+      const changed = createHarnessHost({ persistence })
+      const changedSession = await changed.open(
+        defineHarness({
+          name: 'schema-drift',
+          adapter: main.adapter,
+          tools: [changedTool],
+        }),
+        { threadId: THREAD },
+      )
+      const rejected = await changedSession.resolve([
+        { interruptId: approval.id, status: 'resolved', payload: true },
+      ])
+      await expect(
+        changedSession.operation(rejected.operationId ?? ''),
+      ).rejects.toThrow()
+      expect(changedExecute).not.toHaveBeenCalled()
+      expect(original.execute).not.toHaveBeenCalled()
+      expect(
+        changedSession.snapshot().pendingInterrupts.map((item) => item.id),
+      ).toEqual([approval.id])
+      await changed.close()
+      const next = createHarnessHost({ persistence })
+      const retrySession = await next.open(config, { threadId: THREAD })
+      const retry = await retrySession.resolve([
+        { interruptId: approval.id, status: 'resolved', payload: true },
+      ])
+      await expect(
+        retrySession.operation(retry.operationId ?? ''),
+      ).resolves.toEqual({ text: 'Done.' })
+      expect(original.execute).toHaveBeenCalledTimes(1)
+      await next.close()
+    })
+
     it.each(['cancel', 'close'])(
       'keeps approval when %s stops an admitted resolve before execution',
       async (kind) => {
@@ -514,6 +630,92 @@ describe.each([false, true])(
         await next.close()
       },
     )
+
+    it('recovers the new client phase after metadata replacement fails', async () => {
+      const stores = memoryPersistence().stores
+      const persistence = durable
+        ? {
+            stores: {
+              log: memoryLogStore(),
+              runs: stores.runs,
+              metadata: stores.metadata,
+              interrupts: stores.interrupts,
+            },
+          }
+        : { stores }
+      const tool = toolDefinition({
+        name: 'check',
+        description: 'Check',
+        needsApproval: true,
+        inputSchema: z.object({ count: z.number() }),
+        outputSchema: z.object({ ok: z.boolean() }),
+      }).client()
+      const main = mockAdapter([
+        () => toolCall('check', { count: 1 }, 'phase-call'),
+        () => text('Checked.'),
+      ])
+      const config = defineHarness({
+        name: 'phase-recovery',
+        adapter: main.adapter,
+        tools: [tool],
+      })
+      const first = createHarnessHost({ persistence })
+      const session = await first.open(config, { threadId: THREAD })
+      const initial = await session.prompt('check')
+      const approval = initial.interrupts?.[0]
+      if (!approval) throw new Error('The turn did not stop for approval.')
+      const metadata = vi
+        .spyOn(stores.metadata, 'set')
+        .mockRejectedValueOnce(new Error('metadata replacement failed'))
+      const accepted = await session.resolve([
+        {
+          interruptId: approval.id,
+          status: 'resolved',
+          payload: { approved: true, editedArgs: { count: '2' } },
+        },
+      ])
+      await session.operation(accepted.operationId ?? '')
+      metadata.mockRestore()
+      const pending = session.snapshot().pendingInterrupts
+      expect(pending).toHaveLength(1)
+      const client = pending[0]
+      if (!client) throw new Error('The client phase is missing.')
+      expect(client.id).not.toBe(approval.id)
+      expect(client.metadata).toMatchObject({
+        kind: 'client_tool',
+        input: { count: 2 },
+      })
+      expect((await stores.interrupts.get(approval.id))?.status).toBe(
+        'resolved',
+      )
+      await first.close()
+      const next = createHarnessHost({ persistence })
+      const reopened = await next.open(config, { threadId: THREAD })
+      expect(
+        reopened.snapshot().pendingInterrupts.map((item) => item.id),
+      ).toEqual([client.id])
+      const wrong = await reopened.resolve([
+        {
+          interruptId: client.id,
+          status: 'resolved',
+          payload: { ok: 'wrong' },
+        },
+      ])
+      await expect(
+        reopened.operation(wrong.operationId ?? ''),
+      ).rejects.toThrow()
+      expect(
+        reopened.snapshot().pendingInterrupts.map((item) => item.id),
+      ).toEqual([client.id])
+      const valid = await reopened.resolve([
+        { interruptId: client.id, status: 'resolved', payload: { ok: true } },
+      ])
+      await expect(
+        reopened.operation(valid.operationId ?? ''),
+      ).resolves.toEqual({ text: 'Checked.' })
+      expect(reopened.snapshot().pendingInterrupts).toEqual([])
+      await next.close()
+    })
 
     it('keeps foreign pending descriptors outside the harness batch', async () => {
       const stores = memoryPersistence().stores

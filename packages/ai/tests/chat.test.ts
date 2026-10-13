@@ -1514,19 +1514,19 @@ describe('chat()', () => {
     })
 
     it('validates an entire ephemeral batch before executing any tool', async () => {
+      const beforeTool = vi.fn()
       const firstExecute = vi.fn().mockReturnValue({ ok: true })
       const secondExecute = vi.fn().mockReturnValue({ ok: true })
       const { adapter, calls } = createMockAdapter({
         iterations: [[ev.runStarted(), ev.runFinished('stop')]],
       })
-      // A Standard Schema input so the library validates the edited args. Raw
-      // JSON Schema is intentionally not validated by the library (the app owns
-      // that), so the invalid `editedArgs` below is caught via this path.
+      // Reject the malformed decision before tool middleware or execution.
       const inputSchema = z.object({ action: z.string() })
 
       const chunks = await collectChunks(
         chat({
           adapter,
+          middleware: [{ name: 'batch-check', onBeforeToolCall: beforeTool }],
           threadId: 'thread-1',
           runId: 'continuation-run',
           parentRunId: 'interrupted-run',
@@ -1573,21 +1573,22 @@ describe('chat()', () => {
               status: 'resolved',
               payload: {
                 approved: true,
-                editedArgs: { action: 1 },
+                editedArgs: { action: 'first-edit' },
               },
             },
             {
               interruptId: 'approval_call_2',
               status: 'resolved',
               payload: {
-                approved: true,
-                editedArgs: { action: 2 },
+                approved: 'yes',
+                editedArgs: { action: 'second-edit' },
               },
             },
           ],
         }) as AsyncIterable<StreamChunk>,
       )
 
+      expect(beforeTool).not.toHaveBeenCalled()
       expect(firstExecute).not.toHaveBeenCalled()
       expect(secondExecute).not.toHaveBeenCalled()
       expect(calls).toHaveLength(0)
@@ -1598,12 +1599,8 @@ describe('chat()', () => {
             tanstack: expect.objectContaining({
               interruptErrors: expect.arrayContaining([
                 expect.objectContaining({
-                  interruptId: 'approval_call_1',
-                  code: 'invalid-edited-args',
-                }),
-                expect.objectContaining({
                   interruptId: 'approval_call_2',
-                  code: 'invalid-edited-args',
+                  code: 'invalid-payload',
                 }),
                 expect.objectContaining({
                   scope: 'batch',

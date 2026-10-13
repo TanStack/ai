@@ -194,7 +194,7 @@ Now the decision carries a payload, and approval can also replace the arguments:
 interrupt.resolveInterrupt(true, { payload: { note: 'Reviewed' } })
 
 // Approve, but replace the arguments first. editedArgs is a full replacement,
-// not a merge, and is validated against the tool's inputSchema.
+// not a merge. The tool's inputSchema checks it just before the tool runs.
 interrupt.resolveInterrupt(true, {
   editedArgs: { amount: 12, recipient: 'Ada' },
   payload: { note: 'Capped to policy' },
@@ -206,7 +206,17 @@ interrupt.resolveInterrupt(false, { payload: { reason: 'Too large' } })
 
 Only approval accepts `editedArgs`. Without an `approvalSchema` the boolean
 shorthand `resolveInterrupt(true)` / `resolveInterrupt(false)` is all you need.
-The server re-validates the whole decision before it runs the tool.
+The server checks the whole decision again when it resumes.
+
+The tool's `inputSchema` checks `editedArgs` after middleware, just before the
+tool runs, the same as the model's arguments. On the server, edited arguments
+that do not fit do not fail the resume. The approval is used, the tool does not
+run, and the model gets the input error as the result of that call. See
+[Server Tools](../tools/server-tools).
+
+The browser client also checks `editedArgs` against the tool's `inputSchema`
+when it has the schema, and it refuses an edit that does not fit before it
+sends the decision.
 
 ## Consume the decision on the server
 

@@ -503,7 +503,7 @@
           "label": "Tool Approval",
           "to": "interrupts/tool-approval",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-10-13"
         },
         {
           "label": "Multiple Interrupts",
