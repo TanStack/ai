@@ -100,3 +100,20 @@ test('github copilot -- responses streams one tool call when the item id changes
   ])
   expect(result.text).toBe('Sunny')
 })
+
+test('chatgpt plan -- responses runs the tool when response.completed has an empty output', async ({
+  request,
+}) => {
+  const response = await request.post('/api/copilot-wire', {
+    data: { api: 'empty-completed-output' },
+  })
+  expect(response.ok()).toBe(true)
+  const result: {
+    text: string
+    toolCalls: Array<{ id: string; input: unknown }>
+  } = await response.json()
+  expect(result.toolCalls).toStrictEqual([
+    { id: 'call_1', input: { city: 'Paris' } },
+  ])
+  expect(result.text).toBe('Sunny')
+})

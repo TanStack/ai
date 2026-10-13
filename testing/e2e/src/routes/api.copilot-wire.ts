@@ -93,6 +93,55 @@ const copilotStreams = {
             },
           },
         ],
+  // A ChatGPT plan stream: the tool call streams, then `response.completed`
+  // has an empty `output`.
+  'empty-completed-output': (turn: number) =>
+    turn === 0
+      ? [
+          {
+            type: 'response.output_item.added',
+            output_index: 0,
+            item: { ...call, id: 'fc_1', arguments: '', status: 'in_progress' },
+          },
+          {
+            type: 'response.function_call_arguments.done',
+            output_index: 0,
+            item_id: 'fc_1',
+            arguments: '{"city":"Paris"}',
+          },
+          {
+            type: 'response.output_item.done',
+            output_index: 0,
+            item: { ...call, id: 'fc_1' },
+          },
+          {
+            type: 'response.completed',
+            response: {
+              id: 'r-1',
+              model: 'gpt-5.6',
+              status: 'completed',
+              output: [],
+            },
+          },
+        ]
+      : [
+          {
+            type: 'response.output_text.delta',
+            output_index: 0,
+            content_index: 0,
+            item_id: 'msg_1',
+            delta: 'Sunny',
+          },
+          {
+            type: 'response.completed',
+            response: {
+              id: 'r-2',
+              model: 'gpt-5.6',
+              status: 'completed',
+              output: [],
+            },
+          },
+        ],
 }
 
 const getWeather = toolDefinition({
@@ -122,7 +171,11 @@ export const Route = createFileRoute('/api/copilot-wire')({
             : undefined
         const testId = field('testId')
         const api = field('api')
-        if (api === 'reasoning-text' || api === 'rotating-ids') {
+        if (
+          api === 'reasoning-text' ||
+          api === 'rotating-ids' ||
+          api === 'empty-completed-output'
+        ) {
           let turn = 0
           const stream = chat({
             adapter: openaiCompatibleText('gpt-5.6', {
@@ -130,7 +183,9 @@ export const Route = createFileRoute('/api/copilot-wire')({
               baseURL: 'https://api.githubcopilot.com',
               apiKey: 'copilot-token',
               fetch: async () => sse(copilotStreams[api](turn++)),
-              ...(api === 'rotating-ids' ? { api: 'responses' as const } : {}),
+              ...(api === 'reasoning-text'
+                ? {}
+                : { api: 'responses' as const }),
             }),
             messages: [{ role: 'user', content: 'Weather in Paris?' }],
             tools: [getWeather],
