@@ -98,7 +98,7 @@ export type {
   SessionIndexStore,
 } from '@tanstack/ai-persistence'
 
-export { HarnessSession } from './session'
+export { HarnessSession } from './session/index'
 export type {
   AgentHandle,
   AgentHandles,
@@ -109,7 +109,7 @@ export type {
   SessionDescription,
   SessionInspection,
   SessionSnapshot,
-} from './session'
+} from './session/index'
 export type { SessionUsage, UsageCounts } from './usage'
 
 export type {
@@ -198,4 +198,4 @@ export { oauthConnector } from './connectors'
 export type { OAuthConnectorOptions } from './connectors'
 
 export { harnessAgent } from './harness-agent'
-export { DEFAULT_SUBAGENT_LIMITS } from './session'
+export { DEFAULT_SUBAGENT_LIMITS } from './session/index'

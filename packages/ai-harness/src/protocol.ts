@@ -3,7 +3,7 @@ import { isRecord } from './utils'
 import type { StreamChunk } from '@tanstack/ai'
 import type { AnyAgent } from './agents'
 import type { AnyHarness } from './define'
-import type { HarnessSession, SessionSnapshot } from './session'
+import type { HarnessSession, SessionSnapshot } from './session/index'
 import type { Cursor, HarnessInput, Principal, Receipt } from './types'
 
 /** The session-tier protocol version. Sent in `subscribe` and `hello`. */
