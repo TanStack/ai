@@ -109,6 +109,103 @@
       "response": {
         "content": "The comparison is ready."
       }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-result] price vendor a",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "pricer",
+            "arguments": "{\"task\":\"[subagent-result-task] Price Vendor A.\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-result-task] Price Vendor A."
+      },
+      "response": {
+        "content": "Vendor A costs 42 EUR."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-result] price vendor a",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Pricing is ready."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-limits] research two topics",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "researcher",
+            "arguments": "{\"task\":\"[subagent-limits-task] squids\"}"
+          },
+          {
+            "name": "researcher",
+            "arguments": "{\"task\":\"[subagent-limits-task] octopuses\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-limits-task] squids"
+      },
+      "response": {
+        "content": "Squids have three hearts."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-limits] research two topics",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "One topic is done."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-keys] write a draft",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "writer",
+            "arguments": "{\"task\":\"[subagent-keys-task] Write a draft.\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-keys-task] Write a draft."
+      },
+      "response": {
+        "content": "The draft is written."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-keys] write a draft",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "The writer is done."
+      }
     }
   ]
 }

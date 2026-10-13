@@ -6,23 +6,14 @@ import {
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
-import { z } from 'zod'
+import { researcher as researcherDeclaration } from '../lib/researcher-agent'
 
 /**
  * The parent model writes the researcher's brief. The researcher's only
  * message is that brief, not the parent conversation.
  */
 const researcher = defineAgent({
-  name: 'researcher',
-  description:
-    'Researches one focused question and returns short findings. It cannot see this chat, so the task must hold every detail it needs.',
-  inputSchema: z.object({
-    task: z
-      .string()
-      .describe(
-        'What to find and what to return. The researcher sees only this text.',
-      ),
-  }),
+  ...researcherDeclaration,
   run: (ctx) => {
     console.log(
       '[subagent-brief] child input:',

@@ -91,14 +91,27 @@ export {
   type DefinedAgent,
   type SubagentChoiceOptions,
   type SubagentRunContext,
+  type SubagentRunInput,
+  type AgentProduces,
 } from './activities/chat/agents/define-agent'
+export type {
+  BoundActivities,
+  SubagentBinding,
+  SubagentForward,
+} from './activities/chat/agents/bound'
+export {
+  SubagentBudget,
+  type SubagentLimits,
+} from './activities/chat/agents/limits'
 export {
   keyedAdapter,
   keyedAdapters,
   isKeyedAdapter,
   type KeyedAdapter,
   type KeyedAdapterResult,
+  type ProviderKeys,
 } from './byok/keyed'
+export type { ProviderKeySource } from './byok/env-keys'
 export {
   subagentRoute,
   type SubagentRouteOptions,
@@ -119,6 +132,7 @@ export {
   createSubagentId,
   createSubagentSink,
 } from './activities/chat/agents/spawn'
+export { compactForModel } from './activities/chat/tools/tool-calls'
 
 // Tool definition
 export {
@@ -377,6 +391,13 @@ export type {
   LogRecord,
   LogRecordsWriter,
 } from './activities/chat/middleware/index'
+// A persistence store gives the agent tools the stored children.
+export {
+  LoadChildCapability,
+  getLoadChild,
+  provideLoadChild,
+} from './activities/chat/middleware/load-child'
+export type { LoadChild } from './activities/chat/middleware/load-child'
 // Locks are a distributed-mutex primitive — coordination, not chat state — and
 // live behind their own subpath: `@tanstack/ai/locks` (see ./locks.ts).
 
@@ -392,6 +413,9 @@ export type {
   RunStatus,
   TerminalRunStatus,
   RunRecord,
+  RunKind,
+  RunArtifactRef,
+  RunCheckpoint,
   RunError,
   RunStore,
 } from './activities/chat/middleware/index'
@@ -567,6 +591,7 @@ export { uiMessagesToWire } from './utilities/ag-ui-wire'
 export type { SubagentWireInfo } from './utilities/subagent-wire'
 export {
   subagentHostMessageId,
+  subagentInputOf,
   wireSubagentInfo,
 } from './utilities/subagent-wire'
 export { mergeMetadata, withTanstackMetadata } from './utilities/merge-metadata'

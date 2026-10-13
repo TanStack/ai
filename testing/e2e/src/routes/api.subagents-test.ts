@@ -3,12 +3,23 @@ import {
   chat,
   chatParamsFromRequestBody,
   defineAgent,
+  keyedAdapter,
   maxIterations,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
+import { memoryPersistence, withPersistence } from '@tanstack/ai-persistence'
 import { z } from 'zod'
-import type { DefinedAgent, ReasoningRequest, Tool } from '@tanstack/ai'
-import { createTextAdapter } from '@/lib/providers'
+import type {
+  ChatMiddleware,
+  DefinedAgent,
+  ReasoningRequest,
+  Tool,
+} from '@tanstack/ai'
+import { createOpenaiChat } from '@tanstack/ai-openai'
+import { openaiByok } from '@tanstack/ai-openai/byok'
+import { getByokKey } from '@tanstack/ai/byok/server'
+import type { ByokProvider } from '@tanstack/ai/byok'
+import { LLMOCK_DEFAULT_BASE, createTextAdapter } from '@/lib/providers'
 import {
   deleteLogs,
   isSubagentScenario,
@@ -30,10 +41,31 @@ import type { SubagentScenario } from '@/lib/subagents-test'
  *   child answers, and the parent reads its result.
  * - `brief`: no router. The parent model writes a `task` for `researcher`,
  *   and the child's only message is that task.
+ * - `limits`: like `brief`, with `limits: { maxCalls: 1 }`. The parent model
+ *   calls `researcher` twice in one turn. The second call gets a tool error.
+ * - `keys`: like `result`, but the page sends an `x-byok-openai` header.
+ *   `subagents.keys` reads it with `getByokKey`, and `writer` builds its
+ *   adapter with `ctx.keys.adapter(...)`. The child request carries that
+ *   key. aimock hides `Authorization` in its journal, so the request also
+ *   sends it as `x-e2e-authorization`.
+ * - `result`: no router. `pricer` calls the bound `ctx.chat` with
+ *   `stream: false`, so its `run` resolves to a string. The string streams as
+ *   the child's text and goes back to the parent model as the result.
+ * - `session`: no router. The parent model starts `researcher`, then a
+ *   second `researcher` call continues it by its `sessionId`.
+ *   `withPersistence` stores the child, so that call loads its transcript.
  * - `routed-brief`: a router picks `researcher` and gives it the `task` as
  *   `{ name, input }`. The child's only message is that task.
  */
+/** Send `Authorization` again as `x-e2e-authorization`, which aimock keeps. */
+const echoAuthorization: typeof fetch = (input, init) => {
+  const headers = new Headers(init?.headers)
+  headers.set('x-e2e-authorization', headers.get('authorization') ?? '')
+  return fetch(input, { ...init, headers })
+}
+
 function subagentsFor(
+  request: Request,
   scenario: SubagentScenario,
   aimockPort: number | undefined,
   testId: string | undefined,
@@ -77,7 +109,11 @@ function subagentsFor(
     ])
     return { agents: [cleaner], router: () => 'cleaner' }
   }
-  if (scenario === 'brief' || scenario === 'routed-brief') {
+  if (
+    scenario === 'brief' ||
+    scenario === 'limits' ||
+    scenario === 'routed-brief'
+  ) {
     const researcher = defineAgent({
       name: 'researcher',
       description: 'Researches one focused task',
@@ -95,6 +131,9 @@ function subagentsFor(
     })
     // Each branch returns its own bag, so give them one agent type.
     const agents: Array<DefinedAgent> = [researcher]
+    if (scenario === 'limits') {
+      return { agents, limits: { maxCalls: 1 } }
+    }
     if (scenario === 'brief') return { agents }
     return {
       agents,
@@ -104,7 +143,83 @@ function subagentsFor(
       }),
     }
   }
+  if (scenario === 'result') {
+    const pricer = defineAgent({
+      name: 'pricer',
+      description: 'Prices one vendor',
+      inputSchema: z.object({ task: z.string() }),
+      run: (ctx) =>
+        ctx.chat({
+          ...createTextAdapter('openai', undefined, aimockPort, testId),
+          messages: [{ role: 'user', content: ctx.input.task }],
+          stream: false,
+        }),
+    })
+    const agents: Array<DefinedAgent> = [pricer]
+    return { agents }
+  }
+  if (scenario === 'keys') {
+    const gpt = keyedAdapter(openaiByok, (key) =>
+      createOpenaiChat('gpt-4o', key, {
+        baseURL: `${LLMOCK_DEFAULT_BASE}/v1`,
+        fetch: echoAuthorization,
+        ...(testId ? { defaultHeaders: { 'X-Test-Id': testId } } : {}),
+      }),
+    )
+    const writer = defineAgent({
+      name: 'writer',
+      description: 'Writes a short draft',
+      inputSchema: z.object({ task: z.string() }),
+      run: async (ctx) =>
+        ctx.chat({
+          adapter: await ctx.keys.adapter(gpt),
+          messages: [{ role: 'user', content: ctx.input.task }],
+          stream: false,
+        }),
+    })
+    const agents: Array<DefinedAgent> = [writer]
+    return {
+      agents,
+      keys: (provider: ByokProvider | string) => getByokKey(request, provider),
+    }
+  }
   return { agents: [child('researcher', [])] }
+}
+
+/**
+ * aimock replies are fixed, so the second `researcher` call in
+ * `fixtures/subagents/session.json` cannot hold the random id of the
+ * first child. It sends `sessionId: 'first-child'`. This middleware does what
+ * a real model does: it copies the `subagentRunId` of the first result.
+ */
+function fillSessionId(): ChatMiddleware {
+  let first: string | undefined
+  return {
+    name: 'fill-session-id',
+    onAfterToolCall(_ctx, { result }) {
+      if (
+        first === undefined &&
+        typeof result === 'object' &&
+        result !== null &&
+        'subagentRunId' in result &&
+        typeof result.subagentRunId === 'string'
+      ) {
+        first = result.subagentRunId
+      }
+    },
+    onBeforeToolCall(_ctx, { args }) {
+      if (
+        first === undefined ||
+        typeof args !== 'object' ||
+        args === null ||
+        !('sessionId' in args) ||
+        args.sessionId !== 'first-child'
+      ) {
+        return undefined
+      }
+      return { type: 'transformArgs', args: { ...args, sessionId: first } }
+    },
+  }
 }
 
 export const Route = createFileRoute('/api/subagents-test')({
@@ -137,7 +252,16 @@ export const Route = createFileRoute('/api/subagents-test')({
             runId: params.runId,
             ...(params.parentRunId ? { parentRunId: params.parentRunId } : {}),
             ...(params.resume ? { resume: params.resume } : {}),
-            subagents: subagentsFor(scenario, aimockPort, testId),
+            subagents: subagentsFor(request, scenario, aimockPort, testId),
+            // One run holds both calls, so a store per request is enough.
+            ...(scenario === 'session'
+              ? {
+                  middleware: [
+                    withPersistence(memoryPersistence()),
+                    fillSessionId(),
+                  ],
+                }
+              : {}),
             agentLoopStrategy: maxIterations(4),
             abortController,
           })
