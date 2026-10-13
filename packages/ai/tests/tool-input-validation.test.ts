@@ -343,11 +343,11 @@ const review = defineInterrupt({
   responseSchema: z.boolean(),
 })
 
-// Pauses after the model call, so client requests come from the boundary.
-const reviewAfterModel = defineChatMiddleware({
+// Pauses before the tools run, so client requests come from the boundary.
+const reviewBeforeTools = defineChatMiddleware({
   name: 'boundary',
   onInterruptBoundary(ctx) {
-    if (ctx.phase !== 'afterModel') return undefined
+    if (ctx.phase !== 'beforeTools') return undefined
     return {
       interrupts: [
         review.interrupt({
@@ -376,17 +376,17 @@ async function initial(
       ],
     ],
   })
+  const messages: Array<ModelMessage> = [{ role: 'user', content: 'check' }]
+  if (!boundary) {
+    return collectChunks(chat({ adapter, messages, tools: [tool], middleware }))
+  }
   return collectChunks(
     chat({
       adapter,
-      messages: [{ role: 'user', content: 'check' }],
+      messages,
       tools: [tool],
-      ...(boundary
-        ? {
-            interrupts: [review],
-            middleware: [reviewAfterModel, ...middleware],
-          }
-        : { middleware }),
+      interrupts: [review],
+      middleware: [reviewBeforeTools, ...middleware],
     }),
   )
 }
@@ -442,6 +442,7 @@ describe('client tool input in chat()', () => {
         chunks.some(
           (chunk) =>
             chunk.type === EventType.TOOL_CALL_RESULT &&
+            typeof chunk.content === 'string' &&
             chunk.content.includes('Input validation failed'),
         ),
       ).toBe(true)
