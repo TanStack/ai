@@ -548,7 +548,19 @@ export async function decide<
       logger,
     })
 
-    const answers = mapAnswers(questions, result.answers)
+    let answers
+    try {
+      answers = mapAnswers(questions, result.answers)
+    } catch (error) {
+      aiEventClient.emit('evaluate:usage', {
+        requestId,
+        model: result.model,
+        usage: result.usage,
+        timestamp: Date.now(),
+      })
+      await runGenerationUsage(middleware, mwCtx, result.usage)
+      throw error
+    }
     const duration = Date.now() - startTime
 
     aiEventClient.emit('evaluate:request:completed', {
