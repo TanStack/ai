@@ -117,11 +117,11 @@ The adapter sends the image in the form that its API accepts:
 - **Responses APIs** (`openaiText`, `openRouterResponsesText`): the image stays in the tool output.
 - **Chat Completions APIs** (`openRouterText`, `openaiChatCompletions`, and the other Chat Completions adapters built on `@tanstack/openai-base`): a tool message holds text only. The text goes in the tool message. The images go in one user message after the tool results. If a result has only images, its tool text is `(see attached image)`.
 
-When these adapters know that the model has no image input, they send only the text. A result with only images then has the text `(image omitted: this model has no image input)`.
+When these adapters know that the model has no image input, they do not send the images. An adapter that does not know the input types of the model sends the images. A result with only images then has the text `(image omitted: this model has no image input)`.
 
-The Chat Completions adapters and `openRouterResponsesText` send only the text and the images of such a result. They do not send audio, video, or documents from it.
+The Chat Completions adapters and `openRouterResponsesText` send only the text and the images of a result that has images. They do not send audio, video, or documents from it.
 
-An image with a `file` source is an error on these adapters, except `openaiText`. Use a `data` or `url` source.
+When an adapter sends an image, a `file` source is an error, except on `openaiText`. Use a `data` or `url` source.
 
 ## Provider Support
 
