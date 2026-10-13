@@ -1,4 +1,8 @@
-import { EventType, convertSchemaToJsonSchema } from '@tanstack/ai'
+import {
+  CONTEXT_OVERFLOW_CODE,
+  EventType,
+  convertSchemaToJsonSchema,
+} from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { resolveBedrockAuth } from '../utils/auth'
@@ -15,6 +19,7 @@ import { buildConverseUsage } from '../converse/usage'
 import { converseThinking } from '../converse/reasoning'
 import {
   BEDROCK_CLAUDE_NO_FORCED_TOOL_FAMILIES,
+  BEDROCK_MODEL_INPUT_MODALITIES,
   BEDROCK_MODEL_REASONING,
 } from '../model-meta'
 import { addPromptCachePoints } from '../converse/prompt-cache'
@@ -34,6 +39,7 @@ import type {
   ConverseStreamCommandInput,
   ConverseStreamOutput,
 } from '@aws-sdk/client-bedrock-runtime'
+import type { MiddlewareStack } from '@smithy/types'
 import type {
   JSONSchema,
   Modality,
@@ -113,6 +119,7 @@ export class BedrockConverseTextAdapter<
   override readonly name = 'bedrock-converse' as const
   override readonly api = 'bedrock-converse-stream'
   override readonly provider = 'amazon-bedrock'
+  override readonly inputModalities = BEDROCK_MODEL_INPUT_MODALITIES[this.model]
 
   private sourceMetadata(model: string) {
     return {
@@ -237,7 +244,9 @@ export class BedrockConverseTextAdapter<
   ): Promise<AsyncIterable<ConverseStreamOutput>> {
     const { ConverseStreamCommand } = await this.importBedrockRuntime()
     const client = await this.getClient()
-    const res = await client.send(new ConverseStreamCommand(input))
+    const command = new ConverseStreamCommand(input)
+    addRestoreDocuments(command, input)
+    const res = await client.send(command)
     if (!res.stream) {
       throw new Error('Bedrock Converse: empty stream response')
     }
@@ -249,7 +258,9 @@ export class BedrockConverseTextAdapter<
   ): Promise<ConverseCommandOutput> {
     const { ConverseCommand } = await this.importBedrockRuntime()
     const client = await this.getClient()
-    return client.send(new ConverseCommand(input))
+    const command = new ConverseCommand(input)
+    addRestoreDocuments(command, input)
+    return client.send(command)
   }
 
   // ---------------------------------------------------------------------------
@@ -286,7 +297,7 @@ export class BedrockConverseTextAdapter<
           : chunk
       }
     } catch (error: unknown) {
-      const errorPayload = toRunErrorPayload(
+      const errorPayload = converseRunErrorPayload(
         error,
         `${this.name}.chatStream failed`,
       )
@@ -582,7 +593,7 @@ export class BedrockConverseTextAdapter<
           parentRunId: chatOptions.parentRunId,
         }
       }
-      const errorPayload = toRunErrorPayload(
+      const errorPayload = converseRunErrorPayload(
         error,
         `${this.name}.structuredOutputStream failed`,
       )
@@ -707,6 +718,32 @@ export class BedrockConverseTextAdapter<
  * the SAME `convertSchemaToJsonSchema` the other adapters use so the Converse
  * tool input schemas match what every other provider sends.
  */
+/**
+ * The text Bedrock models use for a context overflow. Converse has no error
+ * type for it: it is a `ValidationException` like every bad request, and over
+ * a stream the SDK does not keep that name. So the message is the only signal.
+ * Each model family has its own text.
+ */
+const CONTEXT_OVERFLOW_MESSAGE =
+  /Input Tokens Exceeded|maximum context length|Input is too long for requested model|prompt is too long/
+
+/**
+ * `toRunErrorPayload`, with `code` set to `CONTEXT_OVERFLOW_CODE` for a
+ * context overflow. A `ThrottlingException` is never an overflow, whatever
+ * its text says about tokens.
+ */
+function converseRunErrorPayload(
+  error: unknown,
+  fallbackMessage: string,
+): { message: string; code: string | undefined } {
+  const payload = toRunErrorPayload(error, fallbackMessage)
+  const throttled =
+    error instanceof Error && error.name === 'ThrottlingException'
+  return !throttled && CONTEXT_OVERFLOW_MESSAGE.test(payload.message)
+    ? { ...payload, code: CONTEXT_OVERFLOW_CODE }
+    : payload
+}
+
 function convertTools(tools: Array<Tool>): Array<ConverseToolInput> {
   return tools.map((tool) => {
     const inputSchema: JSONSchema = convertSchemaToJsonSchema(
@@ -749,6 +786,78 @@ function extractStructuredToolInput(
     }
   }
   return undefined
+}
+
+/** The parts of a Converse request that hold documents the adapter fills from user data. */
+type ConverseDocuments = Pick<ConverseCommandInput, 'messages' | 'toolConfig'>
+
+function hasProtoKey(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) return false
+  return (
+    Object.hasOwn(value, '__proto__') || Object.values(value).some(hasProtoKey)
+  )
+}
+
+/**
+ * The AWS SDK copies a document (tool input, tool input schema) with
+ * `out[key] = value`. For an own key named `__proto__`, the assignment goes
+ * to the `__proto__` setter and the key is lost. This puts each such
+ * document back in the serialized body. `JSON.stringify` keeps own keys.
+ */
+function restoreDocuments(request: unknown, input: ConverseDocuments): void {
+  const documents = [
+    ...(input.messages ?? []).flatMap((message) =>
+      (message.content ?? []).map((block) => block.toolUse?.input),
+    ),
+    ...(input.toolConfig?.tools ?? []).map(
+      (tool) => tool.toolSpec?.inputSchema?.json,
+    ),
+  ]
+  // Skip the parse and re-serialize of the body, which can be large (for
+  // example with image bytes), unless a document has the key.
+  if (!documents.some(hasProtoKey)) return
+  if (
+    typeof request !== 'object' ||
+    request === null ||
+    !('body' in request) ||
+    typeof request.body !== 'string'
+  ) {
+    throw new Error(
+      'Bedrock Converse: cannot keep a `__proto__` key because the request body is not a JSON string',
+    )
+  }
+  // The SDK serialized this body from `input` one step earlier, so the two
+  // line up by position.
+  const body: ConverseDocuments = JSON.parse(request.body)
+  body.messages?.forEach((message, i) =>
+    message.content?.forEach((block, j) => {
+      const source = input.messages?.[i]?.content?.[j]?.toolUse?.input
+      if (block.toolUse && hasProtoKey(source)) block.toolUse.input = source
+    }),
+  )
+  body.toolConfig?.tools?.forEach((tool, i) => {
+    const source = input.toolConfig?.tools?.[i]?.toolSpec?.inputSchema?.json
+    if (tool.toolSpec?.inputSchema && hasProtoKey(source))
+      tool.toolSpec.inputSchema.json = source
+  })
+  request.body = JSON.stringify(body)
+}
+
+/**
+ * Adds {@link restoreDocuments} to a command. It runs at `build` with high
+ * priority, before the SDK sets Content-Length and signs the body.
+ */
+function addRestoreDocuments<TInput extends object, TOutput extends object>(
+  command: { middlewareStack: MiddlewareStack<TInput, TOutput> },
+  input: ConverseDocuments,
+): void {
+  command.middlewareStack.add(
+    (next) => (args) => {
+      restoreDocuments(args.request, input)
+      return next(args)
+    },
+    { step: 'build', name: 'tanstackRestoreDocuments', priority: 'high' },
+  )
 }
 
 /** Converse adapter with an explicit API key (low-level; mirrors createBedrockChat). */

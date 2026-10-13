@@ -1,0 +1,5 @@
+---
+'@tanstack/ai': minor
+---
+
+A router pick can give an agent its input. Anywhere a pick has a name, it can have `{ name, input }`, so `subagents.router` can start an agent with `inputSchema`. `chat()` checks the input against the schema before any child starts, and `run` reads it as `ctx.input`. The input stays on the server: the plan on `SUBAGENT_STARTED` has the agent names and the order only. `subagentRoute` gets `needsInput(result)`, which lists the picked agents with an `inputSchema`, and `pick(result, { inputs })`, which puts each input on its name. `inputs` is typed from each schema. `chat()` throws when a pick gives an input to `main` or to an agent with no `inputSchema`, or gives one agent an input twice in one step. `chat()` also throws when a router picks an agent whose `inputSchema` is a plain JSON Schema, because it cannot check that input. A turn with a router input cannot resume after an interrupt, and a resume also fails when its saved plan is absent. The new `SubagentPick` type is exported.

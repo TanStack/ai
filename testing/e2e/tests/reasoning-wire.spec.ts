@@ -56,6 +56,20 @@ test.describe('chat({ reasoning }) — wire format', () => {
     expect(bodies[0]?.['max_tokens']).toBeGreaterThan(8192)
   })
 
+  test('anthropic sends output_config.effort for Claude 4.6', async ({
+    request,
+    testId,
+  }) => {
+    const { bodies } = await run(request, 'anthropic-adaptive', testId)
+    expect(bodies[0]?.['model']).toBe('claude-sonnet-4-6')
+    expect(bodies[0]?.['thinking']).toEqual({
+      type: 'adaptive',
+      display: 'summarized',
+    })
+    expect(bodies[0]?.['output_config']).toEqual({ effort: 'medium' })
+    expect(bodies[0]).not.toHaveProperty('effort')
+  })
+
   test('grok sends no reasoning for a model with no levels', async ({
     request,
     testId,

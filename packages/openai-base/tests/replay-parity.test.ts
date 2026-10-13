@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import OpenAI from 'openai'
-import { EventType } from '@tanstack/ai'
-import type { AdapterYieldChunk, ModelMessage } from '@tanstack/ai'
+import { chat, EventType } from '@tanstack/ai'
+import type {
+  AdapterYieldChunk,
+  ChatMiddleware,
+  ModelMessage,
+} from '@tanstack/ai'
 import {
   resolveDebugOption,
   hashToolCallId,
@@ -932,6 +936,139 @@ describe('OpenAI replay parity', () => {
     expect(messages[0]?.toolCalls?.[0]?.id).toBe('call|fc/item')
   })
 
+  it.each([true, false])(
+    'batches tool-result images with runtime image capability %s',
+    async (images) => {
+      const mock = sdk([completed])
+      await collect(
+        new Completions(mock.client, images).chatStream({
+          logger,
+          model,
+          messages: [
+            {
+              role: 'assistant',
+              content: null,
+              toolCalls: ['a', 'b'].map((id) => ({
+                id,
+                type: 'function',
+                function: { name: 'inspect', arguments: '{}' },
+              })),
+            },
+            {
+              role: 'tool',
+              toolCallId: 'a',
+              content: [
+                {
+                  type: 'image',
+                  source: { type: 'data', value: 'AAA', mimeType: 'image/png' },
+                },
+              ],
+            },
+            {
+              role: 'tool',
+              toolCallId: 'b',
+              content: [
+                { type: 'text', content: 'text' },
+                {
+                  type: 'image',
+                  source: { type: 'data', value: 'BBB', mimeType: 'image/png' },
+                },
+              ],
+            },
+          ],
+        }),
+      )
+      expect(mock.bodies[0]).toMatchObject({
+        messages: [
+          { role: 'assistant', content: null },
+          {
+            role: 'tool',
+            tool_call_id: 'a',
+            content: images
+              ? '(see attached image)'
+              : '(image omitted: this model has no image input)',
+          },
+          { role: 'tool', tool_call_id: 'b', content: 'text' },
+          ...(images
+            ? [
+                {
+                  role: 'user',
+                  content: [
+                    {
+                      type: 'image_url',
+                      image_url: { url: 'data:image/png;base64,AAA' },
+                    },
+                    {
+                      type: 'image_url',
+                      image_url: { url: 'data:image/png;base64,BBB' },
+                    },
+                  ],
+                },
+              ]
+            : []),
+        ],
+      })
+    },
+  )
+
+  it('sends the images of each tool run before the next message', async () => {
+    const mock = sdk([completed])
+    const turn = (id: string): Array<ModelMessage> => [
+      {
+        role: 'assistant',
+        content: null,
+        toolCalls: [
+          {
+            id,
+            type: 'function',
+            function: { name: 'inspect', arguments: '{}' },
+          },
+        ],
+      },
+      {
+        role: 'tool',
+        toolCallId: id,
+        content: [
+          {
+            type: 'image',
+            source: { type: 'url', value: `https://example.com/${id}.png` },
+          },
+        ],
+      },
+    ]
+    await collect(
+      new Completions(mock.client).chatStream({
+        logger,
+        model,
+        messages: [
+          ...turn('a'),
+          ...turn('b'),
+          { role: 'user', content: 'Next' },
+        ],
+      }),
+    )
+    const images = (id: string) => ({
+      role: 'user',
+      content: [
+        {
+          type: 'image_url',
+          image_url: { url: `https://example.com/${id}.png` },
+        },
+      ],
+    })
+    expect(mock.bodies[0]).toMatchObject({
+      messages: [
+        { role: 'assistant' },
+        { role: 'tool', tool_call_id: 'a' },
+        images('a'),
+        { role: 'assistant' },
+        { role: 'tool', tool_call_id: 'b' },
+        images('b'),
+        { role: 'user', content: 'Next' },
+      ],
+    })
+  })
+
   it.each(['completions', 'responses'] as const)(
     'keeps genuine response identity from %s',
     async (api) => {
@@ -955,4 +1092,95 @@ describe('OpenAI replay parity', () => {
       ).toMatchObject({ responseId: 'response-1', model: 'resolved-model' })
     },
   )
+})
+
+describe('Responses answer items on replay', () => {
+  /** Turn 1 with one answer item. Returns the saved transcript. */
+  async function firstTurn() {
+    const answer = {
+      type: 'message',
+      id: 'msg_answer',
+      role: 'assistant',
+      status: 'completed',
+      phase: 'final_answer',
+      content: [{ type: 'output_text', text: 'Hi there', annotations: [] }],
+    }
+    const mock = sdk(
+      [
+        {
+          ...responseCompleted,
+          response: { ...responseCompleted.response, output: [answer] },
+        },
+      ],
+      true,
+    )
+    let saved: Array<ModelMessage> = []
+    const keep: ChatMiddleware = {
+      name: 'keep-transcript',
+      onFinish(ctx) {
+        saved = [...ctx.messages]
+      },
+    }
+    await collect(
+      chat({
+        adapter: new Responses(mock.client),
+        messages: [{ role: 'user', content: 'Hi' }],
+        middleware: [keep],
+      }),
+    )
+    return saved
+  }
+
+  /** Turn 2 on `messages`. Returns the assistant items of its request input. */
+  async function secondTurnInput(messages: Array<ModelMessage>) {
+    const mock = sdk([responseCompleted], true)
+    await collect(
+      chat({
+        adapter: new Responses(mock.client),
+        messages: [...messages, { role: 'user', content: 'Again' }],
+      }),
+    )
+    const body = mock.bodies[0] as { input: Array<Record<string, unknown>> }
+    return body.input.filter((item) => item.role === 'assistant')
+  }
+
+  it('sends the id and phase of the first answer on a same-model request', async () => {
+    const saved = await firstTurn()
+    expect(saved.at(-1)?.metadata?.tanstack?.responseItems).toEqual([
+      { id: 'msg_answer', phase: 'final_answer' },
+    ])
+    expect(await secondTurnInput(saved)).toEqual([
+      {
+        type: 'message',
+        role: 'assistant',
+        id: 'msg_answer',
+        status: 'completed',
+        phase: 'final_answer',
+        content: [{ type: 'output_text', text: 'Hi there', annotations: [] }],
+      },
+    ])
+  })
+
+  it('leaves them out for another model', async () => {
+    const saved = (await firstTurn()).map((message) =>
+      message.role === 'assistant'
+        ? {
+            ...message,
+            metadata: {
+              tanstack: {
+                ...message.metadata?.tanstack,
+                source: {
+                  provider: 'openai',
+                  api: 'openai-responses',
+                  model: 'gpt-4.1',
+                },
+              },
+            },
+          }
+        : message,
+    )
+    expect(await secondTurnInput(saved)).toEqual([
+      { type: 'message', role: 'assistant', content: 'Hi there' },
+    ])
+  })
 })

@@ -45,9 +45,8 @@ every registered id resolves against the first-party Anthropic API.
 `claude-opus-5-fast` is the only `-fast` id that remains.
 
 Thinking is set with `chat({ reasoning })`, not with `modelOptions`. The
-adapter sends adaptive thinking with `output_config.effort` on Claude 4.7 and
-later, adaptive thinking with `effort` on Claude 4.6, and a token budget on
-the older models. The types take only the levels of the selected model.
+adapter sends adaptive thinking with `output_config.effort` on Claude 4.6 and
+later, and a token budget on the older models. The types take only the levels of the selected model.
 
 ## Provider-Specific modelOptions
 

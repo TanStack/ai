@@ -228,6 +228,30 @@ If a server tool declares a context generic, `chat()` requires a compatible `con
 
 For middleware and client-to-server handoff patterns, see [Runtime Context](../advanced/runtime-context).
 
+## Support a host that runs long sessions
+
+Some hosts run `chat()` for a long session. Such a host can restart a run after a crash, or move a slow tool call to the background. Two fields let your tool work with that host. `chat()` alone does not use them.
+
+- `replay` tells the host if it can run the tool again after a crash. `'safe'` means the host can run it again. Use it for a read or another call that you can repeat. When a second run is not safe, omit the field or set `'never'`. The host then writes a note for the model. `chat()` does not read `replay`.
+- The host sets `detach` when it can move this call to the background. Pass the work to `detach`. Race that promise with the work. When the host moves the call, `detach` resolves to a short string. The work keeps running. When the work ends, the host tells the model the result. An object `outputSchema` rejects that string. `chat()` does not set `detach`.
+
+```typescript
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
+
+declare function runBuild(target: string): Promise<string>;
+
+const build = toolDefinition({
+  name: "build",
+  description: "Build a target",
+  inputSchema: z.object({ target: z.string() }),
+  replay: "safe",
+}).server(async ({ target }, ctx) => {
+  const work = runBuild(target);
+  return ctx?.detach ? Promise.race([work, ctx.detach(work)]) : work;
+});
+```
+
 ## Tool Organization Pattern
 
 For better organization, define tool schemas and implementations separately:

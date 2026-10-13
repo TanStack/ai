@@ -76,10 +76,62 @@ export async function streamToText(stream: AsyncIterable<StreamChunk>) {
   return result
 }
 
-function isChatResult(
-  input: ChatResult | AsyncIterable<StreamChunk>,
-): input is ChatResult {
-  return !(Symbol.asyncIterator in input)
+function isAsyncIterable(value: unknown): value is AsyncIterable<StreamChunk> {
+  return (
+    typeof value === 'object' && value !== null && Symbol.asyncIterator in value
+  )
+}
+
+const EVENT_TYPES = new Set<unknown>(Object.values(EventType))
+
+// ponytail: shape check, so a structured output shaped like
+// `{ text: string, chunks: Array<{ type: <EventType> }> }` is sent as a ChatResult.
+function isChatResult(value: unknown): value is ChatResult {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'text' in value &&
+    typeof value.text === 'string' &&
+    'chunks' in value &&
+    Array.isArray(value.chunks) &&
+    value.chunks.every(
+      (chunk: unknown) =>
+        typeof chunk === 'object' &&
+        chunk !== null &&
+        'type' in chunk &&
+        EVENT_TYPES.has(chunk.type),
+    )
+  )
+}
+
+/**
+ * The chunks a client needs to show `object`, the result of
+ * `chat({ outputSchema })`, as a complete structured-output part.
+ */
+function structuredOutputChunks(object: unknown): Array<StreamChunk> {
+  const runId = crypto.randomUUID()
+  const threadId = crypto.randomUUID()
+  const timestamp = Date.now()
+  return [
+    { type: EventType.RUN_STARTED, runId, threadId, timestamp },
+    {
+      type: EventType.CUSTOM,
+      name: 'structured-output.complete',
+      value: {
+        object,
+        raw: JSON.stringify(object),
+        messageId: crypto.randomUUID(),
+      },
+      timestamp,
+    },
+    {
+      type: EventType.RUN_FINISHED,
+      runId,
+      threadId,
+      finishReason: 'stop',
+      timestamp,
+    },
+  ]
 }
 
 interface RecordedFailure {
@@ -1584,13 +1636,15 @@ const DEFAULT_RESUME_JSON_MAX_WAIT_MS = 1000
  * - `done`: `false` when the run is still going. The client asks again with
  *   `GET ?runId=<id>&offset=<offset>`, served by {@link resumeJsonResponse}.
  *
- * Pass a `ChatResult` from `chat({ stream: false })` to send it as is. Pass a
- * stream to read it here. Without `durability` the stream is read to its end.
+ * Pass a `ChatResult` from `chat({ stream: false })` to send it as is. Pass the
+ * object from `chat({ outputSchema })` to send it as a complete structured
+ * output. A Promise of either is awaited. Pass a stream to read it here.
+ * Without `durability` the stream is read to its end.
  * With `durability`, a fresh run fills the log, and the reply goes out when the
  * run ends or when `maxWaitMs` passes, whichever is first. The run keeps going
  * after an early reply. A request with a resume offset reads the log instead.
  *
- * @param input - A `ChatResult`, or a StreamChunk async iterable from chat()
+ * @param input - A `ChatResult`, the object from `chat({ outputSchema })`, or a StreamChunk async iterable from chat()
  * @param init - Response init. For a stream, also `abortController`, `signal`, `maxWaitMs`, `durability`, and `debug`.
  * @returns A promise of a JSON Response
  *
@@ -1604,6 +1658,16 @@ const DEFAULT_RESUME_JSON_MAX_WAIT_MS = 1000
  *     stream: false,
  *   });
  *   return toJsonResponse(result);
+ * }
+ *
+ * // A structured output
+ * export async function POST(request: Request) {
+ *   const person = await chat({
+ *     adapter: openaiText('gpt-5.5'),
+ *     messages: [...],
+ *     outputSchema: PersonSchema,
+ *   });
+ *   return toJsonResponse(person);
  * }
  *
  * // A durable stream that replies at least once a second
@@ -1625,8 +1689,16 @@ export function toJsonResponse<TOffset extends string = string>(
   stream: AsyncIterable<StreamChunk>,
   init?: JsonResponseInit<TOffset>,
 ): Promise<Response>
+export function toJsonResponse(
+  structuredOutput: object,
+  init?: ResponseInit,
+): Promise<Response>
 export async function toJsonResponse<TOffset extends string = string>(
-  input: ChatResult | AsyncIterable<StreamChunk>,
+  input:
+    | ChatResult
+    | AsyncIterable<StreamChunk>
+    | PromiseLike<unknown>
+    | object,
   init?: JsonResponseInit<TOffset>,
 ) {
   const {
@@ -1639,15 +1711,22 @@ export async function toJsonResponse<TOffset extends string = string>(
     ...responseInit
   } = init ?? {}
   const maxWaitMs = resolveMaxWaitMs(rawMaxWaitMs)
-  const body = isChatResult(input)
-    ? { chunks: input.chunks.map(toWireChunk), done: true }
-    : await collectStreamBody(input, {
+  const value: unknown = await input
+  const body = isAsyncIterable(value)
+    ? await collectStreamBody(value, {
         abortController,
         signal,
         maxWaitMs,
         durability,
         debug,
       })
+    : {
+        chunks: (isChatResult(value)
+          ? value.chunks
+          : structuredOutputChunks(value)
+        ).map(toWireChunk),
+        done: true,
+      }
   return new Response(JSON.stringify(body), {
     ...responseInit,
     headers: mergeResponseHeaders(

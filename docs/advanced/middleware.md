@@ -1119,7 +1119,7 @@ The capability system fails loudly and early:
 
 ### Append records to the session log
 
-Some hosts keep a durable session log for each run. Your middleware can write its own records to that log, for example a note that a run started. The host provides `LogRecordsCapability`. Your middleware reads the writer with `getLogRecords`:
+A host is a middleware that keeps a session log and provides `LogRecordsCapability`. `chat()` does not provide it, so without a host there is no log. With a host, your middleware can write its own records to that log, for example a note that a run started. Read the writer with `getLogRecords`:
 
 ```typescript
 import {
@@ -1139,8 +1139,9 @@ const noteStart = defineChatMiddleware({
 ```
 
 - Each record needs a `type`. The other fields are yours.
-- The host decides which record types it accepts.
+- The host decides which record types it accepts. If the host refuses a record, `append` rejects.
 - Without a host log, `getLogRecords(ctx, { optional: true })` returns `undefined`. Use the optional read when your middleware also runs without a log.
+- If your middleware cannot work without the log, list the capability in `requires` and call `getLogRecords(ctx)`. Then `chat()` throws when no host provides the log.
 
 If you write a host, provide the log in `setup` and list it in `provides`:
 

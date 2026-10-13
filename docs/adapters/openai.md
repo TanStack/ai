@@ -446,6 +446,10 @@ The levels of each model:
 
 The other models, such as `gpt-4.1` and `gpt-4o`, take no `reasoning`.
 
+### Answers on the next request
+
+OpenAI gives each answer item an `id` and a `phase`: `commentary` for text before a tool call, and `final_answer` for the answer. The Responses adapters (`openaiText` and `createOpenaiChat`) keep both in the assistant message, in `metadata.tanstack.responseItems`. When the same model gets that message again, for example on the next turn, the adapter sends each item back with its `id` and `phase`. Another model gets the plain text.
+
 ### Prompt caching
 
 `chat()` sends `prompt_cache_key` by default, set to the `threadId` that you pass. OpenAI uses the key to send requests with the same start to the same cache. With `promptCache: 'long'`, it also asks for the long retention. See [Prompt Caching](../advanced/prompt-caching).

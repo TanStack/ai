@@ -220,4 +220,38 @@ describe('OpenAIBaseChatCompletionsTextAdapter — usage-only terminal chunk', (
       })
     }
   })
+
+  it('skips a usage-only chunk that has no choices field at all', async () => {
+    // Some gateways omit `choices` on the usage trailer instead of sending
+    // `choices: []`.
+    setupMockSdkClient([
+      {
+        id: 'chatcmpl-no-choices',
+        model: 'test-model',
+        choices: [{ delta: { content: 'Hi.' }, finish_reason: 'stop' }],
+      },
+      {
+        id: 'chatcmpl-no-choices',
+        model: 'test-model',
+        usage: { prompt_tokens: 3, completion_tokens: 1, total_tokens: 4 },
+      },
+    ])
+    const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
+    const chunks: Array<AdapterYieldChunk> = []
+
+    for await (const chunk of adapter.chatStream({
+      logger: testLogger,
+      model: 'test-model',
+      messages: [{ role: 'user', content: 'Hello' }],
+    })) {
+      chunks.push(chunk)
+    }
+
+    expect(chunks.find((c) => c.type === EventType.RUN_ERROR)).toBeUndefined()
+    const runFinished = chunks.find((c) => c.type === EventType.RUN_FINISHED)
+    expect(runFinished).toMatchObject({
+      finishReason: 'stop',
+      usage: { promptTokens: 3, completionTokens: 1, totalTokens: 4 },
+    })
+  })
 })
