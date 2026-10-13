@@ -3,7 +3,7 @@ id: UIMessage
 title: UIMessage
 ---
 
-Defined in: [packages/ai/src/types.ts:686](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L686)
+Defined in: [packages/ai/src/types.ts:785](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L785)
 
 UIMessage - Domain-specific message format optimized for building chat UIs
 Contains parts that can be text, tool calls, or tool results. Generic over
@@ -25,7 +25,7 @@ consumer side without manual casts.
 optional createdAt?: Date;
 ```
 
-Defined in: [packages/ai/src/types.ts:690](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L690)
+Defined in: [packages/ai/src/types.ts:789](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L789)
 
 ***
 
@@ -35,7 +35,7 @@ Defined in: [packages/ai/src/types.ts:690](https://github.com/TanStack/ai/blob/m
 id: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:687](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L687)
+Defined in: [packages/ai/src/types.ts:786](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L786)
 
 ***
 
@@ -45,7 +45,7 @@ Defined in: [packages/ai/src/types.ts:687](https://github.com/TanStack/ai/blob/m
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:697](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L697)
+Defined in: [packages/ai/src/types.ts:796](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L796)
 
 Optional AG-UI metadata bag. TanStack writes the `tanstack` key.
 User keys stay at the top.
@@ -58,7 +58,7 @@ User keys stay at the top.
 optional name?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:692](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L692)
+Defined in: [packages/ai/src/types.ts:791](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L791)
 
 Optional AG-UI sender name. Converters preserve it across wire and persist.
 
@@ -70,7 +70,7 @@ Optional AG-UI sender name. Converters preserve it across wire and persist.
 parts: MessagePart<TData>[];
 ```
 
-Defined in: [packages/ai/src/types.ts:689](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L689)
+Defined in: [packages/ai/src/types.ts:788](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L788)
 
 ***
 
@@ -80,4 +80,4 @@ Defined in: [packages/ai/src/types.ts:689](https://github.com/TanStack/ai/blob/m
 role: "assistant" | "user" | "activity" | "system";
 ```
 
-Defined in: [packages/ai/src/types.ts:688](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L688)
+Defined in: [packages/ai/src/types.ts:787](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L787)

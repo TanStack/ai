@@ -61,7 +61,7 @@ AGUISubagentInfo.description
 optional inputSchema?: TInput;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:78](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L78)
+Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:82](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L82)
 
 The input this agent needs, such as a short brief. `run` reads it as
 `ctx.input`. In tool mode, the parent model writes it when it calls this
@@ -79,7 +79,7 @@ turn with a router input cannot resume after an interrupt.
 optional interrupts?: TInterrupts;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:80](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L80)
+Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:84](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L84)
 
 ***
 
@@ -107,7 +107,7 @@ AGUISubagentInfo.name
 optional outputSchema?: TSchema;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:81](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L81)
+Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:85](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L85)
 
 ***
 
@@ -140,7 +140,7 @@ Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:70](https://
 optional subagents?: unknown;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:82](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L82)
+Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:86](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L86)
 
 ***
 
@@ -150,4 +150,4 @@ Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:82](https://
 optional tools?: TTools;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:79](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L79)
+Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:83](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L83)

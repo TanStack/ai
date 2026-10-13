@@ -7,7 +7,7 @@ title: ToolDefinitionConfig
 type ToolDefinitionConfig<TInput, TOutput, TName, TNeedsApproval, TApprovalSchema> = object & ApprovalConfig<TNeedsApproval, TApprovalSchema>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:214](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L214)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:215](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L215)
 
 Tool definition configuration
 
@@ -54,6 +54,17 @@ name: TName;
 ```ts
 optional outputSchema?: TOutput;
 ```
+
+### replay?
+
+```ts
+optional replay?: "safe" | "never";
+```
+
+Whether a host may run this tool again after a crash cut the run
+between the call and its result. `'safe'` runs it again. Omit the
+field, or set `'never'`, when a second run is not safe. The host
+writes the model note. `chat()` does not read this field.
 
 ## Type Parameters
 

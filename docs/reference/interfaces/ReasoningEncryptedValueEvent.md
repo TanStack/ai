@@ -3,7 +3,7 @@ id: ReasoningEncryptedValueEvent
 title: ReasoningEncryptedValueEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1813](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1813)
+Defined in: [packages/ai/src/types.ts:2029](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2029)
 
 Emitted for encrypted reasoning values.
 

@@ -3,7 +3,7 @@ id: TTSSegment
 title: TTSSegment
 ---
 
-Defined in: [packages/ai/src/types.ts:2690](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2690)
+Defined in: [packages/ai/src/types.ts:2906](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2906)
 
 A stretch of audio attributable to one turn (multi-voice) or one utterance
 (single voice). This is what tells a consumer which turn is where.
@@ -16,7 +16,7 @@ A stretch of audio attributable to one turn (multi-voice) or one utterance
 endSeconds: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:2694](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2694)
+Defined in: [packages/ai/src/types.ts:2910](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2910)
 
 End of the segment in seconds.
 
@@ -28,7 +28,7 @@ End of the segment in seconds.
 startSeconds: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:2692](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2692)
+Defined in: [packages/ai/src/types.ts:2908](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2908)
 
 Start of the segment in seconds.
 
@@ -40,7 +40,7 @@ Start of the segment in seconds.
 optional text?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2700](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2700)
+Defined in: [packages/ai/src/types.ts:2916](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2916)
 
 Text spoken in this segment, when the provider reports it.
 
@@ -52,7 +52,7 @@ Text spoken in this segment, when the provider reports it.
 optional turnIndex?: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:2696](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2696)
+Defined in: [packages/ai/src/types.ts:2912](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2912)
 
 Index into the request's `turns`, when the provider reports it.
 
@@ -64,6 +64,6 @@ Index into the request's `turns`, when the provider reports it.
 optional voice?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2698](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2698)
+Defined in: [packages/ai/src/types.ts:2914](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2914)
 
 Voice heard in this segment, when the provider reports it.
