@@ -2,7 +2,7 @@ import { EventType, readUnopenedInterruptBinding } from '@tanstack/ai'
 import { isMediaRecord, mediaIdOf, mediaOfMessage } from '../media-ref'
 import { HARNESS_EVENTS } from '../types'
 import type { Interrupt, ModelMessage, StreamChunk } from '@tanstack/ai'
-import type { SessionDescription, SessionSnapshot } from '../session'
+import type { SessionDescription, SessionSnapshot } from '../session/index'
 import type { SessionEvent } from '../types'
 import type {
   AgentPart,
