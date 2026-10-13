@@ -59,11 +59,17 @@ export const Route = createFileRoute('/api/reasoning-wire')({
             ? createGeminiChat('gemini-2.5-flash', DUMMY_KEY, {
                 baseURL: `${LLMOCK_DEFAULT_BASE}/reasoning-wire-gemini`,
               })
-            : provider === 'anthropic'
-              ? createAnthropicChat('claude-sonnet-4-5', DUMMY_KEY, {
-                  baseURL: LLMOCK_DEFAULT_BASE,
-                  defaultHeaders: headers,
-                })
+            : provider === 'anthropic' || provider === 'anthropic-adaptive'
+              ? createAnthropicChat(
+                  provider === 'anthropic'
+                    ? 'claude-sonnet-4-5'
+                    : 'claude-sonnet-4-6',
+                  DUMMY_KEY,
+                  {
+                    baseURL: LLMOCK_DEFAULT_BASE,
+                    defaultHeaders: headers,
+                  },
+                )
               : provider === 'grok'
                 ? grokVertexText('grok-4.20-reasoning', {
                     project: 'e2e-project',
