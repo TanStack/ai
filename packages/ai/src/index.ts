@@ -107,6 +107,7 @@ export type {
   SubagentOrder,
   SubagentRouterPick,
   SubagentRouterPlan,
+  SubagentSink,
   SubagentStep,
   SubagentStepsPlan,
   SubagentsBag,
@@ -115,6 +116,7 @@ export type {
 export {
   spawnAgentStream as runAgentStream,
   createSubagentId,
+  createSubagentSink,
 } from './activities/chat/agents/spawn'
 
 // Tool definition

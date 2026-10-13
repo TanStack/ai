@@ -876,7 +876,8 @@ export type ToolExecutionContext<TContext = unknown> =
      * note for the model when the user moves the call. The work keeps
      * running, and the host tells the model its result when it ends.
      * `chat()` does not set it: a host wraps the tool's `execute` to add it.
-     * The note is a string, so a tool with `outputSchema` cannot use it.
+     * The note is a string. An object `outputSchema` rejects it. A string
+     * schema, or no schema, accepts it.
      *
      * @example
      * ```ts
@@ -1053,8 +1054,9 @@ export interface Tool<
 
   /**
    * Whether a host may run this tool again after a crash cut the run
-   * between the call and its result. `'safe'` runs it again. `'never'`
-   * (default) gives the model a note that the tool may or may not have run.
+   * between the call and its result. `'safe'` runs it again. Omit the
+   * field, or set `'never'`, when a second run is not safe. The host
+   * writes the model note. `chat()` does not read this field.
    */
   replay?: 'safe' | 'never'
 

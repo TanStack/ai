@@ -1611,8 +1611,20 @@ export function runPersistenceConformance(
           return ctx.skip('metadata setIf not provided')
         }
         expect(await store.getVersioned('cas', 'k')).toBeNull()
+        expect(await store.setIf('cas', 'absent', { n: 0 }, 'no-such')).toEqual(
+          {
+            ok: false,
+            reason: 'conflict',
+          },
+        )
+        expect(await store.get('cas', 'absent')).toBeNull()
+
         const created = await store.setIf('cas', 'k', { n: 1 }, null)
         expect(created.ok).toBe(true)
+        if (!created.ok) return
+        expect((await store.getVersioned('cas', 'k'))?.revision).toBe(
+          created.revision,
+        )
         expect(await store.setIf('cas', 'k', { n: 9 }, null)).toEqual({
           ok: false,
           reason: 'conflict',
@@ -1622,6 +1634,10 @@ export function runPersistenceConformance(
         const revision = current?.revision ?? null
         const updated = await store.setIf('cas', 'k', { n: 2 }, revision)
         expect(updated.ok).toBe(true)
+        if (!updated.ok) return
+        expect((await store.getVersioned('cas', 'k'))?.revision).toBe(
+          updated.revision,
+        )
         expect(await store.setIf('cas', 'k', { n: 3 }, revision)).toEqual({
           ok: false,
           reason: 'conflict',
@@ -1633,13 +1649,22 @@ export function runPersistenceConformance(
         await store.set('cas', 'k', { n: 4 })
         const stale = before?.revision ?? null
         expect((await store.setIf('cas', 'k', { n: 5 }, stale)).ok).toBe(false)
+        expect(await store.get('cas', 'k')).toEqual({ n: 4 })
 
-        // A key deleted and set again does not reuse a revision.
+        // A deleted revision is not reused, and it does not recreate the key.
         const last = await store.getVersioned('cas', 'k')
-        await store.delete('cas', 'k')
-        await store.set('cas', 'k', { n: 6 })
         const old = last?.revision ?? null
-        expect((await store.setIf('cas', 'k', { n: 7 }, old)).ok).toBe(false)
+        await store.delete('cas', 'k')
+        expect(await store.getVersioned('cas', 'k')).toBeNull()
+        expect(await store.setIf('cas', 'k', { n: 7 }, old)).toEqual({
+          ok: false,
+          reason: 'conflict',
+        })
+        expect(await store.get('cas', 'k')).toBeNull()
+        const recreated = await store.setIf('cas', 'k', { n: 6 }, null)
+        expect(recreated.ok).toBe(true)
+        if (!recreated.ok) return
+        expect(recreated.revision).not.toBe(old)
         expect(await store.get('cas', 'k')).toEqual({ n: 6 })
       })
     })

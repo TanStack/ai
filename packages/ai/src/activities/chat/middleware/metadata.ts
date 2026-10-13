@@ -25,8 +25,8 @@ export interface MetadataStore {
   ) => Promise<{ value: unknown; revision: string } | null>
   /**
    * Optional. Write only when the current revision is `expectedRevision`
-   * (`null` means "only when absent"). Returns the new revision, or
-   * `{ ok: false, reason: 'conflict' }` when someone else wrote first.
+   * (`null` means the key is absent). Success is `{ ok: true, revision }`.
+   * A different revision returns `{ ok: false, reason: 'conflict' }`.
    */
   setIf?: (
     namespace: string,

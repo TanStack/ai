@@ -405,11 +405,11 @@ export function withChildUsage(
 
 /**
  * Run one agent and stream its chunks, from `SUBAGENT_STARTED` to
- * `SUBAGENT_FINISHED` or `SUBAGENT_ERROR`. The package root exports it as
- * `runAgentStream` for hosts that run an agent outside a parent chat turn.
- * The caller checks `ctx.input` against `agent.inputSchema` first. Without a
- * `sink`, the child's interrupts and usage reach the caller only on the
- * `SUBAGENT_FINISHED` outcome.
+ * `SUBAGENT_FINISHED` or `SUBAGENT_ERROR`. The package root exports this
+ * as `runAgentStream`. The caller checks `ctx.input` against
+ * `agent.inputSchema` first. Pass `createSubagentSink()` to keep the
+ * child's interrupt objects and token usage. The finished event carries
+ * `interruptIds` only.
  */
 export async function* spawnAgentStream(
   agent: DefinedAgent,

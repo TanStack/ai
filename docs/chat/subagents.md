@@ -318,26 +318,41 @@ On a routed turn where a child runs and main does not, the parent's middleware d
 
 ## Run a child from code
 
-A server job or a host can run an agent without a parent chat turn. `runAgentStream` streams the child's chunks, from `SUBAGENT_STARTED` to `SUBAGENT_FINISHED`:
+A server job can run an agent with no parent chat turn. Pass a sink when the job must read a pause or the token counts.
 
 ```ts group=subagents
-import { createSubagentId, runAgentStream } from '@tanstack/ai'
+import {
+  createSubagentId,
+  createSubagentSink,
+  runAgentStream,
+} from '@tanstack/ai'
 
 const subagentRunId = createSubagentId()
-for await (const chunk of runAgentStream(researcher, {
-  input: undefined,
-  messages: [{ role: 'user', content: 'Find three facts about squids' }],
-  threadId: 'thread-1',
-  runId: `job-1:${subagentRunId}`,
-  parentRunId: 'job-1',
-  subagentRunId,
-})) {
+const sink = createSubagentSink()
+for await (const chunk of runAgentStream(
+  researcher,
+  {
+    input: undefined,
+    messages: [{ role: 'user', content: 'Find three facts about squids' }],
+    threadId: 'thread-1',
+    runId: `job-1:${subagentRunId}`,
+    parentRunId: 'job-1',
+    subagentRunId,
+  },
+  sink,
+)) {
   if (chunk.type === 'TEXT_MESSAGE_CONTENT') console.log(chunk.delta)
 }
 ```
 
-- `runAgentStream` does not check `input`. For an agent with an `inputSchema`, check the input before the call.
-- A child that stops for an interrupt ends with a `SUBAGENT_FINISHED` outcome of `type: 'suspended'` and its `interruptIds`.
+The sink holds the pause and the token counts:
+
+- `sink.interrupts` has the interrupt objects. The finished event has `interruptIds` only.
+- `sink.usage` has one entry per model call.
+- `runAgentStream` does not check `input`. If the agent has an `inputSchema`, check the input before the call.
+- A failure ends as `SUBAGENT_ERROR`. The stream omits `RUN_STARTED`, `MESSAGES_SNAPSHOT`, and `RUN_FINISHED`.
+
+After the loop, read `sink.interrupts` to show the pause.
 
 ## Persistence
 

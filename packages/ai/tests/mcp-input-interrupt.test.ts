@@ -8,7 +8,7 @@ import type { StreamChunk, ToolExecutionContext } from '../src/types'
 function inputRequiredThrow(
   kind: 'form' | 'sampling',
   request: unknown,
-  reason?: string,
+  reason?: unknown,
 ) {
   return {
     name: 'MCPInputRequiredError',
@@ -21,7 +21,7 @@ function inputRequiredThrow(
 async function runInputRequiredChat(
   kind: 'form' | 'sampling',
   request: unknown,
-  reason?: string,
+  reason?: unknown,
 ) {
   const { adapter, calls } = createMockAdapter({
     iterations: [
@@ -127,7 +127,14 @@ describe('MCP input interrupt', () => {
     })
   })
 
-  it.each(['', 'approval_required', 'client_tool_input'])(
+  it.each([
+    '',
+    'approval_required',
+    'client_tool_input',
+    'tanstack:client_tool_execution',
+    0,
+    { reason: 'auth_required' },
+  ])(
     'keeps mcp_input for the reason %j',
     async (reason) => {
       const finished = await runInputRequiredChat('form', {}, reason)
