@@ -9,10 +9,14 @@ import {
 } from '../utils/client'
 import { makeMistralStructuredOutputCompatibleWithMap } from '../utils/schema-converter'
 import { createToolInputNormalizer } from '../utils/tool-input-normalizer'
-import { MISTRAL_MODEL_INPUT_MODALITIES } from '../model-meta'
+import {
+  MISTRAL_MODEL_INPUT_MODALITIES,
+  MISTRAL_MODEL_REASONING,
+} from '../model-meta'
 import {
   hashToolCallId,
   orderedAssistantBlocks,
+  resolveReasoning,
   transformMessagesForReplay,
 } from '@tanstack/ai/adapter-internals'
 import type {
@@ -21,12 +25,17 @@ import type {
   Modality,
   ModelMessage,
   AdapterYieldChunk,
+  ModelReasoning,
+  ReasoningRequest,
+  ResolvedPromptCache,
   TextOptions,
+  ToolChoice,
 } from '@tanstack/ai'
 import type {
   MISTRAL_CHAT_MODELS,
   MistralChatModelProviderOptionsByName,
   MistralModelInputModalitiesByName,
+  MistralModelReasoningByName,
   MistralTextAdapterModel,
 } from '../model-meta'
 import type {
@@ -38,6 +47,7 @@ import type {
   AssistantMessage,
   ChatCompletionStreamRequest,
   ContentChunk,
+  ReasoningEffort,
 } from '@mistralai/mistralai/models/components'
 import type {
   ExternalTextProviderOptions,
@@ -102,6 +112,113 @@ type ResolveProviderOptions<TModel extends string> =
     ? MistralChatModelProviderOptionsByName[TModel]
     : MistralTextProviderOptions
 
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof MistralModelReasoningByName
+    ? MistralModelReasoningByName[TModel]
+    : never
+
+/**
+ * The Mistral reasoning fields for `chat({ reasoning })`, by pi's rule:
+ * - a model with effort levels (Mistral Small, Mistral Medium):
+ *   `reasoningEffort` with the level's value, `none` for `off`.
+ * - Magistral: `promptMode: 'reasoning'`, and nothing for `off`.
+ */
+function mistralReasoning(
+  model: string,
+  request: ReasoningRequest | undefined,
+  reasoning: ModelReasoning | undefined,
+): Pick<ChatCompletionStreamRequest, 'promptMode' | 'reasoningEffort'> {
+  const resolved = resolveReasoning(request, reasoning)
+  if (!resolved) return {}
+  if (model.startsWith('magistral')) {
+    return resolved.level === 'off' ? {} : { promptMode: 'reasoning' }
+  }
+  // `ReasoningEffort` is an open enum, so a newer value still goes out.
+  return { reasoningEffort: resolved.value as ReasoningEffort }
+}
+
+/** Maps `chat({ toolChoice })` to the Mistral `toolChoice`. */
+function toMistralToolChoice(
+  choice: ToolChoice,
+): NonNullable<ChatCompletionStreamRequest['toolChoice']> {
+  if (typeof choice === 'string') return choice
+  return { type: 'function', function: { name: choice.name } }
+}
+
+/**
+ * The Mistral wire field for `chat({ promptCache })`. Mistral caches without
+ * a flag, so only the key goes out. There is no key for `'none'`. Send the
+ * key only to `api.mistral.ai`. The SDK request schema drops unknown fields,
+ * so structured output adds the key after that schema runs.
+ */
+function mistralPromptCacheKey(promptCache: ResolvedPromptCache | undefined) {
+  if (!promptCache?.key || promptCache.retention === 'none') return undefined
+  return promptCache.key
+}
+
+function mistralOwnApi(config: MistralClientConfig, provider: string) {
+  if (provider === 'google-vertex') return false
+  const serverURL =
+    config.baseURL ?? config.serverURL ?? 'https://api.mistral.ai'
+  try {
+    return new URL(serverURL).hostname === 'api.mistral.ai'
+  } catch {
+    return false
+  }
+}
+
+/** Add `prompt_cache_key` to a JSON body the SDK has already serialized. */
+function withPromptCacheKey(next: typeof fetch, key: string): typeof fetch {
+  return async (input, init) => {
+    const body = init?.body
+    const text =
+      typeof body === 'string'
+        ? body
+        : body instanceof ArrayBuffer
+          ? new TextDecoder().decode(body)
+          : undefined
+    if (text === undefined) return next(input, init)
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(text)
+    } catch {
+      return next(input, init)
+    }
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      Array.isArray(parsed)
+    ) {
+      return next(input, init)
+    }
+    return next(input, {
+      ...init,
+      body: JSON.stringify({ ...parsed, prompt_cache_key: key }),
+    })
+  }
+}
+
+/**
+ * `promptTokensDetails.cachedTokens` when Mistral read prompt tokens from the
+ * cache. Mistral sends the count in `prompt_tokens_details.cached_tokens` or
+ * in `num_cached_tokens`. The SDK keeps these raw keys on `usage` with no
+ * types, so the values are checked here.
+ */
+function mistralCachedTokens(usage: Record<string, unknown>) {
+  const details = usage.prompt_tokens_details
+  const hasDetailsCount =
+    typeof details === 'object' &&
+    details !== null &&
+    'cached_tokens' in details
+  const cachedTokens = hasDetailsCount
+    ? details.cached_tokens
+    : usage.num_cached_tokens
+  return typeof cachedTokens === 'number' && cachedTokens > 0
+    ? { promptTokensDetails: { cachedTokens } }
+    : {}
+}
+
 type ResolveInputModalities<TModel extends string> =
   TModel extends keyof MistralModelInputModalitiesByName
     ? MistralModelInputModalitiesByName[TModel]
@@ -162,6 +279,9 @@ interface MistralRawChunk {
     prompt_tokens?: number
     completion_tokens?: number
     total_tokens?: number
+    // Cache reads. Mistral sends one of these two.
+    prompt_tokens_details?: { cached_tokens?: number } | null
+    num_cached_tokens?: number | null
   }
 }
 
@@ -183,7 +303,11 @@ export class MistralTextAdapter<
   TModel,
   TProviderOptions,
   TInputModalities,
-  MistralMessageMetadataByModality
+  MistralMessageMetadataByModality,
+  ReadonlyArray<string>,
+  unknown,
+  never,
+  ResolveReasoning<TModel>
 > {
   readonly name = 'mistral' as const
   override readonly api = 'mistral-conversations' as const
@@ -221,8 +345,15 @@ export class MistralTextAdapter<
     }
 
     try {
+      const cacheKey = mistralOwnApi(this.rawConfig, this.provider)
+        ? mistralPromptCacheKey(options.promptCache)
+        : undefined
+      const body = {
+        ...this.toWireBody(requestParams),
+        ...(cacheKey !== undefined && { prompt_cache_key: cacheKey }),
+      }
       const stream = this.fetchRawMistralStream(
-        requestParams,
+        body,
         this.rawConfig,
         options.wrapFetch,
       )
@@ -316,9 +447,15 @@ export class MistralTextAdapter<
       outputSchema.required || [],
     )
 
-    const client = chatOptions.wrapFetch
-      ? createMistralClient(this.rawConfig, chatOptions.wrapFetch(fetch))
-      : this.client
+    const cacheKey = mistralOwnApi(this.rawConfig, this.provider)
+      ? mistralPromptCacheKey(chatOptions.promptCache)
+      : undefined
+    const next = chatOptions.wrapFetch ? chatOptions.wrapFetch(fetch) : fetch
+    const client = cacheKey
+      ? createMistralClient(this.rawConfig, withPromptCacheKey(next, cacheKey))
+      : chatOptions.wrapFetch
+        ? createMistralClient(this.rawConfig, next)
+        : this.client
     const response = await client.chat.complete({
       ...nonStreamParams,
       responseFormat: {
@@ -362,6 +499,7 @@ export class MistralTextAdapter<
           promptTokens: usage.promptTokens ?? 0,
           completionTokens: usage.completionTokens ?? 0,
           totalTokens: usage.totalTokens ?? 0,
+          ...mistralCachedTokens(usage),
         },
       }),
     }
@@ -667,6 +805,7 @@ export class MistralTextAdapter<
                   promptTokens: usage.prompt_tokens || 0,
                   completionTokens: usage.completion_tokens || 0,
                   totalTokens: usage.total_tokens || 0,
+                  ...mistralCachedTokens(usage),
                 }
               : undefined,
             finishReason: computedFinishReason,
@@ -795,7 +934,7 @@ export class MistralTextAdapter<
    * rejects streaming tool call chunks that omit `name` in argument deltas.
    */
   private async *fetchRawMistralStream(
-    params: ChatCompletionStreamRequest,
+    body: Record<string, unknown>,
     config: MistralClientConfig,
     wrapFetch: FetchWrapper | undefined,
   ): AsyncGenerator<MistralRawChunk> {
@@ -809,7 +948,6 @@ export class MistralTextAdapter<
     const url =
       config.resolveRequestUrl?.(true) ?? `${serverURL}/v1/chat/completions`
 
-    const body = this.toWireBody(params)
     const accessToken =
       config.getAccessToken === undefined
         ? config.apiKey
@@ -920,6 +1058,8 @@ export class MistralTextAdapter<
       frequencyPenalty,
       presencePenalty,
       safePrompt,
+      reasoningEffort,
+      promptMode,
       stream: _stream,
       ...rest
     } = params
@@ -941,6 +1081,8 @@ export class MistralTextAdapter<
       ...(frequencyPenalty != null && { frequency_penalty: frequencyPenalty }),
       ...(presencePenalty != null && { presence_penalty: presencePenalty }),
       ...(safePrompt != null && { safe_prompt: safePrompt }),
+      ...(reasoningEffort != null && { reasoning_effort: reasoningEffort }),
+      ...(promptMode != null && { prompt_mode: promptMode }),
     }
   }
 
@@ -1023,7 +1165,15 @@ export class MistralTextAdapter<
       messages.push(this.convertMessageToMistral(message))
     }
 
+    // `chat({ toolChoice })` is sent only when the request has tools. It goes
+    // before the `modelOptions` spread, so a `tool_choice` there wins.
+    const toolChoiceField =
+      tools?.length && options.toolChoice !== undefined
+        ? { toolChoice: toMistralToolChoice(options.toolChoice) }
+        : undefined
+
     return {
+      ...toolChoiceField,
       model: this.rawConfig.requestModel ?? options.model,
       messages: messages,
       temperature: modelOptions?.temperature ?? undefined,
@@ -1031,6 +1181,11 @@ export class MistralTextAdapter<
       topP: modelOptions?.top_p ?? undefined,
       tools: tools as ChatCompletionStreamRequest['tools'],
       stream: true,
+      ...mistralReasoning(
+        options.model,
+        options.reasoning,
+        MISTRAL_MODEL_REASONING[options.model],
+      ),
       ...(modelOptions && {
         ...(modelOptions.stop != null && { stop: modelOptions.stop }),
         ...(modelOptions.random_seed != null && {

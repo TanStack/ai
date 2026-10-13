@@ -105,10 +105,19 @@ export {
 } from './activities/chat/agents/route'
 export type {
   SubagentOrder,
+  SubagentPick,
   SubagentRouterPick,
   SubagentRouterPlan,
+  SubagentSink,
   SubagentStep,
   SubagentStepsPlan,
+  SubagentsBag,
+} from './activities/chat/agents/spawn'
+// For hosts that run an agent outside a parent chat turn.
+export {
+  spawnAgentStream as runAgentStream,
+  createSubagentId,
+  createSubagentSink,
 } from './activities/chat/agents/spawn'
 
 // Tool definition
@@ -346,11 +355,15 @@ export type {
 // Capability primitives + middleware builder
 export {
   createCapability,
+  CapabilityRegistry,
   defineChatMiddleware,
   createChatMiddleware,
   MetadataCapability,
   getMetadata,
   provideMetadata,
+  LogRecordsCapability,
+  getLogRecords,
+  provideLogRecords,
 } from './activities/chat/middleware/index'
 export type {
   Capability,
@@ -361,6 +374,8 @@ export type {
   DefinedChatMiddleware,
   AnyChatMiddleware,
   MetadataStore,
+  LogRecord,
+  LogRecordsWriter,
 } from './activities/chat/middleware/index'
 // Locks are a distributed-mutex primitive — coordination, not chat state — and
 // live behind their own subpath: `@tanstack/ai/locks` (see ./locks.ts).
@@ -420,6 +435,24 @@ export type {
 
 // All types
 export * from './types'
+export { CONTEXT_OVERFLOW_CODE } from './activities/error-payload'
+
+// One reasoning option for every provider: `chat({ reasoning })`.
+export {
+  REASONING_LEVELS,
+  clampReasoningLevel,
+  supportedReasoningLevels,
+} from './reasoning'
+export type {
+  AdapterReasoning,
+  ModelReasoning,
+  ReasoningCapability,
+  ReasoningLevel,
+  ReasoningLevels,
+  ReasoningOption,
+  ReasoningOptionFor,
+  ReasoningRequest,
+} from './reasoning'
 
 // Shared identity/isolation scope for the persistence + memory subsystems
 export type { Scope } from './scope'
@@ -562,6 +595,8 @@ export {
   getProviderExecutedMetadata,
   isProviderExecutedToolCall,
 } from './utilities/provider-executed'
+export { splitMidConversationChanges } from './utilities/mid-conversation'
+export type { MidConversationRequest } from './utilities/mid-conversation'
 export { orderedAssistantBlocks } from './utilities/block-order'
 export type { OrderedAssistantBlock } from './utilities/block-order'
 

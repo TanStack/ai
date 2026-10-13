@@ -92,13 +92,11 @@ Example:
 ```typescript ignore
 export type OpenAIChatModelProviderOptionsByName = {
   [GPT5_2.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT5_2_CHAT.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -123,7 +121,50 @@ export type OpenAIModelInputModalitiesByName = {
 }
 ```
 
-### 6. Define model option fragments
+### 6. Declare reasoning levels
+
+Your provider has a thinking model? Users set it with `chat({ reasoning })`, and the types take only the levels of the selected model. To make that work, put a `reasoning` field on each model's metadata, then build two maps from it:
+
+```typescript ignore
+import type { ModelReasoning } from '@tanstack/ai'
+import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
+
+const EFFORT_NONE_LOW_TO_XHIGH = {
+  levels: { off: 'none', low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh' },
+  budget: false,
+} as const
+
+const GPT5_2 = {
+  name: 'gpt-5.2',
+  // ...supports, pricing
+  reasoning: EFFORT_NONE_LOW_TO_XHIGH,
+} as const
+
+// One object lists each model once.
+const OPENAI_REASONING = {
+  [GPT5_2.name]: GPT5_2.reasoning,
+}
+
+// The levels per model, for the types.
+export type OpenAIModelReasoningByName = {
+  [K in keyof typeof OPENAI_REASONING]: ModelReasoningCapability<
+    (typeof OPENAI_REASONING)[K]
+  >
+}
+
+// The same data at run time.
+export const OPENAI_MODEL_REASONING: Readonly<Record<string, ModelReasoning>> =
+  OPENAI_REASONING
+```
+
+- `levels` lists only the levels the model has, with the value your provider takes for each. A level that is not in the list is not supported.
+- `budget` is `true` when the model takes a thinking token budget.
+- Many models share the same levels. Define each shape once, and point each model at it.
+- A model that does not reason gets no `reasoning` field.
+
+Step 8 passes these levels to the adapter type. See [Add reasoning to your adapter](../advanced/extend-adapter#add-reasoning-to-your-adapter) for the adapter side.
+
+### 7. Define model option fragments
 
 Model options should be composed from reusable fragments rather than duplicated per model.
 
@@ -140,9 +181,9 @@ export interface OpenAIBaseOptions {
 // Feature fragments that can be stitched per-model 
 
 /**
- * Reasoning options for models  
+ * Tools options for models.
  */
-export interface OpenAIReasoningOptions {
+export interface OpenAIToolsOptions {
    //...
 }
  
@@ -160,7 +201,6 @@ Models can then opt into only the features they support:
 ```typescript ignore
 export type OpenAIChatModelProviderOptionsByName = {
   [GPT5_2.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -170,7 +210,7 @@ export type OpenAIChatModelProviderOptionsByName = {
 
 There is no single correct composition; this structure should reflect the capabilities of the provider you are integrating.
 
-### 7. Implement adapter logic
+### 8. Implement adapter logic
 
 Finally, implement the adapter’s runtime logic.
 
@@ -179,6 +219,7 @@ This includes:
 - Handling streaming and non-streaming responses
 - Mapping provider responses to TanStack AI types
 - Enforcing model-specific options and constraints
+- Sending `options.reasoning` as your provider's thinking field. Pass `OpenAIModelReasoningByName[TModel]` as the last type parameter of the adapter class, so `chat({ reasoning })` is typed
 
 Adapters are implemented per capability, so only implement what your provider supports:
 
@@ -189,6 +230,11 @@ Adapters are implemented per capability, so only implement what your provider su
 - Video adapter
 
 Refer to the [OpenAI adapter](https://github.com/TanStack/ai/blob/main/packages/ai-openai/src/adapters/text.ts) for a complete, end-to-end implementation example.
+
+For a text adapter, `chat()` also passes two optional fields. Your adapter works without them, but they make repeated requests cheaper:
+
+- `options.promptCache`: map it to your provider's cache fields. See [Send the prompt cache](../advanced/extend-adapter#send-the-prompt-cache).
+- `options.midConversationChanges`: send added tools and prompts inside the conversation. See [Send mid-conversation changes](../advanced/extend-adapter#send-mid-conversation-changes).
 
 #### Keep history valid across models
 
@@ -224,14 +270,14 @@ For history from another source, the helper:
 
 `chat()` already drops failed answers and adds `No result provided` for unanswered tool calls before it calls your adapter. Your saved history does not change.
 
-### 8. Publish and submit a PR
+### 9. Publish and submit a PR
 
 Once your adapter is complete:
 1. Publish it as an npm package
 2. Open a PR to the [TanStack AI repository](https://github.com/TanStack/ai/pulls)
 3. Add your adapter to the [Community Adapters list in the documentation](https://github.com/TanStack/ai/tree/main/docs/community-adapters)
 
-### 9. Export a BYOK provider
+### 10. Export a BYOK provider
 
 If users can paste an API key for your adapter, export a `defineByokProvider` object from a **`/byok` subpath** (`@scope/ai-acme/byok`). Do not re-export it from the package main entry — that pulls your provider SDK into the browser. `id` is the `x-byok-<id>` slug and is required. Set `env` to the env var **name** your adapter already reads. Names only — this object is imported on the client. Relays call `getByokKey(request, acmeByok)` from `@tanstack/ai/byok/server`.
 
@@ -247,11 +293,11 @@ export const acmeByok = defineByokProvider({
 
 Apps import `{ acmeByok } from "@scope/ai-acme/byok"` and pass it to `getByokKey(request, acmeByok)` on the relay to read the `x-byok-acme` header.
 
-### 10. Sync documentation configuration
+### 11. Sync documentation configuration
 
 After adding your adapter, run the  `pnpm run sync-docs-config` in the root of the TanStack AI monorepo. This ensures your adapter appears correctly in the documentation navigation. Open a PR with the generated changes.
 
-### 11. Maintain your adapter
+### 12. Maintain your adapter
 
 As a community adapter author, you are responsible for ongoing maintenance.
 

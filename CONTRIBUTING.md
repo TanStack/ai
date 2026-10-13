@@ -14,6 +14,7 @@ Thanks for contributing! This guide covers everything you need to get from a fre
 
 - **pnpm**: 11.9.0 or newer. Use the version pinned in `packageManager` (`pnpm@11.9.0`).
   - Recommended: install via [Corepack](https://nodejs.org/api/corepack.html). Run `corepack enable` once and pnpm is managed automatically.
+- **Node**: 24.8.0, the version in `.nvmrc`. On Node 22, Nx fails to load the workspace plugin.
 - **Git**.
 
 ## Initial setup

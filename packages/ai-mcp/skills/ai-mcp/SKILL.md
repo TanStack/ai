@@ -672,7 +672,8 @@ The stream ends with `RUN_FINISHED`.
 The outcome type is `interrupt`.
 The stream does not emit `RUN_ERROR` for this pause.
 
-Read each interrupt whose `reason` is `mcp_input`.
+Read each interrupt whose `id` starts with `mcp_input_`.
+`reason` is display text. The default is `mcp_input`.
 The payload key is `tanstack:interruptPayload`.
 `form` means the server asks the user for input.
 `sampling` means the server asks for a model result.
@@ -699,7 +700,7 @@ try {
     if (chunk.outcome?.type !== 'interrupt') continue
 
     for (const item of chunk.outcome.interrupts) {
-      if (item.reason !== 'mcp_input') continue
+      if (!item.id.startsWith('mcp_input_')) continue
       const payload = item.metadata?.[INTERRUPT_PAYLOAD_METADATA_KEY]
       if (typeof payload !== 'object' || payload === null) continue
       if (!('kind' in payload)) continue

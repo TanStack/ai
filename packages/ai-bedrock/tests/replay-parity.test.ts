@@ -513,6 +513,8 @@ describe('Bedrock signed tool-loop replay', () => {
               status: 'success',
             },
           },
+          // The default prompt cache marks the end of the last user message.
+          { cachePoint: { type: 'default' } },
         ],
       },
     ])

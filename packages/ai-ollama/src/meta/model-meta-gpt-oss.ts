@@ -1,12 +1,19 @@
+import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
 import type {
   OllamaChatRequest,
   OllamaChatRequestMessages,
-  OllamaChatRequestThinking_OpenAI,
   OllamaChatRequestTools,
   OllamaMessageThinking,
   OllamaMessageTools,
   OllamaModelMeta,
 } from './models-meta'
+
+// Reasoning shapes: the levels a model has for `chat({ reasoning })`, and
+// the provider value to send for each. Each model points at one of them.
+const EFFORT_LOW_TO_HIGH = {
+  levels: { low: 'low', medium: 'medium', high: 'high' },
+  budget: false,
+} as const
 
 const OPT_OSS_LATEST = {
   name: 'gpt-oss:latest',
@@ -17,11 +24,11 @@ const OPT_OSS_LATEST = {
   },
   size: '14gb',
   context: 128_000,
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-    OllamaChatRequestTools &
-    OllamaChatRequestThinking_OpenAI
+    OllamaChatRequestTools
 >
 
 const OPT_OSS_20b = {
@@ -33,11 +40,11 @@ const OPT_OSS_20b = {
   },
   size: '14gb',
   context: 128_000,
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-    OllamaChatRequestTools &
-    OllamaChatRequestThinking_OpenAI
+    OllamaChatRequestTools
 >
 
 const OPT_OSS_120b = {
@@ -49,11 +56,11 @@ const OPT_OSS_120b = {
   },
   size: '65gb',
   context: 128_000,
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-    OllamaChatRequestTools &
-    OllamaChatRequestThinking_OpenAI
+    OllamaChatRequestTools
 >
 
 export const GPT_OSS_MODELS = [
@@ -77,16 +84,13 @@ export type GptOssChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
   [OPT_OSS_LATEST.name]: OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-    OllamaChatRequestTools &
-    OllamaChatRequestThinking_OpenAI
+    OllamaChatRequestTools
   [OPT_OSS_20b.name]: OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-    OllamaChatRequestTools &
-    OllamaChatRequestThinking_OpenAI
+    OllamaChatRequestTools
   [OPT_OSS_120b.name]: OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-    OllamaChatRequestTools &
-    OllamaChatRequestThinking_OpenAI
+    OllamaChatRequestTools
 }
 
 export type GptOssModelInputModalitiesByName = {
@@ -94,4 +98,18 @@ export type GptOssModelInputModalitiesByName = {
   [OPT_OSS_LATEST.name]: typeof OPT_OSS_LATEST.supports.input
   [OPT_OSS_20b.name]: typeof OPT_OSS_20b.supports.input
   [OPT_OSS_120b.name]: typeof OPT_OSS_120b.supports.input
+}
+
+/** Each model's reasoning data at runtime. */
+export const GPT_OSS_MODEL_REASONING = {
+  [OPT_OSS_LATEST.name]: OPT_OSS_LATEST.reasoning,
+  [OPT_OSS_20b.name]: OPT_OSS_20b.reasoning,
+  [OPT_OSS_120b.name]: OPT_OSS_120b.reasoning,
+}
+
+/** Each model's reasoning levels, for `chat({ reasoning })`. */
+export type GptOssModelReasoningByName = {
+  [K in keyof typeof GPT_OSS_MODEL_REASONING]: ModelReasoningCapability<
+    (typeof GPT_OSS_MODEL_REASONING)[K]
+  >
 }

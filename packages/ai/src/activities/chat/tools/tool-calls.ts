@@ -508,12 +508,34 @@ export interface McpInputRequest {
   toolName: string
   kind: 'form' | 'sampling'
   request: unknown
+  /**
+   * The interrupt reason. Default: `'mcp_input'`. An empty reason, and a
+   * reason that clients read as another kind of interrupt, use the default.
+   */
+  reason?: string
 }
 
 interface McpInputRequiredThrow {
   name: 'MCPInputRequiredError'
   kind: 'form' | 'sampling'
   request: unknown
+  reason?: unknown
+}
+
+/** Reasons that clients read as another kind of interrupt. */
+const RESERVED_INTERRUPT_REASONS = new Set([
+  'approval_required',
+  'client_tool_input',
+  'tanstack:client_tool_execution',
+])
+
+/** The reason a thrown input request names, when it can use it. */
+function inputRequestReason(reason: unknown) {
+  return typeof reason === 'string' &&
+    reason !== '' &&
+    !RESERVED_INTERRUPT_REASONS.has(reason)
+    ? reason
+    : undefined
 }
 
 function isMcpInputRequired(value: unknown): value is McpInputRequiredThrow {
@@ -810,11 +832,13 @@ export async function* executeServerTool<TContext = unknown>(
     // Same shape as MCPInputRequiredError. Pause instead of a tool error.
     if (isMcpInputRequired(error)) {
       if (!inputRequired) throw error
+      const reason = inputRequestReason(error.reason)
       inputRequired.push({
         toolCallId: toolCall.id,
         toolName,
         kind: error.kind,
         request: error.request,
+        ...(reason !== undefined ? { reason } : {}),
       })
       return
     }

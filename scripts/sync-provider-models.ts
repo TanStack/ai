@@ -131,9 +131,9 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     validInputModalities: ['text', 'image', 'audio', 'video'],
     kind: 'openai',
     referenceSatisfies:
-      'ModelMeta<OpenAIBaseOptions & OpenAIReasoningOptions & OpenAIStructuredOutputOptions & OpenAIToolsOptions & OpenAIStreamingOptions & OpenAIMetadataOptions>',
+      'ModelMeta<OpenAIBaseOptions & OpenAIStructuredOutputOptions & OpenAIToolsOptions & OpenAIStreamingOptions & OpenAIMetadataOptions>',
     referenceProviderOptionsEntry:
-      'OpenAIBaseOptions & OpenAIReasoningOptions & OpenAIStructuredOutputOptions & OpenAIToolsOptions & OpenAIStreamingOptions & OpenAIMetadataOptions',
+      'OpenAIBaseOptions & OpenAIStructuredOutputOptions & OpenAIToolsOptions & OpenAIStreamingOptions & OpenAIMetadataOptions',
     hasBothNameAndId: false,
     providerOptionsIsMappedType: false,
     skipPatterns: [
@@ -158,9 +158,9 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
     kind: 'anthropic',
     referenceSatisfies:
-      'ModelMeta<AnthropicContainerOptions & AnthropicContextManagementOptions & AnthropicMCPOptions & AnthropicServiceTierOptions & AnthropicStopSequencesOptions & AnthropicThinkingOptions & AnthropicToolChoiceOptions & AnthropicSamplingOptions>',
+      'ModelMeta<AnthropicContainerOptions & AnthropicContextManagementOptions & AnthropicMCPOptions & AnthropicServiceTierOptions & AnthropicStopSequencesOptions & AnthropicToolChoiceOptions & AnthropicSamplingOptions>',
     referenceProviderOptionsEntry:
-      'AnthropicContainerOptions & AnthropicContextManagementOptions & AnthropicMCPOptions & AnthropicServiceTierOptions & AnthropicStopSequencesOptions & AnthropicThinkingOptions & AnthropicToolChoiceOptions & AnthropicSamplingOptions',
+      'AnthropicContainerOptions & AnthropicContextManagementOptions & AnthropicMCPOptions & AnthropicServiceTierOptions & AnthropicStopSequencesOptions & AnthropicToolChoiceOptions & AnthropicSamplingOptions',
     hasBothNameAndId: true,
     providerOptionsIsMappedType: false,
     skipPatterns: [],
@@ -177,9 +177,9 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
     kind: 'gemini',
     referenceSatisfies:
-      'ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions>',
+      'ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions>',
     referenceProviderOptionsEntry:
-      'GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions',
+      'GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions',
     hasBothNameAndId: false,
     providerOptionsIsMappedType: false,
     skipPatterns: [
@@ -254,7 +254,6 @@ function convertPrice(priceStr: string | undefined): number {
 function anthropicOptionsType(model: OpenRouterModel): string {
   return buildAnthropicProviderOptionsType({
     supportedParameters: model.supported_parameters,
-    reasoningMandatory: model.reasoning?.mandatory === true,
     hasCachedPricing: convertPrice(model.pricing.input_cache_read) > 0,
   })
 }

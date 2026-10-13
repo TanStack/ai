@@ -233,17 +233,8 @@ export const Route = createFileRoute('/api/chat')({
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
             messages,
-            modelOptions: {
-              // Enable reasoning for OpenAI (gpt-5, o3 models):
-              // reasoning: {
-              //   effort: "medium", // or "low", "high", "minimal", "none" (for gpt-5.1)
-              // },
-              // Enable thinking for Anthropic:
-              /*   thinking: {
-                  type: "enabled",
-                  budget_tokens: 2048,
-                }, */
-            },
+            // Turn reasoning on for a reasoning model, for example:
+            // reasoning: 'medium',
             abortController,
           })
 

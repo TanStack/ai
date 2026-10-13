@@ -73,7 +73,7 @@ const stream = chat({
 | `cwd`                  | Working directory for the harness session. Defaults to `process.cwd()`.                                                                       |
 | `sandboxMode`          | Codex sandbox: `'read-only'`, `'workspace-write'`, or `'danger-full-access'`. Default is `'workspace-write'` on local-process and Docker. Default is `'danger-full-access'` on Daytona and Cloudflare, because those providers cannot create a nested bubblewrap namespace. Isolation is then the outer VM plus `defineSandboxPolicy`. |
 | `approvalPolicy`       | Codex approval policy. Defaults to `'never'` — headless runs have no approval UI, so anything else can stall a turn.                           |
-| `modelReasoningEffort` | `'minimal'` \| `'low'` \| `'medium'` \| `'high'` \| `'xhigh'`.                                                                                 |
+| `modelReasoningEffort` | The default effort when a call sets no `reasoning`: `'minimal'` \| `'low'` \| `'medium'` \| `'high'`.                                  |
 | `skipGitRepoCheck`     | Skip the harness's git-repo safety check. Defaults to `true` (server adapters routinely point at scratch directories).                         |
 | `networkAccessEnabled` | Allow network access inside the `workspace-write` sandbox.                                                                                     |
 | `webSearchMode`        | `'disabled'` \| `'cached'` \| `'live'`.                                                                                                        |
@@ -86,8 +86,27 @@ const stream = chat({
 | `config`               | Extra `--config key=value` overrides passed to the Codex CLI (e.g. additional `mcp_servers` entries).                                          |
 
 Per-call overrides go through `modelOptions`: `sessionId`, `sandboxMode`,
-`approvalPolicy`, `modelReasoningEffort`, `workingDirectory`,
-`skipGitRepoCheck`, and `authMode`.
+`approvalPolicy`, `workingDirectory`, `skipGitRepoCheck`, and `authMode`.
+Set the effort per call with `reasoning` on `chat()`. See [Reasoning](#reasoning).
+
+## Reasoning
+
+Set `reasoning` on `chat()`. Codex gets it as `model_reasoning_effort`:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { codexText } from "@tanstack/ai-codex";
+
+const stream = chat({
+  adapter: codexText("gpt-5.3-codex"),
+  messages: [{ role: "user", content: "Fix the failing test in utils.test.ts" }],
+  reasoning: "xhigh",
+});
+```
+
+- `gpt-5.3-codex`: `off`, `low` to `xhigh`. `gpt-5.2-codex`: `low` to `xhigh`.
+- `gpt-5.1-codex`, `gpt-5.1-codex-mini`: `low`, `medium`, `high`. `gpt-5.1`: `off`, `low`, `medium`, `high`.
+- A call without `reasoning` uses `modelReasoningEffort` from the config.
 
 ## Stateful Sessions
 
@@ -167,7 +186,7 @@ Two kinds of tools flow through this adapter:
 
 2. **Your TanStack tools** are bridged *into* the harness: the adapter starts a short-lived Streamable-HTTP MCP server on `127.0.0.1` for the duration of the turn and points Codex at it. Define tools as usual with `toolDefinition().server()`; tool-call events come back under the names you registered.
 
-```typescript
+```typescript group=tools
 import { z } from "zod";
 import { chat, toolDefinition } from "@tanstack/ai";
 import { codexText } from "@tanstack/ai-codex";
@@ -188,6 +207,32 @@ const stream = chat({
 ```
 
 **Client-side and approval-gated tools are not supported.** The harness executes tools inside a live subprocess, which cannot pause across HTTP requests to wait for a browser round-trip or a human approval. Passing a tool without a server `execute()` implementation — or one marked `needsApproval` — fails fast with a descriptive error. Run those tools outside the harness with a regular provider adapter.
+
+## Tool choice
+
+You want Codex to skip your tools, or to see just one of them. Pass `toolChoice` to `chat()`:
+
+```typescript group=tools
+const noBridgedTools = chat({
+  adapter: codexText("gpt-5.3-codex"),
+  messages: [{ role: "user", content: "Explain the bug in src/app.ts." }],
+  tools: [lookupTicket],
+  toolChoice: "none",
+});
+```
+
+`toolChoice` limits only the tools that the adapter bridges into Codex. The built-in Codex tools always stay on, and Codex decides when it calls a tool.
+
+| Value | What the adapter does |
+| --- | --- |
+| `'auto'` | Bridges all of your tools. |
+| `'none'` | Bridges none of your tools. |
+| `{ type: 'tool', name }` | Bridges only the named tool. Codex does not have to call it. |
+| `'required'` | Bridges all of your tools. Codex does not have to call one. |
+
+Each value except `'auto'` logs a warning the first time an adapter instance gets it.
+
+For the values on other adapters, see [Choose when the model calls a tool](../tools/tools#choose-when-the-model-calls-a-tool).
 
 ## Structured Output
 

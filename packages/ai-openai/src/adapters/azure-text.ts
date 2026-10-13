@@ -1,20 +1,32 @@
 import { AzureOpenAI } from 'openai'
 import {
   OpenAIBaseResponsesTextAdapter,
+  toResponsesToolChoice,
   warnStrictFallback,
 } from '@tanstack/openai-base'
 import { convertToolsToProviderFormat } from '../tools'
 import { getAzureOpenAIApiKeyFromEnv } from '../utils/client'
+import { OPENAI_MODEL_REASONING } from '../model-meta'
 import type {
   DefaultMessageMetadataByModality,
   Modality,
   TextOptions,
 } from '@tanstack/ai'
+import type { OpenAIModelReasoningByName } from '../model-meta'
 import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
 import type { AzureClientOptions } from 'openai/azure'
 import type { ResponseCreateParams } from 'openai/resources/responses/responses'
 import type { ExternalTextProviderOptions } from '../text/text-provider-options'
 import type { OpenAIClientConfig } from '../utils/client'
+
+/**
+ * The reasoning levels of an OpenAI model name, for `chat({ reasoning })`.
+ * `never` for a name that is not an OpenAI model, such as a deployment name.
+ */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof OpenAIModelReasoningByName
+    ? OpenAIModelReasoningByName[TModel]
+    : never
 
 /** The client options that `AzureOpenAI` refuses, or types more narrowly. */
 type NotForAzure =
@@ -54,17 +66,20 @@ function normalizeAzureBaseURL(baseURL: string): string {
   return url.toString().replace(/\/+$/, '')
 }
 
-export class AzureOpenAITextAdapter extends OpenAIBaseResponsesTextAdapter<
-  string,
+export class AzureOpenAITextAdapter<
+  TModel extends string = string,
+> extends OpenAIBaseResponsesTextAdapter<
+  TModel,
   { [K in keyof ExternalTextProviderOptions]: ExternalTextProviderOptions[K] },
   ReadonlyArray<Modality>,
   DefaultMessageMetadataByModality,
-  ReadonlyArray<string>
+  ReadonlyArray<string>,
+  ResolveReasoning<TModel>
 > {
   override readonly api = 'azure-openai-responses'
   private readonly deploymentName: string
 
-  constructor(config: AzureOpenAITextConfig, model: string) {
+  constructor(config: AzureOpenAITextConfig, model: TModel) {
     const {
       apiKey,
       baseURL,
@@ -100,6 +115,14 @@ export class AzureOpenAITextAdapter extends OpenAIBaseResponsesTextAdapter<
   }
 
   /**
+   * `chat({ reasoning })` uses the OpenAI data of the model name, not of the
+   * deployment name. It goes out as `reasoning: { effort, summary }`.
+   */
+  protected override modelReasoning(model: string) {
+    return OPENAI_MODEL_REASONING[model]
+  }
+
+  /**
    * Sends the deployment name as the model, and converts the tools with the
    * OpenAI tool converter (file_search, web_search, and so on).
    */
@@ -116,7 +139,13 @@ export class AzureOpenAITextAdapter extends OpenAIBaseResponsesTextAdapter<
     const tools = options.tools
       ? convertToolsToProviderFormat(options.tools)
       : undefined
+    // The base saw no tools, so it sent no `chat({ toolChoice })`. It goes
+    // before `request`, so a `tool_choice` from modelOptions wins.
     return {
+      ...(tools?.length &&
+        options.toolChoice !== undefined && {
+          tool_choice: toResponsesToolChoice(options.toolChoice),
+        }),
       ...request,
       ...(tools && tools.length > 0 && { tools }),
       model: this.deploymentName,
@@ -128,7 +157,7 @@ export class AzureOpenAITextAdapter extends OpenAIBaseResponsesTextAdapter<
  * Creates an Azure OpenAI text adapter with an explicit API key.
  * Type resolution happens here at the call site.
  *
- * @param model - The model name, or your deployment name
+ * @param model - The OpenAI model name, which also picks the `reasoning` levels, or your deployment name
  * @param apiKey - Your Azure OpenAI API key
  * @param config - The endpoint (`resourceName` or `baseURL`) and other options
  * @returns Configured Azure OpenAI text adapter instance
@@ -141,11 +170,11 @@ export class AzureOpenAITextAdapter extends OpenAIBaseResponsesTextAdapter<
  * });
  * ```
  */
-export function createAzureOpenaiText(
-  model: string,
+export function createAzureOpenaiText<TModel extends string>(
+  model: TModel,
   apiKey: string,
   config: Omit<AzureOpenAITextConfig, 'apiKey'>,
-): AzureOpenAITextAdapter {
+): AzureOpenAITextAdapter<TModel> {
   return new AzureOpenAITextAdapter({ apiKey, ...config }, model)
 }
 
@@ -157,7 +186,7 @@ export function createAzureOpenaiText(
  * `AZURE_OPENAI_API_VERSION`, and `AZURE_OPENAI_DEPLOYMENT_NAME_MAP`
  * (`model=deployment,model=deployment`).
  *
- * @param model - The model name, or your deployment name
+ * @param model - The OpenAI model name, which also picks the `reasoning` levels, or your deployment name
  * @param config - Optional configuration (excluding apiKey which is auto-detected)
  * @returns Configured Azure OpenAI text adapter instance
  * @throws Error if AZURE_OPENAI_API_KEY is not found in environment
@@ -168,10 +197,10 @@ export function createAzureOpenaiText(
  * const adapter = azureOpenaiText('gpt-5.6');
  * ```
  */
-export function azureOpenaiText(
-  model: string,
+export function azureOpenaiText<TModel extends string>(
+  model: TModel,
   config?: Omit<AzureOpenAITextConfig, 'apiKey'>,
-): AzureOpenAITextAdapter {
+): AzureOpenAITextAdapter<TModel> {
   const env: Record<string, string | undefined> =
     typeof process === 'undefined' ? {} : process.env
   const hasEndpoint = !!(

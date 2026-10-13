@@ -13,7 +13,7 @@ export type ReplayToolIdRule = (
   },
 ) => string
 
-// ponytail: no boundary map yet. Mid-conversation changes add it when they land.
+// ponytail: no boundary map. Plan on this array. A later replay must keep the same length.
 export interface ReplayMessages {
   messages: Array<ModelMessage>
 }

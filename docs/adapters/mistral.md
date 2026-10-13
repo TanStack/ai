@@ -282,6 +282,28 @@ Reasoning events are always closed before any text or tool output begins, so con
 
 See [Thinking & Reasoning](../chat/thinking-content) for the cross-provider event spec.
 
+## Reasoning
+
+Set `reasoning` on `chat()` to turn thinking up, down, or off:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { mistralText } from "@tanstack/ai-mistral";
+
+const stream = chat({
+  adapter: mistralText("mistral-medium-latest"),
+  messages: [{ role: "user", content: "Why is the sky blue?" }],
+  reasoning: "high",
+});
+```
+
+What goes on the wire:
+
+- `mistral-medium-latest`, `mistral-small-latest`: `reasoning_effort`. They take `off` (sent as `none`) and `high`.
+- `magistral-medium-latest`, `magistral-small-latest`: they take `off` and `high`. `high` sends `prompt_mode: "reasoning"`. `off` sends nothing.
+
+The other models take no `reasoning`.
+
 ## Example: Structured Output
 
 Generate JSON that conforms to a Zod schema using Mistral's `json_schema` response format:
@@ -338,6 +360,12 @@ const stream = chat({
 
 > All sampling parameters — including `temperature`, `top_p`, and `max_tokens` —
 > go inside `modelOptions` using Mistral's native (snake_case) names.
+
+## Prompt caching
+
+Mistral caches the start of your requests by itself. `chat()` sends `prompt_cache_key` by default. The key is the `threadId` that you pass, so one conversation shares a cache. The key goes only to `api.mistral.ai`, on `chat()` and on structured output. With `promptCache: 'none'`, no key goes out. See [Prompt Caching](../advanced/prompt-caching).
+
+Cache reads show up in `usage.promptTokensDetails.cachedTokens`.
 
 ## Embeddings
 

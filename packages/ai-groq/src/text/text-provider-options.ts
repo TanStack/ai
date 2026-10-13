@@ -90,14 +90,6 @@ export interface GroqTextProviderOptions {
   presence_penalty?: number | null
 
   /**
-   * Controls reasoning effort for supported models.
-   *
-   * - qwen3 models: `'none'` to disable, `'default'` or null to enable
-   * - openai/gpt-oss models: `'low'`, `'medium'` (default), or `'high'`
-   */
-  reasoning_effort?: 'none' | 'default' | 'low' | 'medium' | 'high' | null
-
-  /**
    * Specifies how to output reasoning tokens.
    * This field is mutually exclusive with `include_reasoning`.
    */

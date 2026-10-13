@@ -9,6 +9,7 @@ import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   hashToolCallId,
   orderedAssistantBlocks,
+  resolveReasoning,
   tanstackMetadata,
   toRunErrorPayload,
   toRunErrorRawEvent,
@@ -23,18 +24,25 @@ import {
   convertFunctionToolToResponsesFormat,
   createToolInputNormalizer,
 } from '../internal/responses-tool-converter'
-import { OPENROUTER_MODEL_INPUT_MODALITIES } from '../model-meta'
+import {
+  OPENROUTER_MODEL_INPUT_MODALITIES,
+  OPENROUTER_MODEL_REASONING,
+} from '../model-meta'
+import { openRouterEffort } from '../internal/reasoning'
 import { isWebSearchTool } from '../tools/web-search-tool'
 import { isWebFetchTool } from '../tools/web-fetch-tool'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
+import { toOpenRouterRunErrorPayload } from '../utils/run-error'
 import { extractUsageCost } from './cost'
 import type { SDKOptions } from '@openrouter/sdk'
 import type { ResponsesFunctionTool } from '../internal/responses-tool-converter'
 import type {
   ContentPartAddedEventPart,
+  FunctionCallOutputItemOutputUnion1,
   InputsUnion,
   OpenResponsesResult,
   OutputItems,
+  ReasoningEffort,
   ResponsesRequest,
   StreamEvents,
 } from '@openrouter/sdk/models'
@@ -44,16 +52,19 @@ import type {
 } from '@tanstack/ai/adapters'
 import type {
   ContentPart,
+  ImagePart,
   JSONSchema,
   ModelMessage,
   AdapterYieldChunk,
   TextOptions,
+  ToolChoice,
 } from '@tanstack/ai'
 import type { ExternalResponsesProviderOptions } from '../text/responses-provider-options'
 import type {
   OPENROUTER_CHAT_MODELS,
   OpenRouterChatModelToolCapabilitiesByName,
   OpenRouterModelInputModalitiesByName,
+  OpenRouterModelReasoningByName,
 } from '../model-meta'
 import type {
   OpenRouterMessageMetadataByModality,
@@ -84,6 +95,12 @@ export type OpenRouterResponsesTextModels =
 export type OpenRouterResponsesTextProviderOptions =
   ExternalResponsesProviderOptions
 
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof OpenRouterModelReasoningByName
+    ? OpenRouterModelReasoningByName[TModel]
+    : never
+
 type ResolveInputModalities<TModel extends string> =
   TModel extends keyof OpenRouterModelInputModalitiesByName
     ? OpenRouterModelInputModalitiesByName[TModel]
@@ -93,6 +110,14 @@ type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof OpenRouterChatModelToolCapabilitiesByName
     ? NonNullable<OpenRouterChatModelToolCapabilitiesByName[TModel]>
     : readonly []
+
+/** Maps `chat({ toolChoice })` to the OpenRouter Responses `toolChoice`. */
+function toOpenRouterResponsesToolChoice(
+  choice: ToolChoice,
+): NonNullable<ResponsesRequest['toolChoice']> {
+  if (typeof choice === 'string') return choice
+  return { type: 'function', name: choice.name }
+}
 
 /**
  * OpenRouter Responses (beta) Adapter — standalone implementation that talks
@@ -121,7 +146,9 @@ export class OpenRouterResponsesTextAdapter<
   ResolveInputModalities<TModel>,
   OpenRouterMessageMetadataByModality,
   TToolCapabilities,
-  OpenRouterResponsesToolCallMetadata
+  OpenRouterResponsesToolCallMetadata,
+  never,
+  ResolveReasoning<TModel>
 > {
   override readonly kind = 'text' as const
   readonly name = 'openrouter-responses' as const
@@ -205,7 +232,7 @@ export class OpenRouterResponsesTextAdapter<
     } catch (error: unknown) {
       // Narrow before logging: raw SDK errors can carry request metadata
       // (including auth headers) which we must never surface to user loggers.
-      const errorPayload = toRunErrorPayload(
+      const errorPayload = toOpenRouterRunErrorPayload(
         error,
         `${this.name}.chatStream failed`,
       )
@@ -790,7 +817,7 @@ export class OpenRouterResponsesTextAdapter<
           : ''
       const isAbort =
         errName === 'AbortError' || errName === 'RequestAbortedError'
-      const errorPayload = toRunErrorPayload(
+      const errorPayload = toOpenRouterRunErrorPayload(
         error,
         `${this.name}.structuredOutputStream failed`,
       )
@@ -1748,7 +1775,7 @@ export class OpenRouterResponsesTextAdapter<
         }
       }
     } catch (error: unknown) {
-      const errorPayload = toRunErrorPayload(
+      const errorPayload = toOpenRouterRunErrorPayload(
         error,
         `${this.name}.processStreamChunks failed`,
       )
@@ -1831,6 +1858,22 @@ export class OpenRouterResponsesTextAdapter<
           )
         : undefined
 
+    // `chat({ reasoning })`: the effort, a summary so the thinking text
+    // streams back, and the token budget when the request sets one.
+    // `ReasoningEffort` is an open enum, so a newer value still goes out.
+    const resolved = resolveReasoning(
+      options.reasoning,
+      OPENROUTER_MODEL_REASONING[this.model],
+    )
+    const effort = openRouterEffort(resolved)
+
+    // `chat({ toolChoice })` is sent only when the request has tools. It goes
+    // before the `modelOptions` spread, so a `toolChoice` there wins.
+    const toolChoiceField =
+      tools?.length && options.toolChoice !== undefined
+        ? { toolChoice: toOpenRouterResponsesToolChoice(options.toolChoice) }
+        : undefined
+
     const built: Pick<
       ResponsesRequest,
       | 'model'
@@ -1844,7 +1887,9 @@ export class OpenRouterResponsesTextAdapter<
       | 'toolChoice'
       | 'parallelToolCalls'
       | 'text'
+      | 'reasoning'
     > = {
+      ...toolChoiceField,
       ...modelOptions,
       model: options.model + variantSuffix,
       // Root `metadata` is observability-only and intentionally not forwarded:
@@ -1861,6 +1906,18 @@ export class OpenRouterResponsesTextAdapter<
       ...(tools &&
         tools.length > 0 && {
           tools,
+        }),
+      ...(resolved &&
+        effort && {
+          reasoning: {
+            effort: effort as ReasoningEffort,
+            ...(resolved.summary && resolved.level !== 'off'
+              ? { summary: 'auto' as const }
+              : {}),
+            ...(resolved.budgetTokens !== undefined
+              ? { maxTokens: resolved.budgetTokens }
+              : {}),
+          },
         }),
       ...(combinedSchema && {
         // Merge onto any caller-supplied `text` (spread above via
@@ -1983,13 +2040,30 @@ export class OpenRouterResponsesTextAdapter<
 
     for (const message of messages) {
       if (message.role === 'tool') {
+        const content = message.content
+        // Images stay in the tool output as `input_image` parts. A model
+        // without image input gets the text only. Other media is not sent.
+        const hasImage =
+          Array.isArray(content) &&
+          content.some((part) => part.type === 'image')
+        const output =
+          Array.isArray(content) &&
+          hasImage &&
+          (this.inputModalities?.includes('image') ?? true)
+            ? content.flatMap(
+                (part): Array<FunctionCallOutputItemOutputUnion1> =>
+                  part.type === 'text'
+                    ? [{ type: 'input_text', text: part.content }]
+                    : part.type === 'image'
+                      ? [this.convertImagePartToInput(part)]
+                      : [],
+              )
+            : this.extractTextContent(content) ||
+              (hasImage ? '(image omitted: this model has no image input)' : '')
         result.push({
           type: 'function_call_output',
           callId: message.toolCallId ? callIdFor(message.toolCallId) : '',
-          output:
-            typeof message.content === 'string'
-              ? message.content
-              : this.extractTextContent(message.content),
+          output,
         })
         continue
       }
@@ -2089,6 +2163,27 @@ export class OpenRouterResponsesTextAdapter<
     return result
   }
 
+  /** An image part as `input_image`, for user content and tool outputs. */
+  protected convertImagePartToInput(part: ImagePart) {
+    const source = part.source
+    if (isFileSource(source)) {
+      throw unsupportedFileSourceError(this.name)
+    }
+    const meta = part.metadata as
+      | { detail?: 'auto' | 'low' | 'high' }
+      | undefined
+    const value = source.value
+    const imageUrl =
+      source.type === 'data' && !value.startsWith('data:')
+        ? `data:${source.mimeType || 'application/octet-stream'};base64,${value}`
+        : value
+    return {
+      type: 'input_image' as const,
+      imageUrl,
+      detail: meta?.detail || 'auto',
+    }
+  }
+
   protected convertContentPartToInput(
     part: ContentPart,
   ): ResponsesInputContent {
@@ -2112,21 +2207,8 @@ export class OpenRouterResponsesTextAdapter<
       throw unsupportedFileSourceError(this.name)
     }
     switch (part.type) {
-      case 'image': {
-        const meta = part.metadata as
-          | { detail?: 'auto' | 'low' | 'high' }
-          | undefined
-        const value = source.value
-        const imageUrl =
-          source.type === 'data' && !value.startsWith('data:')
-            ? `data:${source.mimeType || 'application/octet-stream'};base64,${value}`
-            : value
-        return {
-          type: 'input_image',
-          imageUrl,
-          detail: meta?.detail || 'auto',
-        }
-      }
+      case 'image':
+        return this.convertImagePartToInput(part)
       case 'audio': {
         if (source.type === 'url') {
           // OpenRouter's `input_audio` carries `{ data, format }` not a URL —

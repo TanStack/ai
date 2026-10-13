@@ -138,6 +138,25 @@ const stream = chat({
 
 Need a header on each request, or a log of each model call? The chat adapters on this page support [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call).
 
+## Reasoning
+
+Set `reasoning` on `chat()`. The types take the levels of each model:
+
+```typescript
+import { chat } from "@tanstack/ai"
+import { lovableText } from "@tanstack/ai-lovable"
+
+const stream = chat({
+  adapter: lovableText("openai/gpt-5.6-sol"),
+  messages: [{ role: "user", content: "Plan a database migration." }],
+  reasoning: "xhigh",
+})
+```
+
+- Responses (the default) sends `reasoning.effort`. Chat Completions sends `reasoning_effort`.
+- Neither takes `budgetTokens`.
+- The OpenAI and Gemini models take the same levels as on [OpenAI](./openai#reasoning) and [Gemini](./gemini#reasoning).
+
 ## Summarize
 
 ```typescript

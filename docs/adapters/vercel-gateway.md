@@ -117,6 +117,26 @@ export function Chat() {
 }
 ```
 
+## Reasoning
+
+Set `reasoning` on `chat()`. The types take the levels of each model:
+
+```typescript
+import { chat } from "@tanstack/ai"
+import { vercelGatewayText } from "@tanstack/ai-vercel-gateway"
+
+const stream = chat({
+  adapter: vercelGatewayText("anthropic/claude-opus-5", { api: "chat" }),
+  messages: [{ role: "user", content: "Plan a database migration." }],
+  reasoning: { level: "high", budgetTokens: 8000 },
+})
+```
+
+What goes on the wire:
+
+- Chat Completions (`api: "chat"`): the gateway `reasoning` object. A level sends `{ effort }`, `budgetTokens` sends `{ enabled: true, max_tokens }`, and `off` sends `{ enabled: false }`. `summary: false` adds `exclude: true`.
+- Responses (the default): `reasoning.effort`. It takes no `budgetTokens`.
+
 ## Chat Completions
 
 Pass `{ api: "chat" }` when the model must talk to Chat Completions. The default is Responses.

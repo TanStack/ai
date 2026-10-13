@@ -164,6 +164,58 @@ withCompaction({
 });
 ```
 
+## Retry after a context overflow
+
+The token count is an estimate, so a call can still be too large for the model. The provider then rejects the call. Catch that one error, give compaction a smaller budget, and call `chat()` again.
+
+Every provider words this error differently, so do not match on the text. The text adapters put one code on the `RUN_ERROR` chunk: `CONTEXT_OVERFLOW_CODE` (`'context_overflow'`). The provider's own text stays in `message`.
+
+```typescript
+import { CONTEXT_OVERFLOW_CODE, chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { withCompaction } from "@tanstack/ai-compaction";
+import type { ModelMessage } from "@tanstack/ai";
+
+// Each retry gives compaction a smaller budget.
+const budgets = [100_000, 50_000, 25_000];
+
+export async function answer(messages: Array<ModelMessage>): Promise<string> {
+  let providerError = "";
+
+  for (const maxTokens of budgets) {
+    let text = "";
+    let overflow = false;
+
+    const stream = chat({
+      adapter: openaiText("gpt-5.5"),
+      messages,
+      middleware: [withCompaction({ maxTokens })],
+    });
+
+    for await (const chunk of stream) {
+      if (chunk.type === "TEXT_MESSAGE_CONTENT") text += chunk.delta;
+      if (chunk.type === "RUN_ERROR") {
+        // A smaller budget does not fix any other error.
+        if (chunk.code !== CONTEXT_OVERFLOW_CODE) throw new Error(chunk.message);
+        overflow = true;
+        providerError = chunk.message;
+      }
+    }
+
+    if (!overflow) return text;
+  }
+
+  // Every budget failed. Keep the provider's own message.
+  throw new Error(providerError);
+}
+```
+
+A retry starts the run again from the first message, so tools that ran before the error run again. If a tool sends an email or charges a card, do not retry the run.
+
+The OpenAI, Anthropic, Gemini, Bedrock, OpenRouter, Grok, Cloudflare, and BytePlus adapters set this code. Other OpenAI-compatible adapters set it when the provider sends `context_length_exceeded`.
+
+A call that is too large now gets two more tries. If all three fail, you get the provider's message.
+
 ## Options
 
 ### withCompaction

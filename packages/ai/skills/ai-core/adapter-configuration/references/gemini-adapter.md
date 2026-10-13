@@ -50,15 +50,9 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 chat({
   adapter: geminiText('gemini-2.5-pro'),
   messages,
+  // Thinking: a budget on Gemini 2.5, a level on Gemini 3
+  reasoning: { level: 'high', budgetTokens: 4096 },
   modelOptions: {
-    // Thinking (budget-based)
-    thinkingConfig: {
-      includeThoughts: true,
-      thinkingBudget: 4096,
-    },
-    // Thinking (level-based, advanced models) — the alternative to the
-    // budget shape above:
-    // thinkingConfig: { thinkingLevel: 'THINKING_LEVEL_HIGH' },
     // Safety settings
     safetySettings: [
       {
@@ -108,6 +102,7 @@ Note: `GOOGLE_GENAI_API_KEY` does NOT work.
   `gemini-3.1-flash-image-preview` were shut down on 2026-06-25 and now 404;
   they remain in the type union only as deprecated aliases, so a call to them
   compiles and then fails at runtime.
-- `thinkingConfig.thinkingLevel` (level-based) and `thinkingConfig.thinkingBudget`
-  (budget-based) serve different models. Check which your model supports.
+- `chat({ reasoning })` sends `thinkingConfig.thinkingLevel` on Gemini 3 and
+  `thinkingConfig.thinkingBudget` on Gemini 2.5. Only Gemini 2.5 takes
+  `budgetTokens`.
 - `cachedContent` must follow the format `cachedContents/{id}`.

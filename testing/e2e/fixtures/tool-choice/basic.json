@@ -1,0 +1,27 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[toolchoice] what guitars do you have in stock",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "getGuitars",
+            "arguments": "{}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[toolchoice] what guitars do you have in stock",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "We have the Fender Stratocaster and the Gibson Les Paul in stock."
+      }
+    }
+  ]
+}

@@ -6,6 +6,7 @@ import type { InternalLogger } from './logger/internal-logger'
 import type { SystemPrompt } from './system-prompts'
 import type { CapabilityContext } from './activities/chat/middleware/capabilities'
 import type { InterruptSubmissionError } from './interrupts'
+import type { ReasoningRequest } from './reasoning'
 // The canonical usage types live in the leaf `@tanstack/ai-event-client`
 // package (which `@tanstack/ai` already depends on) so there is a single source
 // of truth without a dependency cycle. They are re-exported below.
@@ -372,6 +373,50 @@ export type ConstrainedContent<
   | Array<ContentPartForInputModalitiesTypes<TInputModalitiesTypes>>
 
 /**
+ * The mid-conversation record that `chat()` saves on the first assistant
+ * message of a model call. It holds tool names and prompt hashes only, so it
+ * does not depend on a provider.
+ */
+export interface MidConversationChange {
+  /** A start point: the names of every tool. */
+  tools?: Array<string>
+  /** Tool names added since the last record. */
+  toolsAdded?: Array<string>
+  /** Short prompt hashes: every prompt on a start point, the added prompts otherwise. */
+  systemPrompts?: Array<string>
+}
+
+/**
+ * What changed in the tools and system prompts between model calls.
+ * `chat()` passes it in `TextOptions.midConversationChanges`.
+ */
+export interface MidConversationChanges {
+  /**
+   * The tool names of the start point, in start order, and how many entries
+   * at the front of `systemPrompts` belong to it.
+   */
+  start: { tools: Array<string>; systemPrompts: number }
+  /**
+   * Each change goes directly before `messages[before]`, or at the end when
+   * `before === messages.length`. `tools` are the added names.
+   * `systemPrompts` is how many of the next entries of `systemPrompts` it adds.
+   */
+  changes: Array<{
+    before: number
+    tools?: Array<string>
+    systemPrompts?: number
+  }>
+}
+
+/** The mid-conversation channels of a model. */
+export interface MidConversationChannels {
+  /** Added tools can go out without a change to the tools of the start point. */
+  tools: boolean
+  /** Added system prompts can go out as a message at their place. */
+  systemPrompts: boolean
+}
+
+/**
  * One block of an assistant `ModelMessage`, in the order the model sent it.
  * Each entry points into a field of the message. See `ModelMessage.blockOrder`.
  */
@@ -407,6 +452,12 @@ export interface ModelMessage<
   blockOrder?: Array<ModelMessageBlock>
   /** Error reported by an AG-UI tool message. */
   error?: string
+  /**
+   * The tools and system prompts that changed before this assistant message.
+   * `chat()` writes it when the adapter has a mid-conversation channel.
+   * Providers ignore it: adapters read `TextOptions.midConversationChanges`.
+   */
+  midConversationChange?: MidConversationChange
   /** Optional AG-UI message metadata. TanStack-owned fields live under `tanstack`. */
   metadata?: Record<string, any>
   /**
@@ -820,6 +871,22 @@ export type ToolExecutionContext<TContext = unknown> =
      */
     inputResponse?: ToolInputResponse
     /**
+     * Set when the host can move this call to the background. Pass it the
+     * work of the call, and race the two promises. It resolves to a short
+     * note for the model when the user moves the call. The work keeps
+     * running, and the host tells the model its result when it ends.
+     * `chat()` does not set it: a host wraps the tool's `execute` to add it.
+     * The note is a string. An object `outputSchema` rejects it. A string
+     * schema, or no schema, accepts it.
+     *
+     * @example
+     * ```ts
+     * const work = runJob(args)
+     * return context?.detach ? Promise.race([work, context.detach(work)]) : work
+     * ```
+     */
+    detach?: (work: Promise<unknown>) => Promise<string>
+    /**
      * Emit a custom event during tool execution.
      * Events are streamed to the client in real-time as AG-UI CUSTOM events.
      *
@@ -985,6 +1052,14 @@ export interface Tool<
   /** If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Works with both chat() (the synthetic discovery tool) and Code Mode (kept out of the system prompt and revealed via discover_tools). */
   lazy?: boolean
 
+  /**
+   * Whether a host may run this tool again after a crash cut the run
+   * between the call and its result. `'safe'` runs it again. Omit the
+   * field, or set `'never'`, when a second run is not safe. The host
+   * writes the model note. `chat()` does not read this field.
+   */
+  replay?: 'safe' | 'never'
+
   /** Additional metadata for adapters or custom extensions */
   metadata?: Record<string, any> | undefined
 }
@@ -1146,6 +1221,43 @@ export interface AgentLoopState {
 export type AgentLoopStrategy = (state: AgentLoopState) => boolean
 
 /**
+ * How the model uses the tools of a call.
+ * - `'auto'`: the model decides.
+ * - `'none'`: the model calls no tool.
+ * - `'required'`: the model must call a tool.
+ * - `{ type: 'tool', name }`: the model must call that tool.
+ *
+ * `TName` is the names of the tools of the call, for editor suggestions. Any
+ * other string is also allowed, for example a provider tool or a lazy tool.
+ */
+export type ToolChoice<TName extends string = string> =
+  | 'auto'
+  | 'none'
+  | 'required'
+  // `string & {}` keeps the `TName` literals as suggestions.
+  | { type: 'tool'; name: TName | (string & {}) }
+
+/**
+ * How long the provider keeps the cached start of a request.
+ * `'none'` turns automatic prompt caching off.
+ */
+export type PromptCacheRetention = 'none' | 'short' | 'long'
+
+/**
+ * The `promptCache` option of `chat()`: a retention, or an object with a
+ * retention and a cache key.
+ */
+export type PromptCacheOptions =
+  | PromptCacheRetention
+  | { retention?: PromptCacheRetention; key?: string }
+
+/** What chat() gives the adapter. */
+export interface ResolvedPromptCache {
+  retention: PromptCacheRetention
+  key?: string
+}
+
+/**
  * Wraps the fetch of a model call. It gets the next fetch and gives back a
  * new fetch. A wrapper can change the URL, the headers, the request, or the
  * response.
@@ -1190,6 +1302,23 @@ export interface TextOptions<
    */
   toolExecution?: 'parallel' | 'sequential'
   /**
+   * Retry a model call when the provider error has a wait time (usually a
+   * 429). `chat()` waits for the `retryAfterMs` time of the `RUN_ERROR`, then
+   * calls the model again. It retries only when the wait time is at most
+   * `maxWaitMs` and the call has streamed no output yet. The structured-output
+   * call is not retried. Off by default.
+   */
+  retry?: {
+    /**
+     * Extra model calls after the first, for each model call of the run. `0`
+     * means no retry. The provider SDK does its own retries first, from the
+     * `maxRetries` of the adapter config.
+     */
+    maxRetries: number
+    /** Longest wait time to accept, in milliseconds. Default 60 000. */
+    maxWaitMs?: number
+  }
+  /**
    * Optional configuration for lazy-tool discovery (tools marked `lazy: true`).
    * Tunes how much of each lazy tool's description appears in the discovery
    * catalog. Optional — defaults to `{ includeDescription: 'none' }`.
@@ -1207,6 +1336,13 @@ export interface TextOptions<
    */
   metadata?: Record<string, any> | undefined
   modelOptions?: TProviderOptionsForModel
+  /**
+   * How hard the model thinks, normalized by `chat()`. `undefined`: the user
+   * did not ask, so the adapter sends nothing and the provider default applies.
+   * The adapter clamps the level to the model's levels and writes its own
+   * wire field.
+   */
+  reasoning?: ReasoningRequest
   request?: Request | RequestInit
 
   /**
@@ -1275,6 +1411,11 @@ export interface TextOptions<
    */
   threadId?: string
   /**
+   * Automatic prompt caching for this request. `chat()` sets it. When it is
+   * absent, the adapter adds no automatic cache fields.
+   */
+  promptCache?: ResolvedPromptCache
+  /**
    * Run ID for AG-UI protocol run correlation.
    * When provided, this will be used in RunStartedEvent and RunFinishedEvent.
    * If not provided, a unique ID will be generated.
@@ -1286,11 +1427,24 @@ export interface TextOptions<
    */
   parentRunId?: string
   /**
+   * How the model uses the tools of this request. `chat()` sets it only when
+   * the request has tools. A provider value in `modelOptions` wins over it.
+   */
+  toolChoice?: ToolChoice
+  /**
    * Wraps the fetch of this request. The engine composes the `chat()` option
    * and the middleware wrappers into one function. An adapter that supports
    * it calls `wrapFetch(baseFetch)` and sends the request with the result.
    */
   wrapFetch?: FetchWrapper
+  /**
+   * The tools and system prompts that changed between model calls. The
+   * engine sets it only when `adapter.midConversationChannels` has a channel
+   * that is on. `tools` and `systemPrompts` stay the full current lists, so
+   * an adapter that ignores this field sends the same request as before.
+   * Adapters resolve it with `splitMidConversationChanges`.
+   */
+  midConversationChanges?: MidConversationChanges
   /**
    * AG-UI subagent run id when this chat runs as a child of another run.
    * A child `chat()` passes `ctx.subagentRunId`. Middleware reads it as

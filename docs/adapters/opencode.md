@@ -86,6 +86,24 @@ const stream = chat({
 
 Per-call overrides — `sessionId`, `permissionMode`, `directory` — go through `modelOptions`.
 
+## Reasoning
+
+Set `reasoning` on `chat()`. The adapter writes it into the model's `options` in the OpenCode server config:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { opencodeText } from "@tanstack/ai-opencode";
+
+const stream = chat({
+  adapter: opencodeText("anthropic/claude-sonnet-4-5"),
+  messages: [{ role: "user", content: "Refactor the auth module" }],
+  reasoning: { level: "high", budgetTokens: 8000 },
+});
+```
+
+- Claude models get `thinking` with a token budget. `off` disables thinking. `anthropic/claude-sonnet-4-5` and `opencode/claude-sonnet-4-5` take `off` to `high`. `anthropic/claude-opus-4-5` takes `low`, `medium`, `high`.
+- The other models get `reasoningEffort`, plus `reasoningSummary: "auto"` when the summary is on. `openai/gpt-5.2` takes `off`, `low` to `xhigh`. The `gpt-5.1-codex` models take `low`, `medium`, `high`.
+
 ## Permissions
 
 OpenCode asks for permission before mutating files or running commands. A headless server has no one to answer those prompts, so the adapter applies a policy automatically — it never hangs a turn:
@@ -174,7 +192,7 @@ Two kinds of tools flow through this adapter:
 
 2. **Your TanStack tools** are bridged *into* the harness: the adapter starts a short-lived Streamable-HTTP MCP server on `127.0.0.1` for the duration of the turn and registers it with OpenCode. Define tools as usual with `toolDefinition().server()`; tool-call events come back under the names you registered (OpenCode prefixes MCP tools `tanstack_…` internally, which the adapter strips).
 
-```typescript
+```typescript group=tools
 import { z } from "zod";
 import { chat, toolDefinition } from "@tanstack/ai";
 import { opencodeText } from "@tanstack/ai-opencode";
@@ -195,6 +213,32 @@ const stream = chat({
 ```
 
 **Client-side and approval-gated tools are not supported.** The harness executes tools inside a live process, which cannot pause across HTTP requests to wait for a browser round-trip or a human approval. Passing a tool without a server `execute()` implementation — or one marked `needsApproval` — fails fast with a descriptive error. Run those tools outside the harness with a regular provider adapter.
+
+## Tool choice
+
+You want OpenCode to see just one of your tools, or none of them. Pass `toolChoice` to `chat()`:
+
+```typescript group=tools
+const onlyLookup = chat({
+  adapter: opencodeText("anthropic/claude-opus-4-5"),
+  messages: [{ role: "user", content: "What's the status of ticket T-123?" }],
+  tools: [lookupTicket],
+  toolChoice: { type: "tool", name: "lookup_ticket" },
+});
+```
+
+`toolChoice` limits only the tools that the adapter bridges into OpenCode. The built-in OpenCode tools (`bash`, `edit`, and the others) always stay on, and OpenCode decides when it calls a tool.
+
+| Value | What the adapter does |
+| --- | --- |
+| `'auto'` | Bridges all of your tools. |
+| `'none'` | Bridges none of your tools. |
+| `{ type: 'tool', name }` | Bridges only the named tool. OpenCode does not have to call it. |
+| `'required'` | Bridges all of your tools. OpenCode does not have to call one. |
+
+Each value except `'auto'` logs a warning the first time an adapter instance gets it.
+
+For the values on other adapters, see [Choose when the model calls a tool](../tools/tools#choose-when-the-model-calls-a-tool).
 
 ## Structured Output
 
