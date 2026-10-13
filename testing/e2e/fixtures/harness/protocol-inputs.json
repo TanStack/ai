@@ -248,6 +248,52 @@
       "response": {
         "content": "Green."
       }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-elicit] what is the forecast",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "weather_ask_city",
+            "arguments": "{}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-elicit] what is the forecast",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "The forecast for Paris is sunny."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-elicit-2025] book a trip",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "trips_book_trip",
+            "arguments": "{}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-elicit-2025] book a trip",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Your trip to Paris is booked, seat 12A."
+      }
     }
   ]
 }

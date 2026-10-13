@@ -106,6 +106,7 @@ import { Route as ApiMcpAppsCallRouteImport } from './routes/api.mcp-apps-call'
 import { Route as ApiMcpAppsChatRouteImport } from './routes/api.mcp-apps-chat'
 import { Route as ApiMcpAppsServerRouteImport } from './routes/api.mcp-apps-server'
 import { Route as ApiMcpInputServerRouteImport } from './routes/api.mcp-input-server'
+import { Route as ApiMcpLegacyInputServerRouteImport } from './routes/api.mcp-legacy-input-server'
 import { Route as ApiMcpInputTestRouteImport } from './routes/api.mcp-input-test'
 import { Route as ApiMcpLifecycleTestRouteImport } from './routes/api.mcp-lifecycle-test'
 import { Route as ApiMcpManagedTestRouteImport } from './routes/api.mcp-managed-test'
@@ -686,6 +687,11 @@ const ApiMcpInputServerRoute = ApiMcpInputServerRouteImport.update({
   path: '/api/mcp-input-server',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMcpLegacyInputServerRoute = ApiMcpLegacyInputServerRouteImport.update({
+  id: '/api/mcp-legacy-input-server',
+  path: '/api/mcp-legacy-input-server',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMcpInputTestRoute = ApiMcpInputTestRouteImport.update({
   id: '/api/mcp-input-test',
   path: '/api/mcp-input-test',
@@ -1175,6 +1181,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
   '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
   '/api/mcp-input-server': typeof ApiMcpInputServerRoute
+  '/api/mcp-legacy-input-server': typeof ApiMcpLegacyInputServerRoute
   '/api/mcp-input-test': typeof ApiMcpInputTestRoute
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
@@ -1348,6 +1355,7 @@ export interface FileRoutesByTo {
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
   '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
   '/api/mcp-input-server': typeof ApiMcpInputServerRoute
+  '/api/mcp-legacy-input-server': typeof ApiMcpLegacyInputServerRoute
   '/api/mcp-input-test': typeof ApiMcpInputTestRoute
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
@@ -1522,6 +1530,7 @@ export interface FileRoutesById {
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
   '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
   '/api/mcp-input-server': typeof ApiMcpInputServerRoute
+  '/api/mcp-legacy-input-server': typeof ApiMcpLegacyInputServerRoute
   '/api/mcp-input-test': typeof ApiMcpInputTestRoute
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
@@ -1697,6 +1706,7 @@ export interface FileRouteTypes {
     | '/api/mcp-apps-chat'
     | '/api/mcp-apps-server'
     | '/api/mcp-input-server'
+    | '/api/mcp-legacy-input-server'
     | '/api/mcp-input-test'
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
@@ -1870,6 +1880,7 @@ export interface FileRouteTypes {
     | '/api/mcp-apps-chat'
     | '/api/mcp-apps-server'
     | '/api/mcp-input-server'
+    | '/api/mcp-legacy-input-server'
     | '/api/mcp-input-test'
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
@@ -2043,6 +2054,7 @@ export interface FileRouteTypes {
     | '/api/mcp-apps-chat'
     | '/api/mcp-apps-server'
     | '/api/mcp-input-server'
+    | '/api/mcp-legacy-input-server'
     | '/api/mcp-input-test'
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
@@ -2217,6 +2229,7 @@ export interface RootRouteChildren {
   ApiMcpAppsChatRoute: typeof ApiMcpAppsChatRoute
   ApiMcpAppsServerRoute: typeof ApiMcpAppsServerRoute
   ApiMcpInputServerRoute: typeof ApiMcpInputServerRoute
+  ApiMcpLegacyInputServerRoute: typeof ApiMcpLegacyInputServerRoute
   ApiMcpInputTestRoute: typeof ApiMcpInputTestRoute
   ApiMcpLifecycleTestRoute: typeof ApiMcpLifecycleTestRoute
   ApiMcpManagedTestRoute: typeof ApiMcpManagedTestRoute
@@ -2970,6 +2983,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMcpInputServerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mcp-legacy-input-server': {
+      id: '/api/mcp-legacy-input-server'
+      path: '/api/mcp-legacy-input-server'
+      fullPath: '/api/mcp-legacy-input-server'
+      preLoaderRoute: typeof ApiMcpLegacyInputServerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/mcp-input-test': {
       id: '/api/mcp-input-test'
       path: '/api/mcp-input-test'
@@ -3651,6 +3671,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpAppsChatRoute: ApiMcpAppsChatRoute,
   ApiMcpAppsServerRoute: ApiMcpAppsServerRoute,
   ApiMcpInputServerRoute: ApiMcpInputServerRoute,
+  ApiMcpLegacyInputServerRoute: ApiMcpLegacyInputServerRoute,
   ApiMcpInputTestRoute: ApiMcpInputTestRoute,
   ApiMcpLifecycleTestRoute: ApiMcpLifecycleTestRoute,
   ApiMcpManagedTestRoute: ApiMcpManagedTestRoute,

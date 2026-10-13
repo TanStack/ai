@@ -1012,6 +1012,16 @@
           "label": "Run agents from a harness",
           "to": "harness/subagents",
           "addedAt": "2026-10-13"
+        },
+        {
+          "label": "Use MCP servers",
+          "to": "harness/mcp",
+          "addedAt": "2026-10-13"
+        },
+        {
+          "label": "Use from any MCP client",
+          "to": "harness/mcp-server",
+          "addedAt": "2026-10-13"
         }
       ]
     },
