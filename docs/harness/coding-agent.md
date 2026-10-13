@@ -70,26 +70,30 @@ const terminal = createInterface({
   output: process.stdout,
 })
 
-for (;;) {
-  const line = await terminal.question('\n> ')
-  // `/undo`, `/model fast`, `/mode plan`, and the other plugin commands.
+// Type `exit` to stop.
+let line = await terminal.question('\n> ')
+while (line !== 'exit') {
   if (line.startsWith('/')) {
+    // `/undo`, `/model fast`, `/mode plan`, and the other plugin commands.
     const [name = '', ...args] = line.slice(1).split(' ')
     console.log(await session.command(name, args.join(' ') || undefined))
-    continue
-  }
-  for await (const chunk of session.prompt(line).stream()) {
-    if (chunk.type === 'TEXT_MESSAGE_CONTENT') process.stdout.write(chunk.delta)
-    // A risky call waits for an answer: once, always, or reject.
-    if (chunk.type === 'CUSTOM' && chunk.name === HARNESS_EVENTS.question) {
-      const [question] = session.snapshot().pendingQuestions
-      if (question) {
-        const answer = await terminal.question(`\n${question.message} `)
-        await session.answer(question.questionId, answer)
+  } else {
+    for await (const chunk of session.prompt(line).stream()) {
+      if (chunk.type === 'TEXT_MESSAGE_CONTENT') process.stdout.write(chunk.delta)
+      // A risky call waits for an answer: once, always, or reject.
+      if (chunk.type === 'CUSTOM' && chunk.name === HARNESS_EVENTS.question) {
+        const [question] = session.snapshot().pendingQuestions
+        if (question) {
+          const answer = await terminal.question(`\n${question.message} `)
+          await session.answer(question.questionId, answer)
+        }
       }
     }
   }
+  line = await terminal.question('\n> ')
 }
+terminal.close()
+await host.close()
 ```
 
 Both plugin entries run only in Node. The coding tools use the file system and the shell of the machine. A line that starts with `/` runs a command of a plugin. Any other line is a prompt.
