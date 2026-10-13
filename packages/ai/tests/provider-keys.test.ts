@@ -15,6 +15,7 @@ import type { AnyTextAdapter } from '../src/activities/chat/adapter'
 import type { SubagentBinding } from '../src/activities/chat/agents/bound'
 import type { DefinedAgent } from '../src/activities/chat/agents/define-agent'
 import type { KeyedAdapter, ProviderKeys } from '../src/byok'
+import type { ProviderKeySource } from '../src/byok/env-keys'
 
 const acme = defineByokProvider({ id: 'acme', label: 'Acme' })
 
@@ -268,8 +269,8 @@ describe('ctx.keys', () => {
  * `ctx.chat({ subagents: { ...nested } })`.
  */
 async function chatKeys(
-  keys: Record<string, string | null>,
-  nested?: { keys?: Record<string, string | null> },
+  keys: ProviderKeySource,
+  nested?: { keys?: ProviderKeySource },
 ) {
   const { agent: target, seen } = probe()
   const { adapter } = createMockAdapter({ iterations: [] })
@@ -337,6 +338,25 @@ describe('subagents.keys', () => {
       { keys: { acme: 'sk-own' } },
     )
     expect(await keys.require(acmeEnv)).toBe('sk-own')
+  })
+
+  it('reads keys from a function, with the provider it gets', async () => {
+    vi.stubEnv(envName, 'sk-env')
+    const asked: Array<unknown> = []
+    const keys = await chatKeys(async (provider) => {
+      asked.push(provider)
+      return provider === acmeEnv ? 'sk-fn' : null
+    })
+
+    expect(await keys.require(acmeEnv)).toBe('sk-fn')
+    expect(asked).toEqual([acmeEnv])
+    // The function has no key for a bare id, so the env name is not read.
+    expect(await keys.get('acme')).toBeNull()
+  })
+
+  it('falls back to the parent keys when a nested function has no key', async () => {
+    const keys = await chatKeys({ acme: 'sk-user' }, { keys: () => null })
+    expect(await keys.require(acmeEnv)).toBe('sk-user')
   })
 
   it('keeps the parent keys for providers that a nested chat does not set', async () => {

@@ -11,12 +11,13 @@ import { z } from 'zod'
 import type { DefinedAgent, ReasoningRequest, Tool } from '@tanstack/ai'
 import { createOpenaiChat } from '@tanstack/ai-openai'
 import { openaiByok } from '@tanstack/ai-openai/byok'
+import { getByokKey } from '@tanstack/ai/byok/server'
+import type { ByokProvider } from '@tanstack/ai/byok'
 import { LLMOCK_DEFAULT_BASE, createTextAdapter } from '@/lib/providers'
 import {
   deleteLogs,
   isSubagentScenario,
   lookupFacts,
-  SUBAGENT_E2E_KEY,
 } from '@/lib/subagents-test'
 import type { SubagentScenario } from '@/lib/subagents-test'
 
@@ -36,10 +37,11 @@ import type { SubagentScenario } from '@/lib/subagents-test'
  *   and the child's only message is that task.
  * - `limits`: like `brief`, with `limits: { maxCalls: 1 }`. The parent model
  *   calls `researcher` twice in one turn. The second call gets a tool error.
- * - `keys`: like `result`, but `writer` builds its adapter with
- *   `ctx.keys.adapter(...)` from `subagents.keys`. The child request carries
- *   that key. aimock hides `Authorization` in its journal, so the request
- *   also sends it as `x-e2e-authorization`.
+ * - `keys`: like `result`, but the page sends an `x-byok-openai` header.
+ *   `subagents.keys` reads it with `getByokKey`, and `writer` builds its
+ *   adapter with `ctx.keys.adapter(...)`. The child request carries that
+ *   key. aimock hides `Authorization` in its journal, so the request also
+ *   sends it as `x-e2e-authorization`.
  * - `result`: no router. `pricer` calls the bound `ctx.chat` with
  *   `stream: false`, so its `run` resolves to a string. The string streams as
  *   the child's text and goes back to the parent model as the result.
@@ -52,6 +54,7 @@ const echoAuthorization: typeof fetch = (input, init) => {
 }
 
 function subagentsFor(
+  request: Request,
   scenario: SubagentScenario,
   aimockPort: number | undefined,
   testId: string | undefined,
@@ -152,7 +155,10 @@ function subagentsFor(
         }),
     })
     const agents: Array<DefinedAgent> = [writer]
-    return { agents, keys: { openai: SUBAGENT_E2E_KEY } }
+    return {
+      agents,
+      keys: (provider: ByokProvider | string) => getByokKey(request, provider),
+    }
   }
   return { agents: [child('researcher', [])] }
 }
@@ -187,7 +193,7 @@ export const Route = createFileRoute('/api/subagents-test')({
             runId: params.runId,
             ...(params.parentRunId ? { parentRunId: params.parentRunId } : {}),
             ...(params.resume ? { resume: params.resume } : {}),
-            subagents: subagentsFor(scenario, aimockPort, testId),
+            subagents: subagentsFor(request, scenario, aimockPort, testId),
             agentLoopStrategy: maxIterations(4),
             abortController,
           })

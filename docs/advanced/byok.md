@@ -353,7 +353,7 @@ export const writer = defineAgent({
 });
 ```
 
-2. In the route, read the user's key. Pass it on `subagents.keys`, by provider id:
+2. In the route, give `subagents.keys` a function. `getByokKey` reads the key that the client sends for each provider:
 
 ```typescript group=agent-keys
 import {
@@ -373,7 +373,10 @@ export async function POST(request: Request) {
     messages: params.messages,
     threadId: params.threadId,
     runId: params.runId,
-    subagents: { agents: [writer], keys: { openai: apiKey } },
+    subagents: {
+      agents: [writer],
+      keys: (provider) => getByokKey(request, provider),
+    },
   });
   return toServerSentEventsResponse(stream);
 }
@@ -381,9 +384,9 @@ export async function POST(request: Request) {
 
 How `ctx.keys` finds a key:
 
-- It reads `subagents.keys` by provider id. The id of `openaiByok` is `openai`.
-- If `subagents.keys` has no key for the provider, it reads the env var of the provider, here `OPENAI_API_KEY`.
-- If both are empty, the call throws `Missing OpenAI API key. Set OPENAI_API_KEY.`
+- It calls the `subagents.keys` function with the provider of the adapter, here `openaiByok`. The function can read any store, for example your database.
+- `subagents.keys` can also be an object by provider id, for example `{ openai: apiKey }`.
+- If there is no key, it reads the env var of the provider, here `OPENAI_API_KEY`. If that is empty too, the call throws `Missing OpenAI API key. Set OPENAI_API_KEY.`
 - A child that calls `ctx.chat({ subagents })` passes the keys on to its own children. Keys that the child sets itself win for those providers.
 - `ctx.keys.get(provider)` returns the key or `null`. `ctx.keys.require(provider)` throws when there is no key.
 

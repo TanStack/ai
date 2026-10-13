@@ -6,6 +6,7 @@ import {
   SUBAGENT_PROMPTS,
   deleteLogs,
   isSubagentScenario,
+  SUBAGENT_E2E_KEY,
 } from '@/lib/subagents-test'
 
 const clientTools = [deleteLogs.client()] as const
@@ -27,7 +28,13 @@ function SubagentsTestPage() {
   const { testId, aimockPort, scenario } = Route.useSearch()
   const { messages, sendMessage, interrupts, isLoading } = useChat({
     threadId: `subagents-${testId ?? 'manual'}-${scenario}`,
-    connection: fetchServerSentEvents('/api/subagents-test'),
+    // The `keys` scenario sends the user's key the way a BYOK store does.
+    connection: fetchServerSentEvents(
+      '/api/subagents-test',
+      scenario === 'keys'
+        ? { headers: { 'x-byok-openai': SUBAGENT_E2E_KEY } }
+        : {},
+    ),
     body: { scenario, testId, aimockPort },
     tools: clientTools,
   })

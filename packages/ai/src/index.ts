@@ -111,6 +111,7 @@ export {
   type KeyedAdapterResult,
   type ProviderKeys,
 } from './byok/keyed'
+export type { ProviderKeySource } from './byok/env-keys'
 export {
   subagentRoute,
   type SubagentRouteOptions,

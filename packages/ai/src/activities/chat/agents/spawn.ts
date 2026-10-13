@@ -31,7 +31,7 @@ import { createBoundActivities } from './bound'
 import { SubagentBudget } from './limits'
 import type { SubagentBinding } from './bound'
 import type { SubagentLimits } from './limits'
-import type { ProviderId } from '../../../byok/providers'
+import type { ProviderKeySource } from '../../../byok/env-keys'
 import type {
   DefinedAgent,
   SubagentRunContext,
@@ -99,12 +99,14 @@ export interface SubagentsBag<
    */
   limits?: SubagentLimits
   /**
-   * Provider keys by provider id, for example `{ openai: userKey }`. Agents
-   * read them as `ctx.keys`. A missing or empty key falls back to the
-   * provider's `env` names. A child's `ctx.chat({ subagents })` passes them
-   * on. The keys it sets itself win for those providers.
+   * Provider keys that agents read as `ctx.keys`: an object by provider id,
+   * for example `{ openai: userKey }`, or a function that returns the key of
+   * a provider, for example `(provider) => getByokKey(request, provider)`.
+   * A missing or empty key falls back to the keys of the parent agent, then
+   * to the provider's `env` names. A child's `ctx.chat({ subagents })` passes
+   * them on. The keys it sets itself win for those providers.
    */
-  keys?: Readonly<Record<ProviderId, string | null | undefined>>
+  keys?: ProviderKeySource
 }
 
 /** What the children of one parent run left behind for the parent terminal. */
