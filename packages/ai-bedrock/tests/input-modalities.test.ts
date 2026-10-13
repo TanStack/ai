@@ -13,6 +13,10 @@ describe('Bedrock text adapters inputModalities', () => {
         .inputModalities,
     ).toEqual(['text'])
     expect(
+      createBedrockResponsesText('google.gemma-4-31b', 'test-key')
+        .inputModalities,
+    ).toEqual(['text', 'image'])
+    expect(
       createBedrockConverse(
         'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
         'test-key',
