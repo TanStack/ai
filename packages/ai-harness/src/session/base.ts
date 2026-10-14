@@ -599,10 +599,15 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
    * after a crash, so clients get a warning. The work goes on.
    */
   protected warnClaim(error: unknown): void {
+    this.warnSession('harness:work-claims', error)
+  }
+
+  /** Tell clients that a write no one waits for failed. The work goes on. */
+  protected warnSession(plugin: string, error: unknown): void {
     this.feed.publish(
       'session',
       customEvent('harness.plugin.warning', {
-        plugin: 'harness:work-claims',
+        plugin,
         message: error instanceof Error ? error.message : String(error),
       }),
     )

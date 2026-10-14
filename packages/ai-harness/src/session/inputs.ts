@@ -4,6 +4,7 @@ import { HARNESS_EVENTS, InputRejectedError } from '../types'
 import {
   createInputId,
   customEvent,
+  errorText,
   storedPrincipal,
   inputKey,
   CHAT_OPS,
@@ -205,8 +206,11 @@ export abstract class SessionInputs<
         (error: unknown) => follower.fail('failed', error),
       )
     }
-    if (!this.writer)
-      void this.inbox.markApplied({ inputId: steer.inputId, operationId })
+    if (!this.writer) {
+      this.inbox
+        .markApplied({ inputId: steer.inputId, operationId })
+        .catch((error: unknown) => this.warnSession('harness:inbox', error))
+    }
     this.feed.publish(
       operationId,
       customEvent(HARNESS_EVENTS.inputApplied, {
@@ -395,7 +399,9 @@ export abstract class SessionInputs<
         .append([{ type: 'harness.input.rejected', inputId, reason }])
         .catch(() => {})
     } else {
-      void this.inbox.markRejected({ inputId, reason })
+      this.inbox
+        .markRejected({ inputId, reason })
+        .catch((error: unknown) => this.warnSession('harness:inbox', error))
     }
     const receipt: Receipt = { inputId, status: 'rejected', reason }
     this.receipts.set(inputId, receipt)
@@ -548,5 +554,23 @@ export abstract class SessionInputs<
         status: operation.status(),
       }),
     )
+  }
+
+  /**
+   * A store write threw where no code catches it. Fail the operation, so no
+   * caller waits for it forever.
+   */
+  protected failOperation(
+    operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
+    error: unknown,
+  ): void {
+    if (operation.isSettled()) return
+    operation.publish({
+      type: EventType.RUN_ERROR,
+      message: errorText(this.logFailure ?? error),
+      timestamp: Date.now(),
+    })
+    operation.fail('failed', this.logFailure ?? error)
+    this.publishFinished(operation)
   }
 }

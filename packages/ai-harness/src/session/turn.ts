@@ -85,7 +85,10 @@ export abstract class SessionTurn<
     )
     this.operations.set(operation.id, operation)
     const principal = options?.principal ?? this.principal
-    void this.executeCommand(operation, name, input, principal)
+    // A store write that throws (the inbox, the log) still ends the command.
+    this.executeCommand(operation, name, input, principal).catch(
+      (error: unknown) => this.failOperation(operation, error),
+    )
     return operation
   }
 
@@ -166,13 +169,19 @@ export abstract class SessionTurn<
     this.activeTurn = next.operation
     this.activeResume = next.resume !== undefined
     this.turnPrincipal = next.principal
-    void this.runTurn(next).finally(() => {
+    const ended = () => {
       this.activeResume = false
       this.activeTurn = undefined
       this.turnPrincipal = undefined
       for (const end of this.turnEnds) end()
       this.turnEnds.clear()
       this.drain()
+    }
+    // One `then`, so a caller that awaits the turn sees the session idle.
+    void this.runTurn(next).then(ended, (error: unknown) => {
+      // A store write threw. The turn still ends.
+      this.failOperation(next.operation, error)
+      ended()
     })
   }
 
@@ -227,17 +236,37 @@ export abstract class SessionTurn<
   }
 
   protected async runTurn(turn: QueuedTurn): Promise<void> {
+    const { operation } = turn
+    /**
+     * The turn failed before it ran. Its input settles `failed`, so
+     * `settled()` returns, and clients get a RUN_ERROR, as on a later failure.
+     */
+    const failEarly = async (error: unknown) => {
+      const failure = this.logFailure ?? error
+      operation.publish({
+        type: EventType.RUN_ERROR,
+        message: errorText(failure),
+        timestamp: Date.now(),
+      })
+      if (turn.inputId !== undefined && !this.logFailure) {
+        await this.settle({
+          inputId: turn.inputId,
+          operationId: operation.id,
+          outcome: 'failed',
+          error: { message: errorText(failure) },
+        }).catch(() => {})
+      }
+      operation.fail('failed', failure)
+      this.publishFinished(operation)
+      this.requeueWaitingSteers()
+    }
     // The next turn drops the messages that a revert hides.
     try {
       await this.commitRevert()
     } catch (error) {
-      turn.operation.fail('failed', error)
-      this.publishFinished(turn.operation)
-      this.requeueWaitingSteers()
-      return
+      return failEarly(error)
     }
     if (turn.reset) return this.runReset(turn, turn.reset)
-    const { operation } = turn
     operation.setStatus('running')
     // A new turn may ask for a sign-in the user cancelled before.
     if (!turn.answers) this.declinedSignIns.clear()
@@ -245,10 +274,7 @@ export abstract class SessionTurn<
       await this.refreshInterrupted(undefined, false, false)
     } catch (error) {
       this.warn(operation, 'harness:interrupts', error)
-      operation.fail('failed', error)
-      this.publishFinished(operation)
-      this.requeueWaitingSteers()
-      return
+      return failEarly(error)
     }
     if (turn.inputId) {
       try {
@@ -264,10 +290,7 @@ export abstract class SessionTurn<
       } catch (error) {
         // The log refused the write, so the session stops.
         await this.refreshTurnInterrupts(operation)
-        operation.fail('failed', this.logFailure ?? error)
-        this.publishFinished(operation)
-        this.requeueWaitingSteers()
-        return
+        return failEarly(error)
       }
     }
     let releaseLease: (() => Promise<void>) | undefined
@@ -275,10 +298,7 @@ export abstract class SessionTurn<
       releaseLease = await this.holdLease(turn.inputId, operation)
     } catch (error) {
       await this.refreshTurnInterrupts(operation)
-      operation.fail('failed', error)
-      this.publishFinished(operation)
-      this.requeueWaitingSteers()
-      return
+      return failEarly(error)
     }
     const stopTimer = this.startTimeout(turn.inputId, operation)
     this.publishStarted(operation)

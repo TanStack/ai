@@ -438,6 +438,79 @@ describe('inbox', () => {
     ])
     await host.close()
   })
+
+  it('fails a command whose input the inbox cannot store', async () => {
+    const { persistence, host } = setup()
+    const session = await host.open(
+      defineHarness({
+        name: 'test/inbox-down',
+        adapter: mockAdapter([]).adapter,
+      }),
+      { threadId: 't1' },
+    )
+    vi.spyOn(persistence.stores.inbox, 'append').mockRejectedValue(
+      new Error('inbox down'),
+    )
+
+    await expect(session.command('anything')).rejects.toThrow('inbox down')
+    await host.close()
+  })
+
+  it('warns when the inbox cannot mark an input rejected', async () => {
+    const { persistence, host } = setup()
+    const session = await host.open(
+      defineHarness({
+        name: 'test/inbox-reject',
+        adapter: mockAdapter([]).adapter,
+      }),
+      { threadId: 't1' },
+    )
+    vi.spyOn(persistence.stores.inbox, 'markRejected').mockRejectedValue(
+      new Error('inbox down'),
+    )
+    const warnings: Array<unknown> = []
+    session.onEvent(EventType.CUSTOM, ({ event }) => {
+      if (event.name === 'harness.plugin.warning') warnings.push(event.value)
+    })
+
+    expect(await session.cancel('op-unknown')).toMatchObject({
+      status: 'rejected',
+      reason: 'not_running',
+    })
+    await vi.waitFor(() =>
+      expect(warnings).toEqual([
+        { plugin: 'harness:inbox', message: 'inbox down' },
+      ]),
+    )
+    await host.close()
+  })
+
+  it('settles a turn as failed when it fails before it runs', async () => {
+    const { persistence, host } = setup()
+    const session = await host.open(
+      defineHarness({
+        name: 'test/early-fail',
+        adapter: mockAdapter([]).adapter,
+      }),
+      { threadId: 't1' },
+    )
+    vi.spyOn(persistence.stores.interrupts, 'listPending').mockRejectedValue(
+      new Error('interrupts down'),
+    )
+
+    const turn = session.prompt('Go.', { inputId: 'in-early' })
+    await expect(turn).rejects.toThrow('interrupts down')
+    expect(await session.settled('in-early')).toMatchObject({
+      outcome: 'failed',
+      error: { message: 'interrupts down' },
+    })
+    const events: Array<StreamChunk> = []
+    for await (const chunk of turn.stream()) events.push(chunk)
+    expect(events.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
+      true,
+    )
+    await host.close()
+  })
 })
 
 describe('plugins', () => {

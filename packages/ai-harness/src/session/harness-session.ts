@@ -254,7 +254,9 @@ export class HarnessSession<
       if (!operation.isSettled())
         operation.abortController.abort(this.logFailure)
     }
-    void this.close()
+    // The feed closes with the session, so a failed plugin dispose has no one
+    // to tell.
+    this.close().catch(() => {})
   }
 
   /**

@@ -668,3 +668,29 @@ describe('messages to an agent run after its host stopped', () => {
     await hostB.close()
   })
 })
+
+describe('an agent run whose store fails', () => {
+  it('fails the run when the run store cannot record its end', async () => {
+    const persistence = memoryPersistence()
+    const { runs } = persistence.stores
+    const update = runs.update.bind(runs)
+    let agentRunId = ''
+    // Only the end record of the agent run itself fails.
+    vi.spyOn(runs, 'update').mockImplementation(async (runId, patch) => {
+      if (runId === agentRunId && patch.status === 'completed') {
+        throw new Error('runs down')
+      }
+      return update(runId, patch)
+    })
+    const { session, host } = await open(
+      writing(mockAdapter([() => text('Done.')]).adapter),
+      persistence,
+    )
+
+    const run = session.agents.writer.start(undefined)
+    agentRunId = run.id
+    await expect(run).rejects.toThrow('runs down')
+    expect(run.status()).toBe('failed')
+    await host.close()
+  })
+})

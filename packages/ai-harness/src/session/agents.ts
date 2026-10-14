@@ -542,8 +542,13 @@ export abstract class SessionAgents<
     const cancelOthers = (failed: OperationImpl<unknown>) => {
       if (options.onFailure === 'collect') return
       for (const operation of started) {
-        if (operation !== failed && !operation.isSettled())
-          void operation.cancel()
+        if (operation !== failed && !operation.isSettled()) {
+          operation
+            .cancel()
+            .catch((error: unknown) =>
+              this.warnSession('harness:agents', error),
+            )
+        }
       }
     }
     const group: AgentGroup = {
@@ -584,6 +589,9 @@ export abstract class SessionAgents<
   ): Promise<void> {
     try {
       await this.runAgentOnce(operation, chain, start)
+    } catch (error) {
+      // A store write threw. The run still ends.
+      this.failOperation(operation, error)
     } finally {
       // After a log failure, another host owns the thread.
       if (!this.logFailure) {
@@ -860,42 +868,46 @@ export abstract class SessionAgents<
       await this.giveBack(operation, releaseLease)
       return
     }
-    if (operation.abortController.signal.aborted) {
-      operation.publish({
-        type: EventType.RUN_FINISHED,
-        runId: operation.id,
-        threadId: this.threadId,
-        outcome: { type: 'cancelled' },
-        timestamp: Date.now(),
-      } as StreamChunk)
-      await end({ status: 'aborted' }, { outcome: 'aborted' })
-      operation.fail('cancelled', new Error('Cancelled.'))
-    } else if (failure !== undefined) {
-      operation.publish({
-        type: EventType.RUN_ERROR,
-        message: failure,
-        timestamp: Date.now(),
-      })
-      const error = { message: failure }
-      await end({ status: 'failed', error }, { outcome: 'failed', error })
-      await this.noteAgentEnd(name, 'failed', failure, options, principal)
-      operation.fail('failed', new Error(failure))
-    } else {
-      operation.publish({
-        type: EventType.RUN_FINISHED,
-        runId: operation.id,
-        threadId: this.threadId,
-        result: value,
-        timestamp: Date.now(),
-      } as StreamChunk)
-      await end(
-        { status: 'completed', result: compactForModel(value) },
-        { outcome: 'completed' },
-      )
-      await this.noteAgentEnd(name, 'finished', value, options, principal)
-      operation.finish('completed', value)
+    try {
+      if (operation.abortController.signal.aborted) {
+        operation.publish({
+          type: EventType.RUN_FINISHED,
+          runId: operation.id,
+          threadId: this.threadId,
+          outcome: { type: 'cancelled' },
+          timestamp: Date.now(),
+        } as StreamChunk)
+        await end({ status: 'aborted' }, { outcome: 'aborted' })
+        operation.fail('cancelled', new Error('Cancelled.'))
+      } else if (failure !== undefined) {
+        operation.publish({
+          type: EventType.RUN_ERROR,
+          message: failure,
+          timestamp: Date.now(),
+        })
+        const error = { message: failure }
+        await end({ status: 'failed', error }, { outcome: 'failed', error })
+        await this.noteAgentEnd(name, 'failed', failure, options, principal)
+        operation.fail('failed', new Error(failure))
+      } else {
+        operation.publish({
+          type: EventType.RUN_FINISHED,
+          runId: operation.id,
+          threadId: this.threadId,
+          result: value,
+          timestamp: Date.now(),
+        } as StreamChunk)
+        await end(
+          { status: 'completed', result: compactForModel(value) },
+          { outcome: 'completed' },
+        )
+        await this.noteAgentEnd(name, 'finished', value, options, principal)
+        operation.finish('completed', value)
+      }
+    } finally {
+      // Also when a store write above threw: a run lease must not renew forever.
+      stopRunLease()
     }
-    stopRunLease()
     await releaseLease?.()
     this.publishFinished(operation)
   }
@@ -952,10 +964,10 @@ export abstract class SessionAgents<
       await this.addNote(note)
     }
     if (options.wake) {
-      void this.queueFollowUp(`Background agent ${name} ${ended}: ${note}`, {
+      this.queueFollowUp(`Background agent ${name} ${ended}: ${note}`, {
         ...(principal ? { principal } : {}),
         wake: true,
-      })
+      }).catch((error: unknown) => this.warnSession('harness:agents', error))
     }
   }
 
