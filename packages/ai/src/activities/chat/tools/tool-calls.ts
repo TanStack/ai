@@ -1,4 +1,4 @@
-import { reconcileToolCallArguments } from '../../../utilities/tool-call-arguments'
+import { finishToolCallArguments } from '../../../utilities/tool-call-arguments'
 import { normalizeToolResult } from '../../../utilities/tool-result'
 import { tanstackMetadata } from '../../../utilities/merge-metadata'
 import { isProviderExecutedToolCall } from '../../../utilities/provider-executed'
@@ -353,37 +353,16 @@ export class ToolCallManager<
    * Complete a tool call with its final input
    * Called when TOOL_CALL_END is received
    */
-  completeToolCall(event: ToolCallEndEvent): void {
+  completeToolCall(
+    event: ToolCallEndEvent,
+  ): { args: string; input: unknown } | undefined {
     for (const toolCall of this.toolCallsMap.values()) {
       if (toolCall.id !== event.toolCallId) continue
-      // The provider's raw argument string wins when the parsed input is the
-      // same JSON value, so replay sends the exact bytes back. Malformed raw
-      // JSON stays as it is, for the tool error.
-      const extra = event as AdapterYieldChunk
-      const snapshot = extra.args ?? tanstackMetadata(extra)?.args
-      // A non-object input (an empty tool_use block) is `{}`.
-      const input =
-        event.input === undefined
-          ? undefined
-          : event.input && typeof event.input === 'object'
-            ? event.input
-            : {}
-      let raw: string | undefined = snapshot ?? toolCall.function.arguments
-      if (snapshot === undefined && input !== undefined) {
-        try {
-          JSON.parse(raw)
-        } catch {
-          raw = undefined
-        }
-      }
-      try {
-        toolCall.function.arguments = reconcileToolCallArguments(raw, input)
-      } catch {
-        // An input with no JSON form (a cycle): keep the raw arguments.
-        if (raw !== undefined) toolCall.function.arguments = raw
-      }
-      return
+      const final = finishToolCallArguments(toolCall.function.arguments, event)
+      toolCall.function.arguments = final.args
+      return final
     }
+    return undefined
   }
 
   /**
