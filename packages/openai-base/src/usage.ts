@@ -90,10 +90,10 @@ export function buildChatCompletionsUsage(
  * `ResponseUsage` object.
  *
  * Shared by every provider that routes through
- * {@link OpenAIBaseResponsesTextAdapter}. Surfaces cached prompt tokens and
- * reasoning detail tokens when present. Returns `undefined` when the provider
- * reported no usage object, so callers omit the field rather than fabricating
- * zeroed totals.
+ * {@link OpenAIBaseResponsesTextAdapter}. Surfaces cache read and cache
+ * write prompt tokens and reasoning detail tokens when present. Returns
+ * `undefined` when the provider reported no usage object, so callers omit the
+ * field rather than fabricating zeroed totals.
  */
 export function buildResponsesUsage(
   usage: OpenAI.Responses.ResponseUsage | undefined | null,
@@ -107,13 +107,19 @@ export function buildResponsesUsage(
   })
 
   // Despite the SDK types marking these required, they can be undefined at runtime.
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  const cachedTokens = usage.input_tokens_details?.cached_tokens
-  if (cachedTokens && cachedTokens > 0) {
-    result.promptTokensDetails = {
-      ...result.promptTokensDetails,
-      cachedTokens,
-    }
+  const inputDetails = usage.input_tokens_details
+  const promptTokensDetails = {
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    ...(inputDetails?.cached_tokens
+      ? { cachedTokens: inputDetails.cached_tokens }
+      : {}),
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    ...(inputDetails?.cache_write_tokens
+      ? { cacheWriteTokens: inputDetails.cache_write_tokens }
+      : {}),
+  }
+  if (Object.keys(promptTokensDetails).length > 0) {
+    result.promptTokensDetails = promptTokensDetails
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
