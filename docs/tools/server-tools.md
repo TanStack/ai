@@ -415,7 +415,8 @@ The JSON Schema checks each call before the tool runs. MCP tools get the same ch
 Input validation failed for tool get_user_data: #: Instance does not have required property "userId".
 ```
 
-- The check uses the draft that `$schema` names: draft-04, draft-07, 2019-09, or 2020-12. With no `$schema`, it uses 2020-12.
+- The check uses the draft that `$schema` names: draft-04, draft-07, 2019-09, or 2020-12.
+- With no `$schema`, the check uses 2020-12. If `exclusiveMinimum` or `exclusiveMaximum` is a boolean, the check uses draft-04.
 - The check does not test `format` (such as `uri` or `email`). A `format` only describes the value.
 - The check does not compile code, so it also runs on Cloudflare Workers.
 - `args` is still typed as `unknown`. A Zod schema gives you the type too.

@@ -1,4 +1,4 @@
-import { Validator } from '@cfworker/json-schema'
+import { Validator, initialBaseURI } from '@cfworker/json-schema'
 import {
   StandardSchemaValidationError,
   convertSchemaToJsonSchema,
@@ -11,8 +11,8 @@ import type { JSONSchema, SchemaInput } from '../../../types'
 const validators = new WeakMap<JSONSchema, Validator>()
 
 /**
- * The draft named by `$schema`. Default: 2020-12. A schema with no `$schema`
- * that writes `exclusiveMinimum: true` (draft-04, OpenAPI 3.0) is draft-04.
+ * The draft named by `$schema`. Default: 2020-12. With no `$schema`, a
+ * boolean `exclusiveMinimum` or `exclusiveMaximum` is draft-04.
  */
 function draftOf(schema: JSONSchema, json: string): SchemaDraft {
   const uri = typeof schema.$schema === 'string' ? schema.$schema : ''
@@ -79,8 +79,13 @@ function validateJsonInput(
   } catch (error) {
     // A schema the validator cannot use, such as an unresolved `$ref`, or a
     // value with no JSON form. The first line is enough for the model.
+    // Drop the validator base (in a browser, the page URL and its query).
     const message = error instanceof Error ? error.message : String(error)
-    errors = message.split('\n', 1).join('')
+    errors = message
+      .split('\n')[0]
+      .replaceAll(initialBaseURI.href, '')
+      .replace(/ +Absolute URI "[^"]*"\.?/, '')
+      .trim()
   }
   throw new Error(
     `Input validation failed for tool ${toolName}: ${errors}\nReceived arguments:\n${receivedArgumentsText(received)}`,

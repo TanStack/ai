@@ -13,6 +13,7 @@ import type { ChatMiddleware } from '../src/activities/chat/middleware/types'
 import type { ToolExecutionMiddlewareHooks } from '../src/activities/chat/tools/tool-calls'
 import type { ToolApprovalResolution } from '../src/interrupts'
 import type {
+  AnyTool,
   JSONSchema,
   ModelMessage,
   SchemaInput,
@@ -25,7 +26,7 @@ const schema = z.object({ count: z.number().int().min(1) })
 
 async function runTool(
   rawArguments: string,
-  inputSchema: SchemaInput,
+  inputSchema: SchemaInput | boolean,
   options: {
     client?: boolean
     needsApproval?: boolean
@@ -35,7 +36,7 @@ async function runTool(
   } = {},
 ) {
   const executed: Array<unknown> = []
-  const tool: Tool = {
+  const tool: AnyTool = {
     name: 'check',
     description: 'Check input',
     inputSchema,
@@ -420,6 +421,38 @@ describe('JSON Schema tool input', () => {
       'Known schemas',
     )
   })
+
+  it('omits the validator base URI from a schema error', async () => {
+    const missing = await runTool('{"count":2}', {
+      type: 'object',
+      properties: { count: { $ref: '#/$defs/missing' } },
+    })
+    expect(missing.results[0]?.result).toEqual({
+      error: expect.stringContaining('Unresolved $ref "#/$defs/missing"'),
+    })
+    const missingError = JSON.stringify(missing.results[0]?.result)
+    expect(missingError).not.toContain('Absolute URI')
+    expect(missingError).not.toContain('github.com')
+    expect(missingError).not.toContain('Known schemas')
+
+    const duplicate = await runTool('{"count":2}', {
+      type: 'object',
+      properties: { count: { $id: 'https://github.com/cfworker' } },
+    })
+    const duplicateError = JSON.stringify(duplicate.results[0]?.result)
+    expect(duplicate.executed).toEqual([])
+    expect(duplicateError).toContain('Duplicate schema URI')
+    expect(duplicateError).not.toContain('github.com')
+  })
+
+  it.each([false, true])(
+    'a boolean schema %s runs only when the schema is true',
+    async (inputSchema) => {
+      const result = await runTool('{"count":2}', inputSchema)
+      expect(result.executed).toEqual(inputSchema ? [{ count: 2 }] : [])
+      if (!inputSchema) expect(result.results[0]?.state).toBe('output-error')
+    },
+  )
 
   it('reads a boolean exclusive bound with no $schema as draft-04', async () => {
     const schema: JSONSchema = JSON.parse(
