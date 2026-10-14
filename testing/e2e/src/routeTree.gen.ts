@@ -84,8 +84,6 @@ import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-del
 import { Route as ApiDurableTakeoverRouteImport } from './routes/api.durable-takeover'
 import { Route as ApiEmbeddingRouteImport } from './routes/api.embedding'
 import { Route as ApiFakeTextRouteImport } from './routes/api.fake-text'
-import { Route as ApiHarnessContinueRouteImport } from './routes/api.harness-continue'
-import { Route as ApiHarnessRetryAfterRouteImport } from './routes/api.harness-retry-after'
 import { Route as ApiFileSourceWireRouteImport } from './routes/api.file-source-wire'
 import { Route as ApiForeignChunkEventsRouteImport } from './routes/api.foreign-chunk-events'
 import { Route as ApiForeignClientToolRouteImport } from './routes/api.foreign-client-tool'
@@ -94,6 +92,9 @@ import { Route as ApiGeminiImageGaModelsRouteImport } from './routes/api.gemini-
 import { Route as ApiGeminiNativeImageWireRouteImport } from './routes/api.gemini-native-image-wire'
 import { Route as ApiGenerationPersistenceResumeRouteImport } from './routes/api.generation-persistence-resume'
 import { Route as ApiGenerationPersistenceServerRouteImport } from './routes/api.generation-persistence-server'
+import { Route as ApiHarnessContinueRouteImport } from './routes/api.harness-continue'
+import { Route as ApiHarnessForwardingRouteImport } from './routes/api.harness-forwarding'
+import { Route as ApiHarnessRetryAfterRouteImport } from './routes/api.harness-retry-after'
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiInterruptsTestRouteImport } from './routes/api.interrupts-test'
 import { Route as ApiJoinRunClientToolRouteImport } from './routes/api.join-run-client-tool'
@@ -572,16 +573,6 @@ const ApiFakeTextRoute = ApiFakeTextRouteImport.update({
   path: '/api/fake-text',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiHarnessContinueRoute = ApiHarnessContinueRouteImport.update({
-  id: '/api/harness-continue',
-  path: '/api/harness-continue',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiHarnessRetryAfterRoute = ApiHarnessRetryAfterRouteImport.update({
-  id: '/api/harness-retry-after',
-  path: '/api/harness-retry-after',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiFileSourceWireRoute = ApiFileSourceWireRouteImport.update({
   id: '/api/file-source-wire',
   path: '/api/file-source-wire',
@@ -625,6 +616,21 @@ const ApiGenerationPersistenceServerRoute =
     path: '/api/generation-persistence-server',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiHarnessContinueRoute = ApiHarnessContinueRouteImport.update({
+  id: '/api/harness-continue',
+  path: '/api/harness-continue',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHarnessForwardingRoute = ApiHarnessForwardingRouteImport.update({
+  id: '/api/harness-forwarding',
+  path: '/api/harness-forwarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHarnessRetryAfterRoute = ApiHarnessRetryAfterRouteImport.update({
+  id: '/api/harness-retry-after',
+  path: '/api/harness-retry-after',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiImageRoute = ApiImageRouteImport.update({
   id: '/api/image',
   path: '/api/image',
@@ -1147,8 +1153,6 @@ export interface FileRoutesByFullPath {
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
   '/api/fake-text': typeof ApiFakeTextRoute
-  '/api/harness-continue': typeof ApiHarnessContinueRoute
-  '/api/harness-retry-after': typeof ApiHarnessRetryAfterRoute
   '/api/file-source-wire': typeof ApiFileSourceWireRoute
   '/api/foreign-chunk-events': typeof ApiForeignChunkEventsRoute
   '/api/foreign-client-tool': typeof ApiForeignClientToolRoute
@@ -1157,6 +1161,9 @@ export interface FileRoutesByFullPath {
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
+  '/api/harness-continue': typeof ApiHarnessContinueRoute
+  '/api/harness-forwarding': typeof ApiHarnessForwardingRoute
+  '/api/harness-retry-after': typeof ApiHarnessRetryAfterRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
@@ -1319,8 +1326,6 @@ export interface FileRoutesByTo {
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
   '/api/fake-text': typeof ApiFakeTextRoute
-  '/api/harness-continue': typeof ApiHarnessContinueRoute
-  '/api/harness-retry-after': typeof ApiHarnessRetryAfterRoute
   '/api/file-source-wire': typeof ApiFileSourceWireRoute
   '/api/foreign-chunk-events': typeof ApiForeignChunkEventsRoute
   '/api/foreign-client-tool': typeof ApiForeignClientToolRoute
@@ -1329,6 +1334,9 @@ export interface FileRoutesByTo {
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
+  '/api/harness-continue': typeof ApiHarnessContinueRoute
+  '/api/harness-forwarding': typeof ApiHarnessForwardingRoute
+  '/api/harness-retry-after': typeof ApiHarnessRetryAfterRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
@@ -1492,8 +1500,6 @@ export interface FileRoutesById {
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
   '/api/fake-text': typeof ApiFakeTextRoute
-  '/api/harness-continue': typeof ApiHarnessContinueRoute
-  '/api/harness-retry-after': typeof ApiHarnessRetryAfterRoute
   '/api/file-source-wire': typeof ApiFileSourceWireRoute
   '/api/foreign-chunk-events': typeof ApiForeignChunkEventsRoute
   '/api/foreign-client-tool': typeof ApiForeignClientToolRoute
@@ -1502,6 +1508,9 @@ export interface FileRoutesById {
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
+  '/api/harness-continue': typeof ApiHarnessContinueRoute
+  '/api/harness-forwarding': typeof ApiHarnessForwardingRoute
+  '/api/harness-retry-after': typeof ApiHarnessRetryAfterRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
@@ -1666,8 +1675,6 @@ export interface FileRouteTypes {
     | '/api/durable-takeover'
     | '/api/embedding'
     | '/api/fake-text'
-    | '/api/harness-continue'
-    | '/api/harness-retry-after'
     | '/api/file-source-wire'
     | '/api/foreign-chunk-events'
     | '/api/foreign-client-tool'
@@ -1676,6 +1683,9 @@ export interface FileRouteTypes {
     | '/api/gemini-native-image-wire'
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
+    | '/api/harness-continue'
+    | '/api/harness-forwarding'
+    | '/api/harness-retry-after'
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
@@ -1838,8 +1848,6 @@ export interface FileRouteTypes {
     | '/api/durable-takeover'
     | '/api/embedding'
     | '/api/fake-text'
-    | '/api/harness-continue'
-    | '/api/harness-retry-after'
     | '/api/file-source-wire'
     | '/api/foreign-chunk-events'
     | '/api/foreign-client-tool'
@@ -1848,6 +1856,9 @@ export interface FileRouteTypes {
     | '/api/gemini-native-image-wire'
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
+    | '/api/harness-continue'
+    | '/api/harness-forwarding'
+    | '/api/harness-retry-after'
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
@@ -2010,8 +2021,6 @@ export interface FileRouteTypes {
     | '/api/durable-takeover'
     | '/api/embedding'
     | '/api/fake-text'
-    | '/api/harness-continue'
-    | '/api/harness-retry-after'
     | '/api/file-source-wire'
     | '/api/foreign-chunk-events'
     | '/api/foreign-client-tool'
@@ -2020,6 +2029,9 @@ export interface FileRouteTypes {
     | '/api/gemini-native-image-wire'
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
+    | '/api/harness-continue'
+    | '/api/harness-forwarding'
+    | '/api/harness-retry-after'
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
@@ -2183,8 +2195,6 @@ export interface RootRouteChildren {
   ApiDurableTakeoverRoute: typeof ApiDurableTakeoverRoute
   ApiEmbeddingRoute: typeof ApiEmbeddingRoute
   ApiFakeTextRoute: typeof ApiFakeTextRoute
-  ApiHarnessContinueRoute: typeof ApiHarnessContinueRoute
-  ApiHarnessRetryAfterRoute: typeof ApiHarnessRetryAfterRoute
   ApiFileSourceWireRoute: typeof ApiFileSourceWireRoute
   ApiForeignChunkEventsRoute: typeof ApiForeignChunkEventsRoute
   ApiForeignClientToolRoute: typeof ApiForeignClientToolRoute
@@ -2193,6 +2203,9 @@ export interface RootRouteChildren {
   ApiGeminiNativeImageWireRoute: typeof ApiGeminiNativeImageWireRoute
   ApiGenerationPersistenceResumeRoute: typeof ApiGenerationPersistenceResumeRoute
   ApiGenerationPersistenceServerRoute: typeof ApiGenerationPersistenceServerRoute
+  ApiHarnessContinueRoute: typeof ApiHarnessContinueRoute
+  ApiHarnessForwardingRoute: typeof ApiHarnessForwardingRoute
+  ApiHarnessRetryAfterRoute: typeof ApiHarnessRetryAfterRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
   ApiInterruptsTestRoute: typeof ApiInterruptsTestRoute
   ApiJoinRunClientToolRoute: typeof ApiJoinRunClientToolRoute
@@ -2803,20 +2816,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiFakeTextRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/harness-continue': {
-      id: '/api/harness-continue'
-      path: '/api/harness-continue'
-      fullPath: '/api/harness-continue'
-      preLoaderRoute: typeof ApiHarnessContinueRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/harness-retry-after': {
-      id: '/api/harness-retry-after'
-      path: '/api/harness-retry-after'
-      fullPath: '/api/harness-retry-after'
-      preLoaderRoute: typeof ApiHarnessRetryAfterRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/file-source-wire': {
       id: '/api/file-source-wire'
       path: '/api/file-source-wire'
@@ -2871,6 +2870,27 @@ declare module '@tanstack/react-router' {
       path: '/api/generation-persistence-server'
       fullPath: '/api/generation-persistence-server'
       preLoaderRoute: typeof ApiGenerationPersistenceServerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/harness-continue': {
+      id: '/api/harness-continue'
+      path: '/api/harness-continue'
+      fullPath: '/api/harness-continue'
+      preLoaderRoute: typeof ApiHarnessContinueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/harness-forwarding': {
+      id: '/api/harness-forwarding'
+      path: '/api/harness-forwarding'
+      fullPath: '/api/harness-forwarding'
+      preLoaderRoute: typeof ApiHarnessForwardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/harness-retry-after': {
+      id: '/api/harness-retry-after'
+      path: '/api/harness-retry-after'
+      fullPath: '/api/harness-retry-after'
+      preLoaderRoute: typeof ApiHarnessRetryAfterRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/image': {
@@ -3609,8 +3629,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiDurableTakeoverRoute: ApiDurableTakeoverRoute,
   ApiEmbeddingRoute: ApiEmbeddingRoute,
   ApiFakeTextRoute: ApiFakeTextRoute,
-  ApiHarnessContinueRoute: ApiHarnessContinueRoute,
-  ApiHarnessRetryAfterRoute: ApiHarnessRetryAfterRoute,
   ApiFileSourceWireRoute: ApiFileSourceWireRoute,
   ApiForeignChunkEventsRoute: ApiForeignChunkEventsRoute,
   ApiForeignClientToolRoute: ApiForeignClientToolRoute,
@@ -3619,6 +3637,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGeminiNativeImageWireRoute: ApiGeminiNativeImageWireRoute,
   ApiGenerationPersistenceResumeRoute: ApiGenerationPersistenceResumeRoute,
   ApiGenerationPersistenceServerRoute: ApiGenerationPersistenceServerRoute,
+  ApiHarnessContinueRoute: ApiHarnessContinueRoute,
+  ApiHarnessForwardingRoute: ApiHarnessForwardingRoute,
+  ApiHarnessRetryAfterRoute: ApiHarnessRetryAfterRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
   ApiInterruptsTestRoute: ApiInterruptsTestRoute,
   ApiJoinRunClientToolRoute: ApiJoinRunClientToolRoute,
