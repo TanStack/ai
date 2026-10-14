@@ -322,17 +322,56 @@ function fromCompactedItem(
       content: item.content.map((part): ContentPart => {
         if (isRecord(part) && typeof part.text === 'string')
           return { type: 'text', content: part.text }
-        if (
-          isRecord(part) &&
-          part.type === 'input_image' &&
-          typeof part.image_url === 'string'
-        )
-          return {
-            type: 'image',
-            source: { type: 'url', value: part.image_url },
-          }
-        // ponytail: text and image urls only. Map files here when a
-        // compacted history holds them.
+        if (isRecord(part) && part.type === 'input_image') {
+          if (typeof part.image_url === 'string')
+            return {
+              type: 'image',
+              source: { type: 'url', value: part.image_url },
+            }
+          if (typeof part.file_id === 'string')
+            return {
+              type: 'image',
+              source: { type: 'file', value: part.file_id },
+            }
+        }
+        if (isRecord(part) && part.type === 'input_file') {
+          if (typeof part.file_id === 'string')
+            return {
+              type: 'document',
+              source: { type: 'file', value: part.file_id },
+            }
+          if (typeof part.file_url === 'string')
+            return {
+              type: 'document',
+              source: { type: 'url', value: part.file_url },
+            }
+          if (
+            typeof part.file_data === 'string' &&
+            typeof part.filename === 'string'
+          )
+            return {
+              type: 'document',
+              source: {
+                type: 'data',
+                value: part.file_data,
+                mimeType: 'application/pdf',
+              },
+              metadata: { filename: part.filename },
+            }
+          // Audio leaves as input_file with file_data and no filename.
+          if (typeof part.file_data === 'string')
+            return {
+              type: 'audio',
+              source: {
+                type: 'data',
+                value: part.file_data,
+                mimeType: 'application/octet-stream',
+              },
+            }
+        }
+        // ponytail: other item types still throw. A throw with no HTTP
+        // status does not latch. Pass an item through when a real compact
+        // result holds one.
         throw new Error(
           `Cannot map a compacted ${isRecord(part) ? String(part.type) : 'part'} part.`,
         )

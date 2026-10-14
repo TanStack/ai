@@ -7,7 +7,9 @@ import type { ClientOptions } from 'openai'
 const logger = resolveDebugOption(false)
 const model = 'gpt-5.5'
 
-class Responses extends OpenAIBaseResponsesTextAdapter<string> {}
+class Responses extends OpenAIBaseResponsesTextAdapter<string> {
+  override readonly supportsFileSources = true
+}
 
 const compacted = {
   id: 'resp_compact_1',
@@ -188,6 +190,79 @@ describe('Responses adapter compact', () => {
           role: 'user',
           content: [{ type: 'input_text', text: 'Go on' }],
         },
+      ],
+    })
+  })
+
+  it('sends file, audio, and document parts back on the next call', async () => {
+    const pdfData = `data:${'application/pdf'};base64,${Buffer.from('%PDF-').toString('base64')}`
+    const mediaContent = [
+      { type: 'input_text', text: 'See the file' },
+      { type: 'input_image', file_id: 'file_img' },
+      { type: 'input_file', file_id: 'file_pdf' },
+      { type: 'input_file', file_url: 'https://example.com/note.pdf' },
+      { type: 'input_file', filename: 'note.pdf', file_data: pdfData },
+      {
+        type: 'input_file',
+        file_data: 'data:application/octet-stream;base64,QQ==',
+      },
+    ]
+    const withMedia = {
+      ...compacted,
+      output: [
+        {
+          type: 'message',
+          id: 'msg_media',
+          role: 'user',
+          status: 'completed',
+          content: mediaContent,
+        },
+        { type: 'compaction', id: 'cmp_1', encrypted_content: 'sealed' },
+      ],
+    }
+    const { client, sent } = recordingClient(
+      () =>
+        new Response(`data: ${JSON.stringify(done)}\n\n`, {
+          headers: { 'content-type': 'text/event-stream' },
+        }),
+    )
+    const adapter = new Responses(model, 'openai', client)
+    const history = await new Responses(
+      model,
+      'openai',
+      recordingClient(() => Response.json(withMedia)).client,
+    ).compact({ model, messages: [{ role: 'user', content: 'See the file' }] })
+
+    for await (const _ of adapter.chatStream({
+      logger,
+      model,
+      messages: history,
+    })) {
+      // drain
+    }
+
+    expect(sent[0]?.body).toMatchObject({
+      input: [
+        {
+          type: 'message',
+          role: 'user',
+          content: [
+            { type: 'input_text', text: 'See the file' },
+            { type: 'input_image', file_id: 'file_img', detail: 'auto' },
+            { type: 'input_file', file_id: 'file_pdf' },
+            { type: 'input_file', file_url: 'https://example.com/note.pdf' },
+            {
+              type: 'input_file',
+              filename: 'note.pdf',
+              file_data: pdfData,
+            },
+            {
+              type: 'input_file',
+              file_data: 'data:application/octet-stream;base64,QQ==',
+            },
+          ],
+        },
+        { type: 'compaction', id: 'cmp_1', encrypted_content: 'sealed' },
       ],
     })
   })
