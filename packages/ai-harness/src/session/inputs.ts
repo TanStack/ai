@@ -622,7 +622,7 @@ export abstract class SessionInputs<
     } else {
       operation.publish({
         type: EventType.RUN_ERROR,
-        message: errorText(this.logFailure ?? error),
+        message: this.scrub(errorText(this.logFailure ?? error)),
         timestamp: Date.now(),
       })
       operation.fail('failed', this.logFailure ?? error)

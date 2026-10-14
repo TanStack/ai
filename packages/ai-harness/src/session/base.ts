@@ -154,6 +154,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected readonly operations = new Map<string, OperationImpl<unknown>>()
   /** The ids of the settled operations in `operations`, oldest first. */
   protected readonly settledIds: Array<string> = []
+  /** The ids of forgotten operations, so a client `runId` stays unique. */
+  protected readonly retiredIds = new Set<string>()
   /** The agent chains of this session, by the input id of the first run. */
   protected readonly agentChains = new Map<string, AgentChain>()
   /** The chain of each agent run operation, by operation id. */
@@ -399,8 +401,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   }
 
   /**
-   * An operation of this session by id: a running one, or one of the last
-   * 500 that settled.
+   * An operation of this session by id: a running one, an agent run, or one
+   * of the last 500 other operations that settled.
    */
   operation(id: string): Operation<unknown> | undefined {
     return this.operations.get(id)
@@ -409,6 +411,10 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   /** Keep `operation` in `operations`. Once settled, it joins the window. */
   protected track(operation: OperationImpl<unknown>): void {
     this.operations.set(operation.id, operation)
+    // ponytail: agent runs stay, so `agentRuns()` lists every run and a
+    // message to an ended run starts its follow-up. Memory grows with the
+    // number of agent runs. Bound them too if a session runs thousands.
+    if (operation.kind === 'agent') return
     const settled = () => {
       this.settledIds.push(operation.id)
       const old =
@@ -421,6 +427,9 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   /** Drop what this session keeps for the settled operation `id`. */
   protected forget(id: string): void {
     this.operations.delete(id)
+    // ponytail: only the id stays, so a reused `runId` is still refused.
+    this.retiredIds.add(id)
+    this.turnJoins.delete(id)
     const inputId = this.operationInputs.get(id)
     this.operationInputs.delete(id)
     if (inputId !== undefined && this.turnOperations.get(inputId)?.id === id) {
@@ -429,13 +438,6 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       this.receipts.delete(inputId)
       this.settlements.delete(inputId)
     }
-    const chain = this.chainOf.get(id)
-    this.chainOf.delete(id)
-    const isChainDone =
-      chain?.current.operation.id === id &&
-      chain.followUps.length === 0 &&
-      chain.steers.length === 0
-    if (chain && isChainDone) this.agentChains.delete(chain.runInputId)
     // Steers and agent inputs have no operation of their own here.
     for (const map of [this.receipts, this.settlements]) {
       for (const key of map.keys()) {
@@ -697,7 +699,9 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       'session',
       customEvent('harness.plugin.warning', {
         plugin,
-        message: error instanceof Error ? error.message : String(error),
+        message: this.scrub(
+          error instanceof Error ? error.message : String(error),
+        ),
       }),
     )
   }
@@ -774,7 +778,9 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     operation.publish(
       customEvent('harness.plugin.warning', {
         plugin,
-        message: error instanceof Error ? error.message : String(error),
+        message: this.scrub(
+          error instanceof Error ? error.message : String(error),
+        ),
       }),
     )
   }
@@ -857,6 +863,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected abstract pluginApi(
     principal?: Principal,
     metadataSchema?: SchemaInput,
+    operationId?: string,
   ): PluginSessionApi
   protected abstract resumeSignIns(): Promise<void>
   protected abstract runAgent(

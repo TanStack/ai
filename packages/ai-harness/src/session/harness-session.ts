@@ -150,7 +150,9 @@ export class HarnessSession<
       this.agentRegistry.deletePluginAgents()
       this.feed.publish(
         'session',
-        customEvent(HARNESS_EVENTS.reloaded, { error: errorText(error) }),
+        customEvent(HARNESS_EVENTS.reloaded, {
+          error: this.scrub(errorText(error)),
+        }),
       )
       throw error
     } finally {
@@ -252,7 +254,9 @@ export class HarnessSession<
     this.logFailure = new Error(
       error instanceof LogConflictError
         ? 'Another host wrote to this log, so this session stopped. Open the thread again.'
-        : `The session log failed, so this session stopped: ${error instanceof Error ? error.message : String(error)}`,
+        : this.scrub(
+            `The session log failed, so this session stopped: ${error instanceof Error ? error.message : String(error)}`,
+          ),
     )
     for (const operation of this.operations.values()) {
       if (!operation.isSettled())

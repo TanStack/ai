@@ -101,7 +101,10 @@ export abstract class SessionRequests<
     if (known) return known
     const runId = options?.runId
     // A run id must not take the id of another operation.
-    if (runId !== undefined && this.operations.has(runId)) {
+    if (
+      runId !== undefined &&
+      (this.operations.has(runId) || this.retiredIds.has(runId))
+    ) {
       const refused = this.createTurnOperation()
       this.refuse(refused, { inputId, status: 'rejected', reason: 'conflict' })
       return refused
@@ -426,7 +429,9 @@ export abstract class SessionRequests<
       // A run id must not take the id of another operation or stored run.
       const isTaken =
         runId !== undefined &&
-        (this.operations.has(runId) || (await this.isRunTaken(runId)))
+        (this.operations.has(runId) ||
+          this.retiredIds.has(runId) ||
+          (await this.isRunTaken(runId)))
       if (isTaken) {
         this.reject(inputId, 'conflict')
         return { inputId, status: 'rejected', reason: 'conflict' }
@@ -674,11 +679,13 @@ export abstract class SessionRequests<
 
   /**
    * The session API of plugins. With `principal` (a command), it acts for
-   * that user. Without it, it follows the sender of the running turn.
+   * that user. Without it, it follows the sender of the running turn. With
+   * `operationId` (a command), its questions belong to that operation.
    */
   protected override pluginApi(
     principal?: Principal,
     metadataSchema?: SchemaInput,
+    operationId?: string,
   ): PluginSessionApi {
     const sender = () => principal ?? this.sender()
     return {
@@ -725,7 +732,7 @@ export abstract class SessionRequests<
       },
       // The public type narrows the answer from the schema.
       ask: ((question: Question<SchemaInput | undefined>) =>
-        this.ask(question)) as PluginSessionApi['ask'],
+        this.ask(question, operationId)) as PluginSessionApi['ask'],
       authRequired: (info) =>
         this.feed.publish(
           'session',
@@ -904,11 +911,12 @@ export abstract class SessionRequests<
     }
     operation.resolveReceipt(receipt)
     if (!this.writer) {
-      // Without a log, the result of an input from before a restart is gone.
+      // Without a log, the result of an input from before a restart, or of
+      // one the session no longer keeps, is gone.
       operation.fail(
         'failed',
         new Error(
-          'This input ran before a restart. Keep its result with a durable host (stores.log).',
+          'This input ran earlier, and its result is gone. Keep results with a durable host (stores.log).',
         ),
       )
       return

@@ -164,7 +164,9 @@ export abstract class SessionTurnParts<
                     (result) =>
                       `Background job ${id} ended.\n${typeof result === 'string' ? result : JSON.stringify(result)}`,
                     (error: unknown) =>
-                      `Background job ${id} failed: ${error instanceof Error ? error.message : String(error)}`,
+                      this.scrub(
+                        `Background job ${id} failed: ${error instanceof Error ? error.message : String(error)}`,
+                      ),
                   )
                   .then((text) => this.pluginApi().note(text, { wake: true }))
                   .then(() => this.logJob(id, true))

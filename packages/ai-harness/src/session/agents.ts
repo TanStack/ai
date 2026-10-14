@@ -593,8 +593,10 @@ export abstract class SessionAgents<
       // A store write threw. The run still ends.
       this.failOperation(operation, error)
     } finally {
-      // After a log failure, another host owns the thread.
-      if (!this.logFailure) {
+      // After a log failure, another host owns the thread. A closing session
+      // starts no new run: a recoverable close leaves the steers in the log
+      // for the next host, as the chat path does.
+      if (!this.logFailure && !this.closing) {
         chain.followUps.unshift(
           ...chain.steers
             .splice(0)
@@ -647,7 +649,7 @@ export abstract class SessionAgents<
 
   /** Start the next follow-up of `chain` once its current run ended. */
   protected nextFollowUp(chain: AgentChain): void {
-    if (!chain.current.operation.isSettled()) return
+    if (this.closing || !chain.current.operation.isSettled()) return
     const next = chain.followUps.shift()
     if (!next) return
     chain.current = {

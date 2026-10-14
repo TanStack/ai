@@ -130,7 +130,7 @@ export abstract class SessionTurn<
       const result: unknown = await entry.command.run(checked, {
         signal: operation.abortController.signal,
         // The command acts for its sender, also while another user's turn runs.
-        session: principal ? this.pluginApi(principal) : this.services.session,
+        session: this.pluginApi(principal, undefined, operation.id),
         ...(principal ? { principal } : {}),
         credentials,
       })
@@ -244,9 +244,10 @@ export abstract class SessionTurn<
      */
     const failEarly = async (error: unknown) => {
       const failure = this.logFailure ?? error
+      const message = this.scrub(errorText(failure))
       operation.publish({
         type: EventType.RUN_ERROR,
-        message: errorText(failure),
+        message,
         timestamp: Date.now(),
       })
       if (turn.inputId !== undefined && !this.logFailure) {
@@ -254,7 +255,7 @@ export abstract class SessionTurn<
           inputId: turn.inputId,
           operationId: operation.id,
           outcome: 'failed',
-          error: { message: errorText(failure) },
+          error: { message },
         }).catch(() => {})
       }
       operation.fail('failed', failure)
