@@ -77,7 +77,7 @@ describe('modelPicker', () => {
       }),
     ])
     expect(await session.command('model', 'fast')).toContain('Model: fast')
-    expect(await session.prompt('hi')).toEqual({ text: 'fast answer' })
+    expect(await session.prompt('hi')).toEqual({ text: 'fast answer', media: [] })
     expect(await session.command('model', 'nope')).toContain('Unknown model')
     await host.close()
   })

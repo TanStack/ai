@@ -101,11 +101,11 @@ describe('the sender of each input', () => {
     })
     const persistence = memoryPersistence()
     for (const user of ['alice', 'bob']) {
-      await persistence.stores.credentials.set(
-        { threadId: THREAD, userId: user },
-        'acme',
-        { type: 'api_key', value: `${user}-key` },
-      )
+      await persistence.stores.credentials.set({
+        scope: { threadId: THREAD, userId: user },
+        id: 'acme',
+        credential: { type: 'api_key', value: `${user}-key` },
+      })
     }
     const host = createHarnessHost({ persistence })
     const session = await host.open(
@@ -151,7 +151,7 @@ describe('the sender of each input', () => {
     await session.steer('Mine.', { inputId: 'in-bob', principal: bob })
     release.open()
 
-    expect(await turn).toEqual({ text: 'first' })
+    expect(await turn).toEqual({ text: 'first', media: [] })
     expect(await session.settled('in-bob')).toMatchObject({
       outcome: 'completed',
     })
@@ -202,11 +202,11 @@ describe('the sender of each input', () => {
     await bobs.receipt
     release.open()
 
-    expect(await turn).toEqual({ text: 'First.Joined.' })
+    expect(await turn).toEqual({ text: 'First.Joined.', media: [] })
     expect(await session.settled('in-alice')).toMatchObject({
       operationId: turn.id,
     })
-    expect(await bobs).toEqual({ text: 'Bob here.' })
+    expect(await bobs).toEqual({ text: 'Bob here.', media: [] })
     const bobSettled = await session.settled('in-bob')
     expect(bobSettled).toMatchObject({ outcome: 'completed' })
     expect(bobSettled.operationId).not.toBe(turn.id)
@@ -248,11 +248,11 @@ describe('the sender of each input', () => {
     await bobs.receipt
     release.open()
 
-    expect(await turn).toEqual({ text: 'First.Joined.' })
+    expect(await turn).toEqual({ text: 'First.Joined.', media: [] })
     expect(await session.settled('in-alice')).toMatchObject({
       operationId: turn.id,
     })
-    expect(await bobs).toEqual({ text: 'Bob here.' })
+    expect(await bobs).toEqual({ text: 'Bob here.', media: [] })
     expect((await session.settled('in-bob')).operationId).not.toBe(turn.id)
     expect(seen.map((entry) => entry.principal)).toEqual(['bob'])
     await host.close()
@@ -300,9 +300,9 @@ describe('the sender of each input', () => {
     await session.command('again', undefined, { principal: bob })
     release.open()
 
-    expect(await turn).toEqual({ text: 'First.' })
+    expect(await turn).toEqual({ text: 'First.', media: [] })
     expect(commandSaw).toEqual(['bob'])
-    expect(await again).toEqual({ text: 'Again.' })
+    expect(await again).toEqual({ text: 'Again.', media: [] })
     expect(seen.map((entry) => entry.principal)).toEqual(['bob'])
     await host.close()
   })
@@ -390,11 +390,11 @@ describe('the sender of each input', () => {
     })
     const persistence = memoryPersistence()
     for (const user of ['alice', 'bob']) {
-      await persistence.stores.credentials.set(
-        { threadId: THREAD, userId: user },
-        'acme',
-        { type: 'api_key', value: `${user}-key` },
-      )
+      await persistence.stores.credentials.set({
+        scope: { threadId: THREAD, userId: user },
+        id: 'acme',
+        credential: { type: 'api_key', value: `${user}-key` },
+      })
     }
     const { adapter } = mockAdapter([
       () => toolCall('startWriter', {}, 'c1'),
@@ -443,15 +443,19 @@ describe('recovery keeps the sender and the context', () => {
 
   it('runs an input that never ran with its sender and context', async () => {
     const persistence = durablePersistence()
-    await persistence.stores.log.append(THREAD, 1, [
-      {
-        type: 'harness.input',
-        inputId: 'in-1',
-        input: sent,
-        principal: { id: 'bob', tenantId: 'org' },
-        at: 1,
-      },
-    ])
+    await persistence.stores.log.append({
+      threadId: THREAD,
+      seq: 1,
+      records: [
+        {
+          type: 'harness.input',
+          inputId: 'in-1',
+          input: sent,
+          principal: { id: 'bob', tenantId: 'org' },
+          at: 1,
+        },
+      ],
+    })
     const { plugins, turns, seen } = recorder()
     const { adapter } = mockAdapter([
       () => toolCall('whoami', {}, 'c1'),
@@ -480,26 +484,30 @@ describe('recovery keeps the sender and the context', () => {
 
   it('runs a turn whose host stopped again with its message, sender, and context', async () => {
     const persistence = durablePersistence()
-    await persistence.stores.log.append(THREAD, 1, [
-      {
-        type: 'harness.input',
-        inputId: 'in-1',
-        input: sent,
-        principal: { id: 'bob' },
-        at: 1,
-      },
-      {
-        type: 'harness.input.applied',
-        inputId: 'in-1',
-        operationId: 'op-stopped',
-        attempt: 1,
-      },
-      {
-        type: 'harness.transcript',
-        keep: 0,
-        add: [{ id: 'u1', role: 'user', content: 'go' }],
-      },
-    ])
+    await persistence.stores.log.append({
+      threadId: THREAD,
+      seq: 1,
+      records: [
+        {
+          type: 'harness.input',
+          inputId: 'in-1',
+          input: sent,
+          principal: { id: 'bob' },
+          at: 1,
+        },
+        {
+          type: 'harness.input.applied',
+          inputId: 'in-1',
+          operationId: 'op-stopped',
+          attempt: 1,
+        },
+        {
+          type: 'harness.transcript',
+          keep: 0,
+          add: [{ id: 'u1', role: 'user', content: 'go' }],
+        },
+      ],
+    })
     await persistence.stores.runs.createOrResume({
       runId: 'op-stopped',
       threadId: THREAD,
@@ -654,11 +662,11 @@ describe('the tenant of a principal', () => {
     })
     const persistence = memoryPersistence()
     for (const tenantId of ['org-a', 'org-b']) {
-      await persistence.stores.credentials.set(
-        { threadId: THREAD, userId: 'u1', tenantId },
-        'github',
-        { type: 'api_key', value: `${tenantId}-token` },
-      )
+      await persistence.stores.credentials.set({
+        scope: { threadId: THREAD, userId: 'u1', tenantId },
+        id: 'github',
+        credential: { type: 'api_key', value: `${tenantId}-token` },
+      })
     }
     const { adapter } = mockAdapter([
       () => toolCall('readToken', {}, 'c1'),
@@ -684,13 +692,21 @@ describe('the tenant of a principal', () => {
   it("reads the tenant's credential when the user has none, and the user's own first", async () => {
     const store = memoryPersistence().stores.credentials
     // Saved without a userId: it belongs to the whole tenant.
-    await store.set({ threadId: THREAD, tenantId: 'org-a' }, 'github', {
-      type: 'api_key',
-      value: 'org-token',
+    await store.set({
+      scope: { threadId: THREAD, tenantId: 'org-a' },
+      id: 'github',
+      credential: {
+        type: 'api_key',
+        value: 'org-token',
+      },
     })
-    await store.set({ threadId: THREAD, tenantId: 'org-a' }, 'notion', {
-      type: 'api_key',
-      value: 'org-notion',
+    await store.set({
+      scope: { threadId: THREAD, tenantId: 'org-a' },
+      id: 'notion',
+      credential: {
+        type: 'api_key',
+        value: 'org-notion',
+      },
     })
     const access = (userId: string, tenantId: string) =>
       credentialsFor(store, { threadId: THREAD, userId, tenantId }, () => {})
@@ -704,7 +720,10 @@ describe('the tenant of a principal', () => {
     expect(await access('ada', 'org-b').get('github')).toBeNull()
 
     // The user's own credential wins, and a save goes to the user only.
-    await ada.set('github', { type: 'api_key', value: 'ada-token' })
+    await ada.set({
+      id: 'github',
+      credential: { type: 'api_key', value: 'ada-token' },
+    })
     expect(await ada.get('github')).toEqual({
       type: 'api_key',
       value: 'ada-token',

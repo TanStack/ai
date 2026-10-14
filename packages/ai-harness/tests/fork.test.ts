@@ -160,7 +160,7 @@ describe('host.fork', () => {
     const host = createHarnessHost({ persistence: memoryPersistence() })
     const source = await host.open(harness, { threadId: SOURCE })
     await source.configure({ model: 'main', instructions: 'Be brief.' })
-    await source.setConfig('tone', 'warm')
+    await source.setConfig({ key: 'tone', value: 'warm' })
     await source.prompt('Count.')
     await source.prompt('Deploy.')
     expect(source.snapshot().pendingInterrupts).toHaveLength(1)

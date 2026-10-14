@@ -361,7 +361,7 @@ describe('plugin config next to the settings', () => {
         }),
       ],
     })
-    await session.setConfig('tone', 'warm')
+    await session.setConfig({ key: 'tone', value: 'warm' })
     await session.configure({ instructions: 'Be brief.' })
     expect(session.config().tone?.value).toBe('warm')
     expect(session.settings()).toEqual({ instructions: 'Be brief.' })

@@ -14,11 +14,14 @@ test.describe('harness: continue after a partial answer', () => {
     const result: {
       error?: string
       text: string
+      deltas: Array<string>
       requests: Array<Array<WireMessage>>
     } = await res.json()
     expect(result.error ?? null).toBeNull()
 
     expect(result.text).toBe('Hello world')
+    // session.onEvent saw the streamed text of both model calls.
+    expect(result.deltas.join('')).toBe('Hello world')
     expect(result.requests).toHaveLength(2)
     const [prompt, partial, note] = result.requests[1]!
     expect(prompt).toEqual({

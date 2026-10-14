@@ -280,14 +280,18 @@ describe('reset on a durable host', () => {
     const log = memoryLogStore()
     const { runs, metadata } = memoryPersistence().stores
     const persistence = { stores: { log, runs, metadata } }
-    await log.append('t1', 1, [
-      {
-        type: 'harness.input',
-        inputId: 'r1',
-        input: { op: 'reset', note: 'Note.' },
-        at: Date.now(),
-      },
-    ])
+    await log.append({
+      threadId: 't1',
+      seq: 1,
+      records: [
+        {
+          type: 'harness.input',
+          inputId: 'r1',
+          input: { op: 'reset', note: 'Note.' },
+          at: Date.now(),
+        },
+      ],
+    })
     const { adapter, calls } = mockAdapter([() => text('Two.')])
     const host = createHarnessHost({ persistence })
     const session = await host.open(
