@@ -75,12 +75,28 @@ function add(counts: UsageCounts, usage: UsageCall['usage']) {
   if (usage.cost !== undefined) counts.cost = (counts.cost ?? 0) + usage.cost
 }
 
+/**
+ * The counts under `key`, added when missing. An own property, so a key like
+ * `__proto__` (a principal id) never reaches the prototype.
+ */
+function countsOf(map: Record<string, UsageCounts>, key: string) {
+  if (!Object.hasOwn(map, key)) {
+    Object.defineProperty(map, key, {
+      value: emptyCounts(),
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    })
+  }
+  return map[key] as UsageCounts
+}
+
 /** Add one call to `totals`, in place. */
 export function addUsage(totals: SessionUsage, call: UsageCall) {
   add(totals.total, call.usage)
-  add((totals.byModel[call.model] ??= emptyCounts()), call.usage)
+  add(countsOf(totals.byModel, call.model), call.usage)
   if (call.principal) {
-    add((totals.bySender[call.principal.id] ??= emptyCounts()), call.usage)
+    add(countsOf(totals.bySender, call.principal.id), call.usage)
   }
 }
 
