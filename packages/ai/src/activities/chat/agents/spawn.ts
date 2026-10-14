@@ -1047,29 +1047,28 @@ function agentToolSchema(
     type: 'object',
     properties: { prompt: { type: 'string' } },
   }
-  // ponytail: a schema with no top-level properties (a top-level anyOf) gets
-  // no sessionId or background. Wrap it in allOf if one needs them.
-  if (schema.properties === undefined || names.length === 0) return schema
-  return {
-    ...schema,
-    properties: {
-      ...schema.properties,
-      ...(names.includes('sessionId') && {
-        sessionId: {
-          type: 'string',
-          description:
-            'The subagentRunId of an earlier result. The call continues that child.',
-        },
-      }),
-      ...(names.includes('background') && {
-        background: {
-          type: 'boolean',
-          description:
-            'true starts the child and returns its subagentRunId at once.',
-        },
-      }),
-    },
+  if (names.length === 0) return schema
+  const extra: JSONSchema['properties'] = {
+    ...(names.includes('sessionId') && {
+      sessionId: {
+        type: 'string',
+        description:
+          'The subagentRunId of an earlier result. The call continues that child.',
+      },
+    }),
+    ...(names.includes('background') && {
+      background: {
+        type: 'boolean',
+        description:
+          'true starts the child and returns its subagentRunId at once.',
+      },
+    }),
   }
+  // A top-level anyOf has no `properties`. Put the reserved fields beside it.
+  if (schema.properties === undefined) {
+    return { allOf: [schema, { type: 'object', properties: extra }] }
+  }
+  return { ...schema, properties: { ...schema.properties, ...extra } }
 }
 
 /**
@@ -1092,21 +1091,34 @@ function agentToolInput(
       vendor: 'tanstack-ai',
       validate: (value) => {
         const { fields, reserved } = splitReserved(value, names)
-        // ponytail: a schema that turns the input into a non-object (a
-        // top-level transform) loses the reserved fields.
-        const add = (result: StandardSchemaV1.Result<unknown>) =>
-          result.issues !== undefined ||
-          Object.keys(reserved).length === 0 ||
-          typeof result.value !== 'object' ||
-          result.value === null ||
-          Array.isArray(result.value)
-            ? result
-            : {
-                value: {
-                  ...(result.value as Record<string, unknown>),
-                  ...reserved,
+        const add = (result: StandardSchemaV1.Result<unknown>) => {
+          if (
+            result.issues !== undefined ||
+            Object.keys(reserved).length === 0
+          ) {
+            return result
+          }
+          if (
+            typeof result.value !== 'object' ||
+            result.value === null ||
+            Array.isArray(result.value)
+          ) {
+            return {
+              issues: [
+                {
+                  message:
+                    'Agent input must be an object when the call uses sessionId or background.',
                 },
-              }
+              ],
+            }
+          }
+          return {
+            value: {
+              ...(result.value as Record<string, unknown>),
+              ...reserved,
+            },
+          }
+        }
         const result = inner['~standard'].validate(fields)
         return result instanceof Promise ? result.then(add) : add(result)
       },
@@ -1215,7 +1227,9 @@ export function createSyntheticSubagentTools(
     const refusal = suspended
       ? undefined
       : timeout === 0
-        ? `subagent limit reached (timeoutMs ${budget.limits.timeoutMs ?? 0})`
+        ? budget.limits.timeoutMs === 0
+          ? 'subagent limit reached (timeoutMs 0)'
+          : 'subagent limit reached (no time left)'
         : budget.reserve(active)
     if (refusal !== undefined) {
       return {
@@ -1361,16 +1375,28 @@ export function createSyntheticSubagentTools(
         // A background child counts against the tree budget too.
         const refusal = budget.reserve(active)
         if (refusal !== undefined) throw new Error(refusal)
-        const { subagentRunId } = await start(
-          {
-            agent: agent.name,
-            ...fields,
-            ...(context?.toolCallId !== undefined && {
-              parentToolCallId: context.toolCallId,
-            }),
-          },
-          { wake: true },
-        )
+        active += 1
+        let started: { subagentRunId: string; done: Promise<unknown> }
+        try {
+          started = await start(
+            {
+              agent: agent.name,
+              ...fields,
+              ...(context?.toolCallId !== undefined && {
+                parentToolCallId: context.toolCallId,
+              }),
+            },
+            { wake: true },
+          )
+        } catch (error) {
+          active -= 1
+          budget.release()
+          throw error
+        }
+        void Promise.resolve(started.done).finally(() => {
+          active -= 1
+        })
+        const { subagentRunId } = started
         return {
           subagentRunId,
           text: '',
