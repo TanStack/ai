@@ -1084,6 +1084,8 @@ export async function* executeToolCalls<TContext = unknown>(
       !resumeState?.cancelledToolCallIds?.has(tc.id)
     )
   })
+  // The calls that the gating holds back.
+  const held: Array<ToolCall> = []
 
   for (const toolCall of toolCalls) {
     // Provider-executed tools (Anthropic web_search / web_fetch) already ran
@@ -1105,13 +1107,17 @@ export async function* executeToolCalls<TContext = unknown>(
       continue
     }
 
-    // Skip non-pending tools while approvals are outstanding
+    // Skip non-pending tools while approvals are outstanding. A client tool
+    // with no approval, or an approved one, is still sent to the client.
     if (hasPendingApprovals) {
-      const isPendingApproval =
-        tool.needsApproval &&
-        approvalResolution(approvals, toolCall.id) === undefined
-      const isPlainClientRequest = !tool.needsApproval && !tool.execute
-      if (!isPendingApproval && !isPlainClientRequest) {
+      const resolution = approvalResolution(approvals, toolCall.id)
+      const isPendingApproval = tool.needsApproval && resolution === undefined
+      const isClientRequest =
+        !tool.execute &&
+        (!tool.needsApproval ||
+          (resolution !== undefined && isApproved(resolution)))
+      if (!isPendingApproval && !isClientRequest) {
+        held.push(toolCall)
         continue
       }
     }
@@ -1148,6 +1154,8 @@ export async function* executeToolCalls<TContext = unknown>(
         continue
       }
     }
+    // The input that the model sent, to tell later edits apart from it.
+    const sentInput = JSON.stringify(input)
 
     const resolution = tool.needsApproval
       ? approvalResolution(approvals, toolCall.id)
@@ -1228,9 +1236,21 @@ export async function* executeToolCalls<TContext = unknown>(
     } catch (error) {
       // The model sees its own arguments, never values that middleware put
       // in. They stay out of the error, so tracing does not record them.
+      // When an edit or middleware changed the input, the model is told so,
+      // so it does not retry the same valid call.
+      let changed: boolean
+      try {
+        changed = JSON.stringify(input) !== sentInput
+      } catch {
+        changed = true
+      }
       const message = `${
         error instanceof Error ? error.message : 'Validation failed'
-      }\nReceived arguments: ${argsStr}`
+      }\nReceived arguments: ${argsStr}${
+        changed
+          ? '\nAn approval edit or middleware changed these arguments before the check. The changed input failed the check.'
+          : ''
+      }`
       await pushResultAndRunAfterHook(
         results,
         {
@@ -1319,12 +1339,36 @@ export async function* executeToolCalls<TContext = unknown>(
   yield* mergeStreams(runs)
   if (failures.length > 0) throw failures[0]
 
+  // No approval waits after all: each held-back call's preview failed its
+  // check or its arguments. The held calls run now, so each call has a result.
+  let heldInterrupts: Array<Interrupt> = []
+  if (held.length > 0 && needsApproval.length === 0) {
+    const rest = yield* executeToolCalls(
+      held,
+      tools,
+      approvals,
+      clientResults,
+      createCustomEventChunk,
+      middlewareHooks,
+      userContext,
+      abortSignal,
+      resumeState,
+      toolExecution,
+      repairToolInput,
+    )
+    results.push(...rest.results)
+    needsClientExecution.push(...rest.needsClientExecution)
+    inputRequired.push(...rest.inputRequired)
+    heldInterrupts = rest.subagentInterrupts
+  }
+
   // Parallel tools finish in any order. The model gets the results, input
   // requests, and interrupts in the order it made the calls.
   const callOrder = new Map(toolCalls.map((tc, index) => [tc.id, index]))
   const byCallOrder = (a: { toolCallId: string }, b: { toolCallId: string }) =>
     (callOrder.get(a.toolCallId) ?? 0) - (callOrder.get(b.toolCallId) ?? 0)
   results.sort(byCallOrder)
+  needsClientExecution.sort(byCallOrder)
   inputRequired.sort(byCallOrder)
 
   return {
@@ -1332,8 +1376,9 @@ export async function* executeToolCalls<TContext = unknown>(
     needsApproval,
     needsClientExecution,
     inputRequired,
-    subagentInterrupts: toolCalls.flatMap(
-      (tc) => interruptsByCall.get(tc.id) ?? [],
-    ),
+    subagentInterrupts: [
+      ...toolCalls.flatMap((tc) => interruptsByCall.get(tc.id) ?? []),
+      ...heldInterrupts,
+    ],
   }
 }

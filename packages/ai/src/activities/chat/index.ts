@@ -3910,6 +3910,7 @@ class TextEngine<
       actionable.needsClientExecution,
       boundaryRequests,
       actionable.inputRequired,
+      actionable.subagentInterrupts,
     )
     return true
   }

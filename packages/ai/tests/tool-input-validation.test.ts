@@ -129,6 +129,10 @@ describe('final tool input validation', () => {
     expect(JSON.stringify(result.results[0]?.result)).not.toContain(
       'secret-token',
     )
+    // The model learns that its own arguments were changed.
+    expect(JSON.stringify(result.results[0]?.result)).toContain(
+      'An approval edit or middleware changed these arguments',
+    )
   })
 
   it('keeps empty and null arguments as {}', async () => {
@@ -338,6 +342,67 @@ describe('final tool input validation', () => {
       expect(result.executed).toEqual([])
     },
   )
+})
+
+describe('a batch with an approval', () => {
+  const call = (id: string, name: string, args: string): ToolCall => ({
+    id,
+    type: 'function',
+    function: { name, arguments: args },
+  })
+
+  async function runBatch(
+    calls: Array<ToolCall>,
+    tools: Array<AnyTool>,
+    approvals?: Map<string, ToolApprovalResolution>,
+  ) {
+    const generator = executeToolCalls(calls, tools, approvals)
+    while (true) {
+      const next = await generator.next()
+      if (next.done) return next.value
+    }
+  }
+
+  it('runs the held calls when the only approval preview fails its check', async () => {
+    const execute = vi.fn(() => 'ran')
+    const result = await runBatch(
+      [call('a', 'gated', '{"count":0}'), call('b', 'plain', '{}')],
+      [
+        {
+          name: 'gated',
+          description: 'Gated',
+          inputSchema: schema,
+          needsApproval: true,
+          execute: vi.fn(),
+        },
+        { name: 'plain', description: 'Plain', execute },
+      ],
+    )
+    expect(result.needsApproval).toEqual([])
+    expect(execute).toHaveBeenCalledTimes(1)
+    expect(result.results.map((r) => [r.toolCallId, r.state])).toEqual([
+      ['a', 'output-error'],
+      ['b', undefined],
+    ])
+  })
+
+  it('sends an approved client call while another call waits for approval', async () => {
+    const result = await runBatch(
+      [call('a', 'clientGated', '{}'), call('b', 'serverGated', '{}')],
+      [
+        { name: 'clientGated', description: 'Client', needsApproval: true },
+        {
+          name: 'serverGated',
+          description: 'Server',
+          needsApproval: true,
+          execute: vi.fn(),
+        },
+      ],
+      new Map([['a', true]]),
+    )
+    expect(result.needsClientExecution.map((r) => r.toolCallId)).toEqual(['a'])
+    expect(result.needsApproval.map((r) => r.toolCallId)).toEqual(['b'])
+  })
 })
 
 describe('JSON Schema tool input', () => {

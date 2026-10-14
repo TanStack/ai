@@ -359,7 +359,7 @@ Malformed JSON arguments and input validation failures (Standard Schema or JSON 
 
 The `inputSchema` checks the input just before the tool runs:
 
-- The check runs after approval edits and after middleware `onBeforeToolCall`. An edited input that does not fit the schema becomes a tool error.
+- The check runs after approval edits and after middleware `onBeforeToolCall`. An approval edit that does not fit the schema stops the resume with an `invalid-edited-args` error. A middleware change that does not fit becomes a tool error.
 - An async validator is awaited.
 - The tool gets the schema's output, so a transform such as `z.string().transform(Number)` applies once.
 
