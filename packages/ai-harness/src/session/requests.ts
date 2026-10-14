@@ -809,7 +809,7 @@ export abstract class SessionRequests<
       undefined,
       id,
     )
-    this.operations.set(operation.id, operation as OperationImpl<unknown>)
+    this.track(operation as OperationImpl<unknown>)
     return operation
   }
 
@@ -935,7 +935,7 @@ export abstract class SessionRequests<
       this.feed,
       (target) => this.cancel(target.id),
     )
-    this.operations.set(operation.id, operation as OperationImpl<unknown>)
+    this.track(operation as OperationImpl<unknown>)
     this.bindTurn(inputId, operation)
     const turn: QueuedTurn = {
       operation,

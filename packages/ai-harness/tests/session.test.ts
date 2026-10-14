@@ -260,6 +260,31 @@ describe('chat turns', () => {
   })
 })
 
+describe('settled operations', () => {
+  it('keeps the last 500 settled operations, and drops older ones', async () => {
+    const { host } = setup()
+    const session = await host.open(
+      defineHarness({ name: 'test/window', adapter: mockAdapter([]).adapter }),
+      { threadId: 't1' },
+    )
+    const ids: Array<string> = []
+    for (let index = 0; index < 501; index += 1) {
+      const command = session.command('unknown')
+      ids.push(command.id)
+      await command.then(
+        () => undefined,
+        () => undefined,
+      )
+    }
+    await vi.waitFor(() =>
+      expect(session.operation(ids[0] ?? '')).toBe(undefined),
+    )
+    expect(session.operation(ids[1] ?? '')).toBeDefined()
+    expect(session.operation(ids[500] ?? '')).toBeDefined()
+    await host.close()
+  })
+})
+
 describe('events', () => {
   it('replays events after a cursor', async () => {
     const { host } = setup()

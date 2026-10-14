@@ -390,7 +390,7 @@ export abstract class SessionAgents<
         options?: { mode?: 'steer' | 'followUp'; inputId?: string },
       ) => this.sendToAgent({ ...options, operationId: operation.id, message }),
     })
-    this.operations.set(run.id, run)
+    this.track(run)
     return run
   }
 

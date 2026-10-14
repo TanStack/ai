@@ -83,7 +83,7 @@ export abstract class SessionTurn<
       this.feed,
       (target) => this.cancel(target.id),
     )
-    this.operations.set(operation.id, operation)
+    this.track(operation)
     const principal = options?.principal ?? this.principal
     // A store write that throws (the inbox, the log) still ends the command.
     this.executeCommand(operation, name, input, principal).catch(

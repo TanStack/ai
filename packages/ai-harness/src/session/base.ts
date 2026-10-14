@@ -84,6 +84,17 @@ import type {
 import type { HarnessSession } from './harness-session'
 
 /**
+ * How many settled operations a session keeps, with their receipts and
+ * settlements. Older ones go, so a long-lived session does not grow.
+ */
+// ponytail: a fixed window. After it, `operation(id)` is undefined, and a
+// duplicate input or `settled()` falls back to the log (a durable host) or
+// the inbox. The duplicate check of an input with no operation of its own (a
+// command, a cancel) keeps its id forever: one string each. Make the window
+// an option if a host needs more.
+const KEPT_SETTLED = 500
+
+/**
  * The fields of a {@link HarnessSession}, and the helpers every layer uses. The
  * session class is split into layers, one per file: base, inputs, state,
  * requests, turn-parts, agents, turn, harness-session.
@@ -141,6 +152,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected readonly settlements = new Map<string, InputSettlement>()
   protected readonly agentRegistry = new AgentRegistry()
   protected readonly operations = new Map<string, OperationImpl<unknown>>()
+  /** The ids of the settled operations in `operations`, oldest first. */
+  protected readonly settledIds: Array<string> = []
   /** The agent chains of this session, by the input id of the first run. */
   protected readonly agentChains = new Map<string, AgentChain>()
   /** The chain of each agent run operation, by operation id. */
@@ -382,9 +395,51 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     })
   }
 
-  /** An operation of this session by id, running or settled. */
+  /**
+   * An operation of this session by id: a running one, or one of the last
+   * 500 that settled.
+   */
   operation(id: string): Operation<unknown> | undefined {
     return this.operations.get(id)
+  }
+
+  /** Keep `operation` in `operations`. Once settled, it joins the window. */
+  protected track(operation: OperationImpl<unknown>): void {
+    this.operations.set(operation.id, operation)
+    const settled = () => {
+      this.settledIds.push(operation.id)
+      const old =
+        this.settledIds.length > KEPT_SETTLED && this.settledIds.shift()
+      if (old) this.forget(old)
+    }
+    void operation.then(settled, settled)
+  }
+
+  /** Drop what this session keeps for the settled operation `id`. */
+  protected forget(id: string): void {
+    this.operations.delete(id)
+    const inputId = this.operationInputs.get(id)
+    this.operationInputs.delete(id)
+    if (inputId !== undefined && this.turnOperations.get(inputId)?.id === id) {
+      this.turnOperations.delete(inputId)
+      this.admitted.delete(inputId)
+      this.receipts.delete(inputId)
+      this.settlements.delete(inputId)
+    }
+    const chain = this.chainOf.get(id)
+    this.chainOf.delete(id)
+    const isChainDone =
+      chain?.current.operation.id === id &&
+      chain.followUps.length === 0 &&
+      chain.steers.length === 0
+    if (chain && isChainDone) this.agentChains.delete(chain.runInputId)
+    // Steers and agent inputs have no operation of their own here.
+    for (const map of [this.receipts, this.settlements]) {
+      for (const key of map.keys()) {
+        if (map.size <= KEPT_SETTLED) break
+        map.delete(key)
+      }
+    }
   }
 
   // ===========================
@@ -579,14 +634,15 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     const ttlMs = this.lease?.ttlMs ?? LEASE.ttlMs
     const claim = async () => {
       try {
-        const isHeld = await claims.claim({
+        // Another host's claim that has not expired is left alone: the call
+        // returns false. The timer tries again while this thread has work,
+        // so the work gets a claim once that one expires.
+        await claims.claim({
           threadId: this.threadId,
           harness: this.harness.name,
           ownerId: this.hostId,
           until: Date.now() + ttlMs,
         })
-        // Renew only a claim this host holds.
-        if (!isHeld) this.stopClaimTimer()
       } catch (error) {
         // The work goes on without a claim.
         this.warnClaim(error)

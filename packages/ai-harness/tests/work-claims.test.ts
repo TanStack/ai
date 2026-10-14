@@ -127,6 +127,35 @@ describe('work claims while a session runs', () => {
     await host.close()
   })
 
+  it('claims the thread once another host claim expires, while the turn runs', async () => {
+    const persistence = durablePersistence()
+    const claims = persistence.stores.workClaims
+    await claims.claim({
+      threadId: THREAD,
+      harness: NAME,
+      ownerId: 'other-host',
+      until: Date.now() + 100,
+    })
+    const release = gate()
+    const { adapter } = mockAdapter([after(release.opened, 'Done.')])
+    const host = createHarnessHost({
+      persistence,
+      lease: { ttlMs: 60_000, renewMs: 20 },
+    })
+    const session = await host.open(defineHarness({ name: NAME, adapter }), {
+      threadId: THREAD,
+    })
+
+    const turn = session.prompt('Go.')
+    await turn.receipt
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(await otherHostCanClaim(claims)).toBe(false)
+
+    release.open()
+    await turn
+    await host.close()
+  })
+
   it('runs and settles the input when the claim store throws, with a warning', async () => {
     const persistence = durablePersistence()
     const claims = persistence.stores.workClaims
