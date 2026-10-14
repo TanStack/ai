@@ -620,6 +620,11 @@ export interface TextActivityOptions<
   /** How the server tools of one model turn run. Default `'parallel'`. */
   toolExecution?: TextOptions['toolExecution']
   /**
+   * How a tool input that fails the final check is repaired. Default: the
+   * built-in repair. `false`: no repair. A function replaces it.
+   */
+  repairToolInput?: TextOptions['repairToolInput']
+  /**
    * Retry a rate-limited model call after the wait the provider asks for.
    *
    * @example
@@ -2356,8 +2361,19 @@ class TextEngine<
   }
 
   private handleToolCallEndEvent(chunk: ToolCallEndEvent): void {
-    this.toolCallManager.completeToolCall(chunk)
+    const final = this.toolCallManager.completeToolCall(chunk)
     const end = chunk as AdapterYieldChunk
+    if (final) {
+      // The client stores the same argument string as the server history.
+      // The wire carries only `args`; `input` is parsed back from it.
+      end.args = final.args
+      end.input = final.input
+      const metadata = tanstackMetadata(end)
+      if (metadata) {
+        delete metadata.args
+        delete metadata.input
+      }
+    }
     const state = end.state ?? tanstackMetadata(end)?.state
     if (state !== 'output-error' || end.result === undefined) return
     this.handleToolCallResultEvent({
@@ -2616,6 +2632,7 @@ class TextEngine<
       this.toolAbortSignal,
       this.toolResumeState(),
       this.params.toolExecution,
+      this.params.repairToolInput,
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -2849,6 +2866,7 @@ class TextEngine<
       this.toolAbortSignal,
       this.toolResumeState(),
       this.params.toolExecution,
+      this.params.repairToolInput,
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -3937,6 +3955,8 @@ class TextEngine<
       this.middlewareCtx.context,
       this.toolAbortSignal,
       this.toolResumeState(),
+      undefined,
+      this.params.repairToolInput,
     )
   }
 

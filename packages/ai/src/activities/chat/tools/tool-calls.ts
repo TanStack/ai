@@ -1,3 +1,4 @@
+import { finishToolCallArguments } from '../../../utilities/tool-call-arguments'
 import { normalizeToolResult } from '../../../utilities/tool-result'
 import { tanstackMetadata } from '../../../utilities/merge-metadata'
 import { isProviderExecutedToolCall } from '../../../utilities/provider-executed'
@@ -352,15 +353,16 @@ export class ToolCallManager<
    * Complete a tool call with its final input
    * Called when TOOL_CALL_END is received
    */
-  completeToolCall(event: ToolCallEndEvent): void {
+  completeToolCall(
+    event: ToolCallEndEvent,
+  ): { args: string; input: unknown } | undefined {
     for (const toolCall of this.toolCallsMap.values()) {
       if (toolCall.id !== event.toolCallId) continue
-      if (event.input === undefined) return
-      const normalized =
-        event.input && typeof event.input === 'object' ? event.input : {}
-      toolCall.function.arguments = JSON.stringify(normalized)
-      return
+      const final = finishToolCallArguments(toolCall.function.arguments, event)
+      toolCall.function.arguments = final.args
+      return final
     }
+    return undefined
   }
 
   /**
@@ -977,6 +979,8 @@ async function buildClientToolResult(
  * @param toolExecution - `'parallel'` (default) prepares every call in call
  *   order, then starts the server tools together. `'sequential'` runs one
  *   call at a time. Results come back in call order either way.
+ * @param repairToolInput - How an input that fails the final check is
+ *   repaired: the built-in repair (default), none (`false`), or a function.
  */
 export async function* executeToolCalls<TContext = unknown>(
   toolCalls: Array<ToolCall>,
@@ -993,6 +997,7 @@ export async function* executeToolCalls<TContext = unknown>(
   abortSignal?: AbortSignal,
   resumeState?: ToolResumeExecutionState,
   toolExecution: NonNullable<TextOptions['toolExecution']> = 'parallel',
+  repairToolInput?: TextOptions['repairToolInput'],
 ): AsyncGenerator<CustomEvent | StreamChunk, ExecuteToolCallsResult, void> {
   const results: Array<ToolResult> = []
   const needsApproval: Array<ApprovalRequest> = []
@@ -1211,7 +1216,15 @@ export async function* executeToolCalls<TContext = unknown>(
     // The final check, after approval edits and middleware: invalid input
     // becomes a tool error, and the checked value is what runs.
     try {
-      input = await validateToolInput(tool.inputSchema, input, toolName)
+      input = await validateToolInput(
+        tool.inputSchema,
+        input,
+        toolName,
+        typeof repairToolInput === 'function'
+          ? (failed, error) =>
+              repairToolInput({ tool, toolCall, input: failed, error })
+          : repairToolInput,
+      )
     } catch (error) {
       // The model sees its own arguments, never values that middleware put
       // in. They stay out of the error, so tracing does not record them.

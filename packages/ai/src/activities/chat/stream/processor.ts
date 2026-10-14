@@ -35,6 +35,10 @@ import {
   withTanstackMetadata,
 } from '../../../utilities/merge-metadata'
 import { getChunkRunId } from '../../../utilities/chunk-ids'
+import {
+  finishToolCallArguments,
+  parseToolArguments,
+} from '../../../utilities/tool-call-arguments'
 import type { AdapterYieldChunk } from '../../../utilities/adapter-yield-chunk'
 import {
   isContentPartArray,
@@ -212,38 +216,6 @@ function interruptBatchHasGeneric(interrupts: Array<Interrupt>): boolean {
       binding.kind === 'generic'
     )
   })
-}
-
-/**
- * The canonical arguments string for a `TOOL_CALL_END.input`, or `undefined`
- * when JSON cannot carry it: `JSON.stringify` returns `undefined` (despite
- * its declared type) for a top-level function or symbol and throws on BigInt
- * and circular references. `null` is not tool arguments either, so it also
- * keeps the streamed value instead of writing `arguments = "null"`.
- */
-function serializeToolInput(input: unknown): string | undefined {
-  if (input === undefined || input === null) return undefined
-  try {
-    const serialized: unknown = JSON.stringify(input)
-    return typeof serialized === 'string' ? serialized : undefined
-  } catch {
-    return undefined
-  }
-}
-
-/**
- * The input of a tool call from its raw arguments: `{}` for an empty string,
- * `undefined` when the arguments are not complete JSON (for example cut off)
- * or are `null`.
- */
-function parseToolArguments(args: string): unknown {
-  if (args.trim() === '') return {}
-  try {
-    const parsed: unknown = JSON.parse(args)
-    return parsed ?? undefined
-  } catch {
-    return undefined
-  }
 }
 
 /**
@@ -2480,9 +2452,9 @@ export class StreamProcessor {
    * Handle TOOL_CALL_END event — arguments are finalized (input-complete).
    * Tool output arrives on TOOL_CALL_RESULT, not on this event.
    *
-   * If TOOL_CALL_END carries parsed `input`, it is the canonical arguments:
-   * write it into the accumulated string and override the rendered part's
-   * `input` with it. That covers adapters that deliver the whole input on END
+   * The END's raw `args` and parsed `input` replace the streamed arguments
+   * (see `finishToolCallArguments`), and the part's `input` is parsed from
+   * the result. That covers adapters that deliver the whole input on END
    * (e.g. Anthropic server_tool_use / web_search — issue #839) and adapters
    * that stream the wire arguments and then normalize them (OpenAI strict-mode
    * null widening, undone by the adapter after #939), so `arguments` and
@@ -2499,47 +2471,19 @@ export class StreamProcessor {
     const msgState = this.getMessageState(messageId)
     if (!msgState) return
 
-    // The parsed input can ride on the spec `input` field or, for adapters
-    // that only stamp it into TanStack metadata, on `metadata.tanstack.input`.
-    const input =
-      chunk.input !== undefined
-        ? chunk.input
-        : (tanstackMetadata(chunk)?.input as unknown)
-
     // Transition the tool call to input-complete (the authoritative completion signal)
     const existingToolCall = msgState.toolCalls.get(chunk.toolCallId)
     if (existingToolCall && existingToolCall.state !== 'input-complete') {
-      // The parsed input replaces the accumulated arguments string, so
-      // completeToolCall's strict parse surfaces the canonical value on the
-      // ToolCallPart even when the streamed deltas carried a provider-side
-      // reshaping of it. An input JSON cannot carry is not canonical: both
-      // `arguments` and `input` then stay with the streamed value, so the
-      // two never disagree.
-      const serializedInput = serializeToolInput(input)
-      if (serializedInput !== undefined) {
-        existingToolCall.arguments = serializedInput
-      }
+      // The END's arguments replace the streamed ones, so completeToolCall's
+      // strict parse surfaces the canonical value on the ToolCallPart even
+      // when the streamed deltas carried a provider-side reshaping of it.
+      existingToolCall.arguments = finishToolCallArguments(
+        existingToolCall.arguments,
+        chunk,
+      ).args
 
       const index = msgState.toolCallOrder.indexOf(chunk.toolCallId)
       this.completeToolCall(messageId, index, existingToolCall)
-
-      // Canonicalize on the parsed input: overrides the accumulated-args parse
-      // that completeToolCall wrote (adapters may coerce values differently
-      // between streamed args and the final structured input).
-      if (serializedInput !== undefined) {
-        existingToolCall.parsedArguments = input
-        this.messages = updateToolCallPart(this.messages, messageId, {
-          id: existingToolCall.id,
-          name: existingToolCall.name,
-          arguments: existingToolCall.arguments,
-          state: 'input-complete',
-          input,
-          ...(existingToolCall.metadata !== undefined && {
-            metadata: existingToolCall.metadata,
-          }),
-        })
-        this.emitMessagesChange()
-      }
     }
   }
 

@@ -486,9 +486,10 @@ describe('agent tool input', () => {
     [
       'a field that fails the agent schema',
       'researcher',
-      { topic: 3 },
+      // A number would be repaired into a string. A list cannot be.
+      { topic: [] },
       {},
-      'Input validation failed for tool researcher: Validation failed: Invalid input: expected string, received number',
+      'Input validation failed for tool researcher: Validation failed: Invalid input: expected string, received array',
     ],
     [
       'an unknown sessionId',
@@ -507,9 +508,11 @@ describe('agent tool input', () => {
     [
       'a background that is not a boolean',
       'writer',
-      { background: 'true' },
+      // 'true' would be repaired into true. 'yes' cannot be.
+      { background: 'yes' },
       { binding: host },
-      'prompt and sessionId must be strings, and background a boolean.',
+      // The JSON Schema of the tool checks the reserved fields too.
+      'Input validation failed for tool writer: #/background: Instance type "string" is invalid. Expected "boolean".',
     ],
     [
       'background with a sessionId',
