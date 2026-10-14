@@ -571,7 +571,8 @@ export abstract class SessionRequests<
     })
     // Without a log, the inbox entry must not stay pending: a restart runs
     // pending entries.
-    if (!this.writer) await this.inbox.markRejected(target, 'cancelled')
+    if (!this.writer)
+      await this.inbox.markRejected({ inputId: target, reason: 'cancelled' })
     const { operation } = taken
     await this.settle({
       inputId: target,
@@ -595,13 +596,16 @@ export abstract class SessionRequests<
    * @example
    * ```ts
    * await session.followUp('Use tabs, not spaces.', { inputId: 'style' })
-   * await session.setDelivery('style', 'steer')
+   * await session.setDelivery({ inputId: 'style', delivery: 'steer' })
    * ```
    */
-  async setDelivery(
-    target: string,
-    delivery: WaitingInput['delivery'],
-  ): Promise<Receipt> {
+  async setDelivery({
+    inputId: target,
+    delivery,
+  }: {
+    inputId: string
+    delivery: WaitingInput['delivery']
+  }): Promise<Receipt> {
     const inputId = createInputId()
     await this.accept(inputId, { op: 'setDelivery', inputId: target, delivery })
     const current = this.inputs().find((input) => input.inputId === target)
@@ -714,7 +718,7 @@ export abstract class SessionRequests<
           'session',
           customEvent(HARNESS_EVENTS.authRequired, { ...info }),
         ),
-      setConfig: (key, value) => this.setConfig(key, value),
+      setConfig: (change) => this.setConfig(change),
       settings: () => this.settings(),
     }
   }
@@ -770,6 +774,7 @@ export abstract class SessionRequests<
         await this.sessionPlugins?.dispose()
       } finally {
         this.feed.close()
+        this.eventListeners.clear()
         this.onClose()
       }
     })()

@@ -187,7 +187,7 @@ export class HarnessSession<
       this.writer = await this.log.open(this.threadId, (error) =>
         this.stopOnLogFailure(error),
       )
-      this.feed = tapFeed(this.writer, this.onEvent)
+      this.feed = tapFeed(this.writer, this.notifyHost, this.eventListeners)
       const view = {
         writer: this.writer,
         store,

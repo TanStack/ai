@@ -55,12 +55,13 @@ const loadSession = async (
 function recordingStore(inner: LogStore = memoryLogStore()) {
   const batches: Array<Array<string>> = []
   const store: LogStore = {
-    append: async (threadId, seq, records) => {
-      await inner.append(threadId, seq, records)
+    append: async ({ threadId, seq, records }) => {
+      await inner.append({ threadId, seq, records })
       batches.push(records.map((record) => record.type))
     },
     read: (threadId, options) => inner.read(threadId, options),
-    subscribe: (threadId, listener) => inner.subscribe(threadId, listener),
+    subscribe: ({ threadId, listener }) =>
+      inner.subscribe({ threadId, listener }),
   }
   return { store, batches }
 }
@@ -68,7 +69,8 @@ function recordingStore(inner: LogStore = memoryLogStore()) {
 /** A view of `inner` that never notifies, like a store in another process. */
 function silentStore(inner: LogStore): LogStore {
   return {
-    append: (threadId, seq, records) => inner.append(threadId, seq, records),
+    append: ({ threadId, seq, records }) =>
+      inner.append({ threadId, seq, records }),
     read: (threadId, options) => inner.read(threadId, options),
     subscribe: () => () => {},
   }
@@ -222,21 +224,29 @@ describe('input fold', () => {
       operationId: 'op-1',
       retries,
     })
-    await store.append(THREAD, 1, [
-      {
-        type: 'harness.input',
-        inputId: 'in-1',
-        input: { op: 'prompt', message: 'go' },
-        at: 1,
-      },
-    ])
+    await store.append({
+      threadId: THREAD,
+      seq: 1,
+      records: [
+        {
+          type: 'harness.input',
+          inputId: 'in-1',
+          input: { op: 'prompt', message: 'go' },
+          at: 1,
+        },
+      ],
+    })
     expect((await loadSession({ store })).inputs.get('in-1')?.retries).toBe(
       undefined,
     )
 
-    await store.append(THREAD, 2, [retry(1), retry(2)])
+    await store.append({
+      threadId: THREAD,
+      seq: 2,
+      records: [retry(1), retry(2)],
+    })
     expect((await loadSession({ store })).inputs.get('in-1')?.retries).toBe(2)
-    await store.append(THREAD, 4, [retry(0)])
+    await store.append({ threadId: THREAD, seq: 4, records: [retry(0)] })
     expect((await loadSession({ store })).inputs.get('in-1')?.retries).toBe(0)
   })
 })
@@ -409,7 +419,11 @@ describe('write failures', () => {
     const stale = newWriter(silentStore(store), {
       onFailure: (error) => failures.push(error),
     })
-    await store.append(THREAD, 1, [{ type: 'app.from-another-host' }])
+    await store.append({
+      threadId: THREAD,
+      seq: 1,
+      records: [{ type: 'app.from-another-host' }],
+    })
 
     await expect(stale.append([{ type: 'app.late' }])).rejects.toBeInstanceOf(
       LogConflictError,
@@ -428,9 +442,9 @@ describe('write failures', () => {
     let calls = 0
     const flaky: LogStore = {
       ...silentStore(inner),
-      append: async (threadId, seq, batch) => {
+      append: async ({ threadId, seq, records: batch }) => {
         calls += 1
-        await inner.append(threadId, seq, batch)
+        await inner.append({ threadId, seq, records: batch })
         if (calls === 1) throw new Error('timeout after the write')
       },
     }
@@ -583,8 +597,16 @@ describe('fold checkpoints', () => {
     'ignores a checkpoint with %s for a load with reduce',
     async (_name, value, reduce) => {
       const store = memoryLogStore()
-      await store.append(THREAD, 1, [{ type: 'app.tick' }])
-      await store.append(THREAD, 2, [{ type: 'app.tick' }])
+      await store.append({
+        threadId: THREAD,
+        seq: 1,
+        records: [{ type: 'app.tick' }],
+      })
+      await store.append({
+        threadId: THREAD,
+        seq: 2,
+        records: [{ type: 'app.tick' }],
+      })
       const { metadata } = memoryPersistence().stores
       await metadata.set(NAMESPACE, THREAD, value)
 
@@ -774,13 +796,17 @@ describe('message stores', () => {
     let raced = false
     const racing: LogStore = {
       ...silentStore(inner),
-      append: async (threadId, seq, batch) => {
+      append: async ({ threadId, seq, records: batch }) => {
         if (!raced) {
           raced = true
           // Another writer takes the position first.
-          await inner.append(threadId, seq, [{ type: 'app.other' }])
+          await inner.append({
+            threadId,
+            seq,
+            records: [{ type: 'app.other' }],
+          })
         }
-        await inner.append(threadId, seq, batch)
+        await inner.append({ threadId, seq, records: batch })
       },
     }
 
@@ -956,7 +982,11 @@ describe('a log shared by sessions', () => {
     await root.append([{ type: 'app.mine' }])
 
     // Another writer takes the next position.
-    await store.append('log-1', 2, [{ type: 'app.other' }])
+    await store.append({
+      threadId: 'log-1',
+      seq: 2,
+      records: [{ type: 'app.other' }],
+    })
     await expect(root.append([{ type: 'app.late' }])).rejects.toBeInstanceOf(
       LogConflictError,
     )

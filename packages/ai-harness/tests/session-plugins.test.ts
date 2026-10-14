@@ -63,16 +63,24 @@ describe('config values', () => {
     const session = await host.open(harness, { threadId: 't' })
     // The saved values were invalid or unknown, so the defaults apply.
     expect(session.config().verbose?.value).toBe(false)
-    expect(await session.setConfig('missing', 1)).toMatchObject({
-      status: 'rejected',
-      reason: 'unknown_config',
-    })
-    expect(await session.setConfig('retries', 9)).toMatchObject({
-      status: 'rejected',
-      reason: expect.stringContaining('<= 5'),
-    })
-    expect((await session.setConfig('level', 'high')).status).toBe('accepted')
-    expect((await session.setConfig('label', 'mine')).status).toBe('accepted')
+    expect(await session.setConfig({ key: 'missing', value: 1 })).toMatchObject(
+      {
+        status: 'rejected',
+        reason: 'unknown_config',
+      },
+    )
+    expect(await session.setConfig({ key: 'retries', value: 9 })).toMatchObject(
+      {
+        status: 'rejected',
+        reason: expect.stringContaining('<= 5'),
+      },
+    )
+    expect(
+      (await session.setConfig({ key: 'level', value: 'high' })).status,
+    ).toBe('accepted')
+    expect(
+      (await session.setConfig({ key: 'label', value: 'mine' })).status,
+    ).toBe('accepted')
     await host.close()
 
     const again = createHarnessHost({ persistence })
@@ -197,18 +205,28 @@ describe('questions', () => {
       message: 'How many?',
       schema: { type: 'object' },
     })
-    expect(await session.answer('q-unknown', 1)).toMatchObject({
+    expect(
+      await session.answer({ questionId: 'q-unknown', value: 1 }),
+    ).toMatchObject({
       status: 'rejected',
       reason: 'unknown_question',
     })
     expect(
-      await session.answer(question?.questionId ?? '', { count: 'two' }),
+      await session.answer({
+        questionId: question?.questionId ?? '',
+        value: { count: 'two' },
+      }),
     ).toMatchObject({
       status: 'rejected',
       reason: expect.stringContaining('Invalid answer'),
     })
     expect(
-      (await session.answer(question?.questionId ?? '', { count: 2 })).status,
+      (
+        await session.answer({
+          questionId: question?.questionId ?? '',
+          value: { count: 2 },
+        })
+      ).status,
     ).toBe('accepted')
     expect(await picking).toBe(4)
 
@@ -394,7 +412,7 @@ describe('session events', () => {
       }))
         seen.push(entry)
     })()
-    await session.setConfig('verbose', true)
+    await session.setConfig({ key: 'verbose', value: true })
     await vi.waitFor(() =>
       expect(
         seen.some(

@@ -1,7 +1,10 @@
 import type { StreamChunk } from '@tanstack/ai'
-import type { EventFeed } from './feed'
+import { onEventOf, onMediaOf } from './feed'
+import type { ListenedFeed } from './feed'
 import type {
   Cursor,
+  MediaRecord,
+  OnEvent,
   Operation,
   OperationKind,
   OperationStatus,
@@ -36,10 +39,14 @@ export class OperationImpl<TResult> implements Operation<TResult> {
   private resolveResult!: (value: TResult) => void
   private rejectResult!: (error: unknown) => void
   private settleReceipt!: (receipt: Receipt) => void
+  readonly onEvent: OnEvent
+  readonly onMedia: (
+    listener: (entry: { media: MediaRecord }) => void,
+  ) => () => void
 
   constructor(
     readonly kind: OperationKind,
-    private readonly feed: EventFeed,
+    private readonly feed: ListenedFeed,
     private readonly onCancel: (
       operation: OperationImpl<TResult>,
     ) => Promise<Receipt>,
@@ -49,6 +56,8 @@ export class OperationImpl<TResult> implements Operation<TResult> {
   ) {
     this.id = id ?? createOperationId(kind)
     this.startedCursor = feed.head()
+    this.onEvent = onEventOf((listener) => feed.listen(listener), this.id)
+    this.onMedia = onMediaOf(this.onEvent)
     this.receipt = new Promise<Receipt>((resolve) => {
       this.settleReceipt = resolve
     })

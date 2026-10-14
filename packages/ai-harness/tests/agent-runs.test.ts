@@ -195,7 +195,12 @@ describe('follow-ups to an agent run', () => {
   it('refuses a message to a run it does not know', async () => {
     const { host, session } = await open(writing(mockAdapter([]).adapter))
 
-    expect(await session.sendToAgent('op-agent-none', 'Hello.')).toMatchObject({
+    expect(
+      await session.sendToAgent({
+        operationId: 'op-agent-none',
+        message: 'Hello.',
+      }),
+    ).toMatchObject({
       status: 'rejected',
       reason: 'not_running',
     })
@@ -237,7 +242,9 @@ describe('steers to an agent run', () => {
     const run = session.agents.researcher.start()
     await vi.waitFor(() => expect(model.calls).toHaveLength(1))
 
-    const receipt = await session.sendToAgent(run.id, 'Ignore the brief.', {
+    const receipt = await session.sendToAgent({
+      operationId: run.id,
+      message: 'Ignore the brief.',
       principal: { id: 'bob' },
     })
     release.open()
@@ -346,7 +353,9 @@ describe('agentRuns() and agentRun(id)', () => {
     const run = session.agents.researcher.start()
     await vi.waitFor(() => expect(model.calls).toHaveLength(1))
 
-    const receipt = await session.sendToAgent(run.id, 'Ignore the brief.', {
+    const receipt = await session.sendToAgent({
+      operationId: run.id,
+      message: 'Ignore the brief.',
       principal: { id: 'bob' },
     })
     release.open()

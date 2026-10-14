@@ -727,8 +727,11 @@ export class SharedLog<TState = unknown> {
     this.tailFrom = options.state.seq
     // Records from another writer (this host only reads) join the fold. A
     // call during this writer's own append is its own records.
-    this.unsubscribe = options.store.subscribe(options.logId, () => {
-      if (!this.writing) void this.enqueue(() => this.catchUp())
+    this.unsubscribe = options.store.subscribe({
+      threadId: options.logId,
+      listener: () => {
+        if (!this.writing) void this.enqueue(() => this.catchUp())
+      },
     })
   }
 
@@ -964,14 +967,14 @@ export class SharedLog<TState = unknown> {
    */
   private async appendOnce(seq: number, batch: ReadonlyArray<LogRecord>) {
     try {
-      await this.store.append(this.logId, seq, batch)
+      await this.store.append({ threadId: this.logId, seq, records: batch })
       return
     } catch (error) {
       if (await this.landed(seq, batch)) return
       if (error instanceof LogConflictError) throw error
     }
     try {
-      await this.store.append(this.logId, seq, batch)
+      await this.store.append({ threadId: this.logId, seq, records: batch })
     } catch (error) {
       if (await this.landed(seq, batch)) return
       throw error
@@ -1317,7 +1320,11 @@ export function logMessageStore(options: {
         )
         if (records.length === 0) return
         try {
-          await store.append(logOf(threadId), state.seq + 1, records)
+          await store.append({
+            threadId: logOf(threadId),
+            seq: state.seq + 1,
+            records,
+          })
           return
         } catch (error) {
           if (!(error instanceof LogConflictError) || attempt === 2) throw error

@@ -91,20 +91,19 @@ export abstract class SessionAgents<
    * `principal` is who sent it. A follow-up runs for its sender. An unknown
    * run gets `not_running`.
    */
-  async sendToAgent(
-    operationId: string,
-    message: UserInput,
-    options?: {
-      mode?: 'steer' | 'followUp'
-      inputId?: string
-      principal?: Principal
-    },
-  ): Promise<Receipt> {
-    const inputId = options?.inputId ?? createInputId()
+  async sendToAgent(options: {
+    operationId: string
+    message: UserInput
+    mode?: 'steer' | 'followUp'
+    inputId?: string
+    principal?: Principal
+  }): Promise<Receipt> {
+    const { operationId, message } = options
+    const inputId = options.inputId ?? createInputId()
     const chain = this.chainOf.get(operationId) ?? this.loggedChain(operationId)
     if (!chain) return { inputId, status: 'rejected', reason: 'not_running' }
-    const principal = options?.principal ?? this.principal
-    const mode = options?.mode ?? 'steer'
+    const principal = options.principal ?? this.principal
+    const mode = options.mode ?? 'steer'
     return this.admitting(async () => {
       const admission = await this.accept(
         inputId,
@@ -389,7 +388,7 @@ export abstract class SessionAgents<
       send: (
         message: UserInput,
         options?: { mode?: 'steer' | 'followUp'; inputId?: string },
-      ) => this.sendToAgent(operation.id, message, options),
+      ) => this.sendToAgent({ ...options, operationId: operation.id, message }),
     })
     this.operations.set(run.id, run)
     return run

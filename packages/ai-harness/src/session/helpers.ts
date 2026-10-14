@@ -18,7 +18,7 @@ import type {
   SubagentsBag,
 } from '@tanstack/ai'
 import type { LogRecord, MessageStore } from '@tanstack/ai-persistence'
-import type { EventFeed } from '../feed'
+import type { EventFeed, EventListener, ListenedFeed } from '../feed'
 import type { InputState } from '../log'
 import type { MountedPlugins } from '../plugins'
 import type {
@@ -650,18 +650,41 @@ export const notOpenMessages: MessageStore = {
   saveThread: notOpen,
 }
 
-/** `feed`, and `onEvent` after each publish. This is how the host sees events. */
+/**
+ * `feed`, then `notifyHost` and each of `listeners` after each publish. This
+ * is how the host and `onEvent` see events. The caller keeps `listeners`, so
+ * they survive a new tap of another feed.
+ */
 export function tapFeed(
   feed: EventFeed,
-  onEvent: (event: StreamChunk) => void,
-) {
+  notifyHost: (event: StreamChunk) => void,
+  listeners: Set<EventListener>,
+): ListenedFeed {
   return {
     publish: (operationId, event) => {
       feed.publish(operationId, event)
-      onEvent(event)
+      notifyHost(event)
+      for (const listener of [...listeners]) {
+        try {
+          listener({ operationId, event })
+        } catch (error) {
+          console.error(
+            '[@tanstack/ai-harness] An onEvent listener threw.',
+            error,
+          )
+        }
+      }
+    },
+    listen: (listener) => {
+      // A new entry per call: a listener added twice is called twice.
+      const entry: EventListener = (value) => listener(value)
+      listeners.add(entry)
+      return () => {
+        listeners.delete(entry)
+      }
     },
     head: () => feed.head(),
     read: (options) => feed.read(options),
     close: () => feed.close(),
-  } satisfies EventFeed
+  }
 }

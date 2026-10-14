@@ -41,7 +41,7 @@ export interface CredentialsAccess {
    * does nothing.
    */
   require: (id: string, options?: { wait?: boolean }) => Promise<Credential>
-  set: (id: string, credential: Credential) => Promise<void>
+  set: (entry: { id: string; credential: Credential }) => Promise<void>
   delete: (id: string) => Promise<void>
   list: () => Promise<
     Array<{ id: string; type: Credential['type']; expiresAt?: number }>
@@ -99,10 +99,10 @@ export function credentialsFor(
   // save for the whole tenant to share one token.
   const get = async (id: string) => {
     const user = scopeNow()
-    const own = await store.get(user, id)
+    const own = await store.get({ scope: user, id })
     if (own) return own
     const tenant = tenantOf(user)
-    return tenant ? store.get(tenant, id) : null
+    return tenant ? store.get({ scope: tenant, id }) : null
   }
   return {
     get,
@@ -114,11 +114,11 @@ export function credentialsFor(
       if (options?.wait && hooks?.canWait?.(id)) throw signInRequired(error)
       throw error
     },
-    set: async (id, credential) => {
-      await store.set(scopeNow(), id, credential)
+    set: async ({ id, credential }) => {
+      await store.set({ scope: scopeNow(), id, credential })
       await hooks?.onSet?.(id)
     },
-    delete: (id) => store.delete(scopeNow(), id),
+    delete: (id) => store.delete({ scope: scopeNow(), id }),
     list: async () => {
       const user = scopeNow()
       const tenant = tenantOf(user)

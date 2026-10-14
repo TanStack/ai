@@ -97,7 +97,10 @@ describe('toolExecution', () => {
       { threadId: 't1' },
     )
 
-    await expect(session.prompt('go')).resolves.toEqual({ text: 'done' })
+    await expect(session.prompt('go')).resolves.toEqual({
+      text: 'done',
+      media: [],
+    })
     expect(log).toEqual([
       'start:first',
       'end:first',

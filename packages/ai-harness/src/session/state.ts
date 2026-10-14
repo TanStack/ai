@@ -281,7 +281,13 @@ export abstract class SessionState<
   }
 
   /** Change a session setting. It applies at the next turn. */
-  async setConfig(key: string, value: unknown): Promise<Receipt> {
+  async setConfig({
+    key,
+    value,
+  }: {
+    key: string
+    value: unknown
+  }): Promise<Receipt> {
     const inputId = createInputId()
     await this.accept(inputId, { op: 'config', key, value })
     const entry = this.sessionPlugins?.config.get(key)
@@ -599,7 +605,13 @@ export abstract class SessionState<
   }
 
   /** Answer a question from `ctx.session.ask`. */
-  async answer(questionId: string, value: unknown): Promise<Receipt> {
+  async answer({
+    questionId,
+    value,
+  }: {
+    questionId: string
+    value: unknown
+  }): Promise<Receipt> {
     const inputId = createInputId()
     // A secret (a key or a password) stays out of the inbox. A restart does
     // not replay an answer, so the inbox never needs it.

@@ -75,7 +75,7 @@ describe('host.events', () => {
     )
     await b.prompt('hi')
     const [question] = a.snapshot().pendingQuestions
-    await a.answer(question?.questionId ?? '', 'yes')
+    await a.answer({ questionId: question?.questionId ?? '', value: 'yes' })
     await turn
 
     await vi.waitFor(() =>
@@ -122,7 +122,7 @@ describe('host.events', () => {
     await host.open(plainHarness(), { threadId: 'b' })
     const feed = watch((signal) => host.events({ signal }))
 
-    await host.sessions.rename('b', 'Greetings')
+    await host.sessions.rename({ threadId: 'b', title: 'Greetings' })
     await host.sessions.delete('b')
 
     await vi.waitFor(() => expect(feed.seen).toHaveLength(3))
@@ -142,7 +142,7 @@ describe('host.events', () => {
     expect(await events.next()).toMatchObject({ value: { status: 'idle' } })
 
     await events.return?.()
-    await host.sessions.rename('b', 'After the end')
+    await host.sessions.rename({ threadId: 'b', title: 'After the end' })
 
     expect(await events.next()).toEqual({ done: true, value: undefined })
     // `stop` resolves only when the waiting read ends.

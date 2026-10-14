@@ -205,7 +205,8 @@ export abstract class SessionInputs<
         (error: unknown) => follower.fail('failed', error),
       )
     }
-    if (!this.writer) void this.inbox.markApplied(steer.inputId, operationId)
+    if (!this.writer)
+      void this.inbox.markApplied({ inputId: steer.inputId, operationId })
     this.feed.publish(
       operationId,
       customEvent(HARNESS_EVENTS.inputApplied, {
@@ -268,7 +269,7 @@ export abstract class SessionInputs<
    */
   protected async applyControl(inputId: string, change: HarnessRecord) {
     if (!this.writer) {
-      await this.inbox.markApplied(inputId, 'session')
+      await this.inbox.markApplied({ inputId, operationId: 'session' })
       return
     }
     await this.writer.append([
@@ -359,7 +360,7 @@ export abstract class SessionInputs<
     operationId: string,
   ): Promise<void> {
     if (!this.writer) {
-      await this.inbox.markApplied(inputId, operationId)
+      await this.inbox.markApplied({ inputId, operationId })
       return
     }
     const logged = this.writer.state.inputs.get(inputId)
@@ -394,7 +395,7 @@ export abstract class SessionInputs<
         .append([{ type: 'harness.input.rejected', inputId, reason }])
         .catch(() => {})
     } else {
-      void this.inbox.markRejected(inputId, reason)
+      void this.inbox.markRejected({ inputId, reason })
     }
     const receipt: Receipt = { inputId, status: 'rejected', reason }
     this.receipts.set(inputId, receipt)
@@ -509,10 +510,10 @@ export abstract class SessionInputs<
     const text = lastAssistantText(this.writer?.state.messages ?? [])
     switch (settlement.outcome) {
       case 'completed':
-        operation.finish('completed', { text })
+        operation.finish('completed', { text, media: [] })
         return
       case 'interrupted':
-        operation.finish('interrupted', { text, interrupts: [] })
+        operation.finish('interrupted', { text, interrupts: [], media: [] })
         return
       case 'aborted':
         operation.fail('cancelled', new Error('Cancelled.'))

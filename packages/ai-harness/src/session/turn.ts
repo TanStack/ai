@@ -210,7 +210,7 @@ export abstract class SessionTurn<
       }).catch(() => {})
     }
     if (error) operation.fail('failed', new Error(error.message))
-    else operation.finish('completed', { text: '' })
+    else operation.finish('completed', { text: '', media: [] })
     this.publishFinished(operation)
     // A steer that came while the reset ran runs as its own turn.
     this.requeueWaitingSteers()
@@ -1034,10 +1034,10 @@ export abstract class SessionTurn<
     } else if (interrupts && interrupts.length > 0) {
       // `this.interrupted` was kept at RUN_FINISHED.
       await settleTurn({ outcome: 'interrupted' })
-      operation.finish('interrupted', { text, interrupts })
+      operation.finish('interrupted', { text, interrupts, media: captured })
     } else {
       await settleTurn({ outcome: 'completed' })
-      operation.finish('completed', { text })
+      operation.finish('completed', { text, media: captured })
     }
     this.publishFinished(operation)
     this.requeueWaitingSteers()

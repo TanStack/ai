@@ -332,7 +332,10 @@ describe('ACP agent handlers', () => {
           cwd: '/work',
           mcpServers: [],
         })
-        await host.sessions.rename(sessionId, 'Fix the build')
+        await host.sessions.rename({
+          threadId: sessionId,
+          title: 'Fix the build',
+        })
 
         const first = await ctx.request('session/list', {})
         expect(first.sessions).toHaveLength(50)

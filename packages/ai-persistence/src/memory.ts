@@ -624,14 +624,26 @@ class MemoryInboxStore implements InboxStore {
       .map((entry) => structuredClone(entry))
     return Promise.resolve(pending)
   }
-  markApplied(inputId: string, operationId: string): Promise<void> {
+  markApplied({
+    inputId,
+    operationId,
+  }: {
+    inputId: string
+    operationId: string
+  }): Promise<void> {
     const existing = this.entries.get(inputId)
     if (existing) {
       this.entries.set(inputId, { ...existing, status: 'applied', operationId })
     }
     return Promise.resolve()
   }
-  markRejected(inputId: string, reason: string): Promise<void> {
+  markRejected({
+    inputId,
+    reason,
+  }: {
+    inputId: string
+    reason: string
+  }): Promise<void> {
     const existing = this.entries.get(inputId)
     if (existing) {
       this.entries.set(inputId, { ...existing, status: 'rejected', reason })
@@ -650,11 +662,19 @@ class MemoryCredentialStore implements CredentialStore {
   private owner(scope: Scope): string {
     return JSON.stringify([scope.tenantId ?? null, scope.userId ?? null])
   }
-  get(scope: Scope, id: string): Promise<Credential | null> {
+  get({ scope, id }: { scope: Scope; id: string }): Promise<Credential | null> {
     const stored = this.values.get(this.owner(scope))?.get(id)
     return Promise.resolve(stored ? structuredClone(stored) : null)
   }
-  set(scope: Scope, id: string, credential: Credential): Promise<void> {
+  set({
+    scope,
+    id,
+    credential,
+  }: {
+    scope: Scope
+    id: string
+    credential: Credential
+  }): Promise<void> {
     const key = this.owner(scope)
     let bucket = this.values.get(key)
     if (!bucket) {
@@ -664,7 +684,7 @@ class MemoryCredentialStore implements CredentialStore {
     bucket.set(id, structuredClone(credential))
     return Promise.resolve()
   }
-  delete(scope: Scope, id: string): Promise<void> {
+  delete({ scope, id }: { scope: Scope; id: string }): Promise<void> {
     this.values.get(this.owner(scope))?.delete(id)
     return Promise.resolve()
   }
@@ -695,11 +715,15 @@ class MemoryLogStore implements LogStore {
   private readonly threads = new Map<string, Array<LogRecord>>()
   private readonly listeners = new Map<string, Set<() => void>>()
 
-  append(
-    threadId: string,
-    seq: number,
-    records: ReadonlyArray<LogRecord>,
-  ): Promise<void> {
+  append({
+    threadId,
+    seq,
+    records,
+  }: {
+    threadId: string
+    seq: number
+    records: ReadonlyArray<LogRecord>
+  }): Promise<void> {
     if (records.length === 0) return Promise.resolve()
     const log = this.threads.get(threadId) ?? []
     if (seq !== log.length + 1) {
@@ -741,7 +765,13 @@ class MemoryLogStore implements LogStore {
     return Promise.resolve(entries)
   }
 
-  subscribe(threadId: string, listener: () => void): () => void {
+  subscribe({
+    threadId,
+    listener,
+  }: {
+    threadId: string
+    listener: () => void
+  }): () => void {
     let set = this.listeners.get(threadId)
     if (!set) {
       set = new Set()
@@ -786,7 +816,13 @@ class MemoryWorkClaimStore implements WorkClaimStore {
     this.claims.set(entry.threadId, { ...entry })
     return Promise.resolve(true)
   }
-  release(threadId: string, ownerId: string): Promise<void> {
+  release({
+    threadId,
+    ownerId,
+  }: {
+    threadId: string
+    ownerId: string
+  }): Promise<void> {
     if (this.claims.get(threadId)?.ownerId === ownerId) {
       this.claims.delete(threadId)
     }
@@ -843,10 +879,13 @@ class MemorySessionIndexStore implements SessionIndexStore {
     const stored = this.entries.get(threadId)
     return Promise.resolve(stored && structuredClone(stored))
   }
-  upsertIf(
-    entry: SessionIndexEntry,
-    expectedRevision: string | null,
-  ): Promise<
+  upsertIf({
+    entry,
+    expectedRevision,
+  }: {
+    entry: SessionIndexEntry
+    expectedRevision: string | null
+  }): Promise<
     { ok: true; revision: string } | { ok: false; reason: 'conflict' }
   > {
     const current = this.entries.get(entry.threadId)?.revision ?? null

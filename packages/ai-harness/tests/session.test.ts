@@ -60,7 +60,7 @@ describe('chat turns', () => {
     const session = await host.open(harness, { threadId: 't1' })
 
     const turn = session.prompt('Hi')
-    await expect(turn).resolves.toEqual({ text: 'Hello there' })
+    await expect(turn).resolves.toEqual({ text: 'Hello there', media: [] })
     expect(turn.status()).toBe('completed')
 
     const saved = await persistence.stores.messages.loadThread('t1')
@@ -92,8 +92,8 @@ describe('chat turns', () => {
     expect(session.snapshot().queuedTurns).toBe(1)
     first.open()
 
-    await expect(a).resolves.toEqual({ text: 'one' })
-    await expect(b).resolves.toEqual({ text: 'two' })
+    await expect(a).resolves.toEqual({ text: 'one', media: [] })
+    await expect(b).resolves.toEqual({ text: 'two', media: [] })
     expect(messageTexts(calls[1])).toEqual(['first', 'one', 'second'])
     await host.close()
   })
@@ -147,7 +147,7 @@ describe('chat turns', () => {
     expect(receipt).toMatchObject({ status: 'accepted', operationId: turn.id })
     releaseTool.open()
 
-    await expect(turn).resolves.toEqual({ text: 'done' })
+    await expect(turn).resolves.toEqual({ text: 'done', media: [] })
     expect(calls).toHaveLength(2)
     expect(messageTexts(calls[1]).at(-1)).toBe('also check y')
     await host.close()
@@ -173,8 +173,8 @@ describe('chat turns', () => {
     first.open()
 
     // One turn answers both messages: the joined prompt settles with it.
-    await expect(a).resolves.toEqual({ text: 'onetwo' })
-    await expect(joined).resolves.toEqual({ text: 'onetwo' })
+    await expect(a).resolves.toEqual({ text: 'onetwo', media: [] })
+    await expect(joined).resolves.toEqual({ text: 'onetwo', media: [] })
     expect(messageTexts(calls[1]).at(-1)).toBe('and this')
     expect(await session.settled((await joined.receipt).inputId)).toEqual({
       inputId: (await joined.receipt).inputId,
@@ -636,7 +636,7 @@ describe('a waiting steer with an abort request, without a log', () => {
     await session.cancel(steer.id)
     done.open()
 
-    expect(await turn).toEqual({ text: 'host answer' })
+    expect(await turn).toEqual({ text: 'host answer', media: [] })
     expect(messageTexts(calls[1])).not.toContain('stop me')
     expect(await session.settled('steer-1')).toMatchObject({
       outcome: 'aborted',
@@ -738,7 +738,7 @@ describe('joins without a log', () => {
     releaseUpdate.open()
 
     expect(receipt).toMatchObject({ status: 'rejected', reason: 'not_running' })
-    expect(await turn).toEqual({ text: 'first answerlate answer' })
+    expect(await turn).toEqual({ text: 'first answerlate answer', media: [] })
     expect(calls).toHaveLength(2)
     expect(messageTexts(calls[1]).at(-1)).toBe('late')
     await host.close()
@@ -880,7 +880,7 @@ describe('joins without a log', () => {
     wait.done.open()
 
     await expect(turn).rejects.toThrow('hook broke')
-    expect(await steer).toEqual({ text: 'steer answer' })
+    expect(await steer).toEqual({ text: 'steer answer', media: [] })
     expect(messageTexts(calls[1])).toContain('more')
     expect((await session.settled('s1')).operationId).not.toBe(turn.id)
     await host.close()
@@ -914,7 +914,7 @@ describe('joins without a log', () => {
     releaseJoin.open()
 
     await expect(turn).rejects.toThrow('Cancelled')
-    expect(await steer).toEqual({ text: 'steer answer' })
+    expect(await steer).toEqual({ text: 'steer answer', media: [] })
     for (const call of calls) expect(messageTexts(call)).not.toContain('hook')
     expect(messageTexts(calls.at(-1))).toContain('more')
     expect((await session.settled('s1')).operationId).not.toBe(turn.id)
@@ -956,7 +956,7 @@ describe('joins without a log', () => {
     expect(cancelled?.status).toBe('accepted')
     expect(messageTexts(calls[1])).not.toContain('a')
     expect(await session.settled('a')).toMatchObject({ outcome: 'aborted' })
-    expect(await b).toEqual({ text: 'b answer' })
+    expect(await b).toEqual({ text: 'b answer', media: [] })
     await host.close()
   })
 })

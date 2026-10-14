@@ -226,7 +226,10 @@ describe.each([
     expect(remove.execute).not.toHaveBeenCalled()
     const resumed = await approveFirst(session, turn)
 
-    expect(await resumed).toEqual({ text: 'cleaner:\nRemoved a.txt' })
+    expect(await resumed).toEqual({
+      text: 'cleaner:\nRemoved a.txt',
+      media: [],
+    })
     expect(remove.execute).toHaveBeenCalledTimes(1)
     expect(routerSaw).toHaveLength(1)
     expect(calls).toHaveLength(0)
@@ -250,7 +253,7 @@ describe.each([
     const turn = await session.prompt('clean up')
     const resumed = await approveFirst(session, turn)
 
-    expect(await resumed).toEqual({ text: 'Removed b.txt' })
+    expect(await resumed).toEqual({ text: 'Removed b.txt', media: [] })
     expect(remove.execute).toHaveBeenCalledTimes(1)
     expect(calls).toHaveLength(2)
     await host.close()

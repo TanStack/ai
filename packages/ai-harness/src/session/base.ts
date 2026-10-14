@@ -7,7 +7,7 @@ import {
 } from '@tanstack/ai'
 import { credentialsFor, providerKeysFor } from '../auth'
 import { AgentRegistry } from '../agents'
-import { SessionFeed } from '../feed'
+import { SessionFeed, onEventOf } from '../feed'
 import { createMediaStore } from '../media'
 import { LEASE } from '../resume'
 import { HARNESS_EVENTS } from '../types'
@@ -39,7 +39,7 @@ import type {
   SessionIndexStore,
 } from '@tanstack/ai-persistence'
 import type { AuthRequiredError, CredentialsAccess } from '../auth'
-import type { EventFeed } from '../feed'
+import type { EventListener, ListenedFeed } from '../feed'
 import type { LogWriter, RevertState, engineMessageStore } from '../log'
 import type { DurableBind } from '../durable-tool'
 import type { LeaseOptions } from '../resume'
@@ -61,6 +61,7 @@ import type {
   ChatTurnResult,
   Cursor,
   InputSettlement,
+  OnEvent,
   Operation,
   Principal,
   Receipt,
@@ -101,8 +102,11 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected readonly principal: Principal | undefined
   /** The session log writer of a durable host. It is also the feed. */
   protected writer: LogWriter | undefined
-  protected feed: EventFeed
-  protected readonly onEvent: (event: StreamChunk) => void
+  protected feed: ListenedFeed
+  /** The host's view of each event: its status feed. */
+  protected readonly notifyHost: (event: StreamChunk) => void
+  /** The `onEvent` listeners. Each feed tap shares this set. */
+  protected readonly eventListeners = new Set<EventListener>()
   /** The transcript: `stores.messages`, or a view of the log. */
   protected messages: MessageStore
   /**
@@ -274,8 +278,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       options: this.harness.media,
     })
     this.principal = deps.principal
-    this.onEvent = deps.onEvent
-    this.feed = tapFeed(new SessionFeed(), deps.onEvent)
+    this.notifyHost = deps.onEvent
+    this.feed = tapFeed(new SessionFeed(), deps.onEvent, this.eventListeners)
     this.onClose = deps.onClose
     this.hostId = deps.hostId
     this.index = deps.index
@@ -383,6 +387,11 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   // ===========================
   // Events and state
   // ===========================
+
+  /** {@link OnEvent} for the events of every operation of this session. */
+  readonly onEvent: OnEvent = onEventOf((listener) =>
+    this.feed.listen(listener),
+  )
 
   /** The ordered events of every operation, from `from` (exclusive). */
   events(options?: {
@@ -576,10 +585,10 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   /** Give the thread's claim back. A failed write is a warning. */
   protected async releaseClaim(): Promise<void> {
     try {
-      await this.persistence.stores.workClaims?.release(
-        this.threadId,
-        this.hostId,
-      )
+      await this.persistence.stores.workClaims?.release({
+        threadId: this.threadId,
+        ownerId: this.hostId,
+      })
     } catch (error) {
       this.warnClaim(error)
     }

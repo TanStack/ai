@@ -684,9 +684,12 @@ export interface InboxStore {
   /** Pending entries of a thread, oldest first. */
   listPending: (threadId: string) => Promise<Array<InboxEntry>>
   /** Mark an entry applied by `operationId`. A no-op for an unknown id. */
-  markApplied: (inputId: string, operationId: string) => Promise<void>
+  markApplied: (entry: {
+    inputId: string
+    operationId: string
+  }) => Promise<void>
   /** Mark an entry rejected with `reason`. A no-op for an unknown id. */
-  markRejected: (inputId: string, reason: string) => Promise<void>
+  markRejected: (entry: { inputId: string; reason: string }) => Promise<void>
   /** The entry for `inputId`, or `null`. */
   get: (inputId: string) => Promise<InboxEntry | null>
 }
@@ -726,9 +729,13 @@ export type Credential =
  * implementation.
  */
 export interface CredentialStore {
-  get: (scope: Scope, id: string) => Promise<Credential | null>
-  set: (scope: Scope, id: string, credential: Credential) => Promise<void>
-  delete: (scope: Scope, id: string) => Promise<void>
+  get: (key: { scope: Scope; id: string }) => Promise<Credential | null>
+  set: (entry: {
+    scope: Scope
+    id: string
+    credential: Credential
+  }) => Promise<void>
+  delete: (key: { scope: Scope; id: string }) => Promise<void>
   /** Ids and types only. `list` never returns secret values. */
   list: (
     scope: Scope,
@@ -801,11 +808,11 @@ export interface LogStore {
    *
    * An empty batch writes nothing and resolves.
    */
-  append: (
-    threadId: string,
-    seq: number,
-    records: ReadonlyArray<LogRecord>,
-  ) => Promise<void>
+  append: (batch: {
+    threadId: string
+    seq: number
+    records: ReadonlyArray<LogRecord>
+  }) => Promise<void>
   /**
    * The entries of `threadId` with `seq` greater than `after` (default 0), in
    * ascending order, at most `limit` of them. `limit: 0` gives `[]`.
@@ -822,7 +829,7 @@ export interface LogStore {
    * A store that cannot see appends from other processes can poll. Returns a
    * function that stops the calls.
    */
-  subscribe: (threadId: string, listener: () => void) => () => void
+  subscribe: (options: { threadId: string; listener: () => void }) => () => void
 }
 
 /** Type a {@link LogStore} implementation inline. */
@@ -883,7 +890,7 @@ export interface WorkClaimStore {
     until: number
   }) => Promise<boolean>
   /** The thread is idle: remove the claim. Only its owner can. */
-  release: (threadId: string, ownerId: string) => Promise<void>
+  release: (claim: { threadId: string; ownerId: string }) => Promise<void>
   /** Claims that expired before `now`: their host stopped. Oldest first. */
   listExpired: (options: {
     now: number
@@ -1010,10 +1017,10 @@ export interface SessionIndexStore {
    * first. With both methods, hosts on several machines do not lose each
    * other's changes to one entry.
    */
-  upsertIf?: (
-    entry: SessionIndexEntry,
-    expectedRevision: string | null,
-  ) => Promise<
+  upsertIf?: (write: {
+    entry: SessionIndexEntry
+    expectedRevision: string | null
+  }) => Promise<
     { ok: true; revision: string } | { ok: false; reason: 'conflict' }
   >
   /**
