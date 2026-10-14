@@ -491,9 +491,16 @@ export abstract class SessionRequests<
     if (waitingSteer && this.joining.has(waitingSteer.inputId)) {
       return this.reject(inputId, 'not_running')
     }
+    const targetInput = this.operationInputs.get(target.id)
+    // A prompt that joined the running turn ends with it, as a joined steer.
+    const hasJoined =
+      targetInput !== undefined &&
+      [...this.turnJoins.values()].some((joined) =>
+        joined.includes(targetInput),
+      )
+    if (hasJoined) return this.reject(inputId, 'not_running')
     // It never joins now, and settles when the running turn ends.
     if (waitingSteer) this.abortedSteers.add(waitingSteer.inputId)
-    const targetInput = this.operationInputs.get(target.id)
     if (this.writer && targetInput) {
       await this.writer.append([
         { type: 'harness.input.abort', inputId: targetInput },
@@ -879,7 +886,7 @@ export abstract class SessionRequests<
   protected answerDuplicate(
     operation: OperationImpl<ChatTurnResult>,
     inputId: string,
-    admission: 'duplicate' | 'conflict',
+    admission: 'duplicate' | 'conflict' | 'closed',
   ) {
     const receipt = this.duplicateReceipt(inputId, admission)
     if (receipt.status === 'rejected') {

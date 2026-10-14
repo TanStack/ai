@@ -198,12 +198,21 @@ export abstract class SessionInputs<
     joined.push(steer.inputId)
     this.turnJoins.set(operationId, joined)
     const running = this.activeTurn
+    // The follower stays in `operations`, so `session.operation(id)` finds
+    // it. It ends as the running turn ends.
     if (steer.operation && running) {
       const follower = steer.operation
-      this.operations.delete(follower.id)
       running.then(
-        (result) => follower.finish('completed', result),
-        (error: unknown) => follower.fail('failed', error),
+        (result) =>
+          follower.finish(
+            running.status() === 'interrupted' ? 'interrupted' : 'completed',
+            result,
+          ),
+        (error: unknown) =>
+          follower.fail(
+            running.status() === 'cancelled' ? 'cancelled' : 'failed',
+            error,
+          ),
       )
     }
     if (!this.writer) {
@@ -300,7 +309,7 @@ export abstract class SessionInputs<
     inputId: string,
     input: HarnessInput,
     principal = this.principal,
-  ): Promise<'new' | 'duplicate' | 'conflict'> {
+  ): Promise<'new' | 'duplicate' | 'conflict' | 'closed'> {
     const sender = storedPrincipal(principal)
     const payload = inputKey(input, sender.principal)
     const local = this.admitted.get(inputId)
@@ -311,32 +320,40 @@ export abstract class SessionInputs<
         ? 'duplicate'
         : 'conflict'
     }
+    // A closing session runs no new work. Nothing is stored.
+    if (this.closing && WORK_OPS.has(input.op)) return 'closed'
     this.admitted.set(inputId, payload)
-    // Before the input is stored, so a crash after the write leaves a claim
-    // that a sweep finds.
-    if (WORK_OPS.has(input.op)) {
-      this.markBusy()
-      await this.claimWrite
-    }
-    const at = Date.now()
-    if (this.writer) {
-      await this.writer.append([
-        { type: 'harness.input', inputId, input, at, ...sender },
-      ])
-    } else {
-      const stored = await this.inbox.append({
-        inputId,
-        threadId: this.threadId,
-        input,
-        createdAt: at,
-        ...sender,
-      })
-      // The inbox had the id before this session: a restart.
-      if (stored.createdAt !== at || stored.status !== 'pending') {
-        return inputKey(stored.input, stored.principal) === payload
-          ? 'duplicate'
-          : 'conflict'
+    try {
+      // Before the input is stored, so a crash after the write leaves a claim
+      // that a sweep finds.
+      if (WORK_OPS.has(input.op)) {
+        this.markBusy()
+        await this.claimWrite
       }
+      const at = Date.now()
+      if (this.writer) {
+        await this.writer.append([
+          { type: 'harness.input', inputId, input, at, ...sender },
+        ])
+      } else {
+        const stored = await this.inbox.append({
+          inputId,
+          threadId: this.threadId,
+          input,
+          createdAt: at,
+          ...sender,
+        })
+        // The inbox had the id before this session: a restart.
+        if (stored.createdAt !== at || stored.status !== 'pending') {
+          return inputKey(stored.input, stored.principal) === payload
+            ? 'duplicate'
+            : 'conflict'
+        }
+      }
+    } catch (error) {
+      // Not stored, so a retry with the same id is a new input.
+      this.admitted.delete(inputId)
+      throw error
     }
     this.feed.publish(
       'session',
@@ -493,10 +510,10 @@ export abstract class SessionInputs<
   /** What a duplicate or a conflicting chat input gets back. */
   protected duplicateReceipt(
     inputId: string,
-    admission: 'duplicate' | 'conflict',
+    admission: 'duplicate' | 'conflict' | 'closed',
   ): Receipt {
-    if (admission === 'conflict') {
-      return { inputId, status: 'rejected', reason: 'conflict' }
+    if (admission !== 'duplicate') {
+      return { inputId, status: 'rejected', reason: admission }
     }
     const kept = this.receipts.get(inputId)
     if (kept) return kept
@@ -513,14 +530,21 @@ export abstract class SessionInputs<
     operation: OperationImpl<ChatTurnResult>,
     settlement: InputSettlement,
   ) {
-    const text = lastAssistantText(this.writer?.state.messages ?? [])
+    const text = this.turnText(settlement.inputId)
     switch (settlement.outcome) {
       case 'completed':
         operation.finish('completed', { text, media: [] })
         return
-      case 'interrupted':
-        operation.finish('interrupted', { text, interrupts: [], media: [] })
+      case 'interrupted': {
+        // The interrupts wait still only when this turn stopped last.
+        const stopped = this.interrupted
+        const interrupts =
+          stopped && stopped.runId === settlement.operationId
+            ? stopped.interrupts
+            : []
+        operation.finish('interrupted', { text, interrupts, media: [] })
         return
+      }
       case 'aborted':
         operation.fail('cancelled', new Error('Cancelled.'))
         return
@@ -531,6 +555,27 @@ export abstract class SessionInputs<
         )
         return
     }
+  }
+
+  /**
+   * The answer of the turn that ran `inputId`, from the log: the last
+   * assistant text from where that turn started to where the next one
+   * started. A joined input reads the turn it joined. Empty when the log
+   * does not know where the turn started.
+   */
+  // ponytail: positions in the transcript. A revert that drops messages
+  // moves them, and a note added after the turn counts as its text. Keep the
+  // answer on the settlement record if that matters.
+  protected turnText(inputId: string): string {
+    const state = this.writer?.state
+    const own = state?.inputs.get(inputId)
+    const from = (own?.into ? state?.inputs.get(own.into) : own)?.appliedAt
+    if (!state || from === undefined) return ''
+    const starts = [...state.inputs.values()]
+      .map((input) => input.appliedAt ?? -1)
+      .filter((at) => at > from)
+    const to = Math.min(state.messages.length, ...starts)
+    return lastAssistantText(state.messages.slice(from, to))
   }
 
   protected publishStarted(

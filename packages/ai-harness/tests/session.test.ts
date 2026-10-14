@@ -456,6 +456,56 @@ describe('inbox', () => {
     await host.close()
   })
 
+  it('runs a retry of a prompt whose first store failed', async () => {
+    const { persistence, host } = setup()
+    const session = await host.open(
+      defineHarness({
+        name: 'test/inbox-retry',
+        adapter: mockAdapter([() => text('ran')]).adapter,
+      }),
+      { threadId: 't1' },
+    )
+    vi.spyOn(persistence.stores.inbox, 'append').mockRejectedValueOnce(
+      new Error('inbox down'),
+    )
+
+    await expect(session.prompt('Go.', { inputId: 'in-1' })).rejects.toThrow(
+      'inbox down',
+    )
+    expect(await session.prompt('Go.', { inputId: 'in-1' })).toEqual({
+      text: 'ran',
+      media: [],
+    })
+    await host.close()
+  })
+
+  it('rejects inputs that come while the session closes', async () => {
+    const { host } = setup()
+    const release = gate()
+    const { adapter } = mockAdapter([untilAborted(), after(release.opened, '')])
+    const session = await host.open(
+      defineHarness({ name: 'test/closing', adapter }),
+      { threadId: 't1' },
+    )
+    const running = session.prompt('First.')
+    await running.receipt
+
+    const closed = session.close()
+    const late = session.prompt('Late.')
+    expect(await late.receipt).toMatchObject({
+      status: 'rejected',
+      reason: 'closed',
+    })
+    await expect(late).rejects.toThrow()
+    expect(await session.followUp('Later.')).toMatchObject({
+      status: 'rejected',
+      reason: 'closed',
+    })
+    await expect(running).rejects.toThrow()
+    await closed
+    release.open()
+  })
+
   it('warns when the inbox cannot mark an input rejected', async () => {
     const { persistence, host } = setup()
     const session = await host.open(
@@ -743,6 +793,30 @@ describe('joins without a log', () => {
     )
     return { host, session, calls, wait: { started, done } }
   }
+
+  it('keeps a joined prompt findable, and cancels it with its turn', async () => {
+    const { host, session, calls, wait } = await openJoins(
+      [() => toolCall('wait', {}), untilAborted()],
+      {},
+    )
+
+    const turn = session.prompt('start')
+    await wait.started.opened
+    const steer = session.prompt('join me', { busy: 'steer' })
+    await steer.receipt
+    wait.done.open()
+    await vi.waitFor(() => expect(calls).toHaveLength(2))
+
+    expect(session.operation(steer.id)).toBe(steer)
+    expect(await session.cancel(steer.id)).toMatchObject({
+      status: 'rejected',
+      reason: 'not_running',
+    })
+    await session.cancel(turn.id)
+    await expect(steer).rejects.toThrow()
+    expect(steer.status()).toBe('cancelled')
+    await host.close()
+  })
 
   it('refuses a cancel that lands while onJoin runs, and the steer joins', async () => {
     const inJoin = gate()

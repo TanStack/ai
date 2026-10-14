@@ -163,7 +163,15 @@ export abstract class SessionTurn<
   }
 
   protected override drain(): void {
-    if (this.activeTurn || this.closing || this.holdTurns > 0) return
+    if (this.closing) {
+      // An input stored while close() ran queued its turn late. close()
+      // ended the other queued turns already. These end the same way.
+      for (const turn of this.queue.splice(0)) {
+        turn.operation.fail('cancelled', new Error('Session closed.'))
+      }
+      return
+    }
+    if (this.activeTurn || this.holdTurns > 0) return
     const next = this.queue.shift()
     if (!next) return this.checkIdle()
     this.activeTurn = next.operation

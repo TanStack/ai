@@ -1274,6 +1274,25 @@ describe('input ids', () => {
     await second.host.close()
   })
 
+  it('settles an old duplicate after a restart with the text of its own turn', async () => {
+    const persistence = durablePersistence()
+    const first = await openDurable({
+      persistence,
+      replies: [() => text('first answer'), () => text('second answer')],
+    })
+    await first.session.prompt('one', { inputId: 'old-1' })
+    await first.session.prompt('two', { inputId: 'new-1' })
+    await first.host.close()
+
+    const second = await openDurable({ persistence, replies: [] })
+
+    expect(await second.session.prompt('one', { inputId: 'old-1' })).toEqual({
+      text: 'first answer',
+      media: [],
+    })
+    await second.host.close()
+  })
+
   it('resolves the receipt when the input is in the log, before the turn ends', async () => {
     const persistence = durablePersistence()
     const release = gate()

@@ -677,7 +677,7 @@ export abstract class SessionAgents<
     // This run is the chain's current run.
     const { principal } = chain.current
     if (!start.resumed && !start.message) {
-      await this.accept(
+      const admission = await this.accept(
         inputId,
         {
           op: 'agent',
@@ -690,6 +690,10 @@ export abstract class SessionAgents<
         },
         principal,
       )
+      if (admission === 'closed') {
+        operation.fail('cancelled', new Error('Session closed.'))
+        return
+      }
     }
     const agent: AnyAgent | undefined =
       typeof target === 'string' ? this.agentRegistry.get(target) : target
