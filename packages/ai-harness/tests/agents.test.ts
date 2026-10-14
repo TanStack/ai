@@ -177,9 +177,15 @@ describe('agents', () => {
       agents({ adapter: byModel, agents: [quick] }),
     ])
 
-    expect(await session.prompt('one')).toEqual({ text: 'from main', media: [] })
+    expect(await session.prompt('one')).toEqual({
+      text: 'from main',
+      media: [],
+    })
     await session.command('agent', 'quick')
-    expect(await session.prompt('two')).toEqual({ text: 'from fast', media: [] })
+    expect(await session.prompt('two')).toEqual({
+      text: 'from fast',
+      media: [],
+    })
     await host.close()
   })
 
