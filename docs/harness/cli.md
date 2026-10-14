@@ -168,7 +168,7 @@ process.exitCode = await runCli(assistant, {
 - When `ui` resolves, the CLI disposes the view and `runCli` returns.
 - To write `Screen`, read [Build your own UI](./custom-ui).
 
-For a full Ink screen with approvals, questions, sign-ins, and child agents, copy [`examples/harness-cli/src/tui.tsx`](https://github.com/TanStack/ai/blob/main/examples/harness-cli/src/tui.tsx).
+For an Ink screen with approvals, questions, sign-ins, and child agents, copy [`examples/harness-cli/src/tui.tsx`](https://github.com/TanStack/ai/blob/main/examples/harness-cli/src/tui.tsx).
 
 ## What you have now
 
