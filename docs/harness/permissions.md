@@ -60,11 +60,16 @@ The rule makes each `save_note` call wait for the user.
 The question shows up as a `harness.question` event and in `session.snapshot().pendingQuestions`. Listen for the event, then answer with `session.answer`:
 
 ```ts group=harness-permissions
+// Calls can run in parallel, so answer each open question once.
+const answered = new Set<string>()
 const stopAnswering = session.onEvent('CUSTOM', async ({ event }) => {
   if (event.name !== HARNESS_EVENTS.question) return
-  const [question] = session.snapshot().pendingQuestions
-  // For example: Allow save_note {"path":"meeting.md","text":"..."}?
-  if (question) await session.answer({ questionId: question.questionId, value: 'once' })
+  for (const question of session.snapshot().pendingQuestions) {
+    if (answered.has(question.questionId)) continue
+    answered.add(question.questionId)
+    // For example: Allow save_note {"path":"meeting.md","text":"..."}?
+    await session.answer({ questionId: question.questionId, value: 'once' })
+  }
 })
 
 await session.prompt('Save a note with the time of the meeting.')
