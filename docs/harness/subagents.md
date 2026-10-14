@@ -128,7 +128,7 @@ What the next host does:
 - It runs the agent again with the same input. Its `ctx.chat` calls continue from the saved transcript, and its finished tool calls do not run again.
 - A step runs at least once. A host can stop after `fn` ran and before the log stored its value. Then the next run calls `fn` again.
 - After `durability.maxAttempts` runs (default 10), the run ends `failed` with the code `attempts_exhausted`.
-- `host.close()` cancels the run. Only a host that stops without a close (a crash or a kill) leaves the run for the next host.
+- `host.close()` cancels the run. A crash, a kill, or `host.close({ recoverable: true })` leaves the run for the next host.
 
 ## Message a running agent
 
@@ -188,11 +188,15 @@ for (const info of session.agentRuns()) {
 }
 
 if (session.agentRun(run.id)) {
-  await session.sendToAgent(run.id, 'Make it shorter.', { mode: 'followUp' })
+  await session.sendToAgent({
+    operationId: run.id,
+    message: 'Make it shorter.',
+    mode: 'followUp',
+  })
 }
 ```
 
-- `session.sendToAgent(operationId, message, options)`: does the same as `run.send`. An unknown id gets a receipt with `status: 'rejected'` and `reason: 'not_running'`.
+- `session.sendToAgent({ operationId, message, mode })`: does the same as `run.send`. An unknown id gets a receipt with `status: 'rejected'` and `reason: 'not_running'`.
 - `session.agentRun(id)`: the run, or `undefined`.
 - `session.agentRuns()`: every agent run of the session, oldest first.
 

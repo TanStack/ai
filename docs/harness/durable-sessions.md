@@ -187,7 +187,7 @@ The log keeps the retry count. The host writes it when a model call fails, befor
 
 ## Decide recovery yourself
 
-The steps above are the default. To change them for one input, add `durability.recover`. It runs for each input that a crashed host left. It gets `{ session, input, messages, decision }`:
+The steps above are the default. To change them for one input, add `durability.recover`. It runs for each input that a crashed host left. It gets `{ session, input, messages, decision, interruptedTools }`:
 
 - `input`: the input, with `inputId`, `attempt`, `timeoutAt`, `abortRequested`, and `retries` (the model calls that failed so far).
 - `messages`: the transcript from the log.
