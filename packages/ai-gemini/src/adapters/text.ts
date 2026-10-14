@@ -305,7 +305,12 @@ function buildInteractionsInput(
       const signature = metadata?.thoughtSignature
       if (typeof signature === 'string' && signature)
         steps.push({ type: 'thought', signature, summary: [] })
-      const args: unknown = JSON.parse(toolCall.function.arguments || '{}')
+      // Malformed JSON stays in the history next to its tool error, so it
+      // goes out as `{}`.
+      let args: unknown = {}
+      try {
+        args = JSON.parse(toolCall.function.arguments || '{}')
+      } catch {}
       if (typeof args !== 'object' || args === null || Array.isArray(args))
         throw new Error(
           `Gemini Interactions function ${toolCall.function.name} requires object arguments`,
