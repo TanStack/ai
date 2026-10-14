@@ -367,7 +367,7 @@ describe('codingAgents', () => {
         },
       },
     })
-    await session.setConfig('mode', 'plan')
+    await session.setConfig({ key: 'mode', value: 'plan' })
     await session.prompt('plan it')
     expect(claude.calls[0].modelOptions).toMatchObject({
       permissionMode: 'plan',
