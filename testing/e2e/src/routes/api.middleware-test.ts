@@ -183,7 +183,7 @@ const toolBadArgsMiddleware: ChatMiddleware = {
   name: 'tool-bad-args',
   onBeforeToolCall(_ctx, hookCtx) {
     if (hookCtx.toolName !== 'get_weather') return undefined
-    return { type: 'transformArgs' as const, args: { city: 42 } }
+    return { type: 'transformArgs' as const, args: { city: { name: 'NYC' } } }
   },
 }
 
@@ -675,7 +675,7 @@ export const Route = createFileRoute('/api/middleware-test')({
           const tools =
             genericScenario && testId
               ? genericTools(testId, genericScenario)
-              : scenario === 'with-tool'
+              : scenario === 'with-tool' || scenario === 'raw-tool-args'
                 ? [weatherTool]
                 : scenario === 'structured-client-tool-wait'
                   ? [clientContextToolDefinition]

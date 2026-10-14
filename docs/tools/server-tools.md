@@ -363,6 +363,89 @@ The `inputSchema` checks the input just before the tool runs:
 - An async validator is awaited.
 - The tool gets the schema's output, so a transform such as `z.string().transform(Number)` applies once.
 
+Models often send a value with the wrong type, such as `"5"` for a number. The check repairs these against the schema before it fails the call:
+
+| The model sends | The schema wants | The tool gets |
+| --- | --- | --- |
+| `"5"` | `number` or `integer` | `5` |
+| `"true"` | `boolean` | `true` |
+| `5` | `string` | `"5"` |
+| `null` for an optional field | a type with no `null` | no field |
+| `null` for a required field | `string`, `number`, or `boolean` | `""`, `0`, or `false` |
+
+- A JSON Schema tool, and an MCP tool, gets the repair when its input fails the check. A valid input runs as it is.
+- A Standard Schema that can export JSON Schema (Zod, ArkType, Valibot) runs first as written. If it fails, the input is repaired and the schema runs again. If it still fails, the error shows the issues of the first run.
+- An input that cannot be repaired, such as `"many"` for a number, becomes a tool error.
+
+### Turn off or replace the repair
+
+Sometimes the built-in repair is the wrong move. Maybe your tool moves money, and a `null` must never turn into `0`. Or maybe your model makes the same odd mistake every time, and you know the fix. Pass `repairToolInput` to `chat()` and take control.
+
+Turn the repair off, so a bad input always goes back to the model as an error:
+
+```typescript
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { transferFunds } from "./tools";
+
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: openaiText("gpt-6.1-sol"),
+    messages,
+    tools: [transferFunds],
+    repairToolInput: false,
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+Or write your own fix. Say the model keeps sending `"limit": "all"` to `search_products`. Map it to a number:
+
+```typescript
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { searchProducts } from "./tools";
+
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: openaiText("gpt-6.1-sol"),
+    messages,
+    tools: [searchProducts],
+    repairToolInput: ({ tool, input }) => {
+      if (
+        tool.name === "search_products" &&
+        typeof input === "object" &&
+        input !== null &&
+        "limit" in input &&
+        input.limit === "all"
+      ) {
+        return { ...input, limit: 100 };
+      }
+      return undefined;
+    },
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+How your function works:
+
+- It runs only when an input fails the check. A valid input never gets to it.
+- It replaces the built-in repair. A `"5"` stays a string unless your function changes it.
+- It gets `tool`, `toolCall`, `input`, and `error` (the validation error).
+- Return the new input, and the check runs again. If that check fails, the model gets the original error.
+- Return `undefined` to send the original error to the model. If your function throws, the model gets the thrown message.
+
+The option works the same for Standard Schema tools, JSON Schema tools, and MCP tools.
+
+A client tool, or a tool that waits for approval, is checked twice: once before it goes out, and once when it comes back. So your function can run twice for one call.
+
 ## Using JSON Schema
 
 If you have existing JSON Schema definitions or prefer not to use Zod, you can define tool schemas using raw JSON Schema objects:

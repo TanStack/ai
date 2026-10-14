@@ -4,6 +4,7 @@ import { chat } from '../src/activities/chat/index'
 import { defineChatMiddleware } from '../src/activities/chat/middleware/define'
 import { defineInterrupt } from '../src/interrupt-definition'
 import { executeToolCalls } from '../src/activities/chat/tools/tool-calls'
+import { validateToolInput } from '../src/activities/chat/tools/input-validation'
 import { otelMiddleware } from '../src/middlewares/otel'
 import { EventType } from '../src/types'
 import { collectChunks, createMockAdapter, ev } from './test-utils'
@@ -18,11 +19,16 @@ import type {
   ModelMessage,
   SchemaInput,
   StreamChunk,
+  TextOptions,
   Tool,
   ToolCall,
+  ToolInputRepairContext,
 } from '../src/types'
 
 const schema = z.object({ count: z.number().int().min(1) })
+
+/** Checks the schema alone: the built-in repair would fix some inputs. */
+const noRepair = { repairToolInput: false } as const
 
 async function runTool(
   rawArguments: string,
@@ -33,6 +39,7 @@ async function runTool(
     approvals?: Map<string, ToolApprovalResolution>
     middleware?: ToolExecutionMiddlewareHooks
     clientResults?: Map<string, unknown>
+    repairToolInput?: TextOptions['repairToolInput']
   } = {},
 ) {
   const executed: Array<unknown> = []
@@ -62,6 +69,11 @@ async function runTool(
     options.clientResults,
     undefined,
     options.middleware,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    options.repairToolInput,
   )
   while (true) {
     const next = await generator.next()
@@ -316,19 +328,19 @@ describe('JSON Schema tool input', () => {
     expect(result.executed).toEqual([{ count: 2 }])
   })
 
-  it.each(['{}', '{"count":"2"}', '{"count":0}', '{"count":2,"extra":true}'])(
-    'rejects invalid input without executing: %s',
-    async (raw) => {
-      const result = await runTool(raw, jsonSchema)
-      expect(result.executed).toEqual([])
-      expect(result.results[0]?.state).toBe('output-error')
-      expect(result.results[0]?.result).toEqual({
-        error: expect.stringContaining(
-          'Input validation failed for tool check',
-        ),
-      })
-    },
-  )
+  it.each([
+    '{}',
+    '{"count":"wrong"}',
+    '{"count":0}',
+    '{"count":2,"extra":true}',
+  ])('rejects invalid input without executing: %s', async (raw) => {
+    const result = await runTool(raw, jsonSchema)
+    expect(result.executed).toEqual([])
+    expect(result.results[0]?.state).toBe('output-error')
+    expect(result.results[0]?.result).toEqual({
+      error: expect.stringContaining('Input validation failed for tool check'),
+    })
+  })
 
   it('names the failed location and shows the received arguments', async () => {
     const result = await runTool('{"count":0}', jsonSchema)
@@ -362,7 +374,7 @@ describe('JSON Schema tool input', () => {
         'check: #: Instance does not have required property "count".\n',
       ),
     })
-    expect((await runTool('{"count":"3"}', schema)).executed).toEqual([])
+    expect((await runTool('{"count":"x"}', schema)).executed).toEqual([])
   })
 
   it('uses the draft named by $schema', async () => {
@@ -551,12 +563,18 @@ describe('JSON Schema tool input', () => {
     expect(
       (await runTool('{"my field":null,"a/b":3}', schema)).executed,
     ).toEqual([{ 'my field': null, 'a/b': 3 }])
-    expect((await runTool('{"a/b":null}', schema)).executed).toEqual([])
-    expect((await runTool('{"a/b":"3"}', schema)).executed).toEqual([])
+    expect((await runTool('{"a/b":null}', schema, noRepair)).executed).toEqual(
+      [],
+    )
+    expect((await runTool('{"a/b":"3"}', schema, noRepair)).executed).toEqual(
+      [],
+    )
     expect(
       (await runTool('{"50%":null,"copy":{"id":1}}', schema)).executed,
     ).toEqual([{ '50%': null, copy: { id: 1 } }])
-    expect((await runTool('{"copy":null}', schema)).executed).toEqual([])
+    expect((await runTool('{"copy":null}', schema, noRepair)).executed).toEqual(
+      [],
+    )
   })
 
   it('keeps a $ref that points into a nullable schema', async () => {
@@ -578,9 +596,13 @@ describe('JSON Schema tool input', () => {
       (await runTool('{"home":null,"work":{"city":"x"},"office":null}', schema))
         .executed,
     ).toEqual([{ home: null, work: { city: 'x' }, office: null }])
-    expect((await runTool('{"work":null}', schema)).executed).toEqual([])
-    expect((await runTool('{"office":{}}', schema)).executed).toEqual([])
-    expect((await runTool('{"home":1}', schema)).executed).toEqual([])
+    expect((await runTool('{"work":null}', schema, noRepair)).executed).toEqual(
+      [],
+    )
+    expect((await runTool('{"office":{}}', schema, noRepair)).executed).toEqual(
+      [],
+    )
+    expect((await runTool('{"home":1}', schema, noRepair)).executed).toEqual([])
   })
 
   it('moves a $ref through nested nullable schemas', async () => {
@@ -607,9 +629,11 @@ describe('JSON Schema tool input', () => {
     expect(
       (await runTool('{"outer":{"inner":null},"copy":3}', schema)).executed,
     ).toEqual([{ outer: { inner: null }, copy: 3 }])
-    expect((await runTool('{"copy":"3"}', schema)).executed).toEqual([])
+    expect((await runTool('{"copy":"3"}', schema, noRepair)).executed).toEqual(
+      [],
+    )
     expect(
-      (await runTool('{"outer":{"inner":true}}', schema)).executed,
+      (await runTool('{"outer":{"inner":true}}', schema, noRepair)).executed,
     ).toEqual([])
   })
 
@@ -643,7 +667,25 @@ describe('JSON Schema tool input', () => {
       (await runTool('{"name":null,"kind":null}', schema)).executed,
     ).toEqual([{ name: null, kind: null }])
     expect((await runTool('{"kind":"c"}', schema)).executed).toEqual([])
-    expect((await runTool('{"size":null}', schema)).executed).toEqual([])
+    expect((await runTool('{"size":null}', schema, noRepair)).executed).toEqual(
+      [],
+    )
+  })
+
+  it('repairs a value inside an OpenAPI 3.0 nullable schema', async () => {
+    const schema: JSONSchema = {
+      type: 'object',
+      properties: {
+        count: { nullable: true, allOf: [{ type: 'integer' }] },
+        size: { type: 'integer', nullable: true },
+      },
+    }
+    expect(
+      (await runTool('{"count":"3","size":"4"}', schema)).executed,
+    ).toEqual([{ count: 3, size: 4 }])
+    expect(
+      (await runTool('{"count":null,"size":null}', schema)).executed,
+    ).toEqual([{ count: null, size: null }])
   })
 
   it('treats format as an annotation', async () => {
@@ -747,10 +789,198 @@ describe('JSON Schema tool input', () => {
       expect((await runTool('{"count":2}', schema)).executed).toEqual([
         { count: 2 },
       ])
-      expect((await runTool('{"count":"2"}', schema)).executed).toEqual([])
+      expect((await runTool('{"count":"2"}', schema)).executed).toEqual([
+        { count: 2 },
+      ])
+      expect((await runTool('{"count":"x"}', schema)).executed).toEqual([])
     } finally {
       vi.unstubAllGlobals()
     }
+  })
+})
+
+describe('tool input repair', () => {
+  const schema: JSONSchema = {
+    type: 'object',
+    properties: { count: { type: 'integer', minimum: 1 } },
+    required: ['count'],
+    additionalProperties: false,
+  }
+
+  it('coerces a numeric field before execution', async () => {
+    const result = await runTool('{"count":"2"}', schema)
+    expect(result.executed).toEqual([{ count: 2 }])
+  })
+
+  it('does not change the received arguments', async () => {
+    const received = { count: '2' }
+    expect(await validateToolInput(schema, received, 'check')).toEqual({
+      count: 2,
+    })
+    expect(received).toEqual({ count: '2' })
+  })
+
+  it('shows the original arguments when the repaired value still fails', async () => {
+    const result = await runTool('{"count":"0"}', schema)
+    expect(result.executed).toEqual([])
+    expect(result.results[0]?.result).toEqual({
+      error: expect.stringContaining('"count": "0"'),
+    })
+  })
+
+  it('follows local references and drops a null optional field', async () => {
+    const result = await runTool('{"count":"3","label":null,"omitted":null}', {
+      type: 'object',
+      $defs: { count: { type: 'integer', minimum: 1 } },
+      properties: {
+        count: { $ref: '#/$defs/count' },
+        label: { type: ['string', 'null'] },
+        omitted: { type: 'string' },
+      },
+      required: ['count'],
+    })
+    expect(result.executed).toEqual([{ count: 3, label: null }])
+  })
+
+  it.each<[unknown, JSONSchema, unknown]>([
+    ['12', { anyOf: [{ type: 'integer' }, { type: 'string' }] }, '12'],
+    ['12', { type: ['integer', 'string'] }, '12'],
+    ['3', { type: 'integer' }, 3],
+    [['1', '2'], { type: 'array', items: { type: 'integer' } }, [1, 2]],
+    [
+      ['1', 'x'],
+      { prefixItems: [{ type: 'integer' }, { type: 'string' }] },
+      [1, 'x'],
+    ],
+    ['true', { type: 'boolean' }, true],
+    [null, { type: 'string' }, ''],
+  ])('repairs %j against %j', async (received, inputSchema, expected) => {
+    expect(await validateToolInput(inputSchema, received, 'check')).toEqual(
+      expected,
+    )
+  })
+
+  it('rejects a primitive that cannot be repaired', async () => {
+    await expect(
+      validateToolInput({ type: 'integer' }, 'wrong', 'check'),
+    ).rejects.toThrow('Input validation failed for tool check')
+  })
+
+  it('keeps a valid referenced union branch', async () => {
+    const result = await runTool('{"count":"12"}', {
+      type: 'object',
+      $defs: { numeric: { type: 'integer' }, text: { type: 'string' } },
+      properties: {
+        count: {
+          anyOf: [{ $ref: '#/$defs/numeric' }, { $ref: '#/$defs/text' }],
+        },
+      },
+      required: ['count'],
+    })
+    expect(result.executed).toEqual([{ count: '12' }])
+  })
+
+  it('coerces conditional branch fields', async () => {
+    const result = await runTool('{"mode":"count","count":"4"}', {
+      type: 'object',
+      if: { properties: { mode: { const: 'count' } }, required: ['mode'] },
+      then: {
+        properties: { count: { type: 'integer' } },
+        required: ['count'],
+      },
+    })
+    expect(result.executed).toEqual([{ mode: 'count', count: 4 }])
+  })
+
+  it('keeps a null field that a conditional branch requires', async () => {
+    const result = await runTool('{"mode":"count","count":null}', {
+      type: 'object',
+      properties: { mode: { type: 'string' }, count: { type: 'integer' } },
+      if: { properties: { mode: { const: 'count' } }, required: ['mode'] },
+      then: { required: ['count'] },
+    })
+    expect(result.executed).toEqual([{ mode: 'count', count: 0 }])
+  })
+
+  it('keeps a null field that an intersection requires', async () => {
+    const result = await runTool('{"count":null}', {
+      type: 'object',
+      allOf: [
+        { properties: { count: { type: 'integer' } } },
+        { required: ['count'] },
+      ],
+    })
+    expect(result.executed).toEqual([{ count: 0 }])
+  })
+
+  it('keeps a null field required outside a union branch', async () => {
+    const result = await runTool('{"count":null}', {
+      type: 'object',
+      required: ['count'],
+      anyOf: [{ properties: { count: { type: 'integer' } } }],
+    })
+    expect(result.executed).toEqual([{ count: 0 }])
+  })
+
+  it('coerces pattern and additional properties', async () => {
+    const result = await runTool('{"n_1":"4","extra":"5"}', {
+      type: 'object',
+      patternProperties: { '^n_': { type: 'integer' } },
+      additionalProperties: { type: 'number' },
+    })
+    expect(result.executed).toEqual([{ n_1: 4, extra: 5 }])
+  })
+
+  it('coerces an approval edit before execution', async () => {
+    const result = await runTool('{"count":2}', schema, {
+      needsApproval: true,
+      approvals: new Map([
+        ['call-1', { approved: true, editedArgs: { count: '4' } }],
+      ]),
+    })
+    expect(result.executed).toEqual([{ count: 4 }])
+  })
+
+  it('coerces a middleware rewrite before a client request', async () => {
+    const result = await runTool('{"count":2}', schema, {
+      client: true,
+      middleware: {
+        onBeforeToolCall: async () => ({
+          type: 'transformArgs',
+          args: { count: '5' },
+        }),
+      },
+    })
+    expect(result.needsClientExecution).toEqual([
+      { toolCallId: 'call-1', toolName: 'check', input: { count: 5 } },
+    ])
+  })
+
+  it('repairs input for a Standard Schema that exports JSON Schema', async () => {
+    const result = await runTool(
+      '{"count":"2","label":null}',
+      z.object({ count: z.number(), label: z.string().optional() }),
+    )
+    expect(result.executed).toEqual([{ count: 2 }])
+  })
+
+  it('runs the authored transform on the repaired input', async () => {
+    const result = await runTool(
+      '{"count":"2"}',
+      z.object({ count: z.number().transform((value) => value * 10) }),
+    )
+    expect(result.executed).toEqual([{ count: 20 }])
+  })
+
+  it('reports the issues of the first run when repair does not help', async () => {
+    const result = await runTool(
+      '{"count":"wrong"}',
+      z.object({ count: z.number() }),
+    )
+    expect(result.executed).toEqual([])
+    expect(result.results[0]?.result).toEqual({
+      error: expect.stringContaining('"count": "wrong"'),
+    })
   })
 })
 
@@ -818,6 +1048,7 @@ async function initial(
   tool: Tool,
   middleware: Array<ChatMiddleware> = [],
   boundary = false,
+  repairToolInput?: TextOptions['repairToolInput'],
 ) {
   const { adapter } = createMockAdapter({
     iterations: [
@@ -831,7 +1062,9 @@ async function initial(
   })
   const messages: Array<ModelMessage> = [{ role: 'user', content: 'check' }]
   if (!boundary) {
-    return collectChunks(chat({ adapter, messages, tools: [tool], middleware }))
+    return collectChunks(
+      chat({ adapter, messages, tools: [tool], middleware, repairToolInput }),
+    )
   }
   return collectChunks(
     chat({
@@ -840,6 +1073,7 @@ async function initial(
       tools: [tool],
       interrupts: [review],
       middleware: [reviewBeforeTools, ...middleware],
+      repairToolInput,
     }),
   )
 }
@@ -1002,5 +1236,158 @@ describe('client tool input in chat()', () => {
     expect(
       fakeTracer.spans.some((span) => span.name.startsWith('execute_tool')),
     ).toBe(false)
+  })
+})
+
+describe('repairToolInput', () => {
+  const countSchema: JSONSchema = {
+    type: 'object',
+    properties: { count: { type: 'integer' } },
+    required: ['count'],
+  }
+
+  /** One model turn that calls `check` with each input, then a turn that answers. */
+  async function run(
+    inputs: Array<unknown>,
+    inputSchema: SchemaInput,
+    repairToolInput?: TextOptions['repairToolInput'],
+  ) {
+    const executed: Array<unknown> = []
+    const tool: Tool = {
+      name: 'check',
+      description: 'Check',
+      inputSchema,
+      execute: (input) => {
+        executed.push(input)
+        return 'ok'
+      },
+    }
+    const { adapter } = createMockAdapter({
+      iterations: [
+        [
+          ev.runStarted(),
+          ...inputs.flatMap((input, index) => [
+            ev.toolStart(`call-${index}`, 'check'),
+            ev.toolArgs(`call-${index}`, JSON.stringify(input)),
+            ev.toolEnd(`call-${index}`),
+          ]),
+          ev.runFinished('tool_calls'),
+        ],
+        [ev.runStarted(), ev.textContent('Done'), ev.runFinished('stop')],
+      ],
+    })
+    const chunks = await collectChunks(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'check' }],
+        tools: [tool],
+        repairToolInput,
+      }),
+    )
+    const results = chunks.flatMap((chunk) =>
+      chunk.type === EventType.TOOL_CALL_RESULT &&
+      typeof chunk.content === 'string'
+        ? [chunk.content]
+        : [],
+    )
+    const errors = results.filter((content) =>
+      content.includes('Input validation failed'),
+    )
+    return { executed, results, errors }
+  }
+
+  it('turns the built-in repair off with false', async () => {
+    const result = await run([{ count: '3' }], countSchema, false)
+    expect(result.executed).toEqual([])
+    expect(result.errors).toHaveLength(1)
+  })
+
+  it('turns the repair off with false for a Standard Schema', async () => {
+    const result = await run(
+      [{ count: '3' }],
+      z.object({ count: z.number() }),
+      false,
+    )
+    expect(result.executed).toEqual([])
+    expect(result.errors).toHaveLength(1)
+  })
+
+  it.each([false, true])(
+    'turns the repair off with false for a client tool: boundary=%s',
+    async (boundary) => {
+      const chunks = await initial(
+        { count: '3' },
+        clientCheck(schema),
+        [],
+        boundary,
+        false,
+      )
+      expect(clientInput(chunks)).toBeUndefined()
+      expect(
+        chunks.some(
+          (chunk) =>
+            chunk.type === EventType.TOOL_CALL_RESULT &&
+            typeof chunk.content === 'string' &&
+            chunk.content.includes('Input validation failed'),
+        ),
+      ).toBe(true)
+    },
+  )
+
+  it('replaces the built-in repair with a function', async () => {
+    const repair = vi.fn(({ input }: ToolInputRepairContext) =>
+      typeof input === 'object' &&
+      input !== null &&
+      'count' in input &&
+      input.count === 'many'
+        ? { count: 7 }
+        : undefined,
+    )
+    const result = await run(
+      [{ count: 'many' }, { count: '3' }],
+      countSchema,
+      repair,
+    )
+    // `'3'` is not repaired: the function said `undefined`.
+    expect(result.executed).toEqual([{ count: 7 }])
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]).toContain(String.raw`\"count\": \"3\"`)
+    const context = repair.mock.calls[0]?.[0]
+    expect(context?.tool.name).toBe('check')
+    expect(context?.toolCall.id).toBe('call-0')
+    expect(context?.input).toEqual({ count: 'many' })
+    expect(context?.error.message).toContain('Input validation failed')
+  })
+
+  it('does not call the function for a valid input', async () => {
+    const repair = vi.fn(() => ({ count: 9 }))
+    const result = await run([{ count: 2 }], countSchema, repair)
+    expect(repair).not.toHaveBeenCalled()
+    expect(result.executed).toEqual([{ count: 2 }])
+  })
+
+  it('reports the original error when the repaired input still fails', async () => {
+    const result = await run([{ count: 'many' }], countSchema, () => ({
+      count: 'still wrong',
+    }))
+    expect(result.executed).toEqual([])
+    expect(result.errors[0]).toContain(String.raw`\"count\": \"many\"`)
+  })
+
+  it('runs a Standard Schema, with its transform, on the repaired input', async () => {
+    const result = await run(
+      [{ count: 'two' }],
+      z.object({ count: z.number().transform((value) => value * 10) }),
+      () => ({ count: 2 }),
+    )
+    expect(result.executed).toEqual([{ count: 20 }])
+  })
+
+  it('makes the thrown error the tool error', async () => {
+    const result = await run([{ count: 'many' }], countSchema, () => {
+      throw new Error('cannot repair')
+    })
+    expect(result.executed).toEqual([])
+    expect(result.results).toEqual([JSON.stringify({ error: 'cannot repair' })])
   })
 })

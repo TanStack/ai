@@ -80,6 +80,21 @@ describe('restorePublicUsage', () => {
     }
     expect(chunk.input).toEqual({ q: 'sf' })
   })
+
+  it('restores TOOL_CALL_END input from metadata.tanstack.args', () => {
+    const chunk: StreamChunk = {
+      type: EventType.TOOL_CALL_END,
+      toolCallId: 'tc1',
+      metadata: { tanstack: { args: '{"q": "sf"}' } },
+    }
+
+    restorePublicUsage(chunk)
+
+    if (chunk.type !== EventType.TOOL_CALL_END) {
+      throw new Error('expected TOOL_CALL_END')
+    }
+    expect(chunk.input).toEqual({ q: 'sf' })
+  })
 })
 
 describe('restoreInboundChunk', () => {

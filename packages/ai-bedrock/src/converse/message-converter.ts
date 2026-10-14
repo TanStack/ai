@@ -276,11 +276,10 @@ function messageToBlocks(
   }
   // null → no text blocks
 
-  // Append toolUse blocks for assistant tool calls. Malformed or non-object
-  // arguments come from a prior assistant turn the engine already accepted, so
-  // they signal a real upstream problem — throw rather than silently coercing to
-  // `{}` and forwarding a corrupted tool call (the adapter's catch surfaces it
-  // as a RUN_ERROR).
+  // Append toolUse blocks for assistant tool calls. Malformed JSON stays in
+  // the history next to its tool error, so it goes out as `{}`. Non-object
+  // arguments signal a real upstream problem and throw (the adapter's catch
+  // surfaces it as a RUN_ERROR).
   if (msg.role === 'assistant' && msg.toolCalls) {
     for (const call of msg.toolCalls) blocks.push(toolUseBlock(call))
   }
@@ -292,13 +291,11 @@ function toolUseBlock(
   call: NonNullable<ModelMessage['toolCalls']>[number],
 ): ContentBlock {
   const rawArguments = call.function.arguments || '{}'
-  let parsed: unknown
+  let parsed: unknown = {}
   try {
     parsed = JSON.parse(rawArguments)
-  } catch (error: unknown) {
-    throw new Error(
-      `Bedrock Converse: tool call "${call.function.name}" has malformed JSON arguments (${String(error)}). Raw: ${rawArguments}`,
-    )
+  } catch {
+    // The tool result already told the model the arguments were malformed.
   }
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
     throw new Error(
