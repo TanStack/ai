@@ -269,6 +269,9 @@ async function mediaResponse(
  * - `POST .../control`: `{ threadId, input }`. Returns the receipt.
  * - `GET  .../snapshot?threadId=`: the session snapshot.
  * - `GET  .../transcript?threadId=`: the saved messages of the thread.
+ * - `GET  .../agent-transcript?threadId=&subagentRunId=`: the saved messages
+ *   of a child agent run of the thread. Empty for an unknown id or a child
+ *   of another thread. 400 without `subagentRunId`.
  * - `GET  .../describe?threadId=`: the commands, settings, and tools. Only
  *   the commands in `expose.commands` and the config keys in `expose.config`.
  * - `POST .../media?threadId=&name=`: store the raw body as a media file of
