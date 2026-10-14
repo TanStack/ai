@@ -18,8 +18,10 @@ import type {
   ModelMessage,
   SchemaInput,
   StreamChunk,
+  TextOptions,
   Tool,
   ToolCall,
+  ToolInputRepairContext,
 } from '../src/types'
 
 const schema = z.object({ count: z.number().int().min(1) })
@@ -738,6 +740,7 @@ async function initial(
   tool: Tool,
   middleware: Array<ChatMiddleware> = [],
   boundary = false,
+  repairToolInput?: TextOptions['repairToolInput'],
 ) {
   const { adapter } = createMockAdapter({
     iterations: [
@@ -751,7 +754,9 @@ async function initial(
   })
   const messages: Array<ModelMessage> = [{ role: 'user', content: 'check' }]
   if (!boundary) {
-    return collectChunks(chat({ adapter, messages, tools: [tool], middleware }))
+    return collectChunks(
+      chat({ adapter, messages, tools: [tool], middleware, repairToolInput }),
+    )
   }
   return collectChunks(
     chat({
@@ -760,6 +765,7 @@ async function initial(
       tools: [tool],
       interrupts: [review],
       middleware: [reviewBeforeTools, ...middleware],
+      repairToolInput,
     }),
   )
 }
@@ -922,5 +928,158 @@ describe('client tool input in chat()', () => {
     expect(
       fakeTracer.spans.some((span) => span.name.startsWith('execute_tool')),
     ).toBe(false)
+  })
+})
+
+describe('repairToolInput', () => {
+  const countSchema: JSONSchema = {
+    type: 'object',
+    properties: { count: { type: 'integer' } },
+    required: ['count'],
+  }
+
+  /** One model turn that calls `check` with each input, then a turn that answers. */
+  async function run(
+    inputs: Array<unknown>,
+    inputSchema: SchemaInput,
+    repairToolInput?: TextOptions['repairToolInput'],
+  ) {
+    const executed: Array<unknown> = []
+    const tool: Tool = {
+      name: 'check',
+      description: 'Check',
+      inputSchema,
+      execute: (input) => {
+        executed.push(input)
+        return 'ok'
+      },
+    }
+    const { adapter } = createMockAdapter({
+      iterations: [
+        [
+          ev.runStarted(),
+          ...inputs.flatMap((input, index) => [
+            ev.toolStart(`call-${index}`, 'check'),
+            ev.toolArgs(`call-${index}`, JSON.stringify(input)),
+            ev.toolEnd(`call-${index}`),
+          ]),
+          ev.runFinished('tool_calls'),
+        ],
+        [ev.runStarted(), ev.textContent('Done'), ev.runFinished('stop')],
+      ],
+    })
+    const chunks = await collectChunks(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'check' }],
+        tools: [tool],
+        repairToolInput,
+      }),
+    )
+    const results = chunks.flatMap((chunk) =>
+      chunk.type === EventType.TOOL_CALL_RESULT &&
+      typeof chunk.content === 'string'
+        ? [chunk.content]
+        : [],
+    )
+    const errors = results.filter((content) =>
+      content.includes('Input validation failed'),
+    )
+    return { executed, results, errors }
+  }
+
+  it('turns the built-in repair off with false', async () => {
+    const result = await run([{ count: '3' }], countSchema, false)
+    expect(result.executed).toEqual([])
+    expect(result.errors).toHaveLength(1)
+  })
+
+  it('turns the repair off with false for a Standard Schema', async () => {
+    const result = await run(
+      [{ count: '3' }],
+      z.object({ count: z.number() }),
+      false,
+    )
+    expect(result.executed).toEqual([])
+    expect(result.errors).toHaveLength(1)
+  })
+
+  it.each([false, true])(
+    'turns the repair off with false for a client tool: boundary=%s',
+    async (boundary) => {
+      const chunks = await initial(
+        { count: '3' },
+        clientCheck(schema),
+        [],
+        boundary,
+        false,
+      )
+      expect(clientInput(chunks)).toBeUndefined()
+      expect(
+        chunks.some(
+          (chunk) =>
+            chunk.type === EventType.TOOL_CALL_RESULT &&
+            typeof chunk.content === 'string' &&
+            chunk.content.includes('Input validation failed'),
+        ),
+      ).toBe(true)
+    },
+  )
+
+  it('replaces the built-in repair with a function', async () => {
+    const repair = vi.fn(({ input }: ToolInputRepairContext) =>
+      typeof input === 'object' &&
+      input !== null &&
+      'count' in input &&
+      input.count === 'many'
+        ? { count: 7 }
+        : undefined,
+    )
+    const result = await run(
+      [{ count: 'many' }, { count: '3' }],
+      countSchema,
+      repair,
+    )
+    // `'3'` is not repaired: the function said `undefined`.
+    expect(result.executed).toEqual([{ count: 7 }])
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]).toContain(String.raw`\"count\": \"3\"`)
+    const context = repair.mock.calls[0]?.[0]
+    expect(context?.tool.name).toBe('check')
+    expect(context?.toolCall.id).toBe('call-0')
+    expect(context?.input).toEqual({ count: 'many' })
+    expect(context?.error.message).toContain('Input validation failed')
+  })
+
+  it('does not call the function for a valid input', async () => {
+    const repair = vi.fn(() => ({ count: 9 }))
+    const result = await run([{ count: 2 }], countSchema, repair)
+    expect(repair).not.toHaveBeenCalled()
+    expect(result.executed).toEqual([{ count: 2 }])
+  })
+
+  it('reports the original error when the repaired input still fails', async () => {
+    const result = await run([{ count: 'many' }], countSchema, () => ({
+      count: 'still wrong',
+    }))
+    expect(result.executed).toEqual([])
+    expect(result.errors[0]).toContain(String.raw`\"count\": \"many\"`)
+  })
+
+  it('runs a Standard Schema, with its transform, on the repaired input', async () => {
+    const result = await run(
+      [{ count: 'two' }],
+      z.object({ count: z.number().transform((value) => value * 10) }),
+      () => ({ count: 2 }),
+    )
+    expect(result.executed).toEqual([{ count: 20 }])
+  })
+
+  it('makes the thrown error the tool error', async () => {
+    const result = await run([{ count: 'many' }], countSchema, () => {
+      throw new Error('cannot repair')
+    })
+    expect(result.executed).toEqual([])
+    expect(result.results).toEqual([JSON.stringify({ error: 'cannot repair' })])
   })
 })

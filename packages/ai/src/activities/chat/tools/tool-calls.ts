@@ -977,6 +977,8 @@ async function buildClientToolResult(
  * @param toolExecution - `'parallel'` (default) prepares every call in call
  *   order, then starts the server tools together. `'sequential'` runs one
  *   call at a time. Results come back in call order either way.
+ * @param repairToolInput - How an input that fails the final check is
+ *   repaired: the built-in repair (default), none (`false`), or a function.
  */
 export async function* executeToolCalls<TContext = unknown>(
   toolCalls: Array<ToolCall>,
@@ -993,6 +995,7 @@ export async function* executeToolCalls<TContext = unknown>(
   abortSignal?: AbortSignal,
   resumeState?: ToolResumeExecutionState,
   toolExecution: NonNullable<TextOptions['toolExecution']> = 'parallel',
+  repairToolInput?: TextOptions['repairToolInput'],
 ): AsyncGenerator<CustomEvent | StreamChunk, ExecuteToolCallsResult, void> {
   const results: Array<ToolResult> = []
   const needsApproval: Array<ApprovalRequest> = []
@@ -1197,7 +1200,15 @@ export async function* executeToolCalls<TContext = unknown>(
     // The final check, after approval edits and middleware: invalid input
     // becomes a tool error, and the checked value is what runs.
     try {
-      input = await validateToolInput(tool.inputSchema, input, toolName)
+      input = await validateToolInput(
+        tool.inputSchema,
+        input,
+        toolName,
+        typeof repairToolInput === 'function'
+          ? (failed, error) =>
+              repairToolInput({ tool, toolCall, input: failed, error })
+          : repairToolInput,
+      )
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Validation failed'
