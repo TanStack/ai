@@ -162,7 +162,8 @@ export interface HarnessClient<THarness extends AnyHarness> {
   transcript: () => Promise<Array<ModelMessage>>
   /**
    * The saved messages of a child agent run of the thread, by its
-   * `subagentRunId`. Empty for an unknown id. See `session.agentTranscript`.
+   * `subagentRunId`. Empty for an unknown id. A child with no messages has
+   * one message with no content, with its card. See `session.agentTranscript`.
    */
   agentTranscript: (subagentRunId: string) => Promise<Array<ModelMessage>>
   /**

@@ -440,8 +440,11 @@ export abstract class SessionState<
   /**
    * The saved messages of a child agent run of this thread, by its
    * `subagentRunId`, oldest first. It starts with the task of the agent
-   * call. A nested child is a child of this thread too. Empty for an unknown
-   * id, for a child of another thread, and with no message store.
+   * call. Each message has the child's card (its name and how it ended) in
+   * `metadata.tanstack.subagent`. A child with no messages has one assistant
+   * message with no content that holds only its card. A nested child is a
+   * child of this thread too. Empty for an unknown id, for a child of another
+   * thread, and with no message store.
    */
   async agentTranscript(subagentRunId: string): Promise<Array<ModelMessage>> {
     const store = this.chatPersistence?.stores.messages
