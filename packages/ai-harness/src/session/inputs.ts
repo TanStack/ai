@@ -616,7 +616,8 @@ export abstract class SessionInputs<
   ): void {
     if (operation.isSettled()) return
     // A cancelled operation ends cancelled. Its cancel event is out already.
-    if (operation.abortController.signal.aborted) {
+    // A log failure aborts operations too, but they fail and say why.
+    if (operation.abortController.signal.aborted && !this.logFailure) {
       operation.fail('cancelled', this.logFailure ?? error)
     } else {
       operation.publish({
