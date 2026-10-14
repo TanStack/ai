@@ -8,7 +8,6 @@ import {
 } from '@tanstack/ai'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { withPersistence } from '@tanstack/ai-persistence'
-import { scrubSecrets, secretsOf } from '../auth'
 import { bindDurable } from '../durable-tool'
 import { mediaMiddleware } from '../media'
 import { OperationImpl } from '../operation'
@@ -49,7 +48,6 @@ import type {
   StreamChunk,
   SubagentRouterPick,
 } from '@tanstack/ai'
-import type { CredentialsAccess } from '../auth'
 import type { AnyHarness } from '../define'
 import type { ModelErrorContext } from '../turn'
 import type { MountedPlugins } from '../plugins'
@@ -146,7 +144,7 @@ export abstract class SessionTurn<
     } catch (error) {
       operation.publish({
         type: EventType.RUN_ERROR,
-        message: this.scrub(errorText(error), credentials),
+        message: this.scrub(errorText(error)),
         timestamp: Date.now(),
       })
       operation.fail(
@@ -155,11 +153,6 @@ export abstract class SessionTurn<
       )
     }
     this.publishFinished(operation)
-  }
-
-  /** `text` without the credential values this session handed out. */
-  protected scrub(text: string, ...more: Array<CredentialsAccess>) {
-    return scrubSecrets(text, secretsOf(this.credentialAccess, ...more))
   }
 
   protected override drain(): void {

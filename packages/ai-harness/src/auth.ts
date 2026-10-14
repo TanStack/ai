@@ -51,10 +51,13 @@ export interface CredentialsAccess {
 /**
  * What a session adds to `credentialsFor`: `canWait` says if a `require`
  * with `wait` can stop the turn now, and `onSet` runs after each save.
+ * `secrets` gets each secret value the access reads or saves, so the session
+ * can scrub them from the errors it sends to clients.
  */
 export interface CredentialHooks {
   canWait?: (id: string) => boolean
   onSet?: (id: string) => Promise<void>
+  secrets?: Set<string>
 }
 
 /**
@@ -80,15 +83,6 @@ function signInRequired(error: AuthRequiredError) {
 const tenantOf = ({ userId, ...tenant }: Scope): Scope | undefined =>
   userId === undefined ? undefined : tenant
 
-// The secret values each access read or saved, so a session can scrub them
-// from the errors it sends to clients.
-const handedOut = new WeakMap<CredentialsAccess, Set<string>>()
-
-/** The secret values that `accesses` read or saved. */
-export function secretsOf(...accesses: Array<CredentialsAccess>) {
-  return accesses.flatMap((access) => [...(handedOut.get(access) ?? [])])
-}
-
 function secretValues(credential: Credential) {
   if (credential.type === 'api_key') return [credential.value]
   const { accessToken, refreshToken, client } = credential
@@ -111,10 +105,10 @@ export function credentialsFor(
   hooks?: CredentialHooks,
 ): CredentialsAccess {
   const scopeNow = typeof scope === 'function' ? scope : () => scope
-  const secrets = new Set<string>()
+  const secrets = hooks?.secrets
   const keep = (credential: Credential | null) => {
     for (const value of credential ? secretValues(credential) : []) {
-      secrets.add(value)
+      secrets?.add(value)
     }
     return credential
   }
@@ -156,7 +150,6 @@ export function credentialsFor(
       ]
     },
   }
-  handedOut.set(access, secrets)
   return access
 }
 
@@ -180,10 +173,12 @@ export function envKeyOf(provider: ByokProvider | ProviderId) {
  * credential saved under the provider id (`/connect <id>` saves it), else
  * the first `provider.env` name that is set. A missing key calls `onMissing`
  * and throws {@link AuthRequiredError}, so the user sees `/connect <id>`.
+ * A key read from env goes in `secrets`, like a saved credential.
  */
 export function providerKeysFor(
   credentials: CredentialsAccess,
   onMissing: (error: AuthRequiredError) => void,
+  secrets?: Set<string>,
 ) {
   const providerIdOf = (provider: ByokProvider | ProviderId) =>
     typeof provider === 'string' ? provider : provider.id
@@ -191,7 +186,7 @@ export function providerKeysFor(
     const saved = await credentials.get(providerIdOf(provider))
     if (saved?.type === 'api_key') return saved.value
     const fromEnv = envKeyOf(provider)?.value
-    if (fromEnv) handedOut.get(credentials)?.add(fromEnv)
+    if (fromEnv) secrets?.add(fromEnv)
     return fromEnv ?? null
   }
   const requireKey = async (provider: ByokProvider | ProviderId) => {

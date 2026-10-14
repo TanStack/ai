@@ -5,7 +5,7 @@ import {
   maxIterations,
   untilFinishReason,
 } from '@tanstack/ai'
-import { credentialsFor, providerKeysFor } from '../auth'
+import { credentialsFor, providerKeysFor, scrubSecrets } from '../auth'
 import { AgentRegistry } from '../agents'
 import { SessionFeed, onEventOf } from '../feed'
 import { createMediaStore } from '../media'
@@ -249,6 +249,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected reverted: RevertState | undefined
   /** The credentials of the running turn's sender, else of the session's principal. */
   protected readonly credentialAccess: CredentialsAccess
+  /** Each secret value a credentials access of this session handed out. */
+  protected readonly secrets = new Set<string>()
   /**
    * The connectors whose sign-in the user cancelled. Their `require` with
    * `wait` fails the tool, as without `wait`, until the next new turn.
@@ -322,18 +324,19 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
         canWait: (id) =>
           this.activeTurn !== undefined && !this.declinedSignIns.has(id),
         onSet: () => this.resumeSignIns(),
+        secrets: this.secrets,
       },
     )
-    this.keys = providerKeysFor(this.credentialAccess, onMissing)
+    this.keys = providerKeysFor(this.credentialAccess, onMissing, this.secrets)
     this.credentialsOf = (principal) =>
       credentialsFor(
         deps.credentials,
         scopeOf(deps.threadId, principal),
         onMissing,
-        { onSet: () => this.resumeSignIns() },
+        { onSet: () => this.resumeSignIns(), secrets: this.secrets },
       )
     this.keysOf = (principal) =>
-      providerKeysFor(this.credentialsOf(principal), onMissing)
+      providerKeysFor(this.credentialsOf(principal), onMissing, this.secrets)
     this.services = {
       emit: (plugin, name, value) => this.emitPluginEvent(plugin, name, value),
       on: (name, handler) => {
@@ -445,6 +448,11 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   // ===========================
   // Events and state
   // ===========================
+
+  /** `text` without the credential values this session handed out. */
+  protected scrub(text: string) {
+    return scrubSecrets(text, [...this.secrets])
+  }
 
   /** {@link OnEvent} for the events of every operation of this session. */
   readonly onEvent: OnEvent = onEventOf((listener) =>

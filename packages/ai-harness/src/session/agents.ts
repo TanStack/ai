@@ -817,7 +817,12 @@ export abstract class SessionAgents<
           promptCache: this.promptCache.retention,
         },
       )
-      for await (const chunk of stream) {
+      for await (const raw of stream) {
+        const chunk =
+          raw.type === EventType.RUN_ERROR ||
+          raw.type === EventType.SUBAGENT_ERROR
+            ? { ...raw, message: this.scrub(raw.message) }
+            : raw
         operation.publish(chunk)
         if (
           chunk.type === EventType.TEXT_MESSAGE_CONTENT &&
@@ -840,7 +845,9 @@ export abstract class SessionAgents<
         }
       }
     } catch (error) {
-      failure = error instanceof Error ? error.message : String(error)
+      failure = this.scrub(
+        error instanceof Error ? error.message : String(error),
+      )
     }
 
     const value = result !== undefined ? result : text
