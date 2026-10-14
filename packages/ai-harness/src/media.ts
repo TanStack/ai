@@ -254,8 +254,15 @@ export function createMediaStore({
     async dataUrl(id: string) {
       const record = await get(id)
       if (!record || record.size > DATA_URL_MAX_BYTES) return undefined
-      // `kindOf` lets in only URL-safe characters and spaces. Drop the spaces.
-      const mimeType = record.mimeType.replace(/\s/g, '')
+      // A comma or a quote ends or breaks the type of a data URL, so only the
+      // parameters with plain values (`charset=utf-8`) stay.
+      const mimeType = record.mimeType
+        .replace(/[ \t]/g, '')
+        .split(';')
+        .filter(
+          (part, index) => index === 0 || /^[\w.+-]+=[\w.+-]+$/.test(part),
+        )
+        .join(';')
       return `data:${mimeType};base64,${toBase64(await load(id))}`
     },
   }

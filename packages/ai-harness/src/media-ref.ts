@@ -48,10 +48,11 @@ export function isMediaRecord(value: unknown): value is MediaRecord {
   )
 }
 
-// `type/subtype`, then optional `; name=value` parameters. Names and values
-// use letters, digits, `_`, `.`, `+`, and `-` only, so a MIME type is safe in
-// a data URL. ponytail: a quoted value (`codecs="vp8, vorbis"`) is refused.
-const MIME_TYPE = /^([\w.+-]+)\/([\w.+-]+)(?:\s*;\s*[\w.+-]+=[\w.+-]+)*$/
+// `type/subtype`, then optional `; name=value` parameters. The value can have
+// commas (`codecs=vp8,opus`, as MediaRecorder sends) or be quoted. No line
+// breaks and no other characters.
+const MIME_TYPE =
+  /^([\w.+-]+)\/([\w.+-]+)(?:[ \t]*;[ \t]*[\w.+-]+=(?:[\w.+,-]+|"[^"\\\r\n]*"))*$/
 
 /**
  * The media kind of a MIME type, or `undefined` when the harness does not
@@ -65,7 +66,7 @@ const MIME_TYPE = /^([\w.+-]+)\/([\w.+-]+)(?:\s*;\s*[\w.+-]+=[\w.+-]+)*$/
  */
 export function kindOf(mimeType: string) {
   // A Content-Type header can carry parameters: `text/plain; charset=utf-8`.
-  const [, top = '', sub] = MIME_TYPE.exec(mimeType.trim().toLowerCase()) ?? []
+  const [, top = '', sub] = MIME_TYPE.exec(mimeType.toLowerCase()) ?? []
   if (!sub) return undefined
   switch (top) {
     case 'image':
