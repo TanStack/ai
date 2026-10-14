@@ -549,6 +549,12 @@ export abstract class SessionRequests<
       target.fail('cancelled', new Error('Cancelled before it started.'))
       this.publishFinished(target)
     } else {
+      // A question of this turn gets no answer now.
+      for (const [questionId, question] of this.questions) {
+        if (question.operationId !== target.id) continue
+        this.questions.delete(questionId)
+        question.reject(new Error('Cancelled.'))
+      }
       target.abortController.abort(RUN_CANCEL_REASON)
     }
     await this.markApplied(inputId, target.id)
@@ -776,6 +782,9 @@ export abstract class SessionRequests<
       // The events from before the close land first, so the next host has
       // the text of a cut answer.
       if (options?.recoverable) await this.writer?.flush().catch(() => {})
+      // A reload that mounts plugins now ends first, so its plugins are
+      // disposed below.
+      await this.reloads
       this.lifetime.abort()
       try {
         await this.sessionPlugins?.dispose()

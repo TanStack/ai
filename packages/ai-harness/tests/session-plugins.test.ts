@@ -11,7 +11,7 @@ import {
   defineHarness,
   definePlugin,
 } from '../src'
-import { gate, mockAdapter, text } from './helpers'
+import { gate, mockAdapter, text, toolCall } from './helpers'
 import type { SessionEvent } from '../src'
 
 const settings = definePlugin({
@@ -236,6 +236,42 @@ describe('questions', () => {
     )
     await session.close()
     await expect(open).rejects.toThrow('Session closed.')
+    await host.close()
+  })
+
+  it('rejects the questions of a turn when the turn is cancelled', async () => {
+    let asked: Promise<unknown> | undefined
+    const asker = definePlugin({
+      name: 'test/turn-asker',
+      setup: (ctx) => ({
+        tools: [
+          toolDefinition({ name: 'confirm', description: 'Ask' }).server(
+            async () => {
+              asked = ctx.session.ask({ message: 'Sure?' })
+              return asked
+            },
+          ),
+        ],
+      }),
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/turn-questions',
+        adapter: mockAdapter([() => toolCall('confirm', {})]).adapter,
+        plugins: () => [asker],
+      }),
+      { threadId: 't' },
+    )
+    const turn = session.prompt('Go.')
+    await vi.waitFor(() =>
+      expect(session.snapshot().pendingQuestions).toHaveLength(1),
+    )
+
+    await session.cancel(turn.id)
+
+    await expect(asked).rejects.toThrow('Cancelled.')
+    expect(session.snapshot().pendingQuestions).toEqual([])
     await host.close()
   })
 })

@@ -69,9 +69,11 @@ export class HarnessSession<
       await this.recoverCrashedTurn()
       await this.recoverInbox()
     } catch (error) {
-      // A session that fails to open gives its log view back, so the thread
-      // can open again.
-      this.feed.close()
+      // A session that fails to open stops what it started: the plugins, the
+      // claim timer, and the turns that recovery queued or runs. It stops
+      // them as on a crash, so the next open runs them again. It gives its
+      // log view back, so the thread can open again.
+      await this.close({ recoverable: true }).catch(() => {})
       throw error
     }
   }
@@ -132,6 +134,8 @@ export class HarnessSession<
       while (this.activeTurn) {
         await new Promise<void>((resolve) => this.turnEnds.add(resolve))
       }
+      // close() started while the turn ran. It disposes the plugins.
+      if (this.closing) return
       const old = this.sessionPlugins
       // No plugins until the new setup works, so a failed setup leaves none.
       this.sessionPlugins = undefined
