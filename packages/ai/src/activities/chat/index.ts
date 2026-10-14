@@ -62,7 +62,9 @@ import { transformMessagesForReplay } from '../../utilities/replay-messages'
 import { LazyToolManager } from './tools/lazy-tool-manager'
 import { assertUniqueToolNames } from './tools/unique-tool-names'
 import type { DefinedAgent } from './agents/define-agent'
+import { providerKeys } from '../../byok/env-keys'
 import {
+  assertNoReservedFields,
   collectNamedText,
   createSubagentSink,
   createSyntheticSubagentTools,
@@ -118,6 +120,7 @@ import {
 } from './messages'
 import { MiddlewareRunner } from './middleware/compose'
 import { getRunDetached } from './middleware/run-store'
+import { LoadChildCapability } from './middleware/load-child'
 import { publishRunDetachedSignal } from '../../delivery-detach'
 import { publishRunDisconnectHandler } from '../../delivery-disconnect'
 import { provideSandboxRuntime } from './middleware/sandbox-runtime'
@@ -163,6 +166,7 @@ import type {
   PromptCacheOptions,
   ProviderTool,
   ResolvedPromptCache,
+  RunErrorEvent,
   RunFinishedEvent,
   SchemaInput,
   StreamChunk,
@@ -258,6 +262,9 @@ type RuntimeToolWithApproval = AnyRuntimeTool & {
   approvalSchema?: ApprovalSchemaConfig
 }
 const interruptBindingMetadataKey = INTERRUPT_BINDING_METADATA_KEY
+
+/** Most `ctx.retry()` calls kept for one model call. */
+const MAX_MODEL_ERROR_RETRIES = 2
 
 /** Resume entries a subagent tool call owns. The parent run skips them. */
 const CHILD_RESUME_IDS = Symbol('tanstack.ai.childResumeIds')
@@ -669,6 +676,10 @@ export interface TextActivityOptions<
   parentRunId?: TextOptions['parentRunId']
   /** Subagent run id when this chat runs as a child. See `defineAgent`. */
   subagentRunId?: TextOptions['subagentRunId']
+  /** The agent name when this chat runs as a subagent. Middleware reads `ctx.subagentName`. */
+  subagentName?: TextOptions['subagentName']
+  /** The subagentRunId of the child that started this one, for a nested child. */
+  parentSubagentRunId?: TextOptions['parentSubagentRunId']
   /** Application state mirrored in a STATE_SNAPSHOT before an interrupt terminal. */
   state?: TextOptions['state']
   /**
@@ -1033,6 +1044,12 @@ class TextEngine<
   private currentCallMetadata: TanStackMessageMetadata = {}
   /** An abort ended the wait of `retryRateLimited`. Its last chunks still go to the caller. */
   private retryAbandoned = false
+  /** `onModelError` is running, so `ctx.retry()` is allowed. */
+  private inModelErrorHook = false
+  /** A middleware called `ctx.retry()` for the current model call. */
+  private retryModelCall = false
+  /** `ctx.retry()` calls kept for the current model call. */
+  private modelErrorRetries = 0
   private structuredCallMetadata: TanStackMessageMetadata = {}
   private eventToolNames?: Array<string>
   private finishedEvent: RunFinishedEvent | null = null
@@ -1230,6 +1247,8 @@ class TextEngine<
       runId: this.runIdOverride ?? this.requestId,
       parentRunId: this.parentRunIdOverride,
       subagentRunId: this.subagentRunIdOverride,
+      subagentName: config.params.subagentName,
+      parentSubagentRunId: config.params.parentSubagentRunId,
       threadId: this.threadId,
       // Legacy alias kept on the ctx so middleware that reads
       // `ctx.conversationId` keeps working. Always equals `threadId`.
@@ -1241,6 +1260,12 @@ class TextEngine<
       abort: (reason?: string) => {
         this.abortReason = reason
         this.middlewareAbortController?.abort(reason)
+      },
+      retry: () => {
+        if (!this.inModelErrorHook) {
+          throw new Error('ctx.retry() works only in onModelError.')
+        }
+        this.retryModelCall = true
       },
       emitCustomEvent: (name, value, options) => {
         this.middlewareCustomQueue.push(
@@ -1498,26 +1523,34 @@ class TextEngine<
           yield* this.runWhileYielding(this.beginCycle())
 
           if (this.cyclePhase === 'processText') {
-            // Run onConfig before each model call (phase = beforeModel)
-            this.middlewareCtx.phase = 'beforeModel'
-            this.middlewareCtx.iteration = this.iterationCount
-            const iterConfig = this.buildMiddlewareConfig()
-            const iterTransformedConfig = yield* this.runWhileYielding(
-              this.middlewareRunner.runOnConfig(this.middlewareCtx, iterConfig),
-            )
-            this.applyMiddlewareConfig(iterTransformedConfig)
-
-            if (
-              yield* this.emitBoundaryInterrupts(
-                'beforeModel',
-                this.createSyntheticFinishedEvent(),
+            this.modelErrorRetries = 0
+            // A `ctx.retry()` in onModelError runs this again.
+            do {
+              this.retryModelCall = false
+              // Run onConfig before each model call (phase = beforeModel)
+              this.middlewareCtx.phase = 'beforeModel'
+              this.middlewareCtx.iteration = this.iterationCount
+              const iterConfig = this.buildMiddlewareConfig()
+              const iterTransformedConfig = yield* this.runWhileYielding(
+                this.middlewareRunner.runOnConfig(
+                  this.middlewareCtx,
+                  iterConfig,
+                ),
               )
-            ) {
-              this.setToolPhase('wait')
-              return
-            }
+              this.applyMiddlewareConfig(iterTransformedConfig)
 
-            yield* this.streamModelResponse()
+              if (
+                yield* this.emitBoundaryInterrupts(
+                  'beforeModel',
+                  this.createSyntheticFinishedEvent(),
+                )
+              ) {
+                this.setToolPhase('wait')
+                return
+              }
+
+              yield* this.streamModelResponse()
+            } while (this.retryModelCall && !this.isCancelled())
 
             if (this.earlyTermination) break
 
@@ -1732,20 +1765,26 @@ class TextEngine<
    * retried, so no output repeats. `RUN_STARTED` is held until the attempt is
    * kept, so the public start has the same `runId` as the `RUN_FINISHED` of
    * the kept attempt. When an abort ends the wait, the held error is yielded.
+   *
+   * Any other error before output goes to `onModelError`. When a middleware
+   * calls `ctx.retry()`, this returns without the error, and the agent loop
+   * runs `onConfig` and calls the model again.
    */
   private async *retryRateLimited(
     call: () => AsyncIterable<AdapterYieldChunk>,
   ): AsyncGenerator<AdapterYieldChunk> {
     const retry = this.params.retry
-    if (!retry) {
+    const hasModelErrorHook = this.middlewareRunner.hasModelErrorHook
+    if (!retry && !hasModelErrorHook) {
       yield* call()
       return
     }
-    const maxWaitMs = retry.maxWaitMs ?? 60_000
+    const maxWaitMs = retry?.maxWaitMs ?? 60_000
     if (
-      !Number.isInteger(retry.maxRetries) ||
-      retry.maxRetries < 0 ||
-      !(maxWaitMs >= 0)
+      retry &&
+      (!Number.isInteger(retry.maxRetries) ||
+        retry.maxRetries < 0 ||
+        !(maxWaitMs >= 0))
     ) {
       throw new TypeError(
         'chat() retry: maxRetries must be an integer of 0 or more, and maxWaitMs must be 0 or more.',
@@ -1757,17 +1796,21 @@ class TextEngine<
       let waitMs: number | undefined
       let rateLimitError: AdapterYieldChunk | undefined
       for await (const chunk of call()) {
-        if (
-          chunk.type === EventType.RUN_ERROR &&
-          !streamed &&
-          attempt <= retry.maxRetries &&
-          chunk.retryAfterMs !== undefined &&
-          chunk.retryAfterMs <= maxWaitMs
-        ) {
-          // Wait after the loop, so the adapter stream closes first.
-          waitMs = chunk.retryAfterMs
-          rateLimitError = chunk
-          break
+        if (chunk.type === EventType.RUN_ERROR && !streamed) {
+          if (
+            retry &&
+            attempt <= retry.maxRetries &&
+            chunk.retryAfterMs !== undefined &&
+            chunk.retryAfterMs <= maxWaitMs
+          ) {
+            // Wait after the loop, so the adapter stream closes first.
+            waitMs = chunk.retryAfterMs
+            rateLimitError = chunk
+            break
+          }
+          if (hasModelErrorHook && (await this.modelErrorRetried(chunk))) {
+            return
+          }
         }
         if (chunk.type === EventType.RUN_STARTED && !streamed) {
           start = chunk
@@ -1780,7 +1823,7 @@ class TextEngine<
       }
       if (waitMs === undefined || !rateLimitError) break
       this.logger.warn(
-        `activity=chat provider asked to wait, retry ${attempt} of ${retry.maxRetries} in ${waitMs}ms`,
+        `activity=chat provider asked to wait, retry ${attempt} of ${retry?.maxRetries} in ${waitMs}ms`,
         { attempt, waitMs, model: this.params.model },
       )
       // Also wakes on a middleware `ctx.abort()`, not only the caller's.
@@ -1793,6 +1836,29 @@ class TextEngine<
       }
     }
     if (start) yield start
+  }
+
+  /**
+   * Runs `onModelError`. True when a middleware called `ctx.retry()` and the
+   * model call has retries left. The hook also runs when none are left.
+   */
+  private async modelErrorRetried(error: RunErrorEvent): Promise<boolean> {
+    if (this.isCancelled()) return false
+    this.retryModelCall = false
+    this.inModelErrorHook = true
+    try {
+      await this.middlewareRunner.runOnModelError(this.middlewareCtx, error)
+    } finally {
+      this.inModelErrorHook = false
+    }
+    this.retryModelCall &&= this.modelErrorRetries < MAX_MODEL_ERROR_RETRIES
+    if (!this.retryModelCall) return false
+    this.modelErrorRetries++
+    this.logger.warn(
+      `activity=chat middleware asked to call the model again, retry ${this.modelErrorRetries} of ${MAX_MODEL_ERROR_RETRIES}`,
+      { code: error.code, model: this.params.model },
+    )
+    return true
   }
 
   private async *streamModelResponse(): AsyncGenerator<StreamChunk> {
@@ -5805,6 +5871,12 @@ export function chat<
   if (options.tools) {
     assertUniqueToolNames(options.tools)
   }
+  if (options.subagents) {
+    assertNoReservedFields(
+      options.subagents,
+      continuesChildren(readRuntimeMiddleware(options.middleware)),
+    )
+  }
 
   const { outputSchema, stream } = options
 
@@ -6056,10 +6128,28 @@ async function* streamTextChunks(
   options: RuntimeTextActivityOptions<AnyTextAdapter, undefined, boolean>,
   engineRef: DeliveryEngineRef,
 ): AsyncIterable<StreamChunk> {
-  const bag = options.subagents
+  // Children inherit the retention of this call. Their key is their own
+  // threadId. The keys of this call win over the keys of a parent agent,
+  // one provider at a time.
+  const bag = options.subagents && {
+    ...options.subagents,
+    binding: {
+      ...options.subagents.binding,
+      ...(options.subagents.keys
+        ? {
+            keys: providerKeys(
+              options.subagents.keys,
+              options.subagents.binding?.keys,
+            ),
+          }
+        : {}),
+      promptCache:
+        options.subagents.binding?.promptCache ?? options.promptCache.retention,
+    },
+  }
   const agents = bag?.agents ?? []
   if (bag && agents.length > 0 && bag.router) {
-    yield* runRoutedSubagents(options, engineRef)
+    yield* runRoutedSubagents({ ...options, subagents: bag }, engineRef)
     return
   }
   if (bag && agents.length > 0) {
@@ -6076,10 +6166,15 @@ async function* streamTextChunks(
     const synthetic = createSyntheticSubagentTools(bag, {
       messages: turn?.before ?? messages,
       messagesFor: calls.messagesFor,
+      childLoader: calls.childLoader,
+      canContinue: continuesChildren(options.middleware),
       threadId,
       runId,
       ...(options.parentRunId !== undefined && {
         interruptedRunId: options.parentRunId,
+      }),
+      ...(options.subagentRunId !== undefined && {
+        parentSubagentRunId: options.subagentRunId,
       }),
       ...(options.abortController && {
         abortSignal: options.abortController.signal,
@@ -6257,6 +6352,9 @@ async function* runRoutedSubagents(
             parentRunId: runId,
             ...(options.parentRunId !== undefined && {
               interruptedRunId: options.parentRunId,
+            }),
+            ...(options.subagentRunId !== undefined && {
+              parentSubagentRunId: options.subagentRunId,
             }),
           },
           sink,
@@ -6506,6 +6604,15 @@ function withPlan(chunk: StreamChunk, plan: RoutedPlan): StreamChunk {
     ...(order !== undefined && { order }),
   }))
   return withTanstackMetadata(chunk, { [SUBAGENT_PLAN_KEY]: { steps } })
+}
+
+/** A middleware provides `loadChild`, so agent tools take `sessionId`. */
+function continuesChildren(
+  middleware: ReadonlyArray<{ provides?: ReadonlyArray<unknown> }> | undefined,
+) {
+  return (middleware ?? []).some((item) =>
+    item.provides?.includes(LoadChildCapability),
+  )
 }
 
 function readRoutedSubagentPersistence(

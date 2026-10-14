@@ -12,6 +12,7 @@ import type {
   ResolvedPromptCache,
   UIMessage,
   RunAgentResumeItem,
+  RunErrorEvent,
   StreamChunk,
   TokenUsage,
   Tool,
@@ -203,6 +204,10 @@ export interface ChatMiddlewareContext<TContext = unknown> {
    * and on every chunk it streams. Absent on a top-level run.
    */
   subagentRunId?: string
+  /** The agent name when this run is a subagent. */
+  subagentName?: string
+  /** The subagentRunId of the child that started this one, for a nested child. */
+  parentSubagentRunId?: string
   /**
    * AG-UI thread identifier — a stable per-conversation ID used to
    * correlate client and server devtools events. Resolves to the
@@ -226,6 +231,11 @@ export interface ChatMiddlewareContext<TContext = unknown> {
   signal?: AbortSignal
   /** Abort the chat run with a reason */
   abort: (reason?: string) => void
+  /**
+   * Call the model again. Works only in `onModelError`, and throws in any
+   * other hook. `onConfig` runs again before the new call.
+   */
+  retry: () => void
   /**
    * Push a `CUSTOM` chunk onto the chat stream immediately.
    * The engine yields it as soon as it can (including while `onConfig`
@@ -801,6 +811,22 @@ export interface ChatMiddleware<
     ctx: ChatMiddlewareContext<TContext>,
     state: AgentLoopState,
   ) => boolean | void | Promise<boolean | void>
+
+  /**
+   * Called when the adapter sends a `RUN_ERROR` before any output of the
+   * model call. The error does not reach `onChunk` or the caller yet. An
+   * exception that the adapter throws goes to `onError`, not here.
+   *
+   * Call `ctx.retry()` to call the model again. Then `onConfig` runs again
+   * (phase `beforeModel`), so the middleware can change the request first,
+   * and the failed call is dropped from the stream. Without `ctx.retry()`,
+   * the error goes on as usual. A model call retries at most 2 times this
+   * way. The structured-output call is not retried.
+   */
+  onModelError?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    error: RunErrorEvent,
+  ) => void | Promise<void>
 
   /**
    * Called for every chunk yielded by chat().

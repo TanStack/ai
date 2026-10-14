@@ -3,7 +3,7 @@ id: StructuredOutputStartEvent
 title: StructuredOutputStartEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1567](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1567)
+Defined in: [packages/ai/src/types.ts:1783](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1783)
 
 Emitted at the start of a streaming structured-output run, before the JSON
 deltas. Tells consumers that the upcoming `TEXT_MESSAGE_CONTENT` deltas
@@ -24,7 +24,7 @@ made per-message rather than globally.
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1531](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1531)
+Defined in: [packages/ai/src/types.ts:1747](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1747)
 
 Extra information attached to this event.
 
@@ -40,7 +40,7 @@ Extra information attached to this event.
 name: "structured-output.start";
 ```
 
-Defined in: [packages/ai/src/types.ts:1568](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1568)
+Defined in: [packages/ai/src/types.ts:1784](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1784)
 
 What this custom event is. Required: without it a consumer cannot route
 the value.
@@ -59,7 +59,7 @@ CustomEvent.name
 type: "CUSTOM";
 ```
 
-Defined in: [packages/ai/src/types.ts:1530](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1530)
+Defined in: [packages/ai/src/types.ts:1746](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1746)
 
 #### Inherited from
 
@@ -73,7 +73,7 @@ Defined in: [packages/ai/src/types.ts:1530](https://github.com/TanStack/ai/blob/
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1569](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1569)
+Defined in: [packages/ai/src/types.ts:1785](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1785)
 
 The payload. Any JSON value, and required.
 

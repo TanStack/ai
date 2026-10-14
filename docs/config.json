@@ -1129,7 +1129,7 @@
           "label": "Bring Your Own Key",
           "to": "advanced/byok",
           "addedAt": "2026-08-18",
-          "updatedAt": "2026-10-09"
+          "updatedAt": "2026-10-13"
         },
         {
           "label": "Debug Logging",

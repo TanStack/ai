@@ -1,5 +1,82 @@
 # @tanstack/ai-openai
 
+## 0.30.0
+
+### Minor Changes
+
+- [#1716](https://github.com/TanStack/ai/pull/1716) [`20954cc`](https://github.com/TanStack/ai/commit/20954ccbe62c6e1c44a5bb57f3d73215670488aa) - The adapters now work with GitHub Copilot and with a ChatGPT plan token.
+  - The Responses adapter streams one tool call when the item id changes on each event. GitHub Copilot sends a new item id on each event of a stateless response.
+  - The Responses adapter runs the tools of a turn when `response.completed` has an empty `output`. The ChatGPT plan route streams the tool call, then sends an empty `output`. Before this change, the run ended with `stop` and the tool did not run.
+  - The OpenAI-compatible Chat Completions adapter reads the thinking that GitHub Copilot streams on `delta.reasoning_text`.
+  - The OpenAI-compatible docs list more providers and show the setup and the sign-in for GitHub Copilot and for a ChatGPT plan.
+
+- [#1697](https://github.com/TanStack/ai/pull/1697) [`cef1911`](https://github.com/TanStack/ai/commit/cef19119c76fc5f618d6c971efbc486323b213c3) - Keep the prompt cache when tools or system prompts are added during a conversation.
+  - Before each model call, `chat()` compares the tools and the system prompts with the earlier calls. On a model with a mid-conversation channel, an added tool, or a system prompt added at the end, goes out in the conversation. The start of the request stays the same.
+  - `openaiText` on `gpt-5.4-mini`, `gpt-5.5`, `gpt-5.6-luna`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-6-astra`, `gpt-6-luna`, and `gpt-6-sol`: an added tool is an `additional_tools` input item, and an added prompt is a `developer` message. The Responses adapter of `@tanstack/openai-base` sends these when a subclass sets `midConversationChannels`, and it sends the `namespace` of such a tool's call back on the next request.
+  - `anthropicText` on `claude-opus-4-8`, `claude-opus-5`, `claude-opus-5-5`, `claude-fable-5`, and `claude-fable-5-1`: every request with tools has the `mid-conversation-tool-changes-2026-07-01` beta and one placeholder tool, unless a provider tool such as `webSearchTool()` takes part. An added tool has `defer_loading: true` and a `tool_addition` block in a `system` message.
+  - Every other model and adapter sends the same request as before.
+  - The channels are on by default only with the provider's own API. A custom `baseURL`, a custom `fetch`, an injected client, or the `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL` environment variable turns the default off. Set `midConversationChannels: true` to turn the channels on anyway. Set `false` to turn them off anywhere.
+  - With prompt caching on (the default), the automatic Claude tool cache marker goes on the last start tool, not on the placeholder or an added tool.
+  - New optional fields: `ModelMessage.midConversationChange`, `TextOptions.midConversationChanges`, and `TextAdapter.midConversationChannels`, with the types `MidConversationChange`, `MidConversationChanges`, and `MidConversationChannels`. `splitMidConversationChanges` helps adapter authors read the changes.
+
+- [#1697](https://github.com/TanStack/ai/pull/1697) [`cef1911`](https://github.com/TanStack/ai/commit/cef19119c76fc5f618d6c971efbc486323b213c3) - Prompt caching is now on by default. Each `chat()` call asks the provider to cache the stable start of the request (system prompt, tools, and earlier messages), so repeated requests cost less and answer sooner.
+  - New `chat()` option `promptCache`: `'none' | 'short' | 'long'`, or `{ retention, key }`. The default is `'short'`. The key is `promptCache.key`, else the `threadId` or `conversationId` that you give. A `threadId` that `chat()` makes up is never the key.
+  - To turn it off, pass `promptCache: 'none'`. Do this for a large prompt that you send to Claude one time only, because Claude bills the cache write.
+  - A middleware can change it for the next model call: `onConfig` gets `config.promptCache` and can return a new value.
+  - Each adapter sends its own fields:
+    - Claude on Anthropic, Bedrock Converse, and OpenRouter gets cache markers. `'long'` asks for the 1-hour TTL.
+    - OpenAI (Responses and Chat Completions) gets `prompt_cache_key`, and `prompt_cache_retention` or `prompt_cache_options` on `'long'`.
+    - Mistral gets `prompt_cache_key`, and usage now reports cache reads.
+    - OpenRouter gets `sessionId`.
+  - A manual `cache_control`, `cachePoint`, `prompt_cache_key`, or `sessionId` wins over the automatic value.
+  - New types: `PromptCacheRetention`, `PromptCacheOptions`, and `ResolvedPromptCache`. Adapters read `TextOptions.promptCache`.
+
+- [#1692](https://github.com/TanStack/ai/pull/1692) [`7532b2b`](https://github.com/TanStack/ai/commit/7532b2b09188ebd1095a60a7c5df6ef08b06916c) - Set reasoning with `chat({ reasoning })` on `openaiText`, `openaiChatCompletions`, and `azureOpenaiText`.
+  - `openaiText` sends the level as `reasoning: { effort, summary }`.
+  - `openaiChatCompletions` sends `reasoning_effort`.
+  - `azureOpenaiText` and `createAzureOpenaiText` read the levels of the OpenAI model name, not of the deployment name, and send `reasoning: { effort, summary }`. A name that is not an OpenAI model takes no `reasoning`.
+  - Each chat model has its reasoning data in `model-meta.ts`. `OpenAIModelReasoningByName` and `OPENAI_MODEL_REASONING` come from it.
+
+  Breaking: `reasoning` is no longer in `modelOptions` of `openaiText`, `openaiChatCompletions`, `azureOpenaiText`, and `createAzureOpenaiText`. `OpenAIReasoningOptions` and `OpenAIReasoningOptionsWithConcise` are removed.
+
+  ```ts
+  // Before
+  chat({
+    adapter: openaiText('gpt-5.5'),
+    messages,
+    modelOptions: { reasoning: { effort: 'high', summary: 'auto' } },
+  })
+
+  // After
+  chat({ adapter: openaiText('gpt-5.5'), messages, reasoning: 'high' })
+  ```
+
+### Patch Changes
+
+- [#1733](https://github.com/TanStack/ai/pull/1733) [`b881627`](https://github.com/TanStack/ai/commit/b881627d51076dcc1af031ac951046e2fb7d84c4) - Chat Completions adapters skip a stream chunk that has no `choices` field, as some gateways send for the usage trailer. Before, the run failed with `Cannot read properties of undefined (reading '0')`.
+
+- [#1698](https://github.com/TanStack/ai/pull/1698) [`1bfcee3`](https://github.com/TanStack/ai/commit/1bfcee35bb3cf0ff3aac005440c842e66c3d687d) - Keep a conversation valid when the next request goes to a different model.
+  - Each assistant message records `metadata.tanstack.source` (`{ provider, api, model }`), and `responseId` and the resolved `model` when the provider sends them. A failed or aborted answer gets `stopReason: 'error'` or `'aborted'`. `RUN_FINISHED` has a new `responseId` field. `TextAdapter` has new optional `provider` and `api` fields.
+  - When the next request goes to a different source, the adapter removes signatures and redacted thinking, turns readable thinking into text, and rewrites tool call IDs to the shape the target API accepts. Each call stays paired with its result.
+  - Every request drops failed and aborted assistant batches and adds a `No result provided` result for an unanswered tool call. The saved history does not change.
+  - `RUN_FINISHED` and `RUN_ERROR` metadata now merge onto the assistant messages of that model call in `StreamProcessor`.
+  - Anthropic: the new `allowEmptySignature` option (default `false`) replays unsigned thinking from the same source, for gateways. The new `provider` option names a gateway.
+  - Azure OpenAI reports the `azure-openai-responses` API.
+  - Gemini, Mistral, and Bedrock Converse send same-source thinking back to the model, in block order.
+  - `withPersistence` writes the source and the stop reason onto streaming snapshot rows.
+  - Adapter authors get `transformMessagesForReplay()` and `hashToolCallId()` from `@tanstack/ai/adapter-internals`.
+
+- [#1692](https://github.com/TanStack/ai/pull/1692) [`7532b2b`](https://github.com/TanStack/ai/commit/7532b2b09188ebd1095a60a7c5df6ef08b06916c) - Send `chat({ toolChoice })` to each provider.
+  - **Anthropic and Bedrock Converse.** Claude Fable 5.1, Mythos 5.1, Opus 5.5, and Sonnet 5.5 reject a forced tool, and every Claude model rejects one while thinking is on. On those, `'required'` and a named tool fall back to `auto`.
+  - **Bedrock Converse** has no `none`. `'none'` sends no tool config. Bedrock refuses tool calls in the history without a tool config, so the history goes out as text.
+  - **Gemini** maps the choice to `functionCallingConfig` (`AUTO`, `NONE`, `ANY`, and `allowedFunctionNames`). With only provider tools, such as Google Search, it sends no tool config.
+  - **OpenAI and Azure OpenAI (Responses), Grok, Mistral, and OpenRouter** (Chat Completions and Responses) send their own `tool_choice` shape.
+
+- Updated dependencies [[`1bfcee3`](https://github.com/TanStack/ai/commit/1bfcee35bb3cf0ff3aac005440c842e66c3d687d), [`b881627`](https://github.com/TanStack/ai/commit/b881627d51076dcc1af031ac951046e2fb7d84c4), [`412b0fe`](https://github.com/TanStack/ai/commit/412b0fea4f4bb569998c3d253d174efd7b501e3c), [`a0150c2`](https://github.com/TanStack/ai/commit/a0150c26b9e2b6050663450171e36a9dfa80915b), [`20954cc`](https://github.com/TanStack/ai/commit/20954ccbe62c6e1c44a5bb57f3d73215670488aa), [`b881627`](https://github.com/TanStack/ai/commit/b881627d51076dcc1af031ac951046e2fb7d84c4), [`fac0555`](https://github.com/TanStack/ai/commit/fac055559de98eb0fa23a0bc725808033ba3c2fc), [`6774e80`](https://github.com/TanStack/ai/commit/6774e803da3205101613ab2857c9ed4fbf975681), [`5bd27f2`](https://github.com/TanStack/ai/commit/5bd27f2fc94ebfb6d11bfb28d46d5d858310805e), [`c20f7b0`](https://github.com/TanStack/ai/commit/c20f7b021aa618fbfcc114b3f0bef5e888ff6b84), [`cef1911`](https://github.com/TanStack/ai/commit/cef19119c76fc5f618d6c971efbc486323b213c3), [`51f72fb`](https://github.com/TanStack/ai/commit/51f72fbf60e201f9c8d014aefa6406e777c05d6a), [`6f1e559`](https://github.com/TanStack/ai/commit/6f1e55934fe95ddf2bf3fb3031488a713e48c7af), [`eb4eea0`](https://github.com/TanStack/ai/commit/eb4eea05b6c53b748bba5fd414b04ce387ead05d), [`cef1911`](https://github.com/TanStack/ai/commit/cef19119c76fc5f618d6c971efbc486323b213c3), [`7532b2b`](https://github.com/TanStack/ai/commit/7532b2b09188ebd1095a60a7c5df6ef08b06916c), [`7532b2b`](https://github.com/TanStack/ai/commit/7532b2b09188ebd1095a60a7c5df6ef08b06916c), [`1bfcee3`](https://github.com/TanStack/ai/commit/1bfcee35bb3cf0ff3aac005440c842e66c3d687d), [`78edeb2`](https://github.com/TanStack/ai/commit/78edeb20a5ba89f2513c3f46f1267a7ed7185045), [`44e3a0a`](https://github.com/TanStack/ai/commit/44e3a0a89c86defebd38b2221dd3b7725a12839a), [`7532b2b`](https://github.com/TanStack/ai/commit/7532b2b09188ebd1095a60a7c5df6ef08b06916c), [`ce99a17`](https://github.com/TanStack/ai/commit/ce99a17e4814cd564b693112bda87020af6cb57c), [`7a5c0d6`](https://github.com/TanStack/ai/commit/7a5c0d6fc1541187a7f01b444bc07a0478274bcb), [`b881627`](https://github.com/TanStack/ai/commit/b881627d51076dcc1af031ac951046e2fb7d84c4)]:
+  - @tanstack/ai@0.69.0
+  - @tanstack/openai-base@0.14.0
+  - @tanstack/ai-utils@0.4.2
+
 ## 0.29.1
 
 ### Patch Changes

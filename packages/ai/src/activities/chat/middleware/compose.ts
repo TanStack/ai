@@ -1,5 +1,5 @@
 import { aiEventClient } from '@tanstack/ai-event-client'
-import type { AgentLoopState, StreamChunk } from '../../../types'
+import type { AgentLoopState, RunErrorEvent, StreamChunk } from '../../../types'
 import type { InternalLogger } from '../../../logger/internal-logger'
 import type {
   AbortInfo,
@@ -95,6 +95,10 @@ export class MiddlewareRunner<
 
   get hasMiddleware(): boolean {
     return this.middlewares.length > 0
+  }
+
+  get hasModelErrorHook(): boolean {
+    return this.middlewares.some((mw) => mw.onModelError)
   }
 
   async runOnInterruptBoundary(
@@ -897,6 +901,37 @@ export class MiddlewareRunner<
       }
     }
     return true
+  }
+
+  /**
+   * Run onModelError on all middleware in order. Each one can call
+   * `ctx.retry()`, so every middleware sees the error.
+   */
+  async runOnModelError(
+    ctx: ChatMiddlewareContext<TContext>,
+    error: RunErrorEvent,
+  ): Promise<void> {
+    for (const mw of this.middlewares) {
+      if (mw.onModelError) {
+        const skip = shouldSkipInstrumentation(mw)
+        const start = Date.now()
+        await mw.onModelError(ctx, error)
+        if (!skip) {
+          this.logger.middleware(
+            `hook=onModelError middleware=${mw.name ?? 'unnamed'}`,
+            { middleware: mw.name ?? 'unnamed', hook: 'onModelError' },
+          )
+          aiEventClient.emit('middleware:hook:executed', {
+            ...instrumentCtx(ctx),
+            middlewareName: mw.name || 'unnamed',
+            hookName: 'onModelError',
+            iteration: ctx.iteration,
+            duration: Date.now() - start,
+            hasTransform: false,
+          })
+        }
+      }
+    }
   }
 
   /**

@@ -74,6 +74,7 @@ import { Route as ApiByteplusSeedance1080pWireRouteImport } from './routes/api.b
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiChatCompletionsIncompleteStreamRouteImport } from './routes/api.chat-completions-incomplete-stream'
 import { Route as ApiCloudflareBindingWireRouteImport } from './routes/api.cloudflare-binding-wire'
+import { Route as ApiCompactionUsageWireRouteImport } from './routes/api.compaction-usage-wire'
 import { Route as ApiCompactionWireRouteImport } from './routes/api.compaction-wire'
 import { Route as ApiContextOverflowRouteImport } from './routes/api.context-overflow'
 import { Route as ApiCopilotWireRouteImport } from './routes/api.copilot-wire'
@@ -520,6 +521,11 @@ const ApiCloudflareBindingWireRoute =
     path: '/api/cloudflare-binding-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiCompactionUsageWireRoute = ApiCompactionUsageWireRouteImport.update({
+  id: '/api/compaction-usage-wire',
+  path: '/api/compaction-usage-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCompactionWireRoute = ApiCompactionWireRouteImport.update({
   id: '/api/compaction-wire',
   path: '/api/compaction-wire',
@@ -1126,6 +1132,7 @@ export interface FileRoutesByFullPath {
   '/api/chat': typeof ApiChatRoute
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
+  '/api/compaction-usage-wire': typeof ApiCompactionUsageWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
   '/api/context-overflow': typeof ApiContextOverflowRoute
   '/api/copilot-wire': typeof ApiCopilotWireRoute
@@ -1296,6 +1303,7 @@ export interface FileRoutesByTo {
   '/api/chat': typeof ApiChatRoute
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
+  '/api/compaction-usage-wire': typeof ApiCompactionUsageWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
   '/api/context-overflow': typeof ApiContextOverflowRoute
   '/api/copilot-wire': typeof ApiCopilotWireRoute
@@ -1467,6 +1475,7 @@ export interface FileRoutesById {
   '/api/chat': typeof ApiChatRoute
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
+  '/api/compaction-usage-wire': typeof ApiCompactionUsageWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
   '/api/context-overflow': typeof ApiContextOverflowRoute
   '/api/copilot-wire': typeof ApiCopilotWireRoute
@@ -1639,6 +1648,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/chat-completions-incomplete-stream'
     | '/api/cloudflare-binding-wire'
+    | '/api/compaction-usage-wire'
     | '/api/compaction-wire'
     | '/api/context-overflow'
     | '/api/copilot-wire'
@@ -1809,6 +1819,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/chat-completions-incomplete-stream'
     | '/api/cloudflare-binding-wire'
+    | '/api/compaction-usage-wire'
     | '/api/compaction-wire'
     | '/api/context-overflow'
     | '/api/copilot-wire'
@@ -1979,6 +1990,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/chat-completions-incomplete-stream'
     | '/api/cloudflare-binding-wire'
+    | '/api/compaction-usage-wire'
     | '/api/compaction-wire'
     | '/api/context-overflow'
     | '/api/copilot-wire'
@@ -2150,6 +2162,7 @@ export interface RootRouteChildren {
   ApiChatRoute: typeof ApiChatRoute
   ApiChatCompletionsIncompleteStreamRoute: typeof ApiChatCompletionsIncompleteStreamRoute
   ApiCloudflareBindingWireRoute: typeof ApiCloudflareBindingWireRoute
+  ApiCompactionUsageWireRoute: typeof ApiCompactionUsageWireRoute
   ApiCompactionWireRoute: typeof ApiCompactionWireRoute
   ApiContextOverflowRoute: typeof ApiContextOverflowRoute
   ApiCopilotWireRoute: typeof ApiCopilotWireRoute
@@ -2706,6 +2719,13 @@ declare module '@tanstack/react-router' {
       path: '/api/cloudflare-binding-wire'
       fullPath: '/api/cloudflare-binding-wire'
       preLoaderRoute: typeof ApiCloudflareBindingWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/compaction-usage-wire': {
+      id: '/api/compaction-usage-wire'
+      path: '/api/compaction-usage-wire'
+      fullPath: '/api/compaction-usage-wire'
+      preLoaderRoute: typeof ApiCompactionUsageWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/compaction-wire': {
@@ -3560,6 +3580,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiChatCompletionsIncompleteStreamRoute:
     ApiChatCompletionsIncompleteStreamRoute,
   ApiCloudflareBindingWireRoute: ApiCloudflareBindingWireRoute,
+  ApiCompactionUsageWireRoute: ApiCompactionUsageWireRoute,
   ApiCompactionWireRoute: ApiCompactionWireRoute,
   ApiContextOverflowRoute: ApiContextOverflowRoute,
   ApiCopilotWireRoute: ApiCopilotWireRoute,

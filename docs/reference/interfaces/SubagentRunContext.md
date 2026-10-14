@@ -34,8 +34,8 @@ input: TInput extends SchemaInput ? InferSchemaType<TInput> : undefined;
 
 Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:25](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L25)
 
-The input the parent model wrote for this child, checked against
-`inputSchema`. `undefined` when the agent has no `inputSchema`.
+The input the parent model or the router gave this child, checked
+against `inputSchema`. `undefined` when the agent has no `inputSchema`.
 
 ***
 

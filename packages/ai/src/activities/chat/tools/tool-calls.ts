@@ -61,13 +61,55 @@ export const EMIT_STREAM_CHUNK = Symbol.for('tanstack.ai.emitStreamChunk')
 export interface SubagentToolOutcome {
   subagentRunId: string
   text: string
+  /**
+   * The child's typed result: the value a promise `run` resolved to, or the
+   * `RUN_FINISHED.result` of a child stream. When set, the parent model gets
+   * this instead of the child's text.
+   */
+  result?: unknown
   error?: string
   /** Set when the child stopped for outside input. The tool call stays open. */
   interrupts?: Array<Interrupt>
+  /**
+   * The model gets `subagentRunId` in the result: it can continue the child
+   * (`sessionId`, with a persistence store) or a background child. Else the
+   * id stays in the subagent events only.
+   */
+  keepRunId?: true
 }
 
 function isSubagentTool(tool: AnyTool): boolean {
   return (tool as { [SUBAGENT_TOOL]?: true })[SUBAGENT_TOOL] === true
+}
+
+/** Longest string a subagent result sends to the parent model unchanged. */
+const MODEL_RESULT_MAX_STRING = 2048
+
+/**
+ * A copy of a subagent result that is safe to send to the parent model.
+ * A string longer than {@link MODEL_RESULT_MAX_STRING} (for example a base64
+ * image) becomes a short note, so one image result cannot fill the context.
+ * The full result still travels on `SUBAGENT_FINISHED` for the UI.
+ */
+export function compactForModel(value: unknown, depth = 0): unknown {
+  if (typeof value === 'string') {
+    return value.length > MODEL_RESULT_MAX_STRING
+      ? `[omitted ${value.length} characters]`
+      : value
+  }
+  if (depth > 20 || typeof value !== 'object' || value === null) return value
+  if (Array.isArray(value)) {
+    return value.map((item) => compactForModel(item, depth + 1))
+  }
+  // A Date, a typed array, or another class instance stays as it is.
+  const proto: unknown = Object.getPrototypeOf(value)
+  if (proto !== Object.prototype && proto !== null) return value
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [
+      key,
+      compactForModel(item, depth + 1),
+    ]),
+  )
 }
 
 /**
@@ -744,9 +786,19 @@ export async function* executeServerTool<TContext = unknown>(
         subagentInterrupts?.push(...outcome.interrupts)
         return
       }
+      const runId = outcome.keepRunId
+        ? { subagentRunId: outcome.subagentRunId }
+        : {}
       const modelResult = outcome.error
-        ? { error: outcome.error }
-        : { result: outcome.text }
+        ? { ...runId, error: outcome.error }
+        : {
+            ...runId,
+            // A string result is also the child's text: the model gets all of it.
+            result:
+              outcome.result === undefined || typeof outcome.result === 'string'
+                ? outcome.text
+                : compactForModel(outcome.result),
+          }
       await pushResultAndRunAfterHook(
         results,
         {
