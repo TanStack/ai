@@ -38,4 +38,62 @@ test.describe('openrouter — json_object structured output', () => {
       type: 'json_object',
     })
   })
+
+  test('sends json_object when structuredOutputMode is json_object (#1005)', async ({
+    request,
+    aimockPort,
+    testId,
+  }) => {
+    const response = await request.post(
+      `/api/openrouter-json-object-wire?via=mode&testId=${encodeURIComponent(testId)}`,
+    )
+    expect(response.ok()).toBe(true)
+    expect(await response.json()).toEqual({
+      ok: true,
+      result: { name: 'Alice', age: 30 },
+    })
+
+    const journalResponse = await request.get(
+      `http://127.0.0.1:${aimockPort}/v1/_requests`,
+    )
+    const entries = (await journalResponse.json()) as Array<JournalEntry>
+    const captured = entries.find(
+      (entry) =>
+        entry.headers?.['x-test-id'] === testId &&
+        entry.body?.response_format != null,
+    )
+
+    expect(captured?.body?.response_format).toEqual({
+      type: 'json_object',
+    })
+  })
+
+  test('sends json_object for auto on qwen/qwen3.7-flash (#1005)', async ({
+    request,
+    aimockPort,
+    testId,
+  }) => {
+    const response = await request.post(
+      `/api/openrouter-json-object-wire?via=auto&testId=${encodeURIComponent(testId)}`,
+    )
+    expect(response.ok()).toBe(true)
+    expect(await response.json()).toEqual({
+      ok: true,
+      result: { name: 'Alice', age: 30 },
+    })
+
+    const journalResponse = await request.get(
+      `http://127.0.0.1:${aimockPort}/v1/_requests`,
+    )
+    const entries = (await journalResponse.json()) as Array<JournalEntry>
+    const captured = entries.find(
+      (entry) =>
+        entry.headers?.['x-test-id'] === testId &&
+        entry.body?.response_format != null,
+    )
+
+    expect(captured?.body?.response_format).toEqual({
+      type: 'json_object',
+    })
+  })
 })

@@ -30,6 +30,11 @@ import type {
   StructuredOutputCompatibility,
 } from '../utils/schema-converter'
 import { buildResponsesUsage } from '../usage'
+import {
+  explicitJsonObject,
+  requestUsesJsonObject,
+} from '../utils/json-object-mode'
+import type { JsonObjectModeInput } from '../utils/json-object-mode'
 import { toResponsesToolChoice } from '../tools/tool-choice'
 import { getOpenAIProviderToolKind } from '../tools/openai-provider-tool'
 import { convertToolsToResponsesFormat } from './responses-tool-converter'
@@ -590,12 +595,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
     const requestParams = this.mapOptionsToRequest(chatOptions)
-
-    // Apply provider-specific transformations for structured output compatibility
-    const jsonSchema = this.makeStructuredOutputCompatible(
-      outputSchema,
-      outputSchema.required,
-    )
+    const textFormat = this.responsesStructuredFormat(chatOptions, outputSchema)
 
     try {
       // Strip streaming-only fields a subclass override of mapOptionsToRequest
@@ -621,14 +621,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         {
           ...(cleanParams as Omit<ResponseCreateParams, 'stream'>),
           stream: false,
-          // Configure structured output via text.format
           text: {
-            format: {
-              type: 'json_schema',
-              name: 'structured_output',
-              schema: jsonSchema,
-              strict: true,
-            },
+            format: textFormat,
           },
         },
         extractRequestOptions(chatOptions.request),
@@ -704,11 +698,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   ): AsyncIterable<AdapterYieldChunk> {
     const { chatOptions, outputSchema } = options
     const requestParams = this.mapOptionsToRequest(chatOptions)
-
-    const jsonSchema = this.makeStructuredOutputCompatible(
-      outputSchema,
-      outputSchema.required,
-    )
+    const textFormat = this.responsesStructuredFormat(chatOptions, outputSchema)
 
     const aguiState = {
       runId: generateId(this.name),
@@ -808,12 +798,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           ...cleanParams,
           stream: true,
           text: {
-            format: {
-              type: 'json_schema',
-              name: 'structured_output',
-              schema: jsonSchema,
-              strict: true,
-            },
+            format: textFormat,
           },
         },
         extractRequestOptions(chatOptions.request),
@@ -1202,6 +1187,51 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   ): Record<string, any> {
     return this.makeStructuredOutputCompatibleWithMap(schema, originalRequired)
       .schema
+  }
+
+  /**
+   * `true` when `structuredOutputMode: 'auto'` must send JSON mode for this
+   * model. The default is strict `json_schema`.
+   */
+  protected modelPrefersJsonObject(_model: string): boolean {
+    return false
+  }
+
+  protected usesJsonObjectResponseFormat(
+    options: JsonObjectModeInput,
+  ): boolean {
+    return requestUsesJsonObject({
+      mode: options.structuredOutputMode,
+      explicit: explicitJsonObject(options.modelOptions),
+      auto: this.modelPrefersJsonObject(options.model),
+    })
+  }
+
+  protected responsesStructuredFormat(
+    options: JsonObjectModeInput,
+    schema: Record<string, any>,
+  ):
+    | { type: 'json_object' }
+    | {
+        type: 'json_schema'
+        name: string
+        schema: Record<string, any>
+        strict: true
+      } {
+    if (this.usesJsonObjectResponseFormat(options)) {
+      return { type: 'json_object' }
+    }
+    return {
+      type: 'json_schema',
+      name: 'structured_output',
+      schema: this.makeStructuredOutputCompatible(
+        schema,
+        Array.isArray(schema.required)
+          ? (schema.required as Array<string>)
+          : undefined,
+      ),
+      strict: true,
+    }
   }
 
   /**
@@ -2582,17 +2612,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     const textFormat = combinedSchema
       ? {
           text: {
-            format: {
-              type: 'json_schema' as const,
-              name: 'structured_output',
-              schema: this.makeStructuredOutputCompatible(
-                combinedSchema,
-                Array.isArray(combinedSchema.required)
-                  ? (combinedSchema.required as Array<string>)
-                  : undefined,
-              ),
-              strict: true,
-            },
+            format: this.responsesStructuredFormat(options, combinedSchema),
           },
         }
       : undefined

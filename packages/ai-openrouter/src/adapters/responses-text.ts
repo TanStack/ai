@@ -19,6 +19,10 @@ import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../internal/request-options'
 import { clientForCall } from '../internal/wrap-fetch'
 import { openRouterSupportsCombinedToolsAndSchema } from '../internal/combined-tools-and-schema'
+import {
+  openRouterFormatRequest,
+  openRouterUsesJsonObject,
+} from '../internal/json-object-mode'
 import { makeStructuredOutputCompatible } from '../internal/schema-converter'
 import {
   convertFunctionToolToResponsesFormat,
@@ -281,11 +285,7 @@ export class OpenRouterResponsesTextAdapter<
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
     const responsesRequest = this.mapOptionsToRequest(chatOptions)
-
-    const jsonSchema = this.makeStructuredOutputCompatible(
-      outputSchema,
-      outputSchema.required,
-    )
+    const textFormat = this.structuredTextFormat(chatOptions, outputSchema)
 
     try {
       chatOptions.logger.request(
@@ -303,12 +303,7 @@ export class OpenRouterResponsesTextAdapter<
             ...responsesRequest,
             stream: false,
             text: {
-              format: {
-                type: 'json_schema',
-                name: 'structured_output',
-                schema: jsonSchema,
-                strict: true,
-              },
+              format: textFormat,
             },
           },
         },
@@ -412,11 +407,7 @@ export class OpenRouterResponsesTextAdapter<
   ): AsyncIterable<AdapterYieldChunk> {
     const { chatOptions, outputSchema } = options
     const responsesRequest = this.mapOptionsToRequest(chatOptions)
-
-    const jsonSchema = this.makeStructuredOutputCompatible(
-      outputSchema,
-      outputSchema.required,
-    )
+    const textFormat = this.structuredTextFormat(chatOptions, outputSchema)
 
     const aguiState = {
       runId: generateId(this.name),
@@ -522,12 +513,7 @@ export class OpenRouterResponsesTextAdapter<
             ...responsesRequest,
             stream: true,
             text: {
-              format: {
-                type: 'json_schema',
-                name: 'structured_output',
-                schema: jsonSchema,
-                strict: true,
-              },
+              format: textFormat,
             },
           },
         },
@@ -1863,11 +1849,20 @@ export class OpenRouterResponsesTextAdapter<
         )
       : undefined
 
-    // Attach text.format json_schema only when outputSchema is set and every
-    // routed model is in the combined-capable set.
+    // Attach text.format json_schema only when outputSchema is set, every
+    // routed model is in the combined-capable set, and this call is not
+    // JSON mode.
     const combinedOutputSchema: JSONSchema | undefined = options.outputSchema
+    const formatRequest = openRouterFormatRequest(options.modelOptions)
+    const useJsonObject = openRouterUsesJsonObject({
+      mode: options.structuredOutputMode,
+      requestedType: formatRequest.requestedType,
+      model: options.model,
+      fallbackModels: formatRequest.fallbackModels,
+    })
     const combinedSchema =
       combinedOutputSchema &&
+      !useJsonObject &&
       this.supportsCombinedToolsAndSchema(options.modelOptions)
         ? this.makeStructuredOutputCompatible(
             combinedOutputSchema,
@@ -1936,20 +1931,24 @@ export class OpenRouterResponsesTextAdapter<
               : {}),
           },
         }),
-      ...(combinedSchema && {
-        // Merge onto any caller-supplied `text` (spread above via
-        // `...modelOptions`) so sibling fields like `text.verbosity` survive;
-        // only `text.format` is overridden by the combined-mode schema.
-        text: {
-          ...modelOptions.text,
-          format: {
-            type: 'json_schema' as const,
-            name: 'structured_output',
-            schema: combinedSchema,
-            strict: true,
-          },
-        },
-      }),
+      ...((useJsonObject && combinedOutputSchema) || combinedSchema
+        ? {
+            // Merge onto any caller-supplied `text` (spread above via
+            // `...modelOptions`) so sibling fields like `text.verbosity` survive;
+            // only `text.format` is overridden.
+            text: {
+              ...modelOptions.text,
+              format: combinedSchema
+                ? {
+                    type: 'json_schema' as const,
+                    name: 'structured_output',
+                    schema: combinedSchema,
+                    strict: true,
+                  }
+                : { type: 'json_object' as const },
+            },
+          }
+        : {}),
     }
 
     return built
@@ -1964,6 +1963,43 @@ export class OpenRouterResponsesTextAdapter<
     modelOptions?: OpenRouterResponsesTextProviderOptions,
   ): boolean {
     return openRouterSupportsCombinedToolsAndSchema(this.model, modelOptions)
+  }
+
+  /**
+   * JSON mode when the caller asked for it, or when `auto` matches a catalog
+   * model that has a response format and no strict structured outputs.
+   */
+  private structuredTextFormat(
+    chatOptions: TextOptions<OpenRouterResponsesTextProviderOptions>,
+    outputSchema: JSONSchema,
+  ):
+    | { type: 'json_object' }
+    | {
+        type: 'json_schema'
+        name: 'structured_output'
+        schema: Record<string, any>
+        strict: true
+      } {
+    const formatRequest = openRouterFormatRequest(chatOptions.modelOptions)
+    if (
+      openRouterUsesJsonObject({
+        mode: chatOptions.structuredOutputMode,
+        requestedType: formatRequest.requestedType,
+        model: chatOptions.model || this.model,
+        fallbackModels: formatRequest.fallbackModels,
+      })
+    ) {
+      return { type: 'json_object' }
+    }
+    return {
+      type: 'json_schema',
+      name: 'structured_output',
+      schema: this.makeStructuredOutputCompatible(
+        outputSchema,
+        outputSchema.required,
+      ),
+      strict: true,
+    }
   }
 
   /**

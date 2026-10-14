@@ -27,6 +27,11 @@ import type {
   StructuredOutputCompatibility,
 } from '../utils/schema-converter'
 import { buildChatCompletionsUsage } from '../usage'
+import {
+  explicitJsonObject,
+  requestUsesJsonObject,
+} from '../utils/json-object-mode'
+import type { JsonObjectModeInput } from '../utils/json-object-mode'
 import { toChatCompletionsToolChoice } from '../tools/tool-choice'
 import { convertToolsToChatCompletionsFormat } from './chat-completions-tool-converter'
 import type OpenAI from 'openai'
@@ -300,10 +305,9 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
     const requestParams = this.mapOptionsToRequest(chatOptions)
-
-    const jsonSchema = this.makeStructuredOutputCompatible(
+    const responseFormat = this.chatCompletionsResponseFormat(
+      chatOptions,
       outputSchema,
-      outputSchema.required,
     )
 
     try {
@@ -325,14 +329,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         {
           ...cleanParams,
           stream: false,
-          response_format: {
-            type: 'json_schema',
-            json_schema: {
-              name: 'structured_output',
-              schema: jsonSchema,
-              strict: true,
-            },
-          },
+          response_format: responseFormat,
         },
         extractRequestOptions(chatOptions.request),
       )
@@ -409,10 +406,9 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   ): AsyncIterable<AdapterYieldChunk> {
     const { chatOptions, outputSchema } = options
     const requestParams = this.mapOptionsToRequest(chatOptions)
-
-    const jsonSchema = this.makeStructuredOutputCompatible(
+    const responseFormat = this.chatCompletionsResponseFormat(
+      chatOptions,
       outputSchema,
-      outputSchema.required,
     )
 
     const aguiState = {
@@ -493,14 +489,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           ...cleanParams,
           stream: true,
           stream_options: { include_usage: true },
-          response_format: {
-            type: 'json_schema',
-            json_schema: {
-              name: 'structured_output',
-              schema: jsonSchema,
-              strict: true,
-            },
-          },
+          response_format: responseFormat,
         },
         extractRequestOptions(chatOptions.request),
       )
@@ -816,6 +805,56 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   ): Record<string, any> {
     return this.makeStructuredOutputCompatibleWithMap(schema, originalRequired)
       .schema
+  }
+
+  /**
+   * `true` when `structuredOutputMode: 'auto'` must send JSON mode for this
+   * model. The default is strict `json_schema`. Groq overrides this from its
+   * model catalog.
+   */
+  protected modelPrefersJsonObject(_model: string): boolean {
+    return false
+  }
+
+  protected usesJsonObjectResponseFormat(
+    options: JsonObjectModeInput,
+  ): boolean {
+    return requestUsesJsonObject({
+      mode: options.structuredOutputMode,
+      explicit: explicitJsonObject(options.modelOptions),
+      auto: this.modelPrefersJsonObject(options.model),
+    })
+  }
+
+  protected chatCompletionsResponseFormat(
+    options: JsonObjectModeInput,
+    schema: Record<string, any>,
+  ):
+    | { type: 'json_object' }
+    | {
+        type: 'json_schema'
+        json_schema: {
+          name: string
+          schema: Record<string, any>
+          strict: true
+        }
+      } {
+    if (this.usesJsonObjectResponseFormat(options)) {
+      return { type: 'json_object' }
+    }
+    return {
+      type: 'json_schema',
+      json_schema: {
+        name: 'structured_output',
+        schema: this.makeStructuredOutputCompatible(
+          schema,
+          Array.isArray(schema.required)
+            ? (schema.required as Array<string>)
+            : undefined,
+        ),
+        strict: true,
+      },
+    }
   }
 
   /**
@@ -1473,19 +1512,10 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       | undefined
     const responseFormat = combinedSchema
       ? {
-          response_format: {
-            type: 'json_schema' as const,
-            json_schema: {
-              name: 'structured_output',
-              schema: this.makeStructuredOutputCompatible(
-                combinedSchema,
-                Array.isArray(combinedSchema.required)
-                  ? (combinedSchema.required as Array<string>)
-                  : undefined,
-              ),
-              strict: true,
-            },
-          },
+          response_format: this.chatCompletionsResponseFormat(
+            options,
+            combinedSchema,
+          ),
         }
       : undefined
 

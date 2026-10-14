@@ -170,6 +170,7 @@ import type {
   RunFinishedEvent,
   SchemaInput,
   StreamChunk,
+  StructuredOutputMode,
   StructuredOutputCompleteEvent,
   StructuredOutputPart,
   StructuredOutputStream,
@@ -712,6 +713,16 @@ export interface TextActivityOptions<
    * ```
    */
   outputSchema?: TSchema
+  /**
+   * How `outputSchema` is sent. `json_schema` (default) is strict.
+   * `json_object` sends JSON mode and still checks the reply with the schema.
+   * `auto` uses JSON mode when the adapter catalog says the model accepts a
+   * response format and does not accept strict structured outputs.
+   *
+   * JSON mode does not send the schema. Describe the object in the prompt.
+   * Some providers reject the call when the messages do not contain `json`.
+   */
+  structuredOutputMode?: StructuredOutputMode
   /**
    * Whether to stream the text result.
    * When true (default), returns a ChatStream for streaming output.
@@ -1966,6 +1977,9 @@ class TextEngine<
       ...(toolChoice ? { toolChoice } : {}),
       ...(this.callWrapFetch ? { wrapFetch: this.callWrapFetch } : {}),
       ...(combinedSchema ? { outputSchema: combinedSchema } : {}),
+      ...(this.params.structuredOutputMode
+        ? { structuredOutputMode: this.params.structuredOutputMode }
+        : {}),
     }
     for await (const adapterChunk of this.retryRateLimited(() =>
       this.adapter.chatStream(streamOptions),
@@ -4598,6 +4612,9 @@ class TextEngine<
         parentRunId: this.parentRunIdOverride,
         ...(this.effectiveRequest ? { request: this.effectiveRequest } : {}),
         ...(this.callWrapFetch ? { wrapFetch: this.callWrapFetch } : {}),
+        ...(this.params.structuredOutputMode
+          ? { structuredOutputMode: this.params.structuredOutputMode }
+          : {}),
       },
       outputSchema: pinnedSchema,
     }

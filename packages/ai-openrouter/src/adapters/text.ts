@@ -20,6 +20,10 @@ import { clientForCall } from '../internal/wrap-fetch'
 import { makeStructuredOutputCompatible } from '../internal/schema-converter'
 import { openRouterSupportsCombinedToolsAndSchema } from '../internal/combined-tools-and-schema'
 import {
+  openRouterFormatRequest,
+  openRouterUsesJsonObject,
+} from '../internal/json-object-mode'
+import {
   OPENROUTER_MODEL_INPUT_MODALITIES,
   OPENROUTER_MODEL_REASONING,
 } from '../model-meta'
@@ -289,8 +293,9 @@ export class OpenRouterTextAdapter<
   /**
    * Generate structured output via OpenRouter's `responseFormat`. Uses
    * `stream: false`. Default is strict `json_schema` from `outputSchema`.
-   * Callers can opt into JSON mode with
-   * `modelOptions.responseFormat: { type: 'json_object' }`.
+   * JSON mode is `modelOptions.responseFormat: { type: 'json_object' }`,
+   * `structuredOutputMode: 'json_object'`, or `'auto'` for a catalog model
+   * that has a response format and no strict structured outputs.
    */
   async structuredOutput(
     options: StructuredOutputOptions<ResolveProviderOptions<TModel>>,
@@ -300,6 +305,7 @@ export class OpenRouterTextAdapter<
     const responseFormat = this.resolveStructuredResponseFormat(
       chatRequest.responseFormat,
       outputSchema,
+      chatOptions,
     )
 
     try {
@@ -442,6 +448,7 @@ export class OpenRouterTextAdapter<
     const responseFormat = this.resolveStructuredResponseFormat(
       chatRequest.responseFormat,
       outputSchema,
+      chatOptions,
     )
 
     const aguiState = {
@@ -788,15 +795,24 @@ export class OpenRouterTextAdapter<
   /**
    * Resolve the provider request format for a schema-bearing call.
    *
-   * Explicit `modelOptions.responseFormat: { type: 'json_object' }` is
-   * forwarded. Every other value is replaced with strict `json_schema`
-   * generated from `outputSchema`.
+   * JSON mode when the caller asked for it, or when `auto` matches a catalog
+   * model that has `response_format` and not `structured_outputs`. Every
+   * other call gets strict `json_schema` from `outputSchema`.
    */
   protected resolveStructuredResponseFormat(
     requested: ChatRequest['responseFormat'],
     outputSchema: JSONSchema,
+    chatOptions: TextOptions<ResolveProviderOptions<TModel>>,
   ): NonNullable<ChatRequest['responseFormat']> {
-    if (requested?.type === 'json_object') {
+    const formatRequest = openRouterFormatRequest(chatOptions.modelOptions)
+    if (
+      openRouterUsesJsonObject({
+        mode: chatOptions.structuredOutputMode,
+        requestedType: requested?.type ?? formatRequest.requestedType,
+        model: chatOptions.model || this.model,
+        fallbackModels: formatRequest.fallbackModels,
+      })
+    ) {
       return { type: 'json_object' }
     }
 
@@ -1482,15 +1498,18 @@ export class OpenRouterTextAdapter<
       : undefined
 
     // Attach json_schema only when outputSchema is set, every routed model
-    // is in the combined set, and the caller did not opt into JSON mode.
+    // is in the combined set, and this call is not JSON mode.
     const combinedOutputSchema: JSONSchema | undefined = options.outputSchema
-    const requestedResponseFormat =
-      options.modelOptions != null && 'responseFormat' in options.modelOptions
-        ? options.modelOptions.responseFormat
-        : undefined
+    const formatRequest = openRouterFormatRequest(options.modelOptions)
+    const useJsonObject = openRouterUsesJsonObject({
+      mode: options.structuredOutputMode,
+      requestedType: formatRequest.requestedType,
+      model: options.model,
+      fallbackModels: formatRequest.fallbackModels,
+    })
     const combinedSchema =
       combinedOutputSchema &&
-      requestedResponseFormat?.type !== 'json_object' &&
+      !useJsonObject &&
       this.supportsCombinedToolsAndSchema(options.modelOptions)
         ? this.makeStructuredOutputCompatible(
             combinedOutputSchema,
@@ -1518,6 +1537,9 @@ export class OpenRouterTextAdapter<
       model: options.model + variantSuffix,
       messages,
       ...(tools && tools.length > 0 && { tools }),
+      ...(useJsonObject && combinedOutputSchema
+        ? { responseFormat: { type: 'json_object' as const } }
+        : {}),
       ...(combinedSchema && {
         responseFormat: {
           type: 'json_schema' as const,

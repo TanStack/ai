@@ -1434,6 +1434,50 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       )
     })
 
+    it('sends json_object on the combined request when structuredOutputMode is json_object', async () => {
+      const streamChunks = [
+        {
+          id: 'chatcmpl-1',
+          model: 'test-model',
+          choices: [
+            { delta: { content: '{"city":"NYC"}' }, finish_reason: null },
+          ],
+        },
+        {
+          id: 'chatcmpl-1',
+          model: 'test-model',
+          choices: [{ delta: {}, finish_reason: 'stop' }],
+        },
+      ]
+
+      setupMockSdkClient(streamChunks)
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
+
+      for await (const _ of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Hello' }],
+        tools: [weatherTool],
+        structuredOutputMode: 'json_object',
+        outputSchema: {
+          type: 'object',
+          properties: { city: { type: 'string' } },
+          required: ['city'],
+        },
+      })) {
+        // drain
+      }
+
+      expect(mockCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          stream: true,
+          tools: expect.any(Array),
+          response_format: { type: 'json_object' },
+        }),
+        expect.anything(),
+      )
+    })
+
     it('omits response_format when outputSchema is not set', async () => {
       const streamChunks = [
         {

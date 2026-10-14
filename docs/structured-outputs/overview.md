@@ -62,6 +62,45 @@ Every adapter handles structured output through its provider's native API:
 
 The provider-specific details are handled for you. The same `chat({ outputSchema })` call works across all of them. For a coding agent in a sandbox, see [Harness Agents](./harnesses).
 
+### When strict JSON schema is rejected
+
+Some models accept a JSON response format and reject strict JSON schema. The call fails before the model runs.
+
+1. Put the word `json` in the message. Some providers require that word.
+2. Describe the object shape in the prompt. JSON mode does not send the schema.
+3. Set `structuredOutputMode` to `"auto"` or `"json_object"`.
+
+| Value | Request |
+| --- | --- |
+| `json_schema` | Strict JSON schema. This is the default. |
+| `json_object` | `response_format` type `json_object`. The client still checks the reply with your schema. |
+| `auto` | JSON mode for an OpenRouter or Groq model that declares a response format and does not declare strict structured outputs. Other adapters stay on strict JSON schema until you set `json_object`. |
+
+JSON of the wrong shape throws when you await the `chat` call.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openRouterText } from "@tanstack/ai-openrouter";
+import { z } from "zod";
+
+const Person = z.object({ name: z.string(), age: z.number() });
+
+const person = await chat({
+  adapter: openRouterText("qwen/qwen3.7-flash"),
+  messages: [
+    {
+      role: "user",
+      content: "Return Ada Lovelace, age 36, as json with name and age.",
+    },
+  ],
+  structuredOutputMode: "auto",
+  outputSchema: Person,
+});
+
+person.name;
+person.age;
+```
+
 ### Anthropic schema complexity limits
 
 Anthropic compiles a structured-output schema into a grammar and rejects schemas it considers too large or too complex with a 400 error — typically `Schema is too complex for compilation` or `output_config.format.schema: Invalid schema: The compiled grammar is too large`. This affects Claude models directly and `anthropic/*` models routed through OpenRouter, even when every other provider accepts the same schema.

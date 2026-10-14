@@ -190,6 +190,18 @@ export async function POST(request: Request) {
 }
 ```
 
+## JSON mode
+
+Some OpenRouter models reject strict JSON schema. They accept `response_format` with type `json_object`.
+
+1. Put the word `json` in the message.
+2. Describe the object shape in the prompt. JSON mode does not send the schema.
+3. Set `structuredOutputMode` to `"auto"` or `"json_object"`.
+
+`modelOptions.responseFormat` with type `json_object` still selects JSON mode.
+
+Read [When strict JSON schema is rejected](../structured-outputs/overview.md#when-strict-json-schema-is-rejected).
+
 ## Tools and structured output together
 
 You can pass both `tools` and `outputSchema` on one `chat()` call. For some
