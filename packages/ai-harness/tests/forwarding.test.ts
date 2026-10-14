@@ -121,6 +121,41 @@ describe('an input that reaches a host that does not own the thread', () => {
     expect(calls).toHaveLength(1)
   })
 
+  it('leaves the input of a live owner alone when another host opens the thread', async () => {
+    const persistence = sharedStores()
+    const { adapter, calls } = mockAdapter([() => text('One.')])
+    const harness = harnessOf(adapter)
+    // The owner stores the input, then waits before it writes its run lease.
+    const leaseWrite = gate()
+    const shared = persistence.stores.runs
+    const owner = await createHarnessHost({
+      persistence: {
+        stores: {
+          ...persistence.stores,
+          runs: Object.assign(Object.create(persistence.stores.runs), {
+            createOrResume: async (
+              ...args: Parameters<typeof shared.createOrResume>
+            ) => {
+              await leaseWrite.opened
+              return shared.createOrResume(...args)
+            },
+          }),
+        },
+      },
+    }).open(harness, { threadId: THREAD })
+    const turn = owner.prompt('Go.')
+    await turn.receipt
+
+    // In that window, another host opens the thread and finds the input.
+    const other = await createHarnessHost({ persistence }).open(harness, {
+      threadId: THREAD,
+    })
+    leaseWrite.open()
+    expect((await turn).text).toBe('One.')
+    expect(calls).toHaveLength(1)
+    await other.close()
+  })
+
   it('answers a question that waits on another host', async () => {
     const persistence = sharedStores()
     const deploy = definePlugin({
