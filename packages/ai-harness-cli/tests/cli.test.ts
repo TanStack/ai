@@ -110,7 +110,10 @@ const acmeKeys = definePlugin({
             schema: z.string(),
             secret: true,
           })
-          await credentials.set('acme', { type: 'api_key', value: key })
+          await credentials.set({
+            id: 'acme',
+            credential: { type: 'api_key', value: key },
+          })
           return `Connected to Acme (key ...${key.slice(-4)}).`
         },
       }),
@@ -350,10 +353,10 @@ describe('secret answers in line mode', () => {
         persistence,
       },
     )
-    const saved = await persistence.stores.credentials.get(
-      { threadId: 'main' },
-      'acme',
-    )
+    const saved = await persistence.stores.credentials.get({
+      scope: { threadId: 'main' },
+      id: 'acme',
+    })
     return { printed: stdout.text, saved }
   }
 
@@ -407,10 +410,10 @@ describe('a host and a principal', () => {
     expect(code).toBe(EXIT.ok)
     expect(close).not.toHaveBeenCalled()
     const saved = (userId?: string) =>
-      persistence.stores.credentials.get(
-        { threadId: 'main', ...(userId ? { userId } : {}) },
-        'acme',
-      )
+      persistence.stores.credentials.get({
+        scope: { threadId: 'main', ...(userId ? { userId } : {}) },
+        id: 'acme',
+      })
     expect(await saved('ada')).toEqual({ type: 'api_key', value: 'sk-ada' })
     expect(await saved()).toBeNull()
     await host.close()
@@ -502,10 +505,10 @@ describe('a host and a principal', () => {
       })
       await vi.waitFor(async () =>
         expect(
-          await persistence.stores.credentials.get(
-            { threadId: 't', userId: 'ada' },
-            'acme',
-          ),
+          await persistence.stores.credentials.get({
+            scope: { threadId: 't', userId: 'ada' },
+            id: 'acme',
+          }),
         ).toEqual({ type: 'api_key', value: 'sk-ada' }),
       )
     } finally {

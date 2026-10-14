@@ -9,6 +9,7 @@ const base: SessionViewState = {
   messages: [],
   approvals: [],
   clientTools: [],
+  interrupts: [],
   questions: [],
   signIns: [],
   agents: [],
@@ -16,6 +17,7 @@ const base: SessionViewState = {
   waitingInputs: [],
   commands: [],
   config: [],
+  models: [],
   tools: [],
   plugins: {},
 }

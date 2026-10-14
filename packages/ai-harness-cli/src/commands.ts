@@ -97,10 +97,10 @@ export async function handleLine(
   const [question] = session.snapshot().pendingQuestions
   if (question) {
     // A secret (a key) is the text as typed: `123456` stays a string.
-    const receipt = await session.answer(
-      question.questionId,
-      question.secret ? text : parseAnswer(text, question.schema),
-    )
+    const receipt = await session.answer({
+      questionId: question.questionId,
+      value: question.secret ? text : parseAnswer(text, question.schema),
+    })
     return {
       type: 'notice',
       text:
@@ -156,10 +156,10 @@ export async function handleLine(
                   .join('\n'),
         }
       }
-      const receipt = await session.setConfig(
+      const receipt = await session.setConfig({
         key,
-        parseArg(valueParts.join(' ').trim()),
-      )
+        value: parseArg(valueParts.join(' ').trim()),
+      })
       return {
         type: 'notice',
         text:
