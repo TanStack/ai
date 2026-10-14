@@ -101,7 +101,10 @@ export abstract class SessionRequests<
     if (known) return known
     const runId = options?.runId
     // A run id must not take the id of another operation.
-    if (runId !== undefined && this.operations.has(runId)) {
+    if (
+      runId !== undefined &&
+      (this.operations.has(runId) || this.retiredIds.has(runId))
+    ) {
       const refused = this.createTurnOperation()
       this.refuse(refused, { inputId, status: 'rejected', reason: 'conflict' })
       return refused
@@ -426,7 +429,9 @@ export abstract class SessionRequests<
       // A run id must not take the id of another operation or stored run.
       const isTaken =
         runId !== undefined &&
-        (this.operations.has(runId) || (await this.isRunTaken(runId)))
+        (this.operations.has(runId) ||
+          this.retiredIds.has(runId) ||
+          (await this.isRunTaken(runId)))
       if (isTaken) {
         this.reject(inputId, 'conflict')
         return { inputId, status: 'rejected', reason: 'conflict' }
@@ -491,9 +496,16 @@ export abstract class SessionRequests<
     if (waitingSteer && this.joining.has(waitingSteer.inputId)) {
       return this.reject(inputId, 'not_running')
     }
+    const targetInput = this.operationInputs.get(target.id)
+    // A prompt that joined the running turn ends with it, as a joined steer.
+    const hasJoined =
+      targetInput !== undefined &&
+      [...this.turnJoins.values()].some((joined) =>
+        joined.includes(targetInput),
+      )
+    if (hasJoined) return this.reject(inputId, 'not_running')
     // It never joins now, and settles when the running turn ends.
     if (waitingSteer) this.abortedSteers.add(waitingSteer.inputId)
-    const targetInput = this.operationInputs.get(target.id)
     if (this.writer && targetInput) {
       await this.writer.append([
         { type: 'harness.input.abort', inputId: targetInput },
@@ -542,6 +554,12 @@ export abstract class SessionRequests<
       target.fail('cancelled', new Error('Cancelled before it started.'))
       this.publishFinished(target)
     } else {
+      // A question of this turn gets no answer now.
+      for (const [questionId, question] of this.questions) {
+        if (question.operationId !== target.id) continue
+        this.questions.delete(questionId)
+        question.reject(new Error('Cancelled.'))
+      }
       target.abortController.abort(RUN_CANCEL_REASON)
     }
     await this.markApplied(inputId, target.id)
@@ -571,7 +589,8 @@ export abstract class SessionRequests<
     })
     // Without a log, the inbox entry must not stay pending: a restart runs
     // pending entries.
-    if (!this.writer) await this.inbox.markRejected(target, 'cancelled')
+    if (!this.writer)
+      await this.inbox.markRejected({ inputId: target, reason: 'cancelled' })
     const { operation } = taken
     await this.settle({
       inputId: target,
@@ -595,13 +614,16 @@ export abstract class SessionRequests<
    * @example
    * ```ts
    * await session.followUp('Use tabs, not spaces.', { inputId: 'style' })
-   * await session.setDelivery('style', 'steer')
+   * await session.setDelivery({ inputId: 'style', delivery: 'steer' })
    * ```
    */
-  async setDelivery(
-    target: string,
-    delivery: WaitingInput['delivery'],
-  ): Promise<Receipt> {
+  async setDelivery({
+    inputId: target,
+    delivery,
+  }: {
+    inputId: string
+    delivery: WaitingInput['delivery']
+  }): Promise<Receipt> {
     const inputId = createInputId()
     await this.accept(inputId, { op: 'setDelivery', inputId: target, delivery })
     const current = this.inputs().find((input) => input.inputId === target)
@@ -657,11 +679,13 @@ export abstract class SessionRequests<
 
   /**
    * The session API of plugins. With `principal` (a command), it acts for
-   * that user. Without it, it follows the sender of the running turn.
+   * that user. Without it, it follows the sender of the running turn. With
+   * `operationId` (a command), its questions belong to that operation.
    */
   protected override pluginApi(
     principal?: Principal,
     metadataSchema?: SchemaInput,
+    operationId?: string,
   ): PluginSessionApi {
     const sender = () => principal ?? this.sender()
     return {
@@ -708,13 +732,13 @@ export abstract class SessionRequests<
       },
       // The public type narrows the answer from the schema.
       ask: ((question: Question<SchemaInput | undefined>) =>
-        this.ask(question)) as PluginSessionApi['ask'],
+        this.ask(question, operationId)) as PluginSessionApi['ask'],
       authRequired: (info) =>
         this.feed.publish(
           'session',
           customEvent(HARNESS_EVENTS.authRequired, { ...info }),
         ),
-      setConfig: (key, value) => this.setConfig(key, value),
+      setConfig: (change) => this.setConfig(change),
       settings: () => this.settings(),
     }
   }
@@ -765,11 +789,15 @@ export abstract class SessionRequests<
       // The events from before the close land first, so the next host has
       // the text of a cut answer.
       if (options?.recoverable) await this.writer?.flush().catch(() => {})
+      // A reload that mounts plugins now ends first, so its plugins are
+      // disposed below.
+      await this.reloads
       this.lifetime.abort()
       try {
         await this.sessionPlugins?.dispose()
       } finally {
         this.feed.close()
+        this.eventListeners.clear()
         this.onClose()
       }
     })()
@@ -788,7 +816,7 @@ export abstract class SessionRequests<
       undefined,
       id,
     )
-    this.operations.set(operation.id, operation as OperationImpl<unknown>)
+    this.track(operation as OperationImpl<unknown>)
     return operation
   }
 
@@ -874,7 +902,7 @@ export abstract class SessionRequests<
   protected answerDuplicate(
     operation: OperationImpl<ChatTurnResult>,
     inputId: string,
-    admission: 'duplicate' | 'conflict',
+    admission: 'duplicate' | 'conflict' | 'closed',
   ) {
     const receipt = this.duplicateReceipt(inputId, admission)
     if (receipt.status === 'rejected') {
@@ -883,11 +911,12 @@ export abstract class SessionRequests<
     }
     operation.resolveReceipt(receipt)
     if (!this.writer) {
-      // Without a log, the result of an input from before a restart is gone.
+      // Without a log, the result of an input from before a restart, or of
+      // one the session no longer keeps, is gone.
       operation.fail(
         'failed',
         new Error(
-          'This input ran before a restart. Keep its result with a durable host (stores.log).',
+          'This input ran earlier, and its result is gone. Keep results with a durable host (stores.log).',
         ),
       )
       return
@@ -914,7 +943,7 @@ export abstract class SessionRequests<
       this.feed,
       (target) => this.cancel(target.id),
     )
-    this.operations.set(operation.id, operation as OperationImpl<unknown>)
+    this.track(operation as OperationImpl<unknown>)
     this.bindTurn(inputId, operation)
     const turn: QueuedTurn = {
       operation,

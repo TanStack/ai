@@ -166,6 +166,7 @@ describe('turn.onModelError', () => {
 
     expect(await session.prompt('a very long chat')).toEqual({
       text: 'fits now',
+      media: [],
     })
     expect(calls).toHaveLength(2)
     expect(messageTexts(calls[1])).toEqual(['summary of the chat'])
@@ -214,7 +215,10 @@ describe('turn.onModelError', () => {
       turn: { onModelError: retryTransientErrors({ baseDelayMs: 1 }) },
     })
 
-    expect(await session.prompt('go')).toEqual({ text: 'partial second try' })
+    expect(await session.prompt('go')).toEqual({
+      text: 'partial second try',
+      media: [],
+    })
     await host.close()
   })
 
@@ -248,6 +252,7 @@ describe('turn.onModelError', () => {
 
     expect(await session.prompt('weather?')).toEqual({
       text: 'Let me check. It is sunny.',
+      media: [],
     })
     await host.close()
   })
@@ -284,6 +289,7 @@ describe('turn.onModelError', () => {
 
       expect(await session.operation(receipt.operationId!)).toEqual({
         text: 'removed',
+        media: [],
       })
       expect(execute).toHaveBeenCalledTimes(1)
       await host.close()
@@ -313,7 +319,7 @@ describe('turn.onModelError', () => {
     await session.steer('also check y')
     release.open()
 
-    expect(await turn).toEqual({ text: 'done' })
+    expect(await turn).toEqual({ text: 'done', media: [] })
     expect(messageTexts(calls[2]).at(-1)).toBe('also check y')
     await host.close()
   })
@@ -373,7 +379,10 @@ describe('turn.onModelError', () => {
       },
     })
 
-    expect(await session.prompt('go')).toEqual({ text: 'Hello world' })
+    expect(await session.prompt('go')).toEqual({
+      text: 'Hello world',
+      media: [],
+    })
     expect(seen).toEqual([true])
     expect(messageTexts(calls[1])).toEqual(['go'])
     await host.close()
@@ -386,7 +395,7 @@ describe('turn.onModelError', () => {
     })
 
     const turn = session.prompt('go')
-    expect(await turn).toEqual({ text: 'Hello world' })
+    expect(await turn).toEqual({ text: 'Hello world', media: [] })
     const sent = calls[1].messages
     expect(sent).toHaveLength(3)
     expect(sent[1]).toMatchObject({ role: 'assistant', content: 'Hello wor' })
@@ -446,7 +455,7 @@ describe('turn.onModelError', () => {
       turn: { onModelError: () => 'continue' },
     })
 
-    expect(await session.prompt('go')).toEqual({ text: 'ok' })
+    expect(await session.prompt('go')).toEqual({ text: 'ok', media: [] })
     expect(messageTexts(calls[1])).toEqual(['go'])
     await host.close()
   })
@@ -557,7 +566,7 @@ describe('turn.onModelError', () => {
         },
       })
 
-      expect(await session.prompt('go')).toEqual({ text: 'ok' })
+      expect(await session.prompt('go')).toEqual({ text: 'ok', media: [] })
       expect(seen).toEqual([
         { message: 'rate limited', code: '429', retryAfterMs: 7_000 },
       ])
@@ -609,7 +618,7 @@ describe('turn.onModelError', () => {
       },
     })
 
-    expect(await session.prompt('go')).toEqual({ text: 'ok' })
+    expect(await session.prompt('go')).toEqual({ text: 'ok', media: [] })
     expect(seen).toEqual([true])
     await host.close()
   })
@@ -641,7 +650,7 @@ describe('turn.onModelError', () => {
       turn: { onModelError: () => 'continue' },
     })
 
-    expect(await session.prompt('go')).toEqual({ text: 'ok' })
+    expect(await session.prompt('go')).toEqual({ text: 'ok', media: [] })
     // No continue note: the model never wrote text to continue.
     expect(messageTexts(calls[1])).toEqual(['go'])
     await host.close()
@@ -669,7 +678,7 @@ describe('turn.onModelError', () => {
       },
     })
 
-    expect(await session.prompt('go')).toEqual({ text: 'ok' })
+    expect(await session.prompt('go')).toEqual({ text: 'ok', media: [] })
     expect(seen).toEqual([true])
     await host.close()
   })
@@ -818,7 +827,7 @@ describe('turn.beforeFinish', () => {
     })
 
     const turn = session.prompt('answer the user')
-    expect(await turn).toEqual({ text: 'draftposted' })
+    expect(await turn).toEqual({ text: 'draftposted', media: [] })
 
     expect(calls).toHaveLength(2)
     expect(messageTexts(calls[1]).at(-1)).toBe(REMINDER)
@@ -862,7 +871,7 @@ describe('turn.beforeFinish', () => {
       { threadId: THREAD },
     )
 
-    expect(await session.prompt('go')).toEqual({ text: 'onetwo' })
+    expect(await session.prompt('go')).toEqual({ text: 'onetwo', media: [] })
     expect(messageTexts(calls[1]).at(-1)).toBe('check the result')
     expect(cycles).toBe(1)
     await host.close()
@@ -880,7 +889,7 @@ describe('turn.beforeFinish', () => {
       },
     })
 
-    expect(await session.prompt('go')).toEqual({ text: 'done' })
+    expect(await session.prompt('go')).toEqual({ text: 'done', media: [] })
     expect(calls).toHaveLength(1)
     expect(
       (await log.read(THREAD)).map((entry) => entry.record.type),
@@ -952,6 +961,7 @@ describe('turn.beforeFinish', () => {
 
     expect(await session.prompt('answer the user')).toEqual({
       text: 'draftposted',
+      media: [],
     })
 
     expect(calls).toHaveLength(2)
@@ -1041,7 +1051,10 @@ describe('turn.beforeFinish', () => {
       },
     })
 
-    expect(await session.prompt('look it up')).toEqual({ text: 'posted' })
+    expect(await session.prompt('look it up')).toEqual({
+      text: 'posted',
+      media: [],
+    })
 
     expect(lookupRuns).not.toHaveBeenCalled()
     expect(calls).toHaveLength(2)

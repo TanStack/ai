@@ -301,8 +301,8 @@ describe('durable session log', () => {
     const inner = memoryLogStore()
     const batches: Array<Array<unknown>> = []
     const log: LogStore = {
-      append: async (threadId, seq, records) => {
-        await inner.append(threadId, seq, records)
+      append: async ({ threadId, seq, records }) => {
+        await inner.append({ threadId, seq, records })
         batches.push(
           records.map((record) =>
             record.type === 'harness.event' ? record.event : record,
@@ -310,7 +310,8 @@ describe('durable session log', () => {
         )
       },
       read: (threadId, options) => inner.read(threadId, options),
-      subscribe: (threadId, listener) => inner.subscribe(threadId, listener),
+      subscribe: ({ threadId, listener }) =>
+        inner.subscribe({ threadId, listener }),
     }
     const release = gate()
     const { adapter } = mockAdapter([
@@ -491,7 +492,8 @@ describe('durable session log', () => {
     const inner = memoryLogStore()
     // This host does not see the other writer, like one in another process.
     const log: LogStore = {
-      append: (threadId, seq, records) => inner.append(threadId, seq, records),
+      append: ({ threadId, seq, records }) =>
+        inner.append({ threadId, seq, records }),
       read: (threadId, options) => inner.read(threadId, options),
       subscribe: () => () => {},
     }
@@ -499,7 +501,11 @@ describe('durable session log', () => {
     const host = createHarnessHost({ persistence: durablePersistence(log) })
     const harness = defineHarness({ name: 'test/conflict', adapter })
     const session = await host.open(harness, { threadId: THREAD })
-    await inner.append(THREAD, 1, [{ type: 'app.from-another-host' }])
+    await inner.append({
+      threadId: THREAD,
+      seq: 1,
+      records: [{ type: 'app.from-another-host' }],
+    })
 
     await expect(session.prompt('hi')).rejects.toThrow('Another host wrote')
 

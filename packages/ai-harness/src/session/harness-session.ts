@@ -69,11 +69,19 @@ export class HarnessSession<
       await this.recoverCrashedTurn()
       await this.recoverInbox()
     } catch (error) {
-      // A session that fails to open gives its log view back, so the thread
-      // can open again.
-      this.feed.close()
+      // A session that fails to open stops what it started: the plugins, the
+      // claim timer, and the turns that recovery queued or runs. It stops
+      // them as on a crash, so the next open runs them again. It gives its
+      // log view back, so the thread can open again.
+      await this.close({ recoverable: true }).catch(() => {})
       throw error
     }
+  }
+
+  /** Also waits for the last append of the log, so a reopen reads it. */
+  override async close(options?: { recoverable?: boolean }): Promise<void> {
+    await super.close(options)
+    await this.writer?.flush().catch(() => {})
   }
 
   /** Read `harness.plugins()` and set up its session plugins. */
@@ -126,6 +134,8 @@ export class HarnessSession<
       while (this.activeTurn) {
         await new Promise<void>((resolve) => this.turnEnds.add(resolve))
       }
+      // close() started while the turn ran. It disposes the plugins.
+      if (this.closing) return
       const old = this.sessionPlugins
       // No plugins until the new setup works, so a failed setup leaves none.
       this.sessionPlugins = undefined
@@ -140,7 +150,9 @@ export class HarnessSession<
       this.agentRegistry.deletePluginAgents()
       this.feed.publish(
         'session',
-        customEvent(HARNESS_EVENTS.reloaded, { error: errorText(error) }),
+        customEvent(HARNESS_EVENTS.reloaded, {
+          error: this.scrub(errorText(error)),
+        }),
       )
       throw error
     } finally {
@@ -187,7 +199,7 @@ export class HarnessSession<
       this.writer = await this.log.open(this.threadId, (error) =>
         this.stopOnLogFailure(error),
       )
-      this.feed = tapFeed(this.writer, this.onEvent)
+      this.feed = tapFeed(this.writer, this.notifyHost, this.eventListeners)
       const view = {
         writer: this.writer,
         store,
@@ -242,13 +254,17 @@ export class HarnessSession<
     this.logFailure = new Error(
       error instanceof LogConflictError
         ? 'Another host wrote to this log, so this session stopped. Open the thread again.'
-        : `The session log failed, so this session stopped: ${error instanceof Error ? error.message : String(error)}`,
+        : this.scrub(
+            `The session log failed, so this session stopped: ${error instanceof Error ? error.message : String(error)}`,
+          ),
     )
     for (const operation of this.operations.values()) {
       if (!operation.isSettled())
         operation.abortController.abort(this.logFailure)
     }
-    void this.close()
+    // The feed closes with the session, so a failed plugin dispose has no one
+    // to tell.
+    this.close().catch(() => {})
   }
 
   /**

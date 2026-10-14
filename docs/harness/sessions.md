@@ -110,13 +110,17 @@ A fork copies a chat into a new chat, up to a message. Use it to try another ans
 const [first] = await session.transcript()
 if (!first?.id) throw new Error('The chat has no messages.')
 
-const forked = await host.sessions.fork(assistant, 'chat-1', { before: first.id })
+const forked = await host.sessions.fork({
+  harness: assistant,
+  threadId: 'chat-1',
+  at: { before: first.id },
+})
 const fork = await host.open(assistant, { threadId: forked.threadId })
 await fork.prompt('Plan a trip to Porto.')
 ```
 
-- `{ through: id }` copies the messages up to and including `id`.
-- `{ before: id }` copies the messages before `id`. A fork before the first message has no messages, but it keeps the settings.
+- `at: { through: id }` copies the messages up to and including `id`.
+- `at: { before: id }` copies the messages before `id`. A fork before the first message has no messages, but it keeps the settings.
 - The host picks the new thread id. The new entry has the title of the old one plus ` (fork)`, and the same owner.
 - If the transcript has no message with that id, `fork` throws.
 - If the index entry of the thread names another harness, `fork` throws. One host can run more than one harness.
@@ -145,7 +149,7 @@ await session.unrevert()
 ## Rename and remove a session
 
 ```ts group=harness-sessions
-await host.sessions.rename(forked.threadId, 'Porto trip')
+await host.sessions.rename({ threadId: forked.threadId, title: 'Porto trip' })
 await host.sessions.delete('chat-1')
 ```
 
@@ -162,20 +166,26 @@ The `assistant` at the top of this page has a `metadataSchema`. It types `metada
 Write the pins from your server code. No session has to be open:
 
 ```ts group=harness-sessions
-await host.sessions.update(assistant, forked.threadId, {
-  metadata: { pinnedFiles: ['src/auth.ts'] },
+await host.sessions.update({
+  harness: assistant,
+  threadId: forked.threadId,
+  update: { metadata: { pinnedFiles: ['src/auth.ts'] } },
 })
 
 // Add one file, and keep the files that are there.
-await host.sessions.update(assistant, forked.threadId, (entry) => ({
-  metadata: {
-    pinnedFiles: [...(entry.metadata?.pinnedFiles ?? []), 'src/login.tsx'],
-  },
-}))
+await host.sessions.update({
+  harness: assistant,
+  threadId: forked.threadId,
+  update: (entry) => ({
+    metadata: {
+      pinnedFiles: [...(entry.metadata?.pinnedFiles ?? []), 'src/login.tsx'],
+    },
+  }),
+})
 ```
 
 - Each field that you give replaces the stored field: `title`, `pinned`, and `metadata`.
-- A function gets the current entry. Use it to change a part of `metadata`.
+- An `update` function gets the current entry. Use it to change a part of `metadata`.
 - `update` resolves to the changed entry. For a thread with no entry, it resolves to `undefined`.
 - For metadata that the schema refuses, `update` throws `SessionMetadataError` and writes nothing.
 - For a thread that another harness runs, `update` throws.
@@ -245,9 +255,29 @@ stop.abort()
 await host.close()
 ```
 
+## React to events
+
+Want to do something each time a session sends a certain event? Hand the session a listener. It calls your function for you, so you do not need a loop:
+
+```ts group=harness-sessions
+const stopListening = session.onEvent('RUN_ERROR', ({ operationId, event }) => {
+  console.error(`Operation ${operationId} failed: ${event.message}`)
+})
+
+// Later, when you do not need it any more:
+stopListening()
+```
+
+- Put an event type first to get only that type. `event` then has the type you asked for.
+- Leave the type out to get every event: `session.onEvent(({ event }) => {})`.
+- `operationId` tells you which operation sent the event. For one operation only, call `onEvent` on that operation.
+- The session calls your listener as soon as it sends the event. A listener that throws does not stop the turn. Keep listeners fast, because a slow one slows the stream.
+- A listener gets live events only. To read the events again after a restart, keep the `cursor` of an entry from `session.events()`, then pass it back as `from`.
+
 ## What you have now
 
 - A sidebar of past chats, newest first, with a title for each.
 - Rename, remove, fork, and revert from your server code.
 - Typed app data on each session, such as the pinned files of a chat.
 - A status for each chat that stays current.
+- A listener that runs your code when a session sends an event.

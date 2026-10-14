@@ -142,10 +142,10 @@ export interface HostSessions {
    * Set the title of a thread. Resolves to the changed entry, or to
    * `undefined` for a thread that has no entry.
    */
-  rename: (
-    threadId: string,
-    title: string,
-  ) => Promise<SessionIndexEntry | undefined>
+  rename: (change: {
+    threadId: string
+    title: string
+  }) => Promise<SessionIndexEntry | undefined>
   /**
    * Change the entry of a thread from app code, with no session open: its
    * `title`, `pinned`, or `metadata`. Each field you pass replaces the stored
@@ -159,16 +159,20 @@ export interface HostSessions {
    *
    * @example
    * ```ts
-   * await host.sessions.update(assistant, threadId, (entry) => ({
-   *   metadata: { ...entry.metadata, pinned: [...(entry.metadata?.pinned ?? []), file] },
-   * }))
+   * await host.sessions.update({
+   *   harness: assistant,
+   *   threadId,
+   *   update: (entry) => ({
+   *     metadata: { ...entry.metadata, pinned: [...(entry.metadata?.pinned ?? []), file] },
+   *   }),
+   * })
    * ```
    */
-  update: <THarness extends AnyHarness>(
-    harness: THarness,
-    threadId: string,
-    update: SessionEntryUpdate<SessionMetadataOf<THarness>>,
-  ) => Promise<SessionIndexEntry<SessionMetadataOf<THarness>> | undefined>
+  update: <THarness extends AnyHarness>(change: {
+    harness: THarness
+    threadId: string
+    update: SessionEntryUpdate<SessionMetadataOf<THarness>>
+  }) => Promise<SessionIndexEntry<SessionMetadataOf<THarness>> | undefined>
   /**
    * Remove the index entry of a thread. Only the entry: the transcript, the
    * log, and the other data of the thread stay in their stores.
@@ -186,15 +190,19 @@ export interface HostSessions {
    *
    * @example
    * ```ts
-   * const entry = await host.sessions.fork(assistant, 't-1', { before: messageId })
+   * const entry = await host.sessions.fork({
+   *   harness: assistant,
+   *   threadId: 't-1',
+   *   at: { before: messageId },
+   * })
    * const fork = await host.open(assistant, { threadId: entry.threadId })
    * ```
    */
-  fork: (
-    harness: AnyHarness,
-    threadId: string,
-    at: ForkPoint,
-  ) => Promise<SessionIndexEntry>
+  fork: (options: {
+    harness: AnyHarness
+    threadId: string
+    at: ForkPoint
+  }) => Promise<SessionIndexEntry>
 }
 
 /**
@@ -256,7 +264,10 @@ export interface ResumePendingOptions {
    * the thread too. `'never'`: it stays open, like any opened session.
    */
   close?: 'whenIdle' | 'never'
-  /** How many expired claims one call reads. Default 100. */
+  /**
+   * At most how many expired claims of `harnesses` one call takes. Default
+   * 100.
+   */
   limit?: number
 }
 
@@ -428,7 +439,10 @@ function sessionIndex(
           const current = await store.getVersioned(threadId)
           const next = await change(current?.entry)
           if (!next) return undefined
-          const written = await store.upsertIf(next, current?.revision ?? null)
+          const written = await store.upsertIf({
+            entry: next,
+            expectedRevision: current?.revision ?? null,
+          })
           if (!written.ok) continue
           onChange({ type: 'session', threadId, entry: next })
           return next
@@ -720,7 +734,18 @@ export function createHarnessHost<TLogState = undefined>(
       const byName = new Map(
         harnesses.map((harness) => [harness.name, harness]),
       )
-      const expired = await claims.listExpired({ now: Date.now(), limit })
+      // `listExpired` has no cursor, and claims of other harnesses come back
+      // too. Read more until `limit` are ours or the store has no more.
+      // ponytail: re-reads the first claims each round. Add a harness filter
+      // to the store if many claims of other harnesses pile up.
+      const now = Date.now()
+      let expired: Array<{ threadId: string; harness: string }> = []
+      for (let size = limit; ; size *= 2) {
+        const page = await claims.listExpired({ now, limit: size })
+        expired = page.filter((claim) => byName.has(claim.harness))
+        if (expired.length >= limit || page.length < size) break
+      }
+      expired = expired.slice(0, limit)
       const opened: Array<{ threadId: string; harness: string }> = []
       for (const { threadId, harness: name } of expired) {
         const harness = byName.get(name)
@@ -806,12 +831,12 @@ export function createHarnessHost<TLogState = undefined>(
           entries: [],
         },
       get: (threadId) => index.get(threadId),
-      rename: (threadId, title) =>
+      rename: ({ threadId, title }) =>
         index.update(
           threadId,
           (entry) => entry && { ...entry, title, updatedAt: Date.now() },
         ),
-      update: async (harness, threadId, update) =>
+      update: async ({ harness, threadId, update }) =>
         // The schema checked the metadata, so it has the harness type.
         (await index.update(threadId, (entry) => {
           checkHarness(entry, harness)
@@ -822,7 +847,7 @@ export function createHarnessHost<TLogState = undefined>(
           )
         })) as SessionIndexEntry<SessionMetadataOf<typeof harness>> | undefined,
       delete: (threadId) => index.remove(threadId),
-      async fork(harness, threadId, at) {
+      async fork({ harness, threadId, at }) {
         // Check before a session opens. Without a sessions store there is no
         // entry, so there is nothing to check.
         const source = await index.get(threadId)

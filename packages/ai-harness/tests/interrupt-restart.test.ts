@@ -97,6 +97,7 @@ describe.each([
     expect(receipt.status).toBe('accepted')
     expect(await next.session.operation(receipt.operationId ?? '')).toEqual({
       text: 'Removed b.txt',
+      media: [],
     })
     expect(remove.execute).toHaveBeenCalledTimes(1)
     await next.host.close()
@@ -156,6 +157,7 @@ describe.each([
       expect(receipt.status).toBe('accepted')
       expect(await next.session.operation(receipt.operationId ?? '')).toEqual({
         text: 'Removed b.txt',
+        media: [],
       })
       expect(remove.execute).toHaveBeenCalledTimes(1)
       await next.host.close()
@@ -210,6 +212,7 @@ describe.each([
     expect(receipt.status).toBe('accepted')
     expect(await next.session.operation(receipt.operationId ?? '')).toEqual({
       text: 'cleaner:\nRemoved a.txt',
+      media: [],
     })
     expect(remove.execute).toHaveBeenCalledTimes(1)
     expect(next.calls).toHaveLength(0)
@@ -234,6 +237,7 @@ describe.each([
     expect(receipt.status).toBe('accepted')
     expect(await next.session.operation(receipt.operationId ?? '')).toEqual({
       text: 'cleaner:\nRemoved a.txt',
+      media: [],
     })
     expect(remove.execute).toHaveBeenCalledTimes(1)
     // The resolve continues the saved plan. It does not ask the router again.
@@ -501,7 +505,7 @@ describe.each([false, true])(
         ])
         await expect(
           reopened.operation(retry.operationId ?? ''),
-        ).resolves.toEqual({ text: 'Done.' })
+        ).resolves.toEqual({ text: 'Done.', media: [] })
         expect(remove.execute).toHaveBeenCalledTimes(1)
         await next.close()
       },
@@ -556,14 +560,16 @@ describe.each([false, true])(
         const append = log.append.bind(log)
         const logWrite = vi
           .spyOn(log, 'append')
-          .mockImplementation(async (thread, seq, records) => {
+          .mockImplementation(async (batch) => {
             if (
               kind === 'save' &&
               durable &&
-              records.some((record) => record.type === 'harness.transcript')
+              batch.records.some(
+                (record) => record.type === 'harness.transcript',
+              )
             )
               throw new Error('transcript save failed')
-            await append(thread, seq, records)
+            await append(batch)
           })
         const save = vi.spyOn(stores.messages, 'saveThread')
         if (kind === 'save' && !durable)
@@ -623,7 +629,7 @@ describe.each([false, true])(
           ])
           await expect(
             reopened.operation(retry.operationId ?? ''),
-          ).resolves.toEqual({ text: 'Recovered.' })
+          ).resolves.toEqual({ text: 'Recovered.', media: [] })
         }
         expect(reopened.snapshot().pendingInterrupts).toEqual([])
         expect(remove.execute).toHaveBeenCalledTimes(1)

@@ -107,6 +107,9 @@ export type {
 export { reconstructChat } from './reconstruct'
 export type { ReconstructChatOptions } from './reconstruct'
 
+// Server helper: the stored transcript of a child agent run, for a UI
+export { loadChildTranscript } from './subagent-runs'
+
 // Server helper: rehydrate the last generation job for a client load
 export {
   reconstructGeneration,
