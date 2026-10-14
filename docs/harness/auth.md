@@ -115,14 +115,21 @@ When the credential is missing, the turn stops with an interrupt:
 - `wait` is for a tool of the running chat turn. Do not pass it in a command, a background agent, or a hook. The credentials of a command never wait.
 - Provider keys (`ctx.keys.require`) do not wait.
 
-In a web app, run the connector command when the user presses your connect button. The session sends a `harness.auth_required` event with the `url` and the `userCode` to show. A client can run only the commands in `expose.commands`, so the harness above exposes `connect:github` (see [Choose what clients can change](./connect#choose-what-clients-can-change)):
+In a web app, the wait shows in `state.signIns` of the session view, also after a reload. When the user presses your connect button, run the connector command. Each sign-in then has the `url` and the `userCode` to show. A client can run only the commands in `expose.commands`, so the harness above exposes `connect:github` (see [Choose what clients can change](./connect#choose-what-clients-can-change)):
 
 ```ts group=harness-auth-wait-client
 import { createHarnessClient } from '@tanstack/ai-harness/client'
+import { createSessionView } from '@tanstack/ai-harness/view'
 
-const client = createHarnessClient({ url: '/api/harness', threadId: 'user-1-thread' })
+const view = createSessionView(
+  createHarnessClient({ url: '/api/harness', threadId: 'user-1-thread' }),
+)
 
-export const connectGithub = () => client.command('connect:github')
+view.on('signIn', (signIn) => {
+  console.log(`Connect ${signIn.connector} to continue the turn.`)
+})
+
+export const connectGithub = () => view.command('connect:github')
 ```
 
 After the sign-in, the turn finishes its work with no new message.
@@ -139,11 +146,11 @@ const saved = new Map<string, Credential>()
 const keyOf = (userId: string | undefined, id: string) => `${userId ?? 'tenant'}:${id}`
 
 export const credentials = defineCredentialStore({
-  get: async (scope, id) => saved.get(keyOf(scope.userId, id)) ?? null,
-  set: async (scope, id, credential) => {
+  get: async ({ scope, id }) => saved.get(keyOf(scope.userId, id)) ?? null,
+  set: async ({ scope, id, credential }) => {
     saved.set(keyOf(scope.userId, id), credential)
   },
-  delete: async (scope, id) => {
+  delete: async ({ scope, id }) => {
     saved.delete(keyOf(scope.userId, id))
   },
   list: async (scope) =>

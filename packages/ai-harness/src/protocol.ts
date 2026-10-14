@@ -254,7 +254,10 @@ export async function applyInput(
     case 'cancelInput':
       return session.cancelInput(input.inputId)
     case 'setDelivery':
-      return session.setDelivery(input.inputId, input.delivery)
+      return session.setDelivery({
+        inputId: input.inputId,
+        delivery: input.delivery,
+      })
     case 'command': {
       // A command can change the session, for example `/mode bypass`.
       if (!(harness.expose?.commands ?? []).includes(input.name)) {
@@ -276,12 +279,15 @@ export async function applyInput(
       }
     }
     case 'answer':
-      return session.answer(input.questionId, input.value)
+      return session.answer({
+        questionId: input.questionId,
+        value: input.value,
+      })
     case 'config':
       if (!(harness.expose?.config ?? []).includes(input.key)) {
         return notExposed
       }
-      return session.setConfig(input.key, input.value)
+      return session.setConfig({ key: input.key, value: input.value })
     case 'configure': {
       // A client changes only the settings the harness exposes.
       const exposed: ReadonlyArray<string> = harness.expose?.settings ?? []
@@ -336,7 +342,9 @@ export async function applyInput(
           reason: 'not_exposed',
         }
       }
-      return session.sendToAgent(input.operationId, input.message, {
+      return session.sendToAgent({
+        operationId: input.operationId,
+        message: input.message,
         ...id,
         ...(input.mode ? { mode: input.mode } : {}),
       })

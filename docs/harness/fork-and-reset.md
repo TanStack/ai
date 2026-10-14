@@ -57,11 +57,15 @@ If a thread waits for an approval, fork it at a message before the tool call. A 
 
 ## Fork before or through a message
 
-A user edits an earlier message and sends it again. The fork must stop before that message. `host.sessions.fork` takes the cut as `{ before: id }` or `{ through: id }`, and it writes the new thread into the [session index](./sessions):
+A user edits an earlier message and sends it again. The fork must stop before that message. `host.sessions.fork` takes the cut as `at: { before: id }` or `at: { through: id }`, and it writes the new thread into the [session index](./sessions):
 
 ```ts group=harness-fork-and-reset
 export async function editAndResend(threadId: string, messageId: string, text: string) {
-  const entry = await host.sessions.fork(assistant, threadId, { before: messageId })
+  const entry = await host.sessions.fork({
+    harness: assistant,
+    threadId,
+    at: { before: messageId },
+  })
   const fork = await host.open(assistant, { threadId: entry.threadId })
   await fork.prompt(text)
   return entry.threadId
@@ -89,7 +93,7 @@ export async function startFresh(threadId: string) {
 What the reset does:
 
 - The note reaches the model as a user message, as you wrote it. Write it as a summary or a handoff. Without a note, the model sees only what comes after the reset.
-- `transcript()` keeps every message. The reset adds a marker message with `metadata.harness.reset`, so a UI can draw a line there. The session also sends a `harness.reset` event.
+- `transcript()` keeps every message. The reset adds a marker message with `metadata.harness.reset`, so a UI can draw a line there. The session also sends a `harness.reset` event. The [session view](./custom-ui) shows it as an `info` notice.
 - If a turn runs, the reset waits. It applies when that turn ends, before the next queued turn.
 - While the thread waits for interrupts, the reset is refused with `pending_interrupts`. Answer the interrupts first.
 - It is an input, so it runs once per `inputId`. On a durable host, the reset stays after a restart, and [compaction](./compaction) after a reset sees only the new context.

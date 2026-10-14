@@ -102,6 +102,7 @@ export const Route = createFileRoute('/api/harness-continue')({
         }
 
         const host = createHarnessHost()
+        const deltas: Array<string> = []
         let text: string
         try {
           const session = await host.open(
@@ -116,6 +117,9 @@ export const Route = createFileRoute('/api/harness-continue')({
             }),
             { threadId: 'e2e-harness-continue' },
           )
+          session.onEvent('TEXT_MESSAGE_CONTENT', ({ event }) => {
+            deltas.push(event.delta)
+          })
           text = (await session.prompt('[harness-continue] say hello world'))
             .text
         } catch (error) {
@@ -128,6 +132,7 @@ export const Route = createFileRoute('/api/harness-continue')({
 
         return Response.json({
           text,
+          deltas,
           requests: bodies.map((body) =>
             body.messages.map((message) => ({
               role: message.role,

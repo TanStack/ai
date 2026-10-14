@@ -378,6 +378,50 @@ describe('media an agent makes', () => {
     await host.close()
   })
 
+  it('gives the media of a turn to onMedia and to its result', async () => {
+    const lead = mockAdapter([
+      () => toolCall('painter', {}),
+      () => text('Here is your cat.'),
+    ])
+    const { host, session } = await open(
+      defineHarness({
+        name: 'test/media',
+        adapter: lead.adapter,
+        subagents: { agents: [painter] },
+      }),
+    )
+
+    const turn = session.prompt('Paint a cat')
+    const live: Array<MediaRecord> = []
+    turn.onMedia(({ media }) => live.push(media))
+    const result = await turn
+    const events = await collect(turn.events({ from: '0' }))
+
+    const expected = [generatedImage(turn.id, childRunId(events))]
+    expect(live).toEqual(expected)
+    expect(result.media).toEqual(expected)
+    await host.close()
+  })
+
+  it('gives the media of a background agent to onMedia', async () => {
+    const { host, session } = await open(
+      defineHarness({
+        name: 'test/media',
+        adapter: mockAdapter([]).adapter,
+        agents: [painter],
+      }),
+    )
+
+    const run = session.agents.painter.run()
+    const live: Array<MediaRecord> = []
+    run.onMedia(({ media }) => live.push(media))
+    await run
+    const events = await collect(run.events({ from: '0' }))
+
+    expect(live).toEqual([generatedImage(run.id, childRunId(events))])
+    await host.close()
+  })
+
   it('publishes the media of a background agent', async () => {
     const { host, session } = await open(
       defineHarness({

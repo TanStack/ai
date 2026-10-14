@@ -210,11 +210,12 @@ describe('client.sendToAgent', () => {
     })
 
     const started = await client.agents.drafter.start({ topic: 'tea' })
-    const receipt = await client.sendToAgent(
-      started.operationId ?? '',
-      'Add a title.',
-      { mode: 'followUp', inputId: 'm-1' },
-    )
+    const receipt = await client.sendToAgent({
+      operationId: started.operationId ?? '',
+      message: 'Add a title.',
+      mode: 'followUp',
+      inputId: 'm-1',
+    })
 
     expect(receipt).toMatchObject({ inputId: 'm-1', status: 'queued' })
     const session = await host.open(studio, { threadId: 'thread-m' })

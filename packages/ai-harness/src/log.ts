@@ -124,6 +124,15 @@ function isHarnessRecord(record: LogRecord): record is HarnessRecord {
   return HARNESS_RECORD_TYPES.has(record.type)
 }
 
+/** The id of the call that a `harness.tool.result` answers, as the model knows it. */
+function resultCallOf(record: LogRecord) {
+  if (!isHarnessRecord(record) || record.type !== 'harness.tool.result') {
+    return undefined
+  }
+  // An agent run keys its result by run. The message has the call's own id.
+  return record.message.role === 'tool' ? record.message.toolCallId : undefined
+}
+
 /**
  * Fold one host record into the model context. Return the new message list,
  * or `undefined` for no change. It must be pure: the same log always folds to
@@ -219,6 +228,34 @@ const normalize = <T>(value: T) => JSON.parse(JSON.stringify(value)) as T
 const sameJson = (left: unknown, right: unknown) =>
   JSON.stringify(left) === JSON.stringify(right)
 
+/** JSON text with sorted object keys. A store (jsonb) can reorder keys. */
+const stableJson = (value: unknown) =>
+  JSON.stringify(value, (_key, item: unknown) =>
+    isRecord(item) && !Array.isArray(item)
+      ? Object.fromEntries(
+          Object.entries(item).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
+        )
+      : item,
+  )
+
+/**
+ * Run a host fold (`project` or `reduce`). One that throws skips its record
+ * with a warning. The record is in the log already, so failing here would
+ * fail every later open of the log too. A pure fold skips the same record
+ * live and on each reopen.
+ */
+function hostFold<T>(seq: number, fold: () => T, unchanged: T): T {
+  try {
+    return fold()
+  } catch (error) {
+    console.warn(
+      `The fold of log record ${seq} threw, so the fold skips it.`,
+      error,
+    )
+    return unchanged
+  }
+}
+
 /** A message out of the log gets its `createdAt` back as a `Date`. */
 function revive(message: ModelMessage) {
   const createdAt: unknown = message.createdAt
@@ -251,6 +288,19 @@ function transcriptRecord(
   ]
 }
 
+/** Drop the stored result, start, and steps of each call that `isDone`. */
+function forgetCalls(state: LogState, isDone: (toolCallId: string) => boolean) {
+  for (const toolCallId of state.toolResults.keys()) {
+    if (isDone(toolCallId)) state.toolResults.delete(toolCallId)
+  }
+  for (const toolCallId of state.started.keys()) {
+    if (isDone(toolCallId)) state.started.delete(toolCallId)
+  }
+  for (const key of state.steps.keys()) {
+    if (isDone(key.slice(0, key.indexOf('\u0000')))) state.steps.delete(key)
+  }
+}
+
 function updateInput(
   state: LogState,
   inputId: string,
@@ -269,7 +319,13 @@ export function foldEntry(
   state.seq = entry.seq
   const { record } = entry
   if (!record.type.startsWith('harness.')) {
-    const next = project?.({ messages: state.messages, record })
+    const next = project
+      ? hostFold(
+          entry.seq,
+          () => project({ messages: state.messages, record }),
+          undefined,
+        )
+      : undefined
     if (next) state.messages = next
     return
   }
@@ -287,6 +343,14 @@ export function foldEntry(
       for (const message of record.add) {
         if (message.id) state.notes.delete(message.id)
       }
+      // A call with its result in the transcript never runs again, so its
+      // stored result, start, and steps are not needed any more.
+      forgetCalls(state, (toolCallId) =>
+        record.add.some(
+          (message) =>
+            message.role === 'tool' && message.toolCallId === toolCallId,
+        ),
+      )
       return
     case 'harness.input':
       if (state.inputs.has(record.inputId)) return
@@ -346,7 +410,16 @@ export function foldEntry(
         delivery: record.delivery,
       }))
       return
-    case 'harness.input.settled':
+    case 'harness.input.settled': {
+      // An agent run keeps its calls under `agent:<inputId>` (agentKey). A
+      // settled run never resumes. ponytail: agent runs `x` and `x:y` share
+      // this prefix, so the settle of `x` also drops what `x:y` stored.
+      // Generated input ids have no colon.
+      const key = `agent:${record.inputId}`
+      forgetCalls(
+        state,
+        (toolCallId) => toolCallId === key || toolCallId.startsWith(`${key}:`),
+      )
       updateInput(state, record.inputId, (input) => ({
         ...input,
         status: 'settled',
@@ -358,6 +431,7 @@ export function foldEntry(
         },
       }))
       return
+    }
     case 'harness.tool.result':
       state.toolResults.set(record.toolCallId, record.message)
       return
@@ -447,10 +521,12 @@ export function foldLogEntry<TState>(
   const { record } = entry
   const { reduce } = options
   if (reduce && !record.type.startsWith('harness.')) {
-    state.reduced = reduce.record({
-      state: state.reduced ?? reduce.initial,
-      record,
-    })
+    const current = state.reduced ?? reduce.initial
+    state.reduced = hostFold(
+      entry.seq,
+      () => reduce.record({ state: current, record }),
+      current,
+    )
   }
   foldEntry(
     sessionOf(state, threadOf(record, options.logId)),
@@ -547,9 +623,12 @@ function parseSession(value: unknown, seq: number) {
 
 /** A checkpoint that the harness wrote with `versions`, or `undefined`. */
 function parseCheckpoint<TState>(
-  value: unknown,
+  saved: unknown,
   versions: CheckpointVersions,
 ): SharedLogState<TState> | undefined {
+  // A copy: the fold changes its state in place (usage totals), and a store
+  // can hand back the object it holds.
+  const value = isRecord(saved) ? normalize(saved) : saved
   if (!isRecord(value) || value.v !== 2 || typeof value.seq !== 'number') {
     return undefined
   }
@@ -615,10 +694,26 @@ export async function loadLogState<TState = unknown>(options: {
     ...(project ? { project: project.record } : {}),
     ...(reduce ? { reduce } : {}),
   }
+  await readAll(store, logId, state, (entry) =>
+    foldLogEntry(state, entry, fold),
+  )
+  return state
+}
+
+/**
+ * Read the entries of `logId` after `from.seq`, page by page, until a page
+ * is empty. A store can return fewer than `limit` before the end.
+ */
+async function readAll(
+  store: LogStore,
+  logId: string,
+  from: { seq: number },
+  onEntry: (entry: LogEntry) => void,
+) {
   for (;;) {
-    const page = await store.read(logId, { after: state.seq, limit: READ_PAGE })
-    for (const entry of page) foldLogEntry(state, entry, fold)
-    if (page.length < READ_PAGE) return state
+    const page = await store.read(logId, { after: from.seq, limit: READ_PAGE })
+    if (page.length === 0) return
+    for (const entry of page) onEntry(entry)
   }
 }
 
@@ -646,8 +741,12 @@ export interface LogWriter extends EventFeed {
   readonly state: LogState
   /** Append `records` after the pending events, in one batch. */
   append: (records: ReadonlyArray<LogRecord>) => Promise<void>
-  /** Hold `records` until the next transcript commit of this session. */
-  stage: (records: ReadonlyArray<LogRecord>) => void
+  /**
+   * Hold `records` until the next transcript commit of this session. With
+   * `toolCallId`, hold them until the `harness.tool.result` of that call
+   * instead, and append them with it.
+   */
+  stage: (records: ReadonlyArray<LogRecord>, toolCallId?: string) => void
   /**
    * One batch: the pending events, the transcript change to `messages` (if
    * any), the staged records of this session, then `records`.
@@ -683,8 +782,17 @@ export class SharedLog<TState = unknown> {
   private readonly pending: Array<LogRecord> = []
   /** The merge key of the last pending record, when it is a delta event. */
   private pendingKey: string | undefined
-  /** Host records that wait for the next transcript commit, by thread. */
+  /**
+   * Host records that wait for the next transcript commit, by thread. The
+   * records of one tool call wait for its result instead, by
+   * `<thread>\0<toolCallId>`.
+   */
   private readonly staged = new Map<string, Array<LogRecord>>()
+  /**
+   * The tool calls whose result landed, by `<thread>\0<toolCallId>`.
+   * ponytail: one short key per call, kept until the view closes.
+   */
+  private readonly resulted = new Set<string>()
   private timer: ReturnType<typeof setTimeout> | undefined
   private scheduled = false
   private chain: Promise<void> = Promise.resolve()
@@ -727,8 +835,16 @@ export class SharedLog<TState = unknown> {
     this.tailFrom = options.state.seq
     // Records from another writer (this host only reads) join the fold. A
     // call during this writer's own append is its own records.
-    this.unsubscribe = options.store.subscribe(options.logId, () => {
-      if (!this.writing) void this.enqueue(() => this.catchUp())
+    this.unsubscribe = options.store.subscribe({
+      threadId: options.logId,
+      listener: () => {
+        if (this.writing) return
+        // A read that fails leaves the fold behind the log: stop, as after
+        // a failed write.
+        this.enqueue(() => this.catchUp()).catch((error: unknown) => {
+          if (this.failure === undefined) this.fail(error)
+        })
+      },
     })
   }
 
@@ -770,8 +886,8 @@ export class SharedLog<TState = unknown> {
       },
       append: (records) =>
         isDropped() ? Promise.resolve() : this.append(threadId, records),
-      stage: (records) => {
-        if (!isDropped()) this.stage(threadId, records)
+      stage: (records, toolCallId) => {
+        if (!isDropped()) this.stage(threadId, records, toolCallId)
       },
       commit: (options) =>
         isDropped() ? Promise.resolve() : this.commit(threadId, options),
@@ -792,14 +908,26 @@ export class SharedLog<TState = unknown> {
     this.failureListeners.delete(listener)
     this.threads.delete(threadId)
     // Like a crash: the records of a cut tool batch do not land later.
-    this.staged.delete(threadId)
-    void this.flush().catch(() => {})
+    for (const key of [...this.staged.keys()]) {
+      if (key === threadId || key.startsWith(`${threadId}\u0000`)) {
+        this.staged.delete(key)
+      }
+    }
+    for (const key of [...this.resulted]) {
+      if (key.startsWith(`${threadId}\u0000`)) this.resulted.delete(key)
+    }
     // The readers of the closed view end. The others wait again.
     this.wake()
-    if (this.threads.size > 0) return
-    this.idle = true
-    this.unsubscribe()
-    this.onIdle()
+    // Idle only after the last append landed. Until then the host keeps
+    // this log, so an open of the thread gets it, not a fold without it.
+    void this.flush()
+      .catch(() => {})
+      .then(() => {
+        if (this.threads.size > 0) return
+        this.idle = true
+        this.unsubscribe()
+        this.onIdle()
+      })
   }
 
   /** Stamp a record with its session, unless it names one or the session is the log's own. */
@@ -842,19 +970,35 @@ export class SharedLog<TState = unknown> {
   }
 
   private append(thread: string, records: ReadonlyArray<LogRecord>) {
-    this.pending.push(
-      ...records.map((record) => normalize(this.stamp(record, thread))),
-    )
+    for (const record of records) {
+      // The records of a tool call land in the same append as its result.
+      const toolCallId = resultCallOf(record)
+      if (toolCallId !== undefined) {
+        const key = `${thread}\u0000${toolCallId}`
+        this.pending.push(...(this.staged.get(key) ?? []))
+        this.staged.delete(key)
+        this.resulted.add(key)
+      }
+      this.pending.push(normalize(this.stamp(record, thread)))
+    }
     this.pendingKey = undefined
     return this.flush()
   }
 
-  private stage(thread: string, records: ReadonlyArray<LogRecord>) {
-    const staged = this.staged.get(thread) ?? []
+  private stage(
+    thread: string,
+    records: ReadonlyArray<LogRecord>,
+    toolCallId?: string,
+  ) {
+    const callKey = `${thread}\u0000${toolCallId}`
+    // A call whose result landed (a background job) waits for the commit.
+    const key =
+      toolCallId === undefined || this.resulted.has(callKey) ? thread : callKey
+    const staged = this.staged.get(key) ?? []
     staged.push(
       ...records.map((record) => normalize(this.stamp(record, thread))),
     )
-    this.staged.set(thread, staged)
+    this.staged.set(key, staged)
   }
 
   private commit(
@@ -964,14 +1108,14 @@ export class SharedLog<TState = unknown> {
    */
   private async appendOnce(seq: number, batch: ReadonlyArray<LogRecord>) {
     try {
-      await this.store.append(this.logId, seq, batch)
+      await this.store.append({ threadId: this.logId, seq, records: batch })
       return
     } catch (error) {
       if (await this.landed(seq, batch)) return
       if (error instanceof LogConflictError) throw error
     }
     try {
-      await this.store.append(this.logId, seq, batch)
+      await this.store.append({ threadId: this.logId, seq, records: batch })
     } catch (error) {
       if (await this.landed(seq, batch)) return
       throw error
@@ -986,7 +1130,10 @@ export class SharedLog<TState = unknown> {
       })
       return (
         entries.length === batch.length &&
-        entries.every((entry, index) => sameJson(entry.record, batch[index]))
+        entries.every(
+          (entry, index) =>
+            stableJson(entry.record) === stableJson(batch[index]),
+        )
       )
     } catch {
       return false
@@ -1000,16 +1147,19 @@ export class SharedLog<TState = unknown> {
    */
   private async catchUp() {
     if (this.failure !== undefined) return
-    const entries = await this.store.read(this.logId, {
-      after: this.state.seq,
-    })
-    const [first] = entries
-    if (first && this.hasWritten) {
-      this.fail(new LogConflictError(this.logId, first.seq))
+    const before = this.state.seq
+    if (this.hasWritten) {
+      const [first] = await this.store.read(this.logId, {
+        after: before,
+        limit: 1,
+      })
+      if (first) this.fail(new LogConflictError(this.logId, first.seq))
       return
     }
-    for (const entry of entries) this.apply(entry)
-    if (entries.length > 0) this.wake()
+    await readAll(this.store, this.logId, this.state, (entry) =>
+      this.apply(entry),
+    )
+    if (this.state.seq > before) this.wake()
   }
 
   private apply(entry: LogEntry) {
@@ -1317,7 +1467,11 @@ export function logMessageStore(options: {
         )
         if (records.length === 0) return
         try {
-          await store.append(logOf(threadId), state.seq + 1, records)
+          await store.append({
+            threadId: logOf(threadId),
+            seq: state.seq + 1,
+            records,
+          })
           return
         } catch (error) {
           if (!(error instanceof LogConflictError) || attempt === 2) throw error

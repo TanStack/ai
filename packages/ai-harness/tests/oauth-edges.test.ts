@@ -223,24 +223,24 @@ describe('oauthConnector edges', () => {
 
   it('refreshes an expired token, and passes an API key through', async () => {
     const persistence = memoryPersistence()
-    await persistence.stores.credentials.set(
-      { threadId: 't1', userId: 'u1' },
-      'svc',
-      {
+    await persistence.stores.credentials.set({
+      scope: { threadId: 't1', userId: 'u1' },
+      id: 'svc',
+      credential: {
         type: 'oauth',
         accessToken: 'old',
         refreshToken: 'r',
         expiresAt: Date.now() - 1,
       },
-    )
-    await persistence.stores.credentials.set(
-      { threadId: 't2', userId: 'u2' },
-      'svc',
-      {
+    })
+    await persistence.stores.credentials.set({
+      scope: { threadId: 't2', userId: 'u2' },
+      id: 'svc',
+      credential: {
         type: 'api_key',
         value: 'key-1',
       },
-    )
+    })
     const seen: Array<string> = []
     const { fake } = replies([{ access_token: 'fresh', expires_in: 3600 }])
     const { adapter } = mockAdapter([
@@ -263,10 +263,10 @@ describe('oauthConnector edges', () => {
     ).prompt('who')
     expect(seen).toEqual(['fresh', 'key-1'])
     expect(
-      await persistence.stores.credentials.get(
-        { threadId: 't1', userId: 'u1' },
-        'svc',
-      ),
+      await persistence.stores.credentials.get({
+        scope: { threadId: 't1', userId: 'u1' },
+        id: 'svc',
+      }),
     ).toMatchObject({ accessToken: 'fresh', refreshToken: 'r' })
     await host.close()
   })
@@ -306,13 +306,19 @@ describe('oauthConnector edges', () => {
     controller.abort()
     await signIn
     expect(
-      await persistence.stores.credentials.get({ threadId: 't' }, 'svc'),
+      await persistence.stores.credentials.get({
+        scope: { threadId: 't' },
+        id: 'svc',
+      }),
     ).toMatchObject({ accessToken: 'loop-token' })
     expect(await session.command('disconnect:svc')).toBe(
       'Disconnected from Service.',
     )
     expect(
-      await persistence.stores.credentials.get({ threadId: 't' }, 'svc'),
+      await persistence.stores.credentials.get({
+        scope: { threadId: 't' },
+        id: 'svc',
+      }),
     ).toBeNull()
     await host.close()
   })

@@ -11,6 +11,7 @@ import {
   defineHarness,
   definePlugin,
 } from '@tanstack/ai-harness'
+import { mcp } from '@tanstack/ai-mcp/harness'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { z } from 'zod'
 import {
@@ -118,6 +119,36 @@ function harnessFor(request: Request) {
           maxRetries: 0,
         })
       : createTextAdapter('openai', undefined, port, testId).adapter
+  // `x-harness-mcp: 1` connects the `api.mcp-input-server` route. Its
+  // `ask_city` tool asks the user for a city by MCP elicitation.
+  // `x-harness-mcp: 2025` connects the spec 2025 `api.mcp-legacy-input-server`
+  // route. Its `book_trip` tool asks twice in one call.
+  const mcpMode = request.headers.get('x-harness-mcp')
+  const servers =
+    mcpMode === '1'
+      ? [
+          mcp({
+            servers: {
+              weather: {
+                type: 'http',
+                url: new URL('/api/mcp-input-server', request.url).href,
+              },
+            },
+          }),
+        ]
+      : mcpMode === '2025'
+        ? [
+            mcp({
+              servers: {
+                trips: {
+                  type: 'http',
+                  url: new URL('/api/mcp-legacy-input-server', request.url)
+                    .href,
+                },
+              },
+            }),
+          ]
+        : []
   const harness = defineHarness({
     name: 'e2e/protocol',
     adapter,
@@ -181,6 +212,7 @@ function harnessFor(request: Request) {
       commands: ['greet', 'release', 'undo'],
     },
     plugins: () => [
+      ...servers,
       // The sender of the running turn, as plugins see it.
       definePlugin({
         name: 'e2e/whoami',

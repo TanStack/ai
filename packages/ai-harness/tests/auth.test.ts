@@ -1,12 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
-import { toolDefinition } from '@tanstack/ai'
+import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import {
   HARNESS_EVENTS,
   buildAuthorizationUrl,
   createHarnessHost,
   createPkce,
+  defineCommand,
   defineHarness,
+  definePlugin,
   deviceLogin,
   exchangeCode,
   loopbackLogin,
@@ -237,10 +239,10 @@ describe('oauthConnector', () => {
     await expect(session.command('connect:github')).resolves.toBe(
       'Connected to GitHub.',
     )
-    const saved = await persistence.stores.credentials.get(
-      { threadId: 't', userId: 'user-1' },
-      'github',
-    )
+    const saved = await persistence.stores.credentials.get({
+      scope: { threadId: 't', userId: 'user-1' },
+      id: 'github',
+    })
     expect(saved).toMatchObject({ accessToken: 'gh-token' })
 
     await session.prompt('list my issues again')
@@ -269,5 +271,86 @@ describe('scrubSecrets', () => {
     expect(scrubSecrets('token gh-abcdef1234 failed', ['gh-abcdef1234'])).toBe(
       'token [redacted] failed',
     )
+  })
+})
+
+describe('errors a session publishes', () => {
+  it('redacts a credential the command read, also in its JSON form', async () => {
+    const secret = 'sk-"live"-123456'
+    const plugin = definePlugin({
+      name: 'test/leaky',
+      setup: () => ({
+        commands: {
+          leak: defineCommand({
+            description: 'Call the API',
+            run: async (_input, { credentials }) => {
+              const credential = await credentials.require('acme')
+              const value =
+                credential.type === 'api_key' ? credential.value : ''
+              throw new Error(
+                `fetch failed: Bearer ${value} ${JSON.stringify({ value })}`,
+              )
+            },
+          }),
+        },
+      }),
+    })
+    const persistence = memoryPersistence()
+    await persistence.stores.credentials.set({
+      scope: { threadId: 't1' },
+      id: 'acme',
+      credential: { type: 'api_key', value: secret },
+    })
+    const { adapter } = mockAdapter(() => text('ok'))
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(
+      defineHarness({ name: 'test/scrub', adapter, plugins: () => [plugin] }),
+      { threadId: 't1' },
+    )
+    const errors: Array<string> = []
+    session.onEvent(EventType.RUN_ERROR, ({ event }) => {
+      errors.push(event.message)
+    })
+
+    await expect(session.command('leak')).rejects.toThrow()
+
+    expect(errors).toEqual([
+      'fetch failed: Bearer [redacted] {"value":"[redacted]"}',
+    ])
+    await host.close()
+  })
+
+  it('redacts a key that a background agent read', async () => {
+    const secret = 'sk-agent-123456'
+    const leaky = defineAgent({
+      name: 'leaky',
+      description: 'Calls the API',
+      run: async (ctx) => {
+        const key = await ctx.keys.require('acme')
+        throw new Error(`fetch failed: Bearer ${key}`)
+      },
+    })
+    const persistence = memoryPersistence()
+    await persistence.stores.credentials.set({
+      scope: { threadId: 't1' },
+      id: 'acme',
+      credential: { type: 'api_key', value: secret },
+    })
+    const { adapter } = mockAdapter(() => text('ok'))
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(
+      defineHarness({ name: 'test/scrub', adapter, agents: [leaky] }),
+      { threadId: 't1' },
+    )
+    const errors: Array<string> = []
+    session.onEvent(EventType.RUN_ERROR, ({ event }) => {
+      errors.push(event.message)
+    })
+
+    const run = session.agents.leaky.run()
+    await expect(run).rejects.toThrow('[redacted]')
+
+    expect(errors).toEqual(['fetch failed: Bearer [redacted]'])
+    await host.close()
   })
 })

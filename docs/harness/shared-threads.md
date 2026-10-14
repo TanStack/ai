@@ -111,7 +111,10 @@ export const linearKey = definePlugin({
         description: 'Save a Linear API key',
         input: z.object({ key: z.string() }),
         run: async ({ key }, { credentials }) => {
-          await credentials.set('linear', { type: 'api_key', value: key })
+          await credentials.set({
+            id: 'linear',
+            credential: { type: 'api_key', value: key },
+          })
           return 'Connected to Linear.'
         },
       }),
@@ -172,9 +175,10 @@ export async function shareKey(
   tenantId: string,
   value: string,
 ) {
-  await store.set({ threadId: 'admin', tenantId }, 'linear', {
-    type: 'api_key',
-    value,
+  await store.set({
+    scope: { threadId: 'admin', tenantId },
+    id: 'linear',
+    credential: { type: 'api_key', value },
   })
 }
 ```

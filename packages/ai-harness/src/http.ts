@@ -269,6 +269,9 @@ async function mediaResponse(
  * - `POST .../control`: `{ threadId, input }`. Returns the receipt.
  * - `GET  .../snapshot?threadId=`: the session snapshot.
  * - `GET  .../transcript?threadId=`: the saved messages of the thread.
+ * - `GET  .../agent-transcript?threadId=&subagentRunId=`: the saved messages
+ *   of a child agent run of the thread. Empty for an unknown id or a child
+ *   of another thread. 400 without `subagentRunId`.
  * - `GET  .../describe?threadId=`: the commands, settings, and tools. Only
  *   the commands in `expose.commands` and the config keys in `expose.config`.
  * - `POST .../media?threadId=&name=`: store the raw body as a media file of
@@ -547,6 +550,17 @@ export function createHarnessHandler(
         )
       }
 
+      if (request.method === 'GET' && route === 'agent-transcript') {
+        const threadId = url.searchParams.get('threadId')
+        const subagentRunId = url.searchParams.get('subagentRunId')
+        if (!threadId) return json({ error: 'threadId is required' }, 400)
+        if (!subagentRunId)
+          return json({ error: 'subagentRunId is required' }, 400)
+        const session = await openFor(principal, threadId)
+        if (!session) return json({ error: 'forbidden' }, 403)
+        return json(await session.agentTranscript(subagentRunId))
+      }
+
       if (request.method === 'GET' && route === 'snapshot') {
         const threadId = url.searchParams.get('threadId')
         if (!threadId) return json({ error: 'threadId is required' }, 400)
@@ -605,7 +619,10 @@ export function createHarnessHandler(
           return json({ error: 'not found' }, 404)
         switch (op.op) {
           case 'rename': {
-            const renamed = await host.sessions.rename(op.threadId, op.title)
+            const renamed = await host.sessions.rename({
+              threadId: op.threadId,
+              title: op.title,
+            })
             return renamed ? json(renamed) : json({ error: 'not found' }, 404)
           }
           case 'update': {
@@ -617,11 +634,11 @@ export function createHarnessHandler(
             if (op.change.metadata !== undefined && !harness.metadataSchema)
               return json({ error: 'not_exposed' }, 403)
             try {
-              const updated = await host.sessions.update(
+              const updated = await host.sessions.update({
                 harness,
-                op.threadId,
-                op.change,
-              )
+                threadId: op.threadId,
+                update: op.change,
+              })
               return updated ? json(updated) : json({ error: 'not found' }, 404)
             } catch (error) {
               if (error instanceof SessionMetadataError)
@@ -639,7 +656,13 @@ export function createHarnessHandler(
             // The host can run more harnesses than this handler serves.
             if (entry.harness !== undefined && entry.harness !== harness.name)
               return json({ error: 'other_harness' }, 409)
-            return json(await host.sessions.fork(harness, op.threadId, op.at))
+            return json(
+              await host.sessions.fork({
+                harness,
+                threadId: op.threadId,
+                at: op.at,
+              }),
+            )
         }
       }
 

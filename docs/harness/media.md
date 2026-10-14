@@ -100,22 +100,26 @@ export const studio = defineHarness({
 })
 ```
 
-For each saved file, the turn publishes a `harness.media` event (`HARNESS_EVENTS.media`). Its value is the media record:
+Want to show each picture the moment it is ready? Give the turn an `onMedia` listener. When the turn ends, its result has every file too:
 
 ```ts group=harness-media-agents
-import { HARNESS_EVENTS, createHarnessHost, isMediaRecord } from '@tanstack/ai-harness'
+import { createHarnessHost } from '@tanstack/ai-harness'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 
 const host = createHarnessHost({ persistence: memoryPersistence() })
 const session = await host.open(studio, { threadId: 'thread-1' })
 
 const turn = session.prompt('Draw a lighthouse at night.')
-for await (const { event } of turn.events()) {
-  if (event.type === 'CUSTOM' && event.name === HARNESS_EVENTS.media && isMediaRecord(event.value)) {
-    console.log(`${event.value.kind} saved: ${event.value.name}`)
-  }
-}
+turn.onMedia(({ media }) => {
+  console.log(`${media.kind} saved: ${media.name}`)
+})
+
+const { media } = await turn
+console.log(`The turn made ${media.length} files.`)
 ```
+
+- `onMedia` also works on an agent run that you start from code with `session.agents`.
+- Each file also sends a `harness.media` event (`HARNESS_EVENTS.media`) with the record as its value. Use it when you read the raw events.
 
 A media record has:
 
@@ -152,7 +156,7 @@ export const assistant = defineHarness({
 - `accepts`: the kinds that the model reads. It narrows the list that the adapter gives.
 - `transcribe`: a transcription adapter. Audio that the model cannot read becomes text before the model call.
 
-These adapters know what their model reads: OpenAI, Anthropic, Gemini, Mistral, Groq, BytePlus, Grok, OpenRouter, and LLM Gateway. Other adapters, for example Ollama and your own adapters, do not know. For them, set `accepts`. If the harness knows neither list, it sends every file to the model.
+These adapters know what their model reads: OpenAI, Anthropic, Gemini, Bedrock, Mistral, Groq, BytePlus, Grok, OpenRouter, and LLM Gateway. Other adapters, for example Ollama and your own adapters, do not know. For them, set `accepts`. If the harness knows neither list, it sends every file to the model.
 
 If the model cannot read a file, the turn stops before the model call. For example, `gpt-6.1-sol` reads text and images. Without `transcribe`, an audio file gives this error:
 
@@ -178,3 +182,5 @@ If a store is missing, the host keeps media in memory. `memoryPersistence()` has
 - Media from your agents, saved with no change to the agent code.
 - Limits, and a clear error when the model cannot read a file.
 - Media that stays after a restart.
+
+Next: show media in your own screen with [Build your own UI](./custom-ui#show-media).

@@ -48,9 +48,8 @@ export abstract class SessionTurnParts<
 > extends SessionRequests<THarness> {
   /**
    * The `step` and `append` a durable tool call gets. A step value is in the
-   * log before `step.do` resolves. Staged records land with the next
-   * transcript commit, when the tool phase completes, so a batch that a
-   * crash cuts leaves none of them.
+   * log before `step.do` resolves. Staged records land with the call's
+   * stored result, so a call that a crash cuts leaves none of them.
    */
   protected durableBinding(writer: LogWriter, toolCallId: string) {
     const step = createToolStep({
@@ -65,7 +64,7 @@ export abstract class SessionTurnParts<
     })
     const append = (records: ReadonlyArray<LogRecord>) => {
       checkHostRecords(records)
-      writer.stage(records)
+      writer.stage(records, toolCallId)
     }
     return { step, append }
   }
@@ -165,7 +164,9 @@ export abstract class SessionTurnParts<
                     (result) =>
                       `Background job ${id} ended.\n${typeof result === 'string' ? result : JSON.stringify(result)}`,
                     (error: unknown) =>
-                      `Background job ${id} failed: ${error instanceof Error ? error.message : String(error)}`,
+                      this.scrub(
+                        `Background job ${id} failed: ${error instanceof Error ? error.message : String(error)}`,
+                      ),
                   )
                   .then((text) => this.pluginApi().note(text, { wake: true }))
                   .then(() => this.logJob(id, true))

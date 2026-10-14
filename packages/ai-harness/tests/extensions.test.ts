@@ -230,13 +230,19 @@ describe('session config', () => {
     const session = await host.open(harness, { threadId: 't' })
 
     await session.prompt('one')
-    expect(await session.setConfig('thinking', 'extreme')).toMatchObject({
+    expect(
+      await session.setConfig({ key: 'thinking', value: 'extreme' }),
+    ).toMatchObject({
       status: 'rejected',
     })
-    expect(await session.setConfig('missing', 1)).toMatchObject({
-      reason: 'unknown_config',
-    })
-    expect(await session.setConfig('thinking', 'high')).toMatchObject({
+    expect(await session.setConfig({ key: 'missing', value: 1 })).toMatchObject(
+      {
+        reason: 'unknown_config',
+      },
+    )
+    expect(
+      await session.setConfig({ key: 'thinking', value: 'high' }),
+    ).toMatchObject({
       status: 'accepted',
     })
     await session.prompt('two')
@@ -289,11 +295,16 @@ describe('commands and questions', () => {
     const [question] = session.snapshot().pendingQuestions
     expect(question?.message).toBe('Deploy to production?')
     expect(
-      await session.answer(question!.questionId, 'yes please'),
+      await session.answer({
+        questionId: question!.questionId,
+        value: 'yes please',
+      }),
     ).toMatchObject({
       status: 'rejected',
     })
-    expect(await session.answer(question!.questionId, true)).toMatchObject({
+    expect(
+      await session.answer({ questionId: question!.questionId, value: true }),
+    ).toMatchObject({
       status: 'accepted',
     })
     await expect(running).resolves.toBe('deployed')
@@ -371,8 +382,11 @@ describe('adapter override and credentials', () => {
       { threadId: 't', principal: { id: 'user-1' } },
     )
 
-    await session.setConfig('model', 'other')
-    expect(await session.prompt('hi')).toEqual({ text: 'from other' })
+    await session.setConfig({ key: 'model', value: 'other' })
+    expect(await session.prompt('hi')).toEqual({
+      text: 'from other',
+      media: [],
+    })
     expect(main.calls).toHaveLength(0)
 
     await expect(session.command('token')).rejects.toThrow(

@@ -41,7 +41,7 @@ export interface CredentialsAccess {
    * does nothing.
    */
   require: (id: string, options?: { wait?: boolean }) => Promise<Credential>
-  set: (id: string, credential: Credential) => Promise<void>
+  set: (entry: { id: string; credential: Credential }) => Promise<void>
   delete: (id: string) => Promise<void>
   list: () => Promise<
     Array<{ id: string; type: Credential['type']; expiresAt?: number }>
@@ -51,10 +51,13 @@ export interface CredentialsAccess {
 /**
  * What a session adds to `credentialsFor`: `canWait` says if a `require`
  * with `wait` can stop the turn now, and `onSet` runs after each save.
+ * `secrets` gets each secret value the access reads or saves, so the session
+ * can scrub them from the errors it sends to clients.
  */
 export interface CredentialHooks {
   canWait?: (id: string) => boolean
   onSet?: (id: string) => Promise<void>
+  secrets?: Set<string>
 }
 
 /**
@@ -80,6 +83,14 @@ function signInRequired(error: AuthRequiredError) {
 const tenantOf = ({ userId, ...tenant }: Scope): Scope | undefined =>
   userId === undefined ? undefined : tenant
 
+function secretValues(credential: Credential) {
+  if (credential.type === 'api_key') return [credential.value]
+  const { accessToken, refreshToken, client } = credential
+  return [accessToken, refreshToken, client?.clientSecret].filter(
+    (value) => value !== undefined,
+  )
+}
+
 /**
  * Scope credentials to one principal and thread. A function `scope` is read
  * at each call, so the scope can follow the sender of the running turn.
@@ -94,17 +105,24 @@ export function credentialsFor(
   hooks?: CredentialHooks,
 ): CredentialsAccess {
   const scopeNow = typeof scope === 'function' ? scope : () => scope
+  const secrets = hooks?.secrets
+  const keep = (credential: Credential | null) => {
+    for (const value of credential ? secretValues(credential) : []) {
+      secrets?.add(value)
+    }
+    return credential
+  }
   // ponytail: a refreshed tenant OAuth token is saved for the user, so each
   // user keeps a copy. A provider that rotates refresh tokens would need a
   // save for the whole tenant to share one token.
   const get = async (id: string) => {
     const user = scopeNow()
-    const own = await store.get(user, id)
-    if (own) return own
+    const own = await store.get({ scope: user, id })
+    if (own) return keep(own)
     const tenant = tenantOf(user)
-    return tenant ? store.get(tenant, id) : null
+    return keep(tenant ? await store.get({ scope: tenant, id }) : null)
   }
-  return {
+  const access: CredentialsAccess = {
     get,
     require: async (id, options) => {
       const credential = await get(id)
@@ -114,11 +132,12 @@ export function credentialsFor(
       if (options?.wait && hooks?.canWait?.(id)) throw signInRequired(error)
       throw error
     },
-    set: async (id, credential) => {
-      await store.set(scopeNow(), id, credential)
+    set: async ({ id, credential }) => {
+      keep(credential)
+      await store.set({ scope: scopeNow(), id, credential })
       await hooks?.onSet?.(id)
     },
-    delete: (id) => store.delete(scopeNow(), id),
+    delete: (id) => store.delete({ scope: scopeNow(), id }),
     list: async () => {
       const user = scopeNow()
       const tenant = tenantOf(user)
@@ -131,6 +150,7 @@ export function credentialsFor(
       ]
     },
   }
+  return access
 }
 
 /**
@@ -153,17 +173,21 @@ export function envKeyOf(provider: ByokProvider | ProviderId) {
  * credential saved under the provider id (`/connect <id>` saves it), else
  * the first `provider.env` name that is set. A missing key calls `onMissing`
  * and throws {@link AuthRequiredError}, so the user sees `/connect <id>`.
+ * A key read from env goes in `secrets`, like a saved credential.
  */
 export function providerKeysFor(
   credentials: CredentialsAccess,
   onMissing: (error: AuthRequiredError) => void,
+  secrets?: Set<string>,
 ) {
   const providerIdOf = (provider: ByokProvider | ProviderId) =>
     typeof provider === 'string' ? provider : provider.id
   const get = async (provider: ByokProvider | ProviderId) => {
     const saved = await credentials.get(providerIdOf(provider))
     if (saved?.type === 'api_key') return saved.value
-    return envKeyOf(provider)?.value ?? null
+    const fromEnv = envKeyOf(provider)?.value
+    if (fromEnv) secrets?.add(fromEnv)
+    return fromEnv ?? null
   }
   const requireKey = async (provider: ByokProvider | ProviderId) => {
     const key = await get(provider)
@@ -183,14 +207,26 @@ export function providerKeysFor(
   return keys
 }
 
-/** Remove secret-looking values from a message before it reaches a model or a log. */
+/**
+ * Replace each of `secrets` in `text` with `[redacted]`: the raw value, its
+ * JSON-escaped form, and its URL-encoded form. A secret shorter than 6
+ * characters is left alone, so a tiny value does not redact common words.
+ */
 export function scrubSecrets(
   text: string,
   secrets: ReadonlyArray<string>,
 ): string {
-  let scrubbed = text
+  const forms = new Set<string>()
   for (const secret of secrets) {
-    if (secret.length >= 6) scrubbed = scrubbed.split(secret).join('[redacted]')
+    if (secret.length < 6) continue
+    forms.add(secret)
+    forms.add(JSON.stringify(secret).slice(1, -1))
+    forms.add(encodeURIComponent(secret))
+  }
+  // The longest first, so a secret inside another does not leave a part.
+  let scrubbed = text
+  for (const form of [...forms].sort((a, b) => b.length - a.length)) {
+    scrubbed = scrubbed.split(form).join('[redacted]')
   }
   return scrubbed
 }

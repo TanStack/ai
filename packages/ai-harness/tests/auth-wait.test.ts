@@ -49,9 +49,12 @@ function github(seen: Array<string>, wait: boolean) {
         'connect:github': defineCommand({
           description: 'Sign in to GitHub',
           run: async (_input, command) => {
-            await command.credentials.set('github', {
-              type: 'api_key',
-              value: `${command.principal?.id}-key`,
+            await command.credentials.set({
+              id: 'github',
+              credential: {
+                type: 'api_key',
+                value: `${command.principal?.id}-key`,
+              },
             })
             return 'Connected.'
           },
@@ -60,7 +63,10 @@ function github(seen: Array<string>, wait: boolean) {
         note: defineCommand({
           description: 'Save a note credential',
           run: () =>
-            ctx.credentials.set('note', { type: 'api_key', value: 'n' }),
+            ctx.credentials.set({
+              id: 'note',
+              credential: { type: 'api_key', value: 'n' },
+            }),
         }),
       },
     }),
@@ -332,11 +338,11 @@ describe('sign-ins in a shared thread', () => {
       () => text('One issue.'),
     ])
     const persistence = memoryPersistence()
-    await persistence.stores.credentials.set(
-      { threadId: 't', userId: 'alice' },
-      'github',
-      { type: 'api_key', value: 'alice-key' },
-    )
+    await persistence.stores.credentials.set({
+      scope: { threadId: 't', userId: 'alice' },
+      id: 'github',
+      credential: { type: 'api_key', value: 'alice-key' },
+    })
     const host = createHarnessHost({ persistence })
     const session = await host.open(
       defineHarness({
@@ -411,10 +417,16 @@ describe('sign-ins in a shared thread', () => {
     expect(calls).toHaveLength(2)
     const { credentials } = persistence.stores
     expect(
-      await credentials.get({ threadId: 't', userId: 'bob' }, 'github'),
+      await credentials.get({
+        scope: { threadId: 't', userId: 'bob' },
+        id: 'github',
+      }),
     ).toMatchObject({ value: 'bob-key' })
     expect(
-      await credentials.get({ threadId: 't', userId: 'alice' }, 'github'),
+      await credentials.get({
+        scope: { threadId: 't', userId: 'alice' },
+        id: 'github',
+      }),
     ).toBeNull()
     await host.close()
   })
