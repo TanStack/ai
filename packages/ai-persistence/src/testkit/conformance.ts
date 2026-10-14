@@ -1847,6 +1847,39 @@ export function runPersistenceConformance(
         expect(await types(store, threadId)).toEqual([[1, 'first']])
       })
 
+      it('lets one of two concurrent appends at one position win', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const threadId = newThread()
+
+        const results = await Promise.allSettled([
+          store.append({ threadId, seq: 1, records: [{ type: 'left' }] }),
+          store.append({
+            threadId,
+            seq: 1,
+            records: [{ type: 'right-1' }, { type: 'right-2' }],
+          }),
+        ])
+
+        const won = results.filter((result) => result.status === 'fulfilled')
+        const lost = results.flatMap((result) =>
+          result.status === 'rejected' ? [result.reason] : [],
+        )
+        expect(won).toHaveLength(1)
+        expect(lost).toHaveLength(1)
+        expect(lost[0]).toBeInstanceOf(LogConflictError)
+        // Only the winner's batch is in the log, whole.
+        const winner = results[0].status === 'fulfilled' ? 'left' : 'right'
+        expect(await types(store, threadId)).toEqual(
+          winner === 'left'
+            ? [[1, 'left']]
+            : [
+                [1, 'right-1'],
+                [2, 'right-2'],
+              ],
+        )
+      })
+
       it('writes nothing for an empty batch', async (ctx) => {
         const store = persistence.stores.log
         if (!store) return ctx.skip('log store not provided')

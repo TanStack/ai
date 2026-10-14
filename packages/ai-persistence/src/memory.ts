@@ -788,12 +788,15 @@ class MemoryLogStore implements LogStore {
  * In-process reference {@link LogStore}, for tests and one-process hosts. The
  * log is lost when the process stops. Records are JSON-copied in and out.
  *
- * Not part of `memoryPersistence()`: add it yourself.
+ * Not part of `memoryPersistence()`: add it yourself. A durable harness host
+ * keeps the transcript and the inputs in the log, so leave out `messages`
+ * and `inbox`.
  *
  * @example
  * ```ts
+ * const { runs, metadata, workClaims, sessions } = memoryPersistence().stores
  * const persistence = defineAIPersistence({
- *   stores: { ...memoryPersistence().stores, log: memoryLogStore() },
+ *   stores: { log: memoryLogStore(), runs, metadata, workClaims, sessions },
  * })
  * ```
  */
@@ -979,7 +982,8 @@ interface MemoryPersistenceStores {
  * Returns messages + activities + runs + generationRuns + interrupts +
  * metadata + artifacts + blobs + inbox + credentials + workClaims + sessions.
  * The session log is not included: a host can turn on more behavior when
- * `stores.log` is present, so add `memoryLogStore()` yourself. Locks are not
+ * `stores.log` is present, so add `memoryLogStore()` yourself (see its
+ * example: a durable harness host takes no `messages` or `inbox`). Locks are not
  * included either. Use `InMemoryLockStore` + `withLocks` from `@tanstack/ai`
  * when a test or single-process app needs coordination.
  */
