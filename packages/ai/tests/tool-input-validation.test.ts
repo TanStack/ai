@@ -27,6 +27,9 @@ import type {
 
 const schema = z.object({ count: z.number().int().min(1) })
 
+/** Checks the schema alone: the built-in repair would fix some inputs. */
+const noRepair = { repairToolInput: false } as const
+
 async function runTool(
   rawArguments: string,
   inputSchema: SchemaInput | boolean,
@@ -36,6 +39,7 @@ async function runTool(
     approvals?: Map<string, ToolApprovalResolution>
     middleware?: ToolExecutionMiddlewareHooks
     clientResults?: Map<string, unknown>
+    repairToolInput?: TextOptions['repairToolInput']
   } = {},
 ) {
   const executed: Array<unknown> = []
@@ -65,6 +69,11 @@ async function runTool(
     options.clientResults,
     undefined,
     options.middleware,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    options.repairToolInput,
   )
   while (true) {
     const next = await generator.next()
@@ -554,12 +563,18 @@ describe('JSON Schema tool input', () => {
     expect(
       (await runTool('{"my field":null,"a/b":3}', schema)).executed,
     ).toEqual([{ 'my field': null, 'a/b': 3 }])
-    expect((await runTool('{"a/b":null}', schema)).executed).toEqual([])
-    expect((await runTool('{"a/b":"3"}', schema)).executed).toEqual([])
+    expect((await runTool('{"a/b":null}', schema, noRepair)).executed).toEqual(
+      [],
+    )
+    expect((await runTool('{"a/b":"3"}', schema, noRepair)).executed).toEqual(
+      [],
+    )
     expect(
       (await runTool('{"50%":null,"copy":{"id":1}}', schema)).executed,
     ).toEqual([{ '50%': null, copy: { id: 1 } }])
-    expect((await runTool('{"copy":null}', schema)).executed).toEqual([])
+    expect((await runTool('{"copy":null}', schema, noRepair)).executed).toEqual(
+      [],
+    )
   })
 
   it('keeps a $ref that points into a nullable schema', async () => {
@@ -581,9 +596,13 @@ describe('JSON Schema tool input', () => {
       (await runTool('{"home":null,"work":{"city":"x"},"office":null}', schema))
         .executed,
     ).toEqual([{ home: null, work: { city: 'x' }, office: null }])
-    expect((await runTool('{"work":null}', schema)).executed).toEqual([])
-    expect((await runTool('{"office":{}}', schema)).executed).toEqual([])
-    expect((await runTool('{"home":1}', schema)).executed).toEqual([])
+    expect((await runTool('{"work":null}', schema, noRepair)).executed).toEqual(
+      [],
+    )
+    expect((await runTool('{"office":{}}', schema, noRepair)).executed).toEqual(
+      [],
+    )
+    expect((await runTool('{"home":1}', schema, noRepair)).executed).toEqual([])
   })
 
   it('moves a $ref through nested nullable schemas', async () => {
@@ -610,9 +629,11 @@ describe('JSON Schema tool input', () => {
     expect(
       (await runTool('{"outer":{"inner":null},"copy":3}', schema)).executed,
     ).toEqual([{ outer: { inner: null }, copy: 3 }])
-    expect((await runTool('{"copy":"3"}', schema)).executed).toEqual([])
+    expect((await runTool('{"copy":"3"}', schema, noRepair)).executed).toEqual(
+      [],
+    )
     expect(
-      (await runTool('{"outer":{"inner":true}}', schema)).executed,
+      (await runTool('{"outer":{"inner":true}}', schema, noRepair)).executed,
     ).toEqual([])
   })
 
@@ -646,7 +667,25 @@ describe('JSON Schema tool input', () => {
       (await runTool('{"name":null,"kind":null}', schema)).executed,
     ).toEqual([{ name: null, kind: null }])
     expect((await runTool('{"kind":"c"}', schema)).executed).toEqual([])
-    expect((await runTool('{"size":null}', schema)).executed).toEqual([])
+    expect((await runTool('{"size":null}', schema, noRepair)).executed).toEqual(
+      [],
+    )
+  })
+
+  it('repairs a value inside an OpenAPI 3.0 nullable schema', async () => {
+    const schema: JSONSchema = {
+      type: 'object',
+      properties: {
+        count: { nullable: true, allOf: [{ type: 'integer' }] },
+        size: { type: 'integer', nullable: true },
+      },
+    }
+    expect(
+      (await runTool('{"count":"3","size":"4"}', schema)).executed,
+    ).toEqual([{ count: 3, size: 4 }])
+    expect(
+      (await runTool('{"count":null,"size":null}', schema)).executed,
+    ).toEqual([{ count: null, size: null }])
   })
 
   it('treats format as an annotation', async () => {

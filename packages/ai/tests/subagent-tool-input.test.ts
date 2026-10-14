@@ -508,7 +508,8 @@ describe('agent tool input', () => {
     [
       'a background that is not a boolean',
       'writer',
-      { background: 'true' },
+      // 'true' would be repaired into true. 'yes' cannot be.
+      { background: 'yes' },
       { binding: host },
       // The JSON Schema of the tool checks the reserved fields too.
       'Input validation failed for tool writer: #/background: Instance type "string" is invalid. Expected "boolean".',
