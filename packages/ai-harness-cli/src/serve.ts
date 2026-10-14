@@ -101,6 +101,10 @@ export async function serve(
     host: options.host,
     harness: options.harness,
     authorize: (request) => (isAllowed(request) ? principal : null),
+    // One principal holds the token, so it can use every thread.
+    canAccess: () => true,
+    // ponytail: the token signs media URLs, so they work as long as it does.
+    mediaSecret: options.token,
   })
   const mcp = await mcpServer(options)
   const route = (request: Request) => {
