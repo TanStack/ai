@@ -277,6 +277,55 @@ describe('ACP agent handlers', () => {
     ])
   })
 
+  it('lists the sessions of the harness, a page at a time', async () => {
+    const { harness, host, editor } = setup()
+    close = () => host.close()
+    const other = defineHarness({ name: 'test/other', adapter: model() })
+    await host.open(other, { threadId: 'other-thread' })
+    for (let index = 0; index < 50; index++) {
+      await host.open(harness, { threadId: `old-${index}` })
+    }
+    await editor.connectWith(
+      createAcpAgent({ host, harness, cwd: '/work' }),
+      async (ctx) => {
+        await ctx.request('initialize', {
+          protocolVersion: 2,
+          info: { name: 'editor', version: '1.0.0' },
+        })
+        const { sessionId } = await ctx.request('session/new', {
+          cwd: '/work',
+          mcpServers: [],
+        })
+        await host.sessions.rename(sessionId, 'Fix the build')
+
+        const first = await ctx.request('session/list', {})
+        expect(first.sessions).toHaveLength(50)
+        expect(first.nextCursor).toEqual(expect.any(String))
+        const second = await ctx.request('session/list', {
+          cursor: first.nextCursor,
+        })
+        expect(second.nextCursor ?? undefined).toBeUndefined()
+        const sessions = [...first.sessions, ...second.sessions]
+        const ids = sessions.map((session) => session.sessionId)
+        expect(ids).toHaveLength(51)
+        expect(ids).not.toContain('other-thread')
+        expect(
+          sessions.find((session) => session.sessionId === sessionId),
+        ).toEqual({
+          sessionId,
+          cwd: '/work',
+          title: 'Fix the build',
+          updatedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+        })
+
+        const elsewhere = await ctx.request('session/list', {
+          cwd: '/somewhere/else',
+        })
+        expect(elsewhere.sessions).toEqual([])
+      },
+    )
+  })
+
   it('resumes a session by id, cancels a running turn, and closes it', async () => {
     const { harness, host, editor, idle, running, textOf } = setup()
     close = () => host.close()

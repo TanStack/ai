@@ -32,7 +32,15 @@ export interface AcpAgentOptions {
   harness: AnyHarness
   /** Reported in `initialize`. Default `'0.0.0'`. */
   version?: string
+  /**
+   * The working directory that `session/list` reports for each session.
+   * Default `process.cwd()`.
+   */
+  cwd?: string
 }
+
+/** The most sessions in one `session/list` page. */
+const LIST_PAGE_SIZE = 50
 
 function textPart(content: string) {
   const part: ContentPart = { type: 'text', content }
@@ -166,8 +174,10 @@ const APPROVAL_OPTIONS = [
 
 /**
  * An ACP v2 agent backed by a harness. Each ACP session is one harness
- * session. Prompts follow the harness `busy` setting, tool approvals become
- * `session/request_permission` requests, and cancel cancels the running turn.
+ * session, and `session/list` reads the top-level sessions of the harness from
+ * the session index of the host. Prompts follow the harness `busy` setting,
+ * tool approvals become `session/request_permission` requests, and cancel
+ * cancels the running turn.
  * Image, audio, and embedded resource blocks of a prompt go to the media
  * store of the session. A file the harness refuses (too big, or a type it
  * does not take) fails `session/prompt` with an invalid params error.
@@ -321,6 +331,27 @@ export function createAcpAgent(options: AcpAgentOptions): AgentApp {
       const sessionId = `acp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
       await sessionFor(sessionId)
       return { sessionId }
+    })
+    .onRequest('session/list', async ({ params }) => {
+      // ponytail: the harness keeps no cwd per thread, so every session
+      // reports the cwd of the agent. Store one per thread when one agent
+      // serves more than one project.
+      const cwd = options.cwd ?? process.cwd()
+      if (params.cwd && params.cwd !== cwd) return { sessions: [] }
+      const page = await host.sessions.list({
+        harness: harness.name,
+        limit: LIST_PAGE_SIZE,
+        ...(params.cursor ? { cursor: params.cursor } : {}),
+      })
+      return {
+        sessions: page.entries.map((entry) => ({
+          sessionId: entry.threadId,
+          cwd,
+          title: entry.title ?? null,
+          updatedAt: new Date(entry.updatedAt).toISOString(),
+        })),
+        nextCursor: page.truncated ? page.cursor : null,
+      }
     })
     .onRequest('session/resume', async ({ params }) => {
       await sessionFor(params.sessionId)
