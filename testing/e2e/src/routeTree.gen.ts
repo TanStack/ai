@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ActivityTestRouteImport } from './routes/activity-test'
 import { Route as ByokRouteImport } from './routes/byok'
+import { Route as CallOwnershipRouteImport } from './routes/call-ownership'
 import { Route as ChatClientDefaultBridgeRouteImport } from './routes/chat-client-default-bridge'
 import { Route as ChatClientStreamProcessingRouteImport } from './routes/chat-client-stream-processing'
 import { Route as ChatClientWatcherStatusRouteImport } from './routes/chat-client-watcher-status'
@@ -71,6 +72,7 @@ import { Route as ApiBedrockConverseTruncatedToolCallRouteImport } from './route
 import { Route as ApiByokChatRouteImport } from './routes/api.byok-chat'
 import { Route as ApiByteplusEncryptedReasoningWireRouteImport } from './routes/api.byteplus-encrypted-reasoning-wire'
 import { Route as ApiByteplusSeedance1080pWireRouteImport } from './routes/api.byteplus-seedance-1080p-wire'
+import { Route as ApiCallOwnershipWireRouteImport } from './routes/api.call-ownership-wire'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiChatCompletionsIncompleteStreamRouteImport } from './routes/api.chat-completions-incomplete-stream'
 import { Route as ApiClientToolResumeStoreRouteImport } from './routes/api.client-tool-resume-store'
@@ -192,6 +194,11 @@ const ActivityTestRoute = ActivityTestRouteImport.update({
 const ByokRoute = ByokRouteImport.update({
   id: '/byok',
   path: '/byok',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CallOwnershipRoute = CallOwnershipRouteImport.update({
+  id: '/call-ownership',
+  path: '/call-ownership',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChatClientDefaultBridgeRoute = ChatClientDefaultBridgeRouteImport.update({
@@ -504,6 +511,11 @@ const ApiByteplusSeedance1080pWireRoute =
     path: '/api/byteplus-seedance-1080p-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiCallOwnershipWireRoute = ApiCallOwnershipWireRouteImport.update({
+  id: '/api/call-ownership-wire',
+  path: '/api/call-ownership-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
@@ -1071,6 +1083,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/activity-test': typeof ActivityTestRoute
   '/byok': typeof ByokRoute
+  '/call-ownership': typeof CallOwnershipRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/chat-client-stream-processing': typeof ChatClientStreamProcessingRoute
   '/chat-client-watcher-status': typeof ChatClientWatcherStatusRoute
@@ -1129,6 +1142,7 @@ export interface FileRoutesByFullPath {
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-encrypted-reasoning-wire': typeof ApiByteplusEncryptedReasoningWireRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
+  '/api/call-ownership-wire': typeof ApiCallOwnershipWireRoute
   '/api/chat': typeof ApiChatRoute
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
@@ -1242,6 +1256,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/activity-test': typeof ActivityTestRoute
   '/byok': typeof ByokRoute
+  '/call-ownership': typeof CallOwnershipRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/chat-client-stream-processing': typeof ChatClientStreamProcessingRoute
   '/chat-client-watcher-status': typeof ChatClientWatcherStatusRoute
@@ -1300,6 +1315,7 @@ export interface FileRoutesByTo {
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-encrypted-reasoning-wire': typeof ApiByteplusEncryptedReasoningWireRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
+  '/api/call-ownership-wire': typeof ApiCallOwnershipWireRoute
   '/api/chat': typeof ApiChatRoute
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
@@ -1414,6 +1430,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/activity-test': typeof ActivityTestRoute
   '/byok': typeof ByokRoute
+  '/call-ownership': typeof CallOwnershipRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/chat-client-stream-processing': typeof ChatClientStreamProcessingRoute
   '/chat-client-watcher-status': typeof ChatClientWatcherStatusRoute
@@ -1472,6 +1489,7 @@ export interface FileRoutesById {
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-encrypted-reasoning-wire': typeof ApiByteplusEncryptedReasoningWireRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
+  '/api/call-ownership-wire': typeof ApiCallOwnershipWireRoute
   '/api/chat': typeof ApiChatRoute
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
@@ -1587,6 +1605,7 @@ export interface FileRouteTypes {
     | '/'
     | '/activity-test'
     | '/byok'
+    | '/call-ownership'
     | '/chat-client-default-bridge'
     | '/chat-client-stream-processing'
     | '/chat-client-watcher-status'
@@ -1645,6 +1664,7 @@ export interface FileRouteTypes {
     | '/api/byok-chat'
     | '/api/byteplus-encrypted-reasoning-wire'
     | '/api/byteplus-seedance-1080p-wire'
+    | '/api/call-ownership-wire'
     | '/api/chat'
     | '/api/chat-completions-incomplete-stream'
     | '/api/client-tool-resume-store'
@@ -1758,6 +1778,7 @@ export interface FileRouteTypes {
     | '/'
     | '/activity-test'
     | '/byok'
+    | '/call-ownership'
     | '/chat-client-default-bridge'
     | '/chat-client-stream-processing'
     | '/chat-client-watcher-status'
@@ -1816,6 +1837,7 @@ export interface FileRouteTypes {
     | '/api/byok-chat'
     | '/api/byteplus-encrypted-reasoning-wire'
     | '/api/byteplus-seedance-1080p-wire'
+    | '/api/call-ownership-wire'
     | '/api/chat'
     | '/api/chat-completions-incomplete-stream'
     | '/api/client-tool-resume-store'
@@ -1929,6 +1951,7 @@ export interface FileRouteTypes {
     | '/'
     | '/activity-test'
     | '/byok'
+    | '/call-ownership'
     | '/chat-client-default-bridge'
     | '/chat-client-stream-processing'
     | '/chat-client-watcher-status'
@@ -1987,6 +2010,7 @@ export interface FileRouteTypes {
     | '/api/byok-chat'
     | '/api/byteplus-encrypted-reasoning-wire'
     | '/api/byteplus-seedance-1080p-wire'
+    | '/api/call-ownership-wire'
     | '/api/chat'
     | '/api/chat-completions-incomplete-stream'
     | '/api/client-tool-resume-store'
@@ -2101,6 +2125,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ActivityTestRoute: typeof ActivityTestRoute
   ByokRoute: typeof ByokRoute
+  CallOwnershipRoute: typeof CallOwnershipRoute
   ChatClientDefaultBridgeRoute: typeof ChatClientDefaultBridgeRoute
   ChatClientStreamProcessingRoute: typeof ChatClientStreamProcessingRoute
   ChatClientWatcherStatusRoute: typeof ChatClientWatcherStatusRoute
@@ -2159,6 +2184,7 @@ export interface RootRouteChildren {
   ApiByokChatRoute: typeof ApiByokChatRoute
   ApiByteplusEncryptedReasoningWireRoute: typeof ApiByteplusEncryptedReasoningWireRoute
   ApiByteplusSeedance1080pWireRoute: typeof ApiByteplusSeedance1080pWireRoute
+  ApiCallOwnershipWireRoute: typeof ApiCallOwnershipWireRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiChatCompletionsIncompleteStreamRoute: typeof ApiChatCompletionsIncompleteStreamRoute
   ApiClientToolResumeStoreRoute: typeof ApiClientToolResumeStoreRoute
@@ -2285,6 +2311,13 @@ declare module '@tanstack/react-router' {
       path: '/byok'
       fullPath: '/byok'
       preLoaderRoute: typeof ByokRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/call-ownership': {
+      id: '/call-ownership'
+      path: '/call-ownership'
+      fullPath: '/call-ownership'
+      preLoaderRoute: typeof CallOwnershipRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/chat-client-default-bridge': {
@@ -2698,6 +2731,13 @@ declare module '@tanstack/react-router' {
       path: '/api/byteplus-seedance-1080p-wire'
       fullPath: '/api/byteplus-seedance-1080p-wire'
       preLoaderRoute: typeof ApiByteplusSeedance1080pWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/call-ownership-wire': {
+      id: '/api/call-ownership-wire'
+      path: '/api/call-ownership-wire'
+      fullPath: '/api/call-ownership-wire'
+      preLoaderRoute: typeof ApiCallOwnershipWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/chat': {
@@ -3514,6 +3554,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ActivityTestRoute: ActivityTestRoute,
   ByokRoute: ByokRoute,
+  CallOwnershipRoute: CallOwnershipRoute,
   ChatClientDefaultBridgeRoute: ChatClientDefaultBridgeRoute,
   ChatClientStreamProcessingRoute: ChatClientStreamProcessingRoute,
   ChatClientWatcherStatusRoute: ChatClientWatcherStatusRoute,
@@ -3576,6 +3617,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiByteplusEncryptedReasoningWireRoute:
     ApiByteplusEncryptedReasoningWireRoute,
   ApiByteplusSeedance1080pWireRoute: ApiByteplusSeedance1080pWireRoute,
+  ApiCallOwnershipWireRoute: ApiCallOwnershipWireRoute,
   ApiChatRoute: ApiChatRoute,
   ApiChatCompletionsIncompleteStreamRoute:
     ApiChatCompletionsIncompleteStreamRoute,

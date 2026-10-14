@@ -298,6 +298,16 @@ export class StreamProcessor {
   // only them. Messages written with no known run wait in the unassigned set.
   private readonly callMessageIds = new Map<string, Set<string>>()
   private readonly unassignedCallMessageIds = new Set<string>()
+  // Messages of a finished tool-call turn. The next model call must not
+  // file its reasoning or tools onto them. A `stop` finish does not seal,
+  // so a trailing reasoning delta still joins that answer.
+  private readonly sealedMessageIds = new Set<string>()
+  // Step id and reasoning message id to the assistant message that owns
+  // that thinking step. A later signature names one of those ids.
+  private readonly thinkingOwners = new Map<
+    string,
+    { messageId: string; stepId: string }
+  >()
   // Tool calls started since a RUN_STARTED that found no other run active, in
   // order. A success RUN_FINISHED hands the unanswered ones to the client.
   private runToolCallIds: Array<string> = []
@@ -644,6 +654,12 @@ export class StreamProcessor {
     for (const id of this.unassignedCallMessageIds) {
       if (!keptIds.has(id)) this.unassignedCallMessageIds.delete(id)
     }
+    for (const id of this.sealedMessageIds) {
+      if (!keptIds.has(id)) this.sealedMessageIds.delete(id)
+    }
+    for (const [key, owner] of this.thinkingOwners) {
+      if (!keptIds.has(owner.messageId)) this.thinkingOwners.delete(key)
+    }
     this.messages = this.messages.slice(0, index + 1)
     this.emitMessagesChange()
   }
@@ -663,6 +679,8 @@ export class StreamProcessor {
     this.structuredOutputUpdateBatches.clear()
     this.pendingManualMessageId = null
     this.legacyManualMessage = false
+    this.sealedMessageIds.clear()
+    this.thinkingOwners.clear()
     this.openChunk = null
     this.childProcessors.clear()
     this.childToolCalls.clear()
@@ -1149,6 +1167,7 @@ export class StreamProcessor {
     // Set iteration is insertion-order; reverse-iterate to search from the end
     const ids = Array.from(this.activeMessageIds).reverse()
     for (const id of ids) {
+      if (this.sealedMessageIds.has(id)) continue
       const state = this.messageStates.get(id)
       if (state && state.role === 'assistant' && belongsToCurrentCall(id)) {
         return id
@@ -1157,13 +1176,98 @@ export class StreamProcessor {
     // finalizeStream() clears activeMessageIds but keeps messageStates.
     // Leftover reasoning after an early RUN_FINISHED must resume that
     // assistant. A new user turn calls prepareAssistantMessage(), which
-    // clears messageStates first.
+    // clears messageStates first. A sealed tool-call turn stays closed
+    // so the next model call opens its own message.
     for (const [id, state] of [...this.messageStates].reverse()) {
+      if (this.sealedMessageIds.has(id)) continue
       if (state.role === 'assistant' && belongsToCurrentCall(id)) {
         return id
       }
     }
     return null
+  }
+
+  /** The run that currently owns `messageId`, if one was recorded. */
+  private runOfMessage(messageId: string): string | undefined {
+    for (const [runId, ids] of this.callMessageIds) {
+      if (ids.has(messageId)) return runId
+    }
+    return undefined
+  }
+
+  /** Latest unsealed assistant message written by `runId`. */
+  private openMessageOfRun(runId: string): string | null {
+    const ids = this.callMessageIds.get(runId)
+    if (!ids) return null
+    for (const id of [...ids].reverse()) {
+      if (this.sealedMessageIds.has(id)) continue
+      const state = this.messageStates.get(id)
+      if (state?.role === 'assistant') return id
+    }
+    return null
+  }
+
+  /**
+   * Where an event with no assistant message id belongs.
+   * `create` means open a new message. Do not borrow another run's.
+   */
+  private unscopedAssistant(chunk: StreamChunk): {
+    id: string | null
+    create: boolean
+  } {
+    const explicit = getChunkRunId(chunk)
+    const onlyRun =
+      this.activeRuns.size === 1 ? [...this.activeRuns][0] : undefined
+    const runId = explicit ?? onlyRun
+    if (runId !== undefined) {
+      const open = this.openMessageOfRun(runId)
+      if (open) return { id: open, create: false }
+      if (explicit !== undefined || this.activeRuns.has(runId)) {
+        return { id: null, create: true }
+      }
+    }
+    const active = this.getActiveAssistantMessageId()
+    if (active) return { id: active, create: false }
+    return { id: null, create: true }
+  }
+
+  private rememberThinking(
+    messageId: string,
+    stepId: string,
+    reasoningMessageId?: string,
+  ): void {
+    const owner = { messageId, stepId }
+    this.thinkingOwners.set(stepId, owner)
+    if (reasoningMessageId !== undefined && reasoningMessageId !== stepId) {
+      this.thinkingOwners.set(reasoningMessageId, owner)
+    }
+  }
+
+  /** Put `signature` on the thinking step `namedId` already belongs to. */
+  private applyKnownSignature(
+    namedId: string | undefined,
+    signature: string,
+  ): boolean {
+    if (!namedId) return false
+    const owner = this.thinkingOwners.get(namedId)
+    if (!owner) return false
+    const state = this.getMessageState(owner.messageId)
+    if (!state) return false
+    state.thinkingStepSignatures.set(owner.stepId, signature)
+    const content = state.thinkingSteps.get(owner.stepId) ?? ''
+    if (!state.thinkingSteps.has(owner.stepId)) {
+      state.thinkingSteps.set(owner.stepId, content)
+      state.thinkingStepOrder.push(owner.stepId)
+    }
+    this.messages = updateThinkingPart(
+      this.messages,
+      owner.messageId,
+      owner.stepId,
+      content,
+      signature,
+    )
+    this.emitMessagesChange()
+    return true
   }
 
   private resumeAssistantState(id: string, state: MessageStreamState): void {
@@ -1627,6 +1731,12 @@ export class StreamProcessor {
     }
     if (this.unassignedCallMessageIds.delete(fromId))
       this.unassignedCallMessageIds.add(toId)
+    if (this.sealedMessageIds.delete(fromId)) this.sealedMessageIds.add(toId)
+    for (const [key, owner] of this.thinkingOwners) {
+      if (owner.messageId === fromId) {
+        this.thinkingOwners.set(key, { messageId: toId, stepId: owner.stepId })
+      }
+    }
   }
 
   /**
@@ -1651,9 +1761,17 @@ export class StreamProcessor {
     const uiRole: 'system' | 'user' | 'assistant' =
       role === 'user' || role === 'system' ? role : 'assistant'
 
-    // Case 1: A manual message was created via startAssistantMessage()
-    if (this.pendingManualMessageId) {
-      const pendingId = this.pendingManualMessageId
+    // Case 1: A placeholder (reasoning before the server names the message,
+    // or startAssistantMessage()) takes this id. A placeholder of another
+    // run does not. That run keeps its own message.
+    const pendingId = this.pendingManualMessageId
+    const pendingRun = pendingId ? this.runOfMessage(pendingId) : undefined
+    const targetRun = this.runOfMessage(messageId)
+    const separateRuns =
+      pendingRun !== undefined &&
+      targetRun !== undefined &&
+      pendingRun !== targetRun
+    if (pendingId && !separateRuns) {
       this.pendingManualMessageId = null
       this.legacyManualMessage = false
 
@@ -2323,10 +2441,16 @@ export class StreamProcessor {
     if (pendingId && parentId && parentId !== pendingId) {
       const parent = this.messages.find((m) => m.id === parentId)
       const placeholder = this.messages.find((m) => m.id === pendingId)
+      const pendingRun = this.runOfMessage(pendingId)
+      const parentRun = parent ? this.runOfMessage(parent.id) : undefined
+      const separateRuns =
+        pendingRun !== undefined &&
+        parentRun !== undefined &&
+        pendingRun !== parentRun
       if (!parent) {
         this.pendingManualMessageId = null
         this.renameMessage(pendingId, parentId)
-      } else if (parent.role === 'assistant' && placeholder) {
+      } else if (!separateRuns && parent.role === 'assistant' && placeholder) {
         // The parent already exists. Fold the placeholder into it, so the
         // thinking stays in the same message as the tool call.
         this.pendingManualMessageId = null
@@ -2688,6 +2812,9 @@ export class StreamProcessor {
         this.finishReason === 'tool_calls' &&
         chunk.outcome?.type !== 'interrupt'
       if (isIntermediateToolTurn) {
+        // The next model call is a new assistant message. Leave this
+        // call's messages closed so its reasoning cannot land here.
+        for (const id of ids) this.sealedMessageIds.add(id)
         return
       }
       if (!chunk.outcome || chunk.outcome.type === 'success') {
@@ -2939,7 +3066,8 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'STEP_STARTED' }>,
   ): void {
     const stepId = chunk.stepName || generateMessageId()
-    const activeId = this.getActiveAssistantMessageId()
+    const target = this.unscopedAssistant(chunk)
+    const activeId = target.create ? null : target.id
     if (activeId) {
       const state = this.getMessageState(activeId)
       if (state) {
@@ -2948,6 +3076,7 @@ export class StreamProcessor {
           state.thinkingSteps.set(stepId, '')
           state.thinkingStepOrder.push(stepId)
         }
+        this.rememberThinking(activeId, stepId)
         // Clear any pending stepId from a prior STEP_STARTED that fired
         // before the assistant message existed. Now that we're tracking
         // the step directly on message state, the pending value is stale
@@ -2998,14 +3127,23 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'STEP_FINISHED' }>,
   ): void {
     const extra = chunk as AdapterYieldChunk
-    const signature = extra.signature
+    const metadataSignature = tanstackMetadata(chunk)?.signature
+    const signature =
+      extra.signature ??
+      (typeof metadataSignature === 'string' ? metadataSignature : undefined)
     if (!signature) return
 
+    const namedStep = extra.stepId ?? chunk.stepName
+    if (this.applyKnownSignature(namedStep, signature)) return
+
+    const target = this.unscopedAssistant(chunk)
     const { messageId, state } = this.ensureAssistantMessage(
-      this.getActiveAssistantMessageId() ?? undefined,
+      target.id ?? undefined,
+      !target.create,
     )
-    const stepId = state.currentThinkingStepId ?? extra.stepId
+    const stepId = state.currentThinkingStepId ?? namedStep
     if (!stepId) return
+    this.rememberThinking(messageId, stepId)
     const thinking = state.thinkingSteps.get(stepId)
     if (thinking === undefined) return
 
@@ -3029,8 +3167,10 @@ export class StreamProcessor {
   private handleReasoningMessageContentEvent(
     chunk: Extract<StreamChunk, { type: 'REASONING_MESSAGE_CONTENT' }>,
   ): void {
+    const target = this.unscopedAssistant(chunk)
     const { messageId, state } = this.ensureAssistantMessage(
-      this.getActiveAssistantMessageId() ?? undefined,
+      target.id ?? undefined,
+      !target.create,
     )
     this.mergeMessageMetadata(messageId, chunk.metadata)
 
@@ -3045,6 +3185,7 @@ export class StreamProcessor {
       state.thinkingStepOrder.push(stepId)
       state.currentThinkingStepId = stepId
     }
+    this.rememberThinking(messageId, stepId, chunk.messageId)
 
     const nextThinking = (state.thinkingSteps.get(stepId) ?? '') + delta
     state.thinkingSteps.set(stepId, nextThinking)
@@ -3077,10 +3218,15 @@ export class StreamProcessor {
       return
     }
 
+    if (this.applyKnownSignature(chunk.entityId, encryptedValue)) return
+
+    const target = this.unscopedAssistant(chunk)
     const { messageId, state } = this.ensureAssistantMessage(
-      this.getActiveAssistantMessageId() ?? undefined,
+      target.id ?? undefined,
+      !target.create,
     )
     const stepId = state.currentThinkingStepId ?? chunk.entityId
+    this.rememberThinking(messageId, stepId, chunk.entityId)
     this.mergeMessageMetadata(messageId, chunk.metadata)
     state.thinkingStepSignatures.set(stepId, encryptedValue)
     const content = state.thinkingSteps.get(stepId) ?? ''
@@ -3720,6 +3866,8 @@ export class StreamProcessor {
     this.pendingManualMessageId = null
     this.legacyManualMessage = false
     this.pendingThinkingStepId = null
+    this.sealedMessageIds.clear()
+    this.thinkingOwners.clear()
     this.openChunk = null
     this.finishReason = null
     this.hasError = false
