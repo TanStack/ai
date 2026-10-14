@@ -76,22 +76,26 @@ const terminal = createInterface({
   output: process.stdout,
 })
 
-// Send each line as a prompt. Print the answer. Ask the user each
-// question that a risky call waits on. Type `exit` to stop.
+// Ask the user each question that a risky call waits on.
+const stopAsking = session.onEvent('CUSTOM', async ({ event }) => {
+  if (event.name !== HARNESS_EVENTS.question) return
+  const [question] = session.snapshot().pendingQuestions
+  if (!question) return
+  const answer = await terminal.question(`\n${question.message} `)
+  await session.answer({ questionId: question.questionId, value: answer })
+})
+
+// Send each line as a prompt. Print the answer. Type `exit` to stop.
 let line = await terminal.question('\n> ')
 while (line !== 'exit') {
-  for await (const chunk of session.prompt(line).stream()) {
-    if (chunk.type === 'TEXT_MESSAGE_CONTENT') process.stdout.write(chunk.delta)
-    if (chunk.type === 'CUSTOM' && chunk.name === HARNESS_EVENTS.question) {
-      const [question] = session.snapshot().pendingQuestions
-      if (question) {
-        const answer = await terminal.question(`\n${question.message} `)
-        await session.answer(question.questionId, answer)
-      }
-    }
-  }
+  const turn = session.prompt(line)
+  turn.onEvent('TEXT_MESSAGE_CONTENT', ({ event }) => {
+    process.stdout.write(event.delta)
+  })
+  await turn
   line = await terminal.question('\n> ')
 }
+stopAsking()
 terminal.close()
 await host.close()
 ```
