@@ -355,7 +355,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
         }
 
         // Serialize arguments to a string for the TOOL_CALL_ARGS event
-        let parsedInput: unknown = {}
+        let parsedInput: unknown
         const argsStr =
           typeof actualToolCall.function.arguments === 'string'
             ? actualToolCall.function.arguments
@@ -364,7 +364,8 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
           const parsed = JSON.parse(argsStr)
           parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
         } catch {
-          parsedInput = actualToolCall.function.arguments
+          // Leave input out. Core reports the malformed raw args.
+          parsedInput = undefined
         }
 
         // Emit TOOL_CALL_ARGS with full args (Ollama doesn't stream args incrementally)
@@ -385,7 +386,8 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
           toolName: actualToolCall.function.name || '',
           model: chunk.model,
           timestamp: Date.now(),
-          input: parsedInput,
+          args: argsStr,
+          ...(parsedInput !== undefined && { input: parsedInput }),
         })
 
         return events

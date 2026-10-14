@@ -1167,7 +1167,7 @@ export class OpenRouterTextAdapter<
                       rawArguments: toolCall.arguments,
                     },
                   )
-                  parsedInput = {}
+                  parsedInput = undefined
                 }
               }
 
@@ -1179,7 +1179,8 @@ export class OpenRouterTextAdapter<
                 toolName: toolCall.name,
                 model: chunk.model || options.model,
                 timestamp: Date.now(),
-                input: parsedInput,
+                args: toolCall.arguments,
+                ...(parsedInput !== undefined && { input: parsedInput }),
               }
               emittedAnyToolCallEnd = true
             }
@@ -1230,7 +1231,7 @@ export class OpenRouterTextAdapter<
                   rawArguments: toolCall.arguments,
                 },
               )
-              parsedInput = {}
+              parsedInput = undefined
             }
           }
           yield {
@@ -1240,7 +1241,8 @@ export class OpenRouterTextAdapter<
             toolName: toolCall.name,
             model: lastModel || options.model,
             timestamp: Date.now(),
-            input: parsedInput,
+            args: toolCall.arguments,
+            ...(parsedInput !== undefined && { input: parsedInput }),
           }
           emittedAnyToolCallEnd = true
         }

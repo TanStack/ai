@@ -343,6 +343,37 @@ describe('normalizeStreamChunk', () => {
     expect(out).not.toHaveProperty('toolCallName')
   })
 
+  it('sends TOOL_CALL_END args without a second copy as input', () => {
+    const out = normalizeOne({
+      type: EventType.TOOL_CALL_END,
+      toolCallId: 'tc1',
+      args: '{"q": 1}',
+      input: { q: 1 },
+    } as AdapterYieldChunk)
+
+    expect(out).toEqual({
+      type: EventType.TOOL_CALL_END,
+      toolCallId: 'tc1',
+      metadata: { tanstack: { args: '{"q": 1}' } },
+    })
+  })
+
+  it('rewrites TOOL_CALL_END args to match an input that differs', () => {
+    const out = normalizeOne({
+      type: EventType.TOOL_CALL_END,
+      toolCallId: 'tc1',
+      args: '{"a": 1, "b": null}',
+      input: { a: 1 },
+      metadata: { tanstack: { input: { a: 1 } } },
+    } as AdapterYieldChunk)
+
+    expect(out).toEqual({
+      type: EventType.TOOL_CALL_END,
+      toolCallId: 'tc1',
+      metadata: { tanstack: { args: '{"a":1}' } },
+    })
+  })
+
   it('stringifies an array TOOL_CALL_END result onto RESULT content', () => {
     const parts = [{ type: 'text', content: 'hello' }]
     const out = normalizeAll({

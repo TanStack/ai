@@ -2357,8 +2357,19 @@ class TextEngine<
   }
 
   private handleToolCallEndEvent(chunk: ToolCallEndEvent): void {
-    this.toolCallManager.completeToolCall(chunk)
+    const final = this.toolCallManager.completeToolCall(chunk)
     const end = chunk as AdapterYieldChunk
+    if (final) {
+      // The client stores the same argument string as the server history.
+      // The wire carries only `args`; `input` is parsed back from it.
+      end.args = final.args
+      end.input = final.input
+      const metadata = tanstackMetadata(end)
+      if (metadata) {
+        delete metadata.args
+        delete metadata.input
+      }
+    }
     const state = end.state ?? tanstackMetadata(end)?.state
     if (state !== 'output-error' || end.result === undefined) return
     this.handleToolCallResultEvent({
