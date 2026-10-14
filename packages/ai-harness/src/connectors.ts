@@ -56,7 +56,7 @@ export function oauthConnector(options: OAuthConnectorOptions) {
         if (credential.type === 'api_key') return credential.value
         if (isExpired(credential) && credential.refreshToken) {
           credential = await refreshCredential(oauth, credential, options.fetch)
-          await ctx.credentials.set(id, credential)
+          await ctx.credentials.set({ id, credential })
         }
         if (credential.type === 'api_key') return credential.value
         return credential.accessToken
@@ -84,7 +84,7 @@ export function oauthConnector(options: OAuthConnectorOptions) {
                         ctx.session.authRequired({ connector: id, url }),
                       ...(options.fetch ? { fetch: options.fetch } : {}),
                     })
-              await credentials.set(id, credential)
+              await credentials.set({ id, credential })
               return `Connected to ${label}.`
             },
           }),

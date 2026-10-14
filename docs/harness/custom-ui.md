@@ -65,7 +65,7 @@ const view = createSessionView(session)
 await view.ready
 ```
 
-`view.ready` resolves when the view has the saved messages, the status, and the commands and settings of the session. If you open a thread again, its history is in the view immediately.
+`view.ready` resolves when the view has the saved messages, the status, and the commands and settings of the session. If you open a thread again, its history is in the view immediately. And if a turn is still running when you open the view, you see that turn from its start, not only from the moment you opened it.
 
 ## 2. Show the state
 
@@ -127,22 +127,29 @@ What waits for the user:
 
 - `approvals`: tool calls that wait for a yes or a no.
 - `clientTools`: tool calls that run in your UI and wait for their output. See [Run a tool in the browser](#run-a-tool-in-the-browser).
+- `interrupts`: everything else a turn can wait for, for example a value that a tool asks for. See [Answer other interrupts](#answer-other-interrupts).
 - `questions`: questions from a command, a plugin, or an MCP server. See [Show a question](#show-a-question).
 - `signIns`: connectors that need a sign-in, with a `url` and a `userCode` when the connector gives them.
 
 The session:
 
 - `threadId`: the id of the conversation.
-- `agents`: the background agents that run now. Each one has an `id`, a `name`, and `send`.
-- `queuedTurns`: the number of messages that wait for their turn.
-- `commands`, `config`, and `tools`: what the session has, for a help screen or a settings panel.
+- `agents`: the background agents that run now. Each one has an `id`, a `name`, `send`, and `cancel`.
+- `queuedTurns` and `waitingInputs`: how many messages wait for their turn, and which ones, in the order they run.
 - `plugins`: the saved state of each plugin, by plugin name.
+
+Settings and usage, for a settings panel or a status bar:
+
+- `commands`, `config`, and `tools`: what the session has, for a help screen.
+- `models`: the model names from `defineHarness({ models })`, for a model menu.
+- `settings`: the stored settings of the thread, for example the model it uses now.
+- `usage`: the token usage of the thread. It updates after each model call.
 
 An assistant message has `parts`. Each part is one of these:
 
 - `text` or `reasoning`: the text, which grows while it streams.
 - `tool-call`: a tool call with its `name`, `args`, and `status` (`running`, `done`, `failed`, or `needs-approval`).
-- `agent`: a child agent, with its own `parts`.
+- `agent`: a child agent, with its own `parts`, its `status`, and its `result` when it gives one. See [Show subagents](#show-subagents).
 - `media`: a file that an agent made. See [Show media](#show-media).
 
 A notice has a `kind`:
@@ -155,12 +162,25 @@ A notice has a `kind`:
 
 ## 3. Act on the session
 
-Start and stop work:
+Send work:
 
 - `view.send(text)`: sends a prompt. While a turn runs, the text steers that turn. Text that starts with `/` runs a command, for example `/goal all tests pass`.
+- `view.followUp(text)`: the message waits, and runs as its own turn after the current work.
+- `view.continue()`: starts a turn from the saved messages, with no new message.
 - `view.command(name, input)`: runs a command, for example from a button.
-- `view.setConfig(key, value)`: changes a setting, for example `view.setConfig('mode', 'plan')`.
-- `view.cancel()`: cancels the running turn.
+- `view.upload(bytes, { name, mimeType })`: stores a file. Send the record you get back with `view.send(text, [record])`. See [Show media](#show-media).
+
+Change the session:
+
+- `view.setConfig({ key, value })`: changes a config value, for example `view.setConfig({ key: 'mode', value: 'plan' })`.
+- `view.configure(settings)`: changes the stored settings of the thread, for example `view.configure({ model: 'strong' })`.
+- `view.reset(note)`: the model starts fresh from the next turn, with your `note` first. See [Reset with a handoff note](./fork-and-reset#reset-with-a-handoff-note).
+- `view.revert(messageId)` and `view.unrevert()`: go back to a message, and undo that.
+
+Stop work:
+
+- `view.cancel()`: cancels the running turn. `view.cancel(operationId)` cancels one operation, for example a background agent.
+- `view.cancelInput(inputId)`: drops a message from `waitingInputs` before it runs. `view.setDelivery({ inputId, delivery: 'steer' })` moves it into the running turn instead.
 - `view.dispose()`: stops the view when your screen closes. After that, each action throws an error.
 
 On a view with a [`HarnessClient`](#a-ui-in-the-browser), two actions need `expose` in the harness:
@@ -177,22 +197,34 @@ Answer what waits:
 - `approval.approve()` and `approval.reject()`: answer one approval. `view.approve(id)` and `view.reject(id)` do the same by id.
 - `view.approveAll()` and `view.rejectAll()`: answer all open approvals.
 - `call.resolve(output)` and `call.fail(message)`: answer one client tool call.
+- `request.resolve(value)` and `request.cancel()`: answer one item of `interrupts`.
 - `question.answer(value)`: answers a question.
 
-If a turn waits for more than one approval or client tool, the turn continues after you answer all of them.
+Want the tool to run with different arguments than the model picked? Pass them to `approve`:
+
+```ts group=harness-custom-ui
+const [waiting] = view.store.get().approvals
+waiting?.approve({ editedArgs: { path: 'notes/draft.md' } })
+```
+
+`reject(payload)` sends data with a no, when the tool's approval schema takes some.
+
+If a turn waits for more than one approval, client tool, or interrupt, the turn continues after you answer all of them.
 
 Message a background agent:
 
-- `agent.send(text, mode)`: sends a message to one item of `state.agents`. `mode` is `'steer'` (the default) or `'followUp'`. See [Message a running agent](./subagents#message-a-running-agent).
+- `agent.send(text, { mode })`: sends a message to one item of `state.agents`. `mode` is `'steer'` (the default) or `'followUp'`. See [Message a running agent](./subagents#message-a-running-agent).
 
 ```ts group=harness-custom-ui
 const [agent] = view.store.get().agents
 if (agent) {
-  await agent.send('Add a title.', 'followUp')
+  await agent.send('Add a title.', { mode: 'followUp' })
 }
 ```
 
-`send` needs a source that can message agents. A session and a `HarnessClient` both can. If you give `createSessionView` your own `SessionViewSource` without `sendToAgent`, `send` rejects with an error.
+`agent.cancel()` stops the run, and the runs it started.
+
+A session and a `HarnessClient` can do all of this. If you give `createSessionView` your own `SessionViewSource`, some members are optional. Without `sendToAgent`, `agent.send` rejects with an error. Without `followUp`, `reset`, or another optional member, its action adds an `error` notice instead.
 
 ## 4. Listen for events
 
@@ -209,6 +241,7 @@ Items that wait for the user:
 
 - `'approval'`: an approval. Call `approve()` or `reject()` on it.
 - `'clientTool'`: a client tool call. Call `resolve(output)` or `fail(message)` on it.
+- `'interrupt'`: an item of `interrupts`. Call `resolve(value)` or `cancel()` on it.
 - `'question'`: a question with a `message`, a `schema`, a `url` when the user must open a page, and `answer(value)`.
 - `'signIn'`: a connector that needs a sign-in, with `connector`, `url`, and `userCode`.
 
@@ -217,7 +250,7 @@ Progress:
 - `'toolCall'`: `{ id, name }`, when a tool call starts.
 - `'agent'`: `{ id, name, status }`, when a child agent starts, finishes, or fails.
 - `'error'`: the error text. The view also adds it to `messages` as a notice.
-- `'turnEnd'`: `{ operationId }`, when a chat turn ends.
+- `'turnEnd'`: `{ operationId }`, when a chat turn ends. A turn that stops for an approval has not ended, so it does not fire then.
 
 The view calls your handler after the item is in the state, so the handler can read `view.store.get()` and find the item. `view.on` returns a function that removes the handler.
 
@@ -286,6 +319,25 @@ const extra = fieldsThatApply(question?.schema, { delivery: 'mail' })
 // With the schema above, `extra` is ['address'].
 ```
 
+## Answer other interrupts
+
+Some turns wait for something that is not a yes or a no. A tool can stop the turn to ask for a value, or your own code can stop it for a form. The view puts these in `state.interrupts`. Each item has:
+
+- `id`, `reason`, and `message`: what the turn waits for. `reason` is the name the interrupt gave itself, for example `pick_region`.
+- `payload`: the data the interrupt sent for your UI, for example the fields of a form.
+- `responseSchema`: the JSON Schema of the answer, when it has one. [Show a field only when it applies](#show-a-field-only-when-it-applies) works for it too.
+- `resolve(value)`: sends the answer.
+- `cancel()`: answers with no value, and the turn continues without one.
+
+This handler shows each one, and answers the region picker right away:
+
+```ts group=harness-custom-ui
+view.on('interrupt', (request) => {
+  view.notice(request.message ?? `The turn waits for ${request.reason}.`)
+  if (request.reason === 'pick_region') request.resolve({ region: 'eu-west-1' })
+})
+```
+
 ## Show media
 
 A user sends a screenshot, and an agent draws an image. The view gives you each file as a media part, with a URL that works in `<img>`, `<audio>`, and `<video>`.
@@ -351,6 +403,23 @@ await view.send('What is wrong in this screenshot?', [screenshot])
 ```
 
 In a browser, get the record from `client.upload(file, { name: file.name, mimeType: file.type })`. The user message then shows the file in `media`.
+
+## Show subagents
+
+A child agent is an `agent` part in the assistant message of the turn that started it. The component in [Show media](#show-media) already draws one, with its own parts inside. On top of `parts`, each `agent` part has:
+
+- `status`: `running`, `done`, or `failed`, and `error` when it failed.
+- `result`: the typed result of the agent, when it gives one.
+
+After a reload, each child shows up again with what it wrote, not only with its final result. The view reads the saved messages of each child (see [Show what a child wrote after a reload](./subagents#show-what-a-child-wrote-after-a-reload)) and fills its part. A background child that still runs keeps getting its new text in the same part.
+
+To show a line when a child ends, listen for `'agent'`:
+
+```ts group=harness-custom-ui
+view.on('agent', (child) => {
+  if (child.status !== 'running') view.notice(`${child.name} is ${child.status}.`)
+})
+```
 
 ## Plugin state and plugin events
 

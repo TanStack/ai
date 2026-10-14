@@ -356,7 +356,7 @@ describe('a resolve and a waiting steer', () => {
     expect(await session.settled('approve')).toMatchObject({
       outcome: 'completed',
     })
-    expect(await steer).toEqual({ text: 'Steered.' })
+    expect(await steer).toEqual({ text: 'Steered.', media: [] })
     expect(execute).toHaveBeenCalledTimes(1)
     expect(messageTexts(calls[2]).at(-1)).toBe('And tell me.')
     await host.close()

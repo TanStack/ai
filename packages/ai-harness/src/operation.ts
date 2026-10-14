@@ -1,7 +1,10 @@
 import type { StreamChunk } from '@tanstack/ai'
-import type { EventFeed } from './feed'
+import { onEventOf, onMediaOf } from './feed'
+import type { ListenedFeed } from './feed'
 import type {
   Cursor,
+  MediaRecord,
+  OnEvent,
   Operation,
   OperationKind,
   OperationStatus,
@@ -36,10 +39,14 @@ export class OperationImpl<TResult> implements Operation<TResult> {
   private resolveResult!: (value: TResult) => void
   private rejectResult!: (error: unknown) => void
   private settleReceipt!: (receipt: Receipt) => void
+  readonly onEvent: OnEvent
+  readonly onMedia: (
+    listener: (entry: { media: MediaRecord }) => void,
+  ) => () => void
 
   constructor(
     readonly kind: OperationKind,
-    private readonly feed: EventFeed,
+    private readonly feed: ListenedFeed,
     private readonly onCancel: (
       operation: OperationImpl<TResult>,
     ) => Promise<Receipt>,
@@ -49,6 +56,28 @@ export class OperationImpl<TResult> implements Operation<TResult> {
   ) {
     this.id = id ?? createOperationId(kind)
     this.startedCursor = feed.head()
+    // A settled operation sends no more events, so a listener is not added,
+    // and its listeners go once it settled. After a tick, so the events it
+    // sends as it settles (the finished event) still reach them.
+    const stops = new Set<() => void>()
+    this.onEvent = onEventOf((listener) => {
+      if (this.isSettled()) return () => {}
+      const stop = feed.listen(listener)
+      stops.add(stop)
+      return () => {
+        stops.delete(stop)
+        stop()
+      }
+    }, this.id)
+    const dropListeners = () => {
+      const timer = setTimeout(() => {
+        for (const stop of stops) stop()
+        stops.clear()
+      }, 0)
+      // The timer must not keep a CLI or a test process alive.
+      if (typeof timer === 'object' && 'unref' in timer) timer.unref()
+    }
+    this.onMedia = onMediaOf(this.onEvent)
     this.receipt = new Promise<Receipt>((resolve) => {
       this.settleReceipt = resolve
     })
@@ -58,7 +87,7 @@ export class OperationImpl<TResult> implements Operation<TResult> {
     })
     // Nobody may await a failed background operation. Do not report that as an
     // unhandled rejection. `then` still rejects for callers that await.
-    this.settled.catch(() => {})
+    this.settled.then(dropListeners, dropListeners)
   }
 
   then<TResult1 = TResult, TResult2 = never>(

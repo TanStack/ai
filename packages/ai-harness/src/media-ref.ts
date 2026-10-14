@@ -48,10 +48,17 @@ export function isMediaRecord(value: unknown): value is MediaRecord {
   )
 }
 
+// `type/subtype`, then optional `; name=value` parameters. The value can have
+// commas (`codecs=vp8,opus`, as MediaRecorder sends) or be quoted. No line
+// breaks and no other characters.
+const MIME_TYPE =
+  /^([\w.+-]+)\/([\w.+-]+)(?:[ \t]*;[ \t]*[\w.+-]+=(?:[\w.+,-]+|"[^"\\\r\n]*"))*$/
+
 /**
  * The media kind of a MIME type, or `undefined` when the harness does not
- * store that type. `image/*`, `audio/*`, and `video/*` map to their kind.
- * `application/pdf` and `text/*` are documents.
+ * store that type or the MIME type is not well formed. `image/*`, `audio/*`,
+ * and `video/*` map to their kind. `application/pdf` and `text/*` are
+ * documents.
  *
  * @example
  * kindOf('image/png') // 'image'
@@ -59,8 +66,7 @@ export function isMediaRecord(value: unknown): value is MediaRecord {
  */
 export function kindOf(mimeType: string) {
   // A Content-Type header can carry parameters: `text/plain; charset=utf-8`.
-  const [type = ''] = mimeType.toLowerCase().split(';')
-  const [top = '', sub] = type.trim().split('/')
+  const [, top = '', sub] = MIME_TYPE.exec(mimeType.toLowerCase()) ?? []
   if (!sub) return undefined
   switch (top) {
     case 'image':

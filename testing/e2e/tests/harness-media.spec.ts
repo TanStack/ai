@@ -171,5 +171,19 @@ test.describe('harness media', () => {
     expect(image.status()).toBe(200)
     expect(image.headers()['content-type']).toBe('image/png')
     expect(await image.body()).toEqual(BLUE_DOT)
+
+    // The painter's own messages load again by its run id, only from this thread.
+    const childOf = async (thread: string) => {
+      const query = new URLSearchParams({
+        threadId: thread,
+        subagentRunId: painted.subagentRunId ?? '',
+      })
+      const response = await request.get(`${BASE}/agent-transcript?${query}`, {
+        headers: api.headers,
+      })
+      return JSON.stringify(await response.json())
+    }
+    expect(await childOf(threadId)).toContain('Painted one image.')
+    expect(await childOf(`media-other-${testId}`)).toBe('[]')
   })
 })

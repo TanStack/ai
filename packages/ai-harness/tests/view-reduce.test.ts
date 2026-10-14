@@ -41,9 +41,16 @@ const factory: ItemFactory = {
     message: question.message,
     answer: async () => ({ inputId: 'i', status: 'accepted' }),
   }),
+  interrupt: (interrupt) => ({
+    id: interrupt.id,
+    reason: interrupt.reason,
+    resolve: () => {},
+    cancel: () => {},
+  }),
   agent: (operation) => ({
     ...operation,
     send: async () => ({ inputId: 'i', status: 'accepted' }),
+    cancel: async () => ({ inputId: 'i', status: 'accepted' }),
   }),
 }
 
@@ -983,6 +990,144 @@ describe('view reducer', () => {
         ],
       },
       { id: 'history-4', role: 'assistant', parts: [] },
+    ])
+  })
+
+  it('keeps the result of a child agent', () => {
+    const child = { subagentRunId: 'child-1' }
+    const state = fold([
+      at({ ...child, type: EventType.SUBAGENT_STARTED, name: 'pricer' }),
+      at({
+        ...child,
+        type: EventType.SUBAGENT_FINISHED,
+        result: { price: 12 },
+      }),
+    ])
+
+    expect(assistantParts(state)).toMatchObject([
+      { type: 'agent', status: 'done', result: { price: 12 } },
+    ])
+  })
+
+  it('drops the text of a failed attempt on a retry, and keeps it when the model continues', () => {
+    const called = at({
+      type: EventType.TOOL_CALL_START,
+      toolCallId: 'c1',
+      toolCallName: 'list',
+    })
+    const ended = at({
+      type: EventType.TOOL_CALL_RESULT,
+      toolCallId: 'c1',
+      messageId: 'x',
+      content: '[]',
+    })
+    const partial = at({
+      type: EventType.TEXT_MESSAGE_CONTENT,
+      messageId: 'm',
+      delta: 'Half an ans',
+    })
+    const retry = (continued: boolean) =>
+      at({
+        type: EventType.CUSTOM,
+        name: HARNESS_EVENTS.turnRetry,
+        value: { operationId: 'op-1', retries: 1, continued },
+      })
+
+    const again = fold([called, ended, partial, retry(false)])
+    const continued = fold([called, ended, partial, retry(true)])
+
+    expect(assistantParts(again)).toMatchObject([
+      { type: 'tool-call', id: 'c1', status: 'done' },
+    ])
+    expect(assistantParts(continued)).toHaveLength(2)
+  })
+
+  it('keeps the text of an earlier model call on a retry', () => {
+    const start = (messageId: string) =>
+      at({ type: EventType.TEXT_MESSAGE_START, messageId, role: 'assistant' })
+    const says = (messageId: string, delta: string) =>
+      at({ type: EventType.TEXT_MESSAGE_CONTENT, messageId, delta })
+
+    const state = fold([
+      start('m1'),
+      says('m1', 'One.'),
+      // A steer joined, so a second model call runs. It fails.
+      start('m2'),
+      says('m2', 'Tw'),
+      at({
+        type: EventType.CUSTOM,
+        name: HARNESS_EVENTS.turnRetry,
+        value: { operationId: 'op-1', retries: 1, continued: false },
+      }),
+    ])
+
+    expect(assistantParts(state)).toEqual([{ type: 'text', text: 'One.' }])
+  })
+
+  it('finds the call of an approval inside a child agent, and marks it', () => {
+    const child = { subagentRunId: 'child-1' }
+    const state = fold([
+      at({ ...child, type: EventType.SUBAGENT_STARTED, name: 'cleaner' }),
+      at({
+        ...child,
+        type: EventType.TOOL_CALL_START,
+        toolCallId: 'c2',
+        toolCallName: 'remove',
+      }),
+      at({
+        ...child,
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId: 'c2',
+        delta: '{"path":"a.txt"}',
+      }),
+      at({ ...child, type: EventType.TOOL_CALL_END, toolCallId: 'c2' }),
+    ])
+    const waiting = sessionSnapshot({
+      status: 'requires_action',
+      pendingInterrupts: [
+        { id: 'i1', reason: 'tool_call', toolCallId: 'c2', ...child },
+      ],
+    })
+
+    const next = applySnapshot(state, waiting, factory)
+
+    expect(next.approvals).toMatchObject([
+      { id: 'i1', tool: 'remove', args: { path: 'a.txt' } },
+    ])
+    expect(assistantParts(next)).toMatchObject([
+      { type: 'agent', parts: [{ id: 'c2', status: 'needs-approval' }] },
+    ])
+  })
+
+  it('adds an agent part after a saved agent call, failed when the child failed', () => {
+    const call = (id: string) => ({
+      id,
+      type: 'function' as const,
+      function: { name: 'writer', arguments: '{}' },
+    })
+    const messages = messagesFromTranscript([
+      { role: 'assistant', content: null, toolCalls: [call('c1'), call('c2')] },
+      {
+        role: 'tool',
+        toolCallId: 'c1',
+        content: JSON.stringify({ subagentRunId: 's1', result: 'ok' }),
+      },
+      {
+        role: 'tool',
+        toolCallId: 'c2',
+        content: JSON.stringify({ subagentRunId: 's2', error: 'no key' }),
+      },
+    ])
+
+    expect(messages).toMatchObject([
+      {
+        parts: [
+          { type: 'tool-call', id: 'c1' },
+          { type: 'agent', id: 's1', status: 'done', parts: [] },
+          { type: 'tool-call', id: 'c2' },
+          { type: 'agent', id: 's2', status: 'failed', error: 'no key' },
+        ],
+      },
     ])
   })
 })

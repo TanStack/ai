@@ -1,5 +1,12 @@
 import type { ConfigOption } from '../config'
-import type { MediaKind, Receipt, UserInput, WaitingInput } from '../types'
+import type { SessionUsage } from '../usage'
+import type {
+  MediaKind,
+  Receipt,
+  ThreadSettings,
+  UserInput,
+  WaitingInput,
+} from '../types'
 
 export type ToolCallStatus = 'running' | 'done' | 'failed' | 'needs-approval'
 
@@ -22,6 +29,8 @@ export interface AgentPart {
   name: string
   status: 'running' | 'done' | 'failed'
   error?: string
+  /** The typed result of the agent, when it gave one. */
+  result?: unknown
   parts: Array<ViewPart>
 }
 
@@ -64,6 +73,13 @@ export type ViewMessage =
   | { id: string; role: 'assistant'; parts: Array<ViewPart> }
   | { id: string; role: 'notice'; kind: NoticeKind; text: string }
 
+/** What an approval sends with a yes: changed arguments, or data for the tool. */
+export interface ApproveOptions {
+  /** The arguments the tool runs with, in place of the model's. */
+  editedArgs?: unknown
+  payload?: unknown
+}
+
 /** A tool call that waits for a yes or no. */
 export interface Approval {
   id: string
@@ -71,8 +87,30 @@ export interface Approval {
   tool: string
   args: unknown
   message?: string
-  approve: () => void
-  reject: () => void
+  approve: (options?: ApproveOptions) => void
+  /** Say no. `payload` goes to the tool's approval schema, when it has one. */
+  reject: (payload?: unknown) => void
+}
+
+/**
+ * An interrupt that waits for an answer of its own shape, for example an MCP
+ * server that asks for input. The turn waits for it.
+ */
+export interface ViewInterrupt {
+  id: string
+  reason: string
+  message?: string
+  toolCallId?: string
+  /** The child agent that stopped, when a child did. */
+  subagentRunId?: string
+  /** The answer's JSON Schema, when the interrupt has one. */
+  responseSchema?: unknown
+  /** The data the interrupt sent for the UI, when it has some. */
+  payload?: unknown
+  /** Send the answer. */
+  resolve: (value: unknown) => void
+  /** Answer with no value. The turn continues without one. */
+  cancel: () => void
 }
 
 /**
@@ -134,7 +172,12 @@ export interface ViewAgent {
    * `'followUp'`, as in `AgentRun.send`. Rejects when the view's source
    * cannot send messages to agents.
    */
-  send: (message: UserInput, mode?: 'steer' | 'followUp') => Promise<Receipt>
+  send: (
+    message: UserInput,
+    options?: { mode?: 'steer' | 'followUp' },
+  ) => Promise<Receipt>
+  /** Stop this run, and the runs it started. */
+  cancel: () => Promise<Receipt>
 }
 
 /** Everything a UI can show about a session. */
@@ -146,6 +189,8 @@ export interface SessionViewState {
   approvals: Array<Approval>
   /** Client tool calls that wait for their output from the UI. */
   clientTools: Array<ClientToolCall>
+  /** Other interrupts that wait for an answer. */
+  interrupts: Array<ViewInterrupt>
   questions: Array<ViewQuestion>
   signIns: Array<SignIn>
   /** Background agents that run now. */
@@ -156,6 +201,12 @@ export interface SessionViewState {
   commands: Array<ViewCommand>
   config: Array<ViewConfigEntry>
   tools: Array<{ name: string; owner: string }>
+  /** The names of `defineHarness({ models })`, for a model menu. */
+  models: Array<string>
+  /** The stored settings of the thread, from `configure`. */
+  settings?: ThreadSettings
+  /** The token usage of the thread. */
+  usage?: SessionUsage
   /** Each plugin's saved state, by plugin name. */
   plugins: Record<string, unknown>
 }

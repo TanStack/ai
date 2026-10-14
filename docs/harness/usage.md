@@ -69,15 +69,20 @@ A [fork of a thread](./fork-and-reset) starts at zero.
 
 ## Show a live total
 
-Each call sends a `harness.usage` event (`HARNESS_EVENTS.usage`) on the operation that made the call. Its value has the `model`, the `sender` when it is known, the `usage` of the call, and the new thread `total`. When the event arrives, read the new totals:
+Want a token counter that ticks up while the chat runs? Each model call sends a `harness.usage` event (`HARNESS_EVENTS.usage`) on the operation that made the call. Listen for it, then read the new totals:
 
 ```ts group=harness-usage
-for await (const { event } of session.events()) {
-  if (event.type === 'CUSTOM' && event.name === HARNESS_EVENTS.usage) {
+const stopCounting = session.onEvent('CUSTOM', ({ event }) => {
+  if (event.name === HARNESS_EVENTS.usage) {
     console.log(`Tokens so far: ${session.usage().total.totalTokens}`)
   }
-}
+})
+
+// When the counter goes away:
+stopCounting()
 ```
+
+The event value has the `model`, the `sender` when it is known, the `usage` of the call, and the new thread `total`.
 
 ## Stop a person who is over budget
 

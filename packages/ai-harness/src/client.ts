@@ -105,17 +105,17 @@ export interface HarnessClient<THarness extends AnyHarness> {
    * Move an input that waits: `'steer'` joins the running turn, `'queue'`
    * runs it as its own turn later.
    */
-  setDelivery: (
-    inputId: string,
-    delivery: WaitingInput['delivery'],
-  ) => Promise<Receipt>
+  setDelivery: (change: {
+    inputId: string
+    delivery: WaitingInput['delivery']
+  }) => Promise<Receipt>
   agents: ClientAgentHandles<THarness>
   /** Answer a question from a command or a plugin. */
-  answer: (questionId: string, value: unknown) => Promise<Receipt>
+  answer: (answer: { questionId: string; value: unknown }) => Promise<Receipt>
   /** Run a plugin command. Its result arrives as a `harness.command.result` event. */
   command: (name: string, input?: unknown) => Promise<Receipt>
   /** Change a session setting. */
-  setConfig: (key: string, value: unknown) => Promise<Receipt>
+  setConfig: (change: { key: string; value: unknown }) => Promise<Receipt>
   /** Change the stored settings of the thread. See `session.configure`. */
   configure: (settings: ThreadSettingsChange) => Promise<Receipt>
   /**
@@ -134,11 +134,12 @@ export interface HarnessClient<THarness extends AnyHarness> {
    * Send a message to the agent run `operationId`, as `AgentRun.send`
    * does. The harness must list the run's agent in `expose.agents`.
    */
-  sendToAgent: (
-    operationId: string,
-    message: UserInput,
-    options?: { mode?: 'steer' | 'followUp'; inputId?: string },
-  ) => Promise<Receipt>
+  sendToAgent: (options: {
+    operationId: string
+    message: UserInput
+    mode?: 'steer' | 'followUp'
+    inputId?: string
+  }) => Promise<Receipt>
   /**
    * The session events from `from` (exclusive). Reconnects after a network
    * error and resumes from the last cursor. Ends when `signal` aborts.
@@ -160,6 +161,12 @@ export interface HarnessClient<THarness extends AnyHarness> {
   snapshot: () => Promise<SessionSnapshot>
   /** The saved messages of the thread. */
   transcript: () => Promise<Array<ModelMessage>>
+  /**
+   * The saved messages of a child agent run of the thread, by its
+   * `subagentRunId`. Empty for an unknown id. A child with no messages has
+   * one message with no content, with its card. See `session.agentTranscript`.
+   */
+  agentTranscript: (subagentRunId: string) => Promise<Array<ModelMessage>>
   /**
    * The commands, settings, and tools of the session. Only the commands in
    * `expose.commands` and the config keys in `expose.config`.
@@ -200,19 +207,20 @@ export interface HarnessClient<THarness extends AnyHarness> {
     }
   >
   /** Set the title of one of your sessions. Resolves to the changed entry. */
-  renameSession: (
-    threadId: string,
-    title: string,
-  ) => Promise<SessionIndexEntry<SessionMetadataOf<THarness>>>
+  renameSession: (change: {
+    threadId: string
+    title: string
+  }) => Promise<SessionIndexEntry<SessionMetadataOf<THarness>>>
   /**
    * Change the `title`, `pinned`, or `metadata` of one of your sessions, for
    * example the context items a user pinned in the composer. Each field you
-   * pass replaces the stored one. The harness `metadataSchema` checks
+   * pass besides `threadId` replaces the stored one. The harness `metadataSchema` checks
    * `metadata` on the server. Resolves to the changed entry.
    */
   updateSession: (
-    threadId: string,
-    change: SessionEntryChange<SessionMetadataOf<THarness>>,
+    change: { threadId: string } & SessionEntryChange<
+      SessionMetadataOf<THarness>
+    >,
   ) => Promise<SessionIndexEntry<SessionMetadataOf<THarness>>>
   /**
    * Remove one of your sessions from the session index. The transcript and
@@ -223,10 +231,10 @@ export interface HarnessClient<THarness extends AnyHarness> {
    * Copy one of your sessions into a new session, up to a message id.
    * Resolves to the entry of the new session.
    */
-  forkSession: (
-    threadId: string,
-    at: ForkPoint,
-  ) => Promise<SessionIndexEntry<SessionMetadataOf<THarness>>>
+  forkSession: (options: {
+    threadId: string
+    at: ForkPoint
+  }) => Promise<SessionIndexEntry<SessionMetadataOf<THarness>>>
 }
 
 /** The body of `POST sessions`. */
@@ -342,10 +350,10 @@ export function createHarnessClient<THarness extends AnyHarness>(
     return response
   }
 
-  const read = async <T>(route: string) =>
+  const read = async <T>(route: string, params?: Record<string, string>) =>
     // Each GET route answers with the type of the `HarnessClient` member
     // that reads it. That member type sets `T`.
-    (await (await get(route)).json()) as T
+    (await (await get(route, params)).json()) as T
 
   const upload = async (
     body: Blob | ArrayBuffer | Uint8Array,
@@ -522,12 +530,13 @@ export function createHarnessClient<THarness extends AnyHarness>(
     cancel: (operationId) =>
       send({ op: 'cancel', ...(operationId ? { operationId } : {}) }),
     cancelInput: (inputId) => send({ op: 'cancelInput', inputId }),
-    setDelivery: (inputId, delivery) =>
+    setDelivery: ({ inputId, delivery }) =>
       send({ op: 'setDelivery', inputId, delivery }),
     agents,
-    answer: (questionId, value) => send({ op: 'answer', questionId, value }),
+    answer: ({ questionId, value }) =>
+      send({ op: 'answer', questionId, value }),
     command: (name, input) => send({ op: 'command', name, input }),
-    setConfig: (key, value) => send({ op: 'config', key, value }),
+    setConfig: ({ key, value }) => send({ op: 'config', key, value }),
     configure: (settings) => send({ op: 'configure', settings }),
     reset: (note, resetOptions) =>
       send({
@@ -537,18 +546,20 @@ export function createHarnessClient<THarness extends AnyHarness>(
       }),
     revert: (messageId) => send({ op: 'revert', messageId }),
     unrevert: () => send({ op: 'unrevert' }),
-    sendToAgent: (operationId, message, sendOptions) =>
+    sendToAgent: ({ operationId, message, mode, inputId }) =>
       send({
         op: 'agentMessage',
         operationId,
         message,
-        ...(sendOptions?.mode ? { mode: sendOptions.mode } : {}),
-        ...(sendOptions?.inputId ? { inputId: sendOptions.inputId } : {}),
+        ...(mode ? { mode } : {}),
+        ...(inputId ? { inputId } : {}),
       }),
     events,
     hostEvents,
     snapshot: () => read('snapshot'),
     transcript: () => read('transcript'),
+    agentTranscript: (subagentRunId) =>
+      read('agent-transcript', { subagentRunId }),
     describe: () => read('describe'),
     upload,
     mediaUrl,
@@ -576,14 +587,13 @@ export function createHarnessClient<THarness extends AnyHarness>(
         entries: Array<SessionIndexEntry<SessionMetadataOf<THarness>>>
       }
     },
-    renameSession: (threadId, title) =>
+    renameSession: ({ threadId, title }) =>
       sessionEntry({ op: 'rename', threadId, title }),
-    updateSession: (threadId, change) =>
-      sessionEntry({ ...change, op: 'update', threadId }),
+    updateSession: (change) => sessionEntry({ ...change, op: 'update' }),
     deleteSession: async (threadId) => {
       await changeSession({ op: 'delete', threadId })
     },
-    forkSession: (threadId, at) =>
+    forkSession: ({ threadId, at }) =>
       sessionEntry({ op: 'fork', threadId, ...at }),
   }
 }

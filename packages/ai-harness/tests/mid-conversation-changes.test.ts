@@ -152,8 +152,11 @@ describe('mid-conversation changes in a harness', () => {
     await started.opened
     await session.steer('also check y')
     release.open()
-    expect(await turn).toEqual({ text: 'done' })
-    expect(await session.prompt('and now?')).toEqual({ text: 'next turn' })
+    expect(await turn).toEqual({ text: 'done', media: [] })
+    expect(await session.prompt('and now?')).toEqual({
+      text: 'next turn',
+      media: [],
+    })
 
     const start = { tools: ['lookup'], systemPrompts: 0 }
     expect(calls[0].midConversationChanges).toEqual({ start, changes: [] })

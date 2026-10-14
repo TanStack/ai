@@ -146,11 +146,11 @@ const saved = new Map<string, Credential>()
 const keyOf = (userId: string | undefined, id: string) => `${userId ?? 'tenant'}:${id}`
 
 export const credentials = defineCredentialStore({
-  get: async (scope, id) => saved.get(keyOf(scope.userId, id)) ?? null,
-  set: async (scope, id, credential) => {
+  get: async ({ scope, id }) => saved.get(keyOf(scope.userId, id)) ?? null,
+  set: async ({ scope, id, credential }) => {
     saved.set(keyOf(scope.userId, id), credential)
   },
-  delete: async (scope, id) => {
+  delete: async ({ scope, id }) => {
     saved.delete(keyOf(scope.userId, id))
   },
   list: async (scope) =>

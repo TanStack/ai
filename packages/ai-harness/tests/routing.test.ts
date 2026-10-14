@@ -478,7 +478,7 @@ describe('routing.router', () => {
     const turn = await session.prompt('remove everything')
     const resumed = await approve(session, turn)
 
-    expect(await resumed).toEqual({ text: 'Done' })
+    expect(await resumed).toEqual({ text: 'Done', media: [] })
     expect(execute).toHaveBeenCalledTimes(1)
     expect(seen).toHaveLength(1)
     await host.close()
@@ -524,7 +524,10 @@ describe('routing.router', () => {
     expect(turn.interrupts).toHaveLength(1)
     const resumed = await approve(session, turn)
 
-    expect(await resumed).toEqual({ text: 'cleaner:\nRemoved a.txt' })
+    expect(await resumed).toEqual({
+      text: 'cleaner:\nRemoved a.txt',
+      media: [],
+    })
     expect(execute).toHaveBeenCalledWith({ path: 'a.txt' }, expect.anything())
     expect(seen).toHaveLength(1)
     await host.close()
@@ -613,7 +616,10 @@ describe.each([
     expect((await session.settled('in-1')).outcome).toBe('interrupted')
     const resumed = await approve(session, turn)
 
-    expect(await resumed).toEqual({ text: 'cleaner:\nRemoved a.txt' })
+    expect(await resumed).toEqual({
+      text: 'cleaner:\nRemoved a.txt',
+      media: [],
+    })
     expect(execute).toHaveBeenCalledWith({ path: 'a.txt' }, expect.anything())
     expect(seen).toHaveLength(1)
     expect(main.calls).toHaveLength(0)

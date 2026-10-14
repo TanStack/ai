@@ -59,9 +59,10 @@ describe('sessions that share one log', () => {
     // The child answers while the root turn still waits.
     expect(await child.prompt('child question')).toEqual({
       text: 'child answer',
+      media: [],
     })
     release.open()
-    expect(await rootTurn).toEqual({ text: 'root answer' })
+    expect(await rootTurn).toEqual({ text: 'root answer', media: [] })
     const childTurn = child.prompt('second child question', {
       inputId: 'child-2',
     })
@@ -97,9 +98,11 @@ describe('sessions that share one log', () => {
   it('lands a child record and a parent record in one append, or neither', async () => {
     const inner = memoryLogStore()
     const log: LogStore = {
-      append: (logId, seq, records) => inner.append(logId, seq, records),
+      append: ({ threadId: logId, seq, records }) =>
+        inner.append({ threadId: logId, seq, records }),
       read: (logId, options) => inner.read(logId, options),
-      subscribe: (logId, listener) => inner.subscribe(logId, listener),
+      subscribe: ({ threadId: logId, listener }) =>
+        inner.subscribe({ threadId: logId, listener }),
     }
     const persistence = durablePersistence(log)
     const host = hostFor(persistence)
@@ -192,9 +195,11 @@ describe('sessions that share one log', () => {
 
     // Another writer takes the next position of the log.
     const written = await persistence.stores.log.read(LOG)
-    await persistence.stores.log.append(LOG, written.length + 1, [
-      { type: 'app.other' },
-    ])
+    await persistence.stores.log.append({
+      threadId: LOG,
+      seq: written.length + 1,
+      records: [{ type: 'app.other' }],
+    })
 
     await expect(root.append([{ type: 'app.signal' }])).rejects.toThrow(
       'Log conflict',
@@ -236,7 +241,10 @@ describe('sessions that share one log', () => {
 
     await child.close()
 
-    expect(await root.prompt('are you there?')).toEqual({ text: 'still here' })
+    expect(await root.prompt('are you there?')).toEqual({
+      text: 'still here',
+      media: [],
+    })
     await host.close()
   })
 

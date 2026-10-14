@@ -57,11 +57,15 @@ If a thread waits for an approval, fork it at a message before the tool call. A 
 
 ## Fork before or through a message
 
-A user edits an earlier message and sends it again. The fork must stop before that message. `host.sessions.fork` takes the cut as `{ before: id }` or `{ through: id }`, and it writes the new thread into the [session index](./sessions):
+A user edits an earlier message and sends it again. The fork must stop before that message. `host.sessions.fork` takes the cut as `at: { before: id }` or `at: { through: id }`, and it writes the new thread into the [session index](./sessions):
 
 ```ts group=harness-fork-and-reset
 export async function editAndResend(threadId: string, messageId: string, text: string) {
-  const entry = await host.sessions.fork(assistant, threadId, { before: messageId })
+  const entry = await host.sessions.fork({
+    harness: assistant,
+    threadId,
+    at: { before: messageId },
+  })
   const fork = await host.open(assistant, { threadId: entry.threadId })
   await fork.prompt(text)
   return entry.threadId

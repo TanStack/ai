@@ -358,11 +358,11 @@ describe('createSessionView', () => {
     const errors: Array<string> = []
     view.on('error', (message) => errors.push(message))
 
-    await view.setConfig('missing', 1)
+    await view.setConfig({ key: 'missing', value: 1 })
     await vi.waitFor(() =>
       expect(errors).toEqual(['Not accepted: unknown_config']),
     )
-    await view.setConfig('mode', 'bypass')
+    await view.setConfig({ key: 'mode', value: 'bypass' })
     await view.command('ping')
     await view.send('/ping')
 
@@ -421,7 +421,7 @@ describe('the agents of a session view', () => {
     await view.ready
 
     const [agent] = view.store.get().agents
-    const receipt = await agent?.send('Add a title.', 'followUp')
+    const receipt = await agent?.send('Add a title.', { mode: 'followUp' })
 
     expect(agent).toMatchObject({ id: run.id, name: 'writer' })
     expect(receipt).toMatchObject({ status: 'queued' })
@@ -442,9 +442,9 @@ describe('the agents of a session view', () => {
       steer: (message) => session.steer(message),
       resolve: (resume) => session.resolve(resume),
       cancel: (operationId) => session.cancel(operationId),
-      answer: (questionId, value) => session.answer(questionId, value),
+      answer: ({ questionId, value }) => session.answer({ questionId, value }),
       command: (name, input) => session.command(name, input),
-      setConfig: (key, value) => session.setConfig(key, value),
+      setConfig: ({ key, value }) => session.setConfig({ key, value }),
       events: (options) => session.events(options),
       snapshot: () => session.snapshot(),
       transcript: () => session.transcript(),
@@ -460,6 +460,48 @@ describe('the agents of a session view', () => {
     )
     hold.open()
     await run
+    view.dispose()
+    await host.close()
+  })
+
+  it('shows what a child agent wrote after a reload', async () => {
+    const writer = defineAgent({
+      name: 'writer',
+      description: 'Writes notes',
+      run: (ctx) =>
+        ctx.chat({ adapter: mockAdapter(() => text('Note 1')).adapter }),
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/view-children',
+        adapter: mockAdapter([
+          () => toolCall('writer', { prompt: 'Take notes' }, 'call-1'),
+          () => text('Done.'),
+        ]).adapter,
+        subagents: { agents: [writer] },
+      }),
+      { threadId: 't' },
+    )
+    await session.prompt('Notes, please')
+
+    const view = createSessionView(session)
+    await view.ready
+
+    await vi.waitFor(() =>
+      expect(view.store.get().messages[1]).toMatchObject({
+        role: 'assistant',
+        parts: [
+          { type: 'tool-call', id: 'call-1', status: 'done' },
+          {
+            type: 'agent',
+            name: 'writer',
+            status: 'done',
+            parts: [{ type: 'text', text: 'Note 1' }],
+          },
+        ],
+      }),
+    )
     view.dispose()
     await host.close()
   })

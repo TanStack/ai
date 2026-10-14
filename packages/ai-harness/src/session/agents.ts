@@ -91,20 +91,19 @@ export abstract class SessionAgents<
    * `principal` is who sent it. A follow-up runs for its sender. An unknown
    * run gets `not_running`.
    */
-  async sendToAgent(
-    operationId: string,
-    message: UserInput,
-    options?: {
-      mode?: 'steer' | 'followUp'
-      inputId?: string
-      principal?: Principal
-    },
-  ): Promise<Receipt> {
-    const inputId = options?.inputId ?? createInputId()
+  async sendToAgent(options: {
+    operationId: string
+    message: UserInput
+    mode?: 'steer' | 'followUp'
+    inputId?: string
+    principal?: Principal
+  }): Promise<Receipt> {
+    const { operationId, message } = options
+    const inputId = options.inputId ?? createInputId()
     const chain = this.chainOf.get(operationId) ?? this.loggedChain(operationId)
     if (!chain) return { inputId, status: 'rejected', reason: 'not_running' }
-    const principal = options?.principal ?? this.principal
-    const mode = options?.mode ?? 'steer'
+    const principal = options.principal ?? this.principal
+    const mode = options.mode ?? 'steer'
     return this.admitting(async () => {
       const admission = await this.accept(
         inputId,
@@ -389,9 +388,9 @@ export abstract class SessionAgents<
       send: (
         message: UserInput,
         options?: { mode?: 'steer' | 'followUp'; inputId?: string },
-      ) => this.sendToAgent(operation.id, message, options),
+      ) => this.sendToAgent({ ...options, operationId: operation.id, message }),
     })
-    this.operations.set(run.id, run)
+    this.track(run)
     return run
   }
 
@@ -543,8 +542,13 @@ export abstract class SessionAgents<
     const cancelOthers = (failed: OperationImpl<unknown>) => {
       if (options.onFailure === 'collect') return
       for (const operation of started) {
-        if (operation !== failed && !operation.isSettled())
-          void operation.cancel()
+        if (operation !== failed && !operation.isSettled()) {
+          operation
+            .cancel()
+            .catch((error: unknown) =>
+              this.warnSession('harness:agents', error),
+            )
+        }
       }
     }
     const group: AgentGroup = {
@@ -585,16 +589,23 @@ export abstract class SessionAgents<
   ): Promise<void> {
     try {
       await this.runAgentOnce(operation, chain, start)
+    } catch (error) {
+      // A store write threw. The run still ends.
+      this.failOperation(operation, error)
     } finally {
-      // After a log failure, another host owns the thread.
-      if (!this.logFailure) {
+      // After a log failure, another host owns the thread. A closing session
+      // starts no new run: a recoverable close leaves the steers in the log
+      // for the next host, as the chat path does.
+      if (!this.logFailure && !this.closing) {
         chain.followUps.unshift(
           ...chain.steers
             .splice(0)
             .map((steer) => this.followUpOf(chain, steer)),
         )
-        this.nextFollowUp(chain)
       }
+      // A log failure closes the session, so this cancels the queued
+      // follow-ups then, and close() does not wait for them.
+      if (!this.logFailure || this.closing) this.nextFollowUp(chain)
       this.checkIdle()
     }
   }
@@ -641,6 +652,15 @@ export abstract class SessionAgents<
   /** Start the next follow-up of `chain` once its current run ended. */
   protected nextFollowUp(chain: AgentChain): void {
     if (!chain.current.operation.isSettled()) return
+    if (this.closing) {
+      // A closing session starts no run. Its queued follow-ups end cancelled,
+      // so close() and their callers do not wait for them.
+      for (const next of chain.followUps.splice(0)) {
+        next.operation.fail('cancelled', new Error('Session closed.'))
+        this.publishFinished(next.operation)
+      }
+      return
+    }
     const next = chain.followUps.shift()
     if (!next) return
     chain.current = {
@@ -670,7 +690,7 @@ export abstract class SessionAgents<
     // This run is the chain's current run.
     const { principal } = chain.current
     if (!start.resumed && !start.message) {
-      await this.accept(
+      const admission = await this.accept(
         inputId,
         {
           op: 'agent',
@@ -683,6 +703,10 @@ export abstract class SessionAgents<
         },
         principal,
       )
+      if (admission === 'closed') {
+        operation.fail('cancelled', new Error('Session closed.'))
+        return
+      }
     }
     const agent: AnyAgent | undefined =
       typeof target === 'string' ? this.agentRegistry.get(target) : target
@@ -806,7 +830,12 @@ export abstract class SessionAgents<
           promptCache: this.promptCache.retention,
         },
       )
-      for await (const chunk of stream) {
+      for await (const raw of stream) {
+        const chunk =
+          raw.type === EventType.RUN_ERROR ||
+          raw.type === EventType.SUBAGENT_ERROR
+            ? { ...raw, message: this.scrub(raw.message) }
+            : raw
         operation.publish(chunk)
         if (
           chunk.type === EventType.TEXT_MESSAGE_CONTENT &&
@@ -829,7 +858,9 @@ export abstract class SessionAgents<
         }
       }
     } catch (error) {
-      failure = error instanceof Error ? error.message : String(error)
+      failure = this.scrub(
+        error instanceof Error ? error.message : String(error),
+      )
     }
 
     const value = result !== undefined ? result : text
@@ -861,44 +892,51 @@ export abstract class SessionAgents<
       await this.giveBack(operation, releaseLease)
       return
     }
-    if (operation.abortController.signal.aborted) {
-      operation.publish({
-        type: EventType.RUN_FINISHED,
-        runId: operation.id,
-        threadId: this.threadId,
-        outcome: { type: 'cancelled' },
-        timestamp: Date.now(),
-      } as StreamChunk)
-      await end({ status: 'aborted' }, { outcome: 'aborted' })
-      operation.fail('cancelled', new Error('Cancelled.'))
-    } else if (failure !== undefined) {
-      operation.publish({
-        type: EventType.RUN_ERROR,
-        message: failure,
-        timestamp: Date.now(),
-      })
-      const error = { message: failure }
-      await end({ status: 'failed', error }, { outcome: 'failed', error })
-      await this.noteAgentEnd(name, 'failed', failure, options, principal)
-      operation.fail('failed', new Error(failure))
-    } else {
-      operation.publish({
-        type: EventType.RUN_FINISHED,
-        runId: operation.id,
-        threadId: this.threadId,
-        result: value,
-        timestamp: Date.now(),
-      } as StreamChunk)
-      await end(
-        { status: 'completed', result: compactForModel(value) },
-        { outcome: 'completed' },
-      )
-      await this.noteAgentEnd(name, 'finished', value, options, principal)
-      operation.finish('completed', value)
+    try {
+      if (operation.abortController.signal.aborted) {
+        operation.publish({
+          type: EventType.RUN_FINISHED,
+          runId: operation.id,
+          threadId: this.threadId,
+          outcome: { type: 'cancelled' },
+          timestamp: Date.now(),
+        } as StreamChunk)
+        await end({ status: 'aborted' }, { outcome: 'aborted' })
+        operation.fail('cancelled', new Error('Cancelled.'))
+      } else if (failure !== undefined) {
+        operation.publish({
+          type: EventType.RUN_ERROR,
+          message: failure,
+          timestamp: Date.now(),
+        })
+        const error = { message: failure }
+        await end({ status: 'failed', error }, { outcome: 'failed', error })
+        await this.noteAgentEnd(name, 'failed', failure, options, principal)
+        operation.fail('failed', new Error(failure))
+      } else {
+        operation.publish({
+          type: EventType.RUN_FINISHED,
+          runId: operation.id,
+          threadId: this.threadId,
+          result: value,
+          timestamp: Date.now(),
+        } as StreamChunk)
+        await end(
+          { status: 'completed', result: compactForModel(value) },
+          { outcome: 'completed' },
+        )
+        await this.noteAgentEnd(name, 'finished', value, options, principal)
+        operation.finish('completed', value)
+      }
+    } finally {
+      // Also when a store write above threw: the leases must not stay held.
+      stopRunLease()
+      // The finished event goes out as the run settles, before the lease
+      // write, so the listeners of the run still get it. A run that a store
+      // write failed gets it from failOperation.
+      if (operation.isSettled()) this.publishFinished(operation)
+      await releaseLease?.()
     }
-    stopRunLease()
-    await releaseLease?.()
-    this.publishFinished(operation)
   }
 
   /**
@@ -953,10 +991,10 @@ export abstract class SessionAgents<
       await this.addNote(note)
     }
     if (options.wake) {
-      void this.queueFollowUp(`Background agent ${name} ${ended}: ${note}`, {
+      this.queueFollowUp(`Background agent ${name} ${ended}: ${note}`, {
         ...(principal ? { principal } : {}),
         wake: true,
-      })
+      }).catch((error: unknown) => this.warnSession('harness:agents', error))
     }
   }
 

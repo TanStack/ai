@@ -4,10 +4,12 @@ import { HARNESS_EVENTS, createPluginEvent } from '../src'
 import { createSessionView } from '../src/view'
 import { gate } from './helpers'
 import { at, childRun, custom, sessionSnapshot } from './view-fixtures'
-import type { Interrupt } from '@tanstack/ai'
+import { emptyUsage } from '../src/usage'
+import type { Interrupt, StreamChunk } from '@tanstack/ai'
 import type {
   Cursor,
   HarnessInput,
+  MediaRecord,
   Receipt,
   SessionDescription,
   SessionEvent,
@@ -90,9 +92,10 @@ function createFake(overrides: Partial<SessionViewSource>) {
     steer: (message) => accept({ op: 'steer', message }),
     resolve: (resume) => accept({ op: 'resolve', resume }),
     cancel: () => accept({ op: 'cancel' }),
-    answer: (questionId, value) => accept({ op: 'answer', questionId, value }),
+    answer: ({ questionId, value }) =>
+      accept({ op: 'answer', questionId, value }),
     command: (name, input) => accept({ op: 'command', name, input }),
-    setConfig: (key, value) => accept({ op: 'config', key, value }),
+    setConfig: ({ key, value }) => accept({ op: 'config', key, value }),
     events: (options) => stream.open(options),
     snapshot: () => sessionSnapshot(),
     transcript: async () => [],
@@ -423,7 +426,7 @@ describe('session view actions', () => {
   it('sends settings, cancels, and slash commands with input to the source', async () => {
     const { view, inputs } = await openView()
 
-    await view.setConfig('mode', 'plan')
+    await view.setConfig({ key: 'mode', value: 'plan' })
     await view.cancel()
     await view.send('/goal ship it')
 
@@ -444,7 +447,7 @@ describe('session view actions', () => {
     {
       action: 'setConfig',
       overrides: { setConfig: down },
-      act: (view) => view.setConfig('mode', 'plan'),
+      act: (view) => view.setConfig({ key: 'mode', value: 'plan' }),
     },
     {
       action: 'cancel',
@@ -593,7 +596,7 @@ describe('session view on()', () => {
     const stop = view.on('error', (message) => heard.push(message))
 
     stop()
-    await view.setConfig('mode', 'plan')
+    await view.setConfig({ key: 'mode', value: 'plan' })
 
     expect(errors).toEqual(['config down'])
     expect(heard).toEqual([])
@@ -607,7 +610,7 @@ describe('session view on()', () => {
     })
     view.on('error', (message) => heard.push(message))
 
-    await view.setConfig('mode', 'plan')
+    await view.setConfig({ key: 'mode', value: 'plan' })
 
     expect(heard).toEqual(['config down'])
   })
@@ -774,6 +777,619 @@ describe('session view on()', () => {
   })
 })
 
+const removeApproval: Interrupt = {
+  id: 'ap-1',
+  reason: 'tool_call',
+  toolCallId: 'c7',
+  metadata: {
+    'tanstack:interruptBinding': {
+      v: 1,
+      kind: 'tool-approval',
+      interruptId: 'ap-1',
+      toolName: 'remove',
+      toolCallId: 'c7',
+      originalArgs: { path: 'a.txt' },
+      inputSchemaHash: 'in',
+      approvalSchemaHash: 'approval',
+      responseSchemaHash: 'response',
+    },
+  },
+}
+const regionInput: Interrupt = {
+  id: 'mcp_input_c9',
+  reason: 'mcp_input',
+  message: 'Input required to run deploy',
+  toolCallId: 'c9',
+  metadata: {
+    'tanstack:interruptBinding': {
+      v: 1,
+      kind: 'generic',
+      interruptId: 'mcp_input_c9',
+    },
+    'tanstack:interruptPayload': { kind: 'form', request: { field: 'region' } },
+  },
+}
+const stopped = sessionSnapshot({
+  status: 'requires_action',
+  pendingInterrupts: [removeApproval, regionInput],
+})
+
+/** A source call that records its name and arguments in `calls`. */
+function recorder(calls: Array<Array<unknown>>) {
+  return (name: string) =>
+    async (...args: Array<unknown>) => {
+      calls.push([name, ...args])
+      return accepted
+    }
+}
+
+describe('session view inputs', () => {
+  it('sends follow-ups, waiting inputs, settings, and context changes to the source', async () => {
+    const calls: Array<Array<unknown>> = []
+    const record = recorder(calls)
+    const { view, errors } = await openView({
+      followUp: record('followUp'),
+      continue: record('continue'),
+      cancel: record('cancel'),
+      cancelInput: record('cancelInput'),
+      setDelivery: record('setDelivery'),
+      configure: record('configure'),
+      reset: record('reset'),
+      revert: record('revert'),
+      unrevert: record('unrevert'),
+    })
+
+    await view.followUp('then the tests')
+    await view.continue()
+    await view.cancel('op-2')
+    await view.cancelInput('in-1')
+    await view.setDelivery({ inputId: 'in-2', delivery: 'steer' })
+    await view.configure({ model: 'strong' })
+    await view.reset('Start over.')
+    await view.revert('m1')
+    await view.unrevert()
+    await drain()
+
+    expect(calls).toEqual([
+      ['followUp', 'then the tests'],
+      ['continue'],
+      ['cancel', 'op-2'],
+      ['cancelInput', 'in-1'],
+      ['setDelivery', { inputId: 'in-2', delivery: 'steer' }],
+      ['configure', { model: 'strong' }],
+      ['reset', 'Start over.'],
+      ['revert', 'm1'],
+      ['unrevert'],
+    ])
+    expect(view.store.get().messages).toEqual([
+      { id: 'user-0', role: 'user', text: 'then the tests' },
+    ])
+    expect(errors).toEqual([])
+  })
+
+  it('shows an error for an action the source does not have', async () => {
+    const { view, errors } = await openView()
+
+    await view.followUp('later')
+    await view.reset()
+    await view.continue()
+    await drain()
+
+    expect(errors).toEqual([
+      'This view source cannot follow up.',
+      'This view source cannot reset.',
+      'This view source cannot continue.',
+    ])
+  })
+
+  it('stores a file through the source, and rejects when it cannot', async () => {
+    const file: MediaRecord = {
+      id: 'f1',
+      threadId: 't',
+      kind: 'image',
+      mimeType: 'image/png',
+      name: 'a.png',
+      size: 1,
+      source: 'user',
+      createdAt: 0,
+    }
+    const putMedia = vi.fn(async () => file)
+    const info = { name: 'a.png', mimeType: 'image/png' }
+    const { view } = await openView({ putMedia })
+    const bare = await openView()
+
+    expect(await view.upload(new Uint8Array([1]), info)).toBe(file)
+    expect(putMedia).toHaveBeenCalledWith(new Uint8Array([1]), info)
+    await expect(bare.view.upload(new Uint8Array([1]), info)).rejects.toThrow(
+      'This view source cannot store media.',
+    )
+  })
+})
+
+describe('session view interrupts', () => {
+  it('answers an approval with edited arguments and an input request in one resolve', async () => {
+    const snapshot = vi.fn(() => sessionSnapshot())
+    snapshot.mockReturnValueOnce(stopped)
+    const started = startView({ snapshot })
+    const fired: Array<string> = []
+    started.view.on('interrupt', (item) => fired.push(item.id))
+    await started.view.ready
+    const { view, inputs } = started
+    const [approval] = view.store.get().approvals
+    const [request] = view.store.get().interrupts
+
+    // The view never saw the call, so the binding names the tool.
+    expect(approval).toMatchObject({ tool: 'remove', args: { path: 'a.txt' } })
+    expect(request).toMatchObject({
+      id: 'mcp_input_c9',
+      reason: 'mcp_input',
+      message: 'Input required to run deploy',
+      toolCallId: 'c9',
+      payload: { kind: 'form', request: { field: 'region' } },
+    })
+    expect(fired).toEqual(['mcp_input_c9'])
+    approval?.approve({ editedArgs: { path: 'b.txt' } })
+    expect(inputs).toEqual([])
+    request?.resolve({ region: 'eu' })
+
+    expect(inputs).toEqual([
+      {
+        op: 'resolve',
+        resume: [
+          {
+            interruptId: 'ap-1',
+            status: 'resolved',
+            payload: { editedArgs: { path: 'b.txt' }, approved: true },
+          },
+          {
+            interruptId: 'mcp_input_c9',
+            status: 'resolved',
+            payload: { region: 'eu' },
+          },
+        ],
+      },
+    ])
+    expect(view.store.get().interrupts).toEqual([])
+  })
+
+  it('rejects an approval with a payload, and cancels an input request', async () => {
+    const snapshot = vi.fn(() => sessionSnapshot())
+    snapshot.mockReturnValueOnce(stopped)
+    const { view, inputs } = await openView({ snapshot })
+
+    view.reject('ap-1', { reason: 'wrong file' })
+    view.store.get().interrupts[0]?.cancel()
+
+    expect(inputs).toEqual([
+      {
+        op: 'resolve',
+        resume: [
+          {
+            interruptId: 'ap-1',
+            status: 'resolved',
+            payload: { approved: false, payload: { reason: 'wrong file' } },
+          },
+          { interruptId: 'mcp_input_c9', status: 'cancelled' },
+        ],
+      },
+    ])
+  })
+
+  it('does not end a turn that stops for an interrupt', async () => {
+    const { view, stream } = await openView()
+    const ended: Array<string> = []
+    view.on('turnEnd', ({ operationId }) => ended.push(operationId))
+    const turn = (operationId: string, status: string) => [
+      custom(HARNESS_EVENTS.operationStarted, { operationId, kind: 'chat' }),
+      custom(HARNESS_EVENTS.operationFinished, { operationId, status }),
+    ]
+
+    stream.push(...turn('op-a', 'interrupted'), ...turn('op-b', 'completed'))
+
+    await vi.waitFor(() => expect(ended).toEqual(['op-b']))
+  })
+})
+
+/** A session event of `operationId` at `cursor`. */
+const entry = (
+  cursor: number,
+  event: StreamChunk,
+  operationId = 'op-1',
+): SessionEvent => ({ cursor: String(cursor), operationId, event })
+
+describe('session view reload', () => {
+  it('shows a running turn from its start, without what the transcript has', async () => {
+    const { view, stream } = await openView({
+      snapshot: () =>
+        sessionSnapshot({
+          status: 'running',
+          activeOperations: [{ id: 'op-1', kind: 'chat', startedCursor: '0' }],
+          cursor: '4',
+        }),
+      // The turn saved its first model call when its tool started.
+      transcript: async () => [
+        { id: 'u1', role: 'user', content: 'Clean up' },
+        {
+          id: 'm1',
+          role: 'assistant',
+          content: 'Looking.',
+          toolCalls: [
+            {
+              id: 'c1',
+              type: 'function',
+              function: { name: 'list', arguments: '{}' },
+            },
+          ],
+        },
+      ],
+    })
+    const reasoning = (messageId: string, delta: string) =>
+      ({ type: EventType.REASONING_MESSAGE_CONTENT, messageId, delta }) as const
+
+    stream.push(
+      entry(1, reasoning('r1', 'Plan.')),
+      entry(2, {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: 'm1',
+        delta: 'Looking.',
+      }),
+      entry(3, {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: 'c1',
+        toolCallName: 'list',
+      }),
+      entry(4, { type: EventType.TOOL_CALL_END, toolCallId: 'c1' }),
+      entry(5, {
+        type: EventType.TOOL_CALL_RESULT,
+        toolCallId: 'c1',
+        messageId: 'x',
+        content: '["a.txt"]',
+      }),
+      entry(6, reasoning('r2', 'Next.')),
+      entry(7, {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: 'm2',
+        delta: 'Done.',
+      }),
+    )
+
+    await vi.waitFor(() => expect(assistantText(view)).toBe('Looking.Done.'))
+    expect(stream.opened[0]?.from).toBe('0')
+    expect(view.store.get().messages).toMatchObject([
+      { role: 'user', text: 'Clean up' },
+      {
+        role: 'assistant',
+        parts: [
+          { type: 'text', text: 'Looking.' },
+          { type: 'tool-call', id: 'c1', status: 'done', result: ['a.txt'] },
+        ],
+      },
+      {
+        id: 'turn-op-1',
+        role: 'assistant',
+        parts: [
+          { type: 'reasoning', text: 'Next.' },
+          { type: 'text', text: 'Done.' },
+        ],
+      },
+    ])
+  })
+
+  it('drops the reasoning of each saved model call, also when the replay comes in chunks', async () => {
+    const call = (id: string) => ({
+      id,
+      type: 'function' as const,
+      function: { name: 'list', arguments: '{}' },
+    })
+    const { view, stream } = await openView({
+      snapshot: () =>
+        sessionSnapshot({
+          status: 'running',
+          activeOperations: [{ id: 'op-1', kind: 'chat', startedCursor: '0' }],
+          cursor: '9',
+        }),
+      transcript: async () => [
+        { id: 'm1', role: 'assistant', content: 'A.', toolCalls: [call('c1')] },
+        { role: 'tool', toolCallId: 'c1', content: '1' },
+        { id: 'm2', role: 'assistant', content: 'B.', toolCalls: [call('c2')] },
+      ],
+    })
+    const think = (messageId: string) =>
+      ({
+        type: EventType.REASONING_MESSAGE_CONTENT,
+        messageId,
+        delta: `Think ${messageId}.`,
+      }) as const
+    const says = (messageId: string, delta: string) =>
+      ({ type: EventType.TEXT_MESSAGE_CONTENT, messageId, delta }) as const
+    const started = (toolCallId: string) =>
+      ({
+        type: EventType.TOOL_CALL_START,
+        toolCallId,
+        toolCallName: 'list',
+      }) as const
+    const result = (toolCallId: string) =>
+      ({
+        type: EventType.TOOL_CALL_RESULT,
+        toolCallId,
+        messageId: 'x',
+        content: '1',
+      }) as const
+
+    stream.push(
+      entry(1, think('r1')),
+      entry(2, says('m1', 'A.')),
+      entry(3, started('c1')),
+      entry(4, result('c1')),
+    )
+    // A remote replay comes in chunks, with a macrotask between them.
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    stream.push(
+      entry(5, think('r2')),
+      entry(6, says('m2', 'B.')),
+      entry(7, started('c2')),
+      entry(10, result('c2')),
+      entry(11, think('r3')),
+      entry(12, says('m3', 'C.')),
+    )
+
+    await vi.waitFor(() => expect(assistantText(view)).toBe('A.B.C.'))
+    expect(view.store.get().messages.at(-1)).toMatchObject({
+      id: 'turn-op-1',
+      parts: [
+        { type: 'reasoning', text: 'Think r3.' },
+        { type: 'text', text: 'C.' },
+      ],
+    })
+  })
+
+  it('drops replayed reasoning of an attempt that a retry ends', async () => {
+    const { view, stream } = await openView({
+      snapshot: () =>
+        sessionSnapshot({
+          status: 'running',
+          activeOperations: [{ id: 'op-1', kind: 'chat', startedCursor: '0' }],
+          cursor: '3',
+        }),
+    })
+
+    stream.push(
+      entry(1, {
+        type: EventType.REASONING_MESSAGE_CONTENT,
+        messageId: 'r1',
+        delta: 'Lost.',
+      }),
+      entry(2, {
+        type: EventType.CUSTOM,
+        name: HARNESS_EVENTS.turnRetry,
+        value: { operationId: 'op-1', retries: 1, continued: false },
+      }),
+      entry(3, {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: 'm2',
+        delta: 'Answer.',
+      }),
+    )
+
+    await vi.waitFor(() => expect(assistantText(view)).toBe('Answer.'))
+    expect(view.store.get().messages).toMatchObject([
+      { parts: [{ type: 'text', text: 'Answer.' }] },
+    ])
+  })
+
+  it('replays only the operations that run', async () => {
+    const { view, stream } = await openView({
+      snapshot: () =>
+        sessionSnapshot({
+          activeOperations: [{ id: 'op-1', kind: 'agent', startedCursor: '0' }],
+          // A durable log counts records that are no events.
+          cursor: '9',
+        }),
+    })
+    const says = (messageId: string, delta: string) =>
+      ({ type: EventType.TEXT_MESSAGE_CONTENT, messageId, delta }) as const
+
+    stream.push(
+      entry(1, says('m-old', 'Old turn.'), 'op-old'),
+      entry(2, says('m1', 'Still working.')),
+    )
+
+    await vi.waitFor(() => expect(assistantText(view)).toBe('Still working.'))
+  })
+
+  it('shows how a background child ended, from its saved card', async () => {
+    const call = (id: string) => ({
+      id,
+      type: 'function' as const,
+      function: { name: 'writer', arguments: '{}' },
+    })
+    const started = (toolCallId: string, subagentRunId: string) => ({
+      role: 'tool' as const,
+      toolCallId,
+      content: JSON.stringify({ subagentRunId, result: { status: 'started' } }),
+    })
+    const { view } = await openView({
+      transcript: async () => [
+        {
+          id: 'm1',
+          role: 'assistant',
+          content: null,
+          toolCalls: [call('c1'), call('c2')],
+        },
+        started('c1', 's1'),
+        started('c2', 's2'),
+      ],
+      agentTranscript: async (id) => [
+        {
+          role: 'assistant',
+          content: id === 's1' ? 'All done.' : '',
+          metadata: {
+            tanstack: {
+              subagent:
+                id === 's1'
+                  ? { name: 'writer', status: 'finished' }
+                  : { name: 'writer', status: 'error', placeholder: true },
+            },
+          },
+        },
+      ],
+    })
+
+    await vi.waitFor(() =>
+      expect(view.store.get().messages[0]).toMatchObject({
+        parts: [
+          { type: 'tool-call', id: 'c1' },
+          {
+            type: 'agent',
+            status: 'done',
+            parts: [{ type: 'text', text: 'All done.' }],
+          },
+          { type: 'tool-call', id: 'c2' },
+          // It failed before its first message: only its card is saved.
+          { type: 'agent', id: 's2', status: 'failed', parts: [] },
+        ],
+      }),
+    )
+  })
+
+  it('shows the later events of a background child that a saved message shows', async () => {
+    const { view, stream } = await openView({
+      transcript: async () => [
+        {
+          id: 'm1',
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'c1',
+              type: 'function',
+              function: { name: 'writer', arguments: '{}' },
+            },
+          ],
+        },
+        {
+          role: 'tool',
+          toolCallId: 'c1',
+          content: JSON.stringify({
+            subagentRunId: 's1',
+            result: { status: 'started' },
+          }),
+        },
+      ],
+      agentTranscript: async () => [
+        { role: 'assistant', content: 'Found one. ' },
+      ],
+      snapshot: () => sessionSnapshot({ cursor: '3' }),
+    })
+    const child = { subagentRunId: 's1' }
+
+    stream.push(
+      entry(4, {
+        ...child,
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: 'c',
+        delta: 'Found two.',
+      }),
+      entry(5, { ...child, type: EventType.SUBAGENT_FINISHED, result: 2 }),
+    )
+
+    await vi.waitFor(() =>
+      expect(view.store.get().messages[0]).toMatchObject({
+        parts: [
+          { type: 'tool-call', id: 'c1' },
+          {
+            type: 'agent',
+            id: 's1',
+            status: 'done',
+            result: 2,
+            parts: [{ type: 'text', text: 'Found one. Found two.' }],
+          },
+        ],
+      }),
+    )
+  })
+
+  it('fills the agent part of a saved agent call from its own messages', async () => {
+    const asked: Array<string> = []
+    const { view } = await openView({
+      transcript: async () => [
+        {
+          id: 'm1',
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'c1',
+              type: 'function',
+              function: { name: 'writer', arguments: '{"prompt":"Notes"}' },
+            },
+          ],
+        },
+        {
+          role: 'tool',
+          toolCallId: 'c1',
+          content: JSON.stringify({ subagentRunId: 's1', result: 'Note 1' }),
+        },
+      ],
+      agentTranscript: async (id) => {
+        asked.push(id)
+        return [
+          { role: 'user', content: 'Notes' },
+          { role: 'assistant', content: 'Note 1' },
+        ]
+      },
+    })
+
+    await vi.waitFor(() =>
+      expect(view.store.get().messages).toMatchObject([
+        {
+          role: 'assistant',
+          parts: [
+            { type: 'tool-call', id: 'c1', status: 'done' },
+            {
+              type: 'agent',
+              id: 's1',
+              name: 'writer',
+              status: 'done',
+              parts: [{ type: 'text', text: 'Note 1' }],
+            },
+          ],
+        },
+      ]),
+    )
+    expect(asked).toEqual(['s1'])
+  })
+
+  it('shows the usage, the models, and the settings, and reads the usage again after a model call', async () => {
+    const used = (calls: number) =>
+      sessionSnapshot({
+        usage: {
+          ...emptyUsage(),
+          total: { ...emptyUsage().total, calls },
+        },
+      })
+    const snapshot = vi.fn(() => used(2))
+    snapshot.mockReturnValueOnce(used(1))
+    const { view, stream } = await openView({
+      snapshot,
+      describe: () => ({
+        ...emptyDescription(),
+        models: ['fast', 'strong'],
+        settings: { model: 'strong' },
+      }),
+    })
+
+    expect(view.store.get()).toMatchObject({
+      usage: { total: { calls: 1 } },
+      models: ['fast', 'strong'],
+      settings: { model: 'strong' },
+    })
+    stream.push(custom(HARNESS_EVENTS.usage, { model: 'fast' }))
+
+    await vi.waitFor(() => expect(view.store.get().usage?.total.calls).toBe(2))
+  })
+})
+
 describe('session view dispose', () => {
   it('can dispose twice', async () => {
     const { view } = await openView()
@@ -790,7 +1406,10 @@ describe('session view dispose', () => {
   }> = [
     { action: 'notice', act: (view) => view.notice('hi') },
     { action: 'command', act: (view) => view.command('ping') },
-    { action: 'setConfig', act: (view) => view.setConfig('mode', 'plan') },
+    {
+      action: 'setConfig',
+      act: (view) => view.setConfig({ key: 'mode', value: 'plan' }),
+    },
     { action: 'cancel', act: (view) => view.cancel() },
     { action: 'approveAll', act: (view) => view.approveAll() },
     {

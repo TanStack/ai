@@ -49,6 +49,7 @@ The handler answers these paths under your route:
 - `GET events?threadId=`: every event of the session as SSE. Each event id is a cursor, so a reconnect with `Last-Event-ID` continues where it stopped.
 - `POST control`: send `{ threadId, input }`, for example `{ op: 'prompt', message }`. You get a receipt back. Agents, settings, config keys, and commands need `expose`. See [Choose what clients can change](#choose-what-clients-can-change).
 - `GET snapshot?threadId=`: the status, running operations, and waiting approvals.
+- `GET agent-transcript?threadId=&subagentRunId=`: the saved messages of one child agent of the thread. See [Show what a child wrote after a reload](./subagents#show-what-a-child-wrote-after-a-reload).
 
 ## Choose what clients can change
 
@@ -68,7 +69,7 @@ export const team = defineHarness({
 | --- | --- |
 | `agents` | Run these agents, for example with `client.agents.<name>.start(input)`. |
 | `settings` | Change these [thread settings](./thread-settings) with `client.configure(settings)`. |
-| `config` | Set these plugin config keys with `client.setConfig(key, value)`. |
+| `config` | Set these plugin config keys with `client.setConfig({ key, value })`. |
 | `commands` | Run these commands with `client.command(name)`, or with `/name` in a [session view](./custom-ui) on a client. |
 
 - Any other input of these kinds gets `{ status: 'rejected', reason: 'not_exposed' }`.
@@ -152,14 +153,21 @@ const client = createHarnessClient<typeof studio>({
 })
 
 export async function correct(operationId: string) {
-  const receipt = await client.sendToAgent(operationId, 'Cite papers, not blogs.')
+  const receipt = await client.sendToAgent({
+    operationId,
+    message: 'Cite papers, not blogs.',
+  })
   if (receipt.status === 'rejected') {
     console.warn(receipt.reason)
   }
 }
 
 export function addTitle(operationId: string) {
-  return client.sendToAgent(operationId, 'Add a title.', { mode: 'followUp' })
+  return client.sendToAgent({
+    operationId,
+    message: 'Add a title.',
+    mode: 'followUp',
+  })
 }
 ```
 

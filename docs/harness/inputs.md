@@ -186,7 +186,7 @@ for (const input of session.inputs()) {
 }
 
 await session.cancelInput('req-46')
-await session.setDelivery('req-47', 'steer')
+await session.setDelivery({ inputId: 'req-47', delivery: 'steer' })
 await migration
 ```
 
@@ -205,7 +205,7 @@ for (const input of waitingInputs) {
 }
 
 await client.cancelInput('req-46')
-await client.setDelivery('req-47', 'steer')
+await client.setDelivery({ inputId: 'req-47', delivery: 'steer' })
 ```
 
 Over `POST control`, they are `{ op: 'cancelInput', inputId }` and `{ op: 'setDelivery', inputId, delivery }`. In these two inputs, `inputId` is the id of the input that waits. A move sends a `harness.input.delivery` event with `inputId` and `delivery`, so every client can update its list.

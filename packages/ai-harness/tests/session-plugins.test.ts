@@ -11,8 +11,8 @@ import {
   defineHarness,
   definePlugin,
 } from '../src'
-import { gate, mockAdapter, text } from './helpers'
-import type { SessionEvent } from '../src'
+import { gate, mockAdapter, text, toolCall } from './helpers'
+import type { PluginState, SessionEvent } from '../src'
 
 const settings = definePlugin({
   name: 'test/settings',
@@ -63,16 +63,24 @@ describe('config values', () => {
     const session = await host.open(harness, { threadId: 't' })
     // The saved values were invalid or unknown, so the defaults apply.
     expect(session.config().verbose?.value).toBe(false)
-    expect(await session.setConfig('missing', 1)).toMatchObject({
-      status: 'rejected',
-      reason: 'unknown_config',
-    })
-    expect(await session.setConfig('retries', 9)).toMatchObject({
-      status: 'rejected',
-      reason: expect.stringContaining('<= 5'),
-    })
-    expect((await session.setConfig('level', 'high')).status).toBe('accepted')
-    expect((await session.setConfig('label', 'mine')).status).toBe('accepted')
+    expect(await session.setConfig({ key: 'missing', value: 1 })).toMatchObject(
+      {
+        status: 'rejected',
+        reason: 'unknown_config',
+      },
+    )
+    expect(await session.setConfig({ key: 'retries', value: 9 })).toMatchObject(
+      {
+        status: 'rejected',
+        reason: expect.stringContaining('<= 5'),
+      },
+    )
+    expect(
+      (await session.setConfig({ key: 'level', value: 'high' })).status,
+    ).toBe('accepted')
+    expect(
+      (await session.setConfig({ key: 'label', value: 'mine' })).status,
+    ).toBe('accepted')
     await host.close()
 
     const again = createHarnessHost({ persistence })
@@ -197,18 +205,28 @@ describe('questions', () => {
       message: 'How many?',
       schema: { type: 'object' },
     })
-    expect(await session.answer('q-unknown', 1)).toMatchObject({
+    expect(
+      await session.answer({ questionId: 'q-unknown', value: 1 }),
+    ).toMatchObject({
       status: 'rejected',
       reason: 'unknown_question',
     })
     expect(
-      await session.answer(question?.questionId ?? '', { count: 'two' }),
+      await session.answer({
+        questionId: question?.questionId ?? '',
+        value: { count: 'two' },
+      }),
     ).toMatchObject({
       status: 'rejected',
       reason: expect.stringContaining('Invalid answer'),
     })
     expect(
-      (await session.answer(question?.questionId ?? '', { count: 2 })).status,
+      (
+        await session.answer({
+          questionId: question?.questionId ?? '',
+          value: { count: 2 },
+        })
+      ).status,
     ).toBe('accepted')
     expect(await picking).toBe(4)
 
@@ -218,6 +236,124 @@ describe('questions', () => {
     )
     await session.close()
     await expect(open).rejects.toThrow('Session closed.')
+    await host.close()
+  })
+
+  it('rejects the questions of a turn when the turn is cancelled', async () => {
+    let asked: Promise<unknown> | undefined
+    const asker = definePlugin({
+      name: 'test/turn-asker',
+      setup: (ctx) => ({
+        tools: [
+          toolDefinition({ name: 'confirm', description: 'Ask' }).server(
+            async () => {
+              asked = ctx.session.ask({ message: 'Sure?' })
+              return asked
+            },
+          ),
+        ],
+      }),
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/turn-questions',
+        adapter: mockAdapter([() => toolCall('confirm', {})]).adapter,
+        plugins: () => [asker],
+      }),
+      { threadId: 't' },
+    )
+    const turn = session.prompt('Go.')
+    await vi.waitFor(() =>
+      expect(session.snapshot().pendingQuestions).toHaveLength(1),
+    )
+
+    await session.cancel(turn.id)
+
+    await expect(asked).rejects.toThrow('Cancelled.')
+    expect(session.snapshot().pendingQuestions).toEqual([])
+    await host.close()
+  })
+
+  it('rejects the question of a command when the command is cancelled', async () => {
+    let asked: Promise<unknown> | undefined
+    const asker = definePlugin({
+      name: 'test/command-asker',
+      setup: () => ({
+        commands: {
+          confirm: defineCommand({
+            description: 'Ask',
+            run: (_input, { session }) => {
+              asked = session.ask({ message: 'Sure?' })
+              return asked
+            },
+          }),
+        },
+      }),
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/command-questions',
+        adapter: mockAdapter([]).adapter,
+        plugins: () => [asker],
+      }),
+      { threadId: 't' },
+    )
+    const command = session.command('confirm')
+    await vi.waitFor(() =>
+      expect(session.snapshot().pendingQuestions).toHaveLength(1),
+    )
+
+    await session.cancel(command.id)
+
+    await expect(asked).rejects.toThrow('Cancelled.')
+    expect(session.snapshot().pendingQuestions).toEqual([])
+    await host.close()
+  })
+
+  it('keeps a question when the answer cannot be stored', async () => {
+    let asked: Promise<unknown> | undefined
+    const asker = definePlugin({
+      name: 'test/answer-asker',
+      setup: () => ({
+        commands: {
+          confirm: defineCommand({
+            description: 'Ask',
+            run: (_input, { session }) => {
+              asked = session.ask({ message: 'Sure?' })
+              return asked
+            },
+          }),
+        },
+      }),
+    })
+    const persistence = memoryPersistence()
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/answer-store',
+        adapter: mockAdapter([]).adapter,
+        plugins: () => [asker],
+      }),
+      { threadId: 't' },
+    )
+    void session.command('confirm')
+    await vi.waitFor(() =>
+      expect(session.snapshot().pendingQuestions).toHaveLength(1),
+    )
+    const [question] = session.snapshot().pendingQuestions
+    vi.spyOn(persistence.stores.inbox, 'markApplied').mockRejectedValueOnce(
+      new Error('store down'),
+    )
+
+    await expect(
+      session.answer({ questionId: question!.questionId, value: 'yes' }),
+    ).rejects.toThrow('store down')
+    expect(session.snapshot().pendingQuestions).toHaveLength(1)
+
+    await session.answer({ questionId: question!.questionId, value: 'yes' })
+    await expect(asked).resolves.toBe('yes')
     await host.close()
   })
 })
@@ -314,6 +450,116 @@ describe('plugin state and events', () => {
     )
     await host.close()
   })
+
+  it('keeps both of two concurrent updates with a store without setIf', async () => {
+    const base = memoryPersistence()
+    const plain = {
+      ...base,
+      stores: {
+        ...base.stores,
+        metadata: {
+          get: (namespace: string, key: string) =>
+            base.stores.metadata.get(namespace, key),
+          set: (namespace: string, key: string, value: unknown) =>
+            base.stores.metadata.set(namespace, key, value),
+        },
+      },
+    }
+    let state: PluginState<{ count: number }> | undefined
+    const host = createHarnessHost({ persistence: plain as never })
+    await host.open(
+      defineHarness({
+        name: 'test/state-race',
+        adapter: mockAdapter([]).adapter,
+        plugins: () => [
+          definePlugin({
+            name: 'test/race',
+            setup: (ctx) => {
+              state = ctx.state({ count: 0 })
+            },
+          }),
+        ],
+      }),
+      { threadId: 't' },
+    )
+    if (!state) throw new Error('The plugin did not set up.')
+    const bump = (value: { count: number }) => ({ count: value.count + 1 })
+
+    await Promise.all([state.update(bump), state.update(bump)])
+
+    expect(await state.get()).toEqual({ count: 2 })
+    await host.close()
+  })
+
+  it('warns when an async listener rejects', async () => {
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/async-listener',
+        adapter: mockAdapter([]).adapter,
+        plugins: () => [
+          definePlugin({
+            name: 'test/async-listener',
+            setup: (ctx) => {
+              ctx.on(counter, async () => {
+                throw new Error('listener broke')
+              })
+              return {
+                commands: {
+                  ping: defineCommand({
+                    description: 'Emit',
+                    run: () => ctx.emit(counter, 1),
+                  }),
+                },
+              }
+            },
+          }),
+        ],
+      }),
+      { threadId: 't' },
+    )
+    const warnings: Array<unknown> = []
+    session.onEvent(EventType.CUSTOM, ({ event }) => {
+      if (event.name === 'harness.plugin.warning') warnings.push(event.value)
+    })
+
+    await session.command('ping')
+
+    await vi.waitFor(() =>
+      expect(warnings).toEqual([
+        { plugin: 'harness:events', message: 'listener broke' },
+      ]),
+    )
+    await host.close()
+  })
+
+  it('loads the saved state of a plugin whose name is an Object key', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.metadata.set('plugin:constructor', 't', {
+      saved: true,
+    })
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/state-names',
+        adapter: mockAdapter([]).adapter,
+        plugins: () => [
+          definePlugin({
+            name: 'constructor',
+            setup: (ctx) => {
+              ctx.state({ saved: false })
+            },
+          }),
+        ],
+      }),
+      { threadId: 't' },
+    )
+
+    expect(session.snapshot().plugins).toEqual({
+      constructor: { saved: true },
+    })
+    await host.close()
+  })
 })
 
 describe('the plugin session API and inspect', () => {
@@ -394,7 +640,7 @@ describe('session events', () => {
       }))
         seen.push(entry)
     })()
-    await session.setConfig('verbose', true)
+    await session.setConfig({ key: 'verbose', value: true })
     await vi.waitFor(() =>
       expect(
         seen.some(
