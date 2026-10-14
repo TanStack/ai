@@ -8,6 +8,7 @@ import {
 } from '@tanstack/ai'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { withPersistence } from '@tanstack/ai-persistence'
+import { scrubSecrets, secretsOf } from '../auth'
 import { bindDurable } from '../durable-tool'
 import { mediaMiddleware } from '../media'
 import { OperationImpl } from '../operation'
@@ -48,6 +49,7 @@ import type {
   StreamChunk,
   SubagentRouterPick,
 } from '@tanstack/ai'
+import type { CredentialsAccess } from '../auth'
 import type { AnyHarness } from '../define'
 import type { ModelErrorContext } from '../turn'
 import type { MountedPlugins } from '../plugins'
@@ -94,6 +96,8 @@ export abstract class SessionTurn<
     principal: Principal | undefined,
   ): Promise<void> {
     const inputId = createInputId()
+    // The log keeps the input for replay, so a command must not take a secret
+    // as its input. Ask a `secret` question instead.
     await this.accept(inputId, { op: 'command', name, input }, principal)
     const entry = this.sessionPlugins?.commands.get(name)
     if (!entry) {
@@ -120,13 +124,14 @@ export abstract class SessionTurn<
     operation.setStatus('running')
     await this.applied(inputId, operation.id)
     this.publishStarted(operation)
+    const credentials = this.credentialsOf(principal)
     try {
       const result: unknown = await entry.command.run(checked, {
         signal: operation.abortController.signal,
         // The command acts for its sender, also while another user's turn runs.
         session: principal ? this.pluginApi(principal) : this.services.session,
         ...(principal ? { principal } : {}),
-        credentials: this.credentialsOf(principal),
+        credentials,
       })
       operation.publish(
         customEvent('harness.command.result', {
@@ -138,7 +143,7 @@ export abstract class SessionTurn<
     } catch (error) {
       operation.publish({
         type: EventType.RUN_ERROR,
-        message: error instanceof Error ? error.message : String(error),
+        message: this.scrub(errorText(error), credentials),
         timestamp: Date.now(),
       })
       operation.fail(
@@ -147,6 +152,11 @@ export abstract class SessionTurn<
       )
     }
     this.publishFinished(operation)
+  }
+
+  /** `text` without the credential values this session handed out. */
+  protected scrub(text: string, ...more: Array<CredentialsAccess>) {
+    return scrubSecrets(text, secretsOf(this.credentialAccess, ...more))
   }
 
   protected override drain(): void {
@@ -647,7 +657,11 @@ export abstract class SessionTurn<
           } as never) as AsyncIterable<StreamChunk>
 
           routedFrom = undefined
-          for await (const chunk of stream) {
+          for await (const raw of stream) {
+            const chunk =
+              raw.type === EventType.RUN_ERROR
+                ? { ...raw, message: this.scrub(raw.message) }
+                : raw
             cards?.processChunk(chunk)
             // chat() refused the resume before it ran anything.
             if (
@@ -731,7 +745,7 @@ export abstract class SessionTurn<
           }
           const { code } = toRunErrorPayload(error)
           runError = {
-            message: errorText(error),
+            message: this.scrub(errorText(error)),
             ...(code !== undefined ? { code } : {}),
           }
         }
@@ -862,7 +876,7 @@ export abstract class SessionTurn<
         text = lastAssistantText(await this.messages.loadThread(this.threadId))
       }
     } catch (error) {
-      failure = errorText(error)
+      failure = this.scrub(errorText(error))
       if (!operation.abortController.signal.aborted) {
         operation.publish({
           type: EventType.RUN_ERROR,
