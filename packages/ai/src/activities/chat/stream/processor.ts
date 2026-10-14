@@ -834,11 +834,25 @@ export class StreamProcessor {
         break
 
       case 'REASONING_START':
-      case 'REASONING_MESSAGE_START':
       case 'REASONING_MESSAGE_END':
       case 'REASONING_END':
         // No special handling needed
         break
+
+      case 'REASONING_MESSAGE_START': {
+        // Same destination as content events: the assistant UIMessage.
+        // No metadata: do not create an empty assistant row.
+        const start = chunk as Extract<
+          StreamChunk,
+          { type: 'REASONING_MESSAGE_START' }
+        >
+        if (start.metadata == null) break
+        const { messageId } = this.ensureAssistantMessage(
+          this.getActiveAssistantMessageId() ?? undefined,
+        )
+        this.mergeMessageMetadata(messageId, start.metadata)
+        break
+      }
 
       case 'REASONING_MESSAGE_CONTENT':
         this.handleReasoningMessageContentEvent(
