@@ -55,6 +55,15 @@ The handler answers these paths under your route:
 - `GET snapshot?threadId=`: the status, running operations, and waiting approvals.
 - `GET agent-transcript?threadId=&subagentRunId=`: the saved messages of one child agent of the thread. See [Show what a child wrote after a reload](./subagents#show-what-a-child-wrote-after-a-reload).
 
+## Cursors
+
+Each event id of `GET events` and `GET run`, and the `cursor` of each `harness.event` frame, is an opaque string. Send it back as `Last-Event-ID` or `from`, as it is. Do not parse it.
+
+- On a durable host (`stores.log`), a cursor is a position in the log of the thread. It works on every instance and after a restart.
+- Without a log store, a cursor is a counter in the memory of one process. Another instance or a restart does not know it.
+
+To run more than one instance behind one URL, use `stores.log`.
+
 ## Choose what clients can change
 
 A client can send a prompt and answer questions. Other inputs can change how the session works, so a client can use only what the harness exposes. Nothing is exposed by default.

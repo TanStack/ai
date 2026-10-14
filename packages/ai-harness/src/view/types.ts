@@ -180,7 +180,11 @@ export interface ViewAgent {
   cancel: () => Promise<Receipt>
 }
 
-/** Everything a UI can show about a session. */
+/**
+ * Everything a UI can show about a session.
+ *
+ * @experimental The fields can change in a minor release.
+ */
 export interface SessionViewState {
   threadId: string
   status: 'idle' | 'running' | 'requires_action'
