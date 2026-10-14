@@ -264,7 +264,10 @@ export interface ResumePendingOptions {
    * the thread too. `'never'`: it stays open, like any opened session.
    */
   close?: 'whenIdle' | 'never'
-  /** How many expired claims one call reads. Default 100. */
+  /**
+   * At most how many expired claims of `harnesses` one call takes. Default
+   * 100.
+   */
   limit?: number
 }
 
@@ -731,7 +734,18 @@ export function createHarnessHost<TLogState = undefined>(
       const byName = new Map(
         harnesses.map((harness) => [harness.name, harness]),
       )
-      const expired = await claims.listExpired({ now: Date.now(), limit })
+      // `listExpired` has no cursor, and claims of other harnesses come back
+      // too. Read more until `limit` are ours or the store has no more.
+      // ponytail: re-reads the first claims each round. Add a harness filter
+      // to the store if many claims of other harnesses pile up.
+      const now = Date.now()
+      let expired: Array<{ threadId: string; harness: string }> = []
+      for (let size = limit; ; size *= 2) {
+        const page = await claims.listExpired({ now, limit: size })
+        expired = page.filter((claim) => byName.has(claim.harness))
+        if (expired.length >= limit || page.length < size) break
+      }
+      expired = expired.slice(0, limit)
       const opened: Array<{ threadId: string; harness: string }> = []
       for (const { threadId, harness: name } of expired) {
         const harness = byName.get(name)

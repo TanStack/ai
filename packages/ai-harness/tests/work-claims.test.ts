@@ -552,6 +552,30 @@ describe('host.resumePending', () => {
     await host.close()
   })
 
+  it('finds its own expired claim behind more than limit claims of other harnesses', async () => {
+    const persistence = durablePersistence()
+    await seedStoppedTurn(persistence)
+    // Older than this thread's claim, so the store lists them first.
+    for (let index = 0; index < 3; index += 1) {
+      await persistence.stores.workClaims.claim({
+        threadId: `other-${index}`,
+        harness: 'test/other',
+        ownerId: 'host-gone',
+        until: Date.now() - 60_000,
+      })
+    }
+    const { adapter } = mockAdapter([() => text('Recovered.')])
+    const host = createHarnessHost({ persistence })
+
+    expect(
+      await host.resumePending({
+        harnesses: [defineHarness({ name: NAME, adapter })],
+        limit: 2,
+      }),
+    ).toEqual([{ threadId: THREAD, harness: NAME }])
+    await host.close()
+  })
+
   it('throws a clear error without stores.workClaims', async () => {
     const { runs, metadata } = memoryPersistence().stores
     const host = createHarnessHost({
