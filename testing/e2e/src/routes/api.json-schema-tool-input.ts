@@ -5,11 +5,20 @@ import { fakeText } from '@tanstack/ai/testing'
 // No network: `fakeText` answers from a script. The first answer calls a
 // JSON Schema tool twice: once with a value that cannot be repaired, once
 // with a number sent as a string. The second answer repeats the tool
-// results. MCP tools have the same raw JSON Schema input.
+// results. MCP tools have the same raw JSON Schema input. With
+// `{ repair: 'custom' }`, a `repairToolInput` function replaces the built-in
+// repair: it maps `'many'` to 2 and repairs nothing else.
 export const Route = createFileRoute('/api/json-schema-tool-input')({
   server: {
     handlers: {
-      POST: async () => {
+      POST: async ({ request }) => {
+        const body: unknown = await request.json().catch(() => ({}))
+        const custom =
+          typeof body === 'object' &&
+          body !== null &&
+          'repair' in body &&
+          body.repair === 'custom'
+
         const fake = fakeText()
         fake.setResponses([
           {
@@ -46,6 +55,15 @@ export const Route = createFileRoute('/api/json-schema-tool-input')({
           messages: [{ role: 'user', content: 'Count the items' }],
           tools: [countItems],
           stream: false,
+          ...(custom && {
+            repairToolInput: ({ input }) =>
+              typeof input === 'object' &&
+              input !== null &&
+              'count' in input &&
+              input.count === 'many'
+                ? { count: 2 }
+                : undefined,
+          }),
         })
 
         return Response.json({ text, runs })

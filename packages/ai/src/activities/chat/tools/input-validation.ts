@@ -285,6 +285,7 @@ function validateJsonInput(
   schema: JSONSchema | boolean,
   received: unknown,
   toolName: string,
+  repair: boolean,
 ) {
   let errors: string
   try {
@@ -297,14 +298,16 @@ function validateJsonInput(
     const result = check(value)
     if (result.valid) return received
     // Repair only an input that fails. The error reports the input as sent.
-    let converted = value
-    try {
-      converted = coerceArguments(value, root)
-    } catch {
-      // A schema that cannot be used: the first check reports it.
-    }
-    if (JSON.stringify(converted) !== json && check(converted).valid) {
-      return converted
+    if (repair) {
+      let converted = value
+      try {
+        converted = coerceArguments(value, root)
+      } catch {
+        // A schema that cannot be used: the first check reports it.
+      }
+      if (JSON.stringify(converted) !== json && check(converted).valid) {
+        return converted
+      }
     }
     const leaves = result.errors.filter(
       (error) => !WRAPPER_KEYWORDS.has(error.keyword),
@@ -334,26 +337,64 @@ function standardInputError(
 }
 
 /**
+ * How a failed tool input is repaired. `undefined`: the built-in repair.
+ * `false`: no repair. A function: called instead of the built-in repair. It
+ * returns the input to check again, or `undefined` to keep the error.
+ */
+export type ToolInputRepair =
+  | false
+  | ((input: unknown, error: Error) => unknown | Promise<unknown>)
+
+/**
  * The final check of a tool input, just before the tool runs or the client
  * gets the call. A Standard Schema runs here (an async validator too), and
  * its output is the input, so transforms apply once. A JSON Schema (an MCP
  * tool, a plain JSON Schema tool) is checked with `@cfworker/json-schema`.
- * Common model mistakes are repaired against the schema first. The error
- * goes back to the model as the tool result.
+ * A failed input is repaired as `repair` says, then checked again. The error
+ * of the first check goes back to the model as the tool result.
  */
 export async function validateToolInput(
   schema: SchemaInput | boolean | undefined,
   received: unknown,
   toolName: string,
+  repair?: ToolInputRepair,
+): Promise<unknown> {
+  try {
+    return await checkToolInput(
+      schema,
+      received,
+      toolName,
+      repair === undefined,
+    )
+  } catch (error) {
+    if (typeof repair !== 'function') throw error
+    const repaired = await repair(
+      received,
+      error instanceof Error ? error : new Error(String(error)),
+    )
+    if (repaired === undefined) throw error
+    try {
+      return await checkToolInput(schema, repaired, toolName, false)
+    } catch {
+      throw error
+    }
+  }
+}
+
+async function checkToolInput(
+  schema: SchemaInput | boolean | undefined,
+  received: unknown,
+  toolName: string,
+  repair: boolean,
 ): Promise<unknown> {
   if (schema === undefined) return received
   if (typeof schema === 'boolean') {
-    return validateJsonInput(schema, received, toolName)
+    return validateJsonInput(schema, received, toolName, repair)
   }
   if (!isStandardSchema(schema)) {
     const jsonSchema = convertSchemaToJsonSchema(schema, { io: 'input' })
     return jsonSchema
-      ? validateJsonInput(jsonSchema, received, toolName)
+      ? validateJsonInput(jsonSchema, received, toolName, repair)
       : received
   }
   const first = await validateWithStandardSchema<unknown>(schema, received)
@@ -362,12 +403,12 @@ export async function validateToolInput(
   // Schema, repair the input and run the authored schema again. A failure
   // reports the issues of the first run.
   const original = standardInputError(first.issues, received, toolName)
-  if (!isStandardJSONSchema(schema)) throw original
+  if (!repair || !isStandardJSONSchema(schema)) throw original
   let converted: unknown
   try {
     const jsonSchema = convertSchemaToJsonSchema(schema, { io: 'input' })
     if (!jsonSchema) throw original
-    converted = validateJsonInput(jsonSchema, received, toolName)
+    converted = validateJsonInput(jsonSchema, received, toolName, true)
   } catch {
     throw original
   }
