@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
+import { EventType } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import {
   createHarnessHost,
@@ -67,6 +68,35 @@ describe('an input that reaches a host that does not own the thread', () => {
       { role: 'user', content: 'And then?' },
       { role: 'assistant', content: 'Two.' },
     ])
+  })
+
+  it('streams a forwarded turn under its run id on the host that took it', async () => {
+    const persistence = sharedStores()
+    const release = gate()
+    const { adapter } = mockAdapter([
+      after(release.opened, 'One.'),
+      () => text('Two.'),
+    ])
+    const harness = harnessOf(adapter)
+    const owner = await createHarnessHost({ persistence }).open(harness, {
+      threadId: THREAD,
+    })
+    const other = await createHarnessHost({ persistence }).open(harness, {
+      threadId: THREAD,
+    })
+
+    const first = owner.prompt('Go.')
+    await first.receipt
+    // A `POST run` on the other host: the turn runs on the owner as `run-2`.
+    const second = other.prompt('And then?', { runId: 'run-2' })
+    expect((await second.receipt).status).toBe('queued')
+    release.open()
+    const texts: Array<string> = []
+    for await (const event of second.stream()) {
+      if (event.type === EventType.TEXT_MESSAGE_CONTENT) texts.push(event.delta)
+    }
+    expect(texts.join('')).toBe('Two.')
+    expect((await second).text).toBe('Two.')
   })
 
   it('is refused without an inbox, and the owner turn goes on', async () => {

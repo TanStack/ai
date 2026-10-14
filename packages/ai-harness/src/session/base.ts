@@ -770,13 +770,16 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       )
     }
     switch (input.op) {
-      case 'prompt':
+      case 'prompt': {
+        const { runId } = entry.input as { runId?: unknown }
         return settle(
           session.prompt(input.message, {
             ...sent,
             ...(input.busy ? { busy: input.busy } : {}),
+            ...(typeof runId === 'string' ? { runId } : {}),
           }),
         )
+      }
       case 'continue':
         return settle(session.continue(sent))
       case 'steer':

@@ -333,6 +333,8 @@ export abstract class SessionInputs<
     inputId: string,
     input: HarnessInput,
     principal = this.principal,
+    /** The AG-UI run id of a turn, so a forwarded turn runs as it. */
+    runId?: string,
   ): Promise<Admission> {
     const sender = storedPrincipal(principal)
     const payload = inputKey(input, sender.principal)
@@ -350,7 +352,7 @@ export abstract class SessionInputs<
     try {
       // An agent run starts from the running turn, on the owner.
       if (input.op !== 'agent' && (await this.isOwnedElsewhere())) {
-        return await this.forward(inputId, input, sender)
+        return await this.forward(inputId, input, sender, runId)
       }
       // Before the input is stored, so a crash after the write leaves a claim
       // that a sweep finds.
@@ -359,7 +361,7 @@ export abstract class SessionInputs<
         await this.claimWrite
         // Another host claimed the thread first, for example on a cold start.
         if (this.writer && this.claimLost) {
-          return await this.forward(inputId, input, sender)
+          return await this.forward(inputId, input, sender, runId)
         }
       }
       const at = Date.now()
@@ -402,6 +404,7 @@ export abstract class SessionInputs<
     inputId: string,
     input: HarnessInput,
     sender: ReturnType<typeof storedPrincipal>,
+    runId: string | undefined,
   ): Promise<Admission> {
     this.admitted.delete(inputId)
     const inbox = this.persistence.stores.inbox
@@ -411,7 +414,8 @@ export abstract class SessionInputs<
     await inbox.append({
       inputId,
       threadId: this.threadId,
-      input,
+      // The owner runs the turn as `runId`, so this host streams it from the log.
+      input: runId === undefined ? input : { ...input, runId },
       createdAt: Date.now(),
       ...sender,
     })

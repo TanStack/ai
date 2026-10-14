@@ -114,7 +114,7 @@ export abstract class SessionRequests<
     const operation = this.createTurnOperation(runId)
     this.bindTurn(inputId, operation)
     void this.admitting(() =>
-      this.accept(inputId, input, principal).then(
+      this.accept(inputId, input, principal, runId).then(
         async (admission) => {
           if (admission !== 'new') {
             this.answerDuplicate(operation, inputId, admission)
