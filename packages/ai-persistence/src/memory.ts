@@ -625,34 +625,48 @@ class MemoryInboxStore implements InboxStore {
     return Promise.resolve(pending)
   }
   markApplied({
+    threadId,
     inputId,
     operationId,
   }: {
+    threadId: string
     inputId: string
     operationId: string
   }): Promise<void> {
-    const existing = this.entries.get(inputId)
+    const existing = this.of(threadId, inputId)
     if (existing) {
       this.entries.set(inputId, { ...existing, status: 'applied', operationId })
     }
     return Promise.resolve()
   }
   markRejected({
+    threadId,
     inputId,
     reason,
   }: {
+    threadId: string
     inputId: string
     reason: string
   }): Promise<void> {
-    const existing = this.entries.get(inputId)
+    const existing = this.of(threadId, inputId)
     if (existing) {
       this.entries.set(inputId, { ...existing, status: 'rejected', reason })
     }
     return Promise.resolve()
   }
-  get(inputId: string): Promise<InboxEntry | null> {
-    const existing = this.entries.get(inputId)
+  get({
+    threadId,
+    inputId,
+  }: {
+    threadId: string
+    inputId: string
+  }): Promise<InboxEntry | null> {
+    const existing = this.of(threadId, inputId)
     return Promise.resolve(existing ? structuredClone(existing) : null)
+  }
+  private of(threadId: string, inputId: string) {
+    const existing = this.entries.get(inputId)
+    return existing?.threadId === threadId ? existing : undefined
   }
 }
 
@@ -830,6 +844,12 @@ class MemoryWorkClaimStore implements WorkClaimStore {
       this.claims.delete(threadId)
     }
     return Promise.resolve()
+  }
+  get(threadId: string) {
+    const held = this.claims.get(threadId)
+    return Promise.resolve(
+      held ? { ownerId: held.ownerId, until: held.until } : null,
+    )
   }
   listExpired(options: {
     now: number

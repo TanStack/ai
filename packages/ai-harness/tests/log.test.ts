@@ -540,7 +540,11 @@ describe('write failures', () => {
     const old = newWriter(store)
     await old.commit({ messages: [user('u1', 'one')] })
     // A newer host appends a harness record type that this version does not know.
-    await store.append(THREAD, 2, [{ type: 'harness.later', value: 1 }])
+    await store.append({
+      threadId: THREAD,
+      seq: 2,
+      records: [{ type: 'harness.later', value: 1 }],
+    })
     const state = await loadLogState({ store, logId: THREAD })
     expect(state.newerRecord).toBe('harness.later')
     expect(sessionOf(state, THREAD).messages).toEqual([user('u1', 'one')])

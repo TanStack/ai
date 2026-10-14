@@ -590,7 +590,11 @@ export abstract class SessionRequests<
     // Without a log, the inbox entry must not stay pending: a restart runs
     // pending entries.
     if (!this.writer)
-      await this.inbox.markRejected({ inputId: target, reason: 'cancelled' })
+      await this.inbox.markRejected({
+        threadId: this.threadId,
+        inputId: target,
+        reason: 'cancelled',
+      })
     const { operation } = taken
     await this.settle({
       inputId: target,

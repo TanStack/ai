@@ -217,7 +217,11 @@ export abstract class SessionInputs<
     }
     if (!this.writer) {
       this.inbox
-        .markApplied({ inputId: steer.inputId, operationId })
+        .markApplied({
+          threadId: this.threadId,
+          inputId: steer.inputId,
+          operationId,
+        })
         .catch((error: unknown) => this.warnSession('harness:inbox', error))
     }
     this.feed.publish(
@@ -282,7 +286,11 @@ export abstract class SessionInputs<
    */
   protected async applyControl(inputId: string, change: HarnessRecord) {
     if (!this.writer) {
-      await this.inbox.markApplied({ inputId, operationId: 'session' })
+      await this.inbox.markApplied({
+        threadId: this.threadId,
+        inputId,
+        operationId: 'session',
+      })
       return
     }
     await this.writer.append([
@@ -381,7 +389,11 @@ export abstract class SessionInputs<
     operationId: string,
   ): Promise<void> {
     if (!this.writer) {
-      await this.inbox.markApplied({ inputId, operationId })
+      await this.inbox.markApplied({
+        threadId: this.threadId,
+        inputId,
+        operationId,
+      })
       return
     }
     const logged = this.writer.state.inputs.get(inputId)
@@ -417,7 +429,7 @@ export abstract class SessionInputs<
         .catch(() => {})
     } else {
       this.inbox
-        .markRejected({ inputId, reason })
+        .markRejected({ threadId: this.threadId, inputId, reason })
         .catch((error: unknown) => this.warnSession('harness:inbox', error))
     }
     const receipt: Receipt = { inputId, status: 'rejected', reason }

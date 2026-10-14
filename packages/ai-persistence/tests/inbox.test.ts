@@ -20,7 +20,9 @@ describe('inbox store', () => {
     })
     entry.status = 'applied'
 
-    expect((await inbox.get('in-1'))?.status).toBe('pending')
+    expect((await inbox.get({ threadId: 't', inputId: 'in-1' }))?.status).toBe(
+      'pending',
+    )
   })
 
   it('accepts a user-implemented inbox in defineAIPersistence', () => {

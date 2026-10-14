@@ -387,9 +387,14 @@ describe('host.resumePending', () => {
     })
     await vi.waitFor(() => expect(calls).toHaveLength(1))
     await vi.waitFor(async () =>
-      expect((await persistence.stores.inbox.get('in-1'))?.status).toBe(
-        'applied',
-      ),
+      expect(
+        (
+          await persistence.stores.inbox.get({
+            threadId: THREAD,
+            inputId: 'in-1',
+          })
+        )?.status,
+      ).toBe('applied'),
     )
     await host.close()
   })
