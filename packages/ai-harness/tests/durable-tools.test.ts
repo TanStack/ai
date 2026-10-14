@@ -266,6 +266,49 @@ describe('host records of a tool batch', () => {
     await next.host.close().catch(() => {})
   })
 
+  it('lands them with the call result, so a crash later in the batch keeps them', async () => {
+    const persistence = durablePersistence()
+    const note = durableTool(noteDefinition, async (_args, { append }) => {
+      append([{ type: 'app.state_write', name: 'x', value: 1 }])
+      return 'noted'
+    })
+    // Still runs when the host stops.
+    const wait = toolDefinition({
+      name: 'wait',
+      description: 'Wait',
+    }).server((_args, context) => untilAborted(context?.abortSignal))
+    const { adapter } = mockAdapter([
+      () =>
+        toolCalls([
+          { id: 'call-note', name: 'note' },
+          { id: 'call-wait', name: 'wait' },
+        ]),
+    ])
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/durable-tools-result',
+        adapter,
+        tools: [note, wait],
+      }),
+      { threadId: THREAD },
+    )
+    const turn = session.prompt('note and wait', { inputId: 'result-1' })
+
+    await vi.waitFor(async () =>
+      expect(await recordsOf(persistence, 'harness.tool.result')).toHaveLength(
+        1,
+      ),
+    )
+    // The stored result means the call never runs again, so its record is
+    // in the log with it.
+    expect(await recordsOf(persistence, 'app.state_write')).toEqual([
+      { type: 'app.state_write', name: 'x', value: 1 },
+    ])
+    await host.close().catch(() => {})
+    await Promise.resolve(turn).catch(() => {})
+  })
+
   it('keeps them staged when a middleware appends records in the batch', async () => {
     const persistence = durablePersistence()
     const appended = gate()

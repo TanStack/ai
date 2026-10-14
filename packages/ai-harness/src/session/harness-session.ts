@@ -76,6 +76,12 @@ export class HarnessSession<
     }
   }
 
+  /** Also waits for the last append of the log, so a reopen reads it. */
+  override async close(options?: { recoverable?: boolean }): Promise<void> {
+    await super.close(options)
+    await this.writer?.flush().catch(() => {})
+  }
+
   /** Read `harness.plugins()` and set up its session plugins. */
   protected async mountSessionPlugins(): Promise<void> {
     this.plugins = this.harness.plugins?.() ?? []

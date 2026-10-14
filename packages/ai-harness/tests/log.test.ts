@@ -215,6 +215,127 @@ describe('transcript fold', () => {
   })
 })
 
+describe('fold robustness', () => {
+  it('skips a host record whose projection throws, live and after a reload', async () => {
+    const store = memoryLogStore()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const throwing: ProjectOptions = {
+      version: 'v1',
+      record: ({ messages, record }) => {
+        if (record.type === 'app.bad') throw new Error('bad record')
+        return project.record({ messages, record })
+      },
+    }
+    const writer = newWriter(store, { project: throwing })
+
+    await writer.append([
+      { type: 'app.bad' },
+      { type: 'app.signal', text: 'after' },
+    ])
+    await writer.append([{ type: 'app.signal', text: 'later' }])
+
+    expect(writer.state.seq).toBe(3)
+    expect(writer.state.messages.map((message) => message.content)).toEqual([
+      'after',
+      'later',
+    ])
+    const reloaded = await loadSession({ store, project: throwing })
+    expect(reloaded.messages).toEqual(writer.state.messages)
+    expect(warn).toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it('folds every page of a store that returns short pages', async () => {
+    const inner = memoryLogStore()
+    const capped: LogStore = {
+      ...silentStore(inner),
+      read: (threadId, options) =>
+        inner.read(threadId, {
+          ...options,
+          limit: Math.min(options?.limit ?? 2, 2),
+        }),
+    }
+    for (let seq = 1; seq <= 5; seq += 1) {
+      await inner.append({
+        threadId: THREAD,
+        seq,
+        records: [{ type: 'app.signal', text: `s${seq}` }],
+      })
+    }
+
+    const state = await loadSession({ store: capped, project })
+
+    expect(state.seq).toBe(5)
+    expect(state.messages).toHaveLength(5)
+  })
+})
+
+describe('tool call records', () => {
+  const result = (toolCallId: string): LogRecord => ({
+    type: 'harness.tool.result',
+    toolCallId,
+    message: { role: 'tool', toolCallId, content: 'ok' },
+  })
+
+  it('appends the staged records of a call with its result, not with another commit', async () => {
+    const { store, batches } = recordingStore()
+    const writer = newWriter(store)
+
+    writer.stage([{ type: 'app.charged' }], 'call-1')
+    await writer.commit({ messages: [user('u1', 'hi')] })
+    await writer.append([result('call-1')])
+
+    expect(batches).toEqual([
+      ['harness.transcript'],
+      ['app.charged', 'harness.tool.result'],
+    ])
+  })
+
+  it('forgets the result, start, and steps of a call once its result is in the transcript', async () => {
+    const writer = newWriter(memoryLogStore())
+    const call: ModelMessage = {
+      id: 'a1',
+      role: 'assistant',
+      content: '',
+      toolCalls: [
+        {
+          id: 'call-1',
+          type: 'function',
+          function: { name: 'pay', arguments: '{}' },
+        },
+      ],
+    }
+    await writer.append([
+      {
+        type: 'harness.tool.started',
+        toolCallId: 'call-1',
+        name: 'pay',
+        replay: 'safe',
+      },
+      {
+        type: 'harness.tool.step',
+        toolCallId: 'call-1',
+        name: 'charge',
+        value: 'c-1',
+      },
+      result('call-1'),
+    ])
+    expect(writer.state.toolResults.size).toBe(1)
+
+    await writer.commit({
+      messages: [
+        user('u1', 'pay'),
+        call,
+        { role: 'tool', toolCallId: 'call-1', content: 'ok' },
+      ],
+    })
+
+    expect(writer.state.toolResults.size).toBe(0)
+    expect(writer.state.started.size).toBe(0)
+    expect(writer.state.steps.size).toBe(0)
+  })
+})
+
 describe('input fold', () => {
   it('keeps the newest retry count of an input', async () => {
     const store = memoryLogStore()
@@ -460,6 +581,59 @@ describe('write failures', () => {
     expect(calls).toBe(2)
   })
 
+  it('stops when a read of records from another writer fails', async () => {
+    const inner = memoryLogStore()
+    let isDown = false
+    const store: LogStore = {
+      ...silentStore(inner),
+      read: async (threadId, options) => {
+        if (isDown) throw new Error('read failed')
+        return inner.read(threadId, options)
+      },
+      subscribe: ({ threadId, listener }) =>
+        inner.subscribe({ threadId, listener }),
+    }
+    const failures: Array<unknown> = []
+    newWriter(store, { onFailure: (e) => failures.push(e) })
+    isDown = true
+
+    await inner.append({
+      threadId: THREAD,
+      seq: 1,
+      records: [{ type: 'app.other' }],
+    })
+
+    await expect.poll(() => failures.length).toBe(1)
+    expect(failures[0]).toMatchObject({ message: 'read failed' })
+  })
+
+  it('counts a landed batch as written when the store reorders its keys', async () => {
+    const inner = memoryLogStore()
+    let calls = 0
+    const reordering: LogStore = {
+      ...silentStore(inner),
+      append: async ({ threadId, seq, records: batch }) => {
+        calls += 1
+        await inner.append({ threadId, seq, records: batch })
+        if (calls === 1) throw new Error('timeout after the write')
+      },
+      read: async (threadId, options) =>
+        (await inner.read(threadId, options)).map((entry) => ({
+          ...entry,
+          record: {
+            ...Object.fromEntries(Object.entries(entry.record).reverse()),
+            type: entry.record.type,
+          },
+        })),
+    }
+    const writer = newWriter(reordering)
+
+    await writer.append([{ type: 'app.one', a: 1, b: { c: 2, d: 3 } }])
+    await writer.append([{ type: 'app.two' }])
+
+    expect(calls).toBe(2)
+  })
+
   it('tries once more after a store error, then fails with that error', async () => {
     let calls = 0
     const down: LogStore = {
@@ -542,6 +716,32 @@ describe('fold checkpoints', () => {
     const state = await loadSession({ store, metadata, project })
 
     expect(state.messages).toEqual([user('u1', 'one'), user('u2', 'two')])
+  })
+
+  it('counts usage once after two loads from one checkpoint', async () => {
+    const store = memoryLogStore()
+    const { metadata } = memoryPersistence().stores
+    const writer = newWriter(store, { metadata })
+    const usage: LogRecord = {
+      type: 'harness.usage',
+      model: 'm',
+      usage: {
+        promptTokens: 1,
+        completionTokens: 1,
+        totalTokens: 2,
+        cachedTokens: 0,
+        cacheWriteTokens: 0,
+      },
+    }
+    for (let index = 0; index < 51; index += 1) await writer.append([usage])
+    await expect
+      .poll(() => metadata.get(NAMESPACE, THREAD))
+      .toMatchObject({ seq: 50 })
+
+    await loadSession({ store, metadata })
+    const state = await loadSession({ store, metadata })
+
+    expect(state.usage.total.calls).toBe(51)
   })
 
   it('writes a checkpoint every 50 appends', async () => {
@@ -952,14 +1152,14 @@ describe('a log shared by sessions', () => {
     expect(seen).toEqual(['op-child'])
   })
 
-  it('closes after the last view closes, and opens no view after that', () => {
+  it('closes after the last view closes, and opens no view after that', async () => {
     const { log, root, child } = sharedWriter(memoryLogStore())
 
     root.close()
     expect(log.isOpen).toBe(true)
     child.close()
 
-    expect(log.isOpen).toBe(false)
+    await vi.waitFor(() => expect(log.isOpen).toBe(false))
     expect(() => log.view('log-1', () => {})).toThrow(
       'The log "log-1" is closed.',
     )
@@ -1016,6 +1216,39 @@ describe('a log shared by sessions', () => {
     const again = log.view('log-1', () => {})
     await again.append([{ type: 'app.note' }])
     expect(await records(store, 'log-1')).toEqual([{ type: 'app.note' }])
+  })
+
+  it('stays open until the last append of a closed view lands', async () => {
+    const inner = memoryLogStore()
+    let release = () => {}
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const store: LogStore = {
+      ...silentStore(inner),
+      append: async (options) => {
+        await held
+        await inner.append(options)
+      },
+    }
+    const log = new SharedLog({
+      store,
+      logId: THREAD,
+      state: emptySharedLogState(),
+      coalesceMs: 0,
+    })
+    const view = log.view(THREAD, () => {})
+    void view.append([{ type: 'app.last' }])
+    view.close()
+
+    expect(log.isOpen).toBe(true)
+    // An open now gets this log, so it has the last append.
+    const next = log.view(THREAD, () => {})
+    release()
+    await next.flush()
+    expect(next.state.seq).toBe(1)
+    next.close()
+    await vi.waitFor(() => expect(log.isOpen).toBe(false))
   })
 
   it('drops the staged records of a closed view', async () => {
