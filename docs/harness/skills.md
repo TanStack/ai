@@ -13,6 +13,8 @@ keywords:
 
 Your users keep skills as `SKILL.md` folders, in the repo and in their home folder, and they want to call them from your agent like any other command. The skills plugin reads those folders, gives the model the list of skills, and makes each skill a `/<name>` command. A skill that a user adds while the session runs works at once.
 
+The plugin reads the folders with `node:fs`, so it runs on Node.js. It does not work on Cloudflare Workers.
+
 ## 1. Add the plugin
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
