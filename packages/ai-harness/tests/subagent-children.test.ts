@@ -28,15 +28,13 @@ async function openLead(
     run: (ctx) => ctx.chat({ adapter: child }),
   })
   const host = createHarnessHost({ persistence })
-  const session = await host.open(
-    defineHarness({
-      name: 'test/subagent-children',
-      adapter: lead,
-      subagents: { agents: [writer] },
-    }),
-    { threadId: 't' },
-  )
-  return { host, session }
+  const harness = defineHarness({
+    name: 'test/subagent-children',
+    adapter: lead,
+    subagents: { agents: [writer] },
+  })
+  const session = await host.open(harness, { threadId: 't' })
+  return { host, session, harness }
 }
 
 /** One lead model call of the `writer` tool. */
@@ -169,6 +167,40 @@ describe('subagent children of a harness session', () => {
     await woke.opened
 
     expect(messageTexts(lead.calls[2]).at(-1)).toBe(WAKE)
+    await host.close()
+  })
+
+  it('reads the transcript of a child, only from its own thread', async () => {
+    const persistence = memoryPersistence()
+    const lead = mockAdapter([
+      () => callWriter({ prompt: 'Take notes' }, 'call-1'),
+      () => text('Done.'),
+    ])
+    const child = mockAdapter(() => text('Note 1'))
+    const { host, session, harness } = await openLead(
+      lead.adapter,
+      child.adapter,
+      persistence,
+    )
+    await session.prompt('Notes, please')
+    const id = childIdIn(lead.calls[1], 'call-1')
+    // A fork copies the agent result, but the child stays a child of `t`.
+    const fork = await host.fork(harness, { threadId: 't', newThreadId: 'f' })
+
+    const transcript = await session.agentTranscript(id)
+    expect(
+      transcript.map((message) => [message.role, message.content]),
+    ).toEqual([
+      ['user', 'Take notes'],
+      ['assistant', 'Note 1'],
+    ])
+    expect(await session.agentTranscript('unknown')).toEqual([])
+    const other = await host.open(
+      defineHarness({ name: 'test/subagent-children', adapter: lead.adapter }),
+      { threadId: 'u' },
+    )
+    expect(await other.agentTranscript(id)).toEqual([])
+    expect(await fork.agentTranscript(id)).toEqual([])
     await host.close()
   })
 })

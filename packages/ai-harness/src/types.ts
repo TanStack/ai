@@ -84,6 +84,56 @@ export interface SessionEvent {
 }
 
 /**
+ * The event an `onEvent` listener gets, at the moment the session publishes
+ * it. It has no cursor: to read events again after a restart, use
+ * `events({ from })`.
+ */
+export interface LiveEvent<TEvent extends StreamChunk = StreamChunk> {
+  /** The operation that produced the event. */
+  operationId: string
+  event: TEvent
+}
+
+/** The `type` of an AG-UI event, as a string: `'TEXT_MESSAGE_CONTENT'`. */
+export type StreamChunkType = `${StreamChunk['type']}`
+
+/** The AG-UI event whose `type` is `TType`. */
+export type StreamChunkOf<TType extends StreamChunkType> =
+  StreamChunk extends infer TEvent
+    ? TEvent extends StreamChunk
+      ? `${TEvent['type']}` extends `${TType}`
+        ? TEvent
+        : never
+      : never
+    : never
+
+/**
+ * Call `listener` for each event, as the session publishes it. Pass a `type`
+ * first to get only the events of that type. Returns a function that stops
+ * the calls.
+ *
+ * The session calls listeners in order, right after it publishes the event.
+ * A listener that throws does not stop the turn. Keep listeners fast: a slow
+ * listener slows the stream.
+ *
+ * @example
+ * ```ts
+ * const stop = session.onEvent('TEXT_MESSAGE_CONTENT', ({ event }) => {
+ *   process.stdout.write(event.delta)
+ * })
+ * await session.prompt('Write a haiku.')
+ * stop()
+ * ```
+ */
+export interface OnEvent {
+  (listener: (entry: LiveEvent) => void): () => void
+  <TType extends StreamChunkType>(
+    type: TType,
+    listener: (entry: LiveEvent<StreamChunkOf<TType>>) => void,
+  ): () => void
+}
+
+/**
  * An input a client sends to a session. Stored in the inbox, or in the log of
  * a durable host.
  *
@@ -298,6 +348,11 @@ export interface ChatTurnResult {
   text: string
   /** Set when the turn stopped for outside input. */
   interrupts?: Array<Interrupt>
+  /**
+   * The media files that the agents of this turn saved, in order. Empty for
+   * a turn that a restart finished, and for a duplicate input.
+   */
+  media: Array<MediaRecord>
 }
 
 /**
@@ -324,6 +379,14 @@ export interface Operation<TResult> extends PromiseLike<TResult> {
   }) => AsyncIterable<SessionEvent>
   /** This operation's raw AG-UI chunks, for existing transports. */
   stream: (options?: { signal?: AbortSignal }) => AsyncIterable<StreamChunk>
+  /** {@link OnEvent} for the events of this operation only. */
+  onEvent: OnEvent
+  /**
+   * Call `listener` for each media file that this operation saves, as it is
+   * saved. Returns a function that stops the calls. A chat turn also gives
+   * every record in `media` of its result.
+   */
+  onMedia: (listener: (entry: { media: MediaRecord }) => void) => () => void
   cancel: (reason?: string) => Promise<Receipt>
 }
 

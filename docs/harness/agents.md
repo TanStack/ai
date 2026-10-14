@@ -85,7 +85,7 @@ if (setting?.option.type === 'select') {
   console.log(setting.value, setting.option.options) // 'build' ['build', 'plan']
 }
 
-await session.setConfig('agent', 'plan')
+await session.setConfig({ key: 'agent', value: 'plan' })
 ```
 
 A client can change the setting only when the harness exposes it. Add `expose: { config: ['agent'] }` to `defineHarness`.

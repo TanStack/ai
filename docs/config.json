@@ -761,7 +761,7 @@
           "label": "Store Reference",
           "to": "persistence/store-reference",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-10-13"
+          "updatedAt": "2026-10-14"
         },
         {
           "label": "How Persistence Works",
@@ -926,12 +926,14 @@
         {
           "label": "Build your first harness",
           "to": "harness/overview",
-          "addedAt": "2026-10-13"
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-14"
         },
         {
           "label": "Send and show media",
           "to": "harness/media",
-          "addedAt": "2026-10-13"
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-14"
         },
         {
           "label": "Durable sessions",
@@ -941,7 +943,8 @@
         {
           "label": "List, rename, and fork sessions",
           "to": "harness/sessions",
-          "addedAt": "2026-10-13"
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-14"
         },
         {
           "label": "Run side effects once",
@@ -971,7 +974,8 @@
         {
           "label": "Fork and reset a thread",
           "to": "harness/fork-and-reset",
-          "addedAt": "2026-10-13"
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-14"
         },
         {
           "label": "Share one log between sessions",
@@ -982,24 +986,25 @@
           "label": "Write a plugin",
           "to": "harness/plugins",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-13"
+          "updatedAt": "2026-10-14"
         },
         {
           "label": "Track usage and cost",
           "to": "harness/usage",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-13"
+          "updatedAt": "2026-10-14"
         },
         {
           "label": "Ask before risky tool calls",
           "to": "harness/permissions",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-13"
+          "updatedAt": "2026-10-14"
         },
         {
           "label": "Switch between agent profiles",
           "to": "harness/agents",
-          "addedAt": "2026-10-13"
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-14"
         },
         {
           "label": "Code mode in a harness",
@@ -1009,6 +1014,17 @@
         {
           "label": "Run agents from a harness",
           "to": "harness/subagents",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-14"
+        },
+        {
+          "label": "Add skills",
+          "to": "harness/skills",
+          "addedAt": "2026-10-13"
+        },
+        {
+          "label": "Use a harness from an editor (ACP)",
+          "to": "harness/acp",
           "addedAt": "2026-10-13"
         }
       ]

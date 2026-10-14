@@ -83,18 +83,17 @@ console.log(turn.text)
 
 The session saves the transcript, so the next prompt continues the same conversation.
 
-To show the answer while it streams, read the events of the operation:
+Want the words as they arrive? Give the operation a listener for the event type you care about:
 
 ```ts group=harness-first
 const next = session.prompt('Now one about the mountains.')
-for await (const entry of next.events()) {
-  if (entry.event.type === 'TEXT_MESSAGE_CONTENT') {
-    process.stdout.write(entry.event.delta)
-  }
-}
+next.onEvent('TEXT_MESSAGE_CONTENT', ({ event }) => {
+  process.stdout.write(event.delta)
+})
+await next
 ```
 
-The events are standard AG-UI events. `session.events({ from: cursor })` gives the events of every operation, from a cursor you saved.
+The events are standard AG-UI events, and `event` has the type you asked for. To listen to every operation of the session, see [React to events](./sessions#react-to-events).
 
 ## 4. Send messages while it works
 

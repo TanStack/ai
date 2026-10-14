@@ -102,20 +102,33 @@ async function* sseData(response: Response): AsyncGenerator<unknown> {
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
-  while (true) {
-    const { value, done } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-    const blocks = buffer.split('\n\n')
-    buffer = blocks.pop() ?? ''
-    for (const block of blocks) {
-      const data = block
-        .split('\n')
-        .find((line) => line.startsWith('data: '))
-        ?.slice(6)
-      if (data) yield JSON.parse(data)
+  try {
+    while (true) {
+      const { value, done } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      // SSE allows CRLF line ends too.
+      const blocks = buffer.split(/\r?\n\r?\n/)
+      buffer = blocks.pop() ?? ''
+      for (const block of blocks) {
+        const data = block
+          .split(/\r?\n/)
+          .find((line) => line.startsWith('data: '))
+          ?.slice(6)
+        if (data) yield JSON.parse(data)
+      }
     }
+  } finally {
+    // An early return or a failed read stops the body too.
+    await reader.cancel().catch(() => {})
   }
+}
+
+/** The abort signal of a `chatStream` call, if the caller gave one. */
+function signalOf(request: unknown) {
+  return isRecord(request) && request.signal instanceof AbortSignal
+    ? request.signal
+    : undefined
 }
 
 function remoteHarnessText(remote: RemoteHarness): AnyTextAdapter {
@@ -142,6 +155,7 @@ function remoteHarnessText(remote: RemoteHarness): AnyTextAdapter {
         ])
         const response = await doFetch(`${base}/run`, {
           method: 'POST',
+          signal: signalOf(chatOptions.request),
           headers: {
             'Content-Type': 'application/json',
             ...(remote.token
@@ -170,16 +184,14 @@ function remoteHarnessText(remote: RemoteHarness): AnyTextAdapter {
           threadId,
           timestamp: Date.now(),
         }
+        let hasFinished = false
         for await (const data of sseData(response)) {
           if (!isRecord(data) || typeof data.type !== 'string') continue
           // The handler sends AG-UI chunks over SSE.
           const chunk = data as StreamChunk
-          if (
-            FORWARDED.has(chunk.type) &&
-            !('subagentRunId' in chunk && chunk.subagentRunId)
-          ) {
-            yield chunk
-          }
+          const isOwn = !('subagentRunId' in chunk && chunk.subagentRunId)
+          if (FORWARDED.has(chunk.type) && isOwn) yield chunk
+          if (chunk.type === EventType.RUN_FINISHED && isOwn) hasFinished = true
           if (chunk.type === EventType.RUN_ERROR) {
             yield {
               type: EventType.RUN_ERROR,
@@ -188,6 +200,16 @@ function remoteHarnessText(remote: RemoteHarness): AnyTextAdapter {
             }
             return
           }
+        }
+        // A stream that ends with no RUN_FINISHED lost the end of the run.
+        if (!hasFinished) {
+          yield {
+            type: EventType.RUN_ERROR,
+            message:
+              'The remote harness closed the stream before the run ended.',
+            timestamp: Date.now(),
+          }
+          return
         }
         yield {
           type: EventType.RUN_FINISHED,
@@ -239,47 +261,56 @@ export function harnessText(
         host ??= createHarnessHost()
         const threadId = `${chatOptions.threadId ?? 'default'}:${harness.name}`
         const runId = chatOptions.runId ?? `harness-${Date.now().toString(36)}`
-        const signal =
-          isRecord(chatOptions.request) &&
-          chatOptions.request.signal instanceof AbortSignal
-            ? chatOptions.request.signal
-            : undefined
+        const signal = signalOf(chatOptions.request)
         const session = await host.open(harness, { threadId })
         const operation = session.prompt(lastUserInput(chatOptions.messages))
-        signal?.addEventListener('abort', () => void operation.cancel(), {
-          once: true,
-        })
-
-        yield {
-          type: EventType.RUN_STARTED,
-          runId,
-          threadId,
-          timestamp: Date.now(),
+        const cancel = () => {
+          operation.cancel().catch(() => {})
         }
-        let failed: string | undefined
-        for await (const chunk of operation.stream()) {
-          if (
-            FORWARDED.has(chunk.type) &&
-            !('subagentRunId' in chunk && chunk.subagentRunId)
-          ) {
-            yield chunk
-          }
-          if (chunk.type === EventType.RUN_ERROR) failed = chunk.message
-        }
-        if (failed !== undefined) {
+        // A signal that aborted already never fires its event.
+        if (signal?.aborted) cancel()
+        else signal?.addEventListener('abort', cancel, { once: true })
+        try {
           yield {
-            type: EventType.RUN_ERROR,
-            message: failed,
+            type: EventType.RUN_STARTED,
+            runId,
+            threadId,
             timestamp: Date.now(),
           }
-          return
-        }
-        yield {
-          type: EventType.RUN_FINISHED,
-          runId,
-          threadId,
-          timestamp: Date.now(),
-          metadata: { tanstack: { finishReason: 'stop' } },
+          let failed: string | undefined
+          for await (const chunk of operation.stream()) {
+            if (
+              FORWARDED.has(chunk.type) &&
+              !('subagentRunId' in chunk && chunk.subagentRunId)
+            ) {
+              yield chunk
+            }
+            if (chunk.type === EventType.RUN_ERROR) failed = chunk.message
+          }
+          // A cancel or a store failure ends the turn with no RUN_ERROR.
+          try {
+            await operation
+          } catch (error) {
+            failed ??= error instanceof Error ? error.message : String(error)
+          }
+          if (failed !== undefined) {
+            yield {
+              type: EventType.RUN_ERROR,
+              message: failed,
+              timestamp: Date.now(),
+            }
+            return
+          }
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId,
+            threadId,
+            timestamp: Date.now(),
+            metadata: { tanstack: { finishReason: 'stop' } },
+          }
+        } finally {
+          // A long-lived signal must not keep one listener per call.
+          signal?.removeEventListener('abort', cancel)
         }
       })(),
     structuredOutput: () =>

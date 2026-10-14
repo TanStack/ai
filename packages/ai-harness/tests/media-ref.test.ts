@@ -30,16 +30,22 @@ describe('kindOf', () => {
     ['text/plain', 'document'],
     ['text/markdown; charset=utf-8', 'document'],
     ['IMAGE/JPEG', 'image'],
+    ['video/webm;codecs=vp8,opus', 'video'],
   ] as const)('maps %s to %s', (mimeType, kind) => {
     expect(kindOf(mimeType)).toBe(kind)
   })
 
-  it.each(['application/zip', 'application/json', 'image', 'image/', ''])(
-    'returns undefined for %j',
-    (mimeType) => {
-      expect(kindOf(mimeType)).toBeUndefined()
-    },
-  )
+  it.each([
+    'application/zip',
+    'application/json',
+    'image',
+    'image/',
+    '',
+    'text/plain,x',
+    'image/png;\r\nx=y',
+  ])('returns undefined for %j', (mimeType) => {
+    expect(kindOf(mimeType)).toBeUndefined()
+  })
 })
 
 describe('mediaPart', () => {

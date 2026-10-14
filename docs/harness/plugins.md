@@ -79,8 +79,8 @@ export const greeter = definePlugin({
 ```
 
 - `session.command('greet', { name: 'Ada' })` runs the command. The input is checked against its schema.
-- `session.setConfig('tone', 'warm')` changes the setting. A value the option does not accept is rejected.
-- `ask` waits for `session.answer(questionId, value)`. The question shows up in `session.snapshot().pendingQuestions`.
+- `session.setConfig({ key: 'tone', value: 'warm' })` changes the setting. A value the option does not accept is rejected.
+- `ask` waits for `session.answer({ questionId, value })`. The question shows up in `session.snapshot().pendingQuestions`.
 
 ## Change commands while the session runs
 
@@ -130,6 +130,8 @@ export const greetings = definePlugin({
   },
 })
 ```
+
+The [skills plugin](./skills) works this way: one command for each skill in a folder.
 
 ## Change agents while the session runs
 
@@ -287,6 +289,8 @@ export const modelOfTheOrg = definePlugin({
 ```
 
 A plugin with the default lifetime has no turn at setup, so its `ctx.turn` is `undefined`.
+
+A `lifetime: 'turn'` plugin lives for one turn, so it cannot add commands or config options. If it tries, the turn fails with an error. Put them in a plugin with the default lifetime.
 
 ### Leave out the harness model
 

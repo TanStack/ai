@@ -125,8 +125,11 @@ describe('turn overrides: adapter', () => {
 
     expect(
       await session.prompt('go', { overrides: { adapter: turnModel.adapter } }),
-    ).toEqual({ text: 'done' })
-    expect(await session.prompt('again')).toEqual({ text: 'default' })
+    ).toEqual({ text: 'done', media: [] })
+    expect(await session.prompt('again')).toEqual({
+      text: 'default',
+      media: [],
+    })
 
     expect(turnModel.calls).toHaveLength(3)
     expect(calls).toHaveLength(1)
@@ -150,7 +153,7 @@ describe('turn overrides: adapter', () => {
 
     expect(
       await session.prompt('go', { overrides: { adapter: keyed } }),
-    ).toEqual({ text: 'keyed' })
+    ).toEqual({ text: 'keyed', media: [] })
     expect(keys).toEqual(['sk-env-1234'])
     await host.close()
   })
@@ -337,8 +340,8 @@ describe('turn overrides: queue, steer, and recovery', () => {
     expect((await second.receipt).status).toBe('queued')
     release.open()
 
-    expect(await first).toEqual({ text: 'first' })
-    expect(await second).toEqual({ text: 'second' })
+    expect(await first).toEqual({ text: 'first', media: [] })
+    expect(await second).toEqual({ text: 'second', media: [] })
     expect(calls).toHaveLength(1)
     expect(turnModel.calls).toHaveLength(1)
     await host.close()
@@ -369,8 +372,8 @@ describe('turn overrides: queue, steer, and recovery', () => {
     await steer.receipt
     release.open()
 
-    expect(await turn).toEqual({ text: 'done' })
-    expect(await steer).toEqual({ text: 'done' })
+    expect(await turn).toEqual({ text: 'done', media: [] })
+    expect(await steer).toEqual({ text: 'done', media: [] })
     expect(messageTexts(hostModel.calls[1])).toContain('two')
     expect(steerModel.calls).toHaveLength(0)
     expect(calls).toHaveLength(0)
@@ -396,8 +399,8 @@ describe('turn overrides: queue, steer, and recovery', () => {
     await steer.receipt
     release.open()
 
-    expect(await turn).toEqual({ text: 'first' })
-    expect(await steer).toEqual({ text: 'second' })
+    expect(await turn).toEqual({ text: 'first', media: [] })
+    expect(await steer).toEqual({ text: 'second', media: [] })
     expect(hostModel.calls).toHaveLength(1)
     expect(steerModel.calls).toHaveLength(1)
     expect(calls).toHaveLength(0)
@@ -499,7 +502,7 @@ describe('turn overrides: plugin adapter picker', () => {
 
     const turn = session.prompt('go', { inputId: 'in-7', overrides })
 
-    expect(await turn).toEqual({ text: 'turn' })
+    expect(await turn).toEqual({ text: 'turn', media: [] })
     expect(seen).toEqual([
       { operationId: turn.id, inputId: 'in-7', message: 'go', overrides },
     ])
@@ -523,6 +526,7 @@ describe('ephemeral input', () => {
 
     expect(await session.prompt('go', { ephemeral: note })).toEqual({
       text: 'done',
+      media: [],
     })
 
     expect(messageTexts(calls[0])).toEqual(['go', NOTE])
@@ -535,13 +539,17 @@ describe('ephemeral input', () => {
 
   it('gives the ephemeral messages of continue to the model, and no store keeps them', async () => {
     const persistence = durablePersistence()
-    await persistence.stores.log.append(THREAD, 1, [
-      {
-        type: 'harness.transcript',
-        keep: 0,
-        add: [{ id: 'u1', role: 'user', content: 'go' }],
-      },
-    ])
+    await persistence.stores.log.append({
+      threadId: THREAD,
+      seq: 1,
+      records: [
+        {
+          type: 'harness.transcript',
+          keep: 0,
+          add: [{ id: 'u1', role: 'user', content: 'go' }],
+        },
+      ],
+    })
     const { host, session, calls } = await open(
       [() => text('done')],
       {},
@@ -550,6 +558,7 @@ describe('ephemeral input', () => {
 
     expect(await session.continue({ ephemeral: note })).toEqual({
       text: 'done',
+      media: [],
     })
 
     expect(messageTexts(calls[0])).toEqual(['go', NOTE])
