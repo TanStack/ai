@@ -12,7 +12,7 @@ import {
   definePlugin,
 } from '../src'
 import { gate, mockAdapter, text, toolCall } from './helpers'
-import type { SessionEvent } from '../src'
+import type { PluginState, SessionEvent } from '../src'
 
 const settings = definePlugin({
   name: 'test/settings',
@@ -366,6 +366,116 @@ describe('plugin state and events', () => {
     await expect(session.command('bump')).rejects.toThrow(
       'state update conflicted 5 times',
     )
+    await host.close()
+  })
+
+  it('keeps both of two concurrent updates with a store without setIf', async () => {
+    const base = memoryPersistence()
+    const plain = {
+      ...base,
+      stores: {
+        ...base.stores,
+        metadata: {
+          get: (namespace: string, key: string) =>
+            base.stores.metadata.get(namespace, key),
+          set: (namespace: string, key: string, value: unknown) =>
+            base.stores.metadata.set(namespace, key, value),
+        },
+      },
+    }
+    let state: PluginState<{ count: number }> | undefined
+    const host = createHarnessHost({ persistence: plain as never })
+    await host.open(
+      defineHarness({
+        name: 'test/state-race',
+        adapter: mockAdapter([]).adapter,
+        plugins: () => [
+          definePlugin({
+            name: 'test/race',
+            setup: (ctx) => {
+              state = ctx.state({ count: 0 })
+            },
+          }),
+        ],
+      }),
+      { threadId: 't' },
+    )
+    if (!state) throw new Error('The plugin did not set up.')
+    const bump = (value: { count: number }) => ({ count: value.count + 1 })
+
+    await Promise.all([state.update(bump), state.update(bump)])
+
+    expect(await state.get()).toEqual({ count: 2 })
+    await host.close()
+  })
+
+  it('warns when an async listener rejects', async () => {
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/async-listener',
+        adapter: mockAdapter([]).adapter,
+        plugins: () => [
+          definePlugin({
+            name: 'test/async-listener',
+            setup: (ctx) => {
+              ctx.on(counter, async () => {
+                throw new Error('listener broke')
+              })
+              return {
+                commands: {
+                  ping: defineCommand({
+                    description: 'Emit',
+                    run: () => ctx.emit(counter, 1),
+                  }),
+                },
+              }
+            },
+          }),
+        ],
+      }),
+      { threadId: 't' },
+    )
+    const warnings: Array<unknown> = []
+    session.onEvent(EventType.CUSTOM, ({ event }) => {
+      if (event.name === 'harness.plugin.warning') warnings.push(event.value)
+    })
+
+    await session.command('ping')
+
+    await vi.waitFor(() =>
+      expect(warnings).toEqual([
+        { plugin: 'harness:events', message: 'listener broke' },
+      ]),
+    )
+    await host.close()
+  })
+
+  it('loads the saved state of a plugin whose name is an Object key', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.metadata.set('plugin:constructor', 't', {
+      saved: true,
+    })
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/state-names',
+        adapter: mockAdapter([]).adapter,
+        plugins: () => [
+          definePlugin({
+            name: 'constructor',
+            setup: (ctx) => {
+              ctx.state({ saved: false })
+            },
+          }),
+        ],
+      }),
+      { threadId: 't' },
+    )
+
+    expect(session.snapshot().plugins).toEqual({
+      constructor: { saved: true },
+    })
     await host.close()
   })
 })

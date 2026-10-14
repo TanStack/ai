@@ -225,10 +225,13 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       reject: (error: unknown) => void
     }
   >()
-  protected readonly stateDoc: Record<string, unknown> = {}
+  /** Plugin state by plugin name. No prototype, so any name is a plain key. */
+  protected readonly stateDoc: Record<string, unknown> = Object.create(null)
   /** Reads each plugin's saved state, so the first snapshot has it. */
   protected readonly stateLoaders = new Map<string, () => Promise<unknown>>()
   protected readonly localState = new Map<string, unknown>()
+  /** The last plugin state update of each namespace, for a store without `setIf`. */
+  protected readonly stateWrites = new Map<string, Promise<unknown>>()
   /** The revert that stands. See `revert`. */
   protected reverted: RevertState | undefined
   /** The credentials of the running turn's sender, else of the session's principal. */
@@ -421,10 +424,13 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   /** The resolved plugin plan: order, owners, and extension contributors. */
   inspect(): SessionInspection {
     const mounted = this.sessionPlugins
-    const extensionPoints: Record<string, Array<string>> = {}
-    for (const [point, items] of mounted?.extensions ?? []) {
-      extensionPoints[point] = [...new Set(items.map((item) => item.owner))]
-    }
+    // fromEntries defines own keys, so a point named `__proto__` stays a key.
+    const extensionPoints: Record<string, Array<string>> = Object.fromEntries(
+      [...(mounted?.extensions ?? [])].map(([point, items]) => [
+        point,
+        [...new Set(items.map((item) => item.owner))],
+      ]),
+    )
     return {
       plugins: mounted?.owners.plugins ?? [],
       tools: mounted?.owners.tools ?? [],
@@ -450,7 +456,9 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   /** Put each plugin's saved state in the snapshot before the first read. */
   protected async loadPluginState() {
     for (const [plugin, load] of this.stateLoaders) {
-      if (!(plugin in this.stateDoc)) this.stateDoc[plugin] = await load()
+      if (!Object.hasOwn(this.stateDoc, plugin)) {
+        this.stateDoc[plugin] = await load()
+      }
     }
   }
 
@@ -471,11 +479,14 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       'session',
       customEvent(HARNESS_EVENTS.pluginEvent, { plugin, name, value }),
     )
+    // One broken listener must not stop the others. An async one may reject.
+    const warn = (error: unknown) => this.warnSession('harness:events', error)
     for (const handler of this.listeners.get(name) ?? []) {
       try {
-        handler(value)
-      } catch {
-        // One broken listener must not stop the others.
+        const result: unknown = handler(value)
+        if (result instanceof Promise) result.catch(warn)
+      } catch (error) {
+        warn(error)
       }
     }
   }
@@ -515,29 +526,43 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
         timestamp: Date.now(),
       })
     }
+    const write = async (change: (current: T) => T) => {
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const current = await read()
+        const next = change(structuredClone(current.value))
+        if (metadata?.setIf) {
+          const written = await metadata.setIf(
+            namespace,
+            key,
+            next,
+            current.revision,
+          )
+          if (!written.ok) continue
+        } else if (metadata) {
+          await metadata.set(namespace, key, next)
+        } else {
+          this.localState.set(namespace, next)
+        }
+        publish(next)
+        return next
+      }
+      throw new Error(`Plugin ${plugin}: state update conflicted 5 times.`)
+    }
     return {
       get: async () => (await read()).value,
-      update: async (change) => {
-        for (let attempt = 0; attempt < 5; attempt += 1) {
-          const current = await read()
-          const next = change(structuredClone(current.value))
-          if (metadata?.setIf) {
-            const written = await metadata.setIf(
-              namespace,
-              key,
-              next,
-              current.revision,
-            )
-            if (!written.ok) continue
-          } else if (metadata) {
-            await metadata.set(namespace, key, next)
-          } else {
-            this.localState.set(namespace, next)
-          }
-          publish(next)
-          return next
-        }
-        throw new Error(`Plugin ${plugin}: state update conflicted 5 times.`)
+      update: (change) => {
+        if (metadata?.setIf) return write(change)
+        // ponytail: without `setIf`, the updates of this session run one at
+        // a time. Another host can still race them. Use a store with `setIf`
+        // for that.
+        const run = (this.stateWrites.get(namespace) ?? Promise.resolve()).then(
+          () => write(change),
+        )
+        this.stateWrites.set(
+          namespace,
+          run.catch(() => {}),
+        )
+        return run
       },
     }
   }

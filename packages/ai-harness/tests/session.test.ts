@@ -10,6 +10,7 @@ import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import {
   HARNESS_EVENTS,
   createHarnessHost,
+  defineCommand,
   defineHarness,
   definePlugin,
 } from '../src'
@@ -564,6 +565,33 @@ describe('inbox', () => {
 })
 
 describe('plugins', () => {
+  it('fails a turn whose turn plugin adds a command', async () => {
+    const { host } = setup()
+    const session = await host.open(
+      defineHarness({
+        name: 'test/turn-commands',
+        adapter: mockAdapter([() => text('never')]).adapter,
+        plugins: () => [
+          definePlugin({
+            name: 'test/turn-command',
+            lifetime: 'turn',
+            setup: () => ({
+              commands: {
+                hello: defineCommand({ description: 'Hi', run: () => 'hi' }),
+              },
+            }),
+          }),
+        ],
+      }),
+      { threadId: 't1' },
+    )
+
+    await expect(session.prompt('Go.')).rejects.toThrow(
+      "lifetime 'turn' cannot add commands or config",
+    )
+    await host.close()
+  })
+
   // 'run' is the old name of 'turn', and still works.
   it.each(['turn', 'run'] as const)(
     'keeps session plugins across turns and sets up %s plugins per turn',
