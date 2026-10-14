@@ -81,7 +81,10 @@ describe('workspace tools with permissions', () => {
     )
     const [question] = session.snapshot().pendingQuestions
     expect(question?.message).toContain('write_file')
-    await session.answer(question!.questionId, { answer: 'once' })
+    await session.answer({
+      questionId: question!.questionId,
+      value: { answer: 'once' },
+    })
     await turn
 
     expect(await readFile(join(root, 'out.txt'), 'utf8')).toBe('written')
@@ -125,7 +128,10 @@ describe('modelPicker', () => {
       }),
     ])
     expect(await session.command('model', 'fast')).toContain('Model: fast')
-    expect(await session.prompt('hi')).toEqual({ text: 'fast answer', media: [] })
+    expect(await session.prompt('hi')).toEqual({
+      text: 'fast answer',
+      media: [],
+    })
     expect(await session.command('model', 'nope')).toContain('Unknown model')
     await host.close()
   })

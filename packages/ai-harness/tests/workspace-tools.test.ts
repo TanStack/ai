@@ -652,7 +652,7 @@ describe('permission rules, links, and grep', () => {
     const [question] = session.snapshot().pendingQuestions
     if (!question) throw new Error('No question.')
     expect(question.message).toContain('.env')
-    await session.answer(question.questionId, 'n')
+    await session.answer({ questionId: question.questionId, value: 'n' })
     await turn
     expect(seen()).not.toContain('hunter2')
     await host.close()
@@ -782,7 +782,10 @@ describe('webfetch approval', () => {
     const [question] = session.snapshot().pendingQuestions
     if (!question) throw new Error('No question.')
     expect(question.message).toContain('Allow webfetch')
-    await session.answer(question.questionId, { answer: 'reject' })
+    await session.answer({
+      questionId: question.questionId,
+      value: { answer: 'reject' },
+    })
     await turn
     await host.close()
   })

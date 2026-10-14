@@ -56,7 +56,11 @@ async function* codingTurn(
         chunk.type === EventType.CUSTOM &&
         chunk.name === HARNESS_EVENTS.question
       const [question] = asks ? session.snapshot().pendingQuestions : []
-      if (question) await session.answer(question.questionId, 'reject')
+      if (question)
+        await session.answer({
+          questionId: question.questionId,
+          value: 'reject',
+        })
     }
   } finally {
     await host.close()
