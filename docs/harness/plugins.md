@@ -290,6 +290,8 @@ export const modelOfTheOrg = definePlugin({
 
 A plugin with the default lifetime has no turn at setup, so its `ctx.turn` is `undefined`.
 
+A `lifetime: 'turn'` plugin lives for one turn, so it cannot add commands or config options. If it tries, the turn fails with an error. Put them in a plugin with the default lifetime.
+
 ### Leave out the harness model
 
 When a plugin picks the model of every turn, `defineHarness` needs no `adapter`:
