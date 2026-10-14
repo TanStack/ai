@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import {
@@ -8,7 +8,7 @@ import {
   defineHarness,
   definePlugin,
 } from '../src'
-import { after, gate, mockAdapter, text } from './helpers'
+import { after, gate, mockAdapter, text, untilAborted } from './helpers'
 import type {
   HarnessHost,
   HarnessPlugin,
@@ -148,6 +148,69 @@ describe('session.reload', () => {
     await running
     await reload
     expect(session.agent('helper')).toBeDefined()
+  })
+
+  it('mounts nothing when the session closes while the reload waits', async () => {
+    const { plugins, harness, host } = setup([untilAborted()])
+    let mounted = 0
+    let disposed = 0
+    plugins.push(
+      definePlugin({
+        name: 'test/counted',
+        setup: async (ctx) => {
+          await ctx.resources.acquire(
+            () => (mounted += 1),
+            () => (disposed += 1),
+          )
+        },
+      }),
+    )
+    const session = await host.open(harness, { threadId: 't' })
+    const running = session.prompt('first')
+    await running.receipt
+
+    const reload = session.reload()
+    // The reload waits for the running turn now.
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    await session.close()
+    await reload
+    await running.then(
+      () => undefined,
+      () => undefined,
+    )
+
+    expect(mounted).toBe(1)
+    expect(disposed).toBe(1)
+  })
+
+  it('disposes the session plugins when open fails', async () => {
+    const persistence = memoryPersistence()
+    let disposed = 0
+    const harness = defineHarness({
+      name: 'test/open-fails',
+      adapter: mockAdapter([]).adapter,
+      plugins: () => [
+        definePlugin({
+          name: 'test/counted',
+          setup: async (ctx) => {
+            await ctx.resources.acquire(
+              () => 'open',
+              () => (disposed += 1),
+            )
+          },
+        }),
+      ],
+    })
+    vi.spyOn(persistence.stores.metadata, 'get').mockRejectedValue(
+      new Error('metadata down'),
+    )
+    const host = createHarnessHost({ persistence })
+    hosts.push(host)
+
+    await expect(host.open(harness, { threadId: 't' })).rejects.toThrow(
+      'metadata down',
+    )
+    expect(disposed).toBe(1)
   })
 
   it('keeps the session working with no plugins when the new setup throws', async () => {

@@ -357,7 +357,7 @@ describe('formatter with permissions()', () => {
     )
     const [question] = session.snapshot().pendingQuestions
     if (!question) throw new Error('No question.')
-    await session.answer(question.questionId, value)
+    await session.answer({ questionId: question.questionId, value })
     return question.message
   }
 

@@ -100,7 +100,12 @@ export async function holdRunLease(
       leaseExpiresAt: Date.now() + ttlMs,
     })
   await renew()
-  const timer = setInterval(() => void renew(), lease?.renewMs ?? LEASE.renewMs)
+  // A failed renewal is retried at the next tick. The lease expires if they
+  // keep failing.
+  const timer = setInterval(
+    () => void renew().catch(() => {}),
+    lease?.renewMs ?? LEASE.renewMs,
+  )
   // A lease timer must not keep a CLI or a test process alive.
   if (typeof timer === 'object' && 'unref' in timer) timer.unref()
   return () => clearInterval(timer)
@@ -338,7 +343,18 @@ export async function repairTranscript(options: {
       }
     },
   )
-  if (added.length > 0) {
-    await messages.saveThread(threadId, [...history, ...added])
-  }
+  if (added.length === 0) return
+  // Right after the tool calls and the results they have, before messages
+  // that came later: a provider needs the results next to the calls.
+  const batchAt = history.findLastIndex(
+    (message) => message.role === 'assistant' && message.toolCalls?.length,
+  )
+  let at = batchAt + 1
+  while (history[at]?.role === 'tool') at += 1
+  if (batchAt === -1) at = history.length
+  await messages.saveThread(threadId, [
+    ...history.slice(0, at),
+    ...added,
+    ...history.slice(at),
+  ])
 }

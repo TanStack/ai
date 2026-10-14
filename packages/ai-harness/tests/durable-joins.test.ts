@@ -27,13 +27,14 @@ function durablePersistence(
   const inner = memoryLogStore()
   const batches: Array<Array<string>> = []
   const log: LogStore = {
-    append: async (threadId, seq, records) => {
+    append: async ({ threadId, seq, records }) => {
       await before?.(records)
-      await inner.append(threadId, seq, records)
+      await inner.append({ threadId, seq, records })
       batches.push(records.map((record) => record.type))
     },
     read: (threadId, options) => inner.read(threadId, options),
-    subscribe: (threadId, listener) => inner.subscribe(threadId, listener),
+    subscribe: ({ threadId, listener }) =>
+      inner.subscribe({ threadId, listener }),
   }
   const { runs, metadata } = memoryPersistence().stores
   return { persistence: { stores: { log, runs, metadata } }, batches, inner }
@@ -111,7 +112,7 @@ async function seedStoppedTurn(
         ]
       : []),
   ]
-  await persistence.stores.log.append(THREAD, 1, records)
+  await persistence.stores.log.append({ threadId: THREAD, seq: 1, records })
   await persistence.stores.runs.createOrResume({
     runId: 'op-stopped',
     threadId: THREAD,
@@ -186,7 +187,7 @@ describe('durable joins', () => {
     await late.receipt
     release.open()
 
-    expect(await turn).toEqual({ text: 'first answerlate answer' })
+    expect(await turn).toEqual({ text: 'first answerlate answer', media: [] })
     expect(calls).toHaveLength(2)
     expect(messageTexts(calls[1]).at(-1)).toBe('one more thing')
     expect(await session.settled('late')).toMatchObject({
@@ -348,7 +349,7 @@ describe('the join rule', () => {
 
     await turn
     expect(messageTexts(calls[1])).not.toContain('later')
-    expect(await later).toEqual({ text: 'later answer' })
+    expect(await later).toEqual({ text: 'later answer', media: [] })
     expect((await session.settled('later')).operationId).not.toBe(turn.id)
     await host.close()
   })
@@ -454,8 +455,8 @@ describe('the join rule', () => {
 
     await turn
     expect(messageTexts(calls[1])).not.toContain('y')
-    expect(await x).toEqual({ text: 'answer x' })
-    expect(await y).toEqual({ text: 'answer y' })
+    expect(await x).toEqual({ text: 'answer x', media: [] })
+    expect(await y).toEqual({ text: 'answer y', media: [] })
     expect(messageTexts(calls[2]).at(-1)).toBe('x')
     expect(messageTexts(calls[3]).at(-1)).toBe('y')
     await host.close()

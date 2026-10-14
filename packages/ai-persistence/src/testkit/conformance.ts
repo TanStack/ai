@@ -1589,23 +1589,31 @@ export function runPersistenceConformance(
 
         const user = { threadId: 't', userId: 'u1', tenantId: 'org' }
         const tenant = { threadId: 't', tenantId: 'org' }
-        await store.set(user, 'github', {
-          type: 'oauth',
-          accessToken: 'secret-access',
-          refreshToken: 'secret-refresh',
-          expiresAt: 100,
+        await store.set({
+          scope: user,
+          id: 'github',
+          credential: {
+            type: 'oauth',
+            accessToken: 'secret-access',
+            refreshToken: 'secret-refresh',
+            expiresAt: 100,
+          },
         })
-        await store.set(tenant, 'notion', {
-          type: 'api_key',
-          value: 'secret-key',
+        await store.set({
+          scope: tenant,
+          id: 'notion',
+          credential: {
+            type: 'api_key',
+            value: 'secret-key',
+          },
         })
 
-        expect(await store.get(user, 'github')).toMatchObject({
+        expect(await store.get({ scope: user, id: 'github' })).toMatchObject({
           accessToken: 'secret-access',
         })
         // A user credential is not visible at tenant scope, and the other way around.
-        expect(await store.get(tenant, 'github')).toBeNull()
-        expect(await store.get(user, 'notion')).toBeNull()
+        expect(await store.get({ scope: tenant, id: 'github' })).toBeNull()
+        expect(await store.get({ scope: user, id: 'notion' })).toBeNull()
 
         const listed = await store.list(user)
         expect(listed).toEqual([
@@ -1614,8 +1622,8 @@ export function runPersistenceConformance(
         // `list` never returns secret values.
         expect(JSON.stringify(listed)).not.toContain('secret')
 
-        await store.delete(user, 'github')
-        expect(await store.get(user, 'github')).toBeNull()
+        await store.delete({ scope: user, id: 'github' })
+        expect(await store.get({ scope: user, id: 'github' })).toBeNull()
         expect(await store.list(user)).toEqual([])
       })
     })
@@ -1666,8 +1674,8 @@ export function runPersistenceConformance(
           (await store.listPending(thread)).map((entry) => entry.inputId),
         ).toEqual([in1, in2])
 
-        await store.markApplied(in1, 'op-1')
-        await store.markRejected(in2, 'busy')
+        await store.markApplied({ inputId: in1, operationId: 'op-1' })
+        await store.markRejected({ inputId: in2, reason: 'busy' })
         expect(await store.listPending(thread)).toEqual([])
         expect(await store.get(in1)).toMatchObject({
           status: 'applied',
@@ -1680,8 +1688,8 @@ export function runPersistenceConformance(
         })
 
         // Unknown ids are no-ops.
-        await store.markApplied(missing, 'op-x')
-        await store.markRejected(missing, 'nope')
+        await store.markApplied({ inputId: missing, operationId: 'op-x' })
+        await store.markRejected({ inputId: missing, reason: 'nope' })
         expect(await store.get(missing)).toBeNull()
       })
     })
@@ -1704,11 +1712,11 @@ export function runPersistenceConformance(
         // Another owner is refused while the claim is live.
         expect(await claim('b')).toBe(false)
         // Only the owner releases.
-        await store.release(threadId, 'b')
+        await store.release({ threadId, ownerId: 'b' })
         expect(await claim('b')).toBe(false)
-        await store.release(threadId, 'a')
+        await store.release({ threadId, ownerId: 'a' })
         expect(await claim('b')).toBe(true)
-        await store.release(threadId, 'b')
+        await store.release({ threadId, ownerId: 'b' })
       })
 
       it('gives one of two concurrent claims', async (ctx) => {
@@ -1722,7 +1730,9 @@ export function runPersistenceConformance(
         )
         expect(results.filter(Boolean)).toHaveLength(1)
         await Promise.all(
-          ['a', 'b'].map((owner) => store.release(threadId, owner)),
+          ['a', 'b'].map((owner) =>
+            store.release({ threadId, ownerId: owner }),
+          ),
         )
       })
 
@@ -1774,9 +1784,9 @@ export function runPersistenceConformance(
           (await store.listExpired({ now })).map((entry) => entry.threadId),
         ).not.toContain(older)
 
-        await store.release(older, 'sweeper')
-        await store.release(newer, 'gone')
-        await store.release(live, 'alive')
+        await store.release({ threadId: older, ownerId: 'sweeper' })
+        await store.release({ threadId: newer, ownerId: 'gone' })
+        await store.release({ threadId: live, ownerId: 'alive' })
       })
     })
 
@@ -1794,11 +1804,19 @@ export function runPersistenceConformance(
         if (!store) return ctx.skip('log store not provided')
         const threadId = newThread()
 
-        await store.append(threadId, 1, [
-          { type: 'a', n: 1 },
-          { type: 'b', n: 2 },
-        ])
-        await store.append(threadId, 3, [{ type: 'c', nested: { deep: [1] } }])
+        await store.append({
+          threadId,
+          seq: 1,
+          records: [
+            { type: 'a', n: 1 },
+            { type: 'b', n: 2 },
+          ],
+        })
+        await store.append({
+          threadId,
+          seq: 3,
+          records: [{ type: 'c', nested: { deep: [1] } }],
+        })
 
         expect(await store.read(threadId)).toEqual([
           { seq: 1, record: { type: 'a', n: 1 } },
@@ -1811,21 +1829,55 @@ export function runPersistenceConformance(
         const store = persistence.stores.log
         if (!store) return ctx.skip('log store not provided')
         const threadId = newThread()
-        await store.append(threadId, 1, [{ type: 'first' }])
+        await store.append({ threadId, seq: 1, records: [{ type: 'first' }] })
 
-        const taken = store.append(threadId, 1, [
-          { type: 'late-1' },
-          { type: 'late-2' },
-        ])
+        const taken = store.append({
+          threadId,
+          seq: 1,
+          records: [{ type: 'late-1' }, { type: 'late-2' }],
+        })
         await expect(taken).rejects.toBeInstanceOf(LogConflictError)
         await expect(taken).rejects.toMatchObject({ threadId, seq: 1 })
 
         // A gap (position 3 while 2 is free) is a conflict too.
         await expect(
-          store.append(threadId, 3, [{ type: 'gap' }]),
+          store.append({ threadId, seq: 3, records: [{ type: 'gap' }] }),
         ).rejects.toBeInstanceOf(LogConflictError)
 
         expect(await types(store, threadId)).toEqual([[1, 'first']])
+      })
+
+      it('lets one of two concurrent appends at one position win', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const threadId = newThread()
+
+        const results = await Promise.allSettled([
+          store.append({ threadId, seq: 1, records: [{ type: 'left' }] }),
+          store.append({
+            threadId,
+            seq: 1,
+            records: [{ type: 'right-1' }, { type: 'right-2' }],
+          }),
+        ])
+
+        const won = results.filter((result) => result.status === 'fulfilled')
+        const lost = results.flatMap((result) =>
+          result.status === 'rejected' ? [result.reason] : [],
+        )
+        expect(won).toHaveLength(1)
+        expect(lost).toHaveLength(1)
+        expect(lost[0]).toBeInstanceOf(LogConflictError)
+        // Only the winner's batch is in the log, whole.
+        const winner = results[0].status === 'fulfilled' ? 'left' : 'right'
+        expect(await types(store, threadId)).toEqual(
+          winner === 'left'
+            ? [[1, 'left']]
+            : [
+                [1, 'right-1'],
+                [2, 'right-2'],
+              ],
+        )
       })
 
       it('writes nothing for an empty batch', async (ctx) => {
@@ -1833,10 +1885,14 @@ export function runPersistenceConformance(
         if (!store) return ctx.skip('log store not provided')
         const threadId = newThread()
 
-        await store.append(threadId, 1, [])
+        await store.append({ threadId, seq: 1, records: [] })
 
         expect(await store.read(threadId)).toEqual([])
-        await store.append(threadId, 1, [{ type: 'still-first' }])
+        await store.append({
+          threadId,
+          seq: 1,
+          records: [{ type: 'still-first' }],
+        })
         expect(await types(store, threadId)).toEqual([[1, 'still-first']])
       })
 
@@ -1844,12 +1900,16 @@ export function runPersistenceConformance(
         const store = persistence.stores.log
         if (!store) return ctx.skip('log store not provided')
         const threadId = newThread()
-        await store.append(threadId, 1, [
-          { type: 'r1' },
-          { type: 'r2' },
-          { type: 'r3' },
-          { type: 'r4' },
-        ])
+        await store.append({
+          threadId,
+          seq: 1,
+          records: [
+            { type: 'r1' },
+            { type: 'r2' },
+            { type: 'r3' },
+            { type: 'r4' },
+          ],
+        })
 
         const page = await store.read(threadId, { after: 1, limit: 2 })
         expect(page.map((entry) => entry.seq)).toEqual([2, 3])
@@ -1867,9 +1927,17 @@ export function runPersistenceConformance(
         const left = newThread()
         const right = newThread()
 
-        await store.append(left, 1, [{ type: 'left' }])
+        await store.append({
+          threadId: left,
+          seq: 1,
+          records: [{ type: 'left' }],
+        })
         // Position 1 is free on the other thread.
-        await store.append(right, 1, [{ type: 'right' }])
+        await store.append({
+          threadId: right,
+          seq: 1,
+          records: [{ type: 'right' }],
+        })
 
         expect(await types(store, left)).toEqual([[1, 'left']])
         expect(await types(store, right)).toEqual([[1, 'right']])
@@ -1880,14 +1948,17 @@ export function runPersistenceConformance(
         if (!store) return ctx.skip('log store not provided')
         const threadId = newThread()
         let calls = 0
-        const stop = store.subscribe(threadId, () => {
-          calls += 1
+        const stop = store.subscribe({
+          threadId,
+          listener: () => {
+            calls += 1
+          },
         })
 
-        await store.append(threadId, 1, [{ type: 'one' }])
+        await store.append({ threadId, seq: 1, records: [{ type: 'one' }] })
         await expect.poll(() => calls).toBe(1)
         stop()
-        await store.append(threadId, 2, [{ type: 'two' }])
+        await store.append({ threadId, seq: 2, records: [{ type: 'two' }] })
 
         // Give a store that notifies later (a poller) the time to call again.
         await new Promise((resolve) => setTimeout(resolve, 50))
@@ -1899,7 +1970,7 @@ export function runPersistenceConformance(
         if (!store) return ctx.skip('log store not provided')
         const threadId = newThread()
         const written = { type: 'shared', list: [1] }
-        await store.append(threadId, 1, [written])
+        await store.append({ threadId, seq: 1, records: [written] })
         written.list.push(2)
 
         const [first] = await store.read(threadId)
@@ -2270,9 +2341,17 @@ export function runPersistenceConformance(
         expect(await store.getVersioned(threadId)).toBeUndefined()
 
         // `null`: only when absent.
-        const created = await store.upsertIf(sessionEntry(threadId, 1), null)
+        const created = await store.upsertIf({
+          entry: sessionEntry(threadId, 1),
+          expectedRevision: null,
+        })
         if (!created.ok) throw new Error('the first upsertIf conflicted')
-        expect(await store.upsertIf(sessionEntry(threadId, 9), null)).toEqual({
+        expect(
+          await store.upsertIf({
+            entry: sessionEntry(threadId, 9),
+            expectedRevision: null,
+          }),
+        ).toEqual({
           ok: false,
           reason: 'conflict',
         })
@@ -2281,17 +2360,20 @@ export function runPersistenceConformance(
           revision: created.revision,
         })
 
-        const changed = await store.upsertIf(
-          sessionEntry(threadId, 2, { title: 'new' }),
-          created.revision,
-        )
+        const changed = await store.upsertIf({
+          entry: sessionEntry(threadId, 2, { title: 'new' }),
+          expectedRevision: created.revision,
+        })
         if (!changed.ok)
           throw new Error('upsertIf at the read revision conflicted')
         expect(changed.revision).not.toBe(created.revision)
 
         // A stale revision conflicts and leaves the entry as it was.
         expect(
-          await store.upsertIf(sessionEntry(threadId, 3), created.revision),
+          await store.upsertIf({
+            entry: sessionEntry(threadId, 3),
+            expectedRevision: created.revision,
+          }),
         ).toEqual({ ok: false, reason: 'conflict' })
         expect(await store.get(threadId)).toEqual(
           sessionEntry(threadId, 2, { title: 'new' }),
@@ -2310,7 +2392,10 @@ export function runPersistenceConformance(
         await store.upsert(sessionEntry(threadId, 2))
 
         expect(
-          await store.upsertIf(sessionEntry(threadId, 3), read.revision),
+          await store.upsertIf({
+            entry: sessionEntry(threadId, 3),
+            expectedRevision: read.revision,
+          }),
         ).toEqual({ ok: false, reason: 'conflict' })
         expect((await store.get(threadId))?.updatedAt).toBe(2)
 
@@ -2322,10 +2407,16 @@ export function runPersistenceConformance(
         await store.delete(threadId)
         expect(await store.getVersioned(threadId)).toBeUndefined()
         expect(
-          await store.upsertIf(sessionEntry(threadId, 4), last.revision),
+          await store.upsertIf({
+            entry: sessionEntry(threadId, 4),
+            expectedRevision: last.revision,
+          }),
         ).toEqual({ ok: false, reason: 'conflict' })
         expect(await store.get(threadId)).toBeUndefined()
-        const recreated = await store.upsertIf(sessionEntry(threadId, 5), null)
+        const recreated = await store.upsertIf({
+          entry: sessionEntry(threadId, 5),
+          expectedRevision: null,
+        })
         if (!recreated.ok) throw new Error('upsertIf after delete conflicted')
         expect(recreated.revision).not.toBe(last.revision)
       })

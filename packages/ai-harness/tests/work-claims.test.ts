@@ -127,6 +127,35 @@ describe('work claims while a session runs', () => {
     await host.close()
   })
 
+  it('claims the thread once another host claim expires, while the turn runs', async () => {
+    const persistence = durablePersistence()
+    const claims = persistence.stores.workClaims
+    await claims.claim({
+      threadId: THREAD,
+      harness: NAME,
+      ownerId: 'other-host',
+      until: Date.now() + 100,
+    })
+    const release = gate()
+    const { adapter } = mockAdapter([after(release.opened, 'Done.')])
+    const host = createHarnessHost({
+      persistence,
+      lease: { ttlMs: 60_000, renewMs: 20 },
+    })
+    const session = await host.open(defineHarness({ name: NAME, adapter }), {
+      threadId: THREAD,
+    })
+
+    const turn = session.prompt('Go.')
+    await turn.receipt
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(await otherHostCanClaim(claims)).toBe(false)
+
+    release.open()
+    await turn
+    await host.close()
+  })
+
   it('runs and settles the input when the claim store throws, with a warning', async () => {
     const persistence = durablePersistence()
     const claims = persistence.stores.workClaims
@@ -188,25 +217,29 @@ const expireClaim = (
 async function seedStoppedTurn(
   persistence: ReturnType<typeof durablePersistence>,
 ) {
-  await persistence.stores.log.append(THREAD, 1, [
-    {
-      type: 'harness.input',
-      inputId: 'in-1',
-      input: { op: 'prompt', message: 'go', busy: 'queue' },
-      at: 1,
-    },
-    {
-      type: 'harness.input.applied',
-      inputId: 'in-1',
-      operationId: 'op-stopped',
-      attempt: 1,
-    },
-    {
-      type: 'harness.transcript',
-      keep: 0,
-      add: [{ id: 'u1', role: 'user', content: 'go' }],
-    },
-  ])
+  await persistence.stores.log.append({
+    threadId: THREAD,
+    seq: 1,
+    records: [
+      {
+        type: 'harness.input',
+        inputId: 'in-1',
+        input: { op: 'prompt', message: 'go', busy: 'queue' },
+        at: 1,
+      },
+      {
+        type: 'harness.input.applied',
+        inputId: 'in-1',
+        operationId: 'op-stopped',
+        attempt: 1,
+      },
+      {
+        type: 'harness.transcript',
+        keep: 0,
+        add: [{ id: 'u1', role: 'user', content: 'go' }],
+      },
+    ],
+  })
   await persistence.stores.runs.createOrResume({
     runId: 'op-stopped',
     threadId: THREAD,
@@ -236,20 +269,24 @@ const settledRecord = async (
 async function seedStoppedAgent(
   persistence: ReturnType<typeof durablePersistence>,
 ) {
-  await persistence.stores.log.append(THREAD, 1, [
-    {
-      type: 'harness.input',
-      inputId: 'in-agent',
-      input: { op: 'agent', agent: 'waiter', detached: true },
-      at: 1,
-    },
-    {
-      type: 'harness.input.applied',
-      inputId: 'in-agent',
-      operationId: 'op-agent',
-      attempt: 1,
-    },
-  ])
+  await persistence.stores.log.append({
+    threadId: THREAD,
+    seq: 1,
+    records: [
+      {
+        type: 'harness.input',
+        inputId: 'in-agent',
+        input: { op: 'agent', agent: 'waiter', detached: true },
+        at: 1,
+      },
+      {
+        type: 'harness.input.applied',
+        inputId: 'in-agent',
+        operationId: 'op-agent',
+        attempt: 1,
+      },
+    ],
+  })
   await persistence.stores.runs.createOrResume({
     runId: 'op-agent',
     threadId: THREAD,
@@ -267,12 +304,13 @@ async function seedStoppedAgent(
 function slowLogStore(): LogStore {
   const log = memoryLogStore()
   return {
-    append: async (threadId, seq, records) => {
+    append: async ({ threadId, seq, records }) => {
       await new Promise((resolve) => setTimeout(resolve, 30))
-      return log.append(threadId, seq, records)
+      return log.append({ threadId, seq, records })
     },
     read: (threadId, options) => log.read(threadId, options),
-    subscribe: (threadId, listener) => log.subscribe(threadId, listener),
+    subscribe: ({ threadId, listener }) =>
+      log.subscribe({ threadId, listener }),
   }
 }
 
@@ -304,14 +342,18 @@ describe('host.resumePending', () => {
 
   it('runs an input that was stored just before the host stopped', async () => {
     const persistence = durablePersistence()
-    await persistence.stores.log.append(THREAD, 1, [
-      {
-        type: 'harness.input',
-        inputId: 'in-early',
-        input: { op: 'prompt', message: 'go', busy: 'queue' },
-        at: 1,
-      },
-    ])
+    await persistence.stores.log.append({
+      threadId: THREAD,
+      seq: 1,
+      records: [
+        {
+          type: 'harness.input',
+          inputId: 'in-early',
+          input: { op: 'prompt', message: 'go', busy: 'queue' },
+          at: 1,
+        },
+      ],
+    })
     await expireClaim(persistence.stores.workClaims)
     const { adapter, calls } = mockAdapter([() => text('Ran.')])
     const host = createHarnessHost({ persistence })
@@ -392,20 +434,24 @@ describe('host.resumePending', () => {
 
   it('continues a resumable background agent whose host stopped', async () => {
     const persistence = durablePersistence()
-    await persistence.stores.log.append(THREAD, 1, [
-      {
-        type: 'harness.input',
-        inputId: 'in-agent',
-        input: { op: 'agent', agent: 'worker', detached: true, resume: true },
-        at: 1,
-      },
-      {
-        type: 'harness.input.applied',
-        inputId: 'in-agent',
-        operationId: 'op-agent',
-        attempt: 1,
-      },
-    ])
+    await persistence.stores.log.append({
+      threadId: THREAD,
+      seq: 1,
+      records: [
+        {
+          type: 'harness.input',
+          inputId: 'in-agent',
+          input: { op: 'agent', agent: 'worker', detached: true, resume: true },
+          at: 1,
+        },
+        {
+          type: 'harness.input.applied',
+          inputId: 'in-agent',
+          operationId: 'op-agent',
+          attempt: 1,
+        },
+      ],
+    })
     await persistence.stores.runs.createOrResume({
       runId: 'op-agent',
       threadId: THREAD,
@@ -535,6 +581,30 @@ describe('host.resumePending', () => {
     await host.close()
   })
 
+  it('finds its own expired claim behind more than limit claims of other harnesses', async () => {
+    const persistence = durablePersistence()
+    await seedStoppedTurn(persistence)
+    // Older than this thread's claim, so the store lists them first.
+    for (let index = 0; index < 3; index += 1) {
+      await persistence.stores.workClaims.claim({
+        threadId: `other-${index}`,
+        harness: 'test/other',
+        ownerId: 'host-gone',
+        until: Date.now() - 60_000,
+      })
+    }
+    const { adapter } = mockAdapter([() => text('Recovered.')])
+    const host = createHarnessHost({ persistence })
+
+    expect(
+      await host.resumePending({
+        harnesses: [defineHarness({ name: NAME, adapter })],
+        limit: 2,
+      }),
+    ).toEqual([{ threadId: THREAD, harness: NAME }])
+    await host.close()
+  })
+
   it('throws a clear error without stores.workClaims', async () => {
     const { runs, metadata } = memoryPersistence().stores
     const host = createHarnessHost({
@@ -563,13 +633,13 @@ describe('host.resumePending', () => {
     // closes it. A new prompt arrives right then, the way a request does.
     const release = claims.release.bind(claims)
     let arriving: Promise<string> | undefined
-    vi.spyOn(claims, 'release').mockImplementationOnce((threadId, ownerId) => {
+    vi.spyOn(claims, 'release').mockImplementationOnce((claim) => {
       queueMicrotask(() => {
         arriving = host
           .open(harness, { threadId: THREAD })
           .then(async (session) => (await session.prompt('Again.')).text)
       })
-      return release(threadId, ownerId)
+      return release(claim)
     })
     recovered.open()
     await vi.waitFor(() => expect(arriving).toBeDefined())

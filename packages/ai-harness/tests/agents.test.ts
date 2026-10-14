@@ -147,11 +147,13 @@ describe('agents', () => {
       agents({ adapter: () => adapter }),
     ])
 
-    expect((await session.setConfig('agent', 'plan')).status).toBe('accepted')
+    expect(
+      (await session.setConfig({ key: 'agent', value: 'plan' })).status,
+    ).toBe('accepted')
     // A subagent is not a primary agent.
-    expect((await session.setConfig('agent', 'general')).status).toBe(
-      'rejected',
-    )
+    expect(
+      (await session.setConfig({ key: 'agent', value: 'general' })).status,
+    ).toBe('rejected')
     await session.prompt('plan it')
 
     expect(toolNames(calls[0])).toEqual(['read_file'])
@@ -175,9 +177,15 @@ describe('agents', () => {
       agents({ adapter: byModel, agents: [quick] }),
     ])
 
-    expect(await session.prompt('one')).toEqual({ text: 'from main' })
+    expect(await session.prompt('one')).toEqual({
+      text: 'from main',
+      media: [],
+    })
     await session.command('agent', 'quick')
-    expect(await session.prompt('two')).toEqual({ text: 'from fast' })
+    expect(await session.prompt('two')).toEqual({
+      text: 'from fast',
+      media: [],
+    })
     await host.close()
   })
 

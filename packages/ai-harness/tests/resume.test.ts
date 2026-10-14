@@ -8,6 +8,7 @@ import {
   LEASE,
   TRUNCATED_TOOL_RESULT,
   checkpointMiddleware,
+  holdRunLease,
   repairTranscript,
 } from '../src/resume'
 import { gate, mockAdapter, text, toolCall } from './helpers'
@@ -340,6 +341,44 @@ describe('crash resume', () => {
     expect(tools[0]?.content).toBe('charged')
   })
 
+  it('puts a repaired result right after its tool call, before a later message', async () => {
+    const { stores } = memoryPersistence()
+    await stores.messages.saveThread('t1', [
+      { id: 'u1', role: 'user', content: 'charge' },
+      {
+        id: 'a1',
+        role: 'assistant',
+        content: '',
+        toolCalls: [
+          {
+            id: 'call-charge',
+            type: 'function',
+            function: { name: 'charge', arguments: '{}' },
+          },
+        ],
+      },
+      { id: 'n1', role: 'user', content: 'A note from the host.' },
+    ])
+
+    await repairTranscript({
+      messages: stores.messages,
+      threadId: 't1',
+      pending: [],
+      finished: new Map([
+        [
+          'call-charge',
+          { role: 'tool', toolCallId: 'call-charge', content: 'charged' },
+        ],
+      ]),
+    })
+
+    expect(
+      (await stores.messages.loadThread('t1')).map((message) =>
+        message.role === 'tool' ? message.toolCallId : message.id,
+      ),
+    ).toEqual(['u1', 'a1', 'call-charge', 'n1'])
+  })
+
   it('gives each call of an answer cut at the output limit the truncated result', async () => {
     const { stores } = memoryPersistence()
     const cut = { tanstack: { finishReason: 'length' } }
@@ -503,6 +542,34 @@ describe('crash resume', () => {
 })
 
 describe('checkpoint middleware options', () => {
+  it('keeps renewing the run lease after a renewal fails', async () => {
+    const unhandled = vi.fn()
+    process.on('unhandledRejection', unhandled)
+    const { runs } = memoryPersistence().stores
+    await runs.createOrResume({
+      runId: 'run-1',
+      threadId: 't1',
+      startedAt: Date.now(),
+    })
+    // Not a vi.spyOn: its mock handles the rejection itself.
+    let calls = 0
+    const update = runs.update.bind(runs)
+    runs.update = (runId, patch) => {
+      calls += 1
+      return calls === 2
+        ? Promise.reject(new Error('store down'))
+        : update(runId, patch)
+    }
+    const stop = await holdRunLease(runs, 'run-1', 'host-1', { renewMs: 1 })
+
+    await vi.waitFor(() => expect(calls).toBeGreaterThanOrEqual(3))
+    stop()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    process.off('unhandledRejection', unhandled)
+
+    expect(unhandled).not.toHaveBeenCalled()
+  })
+
   it('uses the lease time it gets', async () => {
     const startedAt = Date.now()
     const stores = await runWithCheckpoint({

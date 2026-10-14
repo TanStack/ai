@@ -106,7 +106,7 @@ export interface PluginSessionApi<TMetadata = Record<string, unknown>> {
     userCode?: string
   }) => void
   /** Change a session setting, the same as a client. Applies at the next turn. */
-  setConfig: (key: string, value: unknown) => Promise<Receipt>
+  setConfig: (change: { key: string; value: unknown }) => Promise<Receipt>
   /**
    * The stored settings of the thread (`session.configure`). Read them at
    * each call, for example the working folder `cwd`: a change applies from

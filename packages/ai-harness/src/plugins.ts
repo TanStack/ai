@@ -629,6 +629,12 @@ function promptOf(
     : prompt
 }
 
+/** A turn plugin added a command or a config option. */
+const turnOnly = (plugin: string) =>
+  new Error(
+    `Plugin ${plugin}: a plugin with lifetime 'turn' cannot add commands or config. Use lifetime 'session'.`,
+  )
+
 /**
  * Set up plugins in order and collect what they contribute.
  *
@@ -780,6 +786,7 @@ export async function mountPlugins(
         commands: {
           has: (name) => ownerOf(name) !== undefined,
           set: (name, command) => {
+            if (env.turn) throw turnOnly(plugin.name)
             const owner = ownerOf(name)
             if (owner !== undefined && owner !== plugin.name) {
               throw new Error(
@@ -831,6 +838,11 @@ export async function mountPlugins(
       }
       agentMiddleware.push(...(contributions.agentMiddleware ?? []))
       generationMiddleware.push(...(contributions.generationMiddleware ?? []))
+      // The session reads commands and config only from its session plugins.
+      const isSessionOnly =
+        Object.keys(contributions.commands ?? {}).length > 0 ||
+        Object.keys(contributions.config ?? {}).length > 0
+      if (env.turn && isSessionOnly) throw turnOnly(plugin.name)
       for (const [name, command] of Object.entries(
         contributions.commands ?? {},
       )) {

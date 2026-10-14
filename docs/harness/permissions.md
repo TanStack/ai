@@ -57,24 +57,26 @@ The rule makes each `save_note` call wait for the user.
 
 ## 2. Answer the first question
 
-The question shows up as a `harness.question` event and in `session.snapshot().pendingQuestions`. Answer it with `session.answer`:
+The question shows up as a `harness.question` event and in `session.snapshot().pendingQuestions`. Listen for the event, then answer with `session.answer`:
 
 ```ts group=harness-permissions
-const turn = session.prompt('Save a note with the time of the meeting.')
-
-for await (const { event } of session.events()) {
-  if (event.type === 'CUSTOM' && event.name === HARNESS_EVENTS.question) {
-    const [question] = session.snapshot().pendingQuestions
+// Calls can run in parallel, so answer each open question once.
+const answered = new Set<string>()
+const stopAnswering = session.onEvent('CUSTOM', async ({ event }) => {
+  if (event.name !== HARNESS_EVENTS.question) return
+  for (const question of session.snapshot().pendingQuestions) {
+    if (answered.has(question.questionId)) continue
+    answered.add(question.questionId)
     // For example: Allow save_note {"path":"meeting.md","text":"..."}?
-    if (question) await session.answer(question.questionId, 'once')
-    break
+    await session.answer({ questionId: question.questionId, value: 'once' })
   }
-}
+})
 
-await turn
+await session.prompt('Save a note with the time of the meeting.')
+stopAnswering()
 ```
 
-The agent writes the file and continues.
+The listener says `once` to each question. The agent writes the file and continues.
 
 ## Pick a mode
 
@@ -90,7 +92,7 @@ The `mode` setting decides how much runs without a question:
 Switch the mode from server code:
 
 ```ts group=harness-permissions
-await session.setConfig('mode', 'plan')
+await session.setConfig({ key: 'mode', value: 'plan' })
 // Or run the command. It returns 'Mode: plan.'
 await session.command('mode', 'plan')
 ```

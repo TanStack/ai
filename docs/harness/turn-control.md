@@ -103,7 +103,7 @@ The defaults:
 
 - `maxRetries`: 3 retries since the last finished tool phase.
 - `baseDelayMs`: 2000. The delay doubles with each retry. Each delay is then multiplied by a random jitter from 0.75 to 1.0.
-- `isTransient`: `isTransientModelError`. It is true for 429, 5xx, overloaded, rate limit, network and connection errors, and timeouts.
+- `isTransient`: `isTransientModelError`. It is true for 429, 500, 502, 503, 504, overloaded, rate limit, network and connection errors, and timeouts.
 - `maxRetryAfterMs`: 900000 (15 minutes). The longest `retryAfterMs` that the policy waits for.
 
 Pass your own check when you know more about your provider:

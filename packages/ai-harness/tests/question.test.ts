@@ -53,7 +53,7 @@ async function reply(session: HarnessSession, value: unknown) {
   )
   const [pending] = session.snapshot().pendingQuestions
   if (!pending) throw new Error('No question.')
-  await session.answer(pending.questionId, value)
+  await session.answer({ questionId: pending.questionId, value })
   return pending
 }
 

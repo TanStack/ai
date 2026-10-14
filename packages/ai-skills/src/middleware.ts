@@ -59,7 +59,7 @@ interface SkillsRuntime {
 const SkillsCapability = createCapability<SkillsRuntime>()('skills')
 
 /** ~4 chars/token — good enough to guard a runaway catalog. */
-const estimateTokens = (s: string) => Math.ceil(s.length / 4)
+export const estimateTokens = (s: string) => Math.ceil(s.length / 4)
 
 function fillTemplate(template: string, catalog: string): string {
   // Escape `{{`/`}}` to sentinels, substitute `{skills}`, then restore braces.

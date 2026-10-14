@@ -71,9 +71,11 @@ const ALL_KINDS: ReadonlyArray<MediaKind> = [
   'document',
 ]
 
-// Uploads are artifact records with the run id `upload:<threadId>`, and their
-// bytes use the default artifact key `artifacts/<runId>/<id>`. Generated media
-// keeps what `withGenerationPersistence` gives it: a generation run id
+// Uploads are artifact records with the run id `upload:<threadId>`. Their
+// bytes use the key `artifacts/upload:<encoded threadId>/<id>`: the thread id
+// comes from the client, and a raw `../` would leave the folder of a
+// filesystem blob store. Generated media keeps what
+// `withGenerationPersistence` gives it: a generation run id
 // `<operation>[:<subagentRunId>...]:<activity>-<n>`.
 function uploadRunId(threadId: string) {
   return `upload:${threadId}`
@@ -110,17 +112,29 @@ function sizeOf(body: BlobBody) {
 }
 
 /**
- * Base64 of `bytes`. It uses `btoa`, not the Node `Buffer`, so it runs on
- * workerd too.
+ * Base64 of `bytes`. It uses the Node `Buffer` when there is one, else
+ * `btoa`, so it runs on workerd too.
  */
 export function toBase64(bytes: Uint8Array) {
-  const chunk = 0x8000
-  let binary = ''
-  // Chunks keep `fromCharCode` under the engine's argument limit.
-  for (let offset = 0; offset < bytes.length; offset += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunk))
+  const NodeBuffer = globalThis.Buffer
+  if (typeof NodeBuffer === 'function') {
+    return NodeBuffer.from(
+      bytes.buffer,
+      bytes.byteOffset,
+      bytes.byteLength,
+    ).toString('base64')
   }
-  return btoa(binary)
+  // Each chunk is encoded alone, so there is no binary string of the whole
+  // file. A multiple of 3 bytes ends each chunk on whole base64 groups, and
+  // the size keeps `fromCharCode` under the engine's argument limit.
+  const chunk = 3 * 0x2000
+  const parts: Array<string> = []
+  for (let offset = 0; offset < bytes.length; offset += chunk) {
+    parts.push(
+      btoa(String.fromCharCode(...bytes.subarray(offset, offset + chunk))),
+    )
+  }
+  return parts.join('')
 }
 
 /**
@@ -197,7 +211,7 @@ export function createMediaStore({
 
       const id = crypto.randomUUID()
       const runId = uploadRunId(threadId)
-      const blobKey = `artifacts/${runId}/${id}`
+      const blobKey = `artifacts/upload:${encodeURIComponent(threadId)}/${id}`
       // A stream has no length up front, so count it as the store reads it.
       let seen = 0
       const counted =
@@ -240,7 +254,16 @@ export function createMediaStore({
     async dataUrl(id: string) {
       const record = await get(id)
       if (!record || record.size > DATA_URL_MAX_BYTES) return undefined
-      return `data:${record.mimeType};base64,${toBase64(await load(id))}`
+      // A comma or a quote ends or breaks the type of a data URL, so only the
+      // parameters with plain values (`charset=utf-8`) stay.
+      const mimeType = record.mimeType
+        .replace(/[ \t]/g, '')
+        .split(';')
+        .filter(
+          (part, index) => index === 0 || /^[\w.+-]+=[\w.+-]+$/.test(part),
+        )
+        .join(';')
+      return `data:${mimeType};base64,${toBase64(await load(id))}`
     },
   }
 }
@@ -384,7 +407,10 @@ export function mediaMiddleware({
   transcribe?: AnyTranscriptionAdapter
 }) {
   // ponytail: one cache per run, so the loop does not load or transcribe a
-  // file again at every model call. A new turn does it again for history.
+  // file again at every model call. A new turn does it again for history:
+  // each turn loads and base64-encodes every media file of the thread (up to
+  // `maxBytes` each). Keep the encoded parts across turns by media id (an
+  // LRU), or send adapters a URL, when long media threads get slow.
   const runs = new WeakMap<object, Map<string, Promise<ContentPart>>>()
 
   async function resolve(
@@ -406,8 +432,10 @@ export function mediaMiddleware({
     })
     if (!bytes) return textPart(`[${record.kind} not found: ${record.name}]`)
     if (transcriber === undefined) {
+      // The stored kind wins: a `video` part with an image id sends an image.
       const swapped: ContentPart = {
         ...part,
+        type: record.kind,
         source: {
           type: 'data',
           value: toBase64(bytes),

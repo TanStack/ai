@@ -600,7 +600,7 @@ A host that keeps long-lived sessions needs more than a transcript. It must reme
 the inputs it accepted, the keys a user saved, which host works on which thread, and a
 list of sessions to show. The session stores hold that data.
 
-All of them are opt-in. `withPersistence` reads only `sessions`, to index subagent
+All of them are opt-in. `withPersistence` uses only `sessions`, to index subagent
 children. The other stores are for your host code.
 
 ## InboxStore
@@ -627,8 +627,8 @@ interface InboxEntry {
 interface InboxStore {
   append(entry: Omit<InboxEntry, 'status'>): Promise<InboxEntry>
   listPending(threadId: string): Promise<Array<InboxEntry>>
-  markApplied(inputId: string, operationId: string): Promise<void>
-  markRejected(inputId: string, reason: string): Promise<void>
+  markApplied(entry: { inputId: string; operationId: string }): Promise<void>
+  markRejected(entry: { inputId: string; reason: string }): Promise<void>
   get(inputId: string): Promise<InboxEntry | null>
 }
 ```
@@ -671,9 +671,9 @@ type Credential =
     }
 
 interface CredentialStore {
-  get(scope: Scope, id: string): Promise<Credential | null>
-  set(scope: Scope, id: string, credential: Credential): Promise<void>
-  delete(scope: Scope, id: string): Promise<void>
+  get(key: { scope: Scope; id: string }): Promise<Credential | null>
+  set(entry: { scope: Scope; id: string; credential: Credential }): Promise<void>
+  delete(key: { scope: Scope; id: string }): Promise<void>
   list(
     scope: Scope,
   ): Promise<Array<{ id: string; type: Credential['type']; expiresAt?: number }>>
@@ -707,16 +707,16 @@ interface LogEntry {
 }
 
 interface LogStore {
-  append(
-    threadId: string,
-    seq: number,
-    records: ReadonlyArray<LogRecord>,
-  ): Promise<void>
+  append(batch: {
+    threadId: string
+    seq: number
+    records: ReadonlyArray<LogRecord>
+  }): Promise<void>
   read(
     threadId: string,
     options?: { after?: number; limit?: number },
   ): Promise<Array<LogEntry>>
-  subscribe(threadId: string, listener: () => void): () => void
+  subscribe(options: { threadId: string; listener: () => void }): () => void
 }
 ```
 
@@ -854,7 +854,7 @@ interface WorkClaimStore {
     ownerId: string // the host that holds the claim
     until: number // epoch ms
   }): Promise<boolean>
-  release(threadId: string, ownerId: string): Promise<void>
+  release(claim: { threadId: string; ownerId: string }): Promise<void>
   listExpired(options: {
     now: number // epoch ms
     limit?: number
@@ -910,7 +910,7 @@ interface SessionIndexEntry {
   threadId: string
   harness?: string // the name of the setup that runs the thread
   title?: string
-  parentThreadId?: string // a child session, for example `subagent:<runId>`
+  parentThreadId?: string // the parent thread. A subagent child's own threadId is `subagent:<runId>`
   parentToolCallId?: string // the tool call in the parent thread that started it
   createdAt: number // epoch ms, the first open
   updatedAt: number // epoch ms, the last change
@@ -953,10 +953,10 @@ interface SessionIndexStore {
   getVersioned?(
     threadId: string,
   ): Promise<{ entry: SessionIndexEntry; revision: string } | undefined>
-  upsertIf?(
-    entry: SessionIndexEntry,
-    expectedRevision: string | null,
-  ): Promise<{ ok: true; revision: string } | { ok: false; reason: 'conflict' }>
+  upsertIf?(write: {
+    entry: SessionIndexEntry
+    expectedRevision: string | null
+  }): Promise<{ ok: true; revision: string } | { ok: false; reason: 'conflict' }>
 }
 ```
 
@@ -1100,11 +1100,11 @@ erDiagram
 
 ## Typing an adapter
 
-Each store has a `define*Store` helper (`defineMessageStore`, `defineRunStore`,
-`defineInterruptStore`, `defineMetadataStore`, `defineGenerationRunStore`,
-`defineArtifactStore`, `defineBlobStore`, `defineInboxStore`,
-`defineCredentialStore`, `defineLogStore`, `defineWorkClaimStore`,
-`defineSessionIndexStore`). They compose into `defineAIPersistence`, which tracks
+Each store except `leases` has a `define*Store` helper (`defineMessageStore`,
+`defineRunStore`, `defineInterruptStore`, `defineMetadataStore`,
+`defineActivityStore`, `defineGenerationRunStore`, `defineArtifactStore`,
+`defineBlobStore`, `defineInboxStore`, `defineCredentialStore`, `defineLogStore`,
+`defineWorkClaimStore`, `defineSessionIndexStore`). They compose into `defineAIPersistence`, which tracks
 exact presence: the stores you passed autocomplete on `persistence.stores`, and
 reading one you did not pass is a compile error.
 

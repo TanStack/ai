@@ -683,7 +683,10 @@ export function permissions(
             run: async (input: unknown) => {
               const next = typeof input === 'string' ? input.trim() : ''
               if (!next) return `Mode: ${mode()}.`
-              const receipt = await ctx.session.setConfig('mode', next)
+              const receipt = await ctx.session.setConfig({
+                key: 'mode',
+                value: next,
+              })
               return receipt.status === 'rejected'
                 ? `Unknown mode "${next}". Modes: ${PERMISSION_MODES.join(', ')}.`
                 : `Mode: ${next}.`
