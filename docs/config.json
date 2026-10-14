@@ -938,7 +938,8 @@
         {
           "label": "Durable sessions",
           "to": "harness/durable-sessions",
-          "addedAt": "2026-10-13"
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-14"
         },
         {
           "label": "List, rename, and fork sessions",

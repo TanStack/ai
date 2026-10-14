@@ -91,6 +91,8 @@ process.on('SIGTERM', async () => {
 - A turn that a user cancelled still ends `aborted`.
 - `session.close({ recoverable: true })` does the same for one session.
 
+During a rolling deploy, old and new hosts run at the same time. A host that reads a log record type from a newer version does not write to that log. Its session stops with `LogVersionError`, and the new hosts continue the thread.
+
 ## Resume pending work after a deploy
 
 A host recovers a thread when something opens it. After a deploy, nobody opens a thread whose user closed the tab, so its queued turn or background agent waits. Give the host `stores.workClaims`, then call `host.resumePending` to find that work and run it.
@@ -144,6 +146,8 @@ The session claims its thread for its host when the thread gets work:
 The session renews the claim on the lease timer: every `lease.renewMs`, for `lease.ttlMs`. See [One host drives a thread](#one-host-drives-a-thread) to set them.
 
 The session gives the claim back when the thread is idle: no queued or running turn, no waiting steer, and no running agent. A thread that waits for a human (an approval or a sign-in) is idle, so a sweep never takes it.
+
+A question from `ctx.session.ask` is different. The question waits in the memory of its host, so the session keeps the claim until the answer comes. Then an answer that reaches another host goes to this host. See [One host drives a thread](#one-host-drives-a-thread).
 
 ### What a sweep does
 
@@ -305,7 +309,33 @@ const twoNotes = defineHarness({
 
 ## One host drives a thread
 
-Only one host writes to the log of a thread at a time. When a second host writes to the thread, the first host's session stops, and its running turn fails with a clear error. Open the thread again to continue on that host.
+Only one host writes to the log of a thread at a time. On a serverless platform, two requests for one thread often reach two instances. Give every instance `workClaims` and `inbox`. Then an input that reaches the second instance goes to the first:
+
+```ts group=harness-durable
+const replicaStores = memoryPersistence().stores
+
+const replica = createHarnessHost({
+  persistence: {
+    stores: {
+      log: memoryLogStore(),
+      runs: replicaStores.runs,
+      workClaims: replicaStores.workClaims,
+      inbox: replicaStores.inbox,
+    },
+  },
+})
+```
+
+The host that runs the thread holds its work claim. An input that reaches another host:
+
+- With `inbox`: waits in the inbox, and the owner applies it within a second. The receipt is `queued`.
+- Without `inbox`: is refused. The receipt is `rejected`, with the reason `owned_elsewhere`.
+
+In both cases, the running turn continues. A client reads the events of the thread from the log, on any instance. A `POST run` on the second instance streams the turn that the owner runs.
+
+When the owner stops, its claim expires. Then the next host that opens the thread, or a `resumePending` sweep, runs the inputs that wait.
+
+Without `workClaims`, a host cannot see the owner. When a second host writes to the thread, the first host's session stops, and its running turn fails with a clear error.
 
 The lease decides when a stopped host counts as gone. Change its timing on the host:
 
@@ -373,6 +403,7 @@ For the full contract, see [`LeaseStore`](../persistence/store-reference#leasest
 ## What you have now
 
 - Turns that continue after a crash or a deploy, also on threads that nobody opens again.
+- Inputs that reach any instance and run on the instance that owns the thread.
 - A turn that stops after `maxAttempts` or `timeoutMs`, with a clear error code.
 - Tools that run again safely or tell the model to check first, in your own words.
 - Retries of short model errors, with a count that survives a crash.

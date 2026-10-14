@@ -46,6 +46,8 @@ For agents and users:
 
 If two plugins add the same tool, command, setting, or prompt id, `host.open` fails and names both plugins.
 
+Return these from `setup`, not from the top level of `definePlugin`. A key like `adapter` or `tools` at the top level is a type error, and `definePlugin` throws for it. Other keys at the top level stay on the plugin object, so a plugin can give your code its own functions.
+
 ## Add commands and settings
 
 Commands are actions for the user, not the model: slash commands and buttons in your app. Settings are typed, saved per session, and apply at the next turn.
