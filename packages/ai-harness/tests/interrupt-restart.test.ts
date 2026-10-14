@@ -367,7 +367,7 @@ describe.each([false, true])(
       ])
       await expect(
         session.operation(receipt.operationId ?? ''),
-      ).resolves.toEqual({ text: 'Input rejected.' })
+      ).resolves.toEqual({ text: 'Input rejected.', media: [] })
       expect(before).toHaveBeenCalledTimes(1)
       expect(remove.execute).not.toHaveBeenCalled()
       expect(session.snapshot().pendingInterrupts).toEqual([])
@@ -440,7 +440,7 @@ describe.each([false, true])(
       ])
       await expect(
         retrySession.operation(retry.operationId ?? ''),
-      ).resolves.toEqual({ text: 'Done.' })
+      ).resolves.toEqual({ text: 'Done.', media: [] })
       expect(original.execute).toHaveBeenCalledTimes(1)
       await next.close()
     })
@@ -718,7 +718,7 @@ describe.each([false, true])(
       ])
       await expect(
         reopened.operation(valid.operationId ?? ''),
-      ).resolves.toEqual({ text: 'Checked.' })
+      ).resolves.toEqual({ text: 'Checked.', media: [] })
       expect(reopened.snapshot().pendingInterrupts).toEqual([])
       await next.close()
     })

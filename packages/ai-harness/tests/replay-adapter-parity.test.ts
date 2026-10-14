@@ -355,7 +355,10 @@ it('detaches a local event reader without aborting the model turn', async () => 
   await detached
   expect(turn.status()).toBe('running')
   hold.open()
-  await expect(turn).resolves.toEqual({ text: 'Finished after detach.' })
+  await expect(turn).resolves.toEqual({
+    text: 'Finished after detach.',
+    media: [],
+  })
   const stored = await session.transcript()
   const assistant = stored.find((message) => message.role === 'assistant')
   expect(assistant?.error).toBeUndefined()
