@@ -76,13 +76,20 @@ const terminal = createInterface({
   output: process.stdout,
 })
 
-// Ask the user each question that a risky call waits on.
-const stopAsking = session.onEvent('CUSTOM', async ({ event }) => {
+// Ask the user each question that a risky call waits on. Calls can run
+// in parallel, so ask one question at a time, each once.
+const asked = new Set<string>()
+let asking = Promise.resolve()
+const stopAsking = session.onEvent('CUSTOM', ({ event }) => {
   if (event.name !== HARNESS_EVENTS.question) return
-  const [question] = session.snapshot().pendingQuestions
-  if (!question) return
-  const answer = await terminal.question(`\n${question.message} `)
-  await session.answer({ questionId: question.questionId, value: answer })
+  asking = asking.then(async () => {
+    for (const question of session.snapshot().pendingQuestions) {
+      if (asked.has(question.questionId)) continue
+      asked.add(question.questionId)
+      const answer = await terminal.question(`\n${question.message} `)
+      await session.answer({ questionId: question.questionId, value: answer })
+    }
+  })
 })
 
 // Send each line as a prompt. Print the answer. Type `exit` to stop.
@@ -92,7 +99,12 @@ while (line !== 'exit') {
   turn.onEvent('TEXT_MESSAGE_CONTENT', ({ event }) => {
     process.stdout.write(event.delta)
   })
-  await turn
+  try {
+    await turn
+  } catch (error) {
+    // A failed turn rejects. Show the error and keep the loop.
+    console.error(error)
+  }
   line = await terminal.question('\n> ')
 }
 stopAsking()
