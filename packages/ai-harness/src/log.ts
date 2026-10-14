@@ -119,6 +119,28 @@ const HARNESS_RECORD_TYPES = new Set<string>([
   'harness.note',
 ])
 
+/**
+ * The error a host gets when it writes a log that has a `harness.*` record
+ * type it does not know: a newer harness wrote it, for example during a
+ * rolling deploy. The host can read the log, but a write on a fold that
+ * skipped a record could be wrong, so it stops. Deploy the newer version.
+ *
+ * So a change to what a record means takes a new record type, never a new
+ * shape of an old type.
+ */
+export class LogVersionError extends Error {
+  readonly logId: string
+  readonly recordType: string
+  constructor(logId: string, recordType: string) {
+    super(
+      `Log ${logId} has a "${recordType}" record from a newer harness. This host does not write it.`,
+    )
+    this.name = 'LogVersionError'
+    this.logId = logId
+    this.recordType = recordType
+  }
+}
+
 // The harness wrote every record of these types, so the fields are its own.
 function isHarnessRecord(record: LogRecord): record is HarnessRecord {
   return HARNESS_RECORD_TYPES.has(record.type)
@@ -478,6 +500,8 @@ export interface SharedLogState<TState = unknown> {
   /** By thread id. */
   sessions: Map<string, LogState>
   reduced: TState | undefined
+  /** The first `harness.*` record type of the log that this version does not know. */
+  newerRecord?: string
 }
 
 export function emptySharedLogState<TState = unknown>(
@@ -520,6 +544,9 @@ export function foldLogEntry<TState>(
   state.seq = entry.seq
   const { record } = entry
   const { reduce } = options
+  if (record.type.startsWith('harness.') && !isHarnessRecord(record)) {
+    state.newerRecord ??= record.type
+  }
   if (reduce && !record.type.startsWith('harness.')) {
     const current = state.reduced ?? reduce.initial
     state.reduced = hostFold(
@@ -553,6 +580,8 @@ function serialize(state: SharedLogState, versions: CheckpointVersions) {
     v: 2,
     seq: state.seq,
     ...versions,
+    // A host that does not know one of these types folds from the start.
+    recordTypes: [...HARNESS_RECORD_TYPES],
     sessions: [...state.sessions].map(([thread, session]) => [
       thread,
       {
@@ -636,6 +665,13 @@ function parseCheckpoint<TState>(
     value.version !== versions.version ||
     value.reduceVersion !== versions.reduceVersion ||
     !Array.isArray(value.sessions)
+  ) {
+    return undefined
+  }
+  // A newer harness folded record types this one would skip.
+  if (
+    Array.isArray(value.recordTypes) &&
+    value.recordTypes.some((type) => !HARNESS_RECORD_TYPES.has(String(type)))
   ) {
     return undefined
   }
@@ -1066,6 +1102,11 @@ export class SharedLog<TState = unknown> {
   private async write(batch: ReadonlyArray<LogRecord>) {
     if (this.failure !== undefined) throw this.failure
     if (batch.length === 0) return
+    if (this.state.newerRecord !== undefined) {
+      const error = new LogVersionError(this.logId, this.state.newerRecord)
+      this.fail(error)
+      throw error
+    }
     const seq = this.state.seq + 1
     this.writing = true
     try {
@@ -1466,6 +1507,9 @@ export function logMessageStore(options: {
             : { ...record, thread: threadId },
         )
         if (records.length === 0) return
+        if (state.newerRecord !== undefined) {
+          throw new LogVersionError(logOf(threadId), state.newerRecord)
+        }
         try {
           await store.append({
             threadId: logOf(threadId),
