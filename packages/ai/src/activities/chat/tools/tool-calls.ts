@@ -588,7 +588,7 @@ export interface ToolResumeExecutionState {
   inputResponses?: ReadonlyMap<string, ToolInputResponse>
 }
 
-function approvalResolution(
+export function approvalResolution(
   approvals: ReadonlyMap<string, ToolApprovalResolution>,
   toolCallId: string,
 ): ToolApprovalResolution | undefined {
@@ -613,7 +613,7 @@ function deniedApprovalResult(resolution: ToolApprovalResolution): unknown {
     : { error: 'User declined tool execution' }
 }
 
-interface ExecuteToolCallsResult {
+export interface ExecuteToolCallsResult {
   /** Tool results ready to send to LLM */
   results: Array<ToolResult>
   /** Tools that need user approval before execution */
@@ -1167,14 +1167,28 @@ export async function* executeToolCalls<TContext = unknown>(
     if (resolution !== undefined) {
       input = editedApprovalArgs(resolution) ?? input
     }
-    // A client tool whose result came back already went through the hook
-    // before dispatch. Its input is checked again, with no second hook run.
+    // A client tool whose result came back already ran with the input that
+    // the hook and the check gave it before dispatch. Checking the raw model
+    // input again would drop a real result.
     const clientError = resumeState?.clientToolErrors?.get(toolCall.id)
-    const clientDone =
+    if (
       !tool.execute &&
       (clientResults.has(toolCall.id) || clientError !== undefined)
+    ) {
+      results.push(
+        await buildClientToolResult(
+          toolCall.id,
+          toolName,
+          tool,
+          clientResults.get(toolCall.id),
+          input,
+          clientError,
+        ),
+      )
+      continue
+    }
 
-    if (!needsPreview && !clientDone && middlewareHooks) {
+    if (!needsPreview && middlewareHooks) {
       let decision: Awaited<ReturnType<typeof applyBeforeToolCallDecision>>
       try {
         decision = await applyBeforeToolCallDecision(
@@ -1199,8 +1213,11 @@ export async function* executeToolCalls<TContext = unknown>(
     try {
       input = await validateToolInput(tool.inputSchema, input, toolName)
     } catch (error) {
-      const message =
+      // The model sees its own arguments, never values that middleware put
+      // in. They stay out of the error, so tracing does not record them.
+      const message = `${
         error instanceof Error ? error.message : 'Validation failed'
+      }\nReceived arguments: ${argsStr}`
       await pushResultAndRunAfterHook(
         results,
         {
@@ -1220,8 +1237,8 @@ export async function* executeToolCalls<TContext = unknown>(
           duration: 0,
           error,
         },
-        // A preview call and a returned client call run no hooks.
-        needsPreview || clientDone ? undefined : middlewareHooks,
+        // A preview call runs no hooks.
+        needsPreview ? undefined : middlewareHooks,
       )
       continue
     }
@@ -1265,25 +1282,7 @@ export async function* executeToolCalls<TContext = unknown>(
 
     // Client-side tool (no execute function), approved or with no approval
     if (!tool.execute) {
-      if (clientDone) {
-        results.push(
-          await buildClientToolResult(
-            toolCall.id,
-            toolName,
-            tool,
-            clientResults.get(toolCall.id),
-            input,
-            clientError,
-          ),
-        )
-      } else {
-        // Request client execution
-        needsClientExecution.push({
-          toolCallId: toolCall.id,
-          toolName,
-          input,
-        })
-      }
+      needsClientExecution.push({ toolCallId: toolCall.id, toolName, input })
       continue
     }
 

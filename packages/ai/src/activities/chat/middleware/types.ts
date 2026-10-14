@@ -439,7 +439,10 @@ export interface ToolCallHookContext {
   toolCall: ToolCall
   /** The resolved tool definition, if found */
   tool: Tool | undefined
-  /** Parsed arguments for the tool call */
+  /**
+   * Parsed arguments for the tool call, before the `inputSchema` check: no
+   * schema defaults or transforms yet, and possibly invalid.
+   */
   args: unknown
   /** Name of the tool */
   toolName: string

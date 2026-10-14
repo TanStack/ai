@@ -680,11 +680,12 @@ Each tool call goes through these steps:
 The schema checks the input after your hook:
 
 - `hookCtx.args` has no schema defaults or transforms yet, and it can be invalid. Check its shape before you read it.
-- A `transformArgs` value or an in-place edit must fit the schema. If it does not fit, the call gets a tool error and the tool does not run.
+- A `transformArgs` value or an in-place edit must fit the schema. If it does not fit, the call gets a tool error, `onAfterToolCall` runs with `ok: false`, and the tool does not run.
 
 When the hook runs:
 
 - A client tool runs the hook before the server sends the call to the client. The hook does not run when the client result comes back.
+- A client tool gets `onAfterToolCall` only when the hook skips the call or the schema check fails. The result from the client does not run it. If your middleware pairs the two hooks, return early when `hookCtx.tool?.execute` is missing.
 - A call that waits for approval does not run the hook. A denied call does not run it either.
 - After approval, the hook gets the approved input, including any `editedArgs`. See [Tool Approval](../interrupts/tool-approval).
 
