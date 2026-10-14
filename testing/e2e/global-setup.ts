@@ -179,7 +179,7 @@ export default async function globalSetup() {
 
   // decide() usage on a failed answer mapping. aimock has no OpenAI Decisions
   // endpoint, so this mount hand-crafts a `/v1/decisions` response with valid
-  // usage and a choice outside the question's options. The companion spec
+  // usage and a choice with no entry in `probabilities`. The companion spec
   // asserts `decide()` rejects and still reports that usage.
   mock.mount('/evaluate-usage-on-failure', evaluateUsageOnFailureMount())
 
@@ -2196,7 +2196,8 @@ function anthropicStructuredUsageMount(): Mountable {
 /**
  * Mounts the OpenAI Decisions `/v1/decisions` response for the
  * `evaluate-usage-on-failure` spec: valid usage, but a `queue` answer whose
- * choice is not one of the options, so `decide()` cannot map it.
+ * choice (`sales`) has no entry in `probabilities`, so `decide()` throws
+ * "missing probability for choice".
  */
 function evaluateUsageOnFailureMount(): Mountable {
   return {

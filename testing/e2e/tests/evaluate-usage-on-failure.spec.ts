@@ -7,7 +7,7 @@ import { test, expect } from './fixtures'
  *
  * The `/api/evaluate-usage-on-failure` route drives the OpenAI evaluate
  * adapter against an aimock mount whose `/v1/decisions` response carries
- * usage and a choice outside the question's options.
+ * usage and a choice with no entry in `probabilities`.
  */
 test.describe('evaluate — usage when answer mapping fails', () => {
   test('decide() rejects and still reports usage', async ({ request }) => {

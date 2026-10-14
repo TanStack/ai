@@ -8,7 +8,7 @@ const DUMMY_KEY = 'sk-e2e-test-dummy-key'
 /**
  * Drives `decide()` through the OpenAI evaluate adapter against the
  * `/evaluate-usage-on-failure` aimock mount. The mount answers with valid
- * usage but picks a choice outside the question's options, so `decide()`
+ * usage but picks a choice with no entry in `probabilities`, so `decide()`
  * fails while mapping the answer. The route reports the rejection together
  * with the usage seen by the `onUsage` middleware hook.
  */

@@ -443,8 +443,9 @@ try {
 
 If `questions` is empty, `decide()` throws before any request.
 If a question key is `meta`, `decide()` throws.
-If the provider answers but an answer is missing or has the wrong type,
-`decide()` throws. `onUsage` and the `evaluate:usage` event still get the token
+If the provider answers but `decide()` cannot map an answer, `decide()` throws.
+For example, an answer is missing, has the wrong type, or has no probability
+for its value. `onUsage` and the `evaluate:usage` event still get the token
 usage of that call, before `onError` runs. `onFinish` does not run.
 
 ## Runnable Example

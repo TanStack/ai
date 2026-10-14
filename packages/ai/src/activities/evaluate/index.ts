@@ -552,6 +552,11 @@ export async function decide<
     try {
       answers = mapAnswers(questions, result.answers)
     } catch (error) {
+      // Log first: a throwing onUsage hook replaces this error below.
+      logger.errors('evaluate answer mapping failed', {
+        error,
+        source: 'evaluate',
+      })
       aiEventClient.emit('evaluate:usage', {
         requestId,
         model: result.model,
