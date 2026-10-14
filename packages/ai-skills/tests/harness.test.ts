@@ -1,7 +1,7 @@
 import { watch } from 'node:fs'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fakeText } from '@tanstack/ai/testing'
@@ -100,7 +100,8 @@ async function addGuide(root: string, name: string, text: string) {
 function watchersOf(path: string) {
   const spy = vi.mocked(watch)
   return spy.mock.results.filter(
-    (_, index) => spy.mock.calls[index]?.[0] === path,
+    (result, index) =>
+      result.type === 'return' && spy.mock.calls[index]?.[0] === path,
   )
 }
 
@@ -407,6 +408,44 @@ describe('skills()', () => {
     await vi.waitFor(() => expect(names()).toContain('gamma'), {
       timeout: 5000,
     })
+  })
+
+  it('watches the parent of a removed folder, and the folder once it is back', async () => {
+    const root = await tempDir()
+    const dir = join(root, 'skills')
+    await addSkill(dir, 'alpha')
+    const { names, list } = await open({ dirs: [dir] })
+    await list()
+    expect(watchersOf(dir)).toHaveLength(1)
+
+    await rm(dir, { recursive: true, force: true })
+    await list()
+    expect(watchersOf(dirname(dir))).toHaveLength(1)
+    await addSkill(dir, 'gamma')
+    await list()
+    expect(watchersOf(dir)).toHaveLength(2)
+    expect(names()).toContain('gamma')
+  })
+
+  it('watches a folder without recursive where the platform has none', async () => {
+    const dir = await tempDir()
+    await addSkill(dir, 'alpha')
+    vi.mocked(watch).mockImplementationOnce(() => {
+      throw Object.assign(new Error('no recursive watch'), {
+        code: 'ERR_FEATURE_UNAVAILABLE_ON_PLATFORM',
+      })
+    })
+    const { names, list } = await open({ dirs: [dir] })
+    await list()
+
+    const calls = vi
+      .mocked(watch)
+      .mock.calls.map(([path, options]) => [path, options])
+    expect(calls).toEqual([
+      [dir, { recursive: true, persistent: false }],
+      [dir, { recursive: false, persistent: false }],
+    ])
+    expect(names()).toContain('alpha')
   })
 
   it('skips a folder whose skills cannot be read', async () => {

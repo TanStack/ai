@@ -1,5 +1,5 @@
-import { watch } from 'node:fs'
-import { dirname } from 'node:path'
+import { existsSync, watch } from 'node:fs'
+import { basename, dirname } from 'node:path'
 import { firstSentence } from '@tanstack/ai'
 import { defineCommand, definePlugin } from '@tanstack/ai-harness'
 import { renderCatalog } from './catalog'
@@ -140,18 +140,44 @@ export function skills(options: SkillsPluginOptions) {
           },
         })
 
+      const drop = (key: string) => {
+        watchers.get(key)?.close()
+        watchers.delete(key)
+      }
+
       /** Watch `path` under `key`. `false` when `path` does not exist. */
-      const tryWatch = (key: string, path: string, recursive: boolean) => {
+      const tryWatch = (
+        key: string,
+        path: string,
+        recursive: boolean,
+      ): boolean => {
         try {
-          const watcher = watch(path, { recursive, persistent: false }, soon)
+          const watcher = watch(
+            path,
+            { recursive, persistent: false },
+            (event, name) => {
+              // The folder itself went away (a delete or a move). Its
+              // watcher is dead, so the next sync watches it again.
+              if (event === 'rename' && name === basename(path)) drop(key)
+              soon()
+            },
+          )
           watcher.on('error', () => {
-            watcher.close()
-            watchers.delete(key)
+            drop(key)
+            soon()
           })
           watchers.set(key, watcher)
           return true
-        } catch {
-          return false
+        } catch (error) {
+          // ponytail: Linux has no recursive watch before Node 19.1. Then
+          // only the folder is watched: an added or removed skill shows at
+          // once, an edited SKILL.md at the next turn. Watch each skill
+          // folder too if edits must show at once there.
+          const isUnavailable =
+            error instanceof Error &&
+            'code' in error &&
+            error.code === 'ERR_FEATURE_UNAVAILABLE_ON_PLATFORM'
+          return recursive && isUnavailable ? tryWatch(key, path, false) : false
         }
       }
 
@@ -161,11 +187,12 @@ export function skills(options: SkillsPluginOptions) {
        */
       const watchFolders = () => {
         for (const dir of dirs) {
+          // Some watchers stop with no event when their folder goes away.
+          if (watchers.has(dir) && !existsSync(dir)) drop(dir)
           if (watchers.has(dir)) continue
           const parentKey = `${dir} (parent)`
           if (tryWatch(dir, dir, true)) {
-            watchers.get(parentKey)?.close()
-            watchers.delete(parentKey)
+            drop(parentKey)
           } else if (!watchers.has(parentKey)) {
             tryWatch(parentKey, dirname(dir), false)
           }
