@@ -56,7 +56,11 @@ export class OperationImpl<TResult> implements Operation<TResult> {
   ) {
     this.id = id ?? createOperationId(kind)
     this.startedCursor = feed.head()
-    this.onEvent = onEventOf((listener) => feed.listen(listener), this.id)
+    // A settled operation sends no more events, so a listener is not added.
+    this.onEvent = onEventOf(
+      (listener) => (this.isSettled() ? () => {} : feed.listen(listener)),
+      this.id,
+    )
     this.onMedia = onMediaOf(this.onEvent)
     this.receipt = new Promise<Receipt>((resolve) => {
       this.settleReceipt = resolve

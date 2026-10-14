@@ -664,14 +664,19 @@ export function tapFeed(
     publish: (operationId, event) => {
       feed.publish(operationId, event)
       notifyHost(event)
+      const report = (error: unknown) =>
+        console.error(
+          '[@tanstack/ai-harness] An onEvent listener threw.',
+          error,
+        )
       for (const listener of [...listeners]) {
+        // A listener that an earlier listener stopped gets nothing.
+        if (!listeners.has(listener)) continue
         try {
-          listener({ operationId, event })
+          const result: unknown = listener({ operationId, event })
+          if (result instanceof Promise) result.catch(report)
         } catch (error) {
-          console.error(
-            '[@tanstack/ai-harness] An onEvent listener threw.',
-            error,
-          )
+          report(error)
         }
       }
     },

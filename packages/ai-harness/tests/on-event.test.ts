@@ -94,6 +94,33 @@ describe('session.onEvent', () => {
     await host.close()
   })
 
+  it('reports an async listener that rejects, and keeps the turn going', async () => {
+    const { host, session } = await open()
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    session.onEvent(async () => {
+      throw new Error('socket closed')
+    })
+
+    await expect(session.prompt('Hi')).resolves.toMatchObject({
+      text: 'Hello world',
+    })
+    await vi.waitFor(() => expect(error).toHaveBeenCalled())
+    await host.close()
+  })
+
+  it('skips a listener that an earlier listener stopped', async () => {
+    const { host, session } = await open()
+    const second = vi.fn()
+    let stopSecond = () => {}
+    session.onEvent(() => stopSecond())
+    stopSecond = session.onEvent(second)
+
+    await session.prompt('Hi')
+
+    expect(second).not.toHaveBeenCalled()
+    await host.close()
+  })
+
   it('gets the events of a durable session', async () => {
     const { runs, metadata } = memoryPersistence().stores
     const { host, session } = await open({
@@ -119,6 +146,23 @@ describe('session.onEvent', () => {
 })
 
 describe('operation.onEvent', () => {
+  it('drops its listener when the operation finishes', async () => {
+    const { host, session } = await open()
+    const listeners: Set<unknown> = Reflect.get(session, 'eventListeners')
+    const turn = session.prompt('Hi')
+    turn.onEvent(() => {})
+    turn.onMedia(() => {})
+    expect(listeners.size).toBe(2)
+
+    await turn
+
+    expect(listeners.size).toBe(0)
+    // A listener for a settled operation is not added.
+    turn.onEvent(() => {})
+    expect(listeners.size).toBe(0)
+    await host.close()
+  })
+
   it('gets only the events of its operation', async () => {
     const { host, session } = await open()
     const first = session.prompt('One')

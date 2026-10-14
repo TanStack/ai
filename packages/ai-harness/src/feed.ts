@@ -70,15 +70,25 @@ export function onEventOf(
     if (typeof listener !== 'function') {
       throw new TypeError('onEvent needs a listener function.')
     }
-    return listen((entry) => {
+    const stop = listen((entry) => {
       if (operationId !== undefined && entry.operationId !== operationId) {
         return
       }
-      // A typed listener gets only events of its type.
+      // A typed listener gets only events of its type. The result goes back,
+      // so the feed can catch a promise that rejects.
+      let result: unknown
       if (type === null || entry.event.type === type) {
-        ;(listener as EventListener)(entry)
+        result = (listener as EventListener)(entry)
       }
+      // An operation sends nothing after it finished, so its listener goes.
+      const { event } = entry
+      const isFinished =
+        event.type === EventType.CUSTOM &&
+        event.name === HARNESS_EVENTS.operationFinished
+      if (operationId !== undefined && isFinished) stop()
+      return result
     })
+    return stop
   }
   return onEvent
 }
