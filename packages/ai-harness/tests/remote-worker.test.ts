@@ -124,7 +124,7 @@ describe('harnessText for a remote harness', () => {
     })
   })
 
-  it('finishes cleanly when the response has no body', async () => {
+  it('fails when the response has no body', async () => {
     const remote = harnessText({
       url: 'http://remote.test',
       fetch: async () => new Response(null, { status: 200 }),
@@ -134,8 +134,11 @@ describe('harnessText for a remote harness', () => {
     )
     expect(chunks.map((chunk) => chunk.type)).toEqual([
       EventType.RUN_STARTED,
-      EventType.RUN_FINISHED,
+      EventType.RUN_ERROR,
     ])
+    expect(chunks.at(-1)).toMatchObject({
+      message: 'The remote harness closed the stream before the run ended.',
+    })
   })
 })
 
