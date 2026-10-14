@@ -40,6 +40,10 @@ export const handler = createHarnessHandler({
 })
 ```
 
+`canAccess` is required. It decides which threads each principal can use. To let every principal use every thread, pass `canAccess: () => true`.
+
+On a durable host (`stores.log`), also set `mediaSecret`. It signs media URLs, so every instance must use the same value. Without a log store, the default is a random key, and signed URLs stop working after a restart.
+
 The handler answers these paths under your route:
 
 - `GET capabilities`: the AG-UI capabilities, with the agents in `expose.agents`.
@@ -302,7 +306,13 @@ import { handleHarnessSocket } from '@tanstack/ai-harness'
 import type { WebSocketLike } from '@tanstack/ai'
 
 export function onUpgrade(socket: WebSocketLike) {
-  handleHarnessSocket({ host, harness: assistant, socket, principal: { id: 'user-1' } })
+  handleHarnessSocket({
+    host,
+    harness: assistant,
+    socket,
+    principal: { id: 'user-1' },
+    canAccess: (principal, threadId) => threadId.startsWith(`${principal.id}-`),
+  })
 }
 ```
 

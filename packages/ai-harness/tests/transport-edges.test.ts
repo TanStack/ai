@@ -279,6 +279,7 @@ describe('WebSocket edges', () => {
       harness,
       socket: first.socket,
       principal: { id: 'user-1' },
+      canAccess: () => true,
     })
     first.receive({ type: 'harness.subscribe', threadId: 'user-1-ws2' })
     await vi.waitFor(() =>
@@ -324,6 +325,7 @@ describe('WebSocket edges', () => {
       harness,
       socket: second.socket,
       principal: { id: 'user-1' },
+      canAccess: () => true,
     })
     second.receive({
       type: 'harness.subscribe',
@@ -346,7 +348,13 @@ describe('WebSocket edges', () => {
   it('takes an input sent right after the subscribe, before the hello', async () => {
     const { host, harness } = setup([() => text('hello')])
     const { socket, sent, receive } = fakeSocket()
-    handleHarnessSocket({ host, harness, socket, principal: { id: 'user-1' } })
+    handleHarnessSocket({
+      host,
+      harness,
+      socket,
+      principal: { id: 'user-1' },
+      canAccess: () => true,
+    })
     receive({ type: 'harness.subscribe', threadId: 'user-1-ws3' })
     receive({
       type: 'harness.input',
@@ -366,7 +374,13 @@ describe('WebSocket edges', () => {
   it('stops reading when the socket cannot send', async () => {
     const { host, harness } = setup()
     const { socket, receive } = fakeSocket({ failSend: true })
-    handleHarnessSocket({ host, harness, socket, principal: { id: 'user-1' } })
+    handleHarnessSocket({
+      host,
+      harness,
+      socket,
+      principal: { id: 'user-1' },
+      canAccess: () => true,
+    })
     receive({ type: 'harness.subscribe', threadId: 'user-1-dead' })
     // Nothing to assert on the socket: the send failure must not throw.
     await new Promise((resolve) => setTimeout(resolve, 20))

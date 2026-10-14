@@ -416,7 +416,13 @@ describe('WebSocket', () => {
   it('subscribes, applies inputs with receipts, and streams events', async () => {
     const { host, harness } = setup()
     const { socket, sent, receive } = fakeSocket()
-    handleHarnessSocket({ host, harness, socket, principal: { id: 'user-1' } })
+    handleHarnessSocket({
+      host,
+      harness,
+      socket,
+      principal: { id: 'user-1' },
+      canAccess: () => true,
+    })
 
     receive({
       type: 'harness.input',

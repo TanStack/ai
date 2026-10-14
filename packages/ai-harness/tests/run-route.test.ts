@@ -37,7 +37,7 @@ const deploy = toolDefinition({
 
 function setup(
   harness: AnyHarness,
-  canAccess?: () => boolean,
+  canAccess: () => boolean = () => true,
   persistence = memoryPersistence(),
 ) {
   const host = createHarnessHost({ persistence })
@@ -45,7 +45,7 @@ function setup(
     host,
     harness,
     authorize: () => ({ id: 'user-1' }),
-    ...(canAccess ? { canAccess } : {}),
+    canAccess,
   })
   const call = (path: string, body?: object) =>
     handler(
@@ -235,6 +235,7 @@ describe('POST run', () => {
     const handler = createHarnessHandler({
       host,
       harness: defineHarness({ name: 'test/run-route', adapter }),
+      canAccess: () => true,
       authorize: (request) => ({ id: request.headers.get('x-user') ?? '' }),
     })
     const post = (user: string) =>

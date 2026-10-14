@@ -284,6 +284,8 @@ function handlerFor(request: Request) {
     host: hostOf,
     harness,
     authorize,
+    // Test only: every principal may use every thread.
+    canAccess: () => true,
     // Each request makes a new handler, so a fixed secret keeps a signed URL
     // working on the next request.
     mediaSecret: 'e2e-media-secret',

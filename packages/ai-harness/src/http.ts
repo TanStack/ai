@@ -10,7 +10,7 @@ import {
   toServerSentEventsStream,
 } from '@tanstack/ai'
 import { parseRangeHeader, resolveBlobRange } from '@tanstack/ai-persistence'
-import { sessionOfTurn } from './host'
+import { durableStoresOf, sessionOfTurn } from './host'
 import { MediaError } from './media'
 import { base64url } from './oauth'
 import {
@@ -45,22 +45,28 @@ export type Authorize = (
   request: Request,
 ) => Principal | null | Promise<Principal | null>
 
+/** May this principal use this thread? */
+export type CanAccess = (
+  principal: Principal,
+  threadId: string,
+) => boolean | Promise<boolean>
+
 export interface HarnessHandlerOptions {
   host: HarnessHost
   harness: AnyHarness
   authorize: Authorize
   /**
-   * May this principal use this thread? Default: yes. Use it to keep users
-   * out of each other's threads.
+   * May this principal use this thread? Required: use it to keep users out
+   * of each other's threads. Pass `() => true` to let every principal use
+   * every thread.
    */
-  canAccess?: (
-    principal: Principal,
-    threadId: string,
-  ) => boolean | Promise<boolean>
+  canAccess: CanAccess
   /**
-   * The secret that signs media URLs (HMAC SHA-256). Default: a random key
-   * per handler, so signed URLs stop working after a restart. Set it to keep
-   * them working, and use the same value on every server behind one URL.
+   * The secret that signs media URLs (HMAC SHA-256). Use the same value on
+   * every server behind one URL. Required on a durable host (`stores.log`),
+   * where another instance can serve the next request. Without a log store,
+   * the default is a random key per handler, so signed URLs stop working
+   * after a restart.
    */
   mediaSecret?: string
 }
@@ -309,16 +315,20 @@ async function mediaResponse(
 export function createHarnessHandler(
   options: HarnessHandlerOptions,
 ): (request: Request) => Promise<Response> {
-  const { host, harness, authorize } = options
-  const canAccess = options.canAccess ?? (() => true)
+  const { host, harness, authorize, canAccess } = options
+  if (options.mediaSecret === undefined && durableStoresOf(host)) {
+    throw new Error(
+      'createHarnessHandler needs mediaSecret on a durable host (stores.log): another instance must verify the media URLs this one signs. Set the same secret on every instance.',
+    )
+  }
 
   const openFor = async (principal: Principal, threadId: string) => {
     if (!(await canAccess(principal, threadId))) return null
     return host.open(harness, { threadId, principal })
   }
 
-  // ponytail: without `mediaSecret`, a random key per handler, so signed URLs
-  // stop working after a restart. Set `mediaSecret` to keep them.
+  // ponytail: without `mediaSecret` (only allowed without a log store), a
+  // random key per handler, so signed URLs stop working after a restart.
   const secret =
     options.mediaSecret === undefined
       ? crypto.getRandomValues(new Uint8Array(32))
@@ -757,10 +767,8 @@ export interface HarnessSocketOptions {
   socket: WebSocketLike
   /** The principal your upgrade handler authorized. */
   principal: Principal
-  canAccess?: (
-    principal: Principal,
-    threadId: string,
-  ) => boolean | Promise<boolean>
+  /** May this principal use this thread? Pass `() => true` to allow all. */
+  canAccess: CanAccess
 }
 
 /**
@@ -768,8 +776,7 @@ export interface HarnessSocketOptions {
  * `harness.subscribe`. Authorize the upgrade request before you call this.
  */
 export function handleHarnessSocket(options: HarnessSocketOptions): void {
-  const { host, harness, socket, principal } = options
-  const canAccess = options.canAccess ?? (() => true)
+  const { host, harness, socket, principal, canAccess } = options
   const reader = new AbortController()
   // Set by the first subscribe, before its awaits, so a second subscribe is
   // refused and an input sent right after the subscribe waits for the open.
