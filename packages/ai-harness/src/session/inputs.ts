@@ -571,7 +571,12 @@ export abstract class SessionInputs<
     const own = state?.inputs.get(inputId)
     const from = (own?.into ? state?.inputs.get(own.into) : own)?.appliedAt
     if (!state || from === undefined) return ''
+    // Only a turn or a reset starts a new part of the transcript. An answer,
+    // a command, or an agent run is applied during a turn too.
     const starts = [...state.inputs.values()]
+      .filter(
+        (input) => CHAT_OPS.has(input.input.op) || input.input.op === 'reset',
+      )
       .map((input) => input.appliedAt ?? -1)
       .filter((at) => at > from)
     const to = Math.min(state.messages.length, ...starts)
@@ -610,12 +615,17 @@ export abstract class SessionInputs<
     error: unknown,
   ): void {
     if (operation.isSettled()) return
-    operation.publish({
-      type: EventType.RUN_ERROR,
-      message: errorText(this.logFailure ?? error),
-      timestamp: Date.now(),
-    })
-    operation.fail('failed', this.logFailure ?? error)
+    // A cancelled operation ends cancelled. Its cancel event is out already.
+    if (operation.abortController.signal.aborted) {
+      operation.fail('cancelled', this.logFailure ?? error)
+    } else {
+      operation.publish({
+        type: EventType.RUN_ERROR,
+        message: errorText(this.logFailure ?? error),
+        timestamp: Date.now(),
+      })
+      operation.fail('failed', this.logFailure ?? error)
+    }
     this.publishFinished(operation)
   }
 }

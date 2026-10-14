@@ -1276,11 +1276,22 @@ describe('input ids', () => {
 
   it('settles an old duplicate after a restart with the text of its own turn', async () => {
     const persistence = durablePersistence()
+    const release = gate()
     const first = await openDurable({
       persistence,
-      replies: [() => text('first answer'), () => text('second answer')],
+      replies: [
+        after(release.opened, 'first answer'),
+        () => text('second answer'),
+      ],
     })
-    await first.session.prompt('one', { inputId: 'old-1' })
+    const one = first.session.prompt('one', { inputId: 'old-1' })
+    await vi.waitFor(async () =>
+      expect(await recordTypes(persistence)).toContain('harness.transcript'),
+    )
+    // An input applied during the turn does not cut the turn's text.
+    await first.session.configure({ instructions: 'Be brief.' })
+    release.open()
+    await one
     await first.session.prompt('two', { inputId: 'new-1' })
     await first.host.close()
 

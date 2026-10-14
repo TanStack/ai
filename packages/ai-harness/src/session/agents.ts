@@ -909,10 +909,10 @@ export abstract class SessionAgents<
         operation.finish('completed', value)
       }
     } finally {
-      // Also when a store write above threw: a run lease must not renew forever.
+      // Also when a store write above threw: the leases must not stay held.
       stopRunLease()
+      await releaseLease?.()
     }
-    await releaseLease?.()
     this.publishFinished(operation)
   }
 
