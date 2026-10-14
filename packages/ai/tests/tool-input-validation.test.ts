@@ -354,7 +354,14 @@ describe('JSON Schema tool input', () => {
     expect(
       (await runTool('{"mode":"count","count":3}', schema)).executed,
     ).toEqual([{ mode: 'count', count: 3 }])
-    expect((await runTool('{"mode":"count"}', schema)).executed).toEqual([])
+    const missing = await runTool('{"mode":"count"}', schema)
+    expect(missing.executed).toEqual([])
+    // The "then" wrapper error is left out. The nested error says why.
+    expect(missing.results[0]?.result).toEqual({
+      error: expect.stringContaining(
+        'check: #: Instance does not have required property "count".\n',
+      ),
+    })
     expect((await runTool('{"count":"3"}', schema)).executed).toEqual([])
   })
 
@@ -454,14 +461,189 @@ describe('JSON Schema tool input', () => {
     },
   )
 
-  it('reads a boolean exclusive bound with no $schema as draft-04', async () => {
+  it.each([
+    undefined,
+    'http://json-schema.org/schema#',
+    'http://json-schema.org/draft-07/schema#',
+    'https://json-schema.org/draft/2019-09/schema',
+  ])('reads a boolean exclusive bound with $schema %s', async ($schema) => {
     const schema: JSONSchema = JSON.parse(
-      '{"type":"object","properties":{"count":{"type":"number","maximum":5,"exclusiveMaximum":true}}}',
+      JSON.stringify({
+        $schema,
+        type: 'object',
+        properties: {
+          count: { type: 'number', maximum: 5, exclusiveMaximum: true },
+        },
+      }),
     )
     expect((await runTool('{"count":4}', schema)).executed).toEqual([
       { count: 4 },
     ])
     expect((await runTool('{"count":5}', schema)).executed).toEqual([])
+  })
+
+  it('keeps a number bound next to a boolean bound', async () => {
+    const schema: JSONSchema = JSON.parse(
+      JSON.stringify({
+        $schema: 'https://json-schema.org/draft/2020-12/schema',
+        type: 'object',
+        properties: {
+          low: { type: 'number', minimum: 0, exclusiveMinimum: false },
+          high: { type: 'number', exclusiveMinimum: 5 },
+        },
+      }),
+    )
+    expect((await runTool('{"low":0,"high":6}', schema)).executed).toEqual([
+      { low: 0, high: 6 },
+    ])
+    expect((await runTool('{"high":5}', schema)).executed).toEqual([])
+  })
+
+  it('lets an OpenAPI 3.0 nullable reference be null', async () => {
+    const schema: JSONSchema = {
+      type: 'object',
+      definitions: { User: { type: 'object', required: ['id'] } },
+      properties: {
+        owner: { nullable: true, allOf: [{ $ref: '#/definitions/User' }] },
+        editor: { nullable: true, oneOf: [{ $ref: '#/definitions/User' }] },
+      },
+    }
+    expect(
+      (await runTool('{"owner":null,"editor":null}', schema)).executed,
+    ).toEqual([{ owner: null, editor: null }])
+    expect(
+      (await runTool('{"owner":{"id":1},"editor":{"id":2}}', schema)).executed,
+    ).toEqual([{ owner: { id: 1 }, editor: { id: 2 } }])
+    const wrong = await runTool('{"owner":{}}', schema)
+    expect(wrong.executed).toEqual([])
+    expect(wrong.results[0]?.result).toEqual({
+      error: expect.stringContaining(
+        'check: #/owner: Instance does not have required property "id".\n',
+      ),
+    })
+  })
+
+  it('moves a percent-encoded $ref and a ref into a nullable root', async () => {
+    const schema: JSONSchema = {
+      $id: 'https://example.com/tool',
+      nullable: true,
+      allOf: [{ $ref: '#/definitions/Input' }],
+      definitions: {
+        Input: {
+          type: 'object',
+          properties: {
+            'my field': {
+              nullable: true,
+              anyOf: [{ type: 'integer' }, { type: 'string' }],
+            },
+            'a/b': {
+              $ref: '#/definitions/Input/properties/my%20field/anyOf/0',
+            },
+            '50%': {
+              nullable: true,
+              allOf: [{ type: 'object', required: ['id'] }],
+            },
+            copy: { $ref: '#/definitions/Input/properties/50%25/allOf/0' },
+          },
+        },
+      },
+    }
+    expect(
+      (await runTool('{"my field":null,"a/b":3}', schema)).executed,
+    ).toEqual([{ 'my field': null, 'a/b': 3 }])
+    expect((await runTool('{"a/b":null}', schema)).executed).toEqual([])
+    expect((await runTool('{"a/b":"3"}', schema)).executed).toEqual([])
+    expect(
+      (await runTool('{"50%":null,"copy":{"id":1}}', schema)).executed,
+    ).toEqual([{ '50%': null, copy: { id: 1 } }])
+    expect((await runTool('{"copy":null}', schema)).executed).toEqual([])
+  })
+
+  it('keeps a $ref that points into a nullable schema', async () => {
+    // zod-to-json-schema with `target: 'openApi3'` reuses a schema by path.
+    const address = {
+      type: 'object',
+      properties: { city: { type: 'string' } },
+      required: ['city'],
+    }
+    const schema: JSONSchema = {
+      type: 'object',
+      properties: {
+        home: { anyOf: [address, { type: 'string' }], nullable: true },
+        work: { $ref: '#/properties/home/anyOf/0' },
+        office: { nullable: true, $ref: '#/properties/home/anyOf/0' },
+      },
+    }
+    expect(
+      (await runTool('{"home":null,"work":{"city":"x"},"office":null}', schema))
+        .executed,
+    ).toEqual([{ home: null, work: { city: 'x' }, office: null }])
+    expect((await runTool('{"work":null}', schema)).executed).toEqual([])
+    expect((await runTool('{"office":{}}', schema)).executed).toEqual([])
+    expect((await runTool('{"home":1}', schema)).executed).toEqual([])
+  })
+
+  it('moves a $ref through nested nullable schemas', async () => {
+    const schema: JSONSchema = {
+      type: 'object',
+      properties: {
+        outer: {
+          nullable: true,
+          allOf: [
+            {
+              type: 'object',
+              properties: {
+                inner: {
+                  nullable: true,
+                  oneOf: [{ type: 'integer' }, { type: 'string' }],
+                },
+              },
+            },
+          ],
+        },
+        copy: { $ref: '#/properties/outer/allOf/0/properties/inner/oneOf/0' },
+      },
+    }
+    expect(
+      (await runTool('{"outer":{"inner":null},"copy":3}', schema)).executed,
+    ).toEqual([{ outer: { inner: null }, copy: 3 }])
+    expect((await runTool('{"copy":"3"}', schema)).executed).toEqual([])
+    expect(
+      (await runTool('{"outer":{"inner":true}}', schema)).executed,
+    ).toEqual([])
+  })
+
+  it('keeps draft-07 $ref siblings ignored in a nullable schema', async () => {
+    const schema: JSONSchema = {
+      $schema: 'http://json-schema.org/draft-07/schema#',
+      type: 'object',
+      definitions: { P: { type: 'object' } },
+      properties: {
+        p: { $ref: '#/definitions/P', nullable: true, required: ['name'] },
+      },
+    }
+    expect((await runTool('{"p":{"id":1}}', schema)).executed).toEqual([
+      { p: { id: 1 } },
+    ])
+    expect((await runTool('{"p":null}', schema)).executed).toEqual([
+      { p: null },
+    ])
+  })
+
+  it('lets an OpenAPI 3.0 nullable field be null', async () => {
+    const schema: JSONSchema = {
+      type: 'object',
+      properties: {
+        name: { type: 'string', nullable: true },
+        kind: { type: 'string', enum: ['a', 'b'], nullable: true },
+        size: { type: 'integer' },
+      },
+    }
+    expect(
+      (await runTool('{"name":null,"kind":null}', schema)).executed,
+    ).toEqual([{ name: null, kind: null }])
+    expect((await runTool('{"kind":"c"}', schema)).executed).toEqual([])
+    expect((await runTool('{"size":null}', schema)).executed).toEqual([])
   })
 
   it('treats format as an annotation', async () => {
@@ -471,6 +653,55 @@ describe('JSON Schema tool input', () => {
       required: ['path'],
     })
     expect(result.executed).toEqual([{ path: '/tmp/report.txt' }])
+  })
+
+  it('keeps a format key inside const and enum values', async () => {
+    const input = {
+      file: { format: 'pdf' },
+      kind: { format: 'csv' },
+      default: '/tmp/report.txt',
+    }
+    const result = await runTool(JSON.stringify(input), {
+      type: 'object',
+      properties: {
+        file: { const: { format: 'pdf' } },
+        kind: { enum: [{ format: 'csv' }] },
+        // A property named like a data keyword is still a schema.
+        default: { type: 'string', format: 'uri' },
+      },
+    })
+    expect(result.executed).toEqual([input])
+  })
+
+  it('lists at most 10 errors', async () => {
+    const result = await runTool(
+      JSON.stringify({ xs: Array.from({ length: 12 }, () => 'x') }),
+      {
+        type: 'object',
+        properties: { xs: { type: 'array', items: { type: 'integer' } } },
+      },
+    )
+    const error = JSON.stringify(result.results[0]?.result)
+    expect(error).toContain('#/xs/9: ')
+    expect(error).not.toContain('#/xs/10: ')
+    expect(error).toContain(', and 2 more')
+  })
+
+  it('checks a middleware rewrite to undefined as null', async () => {
+    const result = await runTool('{"count":2}', jsonSchema, {
+      middleware: {
+        onBeforeToolCall: async () => ({
+          type: 'transformArgs',
+          args: undefined,
+        }),
+      },
+    })
+    expect(result.executed).toEqual([])
+    expect(result.results[0]?.result).toEqual({
+      error: expect.stringContaining(
+        'check: #: Instance type "null" is invalid. Expected "object".',
+      ),
+    })
   })
 
   it('treats a key set to undefined as a missing key', async () => {
@@ -489,7 +720,12 @@ describe('JSON Schema tool input', () => {
     const schema: JSONSchema = {
       type: 'object',
       $defs: { count: { type: 'integer' } },
-      properties: { count: { $ref: '#/$defs/count' } },
+      properties: {
+        count: { $ref: '#/$defs/count' },
+        name: { type: 'string', format: 'uri', nullable: true },
+        kind: { enum: ['a'], nullable: true },
+        owner: { nullable: true, allOf: [{ $ref: '#/$defs/count' }] },
+      },
     }
     const before = JSON.stringify(schema)
     await runTool('{"count":2}', schema)

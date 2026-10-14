@@ -3,17 +3,26 @@ import { chat, toolDefinition } from '@tanstack/ai'
 import { fakeText } from '@tanstack/ai/testing'
 
 // No network: `fakeText` answers from a script. The first answer calls a
-// JSON Schema tool with a wrong type, the second answer repeats the tool
-// result. MCP tools have the same raw JSON Schema input.
+// JSON Schema tool with a wrong type, and an OpenAPI 3.0 tool with `null` for
+// a `nullable` field. The second answer repeats the tool results. MCP tools
+// have the same raw JSON Schema input.
 export const Route = createFileRoute('/api/json-schema-tool-input')({
   server: {
     handlers: {
       POST: async () => {
         const fake = fakeText()
         fake.setResponses([
-          { toolCalls: [{ name: 'count_items', input: { count: 'many' } }] },
+          {
+            toolCalls: [
+              { name: 'count_items', input: { count: 'many' } },
+              { name: 'label_item', input: { label: null } },
+            ],
+          },
           ({ request }) => ({
-            text: `Tool said: ${String(request.messages.at(-1)?.content)}`,
+            text: request.messages
+              .filter((message) => message.role === 'tool')
+              .map((message) => `Tool said: ${String(message.content)}`)
+              .join('\n'),
           }),
         ])
 
@@ -31,11 +40,23 @@ export const Route = createFileRoute('/api/json-schema-tool-input')({
           runs.push(input)
           return 'counted'
         })
+        const labelItem = toolDefinition({
+          name: 'label_item',
+          description: 'Label the item',
+          inputSchema: {
+            type: 'object',
+            properties: { label: { type: 'string', nullable: true } },
+            required: ['label'],
+          },
+        }).server((input) => {
+          runs.push(input)
+          return 'labeled'
+        })
 
         const { text } = await chat({
           adapter: fake,
           messages: [{ role: 'user', content: 'Count the items' }],
-          tools: [countItems],
+          tools: [countItems, labelItem],
           stream: false,
         })
 
