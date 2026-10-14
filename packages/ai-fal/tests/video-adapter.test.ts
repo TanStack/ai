@@ -449,7 +449,7 @@ describe('Fal Video Adapter', () => {
     })
   })
 
-  describe('getVideoUrl', () => {
+  describe('getVideo', () => {
     it('returns video URL from video object', async () => {
       mockQueueResult.mockResolvedValueOnce({
         data: {
@@ -459,7 +459,7 @@ describe('Fal Video Adapter', () => {
 
       const adapter = createAdapter()
 
-      const result = await adapter.getVideoUrl('job-123')
+      const result = await adapter.getVideo('job-123')
 
       expect(mockQueueResult).toHaveBeenCalledWith(
         'fal-ai/veo3/image-to-video',
@@ -479,7 +479,7 @@ describe('Fal Video Adapter', () => {
 
       const adapter = createAdapter()
 
-      const result = await adapter.getVideoUrl('job-456')
+      const result = await adapter.getVideo('job-456')
 
       expect(result.url).toBe('https://fal.media/files/video2.mp4')
     })
@@ -502,7 +502,7 @@ describe('Fal Video Adapter', () => {
 
       const adapter = createAdapter()
 
-      await expect(adapter.getVideoUrl('job-failed')).rejects.toThrow(
+      await expect(adapter.getVideo('job-failed')).rejects.toThrow(
         'Video generation failed: body.prompt: String should have at most 2500 characters',
       )
     })
@@ -514,7 +514,7 @@ describe('Fal Video Adapter', () => {
 
       const adapter = createAdapter()
 
-      await expect(adapter.getVideoUrl('job-789')).rejects.toThrow(
+      await expect(adapter.getVideo('job-789')).rejects.toThrow(
         'Video URL not found in response',
       )
     })
@@ -528,7 +528,7 @@ describe('Fal Video Adapter', () => {
         requestId: 'job-billed',
       })
 
-      const result = await createAdapter().getVideoUrl('job-billed')
+      const result = await createAdapter().getVideo('job-billed')
 
       expect(result.url).toBe('https://fal.media/files/billed.mp4')
       expect(result.usage).toEqual({
@@ -548,7 +548,7 @@ describe('Fal Video Adapter', () => {
         requestId: 'job-unbilled',
       })
 
-      const result = await createAdapter().getVideoUrl('job-unbilled')
+      const result = await createAdapter().getVideo('job-unbilled')
 
       expect(result.usage).toBeUndefined()
     })

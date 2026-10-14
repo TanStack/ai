@@ -25,15 +25,16 @@ By the end of this guide you call `decide()` once and read typed fields like `re
 
 ## Providers
 
-Evaluate talks to a decision model through five adapters:
+Evaluate talks to a decision model through six adapters:
 
 - **[Ollaya](../adapters/ollaya)** (`@tanstack/ai-ollaya`): `ollayaDecider('laya:latest')`. Local server at `http://127.0.0.1:11435`. No API key.
 - **TypeSafe** (`@tanstack/ai-typesafe`): `typesafeDecider('jev-latest')`. Reads `TYPESAFE_API_KEY`.
 - **OpenRouter** (`@tanstack/ai-openrouter`): `openRouterDecider('~typesafe/jev-latest')`. Reads `OPENROUTER_API_KEY`.
 - **Vercel AI Gateway** (`@tanstack/ai-vercel-gateway`): `vercelGatewayDecider('typesafe-ai/jev')`. Reads `AI_GATEWAY_API_KEY`.
 - **Cloudflare** (`@tanstack/ai-cloudflare`): `cloudflareDecider('typesafe/jev')`. Uses a Worker binding, or `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`.
+- **[OpenAI](../adapters/openai#evaluate)** (`@tanstack/ai-openai`): `openaiDecider('gpt-6-luna')`. Reads `OPENAI_API_KEY`.
 
-All five implement the same `evaluate` activity. Swap the adapter. Keep the `decide()` call.
+All six implement the same `evaluate` activity. Swap the adapter. Keep the `decide()` call.
 
 ## Installation
 
@@ -73,6 +74,7 @@ Other adapters:
 - OpenRouter: `@tanstack/ai-openrouter`
 - Vercel AI Gateway: `@tanstack/ai-vercel-gateway`
 - Cloudflare: `@tanstack/ai-cloudflare`
+- [OpenAI](../adapters/openai#evaluate): `@tanstack/ai-openai`
 
 ## Basic Usage
 

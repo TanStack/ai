@@ -50,8 +50,8 @@ const PROVIDER_MODELS: Record<
   // Default entries do NOT enable thinking — most demo flows just want
   // the structured output. The `:thinking-max` synthetic suffix is a
   // dropdown-only marker (stripped before the model id reaches the
-  // adapter) that opts into adaptive thinking with `effort: 'max'` plus
-  // a bumped `maxTokens` budget so the reasoning + JSON both fit.
+  // adapter) that opts into thinking with `reasoning: 'max'` plus a
+  // bumped `maxTokens` budget so the reasoning + JSON both fit.
   anthropic: [
     { value: 'claude-sonnet-5', label: 'Claude Sonnet 5' },
     { value: 'claude-fable-5', label: 'Claude Fable 5' },

@@ -1,7 +1,6 @@
 import { arrayBufferToBase64 } from '@tanstack/ai-utils'
 import type { AudioPart } from '@tanstack/ai/client'
-import { createAtom } from './snapshot-atom'
-import type { Atom } from './snapshot-atom'
+import { notifyListeners } from './snapshot-atom'
 
 /** Lifecycle state of an {@link AudioRecorder}. */
 export type AudioRecorderState = 'idle' | 'recording' | 'stopping'
@@ -64,8 +63,7 @@ export class AudioRecorder {
   private stream: MediaStream | null = null
   private chunks: Array<Blob> = []
   private startedAt = 0
-  private readonly snapshotAtom: Atom<AudioRecorderState> =
-    createAtom<AudioRecorderState>('idle')
+  private _state: AudioRecorderState = 'idle'
   private readonly listeners = new Set<(state: AudioRecorderState) => void>()
   // True while start() is awaiting getUserMedia (state is still 'idle' then).
   private starting = false
@@ -90,7 +88,7 @@ export class AudioRecorder {
   }
 
   get state(): AudioRecorderState {
-    return this.snapshotAtom.get()
+    return this._state
   }
 
   subscribe(cb: (state: AudioRecorderState) => void): () => void {
@@ -99,11 +97,11 @@ export class AudioRecorder {
   }
 
   /** Current recorder lifecycle state. */
-  getSnapshot = (): AudioRecorderState => this.snapshotAtom.get()
+  getSnapshot = (): AudioRecorderState => this._state
 
   private setState(state: AudioRecorderState): void {
-    this.snapshotAtom.set(state)
-    for (const listener of this.listeners) listener(state)
+    this._state = state
+    notifyListeners(this.listeners, state)
   }
 
   async start(): Promise<void> {
@@ -246,8 +244,9 @@ export class AudioRecorder {
     const reject = this.stopReject
     this.stopResolve = null
     this.stopReject = null
-    this.setState('idle')
+    // Settle first. The pending stop() must not depend on listener code.
     reject?.(new Error('Recording cancelled'))
+    this.setState('idle')
   }
 
   private async finalize(): Promise<void> {
@@ -272,8 +271,8 @@ export class AudioRecorder {
       const resolve = this.stopResolve
       this.stopResolve = null
       this.stopReject = null
-      this.setState('idle')
       resolve?.(recording)
+      this.setState('idle')
     } catch (err) {
       this.handleError(
         err instanceof Error ? err : new Error('Failed to finalize recording'),
@@ -288,11 +287,11 @@ export class AudioRecorder {
     const reject = this.stopReject
     this.stopResolve = null
     this.stopReject = null
-    this.setState('idle')
-    // Settle the pending stop() promise before invoking the user callback so a
-    // throwing onError can't strand the awaiter (the two error channels are
-    // independent — see start()/stop() docs).
+    // Settle the pending stop() promise before listeners and the user callback
+    // run, so a throw there can't strand the awaiter (the two error channels
+    // are independent — see start()/stop() docs).
     reject?.(error)
+    this.setState('idle')
     this.notifyError(error)
   }
 

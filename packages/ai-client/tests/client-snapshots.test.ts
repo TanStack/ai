@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
+import { createMockConnectionAdapter, createTextChunks } from './test-utils'
 import {
   AudioRecorder,
+  ChatClient,
   GenerationClient,
   RealtimeClient,
   VideoGenerationClient,
@@ -78,6 +80,30 @@ describe('client UI snapshots', () => {
     await client.generate({ prompt: 'next' })
     expect(client.getSnapshot().isLoading).toBe(false)
     expect(client.getSnapshot().status).toBe('success')
+  })
+
+  it('a throwing chat snapshot subscriber does not stick isLoading', async () => {
+    const client = new ChatClient({
+      connection: createMockConnectionAdapter({
+        chunks: createTextChunks('Hello'),
+      }),
+    })
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const second = vi.fn()
+    const stopFirst = client.subscribeSnapshot(() => {
+      throw new Error('listener failed')
+    })
+    const stopSecond = client.subscribeSnapshot(second)
+
+    await client.sendMessage('Hi')
+
+    expect(second).toHaveBeenCalled()
+    expect(client.getSnapshot().isLoading).toBe(false)
+    expect(client.getSnapshot().status).toBe('ready')
+    expect(client.getSnapshot().messages.at(-1)?.role).toBe('assistant')
+    stopFirst()
+    stopSecond()
+    error.mockRestore()
   })
 
   it('VideoGenerationClient snapshot includes job fields', async () => {
@@ -242,6 +268,77 @@ describe('client UI snapshots', () => {
     expect(client.getSnapshot().status).toBe('connected')
     expect(client.getSnapshot().messages).toEqual([])
     client.destroy()
+  })
+
+  it('RealtimeClient keeps a transcript that arrives while audio capture starts', async () => {
+    const handlers = new Map<string, (payload: any) => void>()
+    const connection: RealtimeConnection = {
+      disconnect: async () => {},
+      // The provider greets the user while the mic permission prompt is open.
+      startAudioCapture: async () => {
+        handlers.get('transcript')?.({
+          role: 'assistant',
+          transcript: 'Hello',
+          isFinal: false,
+        })
+      },
+      stopAudioCapture: () => {},
+      sendText: () => {},
+      sendImage: () => {},
+      sendToolResult: () => {},
+      updateSession: () => {},
+      interrupt: () => {},
+      on: (event: string, handler: (payload: any) => void) => {
+        handlers.set(event, handler)
+        return () => handlers.delete(event)
+      },
+      getAudioVisualization: () => ({
+        inputLevel: 0,
+        outputLevel: 0,
+        getInputFrequencyData: () => new Uint8Array(),
+        getOutputFrequencyData: () => new Uint8Array(),
+        getInputTimeDomainData: () => new Uint8Array(),
+        getOutputTimeDomainData: () => new Uint8Array(),
+        inputSampleRate: 0,
+        outputSampleRate: 0,
+      }),
+    } as RealtimeConnection
+    const client = new RealtimeClient({
+      getToken: async () => ({
+        provider: 'test',
+        token: 'token',
+        expiresAt: Date.now() + 120_000,
+        config: {},
+      }),
+      adapter: { provider: 'test', connect: async () => connection },
+    })
+
+    await client.connect()
+
+    expect(client.getSnapshot().status).toBe('connected')
+    expect(client.getSnapshot().pendingAssistantTranscript).toBe('Hello')
+    client.destroy()
+  })
+
+  it('RealtimeClient state change callbacks are isolated from a throwing one', async () => {
+    const client = new RealtimeClient({
+      getToken: async () => {
+        throw new Error('no token')
+      },
+      adapter: { provider: 'test', connect: vi.fn() },
+    })
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const seen: Array<string> = []
+    client.onStateChange(() => {
+      throw new Error('listener failed')
+    })
+    client.onStateChange((state) => seen.push(state.status))
+
+    await expect(client.connect()).rejects.toThrow('no token')
+
+    expect(seen).toEqual(['connecting', 'error'])
+    expect(consoleError).toHaveBeenCalledWith(new Error('listener failed'))
+    consoleError.mockRestore()
   })
 
   it('RealtimeClient keeps the identity of unchanged messages across snapshots', async () => {

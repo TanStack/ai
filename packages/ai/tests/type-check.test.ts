@@ -13,7 +13,7 @@ import {
   toolDefinition,
 } from '../src'
 import { ToolCallManager } from '../src/activities/chat/tools/tool-calls'
-import type { ChatStream, KnownCustomEvent } from '../src'
+import type { ChatResult, ChatStream, KnownCustomEvent } from '../src'
 import type { TextAdapter } from '../src/activities/chat/adapter'
 import type { ChatMiddleware } from '../src'
 
@@ -488,12 +488,12 @@ describe('TextActivityOptions type checking', () => {
 // ===========================
 
 describe('chat() return type', () => {
-  it('should return Promise<string> when stream: false, regardless of tools', () => {
+  it('should return Promise<ChatResult> when stream: false, regardless of tools', () => {
     type Result = ReturnType<
       typeof chat<typeof mockAdapter, undefined, false, [typeof weatherTool]>
     >
 
-    expectTypeOf<Result>().toEqualTypeOf<Promise<string>>()
+    expectTypeOf<Result>().toEqualTypeOf<Promise<ChatResult>>()
   })
 
   it('should return Promise<inferred schema> when outputSchema is provided without explicit stream', () => {

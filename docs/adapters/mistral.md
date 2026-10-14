@@ -97,6 +97,8 @@ const adapter = createMistralText("mistral-large-latest", process.env.MISTRAL_AP
 
 `serverURL` is an alias of `baseURL`. If you set both, `baseURL` wins.
 
+Need more than a fixed header, such as a log of each model call? This adapter supports [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call).
+
 ## Mistral on Vertex
 
 Use `@tanstack/ai-mistral/vertex` when Mistral must run on Vertex AI. That
@@ -280,6 +282,28 @@ Reasoning events are always closed before any text or tool output begins, so con
 
 See [Thinking & Reasoning](../chat/thinking-content) for the cross-provider event spec.
 
+## Reasoning
+
+Set `reasoning` on `chat()` to turn thinking up, down, or off:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { mistralText } from "@tanstack/ai-mistral";
+
+const stream = chat({
+  adapter: mistralText("mistral-medium-latest"),
+  messages: [{ role: "user", content: "Why is the sky blue?" }],
+  reasoning: "high",
+});
+```
+
+What goes on the wire:
+
+- `mistral-medium-latest`, `mistral-small-latest`: `reasoning_effort`. They take `off` (sent as `none`) and `high`.
+- `magistral-medium-latest`, `magistral-small-latest`: they take `off` and `high`. `high` sends `prompt_mode: "reasoning"`. `off` sends nothing.
+
+The other models take no `reasoning`.
+
 ## Example: Structured Output
 
 Generate JSON that conforms to a Zod schema using Mistral's `json_schema` response format:
@@ -336,6 +360,12 @@ const stream = chat({
 
 > All sampling parameters — including `temperature`, `top_p`, and `max_tokens` —
 > go inside `modelOptions` using Mistral's native (snake_case) names.
+
+## Prompt caching
+
+Mistral caches the start of your requests by itself. `chat()` sends `prompt_cache_key` by default. The key is the `threadId` that you pass, so one conversation shares a cache. The key goes only to `api.mistral.ai`, on `chat()` and on structured output. With `promptCache: 'none'`, no key goes out. See [Prompt Caching](../advanced/prompt-caching).
+
+Cache reads show up in `usage.promptTokensDetails.cachedTokens`.
 
 ## Embeddings
 
@@ -412,6 +442,8 @@ See [Mistral's model comparison](https://docs.mistral.ai/getting-started/models/
 ### `mistralText(model, config?)`
 
 Creates a Mistral text adapter using the `MISTRAL_API_KEY` environment variable.
+
+`adapter.inputModalities` lists the input kinds of the selected model. It is `undefined` for a model that this package does not know. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
 
 **Parameters:**
 

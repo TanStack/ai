@@ -163,10 +163,10 @@ function StructuredChatPage() {
 }
 
 function RecipeCard({ part }: { part: RecipePart }) {
-  // `data` is `Recipe` once status === 'complete'. `partial` is
-  // DeepPartial<Recipe> while the model is still streaming the JSON.
-  // Read whichever is freshest — they converge on complete.
-  const recipe = part.data ?? part.partial;
+  // After you check `part.status === "complete"`, TypeScript knows that
+  // `part.data` is a `Recipe`. No `!` or `?.` is necessary.
+  // While the model streams the JSON, `partial` is `DeepPartial<Recipe>`.
+  const recipe = part.status === "complete" ? part.data : part.partial;
 
   return (
     <article>

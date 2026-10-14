@@ -38,6 +38,7 @@ const context: ChatMiddlewareContext = {
   iteration: 0,
   chunkIndex: 0,
   abort() {},
+  retry() {},
   emitCustomEvent() {},
   context: undefined,
   defer() {},
@@ -52,6 +53,7 @@ const context: ChatMiddlewareContext = {
   currentMessageId: null,
   accumulatedContent: '',
   messages: [],
+  activities: [],
   createId: (prefix) => prefix,
   capabilities: new CapabilityRegistry(),
   get: () => {

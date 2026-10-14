@@ -45,6 +45,8 @@ export async function POST(request: Request) {
 
 `chatParamsFromRequest` reads the AG-UI body that `useChat` sends. If the body is invalid, it throws a `Response` with status 400. If your framework does not map a thrown `Response` to HTTP 400, catch it and return it.
 
+The response stream pauses `chat()` when its output queue is full. It reads more chunks when the client consumes the queued data. This also applies to `toHttpResponse` with NDJSON. A response with `durability` does not pause, so its run keeps writing to the log.
+
 ## 2. Render with `useChat`
 
 ```tsx
@@ -99,7 +101,7 @@ The shared `ChatClient` processes ready chunks in order without inserting a task
 
 The same pattern works in every UI framework. See [Quick Start](../getting-started/quick-start).
 
-If SSE is blocked, pick another transport on [Connection Adapters](./connection-adapters).
+If SSE is blocked, pick another transport on [Transports](../transports/overview).
 
 ## 3. Cancel a run
 
@@ -133,9 +135,13 @@ export async function POST(request: Request) {
 
 `AbortError` from `stop()` is expected. Pending client-tool work for that turn does not resume. A later `addToolResult()` for that turn is ignored.
 
-A dropped connection mid-line throws `StreamTruncatedError`. The client then moves to `error`. See [Connection Adapters](./connection-adapters).
+A dropped connection mid-line throws `StreamTruncatedError`. The client then moves to `error`. See [Transports: Errors](../transports/overview#errors).
 
 For OpenAI and OpenRouter Responses, a stream that ends without `response.completed` emits `RUN_ERROR` with code `incomplete-stream`. This applies to chat and to structured output. Text received before the error remains available. The run does not call `onFinish`.
+
+Chat Completions adapters built on `@tanstack/openai-base` also check completion in `chat()`. A started stream needs a non-null `finish_reason` or a final usage-only chunk (`choices: []` with `usage`). Otherwise, the adapter closes open lifecycles and emits `RUN_ERROR` with code `incomplete-stream`. Partial text remains available. The run calls `onError`, skips pending server tools, and does not call `onFinish`.
+
+The usage-only exception preserves provider compatibility. Usage on an earlier chunk or alongside a choice does not satisfy it. The OpenAI SDK hides `[DONE]`, so this check cannot verify that marker. A stream with only `[DONE]` after content still needs a finish reason or usage-only tail to succeed.
 
 ## Later
 

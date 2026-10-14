@@ -20,6 +20,10 @@ export interface McpServerDescriptor {
   toolFilter?: MCPClientOptions['toolFilter']
   /** Carried so a widget cannot run a tool that the model can run only after approval. */
   needsApproval?: MCPClientOptions['needsApproval']
+  /** Carried so a reconnect names the tools the same way as for the model. */
+  toolName?: MCPClientOptions['toolName']
+  /** Carried so a widget call waits as long as a model tool call. */
+  requestOptions?: MCPClientOptions['requestOptions']
 }
 
 export interface McpSessionStore {

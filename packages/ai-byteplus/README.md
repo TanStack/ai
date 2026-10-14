@@ -82,7 +82,7 @@ import { byteplusText } from '@tanstack/ai-byteplus'
 // The adapter carries the model — there is no separate `model` option.
 const adapter = byteplusText('seed-2-0-lite-260428')
 
-const text = await chat({
+const { text } = await chat({
   adapter,
   messages: [{ role: 'user', content: 'Explain diffusion models briefly' }],
   stream: false,
@@ -96,7 +96,8 @@ Drop `stream: false` to get the default streaming form, which yields
 
 Seed models reason by default. Reasoning arrives as a separate stream of
 `reasoning_content` deltas and is surfaced as reasoning content, not answer
-text. Pass `thinking: { type: 'disabled' }` in provider options to turn it off.
+text. Pass `reasoning: 'off'` to `chat()` to turn it off, on a model that
+can stop thinking (for example `glm-5-2-260617`).
 
 ### Video (Seedance)
 

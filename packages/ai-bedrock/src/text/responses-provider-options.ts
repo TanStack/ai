@@ -20,8 +20,6 @@ export interface BedrockResponsesProviderOptions {
     | 'required'
     | { type: 'function'; name: string }
     | null
-  /** Reasoning controls for reasoning-capable models. */
-  reasoning?: { effort?: 'low' | 'medium' | 'high' } | null
   user?: string | null
 }
 

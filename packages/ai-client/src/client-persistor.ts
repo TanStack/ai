@@ -145,20 +145,21 @@ export class ChatPersistor {
 
   /**
    * Apply state from an async `getItem` once it resolves, unless the message
-   * list has already changed since hydration began.
+   * list has already changed since hydration began. Returns a promise that
+   * settles (never rejects) when it is done, or `undefined` for sync state.
    */
   hydrateAsync(
     persistedState:
       | ChatPersistedState
       | undefined
       | Promise<ChatPersistedState | undefined>,
-  ): void {
+  ): Promise<void> | undefined {
     if (!(persistedState instanceof Promise)) {
-      return
+      return undefined
     }
 
     const hydrationGeneration = this.messagesGeneration
-    persistedState
+    return persistedState
       .then((state) => {
         if (!state || this.messagesGeneration !== hydrationGeneration) {
           return

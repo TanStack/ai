@@ -49,7 +49,7 @@ for await (const chunk of stream) {
   if (chunk.outcome?.type !== 'interrupt') continue
 
   for (const interrupt of chunk.outcome.interrupts) {
-    if (interrupt.reason !== 'mcp_input') continue
+    if (!interrupt.id.startsWith('mcp_input_')) continue
     const payload = interrupt.metadata?.['tanstack:interruptPayload']
     console.log(interrupt.id, payload)
   }
@@ -64,8 +64,8 @@ The pause follows these rules:
 
 The interrupt has these fields:
 
-- `id`: `mcp_input_` and the tool call id
-- `reason`: `mcp_input`
+- `id`: `mcp_input_` and the tool call id. Read the pause by this id.
+- `reason`: display text. The default is `mcp_input`. A tool can set another string, for example `auth_required`. An empty reason stays `mcp_input`. These reasons also stay `mcp_input`: `approval_required`, `client_tool_input`, and `tanstack:client_tool_execution`.
 - `message`: `Input required to run` and the tool name
 - `metadata.toolName`: the tool name
 - `metadata['tanstack:interruptPayload']`: `kind` and `request`
@@ -144,7 +144,7 @@ export function McpInputPrompt() {
   return (
     <>
       {interrupts.map((interrupt) => {
-        if (interrupt.reason !== 'mcp_input') return null
+        if (!interrupt.id.startsWith('mcp_input_')) return null
         if (interrupt.kind !== 'generic') return null
         const input = readMcpInput(interrupt.metadata)
         if (!input) return null
@@ -202,6 +202,9 @@ If the thrown value is a plain `Error`, the result is a tool error. The run does
 - `name`: `MCPInputRequiredError`
 - `kind`: `form` or `sampling`
 - `request`: the MCP input body
+- `reason` (optional): the `reason` of the interrupt. The default is `'mcp_input'`.
+
+A tool can throw this shape with its own `reason`, for example `auth_required`. The interrupt id stays `mcp_input_<toolCallId>`. Read the pause by that id. `reason` is display text. The resume uses the same id.
 
 ## Outside chat()
 

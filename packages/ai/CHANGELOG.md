@@ -1,5 +1,280 @@
 # @tanstack/ai
 
+## 0.69.0
+
+### Minor Changes
+
+- [#1698](https://github.com/TanStack/ai/pull/1698) [`1bfcee3`](https://github.com/TanStack/ai/commit/1bfcee35bb3cf0ff3aac005440c842e66c3d687d) - Keep the order of Claude's thinking, text, and tool calls in one answer.
+  - Claude can answer with thinking, a tool call, more thinking, and another tool call. The stream, the stored messages, the client wire, and the next request to Claude keep that order.
+  - `ModelMessage` has a new optional `blockOrder` field. The library writes it only when the order is not the default (thinking, then text, then tool calls), so a message in the default order does not change. `orderedAssistantBlocks(message)` gives adapter authors the blocks in order.
+  - Each Claude thinking block ends with its own `REASONING_MESSAGE_END` and `REASONING_END`.
+  - Text after a second thinking block starts a new text part.
+  - On the client wire, an answer in another order goes out as ordered rows. A row that exists only for the order has `metadata.tanstack.continues`, and the server joins it back into one message. A `UIMessage` that holds two model calls with a tool result between them reaches the server as assistant, tool, assistant, for every adapter.
+
+- [#1686](https://github.com/TanStack/ai/pull/1686) [`412b0fe`](https://github.com/TanStack/ai/commit/412b0fea4f4bb569998c3d253d174efd7b501e3c) - `chat()` can now retry a rate-limited model call by itself. Pass `retry: { maxRetries, maxWaitMs? }`. When the provider sends a wait time (`retryAfterMs`) with an error, `chat()` waits that long, then calls the model again.
+  - It retries only when the provider sent a wait time.
+  - It does not retry when the wait is longer than `maxWaitMs` (default 60 000).
+  - It does not retry a call that already streamed output, so no output repeats.
+  - An abort stops the wait. You then get the `RUN_ERROR`.
+  - It does not retry the structured-output call.
+  - A `maxRetries` or `maxWaitMs` that is not valid throws a `TypeError`.
+
+  `retry` is off by default.
+
+  `chat()` now also sends `RUN_STARTED` before a `RUN_ERROR` when the adapter failed before it sent a start.
+
+- [#1739](https://github.com/TanStack/ai/pull/1739) [`a0150c2`](https://github.com/TanStack/ai/commit/a0150c26b9e2b6050663450171e36a9dfa80915b) - Text adapters now set one stable code on `RUN_ERROR` when the input does not fit in the model's context window: `code: 'context_overflow'`. `@tanstack/ai` exports it as `CONTEXT_OVERFLOW_CODE`. The provider's own text stays in `message`.
+
+  ```ts
+  if (chunk.type === 'RUN_ERROR' && chunk.code === CONTEXT_OVERFLOW_CODE) {
+    // shorten the messages, then call chat() again
+  }
+  ```
+
+  These adapters set it: OpenAI and the other OpenAI-compatible adapters (from `code: 'context_length_exceeded'`), Anthropic, Gemini, Bedrock (Converse, Chat Completions, and Responses), OpenRouter, Grok, Cloudflare Workers AI, and BytePlus.
+
+  Changes to code that reads the old values:
+  - OpenAI-compatible adapters gave `code: 'context_length_exceeded'`. They now give `'context_overflow'`. `rawEvent` still has the provider's code.
+  - Anthropic, Grok, OpenRouter, and BytePlus gave the HTTP status or a general bad-request code for this error. Gemini and Bedrock Converse gave no code.
+  - The Anthropic adapter now sends `RUN_ERROR` with this code when the model stops with `stop_reason: 'model_context_window_exceeded'`. Before, it sent `RUN_FINISHED` with `finishReason: 'stop'`, so a cut-off answer looked complete.
+
+- [#1715](https://github.com/TanStack/ai/pull/1715) [`fac0555`](https://github.com/TanStack/ai/commit/fac055559de98eb0fa23a0bc725808033ba3c2fc) - New hooks for hosts that run `chat()` for a long session.
+  - `@tanstack/ai` exports `runAgentStream` (runs a `defineAgent` agent outside a parent chat turn), `createSubagentId`, `createSubagentSink`, `CapabilityRegistry`, and the `SubagentsBag` and `SubagentSink` types. Pass the sink to keep interrupt objects and token usage. The finished event has `interruptIds` only.
+  - `MetadataStore` has optional `getVersioned` and `setIf` for compare-and-set writes. The memory store of `@tanstack/ai-persistence` has both, and the conformance testkit checks them.
+  - `toolDefinition({ replay: 'safe' | 'never' })` tells a host if it can run the tool again after a crash.
+  - The tool context has an optional `detach` field. A host sets it when it can move the call to the background. A tool passes its work to `detach` and races the two promises.
+  - A tool that throws the MCP input-required shape can set the interrupt `reason`. The default is `'mcp_input'`. The interrupt id stays `mcp_input_<toolCallId>`.
+
+- [#1713](https://github.com/TanStack/ai/pull/1713) [`5bd27f2`](https://github.com/TanStack/ai/commit/5bd27f2fc94ebfb6d11bfb28d46d5d858310805e) - `toJsonResponse` now accepts the object from `chat({ outputSchema })`. It sends the object as a complete structured output, so `useChat` with `fetchJson` shows it as a `structured-output` part. Before this change, the call failed with `Cannot read properties of undefined (reading 'map')`. `toJsonResponse` also awaits a Promise input, so `toJsonResponse(chat({ ... }))` works.
+
+- [#1714](https://github.com/TanStack/ai/pull/1714) [`c20f7b0`](https://github.com/TanStack/ai/commit/c20f7b021aa618fbfcc114b3f0bef5e888ff6b84) - Add `LogRecordsCapability` and the `LogRecord` and `LogRecordsWriter` types. A chat middleware can append records to a session log when a host middleware provides one. Read the writer with `getLogRecords(ctx, { optional: true })`. It is `undefined` when no host provides the log, and `getLogRecords(ctx)` throws. A host provides the writer in `setup` with `provideLogRecords(ctx, writer)`. `@tanstack/ai` does not provide the log.
+
+- [#1697](https://github.com/TanStack/ai/pull/1697) [`cef1911`](https://github.com/TanStack/ai/commit/cef19119c76fc5f618d6c971efbc486323b213c3) - Keep the prompt cache when tools or system prompts are added during a conversation.
+  - Before each model call, `chat()` compares the tools and the system prompts with the earlier calls. On a model with a mid-conversation channel, an added tool, or a system prompt added at the end, goes out in the conversation. The start of the request stays the same.
+  - `openaiText` on `gpt-5.4-mini`, `gpt-5.5`, `gpt-5.6-luna`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-6-astra`, `gpt-6-luna`, and `gpt-6-sol`: an added tool is an `additional_tools` input item, and an added prompt is a `developer` message. The Responses adapter of `@tanstack/openai-base` sends these when a subclass sets `midConversationChannels`, and it sends the `namespace` of such a tool's call back on the next request.
+  - `anthropicText` on `claude-opus-4-8`, `claude-opus-5`, `claude-opus-5-5`, `claude-fable-5`, and `claude-fable-5-1`: every request with tools has the `mid-conversation-tool-changes-2026-07-01` beta and one placeholder tool, unless a provider tool such as `webSearchTool()` takes part. An added tool has `defer_loading: true` and a `tool_addition` block in a `system` message.
+  - Every other model and adapter sends the same request as before.
+  - The channels are on by default only with the provider's own API. A custom `baseURL`, a custom `fetch`, an injected client, or the `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL` environment variable turns the default off. Set `midConversationChannels: true` to turn the channels on anyway. Set `false` to turn them off anywhere.
+  - With prompt caching on (the default), the automatic Claude tool cache marker goes on the last start tool, not on the placeholder or an added tool.
+  - New optional fields: `ModelMessage.midConversationChange`, `TextOptions.midConversationChanges`, and `TextAdapter.midConversationChannels`, with the types `MidConversationChange`, `MidConversationChanges`, and `MidConversationChannels`. `splitMidConversationChanges` helps adapter authors read the changes.
+
+- [#1729](https://github.com/TanStack/ai/pull/1729) [`51f72fb`](https://github.com/TanStack/ai/commit/51f72fbf60e201f9c8d014aefa6406e777c05d6a) - A text adapter can now have an optional `compact(options)` method. It sends the history to the provider's own compaction endpoint, and resolves to the history for the next calls. The options are `TextCompactOptions`: `messages`, `model`, `signal`, `wrapFetch`, and `systemPrompts`.
+
+  The OpenAI Responses adapters implement `compact` with `POST /responses/compact`. The request sends the system prompts as `instructions`. It sends no tools, because the endpoint does not take them. The encrypted `compaction` item goes back to the same model as it is on later requests. A compact result with no compaction item throws.
+
+  `withCompaction` has a new `native` option. Pass the adapter of the `chat()` call. When the adapter has `compact`, it runs in place of `strategy`. When `compact` fails, `strategy` runs, and `onCompact` and `compaction:ended` get the failure in `error`. After a 404, 405, or 501, that adapter and model use the strategy for the rest of the process. After any other failure, the next compaction tries `compact` again. Without the option, nothing changes.
+
+- [#1697](https://github.com/TanStack/ai/pull/1697) [`cef1911`](https://github.com/TanStack/ai/commit/cef19119c76fc5f618d6c971efbc486323b213c3) - Prompt caching is now on by default. Each `chat()` call asks the provider to cache the stable start of the request (system prompt, tools, and earlier messages), so repeated requests cost less and answer sooner.
+  - New `chat()` option `promptCache`: `'none' | 'short' | 'long'`, or `{ retention, key }`. The default is `'short'`. The key is `promptCache.key`, else the `threadId` or `conversationId` that you give. A `threadId` that `chat()` makes up is never the key.
+  - To turn it off, pass `promptCache: 'none'`. Do this for a large prompt that you send to Claude one time only, because Claude bills the cache write.
+  - A middleware can change it for the next model call: `onConfig` gets `config.promptCache` and can return a new value.
+  - Each adapter sends its own fields:
+    - Claude on Anthropic, Bedrock Converse, and OpenRouter gets cache markers. `'long'` asks for the 1-hour TTL.
+    - OpenAI (Responses and Chat Completions) gets `prompt_cache_key`, and `prompt_cache_retention` or `prompt_cache_options` on `'long'`.
+    - Mistral gets `prompt_cache_key`, and usage now reports cache reads.
+    - OpenRouter gets `sessionId`.
+  - A manual `cache_control`, `cachePoint`, `prompt_cache_key`, or `sessionId` wins over the automatic value.
+  - New types: `PromptCacheRetention`, `PromptCacheOptions`, and `ResolvedPromptCache`. Adapters read `TextOptions.promptCache`.
+
+- [#1692](https://github.com/TanStack/ai/pull/1692) [`7532b2b`](https://github.com/TanStack/ai/commit/7532b2b09188ebd1095a60a7c5df6ef08b06916c) - Add the `reasoning` option to `chat()`. Set how hard the model thinks in one way for every provider.
+  - Pass a level: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. Or pass `{ level, summary?, budgetTokens? }`.
+  - The types allow only the levels of the selected model. `budgetTokens` is allowed only on a model that thinks with a token budget.
+  - At run time, a level that the model does not have moves to the nearest level that it has.
+  - Without `reasoning`, the provider default applies.
+  - A middleware can change the value in `onConfig`.
+
+  Breaking: none. Each adapter package removes its own reasoning fields from `modelOptions`. See the changeset of each adapter.
+
+  ```ts
+  chat({ adapter: openaiText('gpt-5.5'), messages, reasoning: 'high' })
+  chat({
+    adapter: anthropicText('claude-haiku-4-5'),
+    messages,
+    reasoning: { level: 'medium', budgetTokens: 4000 },
+  })
+  ```
+
+  New exports: `REASONING_LEVELS`, `supportedReasoningLevels`, `clampReasoningLevel`, and the types `ReasoningLevel`, `ReasoningLevels`, `ModelReasoning`, `ReasoningCapability`, `ReasoningOption`, `ReasoningOptionFor`, `ReasoningRequest`, and `AdapterReasoning`. `@tanstack/ai/adapter-internals` exports `resolveReasoning`, `reasoningBudget`, `DEFAULT_REASONING_BUDGETS`, and the `ModelReasoningCapability` type for adapter authors. `TextAdapter` and `BaseTextAdapter` take a new last type parameter for the reasoning levels. Its default is `never`, so an adapter that does not set it takes no `reasoning`.
+
+- [#1698](https://github.com/TanStack/ai/pull/1698) [`1bfcee3`](https://github.com/TanStack/ai/commit/1bfcee35bb3cf0ff3aac005440c842e66c3d687d) - Keep a conversation valid when the next request goes to a different model.
+  - Each assistant message records `metadata.tanstack.source` (`{ provider, api, model }`), and `responseId` and the resolved `model` when the provider sends them. A failed or aborted answer gets `stopReason: 'error'` or `'aborted'`. `RUN_FINISHED` has a new `responseId` field. `TextAdapter` has new optional `provider` and `api` fields.
+  - When the next request goes to a different source, the adapter removes signatures and redacted thinking, turns readable thinking into text, and rewrites tool call IDs to the shape the target API accepts. Each call stays paired with its result.
+  - Every request drops failed and aborted assistant batches and adds a `No result provided` result for an unanswered tool call. The saved history does not change.
+  - `RUN_FINISHED` and `RUN_ERROR` metadata now merge onto the assistant messages of that model call in `StreamProcessor`.
+  - Anthropic: the new `allowEmptySignature` option (default `false`) replays unsigned thinking from the same source, for gateways. The new `provider` option names a gateway.
+  - Azure OpenAI reports the `azure-openai-responses` API.
+  - Gemini, Mistral, and Bedrock Converse send same-source thinking back to the model, in block order.
+  - `withPersistence` writes the source and the stop reason onto streaming snapshot rows.
+  - Adapter authors get `transformMessagesForReplay()` and `hashToolCallId()` from `@tanstack/ai/adapter-internals`.
+
+- [#1726](https://github.com/TanStack/ai/pull/1726) [`78edeb2`](https://github.com/TanStack/ai/commit/78edeb20a5ba89f2513c3f46f1267a7ed7185045) - Keep each OpenAI Responses answer item's `id` and `phase` (`commentary` or `final_answer`) on the assistant message, in `metadata.tanstack.responseItems`. A same-model replay sends each item back with its `id` and `phase`. Another model gets the plain text, as before.
+
+- [#1722](https://github.com/TanStack/ai/pull/1722) [`44e3a0a`](https://github.com/TanStack/ai/commit/44e3a0a89c86defebd38b2221dd3b7725a12839a) - A router pick can give an agent its input. Anywhere a pick has a name, it can have `{ name, input }`, so `subagents.router` can start an agent with `inputSchema`. `chat()` checks the input against the schema before any child starts, and `run` reads it as `ctx.input`. The input stays on the server: the plan on `SUBAGENT_STARTED` has the agent names and the order only. `subagentRoute` gets `needsInput(result)`, which lists the picked agents with an `inputSchema`, and `pick(result, { inputs })`, which puts each input on its name. `inputs` is typed from each schema. `chat()` throws when a pick gives an input to `main` or to an agent with no `inputSchema`, or gives one agent an input twice in one step. `chat()` also throws when a router picks an agent whose `inputSchema` is a plain JSON Schema, because it cannot check that input. A turn with a router input cannot resume after an interrupt, and a resume also fails when its saved plan is absent. The new `SubagentPick` type is exported.
+
+- [#1692](https://github.com/TanStack/ai/pull/1692) [`7532b2b`](https://github.com/TanStack/ai/commit/7532b2b09188ebd1095a60a7c5df6ef08b06916c) - Add the `toolChoice` option to `chat()`.
+  - `chat({ toolChoice })` takes `'auto'`, `'none'`, `'required'`, or `{ type: 'tool', name }`.
+  - In `chat()`, `name` suggests the names of the `tools` and still takes any string. The `ToolChoice` type takes an optional name type for this.
+  - A middleware can change it for one model call in `onConfig`.
+  - A tool choice in `modelOptions` wins.
+  - No tool choice goes out when the request has no tools.
+  - **`@tanstack/openai-base`** sends `tool_choice` from Chat Completions and Responses, and exports `toChatCompletionsToolChoice` and `toResponsesToolChoice`.
+
+  ```ts
+  chat({ adapter, messages, tools, toolChoice: 'required' })
+  chat({
+    adapter,
+    messages,
+    tools,
+    toolChoice: { type: 'tool', name: 'getWeather' },
+  })
+  ```
+
+- [#1717](https://github.com/TanStack/ai/pull/1717) [`7a5c0d6`](https://github.com/TanStack/ai/commit/7a5c0d6fc1541187a7f01b444bc07a0478274bcb) - A tool call in a model answer that stopped at the output limit (finish reason `length`) never runs. The model can send it again when the loop strategy goes on.
+  - Behavior change: `chat()` never runs a tool call of an answer that stopped at the output limit. The input of such a call can be incomplete JSON. The call asks for no approval, and the client does not run a client tool for it. Before, such a call ran in some cases, for example as a client tool with `{}` input, or as a pending call of the next `chat()` request.
+  - Each cut call gets an error tool result. The default text tells the model to send the call again.
+  - The default `agentLoopStrategy` is now `combineStrategies([maxIterations(5), untilFinishReason(['length'])])`. By default, a cut answer ends the run with the finish reason `length`, as before.
+  - With a strategy that goes on after `length` (for example `maxIterations(5)`), the model is called again. The `RUN_FINISHED` event of the cut answer then has the finish reason `tool_calls`, so the client keeps the stream open.
+  - In a history message with `metadata.tanstack.finishReason: 'length'`, a call input that is not JSON goes to the provider as `{}`. Before, Bedrock threw on such a cut input.
+  - Middleware `onAfterToolCall` gets each cut call, with `ok: false` and an `Error` with the code `'max_tokens'`. Return `{ type: 'replaceResult', result }` to change the error text.
+  - Each assistant message that `chat()` stores on the server keeps the finish reason of its model call in `metadata.tanstack.finishReason`.
+
+  Migration: if you pass your own `agentLoopStrategy` and want a cut answer to end the run, add `untilFinishReason(['length'])` to it with `combineStrategies`.
+
+### Patch Changes
+
+- [#1733](https://github.com/TanStack/ai/pull/1733) [`b881627`](https://github.com/TanStack/ai/commit/b881627d51076dcc1af031ac951046e2fb7d84c4) - `fakeText` from `@tanstack/ai/testing` now stops on `request.signal`, the abort signal `chat()` passes to adapters. Before, it read only `abortController`, so code that reads the adapter stream directly (a harness, for example) saw a paced fake keep streaming after a cancel.
+
+- [#1707](https://github.com/TanStack/ai/pull/1707) [`6774e80`](https://github.com/TanStack/ai/commit/6774e803da3205101613ab2857c9ed4fbf975681) - Text adapters pass `chat()`'s adapter constraint again when the project enables `exactOptionalPropertyTypes`. `TextAdapter.inputModalities` now accepts an explicit `undefined`, which the provider adapters' declarations emit for their per-model lookup.
+
+- [#1746](https://github.com/TanStack/ai/pull/1746) [`6f1e559`](https://github.com/TanStack/ai/commit/6f1e55934fe95ddf2bf3fb3031488a713e48c7af) - The client `StreamProcessor` no longer logs a `console.warn` when it skips a tool call of an answer that stopped at the output limit. Skipping such a call is expected.
+
+- [#1733](https://github.com/TanStack/ai/pull/1733) [`b881627`](https://github.com/TanStack/ai/commit/b881627d51076dcc1af031ac951046e2fb7d84c4) - A `ChatClient` that only watches a thread (a second tab, with `live: true`) now returns to `ready` after every run. Before, it stayed `streaming` after the second run, because the stream processor ended only the first run it saw.
+
+- Updated dependencies [[`eb4eea0`](https://github.com/TanStack/ai/commit/eb4eea05b6c53b748bba5fd414b04ce387ead05d)]:
+  - @tanstack/ai-utils@0.4.2
+
+## 0.68.0
+
+### Minor Changes
+
+- [#1695](https://github.com/TanStack/ai/pull/1695) [`723b4a4`](https://github.com/TanStack/ai/commit/723b4a4e8432825374d4980cc74c5f66dc7d1122) - `fakeText()` takes an `input` option, for example `fakeText({ input: ['text', 'image'] })`. It sets the fake's `inputModalities`, so you can test code that checks what a model accepts. It also sets the adapter's input modality type.
+
+### Patch Changes
+
+- [#1605](https://github.com/TanStack/ai/pull/1605) [`d84a49e`](https://github.com/TanStack/ai/commit/d84a49e5fef03499b10f63255880d056a55767a3) - Fix a server tool call that the next turn sent twice when you use `withPersistence`. When a model call starts with a tool call and no text (often after thinking), `StreamProcessor` gave that message the id of the next model call. The next turn then replaced the stored answer with a copy that also held the tool call, so the provider got the same `tool_use` twice. The client now keeps the id of the message the tool call belongs to.
+
+## 0.67.0
+
+### Minor Changes
+
+- [#1685](https://github.com/TanStack/ai/pull/1685) [`7dbfaf6`](https://github.com/TanStack/ai/commit/7dbfaf6c37a3d97de3b1f5bdb87be8bbbe2b0164) - Text adapters can now give `inputModalities` at run time: the input kinds that the model reads, for example `['text', 'image', 'document']`. `undefined` means that the adapter does not know.
+  - `TextAdapter` has the new optional `inputModalities` property. A `BaseTextAdapter` subclass sets it from its model metadata.
+  - The text adapters of OpenAI, Anthropic, Gemini, Mistral, Groq, BytePlus, Grok, OpenRouter, and LLM Gateway set it. A known model gives its input kinds. An unknown model gives `undefined`.
+
+- [#1683](https://github.com/TanStack/ai/pull/1683) [`88fd67c`](https://github.com/TanStack/ai/commit/88fd67cd7ddfbe2b154173d2395b2c0338e97644) - A middleware `onAfterToolCall` hook can now replace the result of a tool call. Return `{ type: 'replaceResult', result }` from the hook.
+  - The model and the stream (`TOOL_CALL_RESULT`) get the new result.
+  - Middleware run in order. Each hook gets the result of the hook before it as `info.result`.
+  - An error result stays an error.
+  - A hook that returns `undefined`, or any value that is not a `replaceResult` decision, keeps the result.
+  - `onAfterToolCall` after an `onBeforeToolCall` skip now gets the parsed skip result, the same value that goes to the model.
+  - The new `AfterToolCallDecision` type is exported from `@tanstack/ai`.
+
+- [#1682](https://github.com/TanStack/ai/pull/1682) [`3aa2e3d`](https://github.com/TanStack/ai/commit/3aa2e3d95e2dcb1c14b4fda3bcdbdf3152582092) - Add `fakeText()` at the new `@tanstack/ai/testing` subpath. It is a text adapter that answers from a script. Use it to test `chat()`, tools, and middleware with no network and no API key.
+  - Queue answers with `setResponses` and `appendResponses`. An answer is `{ text?, thinking?, toolCalls?, finishReason?, error? }`, or a function that gets `{ request, state }`. An empty queue fails with "No more fake responses queued".
+  - Token usage is an estimate: `ceil(characters / 4)`. With `cache: true`, the part of a request that matches the previous request of the same thread counts as cached tokens.
+  - Options: `model`, `contextWindow`, and `tokensPerSecond` for stream pacing. The stream stops when the request aborts.
+  - `RUN_STARTED` carries `parentRunId` when the call has one.
+  - The default tool call id is `fake-call-<fake>-<call>-<index>`. It is unique across `fakeText()` instances.
+
+- [#1684](https://github.com/TanStack/ai/pull/1684) [`c5ae415`](https://github.com/TanStack/ai/commit/c5ae4152d0a040bb6ce7321e16b7ee66d3c36f96) - Add `keyedAdapter(provider, create)` and `isKeyedAdapter(value)`. Import them from `@tanstack/ai` or `@tanstack/ai/byok`.
+  - `keyedAdapter` wraps an adapter factory that needs a provider key. `provider` is a BYOK descriptor (for example `openaiByok`) or a provider id. It throws when the provider id is not valid.
+  - A host finds the key, for example with `getByokKey(request, keyed.provider)`, and calls `keyed.create(key)` just before the call. The key is not in your code.
+  - `isKeyedAdapter` tells a keyed adapter apart from a plain adapter.
+  - It works for every adapter kind: text, image, speech, audio, video, and the rest.
+
+  For several providers, use `keyedAdapters({ openai: (key) => ..., anthropic: keyedAdapter(anthropicByok, ...) })`. The map key is the provider id, so a key goes only to its own provider. An entry that is a keyed adapter for another provider throws at startup. In a route, `keyedAdapterFromRequest(request, models)` from `@tanstack/ai/byok/server` builds the adapter of the provider that has a key. The user's `x-byok-<id>` header wins, then the env names of descriptor entries, in map order. It gives `null` when no provider has a key.
+
+- [#1678](https://github.com/TanStack/ai/pull/1678) [`13ba1b0`](https://github.com/TanStack/ai/commit/13ba1b0e47dc822f10f6c5133184f92c2eb0a013) - A `RUN_ERROR` now tells you how long the provider asks you to wait before a retry.
+  - `@tanstack/ai`: `RunErrorEvent` has a new `retryAfterMs` field, in milliseconds. `chat()` moves it to `metadata.tanstack.retryAfterMs`. The new `toRetryAfterMs(error)` helper on `@tanstack/ai/adapter-internals` reads the `retry-after-ms` header first, then the `retry-after` header in seconds or as an HTTP date.
+  - `@tanstack/openai-base` and `@tanstack/ai-anthropic`: the text adapters set `retryAfterMs` on a `RUN_ERROR` when the error response has one of these headers. This includes every adapter that uses `@tanstack/openai-base`.
+
+- [#1680](https://github.com/TanStack/ai/pull/1680) [`377262c`](https://github.com/TanStack/ai/commit/377262c0b4e5f59f8fd467a831b9341cc705077e) - Add `wrapFetch` to `chat()`, to the middleware `onConfig` config, and to `TextOptions`. A wrapper gets the next fetch and gives back a new fetch. Use it to change the URL, the headers, the request, or the response of a model call. The new `FetchWrapper` type names the wrapper.
+
+  The engine chains the `chat()` wrapper and the middleware wrappers into one function. A middleware wrapper runs inside the `chat()` wrapper and applies to one model call only.
+
+  These text adapters send their requests through the wrapper: every adapter on `@tanstack/openai-base` (OpenAI, the OpenAI-compatible adapters, Grok, Groq, BytePlus, LLM Gateway, Lovable, Vercel AI Gateway, Cloudflare, and the Bedrock Chat Completions and Responses APIs), Anthropic, Mistral, Ollama, and OpenRouter. The wrapper wraps the fetch of the adapter config, not the global fetch. An Anthropic or Ollama adapter with an injected client ignores `wrapFetch`. In Cloudflare binding mode, the wrapper runs, but the binding does not send the URL or the headers. Without `wrapFetch`, the requests do not change.
+
+## 0.66.1
+
+### Patch Changes
+
+- [#1673](https://github.com/TanStack/ai/pull/1673) [`baafb17`](https://github.com/TanStack/ai/commit/baafb176220c2b09fced334ad176e754582cd314) - `chat()` now removes lone UTF-16 surrogates from the text that it sends to the provider. This covers message text, text parts, tool results, system prompts, and the decoded strings in tool call arguments. Valid surrogate pairs, such as emoji, stay. Before this fix, a lone surrogate made the provider reject the whole request as invalid JSON or UTF-8.
+
+## 0.66.0
+
+### Minor Changes
+
+- [#1658](https://github.com/TanStack/ai/pull/1658) [`f687c54`](https://github.com/TanStack/ai/commit/f687c54ae4b8a67f2154ff9dea0319b8d2712856) - Breaking: `chat({ stream: false })` and `streamToText()` now return a `ChatResult` with `text` and `chunks`, not a string. The chunks keep the tool calls and interrupt outcomes that the string lost. To migrate, change `const text = await chat({ stream: false })` to `const { text } = await chat({ stream: false })`.
+
+  Add a JSON transport for hosts that cannot stream a response. On the server, `toJsonResponse()` sends a run as one JSON body, and `resumeJsonResponse()` sends the rest of a durable run. On the client, the `fetchJson()` connection adapter reads that body and asks again until the run is done. Each framework package re-exports `fetchJson`.
+
+### Patch Changes
+
+- [#1623](https://github.com/TanStack/ai/pull/1623) [`fb55bcb`](https://github.com/TanStack/ai/commit/fb55bcba5193d4465f43006505918a2dc4472ec4) - Keep the internal subagent run id out of synthetic tool result content.
+
+- [`630ec86`](https://github.com/TanStack/ai/commit/630ec86e9997fabe046cae1a491060d72cbc71ea) - Merge assistant segments that share a stable UI message ID after conversion.
+
+## 0.65.1
+
+### Patch Changes
+
+- [#1645](https://github.com/TanStack/ai/pull/1645) [`807c5e1`](https://github.com/TanStack/ai/commit/807c5e11dd1560e0fe47ae2dbc90f2513507f7cc) - `StructuredOutputPart.data` is no longer optional when `status` is `'complete'`. After you check `part.status === 'complete'`, TypeScript knows `part.data` is set.
+
+  Migration: if you validate messages with a schema typed as `UIMessage` (for example `z.ZodType<UIMessage>`), split the `structured-output` part by `status`. Give `'complete'` a required `data` field.
+
+  Add `isHydrating` to `useChat` (and `injectChat`, `createChat`) and an `onHydratingChange` callback plus `getIsHydrating()` to `ChatClient`. It is `true` while the chat is rebuilt from persistence (the server hydrate with `persistence: true`, or an async storage adapter). It turns `false` when the transcript is in place and any in-flight run is re-joined, or when the load fails.
+
+## 0.65.0
+
+### Minor Changes
+
+- [#1323](https://github.com/TanStack/ai/pull/1323) [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66) - Process AG-UI `ACTIVITY_SNAPSHOT` and `ACTIVITY_DELTA` events into frontend-only `role: 'activity'` messages (`ActivityPart`). `ACTIVITY_DELTA` applies an RFC 6902 patch to the activity `content`. The model never gets activity as input.
+
+- [#1541](https://github.com/TanStack/ai/pull/1541) [`30254ad`](https://github.com/TanStack/ai/commit/30254ad70161894d232d3b45e3b21f45d49f336e) - Video adapters can hand a provider's download stream to generation persistence instead of buffering it. Adapters now implement `getVideo()`. When a provider has no public URL for the finished video (OpenRouter, Lovable, Sora jobs without `url`), it returns a `VideoStreamResult` (`{ body, contentType }`), and `withGenerationPersistence` streams it into your blob store and sets `url` from `artifactUrl`.
+
+  Nothing changes without persistence: `getVideoJobStatus()` and streaming `generateVideo()` still return a base64 `data:` URL for those providers.
+
+  `VideoAdapter.getVideoUrl()` is deprecated in favor of `getVideo()`. It still works: on the built-in adapters it is `getVideo()` with a stream buffered into a `data:` URL, and custom adapters that only implement `getVideoUrl()` keep working. A custom adapter that extends `BaseVideoAdapter` with TypeScript's `noImplicitOverride` must add `override` to its `getVideoUrl()`, or rename it to `getVideo()`.
+
+### Patch Changes
+
+- [#1587](https://github.com/TanStack/ai/pull/1587) [`7b6b1a9`](https://github.com/TanStack/ai/commit/7b6b1a99d45e40165f0a1f833a04e793a09275de) - Keep a turn's thinking when an `afterModel` generic interrupt pauses a turn that has no tool calls. Before, the interrupt's `MESSAGES_SNAPSHOT` kept only the assistant text, so the client lost the thinking and its signature (signed or redacted). A turn with thinking but no text was left out of the snapshot. The interrupt now records the turn the same way a finished run does.
+
+- [#1323](https://github.com/TanStack/ai/pull/1323) [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66) - Expose AG-UI activity messages on the chat client UIMessage path without sending them to the model.
+
+  Migration: `UIMessage.role` can now be `'activity'`. If your UI renders only `'user'` and `'assistant'` rows, it skips activity rows. If your code handles every role (for example, a `switch` that must be exhaustive), add a case for `'activity'`. Read the activity payload from the part with `type: 'activity'`.
+
+- [#1323](https://github.com/TanStack/ai/pull/1323) [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66) - Emit AG-UI ActivityMessage on MESSAGES_SNAPSHOT and keep omitted activity rows when a snapshot replaces the transcript.
+
+- [#1323](https://github.com/TanStack/ai/pull/1323) [`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66) - Add an optional ActivityStore sidecar so server persistence can save and reconstruct AG-UI activity without putting it in MessageStore.
+
+  Activity saves are best-effort. They run after the message, run, and interrupt writes, so a failed activity save does not fail the run. `ActivityRecord` keeps the activity `metadata`. A paged `reconstructChat` puts each activity on the one page that holds it. A reload drops the activity rows of the turn it replaces.
+
+  Migration: an adapter that runs `runPersistenceConformance` must provide an `activities` store or pass `skip: ['activities']`.
+
+- [#1543](https://github.com/TanStack/ai/pull/1543) [`82291b2`](https://github.com/TanStack/ai/commit/82291b22941d2c813ff0050fc9d41b024480153d) - Run client tools that an AG-UI server leaves pending on a success `RUN_FINISHED`. The AG-UI spec ends a run that calls a frontend tool with a success outcome, not an interrupt. Pydantic AI's `AGUIAdapter` does this, so `useChat` showed the tool call and then stopped. The client now runs each call that this run started and did not answer. If the server names calls in `outcome.pendingToolCallIds`, the client runs only the named calls that this run started. Then it continues the conversation with the results. A client tool with `needsApproval: true` does not run on this path. A call with arguments that are not complete JSON does not run.
+
+- [#1544](https://github.com/TanStack/ai/pull/1544) [`ff3a66e`](https://github.com/TanStack/ai/commit/ff3a66ed8f628d45b282316fab337d3ed19f34cd) - Read the AG-UI `TEXT_MESSAGE_CHUNK`, `TOOL_CALL_CHUNK`, and `REASONING_MESSAGE_CHUNK` events. A server can send one of these in place of the START / CONTENT / END events. The stream processor dropped them, so the text, the message id, and the metadata were lost. It now expands each chunk into those events, so both forms build the same message. A chunk with no id continues the open stream of the same kind. A different kind closes that stream. The next other event closes it, except `RAW`, `ACTIVITY_*`, `REASONING_ENCRYPTED_VALUE`, and subagent lifecycle events. A text or tool call chunk from a run that `clear()` dropped stays out of the chat, as the explicit events do.
+
+- [#1566](https://github.com/TanStack/ai/pull/1566) [`560c76f`](https://github.com/TanStack/ai/commit/560c76fd638b5691e195e1d0619fee8a78d98c20) - Log durability replay failures on the SSE and NDJSON transports. When a reconnect or a `resumeServerSentEventsResponse` / `resumeHttpResponse` join fails to replay (for example, an unknown or expired `memoryStream` run), the failure is now logged under the `errors` category, as the WebSocket resume already does. The SSE or NDJSON reader still receives the same `RUN_ERROR`.
+
+- [#1557](https://github.com/TanStack/ai/pull/1557) [`4b9dcb4`](https://github.com/TanStack/ai/commit/4b9dcb44d8fe1e7c933b79c23d8f072e7bc300f4) - Pause SSE and NDJSON response sources when their readers fall behind. Durable responses do not pause, so their runs keep writing to their logs.
+
+- [#1634](https://github.com/TanStack/ai/pull/1634) [`40fdd22`](https://github.com/TanStack/ai/commit/40fdd22ce05d55e71514b4cc80b1c28cefb4a431) - Stop the duplicate `text` part on structured output from a reasoning model. When reasoning streamed first under its own message id, the stream processor put the JSON in a `text` part and also in the `structured-output` part. The message now has the `thinking` part and the `structured-output` part only.
+
+- Updated dependencies [[`592c72c`](https://github.com/TanStack/ai/commit/592c72c2aa2cc3ea40942d96095170b3b4cbbd66)]:
+  - @tanstack/ai-event-client@0.13.1
+
 ## 0.64.1
 
 ### Patch Changes

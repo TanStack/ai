@@ -426,6 +426,7 @@ export function useChat<
     isSubscribed: snapshot.isSubscribed,
     connectionStatus: snapshot.connectionStatus,
     sessionGenerating: snapshot.sessionGenerating,
+    isHydrating: snapshot.isHydrating,
     setMessages: setMessagesManually,
     clear,
     addToolResult,

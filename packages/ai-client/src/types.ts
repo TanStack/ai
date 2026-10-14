@@ -1,4 +1,5 @@
 import type {
+  ActivityPart,
   AnyClientTool,
   ApprovalCapabilityOf,
   ApprovalSchemaOf,
@@ -33,7 +34,7 @@ import type { ConnectionAdapter } from './connection-adapters'
 import type { AIDevtoolsClientMetadata } from './devtools'
 import type { ChatDevtoolsBridgeFactory } from './devtools-noop'
 
-export type { StructuredOutputPart }
+export type { ActivityPart, StructuredOutputPart }
 
 export interface ChatResumeState {
   threadId: string
@@ -387,6 +388,8 @@ export interface ChatClientSnapshot<
   readonly runId: string | null
   /** True when the last hydrate or older-page response said more messages exist. */
   readonly hasOlderMessages: boolean
+  /** True while a store or server load may still repaint the transcript. */
+  readonly isHydrating: boolean
   readonly interruptState: ChatInterruptState<TTools, TInterrupts>
 }
 
@@ -665,6 +668,11 @@ export interface SubagentHandle extends SubagentHandleData {
    * keeps going.
    */
   stop?: () => void
+  /**
+   * The checked input of an agent with `inputSchema`: what the parent model
+   * wrote when it started this child. Set by ChatClient from the card.
+   */
+  input?: unknown
 }
 
 export interface SubagentPart {
@@ -682,6 +690,8 @@ export type SubagentClientAgent = {
   description?: string
   tools?: ReadonlyArray<{ name: string }>
   interrupts?: ReadonlyArray<InterruptDefinition<any, any, any, any>>
+  /** Types `part.subagent.input`. */
+  inputSchema?: unknown
   outputSchema?: SchemaInput
 }
 
@@ -709,13 +719,28 @@ type AgentOutputData<TAgent> = TAgent extends { outputSchema?: infer TSchema }
     : unknown
   : unknown
 
+// The card holds the checked value, so a Standard Schema gives its output type.
+type AgentInputData<TAgent> = TAgent extends { inputSchema?: infer TSchema }
+  ? [Exclude<TSchema, undefined>] extends [never]
+    ? undefined
+    : Exclude<TSchema, undefined> extends {
+          '~standard': { types?: { output: infer TOutput } }
+        }
+      ? TOutput
+      : Exclude<TSchema, undefined> extends SchemaInput
+        ? InferSchemaType<Exclude<TSchema, undefined>>
+        : unknown
+  : undefined
+
 /** One child handle. `name` is the discriminant. */
 export type SubagentHandleOf<TAgent extends SubagentClientAgent> = Omit<
   SubagentHandle,
-  'name' | 'messages'
+  'name' | 'messages' | 'input'
 > & {
   name: TAgent['name']
   messages: Array<UIMessage<AgentToolList<TAgent>, AgentOutputData<TAgent>>>
+  /** Unset on a card saved before the input was kept. */
+  input?: AgentInputData<TAgent>
 }
 
 export type SubagentHandles<
@@ -754,6 +779,7 @@ export type MessagePart<
   | ToolCallPart<TTools>
   | ToolResultPart
   | ThinkingPart
+  | ActivityPart
   | StructuredOutputPart<TData>
   | UIResourcePart
   | SubagentPartOf<TSubagents>
@@ -776,7 +802,7 @@ export interface UIMessage<
   TSubagents extends ReadonlyArray<SubagentClientAgent> | undefined = undefined,
 > {
   id: string
-  role: 'system' | 'user' | 'assistant'
+  role: 'system' | 'user' | 'assistant' | 'activity'
   name?: string
   parts: Array<MessagePart<TTools, TData, TSubagents>>
   createdAt?: Date
@@ -1075,7 +1101,8 @@ export interface ChatClientBaseOptions<
   onError?: (error: Error) => void
 
   /**
-   * Callback when messages change
+   * Callback when messages change. Receives the client's live array, not the
+   * frozen snapshot copy. Do not change it in place; use `setMessagesManually`.
    */
   onMessagesChange?: (messages: Array<UIMessage<TTools>>) => void
 
@@ -1114,6 +1141,13 @@ export interface ChatClientBaseOptions<
   onSessionGeneratingChange?: (isGenerating: boolean) => void
 
   /**
+   * Callback when the client starts or stops rebuilding the chat from
+   * persistence (the server hydrate, or an async storage adapter). It turns
+   * false once the transcript is applied and any in-flight run is re-joined.
+   */
+  onHydratingChange?: (isHydrating: boolean) => void
+
+  /**
    * Policy for messages sent while the client is busy (streaming, claiming
    * a send, or draining the queue). Accepts a `WhenBusy` string, a
    * `QueueConfig`, or a `QueueStrategy` function.
@@ -1126,7 +1160,7 @@ export interface ChatClientBaseOptions<
 
   /**
    * Callback when the pending send queue changes (enqueue, cancel, drain,
-   * or flush).
+   * or flush). Receives a live array, not the frozen snapshot copy.
    */
   onQueueChange?: (queue: Array<QueuedMessage>) => void
 

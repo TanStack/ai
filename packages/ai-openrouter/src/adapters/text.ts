@@ -7,15 +7,27 @@ import {
 } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
+  hashToolCallId,
+  resolveReasoning,
+  tanstackMetadata,
   toRunErrorPayload,
   toRunErrorRawEvent,
+  transformMessagesForReplay,
 } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../internal/request-options'
+import { clientForCall } from '../internal/wrap-fetch'
 import { makeStructuredOutputCompatible } from '../internal/schema-converter'
 import { openRouterSupportsCombinedToolsAndSchema } from '../internal/combined-tools-and-schema'
+import {
+  OPENROUTER_MODEL_INPUT_MODALITIES,
+  OPENROUTER_MODEL_REASONING,
+} from '../model-meta'
+import { openRouterEffort } from '../internal/reasoning'
+import { addPromptCacheMarkers } from '../prompt-cache'
 import { convertToolsToProviderFormat } from '../tools'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
+import { toOpenRouterRunErrorPayload } from '../utils/run-error'
 import { buildOpenRouterUsage } from '../usage'
 import { extractUsageCost } from './cost'
 import type { SDKOptions } from '@openrouter/sdk'
@@ -24,6 +36,7 @@ import type {
   ChatContentText,
   ChatMessages,
   ChatRequest,
+  ChatRequestEffort,
   ChatStreamChoice,
   ChatStreamChunk,
 } from '@openrouter/sdk/models'
@@ -37,17 +50,18 @@ import type {
   ModelMessage,
   AdapterYieldChunk,
   TextOptions,
+  ToolChoice,
 } from '@tanstack/ai'
 import type {
   OPENROUTER_CHAT_MODELS,
   OpenRouterChatModelToolCapabilitiesByName,
   OpenRouterModelInputModalitiesByName,
   OpenRouterModelOptionsByName,
+  OpenRouterModelReasoningByName,
 } from '../model-meta'
 import type {
   ExternalTextProviderOptions,
   OpenRouterSystemPromptMetadata,
-  ReasoningOptions,
 } from '../text/text-provider-options'
 import type {
   OpenRouterImageMetadata,
@@ -81,20 +95,25 @@ type ResolveToolCapabilities<TModel extends string> =
     ? NonNullable<OpenRouterChatModelToolCapabilitiesByName[TModel]>
     : readonly []
 
-function normalizeReasoningOptions(
-  reasoning: ReasoningOptions | undefined,
-): ChatRequest['reasoning'] | undefined {
-  if (!reasoning) return undefined
+/**
+ * The reasoning levels of a model, for `chat({ reasoning })`. The chat
+ * request schema has no token budget field, so no model takes
+ * `budgetTokens` here. `never`: the model does not reason.
+ */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof OpenRouterModelReasoningByName
+    ? {
+        levels: OpenRouterModelReasoningByName[TModel]['levels']
+        budget: false
+      }
+    : never
 
-  const { enabled, ...sdkReasoning } = reasoning
-  const normalized =
-    enabled === false
-      ? { ...sdkReasoning, effort: 'none' as const }
-      : sdkReasoning
-
-  return Object.values(normalized).some((value) => value !== undefined)
-    ? normalized
-    : undefined
+/** Maps `chat({ toolChoice })` to the OpenRouter chat `toolChoice`. */
+function toOpenRouterChatToolChoice(
+  choice: ToolChoice,
+): NonNullable<ChatRequest['toolChoice']> {
+  if (typeof choice === 'string') return choice
+  return { type: 'function', function: { name: choice.name } }
 }
 
 /**
@@ -134,22 +153,47 @@ export class OpenRouterTextAdapter<
   unknown,
   // TSystemPromptMetadata — narrows `systemPrompts[i].metadata` at the chat()
   // call site so users get `cache_control` autocomplete.
-  OpenRouterSystemPromptMetadata
+  OpenRouterSystemPromptMetadata,
+  ResolveReasoning<TModel>
 > {
   override readonly kind = 'text' as const
   readonly name = 'openrouter' as const
+  override readonly provider = 'openrouter'
+  override readonly api = 'openai-completions'
+  override readonly inputModalities =
+    OPENROUTER_MODEL_INPUT_MODALITIES[this.model]
 
   protected orClient: OpenRouter
+  private readonly sdkOptions: SDKOptions
   private readonly retryCodes: Array<string> | undefined
 
   constructor(config: OpenRouterConfig, model: TModel) {
     super({}, model)
     const { retryCodes, ...sdkOptions } = config
+    this.sdkOptions = sdkOptions
     this.orClient = new OpenRouter(sdkOptions)
     this.retryCodes = retryCodes
   }
 
   async *chatStream(
+    options: TextOptions<ResolveProviderOptions<TModel>>,
+  ): AsyncIterable<AdapterYieldChunk> {
+    const source = {
+      provider: this.provider,
+      api: this.api,
+      model: options.model,
+    }
+    for await (const chunk of this.chatStreamRequest(options))
+      yield {
+        ...chunk,
+        metadata: {
+          ...chunk.metadata,
+          tanstack: { ...tanstackMetadata(chunk), source },
+        },
+      }
+  }
+
+  private async *chatStreamRequest(
     options: TextOptions<ResolveProviderOptions<TModel>>,
   ): AsyncIterable<AdapterYieldChunk> {
     // AG-UI lifecycle tracking (mutable state object for ESLint compatibility)
@@ -172,7 +216,11 @@ export class OpenRouterTextAdapter<
         { provider: this.name, model: this.model },
       )
       const reqOptions = extractRequestOptions(options.request)
-      const stream = await this.orClient.chat.send(
+      const stream = await clientForCall(
+        this.orClient,
+        this.sdkOptions,
+        options.wrapFetch,
+      ).chat.send(
         {
           chatRequest: {
             ...chatRequest,
@@ -196,7 +244,7 @@ export class OpenRouterTextAdapter<
     } catch (error: unknown) {
       // Narrow before logging: raw SDK errors can carry request metadata
       // (including auth headers) which we must never surface to user loggers.
-      const errorPayload = toRunErrorPayload(
+      const errorPayload = toOpenRouterRunErrorPayload(
         error,
         `${this.name}.chatStream failed`,
       )
@@ -270,7 +318,11 @@ export class OpenRouterTextAdapter<
         { provider: this.name, model: this.model },
       )
       const reqOptions = extractRequestOptions(chatOptions.request)
-      const response = await this.orClient.chat.send(
+      const response = await clientForCall(
+        this.orClient,
+        this.sdkOptions,
+        chatOptions.wrapFetch,
+      ).chat.send(
         {
           chatRequest: {
             ...cleanParams,
@@ -332,6 +384,8 @@ export class OpenRouterTextAdapter<
       return {
         data: transformed,
         rawText,
+        ...(response.id && { responseId: response.id }),
+        ...(response.model && { model: response.model }),
         ...(baseUsage && {
           usage: { ...baseUsage, ...extractUsageCost(response.usage) },
         }),
@@ -365,6 +419,24 @@ export class OpenRouterTextAdapter<
   async *structuredOutputStream(
     options: StructuredOutputOptions<ResolveProviderOptions<TModel>>,
   ): AsyncIterable<AdapterYieldChunk> {
+    const source = {
+      provider: this.provider,
+      api: this.api,
+      model: options.chatOptions.model,
+    }
+    for await (const chunk of this.structuredOutputRequestStream(options))
+      yield {
+        ...chunk,
+        metadata: {
+          ...chunk.metadata,
+          tanstack: { ...tanstackMetadata(chunk), source },
+        },
+      }
+  }
+
+  private async *structuredOutputRequestStream(
+    options: StructuredOutputOptions<ResolveProviderOptions<TModel>>,
+  ): AsyncIterable<AdapterYieldChunk> {
     const { chatOptions, outputSchema } = options
     const chatRequest = this.mapOptionsToRequest(chatOptions)
     const responseFormat = this.resolveStructuredResponseFormat(
@@ -386,8 +458,9 @@ export class OpenRouterTextAdapter<
     let hasClosedReasoning = false
     let stepId: string | undefined
     let lastModel: string | undefined
+    let responseId: string | undefined
     let finishReason: string | null | undefined
-    let lastUsage: ChatStreamChunk['usage'] | undefined
+    let lastUsage: ReturnType<typeof buildOpenRouterUsage>
 
     const closeReasoningLifecycle = function* (this: {
       name: string
@@ -446,7 +519,11 @@ export class OpenRouterTextAdapter<
       )
 
       const reqOptions = extractRequestOptions(chatOptions.request)
-      const stream = await this.orClient.chat.send(
+      const stream = await clientForCall(
+        this.orClient,
+        this.sdkOptions,
+        chatOptions.wrapFetch,
+      ).chat.send(
         {
           chatRequest: {
             ...cleanParams,
@@ -466,6 +543,7 @@ export class OpenRouterTextAdapter<
       )
 
       for await (const chunk of stream) {
+        if (chunk.id) responseId = chunk.id
         const choiceForLog = chunk.choices[0]
         chatOptions.logger.provider(
           `provider=${this.name} finishReason=${choiceForLog?.finishReason ?? 'none'} hasContent=${!!choiceForLog?.delta.content} hasUsage=${!!chunk.usage}`,
@@ -473,7 +551,11 @@ export class OpenRouterTextAdapter<
         )
 
         if (chunk.model) lastModel = chunk.model
-        if (chunk.usage) lastUsage = chunk.usage
+        // Keep received usage for either terminal outcome, including parse and SDK errors.
+        const usage = buildOpenRouterUsage(chunk.usage)
+        if (usage) {
+          lastUsage = { ...usage, ...extractUsageCost(chunk.usage) }
+        }
 
         if (!aguiState.hasEmittedRunStarted) {
           aguiState.hasEmittedRunStarted = true
@@ -573,6 +655,7 @@ export class OpenRouterTextAdapter<
         const message = `${this.name}.structuredOutputStream: the response was cut off because the maximum token limit was reached (finish_reason=length); raise maxCompletionTokens`
         yield {
           type: EventType.RUN_ERROR,
+          ...(lastUsage && { usage: lastUsage }),
           runId: aguiState.runId,
           model: lastModel || chatOptions.model,
           timestamp: Date.now(),
@@ -586,6 +669,7 @@ export class OpenRouterTextAdapter<
       if (accumulatedContent.length === 0) {
         yield {
           type: EventType.RUN_ERROR,
+          ...(lastUsage && { usage: lastUsage }),
           runId: aguiState.runId,
           model: lastModel || chatOptions.model,
           timestamp: Date.now(),
@@ -605,6 +689,7 @@ export class OpenRouterTextAdapter<
       } catch {
         yield {
           type: EventType.RUN_ERROR,
+          ...(lastUsage && { usage: lastUsage }),
           runId: aguiState.runId,
           model: lastModel || chatOptions.model,
           timestamp: Date.now(),
@@ -632,18 +717,21 @@ export class OpenRouterTextAdapter<
         timestamp: Date.now(),
       }
 
-      const finalUsage = buildOpenRouterUsage(lastUsage)
-
       yield {
         type: EventType.RUN_FINISHED,
+        ...(responseId && { responseId }),
+        metadata: {
+          tanstack: {
+            ...(responseId && { responseId }),
+            ...(lastModel && { model: lastModel }),
+          },
+        },
         runId: aguiState.runId,
         threadId: aguiState.threadId,
         model: lastModel || chatOptions.model,
         timestamp: Date.now(),
         finishReason: 'stop',
-        ...(finalUsage && {
-          usage: { ...finalUsage, ...extractUsageCost(lastUsage) },
-        }),
+        ...(lastUsage && { usage: lastUsage }),
       }
     } catch (error: unknown) {
       if (!aguiState.hasEmittedRunStarted) {
@@ -668,7 +756,7 @@ export class OpenRouterTextAdapter<
           : ''
       const isAbort =
         errName === 'AbortError' || errName === 'RequestAbortedError'
-      const errorPayload = toRunErrorPayload(
+      const errorPayload = toOpenRouterRunErrorPayload(
         error,
         `${this.name}.structuredOutputStream failed`,
       )
@@ -677,6 +765,7 @@ export class OpenRouterTextAdapter<
       const rawEvent = isAbort ? undefined : toRunErrorRawEvent(error)
       yield {
         type: EventType.RUN_ERROR,
+        ...(lastUsage && { usage: lastUsage }),
         runId: aguiState.runId,
         model: lastModel || chatOptions.model,
         timestamp: Date.now(),
@@ -768,6 +857,7 @@ export class OpenRouterTextAdapter<
     let accumulatedContent = ''
     let hasEmittedTextMessageStart = false
     let lastModel: string | undefined
+    let responseId: string | undefined
     // Track usage from any chunk that carries it. With
     // `streamOptions: { includeUsage: true }` OpenRouter emits a terminal
     // chunk whose `choices` is `[]` and only the `usage` field is populated;
@@ -803,9 +893,11 @@ export class OpenRouterTextAdapter<
     // with no matching TOOL_CALL_END would leave consumers waiting for tool
     // results that never arrive.
     let emittedAnyToolCallEnd = false
+    let streamErrorRetryAfterMs: number | undefined
 
     try {
       for await (const chunk of stream) {
+        if (chunk.id) responseId = chunk.id
         const choiceForLog = chunk.choices[0]
         options.logger.provider(
           `provider=${this.name} finishReason=${choiceForLog?.finishReason ?? 'none'} hasContent=${!!choiceForLog?.delta.content} hasToolCalls=${!!choiceForLog?.delta.toolCalls} hasUsage=${!!chunk.usage}`,
@@ -823,6 +915,23 @@ export class OpenRouterTextAdapter<
           // sent in-band is already stripped here — only pre-stream HTTP errors
           // (caught in the outer catch) retain `error.metadata` via their typed
           // error class's `.error` body.
+          //
+          // OpenRouter sent status 200 before the provider failed, so the SDK
+          // cannot retry this and there is no `Retry-After`. For a code the SDK
+          // would retry (`retryCodes`, default `5XX`), set `retryAfterMs` to
+          // its backoff `initialInterval` (default 500), so `chat({ retry })`
+          // can call the model again.
+          const status = String(chunk.error.code)
+          const retryConfig = this.sdkOptions.retryConfig
+          if (
+            retryConfig?.strategy !== 'none' &&
+            (this.retryCodes ?? ['5XX']).some((c) =>
+              /^[0-9]xx$/i.test(c) ? c[0] === status[0] : c === status,
+            )
+          ) {
+            streamErrorRetryAfterMs =
+              retryConfig?.backoff?.initialInterval ?? 500
+          }
           throw Object.assign(
             new Error(chunk.error.message || 'OpenRouter stream error'),
             { code: chunk.error.code, rawEvent: chunk.error },
@@ -1176,6 +1285,25 @@ export class OpenRouterTextAdapter<
           }
         }
 
+        // An unknown finishReason must not end the run as a success.
+        if (
+          pendingFinishReason &&
+          !['stop', 'length', 'content_filter', 'tool_calls', 'error'].includes(
+            pendingFinishReason,
+          )
+        ) {
+          const message = `Provider finish_reason: ${pendingFinishReason}`
+          yield {
+            type: EventType.RUN_ERROR,
+            runId: aguiState.runId,
+            model: lastModel || options.model,
+            timestamp: Date.now(),
+            message,
+            error: { message },
+          }
+          return
+        }
+
         // Map upstream finishReason to AG-UI's narrower vocabulary while
         // preserving the upstream value when it falls outside the AG-UI set.
         // Use `tool_calls` only when a TOOL_CALL_END was actually emitted.
@@ -1200,6 +1328,13 @@ export class OpenRouterTextAdapter<
 
         yield {
           type: EventType.RUN_FINISHED,
+          ...(responseId && { responseId }),
+          metadata: {
+            tanstack: {
+              ...(responseId && { responseId }),
+              ...(lastModel && { model: lastModel }),
+            },
+          },
           runId: aguiState.runId,
           threadId: aguiState.threadId,
           model: lastModel || options.model,
@@ -1213,7 +1348,7 @@ export class OpenRouterTextAdapter<
     } catch (error: unknown) {
       // Narrow before logging: raw SDK errors can carry request metadata
       // (including auth headers) which we must never surface to user loggers.
-      const errorPayload = toRunErrorPayload(
+      const errorPayload = toOpenRouterRunErrorPayload(
         error,
         `${this.name}.processStreamChunks failed`,
       )
@@ -1233,6 +1368,9 @@ export class OpenRouterTextAdapter<
         message: errorPayload.message,
         ...(errorPayload.code !== undefined && { code: errorPayload.code }),
         ...(rawEvent !== undefined && { rawEvent }),
+        ...(streamErrorRetryAfterMs !== undefined && {
+          retryAfterMs: streamErrorRetryAfterMs,
+        }),
         error: {
           message: errorPayload.message,
           ...(errorPayload.code !== undefined && { code: errorPayload.code }),
@@ -1252,10 +1390,17 @@ export class OpenRouterTextAdapter<
     // `variant` is OpenRouter metadata used only to build the `:variant` model
     // suffix — it must NOT be spread into the request body. Destructure it out
     // so the remaining sampling/provider options flow through `...restModelOptions`.
-    const { variant, reasoning, ...restModelOptions } = (options.modelOptions ??
+    const { variant, ...restModelOptions } = (options.modelOptions ??
       {}) as ExternalTextProviderOptions
     const variantSuffix = variant ? `:${variant}` : ''
-    const normalizedReasoning = normalizeReasoningOptions(reasoning)
+    // `chat({ reasoning })`. `ChatRequestEffort` is an open enum, so a newer
+    // effort value still goes out.
+    const effort = openRouterEffort(
+      resolveReasoning(
+        options.reasoning,
+        OPENROUTER_MODEL_REASONING[options.model],
+      ),
+    )
 
     const messages: Array<ChatMessages> = []
     const systemPrompts =
@@ -1285,9 +1430,52 @@ export class OpenRouterTextAdapter<
           : systemPrompts.map((p) => p.content).join('\n'),
       })
     }
-    for (const m of options.messages) {
+    // History from another model loses its signatures, and its tool IDs are
+    // rewritten to a shape the Chat Completions API accepts.
+    const replay = transformMessagesForReplay(
+      options.messages,
+      { provider: this.provider, api: this.api, model: options.model },
+      (id, { attempt }) => {
+        if (attempt > 0)
+          return `${
+            id
+              .split('|')[0]
+              ?.replace(/[^a-zA-Z0-9_-]/g, '_')
+              .slice(0, 31) || 'call'
+          }_${hashToolCallId(`${id}:${attempt}`).slice(0, 8)}`
+        if (id.includes('|')) {
+          const separator = id.indexOf('|')
+          const call = id.slice(0, separator).replace(/[^a-zA-Z0-9_-]/g, '_')
+          const item = id.slice(separator + 1).replace(/[^a-zA-Z0-9_-]/g, '_')
+          const combined = item ? `${call}_${item}` : call
+          return combined.length <= 40
+            ? combined
+            : `${call.slice(0, 31)}_${hashToolCallId(id).slice(0, 8)}`
+        }
+        return id.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40)
+      },
+    )
+    // Tool messages cannot carry images. The images of a run of tool results
+    // go in one user message after that run. Other media in a tool result is
+    // not sent.
+    const toolImages: Array<ChatContentItems> = []
+    for (const m of replay.messages) {
+      if (m.role !== 'tool' && toolImages.length > 0)
+        messages.push({ role: 'user', content: toolImages.splice(0) })
       messages.push(this.convertMessage(m))
+      if (
+        m.role === 'tool' &&
+        Array.isArray(m.content) &&
+        (this.inputModalities?.includes('image') ?? true)
+      ) {
+        for (const part of m.content) {
+          const image = part.type === 'image' && this.convertContentPart(part)
+          if (image) toolImages.push(image)
+        }
+      }
     }
+    if (toolImages.length > 0)
+      messages.push({ role: 'user', content: toolImages })
 
     const tools = options.tools
       ? convertToolsToProviderFormat(options.tools)
@@ -1310,6 +1498,13 @@ export class OpenRouterTextAdapter<
           )
         : undefined
 
+    // `chat({ toolChoice })` is sent only when the request has tools. It goes
+    // before the `modelOptions` spread, so a `toolChoice` there wins.
+    const toolChoiceField =
+      tools?.length && options.toolChoice !== undefined
+        ? { toolChoice: toOpenRouterChatToolChoice(options.toolChoice) }
+        : undefined
+
     // `modelOptions` is the sole wire surface: callers set provider-native
     // names (`temperature`, `topP`, `maxCompletionTokens`, `metadata`, etc.)
     // there and they flow through the spread below. Root `metadata` is
@@ -1317,8 +1512,9 @@ export class OpenRouterTextAdapter<
     // forwarded here — it may carry arbitrarily structured values while the
     // SDK validates `chatRequest.metadata` as `Record<string, string>` (#735).
     const request: Omit<ChatRequest, 'stream'> = {
+      ...toolChoiceField,
       ...restModelOptions,
-      ...(normalizedReasoning && { reasoning: normalizedReasoning }),
+      ...(effort && { reasoning: { effort: effort as ChatRequestEffort } }),
       model: options.model + variantSuffix,
       messages,
       ...(tools && tools.length > 0 && { tools }),
@@ -1333,7 +1529,9 @@ export class OpenRouterTextAdapter<
         },
       }),
     }
-    return request
+    return options.promptCache
+      ? addPromptCacheMarkers(request, options.promptCache)
+      : request
   }
 
   /**
@@ -1358,12 +1556,19 @@ export class OpenRouterTextAdapter<
       // ContentPart shape (e.g. `[{"type":"text","content":"…"}]`) into the
       // tool message's `content` field would feed the literal JSON of the
       // parts back to the model instead of the tool's textual result.
+      // `mapOptionsToRequest` sends the images in a user message after the
+      // tool results.
+      const text = this.extractTextContent(message.content)
       return {
         role: 'tool',
         content:
-          typeof message.content === 'string'
-            ? message.content
-            : this.extractTextContent(message.content),
+          !text &&
+          Array.isArray(message.content) &&
+          message.content.some((part) => part.type === 'image')
+            ? (this.inputModalities?.includes('image') ?? true)
+              ? '(see attached image)'
+              : '(image omitted: this model has no image input)'
+            : text,
         toolCallId: message.toolCallId || '',
       }
     }

@@ -264,6 +264,7 @@ export function makeMiddlewareCtx(input: {
     chunkIndex: 0,
     signal: controller.signal,
     abort: (reason) => controller.abort(reason),
+    retry: () => {},
     emitCustomEvent: () => {},
     context: {},
     defer: () => {},
@@ -281,6 +282,7 @@ export function makeMiddlewareCtx(input: {
     currentMessageId: null,
     accumulatedContent: '',
     messages: [],
+    activities: [],
     createId: (prefix: string) =>
       `${prefix}-${Math.random().toString(36).slice(2)}`,
     capabilities:

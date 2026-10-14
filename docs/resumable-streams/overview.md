@@ -48,9 +48,13 @@ Using a different store (Redis, Postgres, a queue)? Implement the four-method
 
 ## 2. Wrap your server response
 
-Pass the adapter as `durability` to `toServerSentEventsResponse` (SSE) or
-`toHttpResponse` (NDJSON). Add a `GET` handler so a reload or a second tab can
-re-attach to a run:
+Pass the adapter as `durability` to one of these helpers:
+
+- `toServerSentEventsResponse` (SSE). Its `GET` handler uses `resumeServerSentEventsResponse`.
+- `toHttpResponse` (NDJSON). Its `GET` handler uses `resumeHttpResponse`.
+- `toJsonResponse` (one JSON body per request). Its `GET` handler uses `resumeJsonResponse`. See [JSON](../transports/json).
+
+Add a `GET` handler so a reload or a second tab can re-attach to a run:
 
 ```ts
 import {
@@ -153,6 +157,10 @@ export function Chat() {
 For NDJSON, swap `fetchServerSentEvents` for `fetchHttpStream` (with the server
 on `toHttpResponse`). The XHR adapters (`xhrServerSentEvents`, `xhrHttpStream`)
 work the same way, for runtimes without streaming `fetch`.
+
+For one JSON body per request, use `fetchJson` with the server on
+`toJsonResponse`. The client polls until the run ends. See
+[JSON](../transports/json#long-runs-and-reloads).
 
 ## Or go full-duplex: WebSockets
 

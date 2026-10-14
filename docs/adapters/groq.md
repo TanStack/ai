@@ -72,6 +72,8 @@ const config: Omit<GroqTextConfig, 'apiKey'> = {
 const adapter = createGroqText("llama-3.3-70b-versatile", process.env.GROQ_API_KEY!, config);
 ```
 
+Need a header on each request, or a log of each model call? This adapter supports [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call).
+
 ## Example: Chat Completion
 
 ```typescript
@@ -170,13 +172,25 @@ const stream = chat({
 
 ### Reasoning
 
-Enable reasoning for models that support it (e.g., `openai/gpt-oss-120b`, `qwen/qwen3-32b`). This allows the model to show its reasoning process, which is streamed as `thinking` chunks:
+Set how hard a reasoning model thinks with `reasoning` on `chat()`:
 
-```typescript ignore
-modelOptions: {
-  reasoning_effort: "medium", // "none" | "default" | "low" | "medium" | "high"
-}
+```typescript
+import { chat } from "@tanstack/ai";
+import { groqText } from "@tanstack/ai-groq";
+
+const stream = chat({
+  adapter: groqText("openai/gpt-oss-120b"),
+  messages: [{ role: "user", content: "Hello!" }],
+  reasoning: "medium",
+});
 ```
+
+It goes out as `reasoning_effort`:
+
+- `openai/gpt-oss-120b`, `openai/gpt-oss-20b`, `openai/gpt-oss-safeguard-20b`: `low`, `medium`, `high`.
+- `qwen/qwen3-32b`: `off` (sent as `none`) and `high` (sent as `default`).
+
+To pick how the thinking text comes back, set `reasoning_format` in `modelOptions`.
 
 ## Summarization
 
@@ -237,6 +251,8 @@ GROQ_API_KEY=gsk_...
 ### `groqText(model, config?)`
 
 Creates a Groq chat adapter using environment variables.
+
+`adapter.inputModalities` lists the input kinds of the selected model. It is `undefined` for a model that this package does not know. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
 
 **Parameters:**
 

@@ -3,7 +3,7 @@ id: TextOptions
 title: TextOptions
 ---
 
-Defined in: [packages/ai/src/types.ts:1025](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1025)
+Defined in: [packages/ai/src/types.ts:1283](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1283)
 
 Options passed into the SDK and further piped to the AI provider.
 
@@ -29,7 +29,7 @@ Options passed into the SDK and further piped to the AI provider.
 optional abortController?: AbortController;
 ```
 
-Defined in: [packages/ai/src/types.ts:1125](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1125)
+Defined in: [packages/ai/src/types.ts:1412](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1412)
 
 AbortController for request cancellation.
 
@@ -56,7 +56,7 @@ https://developer.mozilla.org/en-US/docs/Web/API/AbortController
 optional agentLoopStrategy?: AgentLoopStrategy;
 ```
 
-Defined in: [packages/ai/src/types.ts:1053](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1053)
+Defined in: [packages/ai/src/types.ts:1311](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1311)
 
 ***
 
@@ -66,7 +66,7 @@ Defined in: [packages/ai/src/types.ts:1053](https://github.com/TanStack/ai/blob/
 optional approvals?: ReadonlyMap<string, boolean>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1183](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1183)
+Defined in: [packages/ai/src/types.ts:1494](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1494)
 
 Client approval decisions for this run, keyed by approval id. The engine
 populates this from approvals carried on the incoming messages. Harness
@@ -82,7 +82,7 @@ here). Undefined for direct adapter usage outside the chat engine.
 optional capabilities?: CapabilityContext;
 ```
 
-Defined in: [packages/ai/src/types.ts:1174](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1174)
+Defined in: [packages/ai/src/types.ts:1485](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1485)
 
 Middleware capability context for this run. The engine populates it with
 the live middleware context so harness adapters that declare
@@ -99,7 +99,7 @@ direct adapter usage outside the chat engine.
 optional context?: TContext;
 ```
 
-Defined in: [packages/ai/src/types.ts:1037](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1037)
+Defined in: [packages/ai/src/types.ts:1295](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1295)
 
 Runtime context provided by the caller and passed to middleware and
 server-side tool implementations.
@@ -112,7 +112,7 @@ server-side tool implementations.
 optional conversationId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1111](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1111)
+Defined in: [packages/ai/src/types.ts:1398](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1398)
 
 #### Deprecated
 
@@ -133,7 +133,7 @@ Will be removed in a future major release.
 optional lazyToolsConfig?: LazyToolsConfig;
 ```
 
-Defined in: [packages/ai/src/types.ts:1059](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1059)
+Defined in: [packages/ai/src/types.ts:1339](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1339)
 
 Optional configuration for lazy-tool discovery (tools marked `lazy: true`).
 Tunes how much of each lazy tool's description appears in the discovery
@@ -147,7 +147,7 @@ catalog. Optional — defaults to `{ includeDescription: 'none' }`.
 logger: InternalLogger;
 ```
 
-Defined in: [packages/ai/src/types.ts:1132](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1132)
+Defined in: [packages/ai/src/types.ts:1419](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1419)
 
 Internal logger threaded from the chat entry point. Adapter implementations
 must call `logger.request()` before SDK calls, `logger.provider()` for each
@@ -164,7 +164,7 @@ messages: ModelMessage<
   | null>[];
 ```
 
-Defined in: [packages/ai/src/types.ts:1031](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1031)
+Defined in: [packages/ai/src/types.ts:1289](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1289)
 
 ***
 
@@ -174,7 +174,7 @@ Defined in: [packages/ai/src/types.ts:1031](https://github.com/TanStack/ai/blob/
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1070](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1070)
+Defined in: [packages/ai/src/types.ts:1350](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1350)
 
 Observability metadata attached to this call. Surfaced to middleware,
 devtools, and the event client; values may be arbitrarily structured
@@ -187,13 +187,29 @@ OpenAI's and OpenRouter's `metadata` are both Record<string, string>).
 
 ***
 
+### midConversationChanges?
+
+```ts
+optional midConversationChanges?: MidConversationChanges;
+```
+
+Defined in: [packages/ai/src/types.ts:1460](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1460)
+
+The tools and system prompts that changed between model calls. The
+engine sets it only when `adapter.midConversationChannels` has a channel
+that is on. `tools` and `systemPrompts` stay the full current lists, so
+an adapter that ignores this field sends the same request as before.
+Adapters resolve it with `splitMidConversationChanges`.
+
+***
+
 ### model
 
 ```ts
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1030](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1030)
+Defined in: [packages/ai/src/types.ts:1288](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1288)
 
 ***
 
@@ -203,7 +219,7 @@ Defined in: [packages/ai/src/types.ts:1030](https://github.com/TanStack/ai/blob/
 optional modelOptions?: TProviderOptionsForModel;
 ```
 
-Defined in: [packages/ai/src/types.ts:1071](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1071)
+Defined in: [packages/ai/src/types.ts:1351](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1351)
 
 ***
 
@@ -213,7 +229,7 @@ Defined in: [packages/ai/src/types.ts:1071](https://github.com/TanStack/ai/blob/
 optional outputSchema?: SchemaInput;
 ```
 
-Defined in: [packages/ai/src/types.ts:1100](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1100)
+Defined in: [packages/ai/src/types.ts:1387](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1387)
 
 Schema for structured output.
 
@@ -248,10 +264,38 @@ Schema for structured output.
 optional parentRunId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1149](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1149)
+Defined in: [packages/ai/src/types.ts:1441](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1441)
 
 Parent run ID for AG-UI protocol nested run correlation.
 Surfaced for observability/middleware; not consumed by the LLM call.
+
+***
+
+### promptCache?
+
+```ts
+optional promptCache?: ResolvedPromptCache;
+```
+
+Defined in: [packages/ai/src/types.ts:1430](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1430)
+
+Automatic prompt caching for this request. `chat()` sets it. When it is
+absent, the adapter adds no automatic cache fields.
+
+***
+
+### reasoning?
+
+```ts
+optional reasoning?: ReasoningRequest;
+```
+
+Defined in: [packages/ai/src/types.ts:1358](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1358)
+
+How hard the model thinks, normalized by `chat()`. `undefined`: the user
+did not ask, so the adapter sends nothing and the provider default applies.
+The adapter clamps the level to the model's levels and writes its own
+wire field.
 
 ***
 
@@ -261,7 +305,7 @@ Surfaced for observability/middleware; not consumed by the LLM call.
 optional request?: Request | RequestInit;
 ```
 
-Defined in: [packages/ai/src/types.ts:1072](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1072)
+Defined in: [packages/ai/src/types.ts:1359](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1359)
 
 ***
 
@@ -271,10 +315,44 @@ Defined in: [packages/ai/src/types.ts:1072](https://github.com/TanStack/ai/blob/
 optional resume?: RunAgentResumeItem[];
 ```
 
-Defined in: [packages/ai/src/types.ts:1164](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1164)
+Defined in: [packages/ai/src/types.ts:1475](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1475)
 
 AG-UI interrupt resume responses supplied by the client on a follow-up run.
 A first-party generic item carries the original request in `metadata`.
+
+***
+
+### retry?
+
+```ts
+optional retry?: object;
+```
+
+Defined in: [packages/ai/src/types.ts:1324](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1324)
+
+Retry a model call when the provider error has a wait time (usually a
+429). `chat()` waits for the `retryAfterMs` time of the `RUN_ERROR`, then
+calls the model again. It retries only when the wait time is at most
+`maxWaitMs` and the call has streamed no output yet. The structured-output
+call is not retried. Off by default.
+
+#### maxRetries
+
+```ts
+maxRetries: number;
+```
+
+Extra model calls after the first, for each model call of the run. `0`
+means no retry. The provider SDK does its own retries first, from the
+`maxRetries` of the adapter config.
+
+#### maxWaitMs?
+
+```ts
+optional maxWaitMs?: number;
+```
+
+Longest wait time to accept, in milliseconds. Default 60 000.
 
 ***
 
@@ -284,7 +362,7 @@ A first-party generic item carries the original request in `metadata`.
 optional runId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1144](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1144)
+Defined in: [packages/ai/src/types.ts:1436](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1436)
 
 Run ID for AG-UI protocol run correlation.
 When provided, this will be used in RunStartedEvent and RunFinishedEvent.
@@ -298,7 +376,7 @@ If not provided, a unique ID will be generated.
 optional state?: unknown;
 ```
 
-Defined in: [packages/ai/src/types.ts:1158](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1158)
+Defined in: [packages/ai/src/types.ts:1469](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1469)
 
 Application state mirrored in a STATE_SNAPSHOT before an interrupt terminal.
 
@@ -310,7 +388,7 @@ Application state mirrored in a STATE_SNAPSHOT before an interrupt terminal.
 optional subagentRunId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1155](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1155)
+Defined in: [packages/ai/src/types.ts:1466](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1466)
 
 AG-UI subagent run id when this chat runs as a child of another run.
 A child `chat()` passes `ctx.subagentRunId`. Middleware reads it as
@@ -324,7 +402,7 @@ A child `chat()` passes `ctx.subagentRunId`. Middleware reads it as
 optional systemPrompts?: SystemPrompt[];
 ```
 
-Defined in: [packages/ai/src/types.ts:1052](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1052)
+Defined in: [packages/ai/src/types.ts:1310](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1310)
 
 System prompts to include with the request.
 
@@ -349,10 +427,36 @@ SystemPrompt
 optional threadId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1138](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1138)
+Defined in: [packages/ai/src/types.ts:1425](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1425)
 
 Thread ID for AG-UI protocol run correlation.
 When provided, this will be used in RunStartedEvent and RunFinishedEvent.
+
+***
+
+### toolChoice?
+
+```ts
+optional toolChoice?: ToolChoice<string>;
+```
+
+Defined in: [packages/ai/src/types.ts:1446](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1446)
+
+How the model uses the tools of this request. `chat()` sets it only when
+the request has tools. A provider value in `modelOptions` wins over it.
+
+***
+
+### toolExecution?
+
+```ts
+optional toolExecution?: "parallel" | "sequential";
+```
+
+Defined in: [packages/ai/src/types.ts:1316](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1316)
+
+How the server tools of one model turn run. `'parallel'` (the default)
+starts them together, and `'sequential'` runs them one at a time.
 
 ***
 
@@ -362,4 +466,18 @@ When provided, this will be used in RunStartedEvent and RunFinishedEvent.
 optional tools?: AnyTool[];
 ```
 
-Defined in: [packages/ai/src/types.ts:1032](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1032)
+Defined in: [packages/ai/src/types.ts:1290](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1290)
+
+***
+
+### wrapFetch?
+
+```ts
+optional wrapFetch?: FetchWrapper;
+```
+
+Defined in: [packages/ai/src/types.ts:1452](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1452)
+
+Wraps the fetch of this request. The engine composes the `chat()` option
+and the middleware wrappers into one function. An adapter that supports
+it calls `wrapFetch(baseFetch)` and sends the request with the result.

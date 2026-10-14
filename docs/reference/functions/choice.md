@@ -7,7 +7,7 @@ title: choice
 function choice<TOptions>(options): object;
 ```
 
-Defined in: [packages/ai/src/activities/evaluate/index.ts:361](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L361)
+Defined in: [packages/ai/src/activities/evaluate/index.ts:365](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L365)
 
 Build a choice question. The model picks one key from `options`.
 

@@ -57,7 +57,7 @@ The return type of `chat()` switches on the combination of `outputSchema` and `s
 
 | Configuration | Return type |
 |---|---|
-| No `outputSchema`, `stream: false` | `Promise<string>` |
+| No `outputSchema`, `stream: false` | `Promise<ChatResult>` (`{ text, chunks }`) |
 | No `outputSchema`, `stream: true` (default for plain chat) | `AsyncIterable<StreamChunk>` |
 | With `outputSchema` (this page — implicitly non-streaming) | `Promise<InferSchemaType<TSchema>>` |
 | With `outputSchema` and `stream: true` | `StructuredOutputStream<InferSchemaType<TSchema>>` (see [Streaming UIs](./streaming)) |
@@ -330,6 +330,8 @@ function PersonExtractor() {
 - **The schema on `useChat`** is for client-side TypeScript inference (and progressive parsing of `partial`). Validation still runs on the server against the schema you pass to `chat({ outputSchema })`.
 
 For non-streaming adapters (Anthropic, Gemini, Ollama), the object arrives as a single event — `partial` stays `{}` and `final` snaps in one step. The consumer code above is identical regardless of adapter.
+
+If you want to keep the awaited object on the server and still use `useChat`, send it with `toJsonResponse(person)`. See [Send a structured output](../transports/json#send-a-structured-output).
 
 > Want the result to fill in field-by-field, or to keep a history of objects across turns? Those are the [Streaming UIs](./streaming) and [Multi-Turn Chat](./multi-turn) journeys — both build on this same `useChat({ outputSchema })` surface.
 

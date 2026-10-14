@@ -25,13 +25,26 @@ Chunks buffered per durability append (default 32).
 
 ***
 
+### batchWaitMs?
+
+```ts
+optional batchWaitMs?: number;
+```
+
+Defined in: [packages/ai/src/stream-to-websocket.ts:101](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L101)
+
+Most ms a chunk waits in the batch for the next one before the batch is
+appended and sent anyway (default 50). `0` appends every chunk on its own.
+
+***
+
 ### debug?
 
 ```ts
 optional debug?: DebugOption;
 ```
 
-Defined in: [packages/ai/src/stream-to-websocket.ts:105](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L105)
+Defined in: [packages/ai/src/stream-to-websocket.ts:110](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L110)
 
 ***
 
@@ -63,7 +76,7 @@ Per-TURN durability factory, keyed by the frame's runId via ctx.request.
 optional heartbeatMs?: number;
 ```
 
-Defined in: [packages/ai/src/stream-to-websocket.ts:98](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L98)
+Defined in: [packages/ai/src/stream-to-websocket.ts:103](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L103)
 
 Heartbeat ping interval in ms (default 30_000).
 
@@ -75,7 +88,7 @@ Heartbeat ping interval in ms (default 30_000).
 optional idleTimeoutMs?: number;
 ```
 
-Defined in: [packages/ai/src/stream-to-websocket.ts:104](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L104)
+Defined in: [packages/ai/src/stream-to-websocket.ts:109](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L109)
 
 Close after this many ms without any inbound frame (default 300_000).
 Never fires while a turn is still streaming, so a long single generation

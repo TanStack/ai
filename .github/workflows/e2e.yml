@@ -17,9 +17,14 @@ permissions:
 
 jobs:
   e2e:
-    name: E2E Tests
+    name: E2E Shard ${{ matrix.shard }}/4
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      # Let every shard finish, so one run shows all failing tests.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -50,13 +55,15 @@ jobs:
         run: pnpm --filter @tanstack/ai-e2e exec playwright install chromium
 
       - name: Run E2E Tests
-        run: pnpm --filter @tanstack/ai-e2e test:e2e
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: pnpm --filter @tanstack/ai-e2e test:e2e --shard="$SHARD/4"
 
       - name: Upload Video Recordings
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
-          name: e2e-videos
+          name: e2e-videos-${{ matrix.shard }}
           path: testing/e2e/test-results/**/*.webm
           retention-days: 14
 
@@ -64,7 +71,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
-          name: e2e-report
+          name: e2e-report-${{ matrix.shard }}
           path: testing/e2e/playwright-report/
           retention-days: 14
 
@@ -72,6 +79,19 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: failure()
         with:
-          name: e2e-traces
+          name: e2e-traces-${{ matrix.shard }}
           path: testing/e2e/test-results/**/*.zip
           retention-days: 14
+
+  # Branch rules require a check named "E2E Tests". The shards above have
+  # other names, so this job reports their combined result under that name.
+  e2e-result:
+    name: E2E Tests
+    needs: e2e
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check shard results
+        env:
+          RESULT: ${{ needs.e2e.result }}
+        run: test "$RESULT" = success

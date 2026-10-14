@@ -56,17 +56,49 @@ const stream = chat({
 - `tools?` - Array of tools for function calling
 - `context?` - Typed runtime context passed to server tools and middleware. If a tool or middleware declares a concrete context type, `chat()` requires a compatible value here
 - `systemPrompts?` - System prompts to prepend to messages
-- `agentLoopStrategy?` - Strategy for agent loops (default: `maxIterations(5)`). Strategies receive `{ iterationCount, finishReason, messages, toolCallCount, lastTurnToolCallCount }` and run between model turns. Iterations are model turns, not tool calls — for tool-call budgets use middleware (`onBeforeToolCall` + `onShouldContinue`); see [Tool-call budgets](../chat/agentic-cycle#tool-call-budgets-middleware-recipe).
+- `agentLoopStrategy?` - Strategy for agent loops (default: `combineStrategies([maxIterations(5), untilFinishReason(["length"])])`). A strategy that goes on after a `length` answer lets the model send a [cut tool call](../chat/agentic-cycle#when-the-output-limit-cuts-a-tool-call) again. Strategies receive `{ iterationCount, finishReason, messages, toolCallCount, lastTurnToolCallCount }` and run between model turns. Iterations are model turns, not tool calls. For tool-call budgets, use middleware (`onBeforeToolCall` + `onShouldContinue`). See [Tool-call budgets](../chat/agentic-cycle#tool-call-budgets-middleware-recipe).
 - `middleware?` - Array of chat middleware. Use `onShouldContinue` / `onBeforeToolCall` for app-owned tool budgets.
 - `abortController?` - AbortController for cancellation
 - `modelOptions?` - Provider-native model options. This is where sampling parameters live — `temperature`, `top_p`/`topP`, and the provider's token-limit key (`max_output_tokens`, `max_tokens`, `maxOutputTokens`, …) — under each provider's canonical name, rather than as generic root-level props. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options). (Renamed from `providerOptions`.)
 - `threadId?` - AG-UI thread identifier propagated into `RUN_STARTED` events for run correlation
 - `runId?` - AG-UI run identifier (auto-generated if omitted)
 - `parentRunId?` - AG-UI parent run identifier for nested runs
+- `stream?` - Set to `false` to get one result when the run ends. See [Returns](#returns).
 
 ### Returns
 
 An async iterable of `StreamChunk`.
+
+With `stream: false`, `chat()` returns `Promise<ChatResult>`:
+
+- `text`: the full reply as one string.
+- `chunks`: every chunk the run produced, in order. This includes tool calls, tool results, reasoning, usage, and the `RUN_FINISHED` chunk with any interrupts.
+
+If the run fails, the promise rejects with the error from `RUN_ERROR`. If you also pass `outputSchema`, the promise resolves to the parsed object.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+const { text, chunks } = await chat({
+  adapter: openaiText("gpt-5.6"),
+  messages: [{ role: "user", content: "What's the capital of France?" }],
+  stream: false,
+});
+
+console.log(text);
+
+for (const chunk of chunks) {
+  if (chunk.type === "TOOL_CALL_START") {
+    console.log("Tool call:", chunk.toolCallName);
+  }
+  if (chunk.type === "RUN_FINISHED") {
+    console.log("Usage:", chunk.usage);
+  }
+}
+```
+
+If you already have a stream, `streamToText(stream)` reads it to the end and returns the same `ChatResult`.
 
 ## `summarize(options)`
 
@@ -730,10 +762,10 @@ const weatherTool = toolDefinition({
 
 async function examples() {
   // --- One-shot chat response (stream: false)
-  const response = await chat({
+  const { text } = await chat({
     adapter: openaiText("gpt-5.2"),
     messages: [{ role: "user", content: "What's the capital of France?" }],
-    stream: false, // Returns a Promise<string> instead of AsyncIterable
+    stream: false, // Resolves to { text, chunks } when the run ends
   });
 
   // --- Structured response with outputSchema

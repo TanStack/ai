@@ -121,6 +121,25 @@ describe('AudioRecorder', () => {
     expect(states).toContain('idle')
   })
 
+  it('a throwing listener does not skip others or strand stop()', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const recorder = new AudioRecorder()
+    const states: Array<string> = []
+    recorder.subscribe(() => {
+      throw new Error('listener failed')
+    })
+    recorder.subscribe((s) => states.push(s))
+
+    await recorder.start()
+    const recording = await recorder.stop()
+
+    expect(recording.base64).toBe('AQID')
+    expect(states).toEqual(['recording', 'stopping', 'idle'])
+    expect(recorder.state).toBe('idle')
+    expect(consoleError).toHaveBeenCalledWith(new Error('listener failed'))
+    consoleError.mockRestore()
+  })
+
   it('stops microphone tracks on stop', async () => {
     const stream = makeStream()
     getUserMedia.mockResolvedValueOnce(stream)

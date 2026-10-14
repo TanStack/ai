@@ -91,6 +91,7 @@ export type UseChatOptions<
   | 'onSubscriptionChange'
   | 'onConnectionStatusChange'
   | 'onSessionGeneratingChange'
+  | 'onHydratingChange'
   | 'onQueueChange'
   | 'onResumeStateChange'
   | 'onRunIdChange'
@@ -298,6 +299,14 @@ interface BaseUseChatReturn<
    * activity visible to all subscribers (e.g. across tabs/devices).
    */
   sessionGenerating: Accessor<boolean>
+
+  /**
+   * Whether the chat is being rebuilt from persistence (the server hydrate, or
+   * an async storage adapter). While it is true, show a loading state instead
+   * of an empty chat. It turns false when the transcript is in place and any
+   * in-flight run is re-joined. From then on `isLoading` covers the stream.
+   */
+  isHydrating: Accessor<boolean>
 }
 
 // Note: createChatClientOptions and InferChatMessages are now in @tanstack/ai-client

@@ -947,13 +947,13 @@ describe('getVideoStatus', () => {
   })
 })
 
-describe('getVideoUrl', () => {
+describe('getVideo', () => {
   it('returns the URL, its 24h expiry and usage', async () => {
     const task = succeededTask()
     const fetchMock = mockFetch(() => jsonResponse(task))
     const adapter = adapterWithFetch(fetchMock, 'seedance-1-0-pro-fast-251015')
 
-    const result = await adapter.getVideoUrl(JOB_ID)
+    const result = await adapter.getVideo(JOB_ID)
 
     expect(result.url).toBe(VIDEO_URL)
     // Anchored on updated_at (when the output appeared), not created_at.
@@ -980,7 +980,7 @@ describe('getVideoUrl', () => {
     )
     const adapter = adapterWithFetch(fetchMock, 'seedance-1-0-pro-fast-251015')
 
-    const result = await adapter.getVideoUrl(JOB_ID)
+    const result = await adapter.getVideo(JOB_ID)
 
     expect(result.expiresAt).toEqual(
       new Date((1_718_049_470 + 24 * 60 * 60) * 1000),
@@ -997,7 +997,7 @@ describe('getVideoUrl', () => {
     )
     const adapter = adapterWithFetch(fetchMock, 'seedance-1-5-pro-251215')
 
-    expect((await adapter.getVideoUrl(JOB_ID)).usage).toMatchObject({
+    expect((await adapter.getVideo(JOB_ID)).usage).toMatchObject({
       completionTokens: 35800,
       totalTokens: 35800,
       billed: { quantity: 35800, unit: 'tokens' },
@@ -1011,7 +1011,7 @@ describe('getVideoUrl', () => {
     )
     const adapter = adapterWithFetch(fetchMock, 'seedance-1-5-pro-251215')
 
-    expect((await adapter.getVideoUrl(JOB_ID)).usage).toBeUndefined()
+    expect((await adapter.getVideo(JOB_ID)).usage).toBeUndefined()
   })
 
   it('throws with the failure detail when the task failed', async () => {
@@ -1027,7 +1027,7 @@ describe('getVideoUrl', () => {
     )
     const adapter = adapterWithFetch(fetchMock, 'dreamina-seedance-2-0-260128')
 
-    await expect(adapter.getVideoUrl(JOB_ID)).rejects.toThrow(
+    await expect(adapter.getVideo(JOB_ID)).rejects.toThrow(
       /Video generation failed: InputImageSensitiveContentDetected: input image may contain sensitive information/,
     )
   })
@@ -1038,7 +1038,7 @@ describe('getVideoUrl', () => {
     )
     const adapter = adapterWithFetch(fetchMock, 'seedance-1-0-pro-250528')
 
-    await expect(adapter.getVideoUrl(JOB_ID)).rejects.toThrow(
+    await expect(adapter.getVideo(JOB_ID)).rejects.toThrow(
       /not ready for download/,
     )
   })
@@ -1047,7 +1047,7 @@ describe('getVideoUrl', () => {
     const fetchMock = mockFetch(() => jsonResponse({}, 404))
     const adapter = adapterWithFetch(fetchMock, 'seedance-1-0-pro-250528')
 
-    await expect(adapter.getVideoUrl(JOB_ID)).rejects.toThrow(
+    await expect(adapter.getVideo(JOB_ID)).rejects.toThrow(
       `Video job not found: ${JOB_ID}`,
     )
   })

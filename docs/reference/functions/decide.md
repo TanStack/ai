@@ -7,7 +7,7 @@ title: decide
 function decide<TAdapter, TQuestions>(options): Promise<{ [K in string | number | symbol]: InferEvaluateAnswer<TQuestions[K]> } & object>;
 ```
 
-Defined in: [packages/ai/src/activities/evaluate/index.ts:493](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L493)
+Defined in: [packages/ai/src/activities/evaluate/index.ts:497](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L497)
 
 Ask typed questions about `state` and get answers your code can branch on.
 

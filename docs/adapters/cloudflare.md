@@ -95,6 +95,8 @@ const stream = chat({
 
 The text and summarize REST config also accepts the OpenAI SDK client options (`baseURL`, `defaultHeaders`, `fetch`, `timeout`, `maxRetries`). The other adapters call the native `/ai/run` endpoint and take `fetch` only.
 
+Need a header on each request, or a log of each model call? The chat adapter supports [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call) over REST. In binding mode, the wrapper still runs. The binding reads only the request body, so it drops the URL and the headers that the wrapper sets.
+
 ## Route through AI Gateway
 
 AI Gateway gives you caching, logs, rate limits, and one bill across providers. Add `gateway` to any config to send requests through it. Use `"default"` for the gateway Cloudflare creates for your account.
@@ -150,6 +152,63 @@ const adapter = createOpenaiChat("gpt-5.5", process.env.OPENAI_API_KEY!, {
 The first argument is the provider slug from your gateway dashboard (`openai`, `anthropic`, `groq`, and so on). If the gateway has authentication turned on, pass `cfApiKey` too. That token needs the `AI Gateway Run` permission.
 
 The `ts-react-chat` example does this. Set `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, and `CLOUDFLARE_AI_GATEWAY_ID` in its `.env`, and the Cloudflare, OpenAI, Anthropic, and Groq models in its picker all go through your gateway.
+
+### Claude and GPT from a Worker
+
+Inside a Worker, the AI Gateway `anthropic/...` and `openai/...` models use their provider's own API, not Chat Completions. Keep the provider adapter, and give it `cloudflareBindingFetch` as its `fetch`. The binding signs the requests, so the Worker needs no provider key:
+
+```typescript
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { createAnthropicChat } from "@tanstack/ai-anthropic";
+import { cloudflareBindingFetch } from "@tanstack/ai-cloudflare";
+import type { Ai } from "@cloudflare/workers-types";
+
+interface Env {
+  AI: Ai;
+}
+
+export default {
+  async fetch(request: Request, env: Env) {
+    const { messages } = await request.json();
+
+    // The SDK needs a key value. The binding does not use it.
+    const adapter = createAnthropicChat("claude-opus-5-5", "cloudflare-binding", {
+      fetch: cloudflareBindingFetch({
+        binding: env.AI,
+        vendor: "anthropic",
+        gateway: { id: "default" },
+      }),
+    });
+
+    const stream = chat({ adapter, messages, reasoning: "high" });
+    return toServerSentEventsResponse(stream);
+  },
+};
+```
+
+- `vendor: "anthropic"` sends Anthropic Messages requests to `anthropic/<model>`. Use it with `createAnthropicChat`.
+- `vendor: "openai"` sends OpenAI Responses requests to `openai/<model>`. Use it with `createOpenaiChat`.
+- The adapter keeps all of its options: `chat({ reasoning })`, tools, `cache_control` for prompt caching, and Anthropic betas, which go out as the `anthropic-beta` header.
+- For `@cf/...` models and other gateway vendors, keep `createCloudflareText` with `binding: env.AI`.
+
+An adapter with a gateway `baseURL` (`cloudflareGateway()`) or with `cloudflareBindingFetch` sends the full tools and system prompts on every call, also on a model with a [mid-conversation channel](../advanced/mid-conversation-changes). AI Gateway then gets the same request as on any other model. To send tools and prompts added during a conversation through the channel, set `midConversationChannels: true`:
+
+```typescript
+import { createAnthropicChat } from "@tanstack/ai-anthropic";
+import { cloudflareBindingFetch } from "@tanstack/ai-cloudflare";
+import type { Ai } from "@cloudflare/workers-types";
+
+export function gatewayClaude(env: { AI: Ai }) {
+  return createAnthropicChat("claude-opus-5-5", "cloudflare-binding", {
+    fetch: cloudflareBindingFetch({
+      binding: env.AI,
+      vendor: "anthropic",
+      gateway: { id: "default" },
+    }),
+    midConversationChannels: true,
+  });
+}
+```
 
 ## Bring your own key
 
@@ -250,7 +309,7 @@ export default {
 
 ## Model options
 
-Sampling and reasoning controls go in `modelOptions`. Reasoning models stream their thinking as `reasoning_content`, which shows up as `REASONING_*` events.
+Sampling controls go in `modelOptions`, and the thinking level goes in `reasoning`. Reasoning models stream their thinking as `reasoning_content`, which shows up as `REASONING_*` events.
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -262,11 +321,20 @@ const stream = chat({
   modelOptions: {
     temperature: 0.3,
     max_tokens: 512,
-    reasoning_effort: "low",
-    chat_template_kwargs: { enable_thinking: false },
   },
+  reasoning: "low",
 });
 ```
+
+### Reasoning
+
+`reasoning` goes out as `reasoning_effort`. `off` sends `null`, which turns thinking off. Some models and their levels:
+
+- `@cf/zai-org/glm-5.3`, `@cf/zai-org/glm-5.3-flash`: `low`, `high`, `max`.
+- `@cf/deepseek-ai/deepseek-v4-pro-0813`, `@cf/deepseek-ai/deepseek-v4-flash-0731`: `off`, `low`, `high`, `max`.
+- `@cf/openai/gpt-oss-120b`, `@cf/openai/gpt-oss-20b`: `low`, `medium`, `high`.
+
+The types take the levels of each model. A model with no reasoning data takes no `reasoning`.
 
 ## Evaluate
 

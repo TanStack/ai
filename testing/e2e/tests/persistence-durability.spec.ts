@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { sendMessage, waitForResponse } from './helpers'
+import { collectHydrationErrors, sendMessage, waitForResponse } from './helpers'
 import type { Page } from '@playwright/test'
 
 /**
@@ -59,25 +59,7 @@ test.describe('persistence durability (browser refresh)', () => {
     expect(Array.isArray(record.messages)).toBe(true)
     expect(record.messages.length).toBeGreaterThanOrEqual(2)
 
-    const hydrationErrors: Array<string> = []
-    page.on('pageerror', (error) => {
-      if (
-        /hydration failed|hydrated but|server rendered html/i.test(
-          error.message,
-        )
-      ) {
-        hydrationErrors.push(error.message)
-      }
-    })
-    page.on('console', (message) => {
-      const text = message.text()
-      if (
-        message.type() === 'error' &&
-        /hydration failed|hydrated but|server rendered html/i.test(text)
-      ) {
-        hydrationErrors.push(text)
-      }
-    })
+    const hydrationErrors = collectHydrationErrors(page)
 
     // Full reload: the conversation must come back from localStorage alone.
     await page.reload()
@@ -119,25 +101,7 @@ test.describe('persistence durability (browser refresh)', () => {
     const record = JSON.parse(stored!) as { resume?: unknown }
     expect(record.resume).toBeTruthy()
 
-    const hydrationErrors: Array<string> = []
-    page.on('pageerror', (error) => {
-      if (
-        /hydration failed|hydrated but|server rendered html/i.test(
-          error.message,
-        )
-      ) {
-        hydrationErrors.push(error.message)
-      }
-    })
-    page.on('console', (message) => {
-      const text = message.text()
-      if (
-        message.type() === 'error' &&
-        /hydration failed|hydrated but|server rendered html/i.test(text)
-      ) {
-        hydrationErrors.push(text)
-      }
-    })
+    const hydrationErrors = collectHydrationErrors(page)
 
     // Full reload: the interrupt must rehydrate from localStorage, not a refetch.
     await page.reload()
@@ -400,6 +364,36 @@ test.describe('server persistence', () => {
         toolCallId: 'call-status',
         state: 'error',
         error: 'Status service unavailable',
+      }),
+    )
+  })
+
+  test('restores the error of a stopped child', async ({ request }) => {
+    const threadId = `subagent-stopped-${crypto.randomUUID()}`
+    const runId = crypto.randomUUID()
+    const seed = await request.post(
+      '/api/persistence-durability?scenario=subagent-stopped',
+      { data: { threadId, runId } },
+    )
+    expect(seed.ok()).toBe(true)
+
+    const hydration = await request.get(
+      `/api/persistence-durability?scenario=subagent-stopped&threadId=${encodeURIComponent(threadId)}`,
+    )
+    expect(hydration.ok()).toBe(true)
+    const body = (await hydration.json()) as {
+      messages: Array<{ parts: Array<Record<string, unknown>> }>
+    }
+    const parts = body.messages.flatMap((message) => message.parts)
+
+    expect(parts).toContainEqual(
+      expect.objectContaining({
+        type: 'subagent',
+        subagent: expect.objectContaining({
+          name: 'researcher',
+          status: 'error',
+          error: { message: 'Stopped' },
+        }),
       }),
     )
   })

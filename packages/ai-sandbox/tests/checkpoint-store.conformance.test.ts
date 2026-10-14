@@ -18,5 +18,8 @@ runPersistenceConformance(
     const { persistence } = await memorySandboxSnapshots()
     return persistence
   },
-  { checks: ['messages.metadata', 'runs.listByThread.state'] },
+  {
+    skip: ['activities'],
+    checks: ['messages.metadata', 'runs.listByThread.state'],
+  },
 )

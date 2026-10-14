@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-vertex",
-  "version": "0.2.22",
+  "version": "0.2.29",
   "description": "Google Vertex AI adapter for TanStack AI. Runs Gemini models on Vertex with regional endpoints and Google Cloud credentials.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -59,6 +59,7 @@
     "@tanstack/ai": "workspace:^"
   },
   "devDependencies": {
+    "@google/genai": "^2.10.0",
     "@tanstack/ai": "workspace:*",
     "@vitest/coverage-v8": "4.1.10",
     "vite": "^8.2.1"

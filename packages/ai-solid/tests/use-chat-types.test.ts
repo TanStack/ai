@@ -94,6 +94,10 @@ describe('useChat() return type (solid)', () => {
       type R = UseChatReturn<NoTools>
       expectTypeOf<R['sendMessage']>().toBeFunction()
       expectTypeOf<R['isLoading']>().toBeFunction()
+      type Messages = R['messages'] extends Accessor<infer A> ? A : never
+      expectTypeOf<Messages[number]['role']>().toEqualTypeOf<
+        'system' | 'user' | 'assistant' | 'activity'
+      >()
     })
   })
 

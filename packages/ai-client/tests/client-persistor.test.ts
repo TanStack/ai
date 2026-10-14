@@ -90,6 +90,42 @@ describe('ChatPersistor', () => {
       expect(adapter.getItem).toHaveBeenCalledWith(CHAT_ID)
     })
 
+    it('round-trips a mixed transcript that includes activity', () => {
+      let stored: ChatPersistedState | undefined
+      const adapter: ChatClientPersistence = {
+        getItem: vi.fn(() => stored),
+        setItem: vi.fn((_id, state) => {
+          stored = state
+        }),
+        removeItem: vi.fn(),
+      }
+      const mixed: Array<UIMessage> = [
+        { id: 'u1', role: 'user', parts: [{ type: 'text', content: 'hi' }] },
+        {
+          id: 'act-1',
+          role: 'activity',
+          parts: [
+            {
+              type: 'activity',
+              activityType: 'SEARCH',
+              content: { query: 'tanstack' },
+            },
+          ],
+        },
+        {
+          id: 'a1',
+          role: 'assistant',
+          parts: [{ type: 'text', content: 'ok' }],
+        },
+      ]
+
+      const { persistor } = createPersistor(adapter)
+      persistor.notifyMessagesChanged(mixed)
+
+      const { persistor: next } = createPersistor(adapter)
+      expect(next.readInitial()).toEqual({ messages: mixed })
+    })
+
     it('returns the promise from an asynchronous getItem', () => {
       const stored = [createUIMessage('m-1')]
       const adapter = createMockPersistence()

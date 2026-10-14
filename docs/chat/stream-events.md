@@ -27,7 +27,7 @@ Do now:
 - `RUN_STARTED`: `threadId`, `runId`
 - `TEXT_MESSAGE_START` / `CONTENT` / `END`: `messageId`, `delta`
 - `TOOL_CALL_START` / `ARGS` / `END`: `toolCallId`, `toolCallName`, args `delta`
-- `RUN_FINISHED` / `RUN_ERROR`: usage and finish reason
+- `RUN_FINISHED` / `RUN_ERROR`: usage and finish reason. A rate-limited `RUN_ERROR` also says how long to wait. See [Rate limits](#rate-limits). For the provider's response ID, see [Read the provider response identity](#read-the-provider-response-identity)
 
 Later:
 
@@ -58,6 +58,147 @@ for await (const chunk of stream) {
   }
 }
 ```
+
+## Token usage
+
+You want to know what a run cost. `RUN_FINISHED.usage.promptTokens` is the full input, cached tokens included. The cache parts are also on `promptTokensDetails`:
+
+- `cachedTokens`: tokens read from the cache.
+- `cacheWriteTokens`: tokens written to the cache.
+
+Need the uncached part? Subtract both:
+
+```typescript
+import type { TokenUsage } from "@tanstack/ai";
+
+function uncachedTokens(usage: TokenUsage) {
+  const read = usage.promptTokensDetails?.cachedTokens ?? 0;
+  const written = usage.promptTokensDetails?.cacheWriteTokens ?? 0;
+  return usage.promptTokens - read - written;
+}
+```
+
+Upgrading the Anthropic, Bedrock, or Claude Code adapter? Their `promptTokens` used to count only the uncached tokens. If your code adds `cachedTokens` to `promptTokens`, remove that addition. Otherwise you count the cache two times.
+
+## Rate limits
+
+You got a 429 and want to know how long to wait. If the provider sends a `retry-after-ms` or `retry-after` header, the `RUN_ERROR` has the wait in `metadata.tanstack.retryAfterMs`, in milliseconds.
+
+The Anthropic adapter and the adapters built on `@tanstack/openai-base` (for example OpenAI, Grok, and Groq) set it.
+
+The OpenRouter adapter also sets it for [an error in the stream](../adapters/openrouter#retry-an-error-in-the-stream). That value is the adapter's own backoff wait, not a wait from the provider.
+
+On the server:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { anthropicText } from "@tanstack/ai-anthropic";
+
+const stream = chat({
+  adapter: anthropicText("claude-sonnet-5-5"),
+  messages: [{ role: "user", content: "Hello!" }],
+});
+
+for await (const chunk of stream) {
+  if (chunk.type === "RUN_ERROR") {
+    const waitMs = chunk.metadata?.tanstack?.retryAfterMs;
+    console.log(waitMs === undefined ? "No wait sent" : `Retry in ${waitMs} ms`);
+  }
+}
+```
+
+The value also reaches the browser. On the client:
+
+```typescript
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
+const { messages } = useChat({
+  connection: fetchServerSentEvents("/api/chat"),
+  onChunk: (chunk) => {
+    if (chunk.type === "RUN_ERROR") {
+      console.log(chunk.metadata?.tanstack?.retryAfterMs);
+    }
+  },
+});
+```
+
+No `retryAfterMs`? The provider sent no wait header, so pick your own backoff. The provider SDKs also retry a 429 by themselves first. To handle every 429 yourself, set `maxRetries: 0` in the adapter config.
+
+### Let `chat()` retry for you
+
+You do not have to wait and retry in your own code. Pass `retry`, and `chat()` waits for the `retryAfterMs` time, then calls the model again:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { anthropicText } from "@tanstack/ai-anthropic";
+
+const stream = chat({
+  adapter: anthropicText("claude-sonnet-5-5"),
+  messages: [{ role: "user", content: "Hello!" }],
+  retry: { maxRetries: 3, maxWaitMs: 30_000 },
+});
+```
+
+When it retries:
+
+- Only when the `RUN_ERROR` has a wait time (`metadata.tanstack.retryAfterMs`). Only the adapters named above set it.
+- Only when the wait time is at most `maxWaitMs` (default 60 000). For a longer wait time, you get the `RUN_ERROR`.
+- Only when the call streamed no output, so no text repeats.
+
+Limits:
+
+- `maxRetries` is the limit for each model call, not for the full run.
+- The provider SDK retries a 429 first, then `chat()` retries. To count only the `chat()` retries, set `maxRetries: 0` in the adapter config.
+- With `outputSchema`, `chat()` does not retry the structured-output call.
+- An abort stops the wait immediately. You then get the `RUN_ERROR`.
+
+On a serverless route, a long wait keeps the request open. If your host has a short time limit, keep `maxWaitMs` low. Then retry the longer wait times from the client.
+
+## Read the provider response identity
+
+You want to find a reply in the provider's logs, or see which model really answered. Read `metadata.tanstack` on `RUN_FINISHED`:
+
+- `responseId`: the generation ID from the provider, when it sends one.
+- `model`: the model that the provider says it used. It can differ from the model that you asked for.
+- `source`: `{ provider, api, model }` for the call. Here `model` is the one that you asked for.
+
+On the server:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { anthropicText } from "@tanstack/ai-anthropic";
+
+const stream = chat({
+  adapter: anthropicText("claude-sonnet-5-5"),
+  messages: [{ role: "user", content: "Hello!" }],
+});
+
+for await (const chunk of stream) {
+  if (chunk.type === "RUN_FINISHED") {
+    const tanstack = chunk.metadata?.tanstack;
+    console.log(tanstack?.responseId, tanstack?.model, tanstack?.source);
+  }
+}
+```
+
+The same fields land on each assistant message. `StreamProcessor` merges the metadata of `RUN_FINISHED` and `RUN_ERROR` into the messages of that model call. A failed call also gets `stopReason: "error"`, and an aborted one gets `stopReason: "aborted"`.
+
+On the client:
+
+```typescript
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
+const { messages } = useChat({
+  connection: fetchServerSentEvents("/api/chat"),
+});
+
+for (const message of messages) {
+  const tanstack = message.metadata?.tanstack;
+  console.log(tanstack?.responseId, tanstack?.source, tanstack?.stopReason);
+}
+```
+
+No `responseId`? The provider sent no generation ID. The adapter never fills it with an HTTP request ID.
 
 ## Threads and runs
 

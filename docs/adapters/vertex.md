@@ -66,6 +66,8 @@ const text = vertexText("gemini-3.7-flash", auth);
 const image = vertexImage("gemini-3.1-flash-image", auth);
 ```
 
+`vertexText` ignores [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call), because the `@google/genai` SDK does not take a custom fetch.
+
 ## Authentication
 
 Vertex factories accept every auth option `@google/genai` accepts. They do **not** read `GEMINI_API_KEY` or `GOOGLE_API_KEY`. Those keys are AI Studio, not Vertex.

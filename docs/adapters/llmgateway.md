@@ -60,6 +60,8 @@ const adapter = createLLMGatewayText(
 
 LLM Gateway is open source and self-hostable; point `baseURL` at your own deployment to keep the same adapter surface.
 
+Need a header on each request, or a log of each model call? This adapter supports [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call).
+
 ## Available Models
 
 Any model listed at [llmgateway.io/models](https://llmgateway.io/models) works — pass its id as the model name. A bare model id lets the gateway route to the best available provider; prefix it with `provider/` to pin routing to a specific provider:
@@ -72,6 +74,8 @@ model: "fireworks/kimi-k3"      // always routed to Fireworks
 ```
 
 A curated set of flagship models (see `LLMGATEWAY_CHAT_MODELS`) additionally carries per-model type metadata — input modalities and provider options — with editor autocomplete. Uncurated ids still work and fall back to text-only input with the generic options.
+
+`adapter.inputModalities` lists the input kinds of the selected model. It is `undefined` for a model that this package does not know. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
 
 ## Example: Chat Completion
 
@@ -137,12 +141,19 @@ const stream = chat({
   modelOptions: {
     temperature: 0.7,
     max_completion_tokens: 4096,
-    reasoning_effort: "high",
   },
+  reasoning: "high",
 });
 ```
 
-`reasoning_effort` accepts the extended scale `none` / `minimal` / `low` / `medium` / `high` / `xhigh` / `max` in addition to OpenAI's standard tiers — which tiers a model honors depends on the model and provider it is routed to (see the model's page on [llmgateway.io/models](https://llmgateway.io/models)).
+### Reasoning
+
+`reasoning` goes out as `reasoning_effort`. The types take the levels of each model, and no `budgetTokens`:
+
+- `kimi-k3`, `glm-5.2`, `deepseek-v4-pro`, `qwen3.7-max`: `off` to `max`.
+- `gpt-5.6-terra`: `off`, `low` to `max`. `gpt-5.5`, `gpt-5.4-mini`: `off`, `low` to `xhigh`.
+- `claude-opus-5`, `claude-sonnet-5`, `claude-haiku-4-5`, `minimax-m2.5`: `low` to `max`.
+- `gemini-pro-latest`, `grok-4-5`: `low` to `high`. `gemini-3.6-flash`: `minimal` to `high`.
 
 Reasoning models stream their thinking as `reasoning_content` deltas, which the adapter surfaces as AG-UI `REASONING_*` events.
 

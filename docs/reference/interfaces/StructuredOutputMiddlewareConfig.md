@@ -3,22 +3,40 @@ id: StructuredOutputMiddlewareConfig
 title: StructuredOutputMiddlewareConfig
 ---
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:375](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L375)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:412](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L412)
 
 Config passed to onStructuredOutputConfig.
 
-Mirrors ChatMiddlewareConfig minus `tools` (the final structured-output call
-is a single typed-response request, not an agentic loop — tools cannot be
-forwarded to it), plus the `outputSchema` being sent to the provider.
+Mirrors ChatMiddlewareConfig minus `tools` and `toolChoice` (the final
+structured-output call is a single typed-response request, not an agentic
+loop — tools cannot be forwarded to it), plus the `outputSchema` being sent
+to the provider.
 Middleware may transform the schema (e.g., inject $defs, strip
 vendor-incompatible keywords) by returning a partial that includes
 `outputSchema`.
 
 ## Extends
 
-- `Omit`\<[`ChatMiddlewareConfig`](ChatMiddlewareConfig.md), `"tools"`\>
+- `Omit`\<[`ChatMiddlewareConfig`](ChatMiddlewareConfig.md), `"tools"` \| `"toolChoice"`\>
 
 ## Properties
+
+### activities?
+
+```ts
+optional activities?: ActivityRecord[];
+```
+
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:344](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L344)
+
+Frontend-only AG-UI activity sidecar. Persistence loads and saves this
+when an ActivityStore is configured. Never model input.
+
+#### Inherited from
+
+[`ChatMiddlewareConfig`](ChatMiddlewareConfig.md).[`activities`](ChatMiddlewareConfig.md#activities)
+
+***
 
 ### messages
 
@@ -29,7 +47,7 @@ messages: ModelMessage<
   | null>[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:328](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L328)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:339](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L339)
 
 Canonical conversation history. Middleware and persistence read this.
 
@@ -45,7 +63,7 @@ Canonical conversation history. Middleware and persistence read this.
 optional metadata?: Record<string, unknown>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:335](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L335)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:351](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L351)
 
 #### Inherited from
 
@@ -59,7 +77,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:335](https://gi
 optional modelOptions?: Record<string, unknown>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:336](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L336)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:352](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L352)
 
 #### Inherited from
 
@@ -73,9 +91,26 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:336](https://gi
 outputSchema: JSONSchema;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:380](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L380)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:417](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L417)
 
 JSON Schema being sent to the provider for structured output.
+
+***
+
+### promptCache?
+
+```ts
+optional promptCache?: ResolvedPromptCache;
+```
+
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:365](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L365)
+
+The prompt cache of the next model call. A returned value stays until a
+middleware changes it.
+
+#### Inherited from
+
+[`ChatMiddlewareConfig`](ChatMiddlewareConfig.md).[`promptCache`](ChatMiddlewareConfig.md#promptcache)
 
 ***
 
@@ -88,7 +123,7 @@ optional providerMessages?: ModelMessage<
   | null>[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:330](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L330)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:346](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L346)
 
 Provider-only context. Defaults to `messages` when it is not set.
 
@@ -98,13 +133,29 @@ Provider-only context. Defaults to `messages` when it is not set.
 
 ***
 
+### reasoning?
+
+```ts
+optional reasoning?: ReasoningRequest;
+```
+
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:354](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L354)
+
+How hard the model thinks at this call. A middleware can set or change it.
+
+#### Inherited from
+
+[`ChatMiddlewareConfig`](ChatMiddlewareConfig.md).[`reasoning`](ChatMiddlewareConfig.md#reasoning)
+
+***
+
 ### resume?
 
 ```ts
 optional resume?: RunAgentResumeItem[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:333](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L333)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:349](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L349)
 
 #### Inherited from
 
@@ -118,7 +169,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:333](https://gi
 optional resumeToolState?: ChatResumeToolState;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:334](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L334)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:350](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L350)
 
 #### Inherited from
 
@@ -132,8 +183,26 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:334](https://gi
 systemPrompts: SystemPrompt[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:331](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L331)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:347](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L347)
 
 #### Inherited from
 
 [`ChatMiddlewareConfig`](ChatMiddlewareConfig.md).[`systemPrompts`](ChatMiddlewareConfig.md#systemprompts)
+
+***
+
+### wrapFetch?
+
+```ts
+optional wrapFetch?: FetchWrapper;
+```
+
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:371](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L371)
+
+Wraps the fetch of the next model call. A returned wrapper chains inside
+the wrappers before it, so it does not replace them. It applies to that
+call only. The next call starts again from the `chat()` option.
+
+#### Inherited from
+
+[`ChatMiddlewareConfig`](ChatMiddlewareConfig.md).[`wrapFetch`](ChatMiddlewareConfig.md#wrapfetch)

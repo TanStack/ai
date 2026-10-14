@@ -2,13 +2,9 @@ import { ChatClient } from '@tanstack/ai-client'
 import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import { onMount } from 'svelte'
 import type {
-  ChatClientState,
   ResolvableChatInterrupt,
-  ChatInterruptState,
   ChatResumeState,
-  ConnectionStatus,
   InferredClientContext,
-  QueuedMessage,
   SendMessageOptions,
   StructuredOutputPart,
 } from '@tanstack/ai-client'
@@ -28,9 +24,6 @@ import type {
   MultimodalContent,
   UIMessage,
 } from './types'
-
-const EMPTY_INTERRUPTS = Object.freeze([])
-const EMPTY_INTERRUPT_ERRORS = Object.freeze([])
 
 /**
  * Creates a reactive chat instance for Svelte 5.
@@ -72,26 +65,6 @@ export function createChat<
 >(
   options: CreateChatOptions<TTools, TSchema, TContext, TInterrupts>,
 ): CreateChatReturn<TTools, TSchema, TContext, TInterrupts> {
-  // Create reactive state using Svelte 5 runes
-  let messages = $state<ReadonlyArray<UIMessage<TTools>>>(
-    options.initialMessages || [],
-  )
-  let isLoading = $state(false)
-  let hasOlderMessages = $state(false)
-  let error = $state<Error | undefined>(undefined)
-  let status = $state<ChatClientState>('ready')
-  let isSubscribed = $state(false)
-  let connectionStatus = $state<ConnectionStatus>('disconnected')
-  let sessionGenerating = $state(false)
-  let queue = $state<ReadonlyArray<QueuedMessage>>([])
-  let runId = $state<string | null>(null)
-  let interruptState = $state.raw<ChatInterruptState<TTools, TInterrupts>>({
-    interrupts: EMPTY_INTERRUPTS,
-    pendingInterrupts: EMPTY_INTERRUPTS,
-    interruptErrors: EMPTY_INTERRUPT_ERRORS,
-    resuming: false,
-  })
-
   // Structured-output `partial` / `final` are derived from `messages` —
   // specifically from the structured-output part on the latest assistant
   // message (the one after the most recent user message). Per-turn parts
@@ -182,23 +155,11 @@ export function createChat<
     },
   })
 
-  function applySnapshot() {
-    const next = client.getSnapshot()
-    messages = next.messages
-    isLoading = next.isLoading
-    hasOlderMessages = next.hasOlderMessages
-    error = next.error
-    status = next.status
-    isSubscribed = next.isSubscribed
-    connectionStatus = next.connectionStatus
-    sessionGenerating = next.sessionGenerating
-    queue = next.queue
-    runId = next.runId
-    interruptState = next.interruptState
-  }
-
-  applySnapshot()
-  const unsubscribeSnapshot = client.subscribeSnapshot(applySnapshot)
+  // One raw rune: the snapshot is frozen and replaced on every change.
+  let snapshot = $state.raw(client.getSnapshot())
+  const unsubscribeSnapshot = client.subscribeSnapshot(() => {
+    snapshot = client.getSnapshot()
+  })
 
   if (options.live) {
     client.subscribe()
@@ -360,6 +321,7 @@ export function createChat<
   // multi-line scan re-runs whenever `messages` changes.
   const activeStructuredPart: StructuredOutputPart | null = $derived.by(() => {
     let lastUserIndex = -1
+    const messages = snapshot.messages
     for (let i = messages.length - 1; i >= 0; i--) {
       if (messages[i]?.role === 'user') {
         lastUserIndex = i
@@ -395,46 +357,49 @@ export function createChat<
   // oxlint-disable-next-line eslint-js/no-restricted-syntax -- rune return shape diverges from generic CreateChatReturn<TTools, TSchema, TContext> due to TSchema conditional partial/final fields; TS can't structurally narrow.
   return {
     get messages() {
-      return messages
+      return snapshot.messages
     },
     get isLoading() {
-      return isLoading
+      return snapshot.isLoading
     },
     get hasOlderMessages() {
-      return hasOlderMessages
+      return snapshot.hasOlderMessages
     },
     get error() {
-      return error
+      return snapshot.error
     },
     get status() {
-      return status
+      return snapshot.status
     },
     get isSubscribed() {
-      return isSubscribed
+      return snapshot.isSubscribed
     },
     get connectionStatus() {
-      return connectionStatus
+      return snapshot.connectionStatus
     },
     get sessionGenerating() {
-      return sessionGenerating
+      return snapshot.sessionGenerating
+    },
+    get isHydrating() {
+      return snapshot.isHydrating
     },
     get queue() {
-      return queue
+      return snapshot.queue
     },
     get runId() {
-      return runId
+      return snapshot.runId
     },
     get interrupts() {
-      return interruptState.interrupts
+      return snapshot.interruptState.interrupts
     },
     get pendingInterrupts() {
-      return interruptState.interrupts
+      return snapshot.interruptState.interrupts
     },
     get interruptErrors() {
-      return interruptState.interruptErrors
+      return snapshot.interruptState.interruptErrors
     },
     get resuming() {
-      return interruptState.resuming
+      return snapshot.interruptState.resuming
     },
     get partial() {
       return partial

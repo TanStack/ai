@@ -3,6 +3,7 @@ import { EventType, chat } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { ResponsesRequest$outboundSchema } from '@openrouter/sdk/models'
 import { createOpenRouterResponsesText } from '../src/adapters/responses-text'
+import { createToolInputNormalizer } from '../src/internal/responses-tool-converter'
 import { webSearchTool } from '../src/tools/web-search-tool'
 import { webFetchTool } from '../src/tools/web-fetch-tool'
 import type { AdapterYieldChunk, Tool } from '@tanstack/ai'
@@ -94,6 +95,35 @@ function setupMockSdkClient(
 describe('OpenRouter responses adapter — request shape', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('sends reasoning effort, a summary, and the token budget', async () => {
+    setupMockSdkClient([])
+    const adapter = createOpenRouterResponsesText(
+      'google/gemini-2.5-pro',
+      'test-key',
+    )
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'test' }],
+      reasoning: { level: 'high', budgetTokens: 4000 },
+    })) {
+      // consume
+    }
+
+    const params = mockSend.mock.calls[0]![0].responsesRequest
+    expect(params.reasoning).toEqual({
+      effort: 'high',
+      summary: 'auto',
+      maxTokens: 4000,
+    })
+    const serialized = ResponsesRequest$outboundSchema.parse(params)
+    expect(serialized.reasoning).toEqual({
+      effort: 'high',
+      summary: 'auto',
+      max_tokens: 4000,
+    })
   })
 
   it('maps options into the Responses API payload (snake → camel)', async () => {
@@ -2148,5 +2178,217 @@ describe('OpenRouter responses adapter — cost tracking', () => {
         },
       },
     })
+  })
+})
+
+describe('OpenRouter responses adapter — stream fields', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  const completed = {
+    type: 'response.completed',
+    sequenceNumber: 9,
+    response: {
+      model: 'm',
+      output: [],
+      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+    },
+  }
+
+  const collectStream = async (events: Array<Record<string, unknown>>) => {
+    setupMockSdkClient(events)
+    const adapter = createAdapter()
+    const chunks: Array<AdapterYieldChunk> = []
+    for await (const chunk of adapter.chatStream({
+      model: adapter.model,
+      messages: [{ role: 'user', content: 'hi' }],
+      logger: testLogger,
+    })) {
+      chunks.push(chunk)
+    }
+    return chunks
+  }
+
+  it.each([
+    {
+      shape: 'parsed',
+      event: {
+        type: 'response.completed',
+        sequenceNumber: 1,
+        response: {
+          model: 'm',
+          output: [],
+          usage: {
+            inputTokens: 100,
+            inputTokensDetails: { cachedTokens: 40 },
+            outputTokens: 50,
+            totalTokens: 150,
+          },
+        },
+      },
+    },
+    {
+      shape: 'raw (UNKNOWN)',
+      event: {
+        isUnknown: true,
+        raw: {
+          type: 'response.completed',
+          sequence_number: 1,
+          response: {
+            model: 'm',
+            output: [],
+            usage: {
+              input_tokens: 100,
+              input_tokens_details: { cached_tokens: 40 },
+              output_tokens: 50,
+              total_tokens: 150,
+            },
+          },
+        },
+      },
+    },
+  ])('reads cached input tokens from a $shape event', async ({ event }) => {
+    const chunks = await collectStream([event])
+    expect(chunks.find((c) => c.type === 'RUN_FINISHED')).toMatchObject({
+      usage: {
+        promptTokens: 100,
+        completionTokens: 50,
+        totalTokens: 150,
+        promptTokensDetails: { cachedTokens: 40 },
+      },
+    })
+  })
+
+  it('reads a function call from an output item the SDK could not parse', async () => {
+    const chunks = await collectStream([
+      {
+        type: 'response.output_item.done',
+        sequenceNumber: 1,
+        outputIndex: 0,
+        item: {
+          type: 'UNKNOWN',
+          isUnknown: true,
+          raw: {
+            type: 'function_call',
+            id: 'item_1',
+            call_id: 'call_abc',
+            name: 'lookup_weather',
+            arguments: '{"location":"Berlin"}',
+          },
+        },
+      },
+      completed,
+    ])
+    expect(chunks.find((c) => c.type === 'TOOL_CALL_START')).toMatchObject({
+      toolCallId: 'call_abc',
+      toolCallName: 'lookup_weather',
+    })
+    expect(chunks.find((c) => c.type === 'TOOL_CALL_END')).toMatchObject({
+      toolCallId: 'call_abc',
+      input: { location: 'Berlin' },
+    })
+  })
+
+  it('reads structured output from a message item the SDK could not parse', async () => {
+    setupMockSdkClient([], {
+      id: 'resp_1',
+      model: 'm',
+      output: [
+        {
+          type: 'UNKNOWN',
+          isUnknown: true,
+          raw: {
+            type: 'message',
+            id: 'msg_1',
+            role: 'assistant',
+            content: [{ type: 'output_text', text: '{"ok":true}' }],
+          },
+        },
+      ],
+    })
+    const adapter = createAdapter()
+    const result = await adapter.structuredOutput({
+      chatOptions: {
+        model: adapter.model,
+        messages: [{ role: 'user', content: 'ok?' }],
+        logger: testLogger,
+      },
+      outputSchema: { type: 'object' },
+    })
+    expect(result.data).toEqual({ ok: true })
+  })
+
+  it('keeps the function call namespace on the stream and on replay', async () => {
+    const chunks = await collectStream([
+      {
+        type: 'response.output_item.added',
+        sequenceNumber: 1,
+        outputIndex: 0,
+        item: {
+          type: 'function_call',
+          id: 'item_1',
+          callId: 'call_abc',
+          name: 'search_docs',
+          namespace: 'docs',
+          arguments: '',
+        },
+      },
+      completed,
+    ])
+    expect(chunks.find((c) => c.type === 'TOOL_CALL_START')).toMatchObject({
+      metadata: { itemId: 'item_1', namespace: 'docs' },
+    })
+
+    setupMockSdkClient([completed])
+    const adapter = createAdapter()
+    for await (const _ of adapter.chatStream({
+      model: adapter.model,
+      messages: [
+        {
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'call_abc',
+              type: 'function',
+              function: { name: 'search_docs', arguments: '{}' },
+              metadata: { itemId: 'item_1', namespace: 'docs' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_abc', content: 'ok' },
+      ],
+      logger: testLogger,
+    })) {
+      // consume
+    }
+    const { input } = mockSend.mock.calls[0]![0].responsesRequest
+    expect(input).toContainEqual(
+      expect.objectContaining({
+        type: 'function_call',
+        name: 'search_docs',
+        namespace: 'docs',
+      }),
+    )
+  })
+})
+
+describe('OpenRouter responses tool input normalizer — own keys', () => {
+  it('strips the widened null of a property named __proto__', () => {
+    const normalize = createToolInputNormalizer([
+      {
+        name: 'inspect',
+        description: 'Inspect',
+        inputSchema: JSON.parse(
+          '{"type":"object","properties":{"__proto__":{"type":"string"},"keep":{"type":["string","null"]}},"required":["keep"]}',
+        ),
+      },
+    ])
+    expect(
+      JSON.stringify(
+        normalize('inspect', JSON.parse('{"__proto__":null,"keep":null}')),
+      ),
+    ).toBe('{"keep":null}')
   })
 })

@@ -28,13 +28,24 @@ import type { StreamChunk } from './types'
 export { resolveResumeRunId } from './stream-durability'
 
 /**
- * Collect all text content from a StreamChunk async iterable and return as a string.
+ * The result of a run that was read to the end, such as `chat({ stream: false })`.
+ */
+export interface ChatResult {
+  /** Concatenated TEXT_MESSAGE_CONTENT deltas. */
+  text: string
+  /** Every chunk the run produced, in order. */
+  chunks: Array<StreamChunk>
+}
+
+/**
+ * Read a StreamChunk async iterable to the end and return its text and chunks.
  *
- * This function consumes the entire stream, accumulating content from TEXT_MESSAGE_CONTENT events,
- * and returns the final concatenated text.
+ * `text` joins the deltas of every TEXT_MESSAGE_CONTENT event. `chunks` keeps
+ * every chunk in order, so tool calls and interrupt outcomes are not lost.
  *
  * @param stream - AsyncIterable of StreamChunks from chat()
- * @returns Promise<string> - The accumulated text content
+ * @returns A {@link ChatResult} with the joined text and every chunk.
+ * @throws The error from the first RUN_ERROR chunk.
  *
  * @example
  * ```typescript
@@ -42,26 +53,85 @@ export { resolveResumeRunId } from './stream-durability'
  *   adapter: openaiText('gpt-5.5'),
  *   messages: [{ role: 'user', content: 'Hello!' }]
  * });
- * const text = await streamToText(stream);
+ * const { text } = await streamToText(stream);
  * console.log(text); // "Hello! How can I help you today?"
  * ```
  */
-export async function streamToText(
-  stream: AsyncIterable<StreamChunk>,
-): Promise<string> {
-  let accumulatedContent = ''
+export async function streamToText(stream: AsyncIterable<StreamChunk>) {
+  let text = ''
+  const chunks: Array<StreamChunk> = []
 
   for await (const chunk of stream) {
     if (chunk.type === 'RUN_ERROR') {
       throw runErrorEventToError(chunk)
     }
 
+    chunks.push(chunk)
     if (chunk.type === 'TEXT_MESSAGE_CONTENT' && chunk.delta) {
-      accumulatedContent += chunk.delta
+      text += chunk.delta
     }
   }
 
-  return accumulatedContent
+  const result: ChatResult = { text, chunks }
+  return result
+}
+
+function isAsyncIterable(value: unknown): value is AsyncIterable<StreamChunk> {
+  return (
+    typeof value === 'object' && value !== null && Symbol.asyncIterator in value
+  )
+}
+
+const EVENT_TYPES = new Set<unknown>(Object.values(EventType))
+
+// ponytail: shape check, so a structured output shaped like
+// `{ text: string, chunks: Array<{ type: <EventType> }> }` is sent as a ChatResult.
+function isChatResult(value: unknown): value is ChatResult {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'text' in value &&
+    typeof value.text === 'string' &&
+    'chunks' in value &&
+    Array.isArray(value.chunks) &&
+    value.chunks.every(
+      (chunk: unknown) =>
+        typeof chunk === 'object' &&
+        chunk !== null &&
+        'type' in chunk &&
+        EVENT_TYPES.has(chunk.type),
+    )
+  )
+}
+
+/**
+ * The chunks a client needs to show `object`, the result of
+ * `chat({ outputSchema })`, as a complete structured-output part.
+ */
+function structuredOutputChunks(object: unknown): Array<StreamChunk> {
+  const runId = crypto.randomUUID()
+  const threadId = crypto.randomUUID()
+  const timestamp = Date.now()
+  return [
+    { type: EventType.RUN_STARTED, runId, threadId, timestamp },
+    {
+      type: EventType.CUSTOM,
+      name: 'structured-output.complete',
+      value: {
+        object,
+        raw: JSON.stringify(object),
+        messageId: crypto.randomUUID(),
+      },
+      timestamp,
+    },
+    {
+      type: EventType.RUN_FINISHED,
+      runId,
+      threadId,
+      finishReason: 'stop',
+      timestamp,
+    },
+  ]
 }
 
 interface RecordedFailure {
@@ -147,6 +217,12 @@ function toEncodedStream(
   let pumpPromise: Promise<void> = Promise.resolve()
   let pumpFailure: RecordedFailure | undefined
   let cancelled = false
+  let resumePump: (() => void) | undefined
+
+  const wakePump = (): void => {
+    resumePump?.()
+    resumePump = undefined
+  }
 
   const recordPumpFailure = (error: unknown, phase: string): void => {
     pumpFailure = {
@@ -167,12 +243,27 @@ function toEncodedStream(
   return new ReadableStream({
     start(controller) {
       iterator = stream[Symbol.asyncIterator]()
+      cancellation.signal.addEventListener('abort', wakePump)
       pumpPromise = (async () => {
         let index = 0
         let iteratorDone = false
 
         try {
           while (!isAborted(cancellation.signal)) {
+            // Keep at most the stream's high-water mark queued for a slow
+            // reader. A fresh durable run never waits: its log is the real
+            // destination, so a stalled viewer must not stall the run.
+            while (
+              !detachOnCancel &&
+              !cancelled &&
+              !isAborted(cancellation.signal) &&
+              (controller.desiredSize ?? 0) <= 0
+            ) {
+              await new Promise<void>((resolve) => {
+                resumePump = resolve
+              })
+            }
+            if (isAborted(cancellation.signal)) break
             const result = await iterator.next()
             if (result.done) {
               iteratorDone = true
@@ -188,6 +279,7 @@ function toEncodedStream(
         } catch (error) {
           recordPumpFailure(error, 'stream iteration failed')
         } finally {
+          cancellation.signal.removeEventListener('abort', wakePump)
           if (!iteratorDone) {
             try {
               await closeIterator()
@@ -209,8 +301,12 @@ function toEncodedStream(
         recordPumpFailure(error, 'stream pump failed')
       })
     },
+    pull() {
+      wakePump()
+    },
     async cancel(reason) {
       cancelled = true
+      wakePump()
       // Detached durable delivery: the client is gone (e.g. a page reload), but
       // the run must finish into the durable log so a rejoining client can tail
       // it to the real terminal. Do NOT abort the producer (that would kill the
@@ -252,6 +348,113 @@ function toEncodedStream(
       if (cancellationFailure !== undefined) throw cancellationFailure.error
     },
   })
+}
+
+/** The body `toJsonResponse` and `resumeJsonResponse` send, and `fetchJson` reads. */
+interface JsonRunBody {
+  /** Wire chunks (`toWireChunk` applied), in order. */
+  chunks: Array<StreamChunk>
+  /** Durable offset of the last chunk. Durable routes only. */
+  offset?: string
+  /** `false`: the run is still going; ask again from `offset`. */
+  done: boolean
+}
+
+/**
+ * Read `source` into one {@link JsonRunBody}.
+ *
+ * The body is `done: true` when `source` ends. A thrown error adds a trailing
+ * `RUN_ERROR` chunk and is also `done: true`. The body is `done: false` when
+ * `maxWaitMs` passes or `signal` aborts first; `onEarlyReply` then decides what
+ * happens to the run.
+ *
+ * After an early reply, `source` is still pulled to its end (a fresh durable
+ * run must keep filling its log), unless `stopAfterReply` is set. The pull
+ * never rejects, so a background drain cannot become an unhandled rejection.
+ */
+function collectJsonRunBody(
+  source: AsyncIterable<StreamChunk>,
+  options: {
+    /** Durable offset of a chunk. */
+    getId?: (chunk: StreamChunk) => string | undefined
+    /** Offset to report while no collected chunk has one (a resume read). */
+    offset?: string
+    /**
+     * Reply early after this many ms. The clock starts once an offset is
+     * known, so a `done: false` body always carries the offset to ask from.
+     */
+    maxWaitMs?: number
+    /** Reply early when this aborts. */
+    signal?: AbortSignal
+    /** Stop pulling `source` after the reply. */
+    stopAfterReply: boolean
+    onEarlyReply?: (cause: 'timeout' | 'signal') => void
+  },
+): Promise<JsonRunBody> {
+  const { getId, maxWaitMs, signal, stopAfterReply, onEarlyReply } = options
+  const chunks: Array<StreamChunk> = []
+  let offset = options.offset
+  let replied = false
+  let timer: ReturnType<typeof setTimeout> | undefined
+
+  return new Promise<JsonRunBody>((resolve) => {
+    const reply = (done: boolean): void => {
+      replied = true
+      clearTimeout(timer)
+      signal?.removeEventListener('abort', onSignal)
+      resolve({ chunks, ...(offset === undefined ? {} : { offset }), done })
+    }
+    const replyEarly = (cause: 'timeout' | 'signal'): void => {
+      if (replied) return
+      reply(false)
+      onEarlyReply?.(cause)
+    }
+    const onSignal = (): void => replyEarly('signal')
+    const armTimer = (): void => {
+      const canArm =
+        maxWaitMs !== undefined && timer === undefined && offset !== undefined
+      if (canArm) timer = setTimeout(() => replyEarly('timeout'), maxWaitMs)
+    }
+
+    armTimer()
+    signal?.addEventListener('abort', onSignal, { once: true })
+
+    void (async () => {
+      try {
+        for await (const chunk of source) {
+          if (replied) {
+            if (stopAfterReply) break
+            continue
+          }
+          chunks.push(toWireChunk(chunk))
+          offset = getId?.(chunk) ?? offset
+          armTimer()
+        }
+      } catch (error) {
+        if (!replied) chunks.push(toWireChunk(runErrorChunk(error)))
+      }
+      if (!replied) reply(true)
+    })()
+
+    if (signal?.aborted) onSignal()
+  })
+}
+
+/**
+ * Default headers overridden by the caller's headers. Accepts every
+ * `HeadersInit` form: a `Headers` instance, `string[][]`, or a plain object.
+ */
+function mergeResponseHeaders(
+  defaults: Record<string, string>,
+  headers: HeadersInit | undefined,
+): Headers {
+  const merged = new Headers(defaults)
+  if (headers) {
+    new Headers(headers).forEach((value, key) => {
+      merged.set(key, value)
+    })
+  }
+  return merged
 }
 
 /**
@@ -335,6 +538,25 @@ function resolveBatchWaitMs(batchWaitMs: number | undefined): number {
     )
   }
   return batchWaitMs
+}
+
+/**
+ * Validate `maxWaitMs` for the JSON helpers. `undefined` means no limit. The
+ * same values as {@link resolveBatchWaitMs} are rejected, for the same reason:
+ * `setTimeout` would reply at once instead of waiting.
+ */
+function resolveMaxWaitMs(maxWaitMs: number | undefined): number | undefined {
+  if (maxWaitMs === undefined) return undefined
+  if (
+    !Number.isFinite(maxWaitMs) ||
+    maxWaitMs < 0 ||
+    maxWaitMs > MAX_TIMER_DELAY_MS
+  ) {
+    throw new Error(
+      `Invalid maxWaitMs: ${maxWaitMs}. Must be a number from 0 to ${MAX_TIMER_DELAY_MS}.`,
+    )
+  }
+  return maxWaitMs
 }
 
 /**
@@ -865,21 +1087,14 @@ export function toServerSentEventsResponse<TOffset extends string = string>(
   const { headers, abortController, durability, debug, ...responseInit } =
     init ?? {}
 
-  // Start with default SSE headers
-  const mergedHeaders = new Headers({
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    Connection: 'keep-alive',
-  })
-
-  // Override with user headers if provided, handling all HeadersInit forms:
-  // Headers instance, string[][], or plain object
-  if (headers) {
-    const userHeaders = new Headers(headers)
-    userHeaders.forEach((value, key) => {
-      mergedHeaders.set(key, value)
-    })
-  }
+  const mergedHeaders = mergeResponseHeaders(
+    {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    },
+    headers,
+  )
 
   let body: ReadableStream<Uint8Array>
   if (durability) {
@@ -1298,16 +1513,10 @@ export function toHttpResponse<TOffset extends string = string>(
   // Default to a streaming NDJSON content type (with no-cache), overridable by
   // user headers. Without an explicit streaming type some intermediaries buffer
   // the response, defeating incremental delivery. Mirrors the SSE helper.
-  const mergedHeaders = new Headers({
-    'Content-Type': 'application/x-ndjson',
-    'Cache-Control': 'no-cache',
-  })
-  if (headers) {
-    const userHeaders = new Headers(headers)
-    userHeaders.forEach((value, key) => {
-      mergedHeaders.set(key, value)
-    })
-  }
+  const mergedHeaders = mergeResponseHeaders(
+    { 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-cache' },
+    headers,
+  )
 
   let body: ReadableStream<Uint8Array>
   if (durability) {
@@ -1373,5 +1582,256 @@ export function resumeHttpResponse<TOffset extends string = string>(
     ...responseInit,
     durability: { adapter, batch },
     debug,
+  })
+}
+
+/** Stream options for {@link toJsonResponse}. */
+type JsonResponseInit<TOffset extends string> = ResponseInit & {
+  /**
+   * Stops the run. Without `durability`, it is also aborted when `signal`
+   * aborts. With `durability`, only an explicit `abort()` stops the run.
+   */
+  abortController?: AbortController
+  /**
+   * The request's signal (`request.signal`). Without `durability`, an abort
+   * stops the run. With `durability`, an abort tells the run its viewer is gone
+   * and the run keeps filling its log.
+   */
+  signal?: AbortSignal
+  /**
+   * Most ms to wait before replying with the chunks collected so far and
+   * `done: false`. The client then asks again from `offset`. Only used with
+   * `durability`: without a log there is no way to fetch the rest, so the
+   * stream is always read to its end. Default: no limit. A value outside 0 to
+   * 2147483647 (or `NaN`) rejects the call.
+   */
+  maxWaitMs?: number
+  durability?: {
+    adapter: StreamDurability<TOffset>
+    /** Most chunks in one `append` (default 32). */
+    batch?: number
+    /**
+     * Most ms a chunk waits in the batch for the next one before the batch is
+     * appended anyway (default 50).
+     */
+    batchWaitMs?: number
+  }
+  /**
+   * Customize logging for durability failure paths (replay, terminal-append,
+   * and close). See {@link toHttpResponse}.
+   */
+  debug?: DebugOption
+}
+
+/** Default `maxWaitMs` for {@link resumeJsonResponse}. */
+const DEFAULT_RESUME_JSON_MAX_WAIT_MS = 1000
+
+/**
+ * Send a chat run as one JSON body, for hosts that cannot stream a response.
+ * Pair it with the `fetchJson` connection adapter.
+ *
+ * The body is `{ chunks, offset?, done }`:
+ * - `chunks`: every chunk, encoded for the wire like the SSE and NDJSON helpers.
+ * - `offset`: the durable offset of the last chunk (durable routes only).
+ * - `done`: `false` when the run is still going. The client asks again with
+ *   `GET ?runId=<id>&offset=<offset>`, served by {@link resumeJsonResponse}.
+ *
+ * Pass a `ChatResult` from `chat({ stream: false })` to send it as is. Pass the
+ * object from `chat({ outputSchema })` to send it as a complete structured
+ * output. A Promise of either is awaited. Pass a stream to read it here.
+ * Without `durability` the stream is read to its end.
+ * With `durability`, a fresh run fills the log, and the reply goes out when the
+ * run ends or when `maxWaitMs` passes, whichever is first. The run keeps going
+ * after an early reply. A request with a resume offset reads the log instead.
+ *
+ * @param input - A `ChatResult`, the object from `chat({ outputSchema })`, or a StreamChunk async iterable from chat()
+ * @param init - Response init. For a stream, also `abortController`, `signal`, `maxWaitMs`, `durability`, and `debug`.
+ * @returns A promise of a JSON Response
+ *
+ * @example
+ * ```typescript
+ * // A finished result
+ * export async function POST(request: Request) {
+ *   const result = await chat({
+ *     adapter: openaiText('gpt-5.5'),
+ *     messages: [...],
+ *     stream: false,
+ *   });
+ *   return toJsonResponse(result);
+ * }
+ *
+ * // A structured output
+ * export async function POST(request: Request) {
+ *   const person = await chat({
+ *     adapter: openaiText('gpt-5.5'),
+ *     messages: [...],
+ *     outputSchema: PersonSchema,
+ *   });
+ *   return toJsonResponse(person);
+ * }
+ *
+ * // A durable stream that replies at least once a second
+ * export async function POST(request: Request) {
+ *   const stream = chat({ adapter: openaiText('gpt-5.5'), messages: [...] });
+ *   return toJsonResponse(stream, {
+ *     durability: { adapter: memoryStream(request) },
+ *     signal: request.signal,
+ *     maxWaitMs: 1000,
+ *   });
+ * }
+ * ```
+ */
+export function toJsonResponse(
+  result: ChatResult,
+  init?: ResponseInit,
+): Promise<Response>
+export function toJsonResponse<TOffset extends string = string>(
+  stream: AsyncIterable<StreamChunk>,
+  init?: JsonResponseInit<TOffset>,
+): Promise<Response>
+export function toJsonResponse(
+  structuredOutput: object,
+  init?: ResponseInit,
+): Promise<Response>
+export async function toJsonResponse<TOffset extends string = string>(
+  input:
+    | ChatResult
+    | AsyncIterable<StreamChunk>
+    | PromiseLike<unknown>
+    | object,
+  init?: JsonResponseInit<TOffset>,
+) {
+  const {
+    abortController,
+    signal,
+    maxWaitMs: rawMaxWaitMs,
+    durability,
+    debug,
+    headers,
+    ...responseInit
+  } = init ?? {}
+  const maxWaitMs = resolveMaxWaitMs(rawMaxWaitMs)
+  const value: unknown = await input
+  const body = isAsyncIterable(value)
+    ? await collectStreamBody(value, {
+        abortController,
+        signal,
+        maxWaitMs,
+        durability,
+        debug,
+      })
+    : {
+        chunks: (isChatResult(value)
+          ? value.chunks
+          : structuredOutputChunks(value)
+        ).map(toWireChunk),
+        done: true,
+      }
+  return new Response(JSON.stringify(body), {
+    ...responseInit,
+    headers: mergeResponseHeaders(
+      { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
+      headers,
+    ),
+  })
+}
+
+/** The stream half of {@link toJsonResponse}. */
+async function collectStreamBody<TOffset extends string>(
+  stream: AsyncIterable<StreamChunk>,
+  options: Pick<
+    JsonResponseInit<TOffset>,
+    'abortController' | 'signal' | 'maxWaitMs' | 'durability' | 'debug'
+  >,
+) {
+  const { abortController, signal, maxWaitMs, durability, debug } = options
+
+  if (!durability) {
+    // No log to fetch the rest from, so read to the end. Like toHttpResponse,
+    // the run stops when the client goes away.
+    const cancellation = abortController ?? new AbortController()
+    const stop = (): void => cancellation.abort(signal?.reason)
+    signal?.addEventListener('abort', stop, { once: true })
+    if (signal?.aborted) stop()
+    const body = await collectJsonRunBody(stream, {
+      signal: cancellation.signal,
+      stopAfterReply: true,
+    })
+    signal?.removeEventListener('abort', stop)
+    const result: JsonRunBody = { chunks: body.chunks, done: true }
+    return result
+  }
+
+  // See toServerSentEventsResponse: a fresh run drains into the durable log
+  // under its own producer controller, so a gone client does not kill the run.
+  // A resume request is a reader, so an early reply stops the read.
+  const resumeOffset = durability.adapter.resumeFrom()
+  const isFresh = resumeOffset === null
+  const producerAbortController = abortController ?? new AbortController()
+  const { source, getId } = durableStreamSource(stream, durability.adapter, {
+    abortController: producerAbortController,
+    batch: durability.batch,
+    batchWaitMs: durability.batchWaitMs,
+    logger: resolveDebugOption(debug),
+  })
+  return collectJsonRunBody(source, {
+    getId,
+    offset: resumeOffset ?? undefined,
+    maxWaitMs,
+    signal,
+    stopAfterReply: !isFresh,
+    onEarlyReply: (cause) => {
+      if (!isFresh) {
+        producerAbortController.abort()
+        return
+      }
+      // Fresh runs only: the client left while the request was open. Tell the
+      // run, and keep it going. A timeout is not a disconnect: the client asks
+      // again from `offset`.
+      if (cause === 'signal') notifyRunDisconnected(stream)
+    },
+  })
+}
+
+/**
+ * Serve a resumable run from its durability log as one JSON body, without
+ * re-running the model. The JSON counterpart of
+ * {@link resumeServerSentEventsResponse}; pair it with a `toJsonResponse`
+ * producer. `fetchJson` calls it with `?runId=<id>&offset=<offset>` while a
+ * reply says `done: false`, and with `offset=-1` to join a run from the start.
+ *
+ * The reply holds every chunk strictly after the offset. It is `done: true`
+ * once the log is closed, or `done: false` after `maxWaitMs` (default 1000) on a
+ * run that is still going. Returns a 400 when the request carries no resume
+ * offset (no `Last-Event-ID` header and no `?offset`).
+ *
+ * @example
+ * ```typescript
+ * export async function GET(request: Request) {
+ *   return resumeJsonResponse({ adapter: memoryStream(request) });
+ * }
+ * ```
+ */
+export async function resumeJsonResponse<TOffset extends string = string>(
+  options: ResumeResponseOptions<TOffset> & {
+    /**
+     * Most ms to wait for the log to close before replying (default 1000). A
+     * value outside 0 to 2147483647 (or `NaN`) rejects the call.
+     */
+    maxWaitMs?: number
+  },
+) {
+  // See `resumeServerSentEventsResponse`: `driver` must not reach `responseInit`.
+  const { adapter, batch, debug, driver, maxWaitMs, ...responseInit } = options
+  const waitMs = resolveMaxWaitMs(maxWaitMs) ?? DEFAULT_RESUME_JSON_MAX_WAIT_MS
+  if (adapter.resumeFrom() === null) {
+    return new Response(NO_RESUME_OFFSET, { status: 400 })
+  }
+  maybeStartRunDriver(driver)
+  return toJsonResponse(emptyDurableSource(), {
+    ...responseInit,
+    durability: { adapter, batch },
+    debug,
+    maxWaitMs: waitMs,
   })
 }

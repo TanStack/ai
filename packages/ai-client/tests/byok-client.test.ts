@@ -36,6 +36,23 @@ describe('defineByok memory', () => {
     expect(listener).toHaveBeenCalledTimes(1)
   })
 
+  it('a throwing listener does not skip the next listener', () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const byok = defineByok()
+    const listener = vi.fn()
+    byok.subscribe(() => {
+      throw new Error('listener failed')
+    })
+    byok.subscribe(listener)
+
+    byok.request('openai', 'missing')
+
+    expect(listener).toHaveBeenCalledTimes(1)
+    expect(byok.getSnapshot().prompt?.provider).toBe('openai')
+    expect(consoleError).toHaveBeenCalledWith(new Error('listener failed'))
+    consoleError.mockRestore()
+  })
+
   it('updates and snapshots without exposing the raw key', async () => {
     const byok = defineByok({ storage: memoryStorage() })
     await byok.update('openai', 'sk-abcdefghij')

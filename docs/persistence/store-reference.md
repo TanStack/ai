@@ -107,6 +107,24 @@ interface RunRecord {
   detachedSince?: number // epoch ms since the last viewer left
   cancelRequested?: boolean // an out-of-band cancel was recorded
   driverEpoch?: number // fencing token, bumped by each host that claims the run
+  // ---------------------------------------------------------------------------
+  // HOST SESSIONS ONLY. A host that runs agents and activities for a long
+  // session writes these. `chat()` never writes them. A store that keeps the
+  // whole record keeps them too.
+  // ---------------------------------------------------------------------------
+  kind?: 'chat' | 'agent' | 'activity' | 'command' | 'compact'
+  activity?: string // the activity of a `kind: 'activity'` run
+  agent?: string // the agent name of a `kind: 'agent'` run
+  result?: unknown // terminal result metadata (ids, urls, text), never bytes
+  artifacts?: Array<{ artifactId: string; name?: string; mimeType?: string; url?: string }>
+  principal?: { id: string } // who started the run
+  leaseOwner?: string // the host that drives the run now
+  leaseExpiresAt?: number // epoch ms when that claim ends
+  // Crash-resume data from the last model or tool boundary.
+  checkpoint?: {
+    at: number
+    pendingTools?: Array<{ toolCallId: string; name: string; replay: 'safe' | 'never' }>
+  }
 }
 
 interface RunStore {
@@ -121,6 +139,10 @@ interface RunStore {
     parentRunId?: string
     subagentRunId?: string
     name?: string
+    kind?: RunRecord['kind']
+    activity?: string
+    agent?: string
+    principal?: { id: string }
   }): Promise<RunRecord>
   // Required: patching an unknown runId is a no-op, not an error.
   update(
@@ -136,6 +158,11 @@ interface RunStore {
         | 'detachedSince'
         | 'cancelRequested'
         | 'driverEpoch'
+        | 'result'
+        | 'artifacts'
+        | 'leaseOwner'
+        | 'leaseExpiresAt'
+        | 'checkpoint'
       >
     >,
   ): Promise<void>
@@ -305,8 +332,29 @@ interface MetadataStore {
   get(scope: string, key: string): Promise<unknown | null>
   set(scope: string, key: string, value: unknown): Promise<void>
   delete(scope: string, key: string): Promise<void>
+  // Optional: compare-and-set.
+  getVersioned?(
+    scope: string,
+    key: string,
+  ): Promise<{ value: unknown; revision: string } | null>
+  setIf?(
+    scope: string,
+    key: string,
+    value: unknown,
+    expectedRevision: string | null,
+  ): Promise<{ ok: true; revision: string } | { ok: false; reason: 'conflict' }>
 }
 ```
+
+Two writers can change the same key at the same time. Add `getVersioned` and
+`setIf` so that the second write does not remove the first:
+
+- `getVersioned` returns the value and its revision, or `null` when the key is absent.
+- `setIf` writes when the stored revision equals `expectedRevision`. Pass `null` to write only when the key is absent. Success returns `{ ok: true, revision }`. A different revision returns `{ ok: false, reason: 'conflict' }` and does not write.
+- Every write gives the key a new revision. A plain `set` does this too. After `delete`, the next write gets a new revision. The deleted revision is never used again.
+
+`memoryPersistence()` has both. The conformance suite checks them when your
+store has them.
 
 Namespaces and value schemas are application-owned, and `(scope, key)` is the
 composite identity. A stored `null` is indistinguishable from absence at the type

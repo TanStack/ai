@@ -284,7 +284,7 @@ A 404, or a page with no summary, returns `{ found: false }`. Any other HTTP sta
 In the researcher `chat()` call, add the tool and the reasoning option. Keep `subagentRunId: ctx.subagentRunId` on each child `chat()`. Tell the model to use the tool:
 
 ```ts ignore
-modelOptions: { reasoning: { effort: 'medium' } },
+reasoning: 'medium',
 tools: [lookupWikipediaTool],
 systemPrompts: [
   'You research for a blog desk. Call lookupWikipedia once for each topic before you reply. Then reply in Markdown with short notes, and give the Wikipedia URL as the source. Use a list. Do not write the full post.',

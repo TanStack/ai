@@ -1,6 +1,10 @@
 import OpenAI from 'openai'
 import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
 import {
+  LLMGATEWAY_MODEL_INPUT_MODALITIES,
+  LLMGATEWAY_MODEL_REASONING,
+} from '../model-meta'
+import {
   getLLMGatewayApiKeyFromEnv,
   withLLMGatewayDefaults,
 } from '../utils/client'
@@ -8,12 +12,26 @@ import type { Modality } from '@tanstack/ai'
 import type {
   LLMGatewayChatModelToolCapabilitiesByName,
   LLMGatewayModelId,
+  LLMGatewayModelReasoningByName,
   ResolveInputModalities,
   ResolveProviderOptions,
 } from '../model-meta'
 import type { LLMGatewayMessageMetadataByModality } from '../message-types'
 import type { LLMGatewayClientConfig } from '../utils/client'
 import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
+
+/**
+ * The reasoning levels of a model, for `chat({ reasoning })`. This API has
+ * no token budget field, so no model takes `budgetTokens` here. `never`:
+ * the model does not reason.
+ */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof LLMGatewayModelReasoningByName
+    ? {
+        levels: LLMGatewayModelReasoningByName[TModel]['levels']
+        budget: false
+      }
+    : never
 
 type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof LLMGatewayChatModelToolCapabilitiesByName
@@ -57,10 +75,13 @@ export class LLMGatewayTextAdapter<
   TProviderOptions,
   TInputModalities,
   LLMGatewayMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  ResolveReasoning<TModel>
 > {
   override readonly kind = 'text' as const
   override readonly name = 'llmgateway' as const
+  override readonly inputModalities =
+    LLMGATEWAY_MODEL_INPUT_MODALITIES[this.model]
 
   constructor(config: LLMGatewayTextConfig, model: TModel) {
     super(
@@ -69,6 +90,10 @@ export class LLMGatewayTextAdapter<
       new OpenAI(withLLMGatewayDefaults(config)),
       config,
     )
+  }
+
+  protected override modelReasoning(model: string) {
+    return LLMGATEWAY_MODEL_REASONING[model]
   }
 
   /**
@@ -81,7 +106,7 @@ export class LLMGatewayTextAdapter<
   protected override extractReasoning(
     chunk: OpenAI.Chat.Completions.ChatCompletionChunk,
   ): { text: string } | undefined {
-    const delta = chunk.choices[0]?.delta as
+    const delta = chunk.choices?.[0]?.delta as
       | { reasoning?: unknown; reasoning_content?: unknown }
       | undefined
     const raw = delta?.reasoning_content ?? delta?.reasoning

@@ -39,6 +39,7 @@ export type {
   ToolCallPart,
   ToolResultPart,
   ThinkingPart,
+  ActivityPart,
   StructuredOutputPart,
   SubagentPart,
   SubagentPartOf,
@@ -167,6 +168,7 @@ export type {
 export {
   fetchServerSentEvents,
   fetchHttpStream,
+  fetchJson,
   xhrServerSentEvents,
   xhrHttpStream,
   stream,
@@ -179,6 +181,7 @@ export {
   type ConnectionAdapter,
   type GenerationHydrationResult,
   type FetchConnectionOptions,
+  type FetchJsonOptions,
   type ReconnectOptions,
   type ResumableConnectConnectionAdapter,
   type RunAgentInputContext,

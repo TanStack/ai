@@ -2453,4 +2453,87 @@ describe('useChat', () => {
       )
     })
   })
+
+  describe('snapshot', () => {
+    function message(id: string): UIMessage {
+      return {
+        id,
+        role: 'user',
+        parts: [{ type: 'text', content: id }],
+        createdAt: new Date(),
+      }
+    }
+
+    it('returns the frozen snapshot array', async () => {
+      const { result } = renderUseChat({
+        connection: createMockConnectionAdapter({
+          chunks: createTextChunks('Hi'),
+        }),
+      })
+
+      await act(async () => {
+        await result.current.sendMessage('Hello')
+      })
+
+      const messages = result.current.messages
+      expect(messages).toHaveLength(2)
+      expect(Object.isFrozen(messages)).toBe(true)
+      expect(() => (messages as Array<unknown>).push({})).toThrow(TypeError)
+    })
+
+    it("shows the new client's snapshot on the first render after a thread switch", () => {
+      const stored: Record<string, Array<UIMessage>> = {
+        a: [message('a')],
+        b: [message('b')],
+      }
+      const persistence = {
+        getItem: vi.fn((id: string) => stored[id] ?? []),
+        setItem: vi.fn(),
+        removeItem: vi.fn(),
+      }
+      const renders: Array<[string, string | undefined]> = []
+
+      const { result } = renderHook(() => {
+        const [threadId, setId] = useState('a')
+        const chat = useChat({
+          connection: createMockConnectionAdapter(),
+          threadId,
+          persistence,
+        })
+        renders.push([threadId, chat.messages[0]?.id])
+        return { ...chat, setId }
+      })
+
+      act(() => {
+        result.current.setId('b')
+      })
+
+      expect(result.current.messages).toEqual(stored.b)
+      for (const [threadId, firstId] of renders) {
+        expect(firstId).toBe(threadId)
+      }
+    })
+
+    it('stops reading the client snapshot after unmount', async () => {
+      let renders = 0
+      const { result, unmount } = renderHook(() => {
+        renders++
+        return useChat({ connection: createMockConnectionAdapter() })
+      })
+      const { setMessages } = result.current
+
+      act(() => {
+        setMessages([message('live')])
+      })
+      expect(result.current.messages).toHaveLength(1)
+
+      unmount()
+      const rendersAtUnmount = renders
+      act(() => {
+        setMessages([message('after-unmount')])
+      })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(renders).toBe(rendersAtUnmount)
+    })
+  })
 })

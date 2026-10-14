@@ -4,8 +4,7 @@ import {
   isProviderId,
   maskKey,
 } from '@tanstack/ai/byok'
-import { createAtom } from '../snapshot-atom'
-import type { Atom } from '../snapshot-atom'
+import { notifyListeners } from '../snapshot-atom'
 import { memoryStorage } from './storage'
 import type { ByokProvider, ProviderId } from '@tanstack/ai/byok'
 import type { Keyring, KeyringStorage } from './storage'
@@ -111,7 +110,7 @@ export class ByokClient {
   #coverage: Record<string, boolean> = {}
   readonly #companions: Record<string, Array<ProviderId>> = {}
   #storageError: string | null = null
-  readonly #snapshotAtom: Atom<ByokSnapshot>
+  #snapshot: ByokSnapshot
   readonly #listeners = new Set<() => void>()
   readonly #ready: Promise<void>
 
@@ -129,7 +128,7 @@ export class ByokClient {
     }
     registeredProviderIds.set(this, registered)
     this.#locked = Boolean(this.storage.unlockable)
-    this.#snapshotAtom = createAtom<ByokSnapshot>(this.#buildSnapshot())
+    this.#snapshot = this.#buildSnapshot()
     this.#ready = this.#hydrate()
   }
 
@@ -141,7 +140,7 @@ export class ByokClient {
     return () => this.#listeners.delete(listener)
   }
 
-  getSnapshot = (): ByokSnapshot => this.#snapshotAtom.get()
+  getSnapshot = (): ByokSnapshot => this.#snapshot
 
   #buildSnapshot(): ByokSnapshot {
     return Object.freeze({
@@ -399,8 +398,8 @@ export class ByokClient {
   }
 
   #emit(): void {
-    this.#snapshotAtom.set(this.#buildSnapshot())
-    for (const listener of this.#listeners) listener()
+    this.#snapshot = this.#buildSnapshot()
+    notifyListeners(this.#listeners)
   }
 }
 

@@ -124,7 +124,7 @@ persistence all work the same as with any other connection adapter. Options:
 | `reconnect` | Reconnect bounds (`maxAttempts`, `delayMs`), shared semantics with `fetchServerSentEvents` — see [Advanced](./advanced). |
 | `WebSocketImpl` | Override the `WebSocket` implementation (tests, non-browser runtimes). |
 
-See [Connection Adapters](../chat/connection-adapters) for where `webSocket()`
+See [Transports](../transports/overview) for where `webSocket()`
 fits among the other adapters.
 
 ## Wire protocol
@@ -316,5 +316,5 @@ full explanation. It applies to WebSockets exactly as written there.
   reuses.
 - [Advanced](./advanced): reconnection bounding, offset ownership, and
   Cloudflare Durable Streams deployment, shared across every transport.
-- [Connection Adapters](../chat/connection-adapters): where `webSocket()`
+- [Transports](../transports/overview): where `webSocket()`
   fits among the other client adapters.

@@ -1,9 +1,8 @@
 import {
-  batch,
   createEffect,
   createMemo,
   createSignal,
-  createUniqueId,
+  on,
   onCleanup,
   onMount,
   untrack,
@@ -12,13 +11,9 @@ import {
 import { ChatClient } from '@tanstack/ai-client'
 import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import type {
-  ChatClientState,
   ResolvableChatInterrupt,
-  ChatInterruptState,
   ChatResumeState,
-  ConnectionStatus,
   InferredClientContext,
-  QueuedMessage,
   SendMessageOptions,
   StructuredOutputPart,
 } from '@tanstack/ai-client'
@@ -39,9 +34,6 @@ import type {
   UseChatReturn,
 } from './types'
 
-const EMPTY_INTERRUPTS = Object.freeze([])
-const EMPTY_INTERRUPT_ERRORS = Object.freeze([])
-
 export function useChat<
   const TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
@@ -58,32 +50,7 @@ export function useChat<
   > = {} as UseChatOptions<TTools, TSchema, TContext, TInterrupts>,
 ): UseChatReturn<TTools, TSchema, TInterrupts> {
   // The hook's identity is its `threadId`. Reload with the same `threadId`
-  // restores the same conversation. `hookId` is only a recreation key when no
-  // `threadId` is given. It is never sent on the wire.
-  const hookId = createUniqueId()
-  const clientId = options.threadId ?? hookId
-
-  const [messages, setMessages] = createSignal<
-    ReadonlyArray<UIMessage<TTools>>
-  >(options.initialMessages || [])
-  const [isLoading, setIsLoading] = createSignal(false)
-  const [hasOlderMessages, setHasOlderMessages] = createSignal(false)
-  const [error, setError] = createSignal<Error | undefined>(undefined)
-  const [status, setStatus] = createSignal<ChatClientState>('ready')
-  const [isSubscribed, setIsSubscribed] = createSignal(false)
-  const [connectionStatus, setConnectionStatus] =
-    createSignal<ConnectionStatus>('disconnected')
-  const [sessionGenerating, setSessionGenerating] = createSignal(false)
-  const [queue, setQueue] = createSignal<ReadonlyArray<QueuedMessage>>([])
-  const [runId, setRunId] = createSignal<string | null>(null)
-  const [interruptState, setInterruptState] = createSignal<
-    ChatInterruptState<TTools, TInterrupts>
-  >({
-    interrupts: EMPTY_INTERRUPTS,
-    pendingInterrupts: EMPTY_INTERRUPTS,
-    interruptErrors: EMPTY_INTERRUPT_ERRORS,
-    resuming: false,
-  })
+  // restores the same conversation.
 
   // Structured-output `partial` / `final` are derived from `messages` —
   // specifically from the structured-output part on the latest assistant
@@ -92,13 +59,13 @@ export function useChat<
   type Partial = DeepPartial<InferSchemaType<NonNullable<TSchema>>>
   type Final = InferSchemaType<NonNullable<TSchema>>
 
-  // Build the client once per clientId. User callbacks read latest options.
+  // Build the client once per threadId. User callbacks read latest options.
   // Every user-provided callback is wrapped so the LATEST `options.xxx` value
   // is read at call time. Direct assignment would freeze the callback to the
   // reference we saw at creation; the wrapper lets reactive `options` or
   // in-place mutations propagate. When the user clears a callback (sets it to
   // undefined), `?.` no-ops.
-  const client = createMemo(() => {
+  const createClient = () => {
     // Build options with conditional spreads for fields whose source
     // type is `T | undefined` but the ChatClient target uses a strict
     // optional (`field?: T`) — `exactOptionalPropertyTypes` rejects
@@ -172,35 +139,25 @@ export function useChat<
         options.onInterruptStateChange?.(nextInterruptState, context)
       },
     })
-    // Only recreate when clientId changes
-    // Connection and other options are captured at creation time
     return instance
-  }, [clientId])
-
-  const applySnapshot = (target: ChatClient<TTools, TContext, TInterrupts>) => {
-    const next = target.getSnapshot()
-    // One batch, so effects never see half of a snapshot.
-    batch(() => {
-      setMessages(next.messages)
-      setIsLoading(next.isLoading)
-      setHasOlderMessages(next.hasOlderMessages)
-      setError(next.error)
-      setStatus(next.status)
-      setIsSubscribed(next.isSubscribed)
-      setConnectionStatus(next.connectionStatus)
-      setSessionGenerating(next.sessionGenerating)
-      setQueue(next.queue)
-      setRunId(next.runId)
-      setInterruptState(next.interruptState)
-    })
   }
+  // Rebuild the client only when `threadId` changes. `on` runs `createClient`
+  // untracked, so a reactive `body` or `forwardedProps` change does not start a
+  // new client and drop the transcript. The effects below sync those values.
+  const client = createMemo(on(() => options.threadId, createClient))
 
+  // One signal: the snapshot is frozen and replaced on every change. Seeded
+  // here so constructor hydration (a sync store) is on the first paint.
+  const [snapshot, setSnapshot] = createSignal(client().getSnapshot())
   createEffect(() => {
     const target = client()
-    applySnapshot(target)
-    const unsubscribe = target.subscribeSnapshot(() => applySnapshot(target))
-    onCleanup(unsubscribe)
+    setSnapshot(target.getSnapshot())
+    onCleanup(target.subscribeSnapshot(() => setSnapshot(target.getSnapshot())))
   })
+  const pick = <TKey extends keyof ReturnType<typeof snapshot>>(key: TKey) =>
+    createMemo(() => snapshot()[key])
+  const messages = pick('messages')
+  const interruptState = pick('interruptState')
 
   // Sync body / forwardedProps changes to the client.
   // Both populate the same wire payload; `forwardedProps` is preferred
@@ -235,7 +192,7 @@ export function useChat<
   // First paint must see constructor hydration (sync store / resume snapshot)
   // and the live subscribe above. `createEffect` runs after paint, so the
   // subscribe effect cannot be the first apply.
-  applySnapshot(client())
+  setSnapshot(client().getSnapshot())
 
   createEffect(() => {
     if (options.live) {
@@ -405,25 +362,26 @@ export function useChat<
   // oxlint-disable-next-line eslint-js/no-restricted-syntax -- primitive return shape diverges from generic UseChatReturn<TTools, TSchema>; TS can't structurally narrow the conditional partial/final fields
   return {
     messages,
-    queue,
+    queue: pick('queue'),
     sendMessage,
     append,
     reload,
     stop,
-    isLoading,
-    hasOlderMessages,
+    isLoading: pick('isLoading'),
+    hasOlderMessages: pick('hasOlderMessages'),
     loadOlderMessages,
-    error,
-    status,
-    isSubscribed,
-    connectionStatus,
-    sessionGenerating,
+    error: pick('error'),
+    status: pick('status'),
+    isSubscribed: pick('isSubscribed'),
+    connectionStatus: pick('connectionStatus'),
+    sessionGenerating: pick('sessionGenerating'),
+    isHydrating: pick('isHydrating'),
     setMessages: setMessagesManually,
     clear,
     addToolResult,
     addToolApprovalResponse,
     cancelQueued,
-    runId,
+    runId: pick('runId'),
     interrupts,
     pendingInterrupts,
     interruptErrors,

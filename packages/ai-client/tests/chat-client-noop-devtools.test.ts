@@ -4,11 +4,57 @@
 // consumers actually get when they don't opt into devtools. Unmock here so
 // `ChatClient` runs against the actual no-op bridge that ships as the
 // default, instead of the real-bridge substitute the setup file installs.
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { aiEventClient } from '@tanstack/ai-event-client'
 import { ChatClient } from '../src/chat-client'
+import { createChatDevtoolsBridge } from '../src/devtools'
 import { createMockConnectionAdapter, createTextChunks } from './test-utils'
 
 vi.unmock('../src/devtools-noop')
+
+describe('createChatDevtoolsBridge by NODE_ENV', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.restoreAllMocks()
+  })
+
+  async function streamWithRealFactory() {
+    const emit = vi.spyOn(aiEventClient, 'emit')
+    const client = new ChatClient({
+      connection: createMockConnectionAdapter({
+        chunks: createTextChunks('Hi there'),
+      }),
+      devtoolsBridgeFactory: createChatDevtoolsBridge,
+    })
+    await client.sendMessage('hello')
+    return emit
+  }
+
+  it('emits no devtools events in production', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    expect(await streamWithRealFactory()).not.toHaveBeenCalled()
+  })
+
+  it('emits devtools events in development', async () => {
+    vi.stubEnv('NODE_ENV', 'development')
+    expect(await streamWithRealFactory()).toHaveBeenCalled()
+  })
+
+  it('does not throw when there is no process global', () => {
+    vi.stubGlobal('process', undefined)
+    try {
+      expect(
+        () =>
+          new ChatClient({
+            connection: createMockConnectionAdapter(),
+            devtoolsBridgeFactory: createChatDevtoolsBridge,
+          }),
+      ).not.toThrow()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+})
 
 describe('ChatClient with default no-op devtools bridge', () => {
   it('sends the first message and appends it', async () => {

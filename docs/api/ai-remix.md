@@ -216,7 +216,7 @@ import type {
 } from '@tanstack/ai-client'
 
 interface CreateChatReturn {
-  messages: Array<UIMessage>
+  messages: ReadonlyArray<UIMessage>
   sendMessage: (
     content: string | MultimodalContent,
     options?: SendMessageOptions,
@@ -239,9 +239,10 @@ interface CreateChatReturn {
   isSubscribed: boolean
   connectionStatus: ConnectionStatus
   sessionGenerating: boolean
+  isHydrating: boolean
   setMessages: (messages: ReadonlyArray<UIMessage>) => void
   clear: () => void
-  queue: Array<QueuedMessage>
+  queue: ReadonlyArray<QueuedMessage>
   cancelQueued: (id: string) => void
   runId: string | null
 }
@@ -259,6 +260,7 @@ Re-exported from `@tanstack/ai-client`:
 import {
   fetchServerSentEvents,
   fetchHttpStream,
+  fetchJson,
   stream,
   type ConnectionAdapter,
 } from '@tanstack/ai-remix'

@@ -2,6 +2,7 @@ import { convertSchemaToJsonSchema } from '@tanstack/ai/client'
 import {
   createAtom,
   freezeSnapshotMessages,
+  notifyListeners,
   subscribeAtom,
 } from './snapshot-atom'
 import type { Atom } from './snapshot-atom'
@@ -55,10 +56,7 @@ export class RealtimeClient {
     new Set()
   private unsubscribers: Array<() => void> = []
   // Declared before `snapshotAtom`, whose initializer reads it.
-  private readonly frozenMessages = new WeakMap<
-    RealtimeMessage,
-    RealtimeMessage
-  >()
+  private readonly frozenMessages = new WeakMap<object, object>()
 
   private state: RealtimeClientState = {
     status: 'idle',
@@ -125,6 +123,15 @@ export class RealtimeClient {
         toolsList,
       )
 
+      // A new session starts here. Clear the last transcript before events
+      // flow, so a greeting that arrives while audio capture starts is kept.
+      // A connect that fails before this point keeps the last transcript.
+      this.updateState({
+        messages: [],
+        pendingUserTranscript: null,
+        pendingAssistantTranscript: null,
+      })
+
       // Subscribe to connection events
       this.subscribeToConnectionEvents()
 
@@ -139,9 +146,6 @@ export class RealtimeClient {
       this.updateState({
         status: 'connected',
         mode: 'listening',
-        messages: [],
-        pendingUserTranscript: null,
-        pendingAssistantTranscript: null,
       })
       this.options.onConnect?.()
     } catch (error) {
@@ -388,24 +392,20 @@ export class RealtimeClient {
       return !Object.is(this.state[stateKey], updates[stateKey])
     })
     if (!changed) return
-    const messagesChanged = !Object.is(
-      this.state.messages,
-      updates.messages ?? this.state.messages,
-    )
+    const messagesChanged =
+      'messages' in updates && updates.messages !== this.state.messages
     this.state = { ...this.state, ...updates }
     // A transcript or mode update keeps the same `messages` array, so UI
     // memo keyed on it does not run again for every transcript token.
-    this.snapshotAtom.set(
-      messagesChanged
-        ? this.buildSnapshot()
-        : { ...this.state, messages: this.snapshotAtom.get().messages },
-    )
-    const snapshot = this.snapshotAtom.get()
+    const snapshot = messagesChanged
+      ? this.buildSnapshot()
+      : Object.freeze({
+          ...this.state,
+          messages: this.snapshotAtom.get().messages,
+        })
+    this.snapshotAtom.set(snapshot)
 
-    // Notify callbacks
-    for (const callback of this.stateChangeCallbacks) {
-      callback(snapshot)
-    }
+    notifyListeners(this.stateChangeCallbacks, snapshot)
 
     // Notify specific callbacks
     if ('status' in updates && updates.status !== undefined) {
@@ -417,13 +417,13 @@ export class RealtimeClient {
   }
 
   private buildSnapshot(): RealtimeClientState {
-    return {
+    return Object.freeze({
       ...this.state,
       messages: freezeSnapshotMessages(
         this.frozenMessages,
         this.state.messages,
       ),
-    }
+    })
   }
 
   private addMessage(message: RealtimeMessage): void {

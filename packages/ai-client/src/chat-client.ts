@@ -8,6 +8,7 @@ import {
   mergeMetadata,
   normalizeToUIMessage,
   restoreInboundChunk,
+  subagentInputOf,
   tanstackMetadata,
   validateWithStandardSchema,
 } from '@tanstack/ai/client'
@@ -148,6 +149,7 @@ type ChatClientUpdateOptionsWithoutContext<
   onSubscriptionChange?: (isSubscribed: boolean) => void
   onConnectionStatusChange?: (status: ConnectionStatus) => void
   onSessionGeneratingChange?: (isGenerating: boolean) => void
+  onHydratingChange?: (isHydrating: boolean) => void
   onQueueChange?: (queue: Array<QueuedMessage>) => void
   onResumeStateChange?: (
     resumeState: ChatResumeState | null,
@@ -381,21 +383,30 @@ function rebuildsAssistantMessage(chunk: StreamChunk): boolean {
 
 type SubagentCard = Extract<UIMessage['parts'][number], { type: 'subagent' }>
 
-/** Every subagent card in the messages, nested cards included. */
 /**
  * Snapshot messages are frozen, and a host can pass them back in
  * (`setMessagesManually(snapshot.messages)`, `initialMessages`). The client
- * writes subagent handles into message parts, so copy each frozen message.
+ * writes subagent handles into message parts, nested cards included, so copy
+ * each frozen part down through subagent transcripts.
  */
 function thawMessages(messages: ReadonlyArray<UIMessage>): Array<UIMessage> {
   return messages.map((message) => ({
     ...message,
-    parts: message.parts.map((part) =>
-      Object.isFrozen(part) ? { ...part } : part,
-    ),
+    parts: message.parts.map((part) => {
+      if (!Object.isFrozen(part)) return part
+      if (part.type !== 'subagent') return { ...part }
+      return {
+        ...part,
+        subagent: {
+          ...part.subagent,
+          messages: thawMessages(part.subagent.messages),
+        },
+      }
+    }),
   }))
 }
 
+/** Every subagent card in the messages, nested cards included. */
 function collectSubagentParts(
   messages: ReadonlyArray<UIMessage>,
 ): Array<SubagentCard> {
@@ -455,7 +466,6 @@ export class ChatClient<
   // without a storage adapter.
   private readonly persistor?: ChatPersistor
   private readonly clearedStreamTracker = new ClearedStreamTracker()
-  private currentRunId: string | null = null
   private readonly snapshotAtom: Atom<ChatClientSnapshot<TTools, TInterrupts>> =
     createAtom<ChatClientSnapshot<TTools, TInterrupts>>({
       messages: [],
@@ -468,6 +478,7 @@ export class ChatClient<
       queue: [],
       runId: null,
       hasOlderMessages: false,
+      isHydrating: false,
       interruptState: {
         interrupts: Object.freeze([]),
         pendingInterrupts: Object.freeze([]),
@@ -475,6 +486,34 @@ export class ChatClient<
         resuming: false,
       } as ChatInterruptState<TTools, TInterrupts>,
     })
+  // The snapshot atom is the only copy of this state. Setters patch it.
+  private get status() {
+    return this.snapshotAtom.get().status
+  }
+  private get isLoading() {
+    return this.snapshotAtom.get().isLoading
+  }
+  private get error() {
+    return this.snapshotAtom.get().error
+  }
+  private get isSubscribed() {
+    return this.snapshotAtom.get().isSubscribed
+  }
+  private get connectionStatus() {
+    return this.snapshotAtom.get().connectionStatus
+  }
+  private get sessionGenerating() {
+    return this.snapshotAtom.get().sessionGenerating
+  }
+  private get hasOlderMessages() {
+    return this.snapshotAtom.get().hasOlderMessages
+  }
+  private get isHydrating() {
+    return this.snapshotAtom.get().isHydrating
+  }
+  private get currentRunId() {
+    return this.snapshotAtom.get().runId
+  }
   // Interrupt-resume tracking: the run/thread of the most recent interrupted
   // run, so approvals/client-tool results can be sent back. Cleared when the
   // run terminates. This is STATE (interrupt) resume, not delivery/cursor.
@@ -534,11 +573,6 @@ export class ChatClient<
    * deliverers cannot both append a user message before only one stream runs.
    */
   private deliverClaim = false
-  private isLoading = false
-  private isSubscribed = false
-  private error: Error | undefined = undefined
-  private status: ChatClientState = 'ready'
-  private connectionStatus: ConnectionStatus = 'disconnected'
   private abortController: AbortController | null = null
   private readonly clientToolsRef: { current: Map<string, AnyClientTool> }
   private readonly devtoolsBridge: ChatDevtoolsBridge
@@ -578,7 +612,6 @@ export class ChatClient<
   // continuationPending was true (chained approval scenario)
   private continuationSkipped = false
   private draining = false
-  private sessionGenerating = false
   private readonly activeRunIds = new Set<string>()
   /** Latched by `dispose()`; stops any late async callback starting new work. */
   private disposed = false
@@ -588,6 +621,8 @@ export class ChatClient<
   private tailing = false
   /** `historyGeneration` of the mount hydration GET still in flight, if any. */
   private hydrationInFlight: number | undefined
+  /** An async storage adapter is still reading the persisted transcript. */
+  private storeHydrating = false
   /** Constructor inputs `attach()` needs on every re-attach, not just the first. */
   private readonly rejoinRunId: string | null | undefined
   private readonly cachesMessages: boolean
@@ -596,7 +631,6 @@ export class ChatClient<
    * `persistence === true`.
    */
   private readonly historyPageSize: number | undefined
-  private hasOlderMessages = false
   private olderMessagesCursor: string | undefined
   private readonly knownServerMessageIds = new Set<string>()
   private loadOlderMessagesInFlight = false
@@ -616,6 +650,7 @@ export class ChatClient<
       onSubscriptionChange: (isSubscribed: boolean) => void
       onConnectionStatusChange: (status: ConnectionStatus) => void
       onSessionGeneratingChange: (isGenerating: boolean) => void
+      onHydratingChange: (isHydrating: boolean) => void
       onQueueChange: (queue: Array<QueuedMessage>) => void
       onResumeStateChange: (
         resumeState: ChatResumeState | null,
@@ -719,6 +754,7 @@ export class ChatClient<
           options.onConnectionStatusChange || (() => {}),
         onSessionGeneratingChange:
           options.onSessionGeneratingChange || (() => {}),
+        onHydratingChange: options.onHydratingChange || (() => {}),
         onQueueChange: options.onQueueChange || (() => {}),
         onResumeStateChange: options.onResumeStateChange || (() => {}),
         onRunIdChange: options.onRunIdChange || (() => {}),
@@ -801,8 +837,9 @@ export class ChatClient<
           // its live handle before anyone reads the messages.
           this.syncSubagentHandles()
           this.persistor?.notifyMessagesChanged(messages)
-          this.patchSnapshot({
-            messages: this.freezeSnapshotMessages(
+          patchAtom(this.snapshotAtom, {
+            messages: freezeSnapshotMessages(
+              this.frozenMessages,
               messages as Array<UIMessage<TTools>>,
             ),
           })
@@ -1040,11 +1077,24 @@ export class ChatClient<
     // `initialMessages` do not fire a change event. Give their cards handles.
     this.syncSubagentHandles()
 
-    this.snapshotAtom.set(this.readSnapshot())
-    this.persistor?.hydrateAsync(persistedState)
+    const storeHydration = this.persistor?.hydrateAsync(persistedState)
+    if (storeHydration) {
+      this.storeHydrating = true
+      void storeHydration.finally(() => {
+        this.storeHydrating = false
+        this.syncIsHydrating()
+      })
+    }
 
     this.rejoinRunId = rejoinRunId
     this.cachesMessages = cachesMessages
+    // Server-authoritative mode loads the thread on the first `attach()`.
+    // Start as hydrating so the first render shows loading, not an empty thread.
+    this.snapshotAtom.set(
+      this.readSnapshot(
+        this.storeHydrating || (!cachesMessages && !!this.connection.hydrate),
+      ),
+    )
     // NO TAILING HERE, deliberately. Constructing a client must not open a
     // connection.
     //
@@ -1210,9 +1260,10 @@ export class ChatClient<
    */
   private hydrateFromServer(): void {
     const hydrate = this.connection.hydrate
-    if (!hydrate) return
-    if (this.isLoading || this.abortController) return
-    if (this.disposed) return
+    if (!hydrate || this.isLoading || this.abortController || this.disposed) {
+      this.syncIsHydrating()
+      return
+    }
     // A re-attach while the last GET is still out reuses that GET. React Strict
     // Mode runs mount effects twice (attach, detach, attach), and the GET
     // applies its result because a view is attached again when it returns.
@@ -1220,23 +1271,33 @@ export class ChatClient<
     const pageSize = this.historyPageSize
     const hydrateOptions: ChatHydrateOptions | undefined =
       pageSize === undefined ? undefined : { limit: pageSize }
+    // Settles only after the transcript is applied and any in-flight run is
+    // re-joined, so `isLoading` turns on before `isHydrating` turns off.
     void (async () => {
       let result: ChatHydrationResult
       const generation = this.historyGeneration
       this.hydrationInFlight = generation
+      this.syncIsHydrating()
+      // A send, a clear, or a newer load clears or replaces `hydrationInFlight`
+      // (see `supersedeHydration`). Then this result is stale.
+      const isCurrent = () =>
+        this.hydrationInFlight === generation &&
+        generation === this.historyGeneration
+      let current: boolean
       try {
         result = await hydrate(this.threadId, hydrateOptions)
       } catch (cause) {
         // Same staleness guard as the success path below: a failure from an
         // older attempt must not touch the state of a newer one.
-        if (generation === this.historyGeneration) this.failHydration(cause)
+        if (isCurrent()) this.failHydration(cause)
         return
       } finally {
+        current = isCurrent()
         if (this.hydrationInFlight === generation) {
           this.hydrationInFlight = undefined
         }
       }
-      if (generation !== this.historyGeneration) return
+      if (!current) return
       // NO VIEW IS WATCHING ANY MORE (it unmounted while this fetch was in
       // flight). Applying anything now is pointless, and one thing is actively
       // harmful: the branch below calls `maybeRejoinInFlight`, which opens a TAIL.
@@ -1290,7 +1351,7 @@ export class ChatClient<
       } else if (result.activeRun?.runId) {
         this.maybeRejoinInFlight(result.activeRun.runId)
       }
-    })()
+    })().finally(() => this.syncIsHydrating())
   }
 
   /**
@@ -1593,8 +1654,7 @@ export class ChatClient<
 
   private setCurrentRunId(runId: string | null): void {
     if (this.currentRunId === runId) return
-    this.currentRunId = runId
-    this.patchSnapshot({ runId })
+    patchAtom(this.snapshotAtom, { runId })
     this.callbacksRef.current.onRunIdChange(runId)
   }
 
@@ -1786,67 +1846,42 @@ export class ChatClient<
     return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(7)}`
   }
 
-  private readonly frozenMessages = new WeakMap<
-    UIMessage<TTools>,
-    UIMessage<TTools>
-  >()
-
-  private freezeSnapshotMessages(
-    messages: Array<UIMessage<TTools>>,
-  ): ReadonlyArray<UIMessage<TTools>> {
-    return freezeSnapshotMessages(this.frozenMessages, messages)
-  }
+  /** Frozen copies of unchanged messages and parts, keyed by the live object. */
+  private readonly frozenMessages = new WeakMap<object, object>()
 
   private freezeSnapshotQueue(
     queue: Array<QueuedMessage>,
   ): ReadonlyArray<QueuedMessage> {
     return Object.freeze(
-      queue.map((item) =>
-        Object.freeze({
+      queue.map((item) => {
+        if (typeof item.content !== 'object') return Object.freeze({ ...item })
+        const content = Array.isArray(item.content.content)
+          ? Object.freeze(
+              item.content.content.map((part) => freezeSnapshotPart(part)),
+            )
+          : item.content.content
+        return Object.freeze({
           ...item,
-          ...(typeof item.content === 'object'
-            ? {
-                content: Object.freeze({
-                  ...item.content,
-                  ...(Array.isArray(item.content.content)
-                    ? {
-                        content: Object.freeze(
-                          item.content.content.map((part) =>
-                            freezeSnapshotPart(part),
-                          ),
-                        ),
-                      }
-                    : {}),
-                }),
-              }
-            : {}),
-        }),
-      ),
+          content: Object.freeze({ ...item.content, content }),
+        })
+      }),
     ) as ReadonlyArray<QueuedMessage>
   }
 
-  private readSnapshot(): ChatClientSnapshot<TTools, TInterrupts> {
+  /** The atom with messages, queue, and interrupt state read fresh. */
+  private readSnapshot(
+    isHydrating: boolean,
+  ): ChatClientSnapshot<TTools, TInterrupts> {
     return Object.freeze({
-      messages: this.freezeSnapshotMessages(
+      ...this.snapshotAtom.get(),
+      messages: freezeSnapshotMessages(
+        this.frozenMessages,
         this.processor.getMessages() as Array<UIMessage<TTools>>,
       ),
-      status: this.status,
-      isLoading: this.isLoading,
-      error: this.error,
-      isSubscribed: this.isSubscribed,
-      connectionStatus: this.connectionStatus,
-      sessionGenerating: this.sessionGenerating,
       queue: this.freezeSnapshotQueue(this.getQueue()),
-      runId: this.currentRunId,
-      hasOlderMessages: this.hasOlderMessages,
+      isHydrating,
       interruptState: this.interruptManager.getState(),
     })
-  }
-
-  private patchSnapshot(
-    patch: Partial<ChatClientSnapshot<TTools, TInterrupts>>,
-  ): void {
-    patchAtom(this.snapshotAtom, patch)
   }
 
   /**
@@ -1858,42 +1893,60 @@ export class ChatClient<
   subscribeSnapshot = (listener: () => void): (() => void) =>
     subscribeAtom(this.snapshotAtom, listener)
 
-  /** Current UI snapshot. Frozen. Nested messages and queue entries are copies. */
+  /**
+   * Current UI snapshot. The snapshot, `messages`, `queue`, and their entries
+   * are frozen copies. `interruptState` is the interrupt manager's own state.
+   */
   getSnapshot = (): ChatClientSnapshot<TTools, TInterrupts> =>
     this.snapshotAtom.get()
 
   private setIsLoading(isLoading: boolean): void {
-    this.isLoading = isLoading
-    this.patchSnapshot({ isLoading })
+    patchAtom(this.snapshotAtom, { isLoading })
     this.callbacksRef.current.onLoadingChange(isLoading)
     this.events.loadingChanged(isLoading)
+    if (isLoading) this.supersedeHydration()
+  }
+
+  /**
+   * A send or a clear now owns the transcript. A load that is still pending can
+   * no longer paint it (the generation guards drop its result), so it no longer
+   * counts as hydrating.
+   */
+  private supersedeHydration(): void {
+    this.hydrationInFlight = undefined
+    this.storeHydrating = false
+    this.syncIsHydrating()
   }
 
   private setStatus(status: ChatClientState): void {
-    this.status = status
-    this.patchSnapshot({ status })
+    patchAtom(this.snapshotAtom, { status })
     this.callbacksRef.current.onStatusChange(status)
     this.devtoolsBridge.emitSnapshot()
   }
 
   private setIsSubscribed(isSubscribed: boolean): void {
-    this.isSubscribed = isSubscribed
-    this.patchSnapshot({ isSubscribed })
+    patchAtom(this.snapshotAtom, { isSubscribed })
     this.callbacksRef.current.onSubscriptionChange(isSubscribed)
     this.devtoolsBridge.emitSnapshot()
   }
 
   private setConnectionStatus(status: ConnectionStatus): void {
-    this.connectionStatus = status
-    this.patchSnapshot({ connectionStatus: status })
+    patchAtom(this.snapshotAtom, { connectionStatus: status })
     this.callbacksRef.current.onConnectionStatusChange(status)
     this.devtoolsBridge.emitSnapshot()
   }
 
+  private syncIsHydrating(): void {
+    const isHydrating =
+      this.hydrationInFlight !== undefined || this.storeHydrating
+    if (this.isHydrating === isHydrating) return
+    patchAtom(this.snapshotAtom, { isHydrating })
+    this.callbacksRef.current.onHydratingChange(isHydrating)
+  }
+
   private setSessionGenerating(isGenerating: boolean): void {
     if (this.sessionGenerating === isGenerating) return
-    this.sessionGenerating = isGenerating
-    this.patchSnapshot({ sessionGenerating: isGenerating })
+    patchAtom(this.snapshotAtom, { sessionGenerating: isGenerating })
     this.callbacksRef.current.onSessionGeneratingChange(isGenerating)
     this.devtoolsBridge.emitSnapshot()
   }
@@ -1903,7 +1956,7 @@ export class ChatClient<
     // Capture state before invoking callbacks so a synchronous nested change
     // cannot pair this publication's source with a later manager snapshot.
     const interruptState = this.interruptManager.getState()
-    this.patchSnapshot({ interruptState })
+    patchAtom(this.snapshotAtom, { interruptState })
     // Persist (or clear) the durable resume snapshot so a full page reload can
     // rehydrate pending interrupts and rejoin the run. Folded into the same
     // persistence adapter that stores messages (one record per chat).
@@ -1945,8 +1998,7 @@ export class ChatClient<
   }
 
   private setError(error: Error | undefined): void {
-    this.error = error
-    this.patchSnapshot({ error })
+    patchAtom(this.snapshotAtom, { error })
     this.callbacksRef.current.onErrorChange(error)
     this.events.errorChanged(error?.message || null)
   }
@@ -2599,7 +2651,16 @@ export class ChatClient<
       return
     }
 
-    // Type assertion: after checking for system, we know it's user or assistant
+    // Activity is frontend-only. Keep it in the transcript; do not start a run.
+    if (normalizedMessage.role === 'activity') {
+      const uiMessage = normalizedMessage as UIMessage
+      this.events.messageAppended(uiMessage)
+      const messages = this.processor.getMessages()
+      this.processor.setMessages([...messages, uiMessage])
+      this.devtoolsBridge.emitSnapshot()
+      return
+    }
+
     const uiMessage = normalizedMessage as UIMessage
 
     // Emit message appended event
@@ -2667,7 +2728,8 @@ export class ChatClient<
     let runTerminalEventEmitted = false
 
     try {
-      // Get UIMessages with parts (preserves approval state and client tool results)
+      // Get UIMessages with parts (preserves approval state and client tool results).
+      // Activity is frontend-only — never send it as model input.
       const messages = this.messagesForSend(this.processor.getMessages())
       const clientTools = new Map(this.clientToolsRef.current)
       const runtimeContext = this.context
@@ -3024,6 +3086,7 @@ export class ChatClient<
     this.persistor?.beginClear()
     this.processor.clearMessages()
     this.resetHistoryPaging()
+    this.supersedeHydration()
     this.discardPendingSends()
     this.persistor?.remove()
     this.stoppedSubagentIds.clear()
@@ -3302,6 +3365,7 @@ export class ChatClient<
    * Get current messages
    */
   getMessages(): Array<UIMessage<TTools>> {
+    // StreamProcessor is untyped over client tools / output schema.
     return this.processor.getMessages() as Array<UIMessage<TTools>>
   }
 
@@ -3322,6 +3386,14 @@ export class ChatClient<
   }
 
   private syncSubagentHandles(): void {
+    // The card metadata carries the checked input of an agent with
+    // `inputSchema`. The handle shows it as `input`.
+    // A card copied from a handle can hold an old `input`. Read it fresh.
+    const fieldsOf = (subagent: SubagentHandle) => {
+      const { input: _old, ...card } = subagent
+      const input = subagentInputOf(card.metadata)
+      return input === undefined ? card : { ...card, input }
+    }
     // Every card, nested ones included, gets a handle.
     const cards = collectSubagentParts(this.processor.getMessages())
     const present = new Set(cards.map((part) => part.subagent.id))
@@ -3340,12 +3412,12 @@ export class ChatClient<
         for (const key of Object.keys(existing)) {
           Reflect.deleteProperty(existing, key)
         }
-        Object.assign(existing, part.subagent, { stop })
+        Object.assign(existing, fieldsOf(part.subagent), { stop })
         part.subagent = existing
         continue
       }
       const handle: SubagentHandle = {
-        ...part.subagent,
+        ...fieldsOf(part.subagent),
         stop: () => {
           this.stopSubagent(id)
         },
@@ -3418,8 +3490,7 @@ export class ChatClient<
   }
 
   private setHasOlderMessages(hasOlderMessages: boolean) {
-    this.hasOlderMessages = hasOlderMessages
-    this.patchSnapshot({ hasOlderMessages })
+    patchAtom(this.snapshotAtom, { hasOlderMessages })
   }
 
   private resetHistoryPaging() {
@@ -3452,11 +3523,12 @@ export class ChatClient<
   }
 
   private messagesForSend(messages: Array<UIMessage>) {
+    const forModel = messages.filter((message) => message.role !== 'activity')
     if (this.historyPageSize === undefined) {
-      return messages
+      return forModel
     }
     const unknownMessages: Array<UIMessage> = []
-    for (const message of messages) {
+    for (const message of forModel) {
       const isKnown = this.knownServerMessageIds.has(message.id)
       if (isKnown) {
         continue
@@ -3469,13 +3541,13 @@ export class ChatClient<
     // No new ids: reload has already dropped the old assistant, so this is
     // `[lastUser]`. Resume/continue still has the assistant, so the cutoff is
     // that assistant and the stored tool-call stays.
-    const lastUserIndex = messages.findLastIndex(
+    const lastUserIndex = forModel.findLastIndex(
       (message) => message.role === 'user',
     )
     if (lastUserIndex === -1) {
       return []
     }
-    return messages.slice(lastUserIndex)
+    return forModel.slice(lastUserIndex)
   }
 
   /**
@@ -3577,7 +3649,7 @@ export class ChatClient<
 
   private emitQueueChange(): void {
     const queue = this.getQueue()
-    this.patchSnapshot({ queue: this.freezeSnapshotQueue(queue) })
+    patchAtom(this.snapshotAtom, { queue: this.freezeSnapshotQueue(queue) })
     this.callbacksRef.current.onQueueChange(queue)
     this.devtoolsBridge.emitSnapshot()
   }
@@ -3639,6 +3711,16 @@ export class ChatClient<
    */
   getSessionGenerating(): boolean {
     return this.sessionGenerating
+  }
+
+  /**
+   * Whether the client is rebuilding the chat from persistence: the server
+   * hydrate (`persistence: true`) or an async storage adapter. Turns false once
+   * the transcript is applied and any in-flight run is re-joined (from then on
+   * `isLoading` covers the stream), or when the load fails.
+   */
+  getIsHydrating(): boolean {
+    return this.isHydrating
   }
 
   /**
@@ -3748,6 +3830,9 @@ export class ChatClient<
     if (options.onSessionGeneratingChange !== undefined) {
       this.callbacksRef.current.onSessionGeneratingChange =
         options.onSessionGeneratingChange
+    }
+    if (options.onHydratingChange !== undefined) {
+      this.callbacksRef.current.onHydratingChange = options.onHydratingChange
     }
     if (options.onQueueChange !== undefined) {
       this.callbacksRef.current.onQueueChange = options.onQueueChange

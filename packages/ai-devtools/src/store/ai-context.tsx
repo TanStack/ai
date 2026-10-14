@@ -1391,7 +1391,8 @@ export const AIProvider: ParentComponent = (props) => {
         if (clientId && streamId) {
           streamToConversation.set(streamId, clientId)
         }
-        if (role === 'tool' || role === 'system') return
+        // Activity rows have no text or tool calls for the message list.
+        if (role === 'tool' || role === 'system' || role === 'activity') return
 
         const source = normalizeMessageSource(
           e.payload.source,

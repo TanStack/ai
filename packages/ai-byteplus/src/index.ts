@@ -168,10 +168,8 @@ export type { BytePlusArkConfig, BytePlusVoiceConfig } from './utils/client'
 
 export type {
   BytePlusNamedToolChoice,
-  BytePlusReasoningEffort,
   BytePlusServiceTier,
   BytePlusTextProviderOptions,
-  BytePlusThinkingOption,
   BytePlusToolChoice,
 } from './text/text-provider-options'
 

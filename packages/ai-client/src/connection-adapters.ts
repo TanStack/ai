@@ -394,6 +394,40 @@ function isNdjsonEnvelope(
   )
 }
 
+/**
+ * One JSON reply from a `toJsonResponse` / `resumeJsonResponse` route.
+ * `done: false` means the run is still going; ask again from `offset`.
+ */
+interface JsonRunBody {
+  chunks: Array<StreamChunk>
+  offset?: string
+  done: boolean
+}
+
+function isChunkLike(value: unknown): value is StreamChunk {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'type' in value &&
+    typeof value.type === 'string'
+  )
+}
+
+/** Type guard for a {@link JsonRunBody}. */
+function isJsonRunBody(value: unknown): value is JsonRunBody {
+  if (typeof value !== 'object' || value === null) return false
+  const hasChunks =
+    'chunks' in value &&
+    Array.isArray(value.chunks) &&
+    value.chunks.every(isChunkLike)
+  const hasDone = 'done' in value && typeof value.done === 'boolean'
+  const hasValidOffset =
+    !('offset' in value) ||
+    value.offset === undefined ||
+    typeof value.offset === 'string'
+  return hasChunks && hasDone && hasValidOffset
+}
+
 /** Rebuild pre-wire extras after SSE/NDJSON ingest. */
 function restoreInboundUsage(chunk: StreamChunk): StreamChunk {
   return restoreInboundChunk(chunk)
@@ -1328,7 +1362,7 @@ function buildRunAgentInputBody(
   data: Record<string, any> | undefined,
   runContext: RunAgentInputContext | undefined,
   options: ResolvedConnectionOptions,
-): Record<string, unknown> {
+) {
   // Precedence (later spreads win): static adapter `body` is the base,
   // overridden by `runContext.forwardedProps`, overridden by per-message `data`.
   const wireMessages = uiMessagesToWire(messages)
@@ -1674,6 +1708,253 @@ export function fetchHttpStream(
       const resolvedUrl = typeof url === 'function' ? url() : url
       const resolvedOptions =
         typeof options === 'function' ? await options() : options
+      return fetchGenerationHydration(
+        resolvedOptions.fetchClient ?? fetch,
+        resolvedUrl,
+        mergeHeaders(resolvedOptions.headers),
+        resolvedOptions.credentials || 'same-origin',
+        threadId,
+      )
+    },
+  }
+}
+
+/**
+ * Options for {@link fetchJson}.
+ */
+export interface FetchJsonOptions extends FetchConnectionOptions {
+  /** Delay between follow-up requests while the server says done: false. Default 250. */
+  pollIntervalMs?: number
+}
+
+/**
+ * Send one request and read its {@link JsonRunBody}. A fetch rejection or a
+ * body read failure is a transport drop (`StreamReadError`); a non-2xx status,
+ * a non-JSON body, or a bad shape is a hard failure.
+ */
+async function requestJsonRunBody(
+  fetchClient: typeof globalThis.fetch,
+  url: string,
+  init: RequestInit,
+) {
+  let response: Response
+  try {
+    response = await fetchClient(url, init)
+  } catch (error) {
+    throw new StreamReadError(error)
+  }
+  await assertResponseOk(response)
+  let text: string
+  try {
+    text = await response.text()
+  } catch (error) {
+    throw new StreamReadError(error)
+  }
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    const contentType = response.headers.get('content-type') ?? 'none'
+    throw new Error(
+      `fetchJson expected a JSON body from ${url}, but the response is not JSON (content-type: ${contentType}).`,
+    )
+  }
+  if (!isJsonRunBody(parsed)) {
+    throw new Error(
+      `fetchJson expected a { chunks, done, offset? } body from ${url}.`,
+    )
+  }
+  return parsed
+}
+
+interface JsonRunPollOptions {
+  fetchClient: typeof globalThis.fetch
+  url: string
+  runId: string
+  /** Headers and credentials for the follow-up GETs. */
+  getInit: RequestInit
+  signal: AbortSignal | undefined
+  pollIntervalMs: number
+  reconnect: ReconnectOptions | undefined
+}
+
+/**
+ * GET the run from `offset`. A GET is read-only, so a transport drop is
+ * retried with the same bounds as a resumable stream reconnect.
+ */
+async function getJsonRunBody(options: JsonRunPollOptions, offset: string) {
+  const url = withSearchParams(options.url, { runId: options.runId, offset })
+  const tracker = createReconnectTracker(options.reconnect)
+  for (;;) {
+    try {
+      return await requestJsonRunBody(options.fetchClient, url, options.getInit)
+    } catch (error) {
+      const isTransportDrop =
+        error instanceof StreamReadError && !options.signal?.aborted
+      if (!isTransportDrop) throw error
+      await tracker.waitBeforeReconnect(false, options.signal)
+      if (options.signal?.aborted) throw error
+    }
+  }
+}
+
+/**
+ * Yield the chunks of each JSON reply in order. While the server says
+ * `done: false`, wait `pollIntervalMs` and GET the rest from `offset`. Each
+ * reply only holds chunks after the requested offset, so nothing repeats. An
+ * abort ends the loop quietly with no further request.
+ */
+async function* pollJsonRun(
+  options: JsonRunPollOptions,
+  firstReply: () => Promise<JsonRunBody>,
+) {
+  const { signal } = options
+  let nextReply = firstReply
+  for (;;) {
+    let body: JsonRunBody
+    try {
+      body = await nextReply()
+    } catch (error) {
+      if (signal?.aborted) return
+      throw error
+    }
+    for (const chunk of body.chunks) yield restoreInboundUsage(chunk)
+    if (body.done) return
+    const offset = body.offset
+    if (offset === undefined) {
+      throw new Error(
+        `fetchJson got done: false without an offset from ${options.url}, so it cannot ask for the rest of the run.`,
+      )
+    }
+    await abortableDelay(options.pollIntervalMs, signal)
+    if (signal?.aborted) return
+    nextReply = () => getJsonRunBody(options, offset)
+  }
+}
+
+/**
+ * Create a connection adapter for a server that replies with one JSON body
+ * per request (`toJsonResponse` / `resumeJsonResponse`) instead of a stream.
+ *
+ * The run arrives as `{ chunks, offset?, done }`. While `done` is false, the
+ * adapter waits `pollIntervalMs` and asks for the rest with
+ * `GET url?runId=<id>&offset=<offset>`. A failed follow-up GET is retried with
+ * the `reconnect` bounds. A failed first POST is not retried.
+ *
+ * @param url - The API endpoint URL (or a function that returns the URL)
+ * @param options - Fetch options (headers, credentials, body, pollIntervalMs, etc.) or a function that returns options (can be async)
+ * @returns A connection adapter for JSON replies
+ *
+ * @example
+ * ```typescript
+ * // Static URL
+ * const connection = fetchJson('/api/chat');
+ *
+ * // With options
+ * const connection = fetchJson('/api/chat', {
+ *   headers: { 'Authorization': `Bearer ${getToken()}` },
+ *   pollIntervalMs: 500,
+ * });
+ * ```
+ */
+export function fetchJson(
+  url: string | (() => string),
+  options:
+    | FetchJsonOptions
+    | (() => FetchJsonOptions | Promise<FetchJsonOptions>) = {},
+): ResumableConnectConnectionAdapter {
+  async function resolve() {
+    const resolvedUrl = typeof url === 'function' ? url() : url
+    const resolvedOptions =
+      typeof options === 'function' ? await options() : options
+    return { resolvedUrl, resolvedOptions }
+  }
+
+  function toPollOptions(
+    resolvedUrl: string,
+    resolvedOptions: FetchJsonOptions,
+    runId: string,
+    abortSignal: AbortSignal | undefined,
+  ) {
+    const signal = abortSignal || resolvedOptions.signal
+    return {
+      fetchClient: resolvedOptions.fetchClient ?? fetch,
+      url: resolvedUrl,
+      runId,
+      getInit: {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          ...mergeHeaders(resolvedOptions.headers),
+        },
+        credentials: resolvedOptions.credentials || 'same-origin',
+        ...(signal ? { signal } : {}),
+      },
+      signal,
+      pollIntervalMs: resolvedOptions.pollIntervalMs ?? 250,
+      reconnect: resolvedOptions.reconnect,
+    }
+  }
+
+  return {
+    async *connect(messages, data, abortSignal, runContext) {
+      const { resolvedUrl, resolvedOptions } = await resolve()
+      // Same RunAgentInput body as fetchHttpStream. Follow-up GETs use the
+      // body's run id, so they address the run this POST started.
+      const requestBody = buildRunAgentInputBody(
+        messages,
+        data,
+        runContext,
+        resolvedOptions,
+      )
+      const pollOptions = toPollOptions(
+        resolvedUrl,
+        resolvedOptions,
+        requestBody.runId,
+        abortSignal,
+      )
+      const postInit: RequestInit = {
+        ...pollOptions.getInit,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          ...mergeHeaders(resolvedOptions.headers),
+          ...mergeHeaders(runContext?.headers),
+          ...runIdHeader(runContext?.runId),
+        },
+        body: JSON.stringify(requestBody),
+      }
+      // The first POST is never retried: there is no offset yet, and a retry
+      // could start the run twice.
+      yield* pollJsonRun(pollOptions, () =>
+        requestJsonRunBody(pollOptions.fetchClient, resolvedUrl, postInit),
+      )
+    },
+    async *joinRun(runId, abortSignal) {
+      // Read the run from the start: `offset=-1` replays the durable log.
+      const { resolvedUrl, resolvedOptions } = await resolve()
+      const pollOptions = toPollOptions(
+        resolvedUrl,
+        resolvedOptions,
+        runId,
+        abortSignal,
+      )
+      yield* pollJsonRun(pollOptions, () => getJsonRunBody(pollOptions, '-1'))
+    },
+    async hydrate(threadId, hydrateOptions) {
+      const { resolvedUrl, resolvedOptions } = await resolve()
+      return fetchThreadHydration(
+        resolvedOptions.fetchClient ?? fetch,
+        resolvedUrl,
+        mergeHeaders(resolvedOptions.headers),
+        resolvedOptions.credentials || 'same-origin',
+        threadId,
+        hydrateOptions,
+      )
+    },
+    async hydrateGeneration(threadId) {
+      const { resolvedUrl, resolvedOptions } = await resolve()
       return fetchGenerationHydration(
         resolvedOptions.fetchClient ?? fetch,
         resolvedUrl,

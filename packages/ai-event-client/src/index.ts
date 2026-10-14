@@ -401,7 +401,7 @@ export interface TextMessageCreatedEvent extends BaseEventContext {
   requestId?: string
   streamId?: string
   messageId: string
-  role: 'user' | 'assistant' | 'system' | 'tool'
+  role: 'user' | 'assistant' | 'system' | 'tool' | 'activity'
   content: string
   parts?: Array<MessagePart>
   toolCalls?: Array<ToolCall>
@@ -1461,7 +1461,7 @@ export interface DevtoolsToolFixtureApplyEvent extends BaseEventContext {
   execute?: boolean
   message?: {
     id: string
-    role: 'system' | 'user' | 'assistant'
+    role: 'system' | 'user' | 'assistant' | 'activity'
     parts: Array<unknown>
     createdAt?: number | string
   }

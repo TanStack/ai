@@ -104,8 +104,9 @@ describe('Lovable video adapter', () => {
     }
     adapter.spyOnVideosRetrieve().mockResolvedValueOnce(completed)
 
-    const result = await adapter.getVideoUrl('video-job-1')
+    const result = await adapter.getVideo('video-job-1')
 
+    if (result.body) throw new Error('expected a URL result')
     expect(result.url).toBe('https://cdn.example/clip.mp4')
     expect(result.expiresAt).toEqual(new Date(expiresAtSeconds * 1000))
   })

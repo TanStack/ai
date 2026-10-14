@@ -1,25 +1,39 @@
-import { FinishReason } from '@google/genai'
+import { FinishReason, FunctionCallingConfigMode } from '@google/genai'
 import {
+  CONTEXT_OVERFLOW_CODE,
   EventType,
   fileReferenceFor,
   isFileSource,
   normalizeSystemPrompts,
 } from '@tanstack/ai'
-import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
+import {
+  hashToolCallId,
+  orderedAssistantBlocks,
+  tanstackMetadata,
+  toRunErrorRawEvent,
+  transformMessagesForReplay,
+} from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import { buildGeminiUsage } from '../usage'
+import { geminiThinkingConfig } from '../text/reasoning'
 import {
   createGeminiClient,
   generateId,
   getGeminiApiKeyFromEnv,
+  isGeminiContextOverflow,
 } from '../utils'
-import { GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS } from '../model-meta'
+import {
+  GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS,
+  GEMINI_MODEL_INPUT_MODALITIES,
+  GEMINI_MODEL_REASONING,
+} from '../model-meta'
 import type {
   GEMINI_MODELS,
   GeminiChatModelProviderOptionsByName,
   GeminiChatModelToolCapabilitiesByName,
   GeminiModelInputModalitiesByName,
+  GeminiModelReasoningByName,
 } from '../model-meta'
 import type {
   StructuredOutputOptions,
@@ -28,21 +42,24 @@ import type {
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
   Content,
+  FunctionCallingConfig,
   GenerateContentParameters,
   GenerateContentResponse,
   GoogleGenAI,
   GroundingMetadata,
   Part,
-  ThinkingLevel,
   VideoMetadata,
 } from '@google/genai'
 import type {
   ContentPart,
   Modality,
   ModelMessage,
+  MessageSource,
+  ToolCall,
   AdapterYieldChunk,
   ProviderExecutedToolSource,
   TextOptions,
+  ToolChoice,
 } from '@tanstack/ai'
 import type { ExternalTextProviderOptions } from '../text/text-provider-options'
 import type {
@@ -56,6 +73,48 @@ import type { GeminiClientConfig } from '../utils/client'
 /**
  * Fallback MIME types for URL-sourced media parts that don't specify one.
  */
+/**
+ * Replay for the selected Google API, for this request only. Gemini 3, Claude,
+ * and gpt-oss models need a tool call ID, so another model's IDs are rewritten.
+ */
+export function prepareGeminiMessagesForReplay(
+  messages: Array<ModelMessage>,
+  target: MessageSource,
+): Array<ModelMessage> {
+  const model = target.model.toLowerCase()
+  const major = model.match(/^gemini(?:-live)?-(\d+)/)?.[1]
+  const requiresId =
+    model.startsWith('claude-') ||
+    model.startsWith('gpt-oss-') ||
+    (major !== undefined && Number(major) >= 3)
+  return transformMessagesForReplay(
+    messages,
+    target,
+    requiresId
+      ? (id, { attempt }) => {
+          const normalized = id.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64)
+          if (attempt === 0) return normalized
+          const suffix = `_${hashToolCallId(`${id}:${attempt}`)}`
+          return `${normalized.slice(0, 64 - suffix.length)}${suffix}`
+        }
+      : undefined,
+  ).messages
+}
+
+/** Add the source of this call to a chunk, errors included. */
+export function withGeminiSource(
+  chunk: AdapterYieldChunk,
+  source: MessageSource,
+): AdapterYieldChunk {
+  return {
+    ...chunk,
+    metadata: {
+      ...chunk.metadata,
+      tanstack: { ...tanstackMetadata(chunk), source },
+    },
+  }
+}
+
 const DEFAULT_MEDIA_MIME_TYPES = {
   image: 'image/jpeg',
   audio: 'audio/mp3',
@@ -83,6 +142,19 @@ function getGroundingSources(
   return [...sources.values()]
 }
 
+/** Maps `chat({ toolChoice })` to the Gemini function calling config. */
+function toGeminiFunctionCallingConfig(
+  choice: ToolChoice,
+): FunctionCallingConfig {
+  if (choice === 'auto') return { mode: FunctionCallingConfigMode.AUTO }
+  if (choice === 'none') return { mode: FunctionCallingConfigMode.NONE }
+  if (choice === 'required') return { mode: FunctionCallingConfigMode.ANY }
+  return {
+    mode: FunctionCallingConfigMode.ANY,
+    allowedFunctionNames: [choice.name],
+  }
+}
+
 /**
  * Content block shape for an Interactions API `input` step. The installed
  * @google/genai types predate the video `processing` field, so we model the
@@ -104,10 +176,29 @@ type InteractionContent =
       mime_type?: string
     }
 
-interface InteractionStep {
-  type: 'user_input' | 'model_output'
-  content: Array<InteractionContent>
-}
+type InteractionStep =
+  | {
+      type: 'user_input' | 'model_output'
+      content: Array<InteractionContent>
+    }
+  | {
+      type: 'thought'
+      signature?: string
+      summary: Array<{ type: 'text'; text: string }>
+    }
+  | {
+      type: 'function_call'
+      id: string
+      name: string
+      arguments: Record<string, unknown>
+    }
+  | {
+      type: 'function_result'
+      call_id: string
+      name?: string
+      is_error?: boolean
+      result: string | Array<InteractionContent>
+    }
 
 /** True when any message carries a video part requesting agentic processing. */
 function hasAgenticVideo(messages: Array<ModelMessage>): boolean {
@@ -154,16 +245,93 @@ function contentPartToInteraction(part: ContentPart): InteractionContent {
  * Build the Interactions API `input` from chat messages. Each user/assistant
  * message becomes a `user_input` / `model_output` step wrapping its content
  * blocks — the wrapping the Python SDK performs implicitly but the JS SDK
- * does not. Tool messages are skipped (unsupported on this path).
+ * does not. Calls and results use the SDK's matching function steps.
  */
 function buildInteractionsInput(
   messages: Array<ModelMessage>,
 ): Array<InteractionStep> {
   const steps: Array<InteractionStep> = []
+  const names = new Map(
+    messages.flatMap((message) =>
+      (message.toolCalls ?? []).map(
+        (call) => [call.id, call.function.name] as const,
+      ),
+    ),
+  )
   for (const msg of messages) {
-    if (msg.role === 'tool') continue
+    if (msg.role === 'tool') {
+      if (!msg.toolCallId) continue
+      const result = Array.isArray(msg.content)
+        ? msg.content.map((part) => {
+            if (part.type !== 'text' && part.type !== 'image')
+              throw new Error(
+                `Gemini Interactions function results do not support ${part.type} content`,
+              )
+            return contentPartToInteraction(part)
+          })
+        : (msg.content ?? '')
+      const name = names.get(msg.toolCallId)
+      steps.push({
+        type: 'function_result',
+        call_id: msg.toolCallId,
+        ...(name && { name }),
+        ...(msg.error !== undefined && { is_error: true }),
+        result,
+      })
+      continue
+    }
     const stepType = msg.role === 'assistant' ? 'model_output' : 'user_input'
     const content: Array<InteractionContent> = []
+    const flush = () => {
+      if (content.length)
+        steps.push({ type: stepType, content: content.splice(0) })
+    }
+    const thought = (
+      thinking: NonNullable<ModelMessage['thinking']>[number],
+    ) => {
+      flush()
+      steps.push({
+        type: 'thought',
+        ...(thinking.signature && { signature: thinking.signature }),
+        summary: thinking.content
+          ? [{ type: 'text', text: thinking.content }]
+          : [],
+      })
+    }
+    const call = (toolCall: ToolCall) => {
+      const metadata = toolCall.metadata as GeminiToolCallMetadata | undefined
+      if (metadata?.providerExecuted) return
+      flush()
+      const signature = metadata?.thoughtSignature
+      if (typeof signature === 'string' && signature)
+        steps.push({ type: 'thought', signature, summary: [] })
+      const args: unknown = JSON.parse(toolCall.function.arguments || '{}')
+      if (typeof args !== 'object' || args === null || Array.isArray(args))
+        throw new Error(
+          `Gemini Interactions function ${toolCall.function.name} requires object arguments`,
+        )
+      steps.push({
+        type: 'function_call',
+        id: toolCall.id,
+        name: toolCall.function.name,
+        arguments: { ...args },
+      })
+    }
+    const ordered =
+      msg.role === 'assistant' ? orderedAssistantBlocks(msg) : undefined
+    if (ordered) {
+      for (const block of ordered) {
+        if (block.type === 'thinking') thought(block.thinking)
+        else if (block.type === 'text')
+          content.push({ type: 'text', text: block.text })
+        else call(block.toolCall)
+      }
+      flush()
+      continue
+    }
+    for (const thinking of msg.thinking ?? []) {
+      if (thinking.content || thinking.signature) thought(thinking)
+    }
     if (Array.isArray(msg.content)) {
       for (const part of msg.content) {
         content.push(contentPartToInteraction(part))
@@ -171,9 +339,8 @@ function buildInteractionsInput(
     } else if (msg.content) {
       content.push({ type: 'text', text: msg.content })
     }
-    if (content.length > 0) {
-      steps.push({ type: stepType, content })
-    }
+    flush()
+    for (const toolCall of msg.toolCalls ?? []) call(toolCall)
   }
   return steps
 }
@@ -214,6 +381,12 @@ type ResolveInputModalities<TModel extends string> =
  * Resolve tool capabilities for a specific model.
  * If the model has explicit tools in the map, use those; otherwise use empty tuple.
  */
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof GeminiModelReasoningByName
+    ? GeminiModelReasoningByName[TModel]
+    : never
+
 type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof GeminiChatModelToolCapabilitiesByName
     ? NonNullable<GeminiChatModelToolCapabilitiesByName[TModel]>
@@ -242,21 +415,46 @@ export class GeminiTextAdapter<
   TInputModalities,
   GeminiMessageMetadataByModality,
   TToolCapabilities,
-  GeminiToolCallMetadata
+  GeminiToolCallMetadata,
+  never,
+  ResolveReasoning<TModel>
 > {
   override readonly kind = 'text' as const
   readonly name = 'gemini' as const
+  override readonly provider: string
+  override readonly api: string
   // Consumes Gemini Files API references (geminiFiles()) as fileData.fileUri.
   override readonly supportsFileSources = true
+  override readonly inputModalities = GEMINI_MODEL_INPUT_MODALITIES[this.model]
 
   private readonly client: GoogleGenAI
 
   constructor(config: GeminiTextConfig, model: TModel) {
     super({}, model)
+    this.provider =
+      config.vertexai === true || config.enterprise === true
+        ? 'google-vertex'
+        : 'google'
+    this.api =
+      this.provider === 'google-vertex'
+        ? 'google-vertex'
+        : 'google-generative-ai'
     this.client = createGeminiClient(config)
   }
 
   async *chatStream(
+    options: TextOptions<GeminiTextProviderOptions>,
+  ): AsyncIterable<AdapterYieldChunk> {
+    const source = {
+      provider: this.provider,
+      api: hasAgenticVideo(options.messages) ? 'google-interactions' : this.api,
+      model: options.model,
+    }
+    for await (const chunk of this.chatStreamRequest(options))
+      yield withGeminiSource(chunk, source)
+  }
+
+  private async *chatStreamRequest(
     options: TextOptions<GeminiTextProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
     // Agentic video understanding is only exposed through the Interactions API,
@@ -279,6 +477,7 @@ export class GeminiTextAdapter<
 
       yield* this.processStreamChunks(result, options, logger)
     } catch (error) {
+      const overflow = isGeminiContextOverflow(error)
       const rawEvent = toRunErrorRawEvent(error)
       logger.errors('gemini.chatStream fatal', {
         error,
@@ -292,6 +491,7 @@ export class GeminiTextAdapter<
           error instanceof Error
             ? error.message
             : 'An unknown error occurred during the chat stream.',
+        ...(overflow && { code: CONTEXT_OVERFLOW_CODE }),
         // Forward the provider's structured error body when present (see
         // toRunErrorRawEvent); omitted otherwise.
         ...(rawEvent !== undefined && { rawEvent }),
@@ -300,6 +500,7 @@ export class GeminiTextAdapter<
             error instanceof Error
               ? error.message
               : 'An unknown error occurred during the chat stream.',
+          ...(overflow && { code: CONTEXT_OVERFLOW_CODE }),
         },
       }
     }
@@ -334,7 +535,13 @@ export class GeminiTextAdapter<
           ? normalizedPrompts.map((p) => p.content).join('\n')
           : undefined
 
-      const input = buildInteractionsInput(options.messages)
+      const input = buildInteractionsInput(
+        prepareGeminiMessagesForReplay(options.messages, {
+          provider: this.provider,
+          api: 'google-interactions',
+          model,
+        }),
+      )
 
       // The installed @google/genai (2.10.0) Interactions `VideoContent` type
       // predates the `processing` field, so the structurally-built input is
@@ -348,9 +555,16 @@ export class GeminiTextAdapter<
       })
 
       const text = interaction.output_text ?? ''
+      const responseMetadata = {
+        tanstack: {
+          ...(interaction.id && { responseId: interaction.id }),
+          ...(interaction.model && { model: interaction.model }),
+        },
+      }
 
       yield {
         type: EventType.RUN_STARTED,
+        metadata: responseMetadata,
         runId,
         threadId,
         model,
@@ -382,6 +596,7 @@ export class GeminiTextAdapter<
       }
       yield {
         type: EventType.RUN_FINISHED,
+        metadata: responseMetadata,
         runId,
         threadId,
         model,
@@ -389,6 +604,7 @@ export class GeminiTextAdapter<
         finishReason: 'stop',
       }
     } catch (error) {
+      const overflow = isGeminiContextOverflow(error)
       const rawEvent = toRunErrorRawEvent(error)
       logger.errors('gemini.interactionsStream fatal', {
         error,
@@ -402,12 +618,14 @@ export class GeminiTextAdapter<
           error instanceof Error
             ? error.message
             : 'An unknown error occurred during the chat stream.',
+        ...(overflow && { code: CONTEXT_OVERFLOW_CODE }),
         ...(rawEvent !== undefined && { rawEvent }),
         error: {
           message:
             error instanceof Error
               ? error.message
               : 'An unknown error occurred during the chat stream.',
+          ...(overflow && { code: CONTEXT_OVERFLOW_CODE }),
         },
       }
     }
@@ -441,6 +659,14 @@ export class GeminiTextAdapter<
         },
       })
 
+      // A response cut off at the output cap is a truncated JSON document;
+      // report it before the parse error (issue #1426).
+      if (result.candidates?.[0]?.finishReason === FinishReason.MAX_TOKENS) {
+        throw new Error(
+          'gemini.structuredOutput: the response was cut off because the maximum token limit was reached (finishReason=MAX_TOKENS); raise modelOptions.maxOutputTokens',
+        )
+      }
+
       // Extract text content from the response
       const rawText = this.extractTextFromResponse(result)
 
@@ -455,6 +681,8 @@ export class GeminiTextAdapter<
       return {
         data: parsed,
         rawText,
+        ...(result.responseId && { responseId: result.responseId }),
+        ...(result.modelVersion && { model: result.modelVersion }),
         usage: result.usageMetadata
           ? buildGeminiUsage(result.usageMetadata)
           : undefined,
@@ -480,6 +708,18 @@ export class GeminiTextAdapter<
    * emits one synthetic delta.
    */
   async *structuredOutputStream(
+    options: StructuredOutputOptions<GeminiTextProviderOptions>,
+  ): AsyncIterable<AdapterYieldChunk> {
+    const source = {
+      provider: this.provider,
+      api: this.api,
+      model: options.chatOptions.model,
+    }
+    for await (const chunk of this.structuredOutputRequestStream(options))
+      yield withGeminiSource(chunk, source)
+  }
+
+  private async *structuredOutputRequestStream(
     options: StructuredOutputOptions<GeminiTextProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
     const { chatOptions: requestedChatOptions, outputSchema } = options
@@ -602,6 +842,8 @@ export class GeminiTextAdapter<
     logger: InternalLogger,
   ): AsyncIterable<AdapterYieldChunk> {
     const model = options.model
+    let responseId: string | undefined
+    let reportedModel: string | undefined
     let accumulatedContent = ''
     let accumulatedThinking = ''
     const toolCallMap = new Map<
@@ -673,12 +915,20 @@ export class GeminiTextAdapter<
     }
 
     for await (const chunk of result) {
+      if (chunk.responseId) responseId = chunk.responseId
+      if (chunk.modelVersion) reportedModel = chunk.modelVersion
       logger.provider(`provider=gemini`, { chunk })
       // Emit RUN_STARTED on first chunk
       if (!hasEmittedRunStarted) {
         hasEmittedRunStarted = true
         yield {
           type: EventType.RUN_STARTED,
+          metadata: {
+            tanstack: {
+              ...(responseId && { responseId }),
+              ...(reportedModel && { model: reportedModel }),
+            },
+          },
           runId,
           threadId,
           model,
@@ -978,6 +1228,12 @@ export class GeminiTextAdapter<
 
         yield {
           type: EventType.RUN_FINISHED,
+          metadata: {
+            tanstack: {
+              ...(responseId && { responseId }),
+              ...(reportedModel && { model: reportedModel }),
+            },
+          },
           runId,
           threadId,
           model,
@@ -1175,6 +1431,43 @@ export class GeminiTextAdapter<
         }
       }
 
+      // Thinking goes back as thought parts with their signatures, in the
+      // order the model sent them when the message has an order map.
+      if (msg.role === 'assistant') {
+        const thoughtPart = (
+          thinking: NonNullable<ModelMessage['thinking']>[number],
+        ): Part => ({
+          thought: true,
+          text: thinking.content,
+          ...(thinking.signature && { thoughtSignature: thinking.signature }),
+        })
+        const ordered = orderedAssistantBlocks(msg)
+        if (ordered) {
+          const calls = new Map(
+            parts.flatMap((part) =>
+              part.functionCall?.id
+                ? [[part.functionCall.id, part] as const]
+                : [],
+            ),
+          )
+          parts.length = 0
+          for (const block of ordered) {
+            if (block.type === 'text') parts.push({ text: block.text })
+            else if (block.type === 'thinking')
+              parts.push(thoughtPart(block.thinking))
+            else {
+              const call = calls.get(block.toolCall.id)
+              if (call) parts.push(call)
+            }
+          }
+        } else {
+          parts.unshift(
+            ...(msg.thinking ?? [])
+              .filter((thinking) => thinking.content || thinking.signature)
+              .map(thoughtPart),
+          )
+        }
+      }
       return {
         role,
         parts: parts.length > 0 ? parts : [{ text: '' }],
@@ -1204,13 +1497,11 @@ export class GeminiTextAdapter<
     for (const msg of messages) {
       const parts = msg.parts || []
 
-      // Skip empty model messages (no parts or only empty text)
+      // Skip model rows with no parts or only unsigned empty text.
       if (msg.role === 'model') {
         const hasContent =
           parts.length > 0 &&
-          !parts.every(
-            (p) => 'text' in p && (p as { text: string }).text === '',
-          )
+          !parts.every((p) => p.text === '' && !p.thoughtSignature)
         if (!hasContent) {
           continue
         }
@@ -1250,31 +1541,13 @@ export class GeminiTextAdapter<
   private mapCommonOptionsToGemini(
     options: TextOptions<GeminiTextProviderOptions>,
   ) {
-    // Separate `thinkingConfig` from the other model options so the loose
-    // local `thinkingLevel?: keyof typeof ThinkingLevel` type doesn't leak
-    // into the SDK config object via the `...modelOpts` spread — we re-add a
-    // properly-typed `ThinkingConfig` below.
-    const { thinkingConfig, ...modelOpts } = options.modelOptions ?? {}
-    // Build the thinkingConfig payload only when the caller actually supplied
-    // one. Our local `thinkingLevel` is typed as `keyof typeof ThinkingLevel`
-    // (string union) so users can pass plain strings; the SDK target is the
-    // `ThinkingLevel` enum, and every field is `field?: T` under EOPT — so we
-    // re-emit fields via conditional spreads.
-    const mappedThinkingConfig = thinkingConfig
-      ? {
-          ...(thinkingConfig.includeThoughts !== undefined && {
-            includeThoughts: thinkingConfig.includeThoughts,
-          }),
-          ...(thinkingConfig.thinkingBudget !== undefined && {
-            thinkingBudget: thinkingConfig.thinkingBudget,
-          }),
-          ...(thinkingConfig.thinkingLevel
-            ? {
-                thinkingLevel: thinkingConfig.thinkingLevel as ThinkingLevel,
-              }
-            : {}),
-        }
-      : undefined
+    const modelOpts = options.modelOptions ?? {}
+    // `chat({ reasoning })`, as this model's thinking config.
+    const mappedThinkingConfig = geminiThinkingConfig(
+      options.model,
+      options.reasoning,
+      GEMINI_MODEL_REASONING[options.model],
+    )
 
     const normalizedPrompts = normalizeSystemPrompts(options.systemPrompts)
     const systemInstruction =
@@ -1301,19 +1574,42 @@ export class GeminiTextAdapter<
         }
       : undefined
 
+    // `chat({ toolChoice })` is sent only when the request has function
+    // declarations, because Gemini rejects a function calling config without
+    // them. A `toolConfig` in modelOptions wins key by key, so its own
+    // `functionCallingConfig` wins, and a `retrievalConfig` alone keeps this one.
+    const tools = convertToolsToProviderFormat(options.tools)
+    const functionCallingConfig =
+      options.toolChoice !== undefined &&
+      tools.some((tool) => 'functionDeclarations' in tool)
+        ? toGeminiFunctionCallingConfig(options.toolChoice)
+        : undefined
+
     // Vendor `GenerateContentConfig` fields are `field?: T` (no `| undefined`)
     // under EOPT, so spread each common option only when present rather than
     // emitting `field: undefined`s into the wire payload.
     const requestOptions: GenerateContentParameters = {
       model: options.model,
-      contents: this.formatMessages(options.messages),
+      contents: this.formatMessages(
+        prepareGeminiMessagesForReplay(options.messages, {
+          provider: this.provider,
+          api: this.api,
+          model: options.model,
+        }),
+      ),
       config: {
         ...modelOpts,
+        ...(functionCallingConfig !== undefined && {
+          toolConfig: {
+            functionCallingConfig,
+            ...options.modelOptions?.toolConfig,
+          },
+        }),
         ...(mappedThinkingConfig !== undefined && {
           thinkingConfig: mappedThinkingConfig,
         }),
         ...(systemInstruction !== undefined && { systemInstruction }),
-        tools: convertToolsToProviderFormat(options.tools),
+        tools,
         ...(combinedSchemaConfig ?? {}),
         // Forward the caller's abort signal so cancellation reaches the SDK
         // request, matching the OpenAI-compatible adapters (issue #1374).

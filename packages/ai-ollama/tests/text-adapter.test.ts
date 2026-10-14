@@ -367,6 +367,23 @@ describe('OllamaTextAdapter.structuredOutput', () => {
     ).rejects.toThrow(/Failed to parse structured output/)
   })
 
+  it('reports a length stop as truncation, not a parse failure', async () => {
+    chatMock.mockResolvedValueOnce({
+      message: { role: 'assistant', content: '{"result":' },
+      done_reason: 'length',
+    })
+    const adapter = createOllamaChat('llama3.2')
+    await expect(
+      adapter.structuredOutput({
+        chatOptions: {
+          logger: testLogger,
+          messages: [{ role: 'user', content: 'q' }],
+        },
+        outputSchema: { type: 'object', properties: {} },
+      } as any),
+    ).rejects.toThrow(/maximum token limit was reached/)
+  })
+
   it('surfaces upstream errors as structured-output errors', async () => {
     chatMock.mockRejectedValueOnce(new Error('network down'))
     const adapter = createOllamaChat('llama3.2')
@@ -477,7 +494,7 @@ describe('OllamaTextAdapter modelOptions (nested options contract)', () => {
     expect(call.options).toEqual({})
   })
 
-  it('forwards request-level fields (format, keep_alive, think) outside of options', async () => {
+  it('forwards request-level fields (format, keep_alive) outside of options', async () => {
     chatMock.mockResolvedValueOnce(
       asyncIterable([
         {
@@ -497,7 +514,6 @@ describe('OllamaTextAdapter modelOptions (nested options contract)', () => {
         modelOptions: {
           options: { temperature: 0.3 },
           keep_alive: '10m',
-          think: true,
         },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any),
@@ -506,13 +522,44 @@ describe('OllamaTextAdapter modelOptions (nested options contract)', () => {
     const call = chatMock.mock.calls[0]![0] as {
       options?: Record<string, unknown>
       keep_alive?: unknown
-      think?: unknown
     }
     expect(call.keep_alive).toBe('10m')
-    expect(call.think).toBe(true)
     // Request-level fields must not leak into the sampling options bag.
     expect(call.options).toEqual({ temperature: 0.3 })
   })
+
+  it.each([
+    ['qwen3:8b', 'high', true],
+    ['qwen3:8b', 'off', false],
+    ['gpt-oss:20b', 'medium', 'medium'],
+    // A model name this package does not list gets the on/off toggle.
+    ['my-custom-model', 'high', true],
+    // A listed model that does not reason gets no think field.
+    ['athene-v2:latest', 'high', undefined],
+  ] as const)(
+    'maps chat({ reasoning }) on %s at %s to think %s',
+    async (model, level, think) => {
+      chatMock.mockResolvedValueOnce(
+        asyncIterable([
+          {
+            message: { role: 'assistant', content: 'ok' },
+            done: true,
+            done_reason: 'stop',
+          },
+        ]),
+      )
+      await collectStream(
+        createOllamaChat(model).chatStream({
+          logger: testLogger,
+          model,
+          messages: [{ role: 'user', content: 'hi' }],
+          reasoning: { level, summary: true },
+        }),
+      )
+      const call = chatMock.mock.calls[0]![0] as { think?: unknown }
+      expect(call.think).toBe(think)
+    },
+  )
 })
 
 describe('OllamaTextAdapter system prompts', () => {

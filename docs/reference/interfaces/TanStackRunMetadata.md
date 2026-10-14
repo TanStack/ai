@@ -3,7 +3,7 @@ id: TanStackRunMetadata
 title: TanStackRunMetadata
 ---
 
-Defined in: [packages/ai/src/types.ts:588](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L588)
+Defined in: [packages/ai/src/types.ts:757](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L757)
 
 Shape of `metadata.tanstack` on run events.
 
@@ -15,7 +15,7 @@ Shape of `metadata.tanstack` on run events.
 optional finishReason?: "length" | "stop" | "content_filter" | "tool_calls" | null;
 ```
 
-Defined in: [packages/ai/src/types.ts:590](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L590)
+Defined in: [packages/ai/src/types.ts:763](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L763)
 
 ***
 
@@ -25,7 +25,7 @@ Defined in: [packages/ai/src/types.ts:590](https://github.com/TanStack/ai/blob/m
 optional index?: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:597](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L597)
+Defined in: [packages/ai/src/types.ts:770](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L770)
 
 ***
 
@@ -35,7 +35,7 @@ Defined in: [packages/ai/src/types.ts:597](https://github.com/TanStack/ai/blob/m
 optional input?: unknown;
 ```
 
-Defined in: [packages/ai/src/types.ts:600](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L600)
+Defined in: [packages/ai/src/types.ts:775](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L775)
 
 Parsed `TOOL_CALL_END` input. Spec `TOOL_CALL_END` has no top-level `input`.
 
@@ -47,7 +47,7 @@ Parsed `TOOL_CALL_END` input. Spec `TOOL_CALL_END` has no top-level `input`.
 optional interruptErrors?: readonly InterruptSubmissionError[];
 ```
 
-Defined in: [packages/ai/src/types.ts:593](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L593)
+Defined in: [packages/ai/src/types.ts:766](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L766)
 
 ***
 
@@ -57,7 +57,53 @@ Defined in: [packages/ai/src/types.ts:593](https://github.com/TanStack/ai/blob/m
 optional model?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:589](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L589)
+Defined in: [packages/ai/src/types.ts:759](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L759)
+
+***
+
+### responseId?
+
+```ts
+optional responseId?: string;
+```
+
+Defined in: [packages/ai/src/types.ts:760](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L760)
+
+***
+
+### responseItems?
+
+```ts
+optional responseItems?: object[];
+```
+
+Defined in: [packages/ai/src/types.ts:762](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L762)
+
+The answer items of this model call. See `TanStackMessageMetadata.responseItems`.
+
+#### id
+
+```ts
+id: string;
+```
+
+#### phase?
+
+```ts
+optional phase?: string;
+```
+
+***
+
+### retryAfterMs?
+
+```ts
+optional retryAfterMs?: number;
+```
+
+Defined in: [packages/ai/src/types.ts:772](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L772)
+
+On a `RUN_ERROR`. See `RunErrorEvent.retryAfterMs`.
 
 ***
 
@@ -67,7 +113,7 @@ Defined in: [packages/ai/src/types.ts:589](https://github.com/TanStack/ai/blob/m
 optional runId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:595](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L595)
+Defined in: [packages/ai/src/types.ts:768](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L768)
 
 ***
 
@@ -77,7 +123,17 @@ Defined in: [packages/ai/src/types.ts:595](https://github.com/TanStack/ai/blob/m
 optional sessionId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:596](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L596)
+Defined in: [packages/ai/src/types.ts:769](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L769)
+
+***
+
+### source?
+
+```ts
+optional source?: MessageSource;
+```
+
+Defined in: [packages/ai/src/types.ts:758](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L758)
 
 ***
 
@@ -87,7 +143,7 @@ Defined in: [packages/ai/src/types.ts:596](https://github.com/TanStack/ai/blob/m
 optional state?: ToolOutputState;
 ```
 
-Defined in: [packages/ai/src/types.ts:598](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L598)
+Defined in: [packages/ai/src/types.ts:773](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L773)
 
 ***
 
@@ -97,7 +153,7 @@ Defined in: [packages/ai/src/types.ts:598](https://github.com/TanStack/ai/blob/m
 optional threadId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:594](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L594)
+Defined in: [packages/ai/src/types.ts:767](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L767)
 
 ***
 
@@ -107,6 +163,6 @@ Defined in: [packages/ai/src/types.ts:594](https://github.com/TanStack/ai/blob/m
 optional usage?: TokenUsageLeftover;
 ```
 
-Defined in: [packages/ai/src/types.ts:592](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L592)
+Defined in: [packages/ai/src/types.ts:765](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L765)
 
 TokenUsage fields that have no AG-UI `usage[]` equivalent.

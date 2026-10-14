@@ -330,7 +330,7 @@ export async function POST({ request }: { request: Request }) {
   // Call OpenRouter. stream: true so the hook can listen on SSE.
   // The hook stores the finished picture on result.images.
   const stream = generateImage({
-    adapter: createOpenRouterImage('google/gemini-3.1-flash-image', apiKey),
+    adapter: createOpenRouterImage('google/gemini-nano-banana-2.1', apiKey),
     prompt: input.prompt,
     stream: true,
     threadId,

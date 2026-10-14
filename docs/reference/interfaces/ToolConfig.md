@@ -3,7 +3,7 @@ id: ToolConfig
 title: ToolConfig
 ---
 
-Defined in: [packages/ai/src/types.ts:886](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L886)
+Defined in: [packages/ai/src/types.ts:1100](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1100)
 
 ## Indexable
 

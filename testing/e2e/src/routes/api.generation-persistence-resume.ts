@@ -38,19 +38,21 @@ const TINY_PNG_B64 =
 // rejoined image renders from our own origin.
 const DURABLE_IMAGE_URL = '/durable/generation-resume/image-1.png'
 
-// The run holds its result until the client has disconnected (the reload), then
-// settles briefly so the remounted client's mount probe reliably observes the
-// run as still `running` and takes the `joinRun` path. `DISCONNECT_FALLBACK_MS`
-// only matters if this runtime never fires `request.signal` on disconnect — the
-// run still completes strictly after the reload either way.
+// The run holds its result until the client has disconnected (the reload) AND a
+// later mount probe has observed the run as still `running`. A fixed settle
+// loses when CI hydration is slower than the timer, and the probe then restores
+// the finished snapshot (`image-restored`) instead of tailing the live run.
+// `DISCONNECT_FALLBACK_MS` only matters if this runtime never fires
+// `request.signal` on disconnect.
 const DISCONNECT_FALLBACK_MS = 3000
-const SETTLE_AFTER_DISCONNECT_MS = 1500
 
 // Runs still in flight per thread (the `activeRun` a mount probe reports), and
 // the finished job per thread (the `complete` snapshot a late probe restores).
 // Process-lifetime maps: the e2e server stays up across reloads.
 const runningByThread = new Map<string, string>()
 const completedByThread = new Map<string, Record<string, unknown>>()
+// Resolved when a mount probe has reported this run as `running`.
+const releaseResultByRun = new Map<string, () => void>()
 
 function stringField(body: unknown, key: string): string | undefined {
   if (typeof body !== 'object' || body === null || !(key in body)) {
@@ -98,10 +100,6 @@ function persistedResult(threadId: string, runId: string) {
   }
 }
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
 /** Resolves once the client disconnects, or after a fallback if it never does. */
 function waitForDisconnect(signal: AbortSignal): Promise<void> {
   if (signal.aborted) return Promise.resolve()
@@ -121,47 +119,54 @@ function imageRun(
   runId: string,
   signal: AbortSignal,
 ): AsyncIterable<StreamChunk> {
+  let releaseResult!: () => void
+  const resultObserved = new Promise<void>((resolve) => {
+    releaseResult = resolve
+  })
+  releaseResultByRun.set(runId, releaseResult)
   return (async function* () {
-    // Mark the run in flight before the first chunk, so a mount probe that
-    // races in right after the reload still sees the `activeRun` to rejoin.
-    runningByThread.set(threadId, runId)
-    yield {
-      type: 'RUN_STARTED',
-      threadId,
-      runId,
-      timestamp: Date.now(),
-    } as StreamChunk
-    // Hold the result until the client has disconnected (the reload), then a
-    // short settle so the remounted client's probe still sees `running`. This
-    // makes the result land strictly AFTER the reload — the run cannot complete
-    // as a done-restore before the reload, so the rejoin is the path exercised.
-    // A client that reloads here cancels only the socket; the durability pump
-    // keeps draining this generator to its terminal.
-    await waitForDisconnect(signal)
-    await delay(SETTLE_AFTER_DISCONNECT_MS)
-    yield {
-      type: 'CUSTOM',
-      name: 'generation:result',
-      value: {
-        id: 'image-1',
-        model: 'mock-image-model',
-        images: [{ url: DURABLE_IMAGE_URL, b64Json: TINY_PNG_B64 }],
-        artifacts: [imageArtifact(threadId, runId)],
-      },
-      threadId,
-      runId,
-      timestamp: Date.now(),
-    } as StreamChunk
-    yield {
-      type: 'RUN_FINISHED',
-      threadId,
-      runId,
-      timestamp: Date.now(),
-    } as StreamChunk
-    // Terminal reached: record the finished job and drop the active marker, so a
-    // probe after completion restores a `complete` snapshot instead of rejoining.
-    completedByThread.set(threadId, persistedResult(threadId, runId))
-    runningByThread.delete(threadId)
+    try {
+      // Mark the run in flight before the first chunk, so a mount probe that
+      // races in right after the reload still sees the `activeRun` to rejoin.
+      runningByThread.set(threadId, runId)
+      yield {
+        type: 'RUN_STARTED',
+        threadId,
+        runId,
+        timestamp: Date.now(),
+      } as StreamChunk
+      // Hold the result until the client has disconnected (the reload) and the
+      // remounted client's probe has observed `running`. The result then lands
+      // in the durability log for `joinRun` to tail. A disconnect cancels only
+      // the socket; the durability pump keeps draining this generator.
+      await waitForDisconnect(signal)
+      await resultObserved
+      yield {
+        type: 'CUSTOM',
+        name: 'generation:result',
+        value: {
+          id: 'image-1',
+          model: 'mock-image-model',
+          images: [{ url: DURABLE_IMAGE_URL, b64Json: TINY_PNG_B64 }],
+          artifacts: [imageArtifact(threadId, runId)],
+        },
+        threadId,
+        runId,
+        timestamp: Date.now(),
+      } as StreamChunk
+      yield {
+        type: 'RUN_FINISHED',
+        threadId,
+        runId,
+        timestamp: Date.now(),
+      } as StreamChunk
+      // Terminal reached: record the finished job and drop the active marker, so a
+      // probe after completion restores a `complete` snapshot instead of rejoining.
+      completedByThread.set(threadId, persistedResult(threadId, runId))
+      runningByThread.delete(threadId)
+    } finally {
+      releaseResultByRun.delete(runId)
+    }
   })()
 }
 
@@ -197,6 +202,7 @@ export const Route = createFileRoute('/api/generation-persistence-resume')({
           ? runningByThread.get(threadId)
           : undefined
         const completed = threadId ? completedByThread.get(threadId) : undefined
+        if (runningRunId) releaseResultByRun.get(runningRunId)?.()
         const body = runningRunId
           ? {
               resumeSnapshot: {

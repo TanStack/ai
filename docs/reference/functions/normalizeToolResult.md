@@ -7,7 +7,7 @@ title: normalizeToolResult
 function normalizeToolResult(result): string | ContentPart[];
 ```
 
-Defined in: [packages/ai/src/utilities/tool-result.ts:90](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/tool-result.ts#L90)
+Defined in: [packages/ai/src/utilities/tool-result.ts:96](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/tool-result.ts#L96)
 
 Normalize a tool's return value for transport:
 - string            → unchanged

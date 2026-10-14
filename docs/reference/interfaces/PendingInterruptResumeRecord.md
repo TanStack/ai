@@ -3,7 +3,7 @@ id: PendingInterruptResumeRecord
 title: PendingInterruptResumeRecord
 ---
 
-Defined in: [packages/ai/src/interrupt-resume.ts:49](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L49)
+Defined in: [packages/ai/src/interrupt-resume.ts:50](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L50)
 
 The persistence-neutral shape required to validate an interrupt resume.
 
@@ -15,7 +15,7 @@ The persistence-neutral shape required to validate an interrupt resume.
 binding: InterruptBinding;
 ```
 
-Defined in: [packages/ai/src/interrupt-resume.ts:52](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L52)
+Defined in: [packages/ai/src/interrupt-resume.ts:53](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L53)
 
 ***
 
@@ -25,7 +25,7 @@ Defined in: [packages/ai/src/interrupt-resume.ts:52](https://github.com/TanStack
 optional genericRequest?: GenericInterruptRequestBase<InterruptDefinition<any, any, any, any, any>>;
 ```
 
-Defined in: [packages/ai/src/interrupt-resume.ts:54](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L54)
+Defined in: [packages/ai/src/interrupt-resume.ts:55](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L55)
 
 Present for a first-party generic interrupt.
 
@@ -37,7 +37,7 @@ Present for a first-party generic interrupt.
 interruptId: string;
 ```
 
-Defined in: [packages/ai/src/interrupt-resume.ts:50](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L50)
+Defined in: [packages/ai/src/interrupt-resume.ts:51](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L51)
 
 ***
 
@@ -47,4 +47,4 @@ Defined in: [packages/ai/src/interrupt-resume.ts:50](https://github.com/TanStack
 payload: unknown;
 ```
 
-Defined in: [packages/ai/src/interrupt-resume.ts:51](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L51)
+Defined in: [packages/ai/src/interrupt-resume.ts:52](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L52)

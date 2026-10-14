@@ -7,7 +7,7 @@ title: INTERRUPT_BINDING_METADATA_KEY
 const INTERRUPT_BINDING_METADATA_KEY: "tanstack:interruptBinding" = 'tanstack:interruptBinding';
 ```
 
-Defined in: [packages/ai/src/interrupt-resume.ts:44](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L44)
+Defined in: [packages/ai/src/interrupt-resume.ts:45](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L45)
 
 The `Interrupt.metadata` key under which this package's resume binding
 travels.

@@ -133,7 +133,7 @@ If no provider is set, the send throws. The client does not attach every stored 
 
 Built-in fetch and XHR adapters copy the headers onto the POST.
 
-If you write a custom `connect`, copy `runContext.headers` yourself. See [Connection Adapters](../chat/connection-adapters).
+If you write a custom `connect`, copy `runContext.headers` yourself. See [Custom Transports](../transports/custom#request-scoped-adapters).
 
 ## 4. Read the key on the relay
 
@@ -172,6 +172,150 @@ CAUTION: Do not log the raw key. Use [`maskKey`](../api/ai#maskkey) on error str
 
 You can paste a key, send a message, and the relay calls OpenAI with that key.
 
+## Pick the model before the key shows up
+
+You want to set up your models in one place, for example a list that users pick from. But you only get the key with each request. Wrap the adapter in `keyedAdapter`. The route builds it when the key comes in.
+
+On the server, define the model once:
+
+```typescript group=keyed
+import { keyedAdapter } from "@tanstack/ai/byok";
+import { createOpenaiChat } from "@tanstack/ai-openai";
+import { openaiByok } from "@tanstack/ai-openai/byok";
+
+export const gpt = keyedAdapter(openaiByok, (key) =>
+  createOpenaiChat("gpt-6.1-sol", key),
+);
+```
+
+Then build it in the route with the key from the request:
+
+```typescript group=keyed
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { byokMissing, getByokKey } from "@tanstack/ai/byok/server";
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request);
+  const apiKey = getByokKey(request, gpt.provider);
+  if (!apiKey) return byokMissing(gpt.provider);
+
+  const stream = chat({
+    adapter: gpt.create(apiKey),
+    messages: params.messages,
+    threadId: params.threadId,
+    runId: params.runId,
+  });
+  return toServerSentEventsResponse(stream);
+}
+```
+
+The client does not change. It sends the key the same way as in step 3:
+
+```tsx
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { byok } from "./byok";
+
+export function Chat() {
+  const { sendMessage } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+    byok,
+    forwardedProps: { provider: "openai" },
+  });
+
+  return (
+    <button type="button" onClick={() => void sendMessage("Hello")}>
+      Send
+    </button>
+  );
+}
+```
+
+Good to know:
+
+- `keyedAdapter` works for every adapter kind: text, image, speech, and the rest.
+- Your list can mix plain and keyed adapters. `isKeyedAdapter(adapter)` tells you which ones need a key.
+
+### More than one provider
+
+Your users pick OpenAI or Anthropic, and each one brings their own key. Put both in `keyedAdapters`. The map key is the provider id, so a key only goes to its own provider:
+
+```typescript group=keyed-many
+import { keyedAdapter, keyedAdapters } from "@tanstack/ai/byok";
+import { createAnthropicChat } from "@tanstack/ai-anthropic";
+import { anthropicByok } from "@tanstack/ai-anthropic/byok";
+import { createOpenaiChat } from "@tanstack/ai-openai";
+
+export const models = keyedAdapters({
+  openai: (key) => createOpenaiChat("gpt-6.1-sol", key),
+  anthropic: keyedAdapter(anthropicByok, (key) =>
+    createAnthropicChat("claude-sonnet-5-5", key),
+  ),
+});
+```
+
+In the route, `keyedAdapterFromRequest` builds the adapter of the provider that has a key:
+
+```typescript group=keyed-many
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import {
+  byokMissing,
+  keyedAdapterFromRequest,
+} from "@tanstack/ai/byok/server";
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request);
+  const adapter = keyedAdapterFromRequest(request, models);
+  if (!adapter) return byokMissing("openai");
+
+  const stream = chat({
+    adapter,
+    messages: params.messages,
+    threadId: params.threadId,
+    runId: params.runId,
+  });
+  return toServerSentEventsResponse(stream);
+}
+```
+
+On the client, `forwardedProps.provider` picks which key goes out:
+
+```tsx
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { byok } from "./byok";
+
+export function Chat({ provider }: { provider: "openai" | "anthropic" }) {
+  const { sendMessage } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+    byok,
+    forwardedProps: { provider },
+  });
+
+  return (
+    <button type="button" onClick={() => void sendMessage("Hello")}>
+      Send
+    </button>
+  );
+}
+```
+
+How it picks:
+
+1. The user's own key wins. That is the `x-byok-<id>` header, checked in map order.
+2. Then the env keys, in map order. Only entries made with a descriptor (like `anthropicByok`) have env names. A plain factory reads the header only.
+3. No key at all? You get `null`, so answer with `byokMissing`.
+
+An entry like `anthropic: keyedAdapter(openaiByok, ...)` throws at startup, so a key cannot reach the wrong provider.
+
+The adapter you get back is a union of your providers. Need the exact model types, for example for `modelOptions`? Call `models.openai.create(key)` yourself.
+
 ## If the relay already has an env key
 
 By default, a send with no browser key does not POST. If your relay has env keys, call `byok.setServerCoverage(true)`:
@@ -181,6 +325,72 @@ byok.setServerCoverage(true);
 ```
 
 Then a send with no pasted key still POSTs. The relay uses the env key. If that is also empty, the relay returns `byokMissing` (401). The client sets `snapshot.prompt`.
+
+## Keys inside agents
+
+Your [subagents](../chat/subagents) call models too, and those calls need the user's key. Pass the key on `subagents.keys`. Each agent builds its adapter with `ctx.keys`.
+
+1. Define the agent. Wrap its adapter in `keyedAdapter`, then build it with `ctx.keys.adapter`:
+
+```typescript group=agent-keys
+import { defineAgent, keyedAdapter } from "@tanstack/ai";
+import { createOpenaiChat } from "@tanstack/ai-openai";
+import { openaiByok } from "@tanstack/ai-openai/byok";
+
+const gpt = keyedAdapter(openaiByok, (key) =>
+  createOpenaiChat("gpt-6.1-sol", key),
+);
+
+export const writer = defineAgent({
+  name: "writer",
+  description: "Writes a short draft",
+  run: async (ctx) =>
+    ctx.chat({
+      adapter: await ctx.keys.adapter(gpt),
+      messages: [{ role: "user", content: "Write a short draft." }],
+      stream: false,
+    }),
+});
+```
+
+2. In the route, give `subagents.keys` a function. `getByokKey` reads the key that the client sends for each provider:
+
+```typescript group=agent-keys
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { byokMissing, getByokKey } from "@tanstack/ai/byok/server";
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request);
+  const apiKey = getByokKey(request, openaiByok);
+  if (!apiKey) return byokMissing(openaiByok);
+
+  const stream = chat({
+    adapter: gpt.create(apiKey),
+    messages: params.messages,
+    threadId: params.threadId,
+    runId: params.runId,
+    subagents: {
+      agents: [writer],
+      keys: (provider) => getByokKey(request, provider),
+    },
+  });
+  return toServerSentEventsResponse(stream);
+}
+```
+
+How `ctx.keys` finds a key:
+
+- It calls the `subagents.keys` function with the provider of the adapter, here `openaiByok`. The function can read any store, for example your database.
+- `subagents.keys` can also be an object by provider id, for example `{ openai: apiKey }`.
+- If there is no key, it reads the env var of the provider, here `OPENAI_API_KEY`. If that is empty too, the call throws `Missing OpenAI API key. Set OPENAI_API_KEY.`
+- A child that calls `ctx.chat({ subagents })` passes the keys on to its own children. Keys that the child sets itself win for those providers.
+- `ctx.keys.get(provider)` returns the key or `null`. `ctx.keys.require(provider)` throws when there is no key.
+
+The writer now calls OpenAI with the key that the user pasted.
 
 ## Image, audio, and other providers
 

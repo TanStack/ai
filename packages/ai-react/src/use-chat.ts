@@ -77,55 +77,9 @@ export function useChat<
     useMemo(() => {
       const messagesToUse = options.initialMessages || []
 
-      // Build options with conditional spreads for fields whose source
-      // type is `T | undefined` but the ChatClient target uses a strict
-      // optional (`field?: T`) — `exactOptionalPropertyTypes` rejects
-      // assigning `undefined` to those, so we omit the key when absent.
       const initialOptions = optionsRef.current
-      let persistence = initialOptions.persistence
-      let releasePersistenceHydration = () => {}
-      if (persistence && typeof persistence === 'object') {
-        const source = persistence
-        let hydrationStarted = false
-        let releaseRead: (() => void) | undefined
-        let hydrationPromise:
-          | Promise<
-              Awaited<ReturnType<ChatClientPersistence<TTools>['getItem']>>
-            >
-          | undefined
-        const gatedPersistence: ChatClientPersistence<TTools> = {
-          getItem(id) {
-            if (!hydrationPromise) {
-              hydrationPromise = new Promise((resolve, reject) => {
-                let readStarted = false
-                releaseRead = () => {
-                  if (readStarted) return
-                  readStarted = true
-                  try {
-                    resolve(source.getItem.call(source, id))
-                  } catch (error) {
-                    reject(error)
-                  }
-                }
-              })
-            }
-            if (hydrationStarted) releaseRead?.()
-            return hydrationPromise
-          },
-          setItem(id, state) {
-            return source.setItem.call(source, id, state)
-          },
-          removeItem(id) {
-            return source.removeItem.call(source, id)
-          },
-        }
-        persistence = gatedPersistence
-        releasePersistenceHydration = () => {
-          if (hydrationStarted) return
-          hydrationStarted = true
-          releaseRead?.()
-        }
-      }
+      const { persistence, release: releasePersistenceHydration } =
+        gatePersistence(initialOptions.persistence)
       const transport = initialOptions.connection
         ? { connection: initialOptions.connection }
         : { fetcher: initialOptions.fetcher }
@@ -563,6 +517,7 @@ export function useChat<
     isSubscribed: snapshot.isSubscribed,
     connectionStatus: snapshot.connectionStatus,
     sessionGenerating: snapshot.sessionGenerating,
+    isHydrating: snapshot.isHydrating,
     setMessages: setMessagesManually,
     clear,
     addToolResult,
@@ -582,4 +537,48 @@ export function useChat<
     partial,
     final,
   } as unknown as UseChatReturn<TTools, TSchema, TInterrupts, TSubagents>
+}
+
+/**
+ * Hold a browser store's first read until `release()`. React's first commit
+ * then matches the server snapshot (`initialMessages`), and the stored
+ * transcript applies after the hook attaches.
+ */
+function gatePersistence<TTools extends ReadonlyArray<AnyClientTool>>(
+  source: boolean | ChatClientPersistence<TTools> | undefined,
+): {
+  persistence: boolean | ChatClientPersistence<TTools> | undefined
+  release: () => void
+} {
+  if (!source || source === true) {
+    return { persistence: source, release: () => {} }
+  }
+  const store = source
+  let released = false
+  let startRead: (() => void) | undefined
+  let read: ReturnType<ChatClientPersistence<TTools>['getItem']> | undefined
+  return {
+    persistence: {
+      getItem(id) {
+        read ??= new Promise((resolve, reject) => {
+          startRead = () => {
+            startRead = undefined
+            try {
+              resolve(store.getItem(id))
+            } catch (error) {
+              reject(error)
+            }
+          }
+        })
+        if (released) startRead?.()
+        return read
+      },
+      setItem: (id, state) => store.setItem(id, state),
+      removeItem: (id) => store.removeItem(id),
+    },
+    release: () => {
+      released = true
+      startRead?.()
+    },
+  }
 }

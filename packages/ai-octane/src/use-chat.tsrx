@@ -14,7 +14,6 @@ import type {
   ResolvableChatInterrupt,
   ChatResumeState,
   InferredClientContext,
-  QueuedMessage,
   SendMessageOptions,
   StructuredOutputPart,
 } from '@tanstack/ai-client'
@@ -187,30 +186,14 @@ export function useChat<
 
   // Constructor hydration (sync store / resume snapshot) must be on the first
   // paint. `useEffect` runs after paint, so seed from the snapshot here.
-  const firstPaint = client.getSnapshot()
-  const [messages, setMessages] = useState<ReadonlyArray<UIMessage<TTools>>>(
-    firstPaint.messages,
-  )
-  const [isLoading, setIsLoading] = useState(firstPaint.isLoading)
-  const [hasOlderMessages, setHasOlderMessages] = useState(
-    firstPaint.hasOlderMessages,
-  )
-  const [error, setError] = useState(firstPaint.error)
-  const [status, setStatus] = useState(firstPaint.status)
-  const [isSubscribed, setIsSubscribed] = useState(firstPaint.isSubscribed)
-  const [connectionStatus, setConnectionStatus] = useState(
-    firstPaint.connectionStatus,
-  )
-  const [sessionGenerating, setSessionGenerating] = useState(
-    firstPaint.sessionGenerating,
-  )
-  const [queue, setQueue] = useState<ReadonlyArray<QueuedMessage>>(
-    firstPaint.queue,
-  )
-  const [runId, setRunId] = useState(firstPaint.runId)
-  const [interruptState, setInterruptState] = useState(
-    firstPaint.interruptState,
-  )
+  // Tagged with its client: after a thread switch, the new client's snapshot
+  // shows on the first render, before the effect below subscribes.
+  const [held, setHeld] = useState(() => ({
+    client,
+    snapshot: client.getSnapshot(),
+  }))
+  const snapshot =
+    held.client === client ? held.snapshot : client.getSnapshot()
 
   useEffect(() => {
     activeClientRef.current = client
@@ -233,17 +216,11 @@ export function useChat<
   useEffect(() => {
     const applySnapshot = () => {
       const next = client.getSnapshot()
-      setMessages(next.messages)
-      setIsLoading(next.isLoading)
-      setHasOlderMessages(next.hasOlderMessages)
-      setError(next.error)
-      setStatus(next.status)
-      setIsSubscribed(next.isSubscribed)
-      setConnectionStatus(next.connectionStatus)
-      setSessionGenerating(next.sessionGenerating)
-      setQueue(next.queue)
-      setRunId(next.runId)
-      setInterruptState(next.interruptState)
+      setHeld((prev) =>
+        prev.client === client && prev.snapshot === next
+          ? prev
+          : { client, snapshot: next },
+      )
     }
     applySnapshot()
     return client.subscribeSnapshot(applySnapshot)
@@ -445,7 +422,7 @@ export function useChat<
   // a stale assistant turn or a system prompt) we deliberately return null
   // rather than scanning historical assistants — otherwise a `final` from a
   // previous session would leak into the hook value on first render.
-  const renderedMessages = client.getMessages()
+  const renderedMessages = snapshot.messages
 
   const activeStructuredPart = useMemo<StructuredOutputPart | null>(() => {
     let lastUserIndex = -1
@@ -490,25 +467,26 @@ export function useChat<
     append,
     reload,
     stop,
-    isLoading,
-    hasOlderMessages,
+    isLoading: snapshot.isLoading,
+    hasOlderMessages: snapshot.hasOlderMessages,
     loadOlderMessages,
-    error,
-    status,
-    isSubscribed,
-    connectionStatus,
-    sessionGenerating,
+    error: snapshot.error,
+    status: snapshot.status,
+    isSubscribed: snapshot.isSubscribed,
+    connectionStatus: snapshot.connectionStatus,
+    sessionGenerating: snapshot.sessionGenerating,
+    isHydrating: snapshot.isHydrating,
     setMessages: setMessagesManually,
     clear,
     addToolResult,
     addToolApprovalResponse,
-    queue,
+    queue: snapshot.queue,
     cancelQueued,
-    runId,
-    interrupts: interruptState.interrupts,
-    pendingInterrupts: interruptState.pendingInterrupts,
-    interruptErrors: interruptState.interruptErrors,
-    resuming: interruptState.resuming,
+    runId: snapshot.runId,
+    interrupts: snapshot.interruptState.interrupts,
+    pendingInterrupts: snapshot.interruptState.pendingInterrupts,
+    interruptErrors: snapshot.interruptState.interruptErrors,
+    resuming: snapshot.interruptState.resuming,
     resolveInterrupts,
     cancelInterrupts,
     retryInterrupts,

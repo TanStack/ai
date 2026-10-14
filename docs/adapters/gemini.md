@@ -39,7 +39,7 @@ Need Gemini on Vertex AI (regional endpoints and Google Cloud credentials)? Use 
 
 Use `gemini-3.8-flash` for chat with multimodal input, thinking, and built-in tools. It also supports structured output and caching.
 
-For Gemini 3.8 Flash, set `modelOptions.thinkingConfig.thinkingLevel` to `LOW`, `MEDIUM`, or `HIGH`. The Interactions adapter uses `modelOptions.generation_config.thinking_level` with `low`, `medium`, or `high`. Gemini 3.8 Flash does not accept the `minimal` thinking level.
+To set how hard Gemini 3.8 Flash thinks, pass `reasoning: "low"`, `"medium"`, or `"high"` to `chat()`. It has no `minimal` level. See [Reasoning](#reasoning).
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -95,6 +95,8 @@ const adapter = createGeminiChat("gemini-3.8-flash", process.env.GEMINI_API_KEY!
 ```
 
 `baseURL` sets `httpOptions.baseUrl` and `defaultHeaders` sets `httpOptions.headers`. If you set both forms, `baseURL` and `defaultHeaders` win.
+
+This adapter ignores [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call), because the `@google/genai` SDK does not take a custom fetch.
 
 ## Example: Chat Completion
 
@@ -346,6 +348,8 @@ import { geminiTextInteractions } from "@tanstack/ai-gemini/experimental";
 const stream = chat({
   adapter: geminiTextInteractions("gemini-3.5-flash"),
   messages: [{ role: "user", content: "Hello!" }],
+  // Goes out as generation_config.thinking_level and thinking_summaries.
+  reasoning: "low",
   modelOptions: {
     // Stateful chaining — passed only on turn 2+.
     previous_interaction_id: "int_abc123",
@@ -359,8 +363,6 @@ const stream = chat({
 
     // snake_case generation config distinct from geminiText's camelCase one.
     generation_config: {
-      thinking_level: "low",
-      thinking_summaries: "auto",
       stop_sequences: ["<done>"],
     },
 
@@ -422,17 +424,51 @@ const stream = chat({
 
 > If you previously passed `temperature` / `topP` / `maxTokens` at the root of `chat()`, see [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
 
-### Thinking
+### Reasoning
 
-Enable thinking for models that support it:
+Want Gemini to think harder? Set `reasoning` on `chat()`:
 
-```typescript ignore
-modelOptions: {
-  thinking: {
-    includeThoughts: true,
-  },
-}
+```typescript
+import { chat } from "@tanstack/ai";
+import { geminiText } from "@tanstack/ai-gemini";
+
+const stream = chat({
+  adapter: geminiText("gemini-3.8-flash"),
+  messages: [{ role: "user", content: "Plan a database migration." }],
+  reasoning: "high",
+});
 ```
+
+What goes on the wire:
+
+- Gemini 3 models: `thinkingConfig.thinkingLevel`.
+- Gemini 2.5 models: `thinkingConfig.thinkingBudget`. Set it with `budgetTokens`, or the level picks it. `off` sends a budget of `0`.
+- `summary` sets `thinkingConfig.includeThoughts`, so the thinking text streams.
+- `geminiTextInteractions`: `generation_config.thinking_level` and `thinking_summaries`.
+
+The levels of each model:
+
+| Model | Levels | `budgetTokens` |
+| --- | --- | --- |
+| `gemini-3.8-flash`, `gemini-3.7-flash`, `gemini-3.1-pro-preview` | `low`, `medium`, `high` | no |
+| `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.5-flash-lite`, `gemini-3.1-flash-lite`, `gemini-3.1-flash-lite-preview`, `gemini-3-flash-preview` | `minimal` to `high` | no |
+| `gemini-2.5-pro` | `minimal` to `high` | yes |
+| `gemini-2.5-flash`, `gemini-2.5-flash-lite` | `off`, `high` | yes |
+
+A Gemini 2.5 budget:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { geminiText } from "@tanstack/ai-gemini";
+
+const stream = chat({
+  adapter: geminiText("gemini-2.5-pro"),
+  messages: [{ role: "user", content: "Check this proof." }],
+  reasoning: { level: "high", budgetTokens: 8000 },
+});
+```
+
+Image models keep their own `thinkingConfig` in `modelOptions`. See [Image Model Options](#image-model-options).
 
 ### Structured Output
 
@@ -490,15 +526,12 @@ See the [Embeddings guide](../embeddings.md) for the full API.
 
 ## Image Generation
 
-The Gemini adapter supports two types of image generation:
+The Gemini adapter has two image model groups:
 
-- **Gemini native image models** (NanoBanana) — Use the `generateContent` API with models like `gemini-3.1-flash-image`. These support aspect ratio control plus resolution tiers (`512`, `1K`, `2K`, `4K`); which ratios and tiers are accepted varies per model and is enforced at compile time.
-- **Imagen models** — Use the `generateImages` API with models like `imagen-4.0-generate-001`. These are dedicated image generation models with WIDTHxHEIGHT sizing.
+- **Gemini native image models** (NanoBanana). A model such as `gemini-3.1-flash-image` uses the Interactions API. You set an aspect ratio. Some models also take a resolution tier (`512`, `1K`, `2K`, or `4K`). TypeScript checks the set for the model.
+- **Imagen models**. A model such as `imagen-4.0-generate-001` uses `generateImages`. You set the size as WIDTHxHEIGHT.
 
-The adapter routes to `generateContent` when the model is in
-`GEMINI_NATIVE_IMAGE_MODELS`. Imagen models, and any id this package does not
-know, use `generateImages`. Import the list or `isGeminiNativeImageModel`
-from `@tanstack/ai-gemini`.
+When the model is in `GEMINI_NATIVE_IMAGE_MODELS`, the adapter uses the Interactions API. An Imagen model uses `generateImages`. An unknown id uses `generateImages`. Import the list or `isGeminiNativeImageModel` from `@tanstack/ai-gemini`.
 
 ### Example: Gemini Native Image Generation (NanoBanana)
 
@@ -517,6 +550,53 @@ const result = await generateImage({
 
 console.log(result.images);
 ```
+
+### Edit a Gemini native image
+
+You have an image from a Gemini native model. You want to change that image without a second upload of that image.
+
+Pass the last `id` back. Write only the change in `prompt`:
+
+```typescript
+import { generateImage } from "@tanstack/ai";
+import { geminiImage } from "@tanstack/ai-gemini";
+
+const adapter = geminiImage("gemini-3.1-flash-image");
+
+const first = await generateImage({
+  adapter,
+  prompt: "A red bicycle on a quiet street",
+});
+
+const edited = await generateImage({
+  adapter,
+  prompt: "Make the bicycle blue",
+  modelOptions: { previous_interaction_id: first.id },
+});
+```
+
+1. Generate the first image.
+2. Call `generateImage` again with `previous_interaction_id` set to `first.id`.
+3. Read `edited.images` for the new picture.
+
+`edited.id` is the id for the next edit.
+
+Keep the interaction so the next edit can run:
+
+1. Leave `store` unset.
+2. If you set `store` to `false`, a later call cannot use that id.
+
+The API default for `store` is `true`.
+
+A free tier keeps a stored interaction for 1 day. A paid tier keeps it for 55 days.
+
+If the model is Imagen, do not pass `previous_interaction_id`. The call throws.
+
+If this edit needs a new reference image, add that image part on this call. Do not send the image from `first`.
+
+The Interactions API is in Beta.
+
+The same steps are in [Image Generation](../media/image-generation#edit-a-gemini-native-image).
 
 ### Example: Imagen
 
@@ -552,6 +632,7 @@ The accepted set differs per model, and each model's `size` is narrowed to its o
 |-------|---------------|-------------|
 | `gemini-3.1-flash-image` | `1:1`, `2:3`, `3:2`, `3:4`, `4:3`, `4:5`, `5:4`, `9:16`, `16:9`, `21:9`, `1:4`, `4:1`, `1:8`, `8:1` | `512`, `1K`, `2K`, `4K` |
 | `gemini-3.1-flash-lite-image` | same 14 as above (see note) | `1K` only |
+| `gemini-nano-banana-2.1` | same 14 as above | `1K`, `2K`, `4K` |
 | `gemini-3-pro-image` | `1:1`, `2:3`, `3:2`, `3:4`, `4:3`, `4:5`, `5:4`, `9:16`, `16:9`, `21:9` | `1K`, `2K`, `4K` |
 | `gemini-2.5-flash-image` | same 10 as above | none — pass the bare ratio, e.g. `size: "16:9"` |
 
@@ -605,26 +686,39 @@ const result = await generateImage({
 });
 ```
 
-Gemini native models (`generateContent`) take `seed`, `safetySettings`,
-`thinkingConfig`, `imageConfig`, and `systemInstruction`.
-`imageConfig` accepts only `aspectRatio` and `imageSize` on the Gemini
-Developer API.
+#### Gemini native models
+
+Set native image options on `modelOptions`:
 
 ```typescript
 import { generateImage } from "@tanstack/ai";
-import { geminiImage } from "@tanstack/ai-gemini";
+import { geminiImage, ThinkingLevel } from "@tanstack/ai-gemini";
 
 const result = await generateImage({
   adapter: geminiImage("gemini-3.1-flash-image"),
-  prompt: "...",
+  prompt: "A beautiful garden",
   size: "16:9_4K",
   modelOptions: {
-    thinkingConfig: { thinkingBudget: 512 },
-    // Merged over the imageConfig derived from `size`, per field.
+    thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+    // imageConfig replaces one field from size. The 16:9 ratio from size stays.
+    // imageConfig accepts only aspectRatio and imageSize.
     imageConfig: { imageSize: "2K" },
   },
 });
 ```
+
+Set `thinkingConfig.thinkingLevel` to one of these values:
+
+- `ThinkingLevel.MINIMAL`
+- `ThinkingLevel.LOW`
+- `ThinkingLevel.MEDIUM`
+- `ThinkingLevel.HIGH`
+
+`thinkingConfig.thinkingBudget` throws.
+
+If `systemInstruction` contains an image, a file, or a tool call, the call throws.
+
+Pass the last result `id` as `previous_interaction_id`. Read [Edit a Gemini native image](#edit-a-gemini-native-image) for the edit steps.
 
 See [Image Generation](../media/image-generation) for the full native option list.
 
@@ -686,12 +780,13 @@ GOOGLE_API_KEY=your-api-key-here
 
 ### Gemini Native Image Models (NanoBanana)
 
-These models use the `generateContent` API and support per-model resolution tiers.
+These models use the Interactions API. Each model has its own resolution tiers.
 
 | Model | Description |
 |-------|-------------|
 | `gemini-3.1-flash-image` | Nano Banana 2 — latest and fastest Gemini native image generation (512/1K/2K/4K) |
 | `gemini-3.1-flash-lite-image` | Nano Banana 2 Lite — ultra-low-latency, low-cost image generation (1K only) |
+| `gemini-nano-banana-2.1` | Nano Banana 2.1 (1K/2K/4K, no 512 tier) |
 | `gemini-3-pro-image` | Nano Banana Pro — higher quality Gemini native image generation (1K/2K/4K) |
 | `gemini-2.5-flash-image` | Nano Banana — legacy; shuts down 2026-10-02. Takes a bare aspect ratio |
 
@@ -715,6 +810,8 @@ Every factory pair follows the same shape: the short factory (`geminiText`, `gem
 
 Creates a Gemini text/chat adapter.
 
+`adapter.inputModalities` lists the input kinds of the selected model. It is `undefined` for a model that this package does not know. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
+
 **Parameters:**
 
 - `model` - Gemini chat model id (e.g. `"gemini-3.1-pro-preview"`)
@@ -735,7 +832,7 @@ Creates a Gemini summarization adapter.
 
 ### `geminiImage(model, config?)` / `createGeminiImage(model, apiKey, config?)`
 
-Creates a Gemini image adapter. Models in `GEMINI_NATIVE_IMAGE_MODELS` use `generateContent`. Imagen models, and any unknown id, use `generateImages`.
+Creates a Gemini image adapter. When the model is in `GEMINI_NATIVE_IMAGE_MODELS`, the call uses the Interactions API. `result.id` is the interaction id. An Imagen model uses `generateImages`. An unknown id uses `generateImages`.
 
 ### `geminiSpeech(model, config?)` / `createGeminiSpeech(model, apiKey, config?)`
 

@@ -1,12 +1,14 @@
-import { createAtom as createStoreAtom } from '@tanstack/store'
 import type { Atom } from '@tanstack/store'
 
+export { createAtom } from '@tanstack/store'
 export type { Atom }
 
-function freezeSnapshot<T>(value: T): T {
-  return typeof value === 'object' && value !== null
-    ? Object.freeze(value)
-    : value
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return false
+  }
+  const proto: unknown = Object.getPrototypeOf(value)
+  return proto === Object.prototype || proto === null
 }
 
 /**
@@ -16,19 +18,35 @@ function freezeSnapshot<T>(value: T): T {
  * spread copy loses its prototype.
  */
 export function cloneSnapshotValue<T>(value: T): T {
-  if (value === null || typeof value !== 'object') return value
   if (Array.isArray(value)) return Object.freeze([...value]) as T
-  const proto: unknown = Object.getPrototypeOf(value)
-  if (proto !== Object.prototype && proto !== null) return value
-  return Object.freeze({ ...value })
+  return isPlainObject(value) ? (Object.freeze({ ...value }) as T) : value
 }
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    return false
+/**
+ * Report an error thrown by a listener without stopping the caller. The
+ * browser's `reportError` reaches `window.onerror` and error trackers. Other
+ * runtimes log it.
+ */
+export function reportListenerError(error: unknown): void {
+  if (typeof globalThis.reportError === 'function') {
+    globalThis.reportError(error)
+  } else {
+    console.error(error)
   }
-  const proto: unknown = Object.getPrototypeOf(value)
-  return proto === Object.prototype || proto === null
+}
+
+/** Call every listener. One listener's throw does not skip the others. */
+export function notifyListeners<TArgs extends Array<unknown>>(
+  listeners: Iterable<(...args: TArgs) => void>,
+  ...args: TArgs
+): void {
+  for (const listener of listeners) {
+    try {
+      listener(...args)
+    } catch (error) {
+      reportListenerError(error)
+    }
+  }
 }
 
 /** Deep-freeze plain JSON. Class instances stay as they are. */
@@ -51,7 +69,7 @@ function freezePlainData(value: unknown): unknown {
  */
 export function freezeSnapshotPart<TPart extends object>(
   part: TPart,
-  cache?: WeakMap<object, object>,
+  cache: WeakMap<object, object> = new WeakMap(),
 ): TPart {
   const record = part as Record<string, unknown>
   const copy: Record<string, unknown> = { ...record }
@@ -74,71 +92,65 @@ export function freezeSnapshotPart<TPart extends object>(
   if ('output' in record) copy.output = freezePlainData(record.output)
   if (record.type === 'subagent' && isPlainObject(record.subagent)) {
     const sub = record.subagent
-    copy.subagent = Object.freeze({
-      ...sub,
-      ...(Array.isArray(sub.messages)
+    copy.subagent = Object.freeze(
+      Array.isArray(sub.messages)
         ? {
+            ...sub,
             messages: freezeSnapshotMessages(
-              (cache ?? new WeakMap()) as WeakMap<
-                { parts: ReadonlyArray<object> },
-                { parts: ReadonlyArray<object> }
-              >,
+              cache,
               sub.messages as Array<{ parts: ReadonlyArray<object> }>,
             ),
           }
-        : {}),
-    })
+        : { ...sub },
+    )
   }
   return Object.freeze(copy) as TPart
 }
 
+function cached<T extends object>(
+  cache: WeakMap<object, object>,
+  value: T,
+  freeze: (value: T) => T,
+): T {
+  let frozen = cache.get(value) as T | undefined
+  if (!frozen) {
+    frozen = freeze(value)
+    cache.set(value, frozen)
+  }
+  return frozen
+}
+
 /**
  * Freeze a copy of each message and its parts. The client replaces a message
- * object when it changes, so `cache` gives an unchanged message the same
- * frozen copy. UI memo keys on message identity.
+ * or a part object when it changes, so `cache` gives an unchanged message or
+ * part the same frozen copy. UI memo keys on message identity, and a streamed
+ * token copies only the part that changed.
  */
 export function freezeSnapshotMessages<
   TMessage extends { parts: ReadonlyArray<object> },
 >(
-  cache: WeakMap<TMessage, TMessage>,
+  cache: WeakMap<object, object>,
   messages: ReadonlyArray<TMessage>,
 ): ReadonlyArray<TMessage> {
   return Object.freeze(
-    messages.map((message) => {
-      let frozen = cache.get(message)
-      if (!frozen) {
-        frozen = Object.freeze({
+    messages.map((message) =>
+      cached(cache, message, () =>
+        Object.freeze({
           ...message,
           parts: Object.freeze(
             message.parts.map((part) =>
-              freezeSnapshotPart(part, cache as WeakMap<object, object>),
+              cached(cache, part, () => freezeSnapshotPart(part, cache)),
             ),
           ),
-        })
-        cache.set(message, frozen)
-      }
-      return frozen
-    }),
+        }),
+      ),
+    ),
   )
 }
 
-export function createAtom<T>(initialValue: T): Atom<T> {
-  const atom = createStoreAtom(freezeSnapshot(initialValue))
-  const set = atom.set.bind(atom)
-  atom.set = (updater) =>
-    set((previous) =>
-      freezeSnapshot(
-        typeof updater === 'function'
-          ? (updater as (value: T) => T)(previous)
-          : updater,
-      ),
-    )
-  return atom
-}
-
 /**
- * Merge a partial update into an object atom. Skips notify when every
- * provided field is `Object.is`-equal to the current value.
+ * Merge a partial update into an object atom and freeze the result. Skips
+ * notify when every provided field is `Object.is`-equal to the current value.
  */
 export function patchAtom<T extends object>(
   atom: Atom<T>,
@@ -152,16 +164,16 @@ export function patchAtom<T extends object>(
       next[key] = patch[key] as T[keyof T]
       changed = true
     }
-    return changed ? next : prev
+    return changed ? Object.freeze(next) : prev
   })
 }
 
-/**
- * Adapt a Store atom's `{ unsubscribe }` subscription to the
- * `() => void` unsubscribe that `useSyncExternalStore` expects.
- */
 const MAX_LISTENER_REENTRY = 8
 
+/**
+ * Subscribe to an atom with the `() => void` unsubscribe that framework
+ * stores expect.
+ */
 export function subscribeAtom<T>(
   atom: Pick<Atom<T>, 'get' | 'subscribe'>,
   listener: () => void,
@@ -179,8 +191,7 @@ export function subscribeAtom<T>(
       try {
         listener()
       } catch (error) {
-        console.error(error)
-        return
+        reportListenerError(error)
       }
       spins++
     } while (atom.get() !== seen && spins < MAX_LISTENER_REENTRY)

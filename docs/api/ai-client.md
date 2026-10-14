@@ -164,6 +164,7 @@ goes away. Users of the framework hooks need no change.
 - `onInterruptStateChange?` - Callback when interrupt state changes; context source is `hydrate` for restored state and `live` for streamed or client-initiated updates
 - `onMessagesChange?` - Callback when messages change
 - `onLoadingChange?` - Callback when loading state changes
+- `onHydratingChange?` - Callback when the client starts or stops loading the chat from persistence
 - `onErrorChange?` - Callback when error state changes
 - `streamProcessor?` - Stream processing configuration
 
@@ -275,12 +276,12 @@ id, so a later `attach()` continues where it left off. See
 
 #### `getSnapshot()`
 
-Returns the current frozen `ChatClientSnapshot`. The field names are
+Returns the current `ChatClientSnapshot`. The field names are
 `messages`, `status`, `isLoading`, `error`, `queue`, `runId`, `isSubscribed`,
-`connectionStatus`, `sessionGenerating`, `hasOlderMessages`, and
-`interruptState`. Nested
-`messages` and `queue` entries are copies. In-place `messages.push` throws.
-Use `setMessages`.
+`connectionStatus`, `sessionGenerating`, `hasOlderMessages`, `isHydrating`,
+and `interruptState`. The snapshot object, `messages`, `queue`, and their
+entries are frozen copies. `interruptState` is not copied. In-place
+`messages.push` throws. Use `setMessages`.
 
 `subscribeSnapshot(listener)` returns an unsubscribe function. It does not
 fire with the current value. Read `getSnapshot()` first. This is not
@@ -311,11 +312,14 @@ client.sendMessage("Hello");
 `GenerationClient`, `VideoGenerationClient`, `RealtimeClient`, and
 `ByokClient` use `subscribe(listener)` / `getSnapshot()`. The listener takes
 no argument. Call `getSnapshot()` inside it. A listener that throws does not
-skip the other listeners.
+skip the other listeners. The error goes to `reportError` in the browser and
+to `console.error` in other runtimes.
 
-A successful `RealtimeClient.connect()` clears the previous transcript. A
-failed `connect()` keeps it. Snapshot `parts` are readonly. Tool `input`,
-`output`, and subagent transcripts on a snapshot are copies.
+When `RealtimeClient.connect()` connects, it clears the previous transcript.
+A transcript that arrives while the microphone starts is kept. A failed
+connection keeps the previous transcript. Snapshot `parts` are frozen at
+runtime, but their TypeScript type stays mutable. Tool `input`, `output`, and
+subagent transcripts on a snapshot are copies.
 
 `AudioRecorder.subscribe` still passes the new state:
 `subscribe((state) => ...)`. `getSnapshot()` returns that same state value.
@@ -388,13 +392,15 @@ await client.addToolApprovalResponse({
 
 - `messages: UIMessage[]` - Current messages
 - `isLoading: boolean` - Whether a response is being generated
+- `isHydrating: boolean` - Whether the chat is loading from persistence. Read it with `getIsHydrating()`
 - `error: Error | undefined` - Current error, if any
 
 ## Connection Adapters
 
 For a complete transport walkthrough, see
-[Connection Adapters](../chat/connection-adapters). For React Native and Expo,
-see [Quick Start: React Native](../getting-started/quick-start-react-native).
+[Transports](../transports/overview). For React Native and Expo,
+see [React Native](../transports/react-native) and
+[Quick Start: React Native](../getting-started/quick-start-react-native).
 
 ### `fetchServerSentEvents(url, options?)`
 
@@ -425,6 +431,24 @@ const adapter = fetchHttpStream("/api/chat");
 `Response.body.getReader()`, and `TextDecoder`. If the runtime cannot expose an
 incremental response body, it throws `UnsupportedResponseStreamError`; use the
 XHR adapters in React Native or Expo.
+
+### `fetchJson(url, options?)`
+
+Creates a connection adapter for one JSON body per request. Pair it with
+`toJsonResponse()` on the server. It does not need a streaming response body.
+
+```typescript
+import { fetchJson } from "@tanstack/ai-client";
+
+const adapter = fetchJson("/api/chat", {
+  pollIntervalMs: 500,
+});
+```
+
+It takes the fetch adapter options, plus `pollIntervalMs` (default 250). When a
+reply has `done: false`, the adapter waits `pollIntervalMs` and sends
+`GET ?runId=<id>&offset=<offset>`. Serve that `GET` with `resumeJsonResponse()`.
+See [JSON](../transports/json).
 
 ### `xhrHttpStream(url, options?)`
 
@@ -814,5 +838,5 @@ const client = new ChatClient({
 
 - [Getting Started](../getting-started/quick-start) - Learn the basics
 - [Bring Your Own Key](../advanced/byok) - Store keys in the browser and send `x-byok-*` headers
-- [Connection Adapters](../chat/connection-adapters) - Learn about adapters
+- [Transports](../transports/overview) - Learn about adapters
 - [@tanstack/ai-react API](./ai-react) - React hooks wrapper

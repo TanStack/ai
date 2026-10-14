@@ -122,7 +122,7 @@ export const Route = createFileRoute('/api/structured')({
             )
           } else {
             // One-shot markdown mode - returns streamed text
-            const markdown = await chat({
+            const { text: markdown } = await chat({
               adapter,
               stream: false,
               messages: [

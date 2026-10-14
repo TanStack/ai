@@ -12,6 +12,7 @@
  * so nothing here touches the network.
  */
 import { beforeAll, describe, expectTypeOf, it } from 'vitest'
+import { ThinkingLevel } from '@google/genai'
 import { createImageOptions } from '@tanstack/ai'
 import { createGeminiImage } from '../src/adapters/image'
 import type { GeminiImageModelSizeByName } from '../src/image/image-provider-options'
@@ -68,6 +69,30 @@ describe('Gemini per-model image size gating', () => {
         adapter: createGeminiImage('gemini-3.1-flash-image-preview', apiKey),
         prompt: 'a wide banner',
         size: '1:8_512',
+      })
+    })
+  })
+
+  describe('gemini-nano-banana-2.1 — 14 ratios × 1K/2K/4K', () => {
+    it('accepts 1K/2K/4K, including the banner ratios', () => {
+      createImageOptions({
+        adapter: createGeminiImage('gemini-nano-banana-2.1', apiKey),
+        prompt: 'a landscape',
+        size: '16:9_4K',
+      })
+      createImageOptions({
+        adapter: createGeminiImage('gemini-nano-banana-2.1', apiKey),
+        prompt: 'a banner',
+        size: '8:1_1K',
+      })
+    })
+
+    it('rejects the 512 tier', () => {
+      createImageOptions({
+        adapter: createGeminiImage('gemini-nano-banana-2.1', apiKey),
+        prompt: 'a square',
+        // @ts-expect-error - the 512 tier is Gemini 3.1 Flash Image only
+        size: '1:1_512',
       })
     })
   })
@@ -248,7 +273,7 @@ beforeAll(() => {
 })
 
 describe('Gemini per-model image modelOptions gating', () => {
-  describe('gemini-3.1-flash-image-preview — native (GenerateContentConfig)', () => {
+  describe('gemini-3.1-flash-image-preview — native (Interactions API)', () => {
     it('accepts the native option set', () => {
       createImageOptions({
         adapter: geminiImage('gemini-3.1-flash-image-preview'),
@@ -256,9 +281,11 @@ describe('Gemini per-model image modelOptions gating', () => {
         modelOptions: {
           seed: 7,
           safetySettings: [],
-          thinkingConfig: { thinkingBudget: 512 },
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
           imageConfig: { aspectRatio: '16:9', imageSize: '2K' },
           systemInstruction: 'Always render in watercolor.',
+          previous_interaction_id: 'int_prev',
+          store: false,
         },
       })
     })
@@ -333,8 +360,17 @@ describe('Gemini per-model image modelOptions gating', () => {
         adapter: geminiImage('imagen-4.0-generate-001'),
         prompt: 'a quiet harbour',
         modelOptions: {
-          // @ts-expect-error - safetySettings is a GenerateContentConfig (native) field
+          // @ts-expect-error - safetySettings is a native Interactions field
           safetySettings: [],
+        },
+      })
+
+      createImageOptions({
+        adapter: geminiImage('imagen-4.0-generate-001'),
+        prompt: 'a quiet harbour',
+        modelOptions: {
+          // @ts-expect-error - previous_interaction_id is native Interactions only
+          previous_interaction_id: 'int_prev',
         },
       })
     })
@@ -342,7 +378,7 @@ describe('Gemini per-model image modelOptions gating', () => {
 })
 
 describe('Gemini image provider options shape assertions', () => {
-  describe('native models take GenerateContentConfig fields', () => {
+  describe('native models take Interactions image fields', () => {
     type Options =
       GeminiImageModelProviderOptionsByName['gemini-3.1-flash-image-preview']
 
@@ -360,6 +396,12 @@ describe('Gemini image provider options shape assertions', () => {
     })
     it('has seed', () => {
       expectTypeOf<Options>().toHaveProperty('seed')
+    })
+    it('has previous_interaction_id', () => {
+      expectTypeOf<Options>().toHaveProperty('previous_interaction_id')
+    })
+    it('has store', () => {
+      expectTypeOf<Options>().toHaveProperty('store')
     })
   })
 

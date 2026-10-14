@@ -6,10 +6,10 @@ title: SubagentRouterPick
 ```ts
 type SubagentRouterPick = 
   | "main"
-  | string
-  | ReadonlyArray<string>
+  | SubagentPick
+  | ReadonlyArray<SubagentPick>
   | SubagentRouterPlan
   | SubagentStepsPlan;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:54](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L54)
+Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:63](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L63)

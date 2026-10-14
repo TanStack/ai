@@ -72,8 +72,9 @@ function createFakeGitHub(
 
       if (method === 'DELETE' && path.startsWith(`${issueLabelsPath}/`)) {
         if (deleteStatus !== undefined) {
+          // "404" elsewhere in the message (a PR number in the path) is not a 404.
           throw new Error(
-            `GitHub REST DELETE ${path} → HTTP ${deleteStatus}: boom`,
+            `GitHub REST DELETE ${path} → HTTP ${deleteStatus}: boom on /issues/1404`,
           )
         }
         const name = decodeURIComponent(

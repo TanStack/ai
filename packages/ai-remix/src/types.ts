@@ -100,6 +100,7 @@ export type CreateChatOptions<
   | 'onSubscriptionChange'
   | 'onConnectionStatusChange'
   | 'onSessionGeneratingChange'
+  | 'onHydratingChange'
   | 'onQueueChange'
   | 'onResumeStateChange'
   | 'onRunIdChange'
@@ -167,7 +168,7 @@ interface BaseCreateChatReturn<
    * `messages[i].parts.find(p => p.type === 'structured-output')` is typed
    * with the schema's inferred shape: `data: T`, `partial: DeepPartial<T>`.
    */
-  messages: Array<UIMessage<TTools, TData>>
+  messages: ReadonlyArray<UIMessage<TTools, TData>>
 
   /**
    * Send a message and get a response.
@@ -186,7 +187,7 @@ interface BaseCreateChatReturn<
    * Pending messages queued while the client is busy (streaming, claiming a
    * send, or draining). Separate from `messages` until they drain.
    */
-  queue: Array<QueuedMessage>
+  queue: ReadonlyArray<QueuedMessage>
 
   /**
    * Cancel a queued message before it drains. No-op if already sent.
@@ -307,6 +308,14 @@ interface BaseCreateChatReturn<
    * activity visible to all subscribers (e.g. across tabs/devices).
    */
   sessionGenerating: boolean
+
+  /**
+   * Whether the chat is being rebuilt from persistence (the server hydrate, or
+   * an async storage adapter). While it is true, show a loading state instead
+   * of an empty chat. It turns false when the transcript is in place and any
+   * in-flight run is re-joined. From then on `isLoading` covers the stream.
+   */
+  isHydrating: boolean
 
   /**
    * Set messages manually

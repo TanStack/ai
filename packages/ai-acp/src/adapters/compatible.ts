@@ -251,6 +251,9 @@ export class AcpCompatibleTextAdapter<
     TModelOptions
   >
 
+  /** `toolChoice` warnings that this instance already logged. */
+  private readonly toolChoiceWarnings = new Set<string>()
+
   constructor(
     config: AcpCompatibleConfig<ReadonlyArray<string>, TModelOptions>,
     model: TModel,
@@ -283,6 +286,28 @@ export class AcpCompatibleTextAdapter<
       )
     }
     return getSandbox(ctx)
+  }
+
+  /**
+   * The chat() tools to bridge for `toolChoice`: none for `'none'`, and only
+   * the named tool for `{ type: 'tool', name }`. ACP has no field to turn off
+   * the built-in agent tools or to force a tool call, so every value except
+   * `'auto'` logs a warning once.
+   */
+  private toolsForChoice(options: TextOptions<ResolvedOptions<TModelOptions>>) {
+    const { toolChoice, tools = [] } = options
+    if (toolChoice === undefined || toolChoice === 'auto') return tools
+    const warning =
+      toolChoice === 'required'
+        ? `${this.name}: toolChoice 'required' is not supported. The agent decides which tools to call.`
+        : `${this.name}: toolChoice limits only the chat() tools. The built-in agent tools stay on.`
+    if (!this.toolChoiceWarnings.has(warning)) {
+      this.toolChoiceWarnings.add(warning)
+      options.logger.warn(warning)
+    }
+    if (toolChoice === 'none') return []
+    if (toolChoice === 'required') return tools
+    return tools.filter((tool) => tool.name === toolChoice.name)
   }
 
   private buildPrompt(
@@ -356,6 +381,7 @@ export class AcpCompatibleTextAdapter<
     let onAbort: (() => void) | undefined
 
     try {
+      const tools = this.toolsForChoice(options)
       const sandbox = this.sandboxFrom(options)
       const modelOptions = options.modelOptions
       const cwd = modelOptions?.cwd ?? this.harness.cwd ?? DEFAULT_WORKDIR
@@ -423,15 +449,13 @@ export class AcpCompatibleTextAdapter<
       )
 
       // Bridge chat()-provided tools into the agent over MCP (ACP http server).
-      const bridgedToolNames = new Set(
-        (options.tools ?? []).map((tool) => tool.name),
-      )
-      if (options.tools && options.tools.length > 0) {
+      const bridgedToolNames = new Set(tools.map((tool) => tool.name))
+      if (tools.length > 0) {
         const provisioner =
           (options.capabilities
             ? getToolBridgeProvisioner(options.capabilities, { optional: true })
             : undefined) ?? nodeHttpBridgeProvisioner
-        bridge = await provisioner.provision(options.tools, {
+        bridge = await provisioner.provision(tools, {
           provider: sandbox.provider,
           context: options.context,
           emitCustomEvent: channel.emitCustomEvent,

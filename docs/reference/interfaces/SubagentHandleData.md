@@ -3,7 +3,7 @@ id: SubagentHandleData
 title: SubagentHandleData
 ---
 
-Defined in: [packages/ai/src/types.ts:502](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L502)
+Defined in: [packages/ai/src/types.ts:635](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L635)
 
 One child invocation as the client sees it. AG-UI `SubagentInfo` names the
 child; the other AG-UI fields come from its `SUBAGENT_STARTED`,
@@ -23,7 +23,7 @@ spec does not model.
 optional error?: Pick<SubagentErrorEvent, "message" | "code">;
 ```
 
-Defined in: [packages/ai/src/types.ts:516](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L516)
+Defined in: [packages/ai/src/types.ts:649](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L649)
 
 ***
 
@@ -33,7 +33,7 @@ Defined in: [packages/ai/src/types.ts:516](https://github.com/TanStack/ai/blob/m
 id: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:509](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L509)
+Defined in: [packages/ai/src/types.ts:642](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L642)
 
 ***
 
@@ -43,7 +43,7 @@ Defined in: [packages/ai/src/types.ts:509](https://github.com/TanStack/ai/blob/m
 optional interruptIds?: string[];
 ```
 
-Defined in: [packages/ai/src/types.ts:514](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L514)
+Defined in: [packages/ai/src/types.ts:647](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L647)
 
 Interrupts this child raised, while `status` is `'suspended'`.
 
@@ -55,7 +55,7 @@ Interrupts this child raised, while `status` is `'suspended'`.
 messages: UIMessage<unknown>[];
 ```
 
-Defined in: [packages/ai/src/types.ts:515](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L515)
+Defined in: [packages/ai/src/types.ts:648](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L648)
 
 ***
 
@@ -65,7 +65,7 @@ Defined in: [packages/ai/src/types.ts:515](https://github.com/TanStack/ai/blob/m
 optional parentRunId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:512](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L512)
+Defined in: [packages/ai/src/types.ts:645](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L645)
 
 The parent chat run that started this child.
 
@@ -77,4 +77,4 @@ The parent chat run that started this child.
 status: SubagentStatus;
 ```
 
-Defined in: [packages/ai/src/types.ts:510](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L510)
+Defined in: [packages/ai/src/types.ts:643](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L643)
