@@ -88,7 +88,8 @@ function taskOf(
 
 /**
  * The stored transcript of a child agent run of `threadId`, for a UI. It
- * starts with the task of the first call as a user message. A nested child
+ * starts with the task of the first call as a user message. Each message
+ * keeps its card in `metadata.tanstack.subagent`. A nested child
  * belongs to `threadId` when its parents do. `undefined` for an unknown id
  * and for a child of another thread.
  */
@@ -107,10 +108,9 @@ export async function loadChildTranscript(
     if (!parent.startsWith('subagent:')) return undefined
     parent = storedMarker(await messages.loadThread(parent)).parentThreadId
   }
-  return [
-    ...taskOf(subagentRunId, marker.prompt),
-    ...withoutPlaceholder(stored),
-  ]
+  // A child with no messages keeps its card-only head, so a UI can read how
+  // it ended. The head has no content.
+  return [...taskOf(subagentRunId, marker.prompt), ...stored]
 }
 
 /** The `prompt` of an agent tool call, if any. */

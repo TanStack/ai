@@ -25,6 +25,25 @@ describe('loadChildTranscript', () => {
     expect(await loadChildTranscript(messages, 'none', 't')).toBeUndefined()
   })
 
+  it('keeps the card of a child with no messages', async () => {
+    const { messages } = memoryPersistence().stores
+    const card = { name: 'writer', status: 'error', placeholder: true }
+    await messages.saveThread('subagent:p', [
+      {
+        role: 'assistant',
+        content: '',
+        metadata: {
+          tanstack: { subagent: card },
+          'tanstack:subagentChild': { parentThreadId: 't' },
+        },
+      },
+    ])
+
+    const loaded = await loadChildTranscript(messages, 'p', 't')
+
+    expect(loaded?.[0]?.metadata?.tanstack).toEqual({ subagent: card })
+  })
+
   it('stops at a loop in the stored parents', async () => {
     const { messages } = memoryPersistence().stores
     await messages.saveThread('subagent:x', [child('subagent:y', 'x')])
