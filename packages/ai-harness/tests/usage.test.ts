@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
+import { addUsage, emptyUsage } from '../src/usage'
 import { mockAdapter, text, toolCall } from './helpers'
 import type { StreamChunk } from '@tanstack/ai'
 import type { SessionEvent } from '../src'
@@ -253,5 +254,29 @@ describe('usage totals after a restart', () => {
     })
     expect(reopened.usage().total).toMatchObject({ calls: 2, totalTokens: 45 })
     await next.close()
+  })
+})
+
+describe('usage totals of an odd key', () => {
+  it('keeps a sender with the id __proto__ as its own entry', () => {
+    const totals = emptyUsage()
+
+    addUsage(totals, {
+      model: 'm',
+      principal: { id: '__proto__' },
+      usage: {
+        promptTokens: 1,
+        completionTokens: 2,
+        totalTokens: 3,
+        cachedTokens: 0,
+        cacheWriteTokens: 0,
+      },
+    })
+
+    expect(Object.keys(totals.bySender)).toEqual(['__proto__'])
+    expect(JSON.stringify(totals.bySender)).toBe(
+      JSON.stringify({ ['__proto__']: totals.total }),
+    )
+    expect(Object.hasOwn(Object.prototype, 'calls')).toBe(false)
   })
 })

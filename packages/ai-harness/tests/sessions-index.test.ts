@@ -194,11 +194,16 @@ describe('host.sessions', () => {
     const { host, harness } = hostWith()
     await host.open(harness, { threadId: 't1' })
 
-    const renamed = await host.sessions.rename('t1', 'Fix the build')
+    const renamed = await host.sessions.rename({
+      threadId: 't1',
+      title: 'Fix the build',
+    })
 
     expect(renamed?.title).toBe('Fix the build')
     expect((await host.sessions.get('t1'))?.title).toBe('Fix the build')
-    expect(await host.sessions.rename('unknown', 'x')).toBeUndefined()
+    expect(
+      await host.sessions.rename({ threadId: 'unknown', title: 'x' }),
+    ).toBeUndefined()
     expect(await host.sessions.get('unknown')).toBeUndefined()
     await host.close()
   })
@@ -208,14 +213,22 @@ describe('host.sessions', () => {
     const harness = chipsHarness()
     await host.open(harness, { threadId: 't1', principal: { id: 'u1' } })
 
-    const updated = await host.sessions.update(harness, 't1', {
-      title: 'Chips',
-      pinned: true,
-      metadata: { chips: ['a.ts'] },
+    const updated = await host.sessions.update({
+      harness,
+      threadId: 't1',
+      update: {
+        title: 'Chips',
+        pinned: true,
+        metadata: { chips: ['a.ts'] },
+      },
     })
-    const added = await host.sessions.update(harness, 't1', (entry) => ({
-      metadata: { chips: [...(entry.metadata?.chips ?? []), 'b.ts'] },
-    }))
+    const added = await host.sessions.update({
+      harness,
+      threadId: 't1',
+      update: (entry) => ({
+        metadata: { chips: [...(entry.metadata?.chips ?? []), 'b.ts'] },
+      }),
+    })
 
     expect(updated).toMatchObject({ title: 'Chips', pinned: true })
     expect(added).toMatchObject({
@@ -227,7 +240,11 @@ describe('host.sessions', () => {
       metadata: { chips: ['a.ts', 'b.ts'] },
     })
     expect(
-      await host.sessions.update(harness, 'unknown', { title: 'x' }),
+      await host.sessions.update({
+        harness,
+        threadId: 'unknown',
+        update: { title: 'x' },
+      }),
     ).toBeUndefined()
     await host.close()
   })
@@ -238,7 +255,11 @@ describe('host.sessions', () => {
     const before = await host.sessions.get('t1')
 
     expect(
-      await host.sessions.update(harness, 't1', () => undefined),
+      await host.sessions.update({
+        harness,
+        threadId: 't1',
+        update: () => undefined,
+      }),
     ).toBeUndefined()
     expect(await host.sessions.get('t1')).toEqual(before)
     await host.close()
@@ -249,10 +270,14 @@ describe('host.sessions', () => {
     const harness = chipsHarness()
     await host.open(harness, { threadId: 't1' })
 
-    const write = host.sessions.update(harness, 't1', {
-      title: 'Never',
-      // @ts-expect-error The schema wants a list of strings.
-      metadata: { chips: 'a.ts' },
+    const write = host.sessions.update({
+      harness,
+      threadId: 't1',
+      update: {
+        title: 'Never',
+        // @ts-expect-error The schema wants a list of strings.
+        metadata: { chips: 'a.ts' },
+      },
     })
 
     await expect(write).rejects.toBeInstanceOf(SessionMetadataError)
@@ -265,7 +290,11 @@ describe('host.sessions', () => {
     await host.open(harness, { threadId: 't1' })
 
     await expect(
-      host.sessions.update(chipsHarness(), 't1', { title: 'x' }),
+      host.sessions.update({
+        harness: chipsHarness(),
+        threadId: 't1',
+        update: { title: 'x' },
+      }),
     ).rejects.toThrow('belongs to harness "test/sessions", not "test/chips"')
     await host.close()
   })
@@ -289,12 +318,19 @@ describe('host.sessions', () => {
     const turnEnd = createHarnessHost({ persistence })
     const harness = chipsHarness()
     await turnEnd.open(harness, { threadId: 't1' })
-    other = () => turnEnd.sessions.rename('t1', 'From the other host')
+    other = () =>
+      turnEnd.sessions.rename({ threadId: 't1', title: 'From the other host' })
     let runs = 0
 
-    await app.sessions.update(harness, 't1', (entry) => {
-      runs += 1
-      return { metadata: { chips: [...(entry.metadata?.chips ?? []), 'a.ts'] } }
+    await app.sessions.update({
+      harness,
+      threadId: 't1',
+      update: (entry) => {
+        runs += 1
+        return {
+          metadata: { chips: [...(entry.metadata?.chips ?? []), 'a.ts'] },
+        }
+      },
     })
 
     expect(runs).toBe(2)
@@ -319,7 +355,7 @@ describe('host.sessions', () => {
     })
 
     await expect(
-      host.sessions.update(harness, 't1', { title: 'x' }),
+      host.sessions.update({ harness, threadId: 't1', update: { title: 'x' } }),
     ).rejects.toThrow('changed on another host 5 times in a row')
     await host.close()
     await opener.close()
@@ -354,14 +390,22 @@ describe('host.sessions', () => {
     await session.configure({ instructions: 'Be brief.' })
     await session.prompt('first')
     await session.prompt('second')
-    await host.sessions.rename('t1', 'Chat')
+    await host.sessions.rename({ threadId: 't1', title: 'Chat' })
     const [, , second] = await session.transcript()
 
-    const before = await host.sessions.fork(harness, 't1', {
-      before: idOf(second),
+    const before = await host.sessions.fork({
+      harness,
+      threadId: 't1',
+      at: {
+        before: idOf(second),
+      },
     })
-    const through = await host.sessions.fork(harness, 't1', {
-      through: idOf(second),
+    const through = await host.sessions.fork({
+      harness,
+      threadId: 't1',
+      at: {
+        through: idOf(second),
+      },
     })
 
     expect(before).toEqual({
@@ -398,8 +442,12 @@ describe('host.sessions', () => {
     await session.prompt('first')
     const [first] = await session.transcript()
 
-    const fork = await host.sessions.fork(harness, 't1', {
-      before: idOf(first),
+    const fork = await host.sessions.fork({
+      harness,
+      threadId: 't1',
+      at: {
+        before: idOf(first),
+      },
     })
 
     expect(await persistence.stores.messages.loadThread(fork.threadId)).toEqual(
@@ -424,8 +472,12 @@ describe('host.sessions', () => {
     await session.prompt('hi')
     const [, answer] = await session.transcript()
 
-    const fork = await host.sessions.fork(harness, 'd1', {
-      through: idOf(answer),
+    const fork = await host.sessions.fork({
+      harness,
+      threadId: 'd1',
+      at: {
+        through: idOf(answer),
+      },
     })
 
     const records = await log.read(fork.threadId)
@@ -446,7 +498,11 @@ describe('host.sessions', () => {
     await session.prompt('hi')
 
     await expect(
-      host.sessions.fork(harness, 't1', { through: 'not-a-message' }),
+      host.sessions.fork({
+        harness,
+        threadId: 't1',
+        at: { through: 'not-a-message' },
+      }),
     ).rejects.toThrow('Thread "t1" has no message "not-a-message".')
     expect(threadIds(await host.sessions.list())).toEqual(['t1'])
     await host.close()
@@ -463,7 +519,11 @@ describe('host.sessions', () => {
     })
 
     await expect(
-      host.sessions.fork(other, 't1', { through: idOf(answer) }),
+      host.sessions.fork({
+        harness: other,
+        threadId: 't1',
+        at: { through: idOf(answer) },
+      }),
     ).rejects.toThrow(
       'Thread "t1" belongs to harness "test/sessions", not "test/other".',
     )
@@ -486,8 +546,12 @@ describe('host.sessions', () => {
       adapter: mockAdapter(() => text('other')).adapter,
     })
 
-    const fork = await host.sessions.fork(other, 't1', {
-      through: idOf(answer),
+    const fork = await host.sessions.fork({
+      harness: other,
+      threadId: 't1',
+      at: {
+        through: idOf(answer),
+      },
     })
 
     expect(fork.harness).toBe('test/other')
@@ -645,8 +709,12 @@ describe('ctx.session.entry and updateEntry', () => {
       plugins: () => [chipsPlugin],
     })
     await host.open(harness, { threadId: 'p1' })
-    await host.sessions.update(harness, 'p1', {
-      metadata: { chips: [], theme: 'dark' },
+    await host.sessions.update({
+      harness,
+      threadId: 'p1',
+      update: {
+        metadata: { chips: [], theme: 'dark' },
+      },
     })
     const [api] = apis
     if (!api) throw new Error('The chips plugin was not set up.')
@@ -681,7 +749,9 @@ describe('ctx.session.entry and updateEntry', () => {
 
     expect(await host.sessions.list()).toEqual({ entries: [] })
     expect(await host.sessions.get('p1')).toBeUndefined()
-    expect(await host.sessions.rename('p1', 'x')).toBeUndefined()
+    expect(
+      await host.sessions.rename({ threadId: 'p1', title: 'x' }),
+    ).toBeUndefined()
     expect(await api.entry()).toBeUndefined()
     expect(await api.updateEntry({ title: 'x' })).toBeUndefined()
     await host.close()

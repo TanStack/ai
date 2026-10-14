@@ -1,5 +1,15 @@
+import { EventType } from '@tanstack/ai'
+import { isMediaRecord } from './media-ref'
+import { HARNESS_EVENTS } from './types'
 import type { StreamChunk } from '@tanstack/ai'
-import type { Cursor, SessionEvent } from './types'
+import type {
+  Cursor,
+  LiveEvent,
+  MediaRecord,
+  OnEvent,
+  SessionEvent,
+  StreamChunkType,
+} from './types'
 
 // ponytail: in-memory log capped at MAX_EVENTS per session. A reader whose
 // cursor fell out of the window resumes from the oldest kept event. Durable
@@ -27,6 +37,64 @@ export interface EventFeed {
     until?: () => boolean
   }) => AsyncIterable<SessionEvent>
   close: () => void
+}
+
+/** A listener of the events a session publishes. */
+export type EventListener = (entry: LiveEvent) => void
+
+/** An {@link EventFeed} that also calls listeners after each publish. */
+export interface ListenedFeed extends EventFeed {
+  /** Add `listener`. Returns a function that removes it. */
+  listen: (listener: EventListener) => () => void
+}
+
+/**
+ * The `onEvent` of a session, or of one operation when `operationId` is set.
+ * `listen` adds a listener to the feed.
+ */
+export function onEventOf(
+  listen: (listener: EventListener) => () => void,
+  operationId?: string,
+): OnEvent {
+  function onEvent(listener: EventListener): () => void
+  function onEvent(
+    type: StreamChunkType,
+    listener: (entry: LiveEvent<never>) => void,
+  ): () => void
+  function onEvent(
+    typeOrListener: StreamChunkType | EventListener,
+    typed?: (entry: LiveEvent<never>) => void,
+  ): () => void {
+    const type = typeof typeOrListener === 'string' ? typeOrListener : null
+    const listener = typeof typeOrListener === 'string' ? typed : typeOrListener
+    if (typeof listener !== 'function') {
+      throw new TypeError('onEvent needs a listener function.')
+    }
+    return listen((entry) => {
+      if (operationId !== undefined && entry.operationId !== operationId) {
+        return
+      }
+      // A typed listener gets only events of its type. The result goes back,
+      // so the feed can catch a promise that rejects.
+      if (type === null || entry.event.type === type) {
+        return (listener as EventListener)(entry)
+      }
+    })
+  }
+  return onEvent
+}
+
+/** The `onMedia` of an operation: its `harness.media` events. */
+export function onMediaOf(
+  onEvent: OnEvent,
+): (listener: (entry: { media: MediaRecord }) => void) => () => void {
+  return (listener) =>
+    onEvent(EventType.CUSTOM, ({ event }) => {
+      if (event.name === HARNESS_EVENTS.media && isMediaRecord(event.value)) {
+        // The result goes back, so the feed can catch a promise that rejects.
+        return listener({ media: event.value })
+      }
+    })
 }
 
 /**

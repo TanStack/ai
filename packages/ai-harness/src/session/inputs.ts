@@ -4,6 +4,7 @@ import { HARNESS_EVENTS, InputRejectedError } from '../types'
 import {
   createInputId,
   customEvent,
+  errorText,
   storedPrincipal,
   inputKey,
   CHAT_OPS,
@@ -197,15 +198,28 @@ export abstract class SessionInputs<
     joined.push(steer.inputId)
     this.turnJoins.set(operationId, joined)
     const running = this.activeTurn
+    // The follower stays in `operations`, so `session.operation(id)` finds
+    // it. It ends as the running turn ends.
     if (steer.operation && running) {
       const follower = steer.operation
-      this.operations.delete(follower.id)
       running.then(
-        (result) => follower.finish('completed', result),
-        (error: unknown) => follower.fail('failed', error),
+        (result) =>
+          follower.finish(
+            running.status() === 'interrupted' ? 'interrupted' : 'completed',
+            result,
+          ),
+        (error: unknown) =>
+          follower.fail(
+            running.status() === 'cancelled' ? 'cancelled' : 'failed',
+            error,
+          ),
       )
     }
-    if (!this.writer) void this.inbox.markApplied(steer.inputId, operationId)
+    if (!this.writer) {
+      this.inbox
+        .markApplied({ inputId: steer.inputId, operationId })
+        .catch((error: unknown) => this.warnSession('harness:inbox', error))
+    }
     this.feed.publish(
       operationId,
       customEvent(HARNESS_EVENTS.inputApplied, {
@@ -268,7 +282,7 @@ export abstract class SessionInputs<
    */
   protected async applyControl(inputId: string, change: HarnessRecord) {
     if (!this.writer) {
-      await this.inbox.markApplied(inputId, 'session')
+      await this.inbox.markApplied({ inputId, operationId: 'session' })
       return
     }
     await this.writer.append([
@@ -295,7 +309,7 @@ export abstract class SessionInputs<
     inputId: string,
     input: HarnessInput,
     principal = this.principal,
-  ): Promise<'new' | 'duplicate' | 'conflict'> {
+  ): Promise<'new' | 'duplicate' | 'conflict' | 'closed'> {
     const sender = storedPrincipal(principal)
     const payload = inputKey(input, sender.principal)
     const local = this.admitted.get(inputId)
@@ -306,32 +320,40 @@ export abstract class SessionInputs<
         ? 'duplicate'
         : 'conflict'
     }
+    // A closing session runs no new work. Nothing is stored.
+    if (this.closing && WORK_OPS.has(input.op)) return 'closed'
     this.admitted.set(inputId, payload)
-    // Before the input is stored, so a crash after the write leaves a claim
-    // that a sweep finds.
-    if (WORK_OPS.has(input.op)) {
-      this.markBusy()
-      await this.claimWrite
-    }
-    const at = Date.now()
-    if (this.writer) {
-      await this.writer.append([
-        { type: 'harness.input', inputId, input, at, ...sender },
-      ])
-    } else {
-      const stored = await this.inbox.append({
-        inputId,
-        threadId: this.threadId,
-        input,
-        createdAt: at,
-        ...sender,
-      })
-      // The inbox had the id before this session: a restart.
-      if (stored.createdAt !== at || stored.status !== 'pending') {
-        return inputKey(stored.input, stored.principal) === payload
-          ? 'duplicate'
-          : 'conflict'
+    try {
+      // Before the input is stored, so a crash after the write leaves a claim
+      // that a sweep finds.
+      if (WORK_OPS.has(input.op)) {
+        this.markBusy()
+        await this.claimWrite
       }
+      const at = Date.now()
+      if (this.writer) {
+        await this.writer.append([
+          { type: 'harness.input', inputId, input, at, ...sender },
+        ])
+      } else {
+        const stored = await this.inbox.append({
+          inputId,
+          threadId: this.threadId,
+          input,
+          createdAt: at,
+          ...sender,
+        })
+        // The inbox had the id before this session: a restart.
+        if (stored.createdAt !== at || stored.status !== 'pending') {
+          return inputKey(stored.input, stored.principal) === payload
+            ? 'duplicate'
+            : 'conflict'
+        }
+      }
+    } catch (error) {
+      // Not stored, so a retry with the same id is a new input.
+      this.admitted.delete(inputId)
+      throw error
     }
     this.feed.publish(
       'session',
@@ -359,7 +381,7 @@ export abstract class SessionInputs<
     operationId: string,
   ): Promise<void> {
     if (!this.writer) {
-      await this.inbox.markApplied(inputId, operationId)
+      await this.inbox.markApplied({ inputId, operationId })
       return
     }
     const logged = this.writer.state.inputs.get(inputId)
@@ -394,7 +416,9 @@ export abstract class SessionInputs<
         .append([{ type: 'harness.input.rejected', inputId, reason }])
         .catch(() => {})
     } else {
-      void this.inbox.markRejected(inputId, reason)
+      this.inbox
+        .markRejected({ inputId, reason })
+        .catch((error: unknown) => this.warnSession('harness:inbox', error))
     }
     const receipt: Receipt = { inputId, status: 'rejected', reason }
     this.receipts.set(inputId, receipt)
@@ -486,10 +510,10 @@ export abstract class SessionInputs<
   /** What a duplicate or a conflicting chat input gets back. */
   protected duplicateReceipt(
     inputId: string,
-    admission: 'duplicate' | 'conflict',
+    admission: 'duplicate' | 'conflict' | 'closed',
   ): Receipt {
-    if (admission === 'conflict') {
-      return { inputId, status: 'rejected', reason: 'conflict' }
+    if (admission !== 'duplicate') {
+      return { inputId, status: 'rejected', reason: admission }
     }
     const kept = this.receipts.get(inputId)
     if (kept) return kept
@@ -506,14 +530,21 @@ export abstract class SessionInputs<
     operation: OperationImpl<ChatTurnResult>,
     settlement: InputSettlement,
   ) {
-    const text = lastAssistantText(this.writer?.state.messages ?? [])
+    const text = this.turnText(settlement.inputId)
     switch (settlement.outcome) {
       case 'completed':
-        operation.finish('completed', { text })
+        operation.finish('completed', { text, media: [] })
         return
-      case 'interrupted':
-        operation.finish('interrupted', { text, interrupts: [] })
+      case 'interrupted': {
+        // The interrupts wait still only when this turn stopped last.
+        const stopped = this.interrupted
+        const interrupts =
+          stopped && stopped.runId === settlement.operationId
+            ? stopped.interrupts
+            : []
+        operation.finish('interrupted', { text, interrupts, media: [] })
         return
+      }
       case 'aborted':
         operation.fail('cancelled', new Error('Cancelled.'))
         return
@@ -524,6 +555,32 @@ export abstract class SessionInputs<
         )
         return
     }
+  }
+
+  /**
+   * The answer of the turn that ran `inputId`, from the log: the last
+   * assistant text from where that turn started to where the next one
+   * started. A joined input reads the turn it joined. Empty when the log
+   * does not know where the turn started.
+   */
+  // ponytail: positions in the transcript. A revert that drops messages
+  // moves them, and a note added after the turn counts as its text. Keep the
+  // answer on the settlement record if that matters.
+  protected turnText(inputId: string): string {
+    const state = this.writer?.state
+    const own = state?.inputs.get(inputId)
+    const from = (own?.into ? state?.inputs.get(own.into) : own)?.appliedAt
+    if (!state || from === undefined) return ''
+    // Only a turn or a reset starts a new part of the transcript. An answer,
+    // a command, or an agent run is applied during a turn too.
+    const starts = [...state.inputs.values()]
+      .filter(
+        (input) => CHAT_OPS.has(input.input.op) || input.input.op === 'reset',
+      )
+      .map((input) => input.appliedAt ?? -1)
+      .filter((at) => at > from)
+    const to = Math.min(state.messages.length, ...starts)
+    return lastAssistantText(state.messages.slice(from, to))
   }
 
   protected publishStarted(
@@ -547,5 +604,29 @@ export abstract class SessionInputs<
         status: operation.status(),
       }),
     )
+  }
+
+  /**
+   * A store write threw where no code catches it. Fail the operation, so no
+   * caller waits for it forever.
+   */
+  protected failOperation(
+    operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
+    error: unknown,
+  ): void {
+    if (operation.isSettled()) return
+    // A cancelled operation ends cancelled. Its cancel event is out already.
+    // A log failure aborts operations too, but they fail and say why.
+    if (operation.abortController.signal.aborted && !this.logFailure) {
+      operation.fail('cancelled', this.logFailure ?? error)
+    } else {
+      operation.publish({
+        type: EventType.RUN_ERROR,
+        message: this.scrub(errorText(this.logFailure ?? error)),
+        timestamp: Date.now(),
+      })
+      operation.fail('failed', this.logFailure ?? error)
+    }
+    this.publishFinished(operation)
   }
 }

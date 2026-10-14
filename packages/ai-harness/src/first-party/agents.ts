@@ -350,7 +350,10 @@ export function agents(options: {
               const name = typeof input === 'string' ? input.trim() : ''
               const list = `Agents: ${names.join(', ')}.`
               if (name === '') return `Agent: ${active().name}. ${list}`
-              const receipt = await ctx.session.setConfig('agent', name)
+              const receipt = await ctx.session.setConfig({
+                key: 'agent',
+                value: name,
+              })
               return receipt.status === 'rejected'
                 ? `Unknown agent "${name}". ${list}`
                 : `Agent: ${name}. It applies at the next turn.`

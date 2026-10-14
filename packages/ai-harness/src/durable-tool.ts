@@ -28,9 +28,9 @@ export type DurableToolContext<TContext = unknown> =
   ToolExecutionContext<TContext> & {
     step: ToolStep
     /**
-     * Add host records to the session log with this tool batch. They land in
-     * the same append as the batch's transcript commit. If the batch never
-     * commits (a crash), the records never happened.
+     * Add host records to the session log with this tool call. They land in
+     * the same append as the call's result. If the call never ends (a
+     * crash), the records never happened.
      */
     append: (records: ReadonlyArray<LogRecord>) => void
   }

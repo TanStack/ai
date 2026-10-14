@@ -6,6 +6,7 @@ import {
   createMediaStore,
   mediaCapture,
   mediaMiddleware,
+  toBase64,
 } from '../src/media'
 import { mediaPart } from '../src/media-ref'
 import { mockAdapter, text } from './helpers'
@@ -144,6 +145,7 @@ describe('createMediaStore', () => {
   it.each([
     ['a MIME type with no kind', 'application/zip', undefined],
     ['a kind not in kinds', 'audio/mpeg', ['image'] as const],
+    ['a MIME type that is not well formed', 'text/plain,x', undefined],
   ])('refuses %s with 415', async (_label, mimeType, kinds) => {
     const { store } = setup('t1', { kinds })
     await expect(
@@ -162,6 +164,16 @@ describe('createMediaStore', () => {
     expect(await b.get(record.id)).toBeNull()
     await expect(b.load(record.id)).rejects.toMatchObject({ status: 404 })
     expect(await b.dataUrl(record.id)).toBeUndefined()
+  })
+
+  it('keeps a client thread id inside the upload folder of the blob key', async () => {
+    const { persistence, store } = setup('../x')
+    const record = await store.put(encoder.encode('hello'), {
+      mimeType: 'image/png',
+      name: 'cat.png',
+    })
+    const blobKey = (await persistence.stores.artifacts.get(record.id))?.blobKey
+    expect(blobKey).toBe(`artifacts/upload:..%2Fx/${record.id}`)
   })
 
   it('throws 404 for an id that does not exist', async () => {
@@ -194,6 +206,25 @@ describe('createMediaStore', () => {
     })
     expect(await store.dataUrl(small.id)).toBe('data:image/png;base64,aGVsbG8=')
     expect(await store.dataUrl(big.id)).toBeUndefined()
+  })
+})
+
+describe('toBase64', () => {
+  it('encodes in chunks where there is no Buffer', () => {
+    const bytes = Uint8Array.from({ length: 100_000 }, (_, i) => i % 256)
+    const expected = Buffer.from(bytes).toString('base64')
+    vi.stubGlobal('Buffer', undefined)
+    const btoa = vi.spyOn(globalThis, 'btoa')
+    try {
+      expect(toBase64(bytes)).toBe(expected)
+      const longest = Math.max(
+        ...btoa.mock.calls.map(([input]) => input.length),
+      )
+      expect(longest).toBeLessThanOrEqual(0x8000)
+    } finally {
+      btoa.mockRestore()
+      vi.unstubAllGlobals()
+    }
   })
 })
 
@@ -400,6 +431,29 @@ describe('mediaMiddleware', () => {
     expect(sent).toEqual([
       { type: 'text', content: 'Look' },
       { type: 'text', content: '[image not found: cat.png]' },
+    ])
+  })
+
+  it('sends the stored kind when a part has another type', async () => {
+    const { persistence, store } = setup()
+    const record = await store.put(encoder.encode('hello'), {
+      mimeType: 'image/png',
+      name: 'cat.png',
+    })
+    const { sent } = await runTurn(
+      persistence,
+      mediaMiddleware({ store }),
+      userMessage({
+        type: 'video',
+        source: { type: 'url', value: `harness-media:${record.id}` },
+      }),
+    )
+    expect(sent).toEqual([
+      { type: 'text', content: 'Look' },
+      {
+        type: 'image',
+        source: { type: 'data', value: 'aGVsbG8=', mimeType: 'image/png' },
+      },
     ])
   })
 

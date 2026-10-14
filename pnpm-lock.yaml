@@ -2043,12 +2043,18 @@ importers:
   packages/ai-acp:
     dependencies:
       '@agentclientprotocol/sdk':
-        specifier: ^0.25.0
-        version: 0.25.1(zod@4.3.6)
+        specifier: ^1.5.0
+        version: 1.8.0(zod@4.6.5)
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
+      '@tanstack/ai-harness':
+        specifier: workspace:*
+        version: link:../ai-harness
+      '@tanstack/ai-persistence':
+        specifier: workspace:*
+        version: link:../ai-persistence
       '@tanstack/ai-sandbox':
         specifier: workspace:*
         version: link:../ai-sandbox
@@ -3304,6 +3310,9 @@ importers:
         specifier: workspace:^
         version: link:../ai
     devDependencies:
+      '@tanstack/ai-harness':
+        specifier: workspace:*
+        version: link:../ai-harness
       '@vitest/coverage-v8':
         specifier: 4.1.10
         version: 4.1.10(vitest@4.1.10)
@@ -4025,8 +4034,8 @@ packages:
       zod:
         optional: true
 
-  '@agentclientprotocol/sdk@0.25.1':
-    resolution: {integrity: sha512-jx2rF3bdpGwZ75Q/meyEDLLbYmbtxk82Uh9hDCdxDvcEedBnNSF5hZAnL/kJR5VNz56JqwOmqnAqasC84MwwkQ==}
+  '@agentclientprotocol/sdk@1.8.0':
+    resolution: {integrity: sha512-fbP7qHZsFyTJVT0/RPrcWJ8An26qLXHEuGCHHEKDyxD1xpXV+Ejyh2LAE6vBAFePkpVjZeeohnbgvuEhZ7wLMg==}
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
 
@@ -19097,9 +19106,9 @@ snapshots:
     optionalDependencies:
       zod: 4.2.1
 
-  '@agentclientprotocol/sdk@0.25.1(zod@4.3.6)':
+  '@agentclientprotocol/sdk@1.8.0(zod@4.6.5)':
     dependencies:
-      zod: 4.3.6
+      zod: 4.6.5
 
   '@ampproject/remapping@2.3.0':
     dependencies:
