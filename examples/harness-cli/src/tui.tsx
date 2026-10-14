@@ -72,10 +72,11 @@ function Screen({ view }: { view: SessionView }) {
   const { exit } = useApp()
   const state = useSelector(view.store)
   const [line, setLine] = useState('')
-  // The turn goes on when every approval has an answer, so the screen asks
-  // them one by one.
+  // The turn goes on when every approval and interrupt has an answer, so the
+  // screen asks them one by one.
   const [answered, setAnswered] = useState<ReadonlyArray<string>>([])
   const approval = state.approvals.find(({ id }) => !answered.includes(id))
+  const interrupt = state.interrupts.find(({ id }) => !answered.includes(id))
   const [question] = state.questions
 
   useInput((input, key) => {
@@ -95,7 +96,10 @@ function Screen({ view }: { view: SessionView }) {
       const text = line.trim()
       setLine('')
       if (text === '/exit') exit()
-      else if (question) {
+      else if (interrupt) {
+        interrupt.resolve(answerOf(text, interrupt.responseSchema))
+        setAnswered((ids) => [...ids, interrupt.id])
+      } else if (question) {
         void question
           .answer(answerOf(text, question.schema))
           .then((receipt) => {
@@ -128,6 +132,10 @@ function Screen({ view }: { view: SessionView }) {
   const live = state.messages.slice(lastSent)
 
   const typed = question?.secret ? '*'.repeat(line.length) : line
+  const asking = interrupt
+    ? (interrupt.message ?? interrupt.reason)
+    : question?.message
+  const prompt = asking ? `? ${asking} ` : '> '
   return (
     <Box flexDirection="column">
       <Static items={done}>
@@ -150,7 +158,7 @@ function Screen({ view }: { view: SessionView }) {
           {question?.url ? (
             <Text color="cyan">{`Open ${question.url}`}</Text>
           ) : null}
-          <Text>{`${question ? `? ${question.message} ` : '> '}${typed}`}</Text>
+          <Text>{`${prompt}${typed}`}</Text>
         </Box>
       )}
       <Text dimColor>

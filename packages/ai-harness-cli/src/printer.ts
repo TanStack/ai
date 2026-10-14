@@ -50,6 +50,11 @@ export function createPrinter(
     lastStream = key
   }
   const agent = (key: string, part: AgentPart) => {
+    // A child that ended before its saved parts loaded (a reopened thread)
+    // printed its end already. Its parts that come later are old: mark them.
+    const old = done.has(`${key}:end`)
+    const wasMarking = marking
+    marking ||= old
     once(`${key}:start`, `agent ${part.name} started`)
     part.parts.forEach((inner, index) => {
       if (inner.type === 'tool-call')
@@ -69,6 +74,8 @@ export function createPrinter(
       )
     if (part.status === 'failed')
       once(`${key}:end`, `agent ${part.name} failed: ${part.error ?? ''}`)
+    if (old) media(part.parts)
+    marking = wasMarking
   }
   const media = (parts: ReadonlyArray<ViewPart>) => {
     for (const part of parts) {

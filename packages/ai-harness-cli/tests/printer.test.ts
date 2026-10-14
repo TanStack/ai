@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createPrinter } from '../src/printer'
-import type { SessionViewState } from '@tanstack/ai-harness/view'
+import type { SessionViewState, ViewPart } from '@tanstack/ai-harness/view'
 
 const base: SessionViewState = {
   threadId: 't',
@@ -199,5 +199,47 @@ describe('line printer', () => {
     printer.print(old)
     printer.line('new line')
     expect(out).toBe('new line\n')
+  })
+
+  it('does not print the saved parts of a finished child that load after mark()', () => {
+    let out = ''
+    const onMedia = vi.fn()
+    const printer = createPrinter((text) => (out += text), { onMedia })
+    const withChild = (parts: Array<ViewPart>): SessionViewState => ({
+      ...base,
+      messages: [
+        {
+          id: 'history-0',
+          role: 'assistant',
+          parts: [
+            { type: 'agent', id: 'a', name: 'painter', status: 'done', parts },
+          ],
+        },
+      ],
+    })
+    printer.mark(withChild([]))
+    printer.print(
+      withChild([
+        {
+          type: 'tool-call',
+          id: 'd',
+          name: 'paint',
+          argsText: '{}',
+          args: {},
+          status: 'done',
+        },
+        {
+          type: 'media',
+          id: 'm-1',
+          kind: 'image',
+          mimeType: 'image/png',
+          name: 'old.png',
+          size: 3,
+          load: async () => new Uint8Array(),
+        },
+      ]),
+    )
+    expect(out).toBe('')
+    expect(onMedia).not.toHaveBeenCalled()
   })
 })

@@ -1030,11 +1030,6 @@
           "updatedAt": "2026-10-14"
         },
         {
-          "label": "Build your own UI",
-          "to": "harness/custom-ui",
-          "addedAt": "2026-10-13"
-        },
-        {
           "label": "Run agents from a harness",
           "to": "harness/subagents",
           "addedAt": "2026-10-13",
