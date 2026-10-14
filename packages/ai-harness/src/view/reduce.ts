@@ -14,6 +14,7 @@ import type {
   SignIn,
   ToolCallPart,
   ViewAgent,
+  ViewInterrupt,
   ViewMessage,
   ViewPart,
   ViewQuestion,
@@ -23,6 +24,7 @@ const COMMAND_RESULT = 'harness.command.result'
 
 /** Events that change the parts of the current turn. */
 const TURN_EVENTS: ReadonlySet<string> = new Set([
+  EventType.TEXT_MESSAGE_START,
   EventType.TEXT_MESSAGE_CONTENT,
   EventType.REASONING_MESSAGE_CONTENT,
   EventType.TOOL_CALL_START,
@@ -44,6 +46,7 @@ export interface ItemFactory {
   question: (
     question: SessionSnapshot['pendingQuestions'][number],
   ) => ViewQuestion
+  interrupt: (interrupt: Interrupt) => ViewInterrupt
   agent: (operation: { id: string; name: string }) => ViewAgent
 }
 
@@ -56,6 +59,7 @@ export function emptyState(): SessionViewState {
     messages: [],
     approvals: [],
     clientTools: [],
+    interrupts: [],
     questions: [],
     signIns: [],
     agents: [],
@@ -64,6 +68,7 @@ export function emptyState(): SessionViewState {
     commands: [],
     config: [],
     tools: [],
+    models: [],
     plugins: {},
   }
 }
@@ -85,7 +90,7 @@ function textOf(content: ModelMessage['content']): string {
     .join('')
 }
 
-function subagentOf(event: StreamChunk): string | undefined {
+export function subagentOf(event: StreamChunk): string | undefined {
   return 'subagentRunId' in event && typeof event.subagentRunId === 'string'
     ? event.subagentRunId
     : undefined
@@ -253,6 +258,11 @@ function mapAgent(
 
 /** Text, reasoning, and tool call events of one agent (the lead or a child). */
 function applyOwn(parts: Array<ViewPart>, event: StreamChunk): Array<ViewPart> {
+  // Each model call gets its own text part, so a retry can drop one call.
+  if (event.type === EventType.TEXT_MESSAGE_START)
+    return parts.at(-1)?.type === 'text'
+      ? [...parts, { type: 'text', text: '' }]
+      : parts
   if (event.type === EventType.TEXT_MESSAGE_CONTENT)
     return appendText(parts, 'text', event.delta)
   if (event.type === EventType.REASONING_MESSAGE_CONTENT)
@@ -332,14 +342,47 @@ function applyToParts(
     }
     return [...parts, agent]
   }
-  return mapAgent(parts, child, (agent) => {
-    if (event.type === EventType.SUBAGENT_FINISHED)
-      return { ...agent, status: 'done' }
-    if (event.type === EventType.SUBAGENT_ERROR)
-      return { ...agent, status: 'failed', error: event.message }
-    const inner = applyOwn(agent.parts, event)
-    return inner === agent.parts ? agent : { ...agent, parts: inner }
-  })
+  return mapAgent(parts, child, (agent) => applyToChild(agent, event))
+}
+
+/** One event of a child agent, on its part. */
+function applyToChild(agent: AgentPart, event: StreamChunk): AgentPart {
+  if (event.type === EventType.SUBAGENT_STARTED)
+    return agent.status === 'running' ? agent : { ...agent, status: 'running' }
+  if (event.type === EventType.SUBAGENT_FINISHED) {
+    const { result } = event
+    return {
+      ...agent,
+      status: 'done',
+      ...(result !== undefined ? { result } : {}),
+    }
+  }
+  if (event.type === EventType.SUBAGENT_ERROR)
+    return { ...agent, status: 'failed', error: event.message }
+  const inner = applyOwn(agent.parts, event)
+  return inner === agent.parts ? agent : { ...agent, parts: inner }
+}
+
+/**
+ * An event of a child that the turn does not show, on the part of the
+ * message that does: a background child that a saved message shows.
+ */
+function applyToShownChild(
+  state: SessionViewState,
+  child: string,
+  event: StreamChunk,
+): SessionViewState {
+  const messages = keep(
+    state.messages,
+    state.messages.map((message) => {
+      if (message.role !== 'assistant') return message
+      const parts = mapAgent(message.parts, child, (agent) =>
+        applyToChild(agent, event),
+      )
+      return parts === message.parts ? message : { ...message, parts }
+    }),
+  )
+  return messages === state.messages ? state : { ...state, messages }
 }
 
 /** Change the assistant message of one turn. It is created on its first part. */
@@ -359,6 +402,24 @@ function updateTurn(
   const messages = [...state.messages]
   messages[index] = message
   return { ...state, messages }
+}
+
+/**
+ * The parts without what the model call that failed streamed: its running
+ * tool calls, its text part, and the reasoning before that text. The text of
+ * an earlier call is a part of its own, so it stays.
+ */
+function withoutAttempt(parts: Array<ViewPart>): Array<ViewPart> {
+  // ponytail: a failed call that streamed no text also drops the text of
+  // the call before it. Mark where each model call starts if that matters.
+  let end = parts.length
+  const at = (index: number) => parts[index - 1]
+  const isRunning = (part: ViewPart | undefined) =>
+    part?.type === 'tool-call' && part.status === 'running'
+  while (end > 0 && isRunning(at(end))) end -= 1
+  if (at(end)?.type === 'text') end -= 1
+  while (end > 0 && at(end)?.type === 'reasoning') end -= 1
+  return end === parts.length ? parts : parts.slice(0, end)
 }
 
 function addMedia(parts: Array<ViewPart>, part: MediaPart) {
@@ -453,8 +514,17 @@ export function applyEvent(
     subagentOf(event) === undefined
   )
     return applyToolResult(state, event)
-  if (TURN_EVENTS.has(event.type))
-    return updateTurn(state, operationId, (parts) => applyToParts(parts, event))
+  if (TURN_EVENTS.has(event.type)) {
+    const next = updateTurn(state, operationId, (parts) =>
+      applyToParts(parts, event),
+    )
+    const child = subagentOf(event)
+    const isElsewhere =
+      next === state &&
+      child !== undefined &&
+      event.type !== EventType.SUBAGENT_STARTED
+    return isElsewhere ? applyToShownChild(state, child, event) : next
+  }
   if (event.type === EventType.RUN_ERROR) {
     if (subagentOf(event) !== undefined) return state
     return failRunning(
@@ -476,6 +546,10 @@ export function applyEvent(
       : state
   if (event.name === HARNESS_EVENTS.operationResumed)
     return withNotice(state, 'info', 'Resumed a turn that a crash stopped.')
+  // A retry that does not continue the partial answer starts the model call
+  // again, so the text of the failed attempt goes.
+  if (event.name === HARNESS_EVENTS.turnRetry && value.continued !== true)
+    return updateTurn(state, String(value.operationId), withoutAttempt)
   if (event.name === COMMAND_RESULT) {
     // A finished `connect:<id>` ends the sign-in it waited for.
     const connector =
@@ -519,6 +593,20 @@ export function applyEvent(
   return state
 }
 
+/** The tool call `id` in `parts`, also in the parts of child agents. */
+function findCallIn(
+  parts: ReadonlyArray<ViewPart>,
+  id: string,
+): ToolCallPart | undefined {
+  for (const part of parts) {
+    if (part.type === 'tool-call' && part.id === id) return part
+    if (part.type !== 'agent') continue
+    const inner = findCallIn(part.parts, id)
+    if (inner) return inner
+  }
+  return undefined
+}
+
 function findToolCall(
   messages: ReadonlyArray<ViewMessage>,
   id: string | undefined,
@@ -527,12 +615,31 @@ function findToolCall(
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index]
     if (message?.role !== 'assistant') continue
-    const part = message.parts.find(
-      (item) => item.type === 'tool-call' && item.id === id,
-    )
-    if (part?.type === 'tool-call') return part
+    const part = findCallIn(message.parts, id)
+    if (part) return part
   }
   return undefined
+}
+
+/** Mark the running calls in `waiting` as `needs-approval`, also in child agents. */
+function markParts(
+  parts: Array<ViewPart>,
+  waiting: ReadonlySet<string>,
+): Array<ViewPart> {
+  return keep(
+    parts,
+    parts.map((part) => {
+      if (part.type === 'agent') {
+        const inner = markParts(part.parts, waiting)
+        return inner === part.parts ? part : { ...part, parts: inner }
+      }
+      const isWaiting =
+        part.type === 'tool-call' &&
+        part.status === 'running' &&
+        waiting.has(part.id)
+      return isWaiting ? { ...part, status: 'needs-approval' as const } : part
+    }),
+  )
 }
 
 function markWaiting(
@@ -540,24 +647,14 @@ function markWaiting(
   waiting: ReadonlySet<string>,
 ): Array<ViewMessage> {
   if (waiting.size === 0) return messages
-  let changed = false
-  const next = messages.map((message) => {
-    if (message.role !== 'assistant') return message
-    let touched = false
-    const parts = message.parts.map((part) => {
-      const isWaiting =
-        part.type === 'tool-call' &&
-        part.status === 'running' &&
-        waiting.has(part.id)
-      if (!isWaiting) return part
-      touched = true
-      return { ...part, status: 'needs-approval' as const }
-    })
-    if (!touched) return message
-    changed = true
-    return { ...message, parts }
-  })
-  return changed ? next : messages
+  return keep(
+    messages,
+    messages.map((message) => {
+      if (message.role !== 'assistant') return message
+      const parts = markParts(message.parts, waiting)
+      return parts === message.parts ? message : { ...message, parts }
+    }),
+  )
 }
 
 /** `old` when `next` holds the same items, so selectors see no change. */
@@ -571,6 +668,11 @@ export function keep<T>(old: Array<T>, next: Array<T>): Array<T> {
 /** The turn waits for the output of a client tool, not for a yes or no. */
 const isClientTool = (interrupt: Interrupt) =>
   readUnopenedInterruptBinding(interrupt)?.kind === 'client-tool-execution'
+
+/** The turn waits for an answer of the interrupt's own shape. */
+const isGeneric = (interrupt: Interrupt) =>
+  readUnopenedInterruptBinding(interrupt)?.kind === 'generic' &&
+  !signInOf(interrupt)
 
 /**
  * The sign-in a turn waits for, from `credentials.require(id, { wait: true })`.
@@ -602,7 +704,12 @@ export function applySnapshot(
   const approvals = keep(
     state.approvals,
     snapshot.pendingInterrupts
-      .filter((interrupt) => !isClientTool(interrupt) && !signInOf(interrupt))
+      .filter(
+        (interrupt) =>
+          !isClientTool(interrupt) &&
+          !isGeneric(interrupt) &&
+          !signInOf(interrupt),
+      )
       .map(
         (interrupt) =>
           state.approvals.find((item) => item.id === interrupt.id) ??
@@ -625,6 +732,21 @@ export function applySnapshot(
           ),
       ),
   )
+  const interrupts = keep(
+    state.interrupts,
+    snapshot.pendingInterrupts
+      .filter(isGeneric)
+      .map(
+        (interrupt) =>
+          state.interrupts.find((item) => item.id === interrupt.id) ??
+          factory.interrupt(interrupt),
+      ),
+  )
+  // Usage changes only with a new model call.
+  const usage =
+    state.usage?.total.calls === snapshot.usage.total.calls
+      ? state.usage
+      : snapshot.usage
   // In the snapshot too, so a sign-in that a turn waits for shows after a reload.
   const newSignIns = snapshot.pendingInterrupts
     .flatMap((interrupt) => signInOf(interrupt) ?? [])
@@ -677,6 +799,8 @@ export function applySnapshot(
     waitingInputs === state.waitingInputs &&
     approvals === state.approvals &&
     clientTools === state.clientTools &&
+    interrupts === state.interrupts &&
+    usage === state.usage &&
     signIns === state.signIns &&
     questions === state.questions &&
     agents === state.agents &&
@@ -691,6 +815,8 @@ export function applySnapshot(
     waitingInputs,
     approvals,
     clientTools,
+    interrupts,
+    usage,
     signIns,
     questions,
     agents,
@@ -709,6 +835,8 @@ export function applyDescription(
     commands: description.commands,
     config: description.config,
     tools: description.tools,
+    models: description.models ?? [],
+    settings: description.settings,
   }
 }
 
@@ -780,6 +908,102 @@ export function messagesFromTranscript(
     if (!call) return
     call.status = message.error ? 'failed' : 'done'
     call.result = parseJson(textOf(message.content))
+    // An agent tool result names its child run. The view loads the child's
+    // own messages into this part.
+    const outcome = recordOf(call.result)
+    const child = outcome.subagentRunId
+    if (typeof child !== 'string' || child === '') return
+    const owner = result.find(
+      (item) => item.role === 'assistant' && item.parts.includes(call),
+    )
+    if (owner?.role !== 'assistant') return
+    const error = outcome.error
+    // A background child answers at once with `status: 'started'`.
+    const isStarted = recordOf(outcome.result).status === 'started'
+    const ended =
+      error === undefined && call.status === 'done' ? 'done' : 'failed'
+    const agent: AgentPart = {
+      type: 'agent',
+      id: child,
+      name: call.name,
+      status: isStarted ? 'running' : ended,
+      ...(typeof error === 'string' ? { error } : {}),
+      parts: [],
+    }
+    owner.parts.splice(owner.parts.indexOf(call) + 1, 0, agent)
   })
   return result
+}
+
+/** The parts of a child agent from its saved messages. Its task does not show. */
+export function agentPartsFrom(
+  messages: ReadonlyArray<ModelMessage>,
+): Array<ViewPart> {
+  return messagesFromTranscript(messages).flatMap((message) =>
+    message.role === 'assistant' ? message.parts : [],
+  )
+}
+
+/** The agent parts that show no parts yet. */
+function emptyAgents(parts: ReadonlyArray<ViewPart>): Array<AgentPart> {
+  return parts.flatMap((part) => {
+    if (part.type !== 'agent') return []
+    return part.parts.length === 0 ? [part] : emptyAgents(part.parts)
+  })
+}
+
+/** `emptyAgents` of every assistant message. */
+export function emptyAgentsIn(
+  messages: ReadonlyArray<ViewMessage>,
+): Array<AgentPart> {
+  return messages.flatMap((message) =>
+    message.role === 'assistant' ? emptyAgents(message.parts) : [],
+  )
+}
+
+/**
+ * Put `parts` first in the agent part `id`, in whichever message holds it.
+ * `ended` is how the saved child ended. It changes a part that shows the
+ * child as running, from a background start.
+ */
+export function withAgentParts(
+  state: SessionViewState,
+  id: string,
+  parts: Array<ViewPart>,
+  ended?: AgentPart['status'],
+): SessionViewState {
+  const messages = keep(
+    state.messages,
+    state.messages.map((message) => {
+      if (message.role !== 'assistant') return message
+      // Events can come before the saved messages load. They come after them.
+      const next = mapAgent(message.parts, id, (agent) => {
+        const status =
+          agent.status === 'running' && ended ? ended : agent.status
+        if (parts.length === 0 && status === agent.status) return agent
+        return { ...agent, status, parts: [...parts, ...agent.parts] }
+      })
+      return next === message.parts ? message : { ...message, parts: next }
+    }),
+  )
+  return messages === state.messages ? state : { ...state, messages }
+}
+
+/**
+ * The message, tool call, and child run ids of a saved transcript. A segment
+ * of a message (`<id>-segment-<n>`) has the id of its stream message.
+ */
+export function transcriptIds(
+  messages: ReadonlyArray<ModelMessage>,
+): Set<string> {
+  const ids = new Set<string>()
+  for (const message of messages) {
+    if (message.id) ids.add(message.id.replace(/-segment-\d+$/, ''))
+    for (const call of message.toolCalls ?? []) ids.add(call.id)
+    // The child run an agent tool result names: its parts load on their own.
+    if (message.role !== 'tool') continue
+    const child = recordOf(parseJson(textOf(message.content))).subagentRunId
+    if (typeof child === 'string' && child !== '') ids.add(child)
+  }
+  return ids
 }

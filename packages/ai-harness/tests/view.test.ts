@@ -463,4 +463,46 @@ describe('the agents of a session view', () => {
     view.dispose()
     await host.close()
   })
+
+  it('shows what a child agent wrote after a reload', async () => {
+    const writer = defineAgent({
+      name: 'writer',
+      description: 'Writes notes',
+      run: (ctx) =>
+        ctx.chat({ adapter: mockAdapter(() => text('Note 1')).adapter }),
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/view-children',
+        adapter: mockAdapter([
+          () => toolCall('writer', { prompt: 'Take notes' }, 'call-1'),
+          () => text('Done.'),
+        ]).adapter,
+        subagents: { agents: [writer] },
+      }),
+      { threadId: 't' },
+    )
+    await session.prompt('Notes, please')
+
+    const view = createSessionView(session)
+    await view.ready
+
+    await vi.waitFor(() =>
+      expect(view.store.get().messages[1]).toMatchObject({
+        role: 'assistant',
+        parts: [
+          { type: 'tool-call', id: 'call-1', status: 'done' },
+          {
+            type: 'agent',
+            name: 'writer',
+            status: 'done',
+            parts: [{ type: 'text', text: 'Note 1' }],
+          },
+        ],
+      }),
+    )
+    view.dispose()
+    await host.close()
+  })
 })

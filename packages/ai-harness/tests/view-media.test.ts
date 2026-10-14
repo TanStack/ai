@@ -304,6 +304,32 @@ describe('media in createSessionView', () => {
     view.dispose()
   })
 
+  it('stops getting new urls for media that no message shows after a revert', async () => {
+    vi.useFakeTimers({ now: 0 })
+    const { asked, mediaUrl } = expiringUrls()
+    // The first read has the image. The read after the revert has none.
+    const transcript = vi
+      .fn<() => Promise<Array<ModelMessage>>>()
+      .mockResolvedValueOnce([savedAnswer([record()])])
+      .mockResolvedValue([])
+    const reverted = at({
+      type: EventType.CUSTOM,
+      name: HARNESS_EVENTS.revert,
+      value: { messageId: 'u1' },
+    })
+    const { view } = await openView({
+      transcript,
+      mediaUrl,
+      events: ({ signal }) => replay([reverted], signal),
+    })
+
+    await vi.waitFor(() => expect(mediaIn(view)).toEqual([]))
+    await vi.advanceTimersByTimeAsync(2 * HOUR)
+
+    expect(asked).toEqual(['m1'])
+    view.dispose()
+  })
+
   it('shows an error when the source cannot give a url', async () => {
     const { view } = await openView({
       transcript: async () => [savedAnswer([record()])],
