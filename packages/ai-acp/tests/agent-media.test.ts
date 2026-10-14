@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { EventType } from '@tanstack/ai'
 import { client } from '@agentclientprotocol/sdk/experimental/v2'
 import { memoryPersistence } from '@tanstack/ai-persistence'
@@ -124,16 +124,16 @@ async function savedPrompt(prompt: Array<ContentBlock>) {
       cwd: '/tmp',
       mcpServers: [],
     })
-    const { messageId } = await ctx.request('session/prompt', {
-      sessionId,
-      prompt,
-    })
-    return { sessionId, messageId }
+    await ctx.request('session/prompt', { sessionId, prompt })
+    return { sessionId }
   })
   const session = await host.open(harness, { threadId: sent.sessionId })
-  await session.operation(sent.messageId)
-  const [user] = await session.transcript()
-  if (user?.role !== 'user') throw new Error('The turn saved no user message.')
+  // The prompt goes to the harness after the response, so wait for it.
+  const user = await vi.waitFor(async () => {
+    const [first] = await session.transcript()
+    if (first?.role !== 'user') throw new Error('No user message yet.')
+    return first
+  })
   return { session, user }
 }
 

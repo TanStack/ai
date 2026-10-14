@@ -6,7 +6,12 @@ import {
   agent,
   ndJsonStream,
 } from '@agentclientprotocol/sdk/experimental/v2'
-import { MediaError, kindOf, mediaPart } from '@tanstack/ai-harness'
+import {
+  InputRejectedError,
+  MediaError,
+  kindOf,
+  mediaPart,
+} from '@tanstack/ai-harness'
 import type {
   AgentApp,
   AgentContext,
@@ -59,16 +64,22 @@ function fileName(uri: string) {
 
 /**
  * Store the base64 `data` of a block in the media store of the session, and
- * return the part that sends it. Throws a `MediaError` when the harness
- * refuses the file.
+ * return the part that sends it. Throws an invalid params error for data that
+ * is not base64, and a `MediaError` when the harness refuses the file.
  */
 async function storedPart(
   session: HarnessSession,
   data: string,
   info: { mimeType: string; name: string },
 ) {
-  const bytes = Uint8Array.from(atob(data), (char) => char.charCodeAt(0))
-  return mediaPart(await session.putMedia(bytes, info))
+  // `Buffer.from` skips the characters that are not base64, so check first.
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(data)) {
+    throw RequestError.invalidParams(
+      undefined,
+      `The data of ${info.name} is not base64.`,
+    )
+  }
+  return mediaPart(await session.putMedia(Buffer.from(data, 'base64'), info))
 }
 
 /** One ACP prompt block as a content part, or `undefined` to skip it. */
@@ -167,6 +178,14 @@ export function toSessionUpdate(chunk: StreamChunk): SessionUpdate | undefined {
   return undefined
 }
 
+/** True for an interrupt that asks to approve a tool call. */
+function isApproval(interrupt: Interrupt) {
+  return (
+    interrupt.metadata?.kind === 'approval' ||
+    interrupt.reason === 'approval_required'
+  )
+}
+
 const APPROVAL_OPTIONS = [
   { optionId: 'allow', name: 'Allow', kind: 'allow_once' },
   { optionId: 'reject', name: 'Reject', kind: 'reject_once' },
@@ -175,10 +194,10 @@ const APPROVAL_OPTIONS = [
 /**
  * An ACP v2 agent backed by a harness. Each ACP session is one harness
  * session, and `session/list` reads the top-level sessions of the harness from
- * the session index of the host. Prompts follow the harness `busy` setting,
- * tool approvals become `session/request_permission` requests, and cancel
- * cancels the running turn.
- * Image, audio, and embedded resource blocks of a prompt go to the media
+ * the session index of the host. The prompts of a session run one after
+ * another, whatever the harness `busy` setting says. Tool approvals become
+ * `session/request_permission` requests, and cancel cancels the running
+ * turn. Image, audio, and embedded resource blocks of a prompt go to the media
  * store of the session. A file the harness refuses (too big, or a type it
  * does not take) fails `session/prompt` with an invalid params error.
  *
@@ -186,15 +205,23 @@ const APPROVAL_OPTIONS = [
  */
 export function createAcpAgent(options: AcpAgentOptions): AgentApp {
   const { host, harness } = options
-  const sessions = new Map<string, HarnessSession>()
+  /** The ids of the sessions that this agent opened. */
+  const opened = new Set<string>()
+  /** The last pump of each session. The pumps of one session run in order. */
+  const tails = new Map<string, Promise<void>>()
 
-  const sessionFor = async (sessionId: string) => {
-    let session = sessions.get(sessionId)
-    if (!session) {
-      session = await host.open(harness, { threadId: sessionId })
-      sessions.set(sessionId, session)
+  // The host gives back the live session of a thread, or opens it again after
+  // it closed, so the agent keeps no session objects.
+  const live = (sessionId: string) =>
+    host.open(harness, { threadId: sessionId })
+
+  /** The session of an id that this agent or the session index knows. */
+  const known = async (sessionId: string) => {
+    if (!opened.has(sessionId) && !(await host.sessions.get(sessionId))) {
+      throw RequestError.resourceNotFound(sessionId)
     }
-    return session
+    opened.add(sessionId)
+    return live(sessionId)
   }
 
   const notify = (
@@ -204,40 +231,49 @@ export function createAcpAgent(options: AcpAgentOptions): AgentApp {
   ) => client.notify('session/update', { sessionId, update }).catch(() => {})
 
   /**
-   * Ask the client about each approval, then continue the turn. The next
-   * operation is wrapped, because an operation is thenable and an async
-   * function would unwrap it.
+   * Answer the interrupts of a turn, then continue it. The client gets a
+   * permission request for each tool approval. The other interrupts (a
+   * sign-in, an input form, a client tool) are cancelled, because the client
+   * cannot answer them. A permission answer other than a selected option (the
+   * client cancelled the prompt) stops the turn, and the interrupts stay open
+   * until the next prompt. The next operation is wrapped, because an
+   * operation is thenable and an async function would unwrap it.
    */
-  const approve = async (
+  const answer = async (
     client: AgentContext,
     sessionId: string,
     session: HarnessSession,
     interrupts: ReadonlyArray<Interrupt>,
-  ): Promise<{ next: Operation<unknown> | undefined }> => {
-    await notify(client, sessionId, {
-      sessionUpdate: 'state_update',
-      state: 'requires_action',
-    })
+  ): Promise<{ next?: Operation<unknown>; cancelled?: boolean }> => {
+    if (interrupts.some(isApproval)) {
+      await notify(client, sessionId, {
+        sessionUpdate: 'state_update',
+        state: 'requires_action',
+      })
+    }
     const resume: Array<RunAgentResumeItem> = []
     for (const interrupt of interrupts) {
+      if (!isApproval(interrupt)) {
+        resume.push({ interruptId: interrupt.id, status: 'cancelled' })
+        continue
+      }
       const toolCallId = interrupt.toolCallId ?? interrupt.id
-      const response = await client.request('session/request_permission', {
+      const { outcome } = await client.request('session/request_permission', {
         sessionId,
         title: interrupt.message ?? 'Allow this tool call?',
         subject: { type: 'tool_call', toolCall: { toolCallId } },
         options: [...APPROVAL_OPTIONS],
       })
-      const allowed =
-        response.outcome.outcome === 'selected' &&
-        'optionId' in response.outcome &&
-        response.outcome.optionId === 'allow'
+      if (outcome.outcome !== 'selected') return { cancelled: true }
       resume.push({
         interruptId: interrupt.id,
         status: 'resolved',
-        payload: allowed,
+        payload: 'optionId' in outcome && outcome.optionId === 'allow',
       })
     }
     const receipt = await session.resolve(resume)
+    // For example `busy`: a later prompt runs already.
+    if (receipt.status === 'rejected') throw new InputRejectedError(receipt)
     return {
       next: receipt.operationId
         ? session.operation(receipt.operationId)
@@ -246,26 +282,66 @@ export function createAcpAgent(options: AcpAgentOptions): AgentApp {
   }
 
   /**
-   * Stream one turn to the client, through any approvals, then report idle.
-   * A failed turn, or a failure here, ends with the `error` stop reason. An
-   * interrupt that is not a tool approval (a question, a sign-in) stays open,
-   * because the client cannot answer it, so the turn waits.
+   * Cancel the open interrupts of a session (from a cancelled approval, or
+   * from another client), and wait for the turn that takes the answers. The
+   * thread takes no new prompt while an interrupt is open. Resolves `false`
+   * when the client cancelled that turn: its interrupts stay open.
+   */
+  const closeInterrupts = async (session: HarnessSession) => {
+    const open = session.snapshot().pendingInterrupts
+    if (open.length === 0) return true
+    const receipt = await session.resolve(
+      open.map((interrupt) => ({
+        interruptId: interrupt.id,
+        status: 'cancelled' as const,
+      })),
+    )
+    if (receipt.status === 'rejected') throw new InputRejectedError(receipt)
+    // ponytail: the reply of the model to the cancel stays out of the client.
+    const turn = receipt.operationId
+      ? session.operation(receipt.operationId)
+      : undefined
+    let failure: unknown
+    await turn?.then(
+      () => {},
+      (error: unknown) => {
+        failure = error
+      },
+    )
+    if (turn?.status() === 'cancelled') return false
+    if (turn?.status() === 'failed') throw failure
+    if (session.snapshot().pendingInterrupts.length > 0) {
+      throw new Error(
+        'The model asked again for input that the client cannot give.',
+      )
+    }
+    return true
+  }
+
+  /**
+   * Close the open interrupts, run one prompt, and stream its turn to the
+   * client through its interrupts, then report idle. A failed turn, or a
+   * failure here, ends with the `error` stop reason.
    */
   const pump = async (
     client: AgentContext,
     sessionId: string,
     session: HarnessSession,
-    first: Operation<unknown>,
+    input: Parameters<HarnessSession['prompt']>[0],
   ) => {
-    let operation: Operation<unknown> | undefined = first
+    let operation: Operation<unknown> | undefined
     let stopReason: 'end_turn' | 'cancelled' | 'error' = 'end_turn'
     let failure: string | undefined
+    const running = () =>
+      notify(client, sessionId, {
+        sessionUpdate: 'state_update',
+        state: 'running',
+      })
     try {
+      await running()
+      if (await closeInterrupts(session)) operation = session.prompt(input)
+      else stopReason = 'cancelled'
       while (operation) {
-        await notify(client, sessionId, {
-          sessionUpdate: 'state_update',
-          state: 'running',
-        })
         for await (const chunk of operation.stream()) {
           const update = toSessionUpdate(chunk)
           if (update) await notify(client, sessionId, update)
@@ -286,16 +362,11 @@ export function createAcpAgent(options: AcpAgentOptions): AgentApp {
           Array.isArray(result.interrupts)
             ? (result.interrupts as Array<Interrupt>)
             : []
-        const areApprovals =
-          interrupts.length > 0 &&
-          interrupts.every(
-            (interrupt) =>
-              interrupt.metadata?.kind === 'approval' ||
-              interrupt.reason === 'approval_required',
-          )
-        operation = areApprovals
-          ? (await approve(client, sessionId, session, interrupts)).next
-          : undefined
+        if (interrupts.length === 0) break
+        const answered = await answer(client, sessionId, session, interrupts)
+        if (answered.cancelled) stopReason = 'cancelled'
+        operation = answered.next
+        if (operation) await running()
       }
     } catch (error) {
       stopReason = 'error'
@@ -329,7 +400,8 @@ export function createAcpAgent(options: AcpAgentOptions): AgentApp {
     }))
     .onRequest('session/new', async () => {
       const sessionId = `acp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
-      await sessionFor(sessionId)
+      opened.add(sessionId)
+      await live(sessionId)
       return { sessionId }
     })
     .onRequest('session/list', async ({ params }) => {
@@ -354,11 +426,12 @@ export function createAcpAgent(options: AcpAgentOptions): AgentApp {
       }
     })
     .onRequest('session/resume', async ({ params }) => {
-      await sessionFor(params.sessionId)
+      await known(params.sessionId)
       return {}
     })
     .onRequest('session/prompt', async ({ params, client }) => {
-      const session = await sessionFor(params.sessionId)
+      const { sessionId } = params
+      const session = await known(sessionId)
       const input = await promptInput(session, params.prompt).catch(
         (error: unknown) => {
           // The editor sent a file the harness refuses, so the prompt is
@@ -372,18 +445,33 @@ export function createAcpAgent(options: AcpAgentOptions): AgentApp {
           throw error
         },
       )
-      const operation = session.prompt(input)
-      // `pump` catches its own errors and always reports idle.
-      void pump(client, params.sessionId, session, operation)
-      return { messageId: operation.id }
+      const messageId = `user-${crypto.randomUUID()}`
+      await notify(client, sessionId, {
+        sessionUpdate: 'user_message',
+        messageId,
+        content: params.prompt,
+      })
+      // `pump` catches its own errors and always reports idle. The prompts of
+      // one session go to the harness in order, each after the turn before it
+      // ended, so a later prompt cannot overtake a permission request.
+      const tail = (tails.get(sessionId) ?? Promise.resolve()).then(() =>
+        pump(client, sessionId, session, input),
+      )
+      tails.set(sessionId, tail)
+      void tail.then(() => {
+        if (tails.get(sessionId) === tail) tails.delete(sessionId)
+      })
+      return { messageId }
     })
     .onRequest('session/close', async ({ params }) => {
-      const session = sessions.get(params.sessionId)
-      sessions.delete(params.sessionId)
-      await session?.close()
+      if (!opened.delete(params.sessionId)) return
+      await (await live(params.sessionId)).close()
     })
     .onNotification('session/cancel', async ({ params }) => {
-      await sessions.get(params.sessionId)?.cancel()
+      // While the client asks for an approval, no turn runs: the client
+      // answers that request with `cancelled`, and the turn stops there.
+      if (!opened.has(params.sessionId)) return
+      await (await live(params.sessionId)).cancel()
     })
 }
 

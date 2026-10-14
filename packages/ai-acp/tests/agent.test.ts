@@ -140,7 +140,7 @@ describe('ACP v2 agent', () => {
         sessionId,
         prompt: [{ type: 'text', text: 'remove a.txt' }],
       })
-      expect(prompted.messageId).toMatch(/^op-chat-/)
+      expect(prompted.messageId).toMatch(/^user-/)
 
       await vi.waitFor(() =>
         expect(

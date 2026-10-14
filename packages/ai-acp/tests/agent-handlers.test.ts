@@ -7,6 +7,7 @@ import { createAcpAgent, serveAcp, toSessionUpdate } from '../src/agent'
 import type { AnyTextAdapter, ModelMessage, StreamChunk } from '@tanstack/ai'
 import type {
   ClientApp,
+  RequestPermissionOutcome,
   SessionUpdate,
 } from '@agentclientprotocol/sdk/experimental/v2'
 
@@ -14,7 +15,9 @@ const now = () => Date.now()
 
 /**
  * A model that answers from the last user message: `wait` waits until the
- * turn is cancelled, `remove` calls the remove tool, anything else echoes.
+ * turn is cancelled, `remove` calls the remove tool, `pick` calls the pick
+ * client tool, anything else echoes. After the tool of `remove slowly`, it
+ * waits until the turn is cancelled too.
  */
 function model(): AnyTextAdapter {
   return {
@@ -52,7 +55,12 @@ function model(): AnyTextAdapter {
           threadId: 't',
           timestamp: now(),
         }
-        if (said === 'wait') {
+        const asked: ModelMessage | undefined = options.messages.findLast(
+          (message: ModelMessage) => message.role === 'user',
+        )
+        const isSlow =
+          last?.role === 'tool' && asked?.content === 'remove a.txt slowly'
+        if (said === 'wait' || isSlow) {
           const signal: AbortSignal | undefined =
             options.abortController?.signal ?? options.request?.signal
           await new Promise<void>((resolve) => {
@@ -61,11 +69,16 @@ function model(): AnyTextAdapter {
           })
           return
         }
-        if (said.startsWith('remove')) {
+        const tool = said.startsWith('remove')
+          ? 'remove'
+          : said === 'pick'
+            ? 'pick'
+            : undefined
+        if (tool && last?.role === 'user') {
           yield {
             type: EventType.TOOL_CALL_START,
             toolCallId: 'call_1',
-            toolCallName: 'remove',
+            toolCallName: tool,
             timestamp: now(),
           }
           yield {
@@ -133,11 +146,21 @@ function setup() {
           required: ['path'],
         },
       }).server(remove),
+      // No server function: the client runs it, and an editor cannot.
+      toolDefinition({
+        name: 'pick',
+        description: 'Pick a file in the editor',
+        inputSchema: { type: 'object', properties: {} },
+      }),
     ],
   })
   const host = createHarnessHost({ persistence: memoryPersistence() })
   const updates: Array<{ sessionId: string; update: SessionUpdate }> = []
   const permissions: Array<{ title: string; toolCallId: string }> = []
+  // The answer of the editor to each permission request. Default: Reject.
+  const editorState: { answer: () => Promise<RequestPermissionOutcome> } = {
+    answer: async () => ({ outcome: 'selected', optionId: 'reject' }),
+  }
   const editor: ClientApp = client()
     .onNotification('session/update', ({ params }) => {
       updates.push({ sessionId: params.sessionId, update: params.update })
@@ -150,7 +173,7 @@ function setup() {
           ? 'call_1'
           : '',
       })
-      return { outcome: { outcome: 'selected', optionId: 'reject' } }
+      return editorState.answer().then((outcome) => ({ outcome }))
     })
   const idle = (sessionId: string) =>
     updates.find(
@@ -173,6 +196,17 @@ function setup() {
           : ''
       })
       .join('')
+  /** The states of a session, in order, with the stop reason of an idle. */
+  const states = (sessionId: string) =>
+    updates.flatMap(({ sessionId: id, update }) =>
+      id === sessionId && update.sessionUpdate === 'state_update'
+        ? [
+            update.state === 'idle' && 'stopReason' in update
+              ? `idle:${String(update.stopReason)}`
+              : update.state,
+          ]
+        : [],
+    )
   const running = (sessionId: string) =>
     updates.some(
       (entry) =>
@@ -186,8 +220,10 @@ function setup() {
     editor,
     updates,
     permissions,
+    editorState,
     remove,
     idle,
+    states,
     running,
     textOf,
   }
@@ -326,9 +362,299 @@ describe('ACP agent handlers', () => {
     )
   })
 
+  it('stops the turn when the editor cancels an approval', async () => {
+    const { harness, host, editor, editorState, remove, states, textOf } =
+      setup()
+    close = () => host.close()
+    editorState.answer = async () => ({ outcome: 'cancelled' })
+    await editor.connectWith(createAcpAgent({ host, harness }), async (ctx) => {
+      await ctx.request('initialize', {
+        protocolVersion: 2,
+        info: { name: 'editor', version: '1.0.0' },
+      })
+      const { sessionId } = await ctx.request('session/new', {
+        cwd: '/tmp',
+        mcpServers: [],
+      })
+      await ctx.request('session/prompt', {
+        sessionId,
+        prompt: [{ type: 'text', text: 'remove a.txt' }],
+      })
+      await vi.waitFor(() =>
+        expect(states(sessionId)).toContain('idle:cancelled'),
+      )
+      expect(states(sessionId)).toEqual([
+        'running',
+        'requires_action',
+        'idle:cancelled',
+      ])
+      // The next prompt cancels the open approval first, then runs.
+      await ctx.request('session/prompt', {
+        sessionId,
+        prompt: [{ type: 'text', text: 'hello' }],
+      })
+      await vi.waitFor(() =>
+        expect(states(sessionId)).toContain('idle:end_turn'),
+      )
+      expect(textOf(sessionId)).toBe('echo: hello')
+    })
+    expect(remove).not.toHaveBeenCalled()
+  })
+
+  it('cancels an interrupt that the editor cannot answer, and goes on', async () => {
+    const { harness, host, editor, idle, permissions, textOf } = setup()
+    close = () => host.close()
+    await editor.connectWith(createAcpAgent({ host, harness }), async (ctx) => {
+      await ctx.request('initialize', {
+        protocolVersion: 2,
+        info: { name: 'editor', version: '1.0.0' },
+      })
+      const { sessionId } = await ctx.request('session/new', {
+        cwd: '/tmp',
+        mcpServers: [],
+      })
+      await ctx.request('session/prompt', {
+        sessionId,
+        prompt: [{ type: 'text', text: 'pick' }],
+      })
+      await vi.waitFor(() => expect(idle(sessionId)).toBeDefined())
+      expect(idle(sessionId)).toMatchObject({ stopReason: 'end_turn' })
+      expect(textOf(sessionId)).toBe('Kept a.txt.')
+    })
+    expect(permissions).toEqual([])
+  })
+
+  it('echoes the user message with the id of the prompt response', async () => {
+    const { harness, host, editor, updates } = setup()
+    close = () => host.close()
+    await editor.connectWith(createAcpAgent({ host, harness }), async (ctx) => {
+      await ctx.request('initialize', {
+        protocolVersion: 2,
+        info: { name: 'editor', version: '1.0.0' },
+      })
+      const { sessionId } = await ctx.request('session/new', {
+        cwd: '/tmp',
+        mcpServers: [],
+      })
+      const prompt = [{ type: 'text' as const, text: 'hello' }]
+      const { messageId } = await ctx.request('session/prompt', {
+        sessionId,
+        prompt,
+      })
+      expect(updates).toContainEqual({
+        sessionId,
+        update: { sessionUpdate: 'user_message', messageId, content: prompt },
+      })
+    })
+  })
+
+  it('reports a queued prompt after the turn before it', async () => {
+    const { harness, host, editor, running, states, textOf } = setup()
+    close = () => host.close()
+    await editor.connectWith(createAcpAgent({ host, harness }), async (ctx) => {
+      await ctx.request('initialize', {
+        protocolVersion: 2,
+        info: { name: 'editor', version: '1.0.0' },
+      })
+      const { sessionId } = await ctx.request('session/new', {
+        cwd: '/tmp',
+        mcpServers: [],
+      })
+      await ctx.request('session/prompt', {
+        sessionId,
+        prompt: [{ type: 'text', text: 'wait' }],
+      })
+      await vi.waitFor(() => expect(running(sessionId)).toBe(true))
+      await ctx.request('session/prompt', {
+        sessionId,
+        prompt: [{ type: 'text', text: 'hello' }],
+      })
+      await ctx.notify('session/cancel', { sessionId })
+      await vi.waitFor(() =>
+        expect(states(sessionId)).toContain('idle:end_turn'),
+      )
+      expect(states(sessionId)).toEqual([
+        'running',
+        'idle:cancelled',
+        'running',
+        'idle:end_turn',
+      ])
+      expect(textOf(sessionId)).toBe('echo: hello')
+    })
+  })
+
+  it('runs a prompt sent during an approval after that approval', async () => {
+    const {
+      harness,
+      host,
+      editor,
+      editorState,
+      permissions,
+      remove,
+      states,
+      textOf,
+    } = setup()
+    close = () => host.close()
+    let allow = () => {}
+    editorState.answer = () =>
+      new Promise((resolve) => {
+        allow = () => resolve({ outcome: 'selected', optionId: 'allow' })
+      })
+    await editor.connectWith(createAcpAgent({ host, harness }), async (ctx) => {
+      await ctx.request('initialize', {
+        protocolVersion: 2,
+        info: { name: 'editor', version: '1.0.0' },
+      })
+      const { sessionId } = await ctx.request('session/new', {
+        cwd: '/tmp',
+        mcpServers: [],
+      })
+      await ctx.request('session/prompt', {
+        sessionId,
+        prompt: [{ type: 'text', text: 'remove a.txt' }],
+      })
+      await vi.waitFor(() => expect(permissions).toHaveLength(1))
+      // The editor still asks when the next prompt comes.
+      await ctx.request('session/prompt', {
+        sessionId,
+        prompt: [{ type: 'text', text: 'hello' }],
+      })
+      allow()
+      await vi.waitFor(() =>
+        expect(
+          states(sessionId).filter((state) => state === 'idle:end_turn'),
+        ).toHaveLength(2),
+      )
+      expect(states(sessionId)).toEqual([
+        'running',
+        'requires_action',
+        'running',
+        'idle:end_turn',
+        'running',
+        'idle:end_turn',
+      ])
+      expect(textOf(sessionId)).toBe('Kept a.txt.echo: hello')
+    })
+    expect(remove).toHaveBeenCalledTimes(1)
+  })
+
+  it('stops a prompt when the editor cancels the turn that closes an approval', async () => {
+    const { harness, host, editor, editorState, states, textOf } = setup()
+    close = () => host.close()
+    editorState.answer = async () => ({ outcome: 'cancelled' })
+    await editor.connectWith(createAcpAgent({ host, harness }), async (ctx) => {
+      await ctx.request('initialize', {
+        protocolVersion: 2,
+        info: { name: 'editor', version: '1.0.0' },
+      })
+      const { sessionId } = await ctx.request('session/new', {
+        cwd: '/tmp',
+        mcpServers: [],
+      })
+      await ctx.request('session/prompt', {
+        sessionId,
+        prompt: [{ type: 'text', text: 'remove a.txt slowly' }],
+      })
+      await vi.waitFor(() =>
+        expect(states(sessionId)).toContain('idle:cancelled'),
+      )
+      // This prompt first closes the approval. That turn waits, and the
+      // editor cancels it.
+      await ctx.request('session/prompt', {
+        sessionId,
+        prompt: [{ type: 'text', text: 'hello' }],
+      })
+      const session = await host.open(harness, { threadId: sessionId })
+      await vi.waitFor(() => expect(session.snapshot().status).toBe('running'))
+      await ctx.notify('session/cancel', { sessionId })
+      await vi.waitFor(() =>
+        expect(
+          states(sessionId).filter((state) => state === 'idle:cancelled'),
+        ).toHaveLength(2),
+      )
+      expect(states(sessionId)).toEqual([
+        'running',
+        'requires_action',
+        'idle:cancelled',
+        'running',
+        'idle:cancelled',
+      ])
+      expect(textOf(sessionId)).toBe('')
+    })
+  })
+
+  it('fails the turn when the session refuses the approval answers', async () => {
+    const { harness, host, editor, editorState, idle } = setup()
+    close = () => host.close()
+    editorState.answer = async () => ({
+      outcome: 'selected',
+      optionId: 'allow',
+    })
+    await editor.connectWith(createAcpAgent({ host, harness }), async (ctx) => {
+      await ctx.request('initialize', {
+        protocolVersion: 2,
+        info: { name: 'editor', version: '1.0.0' },
+      })
+      const { sessionId } = await ctx.request('session/new', {
+        cwd: '/tmp',
+        mcpServers: [],
+      })
+      const session = await host.open(harness, { threadId: sessionId })
+      vi.spyOn(session, 'resolve').mockResolvedValue({
+        inputId: 'input-1',
+        status: 'rejected',
+        reason: 'busy',
+      })
+      await ctx.request('session/prompt', {
+        sessionId,
+        prompt: [{ type: 'text', text: 'remove a.txt' }],
+      })
+      await vi.waitFor(() => expect(idle(sessionId)).toBeDefined())
+      expect(idle(sessionId)).toMatchObject({
+        stopReason: 'error',
+        error: { message: 'A chat turn is already running.' },
+      })
+    })
+  })
+
+  it('refuses an unknown session and data that is not base64', async () => {
+    const { harness, host, editor } = setup()
+    close = () => host.close()
+    await editor.connectWith(createAcpAgent({ host, harness }), async (ctx) => {
+      await ctx.request('initialize', {
+        protocolVersion: 2,
+        info: { name: 'editor', version: '1.0.0' },
+      })
+      await expect(
+        ctx.request('session/resume', { sessionId: 'never-made', cwd: '/tmp' }),
+      ).rejects.toMatchObject({ code: -32002 })
+      await expect(
+        ctx.request('session/prompt', {
+          sessionId: 'never-made',
+          prompt: [{ type: 'text', text: 'hello' }],
+        }),
+      ).rejects.toMatchObject({ code: -32002 })
+      const { sessionId } = await ctx.request('session/new', {
+        cwd: '/tmp',
+        mcpServers: [],
+      })
+      await expect(
+        ctx.request('session/prompt', {
+          sessionId,
+          prompt: [
+            { type: 'image', data: 'not base64!', mimeType: 'image/png' },
+          ],
+        }),
+      ).rejects.toMatchObject({ code: -32602 })
+    })
+  })
+
   it('resumes a session by id, cancels a running turn, and closes it', async () => {
     const { harness, host, editor, idle, running, textOf } = setup()
     close = () => host.close()
+    // Sessions from before: the session index knows them.
+    await host.open(harness, { threadId: 'kept-session' })
+    await host.open(harness, { threadId: 'slow-session' })
     await editor.connectWith(createAcpAgent({ host, harness }), async (ctx) => {
       await ctx.request('initialize', {
         protocolVersion: 2,
