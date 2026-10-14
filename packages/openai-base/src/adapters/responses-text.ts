@@ -2182,7 +2182,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 toolName: name,
                 model: model || options.model,
                 timestamp: Date.now(),
-                ...(rawArgs !== undefined && { args: rawArgs }),
+                args: rawArgs,
                 ...(parsedInput !== undefined && { input: parsedInput }),
               }
               metadata.ended = true
@@ -2354,7 +2354,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 toolName: name,
                 model: model || options.model,
                 timestamp: Date.now(),
-                ...(rawArgs !== undefined && { args: rawArgs }),
+                args: rawArgs,
                 ...(parsedInput !== undefined && { input: parsedInput }),
               }
               metadata.ended = true

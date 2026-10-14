@@ -1563,7 +1563,7 @@ export class OpenRouterResponsesTextAdapter<
                 toolName: name,
                 model: model || options.model,
                 timestamp: Date.now(),
-                ...(rawArgs !== undefined && { args: rawArgs }),
+                args: rawArgs,
                 ...(parsedInput !== undefined && { input: parsedInput }),
               }
               metadata.ended = true
@@ -1691,7 +1691,7 @@ export class OpenRouterResponsesTextAdapter<
                 toolName: name,
                 model: model || options.model,
                 timestamp: Date.now(),
-                ...(rawArgs !== undefined && { args: rawArgs }),
+                args: rawArgs,
                 ...(parsedInput !== undefined && { input: parsedInput }),
               }
               metadata.ended = true

@@ -426,7 +426,7 @@ describe('processConverseStream', () => {
     expect(end).not.toHaveProperty('input')
   })
 
-  it('omits args on TOOL_CALL_END when no argument fragment arrived', async () => {
+  it('sends empty args on TOOL_CALL_END when no argument fragment arrived', async () => {
     const events = await collect(
       {
         contentBlockStart: {
@@ -437,7 +437,6 @@ describe('processConverseStream', () => {
       { contentBlockStop: { contentBlockIndex: 0 } },
     )
     const end = events.find((e) => e.type === EventType.TOOL_CALL_END)
-    expect(end).toBeDefined()
-    expect(end).not.toHaveProperty('args')
+    expect(end).toMatchObject({ toolCallId: 't1', args: '' })
   })
 })
