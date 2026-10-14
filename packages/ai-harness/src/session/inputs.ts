@@ -419,9 +419,10 @@ export abstract class SessionInputs<
       createdAt: Date.now(),
       ...sender,
     })
-    // The owner can go idle before it reads the inbox again. Then no host
-    // owns the thread, and this one runs the input.
+    // The owner can go idle before it reads the inbox again, or stop. Then no
+    // host owns the thread, and this one runs the input.
     if (!(await this.isOwnedElsewhere())) void this.drainInbox()
+    this.watchInbox()
     return 'forwarded'
   }
 

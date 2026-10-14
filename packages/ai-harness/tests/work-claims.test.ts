@@ -127,32 +127,50 @@ describe('work claims while a session runs', () => {
     await host.close()
   })
 
-  it('claims the thread once another host claim expires, while the turn runs', async () => {
+  it('refuses an input while another host claim is live, without an inbox', async () => {
     const persistence = durablePersistence()
+    await persistence.stores.workClaims.claim({
+      threadId: THREAD,
+      harness: NAME,
+      ownerId: 'other-host',
+      until: Date.now() + 60_000,
+    })
+    const { adapter, calls } = mockAdapter([() => text('Done.')])
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(defineHarness({ name: NAME, adapter }), {
+      threadId: THREAD,
+    })
+
+    expect(await session.prompt('Go.').receipt).toMatchObject({
+      status: 'rejected',
+      reason: 'owned_elsewhere',
+    })
+    expect(calls).toHaveLength(0)
+    await host.close()
+  })
+
+  it('runs a queued input once another host claim expires', async () => {
+    const persistence = durablePersistence()
+    const { inbox } = memoryPersistence().stores
     const claims = persistence.stores.workClaims
     await claims.claim({
       threadId: THREAD,
       harness: NAME,
       ownerId: 'other-host',
-      until: Date.now() + 100,
+      until: Date.now() + 300,
     })
-    const release = gate()
-    const { adapter } = mockAdapter([after(release.opened, 'Done.')])
+    const { adapter } = mockAdapter([() => text('Done.')])
     const host = createHarnessHost({
-      persistence,
-      lease: { ttlMs: 60_000, renewMs: 20 },
+      persistence: { stores: { ...persistence.stores, inbox } },
     })
     const session = await host.open(defineHarness({ name: NAME, adapter }), {
       threadId: THREAD,
     })
 
     const turn = session.prompt('Go.')
-    await turn.receipt
-    await new Promise((resolve) => setTimeout(resolve, 200))
-    expect(await otherHostCanClaim(claims)).toBe(false)
-
-    release.open()
-    await turn
+    expect((await turn.receipt).status).toBe('queued')
+    // The other host stops, so its claim expires, and this host runs the input.
+    expect((await turn).text).toBe('Done.')
     await host.close()
   })
 

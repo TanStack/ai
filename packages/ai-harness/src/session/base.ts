@@ -189,6 +189,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected claimLost = false
   /** Drains `stores.inbox` while this host owns the thread. */
   protected inboxTimer: ReturnType<typeof setInterval> | undefined
+  /** Reads the inbox until the inputs this host left there have run. */
+  protected inboxWatch: ReturnType<typeof setInterval> | undefined
   private draining: Promise<void> | undefined
   /** Called each time the thread goes idle. See `onIdle`. */
   protected readonly idleListeners = new Set<() => void>()
@@ -704,6 +706,28 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     return (
       held !== null && held.ownerId !== this.hostId && held.until > Date.now()
     )
+  }
+
+  /**
+   * This host left an input for the owner: read the inbox every second until
+   * it is empty. If the owner stops, its claim expires, and this host claims
+   * the thread and runs the input.
+   */
+  protected watchInbox(): void {
+    const inbox = this.persistence.stores.inbox
+    if (this.inboxWatch || !inbox) return
+    const stop = () => {
+      clearInterval(timer)
+      this.inboxWatch = undefined
+    }
+    const timer = setInterval(async () => {
+      if (this.closing) return stop()
+      const pending = await inbox.listPending(this.threadId).catch(() => null)
+      if (pending?.length === 0) return stop()
+      void this.drainInbox()
+    }, INBOX_POLL_MS)
+    if (typeof timer === 'object' && 'unref' in timer) timer.unref()
+    this.inboxWatch = timer
   }
 
   /**
