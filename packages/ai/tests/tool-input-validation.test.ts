@@ -109,12 +109,26 @@ describe('final tool input validation', () => {
   it('includes the received arguments in the error', async () => {
     const result = await runTool('{"count":0}', schema)
     expect(result.results[0]?.result).toEqual({
-      error: expect.stringContaining('Input validation failed for tool check'),
-    })
-    expect(result.results[0]?.result).toEqual({
-      error: expect.stringContaining('"count": 0'),
+      error: expect.stringMatching(
+        /^Input validation failed for tool check: [\s\S]*\nReceived arguments: \{"count":0\}$/,
+      ),
     })
     expect(result.executed).toEqual([])
+  })
+
+  it('echoes only the model arguments, not values middleware added', async () => {
+    const result = await runTool('{"count":0}', schema, {
+      middleware: {
+        onBeforeToolCall: async () => ({
+          type: 'transformArgs',
+          args: { count: 0, token: 'secret-token' },
+        }),
+      },
+    })
+    expect(result.results[0]?.state).toBe('output-error')
+    expect(JSON.stringify(result.results[0]?.result)).not.toContain(
+      'secret-token',
+    )
   })
 
   it('keeps empty and null arguments as {}', async () => {
@@ -219,23 +233,34 @@ describe('final tool input validation', () => {
     ])
   })
 
-  it.each([false, true])(
-    'checks an approval edit for a client tool: resumed=%s',
-    async (resumed) => {
-      const result = await runTool('{"count":2}', schema, {
-        client: true,
-        needsApproval: true,
-        approvals: new Map([
-          ['call-1', { approved: true, editedArgs: { count: 'wrong' } }],
-        ]),
-        clientResults: resumed
-          ? new Map([['call-1', 'client result']])
-          : new Map(),
-      })
-      expect(result.results[0]?.state).toBe('output-error')
-      expect(result.needsClientExecution).toEqual([])
-    },
-  )
+  it('checks an approval edit for a client tool', async () => {
+    const result = await runTool('{"count":2}', schema, {
+      client: true,
+      needsApproval: true,
+      approvals: new Map([
+        ['call-1', { approved: true, editedArgs: { count: 'wrong' } }],
+      ]),
+    })
+    expect(result.results[0]?.state).toBe('output-error')
+    expect(result.needsClientExecution).toEqual([])
+  })
+
+  it('keeps a returned client result when middleware repaired the input', async () => {
+    let hooks = 0
+    const result = await runTool('{"count":"wrong"}', schema, {
+      client: true,
+      clientResults: new Map([['call-1', 'client result']]),
+      middleware: {
+        onBeforeToolCall: async () => {
+          hooks++
+          return { type: 'transformArgs', args: { count: 4 } }
+        },
+      },
+    })
+    expect(hooks).toBe(0)
+    expect(result.results[0]?.state).not.toBe('output-error')
+    expect(result.results[0]?.result).toBe('client result')
+  })
 
   it('rejects an invalid approval edit for a server tool', async () => {
     const result = await runTool('{"count":2}', schema, {
@@ -348,7 +373,7 @@ describe('JSON Schema tool input', () => {
       error: expect.stringMatching(/#\/count: .*\n.*Received arguments:/s),
     })
     expect(result.results[0]?.result).toEqual({
-      error: expect.stringContaining('"count": 0'),
+      error: expect.stringContaining('Received arguments: {"count":0}'),
     })
   })
 
@@ -824,7 +849,7 @@ describe('tool input repair', () => {
     const result = await runTool('{"count":"0"}', schema)
     expect(result.executed).toEqual([])
     expect(result.results[0]?.result).toEqual({
-      error: expect.stringContaining('"count": "0"'),
+      error: expect.stringContaining('Received arguments: {"count":"0"}'),
     })
   })
 
@@ -979,7 +1004,7 @@ describe('tool input repair', () => {
     )
     expect(result.executed).toEqual([])
     expect(result.results[0]?.result).toEqual({
-      error: expect.stringContaining('"count": "wrong"'),
+      error: expect.stringContaining('Received arguments: {"count":"wrong"}'),
     })
   })
 })
@@ -1026,28 +1051,29 @@ const review = defineInterrupt({
   responseSchema: z.boolean(),
 })
 
-// Pauses before the tools run, so client requests come from the boundary.
-const reviewBeforeTools = defineChatMiddleware({
-  name: 'boundary',
-  onInterruptBoundary(ctx) {
-    if (ctx.phase !== 'beforeTools') return undefined
-    return {
-      interrupts: [
-        review.interrupt({
-          key: 'review',
-          reason: 'review',
-          message: 'Review',
-        }),
-      ],
-    }
-  },
-})
+// Pauses at a tool boundary, so client requests come from that boundary.
+const reviewAt = (phase: 'beforeTools' | 'afterTools') =>
+  defineChatMiddleware({
+    name: 'boundary',
+    onInterruptBoundary(ctx) {
+      if (ctx.phase !== phase) return undefined
+      return {
+        interrupts: [
+          review.interrupt({
+            key: 'review',
+            reason: 'review',
+            message: 'Review',
+          }),
+        ],
+      }
+    },
+  })
 
 async function initial(
   input: unknown,
   tool: Tool,
   middleware: Array<ChatMiddleware> = [],
-  boundary = false,
+  boundary?: 'beforeTools' | 'afterTools',
   repairToolInput?: TextOptions['repairToolInput'],
 ) {
   const { adapter } = createMockAdapter({
@@ -1072,7 +1098,7 @@ async function initial(
       messages,
       tools: [tool],
       interrupts: [review],
-      middleware: [reviewBeforeTools, ...middleware],
+      middleware: [reviewAt(boundary), ...middleware],
       repairToolInput,
     }),
   )
@@ -1100,7 +1126,7 @@ describe('client tool input in chat()', () => {
             },
           },
         ],
-        boundary,
+        boundary ? 'beforeTools' : undefined,
       )
       expect(seen).toEqual([{ count: '2' }])
       expect(transforms).toBe(1)
@@ -1122,7 +1148,7 @@ describe('client tool input in chat()', () => {
             }),
           },
         ],
-        boundary,
+        boundary ? 'beforeTools' : undefined,
       )
       expect(clientInput(chunks)).toBeUndefined()
       expect(
@@ -1190,7 +1216,7 @@ describe('client tool input in chat()', () => {
     expect(clientInput(chunks)).toEqual({ count: 3 })
   })
 
-  it('checks the client input, with no second hook run, when the result comes back', async () => {
+  it('keeps the client result, with no second hook run, when it comes back', async () => {
     const { adapter, calls } = createMockAdapter({
       iterations: [[ev.runStarted(), ev.runFinished()]],
     })
@@ -1222,8 +1248,42 @@ describe('client tool input in chat()', () => {
       (message) => message.role === 'tool',
     )
     expect(results).toHaveLength(1)
-    expect(JSON.stringify(results?.[0])).toContain('Input validation failed')
+    expect(JSON.stringify(results?.[0])).not.toContain(
+      'Input validation failed',
+    )
   })
+
+  it.each([false, true])(
+    'runs the hook once for a client tool at an afterTools boundary: invalid=%s',
+    async (invalid) => {
+      let hooks = 0
+      const chunks = await initial(
+        { count: 2 },
+        clientCheck(schema),
+        [
+          {
+            onBeforeToolCall() {
+              hooks++
+              return invalid
+                ? { type: 'transformArgs', args: { count: 'wrong' } }
+                : undefined
+            },
+          },
+        ],
+        'afterTools',
+      )
+      expect(hooks).toBe(1)
+      const toolResults = chunks.filter(
+        (chunk) => chunk.type === EventType.TOOL_CALL_RESULT,
+      )
+      expect(toolResults).toHaveLength(invalid ? 1 : 0)
+      if (invalid) {
+        expect(clientInput(chunks)).toBeUndefined()
+      } else {
+        expect(clientInput(chunks)).toEqual({ count: 2 })
+      }
+    },
+  )
 
   it('records no execute_tool span for a client tool', async () => {
     const fakeTracer = createFakeTracer()
@@ -1319,7 +1379,7 @@ describe('repairToolInput', () => {
         { count: '3' },
         clientCheck(schema),
         [],
-        boundary,
+        boundary ? 'beforeTools' : undefined,
         false,
       )
       expect(clientInput(chunks)).toBeUndefined()
@@ -1351,7 +1411,9 @@ describe('repairToolInput', () => {
     // `'3'` is not repaired: the function said `undefined`.
     expect(result.executed).toEqual([{ count: 7 }])
     expect(result.errors).toHaveLength(1)
-    expect(result.errors[0]).toContain(String.raw`\"count\": \"3\"`)
+    expect(result.errors[0]).toContain(
+      String.raw`Received arguments: {\"count\":\"3\"}`,
+    )
     const context = repair.mock.calls[0]?.[0]
     expect(context?.tool.name).toBe('check')
     expect(context?.toolCall.id).toBe('call-0')
@@ -1371,7 +1433,9 @@ describe('repairToolInput', () => {
       count: 'still wrong',
     }))
     expect(result.executed).toEqual([])
-    expect(result.errors[0]).toContain(String.raw`\"count\": \"many\"`)
+    expect(result.errors[0]).toContain(
+      String.raw`Received arguments: {\"count\":\"many\"}`,
+    )
   })
 
   it('runs a Standard Schema, with its transform, on the repaired input', async () => {
@@ -1388,6 +1452,11 @@ describe('repairToolInput', () => {
       throw new Error('cannot repair')
     })
     expect(result.executed).toEqual([])
-    expect(result.results).toEqual([JSON.stringify({ error: 'cannot repair' })])
+    // The model's own arguments follow the thrown message.
+    expect(result.results).toEqual([
+      JSON.stringify({
+        error: 'cannot repair\nReceived arguments: {"count":"many"}',
+      }),
+    ])
   })
 })

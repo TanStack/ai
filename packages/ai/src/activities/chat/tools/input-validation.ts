@@ -391,14 +391,6 @@ function coerceArguments(value: unknown, root: CompiledSchema) {
   return coerce(value, root.schema)
 }
 
-function receivedArgumentsText(received: unknown) {
-  try {
-    return JSON.stringify(received, null, 2) ?? String(received)
-  } catch {
-    return '[Arguments cannot be serialized as JSON]'
-  }
-}
-
 /** Errors that only say that a nested check failed. The nested error says why. */
 const WRAPPER_KEYWORDS = new Set([
   'properties',
@@ -469,18 +461,15 @@ function validateJsonInput(
       .replace(/ +Absolute URI "[^"]*"\.?/, '')
       .trim()
   }
-  throw new Error(
-    `Input validation failed for tool ${toolName}: ${errors}\nReceived arguments:\n${receivedArgumentsText(received)}`,
-  )
+  throw new Error(`Input validation failed for tool ${toolName}: ${errors}`)
 }
 
 function standardInputError(
   issues: ReadonlyArray<StandardSchemaV1.Issue>,
-  received: unknown,
   toolName: string,
 ) {
   const error = new StandardSchemaValidationError(issues)
-  error.message = `Input validation failed for tool ${toolName}: ${error.message}\nReceived arguments:\n${receivedArgumentsText(received)}`
+  error.message = `Input validation failed for tool ${toolName}: ${error.message}`
   return error
 }
 
@@ -550,7 +539,7 @@ async function checkToolInput(
   // The authored schema runs first. When it fails and it can export JSON
   // Schema, repair the input and run the authored schema again. A failure
   // reports the issues of the first run.
-  const original = standardInputError(first.issues, received, toolName)
+  const original = standardInputError(first.issues, toolName)
   if (!repair || !isStandardJSONSchema(schema)) throw original
   let converted: unknown
   try {
