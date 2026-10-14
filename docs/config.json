@@ -1017,6 +1017,11 @@
           "label": "Run agents from a harness",
           "to": "harness/subagents",
           "addedAt": "2026-10-13"
+        },
+        {
+          "label": "Add skills",
+          "to": "harness/skills",
+          "addedAt": "2026-10-13"
         }
       ]
     },

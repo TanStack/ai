@@ -161,6 +161,11 @@ export interface HarnessClient<THarness extends AnyHarness> {
   /** The saved messages of the thread. */
   transcript: () => Promise<Array<ModelMessage>>
   /**
+   * The saved messages of a child agent run of the thread, by its
+   * `subagentRunId`. Empty for an unknown id. See `session.agentTranscript`.
+   */
+  agentTranscript: (subagentRunId: string) => Promise<Array<ModelMessage>>
+  /**
    * The commands, settings, and tools of the session. Only the commands in
    * `expose.commands` and the config keys in `expose.config`.
    */
@@ -342,10 +347,10 @@ export function createHarnessClient<THarness extends AnyHarness>(
     return response
   }
 
-  const read = async <T>(route: string) =>
+  const read = async <T>(route: string, params?: Record<string, string>) =>
     // Each GET route answers with the type of the `HarnessClient` member
     // that reads it. That member type sets `T`.
-    (await (await get(route)).json()) as T
+    (await (await get(route, params)).json()) as T
 
   const upload = async (
     body: Blob | ArrayBuffer | Uint8Array,
@@ -549,6 +554,8 @@ export function createHarnessClient<THarness extends AnyHarness>(
     hostEvents,
     snapshot: () => read('snapshot'),
     transcript: () => read('transcript'),
+    agentTranscript: (subagentRunId) =>
+      read('agent-transcript', { subagentRunId }),
     describe: () => read('describe'),
     upload,
     mediaUrl,

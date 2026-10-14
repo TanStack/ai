@@ -14,3 +14,5 @@ Add opt-in session stores. The chat and generation middleware work as before wit
 `defineInboxStore`, `defineCredentialStore`, `defineLogStore`, `defineWorkClaimStore`, and `defineSessionIndexStore` type an adapter. `memoryPersistence()` now also has `inbox`, `credentials`, `workClaims`, and `sessions`. `runPersistenceConformance` runs the cases of each session store when the store is present, so an existing backend needs no `skip` entry.
 
 With `stores.sessions`, `withPersistence` writes one index entry for each subagent child (`subagent:<runId>`), with the parent thread, the tool call, and the owner and `harness` name of the parent entry.
+
+`loadChildTranscript(messages, subagentRunId, threadId)` reads the stored messages of a child agent run for a UI. It returns `undefined` for a child of another thread.

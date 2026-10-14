@@ -3,6 +3,7 @@ import {
   convertSchemaToJsonSchema,
   validateWithStandardSchema,
 } from '@tanstack/ai'
+import { loadChildTranscript } from '@tanstack/ai-persistence'
 import { checkConfigValue } from '../config'
 import { isRecord } from '../utils'
 import { changedEntry } from '../session-entry'
@@ -434,6 +435,20 @@ export abstract class SessionState<
     const messages = [...(await this.messages.loadThread(this.threadId))]
     const at = this.revertedAt(messages)
     return at < 0 ? messages : messages.slice(0, at + 1)
+  }
+
+  /**
+   * The saved messages of a child agent run of this thread, by its
+   * `subagentRunId`, oldest first. It starts with the task of the agent
+   * call. A nested child is a child of this thread too. Empty for an unknown
+   * id, for a child of another thread, and with no message store.
+   */
+  async agentTranscript(subagentRunId: string): Promise<Array<ModelMessage>> {
+    const store = this.chatPersistence?.stores.messages
+    if (!store) return []
+    return (
+      (await loadChildTranscript(store, subagentRunId, this.threadId)) ?? []
+    )
   }
 
   /** The index of the revert message in `messages`, or -1. */

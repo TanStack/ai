@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { defineAgent } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import {
   configOption,
@@ -9,7 +10,7 @@ import {
   definePlugin,
 } from '../src'
 import { createHarnessClient } from '../src/client'
-import { mockAdapter, text } from './helpers'
+import { mockAdapter, text, toolCall } from './helpers'
 
 const asker = definePlugin({
   name: 'test/asker',
@@ -103,6 +104,61 @@ describe('client reads and actions', () => {
     expect(await statusOf('describe')).toBe(400)
     expect(await statusOf('transcript?threadId=someone-else')).toBe(403)
     expect(await statusOf('describe?threadId=someone-else')).toBe(403)
+    await host.close()
+  })
+
+  it('reads the transcript of a child agent run', async () => {
+    const writer = defineAgent({
+      name: 'writer',
+      description: 'Writes notes',
+      run: (ctx) =>
+        ctx.chat({ adapter: mockAdapter(() => text('Note 1')).adapter }),
+    })
+    const { adapter } = mockAdapter([
+      () => toolCall('writer', { prompt: 'Take notes' }, 'call-1'),
+      () => text('Done.'),
+    ])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const handler = createHarnessHandler({
+      host,
+      harness: defineHarness({
+        name: 'test/client-reads-agents',
+        adapter,
+        subagents: { agents: [writer] },
+      }),
+      authorize: () => ({ id: 'u' }),
+      canAccess: (_principal, threadId) => threadId !== 'someone-else',
+    })
+    const client = createHarnessClient({
+      url: 'http://local/api/harness',
+      threadId: 'thread-a',
+      fetch: (input, init) => handler(new Request(input, init)),
+    })
+    await client.prompt('Notes, please')
+    const childId = await vi.waitFor(async () => {
+      const result = (await client.transcript()).find(
+        (message) => message.role === 'tool',
+      )
+      const { subagentRunId } = JSON.parse(String(result?.content))
+      if (typeof subagentRunId !== 'string') throw new Error('no child yet')
+      return subagentRunId
+    })
+    const statusOf = async (path: string) =>
+      (await handler(new Request(`http://local/api/harness/${path}`))).status
+
+    const transcript = await client.agentTranscript(childId)
+
+    expect(transcript.map((message) => message.content)).toEqual([
+      'Take notes',
+      'Note 1',
+    ])
+    expect(await client.agentTranscript('unknown')).toEqual([])
+    expect(await statusOf('agent-transcript?threadId=thread-a')).toBe(400)
+    expect(
+      await statusOf(
+        `agent-transcript?threadId=someone-else&subagentRunId=${childId}`,
+      ),
+    ).toBe(403)
     await host.close()
   })
 

@@ -171,4 +171,35 @@ describe('subagent children of a harness session', () => {
     expect(messageTexts(lead.calls[2]).at(-1)).toBe(WAKE)
     await host.close()
   })
+
+  it('reads the transcript of a child, only from its own thread', async () => {
+    const persistence = memoryPersistence()
+    const lead = mockAdapter([
+      () => callWriter({ prompt: 'Take notes' }, 'call-1'),
+      () => text('Done.'),
+    ])
+    const child = mockAdapter(() => text('Note 1'))
+    const { host, session } = await openLead(
+      lead.adapter,
+      child.adapter,
+      persistence,
+    )
+    await session.prompt('Notes, please')
+    const id = childIdIn(lead.calls[1], 'call-1')
+
+    const transcript = await session.agentTranscript(id)
+    expect(
+      transcript.map((message) => [message.role, message.content]),
+    ).toEqual([
+      ['user', 'Take notes'],
+      ['assistant', 'Note 1'],
+    ])
+    expect(await session.agentTranscript('unknown')).toEqual([])
+    const other = await host.open(
+      defineHarness({ name: 'test/subagent-children', adapter: lead.adapter }),
+      { threadId: 'u' },
+    )
+    expect(await other.agentTranscript(id)).toEqual([])
+    await host.close()
+  })
 })

@@ -131,6 +131,8 @@ export const greetings = definePlugin({
 })
 ```
 
+The [skills plugin](./skills) works this way: one command for each skill in a folder.
+
 ## Change agents while the session runs
 
 Agents can come from data that changes too. `ctx.agents.set` and `ctx.agents.delete` work like `ctx.commands`. Here `/helper` adds an agent that the session can run at once:

@@ -547,6 +547,17 @@ export function createHarnessHandler(
         )
       }
 
+      if (request.method === 'GET' && route === 'agent-transcript') {
+        const threadId = url.searchParams.get('threadId')
+        const subagentRunId = url.searchParams.get('subagentRunId')
+        if (!threadId) return json({ error: 'threadId is required' }, 400)
+        if (!subagentRunId)
+          return json({ error: 'subagentRunId is required' }, 400)
+        const session = await openFor(principal, threadId)
+        if (!session) return json({ error: 'forbidden' }, 403)
+        return json(await session.agentTranscript(subagentRunId))
+      }
+
       if (request.method === 'GET' && route === 'snapshot') {
         const threadId = url.searchParams.get('threadId')
         if (!threadId) return json({ error: 'threadId is required' }, 400)
