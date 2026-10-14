@@ -157,6 +157,9 @@ export default async function globalSetup() {
   // Provider-executed web search responses need native Responses/Gemini wire
   // items that aimock does not synthesize. These mounts feed the adapter E2E
   // route deterministic search calls and grounding metadata.
+  // OpenAI Responses usage for a call that writes the prompt cache (#1734).
+  // aimock's native Responses helper cannot emit `input_tokens_details`.
+  mock.mount('/openai-responses-usage', openaiResponsesUsageMount())
   mock.mount('/provider-search-openai', openaiProviderSearchMount())
   mock.mount('/provider-search-gemini', geminiProviderSearchMount())
 
@@ -1950,6 +1953,68 @@ function openaiUsageDetailsMount(
       res.setHeader('Connection', 'keep-alive')
       for (const chunk of chunks) {
         res.write(`data: ${JSON.stringify(chunk)}\n\n`)
+      }
+      res.write('data: [DONE]\n\n')
+      res.end()
+      return true
+    },
+  }
+}
+
+function openaiResponsesUsageMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (req.method !== 'POST' || pathname !== '/v1/responses') {
+        return false
+      }
+      await drainBody(req)
+
+      const message = {
+        id: 'msg_e2e_usage',
+        type: 'message',
+        role: 'assistant',
+        status: 'completed',
+        content: [{ type: 'output_text', text: 'Hi', annotations: [] }],
+      }
+      const events = [
+        {
+          type: 'response.output_text.delta',
+          item_id: 'msg_e2e_usage',
+          output_index: 0,
+          content_index: 0,
+          delta: 'Hi',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp_e2e_usage',
+            object: 'response',
+            status: 'completed',
+            model: 'gpt-4o',
+            output: [message],
+            usage: {
+              input_tokens: 1941,
+              input_tokens_details: {
+                cached_tokens: 0,
+                cache_write_tokens: 1938,
+              },
+              output_tokens: 5,
+              output_tokens_details: { reasoning_tokens: 0 },
+              total_tokens: 1946,
+            },
+          },
+        },
+      ]
+
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'text/event-stream')
+      res.setHeader('Cache-Control', 'no-cache')
+      for (const event of events) {
+        res.write(`data: ${JSON.stringify(event)}\n\n`)
       }
       res.write('data: [DONE]\n\n')
       res.end()
