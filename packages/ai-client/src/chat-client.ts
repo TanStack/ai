@@ -8,6 +8,7 @@ import {
   mergeMetadata,
   normalizeToUIMessage,
   restoreInboundChunk,
+  subagentInputOf,
   tanstackMetadata,
   validateWithStandardSchema,
 } from '@tanstack/ai/client'
@@ -3251,6 +3252,14 @@ export class ChatClient<
   }
 
   private syncSubagentHandles(): void {
+    // The card metadata carries the checked input of an agent with
+    // `inputSchema`. The handle shows it as `input`.
+    // A card copied from a handle can hold an old `input`. Read it fresh.
+    const fieldsOf = (subagent: SubagentHandle) => {
+      const { input: _old, ...card } = subagent
+      const input = subagentInputOf(card.metadata)
+      return input === undefined ? card : { ...card, input }
+    }
     // Every card, nested ones included, gets a handle.
     const cards = collectSubagentParts(this.processor.getMessages())
     const present = new Set(cards.map((part) => part.subagent.id))
@@ -3269,12 +3278,12 @@ export class ChatClient<
         for (const key of Object.keys(existing)) {
           Reflect.deleteProperty(existing, key)
         }
-        Object.assign(existing, part.subagent, { stop })
+        Object.assign(existing, fieldsOf(part.subagent), { stop })
         part.subagent = existing
         continue
       }
       const handle: SubagentHandle = {
-        ...part.subagent,
+        ...fieldsOf(part.subagent),
         stop: () => {
           this.stopSubagent(id)
         },

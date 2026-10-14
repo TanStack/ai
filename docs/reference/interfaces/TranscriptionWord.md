@@ -3,7 +3,7 @@ id: TranscriptionWord
 title: TranscriptionWord
 ---
 
-Defined in: [packages/ai/src/types.ts:3015](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3015)
+Defined in: [packages/ai/src/types.ts:3231](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3231)
 
 A single word with timing information.
 
@@ -15,7 +15,7 @@ A single word with timing information.
 end: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:3021](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3021)
+Defined in: [packages/ai/src/types.ts:3237](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3237)
 
 End time in seconds
 
@@ -27,7 +27,7 @@ End time in seconds
 start: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:3019](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3019)
+Defined in: [packages/ai/src/types.ts:3235](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3235)
 
 Start time in seconds
 
@@ -39,6 +39,6 @@ Start time in seconds
 word: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:3017](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3017)
+Defined in: [packages/ai/src/types.ts:3233](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3233)
 
 The transcribed word

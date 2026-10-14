@@ -3,7 +3,7 @@ id: VideoStreamResult
 title: VideoStreamResult
 ---
 
-Defined in: [packages/ai/src/types.ts:2463](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2463)
+Defined in: [packages/ai/src/types.ts:2679](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2679)
 
 **`Experimental`**
 
@@ -21,7 +21,7 @@ and sets `url`. Use `withGenerationPersistence` with `artifactUrl`.
 body: ReadableStream<Uint8Array<ArrayBufferLike>>;
 ```
 
-Defined in: [packages/ai/src/types.ts:2467](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2467)
+Defined in: [packages/ai/src/types.ts:2683](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2683)
 
 **`Experimental`**
 
@@ -35,7 +35,7 @@ The video bytes. Read once, with backpressure. Never buffer it whole.
 contentType: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2469](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2469)
+Defined in: [packages/ai/src/types.ts:2685](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2685)
 
 **`Experimental`**
 
@@ -49,7 +49,7 @@ MIME type of `body`, e.g. `video/mp4`.
 jobId: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2465](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2465)
+Defined in: [packages/ai/src/types.ts:2681](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2681)
 
 **`Experimental`**
 
@@ -63,7 +63,7 @@ Job identifier
 optional url?: undefined;
 ```
 
-Defined in: [packages/ai/src/types.ts:2471](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2471)
+Defined in: [packages/ai/src/types.ts:2687](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2687)
 
 **`Experimental`**
 
@@ -75,6 +75,6 @@ Defined in: [packages/ai/src/types.ts:2471](https://github.com/TanStack/ai/blob/
 optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [packages/ai/src/types.ts:2470](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2470)
+Defined in: [packages/ai/src/types.ts:2686](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2686)
 
 **`Experimental`**

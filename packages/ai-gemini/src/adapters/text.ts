@@ -305,7 +305,12 @@ function buildInteractionsInput(
       const signature = metadata?.thoughtSignature
       if (typeof signature === 'string' && signature)
         steps.push({ type: 'thought', signature, summary: [] })
-      const args: unknown = JSON.parse(toolCall.function.arguments || '{}')
+      // Malformed JSON stays in the history next to its tool error, so it
+      // goes out as `{}`.
+      let args: unknown = {}
+      try {
+        args = JSON.parse(toolCall.function.arguments || '{}')
+      } catch {}
       if (typeof args !== 'object' || args === null || Array.isArray(args))
         throw new Error(
           `Gemini Interactions function ${toolCall.function.name} requires object arguments`,
@@ -1158,12 +1163,14 @@ export class GeminiTextAdapter<
         // this chunk (including UNEXPECTED_TOOL_CALL finishes) were already
         // registered and started by the per-part loop above.
         for (const [toolCallId, toolCallData] of toolCallMap.entries()) {
-          let parsedInput: unknown = {}
+          // Malformed JSON sends no `input`, so core reports the error from
+          // the raw `args`.
+          let parsedInput: unknown
           try {
             const parsed = JSON.parse(toolCallData.args)
             parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
           } catch {
-            parsedInput = {}
+            // Keep `parsedInput` undefined for the tool error.
           }
 
           yield {
@@ -1173,7 +1180,8 @@ export class GeminiTextAdapter<
             toolName: toolCallData.name,
             model,
             timestamp: Date.now(),
-            input: parsedInput,
+            args: toolCallData.args,
+            ...(parsedInput !== undefined && { input: parsedInput }),
           }
         }
 

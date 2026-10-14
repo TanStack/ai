@@ -795,15 +795,21 @@ function registerServerResource(
         ? undefined
         : (sdkCtx: ServerContext) => list(resourceContext(sdkCtx)),
   })
+  // A template gets the variables the SDK matched in the asked-for URI.
   server.registerResource(resource.name, template, metadata, read)
 }
 
 function resourceContents(uri: string, mimeType: string, body: unknown) {
-  if (isRecord(body) && typeof body.text === 'string') {
-    return { contents: [{ uri, mimeType, text: body.text }] }
-  }
-  if (isRecord(body) && typeof body.blob === 'string') {
-    return { contents: [{ uri, mimeType, blob: body.blob }] }
+  if (isRecord(body)) {
+    // A `{ text | blob }` body can name its own MIME type: one template can
+    // serve many types. Any other object is sent as JSON with the default.
+    const own = typeof body.mimeType === 'string' ? body.mimeType : mimeType
+    if (typeof body.text === 'string') {
+      return { contents: [{ uri, mimeType: own, text: body.text }] }
+    }
+    if (typeof body.blob === 'string') {
+      return { contents: [{ uri, mimeType: own, blob: body.blob }] }
+    }
   }
   if (typeof body === 'string') {
     return { contents: [{ uri, mimeType, text: body }] }

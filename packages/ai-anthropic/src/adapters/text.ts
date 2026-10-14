@@ -1512,7 +1512,13 @@ export class AnthropicTextAdapter<
     let accumulatedSignature = ''
     const toolCallsMap = new Map<
       number,
-      { id: string; name: string; input: string; started: boolean }
+      {
+        id: string
+        name: string
+        input: string
+        started: boolean
+        hasInputDelta: boolean
+      }
     >()
     let currentToolIndex = -1
     // Server-side tools share the `input_json_delta` wire format with client
@@ -1577,8 +1583,11 @@ export class AnthropicTextAdapter<
             toolCallsMap.set(currentToolIndex, {
               id: event.content_block.id,
               name: event.content_block.name,
-              input: '',
+              // The initial input snapshot. The first `input_json_delta`
+              // replaces it.
+              input: JSON.stringify(event.content_block.input) ?? '',
               started: false,
+              hasInputDelta: false,
             })
           } else if (event.content_block.type === 'server_tool_use') {
             currentServerTool = {
@@ -1851,6 +1860,10 @@ export class AnthropicTextAdapter<
                   }
                 }
 
+                if (!existing.hasInputDelta) {
+                  existing.input = ''
+                  existing.hasInputDelta = true
+                }
                 existing.input += event.delta.partial_json
 
                 yield {
@@ -1932,13 +1945,14 @@ export class AnthropicTextAdapter<
                 }
               }
 
-              // Emit TOOL_CALL_END
-              let parsedInput: unknown = {}
+              // Emit TOOL_CALL_END. Malformed JSON sends no `input`, so core
+              // reports the error from the raw `args`.
+              let parsedInput: unknown
               try {
                 const parsed = existing.input ? JSON.parse(existing.input) : {}
                 parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
               } catch {
-                parsedInput = {}
+                // Keep `parsedInput` undefined for the tool error.
               }
 
               yield {
@@ -1948,7 +1962,8 @@ export class AnthropicTextAdapter<
                 toolName: existing.name,
                 model,
                 timestamp: Date.now(),
-                input: parsedInput,
+                args: existing.input,
+                ...(parsedInput !== undefined && { input: parsedInput }),
               }
 
               // Reset so a new TEXT_MESSAGE_START is emitted if text follows tool calls

@@ -3,7 +3,7 @@ id: AudioPart
 title: AudioPart
 ---
 
-Defined in: [packages/ai/src/types.ts:296](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L296)
+Defined in: [packages/ai/src/types.ts:297](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L297)
 
 Audio content part for multimodal messages. AG-UI `AudioPart` with typed metadata.
 
@@ -27,7 +27,7 @@ Provider-specific metadata type
 optional metadata?: TMetadata;
 ```
 
-Defined in: [packages/ai/src/types.ts:298](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L298)
+Defined in: [packages/ai/src/types.ts:299](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L299)
 
 Provider-specific metadata (e.g., format, sample rate)
 

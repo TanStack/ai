@@ -298,6 +298,29 @@ The client keeps negotiation mode `auto`.
 `client.instructions` holds the server's instructions from the handshake, or `undefined` when the server sends none.
 Put them in the system prompt: `systemPrompts: client.instructions ? [client.instructions] : []`.
 
+Two more client options:
+
+- `toolName: (tool) => string` sets the name the model sees. It wins over
+  `prefix`. `metadata.mcp.serverToolName` keeps the server's name, so
+  `callTool()` and MCP Apps widget calls still reach the tool. Two tools with
+  the same final name throw `DuplicateToolNameError`.
+- `requestOptions: { timeout, resetTimeoutOnProgress }` is sent with the
+  connect handshake, tool lists, tool calls, resource requests, and prompt
+  requests. The `subscriptions/listen` stream and task status polls keep
+  the SDK defaults. `timeout` is in milliseconds (SDK default 60,000). A
+  spec 2026 `tools/call` gets no progress notifications, so there only
+  `timeout` applies.
+
+```typescript
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+const client = await createMCPClient({
+  transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+  toolName: (tool) => `mcp__weather__${tool.name}`,
+  requestOptions: { timeout: 120_000, resetTimeoutOnProgress: true },
+})
+```
+
 ### Transports
 
 #### Streamable HTTP (default for internet-facing servers)
@@ -396,7 +419,10 @@ Import `StreamableHTTPClientTransport` from `@modelcontextprotocol/client`.
 ### Mode 1 — Auto-discovery (no types needed)
 
 `client.tools()` lists every tool the server exposes. Args are typed `unknown`
-at compile time but the tool's JSON Schema is forwarded to the LLM.
+at compile time but the tool's JSON Schema is forwarded to the LLM. A schema
+without `properties` gets `properties: {}`, and a schema without `type` gets
+`type: 'object'`. `tool.metadata.mcp.annotations` is a frozen copy of the
+server's annotations.
 
 ```typescript
 import { chat } from '@tanstack/ai'
@@ -470,8 +496,9 @@ See the "Codegen CLI" section below for details.
 
 By default every server tool reaches the model and runs without approval.
 Set a policy on the client. It applies in `tools()`, in `chat({ mcp })`, and
-per server in `createMCPClients`. Both callbacks receive the raw MCP tool
-definition (native unprefixed `name`, `title`, `annotations`).
+per server in `createMCPClients`. A `toolFilter` function and `needsApproval`
+receive the raw MCP tool definition (native unprefixed `name`, `title`,
+`annotations`).
 
 ```typescript
 import { createMCPClient } from '@tanstack/ai-mcp'
@@ -485,6 +512,26 @@ const mcp = await createMCPClient({
 })
 ```
 
+`toolFilter` also takes a list of server tool names. The list is strict:
+
+```typescript
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+const mcp = await createMCPClient({
+  transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+  // Exactly these tools, in this order.
+  toolFilter: ['search_issues', 'get_issue'],
+})
+```
+
+- A name the server does not have, or a repeated name, throws
+  `MCPToolFilterError` (`missing`, `repeated`, `available`).
+- A listed task-required tool on a server without task support throws
+  `MCPTaskRequiredToolError`.
+- An empty list keeps no tools.
+
+These rules apply to both `toolFilter` forms and to `needsApproval`:
+
 - `toolFilter` also applies to `tools([defs])`: a hidden definition throws
   `MCPToolNotFoundError`. MCP Apps widget calls also honor it. It does not
   apply to `callTool()`.
@@ -492,8 +539,8 @@ const mcp = await createMCPClient({
   its own `needsApproval`.
 - MCP Apps widget calls have no approval step, so the call handler refuses a
   tool that `needsApproval` marks (`{ ok: false, error: 'Tool needs approval: <name>' }`).
-- Annotations are server-declared hints. For an untrusted server, filter by
-  `tool.name` instead.
+- Annotations are server-declared hints. For an untrusted server, use a
+  `toolFilter` list of names instead.
 
 ## Lifecycle
 
@@ -1093,9 +1140,13 @@ and do NOT appear in the library's runtime dependency graph.
   methods after `close()`.
 - `MCPToolNotFoundError` — thrown from `client.tools([defs])` when a definition's
   `name` is not exposed by the server, or the client's `toolFilter` hides it.
+- `MCPToolFilterError`: thrown from `client.tools()` when a `toolFilter`
+  list names a tool the server does not have, or names a tool twice. Its
+  `missing`, `repeated`, and `available` fields name the tools.
 - `MCPTaskRequiredToolError` — thrown when a task-required tool is bound via
   `tools([defs])` or called via `callTool()` and the server does not declare
-  the tasks capability for `tools/call`. Auto-discovery skips those tools
+  the tasks capability for `tools/call`. It is also thrown when a `toolFilter`
+  list names such a tool. Auto-discovery without a list skips those tools
   instead of throwing.
 - `DuplicateToolNameError` — thrown by a single pool's own `tools()` when two
   tools within that pool share the same name (same server or pool clients with no
@@ -1109,6 +1160,7 @@ import {
   MCPConnectionError,
   MCPToolNotFoundError,
   MCPTaskRequiredToolError,
+  MCPToolFilterError,
   DuplicateToolNameError,
 } from '@tanstack/ai-mcp'
 

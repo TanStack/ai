@@ -702,6 +702,17 @@ export interface TanStackMessageMetadata {
   source?: MessageSource
   stopReason?: 'error' | 'aborted'
   responseId?: string
+  /**
+   * Why the model call of this assistant message ended. A `'length'` message
+   * stopped at the output limit, so its tool calls are not complete.
+   */
+  finishReason?: TanStackRunMetadata['finishReason']
+  /**
+   * The provider's answer items of this assistant message, in order, for a
+   * same-model replay. The OpenAI Responses adapter keeps each output
+   * message item's `id` and `phase` (`commentary` or `final_answer`).
+   */
+  responseItems?: Array<{ id: string; phase?: string }>
   /** Parent chat run that produced this assistant message. */
   runId?: string
   /**
@@ -747,6 +758,8 @@ export interface TanStackRunMetadata {
   source?: MessageSource
   model?: string
   responseId?: string
+  /** The answer items of this model call. See `TanStackMessageMetadata.responseItems`. */
+  responseItems?: TanStackMessageMetadata['responseItems']
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
   /** TokenUsage fields that have no AG-UI `usage[]` equivalent. */
   usage?: TokenUsageLeftover
@@ -760,6 +773,8 @@ export interface TanStackRunMetadata {
   state?: ToolOutputState
   /** Parsed `TOOL_CALL_END` input. Spec `TOOL_CALL_END` has no top-level `input`. */
   input?: unknown
+  /** The raw tool argument string on `TOOL_CALL_END`, as the provider sent it. */
+  args?: string
 }
 
 /**
@@ -1265,6 +1280,20 @@ export interface ResolvedPromptCache {
 export type FetchWrapper = (next: typeof fetch) => typeof fetch
 
 /**
+ * What a `repairToolInput` function gets: a tool input that failed the check.
+ */
+export interface ToolInputRepairContext {
+  /** The tool the model called. */
+  tool: AnyTool
+  /** The call, with its id and the raw arguments text. */
+  toolCall: ToolCall
+  /** The input that failed, after approval edits and middleware. */
+  input: unknown
+  /** The validation error. A Standard Schema error also has `issues`. */
+  error: Error
+}
+
+/**
  * Options passed into the SDK and further piped to the AI provider.
  */
 export interface TextOptions<
@@ -1301,6 +1330,16 @@ export interface TextOptions<
    * starts them together, and `'sequential'` runs them one at a time.
    */
   toolExecution?: 'parallel' | 'sequential'
+  /**
+   * How a tool input that fails the final check is repaired. By default,
+   * common model mistakes such as `"5"` for a number are repaired against the
+   * schema. `false` turns the repair off. A function replaces the built-in
+   * repair: it returns the input to check again, or `undefined` to send the
+   * validation error to the model.
+   */
+  repairToolInput?:
+    | false
+    | ((context: ToolInputRepairContext) => unknown | Promise<unknown>)
   /**
    * Retry a model call when the provider error has a wait time (usually a
    * 429). `chat()` waits for the `retryAfterMs` time of the `RUN_ERROR`, then
@@ -1451,6 +1490,16 @@ export interface TextOptions<
    * `ctx.subagentRunId`. Absent on a top-level run.
    */
   subagentRunId?: string
+  /**
+   * The agent name when this chat runs as a subagent. Middleware reads it as
+   * `ctx.subagentName`.
+   */
+  subagentName?: string
+  /**
+   * The subagentRunId of the child that started this one, for a nested child.
+   * Middleware reads it as `ctx.parentSubagentRunId`.
+   */
+  parentSubagentRunId?: string
 
   /** Application state mirrored in a STATE_SNAPSHOT before an interrupt terminal. */
   state?: unknown
@@ -1479,6 +1528,18 @@ export interface TextOptions<
    * here). Undefined for direct adapter usage outside the chat engine.
    */
   approvals?: ReadonlyMap<string, boolean>
+}
+
+/** What `TextAdapter.compact` receives. */
+export interface TextCompactOptions {
+  /** The history to compact. */
+  messages: Array<ModelMessage>
+  model: string
+  signal?: AbortSignal
+  /** Wraps the fetch of the compaction request. */
+  wrapFetch?: FetchWrapper
+  /** The system prompts of the chat call. */
+  systemPrompts?: Array<SystemPrompt>
 }
 
 // ============================================================================

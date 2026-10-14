@@ -104,6 +104,8 @@ const stream = chat({
 });
 ```
 
+To call Claude models through a GitHub Copilot plan, see [GitHub Copilot](./openai-compatible#claude-models).
+
 ## Configuration
 
 ```typescript

@@ -3,7 +3,7 @@ id: Tool
 title: Tool
 ---
 
-Defined in: [packages/ai/src/types.ts:841](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L841)
+Defined in: [packages/ai/src/types.ts:956](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L956)
 
 Tool/Function definition for function calling.
 
@@ -51,7 +51,7 @@ or plain JSON Schema objects for runtime validation and type safety.
 description: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:865](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L865)
+Defined in: [packages/ai/src/types.ts:980](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L980)
 
 Clear description of what the tool does.
 
@@ -72,7 +72,7 @@ Be specific about what the tool does, what parameters it needs, and what it retu
 optional execute?: ToolExecuteFunction<TInput, TOutput, TContext>;
 ```
 
-Defined in: [packages/ai/src/types.ts:945](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L945)
+Defined in: [packages/ai/src/types.ts:1060](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1060)
 
 Optional function to execute when the model calls this tool.
 
@@ -108,7 +108,7 @@ execute: async (args) => {
 optional inputSchema?: TInput;
 ```
 
-Defined in: [packages/ai/src/types.ts:905](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L905)
+Defined in: [packages/ai/src/types.ts:1020](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1020)
 
 Schema describing the tool's input parameters.
 
@@ -162,7 +162,7 @@ type({
 optional lazy?: boolean;
 ```
 
-Defined in: [packages/ai/src/types.ts:951](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L951)
+Defined in: [packages/ai/src/types.ts:1066](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1066)
 
 If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Works with both chat() (the synthetic discovery tool) and Code Mode (kept out of the system prompt and revealed via discover_tools).
 
@@ -174,7 +174,7 @@ If true, this tool is lazy and will only be sent to the LLM after being discover
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:954](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L954)
+Defined in: [packages/ai/src/types.ts:1077](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1077)
 
 Additional metadata for adapters or custom extensions
 
@@ -186,7 +186,7 @@ Additional metadata for adapters or custom extensions
 name: TName;
 ```
 
-Defined in: [packages/ai/src/types.ts:855](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L855)
+Defined in: [packages/ai/src/types.ts:970](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L970)
 
 Unique name of the tool (used by the model to call it).
 
@@ -207,7 +207,7 @@ Must be unique within the tools array.
 optional needsApproval?: boolean;
 ```
 
-Defined in: [packages/ai/src/types.ts:948](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L948)
+Defined in: [packages/ai/src/types.ts:1063](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1063)
 
 If true, tool execution requires user approval before running. Works with both server and client tools.
 
@@ -219,7 +219,7 @@ If true, tool execution requires user approval before running. Works with both s
 optional outputSchema?: TOutput;
 ```
 
-Defined in: [packages/ai/src/types.ts:926](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L926)
+Defined in: [packages/ai/src/types.ts:1041](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1041)
 
 Optional schema for validating tool output.
 
@@ -241,3 +241,18 @@ z.object({
   forecast: z.array(z.string()).optional()
 })
 ```
+
+***
+
+### replay?
+
+```ts
+optional replay?: "safe" | "never";
+```
+
+Defined in: [packages/ai/src/types.ts:1074](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1074)
+
+Whether a host may run this tool again after a crash cut the run
+between the call and its result. `'safe'` runs it again. Omit the
+field, or set `'never'`, when a second run is not safe. The host
+writes the model note. `chat()` does not read this field.

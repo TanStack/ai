@@ -166,7 +166,7 @@
           "label": "Agentic Cycle",
           "to": "chat/agentic-cycle",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-21"
+          "updatedAt": "2026-10-13"
         },
         {
           "label": "Thinking & Reasoning",
@@ -294,7 +294,7 @@
           "label": "Server Tools",
           "to": "tools/server-tools",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-13"
+          "updatedAt": "2026-10-14"
         },
         {
           "label": "Client Tools",
@@ -353,7 +353,7 @@
           "label": "Middleware",
           "to": "advanced/middleware",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-12"
+          "updatedAt": "2026-10-14"
         },
         {
           "label": "Built-in Middleware",
@@ -543,13 +543,13 @@
           "label": "MCP Server Tools",
           "to": "tools/mcp",
           "addedAt": "2026-06-05",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-10-12"
         },
         {
           "label": "Managed MCP with chat()",
           "to": "tools/mcp-managed",
           "addedAt": "2026-06-05",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-10-12"
         },
         {
           "label": "Manual MCP",
@@ -584,7 +584,7 @@
           "label": "Serve Resources and Prompts",
           "to": "mcp/server-content",
           "addedAt": "2026-09-22",
-          "updatedAt": "2026-10-02"
+          "updatedAt": "2026-10-12"
         },
         {
           "label": "Ask for Input",
@@ -1129,7 +1129,7 @@
           "label": "Bring Your Own Key",
           "to": "advanced/byok",
           "addedAt": "2026-08-18",
-          "updatedAt": "2026-10-09"
+          "updatedAt": "2026-10-13"
         },
         {
           "label": "Debug Logging",
@@ -1209,7 +1209,7 @@
           "label": "OpenAI",
           "to": "adapters/openai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-09"
+          "updatedAt": "2026-10-12"
         },
         {
           "label": "Anthropic",
@@ -1320,7 +1320,7 @@
           "label": "OpenAI-Compatible",
           "to": "adapters/openai-compatible",
           "addedAt": "2026-06-01",
-          "updatedAt": "2026-10-09"
+          "updatedAt": "2026-10-13"
         },
         {
           "label": "LLM Gateway",
@@ -1332,7 +1332,7 @@
           "label": "Cloudflare",
           "to": "adapters/cloudflare",
           "addedAt": "2026-09-03",
-          "updatedAt": "2026-10-09"
+          "updatedAt": "2026-10-12"
         },
         {
           "label": "Claude Code",
@@ -1479,7 +1479,7 @@
           "label": "@tanstack/ai",
           "to": "api/ai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-08"
+          "updatedAt": "2026-10-13"
         },
         {
           "label": "@tanstack/ai-client",

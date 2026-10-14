@@ -3,7 +3,7 @@ id: ActivitySnapshotEvent
 title: ActivitySnapshotEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1821](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1821)
+Defined in: [packages/ai/src/types.ts:2037](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2037)
 
 Full activity state for an `ActivityMessage`.
 
@@ -22,4 +22,4 @@ Full activity state for an `ActivityMessage`.
 type: "ACTIVITY_SNAPSHOT";
 ```
 
-Defined in: [packages/ai/src/types.ts:1825](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1825)
+Defined in: [packages/ai/src/types.ts:2041](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2041)

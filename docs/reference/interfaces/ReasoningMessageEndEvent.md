@@ -3,7 +3,7 @@ id: ReasoningMessageEndEvent
 title: ReasoningMessageEndEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1799](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1799)
+Defined in: [packages/ai/src/types.ts:2015](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2015)
 
 Emitted when a reasoning message ends.
 
