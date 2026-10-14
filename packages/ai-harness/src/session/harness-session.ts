@@ -63,6 +63,8 @@ export class HarnessSession<
       await this.openEntry()
       if (this.writer) {
         await this.recoverFromLog(this.writer)
+        // Inputs that waited for an owner that stopped.
+        void this.drainInbox()
         return
       }
       await this.loadUsage()

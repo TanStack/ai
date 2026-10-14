@@ -9,6 +9,7 @@ import {
   errorText,
   inputKey,
   SHUTDOWN_REASON,
+  isElsewhere,
 } from './helpers'
 import { SessionState } from './state'
 import type {
@@ -31,6 +32,7 @@ import type {
   WaitingInput,
 } from '../types'
 import type { QueuedTurn, WaitingSteer } from './types'
+import type { Admission } from './inputs'
 
 /**
  * A layer of {@link HarnessSession}: prompt, steer, follow-up, continue, reset,
@@ -482,7 +484,8 @@ export abstract class SessionRequests<
 
   async cancel(operationId?: string): Promise<Receipt> {
     const inputId = createInputId()
-    await this.accept(inputId, { op: 'cancel', operationId })
+    const admission = await this.accept(inputId, { op: 'cancel', operationId })
+    if (isElsewhere(admission)) return this.duplicateReceipt(inputId, admission)
     const target = operationId
       ? this.operations.get(operationId)
       : this.activeTurn
@@ -580,7 +583,11 @@ export abstract class SessionRequests<
    */
   async cancelInput(target: string): Promise<Receipt> {
     const inputId = createInputId()
-    await this.accept(inputId, { op: 'cancelInput', inputId: target })
+    const admission = await this.accept(inputId, {
+      op: 'cancelInput',
+      inputId: target,
+    })
+    if (isElsewhere(admission)) return this.duplicateReceipt(inputId, admission)
     const taken = this.takeWaiting(target)
     if (!taken) return this.reject(inputId, 'not_waiting')
     await this.applyControl(inputId, {
@@ -629,7 +636,12 @@ export abstract class SessionRequests<
     delivery: WaitingInput['delivery']
   }): Promise<Receipt> {
     const inputId = createInputId()
-    await this.accept(inputId, { op: 'setDelivery', inputId: target, delivery })
+    const admission = await this.accept(inputId, {
+      op: 'setDelivery',
+      inputId: target,
+      delivery,
+    })
+    if (isElsewhere(admission)) return this.duplicateReceipt(inputId, admission)
     const current = this.inputs().find((input) => input.inputId === target)
     if (current?.delivery !== delivery) {
       const taken = this.takeWaiting(target)
@@ -906,7 +918,7 @@ export abstract class SessionRequests<
   protected answerDuplicate(
     operation: OperationImpl<ChatTurnResult>,
     inputId: string,
-    admission: 'duplicate' | 'conflict' | 'closed',
+    admission: Exclude<Admission, 'new'>,
   ) {
     const receipt = this.duplicateReceipt(inputId, admission)
     if (receipt.status === 'rejected') {

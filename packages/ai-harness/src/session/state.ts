@@ -29,6 +29,7 @@ import {
   storedPrincipal,
   SETTINGS,
   changeSettings,
+  isElsewhere,
 } from './helpers'
 import { SessionInputs } from './inputs'
 import type { OperationImpl } from '../operation'
@@ -289,7 +290,8 @@ export abstract class SessionState<
     value: unknown
   }): Promise<Receipt> {
     const inputId = createInputId()
-    await this.accept(inputId, { op: 'config', key, value })
+    const admission = await this.accept(inputId, { op: 'config', key, value })
+    if (isElsewhere(admission)) return this.duplicateReceipt(inputId, admission)
     const entry = this.sessionPlugins?.config.get(key)
     if (!entry) return this.reject(inputId, 'unknown_config')
     let checked: unknown
@@ -618,11 +620,13 @@ export abstract class SessionState<
     // A secret (a key or a password) stays out of the inbox. A restart does
     // not replay an answer, so the inbox never needs it.
     const isSecret = this.questions.get(questionId)?.secret === true
-    await this.accept(inputId, {
+    // A host that does not have the question passes the value on to its owner.
+    const admission = await this.accept(inputId, {
       op: 'answer',
       questionId,
       value: isSecret ? '[secret]' : value,
     })
+    if (isElsewhere(admission)) return this.duplicateReceipt(inputId, admission)
     const question = this.questions.get(questionId)
     if (!question) return this.reject(inputId, 'unknown_question')
     let checked: unknown = value
@@ -653,6 +657,9 @@ export abstract class SessionState<
       customEvent(HARNESS_EVENTS.questionAnswered, { questionId }),
     )
     question.resolve(checked)
+    // The question no longer holds the thread. The resolved work, if any,
+    // marks it busy again first.
+    queueMicrotask(() => this.checkIdle())
     return { inputId, status: 'accepted' }
   }
 
@@ -989,6 +996,8 @@ export abstract class SessionState<
     // so a client that streams that operation sees it, and a cancel of it
     // rejects the question. The session stream has every operation's events.
     const operationId = owner ?? this.activeTurn?.id ?? 'session'
+    // The claim sends an answer that reaches another host here.
+    this.markBusy()
     return new Promise((resolve, reject) => {
       this.questions.set(questionId, {
         message: question.message,

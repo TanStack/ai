@@ -13,7 +13,7 @@ import { mediaMiddleware } from '../media'
 import { OperationImpl } from '../operation'
 import { mountPlugins } from '../plugins'
 import { holdRunLease, truncationMiddleware } from '../resume'
-import { HARNESS_EVENTS } from '../types'
+import { HARNESS_EVENTS, InputRejectedError } from '../types'
 import {
   createInputId,
   customEvent,
@@ -38,6 +38,7 @@ import {
   lastAssistantText,
   isRoutedBag,
   keepTurnTools,
+  isElsewhere,
 } from './helpers'
 import { SessionAgents } from './agents'
 import type {
@@ -99,7 +100,21 @@ export abstract class SessionTurn<
     const inputId = createInputId()
     // The log keeps the input for replay, so a command must not take a secret
     // as its input. Ask a `secret` question instead.
-    await this.accept(inputId, { op: 'command', name, input }, principal)
+    const admission = await this.accept(
+      inputId,
+      { op: 'command', name, input },
+      principal,
+    )
+    // The owner runs it. Its result is in the owner's events.
+    if (isElsewhere(admission)) {
+      const receipt = this.duplicateReceipt(inputId, admission)
+      if (receipt.status === 'rejected') {
+        operation.fail('failed', new InputRejectedError(receipt))
+      } else {
+        operation.finish('completed', undefined)
+      }
+      return
+    }
     const entry = this.sessionPlugins?.commands.get(name)
     if (!entry) {
       this.reject(inputId, 'unknown_command')

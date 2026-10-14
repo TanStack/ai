@@ -28,12 +28,28 @@ import type {
 import type { QueuedTurn, WaitingSteer } from './types'
 
 /**
+ * How `accept` took an input. `forwarded`: another host owns the thread, and
+ * the input waits for it in `stores.inbox`. `owned_elsewhere`: another host
+ * owns the thread, and there is no inbox to pass the input on.
+ */
+export type Admission =
+  | 'new'
+  | 'duplicate'
+  | 'conflict'
+  | 'closed'
+  | 'forwarded'
+  | 'owned_elsewhere'
+
+/**
  * A layer of {@link HarnessSession}: admitting inputs, receipts, and
  * settlements.
  */
 export abstract class SessionInputs<
   THarness extends AnyHarness = AnyHarness,
 > extends SessionBase<THarness> {
+  /** Chat inputs that this host passed to the owner of the thread. */
+  private readonly forwarded = new Set<string>()
+
   /**
    * Append host records to the session log, in one batch after the events
    * that wait. Only a durable host (with `stores.log`) has a log. A `type`
@@ -317,7 +333,7 @@ export abstract class SessionInputs<
     inputId: string,
     input: HarnessInput,
     principal = this.principal,
-  ): Promise<'new' | 'duplicate' | 'conflict' | 'closed'> {
+  ): Promise<Admission> {
     const sender = storedPrincipal(principal)
     const payload = inputKey(input, sender.principal)
     const local = this.admitted.get(inputId)
@@ -332,11 +348,19 @@ export abstract class SessionInputs<
     if (this.closing && WORK_OPS.has(input.op)) return 'closed'
     this.admitted.set(inputId, payload)
     try {
+      // An agent run starts from the running turn, on the owner.
+      if (input.op !== 'agent' && (await this.isOwnedElsewhere())) {
+        return await this.forward(inputId, input, sender)
+      }
       // Before the input is stored, so a crash after the write leaves a claim
       // that a sweep finds.
       if (WORK_OPS.has(input.op)) {
         this.markBusy()
         await this.claimWrite
+        // Another host claimed the thread first, for example on a cold start.
+        if (this.writer && this.claimLost) {
+          return await this.forward(inputId, input, sender)
+        }
       }
       const at = Date.now()
       if (this.writer) {
@@ -368,6 +392,33 @@ export abstract class SessionInputs<
       customEvent(HARNESS_EVENTS.inputAccepted, { inputId, op: input.op }),
     )
     return 'new'
+  }
+
+  /**
+   * Another host owns the thread: store the input in `stores.inbox` for it.
+   * Without an inbox the input is refused, so the owner's turn goes on.
+   */
+  private async forward(
+    inputId: string,
+    input: HarnessInput,
+    sender: ReturnType<typeof storedPrincipal>,
+  ): Promise<Admission> {
+    this.admitted.delete(inputId)
+    const inbox = this.persistence.stores.inbox
+    if (!inbox) return 'owned_elsewhere'
+    // `settled` waits for the owner to end it.
+    if (CHAT_OPS.has(input.op)) this.forwarded.add(inputId)
+    await inbox.append({
+      inputId,
+      threadId: this.threadId,
+      input,
+      createdAt: Date.now(),
+      ...sender,
+    })
+    // The owner can go idle before it reads the inbox again. Then no host
+    // owns the thread, and this one runs the input.
+    if (!(await this.isOwnedElsewhere())) void this.drainInbox()
+    return 'forwarded'
   }
 
   /**
@@ -488,7 +539,11 @@ export abstract class SessionInputs<
         input.op === 'agent' ||
         input.op === 'agentMessage'
       )
-    return this.turnOperations.has(inputId) || this.receipts.has(inputId)
+    return (
+      this.turnOperations.has(inputId) ||
+      this.receipts.has(inputId) ||
+      this.forwarded.has(inputId)
+    )
   }
 
   /** Link a turn operation and its input. */
@@ -522,11 +577,12 @@ export abstract class SessionInputs<
   /** What a duplicate or a conflicting chat input gets back. */
   protected duplicateReceipt(
     inputId: string,
-    admission: 'duplicate' | 'conflict' | 'closed',
+    admission: Exclude<Admission, 'new'>,
   ): Receipt {
-    if (admission !== 'duplicate') {
+    if (admission !== 'duplicate' && admission !== 'forwarded') {
       return { inputId, status: 'rejected', reason: admission }
     }
+    if (admission === 'forwarded') return { inputId, status: 'queued' }
     const kept = this.receipts.get(inputId)
     if (kept) return kept
     const operationId = this.writer?.state.inputs.get(inputId)?.operationId
