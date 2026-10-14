@@ -936,7 +936,8 @@
         {
           "label": "Connect clients",
           "to": "harness/connect",
-          "addedAt": "2026-10-13"
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-14"
         },
         {
           "label": "Send inputs safely",
@@ -1016,7 +1017,8 @@
         {
           "label": "Run agents from a harness",
           "to": "harness/subagents",
-          "addedAt": "2026-10-13"
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-14"
         },
         {
           "label": "Add skills",

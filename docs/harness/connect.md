@@ -49,6 +49,7 @@ The handler answers these paths under your route:
 - `GET events?threadId=`: every event of the session as SSE. Each event id is a cursor, so a reconnect with `Last-Event-ID` continues where it stopped.
 - `POST control`: send `{ threadId, input }`, for example `{ op: 'prompt', message }`. You get a receipt back. Agents, settings, config keys, and commands need `expose`. See [Choose what clients can change](#choose-what-clients-can-change).
 - `GET snapshot?threadId=`: the status, running operations, and waiting approvals.
+- `GET agent-transcript?threadId=&subagentRunId=`: the saved messages of one child agent of the thread. See [Show what a child wrote after a reload](./subagents#show-what-a-child-wrote-after-a-reload).
 
 ## Choose what clients can change
 

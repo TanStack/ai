@@ -300,6 +300,71 @@ Known limits:
 - Only the turns of the session can start a background child. A child that calls an agent tool with `background` gets the tool error `background needs a host that runs children in the background.`
 - A call with `background` and `sessionId` gets the tool error `background cannot continue a sessionId.`
 
+## Show what a child wrote after a reload
+
+Your UI shows each child's text and tool calls while they stream. Then the user reloads the page. The thread's transcript has only the agent tool call and its result, because each child keeps its own messages. `session.agentTranscript(subagentRunId)` gives you those messages back.
+
+Each agent tool result names its child with `subagentRunId`. Read the result, then ask for the child:
+
+```ts group=harness-subagents-transcript
+import { defineAgent } from '@tanstack/ai'
+import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import { memoryPersistence } from '@tanstack/ai-persistence'
+import { openaiText } from '@tanstack/ai-openai'
+
+const writer = defineAgent({
+  name: 'writer',
+  description: 'Writes and edits drafts',
+  run: (ctx) => ctx.chat({ adapter: openaiText('gpt-6.1-sol'), stream: false }),
+})
+
+const studio = defineHarness({
+  name: 'acme/studio',
+  adapter: openaiText('gpt-6.1-sol'),
+  subagents: { agents: [writer] },
+})
+
+const host = createHarnessHost({ persistence: memoryPersistence() })
+const session = await host.open(studio, { threadId: 'user-1-thread' })
+
+for (const message of await session.transcript()) {
+  if (message.role !== 'tool' || typeof message.content !== 'string') continue
+  const result: unknown = JSON.parse(message.content)
+  if (typeof result !== 'object' || result === null) continue
+  if (!('subagentRunId' in result)) continue
+  if (typeof result.subagentRunId !== 'string') continue
+
+  const child = await session.agentTranscript(result.subagentRunId)
+  console.log(child.map((item) => item.content))
+}
+```
+
+What you get back:
+
+- The first message is the task that the model gave the agent.
+- Each message has the child's card in `metadata.tanstack.subagent`: its `name` and its `status` (`running`, `finished`, `error`, or `suspended`).
+- A child that failed before it wrote anything gives you one empty message. It holds only the card, so you can still show that it failed.
+- A nested child works the same way. Pass its own `subagentRunId`.
+
+In the browser, `client.agentTranscript` reads the same messages through [your handler](./connect):
+
+```ts group=harness-subagents-transcript-client
+import { createHarnessClient } from '@tanstack/ai-harness/client'
+import type { studio } from './harness'
+
+const client = createHarnessClient<typeof studio>({
+  url: '/api/harness',
+  threadId: 'user-1-thread',
+  headers: { authorization: 'Bearer my-token' },
+})
+
+export async function childMessages(subagentRunId: string) {
+  return client.agentTranscript(subagentRunId)
+}
+```
+
+You get an empty list when the id is unknown, or when the child belongs to another thread. The id can come from a prompt, so a session never reads the children of another thread. A [fork](./fork-and-reset) copies the agent results, but their children stay with the thread that ran them. So in the fork, `agentTranscript` gives an empty list for them.
+
 ## Route a turn to an agent
 
 Your harness has a writer and a pricer, but the main model answers every turn. Add `routing.router` to send a turn to the agent that can answer it. The router runs at the start of each new turn: a `prompt`, a `followUp`, or the wake turn of a background agent.
