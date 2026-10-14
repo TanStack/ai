@@ -326,6 +326,32 @@ export interface PluginDefinition<TMetadata = Record<string, unknown>> {
 const PLUGIN_BRAND = Symbol.for('tanstack.ai.harnessPlugin')
 
 /**
+ * What `setup()` returns. A key of it at the top level of a definition would
+ * be ignored. Other extra keys are the plugin's own API, such as the `diff`
+ * of `snapshots()`.
+ */
+const SETUP_KEYS: ReadonlySet<string> = new Set<keyof PluginContributions>([
+  'adapter',
+  'tools',
+  'prompts',
+  'middleware',
+  'agentMiddleware',
+  'generationMiddleware',
+  'agents',
+  'subagents',
+  'commands',
+  'config',
+  'contribute',
+  'discoverTools',
+  'prepareTools',
+])
+
+/** No `setup()` contribution at the top level of a definition. */
+type NoSetupKeys = {
+  [K in Exclude<keyof PluginContributions, keyof PluginDefinition>]?: never
+}
+
+/**
  * A plugin made with {@link definePlugin}. `TMetadata` is the session
  * metadata type it reads, from its `metadataSchema`.
  */
@@ -361,10 +387,21 @@ export function definePlugin<
   const TDefinition extends PluginDefinition<MetadataOf<TMetadataSchema>> =
     PluginDefinition<MetadataOf<TMetadataSchema>>,
 >(
-  definition: TDefinition & { metadataSchema?: TMetadataSchema },
+  definition: TDefinition & {
+    metadataSchema?: TMetadataSchema
+  } & NoSetupKeys,
 ): HarnessPlugin<TDefinition, MetadataOf<TMetadataSchema>> {
   if (definition.name.trim() === '') {
     throw new Error('definePlugin requires a non-empty name')
+  }
+  // `const TDefinition` turns off the excess property check, so a `setup()`
+  // contribution such as `adapter` at the top level would be kept and never
+  // used. Refuse it.
+  for (const key of Object.keys(definition)) {
+    if (!SETUP_KEYS.has(key)) continue
+    throw new Error(
+      `definePlugin "${definition.name}": \`${key}\` is not a plugin option. Return it from \`setup()\` instead.`,
+    )
   }
   assertMetadataSchema(
     `definePlugin "${definition.name}"`,
