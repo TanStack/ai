@@ -596,16 +596,16 @@ export abstract class SessionAgents<
       // After a log failure, another host owns the thread. A closing session
       // starts no new run: a recoverable close leaves the steers in the log
       // for the next host, as the chat path does.
-      if (!this.logFailure) {
-        if (!this.closing) {
-          chain.followUps.unshift(
-            ...chain.steers
-              .splice(0)
-              .map((steer) => this.followUpOf(chain, steer)),
-          )
-        }
-        this.nextFollowUp(chain)
+      if (!this.logFailure && !this.closing) {
+        chain.followUps.unshift(
+          ...chain.steers
+            .splice(0)
+            .map((steer) => this.followUpOf(chain, steer)),
+        )
       }
+      // A log failure closes the session, so this cancels the queued
+      // follow-ups then, and close() does not wait for them.
+      if (!this.logFailure || this.closing) this.nextFollowUp(chain)
       this.checkIdle()
     }
   }
@@ -931,9 +931,12 @@ export abstract class SessionAgents<
     } finally {
       // Also when a store write above threw: the leases must not stay held.
       stopRunLease()
+      // The finished event goes out as the run settles, before the lease
+      // write, so the listeners of the run still get it. A run that a store
+      // write failed gets it from failOperation.
+      if (operation.isSettled()) this.publishFinished(operation)
       await releaseLease?.()
     }
-    this.publishFinished(operation)
   }
 
   /**

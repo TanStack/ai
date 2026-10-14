@@ -69,11 +69,14 @@ export class OperationImpl<TResult> implements Operation<TResult> {
         stop()
       }
     }, this.id)
-    const dropListeners = () =>
-      setTimeout(() => {
+    const dropListeners = () => {
+      const timer = setTimeout(() => {
         for (const stop of stops) stop()
         stops.clear()
       }, 0)
+      // The timer must not keep a CLI or a test process alive.
+      if (typeof timer === 'object' && 'unref' in timer) timer.unref()
+    }
     this.onMedia = onMediaOf(this.onEvent)
     this.receipt = new Promise<Receipt>((resolve) => {
       this.settleReceipt = resolve

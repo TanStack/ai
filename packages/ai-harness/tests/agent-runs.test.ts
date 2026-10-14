@@ -13,6 +13,7 @@ import {
   untilAborted,
 } from './helpers'
 import type { AnyTextAdapter } from '@tanstack/ai'
+import type { LogStore } from '@tanstack/ai-persistence'
 import type { AnyHarness, HarnessSession, Operation } from '../src'
 
 const THREAD = 't1'
@@ -178,6 +179,41 @@ describe('follow-ups to an agent run', () => {
     const followUp = session.operation(receipt.operationId ?? '')
 
     await session.close()
+
+    await expect(followUp).rejects.toThrow('Session closed.')
+    expect(model.calls).toHaveLength(1)
+    await host.close()
+  })
+
+  it('cancels a queued follow-up when a log failure stops the session', async () => {
+    const inner = memoryLogStore()
+    // This host does not see the other writer, like one in another process.
+    const log: LogStore = {
+      append: (batch) => inner.append(batch),
+      read: (threadId, options) => inner.read(threadId, options),
+      subscribe: () => () => {},
+    }
+    const { runs, metadata } = memoryPersistence().stores
+    const model = mockAdapter([untilAborted(), () => text('Draft two.')])
+    const host = createHarnessHost({
+      persistence: { stores: { log, runs, metadata } },
+    })
+    const session = await host.open(writing(model.adapter), {
+      threadId: THREAD,
+      principal: alice,
+    })
+    const run = session.agents.writer.start()
+    await vi.waitFor(() => expect(model.calls).toHaveLength(1))
+    const receipt = await run.send('Add a title.', { mode: 'followUp' })
+    const followUp = session.operation(receipt.operationId ?? '')
+    const [last] = (await inner.read(THREAD)).slice(-1)
+    await inner.append({
+      threadId: THREAD,
+      seq: (last?.seq ?? 0) + 1,
+      records: [{ type: 'app.from-another-host' }],
+    })
+
+    await Promise.resolve(session.prompt('Next.')).catch(() => {})
 
     await expect(followUp).rejects.toThrow('Session closed.')
     expect(model.calls).toHaveLength(1)
