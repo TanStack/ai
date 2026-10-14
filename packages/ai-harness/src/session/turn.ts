@@ -659,7 +659,8 @@ export abstract class SessionTurn<
           routedFrom = undefined
           for await (const raw of stream) {
             const chunk =
-              raw.type === EventType.RUN_ERROR
+              raw.type === EventType.RUN_ERROR ||
+              raw.type === EventType.SUBAGENT_ERROR
                 ? { ...raw, message: this.scrub(raw.message) }
                 : raw
             cards?.processChunk(chunk)
