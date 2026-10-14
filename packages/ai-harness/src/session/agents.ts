@@ -596,12 +596,14 @@ export abstract class SessionAgents<
       // After a log failure, another host owns the thread. A closing session
       // starts no new run: a recoverable close leaves the steers in the log
       // for the next host, as the chat path does.
-      if (!this.logFailure && !this.closing) {
-        chain.followUps.unshift(
-          ...chain.steers
-            .splice(0)
-            .map((steer) => this.followUpOf(chain, steer)),
-        )
+      if (!this.logFailure) {
+        if (!this.closing) {
+          chain.followUps.unshift(
+            ...chain.steers
+              .splice(0)
+              .map((steer) => this.followUpOf(chain, steer)),
+          )
+        }
         this.nextFollowUp(chain)
       }
       this.checkIdle()
@@ -649,7 +651,16 @@ export abstract class SessionAgents<
 
   /** Start the next follow-up of `chain` once its current run ended. */
   protected nextFollowUp(chain: AgentChain): void {
-    if (this.closing || !chain.current.operation.isSettled()) return
+    if (!chain.current.operation.isSettled()) return
+    if (this.closing) {
+      // A closing session starts no run. Its queued follow-ups end cancelled,
+      // so close() and their callers do not wait for them.
+      for (const next of chain.followUps.splice(0)) {
+        next.operation.fail('cancelled', new Error('Session closed.'))
+        this.publishFinished(next.operation)
+      }
+      return
+    }
     const next = chain.followUps.shift()
     if (!next) return
     chain.current = {

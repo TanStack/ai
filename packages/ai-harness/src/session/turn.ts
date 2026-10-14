@@ -219,7 +219,7 @@ export abstract class SessionTurn<
         )
       }
     } catch (failure) {
-      error = { message: errorText(this.logFailure ?? failure) }
+      error = { message: this.scrub(errorText(this.logFailure ?? failure)) }
     }
     if (!this.logFailure) {
       await this.settle({

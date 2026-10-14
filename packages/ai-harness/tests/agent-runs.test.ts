@@ -169,6 +169,21 @@ describe('follow-ups to an agent run', () => {
     await host.close()
   })
 
+  it('cancels a queued follow-up when the session closes', async () => {
+    const model = mockAdapter([untilAborted(), () => text('Draft two.')])
+    const { host, session } = await open(writing(model.adapter))
+    const run = session.agents.writer.start()
+    await vi.waitFor(() => expect(model.calls).toHaveLength(1))
+    const receipt = await run.send('Add a title.', { mode: 'followUp' })
+    const followUp = session.operation(receipt.operationId ?? '')
+
+    await session.close()
+
+    await expect(followUp).rejects.toThrow('Session closed.')
+    expect(model.calls).toHaveLength(1)
+    await host.close()
+  })
+
   it('runs a steer that the run never took as a follow-up', async () => {
     const release = gate()
     const model = mockAdapter([

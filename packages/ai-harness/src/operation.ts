@@ -56,11 +56,24 @@ export class OperationImpl<TResult> implements Operation<TResult> {
   ) {
     this.id = id ?? createOperationId(kind)
     this.startedCursor = feed.head()
-    // A settled operation sends no more events, so a listener is not added.
-    this.onEvent = onEventOf(
-      (listener) => (this.isSettled() ? () => {} : feed.listen(listener)),
-      this.id,
-    )
+    // A settled operation sends no more events, so a listener is not added,
+    // and its listeners go once it settled. After a tick, so the events it
+    // sends as it settles (the finished event) still reach them.
+    const stops = new Set<() => void>()
+    this.onEvent = onEventOf((listener) => {
+      if (this.isSettled()) return () => {}
+      const stop = feed.listen(listener)
+      stops.add(stop)
+      return () => {
+        stops.delete(stop)
+        stop()
+      }
+    }, this.id)
+    const dropListeners = () =>
+      setTimeout(() => {
+        for (const stop of stops) stop()
+        stops.clear()
+      }, 0)
     this.onMedia = onMediaOf(this.onEvent)
     this.receipt = new Promise<Receipt>((resolve) => {
       this.settleReceipt = resolve
@@ -71,7 +84,7 @@ export class OperationImpl<TResult> implements Operation<TResult> {
     })
     // Nobody may await a failed background operation. Do not report that as an
     // unhandled rejection. `then` still rejects for callers that await.
-    this.settled.catch(() => {})
+    this.settled.then(dropListeners, dropListeners)
   }
 
   then<TResult1 = TResult, TResult2 = never>(

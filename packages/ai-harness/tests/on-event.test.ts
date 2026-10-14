@@ -156,7 +156,7 @@ describe('operation.onEvent', () => {
 
     await turn
 
-    expect(listeners.size).toBe(0)
+    await vi.waitFor(() => expect(listeners.size).toBe(0))
     // A listener for a settled operation is not added.
     turn.onEvent(() => {})
     expect(listeners.size).toBe(0)
