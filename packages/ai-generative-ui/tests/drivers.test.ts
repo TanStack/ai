@@ -9,7 +9,8 @@ describe('UIDriver Implementations (§7)', () => {
   it('FixtureDriver returns all canonical fixtures by scenario ID', async () => {
     const driver = new FixtureDriver()
     const scenarios = driver.listScenarios()
-    expect(scenarios).toHaveLength(9)
+    expect(scenarios).toHaveLength(10)
+    expect(scenarios).toContain('recipe-card')
 
     for (const sc of scenarios) {
       const graph = await driver.render({ job: 'test', scenario: sc })

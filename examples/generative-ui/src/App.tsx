@@ -161,8 +161,8 @@ export function App() {
             UI
           </div>
           <div>
-            <h1 className="text-sm font-bold text-white flex items-center gap-2">
-              Open Generative UI <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full font-mono font-medium">Draft 0.1</span>
+            <h1 className="text-base font-bold text-white flex items-center gap-2 font-display tracking-tight">
+              Open Generative UI <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full font-mono font-medium tracking-normal">Draft 0.1</span>
             </h1>
             <p className="text-xs text-slate-400">Deterministic Computation • Bounded Repair • Structured Intents</p>
           </div>
@@ -188,6 +188,7 @@ export function App() {
             <option value="spend-monitor">U7: Monitor (spend-monitor metrics & chart)</option>
             <option value="trip-stops">U8: Locate (trip-stops itinerary)</option>
             <option value="chord-diagram-emaj7">§6.4.3: Guitar Voicing Scene (chord-diagram-emaj7)</option>
+            <option value="recipe-card">Live-shape: Recipe Card (bind-less stepper + checklist)</option>
           </select>
 
           {/* View Mode Toggle */}
@@ -328,7 +329,7 @@ export function App() {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* Render Canvas */}
-        <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center">
+        <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center canvas-grid">
           <div className="w-full max-w-4xl space-y-4">
             <div className="flex items-center justify-between text-xs text-slate-400 px-1">
               <span className="flex items-center gap-2">
@@ -379,15 +380,13 @@ export function App() {
               </div>
             )}
 
-            {viewMode === 'visual' ? (
-              <GenerativeUIRenderer
-                key={`${graph.graphId}_${graph.revision}`}
-                graph={graph}
-                onIntent={handleIntent}
-              />
-            ) : (
-              <GenerativeUITextFallback graph={graph} />
-            )}
+            <div key={`${graph.graphId}_${graph.revision}`} className="animate-surface-rise">
+              {viewMode === 'visual' ? (
+                <GenerativeUIRenderer graph={graph} onIntent={handleIntent} />
+              ) : (
+                <GenerativeUITextFallback graph={graph} />
+              )}
+            </div>
           </div>
         </div>
 

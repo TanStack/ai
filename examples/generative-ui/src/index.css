@@ -1,13 +1,71 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Hanken+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @source "../src";
-@source "../../packages/ai-generative-ui/src";
+@source "../../../packages/ai-generative-ui/src";
+
+@theme {
+  --font-sans: 'Hanken Grotesk', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-display: 'Bricolage Grotesque', 'Hanken Grotesk', sans-serif;
+}
 
 @layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
   body {
-    background-color: #020617;
+    background-color: #05080f;
+    background-image:
+      radial-gradient(55rem 38rem at 82% -12%, rgba(37, 99, 235, 0.14), transparent 60%),
+      radial-gradient(48rem 38rem at -8% 6%, rgba(99, 102, 241, 0.10), transparent 55%);
+    background-attachment: fixed;
     color: #f8fafc;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    font-family: var(--font-sans);
     margin: 0;
     padding: 0;
   }
+}
+
+/* Distinctive display type for product-level headings */
+.font-display {
+  font-family: var(--font-display);
+}
+
+/* The host-rendered card title adopts the display face without coupling the package to a font */
+.open-gen-ui-container > header h2 {
+  font-family: var(--font-display);
+  letter-spacing: -0.025em;
+}
+
+/* Subtle engineering-grid texture behind the render canvas */
+.canvas-grid {
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.045) 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-position: center top;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* One orchestrated entrance for the rendered surface */
+@keyframes surface-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.animate-surface-rise {
+  animation: surface-rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
 }

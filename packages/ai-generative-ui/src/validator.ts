@@ -286,7 +286,7 @@ export function validateGraph(input: unknown, options: ValidationOptions = {}): 
       const s = shapes[i] as Record<string, unknown> | null | undefined
       if (!s || typeof s !== 'object') continue
 
-      let kind = String(s.kind ?? s.type ?? '').toLowerCase()
+      const kind = String(s.kind ?? s.type ?? '').toLowerCase()
       if (!['group', 'rect', 'circle', 'line', 'polygon', 'path', 'text'].includes(kind)) {
         if (canRepair) {
           repairsList.push(`Dropped unknown Scene shape kind "${kind}" at ${path}.shapes[${i}]`)

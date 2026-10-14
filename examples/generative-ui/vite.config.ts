@@ -3,7 +3,7 @@ import { resolve } from 'node:path'
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
-import { LiveDriver, validateGraph } from '@tanstack/ai-generative-ui'
+import { LiveDriver, validateGraph, describeComputeForPrompt } from '@tanstack/ai-generative-ui'
 
 // Load .env.local if present
 for (const envFile of ['.env.local', '.env']) {
@@ -24,7 +24,12 @@ Ground Rules:
    - Input: Form, TextInput, NumberInput, Select, Slider, Stepper, Toggle, Checkbox, Checklist, Button, Choice
    - Vector Scene: Scene (props must include "viewBox", e.g. "0 0 300 360", and "shapes": Array<{ kind: "rect"|"circle"|"line"|"text"|"path", ... }>. ALWAYS put vector shapes inside props.shapes, not in children. Use semantic paint roles: "accent", "neutral", "muted", "surface", "danger", "highlight", or "none")
 3. Safety: No arbitrary HTML, scripts, CSS strings, or execution handlers.
-4. Deterministic computation: If values are computed (e.g. loan payments, bill splits, taxes), DO NOT author arithmetic in text. Use named host compute functions (e.g. "billSplit", "savingsGrowth", "sum") with input bindings.
+4. Deterministic computation: If values are computed (e.g. loan payments, bill splits, taxes), DO NOT author arithmetic in text and DO NOT require a button click. Attach a REACTIVE "compute" to a CONTAINER node (Stack/Section/Form) so results update live as inputs change. Shape: "compute": { "name", "inputs": { fnInput: "stateKey" }, "output": "resultKey" }. Only use functions from this list — inventing a name means nothing computes:
+${describeComputeForPrompt()}
+   Wiring rules:
+   - Give every input (NumberInput/Slider/etc.) an explicit "bind": { "value": "someKey" } and set its starting number via props.value. Reference that SAME "someKey" in the compute inputs.
+   - A compute output that is an object is written at output + flattened to the root. A Metric shows a computed number via "bind": { "value": "resultKey.fieldName" } (e.g. output "loan" -> Metric bind.value "loan.monthlyPayment"). Do not put the number in props.value.
+   - Button/label text goes in the "label" prop (not "text").
 5. Provide a meaningful, accessible "fallbackText" summarizing the interface for non-visual surfaces.
 6. Set specVersion to "0.1", revision to 1, and provenance.driver to "live".`
 

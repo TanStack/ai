@@ -8,6 +8,7 @@ import {
   comparePlansBasicFixture,
   billSplitFixture,
   chordDiagramEmaj7Fixture,
+  type GraphDocument,
 } from '../src/index'
 
 describe('GenerativeUIRenderer React Component', () => {
@@ -29,7 +30,9 @@ describe('GenerativeUIRenderer React Component', () => {
 
     expect(container.textContent).toContain('Compare Hosting Plans')
     expect(container.textContent).toContain('Starter')
-    expect(container.textContent).toContain('Pro (Recommended)')
+    // "Pro (Recommended)" renders as a "Pro" heading + a "Recommended" badge.
+    expect(container.textContent).toContain('Pro')
+    expect(container.textContent).toContain('Recommended')
     expect(container.textContent).toContain('Enterprise')
 
     const proBtn = Array.from(container.querySelectorAll('button')).find((b) =>
@@ -119,6 +122,77 @@ describe('GenerativeUIRenderer React Component', () => {
         payload: expect.objectContaining({ shapeId: 'note-b-5' }),
       }),
     )
+
+    root.unmount()
+    container.remove()
+  })
+
+  // A live model commonly omits bind.value/bind.state and item ids, addressing
+  // inputs by their node id. These must still be interactive.
+  it('makes bind-less inputs interactive via implicit <id>.value / <id>.state', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+
+    const graph: GraphDocument = {
+      specVersion: '0.1',
+      graphId: 'g_bindless',
+      revision: 1,
+      title: 'Recipe',
+      fallbackText: 'recipe',
+      provenance: { driver: 'live' },
+      root: {
+        id: 'root',
+        type: 'Stack',
+        children: [
+          {
+            // Section title via "label" (not "title") still renders.
+            id: 'ingredients',
+            type: 'Section',
+            props: { label: 'Ingredients' },
+            children: [
+              {
+                id: 'checklist',
+                type: 'Checklist',
+                props: { items: [{ label: 'butter' }, { label: 'eggs' }] },
+              },
+            ],
+          },
+          {
+            id: 'servings',
+            type: 'Stepper',
+            props: { label: 'Servings', value: 4, min: 1, max: 12, step: 1 },
+          },
+        ],
+      },
+    }
+
+    await act(async () => {
+      root.render(<GenerativeUIRenderer graph={graph} />)
+    })
+
+    expect(container.textContent).toContain('Ingredients')
+
+    // Stepper seeded from props.value and increments despite having no bind.
+    const plus = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '+')
+    expect(plus).toBeDefined()
+    expect(container.textContent).toContain('4')
+    await act(async () => {
+      plus?.click()
+    })
+    expect(container.textContent).toContain('5')
+
+    // Bind-less, id-less checklist items toggle independently and persist.
+    const boxes = Array.from(container.querySelectorAll('input[type="checkbox"]')) as Array<HTMLInputElement>
+    expect(boxes.length).toBe(2)
+    const [first, second] = boxes
+    if (!first || !second) throw new Error('expected two checkboxes')
+    expect(first.checked).toBe(false)
+    await act(async () => {
+      first.click()
+    })
+    expect(first.checked).toBe(true)
+    expect(second.checked).toBe(false)
 
     root.unmount()
     container.remove()

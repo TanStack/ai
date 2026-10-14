@@ -608,6 +608,93 @@ export const chordDiagramEmaj7Fixture: GraphDocument = {
   },
 }
 
+/**
+ * Live-generation shape regression fixture.
+ *
+ * A real model emitted this: inputs are addressed by node id with NO `bind`,
+ * checklist items have NO `id`, and sections title themselves via `label`
+ * rather than `title`. The host renderer must still make the stepper and
+ * checklist interactive (implicit `<nodeId>.value` / `<nodeId>.state`) and show
+ * the section headings. Kept verbatim as a guard against regressing that path.
+ */
+export const recipeCardFixture: GraphDocument = {
+  specVersion: '0.1',
+  graphId: 'recipe-card-lava',
+  revision: 1,
+  title: 'Chocolate Lava Cake Recipe',
+  fallbackText:
+    'Interactive recipe card for chocolate lava cake. Includes an ingredient checklist, numbered preparation steps, and a stepper to adjust serving size.',
+  provenance: { driver: 'fixture', sourceId: 'recipe-card' },
+  root: {
+    id: 'lavaCakeRecipe',
+    type: 'Stack',
+    props: { gap: 'md' },
+    children: [
+      {
+        id: 'ingredientSection',
+        type: 'Section',
+        props: { label: 'Ingredients' },
+        children: [
+          {
+            id: 'ingredientChecklist',
+            type: 'Checklist',
+            props: {
+              items: [
+                { label: '1/2 cup (1 stick) unsalted butter' },
+                { label: '1 cup bittersweet chocolate chips or chopped chocolate' },
+                { label: "1 cup confectioners' sugar" },
+                { label: '2 large eggs' },
+                { label: '2 large egg yolks' },
+                { label: '1 teaspoon vanilla extract' },
+                { label: '1/4 cup all-purpose flour' },
+                { label: '1/4 teaspoon salt' },
+                { label: 'Optional: Powdered sugar or ice cream for serving' },
+              ],
+            },
+          },
+        ],
+      },
+      {
+        id: 'prepStepsSection',
+        type: 'Section',
+        props: { label: 'Preparation Steps' },
+        children: [
+          {
+            id: 'prepSteps',
+            type: 'List',
+            props: {
+              ordered: true,
+              items: [
+                'Preheat the oven to 425°F (220°C) and butter four ramekins.',
+                'Melt the butter with the chocolate in a double boiler or microwave until smooth.',
+                'Stir in the sugar until combined.',
+                'Add the eggs and egg yolks; mix well.',
+                'Stir in the vanilla extract.',
+                'Gently fold in the flour and salt until just combined.',
+                'Divide the batter evenly among the prepared ramekins.',
+                'Place ramekins on a baking sheet and bake for 12-14 minutes until the edges are firm but the center is still soft.',
+                'Let the cakes cool for 1 minute before serving. Optionally, serve with a dusting of powdered sugar or a scoop of ice cream.',
+              ],
+            },
+          },
+        ],
+      },
+      {
+        id: 'servingSizeSection',
+        type: 'Section',
+        props: { label: 'Serving Size' },
+        children: [
+          {
+            id: 'servingSizeStepper',
+            type: 'Stepper',
+            props: { label: 'Adjust Servings', value: 4, min: 1, max: 12, step: 1 },
+          },
+        ],
+      },
+    ],
+  },
+}
+
 export const CANONICAL_FIXTURES: Record<string, GraphDocument> = {
   'compare-plans-basic': comparePlansBasicFixture,
   'bicycle-drivetrain': bicycleDrivetrainFixture,
@@ -618,4 +705,5 @@ export const CANONICAL_FIXTURES: Record<string, GraphDocument> = {
   'spend-monitor': spendMonitorFixture,
   'trip-stops': tripStopsFixture,
   'chord-diagram-emaj7': chordDiagramEmaj7Fixture,
+  'recipe-card': recipeCardFixture,
 }
