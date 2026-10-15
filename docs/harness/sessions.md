@@ -144,7 +144,7 @@ await session.unrevert()
 - The next prompt drops the hidden messages for good.
 - The session saves the revert in the log, or in `stores.metadata` on a host without a log. A restart keeps it.
 - Each change sends a `harness.revert` event. Read the transcript again when it arrives.
-- `revert` refuses with `busy` when the session is not idle. It refuses with `unknown_message` for an id that is not in the transcript.
+- `revert` and `unrevert` refuse with `busy` when the session is not idle, or when another host runs the thread. `revert` refuses with `unknown_message` for an id that is not in the transcript.
 
 ## Rename and remove a session
 

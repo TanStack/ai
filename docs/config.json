@@ -957,7 +957,7 @@
           "label": "List, rename, and fork sessions",
           "to": "harness/sessions",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-14"
+          "updatedAt": "2026-10-15"
         },
         {
           "label": "Run side effects once",

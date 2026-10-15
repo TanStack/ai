@@ -476,12 +476,14 @@ export abstract class SessionState<
    * after it. With the snapshots plugin, the files that their tool calls
    * changed go back too. `unrevert()` undoes it. The next turn drops the
    * hidden messages for good. The revert state is saved, so it survives a
-   * restart. Refused while the session is not idle (`'busy'`), and for a
-   * message that is not in the transcript (`'unknown_message'`).
+   * restart. Refused while the session is not idle, or another host runs
+   * the thread (`'busy'`), and for a message that is not in the transcript
+   * (`'unknown_message'`).
    */
   async revert(messageId: string): Promise<Receipt> {
     const inputId = createInputId()
-    if (this.snapshot().status !== 'idle') {
+    // Another host runs the thread: its log write would stop that host.
+    if (this.snapshot().status !== 'idle' || (await this.isOwnedElsewhere())) {
       return { inputId, status: 'rejected', reason: 'busy' }
     }
     return this.holding(async () => {
@@ -506,7 +508,8 @@ export abstract class SessionState<
   /** End the revert that stands: its files and messages come back. */
   async unrevert(): Promise<Receipt> {
     const inputId = createInputId()
-    if (this.snapshot().status !== 'idle') {
+    // Another host runs the thread: its log write would stop that host.
+    if (this.snapshot().status !== 'idle' || (await this.isOwnedElsewhere())) {
       return { inputId, status: 'rejected', reason: 'busy' }
     }
     return this.holding(async () => {

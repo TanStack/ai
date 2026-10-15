@@ -404,6 +404,37 @@ describe('an input that reaches a host that does not own the thread', () => {
     await other.close()
   })
 
+  it('refuses a revert on a host that does not own the thread, and the owner turn goes on', async () => {
+    const persistence = sharedStores()
+    const release = gate()
+    const { adapter } = mockAdapter([
+      () => text('One.'),
+      after(release.opened, 'Two.'),
+    ])
+    const harness = harnessOf(adapter)
+    const owner = await createHarnessHost({ persistence }).open(harness, {
+      threadId: THREAD,
+    })
+    await owner.prompt('First.')
+    const turn = owner.prompt('Second.')
+    await turn.receipt
+    // Another instance opens the thread while the owner runs the turn.
+    const other = await createHarnessHost({ persistence }).open(harness, {
+      threadId: THREAD,
+    })
+    const [first] = await other.transcript()
+    expect(await other.revert(first?.id ?? '')).toMatchObject({
+      status: 'rejected',
+      reason: 'busy',
+    })
+    expect(await other.unrevert()).toMatchObject({
+      status: 'rejected',
+      reason: 'busy',
+    })
+    release.open()
+    expect((await turn).text).toBe('Two.')
+  })
+
   it('runs a forwarded POST run on the host that took it, under its run id, after the owner stopped', async () => {
     const persistence = sharedStores()
     const { adapter, calls } = mockAdapter([() => text('Picked up.')])

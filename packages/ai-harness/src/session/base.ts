@@ -879,12 +879,10 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
           inputId,
         })
       case 'revert':
-        return session.revert(input.messageId)
       case 'unrevert':
-        return session.unrevert()
       case 'agent':
       case 'background':
-        // These start on the owner, never on another host.
+        // These run only on the owner. Another host never stores them.
         return undefined
     }
   }
