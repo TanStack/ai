@@ -67,9 +67,11 @@ The model now has an `execute_typescript` tool. Inside the program, each moved t
 | Driver | Package | Runs in |
 | --- | --- | --- |
 | `createQuickJSIsolateDriver()` | `@tanstack/ai-isolate-quickjs` | WebAssembly, on any runtime |
+| `createQuickJSBunIsolateDriver()` | `@tanstack/ai-isolate-quickjs-bun` | Native QuickJS in Bun |
 | `createNodeIsolateDriver()` | `@tanstack/ai-isolate-node` | A V8 isolate in Node |
 | `createCloudflareIsolateDriver()` | `@tanstack/ai-isolate-cloudflare` | A Cloudflare Worker |
 | `createDaytonaIsolateDriver()` | `@tanstack/ai-isolate-daytona` | A Daytona sandbox |
+| `createE2BIsolateDriver()` | `@tanstack/ai-isolate-e2b` | An E2B sandbox |
 
 [Code mode isolates](../code-mode/code-mode-isolates) has the options of each driver.
 
@@ -101,7 +103,7 @@ export const onlyIssues = codeMode({
 - With `include`, a call of `execute_typescript` gets the permission rules like any tool, for example a question with `default: 'ask'`.
 - A safe tool with `metadata.codeMode: true` moves even when `include` does not pick it.
 
- The other options of `createCodeMode` pass through: `timeout`, `memoryLimit`, `lazyToolsConfig`, and more.
+The other options of `createCodeMode` pass through: `timeout`, `memoryLimit`, `lazyToolsConfig`, and more.
 
 ## 4. Send only the tool names
 
@@ -125,7 +127,7 @@ The model then works in three steps:
 
 ## Tools that appear while the session runs
 
-The plugin chooses the tools again before every turn. A plugin that finds tools at run time with `discoverTools` (for example after a sign-in) adds them first, and the safe ones move into code mode on the next turn. Tool names that are not JavaScript identifiers, for example `notion-search`, get a safe name inside the program: `external_notion_search`.
+The plugin chooses the tools again before every turn. A plugin that finds tools at run time with `discoverTools` (for example after a sign-in) adds them first, and the safe ones move into code mode on the next turn. Tool names that are not JavaScript identifiers, for example `notion-search`, get a safe name inside the program: `external_notion_search`. When two tools get the same safe name, only the first one moves. The other one stays a normal tool call.
 
 ## What you have now
 

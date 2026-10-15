@@ -479,4 +479,109 @@ describe('codeMode', () => {
     })
     expect(names).toEqual(['read_file', 'execute_typescript'])
   })
+
+  it.each(['default', 'plan'])(
+    'runs a program with no question when permissions() asks by default, in %s mode',
+    async (mode) => {
+      const { driver, seen } = fakeDriver()
+      const { adapter } = scripted([codeTurn('return 1'), textTurn('done')])
+      const host = createHarnessHost({ persistence: memoryPersistence() })
+      const session = await host.open(
+        defineHarness({
+          name: 'test/code-mode-allow',
+          adapter,
+          tools: [tools.lookup],
+          plugins: () => [
+            permissions({
+              default: 'ask',
+              rules: [
+                { tool: 'lookup', decision: 'allow' },
+                { tool: 'notion_search', decision: 'allow' },
+              ],
+            }),
+            notion,
+            codeMode({ driver }),
+          ],
+        }),
+        { threadId: 't' },
+      )
+      if (mode === 'plan') await session.command('mode', 'plan')
+      expect((await session.prompt('look it up')).text).toBe('done')
+      // The program ran: a question would wait, and plan mode would deny it.
+      expect(seen).toHaveLength(1)
+      await host.close()
+    },
+  )
+
+  it('asks before a program when a rule of the user asks for execute_typescript', async () => {
+    const { driver, seen } = fakeDriver()
+    const { adapter } = scripted([codeTurn('return 1'), textTurn('done')])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/code-mode-user-rule',
+        adapter,
+        tools: [tools.lookup],
+        plugins: () => [
+          permissions({
+            rules: [{ tool: 'execute_typescript', decision: 'ask' }],
+          }),
+          notion,
+          codeMode({ driver }),
+        ],
+      }),
+      { threadId: 't' },
+    )
+    const turn = session.prompt('look it up')
+    await vi.waitFor(() =>
+      expect(session.snapshot().pendingQuestions).toHaveLength(1),
+    )
+    const [question] = session.snapshot().pendingQuestions
+    if (!question) throw new Error('No question.')
+    expect(question.message).toContain('execute_typescript')
+    await session.answer({
+      questionId: question.questionId,
+      value: { answer: 'reject' },
+    })
+    expect((await turn).text).toBe('done')
+    expect(seen).toEqual([])
+    await host.close()
+  })
+
+  it('drops the prompt of the last turn when the pick fails', async () => {
+    const { driver } = fakeDriver()
+    const { adapter, calls } = scripted([textTurn('one'), textTurn('two')])
+    let isBroken = false
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/code-mode-failed-pick',
+        adapter,
+        tools: [tools.lookup],
+        plugins: () => [
+          codeMode({
+            driver,
+            include: () => {
+              if (isBroken) throw new Error('The pick failed.')
+              return true
+            },
+          }),
+        ],
+      }),
+      { threadId: 't' },
+    )
+    await session.prompt('first')
+    expect(JSON.stringify(calls[0].systemPrompts)).toContain('external_lookup')
+
+    isBroken = true
+    await session.prompt('second')
+    // The harness keeps the tool list as it was, without the old prompt.
+    expect(calls[1].tools.map((tool: { name: string }) => tool.name)).toEqual([
+      'lookup',
+    ])
+    expect(JSON.stringify(calls[1].systemPrompts ?? [])).not.toContain(
+      'external_lookup',
+    )
+    await host.close()
+  })
 })
