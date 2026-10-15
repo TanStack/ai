@@ -80,7 +80,7 @@ export const greeter = definePlugin({
 
 - `session.command('greet', { name: 'Ada' })` runs the command. The input is checked against its schema.
 - `session.setConfig({ key: 'tone', value: 'warm' })` changes the setting. A value the option does not accept is rejected.
-- `ask` waits for `session.answer({ questionId, value })`. The question shows up in `session.snapshot().pendingQuestions`.
+- `ask` waits for `session.answer({ questionId, value })`. The question goes to `session.onQuestion` listeners, and it stays in `session.snapshot().pendingQuestions` until someone answers.
 
 ## Change commands while the session runs
 
