@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ActivityTestRouteImport } from './routes/activity-test'
+import { Route as AsyncStoreRejoinRouteImport } from './routes/async-store-rejoin'
 import { Route as ByokRouteImport } from './routes/byok'
 import { Route as ChatClientDefaultBridgeRouteImport } from './routes/chat-client-default-bridge'
 import { Route as ChatClientStreamProcessingRouteImport } from './routes/chat-client-stream-processing'
@@ -64,6 +65,7 @@ import { Route as ApiAnthropicStructuredUsageRouteImport } from './routes/api.an
 import { Route as ApiAnthropicThinkingOrderWireRouteImport } from './routes/api.anthropic-thinking-order-wire'
 import { Route as ApiAnthropicTruncatedToolInputWireRouteImport } from './routes/api.anthropic-truncated-tool-input-wire'
 import { Route as ApiArktypeToolWireRouteImport } from './routes/api.arktype-tool-wire'
+import { Route as ApiAsyncStoreRejoinRouteImport } from './routes/api.async-store-rejoin'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
 import { Route as ApiAzureOpenaiWireRouteImport } from './routes/api.azure-openai-wire'
 import { Route as ApiBedrockConverseCacheRouteImport } from './routes/api.bedrock-converse-cache'
@@ -190,6 +192,11 @@ const IndexRoute = IndexRouteImport.update({
 const ActivityTestRoute = ActivityTestRouteImport.update({
   id: '/activity-test',
   path: '/activity-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AsyncStoreRejoinRoute = AsyncStoreRejoinRouteImport.update({
+  id: '/async-store-rejoin',
+  path: '/async-store-rejoin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ByokRoute = ByokRouteImport.update({
@@ -467,6 +474,11 @@ const ApiAnthropicTruncatedToolInputWireRoute =
 const ApiArktypeToolWireRoute = ApiArktypeToolWireRouteImport.update({
   id: '/api/arktype-tool-wire',
   path: '/api/arktype-tool-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAsyncStoreRejoinRoute = ApiAsyncStoreRejoinRouteImport.update({
+  id: '/api/async-store-rejoin',
+  path: '/api/async-store-rejoin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAudioRoute = ApiAudioRouteImport.update({
@@ -1089,6 +1101,7 @@ const ApiVideoStreamRoute = ApiVideoStreamRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/activity-test': typeof ActivityTestRoute
+  '/async-store-rejoin': typeof AsyncStoreRejoinRoute
   '/byok': typeof ByokRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/chat-client-stream-processing': typeof ChatClientStreamProcessingRoute
@@ -1141,6 +1154,7 @@ export interface FileRoutesByFullPath {
   '/api/anthropic-thinking-order-wire': typeof ApiAnthropicThinkingOrderWireRoute
   '/api/anthropic-truncated-tool-input-wire': typeof ApiAnthropicTruncatedToolInputWireRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
+  '/api/async-store-rejoin': typeof ApiAsyncStoreRejoinRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/azure-openai-wire': typeof ApiAzureOpenaiWireRoute
   '/api/bedrock-converse-cache': typeof ApiBedrockConverseCacheRoute
@@ -1263,6 +1277,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/activity-test': typeof ActivityTestRoute
+  '/async-store-rejoin': typeof AsyncStoreRejoinRoute
   '/byok': typeof ByokRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/chat-client-stream-processing': typeof ChatClientStreamProcessingRoute
@@ -1315,6 +1330,7 @@ export interface FileRoutesByTo {
   '/api/anthropic-thinking-order-wire': typeof ApiAnthropicThinkingOrderWireRoute
   '/api/anthropic-truncated-tool-input-wire': typeof ApiAnthropicTruncatedToolInputWireRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
+  '/api/async-store-rejoin': typeof ApiAsyncStoreRejoinRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/azure-openai-wire': typeof ApiAzureOpenaiWireRoute
   '/api/bedrock-converse-cache': typeof ApiBedrockConverseCacheRoute
@@ -1438,6 +1454,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/activity-test': typeof ActivityTestRoute
+  '/async-store-rejoin': typeof AsyncStoreRejoinRoute
   '/byok': typeof ByokRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/chat-client-stream-processing': typeof ChatClientStreamProcessingRoute
@@ -1490,6 +1507,7 @@ export interface FileRoutesById {
   '/api/anthropic-thinking-order-wire': typeof ApiAnthropicThinkingOrderWireRoute
   '/api/anthropic-truncated-tool-input-wire': typeof ApiAnthropicTruncatedToolInputWireRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
+  '/api/async-store-rejoin': typeof ApiAsyncStoreRejoinRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/azure-openai-wire': typeof ApiAzureOpenaiWireRoute
   '/api/bedrock-converse-cache': typeof ApiBedrockConverseCacheRoute
@@ -1614,6 +1632,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/activity-test'
+    | '/async-store-rejoin'
     | '/byok'
     | '/chat-client-default-bridge'
     | '/chat-client-stream-processing'
@@ -1666,6 +1685,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-thinking-order-wire'
     | '/api/anthropic-truncated-tool-input-wire'
     | '/api/arktype-tool-wire'
+    | '/api/async-store-rejoin'
     | '/api/audio'
     | '/api/azure-openai-wire'
     | '/api/bedrock-converse-cache'
@@ -1788,6 +1808,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/activity-test'
+    | '/async-store-rejoin'
     | '/byok'
     | '/chat-client-default-bridge'
     | '/chat-client-stream-processing'
@@ -1840,6 +1861,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-thinking-order-wire'
     | '/api/anthropic-truncated-tool-input-wire'
     | '/api/arktype-tool-wire'
+    | '/api/async-store-rejoin'
     | '/api/audio'
     | '/api/azure-openai-wire'
     | '/api/bedrock-converse-cache'
@@ -1962,6 +1984,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/activity-test'
+    | '/async-store-rejoin'
     | '/byok'
     | '/chat-client-default-bridge'
     | '/chat-client-stream-processing'
@@ -2014,6 +2037,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-thinking-order-wire'
     | '/api/anthropic-truncated-tool-input-wire'
     | '/api/arktype-tool-wire'
+    | '/api/async-store-rejoin'
     | '/api/audio'
     | '/api/azure-openai-wire'
     | '/api/bedrock-converse-cache'
@@ -2137,6 +2161,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ActivityTestRoute: typeof ActivityTestRoute
+  AsyncStoreRejoinRoute: typeof AsyncStoreRejoinRoute
   ByokRoute: typeof ByokRoute
   ChatClientDefaultBridgeRoute: typeof ChatClientDefaultBridgeRoute
   ChatClientStreamProcessingRoute: typeof ChatClientStreamProcessingRoute
@@ -2189,6 +2214,7 @@ export interface RootRouteChildren {
   ApiAnthropicThinkingOrderWireRoute: typeof ApiAnthropicThinkingOrderWireRoute
   ApiAnthropicTruncatedToolInputWireRoute: typeof ApiAnthropicTruncatedToolInputWireRoute
   ApiArktypeToolWireRoute: typeof ApiArktypeToolWireRoute
+  ApiAsyncStoreRejoinRoute: typeof ApiAsyncStoreRejoinRoute
   ApiAudioRoute: typeof ApiAudioRouteWithChildren
   ApiAzureOpenaiWireRoute: typeof ApiAzureOpenaiWireRoute
   ApiBedrockConverseCacheRoute: typeof ApiBedrockConverseCacheRoute
@@ -2318,6 +2344,13 @@ declare module '@tanstack/react-router' {
       path: '/activity-test'
       fullPath: '/activity-test'
       preLoaderRoute: typeof ActivityTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/async-store-rejoin': {
+      id: '/async-store-rejoin'
+      path: '/async-store-rejoin'
+      fullPath: '/async-store-rejoin'
+      preLoaderRoute: typeof AsyncStoreRejoinRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/byok': {
@@ -2689,6 +2722,13 @@ declare module '@tanstack/react-router' {
       path: '/api/arktype-tool-wire'
       fullPath: '/api/arktype-tool-wire'
       preLoaderRoute: typeof ApiArktypeToolWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/async-store-rejoin': {
+      id: '/api/async-store-rejoin'
+      path: '/api/async-store-rejoin'
+      fullPath: '/api/async-store-rejoin'
+      preLoaderRoute: typeof ApiAsyncStoreRejoinRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/audio': {
@@ -3574,6 +3614,7 @@ const ApiVideoRouteWithChildren = ApiVideoRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ActivityTestRoute: ActivityTestRoute,
+  AsyncStoreRejoinRoute: AsyncStoreRejoinRoute,
   ByokRoute: ByokRoute,
   ChatClientDefaultBridgeRoute: ChatClientDefaultBridgeRoute,
   ChatClientStreamProcessingRoute: ChatClientStreamProcessingRoute,
@@ -3628,6 +3669,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAnthropicTruncatedToolInputWireRoute:
     ApiAnthropicTruncatedToolInputWireRoute,
   ApiArktypeToolWireRoute: ApiArktypeToolWireRoute,
+  ApiAsyncStoreRejoinRoute: ApiAsyncStoreRejoinRoute,
   ApiAudioRoute: ApiAudioRouteWithChildren,
   ApiAzureOpenaiWireRoute: ApiAzureOpenaiWireRoute,
   ApiBedrockConverseCacheRoute: ApiBedrockConverseCacheRoute,

@@ -623,8 +623,13 @@ export class ChatClient<
   private hydrationInFlight: number | undefined
   /** An async storage adapter is still reading the persisted transcript. */
   private storeHydrating = false
-  /** Constructor inputs `attach()` needs on every re-attach, not just the first. */
-  private readonly rejoinRunId: string | null | undefined
+  /**
+   * In-flight run `attach()` rejoins: read synchronously in the constructor, or
+   * restored later by an async store's hydrate (see `applyPersistedResume`).
+   */
+  private rejoinRunId: string | null | undefined
+  /** Set by `stop()`: a store read that resolves later must not restore the run. */
+  private persistedResumeDiscarded = false
   private readonly cachesMessages: boolean
   /**
    * Newest-window size from `history.pageSize`. Only set when
@@ -1136,8 +1141,9 @@ export class ChatClient<
 
     // Full page reload with an in-flight run persisted (synchronous store):
     // re-attach to it off the server's delivery-durability log so the stream
-    // finishes here. Async stores rejoin from `applyPersistedResume` once the
-    // hydrate resolves. Best-effort and non-blocking.
+    // finishes here. An async store rejoins from `applyPersistedResume` when its
+    // hydrate resolves after this; one that resolved earlier left the run id in
+    // `rejoinRunId`. Best-effort and non-blocking.
     if (this.rejoinRunId) {
       this.maybeRejoinInFlight(this.rejoinRunId)
     }
@@ -1213,6 +1219,7 @@ export class ChatClient<
    * (`indexedDBPersistence`) would otherwise never rejoin a mid-stream run.
    */
   private applyPersistedResume(snapshot: ChatResumeSnapshot): void {
+    if (this.persistedResumeDiscarded) return
     this.applyResumeSnapshot(snapshot)
     const hasInterrupts =
       Array.isArray(snapshot.pendingInterrupts) &&
@@ -1223,6 +1230,9 @@ export class ChatClient<
     // (Server-authoritative reconnect is resolved from the server by threadId in
     // `hydrateFromServer`.)
     if (!hasInterrupts && runId) {
+      // Keep the run id for `attach()`: an async store can resolve before the
+      // view mounts, and `maybeRejoinInFlight` does nothing while detached.
+      this.rejoinRunId = runId
       this.maybeRejoinInFlight(runId)
     }
   }
@@ -1611,6 +1621,10 @@ export class ChatClient<
       isLineageDescendantTerminal
     ) {
       this.lastResume = null
+      // Retire the rejoin target with the durable snapshot below: `detach()`
+      // resets the join guard, so a later `attach()` would otherwise join the
+      // finished run again.
+      this.rejoinRunId = null
       // Run settled without an interrupt: drop the durable resume snapshot so a
       // later reload does not try to rejoin a finished run.
       this.persistor?.persistResumeSnapshot(null)
@@ -2269,6 +2283,7 @@ export class ChatClient<
           // the "no view is watching any more" case, so the pointer only ever
           // dies for a client that is still looking at the run.
           this.lastResume = null
+          if (this.rejoinRunId === runId) this.rejoinRunId = null
           this.persistor?.persistResumeSnapshot(null)
         }
         if (this.abortController === controller) {
@@ -3056,6 +3071,8 @@ export class ChatClient<
     this.cancelInFlightStream({ setReadyStatus: true })
     this.discardPendingSends()
     this.lastResume = null
+    this.rejoinRunId = null
+    this.persistedResumeDiscarded = true
     this.activeInterruptSubmission = undefined
     this.interruptManager.reset()
     if (hadLocalStream) {
@@ -3091,6 +3108,7 @@ export class ChatClient<
     this.persistor?.remove()
     this.stoppedSubagentIds.clear()
     this.lastResume = null
+    this.rejoinRunId = null
     this.interruptManager.reset()
     this.pendingResumeThreadId = null
     this.pendingResumeParentRunId = null
