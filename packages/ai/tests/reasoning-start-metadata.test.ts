@@ -34,4 +34,57 @@ describe('REASONING_MESSAGE_START metadata', () => {
       traceId: 'trace-1',
     })
   })
+
+  it('keeps start metadata on the second open run', () => {
+    const processor = new StreamProcessor()
+    processor.processChunk({
+      type: EventType.RUN_STARTED,
+      runId: 'run-A',
+      threadId: 'thread-1',
+      timestamp: 1,
+    })
+    processor.processChunk({
+      type: EventType.TEXT_MESSAGE_START,
+      messageId: 'message-A',
+      role: 'assistant',
+      timestamp: 2,
+    })
+    processor.processChunk({
+      type: EventType.TEXT_MESSAGE_CONTENT,
+      messageId: 'message-A',
+      delta: 'A output',
+      timestamp: 3,
+    })
+    processor.processChunk({
+      type: EventType.RUN_STARTED,
+      runId: 'run-B',
+      threadId: 'thread-1',
+      timestamp: 4,
+    })
+    processor.processChunk({
+      type: EventType.REASONING_MESSAGE_START,
+      messageId: 'reasoning-B',
+      timestamp: 5,
+      metadata: {
+        source: 'reasoning',
+        traceId: 'trace-b',
+        tanstack: { runId: 'run-B' },
+      },
+    })
+    processor.processChunk({
+      type: EventType.REASONING_MESSAGE_CONTENT,
+      messageId: 'reasoning-B',
+      delta: 'B reasoning',
+      timestamp: 6,
+    })
+
+    const messages = processor.getMessages()
+    expect(messages[0]?.id).toBe('message-A')
+    expect(messages[0]?.metadata).toBeUndefined()
+    expect(messages[1]?.metadata).toEqual({
+      source: 'reasoning',
+      traceId: 'trace-b',
+      tanstack: { runId: 'run-B' },
+    })
+  })
 })

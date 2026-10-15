@@ -847,8 +847,10 @@ export class StreamProcessor {
           { type: 'REASONING_MESSAGE_START' }
         >
         if (start.metadata == null) break
+        const target = this.unscopedAssistant(start)
         const { messageId } = this.ensureAssistantMessage(
-          this.getActiveAssistantMessageId() ?? undefined,
+          target.id ?? undefined,
+          !target.create,
         )
         this.mergeMessageMetadata(messageId, start.metadata)
         break
