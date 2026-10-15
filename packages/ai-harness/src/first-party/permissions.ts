@@ -370,6 +370,9 @@ function refuse(error: string) {
 
 const METADATA_NAMESPACE = 'tanstack/permissions'
 
+/** How many characters of the call arguments the approval question shows. */
+const PREVIEW_LENGTH = 300
+
 /** The root as one string for each folder: `C:\Repo` and `c:/repo/` are the same. */
 function projectId(root: string) {
   const path = normalizePath(root)
@@ -649,7 +652,12 @@ export function permissions(
                 : 'A permission rule denies this tool.',
             )
           }
-          const preview = JSON.stringify(hook.args ?? {}).slice(0, 300)
+          const args = JSON.stringify(hook.args ?? {})
+          // Say when the preview is cut, so the user knows part of the call is hidden.
+          const preview =
+            args.length > PREVIEW_LENGTH
+              ? `${args.slice(0, PREVIEW_LENGTH)}... (${args.length - PREVIEW_LENGTH} more characters not shown)`
+              : args
           const reply = await askUser(
             `Allow ${hook.toolName} ${preview}?`,
             hook.toolName,

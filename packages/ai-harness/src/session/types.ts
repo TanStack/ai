@@ -31,6 +31,7 @@ import type {
   Cursor,
   HarnessInput,
   Operation,
+  PendingQuestion,
   Principal,
   ThreadSettings,
   TurnOverrides,
@@ -144,15 +145,7 @@ export interface SessionSnapshot {
   waitingInputs?: Array<WaitingInput>
   pendingInterrupts: Array<Interrupt>
   /** Questions a command or a plugin asked, waiting for `session.answer`. */
-  pendingQuestions: Array<{
-    questionId: string
-    message: string
-    schema?: unknown
-    /** The answer is a secret (a key or a password). Hide it as the user types. */
-    secret?: boolean
-    /** A page the user must open before they answer. Show the link. */
-    url?: string
-  }>
+  pendingQuestions: Array<PendingQuestion>
   /** The state of each plugin that uses `ctx.state`, by plugin name. */
   plugins: Record<string, unknown>
   /** The token usage of the thread, the same as `session.usage()`. */

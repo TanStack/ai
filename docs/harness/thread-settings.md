@@ -70,6 +70,8 @@ An unknown field, model, or plugin, or a bad value, gets a receipt with `status:
 
 `configure` is an input, so the log keeps who changed what. Each change sends a `harness.settings.changed` event with the new `settings`.
 
+A client can change only the fields in `expose.settings` of the harness. See [Choose what clients can change](./connect#choose-what-clients-can-change).
+
 ## 3. Build a model menu
 
 `session.describe()` returns the stored `settings` and the names of the `models`, so a UI can build a menu:

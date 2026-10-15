@@ -120,6 +120,14 @@
       "response": {
         "content": "The report is done."
       }
+    },
+    {
+      "match": {
+        "userMessage": "[first-party-code-mode] which tools"
+      },
+      "response": {
+        "content": "I can run TypeScript."
+      }
     }
   ]
 }

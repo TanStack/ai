@@ -17,7 +17,7 @@ Your app bills each person for what they use, or stops a thread that costs too m
 ## Read the totals
 
 ```ts group=harness-usage
-import { HARNESS_EVENTS, createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { openaiText } from '@tanstack/ai-openai'
 
@@ -55,7 +55,7 @@ At the end of each call, the provider reports its usage. These calls count:
 - The subagents that a turn starts, for the same sender.
 - Background agents, for the person who started the agent.
 
-A call that fails before it ends does not count. Each message runs as its sender, so in a thread that several people use, `bySender` shows what each person used.
+A call that fails before it ends does not count. Each message runs as its sender, so in a [shared thread](./shared-threads), `bySender` shows what each person used.
 
 ## Where the totals live
 
@@ -69,20 +69,18 @@ A [fork of a thread](./fork-and-reset) starts at zero.
 
 ## Show a live total
 
-Want a token counter that ticks up while the chat runs? Each model call sends a `harness.usage` event (`HARNESS_EVENTS.usage`) on the operation that made the call. Listen for it, then read the new totals:
+Want a token counter that ticks up while the chat runs? `session.onUsage` calls you after each model call, with the new thread totals:
 
 ```ts group=harness-usage
-const stopCounting = session.onEvent('CUSTOM', ({ event }) => {
-  if (event.name === HARNESS_EVENTS.usage) {
-    console.log(`Tokens so far: ${session.usage().total.totalTokens}`)
-  }
+const stopCounting = session.onUsage(({ total }) => {
+  console.log(`Tokens so far: ${total.totalTokens}`)
 })
 
 // When the counter goes away:
 stopCounting()
 ```
 
-The event value has the `model`, the `sender` when it is known, the `usage` of the call, and the new thread `total`.
+You also get the `model`, the `sender` when it is known, and the `usage` of that one call. Reading raw events? Each call is a `harness.usage` event (`HARNESS_EVENTS.usage`).
 
 ## Stop a person who is over budget
 

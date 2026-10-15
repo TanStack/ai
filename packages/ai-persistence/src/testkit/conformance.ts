@@ -1639,6 +1639,7 @@ export function runPersistenceConformance(
         const in2 = id('in-2')
         const other = id('in-other')
         const missing = id('missing')
+        const otherThread = id('other-thread')
 
         const first = await store.append({
           inputId: in1,
@@ -1665,7 +1666,7 @@ export function runPersistenceConformance(
         })
         await store.append({
           inputId: other,
-          threadId: id('other-thread'),
+          threadId: otherThread,
           input: { op: 'prompt', message: 'x' },
           createdAt: 0,
         })
@@ -1674,23 +1675,57 @@ export function runPersistenceConformance(
           (await store.listPending(thread)).map((entry) => entry.inputId),
         ).toEqual([in1, in2])
 
-        await store.markApplied({ inputId: in1, operationId: 'op-1' })
-        await store.markRejected({ inputId: in2, reason: 'busy' })
+        await store.markApplied({
+          threadId: thread,
+          inputId: in1,
+          operationId: 'op-1',
+        })
+        await store.markRejected({
+          threadId: thread,
+          inputId: in2,
+          reason: 'busy',
+        })
         expect(await store.listPending(thread)).toEqual([])
-        expect(await store.get(in1)).toMatchObject({
+        expect(
+          await store.get({ threadId: thread, inputId: in1 }),
+        ).toMatchObject({
           status: 'applied',
           operationId: 'op-1',
         })
-        expect(await store.get(in2)).toMatchObject({
+        expect(
+          await store.get({ threadId: thread, inputId: in2 }),
+        ).toMatchObject({
           status: 'rejected',
           reason: 'busy',
           principal: { id: 'user-1' },
         })
 
         // Unknown ids are no-ops.
-        await store.markApplied({ inputId: missing, operationId: 'op-x' })
-        await store.markRejected({ inputId: missing, reason: 'nope' })
-        expect(await store.get(missing)).toBeNull()
+        await store.markApplied({
+          threadId: thread,
+          inputId: missing,
+          operationId: 'op-x',
+        })
+        await store.markRejected({
+          threadId: thread,
+          inputId: missing,
+          reason: 'nope',
+        })
+        expect(
+          await store.get({ threadId: thread, inputId: missing }),
+        ).toBeNull()
+        // An id is found only with its own thread.
+        expect(await store.get({ threadId: thread, inputId: other })).toBeNull()
+
+        // A delete removes the entry. With another thread, or an unknown
+        // id, it does nothing.
+        await store.delete({ threadId: thread, inputId: other })
+        await store.delete({ threadId: thread, inputId: missing })
+        expect(
+          await store.get({ threadId: otherThread, inputId: other }),
+        ).toMatchObject({ status: 'pending' })
+        await store.delete({ threadId: thread, inputId: in1 })
+        expect(await store.get({ threadId: thread, inputId: in1 })).toBeNull()
       })
     })
 
@@ -1711,10 +1746,12 @@ export function runPersistenceConformance(
         expect(await claim('a')).toBe(true)
         // Another owner is refused while the claim is live.
         expect(await claim('b')).toBe(false)
+        expect(await store.get(threadId)).toMatchObject({ ownerId: 'a' })
         // Only the owner releases.
         await store.release({ threadId, ownerId: 'b' })
         expect(await claim('b')).toBe(false)
         await store.release({ threadId, ownerId: 'a' })
+        expect(await store.get(threadId)).toBeNull()
         expect(await claim('b')).toBe(true)
         await store.release({ threadId, ownerId: 'b' })
       })

@@ -685,13 +685,26 @@ export interface InboxStore {
   listPending: (threadId: string) => Promise<Array<InboxEntry>>
   /** Mark an entry applied by `operationId`. A no-op for an unknown id. */
   markApplied: (entry: {
+    threadId: string
     inputId: string
     operationId: string
   }) => Promise<void>
   /** Mark an entry rejected with `reason`. A no-op for an unknown id. */
-  markRejected: (entry: { inputId: string; reason: string }) => Promise<void>
-  /** The entry for `inputId`, or `null`. */
-  get: (inputId: string) => Promise<InboxEntry | null>
+  markRejected: (entry: {
+    threadId: string
+    inputId: string
+    reason: string
+  }) => Promise<void>
+  /** The entry for `inputId` of `threadId`, or `null`. */
+  get: (entry: {
+    threadId: string
+    inputId: string
+  }) => Promise<InboxEntry | null>
+  /**
+   * Remove the entry. A no-op for an unknown id. The host removes an answer
+   * after it applies it, so a secret answer does not stay in the store.
+   */
+  delete: (entry: { threadId: string; inputId: string }) => Promise<void>
 }
 
 /** Type an {@link InboxStore} implementation inline. */
@@ -891,6 +904,12 @@ export interface WorkClaimStore {
   }) => Promise<boolean>
   /** The thread is idle: remove the claim. Only its owner can. */
   release: (claim: { threadId: string; ownerId: string }) => Promise<void>
+  /**
+   * The owner of the claim on `threadId` and when it expires, or `null` when
+   * no one holds it. A claim that expired can still come back: compare
+   * `until` with the time.
+   */
+  get: (threadId: string) => Promise<{ ownerId: string; until: number } | null>
   /** Claims that expired before `now`: their host stopped. Oldest first. */
   listExpired: (options: {
     now: number
@@ -1004,8 +1023,10 @@ export interface SessionIndexStore {
   /**
    * Optional. The entry with a revision, or `undefined` when it is absent.
    * Pair it with `upsertIf` for compare-and-set writes: implement both or
-   * neither. Each write (`upsert` or `upsertIf`) gives the entry a new
-   * revision, and a revision does not come back after a `delete`.
+   * neither. A write that changes the entry gives it a new revision. A
+   * revision may name the content (a content-hash ETag, as in S3 or Netlify
+   * Blobs), so the same entry written again, also after a `delete`, can get
+   * the same revision back.
    */
   getVersioned?: (
     threadId: string,

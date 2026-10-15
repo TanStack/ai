@@ -761,6 +761,26 @@ describe('first-party plugin edges', () => {
     await host.close()
   })
 
+  it('keeps the conversation when the summary is empty', async () => {
+    const summarizer = mockAdapter([() => text('  ')])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/compact-empty',
+        adapter: mockAdapter([() => text('one'), () => text('two')]).adapter,
+        plugins: () => [compact({ adapter: summarizer.adapter })],
+      }),
+      { threadId: 't' },
+    )
+    await session.prompt('first')
+    await session.prompt('second')
+    await expect(session.command('compact')).rejects.toThrow(
+      'The summary model returned no text.',
+    )
+    expect(await session.transcript()).toHaveLength(4)
+    await host.close()
+  })
+
   it('keeps short conversations, keeps the last messages, and counts usage', async () => {
     const summarizer = mockAdapter([() => text('the summary')])
     const withUsage = (content: string) =>

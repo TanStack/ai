@@ -55,7 +55,10 @@ type DurableLeases =
  *   not yet applied.
  * - Durable mode: a `log`, and `runs` or `leases`. The log holds the events,
  *   transcript, inputs, and tool steps of each thread, so this shape has no
- *   `messages` and no `inbox`.
+ *   `messages`. With several hosts, add `workClaims`: an input that reaches a
+ *   host while another host owns the thread is refused (`owned_elsewhere`),
+ *   so it never stops the owner's turn. Add `inbox` too, and that input waits
+ *   in the inbox for the owner instead (receipt `queued`).
  *
  * Without `artifacts`, `blobs`, and `generationRuns`, media is kept in memory.
  * With `sessions`, the host keeps one index entry per thread (see
@@ -75,7 +78,8 @@ export type HarnessPersistence =
         interrupts?: InterruptStore
         metadata?: MetadataStore
         messages?: never
-        inbox?: never
+        /** Inputs for the host that owns a thread. Needs `workClaims`. */
+        inbox?: InboxStore
       } & DurableLeases &
         SharedStores
     >
@@ -496,6 +500,39 @@ function statusAfter(session: HarnessSession, event: StreamChunk) {
   }
 }
 
+/** How each host finds the open session of a chat turn. Not public API. */
+const turnFinders = new WeakMap<
+  object,
+  (harness: string, operationId: string) => Promise<HarnessSession | undefined>
+>()
+
+/**
+ * @internal The open session of `harness` in `host` that has the chat turn
+ * `operationId`, running or ended. A turn's events live in the host that runs
+ * it, so the handler joins a run through this.
+ */
+export function sessionOfTurn(
+  host: HarnessHost,
+  harness: AnyHarness,
+  operationId: string,
+): Promise<HarnessSession | undefined> {
+  return (
+    turnFinders.get(host)?.(harness.name, operationId) ??
+    Promise.resolve(undefined)
+  )
+}
+
+/** The log and run stores of each durable host. Not public API. */
+const durableStores = new WeakMap<object, { log: LogStore; runs?: RunStore }>()
+
+/**
+ * @internal The log and run stores of `host` when it is durable
+ * (`stores.log`), else `undefined`.
+ */
+export function durableStoresOf(host: HarnessHost) {
+  return durableStores.get(host)
+}
+
 /** Throw a clear error for a durable store set that cannot work. */
 function checkDurableStores(persistence: HarnessPersistence) {
   const { stores } = persistence
@@ -505,9 +542,14 @@ function checkDurableStores(persistence: HarnessPersistence) {
       'A durable host (stores.log) needs stores.runs or stores.leases: a lease finds a crashed host.',
     )
   }
-  if (stores.messages !== undefined || stores.inbox !== undefined) {
+  if (stores.messages !== undefined) {
     throw new Error(
-      'A durable host (stores.log) keeps the transcript and the inputs in the log. Remove stores.messages and stores.inbox. A reader outside a session can use logMessageStore({ store }).',
+      'A durable host (stores.log) keeps the transcript and the inputs in the log. Remove stores.messages. A reader outside a session can use logMessageStore({ store }).',
+    )
+  }
+  if (stores.inbox !== undefined && stores.workClaims === undefined) {
+    throw new Error(
+      'A durable host (stores.log) uses stores.inbox to pass inputs to the host that owns a thread. That needs stores.workClaims.',
     )
   }
 }
@@ -922,5 +964,17 @@ export function createHarnessHost<TLogState = undefined>(
       }
     },
   }
+  if (logStore) {
+    const { runs } = persistence.stores
+    durableStores.set(host, { log: logStore, ...(runs ? { runs } : {}) })
+  }
+  turnFinders.set(host, async (name, operationId) => {
+    for (const [key, opening] of sessions) {
+      if (!key.startsWith(`${name}\u0000`)) continue
+      const session = await opening.catch(() => undefined)
+      if (session?.operation(operationId)?.kind === 'chat') return session
+    }
+    return undefined
+  })
   return host
 }

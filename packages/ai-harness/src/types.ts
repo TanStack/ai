@@ -10,6 +10,7 @@ import type {
   RunAgentResumeItem,
   StreamChunk,
 } from '@tanstack/ai'
+import type { UsageCounts } from './usage'
 
 /** A user message: plain text, or content parts (text, images, files). */
 export type UserInput = string | Array<ContentPart>
@@ -425,6 +426,38 @@ export interface MediaRecord {
   runId?: string
   /** The child agent run that made it, when a subagent did. */
   subagentRunId?: string
+}
+
+/** A question that a command or a plugin asked. `session.answer` answers it. */
+export interface PendingQuestion {
+  questionId: string
+  message: string
+  schema?: unknown
+  /** The answer is a secret (a key or a password). Hide it as the user types. */
+  secret?: boolean
+  /** A page the user must open before they answer. Show the link. */
+  url?: string
+}
+
+/** A tool needs a sign-in to `connector` before it can run. */
+export interface AuthRequest {
+  connector: string
+  /** The page where the user signs in. */
+  url?: string
+  /** The code the user enters on that page, for a device login. */
+  userCode?: string
+}
+
+/** One model call reported its usage. */
+export interface UsageUpdate {
+  /** `provider/model`. */
+  model: string
+  /** The principal id of the sender, when known. */
+  sender?: string
+  /** The usage of this call. */
+  usage: Omit<UsageCounts, 'calls'>
+  /** The new totals of the thread. */
+  total: UsageCounts
 }
 
 /** Names of the `CUSTOM` events a harness session adds to the stream. */

@@ -3,7 +3,7 @@ import type { APIRequestContext } from '@playwright/test'
 
 /**
  * First-party harness plugins in a session: `agents()`, `permissions()`,
- * `projectInstructions()`, `title()`, and `goal()`. Each test runs one scenario of
+ * `projectInstructions()`, `title()`, `goal()`, and `codeMode()`. Each test runs one scenario of
  * `/api/harness-first-party`. The model is the OpenAI adapter against
  * aimock, and aimock's journal shows what each model call sent.
  */
@@ -12,6 +12,7 @@ type JournalEntry = {
   headers?: Record<string, string>
   body: {
     messages?: Array<{ role: string; content: unknown }>
+    tools?: Array<{ function?: { name?: string } }>
     tool_choice?: unknown
   } | null
 }
@@ -147,5 +148,21 @@ test.describe('harness first-party plugins', () => {
     // One turn of the main model and one check of the judge.
     const calls = await modelCalls(request, aimockPort, testId)
     expect(calls).toHaveLength(2)
+  })
+
+  test('codeMode(): a safe tool moves behind execute_typescript', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    expect(await runScenario(request, 'code-mode', testId)).toEqual({
+      text: 'I can run TypeScript.',
+    })
+
+    const [call] = await modelCalls(request, aimockPort, testId)
+    const tools = (call?.body?.tools ?? []).map((tool) => tool.function?.name)
+    expect(tools).toContain('execute_typescript')
+    expect(tools).not.toContain('list_issues')
+    expect(systemOf(call)).toContain('external_list_issues')
   })
 })

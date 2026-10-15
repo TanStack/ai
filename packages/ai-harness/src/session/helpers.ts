@@ -693,3 +693,9 @@ export function tapFeed(
     close: () => feed.close(),
   }
 }
+
+/** `accept` passed the input to the host that owns the thread, or refused it for that. */
+export const isElsewhere = (
+  admission: string,
+): admission is 'forwarded' | 'owned_elsewhere' =>
+  admission === 'forwarded' || admission === 'owned_elsewhere'
