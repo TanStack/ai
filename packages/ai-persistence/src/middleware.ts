@@ -1835,31 +1835,6 @@ function sumNumberFields<T extends object>(
   return result
 }
 
-/**
- * A copy of `chunk.metadata` without the durability batch hint of
- * `emitCustomEvent(..., { batch: true })`, dropped when nothing else is left,
- * like `stripDurabilityBatchHint`. The chunk keeps the hint. The durability
- * producer reads it after this middleware, and only the stream encoders
- * strip it.
- */
-function metadataWithoutBatchHint(chunk: StreamChunk) {
-  const metadata = chunk.metadata
-  const tanstack = tanstackMetadata(chunk)
-  if (!metadata || !tanstack || Reflect.get(tanstack, 'batch') !== true) {
-    return metadata
-  }
-  const { tanstack: _tanstack, ...rest } = metadata
-  void _tanstack
-  const { batch: _batch, ...tanstackRest }: Record<string, unknown> = {
-    ...tanstack,
-  }
-  void _batch
-  if (Object.keys(tanstackRest).length > 0) {
-    return { ...rest, tanstack: tanstackRest }
-  }
-  return Object.keys(rest).length > 0 ? rest : undefined
-}
-
 function tokenUsageFromChunk(chunk: StreamChunk): TokenUsage | undefined {
   if (chunk.type !== 'RUN_FINISHED' && chunk.type !== 'RUN_ERROR') {
     return undefined
@@ -2372,13 +2347,17 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       if (snapshotStreaming && isParentChunk && current) {
         if (chunk.type === 'RUN_STARTED') resetStreaming(current)
         // Keep the call metadata (source, response id) for the snapshot rows.
+        // Skip CUSTOM events. A finished row never takes their metadata, and an
+        // emitted one can carry the durability batch hint.
         const tanstack = tanstackMetadata(chunk)
         const metadata =
-          chunk.type === 'TOOL_CALL_START'
-            ? tanstack === undefined
-              ? undefined
-              : { tanstack }
-            : metadataWithoutBatchHint(chunk)
+          chunk.type === 'CUSTOM'
+            ? undefined
+            : chunk.type === 'TOOL_CALL_START'
+              ? tanstack === undefined
+                ? undefined
+                : { tanstack }
+              : chunk.metadata
         current.streamingMetadata = mergeMetadata(
           current.streamingMetadata,
           metadata,
