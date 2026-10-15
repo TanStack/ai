@@ -950,7 +950,12 @@
           "label": "Send inputs safely",
           "to": "harness/inputs",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-14"
+          "updatedAt": "2026-10-15"
+        },
+        {
+          "label": "Run a tool without a model",
+          "to": "harness/tool-runs",
+          "addedAt": "2026-10-15"
         },
         {
           "label": "Durable sessions",
@@ -1078,7 +1083,8 @@
         {
           "label": "Use from any MCP client",
           "to": "harness/mcp-server",
-          "addedAt": "2026-10-13"
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-15"
         },
         {
           "label": "Use a harness from an editor (ACP)",

@@ -101,8 +101,9 @@ To run what the harness has:
 
 - `agent_<name>`: one tool for each agent in `expose.agents`. It takes the agent input and returns the agent result.
 - `command_<name>`: one tool for each command in `expose.commands`. The command `connect:notion` becomes the tool `command_connect_notion`.
+- `tool_<name>`: one tool for each tool in `expose.tools`. It runs that one tool with no model turn. See [Run a tool without a model](./tool-runs).
 
-The harness exposes nothing by default. Add the agents and commands that an MCP client can run to `expose` in `defineHarness`. See [Choose what clients can change](./connect#choose-what-clients-can-change).
+The harness exposes nothing by default. Add the agents, commands, and tools that an MCP client can run to `expose` in `defineHarness`. See [Choose what clients can change](./connect#choose-what-clients-can-change).
 
 Two names can give the same tool name, for example `connect:notion` and `connect_notion`. Then the later one in name order gets a number: `command_connect_notion_2`. The description of each of these tools names its command or agent.
 
@@ -239,5 +240,5 @@ claude mcp add --transport http assistant https://your-app.example.com/mcp --hea
 - Your harness in Claude Code, Claude Desktop, Cursor, or any other MCP client.
 - Approvals that the client asks you about, or answers with `approve` and `reject`.
 - Every kind of interrupt, answered with one `resolve` call.
-- The agents and commands of your harness as MCP tools.
+- The agents, commands, and tools of your harness as MCP tools.
 - Files that the client sends with a message, and the media of each turn in the result.

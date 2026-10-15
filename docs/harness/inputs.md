@@ -145,6 +145,26 @@ const remindedReceipt = await client.prompt('Summarize the report.', {
 
 To add a note from a hook when the model stops, see [Remind the model without saving the reminder](./turn-control#remind-the-model-without-saving-the-reminder).
 
+## Add a system note from server code
+
+The model needs standing context for a turn: the team's memory, the tenant's rules, or the user's plan. It is not a user message, and it should not go in the transcript. Pass `systemPreamble` to `prompt` or `continue`. The strings go in ahead of the harness's own system prompts, for this one turn.
+
+```ts group=harness-inputs
+const drafted = session.prompt('Draft a reply to the ticket.', {
+  inputId: 'req-50',
+  systemPreamble: [
+    'Team memory: keep the tone terse.',
+    'Tenant rule: never promise a refund.',
+  ],
+})
+await drafted
+```
+
+- `systemPreamble` comes from server code only. A client input cannot set it, so client text never reaches the system prompt.
+- The strings go first, ahead of `harness.systemPrompts` and the plugin prompts.
+- The harness keeps them in memory for the turn, like `ephemeral`. The transcript and the session log never store them.
+- A turn that recovery runs again after a crash has no `systemPreamble`, because the log does not keep it.
+
 ## Send a message while a turn runs
 
 With `busy: 'steer'`, a prompt joins the running turn. It reaches the model at the next model call, in the order the messages arrived, and it ends with that turn.
