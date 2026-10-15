@@ -722,12 +722,13 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       clearInterval(timer)
       this.inboxWatch = undefined
     }
-    const timer = setInterval(async () => {
+    const check = async () => {
       if (this.closing) return stop()
       const pending = await inbox.listPending(this.threadId).catch(() => null)
       if (pending?.length === 0) return stop()
       void this.drainInbox()
-    }, INBOX_POLL_MS)
+    }
+    const timer = setInterval(() => void check(), INBOX_POLL_MS)
     if (typeof timer === 'object' && 'unref' in timer) timer.unref()
     this.inboxWatch = timer
   }
@@ -808,17 +809,17 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       settle(operation)
       return operation.receipt
     }
+    const { runId } = entry.input as { runId?: unknown }
+    const run = typeof runId === 'string' ? { runId } : {}
     switch (input.op) {
-      case 'prompt': {
-        const { runId } = entry.input as { runId?: unknown }
+      case 'prompt':
         return stored(
           session.prompt(input.message, {
             ...sent,
             ...(input.busy ? { busy: input.busy } : {}),
-            ...(typeof runId === 'string' ? { runId } : {}),
+            ...run,
           }),
         )
-      }
       case 'continue':
         return stored(session.continue(sent))
       case 'steer':
@@ -826,7 +827,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       case 'followUp':
         return session.followUp(input.message, sent)
       case 'resolve':
-        return session.resolve(input.resume, sent)
+        return session.resolve(input.resume, { ...sent, ...run })
       case 'reset':
         return session.reset(input.note, sent)
       case 'configure':
@@ -866,8 +867,9 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
         return session.revert(input.messageId)
       case 'unrevert':
         return session.unrevert()
-      default:
-        // `agent` and `background` start on the owner, never on another host.
+      case 'agent':
+      case 'background':
+        // These start on the owner, never on another host.
         return undefined
     }
   }

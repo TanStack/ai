@@ -427,13 +427,20 @@ export abstract class SessionRequests<
     return this.admitting(async () => {
       const inputId = options?.inputId ?? createInputId()
       const principal = options?.principal ?? this.principal
+      const runId = options?.runId
       const admission = await this.accept(
         inputId,
         { op: 'resolve', resume },
         principal,
+        runId,
       )
-      if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
-      const runId = options?.runId
+      if (admission !== 'new') {
+        const receipt = this.duplicateReceipt(inputId, admission)
+        // The owner runs a forwarded resume as `runId`.
+        return admission === 'forwarded' && runId !== undefined
+          ? { ...receipt, operationId: runId }
+          : receipt
+      }
       // A run id must not take the id of another operation or stored run.
       const isTaken =
         runId !== undefined &&

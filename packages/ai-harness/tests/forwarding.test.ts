@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { EventType } from '@tanstack/ai'
+import { EventType, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import {
   createHarnessHost,
@@ -8,7 +8,14 @@ import {
   defineHarness,
   definePlugin,
 } from '../src'
-import { after, gate, messageTexts, mockAdapter, text } from './helpers'
+import {
+  after,
+  gate,
+  messageTexts,
+  mockAdapter,
+  text,
+  toolCall,
+} from './helpers'
 import type { AnyTextAdapter } from '@tanstack/ai'
 
 const THREAD = 't1'
@@ -268,8 +275,7 @@ describe('an input that reaches a host that does not own the thread', () => {
             append: (batch: Parameters<typeof log.append>[0]) =>
               batch.records.some(
                 (record) =>
-                  record.type === 'harness.input' &&
-                  record.inputId === failing,
+                  record.type === 'harness.input' && record.inputId === failing,
               )
                 ? Promise.reject(new Error('disk full'))
                 : log.append(batch),
@@ -290,7 +296,7 @@ describe('an input that reaches a host that does not own the thread', () => {
     await new Promise((resolve) => setTimeout(resolve, 1_500))
     // The input waits for the next host.
     expect(
-      (await persistence.stores.inbox.listPending(THREAD)).map(
+      (await persistence.stores.inbox!.listPending(THREAD)).map(
         (entry) => entry.inputId,
       ),
     ).toEqual([receipt.inputId])
@@ -330,5 +336,45 @@ describe('an input that reaches a host that does not own the thread', () => {
     await vi.waitFor(() => expect(calls).toHaveLength(2), { timeout: 4_000 })
     // The owner's input runs first, then the forwarded one.
     expect(messageTexts(calls[1])).toContain('Second.')
+  })
+
+  it('runs a forwarded resume as its run id, and its receipt names that run', async () => {
+    const persistence = sharedStores()
+    const openScreen = toolDefinition({
+      name: 'openScreen',
+      description: 'Open a screen. Runs on the client.',
+      inputSchema: z.object({ route: z.string() }),
+      outputSchema: z.object({ opened: z.boolean() }),
+    })
+    const { adapter, calls } = mockAdapter([
+      () => toolCall('openScreen', { route: '/settings' }),
+      () => text('Opened it.'),
+    ])
+    const harness = defineHarness({ name: NAME, adapter, tools: [openScreen] })
+    const owner = await createHarnessHost({ persistence }).open(harness, {
+      threadId: THREAD,
+    })
+    const turn = await owner.prompt('Open settings.')
+    const interruptId = turn.interrupts?.[0]?.id
+    if (!interruptId) throw new Error('The turn did not stop for the tool.')
+    // Another host holds the thread when the resume comes (a turn that
+    // still ends, for example), then stops.
+    await persistence.stores.workClaims.claim({
+      threadId: THREAD,
+      harness: NAME,
+      ownerId: 'busy-host',
+      until: Date.now() + 100,
+    })
+    const other = await createHarnessHost({ persistence }).open(harness, {
+      threadId: THREAD,
+    })
+    // A `POST run` with a resume: the run id is the input id too.
+    const receipt = await other.resolve(
+      [{ interruptId, status: 'resolved', payload: { opened: true } }],
+      { inputId: 'run-r', runId: 'run-r' },
+    )
+    expect(receipt).toMatchObject({ status: 'queued', operationId: 'run-r' })
+    await vi.waitFor(() => expect(calls).toHaveLength(2), { timeout: 3_000 })
+    expect((await other.settled('run-r')).outcome).toBe('completed')
   })
 })
