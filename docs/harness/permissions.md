@@ -158,7 +158,8 @@ Two more rules apply to each tool:
 ### Paths
 
 - Inside `root`, a rule matches the path from `root`, for example `src/app.ts`. Outside `root`, it matches the full path, for example `/etc/hosts`.
-- `**` matches any part of a path. `*` matches text in one name. `?` matches one character.
+- `**` matches any part of a path, so `src/**/a.ts` also matches `src/a.ts`. `*` matches text in one name. `?` matches one character.
+- `{a,b}` matches one of the parts, for example `secrets/**/*.{pem,key}`.
 - On macOS and Windows, letter case does not count. So a `deny` for `secrets/**` also stops `Secrets/key`.
 - A call with more than one path runs only when the rules allow every path.
 

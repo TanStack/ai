@@ -390,6 +390,24 @@ describe('permissions()', () => {
     await host.close()
   })
 
+  it('says in the question when the arguments are cut', async () => {
+    const tools = fakeTools()
+    const command = `echo ${'a'.repeat(400)} && rm -rf x`
+    const { host, session } = await open(
+      memoryPersistence(),
+      [permissions({ root: ROOT }), tools.plugin],
+      [() => toolCall('bash', { command }, 'c1')],
+    )
+
+    const turn = session.prompt('run it')
+    const message = await answer(session, 'reject')
+    await turn
+
+    expect(message).toMatch(/\.\.\. \(\d+ more characters not shown\)\?/)
+    expect(message).not.toContain('rm -rf x')
+    await host.close()
+  })
+
   it('asks for ls && rm x when only ls* is allowed', async () => {
     const tools = fakeTools()
     const { host, session, calls } = await open(
