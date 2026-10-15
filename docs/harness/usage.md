@@ -55,7 +55,7 @@ At the end of each call, the provider reports its usage. These calls count:
 - The subagents that a turn starts, for the same sender.
 - Background agents, for the person who started the agent.
 
-A call that fails before it ends does not count. Each message runs as its sender, so in a thread that several people use, `bySender` shows what each person used.
+A call that fails before it ends does not count. Each message runs as its sender, so in a [shared thread](./shared-threads), `bySender` shows what each person used.
 
 ## Where the totals live
 

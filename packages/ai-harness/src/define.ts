@@ -267,7 +267,7 @@ export interface HarnessConfig<
     settings?: ReadonlyArray<keyof ThreadSettings>
     /**
      * The plugin config keys a client may set with a `config` input, for
-     * example `client.setConfig('model', 'fast')`. An input with any other
+     * example `client.setConfig({ key: 'model', value: 'fast' })`. An input with any other
      * key is refused with `not_exposed`. Server code that calls
      * `session.setConfig()` can set every key. Warning: `mode` of
      * `permissions()` lets a client turn approvals off with `bypass`. Keep

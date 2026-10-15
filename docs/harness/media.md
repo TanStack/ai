@@ -182,3 +182,5 @@ If a store is missing, the host keeps media in memory. `memoryPersistence()` has
 - Media from your agents, saved with no change to the agent code.
 - Limits, and a clear error when the model cannot read a file.
 - Media that stays after a restart.
+
+Next: show media in your own screen with [Build your own UI](./custom-ui#show-media).

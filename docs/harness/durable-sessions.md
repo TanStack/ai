@@ -65,7 +65,7 @@ When a host opens the thread and finds a turn whose lease expired, it checks the
 4. The time limit passed: the input ends `failed`, with the error code `timeout`.
 5. Else the turn runs again as the next attempt, and clients get a `harness.operation.resumed` event.
 
-An input that was stored but never ran, runs now. `session.settled(inputId)` resolves to how an input ended.
+An input that was stored but never ran, runs now. `session.settled(inputId)` resolves to how an input ended. See [Send inputs safely](./inputs).
 
 A background agent that you started with `resume: true` runs again on the next host. See [Keep a background agent going after a crash](./subagents#keep-a-background-agent-going-after-a-crash). For any other background agent, when its lease expired, the next host:
 

@@ -936,6 +936,18 @@
           "updatedAt": "2026-10-14"
         },
         {
+          "label": "Connect clients",
+          "to": "harness/connect",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-14"
+        },
+        {
+          "label": "Send inputs safely",
+          "to": "harness/inputs",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-14"
+        },
+        {
           "label": "Durable sessions",
           "to": "harness/durable-sessions",
           "addedAt": "2026-10-13"
@@ -1007,6 +1019,24 @@
           "updatedAt": "2026-10-14"
         },
         {
+          "label": "Auth and connectors",
+          "to": "harness/auth",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-14"
+        },
+        {
+          "label": "Share a thread between people",
+          "to": "harness/shared-threads",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-14"
+        },
+        {
+          "label": "Build your own UI",
+          "to": "harness/custom-ui",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-14"
+        },
+        {
           "label": "Run agents from a harness",
           "to": "harness/subagents",
           "addedAt": "2026-10-13",
@@ -1015,6 +1045,17 @@
         {
           "label": "Add skills",
           "to": "harness/skills",
+          "addedAt": "2026-10-13"
+        },
+        {
+          "label": "Use MCP servers",
+          "to": "harness/mcp",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-14"
+        },
+        {
+          "label": "Use from any MCP client",
+          "to": "harness/mcp-server",
           "addedAt": "2026-10-13"
         },
         {
