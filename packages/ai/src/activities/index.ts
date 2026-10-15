@@ -138,6 +138,10 @@ export {
 
 export {
   BaseEvaluateAdapter,
+  EvaluateError,
+  EVALUATE_REFUSAL_CODE,
+  isEvaluateError,
+  type EvaluateErrorInit,
   type EvaluateAdapter,
   type EvaluateAdapterConfig,
   type AnyEvaluateAdapter,

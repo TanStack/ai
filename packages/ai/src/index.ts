@@ -84,7 +84,13 @@ export type {
 export { BaseRerankAdapter } from './activities/rerank/adapter'
 
 // Evaluate adapter base + types
-export { BaseEvaluateAdapter } from './activities/evaluate/adapter'
+export {
+  BaseEvaluateAdapter,
+  EvaluateError,
+  EVALUATE_REFUSAL_CODE,
+  isEvaluateError,
+} from './activities/evaluate/adapter'
+export type { EvaluateErrorInit } from './activities/evaluate/adapter'
 
 export {
   defineAgent,

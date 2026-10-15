@@ -186,6 +186,10 @@ export default async function globalSetup() {
   // asserts `decide()` rejects and still reports that usage.
   mock.mount('/evaluate-usage-on-failure', evaluateUsageOnFailureMount())
 
+  // aimock has no OpenAI Decisions API route, so this mount answers
+  // `/v1/decisions` with a refusal plus usage for the evaluate-refusal spec.
+  mock.mount('/evaluate-refusal', evaluateRefusalMount())
+
   // BytePlus. Ark (chat, Seedream image, Seedance video) serves its whole data
   // plane under /api/v3, and Seed Speech (TTS/ASR) mounts its own endpoints at
   // the same prefix on a different host — which collapses onto one prefix here
@@ -2296,6 +2300,42 @@ function evaluateUsageOnFailureMount(): Mountable {
             input_tokens: 42,
             output_tokens: 7,
             total_tokens: 49,
+          },
+        }),
+      )
+      return true
+    },
+  }
+}
+
+/**
+ * Mounts the OpenAI Decisions `/v1/decisions` response with a `refusal` answer
+ * and billed usage. The OpenAI evaluate adapter turns it into an
+ * `EvaluateError` with code `refusal`.
+ */
+function evaluateRefusalMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (req.method !== 'POST' || pathname !== '/v1/decisions') {
+        return false
+      }
+      await drainBody(req)
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          model: 'gpt-6-luna',
+          answers: [{ type: 'refusal', name: 'refund' }],
+          usage: {
+            input_tokens: 40,
+            input_tokens_details: { cached_tokens: 0, cache_write_tokens: 0 },
+            output_tokens: 5,
+            output_tokens_details: { reasoning_tokens: 0 },
+            total_tokens: 45,
           },
         }),
       )

@@ -448,6 +448,71 @@ For example, an answer is missing, has the wrong type, or has no probability
 for its value. `onUsage` and the `evaluate:usage` event still get the token
 usage of that call, before `onError` runs. `onFinish` does not run.
 
+### Refused questions
+
+OpenAI can refuse to answer a question.
+Then `decide()` throws an `EvaluateError` with `code: EVALUATE_REFUSAL_CODE`.
+The error keeps what the provider sent back:
+
+- `usage`: the tokens the call used.
+- `model`: the model that answered.
+- `answers`: the raw answers that came back, before `decide()` maps them. The refused question has no key.
+
+The raw answers do not have `value`.
+A `choice()` answer has `choice`, for example `{ type: 'choice', choice: 'billing', ... }`.
+A `boolean()` answer is `{ type: 'noul', noul: 0.9 }`, where `noul` is the chance of true.
+
+Use `isEvaluateError(error)` to narrow a caught error.
+It checks `name` and `code`, so it works even when the app has two copies of `@tanstack/ai`.
+`instanceof EvaluateError` does not.
+
+```typescript
+import {
+  decide,
+  boolean,
+  choice,
+  isEvaluateError,
+  EVALUATE_REFUSAL_CODE,
+} from '@tanstack/ai'
+import { openaiDecider } from '@tanstack/ai-openai'
+
+try {
+  const result = await decide({
+    adapter: openaiDecider('gpt-6-luna'),
+    state: 'Please refund the extra payment.',
+    questions: {
+      queue: choice({
+        instructions: 'Which team should handle this ticket?',
+        options: {
+          billing: 'Payments, invoices, refunds',
+          tech: 'Bugs, outages, integrations',
+        },
+      }),
+      refund: boolean({
+        instructions: 'Is the customer asking for a refund?',
+      }),
+    },
+  })
+  console.log(result.refund.value)
+} catch (error) {
+  if (isEvaluateError(error) && error.code === EVALUATE_REFUSAL_CODE) {
+    console.error(error.message) // OpenAI declined to answer question "refund"
+    console.log(error.usage)
+    console.log(error.answers?.queue) // { type: 'choice', choice: 'billing', ... }
+  }
+  throw error
+}
+```
+
+The provider still bills a refused call.
+So before `decide()` rethrows an `EvaluateError` that has `usage`, it reports that usage:
+
+1. Middleware `onUsage` runs with the usage.
+2. Middleware `onError` runs with the error.
+3. `decide()` rethrows the same error.
+
+`onFinish` does not run. See [Observability](#observability) for middleware.
+
 ## Runnable Example
 
 `examples/react/evaluate` is a small TanStack Start app that runs this page.
