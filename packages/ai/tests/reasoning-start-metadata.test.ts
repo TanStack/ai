@@ -3,6 +3,17 @@ import { StreamProcessor } from '../src/activities/chat/stream/processor'
 import { EventType } from '../src/types'
 
 describe('REASONING_MESSAGE_START metadata', () => {
+  it('does not create an assistant message when the start event has no metadata', () => {
+    const processor = new StreamProcessor()
+    processor.processChunk({
+      type: EventType.REASONING_MESSAGE_START,
+      messageId: 'reasoning-1',
+      role: 'reasoning',
+      timestamp: 1,
+    })
+    expect(processor.getMessages()).toEqual([])
+  })
+
   it('keeps custom metadata from the start event on the assistant UIMessage', () => {
     const processor = new StreamProcessor()
     processor.processChunk({
@@ -14,6 +25,7 @@ describe('REASONING_MESSAGE_START metadata', () => {
     processor.processChunk({
       type: EventType.REASONING_MESSAGE_START,
       messageId: 'reasoning-1',
+      role: 'reasoning',
       timestamp: 2,
       metadata: { source: 'reasoning', traceId: 'trace-1' },
     })
@@ -64,6 +76,7 @@ describe('REASONING_MESSAGE_START metadata', () => {
     processor.processChunk({
       type: EventType.REASONING_MESSAGE_START,
       messageId: 'reasoning-B',
+      role: 'reasoning',
       timestamp: 5,
       metadata: {
         source: 'reasoning',
