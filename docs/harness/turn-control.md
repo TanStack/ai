@@ -83,7 +83,7 @@ const reminded = defineHarness({
 - The transcript, the session log, and the message store never keep them.
 - A return with only `ephemeral` messages also sends the model back to work, and it counts for `maxFinishCycles`.
 - `onJoin` can return `ephemeral` messages too. They go to the model call of the join.
-- A reminder that you send in your own loop, one turn at a time, does not count for `maxFinishCycles`. Pass it as `ephemeral` to `prompt` or `continue`. Each model call of that turn gets it, and no store keeps it.
+- A reminder that you send in your own loop, one turn at a time, does not count for `maxFinishCycles`. Pass it as `ephemeral` to `prompt` or `continue`. Each model call of that turn gets it, and no store keeps it. See [Give the model a note for one turn](./inputs#give-the-model-a-note-for-one-turn).
 
 ## Retry model errors
 
@@ -191,7 +191,7 @@ The join stops at the first message that:
 
 That message and the ones after it wait. `canJoin` runs again before each model call and at each final answer, so it can run more than once for one message. Keep it a quick check with no side effects. What still waits when the turn ends runs as its own turn, before other queued turns. A cancelled one settles `aborted` and does not run.
 
-A joined message runs with the credentials of the sender of the turn. So without `turn.canJoin`, a waiting message joins the running turn only when the same person sent both. A message from another person waits and runs as its own turn after the running one, as its sender. Joins are a prefix, so it also holds back the messages that wait after it. Set `canJoin` to choose your own rule. Compare `principal` with `turnPrincipal` to keep one person's message out of another person's turn.
+A joined message runs with the credentials of the sender of the turn. So without `turn.canJoin`, a waiting message joins the running turn only when the same person sent both. A message from another person waits and runs as its own turn after the running one, as its sender. Joins are a prefix, so it also holds back the messages that wait after it. Set `canJoin` to choose your own rule. Compare `principal` with `turnPrincipal` to keep one person's message out of another person's turn. See [Keep other people out of a running turn](./shared-threads#3-keep-other-people-out-of-a-running-turn).
 
 `onJoin` runs before the model call that the joined messages reach. It can return messages, which come after the joined ones, and records, which land in the same append as the join. Records need a durable host.
 

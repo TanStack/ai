@@ -167,8 +167,40 @@ export {
 export { MediaError } from './media'
 export type { MediaOptions } from './media'
 
+export {
+  HARNESS_PROTOCOL_VERSION,
+  applyInput,
+  capabilitiesOf,
+  parseControlFrame,
+  parseHarnessInput,
+} from './protocol'
+export type { ControlFrame, HostFrame } from './protocol'
+
+export { createHarnessHandler, handleHarnessSocket } from './http'
+export type {
+  Authorize,
+  CanAccess,
+  HarnessHandlerOptions,
+  HarnessSocketOptions,
+} from './http'
+
 export { harnessText } from './harness-text'
 export type { HarnessTextOptions, RemoteHarness } from './harness-text'
+
+export {
+  buildAuthorizationUrl,
+  createPkce,
+  deviceLogin,
+  exchangeCode,
+  isExpired,
+  loopbackLogin,
+  refreshCredential,
+  startLoopbackReceiver,
+} from './oauth'
+export type { OAuthConfig } from './oauth'
+
+export { oauthConnector } from './connectors'
+export type { OAuthConnectorOptions } from './connectors'
 
 export { harnessAgent } from './harness-agent'
 export { DEFAULT_SUBAGENT_LIMITS } from './session/index'
