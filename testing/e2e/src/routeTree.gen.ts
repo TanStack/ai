@@ -60,6 +60,7 @@ import { Route as ApiAnthropicOpus5CombinedWireRouteImport } from './routes/api.
 import { Route as ApiAnthropicRedactedThinkingWireRouteImport } from './routes/api.anthropic-redacted-thinking-wire'
 import { Route as ApiAnthropicSkillsWireRouteImport } from './routes/api.anthropic-skills-wire'
 import { Route as ApiAnthropicSonnet55WireRouteImport } from './routes/api.anthropic-sonnet-5-5-wire'
+import { Route as ApiAnthropicStreamFailureUsageRouteImport } from './routes/api.anthropic-stream-failure-usage'
 import { Route as ApiAnthropicStructuredUsageRouteImport } from './routes/api.anthropic-structured-usage'
 import { Route as ApiAnthropicThinkingOrderWireRouteImport } from './routes/api.anthropic-thinking-order-wire'
 import { Route as ApiAnthropicTruncatedToolInputWireRouteImport } from './routes/api.anthropic-truncated-tool-input-wire'
@@ -444,6 +445,12 @@ const ApiAnthropicSonnet55WireRoute =
   ApiAnthropicSonnet55WireRouteImport.update({
     id: '/api/anthropic-sonnet-5-5-wire',
     path: '/api/anthropic-sonnet-5-5-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAnthropicStreamFailureUsageRoute =
+  ApiAnthropicStreamFailureUsageRouteImport.update({
+    id: '/api/anthropic-stream-failure-usage',
+    path: '/api/anthropic-stream-failure-usage',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiAnthropicStructuredUsageRoute =
@@ -1137,6 +1144,7 @@ export interface FileRoutesByFullPath {
   '/api/anthropic-redacted-thinking-wire': typeof ApiAnthropicRedactedThinkingWireRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
   '/api/anthropic-sonnet-5-5-wire': typeof ApiAnthropicSonnet55WireRoute
+  '/api/anthropic-stream-failure-usage': typeof ApiAnthropicStreamFailureUsageRoute
   '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
   '/api/anthropic-thinking-order-wire': typeof ApiAnthropicThinkingOrderWireRoute
   '/api/anthropic-truncated-tool-input-wire': typeof ApiAnthropicTruncatedToolInputWireRoute
@@ -1311,6 +1319,7 @@ export interface FileRoutesByTo {
   '/api/anthropic-redacted-thinking-wire': typeof ApiAnthropicRedactedThinkingWireRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
   '/api/anthropic-sonnet-5-5-wire': typeof ApiAnthropicSonnet55WireRoute
+  '/api/anthropic-stream-failure-usage': typeof ApiAnthropicStreamFailureUsageRoute
   '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
   '/api/anthropic-thinking-order-wire': typeof ApiAnthropicThinkingOrderWireRoute
   '/api/anthropic-truncated-tool-input-wire': typeof ApiAnthropicTruncatedToolInputWireRoute
@@ -1486,6 +1495,7 @@ export interface FileRoutesById {
   '/api/anthropic-redacted-thinking-wire': typeof ApiAnthropicRedactedThinkingWireRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
   '/api/anthropic-sonnet-5-5-wire': typeof ApiAnthropicSonnet55WireRoute
+  '/api/anthropic-stream-failure-usage': typeof ApiAnthropicStreamFailureUsageRoute
   '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
   '/api/anthropic-thinking-order-wire': typeof ApiAnthropicThinkingOrderWireRoute
   '/api/anthropic-truncated-tool-input-wire': typeof ApiAnthropicTruncatedToolInputWireRoute
@@ -1662,6 +1672,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-redacted-thinking-wire'
     | '/api/anthropic-skills-wire'
     | '/api/anthropic-sonnet-5-5-wire'
+    | '/api/anthropic-stream-failure-usage'
     | '/api/anthropic-structured-usage'
     | '/api/anthropic-thinking-order-wire'
     | '/api/anthropic-truncated-tool-input-wire'
@@ -1836,6 +1847,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-redacted-thinking-wire'
     | '/api/anthropic-skills-wire'
     | '/api/anthropic-sonnet-5-5-wire'
+    | '/api/anthropic-stream-failure-usage'
     | '/api/anthropic-structured-usage'
     | '/api/anthropic-thinking-order-wire'
     | '/api/anthropic-truncated-tool-input-wire'
@@ -2010,6 +2022,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-redacted-thinking-wire'
     | '/api/anthropic-skills-wire'
     | '/api/anthropic-sonnet-5-5-wire'
+    | '/api/anthropic-stream-failure-usage'
     | '/api/anthropic-structured-usage'
     | '/api/anthropic-thinking-order-wire'
     | '/api/anthropic-truncated-tool-input-wire'
@@ -2185,6 +2198,7 @@ export interface RootRouteChildren {
   ApiAnthropicRedactedThinkingWireRoute: typeof ApiAnthropicRedactedThinkingWireRoute
   ApiAnthropicSkillsWireRoute: typeof ApiAnthropicSkillsWireRoute
   ApiAnthropicSonnet55WireRoute: typeof ApiAnthropicSonnet55WireRoute
+  ApiAnthropicStreamFailureUsageRoute: typeof ApiAnthropicStreamFailureUsageRoute
   ApiAnthropicStructuredUsageRoute: typeof ApiAnthropicStructuredUsageRoute
   ApiAnthropicThinkingOrderWireRoute: typeof ApiAnthropicThinkingOrderWireRoute
   ApiAnthropicTruncatedToolInputWireRoute: typeof ApiAnthropicTruncatedToolInputWireRoute
@@ -2661,6 +2675,13 @@ declare module '@tanstack/react-router' {
       path: '/api/anthropic-sonnet-5-5-wire'
       fullPath: '/api/anthropic-sonnet-5-5-wire'
       preLoaderRoute: typeof ApiAnthropicSonnet55WireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/anthropic-stream-failure-usage': {
+      id: '/api/anthropic-stream-failure-usage'
+      path: '/api/anthropic-stream-failure-usage'
+      fullPath: '/api/anthropic-stream-failure-usage'
+      preLoaderRoute: typeof ApiAnthropicStreamFailureUsageRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/anthropic-structured-usage': {
@@ -3623,6 +3644,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAnthropicRedactedThinkingWireRoute: ApiAnthropicRedactedThinkingWireRoute,
   ApiAnthropicSkillsWireRoute: ApiAnthropicSkillsWireRoute,
   ApiAnthropicSonnet55WireRoute: ApiAnthropicSonnet55WireRoute,
+  ApiAnthropicStreamFailureUsageRoute: ApiAnthropicStreamFailureUsageRoute,
   ApiAnthropicStructuredUsageRoute: ApiAnthropicStructuredUsageRoute,
   ApiAnthropicThinkingOrderWireRoute: ApiAnthropicThinkingOrderWireRoute,
   ApiAnthropicTruncatedToolInputWireRoute:
