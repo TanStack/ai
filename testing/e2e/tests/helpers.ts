@@ -29,6 +29,24 @@ async function markRunStart(page: Page) {
   })
 }
 
+const HYDRATION_ERROR = /hydration failed|hydrated but|server rendered html/i
+
+/** Collect React hydration errors from page errors and console errors. Call
+ *  before the reload you want to check, then assert the list stays empty. */
+export function collectHydrationErrors(page: Page): Array<string> {
+  const errors: Array<string> = []
+  page.on('pageerror', (error) => {
+    if (HYDRATION_ERROR.test(error.message)) errors.push(error.message)
+  })
+  page.on('console', (message) => {
+    const text = message.text()
+    if (message.type() === 'error' && HYDRATION_ERROR.test(text)) {
+      errors.push(text)
+    }
+  })
+  return errors
+}
+
 export function featureUrl(
   provider: string,
   feature: string,

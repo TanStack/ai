@@ -19,6 +19,7 @@ const MIDDLEWARE_MODES = [
   { id: 'chunk-transform', label: 'Chunk Transform (prefix text)' },
   { id: 'tool-skip', label: 'Tool Skip (skip with custom result)' },
   { id: 'tool-replace', label: 'Tool Replace (replace result after call)' },
+  { id: 'tool-bad-args', label: 'Tool Bad Args (invalid args rewrite)' },
   { id: 'capability', label: 'Capability (provide/consume prefix)' },
   { id: 'phase-recorder', label: 'Phase Recorder (capture phase + chunks)' },
   { id: 'otel', label: 'OpenTelemetry (capture spans/metrics)' },
@@ -253,6 +254,7 @@ function MiddlewareTestPage() {
           <option value="basic-text">Basic Text</option>
           <option value="capability">Capability</option>
           <option value="with-tool">With Tool</option>
+          <option value="raw-tool-args">Raw Tool Args</option>
           <option value="run-error">Run Error</option>
           <option value="structured-output">Structured Output</option>
           <option value="structured-output-stream">

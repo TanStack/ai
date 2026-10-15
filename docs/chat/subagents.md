@@ -330,7 +330,7 @@ Every agent tool takes the agent's own fields, plus two more:
 - The fields of `inputSchema`, for an agent with one. The tool checks them against the schema.
 - `prompt`: the task as text, for an agent without `inputSchema`. The child gets it as the last user message.
 - `sessionId`: the `subagentRunId` of an earlier result. The call continues that child. The tool has this field only when `withPersistence` is on the parent `chat()`.
-- `background`: `true` starts the child and returns its `subagentRunId` at once. The tool has this field only when the host sets `subagents.binding.start`.
+- `background`: `true` starts the child and returns its `subagentRunId` at once. The tool has this field only when the host sets `subagents.binding.start`. The host returns `done`. `maxConcurrent` counts that child until `done` settles.
 
 When the run uses `sessionId` or `background`, that name is reserved. If an `inputSchema` has a field with that name, `chat()` throws before the run starts.
 
@@ -423,6 +423,8 @@ The whole tree shares one budget. A child that calls `ctx.chat({ subagents })` p
 - Set `limits` on the first `chat()`. A nested chat in a child uses that budget, so its own `limits` do not apply.
 - A child that a router picks does not count against the limits. The children it starts do count, one level deeper.
 - A child that runs past `timeoutMs` stops, and the model gets `subagent timed out after 120000 ms`.
+- When the parent has no time left, the model gets `subagent limit reached (no time left)`.
+- A limit of `timeoutMs: 0` gets `subagent limit reached (timeoutMs 0)`.
 
 ## Keys for agents
 

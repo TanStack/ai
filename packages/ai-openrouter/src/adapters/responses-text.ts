@@ -1471,7 +1471,7 @@ export class OpenRouterResponsesTextAdapter<
                   rawArguments: chunk.arguments,
                 },
               )
-              parsedInput = {}
+              parsedInput = undefined
             }
           }
 
@@ -1482,7 +1482,8 @@ export class OpenRouterResponsesTextAdapter<
             toolName: name,
             model: model || options.model,
             timestamp: Date.now(),
-            input: parsedInput,
+            args: chunk.arguments,
+            ...(parsedInput !== undefined && { input: parsedInput }),
           }
         }
 
@@ -1552,7 +1553,7 @@ export class OpenRouterResponsesTextAdapter<
                       rawArguments: rawArgs,
                     },
                   )
-                  parsedInput = {}
+                  parsedInput = undefined
                 }
               }
               yield {
@@ -1562,7 +1563,8 @@ export class OpenRouterResponsesTextAdapter<
                 toolName: name,
                 model: model || options.model,
                 timestamp: Date.now(),
-                input: parsedInput,
+                args: rawArgs,
+                ...(parsedInput !== undefined && { input: parsedInput }),
               }
               metadata.ended = true
               metadata.pendingArguments = undefined
@@ -1679,7 +1681,7 @@ export class OpenRouterResponsesTextAdapter<
                       rawArguments: rawArgs,
                     },
                   )
-                  parsedInput = {}
+                  parsedInput = undefined
                 }
               }
               yield {
@@ -1689,7 +1691,8 @@ export class OpenRouterResponsesTextAdapter<
                 toolName: name,
                 model: model || options.model,
                 timestamp: Date.now(),
-                input: parsedInput,
+                args: rawArgs,
+                ...(parsedInput !== undefined && { input: parsedInput }),
               }
               metadata.ended = true
               metadata.pendingArguments = undefined

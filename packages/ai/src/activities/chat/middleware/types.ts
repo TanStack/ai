@@ -439,7 +439,10 @@ export interface ToolCallHookContext {
   toolCall: ToolCall
   /** The resolved tool definition, if found */
   tool: Tool | undefined
-  /** Parsed arguments for the tool call */
+  /**
+   * Parsed arguments for the tool call, before the `inputSchema` check: no
+   * schema defaults or transforms yet, and possibly invalid.
+   */
   args: unknown
   /** Name of the tool */
   toolName: string
@@ -845,8 +848,10 @@ export interface ChatMiddleware<
     | Promise<void | StreamChunk | Array<StreamChunk> | null>
 
   /**
-   * Called before a tool is executed.
+   * Called before a server tool runs and before a client tool is sent to the
+   * client. Not called while the call waits for approval.
    * Can observe, transform args, skip execution, or abort the run.
+   * The tool's `inputSchema` checks the args after this hook.
    */
   onBeforeToolCall?: (
     ctx: ChatMiddlewareContext<TContext>,

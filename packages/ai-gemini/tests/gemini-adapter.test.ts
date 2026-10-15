@@ -570,6 +570,83 @@ describe('GeminiAdapter through AI', () => {
     expect(endIds.sort()).toEqual(startIds.sort())
   })
 
+  it.each([
+    { args: { count: 2 }, raw: '{"count":2}', input: { count: 2 } },
+    { args: '{"n": 1.50}', raw: '{"n": 1.50}', input: { n: 1.5 } },
+  ])(
+    'sends the raw function arguments $raw on TOOL_CALL_END',
+    async ({ args, raw, input }) => {
+      mocks.generateContentStreamSpy.mockResolvedValue(
+        createStream([
+          {
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    { functionCall: { id: 'call_raw', name: 'inspect', args } },
+                  ],
+                },
+                finishReason: 'STOP',
+              },
+            ],
+          },
+        ]),
+      )
+
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of createTextAdapter().chatStream({
+        model: 'gemini-2.5-pro',
+        logger: testLogger,
+        messages: [{ role: 'user', content: 'Go' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      expect(chunks.find((c) => c.type === 'TOOL_CALL_END')).toMatchObject({
+        args: raw,
+        input,
+      })
+    },
+  )
+
+  it('sends malformed function arguments raw on TOOL_CALL_END with no input', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      createStream([
+        {
+          candidates: [
+            {
+              content: {
+                parts: [
+                  {
+                    functionCall: {
+                      id: 'call_bad',
+                      name: 'inspect',
+                      args: '{"a":',
+                    },
+                  },
+                ],
+              },
+              finishReason: 'STOP',
+            },
+          ],
+        },
+      ]),
+    )
+
+    const chunks: Array<AdapterYieldChunk> = []
+    for await (const chunk of createTextAdapter().chatStream({
+      model: 'gemini-2.5-pro',
+      logger: testLogger,
+      messages: [{ role: 'user', content: 'Go' }],
+    })) {
+      chunks.push(chunk)
+    }
+
+    const end = chunks.find((c) => c.type === 'TOOL_CALL_END')
+    expect(end).toMatchObject({ args: '{"a":' })
+    expect(end).not.toHaveProperty('input')
+  })
+
   it('emits grounded web search sources and omits the provider call on the next turn', async () => {
     const groundingMetadata = {
       webSearchQueries: ['latest release'],

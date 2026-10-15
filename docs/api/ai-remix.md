@@ -216,7 +216,7 @@ import type {
 } from '@tanstack/ai-client'
 
 interface CreateChatReturn {
-  messages: Array<UIMessage>
+  messages: ReadonlyArray<UIMessage>
   sendMessage: (
     content: string | MultimodalContent,
     options?: SendMessageOptions,
@@ -240,9 +240,9 @@ interface CreateChatReturn {
   connectionStatus: ConnectionStatus
   sessionGenerating: boolean
   isHydrating: boolean
-  setMessages: (messages: Array<UIMessage>) => void
+  setMessages: (messages: ReadonlyArray<UIMessage>) => void
   clear: () => void
-  queue: Array<QueuedMessage>
+  queue: ReadonlyArray<QueuedMessage>
   cancelQueued: (id: string) => void
   runId: string | null
 }

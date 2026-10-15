@@ -115,6 +115,7 @@ describe('GenerationClient', () => {
       expect(onResultChange).toHaveBeenCalledWith(mockResult)
       expect(client.getResult()).toEqual(mockResult)
       expect(client.getStatus()).toBe('success')
+      expect(client.getSnapshot().runId).toBeNull()
       expect(client.getIsLoading()).toBe(false)
     })
 
@@ -245,6 +246,57 @@ describe('GenerationClient', () => {
       expect(client.getStatus()).toBe('success')
     })
 
+    it('keeps the local run id when a stream chunk has no resume pointer', async () => {
+      const gate = createDeferred()
+      const chunks: Array<StreamChunk> = [
+        {
+          type: EventType.CUSTOM,
+          name: 'generation:progress',
+          value: { percent: 1 },
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.CUSTOM,
+          name: 'generation:result',
+          value: { id: '1' },
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          metadata: { tanstack: { finishReason: 'stop' as const } },
+          timestamp: Date.now(),
+        },
+      ]
+      const connection = {
+        async *connect() {
+          yield chunks[0]!
+          await gate.promise
+          for (const chunk of chunks.slice(1)) {
+            yield chunk
+          }
+        },
+      }
+
+      const client = new GenerationClient({ connection })
+      const pending = client.generate({ prompt: 'test' })
+      await waitForCondition(() => {
+        expect(client.getSnapshot().isLoading).toBe(true)
+      })
+      expect(client.getSnapshot().runId).toEqual(expect.any(String))
+      expect(client.getSnapshot().runId).not.toBe('')
+      gate.resolve()
+      await pending
+      expect(client.getSnapshot().runId).toBeNull()
+    })
+
     it('should handle RUN_ERROR from stream', async () => {
       const onError = vi.fn()
 
@@ -274,6 +326,7 @@ describe('GenerationClient', () => {
       expect(onError).toHaveBeenCalledWith(expect.any(Error))
       expect(client.getStatus()).toBe('error')
       expect(client.getError()?.message).toBe('Generation failed')
+      expect(client.getSnapshot().runId).toBeNull()
     })
 
     it('should report progress from CUSTOM progress events', async () => {
@@ -408,10 +461,12 @@ describe('GenerationClient', () => {
 
       const generatePromise = client.generate({ prompt: 'test' })
       expect(client.getIsLoading()).toBe(true)
+      expect(client.getSnapshot().runId).toEqual(expect.any(String))
 
       client.stop()
       expect(client.getIsLoading()).toBe(false)
       expect(client.getStatus()).toBe('idle')
+      expect(client.getSnapshot().runId).toBeNull()
 
       resolvePromise!({ id: '1' })
       await generatePromise
@@ -432,6 +487,7 @@ describe('GenerationClient', () => {
       expect(client.getResult()).toBeNull()
       expect(client.getError()).toBeUndefined()
       expect(client.getStatus()).toBe('idle')
+      expect(client.getSnapshot().runId).toBeNull()
     })
   })
 
@@ -621,12 +677,14 @@ describe('GenerationClient', () => {
       await waitForCondition(() => {
         expect(signals).toHaveLength(2)
         expect(client.getIsLoading()).toBe(true)
+        expect(client.getSnapshot().runId).toBe('run-2')
       })
 
       firstCanFinish.resolve(undefined)
       await firstGenerate
 
       expect(client.getIsLoading()).toBe(true)
+      expect(client.getSnapshot().runId).toBe('run-2')
 
       client.stop()
       expect(signals[1]?.aborted).toBe(true)
@@ -758,12 +816,14 @@ describe('GenerationClient', () => {
       await waitForCondition(() => {
         expect(signals).toHaveLength(2)
         expect(client.getIsLoading()).toBe(true)
+        expect(client.getSnapshot().runId).toBe('run-2')
       })
 
       firstCanFinish.resolve(undefined)
       await firstGenerate
 
       expect(client.getIsLoading()).toBe(true)
+      expect(client.getSnapshot().runId).toBe('run-2')
 
       client.stop()
       expect(signals[1]?.aborted).toBe(true)
@@ -1504,6 +1564,7 @@ describe('GenerationClient', () => {
       })
       expect(joinRun).toHaveBeenCalledWith(runId, expect.anything())
       expect(client.getIsLoading()).toBe(false)
+      expect(client.getSnapshot().runId).toBeNull()
     })
 
     it('surfaces an error (never stays stuck generating) when the rejoin throws', async () => {
@@ -2197,5 +2258,615 @@ describe('GenerationClient', () => {
       expect(client.getError()?.message).toMatch(/could not be rebuilt/)
       expect(onError).toHaveBeenCalledWith(expect.any(Error))
     })
+  })
+})
+
+// One harness over both clients, so each run-ownership race is pinned once.
+interface RunClient {
+  generate(input: { prompt: string }): Promise<void>
+  stop(): void
+  reset(): void
+  dispose(): void
+  mountDevtools(): void
+  subscribe(listener: () => void): () => void
+  getSnapshot(): { runId: string | null; isLoading: boolean }
+  getIsLoading(): boolean
+  getStatus(): string
+  getError(): Error | undefined
+  getResumeSnapshot(): unknown
+}
+
+interface RunHarness {
+  client: RunClient
+  resultId: () => string | undefined
+}
+
+interface RunHarnessOptions {
+  fetcher?: (prompt: string) => Promise<string>
+  connection?: ConnectConnectionAdapter
+  onChunk?: (chunk: StreamChunk) => void
+  onLoadingChange?: (isLoading: boolean) => void
+  onStatusChange?: (status: string) => void
+  onErrorChange?: (error: Error | undefined) => void
+  onError?: (error: Error) => void
+  onResultChange?: (resultId: string | undefined) => void
+}
+
+const promptOf = (input: { prompt: unknown }) =>
+  typeof input.prompt === 'string' ? input.prompt : ''
+
+const runClientKinds: Array<{
+  name: string
+  create: (options: RunHarnessOptions) => RunHarness
+}> = [
+  {
+    name: 'GenerationClient',
+    create: (options) => {
+      const { fetcher, connection, onResultChange, ...callbacks } = options
+      const client = new GenerationClient<{ prompt: string }, { id: string }>({
+        ...callbacks,
+        ...(connection
+          ? { connection }
+          : {
+              fetcher: async (input: { prompt: string }) => ({
+                id: await (fetcher ?? (async (prompt) => prompt))(input.prompt),
+              }),
+            }),
+        onResultChange: (result) => onResultChange?.(result?.id),
+      })
+      return { client, resultId: () => client.getResult()?.id }
+    },
+  },
+  {
+    name: 'VideoGenerationClient',
+    create: (options) => {
+      const { fetcher, connection, onResultChange, ...callbacks } = options
+      const client = new VideoGenerationClient({
+        ...callbacks,
+        ...(connection
+          ? { connection }
+          : {
+              fetcher: async (input: { prompt: unknown }) => {
+                const jobId = await (fetcher ?? (async (prompt) => prompt))(
+                  promptOf(input),
+                )
+                return {
+                  jobId,
+                  status: 'completed' as const,
+                  url: `https://example.com/${jobId}.mp4`,
+                }
+              },
+            }),
+        onResultChange: (result) => onResultChange?.(result?.jobId),
+      })
+      return { client, resultId: () => client.getResult()?.jobId }
+    },
+  },
+]
+
+describe.each(runClientKinds)('$name run ownership', ({ create }) => {
+  it('should not overwrite a run started by the stopped loading callback', async () => {
+    const first = createDeferred<string>()
+    const second = createDeferred<string>()
+    let secondGenerate: Promise<void> | undefined
+    let secondRunId: string | null = null
+    let replaced = false
+    let h!: RunHarness
+    h = create({
+      fetcher: (prompt) =>
+        prompt === 'first' ? first.promise : second.promise,
+      onLoadingChange: (isLoading) => {
+        if (isLoading || replaced) return
+        replaced = true
+        secondGenerate = h.client.generate({ prompt: 'second' })
+        secondRunId = h.client.getSnapshot().runId
+      },
+    })
+
+    const firstGenerate = h.client.generate({ prompt: 'first' })
+    h.client.stop()
+
+    expect(secondRunId).not.toBeNull()
+    expect(h.client.getSnapshot().runId).toBe(secondRunId)
+    expect(h.client.getIsLoading()).toBe(true)
+    expect(h.client.getStatus()).toBe('generating')
+    first.resolve('first')
+    second.resolve('second')
+    await Promise.all([firstGenerate, secondGenerate])
+  })
+
+  it('should not overwrite a run started by the stopped status callback', async () => {
+    const first = createDeferred<string>()
+    const second = createDeferred<string>()
+    let secondGenerate: Promise<void> | undefined
+    let h!: RunHarness
+    h = create({
+      fetcher: (prompt) =>
+        prompt === 'first' ? first.promise : second.promise,
+      onStatusChange: (status) => {
+        if (status !== 'idle' || secondGenerate) return
+        secondGenerate = h.client.generate({ prompt: 'second' })
+      },
+    })
+
+    const firstGenerate = h.client.generate({ prompt: 'first' })
+    h.client.stop()
+
+    expect(secondGenerate).toBeDefined()
+    expect(h.client.getIsLoading()).toBe(true)
+    expect(h.client.getSnapshot().isLoading).toBe(true)
+    expect(h.client.getStatus()).toBe('generating')
+    first.resolve('first')
+    second.resolve('second')
+    await Promise.all([firstGenerate, secondGenerate])
+  })
+
+  it('should publish isLoading false when a stop callback throws', async () => {
+    const first = createDeferred<string>()
+    let h!: RunHarness
+    h = create({
+      fetcher: () => first.promise,
+      onStatusChange: (status) => {
+        if (status === 'idle') throw new Error('status failed')
+      },
+    })
+
+    const run = h.client.generate({ prompt: 'first' })
+    expect(() => h.client.stop()).toThrow('status failed')
+
+    expect(h.client.getIsLoading()).toBe(false)
+    expect(h.client.getSnapshot().isLoading).toBe(false)
+    first.resolve('first')
+    await run
+  })
+
+  it('should not lock generate() when the loading callback throws', async () => {
+    let failNext = true
+    const h = create({
+      onLoadingChange: (isLoading) => {
+        if (!isLoading || !failNext) return
+        failNext = false
+        throw new Error('loading failed')
+      },
+    })
+
+    await h.client.generate({ prompt: 'first' })
+
+    expect(h.client.getStatus()).toBe('error')
+    expect(h.client.getError()?.message).toBe('loading failed')
+    expect(h.client.getSnapshot().isLoading).toBe(false)
+
+    await h.client.generate({ prompt: 'second' })
+
+    expect(h.client.getStatus()).toBe('success')
+    expect(h.resultId()).toBe('second')
+  })
+
+  it('should stop before transport work when loading callback stops', async () => {
+    const fetcher = vi.fn(async (prompt: string) => prompt)
+    let h!: RunHarness
+    h = create({
+      fetcher,
+      onLoadingChange: (isLoading) => {
+        if (isLoading) h.client.stop()
+      },
+    })
+
+    await h.client.generate({ prompt: 'test' })
+
+    expect(fetcher).not.toHaveBeenCalled()
+    expect(h.client.getStatus()).toBe('idle')
+    expect(h.client.getSnapshot().runId).toBeNull()
+  })
+
+  it('should not complete resume state after success callback stops', async () => {
+    let h!: RunHarness
+    h = create({
+      onStatusChange: (status) => {
+        if (status === 'success') h.client.stop()
+      },
+    })
+
+    await h.client.generate({ prompt: 'test' })
+
+    expect(h.client.getStatus()).toBe('success')
+    expect(h.client.getSnapshot().runId).toBeNull()
+    expect(h.client.getResumeSnapshot()).toBeUndefined()
+  })
+
+  it('should not let initialization continue after loading callback starts a replacement', async () => {
+    const second = createDeferred<string>()
+    const prompts: Array<string> = []
+    let replaced = false
+    let secondGenerate: Promise<void> | undefined
+    let h!: RunHarness
+    h = create({
+      fetcher: async (prompt) => {
+        prompts.push(prompt)
+        return prompt === 'second' ? second.promise : 'first'
+      },
+      onLoadingChange: (isLoading) => {
+        if (!isLoading || replaced) return
+        replaced = true
+        h.client.stop()
+        secondGenerate = h.client.generate({ prompt: 'second' })
+      },
+    })
+
+    await h.client.generate({ prompt: 'first' })
+
+    expect(prompts).toEqual(['second'])
+    expect(h.client.getStatus()).toBe('generating')
+    second.resolve('second')
+    await secondGenerate
+  })
+
+  it('should not let an old result callback complete a replacement run', async () => {
+    const second = createDeferred<string>()
+    let secondGenerate: Promise<void> | undefined
+    let secondRunId: string | null = null
+    let h!: RunHarness
+    h = create({
+      fetcher: async (prompt) =>
+        prompt === 'first' ? 'first' : second.promise,
+      onResultChange: (resultId) => {
+        if (resultId !== 'first') return
+        h.client.stop()
+        secondGenerate = h.client.generate({ prompt: 'second' })
+        secondRunId = h.client.getSnapshot().runId
+      },
+    })
+
+    await h.client.generate({ prompt: 'first' })
+
+    expect(secondRunId).not.toBeNull()
+    expect(h.client.getSnapshot().runId).toBe(secondRunId)
+    expect(h.client.getStatus()).toBe('generating')
+    expect(h.client.getResumeSnapshot()).toBeUndefined()
+    second.resolve('second')
+    await secondGenerate
+  })
+
+  it('should not let an old error callback overwrite a replacement run', async () => {
+    const second = createDeferred<string>()
+    let secondGenerate: Promise<void> | undefined
+    let secondRunId: string | null = null
+    let h!: RunHarness
+    h = create({
+      fetcher: async (prompt) => {
+        if (prompt === 'first') throw new Error('first failed')
+        return second.promise
+      },
+      onErrorChange: (error) => {
+        if (error?.message !== 'first failed') return
+        h.client.stop()
+        secondGenerate = h.client.generate({ prompt: 'second' })
+        secondRunId = h.client.getSnapshot().runId
+      },
+    })
+
+    await h.client.generate({ prompt: 'first' })
+
+    expect(secondRunId).not.toBeNull()
+    expect(h.client.getSnapshot().runId).toBe(secondRunId)
+    expect(h.client.getStatus()).toBe('generating')
+    second.resolve('second')
+    await secondGenerate
+  })
+
+  it('should remain stopped when the error callback stops, and still report the error once', async () => {
+    const onError = vi.fn()
+    let h!: RunHarness
+    h = create({
+      fetcher: async () => {
+        throw new Error('failed')
+      },
+      onErrorChange: (error) => {
+        if (error) h.client.stop()
+      },
+      onError,
+    })
+
+    await h.client.generate({ prompt: 'test' })
+
+    expect(h.client.getStatus()).toBe('idle')
+    expect(h.client.getSnapshot().runId).toBeNull()
+    expect(onError).toHaveBeenCalledTimes(1)
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'failed' }),
+    )
+  })
+
+  it('should not let an old error status callback overwrite a replacement run', async () => {
+    const second = createDeferred<string>()
+    let secondGenerate: Promise<void> | undefined
+    let replaced = false
+    let h!: RunHarness
+    h = create({
+      fetcher: async (prompt) => {
+        if (prompt === 'first') throw new Error('first failed')
+        return second.promise
+      },
+      onStatusChange: (status) => {
+        if (status !== 'error' || replaced) return
+        replaced = true
+        h.client.stop()
+        secondGenerate = h.client.generate({ prompt: 'second' })
+      },
+    })
+
+    await h.client.generate({ prompt: 'first' })
+
+    expect(h.client.getStatus()).toBe('generating')
+    expect(h.client.getError()).toBeUndefined()
+    second.resolve('second')
+    await secondGenerate
+  })
+
+  it('should stop before transport when the run id subscriber stops', async () => {
+    const fetcher = vi.fn(async (prompt: string) => prompt)
+    const onLoadingChange = vi.fn()
+    const h = create({ fetcher, onLoadingChange })
+    h.client.subscribe(() => {
+      if (h.client.getSnapshot().runId) h.client.stop()
+    })
+
+    await h.client.generate({ prompt: 'test' })
+
+    expect(fetcher).not.toHaveBeenCalled()
+    expect(onLoadingChange).not.toHaveBeenCalledWith(true)
+    expect(h.client.getSnapshot().runId).toBeNull()
+  })
+
+  it('should not continue an old run after the run id subscriber starts a replacement', async () => {
+    const second = createDeferred<string>()
+    const prompts: Array<string> = []
+    let secondGenerate: Promise<void> | undefined
+    let replaced = false
+    const h = create({
+      fetcher: async (prompt) => {
+        prompts.push(prompt)
+        return prompt === 'second' ? second.promise : 'first'
+      },
+    })
+    h.client.subscribe(() => {
+      if (!h.client.getSnapshot().runId || replaced) return
+      replaced = true
+      h.client.stop()
+      secondGenerate = h.client.generate({ prompt: 'second' })
+    })
+
+    await h.client.generate({ prompt: 'first' })
+
+    expect(prompts).toEqual(['second'])
+    expect(h.client.getStatus()).toBe('generating')
+    second.resolve('second')
+    await secondGenerate
+  })
+
+  it('should not call the loading callback after its snapshot subscriber stops', async () => {
+    const fetcher = vi.fn(async (prompt: string) => prompt)
+    const onLoadingChange = vi.fn()
+    const h = create({ fetcher, onLoadingChange })
+    h.client.subscribe(() => {
+      if (h.client.getSnapshot().isLoading) h.client.stop()
+    })
+
+    await h.client.generate({ prompt: 'test' })
+
+    expect(fetcher).not.toHaveBeenCalled()
+    expect(onLoadingChange).not.toHaveBeenCalledWith(true)
+  })
+
+  it('should not call the old status callback after its subscriber starts a replacement', async () => {
+    const second = createDeferred<string>()
+    const generatingStatuses: Array<string> = []
+    let secondGenerate: Promise<void> | undefined
+    let replaced = false
+    const h = create({
+      fetcher: async (prompt) =>
+        prompt === 'second' ? second.promise : 'first',
+      onStatusChange: (status) => {
+        if (status === 'generating') generatingStatuses.push(status)
+      },
+    })
+    h.client.subscribe(() => {
+      if (h.client.getStatus() !== 'generating' || replaced) return
+      replaced = true
+      h.client.stop()
+      secondGenerate = h.client.generate({ prompt: 'second' })
+    })
+
+    await h.client.generate({ prompt: 'first' })
+
+    expect(generatingStatuses).toEqual(['generating'])
+    expect(h.client.getStatus()).toBe('generating')
+    second.resolve('second')
+    await secondGenerate
+  })
+
+  it('should not call the old result callback after its subscriber starts a replacement', async () => {
+    const second = createDeferred<string>()
+    const onResultChange = vi.fn()
+    let secondGenerate: Promise<void> | undefined
+    let replaced = false
+    const h = create({
+      fetcher: async (prompt) =>
+        prompt === 'second' ? second.promise : 'first',
+      onResultChange,
+    })
+    h.client.subscribe(() => {
+      if (h.resultId() !== 'first' || replaced) return
+      replaced = true
+      h.client.stop()
+      secondGenerate = h.client.generate({ prompt: 'second' })
+    })
+
+    await h.client.generate({ prompt: 'first' })
+
+    expect(onResultChange).not.toHaveBeenCalledWith('first')
+    expect(h.client.getStatus()).toBe('generating')
+    second.resolve('second')
+    await secondGenerate
+  })
+
+  it('should not call the old error callback after its subscriber starts a replacement', async () => {
+    const second = createDeferred<string>()
+    const onErrorChange = vi.fn()
+    let secondGenerate: Promise<void> | undefined
+    let replaced = false
+    const h = create({
+      fetcher: async (prompt) => {
+        if (prompt === 'first') throw new Error('first failed')
+        return second.promise
+      },
+      onErrorChange,
+    })
+    h.client.subscribe(() => {
+      if (h.client.getError()?.message !== 'first failed' || replaced) return
+      replaced = true
+      h.client.stop()
+      secondGenerate = h.client.generate({ prompt: 'second' })
+    })
+
+    await h.client.generate({ prompt: 'first' })
+
+    expect(onErrorChange).not.toHaveBeenCalledWith(expect.any(Error))
+    expect(h.client.getStatus()).toBe('generating')
+    second.resolve('second')
+    await secondGenerate
+  })
+
+  it('should not overwrite a run started by the reset loading callback', async () => {
+    const first = createDeferred<string>()
+    const second = createDeferred<string>()
+    let replaceOnStop = false
+    let secondGenerate: Promise<void> | undefined
+    let secondRunId: string | null = null
+    let h!: RunHarness
+    h = create({
+      fetcher: async (prompt) => {
+        if (prompt === 'seed') return 'seed'
+        return prompt === 'first' ? first.promise : second.promise
+      },
+      onLoadingChange: (isLoading) => {
+        if (isLoading || !replaceOnStop) return
+        replaceOnStop = false
+        secondGenerate = h.client.generate({ prompt: 'second' })
+        secondRunId = h.client.getSnapshot().runId
+      },
+    })
+    await h.client.generate({ prompt: 'seed' })
+    const firstGenerate = h.client.generate({ prompt: 'first' })
+    replaceOnStop = true
+
+    h.client.reset()
+
+    expect(secondRunId).not.toBeNull()
+    expect(h.client.getSnapshot().runId).toBe(secondRunId)
+    expect(h.client.getStatus()).toBe('generating')
+    expect(h.client.getIsLoading()).toBe(true)
+    expect(h.resultId()).toBe('seed')
+    first.resolve('first')
+    second.resolve('second')
+    await Promise.all([firstGenerate, secondGenerate])
+  })
+
+  it('should not overwrite a run started by the dispose loading callback', async () => {
+    const first = createDeferred<string>()
+    const second = createDeferred<string>()
+    let replaceOnDispose = false
+    let secondGenerate: Promise<void> | undefined
+    let secondRunId: string | null = null
+    let h!: RunHarness
+    h = create({
+      fetcher: (prompt) =>
+        prompt === 'first' ? first.promise : second.promise,
+      onLoadingChange: (isLoading) => {
+        if (isLoading || !replaceOnDispose) return
+        replaceOnDispose = false
+        h.client.mountDevtools()
+        secondGenerate = h.client.generate({ prompt: 'second' })
+        secondRunId = h.client.getSnapshot().runId
+      },
+    })
+    const firstGenerate = h.client.generate({ prompt: 'first' })
+    replaceOnDispose = true
+
+    h.client.dispose()
+
+    expect(secondRunId).not.toBeNull()
+    expect(h.client.getSnapshot().runId).toBe(secondRunId)
+    expect(h.client.getStatus()).toBe('generating')
+    expect(h.client.getIsLoading()).toBe(true)
+    first.resolve('first')
+    second.resolve('second')
+    await Promise.all([firstGenerate, secondGenerate])
+  })
+
+  it('should not publish a run id after onChunk stops the run', async () => {
+    const connection: ConnectConnectionAdapter = {
+      async *connect() {
+        yield {
+          type: EventType.RUN_STARTED as const,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+        }
+      },
+    }
+    let h!: RunHarness
+    h = create({
+      connection,
+      onChunk: (chunk) => {
+        if (chunk.type === EventType.RUN_STARTED) h.client.stop()
+      },
+    })
+
+    await h.client.generate({ prompt: 'test' })
+
+    expect(h.client.getSnapshot().runId).toBeNull()
+    expect(h.client.getStatus()).toBe('idle')
+  })
+
+  it('should not let an old onChunk continuation overwrite a newer run', async () => {
+    let connectionCount = 0
+    const secondBlocked = createDeferred()
+    const connection: ConnectConnectionAdapter = {
+      async *connect() {
+        connectionCount++
+        if (connectionCount === 1) {
+          yield {
+            type: EventType.RUN_STARTED as const,
+            runId: 'run-1',
+            threadId: 'thread-1',
+            timestamp: Date.now(),
+          }
+          return
+        }
+        await secondBlocked.promise
+      },
+    }
+    let secondGenerate: Promise<void> | undefined
+    let secondLocalRunId: string | null = null
+    let h!: RunHarness
+    h = create({
+      connection,
+      onChunk: (chunk) => {
+        if (chunk.type !== EventType.RUN_STARTED) return
+        h.client.stop()
+        secondGenerate = h.client.generate({ prompt: 'second' })
+        secondLocalRunId = h.client.getSnapshot().runId
+      },
+    })
+
+    await h.client.generate({ prompt: 'first' })
+
+    expect(secondLocalRunId).not.toBeNull()
+    expect(h.client.getSnapshot().runId).toBe(secondLocalRunId)
+    expect(h.client.getIsLoading()).toBe(true)
+    h.client.stop()
+    secondBlocked.resolve()
+    await secondGenerate
   })
 })

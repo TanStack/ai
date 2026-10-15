@@ -1869,6 +1869,108 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
     })
   })
 
+  describe('raw tool arguments', () => {
+    type EndSite = 'arguments.done' | 'output_item.done' | 'response.completed'
+
+    // Each site emits TOOL_CALL_END from a different event. Without a name on
+    // output_item.added, args.done is deferred to a later backfill.
+    function rawArgsStream(
+      site: EndSite,
+      raw: string,
+    ): Array<Record<string, unknown>> {
+      const named = {
+        type: 'function_call',
+        id: 'fc_raw',
+        name: 'lookup_weather',
+      }
+      return [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-raw',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item:
+            site === 'arguments.done'
+              ? named
+              : { type: 'function_call', id: 'fc_raw' },
+        },
+        {
+          type: 'response.function_call_arguments.done',
+          item_id: 'fc_raw',
+          arguments: raw,
+        },
+        ...(site === 'output_item.done'
+          ? [
+              {
+                type: 'response.output_item.done',
+                output_index: 0,
+                item: { ...named, arguments: raw },
+              },
+            ]
+          : []),
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-raw',
+            model: 'test-model',
+            status: 'completed',
+            output: [{ ...named, arguments: raw }],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ]
+    }
+
+    async function toolEnds(site: EndSite, raw: string) {
+      setupMockResponsesClient(rawArgsStream(site, raw))
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'q' }],
+        tools: [weatherTool],
+      })) {
+        chunks.push(chunk)
+      }
+      return chunks.filter((chunk) => chunk.type === 'TOOL_CALL_END')
+    }
+
+    it.each<EndSite>([
+      'arguments.done',
+      'output_item.done',
+      'response.completed',
+    ])(
+      'sends the raw argument string as args on TOOL_CALL_END (%s)',
+      async (site) => {
+        const ends = await toolEnds(site, '{"n": 1.50}')
+        expect(ends).toHaveLength(1)
+        expect(ends[0]).toMatchObject({
+          toolCallId: 'fc_raw',
+          args: '{"n": 1.50}',
+          input: { n: 1.5 },
+        })
+      },
+    )
+
+    it.each<EndSite>([
+      'arguments.done',
+      'output_item.done',
+      'response.completed',
+    ])('sends malformed arguments as args with no input (%s)', async (site) => {
+      const ends = await toolEnds(site, '{"a":')
+      expect(ends).toHaveLength(1)
+      expect(ends[0]).toMatchObject({ toolCallId: 'fc_raw', args: '{"a":' })
+      expect(ends[0]).not.toHaveProperty('input')
+    })
+  })
+
   describe('content_part events', () => {
     it('emits TEXT_MESSAGE_START on content_part.added with output_text', async () => {
       const streamChunks = [

@@ -3,7 +3,8 @@ import type { StreamChunk, ToolCallResultEvent } from '../types'
 import type { AdapterYieldChunk } from './adapter-yield-chunk'
 import { isTanstackUsage, toSpecTokenUsage } from './ag-ui-usage'
 import type { MetadataRecord } from './merge-metadata'
-import { withTanstackMetadata } from './merge-metadata'
+import { tanstackMetadata, withTanstackMetadata } from './merge-metadata'
+import { finishToolCallArguments } from './tool-call-arguments'
 import { reasoningEncryptedValue } from './reasoning-encrypted-value'
 import { specKeysFor } from './spec-event-keys'
 
@@ -136,6 +137,17 @@ export function normalizeStreamChunk(
   if (chunk.type === EventType.TOOL_CALL_START) {
     skipLeftover.add('toolName')
   }
+  // A TOOL_CALL_END sends its arguments once, as `args` made to match
+  // `input`. `restorePublicUsage` parses `input` back from it.
+  let sendsArgs = false
+  if (
+    chunk.type === EventType.TOOL_CALL_END &&
+    typeof (chunk.args ?? tanstackMetadata(chunk)?.args) === 'string'
+  ) {
+    sendsArgs = true
+    tanstack.args = finishToolCallArguments('', chunk).args
+    skipLeftover.add('input')
+  }
   for (const key of Object.keys(chunk)) {
     if (specKeys.has(key) || skipLeftover.has(key)) continue
     if (tanstack[key] !== undefined) continue
@@ -163,6 +175,8 @@ export function normalizeStreamChunk(
     Object.keys(tanstack).length === 0
       ? specChunk
       : withTanstackMetadata(specChunk, tanstack)
+
+  if (sendsArgs) delete tanstackMetadata(normalized)?.input
 
   const extras = encryptedValueExtras(chunk)
   const main: Array<StreamChunk> = [normalized as StreamChunk]

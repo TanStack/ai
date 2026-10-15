@@ -72,6 +72,7 @@ export type {
   ChatRequestBody,
   InferChatMessages,
   InferredClientContext,
+  ChatClientSnapshot,
   ChatClientState,
   ConnectionStatus,
   ChatFetcher,
@@ -92,7 +93,9 @@ export type {
 export type {
   InferGenerationOutput,
   InferGenerationOutputFromReturn,
+  GenerationClientSnapshot,
   GenerationClientState,
+  VideoGenerationClientSnapshot,
   GenerationPersistenceOptions,
   GenerationClientOptions,
   GenerationFetcher,
