@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   useGenerateImage,
   fetchServerSentEvents,
@@ -67,8 +67,12 @@ export function ImageGenUI({
     }
   }
 
-  const { generate, result, isLoading, error, status } =
+  const { generate, result, isLoading, error, status, runId } =
     useGenerateImage(connectionOptions())
+  const activeTuple = useRef({ runId: '', status: 'idle', isLoading: false })
+  if (runId && status === 'generating' && isLoading) {
+    activeTuple.current = { runId, status, isLoading }
+  }
 
   const handleGenerate = async () => {
     if (!imageFile) {
@@ -89,6 +93,12 @@ export function ImageGenUI({
 
   return (
     <div className="p-4 space-y-4">
+      <output data-testid="active-run-id">{activeTuple.current.runId}</output>
+      <output data-testid="active-status">{activeTuple.current.status}</output>
+      <output data-testid="active-loading">
+        {String(activeTuple.current.isLoading)}
+      </output>
+      <output data-testid="final-run-id">{runId ?? ''}</output>
       <div className="flex gap-2">
         <input
           data-testid="prompt-input"

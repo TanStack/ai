@@ -163,13 +163,55 @@ const dynamicTemperature: ChatMiddleware = {
 | `tools` | `Tool[]` | Available tools |
 | `metadata` | `Record<string, unknown>` | Request metadata |
 | `modelOptions` | `Record<string, unknown>` | Provider-native options — this is where sampling params (`temperature`, `top_p` / `topP`, the provider's `max*Tokens` key) now live, alongside every other model-specific knob. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options). |
+| `toolChoice` | `ToolChoice \| undefined` | How the model uses the tools at the next model call. See [Change the tool choice of a call](#change-the-tool-choice-of-a-call). |
 | `wrapFetch` | `FetchWrapper \| undefined` | Wraps the HTTP fetch of the next model call. See [Change the HTTP requests of a call](#change-the-http-requests-of-a-call). |
+| `promptCache` | `ResolvedPromptCache \| undefined` | The prompt cache of the next model call: its `retention` and `key`. See [Change the prompt cache of a call](#change-the-prompt-cache-of-a-call). |
 
 When multiple middleware define `onConfig`, the config is **piped** through them in order — each receives the merged config from the previous middleware.
 
 Return `providerMessages` when a transform must affect only the model call. For
 compatibility, returning `messages` also updates provider input unless the same
 result sets `providerMessages` explicitly.
+
+#### Change the tool choice of a call
+
+Your agent hits its last model call, and the model calls a tool again. The run ends after the tool result, and the user gets no answer. Return `toolChoice: 'none'` on that last call, and the model answers in text:
+
+```typescript
+import { chat, maxIterations, toolDefinition, type ChatMiddleware } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { z } from "zod";
+
+const MAX_CALLS = 10;
+
+const search = toolDefinition({
+  name: "search",
+  description: "Search the docs",
+  inputSchema: z.object({ query: z.string() }),
+}).server(async ({ query }) => ({ hits: [`A page about ${query}`] }));
+
+const answerOnLastCall: ChatMiddleware = {
+  name: "answer-on-last-call",
+  onConfig: (ctx) => {
+    if (ctx.phase === "beforeModel" && ctx.iteration === MAX_CALLS - 1) {
+      return { toolChoice: "none" };
+    }
+  },
+};
+
+const stream = chat({
+  adapter: openaiText("gpt-6.1-sol"),
+  messages: [{ role: "user", content: "How do I add a tool?" }],
+  tools: [search],
+  agentLoopStrategy: maxIterations(MAX_CALLS),
+  middleware: [answerOnLastCall],
+});
+```
+
+- `config.toolChoice` is the `chat()` option.
+- The value you return applies to the next model call only. The call after it starts again from the `chat()` option.
+- Return it in the `beforeModel` phase. A value from the `init` phase does not reach a model call.
+- For the values, and what each provider does with them, see [Choose when the model calls a tool](../tools/tools#choose-when-the-model-calls-a-tool).
 
 #### Change the HTTP requests of a call
 
@@ -215,6 +257,26 @@ const stream = chat({
 - A wrapper from `onConfig` applies to the next model call only.
 - Wrappers chain. The `chat()` wrapper runs first, then the middleware wrappers in middleware order, then the fetch of the adapter.
 - Each adapter page says if that adapter supports `wrapFetch`.
+
+#### Change the prompt cache of a call
+
+A slow tool, like a build or a test run, can pause your agent for more than 5 minutes. The short Claude cache is gone by then. Return `promptCache` from `onConfig` to keep the cache longer from the next call on:
+
+```typescript
+import { type ChatMiddleware } from "@tanstack/ai";
+
+const longCacheAfterTools: ChatMiddleware = {
+  name: "long-cache-after-tools",
+  onConfig: (ctx, config) => {
+    if (ctx.phase !== "beforeModel" || ctx.iteration === 0) return;
+    return { promptCache: { ...config.promptCache, retention: "long" } };
+  },
+};
+```
+
+- `config.promptCache` is the current value, with its `retention` and its `key`.
+- The value you return goes to the adapter on the next model call. It stays until a middleware returns another one.
+- For the retention values and what they cost, see [Prompt Caching](./prompt-caching#turn-it-off-or-keep-it-longer).
 
 ### onStructuredOutputConfig
 
@@ -387,6 +449,49 @@ const budget: ChatMiddleware = {
 
 For a full per-turn + cumulative tool budget recipe, see [Tool-call budgets](../chat/agentic-cycle#tool-call-budgets-middleware-recipe).
 
+### onModelError
+
+Some model calls fail for a reason your middleware can fix. For example, the prompt is too long for the model. `onModelError` gets the `RUN_ERROR` before anyone else sees it. Fix the request and call `ctx.retry()`. While the call has retries left, the run goes on as if the call never failed.
+
+Say your app sends retrieved documents as a second system prompt. When the call is too long, this middleware drops them and tries again:
+
+```typescript
+import { CONTEXT_OVERFLOW_CODE } from "@tanstack/ai";
+import type { ChatMiddleware, ChatMiddlewareContext } from "@tanstack/ai";
+
+// The runs that go on without the documents.
+const withoutDocs = new WeakSet<ChatMiddlewareContext>();
+
+const dropDocsWhenTooLong: ChatMiddleware = {
+  name: "drop-docs-when-too-long",
+  onModelError: (ctx, error) => {
+    if (error.code !== CONTEXT_OVERFLOW_CODE) return;
+    withoutDocs.add(ctx);
+    ctx.retry();
+  },
+  onConfig: (ctx, config) => {
+    if (ctx.phase !== "beforeModel" || !withoutDocs.has(ctx)) return;
+    // Keep the main system prompt. Drop the documents after it.
+    return { systemPrompts: config.systemPrompts.slice(0, 1) };
+  },
+};
+```
+
+What `ctx.retry()` does while the call has retries left:
+
+- It drops the failed call. `onChunk` and the caller never see its `RUN_STARTED` or `RUN_ERROR`.
+- It runs `onConfig` again (phase `beforeModel`), then calls the model again.
+- It works only inside `onModelError`. In any other hook it throws.
+
+When the hook runs:
+
+- Only when the adapter sends a `RUN_ERROR` before any output. A call that already sent text is not retried, so no output repeats.
+- Not for an exception that the adapter throws. That error goes to `onError`.
+- Not for the separate structured-output call that runs after the agent loop. The model calls of the agent loop get the hook as usual.
+- Every time, also after the last retry. A model call retries at most 2 times. After that, the error goes to the caller.
+
+`withCompaction` uses this hook to [compact and retry after a context overflow](./compaction#when-the-chat-is-still-too-long).
+
 ### onInterruptBoundary and onInterruptResolution
 
 Use these hooks when middleware needs data from the client. Define the request
@@ -556,14 +661,33 @@ capability, then return those fields from `onConfig` when
 | --- | --- |
 | `onInterruptBoundary` | Nothing. It can only pause. |
 | `onInterruptResolution` | Pending-tool policy (`toolResume`) |
-| `onConfig` | `messages`, `systemPrompts`, `tools`, `modelOptions`, `metadata` |
+| `onConfig` | `messages`, `systemPrompts`, `tools`, `modelOptions`, `metadata`, `toolChoice` |
 
 The full resume order, plus an example that writes a user note into the
 system prompt, is in [Apply Answers](../interrupts/apply-answers).
 
 ### onBeforeToolCall
 
-Called before each tool executes. The first middleware that returns a non-void decision short-circuits — remaining middleware are skipped for that tool call.
+Called before a server tool runs, and before a client tool goes to the client. The first middleware that returns a non-void decision skips the remaining middleware for that call.
+
+Each tool call goes through these steps:
+
+1. The engine parses the JSON arguments from the model.
+2. `onBeforeToolCall` gets the parsed input.
+3. The tool's `inputSchema` checks the final input. An async validator is awaited. A schema transform applies once, here.
+4. The server tool runs, or the client gets the call, with the checked input.
+
+The schema checks the input after your hook:
+
+- `hookCtx.args` has no schema defaults or transforms yet, and it can be invalid. Check its shape before you read it.
+- A `transformArgs` value or an in-place edit must fit the schema. If it does not fit, the call gets a tool error, `onAfterToolCall` runs with `ok: false`, and the tool does not run.
+
+When the hook runs:
+
+- A client tool runs the hook before the server sends the call to the client. The hook does not run when the client result comes back.
+- A client tool gets `onAfterToolCall` only when the hook skips the call or the schema check fails. The result from the client does not run it. If your middleware pairs the two hooks, return early when `hookCtx.tool?.execute` is missing.
+- A call that waits for approval does not run the hook. A denied call does not run it either.
+- After approval, the hook gets the approved input, including any `editedArgs`. See [Tool Approval](../interrupts/tool-approval).
 
 ```typescript
 import { type ChatMiddleware } from "@tanstack/ai";
@@ -675,6 +799,7 @@ Good to know:
 - Each middleware gets the result of the one before it as `info.result`. The last replacement wins.
 - A failed call stays failed. Your replacement becomes the error that the model reads.
 - A `skip` result from `onBeforeToolCall` goes through this hook too. `info.result` is the parsed skip result, the same value the model gets.
+- A call that the output limit cut goes through this hook too. It did not run, so `ok` is false, and `error` has the code `max_tokens`. See [When the output limit cuts a tool call](../chat/agentic-cycle#when-the-output-limit-cuts-a-tool-call).
 
 ### Tool hook order in one turn
 
@@ -786,6 +911,7 @@ Every hook receives a `ChatMiddlewareContext` as its first argument. It provides
 | `chunkIndex` | `number` | Running count of chunks yielded |
 | `signal` | `AbortSignal \| undefined` | External abort signal |
 | `abort(reason?)` | `function` | Abort the run from within middleware |
+| `retry()` | `function` | Call the model again. Works only in [`onModelError`](#onmodelerror) |
 | `emitCustomEvent(name, value, options?)` | `function` | Push a `CUSTOM` chunk onto the chat stream now. The engine yields it while the current hook is still running, including during `onConfig`. Durability flushes it immediately. Pass `{ batch: true }` to keep it in the durability batch. |
 | `context` | `TContext` | User-provided runtime context value |
 | `defer(promise)` | `function` | Register a non-blocking side-effect |
@@ -900,6 +1026,7 @@ const stream = chat({
 | `onChunk` | **Piped** — chunks flow through each middleware | If first drops a chunk, later middleware never see it |
 | `onBeforeToolCall` | **First-win** — first non-void decision wins | Earlier middleware has priority |
 | `onShouldContinue` | **AND** — any explicit `false` stops the loop | Order only affects which middleware runs first when short-circuiting |
+| `onModelError` | Sequential. If any middleware calls `ctx.retry()` and the call has retries left, the model is called again | All run in order, so each one sees the error |
 | `onAfterToolCall` | **Piped**: each gets the result of the previous `replaceResult` | The last replacement wins |
 | `onUsage` | Sequential | All run in order |
 | `onFinish/onAbort/onError` | Sequential | All run in order |
@@ -1054,6 +1181,56 @@ The capability system fails loudly and early:
 - **Post-`setup` assertion.** If a middleware declares a capability in `provides` but never calls its `provide` accessor during `setup`, `chat()` throws after the setup phase — you can't silently forget to provision.
 - **Duplicate provide → last-wins + warning.** If two middleware provide the same capability, the last write wins and a development warning is emitted.
 - **Unique names.** Capability `name`s must be unique across your app; the compile-time coverage check keys on the name literal (runtime keys on the handle reference).
+
+### Append records to the session log
+
+A host is a middleware that keeps a session log and provides `LogRecordsCapability`. `chat()` does not provide it, so without a host there is no log. With a host, your middleware can write its own records to that log, for example a note that a run started. Read the writer with `getLogRecords`:
+
+```typescript
+import {
+  LogRecordsCapability,
+  defineChatMiddleware,
+  getLogRecords,
+} from "@tanstack/ai";
+
+const noteStart = defineChatMiddleware({
+  name: "note-start",
+  optionalRequires: [LogRecordsCapability],
+  async onStart(ctx) {
+    const log = getLogRecords(ctx, { optional: true });
+    await log?.append([{ type: "app.note", text: "run started" }]);
+  },
+});
+```
+
+- Each record needs a `type`. The other fields are yours.
+- The host decides which record types it accepts. If the host refuses a record, `append` rejects.
+- Without a host log, `getLogRecords(ctx, { optional: true })` returns `undefined`. Use the optional read when your middleware also runs without a log.
+- If your middleware cannot work without the log, list the capability in `requires` and call `getLogRecords(ctx)`. Then `chat()` throws when no host provides the log.
+
+If you write a host, provide the log in `setup` and list it in `provides`:
+
+```typescript
+import {
+  LogRecordsCapability,
+  defineChatMiddleware,
+  provideLogRecords,
+} from "@tanstack/ai";
+
+const withSessionLog = defineChatMiddleware({
+  name: "with-session-log",
+  provides: [LogRecordsCapability],
+  setup(ctx) {
+    // One log per run. A real host writes to its durable store here.
+    const records: Array<{ type: string }> = [];
+    provideLogRecords(ctx, {
+      append: async (batch) => {
+        records.push(...batch);
+      },
+    });
+  },
+});
+```
 
 ## Built-in Middleware
 

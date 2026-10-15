@@ -2306,7 +2306,7 @@ describe('StreamProcessor', () => {
       expect(events.onToolCall).not.toHaveBeenCalled()
     })
 
-    it('skips a call with cut-off arguments and warns', () => {
+    it('skips a call of an answer cut at the output limit, and logs nothing', () => {
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
       const { events } = run(
         ev.toolStart('tc-1', 'ping'),
@@ -2315,9 +2315,7 @@ describe('StreamProcessor', () => {
       )
 
       expect(events.onToolCall).not.toHaveBeenCalled()
-      expect(warn).toHaveBeenCalledWith(
-        expect.stringContaining('Did not run tool call tc-1'),
-      )
+      expect(warn).not.toHaveBeenCalled()
       warn.mockRestore()
     })
   })

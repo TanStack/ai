@@ -3,7 +3,7 @@ id: WorldGenerationOptions
 title: WorldGenerationOptions
 ---
 
-Defined in: [packages/ai/src/types.ts:2483](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2483)
+Defined in: [packages/ai/src/types.ts:2699](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2699)
 
 **`Experimental`**
 
@@ -25,7 +25,7 @@ Options for world generation (live session or finished job).
 optional abortSignal?: AbortSignal;
 ```
 
-Defined in: [packages/ai/src/types.ts:2508](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2508)
+Defined in: [packages/ai/src/types.ts:2724](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2724)
 
 **`Experimental`**
 
@@ -41,7 +41,7 @@ supported. Request-specific — never store on a global client config.
 logger: InternalLogger;
 ```
 
-Defined in: [packages/ai/src/types.ts:2502](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2502)
+Defined in: [packages/ai/src/types.ts:2718](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2718)
 
 **`Experimental`**
 
@@ -57,7 +57,7 @@ catch blocks.
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2487](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2487)
+Defined in: [packages/ai/src/types.ts:2703](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2703)
 
 **`Experimental`**
 
@@ -71,7 +71,7 @@ The model to use for world generation
 optional modelOptions?: TProviderOptions;
 ```
 
-Defined in: [packages/ai/src/types.ts:2496](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2496)
+Defined in: [packages/ai/src/types.ts:2712](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2712)
 
 **`Experimental`**
 
@@ -88,7 +88,7 @@ token-mint fields.
 prompt: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2489](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2489)
+Defined in: [packages/ai/src/types.ts:2705](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2705)
 
 **`Experimental`**
 

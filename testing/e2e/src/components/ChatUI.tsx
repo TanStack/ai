@@ -15,7 +15,7 @@ import { ApprovalPrompt } from '@/components/ApprovalPrompt'
 interface ChatUIProps<
   TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,
 > {
-  messages: Array<UIMessage>
+  messages: ReadonlyArray<UIMessage>
   isLoading: boolean
   onSendMessage: (text: string) => void
   /** Sends the typed prompt plus an attached image as an image content part. */
@@ -48,7 +48,7 @@ interface ChatUIProps<
    *  `useChat` and auto-sent FIFO once the run settles. Rendered in a
    *  region separate from `messages` so e2e tests can assert queued state
    *  distinctly from the delivered conversation. */
-  queue?: Array<QueuedMessage>
+  queue?: ReadonlyArray<QueuedMessage>
   /** Remove a queued message before it drains. */
   cancelQueued?: (id: string) => void
   /** Block new input while pending interrupts await resolution. */

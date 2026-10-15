@@ -144,4 +144,87 @@ test.describe('mcp input: pause and resume chat()', () => {
       .join('')
     expect(finalText).toContain('sunny')
   })
+
+  test('a custom reason still resumes by interrupt id', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const threadId = `mcp-input-reason-thread-${testId}`
+    const firstRunId = `mcp-input-reason-run-${testId}`
+    const response = await request.post('/api/mcp-input-test', {
+      headers: { 'Content-Type': 'application/json' },
+      data: {
+        threadId,
+        runId: firstRunId,
+        state: {},
+        messages: [{ id: 'mcp-input-msg-1', role: 'user', content: question }],
+        tools: [],
+        context: [],
+        forwardedProps: {
+          testId,
+          aimockPort,
+          interruptReason: 'auth_required',
+        },
+      },
+    })
+    const body = await response.text()
+    expect(response.ok(), `run failed: ${body}`).toBe(true)
+    const events = parseSse(body)
+
+    const toolCallId = events.find(
+      (event) =>
+        event.type === 'TOOL_CALL_START' && event.toolCallName === 'ask_city',
+    )?.toolCallId
+    const finished = events.find((event) => event.type === 'RUN_FINISHED')
+    expect(finished?.outcome?.type, body).toBe('interrupt')
+    expect(finished?.outcome?.interrupts?.[0]).toMatchObject({
+      id: `mcp_input_${toolCallId}`,
+      reason: 'auth_required',
+    })
+
+    const second = await request.post('/api/mcp-input-test', {
+      headers: { 'Content-Type': 'application/json' },
+      data: {
+        threadId,
+        runId: `mcp-input-reason-run-2-${testId}`,
+        parentRunId: firstRunId,
+        resume: [
+          {
+            interruptId: `mcp_input_${toolCallId}`,
+            status: 'resolved',
+            payload: { value: 'Paris' },
+          },
+        ],
+        state: {},
+        messages: [
+          { id: 'mcp-input-msg-1', role: 'user', content: question },
+          {
+            id: 'mcp-input-msg-2',
+            role: 'assistant',
+            content: 'Let me ask for the city.',
+            toolCalls: [
+              {
+                id: toolCallId,
+                type: 'function',
+                function: { name: 'ask_city', arguments: '{}' },
+              },
+            ],
+          },
+        ],
+        tools: [],
+        context: [],
+        forwardedProps: { testId, aimockPort },
+      },
+    })
+    const secondBody = await second.text()
+    expect(second.ok(), `resume run failed: ${secondBody}`).toBe(true)
+    const secondEvents = parseSse(secondBody)
+    const toolResult = secondEvents.find(
+      (event) => event.type === 'TOOL_CALL_RESULT',
+    )
+    expect(JSON.stringify(toolResult?.content ?? '')).toContain(
+      'Forecast for Paris: sunny',
+    )
+  })
 })

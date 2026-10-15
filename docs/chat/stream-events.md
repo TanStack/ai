@@ -86,6 +86,8 @@ You got a 429 and want to know how long to wait. If the provider sends a `retry-
 
 The Anthropic adapter and the adapters built on `@tanstack/openai-base` (for example OpenAI, Grok, and Groq) set it.
 
+The OpenRouter adapter also sets it for [an error in the stream](../adapters/openrouter#retry-an-error-in-the-stream). That value is the adapter's own backoff wait, not a wait from the provider.
+
 On the server:
 
 ```typescript
@@ -121,6 +123,36 @@ const { messages } = useChat({
 ```
 
 No `retryAfterMs`? The provider sent no wait header, so pick your own backoff. The provider SDKs also retry a 429 by themselves first. To handle every 429 yourself, set `maxRetries: 0` in the adapter config.
+
+### Let `chat()` retry for you
+
+You do not have to wait and retry in your own code. Pass `retry`, and `chat()` waits for the `retryAfterMs` time, then calls the model again:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { anthropicText } from "@tanstack/ai-anthropic";
+
+const stream = chat({
+  adapter: anthropicText("claude-sonnet-5-5"),
+  messages: [{ role: "user", content: "Hello!" }],
+  retry: { maxRetries: 3, maxWaitMs: 30_000 },
+});
+```
+
+When it retries:
+
+- Only when the `RUN_ERROR` has a wait time (`metadata.tanstack.retryAfterMs`). Only the adapters named above set it.
+- Only when the wait time is at most `maxWaitMs` (default 60 000). For a longer wait time, you get the `RUN_ERROR`.
+- Only when the call streamed no output, so no text repeats.
+
+Limits:
+
+- `maxRetries` is the limit for each model call, not for the full run.
+- The provider SDK retries a 429 first, then `chat()` retries. To count only the `chat()` retries, set `maxRetries: 0` in the adapter config.
+- With `outputSchema`, `chat()` does not retry the structured-output call.
+- An abort stops the wait immediately. You then get the `RUN_ERROR`.
+
+On a serverless route, a long wait keeps the request open. If your host has a short time limit, keep `maxWaitMs` low. Then retry the longer wait times from the client.
 
 ## Read the provider response identity
 
@@ -206,7 +238,7 @@ The media generation hooks take a `threadId` too. There it names a slot, not a c
 
 ## Tool input and output
 
-SSE and HTTP `TOOL_CALL_END` does not carry parsed `input`. In-process `chat()` still has `input`. Tool input and output also live on `UIMessage` parts.
+SSE and HTTP `TOOL_CALL_END` does not carry parsed `input`. `metadata.tanstack.args` carries the tool argument string as the provider sent it. In-process `chat()` still has `input`, parsed from that string. Tool input and output also live on `UIMessage` parts.
 
 On the server, feed chunks into `StreamProcessor`. On the client, read `useChat` `messages`.
 

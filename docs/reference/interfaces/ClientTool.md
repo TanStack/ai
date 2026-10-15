@@ -105,7 +105,7 @@ Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:121](https
 optional execute?: ToolExecuteFunction<TInput, TOutput, TContext>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:134](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L134)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:135](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L135)
 
 ***
 
@@ -145,7 +145,7 @@ Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:132](https
 optional metadata?: Record<string, unknown>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:133](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L133)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:134](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L134)
 
 ***
 
@@ -176,3 +176,13 @@ optional outputSchema?: TOutput;
 ```
 
 Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:128](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L128)
+
+***
+
+### replay?
+
+```ts
+optional replay?: "safe" | "never";
+```
+
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:133](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L133)

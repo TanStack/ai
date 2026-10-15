@@ -1,5 +1,6 @@
 import { ChatClient } from '@tanstack/ai-client'
-import { flushPromises } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
+import { defineComponent } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   createInterruptResumeSnapshot,
@@ -8,6 +9,7 @@ import {
   createToolCallChunks,
   renderUseChat,
 } from './test-utils'
+import { useChat } from '../src/use-chat'
 import type { UIMessage } from '../src/types'
 import type { ModelMessage } from '@tanstack/ai'
 
@@ -1290,6 +1292,57 @@ describe('useChat', () => {
           }
         }
       })
+    })
+  })
+
+  describe('snapshot', () => {
+    it('reads one frozen client snapshot and drops it on scope dispose', async () => {
+      let resolveRead!: (value: { messages: Array<UIMessage> }) => void
+      const read = new Promise<{ messages: Array<UIMessage> }>((resolve) => {
+        resolveRead = resolve
+      })
+      let chat!: ReturnType<typeof useChat>
+      const wrapper = mount(
+        defineComponent({
+          setup() {
+            chat = useChat({
+              connection: createMockConnectionAdapter({
+                chunks: createTextChunks('Hi'),
+              }),
+              threadId: 'vue-snapshot',
+              persistence: {
+                getItem: () => read,
+                setItem: async () => {},
+                removeItem: async () => {},
+              },
+            })
+            return {}
+          },
+          template: '<div></div>',
+        }),
+      )
+
+      expect(chat.isHydrating.value).toBe(true)
+      resolveRead({
+        messages: [
+          { id: 'm1', role: 'user', parts: [{ type: 'text', content: 'hi' }] },
+        ],
+      })
+      await vi.waitFor(() => expect(chat.isHydrating.value).toBe(false))
+      expect(chat.messages.value).toHaveLength(1)
+
+      await chat.sendMessage('Hello')
+      await flushPromises()
+      expect(chat.isLoading.value).toBe(false)
+      expect(chat.status.value).toBe('ready')
+      const messages = chat.messages.value
+      expect(messages).toHaveLength(3)
+      expect(Object.isFrozen(messages)).toBe(true)
+      expect(() => (messages as Array<unknown>).push({})).toThrow(TypeError)
+
+      wrapper.unmount()
+      chat.setMessages([])
+      expect(chat.messages.value).toBe(messages)
     })
   })
 })

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { z } from 'zod'
-import { EventType, chat, summarize } from '@tanstack/ai'
+import { CONTEXT_OVERFLOW_CODE, EventType, chat, summarize } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import type { AdapterYieldChunk, Tool } from '@tanstack/ai'
 import {
@@ -374,10 +374,6 @@ describe('GeminiAdapter through AI', () => {
           },
         },
       },
-      thinkingConfig: {
-        includeThoughts: true,
-        thinkingBudget: 128,
-      },
       imageConfig: {
         aspectRatio: '1:1',
       },
@@ -392,6 +388,7 @@ describe('GeminiAdapter through AI', () => {
       messages: [{ role: 'user', content: 'Provide structured response' }],
       systemPrompts: ['Stay concise', 'Return JSON'],
       modelOptions: providerOptions,
+      reasoning: { level: 'minimal', budgetTokens: 128 },
     })) {
       /* consume stream */
     }
@@ -425,7 +422,10 @@ describe('GeminiAdapter through AI', () => {
       providerOptions?.enableEnhancedCivicAnswers,
     )
     expect(config.speechConfig).toEqual(providerOptions?.speechConfig)
-    expect(config.thinkingConfig).toEqual(providerOptions?.thinkingConfig)
+    expect(config.thinkingConfig).toEqual({
+      includeThoughts: true,
+      thinkingBudget: 128,
+    })
     expect(config.imageConfig).toEqual(providerOptions?.imageConfig)
   })
 
@@ -568,6 +568,83 @@ describe('GeminiAdapter through AI', () => {
     expect(new Set(startIds).size).toBe(2)
     expect(startIds).toContain('call_1')
     expect(endIds.sort()).toEqual(startIds.sort())
+  })
+
+  it.each([
+    { args: { count: 2 }, raw: '{"count":2}', input: { count: 2 } },
+    { args: '{"n": 1.50}', raw: '{"n": 1.50}', input: { n: 1.5 } },
+  ])(
+    'sends the raw function arguments $raw on TOOL_CALL_END',
+    async ({ args, raw, input }) => {
+      mocks.generateContentStreamSpy.mockResolvedValue(
+        createStream([
+          {
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    { functionCall: { id: 'call_raw', name: 'inspect', args } },
+                  ],
+                },
+                finishReason: 'STOP',
+              },
+            ],
+          },
+        ]),
+      )
+
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of createTextAdapter().chatStream({
+        model: 'gemini-2.5-pro',
+        logger: testLogger,
+        messages: [{ role: 'user', content: 'Go' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      expect(chunks.find((c) => c.type === 'TOOL_CALL_END')).toMatchObject({
+        args: raw,
+        input,
+      })
+    },
+  )
+
+  it('sends malformed function arguments raw on TOOL_CALL_END with no input', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      createStream([
+        {
+          candidates: [
+            {
+              content: {
+                parts: [
+                  {
+                    functionCall: {
+                      id: 'call_bad',
+                      name: 'inspect',
+                      args: '{"a":',
+                    },
+                  },
+                ],
+              },
+              finishReason: 'STOP',
+            },
+          ],
+        },
+      ]),
+    )
+
+    const chunks: Array<AdapterYieldChunk> = []
+    for await (const chunk of createTextAdapter().chatStream({
+      model: 'gemini-2.5-pro',
+      logger: testLogger,
+      messages: [{ role: 'user', content: 'Go' }],
+    })) {
+      chunks.push(chunk)
+    }
+
+    const end = chunks.find((c) => c.type === 'TOOL_CALL_END')
+    expect(end).toMatchObject({ args: '{"a":' })
+    expect(end).not.toHaveProperty('input')
   })
 
   it('emits grounded web search sources and omits the provider call on the next turn', async () => {
@@ -1088,12 +1165,7 @@ describe('GeminiAdapter through AI', () => {
       adapter,
       tools: [sumTool],
       messages: [{ role: 'user', content: 'What is 1 + 2 + 5?' }],
-      modelOptions: {
-        thinkingConfig: {
-          includeThoughts: true,
-          thinkingLevel: 'LOW',
-        },
-      },
+      reasoning: 'low',
     })) {
       /* consume stream */
     }
@@ -1617,5 +1689,45 @@ describe('Gemini adapter error handling', () => {
       // toRunErrorRawEvent picks up the `.error` object when present
       expect(runError.rawEvent).toEqual(providerBody.error)
     }
+  })
+
+  /** Runs one call that fails with an SDK error. Gives back its RUN_ERROR. */
+  async function runErrorFor(status: number, message: string) {
+    mocks.generateContentStreamSpy.mockRejectedValueOnce(
+      Object.assign(new Error(JSON.stringify({ error: { message } })), {
+        status,
+      }),
+    )
+    const chunks: AdapterYieldChunk[] = []
+    for await (const chunk of createTextAdapter().chatStream({
+      model: 'gemini-2.5-pro',
+      messages: [{ role: 'user', content: 'hi' }],
+      logger: { request: () => {}, errors: () => {} } as any,
+    })) {
+      chunks.push(chunk)
+    }
+    return chunks.find((c) => c.type === 'RUN_ERROR')
+  }
+
+  it('sets the context_overflow code on a context overflow', async () => {
+    const message =
+      'The input token count exceeds the maximum number of tokens allowed (1048576).'
+    const runError = await runErrorFor(400, message)
+    expect(runError).toMatchObject({ code: CONTEXT_OVERFLOW_CODE })
+    expect(runError?.message).toContain(message)
+  })
+
+  it('does not set it on a quota error that talks about tokens', async () => {
+    const runError = await runErrorFor(
+      429,
+      'Quota exceeded for metric: generate_content_paid_tier_input_token_count',
+    )
+    expect(runError?.type).toBe('RUN_ERROR')
+    expect(runError).not.toHaveProperty('code')
+  })
+
+  it('does not set it on another bad request', async () => {
+    const runError = await runErrorFor(400, 'Invalid JSON payload received.')
+    expect(runError).not.toHaveProperty('code')
   })
 })

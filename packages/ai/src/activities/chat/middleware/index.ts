@@ -72,6 +72,13 @@ export { MetadataCapability, getMetadata, provideMetadata } from './metadata'
 export type { MetadataStore } from './metadata'
 
 export {
+  LogRecordsCapability,
+  getLogRecords,
+  provideLogRecords,
+} from './log-records'
+export type { LogRecord, LogRecordsWriter } from './log-records'
+
+export {
   isRunStatus,
   isTerminalRunStatus,
   defineRunStore,
@@ -81,6 +88,9 @@ export type {
   RunStatus,
   TerminalRunStatus,
   RunRecord,
+  RunKind,
+  RunArtifactRef,
+  RunCheckpoint,
   RunError,
   RunStore,
 } from './run-store'

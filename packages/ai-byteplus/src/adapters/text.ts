@@ -6,8 +6,11 @@ import {
 } from '@tanstack/ai'
 import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
 import { generateId } from '@tanstack/ai-utils'
+import { resolveReasoning } from '@tanstack/ai/adapter-internals'
+import type { ResolvedReasoning } from '@tanstack/ai/adapter-internals'
 import {
   BYTEPLUS_MODEL_INPUT_MODALITIES,
+  BYTEPLUS_MODEL_REASONING,
   BYTEPLUS_STRUCTURED_OUTPUT_CHAT_MODELS,
   emitsEncryptedContent,
   supportsStructuredOutput,
@@ -35,6 +38,7 @@ import type {
 import type {
   BYTEPLUS_CHAT_MODELS,
   BytePlusChatModelToolCapabilitiesByName,
+  BytePlusModelReasoningByName,
   ResolveInputModalities,
   ResolveProviderOptions,
 } from '../model-meta'
@@ -88,6 +92,26 @@ export type { BytePlusTextProviderOptions } from '../text/text-provider-options'
  *    ignores the schema), and Ark rejects `json_object` everywhere, so there
  *    is no JSON-mode fallback.
  */
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof BytePlusModelReasoningByName
+    ? BytePlusModelReasoningByName[TModel]
+    : never
+
+/**
+ * Ark's thinking fields for `chat({ reasoning })`: `thinking.type`, plus
+ * `reasoning_effort` when the level has an effort value. `off` sends only
+ * `disabled`, because Ark refuses an effort next to it.
+ */
+function arkThinking(resolved: ResolvedReasoning | undefined) {
+  if (!resolved) return {}
+  if (resolved.level === 'off') return { thinking: { type: 'disabled' } }
+  const effort = resolved.value
+  return effort === 'enabled'
+    ? { thinking: { type: 'enabled' } }
+    : { thinking: { type: 'enabled' }, reasoning_effort: effort }
+}
+
 export class BytePlusTextAdapter<
   TModel extends (typeof BYTEPLUS_CHAT_MODELS)[number],
   // `Record<string, any>` (not `unknown`) mirrors the OpenAI/Groq/Grok text
@@ -104,7 +128,8 @@ export class BytePlusTextAdapter<
   TProviderOptions,
   TInputModalities,
   BytePlusMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  ResolveReasoning<TModel>
 > {
   override readonly kind = 'text' as const
   override readonly name = 'byteplus' as const
@@ -121,6 +146,39 @@ export class BytePlusTextAdapter<
   }
 
   /**
+   * Ark has no error code for a context overflow. It answers
+   * `InvalidParameter` for every bad request, so the message text is the
+   * only signal.
+   */
+  protected override isContextOverflow(error: {
+    message: string
+    code: string | undefined
+  }): boolean {
+    return (
+      super.isContextOverflow(error) ||
+      (error.code === 'InvalidParameter' &&
+        error.message.includes('exceed max message tokens'))
+    )
+  }
+
+  /**
+   * Adds Ark's thinking fields for `chat({ reasoning })`. They are Ark
+   * fields that the OpenAI SDK type does not list, so they go on with
+   * Object.assign.
+   */
+  protected override mapOptionsToRequest(options: TextOptions) {
+    return Object.assign(
+      super.mapOptionsToRequest(options),
+      arkThinking(
+        resolveReasoning(
+          options.reasoning,
+          BYTEPLUS_MODEL_REASONING[options.model],
+        ),
+      ),
+    )
+  }
+
+  /**
    * Surfaces Ark's reasoning deltas. Thinking-enabled models stream the
    * reasoning trace as `delta.reasoning_content` (the OpenAI chunk shape has
    * no reasoning field); the base routes this hook through both `chatStream`
@@ -129,7 +187,7 @@ export class BytePlusTextAdapter<
   protected override extractReasoning(
     chunk: OpenAI.Chat.Completions.ChatCompletionChunk,
   ): { text: string } | undefined {
-    const delta = chunk.choices[0]?.delta as
+    const delta = chunk.choices?.[0]?.delta as
       | BytePlusStreamDeltaExtras
       | undefined
     const raw = delta?.reasoning_content
@@ -407,7 +465,7 @@ async function* captureEncryptedContent(
   captured: { encryptedContent?: string },
 ): AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk> {
   for await (const chunk of stream) {
-    const delta = chunk.choices[0]?.delta as
+    const delta = chunk.choices?.[0]?.delta as
       | BytePlusStreamDeltaExtras
       | undefined
     const blob = delta?.encrypted_content

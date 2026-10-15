@@ -1087,6 +1087,109 @@ describe('Mistral AG-UI event emission', () => {
     expect(caught?.message).toMatch(/lookup_weather/)
   })
 
+  it('puts the raw argument string on TOOL_CALL_END', async () => {
+    setupMockStream([
+      {
+        id: 'cmpl-raw',
+        model: 'mistral-large-latest',
+        choices: [
+          {
+            index: 0,
+            delta: {
+              toolCalls: [
+                {
+                  index: 0,
+                  id: 'tc_raw',
+                  function: {
+                    name: 'lookup_weather',
+                    arguments: '{"location": "Berlin", ',
+                  },
+                },
+              ],
+            },
+            finishReason: null,
+          },
+        ],
+      },
+      {
+        id: 'cmpl-raw',
+        model: 'mistral-large-latest',
+        choices: [
+          {
+            index: 0,
+            delta: {
+              toolCalls: [{ index: 0, function: { arguments: '"n": 1.50}' } }],
+            },
+            finishReason: 'tool_calls',
+          },
+        ],
+      },
+    ])
+
+    const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+    const chunks: Array<AdapterYieldChunk> = []
+    for await (const chunk of adapter.chatStream(
+      chatOpts({
+        model: 'mistral-large-latest',
+        messages: [{ role: 'user', content: 'Weather in Berlin?' }],
+        tools: [weatherTool],
+      }),
+    )) {
+      chunks.push(chunk)
+    }
+
+    const end = chunks.find((c) => c.type === 'TOOL_CALL_END')
+    expect(end).toMatchObject({
+      toolCallId: 'tc_raw',
+      args: '{"location": "Berlin", "n": 1.50}',
+      input: { location: 'Berlin' },
+    })
+  })
+
+  it('sends malformed raw arguments on TOOL_CALL_END without an input', async () => {
+    setupMockStream([
+      {
+        id: 'cmpl-bad',
+        model: 'mistral-large-latest',
+        choices: [
+          {
+            index: 0,
+            delta: {
+              toolCalls: [
+                {
+                  index: 0,
+                  id: 'tc_bad',
+                  function: { name: 'lookup_weather', arguments: '{"a":' },
+                },
+              ],
+            },
+            finishReason: 'tool_calls',
+          },
+        ],
+      },
+    ])
+
+    const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+    const chunks: Array<AdapterYieldChunk> = []
+    await expect(
+      (async () => {
+        for await (const chunk of adapter.chatStream(
+          chatOpts({
+            model: 'mistral-large-latest',
+            messages: [{ role: 'user', content: 'x' }],
+            tools: [weatherTool],
+          }),
+        )) {
+          chunks.push(chunk)
+        }
+      })(),
+    ).rejects.toThrow(/Failed to parse tool call arguments/)
+
+    const end = chunks.find((c) => c.type === 'TOOL_CALL_END')
+    expect(end).toMatchObject({ toolCallId: 'tc_bad', args: '{"a":' })
+    expect(end).not.toHaveProperty('input')
+  })
+
   it('sends stream_options.include_usage so Mistral returns usage on streaming', async () => {
     let capturedBody: unknown
     vi.stubGlobal(

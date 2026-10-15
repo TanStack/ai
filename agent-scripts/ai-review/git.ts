@@ -125,11 +125,11 @@ export async function readPullSnapshot(
 
 /** A git command exited non-zero. `args` lets a caller tell fetch from diff. */
 export class GitCommandError extends Error {
-  constructor(
-    readonly args: Array<string>,
-    message: string,
-  ) {
+  readonly args: Array<string>
+
+  constructor(args: Array<string>, message: string) {
     super(message)
+    this.args = args
   }
 }
 

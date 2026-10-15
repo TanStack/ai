@@ -1,12 +1,20 @@
 import OpenAI from 'openai'
 import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
-import { withBedrockDefaults } from '../utils/client'
+import {
+  isBedrockOpenAIContextOverflow,
+  withBedrockDefaults,
+} from '../utils/client'
+import {
+  BEDROCK_MODEL_INPUT_MODALITIES,
+  BEDROCK_MODEL_REASONING,
+} from '../model-meta'
 import type { Modality } from '@tanstack/ai'
 import type { BedrockClientConfig } from '../utils/client'
 import type { BedrockMessageMetadataByModality } from '../message-types'
 import type {
-  BedrockChatModelToolCapabilitiesByName,
   BedrockChatModels,
+  BedrockChatModelToolCapabilitiesByName,
+  BedrockModelReasoningByName,
   ResolveInputModalities,
   ResolveProviderOptions,
 } from '../model-meta'
@@ -16,6 +24,12 @@ export interface BedrockTextConfig
   extends BedrockClientConfig, OpenAIBaseTextAdapterOptions {}
 
 export type { ExternalTextProviderOptions as BedrockTextProviderOptions } from '../text/text-provider-options'
+
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof BedrockModelReasoningByName
+    ? BedrockModelReasoningByName[TModel]
+    : never
 
 type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof BedrockChatModelToolCapabilitiesByName
@@ -47,11 +61,13 @@ export class BedrockTextAdapter<
   TProviderOptions,
   TInputModalities,
   BedrockMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  ResolveReasoning<TModel>
 > {
   override readonly kind = 'text' as const
   override readonly name = 'bedrock' as const
   override readonly provider = 'amazon-bedrock'
+  override readonly inputModalities = BEDROCK_MODEL_INPUT_MODALITIES[this.model]
 
   constructor(config: BedrockTextConfig, model: TModel) {
     // No `forced` -> honors config.endpoint ('runtime' default, 'mantle' allowed).
@@ -60,6 +76,19 @@ export class BedrockTextAdapter<
       ...config,
       fetch: options.fetch,
     })
+  }
+
+  protected override isContextOverflow(error: {
+    message: string
+    code: string | undefined
+  }): boolean {
+    return (
+      super.isContextOverflow(error) || isBedrockOpenAIContextOverflow(error)
+    )
+  }
+
+  protected override modelReasoning(model: string) {
+    return BEDROCK_MODEL_REASONING[model]
   }
 
   /**

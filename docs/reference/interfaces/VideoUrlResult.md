@@ -3,7 +3,7 @@ id: VideoUrlResult
 title: VideoUrlResult
 ---
 
-Defined in: [packages/ai/src/types.ts:2438](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2438)
+Defined in: [packages/ai/src/types.ts:2654](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2654)
 
 **`Experimental`**
 
@@ -19,7 +19,7 @@ Result containing the URL to a generated video.
 optional artifacts?: PersistedArtifactRef[];
 ```
 
-Defined in: [packages/ai/src/types.ts:2452](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2452)
+Defined in: [packages/ai/src/types.ts:2668](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2668)
 
 **`Experimental`**
 
@@ -33,7 +33,7 @@ Persisted artifact references for generated assets, when available
 optional body?: undefined;
 ```
 
-Defined in: [packages/ai/src/types.ts:2453](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2453)
+Defined in: [packages/ai/src/types.ts:2669](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2669)
 
 **`Experimental`**
 
@@ -45,7 +45,7 @@ Defined in: [packages/ai/src/types.ts:2453](https://github.com/TanStack/ai/blob/
 optional expiresAt?: Date;
 ```
 
-Defined in: [packages/ai/src/types.ts:2444](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2444)
+Defined in: [packages/ai/src/types.ts:2660](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2660)
 
 **`Experimental`**
 
@@ -59,7 +59,7 @@ When the URL expires, if applicable
 jobId: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2440](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2440)
+Defined in: [packages/ai/src/types.ts:2656](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2656)
 
 **`Experimental`**
 
@@ -73,7 +73,7 @@ Job identifier
 url: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2442](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2442)
+Defined in: [packages/ai/src/types.ts:2658](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2658)
 
 **`Experimental`**
 
@@ -87,7 +87,7 @@ URL to the generated video
 optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [packages/ai/src/types.ts:2450](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2450)
+Defined in: [packages/ai/src/types.ts:2666](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2666)
 
 **`Experimental`**
 

@@ -1,5 +1,17 @@
 # @tanstack/ai-utils
 
+## 0.4.2
+
+### Patch Changes
+
+- [#1732](https://github.com/TanStack/ai/pull/1732) [`eb4eea0`](https://github.com/TanStack/ai/commit/eb4eea05b6c53b748bba5fd414b04ce387ead05d) - Keep a schema property or a tool argument named `__proto__`. Before this fix, code that copied it with `out[key] = value` went to the `__proto__` setter instead, so the key was lost.
+  - `@tanstack/ai-utils`: `transformNullsToUndefined` and `undoNullWidening` keep the key.
+  - `@tanstack/openai-base`: the strict schema and its null-widening map keep the key.
+  - `@tanstack/ai-mistral`: the null-widening map keeps the key.
+  - `@tanstack/ai-openrouter`: the Responses tool input normalizer keeps the key.
+  - `@tanstack/ai-gemini`: the Interactions adapter keeps the key in tool parameters.
+  - `@tanstack/ai-bedrock`: the Converse adapter puts the tool schemas and tool inputs back into the request body after the AWS SDK serializes it, because the SDK drops the key.
+
 ## 0.4.1
 
 ### Patch Changes

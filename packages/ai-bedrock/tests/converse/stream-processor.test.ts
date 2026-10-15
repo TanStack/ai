@@ -377,4 +377,66 @@ describe('processConverseStream', () => {
       events.filter((e) => e.type === EventType.TOOL_CALL_END),
     ).toHaveLength(2)
   })
+
+  it('puts the raw streamed argument string on TOOL_CALL_END', async () => {
+    const events = await collect(
+      {
+        contentBlockStart: {
+          start: { toolUse: { toolUseId: 't1', name: 'getX' } },
+          contentBlockIndex: 0,
+        },
+      },
+      {
+        contentBlockDelta: {
+          delta: { toolUse: { input: '{"n": ' } },
+          contentBlockIndex: 0,
+        },
+      },
+      {
+        contentBlockDelta: {
+          delta: { toolUse: { input: '1.50}' } },
+          contentBlockIndex: 0,
+        },
+      },
+      { contentBlockStop: { contentBlockIndex: 0 } },
+      { messageStop: { stopReason: 'tool_use' } },
+    )
+    const end = events.find((e) => e.type === EventType.TOOL_CALL_END)
+    expect(end).toMatchObject({ toolCallId: 't1', args: '{"n": 1.50}' })
+  })
+
+  it('puts malformed raw arguments on TOOL_CALL_END without an input', async () => {
+    const events = await collect(
+      {
+        contentBlockStart: {
+          start: { toolUse: { toolUseId: 't1', name: 'getX' } },
+          contentBlockIndex: 0,
+        },
+      },
+      {
+        contentBlockDelta: {
+          delta: { toolUse: { input: '{"a":' } },
+          contentBlockIndex: 0,
+        },
+      },
+      // Truncated: the drained END still carries the raw string.
+    )
+    const end = events.find((e) => e.type === EventType.TOOL_CALL_END)
+    expect(end).toMatchObject({ toolCallId: 't1', args: '{"a":' })
+    expect(end).not.toHaveProperty('input')
+  })
+
+  it('sends empty args on TOOL_CALL_END when no argument fragment arrived', async () => {
+    const events = await collect(
+      {
+        contentBlockStart: {
+          start: { toolUse: { toolUseId: 't1', name: 'getX' } },
+          contentBlockIndex: 0,
+        },
+      },
+      { contentBlockStop: { contentBlockIndex: 0 } },
+    )
+    const end = events.find((e) => e.type === EventType.TOOL_CALL_END)
+    expect(end).toMatchObject({ toolCallId: 't1', args: '' })
+  })
 })

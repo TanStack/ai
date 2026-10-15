@@ -9,6 +9,7 @@ import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   hashToolCallId,
   orderedAssistantBlocks,
+  resolveReasoning,
   tanstackMetadata,
   toRunErrorPayload,
   toRunErrorRawEvent,
@@ -23,18 +24,25 @@ import {
   convertFunctionToolToResponsesFormat,
   createToolInputNormalizer,
 } from '../internal/responses-tool-converter'
-import { OPENROUTER_MODEL_INPUT_MODALITIES } from '../model-meta'
+import {
+  OPENROUTER_MODEL_INPUT_MODALITIES,
+  OPENROUTER_MODEL_REASONING,
+} from '../model-meta'
+import { openRouterEffort } from '../internal/reasoning'
 import { isWebSearchTool } from '../tools/web-search-tool'
 import { isWebFetchTool } from '../tools/web-fetch-tool'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
+import { toOpenRouterRunErrorPayload } from '../utils/run-error'
 import { extractUsageCost } from './cost'
 import type { SDKOptions } from '@openrouter/sdk'
 import type { ResponsesFunctionTool } from '../internal/responses-tool-converter'
 import type {
   ContentPartAddedEventPart,
+  FunctionCallOutputItemOutputUnion1,
   InputsUnion,
   OpenResponsesResult,
   OutputItems,
+  ReasoningEffort,
   ResponsesRequest,
   StreamEvents,
 } from '@openrouter/sdk/models'
@@ -44,16 +52,19 @@ import type {
 } from '@tanstack/ai/adapters'
 import type {
   ContentPart,
+  ImagePart,
   JSONSchema,
   ModelMessage,
   AdapterYieldChunk,
   TextOptions,
+  ToolChoice,
 } from '@tanstack/ai'
 import type { ExternalResponsesProviderOptions } from '../text/responses-provider-options'
 import type {
   OPENROUTER_CHAT_MODELS,
   OpenRouterChatModelToolCapabilitiesByName,
   OpenRouterModelInputModalitiesByName,
+  OpenRouterModelReasoningByName,
 } from '../model-meta'
 import type {
   OpenRouterMessageMetadataByModality,
@@ -73,6 +84,7 @@ interface StreamedFunctionCallMetadata {
   index: number
   itemId: string
   name: string
+  namespace?: string
   started: boolean
   ended?: boolean
   pendingArguments?: string
@@ -84,6 +96,12 @@ export type OpenRouterResponsesTextModels =
 export type OpenRouterResponsesTextProviderOptions =
   ExternalResponsesProviderOptions
 
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof OpenRouterModelReasoningByName
+    ? OpenRouterModelReasoningByName[TModel]
+    : never
+
 type ResolveInputModalities<TModel extends string> =
   TModel extends keyof OpenRouterModelInputModalitiesByName
     ? OpenRouterModelInputModalitiesByName[TModel]
@@ -93,6 +111,14 @@ type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof OpenRouterChatModelToolCapabilitiesByName
     ? NonNullable<OpenRouterChatModelToolCapabilitiesByName[TModel]>
     : readonly []
+
+/** Maps `chat({ toolChoice })` to the OpenRouter Responses `toolChoice`. */
+function toOpenRouterResponsesToolChoice(
+  choice: ToolChoice,
+): NonNullable<ResponsesRequest['toolChoice']> {
+  if (typeof choice === 'string') return choice
+  return { type: 'function', name: choice.name }
+}
 
 /**
  * OpenRouter Responses (beta) Adapter — standalone implementation that talks
@@ -121,7 +147,9 @@ export class OpenRouterResponsesTextAdapter<
   ResolveInputModalities<TModel>,
   OpenRouterMessageMetadataByModality,
   TToolCapabilities,
-  OpenRouterResponsesToolCallMetadata
+  OpenRouterResponsesToolCallMetadata,
+  never,
+  ResolveReasoning<TModel>
 > {
   override readonly kind = 'text' as const
   readonly name = 'openrouter-responses' as const
@@ -205,7 +233,7 @@ export class OpenRouterResponsesTextAdapter<
     } catch (error: unknown) {
       // Narrow before logging: raw SDK errors can carry request metadata
       // (including auth headers) which we must never surface to user loggers.
-      const errorPayload = toRunErrorPayload(
+      const errorPayload = toOpenRouterRunErrorPayload(
         error,
         `${this.name}.chatStream failed`,
       )
@@ -333,6 +361,7 @@ export class OpenRouterResponsesTextAdapter<
             promptTokens: usage.inputTokens ?? 0,
             completionTokens: usage.outputTokens ?? 0,
             totalTokens: usage.totalTokens ?? 0,
+            ...cachedTokensDetails(usage),
             ...cost,
           },
         }),
@@ -408,6 +437,7 @@ export class OpenRouterResponsesTextAdapter<
     let usage:
       | {
           inputTokens?: number
+          inputTokensDetails?: { cachedTokens?: number }
           outputTokens?: number
           totalTokens?: number
         }
@@ -763,6 +793,7 @@ export class OpenRouterResponsesTextAdapter<
             promptTokens: usage.inputTokens ?? 0,
             completionTokens: usage.outputTokens ?? 0,
             totalTokens: usage.totalTokens ?? 0,
+            ...cachedTokensDetails(usage),
             ...extractUsageCost(usage),
           },
         }),
@@ -790,7 +821,7 @@ export class OpenRouterResponsesTextAdapter<
           : ''
       const isAbort =
         errName === 'AbortError' || errName === 'RequestAbortedError'
-      const errorPayload = toRunErrorPayload(
+      const errorPayload = toOpenRouterRunErrorPayload(
         error,
         `${this.name}.structuredOutputStream failed`,
       )
@@ -847,7 +878,10 @@ export class OpenRouterResponsesTextAdapter<
     const observedItemTypes = new Set<string>()
 
     for (const rawItem of response.output) {
-      const item = rawItem as { type: string; content?: ReadonlyArray<unknown> }
+      const item = camelCaseOutputItem(rawItem) as {
+        type: string
+        content?: ReadonlyArray<unknown>
+      }
       observedItemTypes.add(item.type)
       if (item.type === 'message') {
         sawMessageItem = true
@@ -1333,12 +1367,14 @@ export class OpenRouterResponsesTextAdapter<
                 index: chunk.outputIndex ?? 0,
                 itemId: item.id,
                 name: item.name || '',
+                ...(item.namespace && { namespace: item.namespace }),
                 started: false,
               }
               toolCallMetadata.set(item.id, metadata)
             } else {
               if (item.callId) metadata.callId = item.callId
               if (!metadata.name && item.name) metadata.name = item.name
+              if (item.namespace) metadata.namespace = item.namespace
             }
             if (!metadata.started && metadata.name) {
               yield {
@@ -1352,6 +1388,7 @@ export class OpenRouterResponsesTextAdapter<
                 index: chunk.outputIndex ?? 0,
                 metadata: {
                   itemId: metadata.itemId,
+                  ...(metadata.namespace && { namespace: metadata.namespace }),
                 } satisfies OpenRouterResponsesToolCallMetadata,
               }
               metadata.started = true
@@ -1434,7 +1471,7 @@ export class OpenRouterResponsesTextAdapter<
                   rawArguments: chunk.arguments,
                 },
               )
-              parsedInput = {}
+              parsedInput = undefined
             }
           }
 
@@ -1445,7 +1482,8 @@ export class OpenRouterResponsesTextAdapter<
             toolName: name,
             model: model || options.model,
             timestamp: Date.now(),
-            input: parsedInput,
+            args: chunk.arguments,
+            ...(parsedInput !== undefined && { input: parsedInput }),
           }
         }
 
@@ -1459,6 +1497,7 @@ export class OpenRouterResponsesTextAdapter<
               index: chunk.outputIndex ?? 0,
               itemId: item.id,
               name: item.name || '',
+              ...(item.namespace && { namespace: item.namespace }),
               started: false,
             }
             if (!toolCallMetadata.has(item.id)) {
@@ -1466,6 +1505,7 @@ export class OpenRouterResponsesTextAdapter<
             } else {
               if (item.callId) metadata.callId = item.callId
               if (!metadata.name && item.name) metadata.name = item.name
+              if (item.namespace) metadata.namespace = item.namespace
             }
             if (!metadata.started && metadata.name) {
               yield {
@@ -1479,6 +1519,7 @@ export class OpenRouterResponsesTextAdapter<
                 index: metadata.index,
                 metadata: {
                   itemId: metadata.itemId,
+                  ...(metadata.namespace && { namespace: metadata.namespace }),
                 } satisfies OpenRouterResponsesToolCallMetadata,
               }
               metadata.started = true
@@ -1512,7 +1553,7 @@ export class OpenRouterResponsesTextAdapter<
                       rawArguments: rawArgs,
                     },
                   )
-                  parsedInput = {}
+                  parsedInput = undefined
                 }
               }
               yield {
@@ -1522,7 +1563,8 @@ export class OpenRouterResponsesTextAdapter<
                 toolName: name,
                 model: model || options.model,
                 timestamp: Date.now(),
-                input: parsedInput,
+                args: rawArgs,
+                ...(parsedInput !== undefined && { input: parsedInput }),
               }
               metadata.ended = true
               metadata.pendingArguments = undefined
@@ -1583,6 +1625,7 @@ export class OpenRouterResponsesTextAdapter<
               index: 0,
               itemId: item.id,
               name: item.name || '',
+              ...(item.namespace && { namespace: item.namespace }),
               started: false,
             }
             if (!toolCallMetadata.has(item.id)) {
@@ -1590,6 +1633,7 @@ export class OpenRouterResponsesTextAdapter<
             } else {
               if (item.callId) metadata.callId = item.callId
               if (!metadata.name && item.name) metadata.name = item.name
+              if (item.namespace) metadata.namespace = item.namespace
             }
             if (!metadata.started && metadata.name) {
               yield {
@@ -1603,6 +1647,7 @@ export class OpenRouterResponsesTextAdapter<
                 index: metadata.index,
                 metadata: {
                   itemId: metadata.itemId,
+                  ...(metadata.namespace && { namespace: metadata.namespace }),
                 } satisfies OpenRouterResponsesToolCallMetadata,
               }
               metadata.started = true
@@ -1636,7 +1681,7 @@ export class OpenRouterResponsesTextAdapter<
                       rawArguments: rawArgs,
                     },
                   )
-                  parsedInput = {}
+                  parsedInput = undefined
                 }
               }
               yield {
@@ -1646,7 +1691,8 @@ export class OpenRouterResponsesTextAdapter<
                 toolName: name,
                 model: model || options.model,
                 timestamp: Date.now(),
-                input: parsedInput,
+                args: rawArgs,
+                ...(parsedInput !== undefined && { input: parsedInput }),
               }
               metadata.ended = true
               metadata.pendingArguments = undefined
@@ -1697,6 +1743,7 @@ export class OpenRouterResponsesTextAdapter<
               promptTokens: responseObj.usage?.inputTokens || 0,
               completionTokens: responseObj.usage?.outputTokens || 0,
               totalTokens: responseObj.usage?.totalTokens || 0,
+              ...cachedTokensDetails(responseObj.usage),
               ...extractUsageCost(responseObj.usage),
             },
             finishReason,
@@ -1748,7 +1795,7 @@ export class OpenRouterResponsesTextAdapter<
         }
       }
     } catch (error: unknown) {
-      const errorPayload = toRunErrorPayload(
+      const errorPayload = toOpenRouterRunErrorPayload(
         error,
         `${this.name}.processStreamChunks failed`,
       )
@@ -1831,6 +1878,22 @@ export class OpenRouterResponsesTextAdapter<
           )
         : undefined
 
+    // `chat({ reasoning })`: the effort, a summary so the thinking text
+    // streams back, and the token budget when the request sets one.
+    // `ReasoningEffort` is an open enum, so a newer value still goes out.
+    const resolved = resolveReasoning(
+      options.reasoning,
+      OPENROUTER_MODEL_REASONING[this.model],
+    )
+    const effort = openRouterEffort(resolved)
+
+    // `chat({ toolChoice })` is sent only when the request has tools. It goes
+    // before the `modelOptions` spread, so a `toolChoice` there wins.
+    const toolChoiceField =
+      tools?.length && options.toolChoice !== undefined
+        ? { toolChoice: toOpenRouterResponsesToolChoice(options.toolChoice) }
+        : undefined
+
     const built: Pick<
       ResponsesRequest,
       | 'model'
@@ -1844,7 +1907,9 @@ export class OpenRouterResponsesTextAdapter<
       | 'toolChoice'
       | 'parallelToolCalls'
       | 'text'
+      | 'reasoning'
     > = {
+      ...toolChoiceField,
       ...modelOptions,
       model: options.model + variantSuffix,
       // Root `metadata` is observability-only and intentionally not forwarded:
@@ -1861,6 +1926,18 @@ export class OpenRouterResponsesTextAdapter<
       ...(tools &&
         tools.length > 0 && {
           tools,
+        }),
+      ...(resolved &&
+        effort && {
+          reasoning: {
+            effort: effort as ReasoningEffort,
+            ...(resolved.summary && resolved.level !== 'off'
+              ? { summary: 'auto' as const }
+              : {}),
+            ...(resolved.budgetTokens !== undefined
+              ? { maxTokens: resolved.budgetTokens }
+              : {}),
+          },
         }),
       ...(combinedSchema && {
         // Merge onto any caller-supplied `text` (spread above via
@@ -1983,13 +2060,30 @@ export class OpenRouterResponsesTextAdapter<
 
     for (const message of messages) {
       if (message.role === 'tool') {
+        const content = message.content
+        // Images stay in the tool output as `input_image` parts. A model
+        // without image input gets the text only. Other media is not sent.
+        const hasImage =
+          Array.isArray(content) &&
+          content.some((part) => part.type === 'image')
+        const output =
+          Array.isArray(content) &&
+          hasImage &&
+          (this.inputModalities?.includes('image') ?? true)
+            ? content.flatMap(
+                (part): Array<FunctionCallOutputItemOutputUnion1> =>
+                  part.type === 'text'
+                    ? [{ type: 'input_text', text: part.content }]
+                    : part.type === 'image'
+                      ? [this.convertImagePartToInput(part)]
+                      : [],
+              )
+            : this.extractTextContent(content) ||
+              (hasImage ? '(image omitted: this model has no image input)' : '')
         result.push({
           type: 'function_call_output',
           callId: message.toolCallId ? callIdFor(message.toolCallId) : '',
-          output:
-            typeof message.content === 'string'
-              ? message.content
-              : this.extractTextContent(message.content),
+          output,
         })
         continue
       }
@@ -2008,19 +2102,20 @@ export class OpenRouterResponsesTextAdapter<
               typeof toolCall.function.arguments === 'string'
                 ? toolCall.function.arguments
                 : JSON.stringify(toolCall.function.arguments)
-            const itemId = (
-              toolCall.metadata as
-                | OpenRouterResponsesToolCallMetadata
-                | undefined
-            )?.itemId
+            const metadata = toolCall.metadata as
+              | OpenRouterResponsesToolCallMetadata
+              | undefined
             result.push({
               type: 'function_call',
               callId: callIdFor(toolCall.id),
               id: normalizedCompositeIds.has(toolCall.id)
                 ? (toolCall.id.split('|')[1] ?? toolCall.id)
-                : itemId || toolCall.id,
+                : metadata?.itemId || toolCall.id,
               name: toolCall.function.name,
               arguments: argumentsString,
+              // Without its namespace, the API cannot find a tool of a
+              // namespace tool group.
+              ...(metadata?.namespace && { namespace: metadata.namespace }),
             })
           }
         }
@@ -2089,6 +2184,27 @@ export class OpenRouterResponsesTextAdapter<
     return result
   }
 
+  /** An image part as `input_image`, for user content and tool outputs. */
+  protected convertImagePartToInput(part: ImagePart) {
+    const source = part.source
+    if (isFileSource(source)) {
+      throw unsupportedFileSourceError(this.name)
+    }
+    const meta = part.metadata as
+      | { detail?: 'auto' | 'low' | 'high' }
+      | undefined
+    const value = source.value
+    const imageUrl =
+      source.type === 'data' && !value.startsWith('data:')
+        ? `data:${source.mimeType || 'application/octet-stream'};base64,${value}`
+        : value
+    return {
+      type: 'input_image' as const,
+      imageUrl,
+      detail: meta?.detail || 'auto',
+    }
+  }
+
   protected convertContentPartToInput(
     part: ContentPart,
   ): ResponsesInputContent {
@@ -2112,21 +2228,8 @@ export class OpenRouterResponsesTextAdapter<
       throw unsupportedFileSourceError(this.name)
     }
     switch (part.type) {
-      case 'image': {
-        const meta = part.metadata as
-          | { detail?: 'auto' | 'low' | 'high' }
-          | undefined
-        const value = source.value
-        const imageUrl =
-          source.type === 'data' && !value.startsWith('data:')
-            ? `data:${source.mimeType || 'application/octet-stream'};base64,${value}`
-            : value
-        return {
-          type: 'input_image',
-          imageUrl,
-          detail: meta?.detail || 'auto',
-        }
-      }
+      case 'image':
+        return this.convertImagePartToInput(part)
       case 'audio': {
         if (source.type === 'url') {
           // OpenRouter's `input_audio` carries `{ data, format }` not a URL —
@@ -2237,7 +2340,8 @@ interface NormalizedStreamEvent {
  * snake_case keys to camelCase for those unknown events so the rest of the
  * processor reads a uniform shape.
  *
- * Known events already have camelCase fields and are passed through.
+ * Known events already have camelCase fields. Their output items can still
+ * be the SDK's `UNKNOWN` fallback, so those are read from the raw item.
  */
 function normalizeStreamEvent(event: StreamEvents): NormalizedStreamEvent {
   const e = event as {
@@ -2278,8 +2382,21 @@ function normalizeStreamEvent(event: StreamEvents): NormalizedStreamEvent {
     return out as unknown as NormalizedStreamEvent
   }
 
+  // The SDK falls back to the raw item for an output item that fails its
+  // schema, inside a known event too.
+  if (!e.item && !e.response) {
+    // oxlint-disable-next-line eslint-js/no-restricted-syntax -- NormalizedStreamEvent is a discriminated union; the upstream `event` is a passthrough whose variant TS can't infer here.
+    return event as unknown as NormalizedStreamEvent
+  }
+  const out: Record<string, unknown> = { ...e }
+  if (e.item && typeof e.item === 'object') {
+    out.item = camelCaseOutputItem(e.item as Record<string, unknown>)
+  }
+  if (e.response && typeof e.response === 'object') {
+    out.response = camelCaseResponseShape(e.response as Record<string, unknown>)
+  }
   // oxlint-disable-next-line eslint-js/no-restricted-syntax -- NormalizedStreamEvent is a discriminated union; the upstream `event` is a passthrough whose variant TS can't infer here.
-  return event as unknown as NormalizedStreamEvent
+  return out as unknown as NormalizedStreamEvent
 }
 
 /** Translate snake_case keys in a `response` payload to camelCase for the
@@ -2305,6 +2422,12 @@ function camelCaseResponseShape(
       ...('input_tokens' in u && { inputTokens: u.input_tokens }),
       ...('output_tokens' in u && { outputTokens: u.output_tokens }),
       ...('total_tokens' in u && { totalTokens: u.total_tokens }),
+      ...(isRecord(u.input_tokens_details) &&
+        typeof u.input_tokens_details.cached_tokens === 'number' && {
+          inputTokensDetails: {
+            cachedTokens: u.input_tokens_details.cached_tokens,
+          },
+        }),
     }
   }
   if (Array.isArray(src.output)) {
@@ -2317,13 +2440,28 @@ function camelCaseResponseShape(
   return out
 }
 
-/** Translate snake_case keys in an output item to camelCase. */
+/** Translate snake_case keys in an output item to camelCase. An item the
+ *  SDK could not parse (`{ raw, type: 'UNKNOWN', isUnknown: true }`) is read
+ *  from its raw wire shape. */
 function camelCaseOutputItem(
-  src: Record<string, unknown>,
+  item: Record<string, unknown>,
 ): Record<string, unknown> {
+  const src = item.isUnknown === true && isRecord(item.raw) ? item.raw : item
   const out: Record<string, unknown> = { ...src }
   if ('call_id' in src) out.callId = src.call_id
   return out
+}
+
+/** `promptTokensDetails` with the cached input tokens, when there are any. */
+function cachedTokensDetails(
+  usage: { inputTokensDetails?: { cachedTokens?: number } } | null | undefined,
+) {
+  const cachedTokens = usage?.inputTokensDetails?.cachedTokens
+  return cachedTokens ? { promptTokensDetails: { cachedTokens } } : {}
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /** Normalize an `error.code` to the string slot our RUN_ERROR event reads. */

@@ -48,13 +48,13 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 chat({
   adapter: grokText('grok-4.6'),
   messages,
+  // Reasoning: goes out as reasoning.effort
+  reasoning: 'high',
   modelOptions: {
     // Sampling (Responses API names)
     temperature: 0.7,
     top_p: 0.9,
     max_output_tokens: 4096,
-    // Reasoning (reasoning-capable models)
-    reasoning: { effort: 'high' }, // 'none' | 'low' | 'medium' | 'high'
     // Response storage (adapter default: false)
     store: false,
     // End-user id for abuse monitoring
@@ -75,11 +75,12 @@ The adapter uses the OpenAI SDK with xAI's base URL (`https://api.x.ai/v1`).
 ## Gotchas
 
 - Uses the OpenAI SDK under the hood with a custom `baseURL`.
-- All four chat models support reasoning; `grok-build-0.1` is the exception
-  in that it rejects the `reasoning` option (`GrokBuildProviderOptions`).
+- The reasoning models take `chat({ reasoning })`, sent as
+  `reasoning.effort`. `grok-build-0.1` takes no `reasoning`, because xAI
+  rejects the field for it.
 - `grok-4.5` / `grok-4.6` accept `text`, `image`, and `document` input;
   `grok-4.3` / `grok-build-0.1` accept `text` and `image`.
 - Provider options are a subset of OpenAI's Responses options:
-  `temperature`, `top_p`, `max_output_tokens`, `reasoning`, `store`,
+  `temperature`, `top_p`, `max_output_tokens`, `store`,
   `include`, `user`. There is no `max_tokens`, `frequency_penalty`,
   `presence_penalty`, `stop`, or `metadata`.

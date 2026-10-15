@@ -2,6 +2,22 @@
   "fixtures": [
     {
       "match": {
+        "userMessage": "[json-transport-structured] recommend a guitar"
+      },
+      "response": {
+        "content": "{\"name\":\"Fender Stratocaster\",\"price\":1299,\"reason\":\"Versatile tone and comfortable playability\",\"rating\":5,\"condition\":null}"
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[json-transport-structured] a cheaper one"
+      },
+      "response": {
+        "content": "{\"name\":\"Squier Classic Vibe\",\"price\":449,\"reason\":\"Great value for the sound\",\"rating\":4,\"condition\":null}"
+      }
+    },
+    {
+      "match": {
         "userMessage": "[json-transport-text] say hello"
       },
       "response": {

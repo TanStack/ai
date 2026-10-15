@@ -49,13 +49,9 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 chat({
   adapter: openRouterText('deepseek/deepseek-v4-pro'),
   messages,
+  // Reasoning: goes out as reasoning.effort ('off' sends 'none')
+  reasoning: 'high',
   modelOptions: {
-    // Reasoning
-    reasoning: {
-      effort: 'high', // 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
-      summary: 'auto',
-      // enabled: false — explicit opt-out (normalized to effort: 'none')
-    },
     // Sampling
     temperature: 0.7,
     topP: 0.9,
@@ -102,9 +98,9 @@ OPENROUTER_API_KEY
     `response-healing`, `moderation`, `auto-router`)
 - Uses `camelCase` for option names (e.g., `topP`, `frequencyPenalty`,
   `maxCompletionTokens`), unlike OpenAI's `snake_case`.
-- `reasoning` is `{ effort, summary, enabled }` — there is no
-  `max_tokens`/`exclude` inside it; `enabled: false` is normalized to
-  `effort: 'none'`.
+- `chat({ reasoning })` goes out as `reasoning.effort`. `off` sends
+  `effort: 'none'`. The chat adapter takes no `budgetTokens`. The Responses
+  adapter sends `budgetTokens` as `reasoning.maxTokens`.
 - Per-model options are narrowed from OpenRouter's published metadata, so
   keys like `frequencyPenalty`, `seed`, `logprobs`, or `responseFormat` are
   only accepted on models that support them. `topK`, `minP`,

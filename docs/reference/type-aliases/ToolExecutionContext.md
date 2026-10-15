@@ -7,7 +7,7 @@ title: ToolExecutionContext
 type ToolExecutionContext<TContext> = RuntimeContextField<TContext> & object;
 ```
 
-Defined in: [packages/ai/src/types.ts:771](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L771)
+Defined in: [packages/ai/src/types.ts:870](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L870)
 
 Context passed to tool execute functions, providing capabilities like
 emitting custom events during execution.
@@ -23,6 +23,37 @@ optional abortSignal?: AbortSignal;
 Abort signal for the current chat run. Aborts when the run's
 `abortController` fires (or middleware aborts). Long-running tools —
 e.g. MCP `callTool` — should forward this to cancel in-flight work.
+
+### detach?
+
+```ts
+optional detach?: (work) => Promise<string>;
+```
+
+Set when the host can move this call to the background. Pass it the
+work of the call, and race the two promises. It resolves to a short
+note for the model when the user moves the call. The work keeps
+running, and the host tells the model its result when it ends.
+`chat()` does not set it: a host wraps the tool's `execute` to add it.
+The note is a string. An object `outputSchema` rejects it. A string
+schema, or no schema, accepts it.
+
+#### Parameters
+
+##### work
+
+`Promise`\<`unknown`\>
+
+#### Returns
+
+`Promise`\<`string`\>
+
+#### Example
+
+```ts
+const work = runJob(args)
+return context?.detach ? Promise.race([work, context.detach(work)]) : work
+```
 
 ### emitCustomEvent
 

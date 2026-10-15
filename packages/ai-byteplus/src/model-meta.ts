@@ -19,9 +19,39 @@
  * - The Seedance 2.0 family *requires* the `dreamina-` prefix.
  * - Older models reject the `dola-` prefix outright.
  */
-import type { Modality } from '@tanstack/ai'
+import type { Modality, ModelReasoning } from '@tanstack/ai'
+import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
 import type { DurationOptions } from '@tanstack/ai/adapters'
 import type { BytePlusTextProviderOptions } from './text/text-provider-options'
+
+// Reasoning shapes: the levels a model has for `chat({ reasoning })`, and
+// the provider value to send for each. Each model points at one of them.
+const EFFORT_DISABLED_ENABLED = {
+  levels: { off: 'disabled', high: 'enabled' },
+  budget: false,
+} as const
+const EFFORT_DISABLED_HIGH_MAX = {
+  levels: { off: 'disabled', high: 'high', max: 'max' },
+  budget: false,
+} as const
+const EFFORT_LOW_TO_HIGH = {
+  levels: { low: 'low', medium: 'medium', high: 'high' },
+  budget: false,
+} as const
+const EFFORT_MINIMAL_TO_HIGH = {
+  levels: { minimal: 'minimal', low: 'low', medium: 'medium', high: 'high' },
+  budget: false,
+} as const
+const EFFORT_NONE_MINIMAL_TO_HIGH = {
+  levels: {
+    off: 'none',
+    minimal: 'minimal',
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+  },
+  budget: false,
+} as const
 
 /**
  * BytePlus exposes no server-side provider tools (no hosted web search, code
@@ -47,6 +77,8 @@ interface ModelMeta {
   context_window?: number
   max_input_tokens?: number
   max_output_tokens?: number
+  /** The model's data for `chat({ reasoning })`. None: it does not reason. */
+  reasoning?: ModelReasoning
 }
 
 // ============================================================================
@@ -64,6 +96,7 @@ const DOLA_SEED_2_1_TURBO = {
     capabilities: ['reasoning', 'tool_calling', 'structured_outputs'],
     tools: [] as const,
   },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta
 
 const SEED_2_0_LITE_260428 = {
@@ -78,6 +111,7 @@ const SEED_2_0_LITE_260428 = {
     capabilities: ['reasoning', 'tool_calling'],
     tools: [] as const,
   },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta
 
 const SEED_2_0_MINI_260428 = {
@@ -92,6 +126,7 @@ const SEED_2_0_MINI_260428 = {
     capabilities: ['reasoning', 'tool_calling'],
     tools: [] as const,
   },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta
 
 const SEED_2_0_PRO_260328 = {
@@ -107,6 +142,7 @@ const SEED_2_0_PRO_260328 = {
     capabilities: ['reasoning', 'tool_calling', 'structured_outputs'],
     tools: [] as const,
   },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta
 
 const SEED_2_0_LITE_260228 = {
@@ -120,6 +156,7 @@ const SEED_2_0_LITE_260228 = {
     capabilities: ['reasoning', 'tool_calling', 'structured_outputs'],
     tools: [] as const,
   },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta
 
 const SEED_2_0_MINI_260215 = {
@@ -133,6 +170,7 @@ const SEED_2_0_MINI_260215 = {
     capabilities: ['reasoning', 'tool_calling', 'structured_outputs'],
     tools: [] as const,
   },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta
 
 const SEED_2_0_CODE_PREVIEW_260328 = {
@@ -146,6 +184,7 @@ const SEED_2_0_CODE_PREVIEW_260328 = {
     capabilities: ['reasoning', 'tool_calling'],
     tools: [] as const,
   },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta
 
 const SEED_1_8_251228 = {
@@ -159,6 +198,7 @@ const SEED_1_8_251228 = {
     capabilities: ['reasoning', 'tool_calling', 'structured_outputs'],
     tools: [] as const,
   },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta
 
 const SEED_1_6_250915 = {
@@ -172,6 +212,7 @@ const SEED_1_6_250915 = {
     capabilities: ['reasoning', 'tool_calling', 'structured_outputs'],
     tools: [] as const,
   },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta
 
 const SEED_1_6_250615 = {
@@ -185,6 +226,7 @@ const SEED_1_6_250615 = {
     capabilities: ['reasoning', 'tool_calling', 'structured_outputs'],
     tools: [] as const,
   },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta
 
 const SEED_1_6_FLASH_250715 = {
@@ -198,6 +240,7 @@ const SEED_1_6_FLASH_250715 = {
     capabilities: ['reasoning', 'tool_calling', 'structured_outputs'],
     tools: [] as const,
   },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta
 
 const SEED_1_6_FLASH_250615 = {
@@ -211,6 +254,7 @@ const SEED_1_6_FLASH_250615 = {
     capabilities: ['reasoning', 'tool_calling', 'structured_outputs'],
     tools: [] as const,
   },
+  reasoning: EFFORT_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta
 
 const GLM_5_2_260617 = {
@@ -226,6 +270,7 @@ const GLM_5_2_260617 = {
     capabilities: ['reasoning', 'tool_calling', 'structured_outputs'],
     tools: [] as const,
   },
+  reasoning: EFFORT_NONE_MINIMAL_TO_HIGH,
 } as const satisfies ModelMeta
 
 const GLM_4_7_251222 = {
@@ -243,6 +288,7 @@ const GLM_4_7_251222 = {
     capabilities: ['reasoning', 'tool_calling'],
     tools: [] as const,
   },
+  reasoning: EFFORT_DISABLED_ENABLED,
 } as const satisfies ModelMeta
 
 const DEEPSEEK_V4_PRO_260425 = {
@@ -256,6 +302,7 @@ const DEEPSEEK_V4_PRO_260425 = {
     capabilities: ['reasoning', 'tool_calling'],
     tools: [] as const,
   },
+  reasoning: EFFORT_DISABLED_HIGH_MAX,
 } as const satisfies ModelMeta
 
 const DEEPSEEK_V4_FLASH_260425 = {
@@ -269,6 +316,7 @@ const DEEPSEEK_V4_FLASH_260425 = {
     capabilities: ['reasoning', 'tool_calling'],
     tools: [] as const,
   },
+  reasoning: EFFORT_DISABLED_HIGH_MAX,
 } as const satisfies ModelMeta
 
 // The one model on Ark that defaults to `thinking: disabled`.
@@ -284,6 +332,7 @@ const DEEPSEEK_V3_2_251201 = {
     capabilities: ['reasoning', 'tool_calling'],
     tools: [] as const,
   },
+  reasoning: EFFORT_DISABLED_ENABLED,
 } as const satisfies ModelMeta
 
 // The only model accepting `thinking: {type: 'auto'}`. Tool calling is
@@ -299,6 +348,7 @@ const GPT_OSS_120B_250805 = {
     capabilities: ['reasoning'],
     tools: [] as const,
   },
+  reasoning: EFFORT_LOW_TO_HIGH,
 } as const satisfies ModelMeta
 
 /**
@@ -994,3 +1044,51 @@ export type ResolveInputModalities<TModel extends string> =
   TModel extends keyof BytePlusModelInputModalitiesByName
     ? BytePlusModelInputModalitiesByName[TModel]
     : readonly ['text']
+
+// Reasoning
+//
+// Each model's `reasoning` field holds its data for `chat({ reasoning })`: the
+// levels it has, with the provider value for each, and whether it takes a
+// thinking token budget. The data comes from models.dev. The generator that
+// writes it comes with the model catalog later. Until then, the sync scripts
+// keep these fields as they are.
+
+const BYTEPLUS_REASONING = {
+  [DOLA_SEED_2_1_TURBO.name]: DOLA_SEED_2_1_TURBO.reasoning,
+  [SEED_2_0_LITE_260428.name]: SEED_2_0_LITE_260428.reasoning,
+  [SEED_2_0_MINI_260428.name]: SEED_2_0_MINI_260428.reasoning,
+  [SEED_2_0_PRO_260328.name]: SEED_2_0_PRO_260328.reasoning,
+  [SEED_2_0_LITE_260228.name]: SEED_2_0_LITE_260228.reasoning,
+  [SEED_2_0_MINI_260215.name]: SEED_2_0_MINI_260215.reasoning,
+  [SEED_2_0_CODE_PREVIEW_260328.name]: SEED_2_0_CODE_PREVIEW_260328.reasoning,
+  [SEED_1_8_251228.name]: SEED_1_8_251228.reasoning,
+  [SEED_1_6_250915.name]: SEED_1_6_250915.reasoning,
+  [SEED_1_6_250615.name]: SEED_1_6_250615.reasoning,
+  [SEED_1_6_FLASH_250715.name]: SEED_1_6_FLASH_250715.reasoning,
+  [SEED_1_6_FLASH_250615.name]: SEED_1_6_FLASH_250615.reasoning,
+  [GLM_5_2_260617.name]: GLM_5_2_260617.reasoning,
+  [GLM_4_7_251222.name]: GLM_4_7_251222.reasoning,
+  [DEEPSEEK_V4_PRO_260425.name]: DEEPSEEK_V4_PRO_260425.reasoning,
+  [DEEPSEEK_V4_FLASH_260425.name]: DEEPSEEK_V4_FLASH_260425.reasoning,
+  [DEEPSEEK_V3_2_251201.name]: DEEPSEEK_V3_2_251201.reasoning,
+  [GPT_OSS_120B_250805.name]: GPT_OSS_120B_250805.reasoning,
+}
+
+/**
+ * Each chat model's reasoning levels, and whether it takes a token budget,
+ * for `chat({ reasoning })`. Derived from the `reasoning` field. A model
+ * that is not here does not reason.
+ */
+export type BytePlusModelReasoningByName = {
+  [K in keyof typeof BYTEPLUS_REASONING]: ModelReasoningCapability<
+    (typeof BYTEPLUS_REASONING)[K]
+  >
+}
+
+/**
+ * Runtime map from chat model name to its reasoning data, for the text adapter.
+ * An unknown name gives `undefined`: the adapter sends no reasoning field.
+ */
+export const BYTEPLUS_MODEL_REASONING: Readonly<
+  Record<string, ModelReasoning>
+> = BYTEPLUS_REASONING

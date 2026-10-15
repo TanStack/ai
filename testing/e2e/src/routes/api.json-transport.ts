@@ -12,6 +12,7 @@ import {
   withPersistence,
 } from '@tanstack/ai-persistence'
 import { createTextAdapter } from '@/lib/providers'
+import { guitarRecommendationSchema } from '@/lib/schemas'
 import { clientToolDefinitions, serverTools } from '@/lib/tools-test-tools'
 
 /**
@@ -25,6 +26,9 @@ import { clientToolDefinitions, serverTools } from '@/lib/tools-test-tools'
  * - GET with `?threadId=` is the `persistence: true` mount hydrate. It reads
  *   `withPersistence` state through `reconstructChat`, so a reload during a
  *   run sees `activeRun` and the client joins it.
+ *
+ * - POST with `forwardedProps.structured` awaits `chat({ outputSchema })` and
+ *   sends the typed object with `toJsonResponse`.
  *
  * aimock is reached through the OpenAI adapter; `testId` / `aimockPort` ride
  * in `forwardedProps`.
@@ -54,6 +58,17 @@ export const Route = createFileRoute('/api/json-transport')({
         const testId = typeof fp.testId === 'string' ? fp.testId : undefined
         const aimockPort =
           fp.aimockPort != null ? Number(fp.aimockPort) : undefined
+
+        if (fp.structured === true) {
+          const guitar = await chat({
+            ...createTextAdapter('openai', undefined, aimockPort, testId),
+            messages: params.messages,
+            threadId: params.threadId,
+            runId: params.runId,
+            outputSchema: guitarRecommendationSchema,
+          })
+          return toJsonResponse(guitar)
+        }
 
         const stream = chat({
           ...createTextAdapter('openai', undefined, aimockPort, testId),

@@ -63,6 +63,9 @@ export default async function globalSetup() {
     '/v1beta/models/gemini-2.5-flash-lite:streamGenerateContent',
     geminiJsonSchemaToolMount(),
   )
+  // `chat({ reasoning })` wire check for Gemini: aimock's journal normalizes
+  // the body, so this mount checks `generationConfig.thinkingConfig` itself.
+  mock.mount('/reasoning-wire-gemini', geminiReasoningWireMount())
   // Gemini Veo video generation. aimock 1.29 mocks Gemini's `:predict`
   // (Imagen) endpoint but not the long-running `:predictLongRunning` +
   // operations-polling pair Veo uses, so mount both here. Non-Veo paths
@@ -154,6 +157,9 @@ export default async function globalSetup() {
   // Provider-executed web search responses need native Responses/Gemini wire
   // items that aimock does not synthesize. These mounts feed the adapter E2E
   // route deterministic search calls and grounding metadata.
+  // OpenAI Responses usage for a call that writes the prompt cache (#1734).
+  // aimock's native Responses helper cannot emit `input_tokens_details`.
+  mock.mount('/openai-responses-usage', openaiResponsesUsageMount())
   mock.mount('/provider-search-openai', openaiProviderSearchMount())
   mock.mount('/provider-search-gemini', geminiProviderSearchMount())
 
@@ -374,6 +380,65 @@ function geminiJsonSchemaToolMount(): Mountable {
               content: {
                 role: 'model',
                 parts: [{ text: 'Schema accepted' }],
+              },
+              finishReason: 'STOP',
+              index: 0,
+            },
+          ],
+          usageMetadata: {
+            promptTokenCount: 1,
+            candidatesTokenCount: 1,
+            totalTokenCount: 2,
+          },
+        })}\n\n`,
+      )
+      return true
+    },
+  }
+}
+
+/**
+ * Answers a Gemini stream request only when `chat({ reasoning: { level:
+ * 'medium' } })` reached the wire as a medium thinking budget.
+ */
+function geminiReasoningWireMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+    ): Promise<boolean> {
+      if (req.method !== 'POST') return false
+      const body = await readJsonRequestBody(req)
+      const thinking = asRecord(
+        asRecord(body?.generationConfig)?.thinkingConfig,
+      )
+      if (
+        thinking?.includeThoughts !== true ||
+        thinking.thinkingBudget !== 8192 ||
+        thinking.thinkingLevel !== undefined
+      ) {
+        res.statusCode = 400
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            error: {
+              code: 400,
+              message: `Expected a thinking budget of 8192, got ${JSON.stringify(thinking)}.`,
+              status: 'INVALID_ARGUMENT',
+            },
+          }),
+        )
+        return true
+      }
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'text/event-stream')
+      res.end(
+        `data: ${JSON.stringify({
+          candidates: [
+            {
+              content: {
+                role: 'model',
+                parts: [{ text: 'Thinking config accepted' }],
               },
               finishReason: 'STOP',
               index: 0,
@@ -1888,6 +1953,68 @@ function openaiUsageDetailsMount(
       res.setHeader('Connection', 'keep-alive')
       for (const chunk of chunks) {
         res.write(`data: ${JSON.stringify(chunk)}\n\n`)
+      }
+      res.write('data: [DONE]\n\n')
+      res.end()
+      return true
+    },
+  }
+}
+
+function openaiResponsesUsageMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (req.method !== 'POST' || pathname !== '/v1/responses') {
+        return false
+      }
+      await drainBody(req)
+
+      const message = {
+        id: 'msg_e2e_usage',
+        type: 'message',
+        role: 'assistant',
+        status: 'completed',
+        content: [{ type: 'output_text', text: 'Hi', annotations: [] }],
+      }
+      const events = [
+        {
+          type: 'response.output_text.delta',
+          item_id: 'msg_e2e_usage',
+          output_index: 0,
+          content_index: 0,
+          delta: 'Hi',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp_e2e_usage',
+            object: 'response',
+            status: 'completed',
+            model: 'gpt-4o',
+            output: [message],
+            usage: {
+              input_tokens: 1941,
+              input_tokens_details: {
+                cached_tokens: 0,
+                cache_write_tokens: 1938,
+              },
+              output_tokens: 5,
+              output_tokens_details: { reasoning_tokens: 0 },
+              total_tokens: 1946,
+            },
+          },
+        },
+      ]
+
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'text/event-stream')
+      res.setHeader('Cache-Control', 'no-cache')
+      for (const event of events) {
+        res.write(`data: ${JSON.stringify(event)}\n\n`)
       }
       res.write('data: [DONE]\n\n')
       res.end()

@@ -153,7 +153,7 @@ interface BaseCreateChatReturn<
    * 'structured-output')` is typed by the schema — `data: T`,
    * `partial: DeepPartial<T>`.
    */
-  readonly messages: Array<UIMessage<TTools, TData>>
+  readonly messages: ReadonlyArray<UIMessage<TTools, TData>>
 
   /**
    * Send a message and get a response.
@@ -169,7 +169,7 @@ interface BaseCreateChatReturn<
   /**
    * Pending messages queued while a stream is in flight.
    */
-  readonly queue: Array<QueuedMessage>
+  readonly queue: ReadonlyArray<QueuedMessage>
 
   /**
    * Cancel a queued message before it drains. No-op if already sent.
@@ -279,7 +279,7 @@ interface BaseCreateChatReturn<
   /**
    * Set messages manually
    */
-  setMessages: (messages: Array<UIMessage<TTools, TData>>) => void
+  setMessages: (messages: ReadonlyArray<UIMessage<TTools, TData>>) => void
 
   /**
    * Clear all messages

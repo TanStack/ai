@@ -1,5 +1,55 @@
 # @tanstack/ai-grok
 
+## 0.22.0
+
+### Minor Changes
+
+- [#1739](https://github.com/TanStack/ai/pull/1739) [`a0150c2`](https://github.com/TanStack/ai/commit/a0150c26b9e2b6050663450171e36a9dfa80915b) - Text adapters now set one stable code on `RUN_ERROR` when the input does not fit in the model's context window: `code: 'context_overflow'`. `@tanstack/ai` exports it as `CONTEXT_OVERFLOW_CODE`. The provider's own text stays in `message`.
+
+  ```ts
+  if (chunk.type === 'RUN_ERROR' && chunk.code === CONTEXT_OVERFLOW_CODE) {
+    // shorten the messages, then call chat() again
+  }
+  ```
+
+  These adapters set it: OpenAI and the other OpenAI-compatible adapters (from `code: 'context_length_exceeded'`), Anthropic, Gemini, Bedrock (Converse, Chat Completions, and Responses), OpenRouter, Grok, Cloudflare Workers AI, and BytePlus.
+
+  Changes to code that reads the old values:
+  - OpenAI-compatible adapters gave `code: 'context_length_exceeded'`. They now give `'context_overflow'`. `rawEvent` still has the provider's code.
+  - Anthropic, Grok, OpenRouter, and BytePlus gave the HTTP status or a general bad-request code for this error. Gemini and Bedrock Converse gave no code.
+  - The Anthropic adapter now sends `RUN_ERROR` with this code when the model stops with `stop_reason: 'model_context_window_exceeded'`. Before, it sent `RUN_FINISHED` with `finishReason: 'stop'`, so a cut-off answer looked complete.
+
+- [#1692](https://github.com/TanStack/ai/pull/1692) [`7532b2b`](https://github.com/TanStack/ai/commit/7532b2b09188ebd1095a60a7c5df6ef08b06916c) - Set reasoning with `chat({ reasoning })`.
+  - The adapter sends the level as `reasoning.effort`, with a summary.
+  - Each chat model has its reasoning data in `model-meta.ts`. `GrokModelReasoningByName` and `GROK_MODEL_REASONING` come from it. `grok-build-0.1` takes no `reasoning`, because the xAI API refuses it.
+
+  Breaking: `reasoning` is no longer in `modelOptions`. `GrokReasoning`, `GrokReasoningEffort`, and `GrokBuildProviderOptions` are removed.
+
+  ```ts
+  // Before
+  chat({
+    adapter: grokText('grok-4.3'),
+    messages,
+    modelOptions: { reasoning: { effort: 'high' } },
+  })
+
+  // After
+  chat({ adapter: grokText('grok-4.3'), messages, reasoning: 'high' })
+  ```
+
+### Patch Changes
+
+- [#1692](https://github.com/TanStack/ai/pull/1692) [`7532b2b`](https://github.com/TanStack/ai/commit/7532b2b09188ebd1095a60a7c5df6ef08b06916c) - Send `chat({ toolChoice })` to each provider.
+  - **Anthropic and Bedrock Converse.** Claude Fable 5.1, Mythos 5.1, Opus 5.5, and Sonnet 5.5 reject a forced tool, and every Claude model rejects one while thinking is on. On those, `'required'` and a named tool fall back to `auto`.
+  - **Bedrock Converse** has no `none`. `'none'` sends no tool config. Bedrock refuses tool calls in the history without a tool config, so the history goes out as text.
+  - **Gemini** maps the choice to `functionCallingConfig` (`AUTO`, `NONE`, `ANY`, and `allowedFunctionNames`). With only provider tools, such as Google Search, it sends no tool config.
+  - **OpenAI and Azure OpenAI (Responses), Grok, Mistral, and OpenRouter** (Chat Completions and Responses) send their own `tool_choice` shape.
+
+- Updated dependencies [[`1bfcee3`](https://github.com/TanStack/ai/commit/1bfcee35bb3cf0ff3aac005440c842e66c3d687d), [`b881627`](https://github.com/TanStack/ai/commit/b881627d51076dcc1af031ac951046e2fb7d84c4), [`412b0fe`](https://github.com/TanStack/ai/commit/412b0fea4f4bb569998c3d253d174efd7b501e3c), [`a0150c2`](https://github.com/TanStack/ai/commit/a0150c26b9e2b6050663450171e36a9dfa80915b), [`20954cc`](https://github.com/TanStack/ai/commit/20954ccbe62c6e1c44a5bb57f3d73215670488aa), [`b881627`](https://github.com/TanStack/ai/commit/b881627d51076dcc1af031ac951046e2fb7d84c4), [`fac0555`](https://github.com/TanStack/ai/commit/fac055559de98eb0fa23a0bc725808033ba3c2fc), [`6774e80`](https://github.com/TanStack/ai/commit/6774e803da3205101613ab2857c9ed4fbf975681), [`5bd27f2`](https://github.com/TanStack/ai/commit/5bd27f2fc94ebfb6d11bfb28d46d5d858310805e), [`c20f7b0`](https://github.com/TanStack/ai/commit/c20f7b021aa618fbfcc114b3f0bef5e888ff6b84), [`cef1911`](https://github.com/TanStack/ai/commit/cef19119c76fc5f618d6c971efbc486323b213c3), [`51f72fb`](https://github.com/TanStack/ai/commit/51f72fbf60e201f9c8d014aefa6406e777c05d6a), [`6f1e559`](https://github.com/TanStack/ai/commit/6f1e55934fe95ddf2bf3fb3031488a713e48c7af), [`eb4eea0`](https://github.com/TanStack/ai/commit/eb4eea05b6c53b748bba5fd414b04ce387ead05d), [`cef1911`](https://github.com/TanStack/ai/commit/cef19119c76fc5f618d6c971efbc486323b213c3), [`7532b2b`](https://github.com/TanStack/ai/commit/7532b2b09188ebd1095a60a7c5df6ef08b06916c), [`7532b2b`](https://github.com/TanStack/ai/commit/7532b2b09188ebd1095a60a7c5df6ef08b06916c), [`1bfcee3`](https://github.com/TanStack/ai/commit/1bfcee35bb3cf0ff3aac005440c842e66c3d687d), [`78edeb2`](https://github.com/TanStack/ai/commit/78edeb20a5ba89f2513c3f46f1267a7ed7185045), [`44e3a0a`](https://github.com/TanStack/ai/commit/44e3a0a89c86defebd38b2221dd3b7725a12839a), [`7532b2b`](https://github.com/TanStack/ai/commit/7532b2b09188ebd1095a60a7c5df6ef08b06916c), [`ce99a17`](https://github.com/TanStack/ai/commit/ce99a17e4814cd564b693112bda87020af6cb57c), [`7a5c0d6`](https://github.com/TanStack/ai/commit/7a5c0d6fc1541187a7f01b444bc07a0478274bcb), [`b881627`](https://github.com/TanStack/ai/commit/b881627d51076dcc1af031ac951046e2fb7d84c4)]:
+  - @tanstack/ai@0.69.0
+  - @tanstack/openai-base@0.14.0
+  - @tanstack/ai-utils@0.4.2
+
 ## 0.21.4
 
 ### Patch Changes

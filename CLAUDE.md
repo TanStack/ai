@@ -22,7 +22,10 @@ TanStack AI is a type-safe, provider-agnostic AI SDK for building AI-powered app
 
 ## Package Manager & Tooling
 
-- **Package Manager**: pnpm@10.17.0 (required)
+- **Package Manager**: pnpm@11.9.0 (required, see `packageManager` in
+  `package.json`)
+- **Node**: 24.8.0 (see `.nvmrc`). On Node 22, Nx fails to load the
+  workspace plugin with `tsModule.readConfigFile is not a function`.
 - **Build System**: Nx for task orchestration and caching
 - **TypeScript**: 7.0.2 (native Go compiler). Framework build/typecheck tools
   that still need the pre-7 JS Compiler API (svelte-package, svelte-check,

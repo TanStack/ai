@@ -1,25 +1,33 @@
-import { EventType, fileReferenceFor, isFileSource } from '@tanstack/ai'
+import {
+  CONTEXT_OVERFLOW_CODE,
+  EventType,
+  fileReferenceFor,
+  isFileSource,
+} from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { parse as parsePartialJSON } from 'partial-json'
 import {
   createGeminiClient,
   generateId,
   getGeminiApiKeyFromEnv,
+  isGeminiContextOverflow,
 } from '../../utils/client'
 import {
   getGeminiProviderToolKind,
   getGeminiProviderToolMetadata,
 } from '../../tools/gemini-provider-tool'
 import { assertUniqueToolNames } from '@tanstack/ai/adapter-internals'
+import { interactionsThinking } from '../../text/reasoning'
+import { GEMINI_MODEL_REASONING } from '../../model-meta'
 import {
   prepareGeminiMessagesForReplay,
   withGeminiSource,
 } from '../../adapters/text'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
-  GeminiChatModelProviderOptionsByName,
   GeminiChatModelToolCapabilitiesByName,
   GeminiModelInputModalitiesByName,
+  GeminiModelReasoningByName,
   GeminiModels,
 } from '../../model-meta'
 import type {
@@ -109,31 +117,24 @@ type ToolCallState = {
 // ===========================
 
 /**
- * Resolve provider options for a specific model. Reuses the chat-model
- * options map from `model-meta.ts` so a model's allowed thinking levels are
- * declared once: the Interactions API takes the same levels as
- * `generateContent` but lowercased (`low`, not `LOW`). Models whose chat
- * options carry no `thinkingConfig` resolve to `never`, so `thinking_level`
- * can't be set on them. Everything else falls through to the flat SDK shape.
+ * Resolve provider options for a specific model. Thinking is not here:
+ * `chat({ reasoning })` sets `thinking_level` and `thinking_summaries`.
  */
-type InteractionsThinkingLevel<TModel> =
-  TModel extends keyof GeminiChatModelProviderOptionsByName
-    ? GeminiChatModelProviderOptionsByName[TModel] extends {
-        thinkingConfig?: { thinkingLevel?: infer L extends string }
-      }
-      ? Lowercase<L>
-      : never
-    : never
-
-type ResolveProviderOptions<TModel extends GeminiModels> = Omit<
+type ResolveProviderOptions = Omit<
   GeminiTextInteractionsProviderOptions,
   'generation_config'
 > & {
   generation_config?: Omit<
     NonNullable<GeminiTextInteractionsProviderOptions['generation_config']>,
-    'thinking_level'
-  > & { thinking_level?: InteractionsThinkingLevel<TModel> }
+    'thinking_level' | 'thinking_summaries'
+  >
 }
+
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof GeminiModelReasoningByName
+    ? GeminiModelReasoningByName[TModel]
+    : never
 
 /**
  * Resolve input modalities for a specific model. Reuses the chat-model
@@ -190,7 +191,7 @@ type ResolveToolCapabilities<TModel extends string> =
  */
 export class GeminiTextInteractionsAdapter<
   TModel extends GeminiModels,
-  TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
+  TProviderOptions extends Record<string, any> = ResolveProviderOptions,
   TInputModalities extends ReadonlyArray<Modality> =
     ResolveInputModalities<TModel>,
   TToolCapabilities extends ReadonlyArray<string> =
@@ -200,7 +201,10 @@ export class GeminiTextInteractionsAdapter<
   TProviderOptions,
   TInputModalities,
   GeminiMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  unknown,
+  never,
+  ResolveReasoning<TModel>
 > {
   override readonly kind = 'text' as const
   override readonly name = 'gemini-text-interactions' as const
@@ -384,13 +388,17 @@ export class GeminiTextInteractionsAdapter<
         error,
         source: 'gemini-text-interactions.chatStream',
       })
+      const code = isGeminiContextOverflow(error)
+        ? CONTEXT_OVERFLOW_CODE
+        : undefined
       yield {
         type: EventType.RUN_ERROR,
         runId,
         model: options.model,
         timestamp,
         message,
-        error: { message },
+        ...(code && { code }),
+        error: { message, ...(code && { code }) },
       }
     } finally {
       // Abandonment cleanup — consumer `.return()` (upstream `break` /
@@ -689,7 +697,7 @@ export function createGeminiTextInteractions<TModel extends GeminiModels>(
   config?: Omit<GeminiTextInteractionsConfig, 'apiKey'>,
 ): GeminiTextInteractionsAdapter<
   TModel,
-  ResolveProviderOptions<TModel>,
+  ResolveProviderOptions,
   ResolveInputModalities<TModel>,
   ResolveToolCapabilities<TModel>
 > {
@@ -702,7 +710,7 @@ export function geminiTextInteractions<TModel extends GeminiModels>(
   config?: Omit<GeminiTextInteractionsConfig, 'apiKey'>,
 ): GeminiTextInteractionsAdapter<
   TModel,
-  ResolveProviderOptions<TModel>,
+  ResolveProviderOptions,
   ResolveInputModalities<TModel>,
   ResolveToolCapabilities<TModel>
 > {
@@ -720,6 +728,10 @@ function buildInteractionsRequest(
 
   const generationConfig: Interactions.GenerationConfig = {
     ...modelOpts?.generation_config,
+    ...interactionsThinking(
+      options.reasoning,
+      GEMINI_MODEL_REASONING[options.model],
+    ),
   }
 
   const hasGenerationConfig = Object.keys(generationConfig).length > 0
@@ -905,6 +917,22 @@ function parsePartialToolArguments(
       : undefined
   } catch {
     return undefined
+  }
+}
+
+// The raw `args` and parsed `input` of a TOOL_CALL_END. The streamed argument
+// text wins over the initial `step.arguments` snapshot. Malformed JSON sends
+// no `input`, so core reports the error from the raw `args`.
+function toolCallEndArguments(
+  streamed: string | undefined,
+  state: ToolCallState,
+): { args: string; input?: unknown } {
+  const args = streamed?.trim() ? streamed : JSON.stringify(state.args)
+  try {
+    const parsed: unknown = JSON.parse(args)
+    return { args, input: parsed && typeof parsed === 'object' ? parsed : {} }
+  } catch {
+    return { args }
   }
 }
 
@@ -1223,6 +1251,37 @@ async function* translateInteractionEvents(
     }
   }
 
+  // Ends a tool call. With no streamed argument text, the initial
+  // `step.arguments` snapshot goes out as the only TOOL_CALL_ARGS delta, so
+  // the deltas always add up to the final arguments.
+  const endToolCall = function* (
+    toolCallId: string,
+    state: ToolCallState,
+  ): Generator<AdapterYieldChunk> {
+    const end = toolCallEndArguments(
+      argStringByToolCallId.get(toolCallId),
+      state,
+    )
+    if (!argStringByToolCallId.get(toolCallId)?.trim() && end.args !== '{}') {
+      yield {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId,
+        model,
+        timestamp,
+        delta: end.args,
+        args: end.args,
+      }
+    }
+    yield {
+      type: EventType.TOOL_CALL_END,
+      toolCallId,
+      toolName: state.name,
+      model,
+      timestamp,
+      ...end,
+    }
+  }
+
   // Seals any in-flight messages and tool calls. Called both on the
   // normal terminal path (`interaction.complete`) and on the error path
   // (`error` SSE event + premature EOF) so the StreamProcessor never
@@ -1233,14 +1292,7 @@ async function* translateInteractionEvents(
     for (const [toolCallId, state] of toolCalls) {
       if (state.ended) continue
       state.ended = true
-      yield {
-        type: EventType.TOOL_CALL_END,
-        toolCallId,
-        toolName: state.name,
-        model,
-        timestamp,
-        input: state.args,
-      }
+      yield* endToolCall(toolCallId, state)
     }
     if (hasEmittedTextMessageStart) {
       hasEmittedTextMessageStart = false
@@ -1295,8 +1347,9 @@ async function* translateInteractionEvents(
             indexToToolCallId.set(index, toolCallId)
             // `step.arguments` is required on FunctionCallStep but may
             // be an empty `{}` placeholder when streaming, where the
-            // real args arrive as `arguments_delta` events. Treat both
-            // uniformly: stash whatever we got, stringify once.
+            // real args arrive as `arguments_delta` events. Keep this
+            // initial snapshot apart from the streamed text: it is sent
+            // only when no argument delta arrives (see `endToolCall`).
             const initialArgs = step.arguments
             const state: ToolCallState = {
               name: step.name,
@@ -1306,12 +1359,6 @@ async function* translateInteractionEvents(
               ended: false,
             }
             toolCalls.set(toolCallId, state)
-            argStringByToolCallId.set(
-              toolCallId,
-              Object.keys(initialArgs).length > 0
-                ? JSON.stringify(initialArgs)
-                : '',
-            )
             yield {
               type: EventType.TOOL_CALL_START,
               toolCallId,
@@ -1324,17 +1371,6 @@ async function* translateInteractionEvents(
               model,
               timestamp,
               index: state.index,
-            }
-            if (Object.keys(initialArgs).length > 0) {
-              const argsJson = JSON.stringify(initialArgs)
-              yield {
-                type: EventType.TOOL_CALL_ARGS,
-                toolCallId,
-                model,
-                timestamp,
-                delta: argsJson,
-                args: argsJson,
-              }
             }
             break
           }
@@ -1567,8 +1603,9 @@ async function* translateInteractionEvents(
               break
             }
             const state = toolCalls.get(toolCallId)
-            if (!state) break
-            const fragment = delta.arguments ?? ''
+            // A delta with no arguments keeps the initial snapshot.
+            if (!state || typeof delta.arguments !== 'string') break
+            const fragment = delta.arguments
             const buffer =
               (argStringByToolCallId.get(toolCallId) ?? '') + fragment
             argStringByToolCallId.set(toolCallId, buffer)
@@ -1681,14 +1718,7 @@ async function* translateInteractionEvents(
           const state = toolCalls.get(toolCallId)
           if (state && !state.ended) {
             state.ended = true
-            yield {
-              type: EventType.TOOL_CALL_END,
-              toolCallId,
-              toolName: state.name,
-              model,
-              timestamp,
-              input: state.args,
-            }
+            yield* endToolCall(toolCallId, state)
           }
           indexToToolCallId.delete(event.index)
         }
@@ -1841,14 +1871,16 @@ function extractTextFromInteraction(interaction: Interaction): string {
 function sanitizeToolParameters(schema: unknown): unknown {
   if (!schema || typeof schema !== 'object') return schema
   if (Array.isArray(schema)) return schema.map(sanitizeToolParameters)
-  const out: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(schema)) {
-    if (key === 'required' && Array.isArray(value) && value.length === 0) {
-      continue
-    }
-    out[key] = sanitizeToolParameters(value)
-  }
-  return out
+  // `Object.fromEntries` keeps an own key named `__proto__`. An assignment
+  // `out['__proto__'] = x` would set the prototype instead.
+  return Object.fromEntries(
+    Object.entries(schema)
+      .filter(
+        ([key, value]) =>
+          key !== 'required' || !Array.isArray(value) || value.length > 0,
+      )
+      .map(([key, value]) => [key, sanitizeToolParameters(value)]),
+  )
 }
 
 // Re-export the stream type so consumers can import it alongside the

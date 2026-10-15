@@ -1,5 +1,6 @@
-import { FinishReason } from '@google/genai'
+import { FinishReason, FunctionCallingConfigMode } from '@google/genai'
 import {
+  CONTEXT_OVERFLOW_CODE,
   EventType,
   fileReferenceFor,
   isFileSource,
@@ -15,20 +16,24 @@ import {
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import { buildGeminiUsage } from '../usage'
+import { geminiThinkingConfig } from '../text/reasoning'
 import {
   createGeminiClient,
   generateId,
   getGeminiApiKeyFromEnv,
+  isGeminiContextOverflow,
 } from '../utils'
 import {
   GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS,
   GEMINI_MODEL_INPUT_MODALITIES,
+  GEMINI_MODEL_REASONING,
 } from '../model-meta'
 import type {
   GEMINI_MODELS,
   GeminiChatModelProviderOptionsByName,
   GeminiChatModelToolCapabilitiesByName,
   GeminiModelInputModalitiesByName,
+  GeminiModelReasoningByName,
 } from '../model-meta'
 import type {
   StructuredOutputOptions,
@@ -37,12 +42,12 @@ import type {
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
   Content,
+  FunctionCallingConfig,
   GenerateContentParameters,
   GenerateContentResponse,
   GoogleGenAI,
   GroundingMetadata,
   Part,
-  ThinkingLevel,
   VideoMetadata,
 } from '@google/genai'
 import type {
@@ -54,6 +59,7 @@ import type {
   AdapterYieldChunk,
   ProviderExecutedToolSource,
   TextOptions,
+  ToolChoice,
 } from '@tanstack/ai'
 import type { ExternalTextProviderOptions } from '../text/text-provider-options'
 import type {
@@ -134,6 +140,19 @@ function getGroundingSources(
     })
   }
   return [...sources.values()]
+}
+
+/** Maps `chat({ toolChoice })` to the Gemini function calling config. */
+function toGeminiFunctionCallingConfig(
+  choice: ToolChoice,
+): FunctionCallingConfig {
+  if (choice === 'auto') return { mode: FunctionCallingConfigMode.AUTO }
+  if (choice === 'none') return { mode: FunctionCallingConfigMode.NONE }
+  if (choice === 'required') return { mode: FunctionCallingConfigMode.ANY }
+  return {
+    mode: FunctionCallingConfigMode.ANY,
+    allowedFunctionNames: [choice.name],
+  }
 }
 
 /**
@@ -286,7 +305,12 @@ function buildInteractionsInput(
       const signature = metadata?.thoughtSignature
       if (typeof signature === 'string' && signature)
         steps.push({ type: 'thought', signature, summary: [] })
-      const args: unknown = JSON.parse(toolCall.function.arguments || '{}')
+      // Malformed JSON stays in the history next to its tool error, so it
+      // goes out as `{}`.
+      let args: unknown = {}
+      try {
+        args = JSON.parse(toolCall.function.arguments || '{}')
+      } catch {}
       if (typeof args !== 'object' || args === null || Array.isArray(args))
         throw new Error(
           `Gemini Interactions function ${toolCall.function.name} requires object arguments`,
@@ -362,6 +386,12 @@ type ResolveInputModalities<TModel extends string> =
  * Resolve tool capabilities for a specific model.
  * If the model has explicit tools in the map, use those; otherwise use empty tuple.
  */
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof GeminiModelReasoningByName
+    ? GeminiModelReasoningByName[TModel]
+    : never
+
 type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof GeminiChatModelToolCapabilitiesByName
     ? NonNullable<GeminiChatModelToolCapabilitiesByName[TModel]>
@@ -390,7 +420,9 @@ export class GeminiTextAdapter<
   TInputModalities,
   GeminiMessageMetadataByModality,
   TToolCapabilities,
-  GeminiToolCallMetadata
+  GeminiToolCallMetadata,
+  never,
+  ResolveReasoning<TModel>
 > {
   override readonly kind = 'text' as const
   readonly name = 'gemini' as const
@@ -450,6 +482,7 @@ export class GeminiTextAdapter<
 
       yield* this.processStreamChunks(result, options, logger)
     } catch (error) {
+      const overflow = isGeminiContextOverflow(error)
       const rawEvent = toRunErrorRawEvent(error)
       logger.errors('gemini.chatStream fatal', {
         error,
@@ -463,6 +496,7 @@ export class GeminiTextAdapter<
           error instanceof Error
             ? error.message
             : 'An unknown error occurred during the chat stream.',
+        ...(overflow && { code: CONTEXT_OVERFLOW_CODE }),
         // Forward the provider's structured error body when present (see
         // toRunErrorRawEvent); omitted otherwise.
         ...(rawEvent !== undefined && { rawEvent }),
@@ -471,6 +505,7 @@ export class GeminiTextAdapter<
             error instanceof Error
               ? error.message
               : 'An unknown error occurred during the chat stream.',
+          ...(overflow && { code: CONTEXT_OVERFLOW_CODE }),
         },
       }
     }
@@ -574,6 +609,7 @@ export class GeminiTextAdapter<
         finishReason: 'stop',
       }
     } catch (error) {
+      const overflow = isGeminiContextOverflow(error)
       const rawEvent = toRunErrorRawEvent(error)
       logger.errors('gemini.interactionsStream fatal', {
         error,
@@ -587,12 +623,14 @@ export class GeminiTextAdapter<
           error instanceof Error
             ? error.message
             : 'An unknown error occurred during the chat stream.',
+        ...(overflow && { code: CONTEXT_OVERFLOW_CODE }),
         ...(rawEvent !== undefined && { rawEvent }),
         error: {
           message:
             error instanceof Error
               ? error.message
               : 'An unknown error occurred during the chat stream.',
+          ...(overflow && { code: CONTEXT_OVERFLOW_CODE }),
         },
       }
     }
@@ -1125,12 +1163,14 @@ export class GeminiTextAdapter<
         // this chunk (including UNEXPECTED_TOOL_CALL finishes) were already
         // registered and started by the per-part loop above.
         for (const [toolCallId, toolCallData] of toolCallMap.entries()) {
-          let parsedInput: unknown = {}
+          // Malformed JSON sends no `input`, so core reports the error from
+          // the raw `args`.
+          let parsedInput: unknown
           try {
             const parsed = JSON.parse(toolCallData.args)
             parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
           } catch {
-            parsedInput = {}
+            // Keep `parsedInput` undefined for the tool error.
           }
 
           yield {
@@ -1140,7 +1180,8 @@ export class GeminiTextAdapter<
             toolName: toolCallData.name,
             model,
             timestamp: Date.now(),
-            input: parsedInput,
+            args: toolCallData.args,
+            ...(parsedInput !== undefined && { input: parsedInput }),
           }
         }
 
@@ -1508,31 +1549,13 @@ export class GeminiTextAdapter<
   private mapCommonOptionsToGemini(
     options: TextOptions<GeminiTextProviderOptions>,
   ) {
-    // Separate `thinkingConfig` from the other model options so the loose
-    // local `thinkingLevel?: keyof typeof ThinkingLevel` type doesn't leak
-    // into the SDK config object via the `...modelOpts` spread — we re-add a
-    // properly-typed `ThinkingConfig` below.
-    const { thinkingConfig, ...modelOpts } = options.modelOptions ?? {}
-    // Build the thinkingConfig payload only when the caller actually supplied
-    // one. Our local `thinkingLevel` is typed as `keyof typeof ThinkingLevel`
-    // (string union) so users can pass plain strings; the SDK target is the
-    // `ThinkingLevel` enum, and every field is `field?: T` under EOPT — so we
-    // re-emit fields via conditional spreads.
-    const mappedThinkingConfig = thinkingConfig
-      ? {
-          ...(thinkingConfig.includeThoughts !== undefined && {
-            includeThoughts: thinkingConfig.includeThoughts,
-          }),
-          ...(thinkingConfig.thinkingBudget !== undefined && {
-            thinkingBudget: thinkingConfig.thinkingBudget,
-          }),
-          ...(thinkingConfig.thinkingLevel
-            ? {
-                thinkingLevel: thinkingConfig.thinkingLevel as ThinkingLevel,
-              }
-            : {}),
-        }
-      : undefined
+    const modelOpts = options.modelOptions ?? {}
+    // `chat({ reasoning })`, as this model's thinking config.
+    const mappedThinkingConfig = geminiThinkingConfig(
+      options.model,
+      options.reasoning,
+      GEMINI_MODEL_REASONING[options.model],
+    )
 
     const normalizedPrompts = normalizeSystemPrompts(options.systemPrompts)
     const systemInstruction =
@@ -1559,6 +1582,17 @@ export class GeminiTextAdapter<
         }
       : undefined
 
+    // `chat({ toolChoice })` is sent only when the request has function
+    // declarations, because Gemini rejects a function calling config without
+    // them. A `toolConfig` in modelOptions wins key by key, so its own
+    // `functionCallingConfig` wins, and a `retrievalConfig` alone keeps this one.
+    const tools = convertToolsToProviderFormat(options.tools)
+    const functionCallingConfig =
+      options.toolChoice !== undefined &&
+      tools.some((tool) => 'functionDeclarations' in tool)
+        ? toGeminiFunctionCallingConfig(options.toolChoice)
+        : undefined
+
     // Vendor `GenerateContentConfig` fields are `field?: T` (no `| undefined`)
     // under EOPT, so spread each common option only when present rather than
     // emitting `field: undefined`s into the wire payload.
@@ -1573,11 +1607,17 @@ export class GeminiTextAdapter<
       ),
       config: {
         ...modelOpts,
+        ...(functionCallingConfig !== undefined && {
+          toolConfig: {
+            functionCallingConfig,
+            ...options.modelOptions?.toolConfig,
+          },
+        }),
         ...(mappedThinkingConfig !== undefined && {
           thinkingConfig: mappedThinkingConfig,
         }),
         ...(systemInstruction !== undefined && { systemInstruction }),
-        tools: convertToolsToProviderFormat(options.tools),
+        tools,
         ...(combinedSchemaConfig ?? {}),
         // Forward the caller's abort signal so cancellation reaches the SDK
         // request, matching the OpenAI-compatible adapters (issue #1374).

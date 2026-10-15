@@ -3,7 +3,7 @@ id: ThinkingPart
 title: ThinkingPart
 ---
 
-Defined in: [packages/ai/src/types.ts:470](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L470)
+Defined in: [packages/ai/src/types.ts:538](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L538)
 
 ## Properties
 
@@ -13,7 +13,7 @@ Defined in: [packages/ai/src/types.ts:470](https://github.com/TanStack/ai/blob/m
 content: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:472](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L472)
+Defined in: [packages/ai/src/types.ts:540](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L540)
 
 ***
 
@@ -23,7 +23,7 @@ Defined in: [packages/ai/src/types.ts:472](https://github.com/TanStack/ai/blob/m
 optional redacted?: boolean;
 ```
 
-Defined in: [packages/ai/src/types.ts:487](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L487)
+Defined in: [packages/ai/src/types.ts:555](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L555)
 
 The provider encrypted this thinking block (Anthropic `redacted_thinking`).
 `content` is empty, and `signature` holds the opaque data that goes back
@@ -38,7 +38,7 @@ starts with `redacted_thinking-` instead.
 optional signature?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:480](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L480)
+Defined in: [packages/ai/src/types.ts:548](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L548)
 
 The provider's opaque reasoning artefact, sent back unchanged: an
 Anthropic signature, Anthropic redacted data, or OpenAI encrypted content.
@@ -53,7 +53,7 @@ Renaming breaks stored messages, so it needs a read shim for `signature`.
 optional stepId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:473](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L473)
+Defined in: [packages/ai/src/types.ts:541](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L541)
 
 ***
 
@@ -63,4 +63,4 @@ Defined in: [packages/ai/src/types.ts:473](https://github.com/TanStack/ai/blob/m
 type: "thinking";
 ```
 
-Defined in: [packages/ai/src/types.ts:471](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L471)
+Defined in: [packages/ai/src/types.ts:539](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L539)

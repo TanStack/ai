@@ -274,3 +274,34 @@ describe('Azure Responses factory', () => {
     expect(requests[0]?.body.model).toBe('explicit-deployment')
   })
 })
+
+describe('Azure chat({ reasoning })', () => {
+  async function reasoningBody(model: string, deploymentName?: string) {
+    const { fetcher, requests } = transport()
+    const adapter = createAzureOpenaiText(model, 'key', {
+      resourceName: 'resource',
+      ...(deploymentName ? { deploymentName } : {}),
+      fetch: fetcher,
+    })
+    for await (const _chunk of adapter.chatStream({
+      logger,
+      model: adapter.model,
+      messages: [{ role: 'user', content: 'Go' }],
+      reasoning: { level: 'high', summary: true },
+    })) {
+      // Drain the stream.
+    }
+    return requests[0]?.body
+  }
+
+  it('sends reasoning.effort from the OpenAI data of the model name', async () => {
+    const body = await reasoningBody('gpt-5.5', 'prod-chat')
+    expect(body?.model).toBe('prod-chat')
+    expect(body?.reasoning).toEqual({ effort: 'high', summary: 'auto' })
+  })
+
+  it('sends no reasoning for a name that is not an OpenAI model', async () => {
+    const body = await reasoningBody('my-deployment')
+    expect(body).not.toHaveProperty('reasoning')
+  })
+})

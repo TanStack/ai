@@ -12,6 +12,7 @@ import { AnthropicTextAdapter } from '../src/adapters/text'
 import type { AnthropicTextProviderOptions } from '../src/adapters/text'
 import type { AnthropicDocumentMetadata } from '../src/message-types'
 import { ANTHROPIC_MAX_NONSTREAMING_TOKENS } from '../src/model-meta'
+import { createSilentLogger } from './utils/logger'
 import { z } from 'zod'
 
 const mocks = vi.hoisted(() => {
@@ -324,6 +325,7 @@ describe('Anthropic adapter option mapping', () => {
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
+      promptCache: 'none',
       messages: [{ role: 'user', content: 'Hi' }],
       systemPrompts: ['You are a helpful assistant.', 'Be concise.'],
     })) {
@@ -430,6 +432,7 @@ describe('Anthropic adapter option mapping', () => {
 
     for await (const _ of chat({
       adapter,
+      promptCache: 'none',
       messages: [{ role: 'user', content: 'Hi' }],
       systemPrompts: ['real system prompt'],
       modelOptions: {
@@ -507,7 +510,6 @@ describe('Anthropic adapter option mapping', () => {
       ],
       service_tier: 'standard_only',
       stop_sequences: ['</done>'],
-      thinking: { type: 'enabled', budget_tokens: 1500 },
       top_k: 5,
       max_tokens: 3000,
       temperature: 0.4,
@@ -519,6 +521,7 @@ describe('Anthropic adapter option mapping', () => {
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
+      promptCache: 'none',
       messages: [
         { role: 'user', content: 'What is the forecast?' },
         {
@@ -536,6 +539,7 @@ describe('Anthropic adapter option mapping', () => {
       ],
       tools: [weatherTool],
       modelOptions: providerOptions,
+      reasoning: { level: 'low', budgetTokens: 1500 },
     })) {
       chunks.push(chunk)
     }
@@ -551,7 +555,7 @@ describe('Anthropic adapter option mapping', () => {
       mcp_servers: providerOptions.mcp_servers,
       service_tier: providerOptions.service_tier,
       stop_sequences: providerOptions.stop_sequences,
-      thinking: providerOptions.thinking,
+      thinking: { type: 'enabled', budget_tokens: 1500 },
       top_k: providerOptions.top_k,
     })
     expect(payload.stream).toBe(true)
@@ -947,6 +951,46 @@ describe('Anthropic adapter option mapping', () => {
     ).rejects.toThrow(/maximum token limit was reached/)
   })
 
+  it('sends no thinking with the forced structuredOutput tool', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce({
+      id: 'msg_structured',
+      type: 'message',
+      role: 'assistant',
+      model: 'claude-opus-4-1',
+      content: [
+        {
+          type: 'tool_use',
+          id: 'toolu_structured_output',
+          name: 'structured_output',
+          input: { recommendation: 'Fender' },
+        },
+      ],
+      stop_reason: 'tool_use',
+      usage: { input_tokens: 10, output_tokens: 10 },
+    })
+
+    await createAdapter('claude-opus-4-1').structuredOutput({
+      chatOptions: {
+        model: 'claude-opus-4-1',
+        messages: [{ role: 'user', content: 'recommend a guitar as json' }],
+        reasoning: { level: 'high', summary: true },
+        logger: resolveDebugOption(false),
+      },
+      outputSchema: {
+        type: 'object',
+        properties: { recommendation: { type: 'string' } },
+        required: ['recommendation'],
+      },
+    })
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+    expect(payload.tool_choice).toEqual({
+      type: 'tool',
+      name: 'structured_output',
+    })
+    expect(payload).not.toHaveProperty('thinking')
+  })
+
   it('native combined mode (#605): wires outputSchema into output_format alongside tools on Claude 4.5+', async () => {
     // Final-turn JSON the model emits when output_format is in play.
     const finalJson = JSON.stringify({ city: 'Berlin', temp: 18 })
@@ -1152,6 +1196,7 @@ describe('Anthropic adapter option mapping', () => {
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
+      promptCache: 'none',
       messages: [
         { role: 'user', content: 'What is the weather in Berlin?' },
         {
@@ -1247,9 +1292,7 @@ describe('Anthropic adapter option mapping', () => {
         { role: 'user', content: 'What should I wear?' },
       ],
       tools: [weatherTool],
-      modelOptions: {
-        thinking: { type: 'enabled', budget_tokens: 1024 },
-      } satisfies AnthropicTextProviderOptions,
+      reasoning: { level: 'minimal', budgetTokens: 1024 },
     })) {
       chunks.push(chunk)
     }
@@ -1297,9 +1340,7 @@ describe('Anthropic adapter option mapping', () => {
         },
         { role: 'user', content: 'Continue.' },
       ],
-      modelOptions: {
-        thinking: { type: 'enabled', budget_tokens: 1024 },
-      } satisfies AnthropicTextProviderOptions,
+      reasoning: { level: 'minimal', budgetTokens: 1024 },
     })) {
       chunks.push(chunk)
     }
@@ -1398,9 +1439,7 @@ describe('Anthropic adapter option mapping', () => {
         },
       ],
       tools: [createBlockTool],
-      modelOptions: {
-        thinking: { type: 'enabled', budget_tokens: 1024 },
-      } satisfies AnthropicTextProviderOptions,
+      reasoning: { level: 'minimal', budgetTokens: 1024 },
     })) {
       // consume
     }
@@ -1524,6 +1563,7 @@ describe('Anthropic adapter option mapping', () => {
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
+      promptCache: 'none',
       messages: [
         { role: 'user', content: 'Weather in Berlin and Paris?' },
         {
@@ -1752,6 +1792,7 @@ describe('Anthropic adapter option mapping', () => {
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
+      promptCache: 'none',
       messages: [
         { role: 'user', content: 'Hello' },
         { role: 'assistant', content: '' }, // Empty assistant from failed request
@@ -2479,6 +2520,98 @@ describe('Anthropic stream processing', () => {
       'reasoning end 1',
       'text B',
     ])
+  })
+
+  /** The TOOL_CALL_END of one streamed `tool_use` block. */
+  async function toolCallEnd(
+    initialInput: Record<string, unknown> | undefined,
+    deltas: Array<string>,
+  ) {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(
+      (async function* () {
+        yield {
+          type: 'content_block_start',
+          index: 0,
+          content_block: {
+            type: 'tool_use',
+            id: 'toolu_raw',
+            name: 'inspect',
+            ...(initialInput !== undefined && { input: initialInput }),
+          },
+        }
+        for (const partial_json of deltas) {
+          yield {
+            type: 'content_block_delta',
+            index: 0,
+            delta: { type: 'input_json_delta', partial_json },
+          }
+        }
+        yield { type: 'content_block_stop', index: 0 }
+        yield {
+          type: 'message_delta',
+          delta: { stop_reason: 'tool_use' },
+          usage: { output_tokens: 1 },
+        }
+        yield { type: 'message_stop' }
+      })(),
+    )
+
+    const chunks: Array<AdapterYieldChunk> = []
+    for await (const chunk of createAdapter('claude-opus-4-1').chatStream({
+      model: 'claude-opus-4-1',
+      messages: [{ role: 'user', content: 'Go' }],
+      logger: createSilentLogger(),
+    })) {
+      chunks.push(chunk)
+    }
+    return chunks.find((chunk) => chunk.type === 'TOOL_CALL_END')
+  }
+
+  it.each([
+    {
+      name: 'the streamed input',
+      initial: {},
+      deltas: ['{"count":2}'],
+      args: '{"count":2}',
+      input: { count: 2 },
+    },
+    {
+      name: 'the streamed bytes as sent',
+      initial: {},
+      deltas: ['{"n": ', '1.50}'],
+      args: '{"n": 1.50}',
+      input: { n: 1.5 },
+    },
+    {
+      name: 'the initial input snapshot when no delta arrives',
+      initial: { value: 'start' },
+      deltas: [],
+      args: '{"value":"start"}',
+      input: { value: 'start' },
+    },
+    {
+      name: 'the streamed input over the initial snapshot',
+      initial: { value: 'start' },
+      deltas: ['{"count":2}'],
+      args: '{"count":2}',
+      input: { count: 2 },
+    },
+  ])(
+    'sends $name as the raw TOOL_CALL_END args',
+    async ({ initial, deltas, args, input }) => {
+      expect(await toolCallEnd(initial, deltas)).toMatchObject({ args, input })
+    },
+  )
+
+  it('sends malformed tool input raw on TOOL_CALL_END with no input', async () => {
+    const end = await toolCallEnd({}, ['{"a":'])
+    expect(end).toMatchObject({ args: '{"a":' })
+    expect(end).not.toHaveProperty('input')
+  })
+
+  it('sends empty input as {} with empty raw args', async () => {
+    const end = await toolCallEnd(undefined, [])
+    expect(end).toMatchObject({ input: {}, args: '' })
   })
 })
 

@@ -117,22 +117,25 @@ describe('toConverseMessages', () => {
     })
   })
 
-  it('throws on malformed JSON tool-call arguments instead of forwarding {}', () => {
-    expect(() =>
-      toConverseMessages([
-        {
-          role: 'assistant',
-          content: '',
-          toolCalls: [
-            {
-              id: 't1',
-              type: 'function',
-              function: { name: 'getX', arguments: '{"a":' },
-            },
-          ],
-        },
-      ]),
-    ).toThrow(/malformed JSON/)
+  it('sends malformed JSON tool-call arguments as {}', () => {
+    const {
+      messages: [message],
+    } = toConverseMessages([
+      {
+        role: 'assistant',
+        content: '',
+        toolCalls: [
+          {
+            id: 't1',
+            type: 'function',
+            function: { name: 'getX', arguments: '{"a":' },
+          },
+        ],
+      },
+    ])
+    expect(message?.content).toEqual([
+      { toolUse: { toolUseId: 't1', name: 'getX', input: {} } },
+    ])
   })
 
   it('throws when tool-call arguments parse to a non-object', () => {
@@ -176,6 +179,86 @@ describe('toConverseMessages', () => {
     expect((imageBlock as any).image.source.bytes).toEqual(
       new Uint8Array([120, 121]),
     )
+  })
+
+  it('maps tool result images to Converse tool result image blocks', () => {
+    const image = {
+      type: 'image' as const,
+      source: {
+        type: 'data' as const,
+        value: btoa('xy'),
+        mimeType: 'image/png',
+      },
+    }
+    const imageBlock = {
+      image: { format: 'png', source: { bytes: new Uint8Array([120, 121]) } },
+    }
+    const { messages } = toConverseMessages(
+      [
+        {
+          role: 'tool',
+          content: [{ type: 'text', content: 'screenshot' }, image],
+          toolCallId: 't1',
+        },
+        { role: 'assistant', content: 'ok' },
+        { role: 'tool', content: [image], toolCallId: 't2' },
+      ],
+      undefined,
+      { model: 'us.amazon.nova-pro-v1:0' },
+    )
+    expect(messages[0]!.content![0]!.toolResult?.content).toEqual([
+      { text: 'screenshot' },
+      imageBlock,
+    ])
+    expect(messages[2]!.content![0]!.toolResult?.content).toEqual([imageBlock])
+  })
+
+  it('drops a tool result image the model or the MIME cannot send', () => {
+    const image = (mimeType: string) => ({
+      type: 'image' as const,
+      source: { type: 'data' as const, value: btoa('xy'), mimeType },
+    })
+    const content = (model: string, mimeType: string) =>
+      toConverseMessages(
+        [
+          {
+            role: 'tool',
+            content: [{ type: 'text', content: 'screenshot' }, image(mimeType)],
+            toolCallId: 't1',
+          },
+        ],
+        undefined,
+        { model },
+      ).messages[0]!.content![0]!.toolResult?.content
+
+    expect(
+      content('us.meta.llama4-maverick-17b-instruct-v1:0', 'image/png'),
+    ).toEqual([{ text: 'screenshot' }])
+    expect(content('us.amazon.nova-pro-v1:0', 'image/svg+xml')).toEqual([
+      { text: 'screenshot' },
+    ])
+    expect(
+      content('us.anthropic.claude-sonnet-4-5-20250929-v1:0', 'image/png')?.[1],
+    ).toMatchObject({ image: { format: 'png' } })
+  })
+
+  it('keeps the text of a tool result whose image has a URL source', () => {
+    const { messages } = toConverseMessages([
+      {
+        role: 'tool',
+        content: [
+          { type: 'text', content: 'screenshot' },
+          {
+            type: 'image',
+            source: { type: 'url', value: 'https://example.com/a.png' },
+          },
+        ],
+        toolCallId: 't1',
+      },
+    ])
+    expect(messages[0]!.content![0]!.toolResult?.content).toEqual([
+      { text: 'screenshot' },
+    ])
   })
 
   it('throws on a URL image source (Converse needs inline bytes)', () => {

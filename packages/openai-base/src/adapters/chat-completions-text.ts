@@ -1,4 +1,5 @@
 import {
+  CONTEXT_OVERFLOW_CODE,
   EventType,
   isFileSource,
   normalizeSystemPrompts,
@@ -7,6 +8,7 @@ import {
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   hashToolCallId,
+  resolveReasoning,
   toRunErrorPayload,
   toRetryAfterMs,
   toRunErrorRawEvent,
@@ -25,6 +27,7 @@ import type {
   StructuredOutputCompatibility,
 } from '../utils/schema-converter'
 import { buildChatCompletionsUsage } from '../usage'
+import { toChatCompletionsToolChoice } from '../tools/tool-choice'
 import { convertToolsToChatCompletionsFormat } from './chat-completions-tool-converter'
 import type OpenAI from 'openai'
 import type {
@@ -43,6 +46,8 @@ import type {
   Modality,
   ModelMessage,
   AdapterYieldChunk,
+  ModelReasoning,
+  ReasoningCapability,
   TextOptions,
 } from '@tanstack/ai'
 
@@ -66,12 +71,16 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   TMessageMetadata extends DefaultMessageMetadataByModality =
     DefaultMessageMetadataByModality,
   TToolCapabilities extends ReadonlyArray<string> = ReadonlyArray<string>,
+  TReasoning extends ReasoningCapability = never,
 > extends BaseTextAdapter<
   TModel,
   TProviderOptions,
   TInputModalities,
   TMessageMetadata,
-  TToolCapabilities
+  TToolCapabilities,
+  unknown,
+  never,
+  TReasoning
 > {
   override readonly kind = 'text' as const
   override readonly api: string = 'openai-completions'
@@ -163,7 +172,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   ): AsyncIterable<AdapterYieldChunk> {
     // Narrow before logging: raw SDK errors can carry request metadata
     // (including auth headers) which we must never surface to user loggers.
-    const errorPayload = toRunErrorPayload(
+    const errorPayload = this.runErrorPayload(
       error,
       `${this.name}.${source} failed`,
     )
@@ -211,6 +220,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         toolCallId,
         toolCallName: rejectedToolCall.toolName,
         toolName: rejectedToolCall.toolName,
+        args: rejectedToolCall.arguments,
         ...(rejectedToolCall.input !== undefined && {
           input: rejectedToolCall.input,
         }),
@@ -497,7 +507,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       )
 
       for await (const chunk of stream) {
-        const choiceForLog = chunk.choices[0]
+        const choiceForLog = chunk.choices?.[0]
         chatOptions.logger.provider(
           `provider=${this.name} finish_reason=${choiceForLog?.finish_reason ?? 'none'} hasContent=${!!choiceForLog?.delta.content} hasUsage=${!!chunk.usage}`,
           { provider: this.name, model: chunk.model },
@@ -566,7 +576,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           }
         }
 
-        const choice = chunk.choices[0]
+        const choice = chunk.choices?.[0]
         if (!choice) continue
         if (choice.finish_reason) finishReason = choice.finish_reason
 
@@ -707,7 +717,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       }
 
       const isAbort = this.isAbortError(error)
-      const errorPayload = toRunErrorPayload(
+      const errorPayload = this.runErrorPayload(
         error,
         `${this.name}.structuredOutputStream failed`,
       )
@@ -740,6 +750,32 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         source: `${this.name}.structuredOutputStream`,
       })
     }
+  }
+
+  /**
+   * `toRunErrorPayload`, with `code` set to `CONTEXT_OVERFLOW_CODE` when the
+   * provider says the input does not fit in the model's context window.
+   */
+  protected runErrorPayload(
+    error: unknown,
+    fallbackMessage: string,
+  ): { message: string; code: string | undefined } {
+    const payload = toRunErrorPayload(error, fallbackMessage)
+    return this.isContextOverflow(payload)
+      ? { ...payload, code: CONTEXT_OVERFLOW_CODE }
+      : payload
+  }
+
+  /**
+   * True when a provider error says the input does not fit in the context
+   * window. OpenAI sends `code: 'context_length_exceeded'`. Override this for
+   * a provider that reports it another way.
+   */
+  protected isContextOverflow(error: {
+    message: string
+    code: string | undefined
+  }): boolean {
+    return error.code === 'context_length_exceeded'
   }
 
   /**
@@ -870,9 +906,8 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
 
     try {
       for await (const chunk of stream) {
-        endsWithUsageOnlyChunk =
-          chunk.choices.length === 0 && chunk.usage != null
-        const choiceForLog = chunk.choices[0]
+        endsWithUsageOnlyChunk = !chunk.choices?.length && chunk.usage != null
+        const choiceForLog = chunk.choices?.[0]
         options.logger.provider(
           `provider=${this.name} finish_reason=${choiceForLog?.finish_reason ?? 'none'} hasContent=${!!choiceForLog?.delta.content} hasToolCalls=${!!choiceForLog?.delta.tool_calls} hasUsage=${!!chunk.usage}`,
           { provider: this.name, model: chunk.model },
@@ -950,7 +985,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           }
         }
 
-        const choice = chunk.choices[0]
+        const choice = chunk.choices?.[0]
 
         if (!choice) continue
 
@@ -1132,7 +1167,8 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
                 toolName: toolCall.name,
                 model: chunk.model || options.model,
                 timestamp: Date.now(),
-                input: parsedInput,
+                args: toolCall.arguments,
+                ...(parsedInput !== undefined && { input: parsedInput }),
               }
               emittedAnyToolCallEnd = true
             }
@@ -1202,7 +1238,8 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             toolName: toolCall.name,
             model: lastModel || options.model,
             timestamp: Date.now(),
-            input: parsedInput,
+            args: toolCall.arguments,
+            ...(parsedInput !== undefined && { input: parsedInput }),
           }
           pendingToolCount += 1
           emittedAnyToolCallEnd = true
@@ -1335,6 +1372,15 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   }
 
   /**
+   * The model's reasoning data for `chat({ reasoning })`. The default is
+   * none, so the base sends no reasoning field. A subclass returns the
+   * model's entry from the reasoning map in its `model-meta.ts`.
+   */
+  protected modelReasoning(_model: string): ModelReasoning | undefined {
+    return undefined
+  }
+
+  /**
    * Maps common TextOptions to Chat Completions API request format.
    * Override this in subclasses to add provider-specific options.
    */
@@ -1394,9 +1440,27 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         return (this.provider ?? this.name) === 'openai' ? id.slice(0, 40) : id
       },
     )
+    // Tool messages cannot carry images. The images of a run of tool results
+    // go in one user message after that run. Other media in a tool result is
+    // not sent.
+    const toolImages: Array<ChatCompletionContentPart> = []
     for (const message of replay.messages) {
+      if (message.role !== 'tool' && toolImages.length > 0)
+        messages.push({ role: 'user', content: toolImages.splice(0) })
       messages.push(this.convertMessage(message))
+      if (
+        message.role === 'tool' &&
+        Array.isArray(message.content) &&
+        (this.inputModalities?.includes('image') ?? true)
+      ) {
+        for (const part of message.content) {
+          const image = part.type === 'image' && this.convertContentPart(part)
+          if (image) toolImages.push(image)
+        }
+      }
     }
+    if (toolImages.length > 0)
+      messages.push({ role: 'user', content: toolImages })
 
     const modelOptions = options.modelOptions
 
@@ -1428,11 +1492,19 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         }
       : undefined
 
+    // `chat({ toolChoice })` is sent only when the request has tools. It goes
+    // before the `modelOptions` spread, so a `tool_choice` there wins.
+    const toolChoiceField =
+      tools?.length && options.toolChoice !== undefined
+        ? { tool_choice: toChatCompletionsToolChoice(options.toolChoice) }
+        : undefined
+
     // `modelOptions` is the sole sampling surface: callers set provider-native
     // wire names (`temperature`, `top_p`, `max_tokens`/`max_completion_tokens`)
     // there and they flow through the spread below. The root
     // `temperature`/`topP`/`maxTokens` fields are intentionally NOT read here.
-    return {
+    const params: ChatCompletionCreateParamsStreaming = {
+      ...toolChoiceField,
       ...modelOptions,
       model: options.model,
       messages,
@@ -1445,6 +1517,17 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       ...(responseFormat ?? {}),
       stream: true,
     }
+    // `chat({ reasoning })`: the model's effort for the level. The SDK type
+    // does not list every provider's effort values, so the field goes on
+    // with Object.assign.
+    const reasoning = resolveReasoning(
+      options.reasoning,
+      this.modelReasoning(options.model),
+    )
+    if (reasoning?.value) {
+      Object.assign(params, { reasoning_effort: reasoning.value })
+    }
+    return params
   }
 
   /**
@@ -1465,19 +1548,25 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   protected convertMessage(message: ModelMessage): ChatCompletionMessageParam {
     // Handle tool messages
     if (message.role === 'tool') {
-      // The Chat Completions API has no multimodal `tool` message support
-      // (unlike the Responses API's `function_call_output`). A tool that
-      // returns an `Array<ContentPart>` is therefore stringified here — the
-      // documented fallback for providers on the chat-completions path
-      // (Groq, Ollama, Grok, OpenRouter chat). Multimodal tool results are
-      // only delivered structurally via the Responses adapter.
+      // A Chat Completions `tool` message carries text only. For a result
+      // with images, the text parts go here and `mapOptionsToRequest` sends
+      // the images in a user message after the tool results. Other
+      // `Array<ContentPart>` results are JSON-stringified, text-only arrays
+      // included.
+      const content = message.content
       return {
         role: 'tool',
         tool_call_id: message.toolCallId || '',
         content:
-          typeof message.content === 'string'
-            ? message.content
-            : JSON.stringify(message.content),
+          typeof content === 'string'
+            ? content
+            : Array.isArray(content) &&
+                content.some((part) => part.type === 'image')
+              ? this.extractTextContent(content) ||
+                ((this.inputModalities?.includes('image') ?? true)
+                  ? '(see attached image)'
+                  : '(image omitted: this model has no image input)')
+              : JSON.stringify(content),
       }
     }
 

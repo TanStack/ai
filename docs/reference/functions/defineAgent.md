@@ -7,7 +7,7 @@ title: defineAgent
 function defineAgent<TName, TTools, TSchema, TInterrupts, TInput>(agent): DefinedAgent<TName, TTools, TSchema, TInterrupts, TInput>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:116](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L116)
+Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:120](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L120)
 
 Define a named child agent. Pass the same object to `chat({ subagents })`.
 Pass the agents array to `useChat({ subagents })` when you render parts

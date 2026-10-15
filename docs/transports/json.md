@@ -89,6 +89,74 @@ export function Chat() {
 
 `fetchJson` sends the same POST body as `fetchHttpStream`. It takes the same options: `headers`, `body`, `credentials`, `fetchClient`, and dynamic functions. See [Request Options](./request-options).
 
+## Send a structured output
+
+`await chat({ outputSchema })` gives you the typed object on the server. You can save it or change it before the client sees it. To show it in `useChat`, pass the object to `toJsonResponse()`:
+
+```typescript
+import { chat, chatParamsFromRequest, toJsonResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { z } from "zod";
+
+const PersonSchema = z.object({
+  name: z.string(),
+  age: z.number(),
+});
+
+export async function POST(request: Request) {
+  const { messages } = await chatParamsFromRequest(request);
+  const person = await chat({
+    adapter: openaiText("gpt-5.6"),
+    messages,
+    outputSchema: PersonSchema,
+  });
+  // `person` is typed here. Save it before you send it.
+  return toJsonResponse(person);
+}
+```
+
+On the client, give `useChat` the same schema and read `final`:
+
+```tsx
+import { useChat, fetchJson } from "@tanstack/ai-react";
+import { z } from "zod";
+
+const PersonSchema = z.object({
+  name: z.string(),
+  age: z.number(),
+});
+
+export function PersonExtractor() {
+  const { sendMessage, isLoading, final } = useChat({
+    connection: fetchJson("/api/extract-person"),
+    outputSchema: PersonSchema,
+  });
+
+  return (
+    <div>
+      <button
+        disabled={isLoading}
+        onClick={() => void sendMessage("Extract: John Doe is 30")}
+      >
+        Extract
+      </button>
+      {final && (
+        <p>
+          {final.name} is {final.age}
+        </p>
+      )}
+    </div>
+  );
+}
+```
+
+What happens:
+
+- **One complete part**: the assistant message gets one `structured-output` part. `final` and `partial` get the object in the same reply.
+- **Next turn**: the client sends the object back to the model as the assistant reply.
+
+To fill in the object field by field, pass the stream from `chat({ outputSchema, stream: true })` to `toJsonResponse()` instead.
+
 ## Long runs and reloads
 
 A long agent run can take more time than your host lets one request live. Add durability, and the server replies before the timeout. The client then asks for the rest.

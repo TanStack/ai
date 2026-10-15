@@ -231,13 +231,21 @@ export {
   type DefinedAgent,
   type SubagentChoiceOptions,
   type SubagentRunContext,
+  type SubagentRunInput,
+  type AgentProduces,
 } from './activities/chat/agents/define-agent'
+export type {
+  BoundActivities,
+  SubagentBinding,
+  SubagentForward,
+} from './activities/chat/agents/bound'
 export {
   subagentRoute,
   type SubagentRouteOptions,
 } from './activities/chat/agents/route'
 export type {
   SubagentOrder,
+  SubagentPick,
   SubagentRouterPick,
   SubagentRouterPlan,
   SubagentStep,
@@ -316,6 +324,7 @@ export type {
 } from './activities/chat/stream/index'
 
 export { uiMessagesToWire } from './utilities/ag-ui-wire'
+export { subagentInputOf } from './utilities/subagent-wire'
 export {
   mergeMetadata,
   tanstackMetadata,

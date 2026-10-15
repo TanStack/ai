@@ -522,6 +522,54 @@ describe('OpenRouter adapter option mapping', () => {
     }
   })
 
+  // finishReason=null closes the call in the post-stream drain.
+  it.each([
+    { raw: '{"n": 1.50}', finishReason: 'tool_calls' },
+    { raw: '{"n": 1.50}', finishReason: null },
+    { raw: '{"a":', finishReason: 'tool_calls' },
+    { raw: '{"a":', finishReason: null },
+  ])(
+    'sends the raw argument string $raw as args on TOOL_CALL_END (finishReason=$finishReason)',
+    async ({ raw, finishReason }) => {
+      setupMockSdkClient([
+        {
+          id: 'chatcmpl-raw',
+          model: 'openai/gpt-4o-mini',
+          choices: [
+            {
+              delta: {
+                toolCalls: [
+                  {
+                    index: 0,
+                    id: 'call_raw',
+                    type: 'function',
+                    function: { name: 'lookup_weather', arguments: raw },
+                  },
+                ],
+              },
+              finishReason,
+            },
+          ],
+        },
+      ])
+
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of createAdapter().chatStream({
+        model: 'openai/gpt-4o-mini',
+        messages: [{ role: 'user', content: 'Weather?' }],
+        tools: [weatherTool],
+        logger: testLogger,
+      })) {
+        chunks.push(chunk)
+      }
+
+      const toolEnd = chunks.find((c) => c.type === 'TOOL_CALL_END')
+      expect(toolEnd).toMatchObject({ toolCallId: 'call_raw', args: raw })
+      if (raw === '{"a":') expect(toolEnd).not.toHaveProperty('input')
+      else expect(toolEnd).toMatchObject({ input: { n: 1.5 } })
+    },
+  )
+
   it('emits parentMessageId on tool-first tool calls matching the assistant message id', async () => {
     // Tool call streams before any text content. parentMessageId must bind the
     // tool call to the same assistant message id the eventual TEXT_MESSAGE_START
@@ -1944,18 +1992,14 @@ describe('OpenRouter modelOptions pass-through', () => {
     expect(params.maxCompletionTokens).toBe(64)
   })
 
-  it('normalizes reasoning enabled false to effort none on the wire (#1006)', async () => {
+  it('sends effort none for reasoning off (#1006)', async () => {
     setupMockSdkClient(minimalStreamChunks)
-    const adapter = createAdapter()
-
-    const modelOptions: OpenRouterTextModelOptions = {
-      reasoning: { enabled: false },
-    }
+    const adapter = createOpenRouterText('deepseek/deepseek-v3.2', 'test-key')
 
     for await (const _ of chat({
       adapter,
       messages: [{ role: 'user', content: 'test' }],
-      modelOptions,
+      reasoning: 'off',
     })) {
       // consume
     }
@@ -1968,18 +2012,29 @@ describe('OpenRouter modelOptions pass-through', () => {
     expect(serialized.reasoning).toEqual({ effort: 'none' })
   })
 
-  it('omits an empty reasoning object from the SDK request (#1006)', async () => {
+  it('sends the level effort from chat({ reasoning })', async () => {
     setupMockSdkClient(minimalStreamChunks)
-    const adapter = createAdapter()
-
-    const modelOptions: OpenRouterTextModelOptions = {
-      reasoning: {},
-    }
+    const adapter = createOpenRouterText('openai/gpt-5.5', 'test-key')
 
     for await (const _ of chat({
       adapter,
       messages: [{ role: 'user', content: 'test' }],
-      modelOptions,
+      reasoning: 'xhigh',
+    })) {
+      // consume
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    expect(rawParams.chatRequest.reasoning).toEqual({ effort: 'xhigh' })
+  })
+
+  it('omits reasoning from the SDK request without a reasoning option (#1006)', async () => {
+    setupMockSdkClient(minimalStreamChunks)
+    const adapter = createAdapter()
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'test' }],
     })) {
       // consume
     }

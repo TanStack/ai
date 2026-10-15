@@ -1,5 +1,29 @@
 # @tanstack/ai-mcp
 
+## 0.9.0
+
+### Minor Changes
+
+- [#1720](https://github.com/TanStack/ai/pull/1720) [`dce9fbe`](https://github.com/TanStack/ai/commit/dce9fbe3e388cec20c0fead205426c6e33ec0fb0) - `createMCPClient({ requestOptions })` now also applies to the connect handshake. A server that does not answer while it connects fails after `timeout`, not after the SDK default of 60 seconds. If you set a short `timeout` for tool calls, a slow server can now fail at connect. On a `stdio` server, connect can take up to two times `timeout`.
+
+- [#1720](https://github.com/TanStack/ai/pull/1720) [`dce9fbe`](https://github.com/TanStack/ai/commit/dce9fbe3e388cec20c0fead205426c6e33ec0fb0) - A resource template can parse its variables. With `resourceDefinition({ uriTemplate, argsSchema })`, `argsSchema.parse` runs on the template variables before `read(uri, variables, ctx)` gets them. A read result `{ text | blob, mimeType }` sets the MIME type of that answer.
+
+- [#1720](https://github.com/TanStack/ai/pull/1720) [`dce9fbe`](https://github.com/TanStack/ai/commit/dce9fbe3e388cec20c0fead205426c6e33ec0fb0) - New `createMCPClient` options:
+  - `toolName: (tool) => string` sets the name the model sees for each tool. It wins over `prefix`. `metadata.mcp.serverToolName` keeps the server's own name, so `callTool()` and MCP Apps widget calls still reach the tool. Two tools with the same final name throw `DuplicateToolNameError`.
+  - `requestOptions: { timeout, resetTimeoutOnProgress }` is sent with tool lists, tool calls, resource requests, and prompt requests. `subscriptions/listen` and task status polls keep the SDK defaults. A spec 2026 `tools/call` uses `timeout` and gets no progress notifications.
+  - `toolFilter` also takes a list of server tool names. The client keeps exactly those tools, in list order. A missing or repeated name throws the new `MCPToolFilterError`, which names them and the available tools.
+
+  `toolName` and `requestOptions` also work per server in `createMCPClients` and in MCP Apps widget calls.
+
+  Two default changes:
+  - A server input schema without `properties` now gets `properties: {}`, and a schema without `type` gets `type: 'object'`. A full schema does not change.
+  - `metadata.mcp.annotations` is now a frozen copy of the server's annotations, not the server's own object.
+
+### Patch Changes
+
+- Updated dependencies [[`1bfcee3`](https://github.com/TanStack/ai/commit/1bfcee35bb3cf0ff3aac005440c842e66c3d687d), [`412b0fe`](https://github.com/TanStack/ai/commit/412b0fea4f4bb569998c3d253d174efd7b501e3c), [`a0150c2`](https://github.com/TanStack/ai/commit/a0150c26b9e2b6050663450171e36a9dfa80915b), [`b881627`](https://github.com/TanStack/ai/commit/b881627d51076dcc1af031ac951046e2fb7d84c4), [`fac0555`](https://github.com/TanStack/ai/commit/fac055559de98eb0fa23a0bc725808033ba3c2fc), [`6774e80`](https://github.com/TanStack/ai/commit/6774e803da3205101613ab2857c9ed4fbf975681), [`5bd27f2`](https://github.com/TanStack/ai/commit/5bd27f2fc94ebfb6d11bfb28d46d5d858310805e), [`c20f7b0`](https://github.com/TanStack/ai/commit/c20f7b021aa618fbfcc114b3f0bef5e888ff6b84), [`cef1911`](https://github.com/TanStack/ai/commit/cef19119c76fc5f618d6c971efbc486323b213c3), [`51f72fb`](https://github.com/TanStack/ai/commit/51f72fbf60e201f9c8d014aefa6406e777c05d6a), [`6f1e559`](https://github.com/TanStack/ai/commit/6f1e55934fe95ddf2bf3fb3031488a713e48c7af), [`cef1911`](https://github.com/TanStack/ai/commit/cef19119c76fc5f618d6c971efbc486323b213c3), [`7532b2b`](https://github.com/TanStack/ai/commit/7532b2b09188ebd1095a60a7c5df6ef08b06916c), [`1bfcee3`](https://github.com/TanStack/ai/commit/1bfcee35bb3cf0ff3aac005440c842e66c3d687d), [`78edeb2`](https://github.com/TanStack/ai/commit/78edeb20a5ba89f2513c3f46f1267a7ed7185045), [`44e3a0a`](https://github.com/TanStack/ai/commit/44e3a0a89c86defebd38b2221dd3b7725a12839a), [`7532b2b`](https://github.com/TanStack/ai/commit/7532b2b09188ebd1095a60a7c5df6ef08b06916c), [`7a5c0d6`](https://github.com/TanStack/ai/commit/7a5c0d6fc1541187a7f01b444bc07a0478274bcb), [`b881627`](https://github.com/TanStack/ai/commit/b881627d51076dcc1af031ac951046e2fb7d84c4)]:
+  - @tanstack/ai@0.69.0
+
 ## 0.8.3
 
 ### Patch Changes

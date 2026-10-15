@@ -9,10 +9,11 @@ import { sendMessage } from './helpers'
  * while the client was detached, and `attach()` never rejoined the run, so the
  * partial reply stayed frozen.
  *
- * The page renders the chat inside a hidden `<Activity>` on the second load,
- * so the hydrate resolves first and `attach()` runs only on "Show chat". The
- * harness holds the run until the spec releases it after "Show chat", so
- * `REJOIN_OK` can only come from `joinRun`.
+ * The page drives a `ChatClient` directly (`useChat` now holds the store read
+ * until it attaches). On the second load the client reads the store at
+ * construction and attaches only on "Show chat". The harness holds the run
+ * until the spec releases it after that, so `REJOIN_OK` can only come from
+ * `joinRun`.
  *
  * Provider-free: `/api/async-store-rejoin` streams a fixed AG-UI sequence
  * through a `memoryStream` sink (exempt from the aimock policy).
@@ -57,16 +58,16 @@ test.describe('async store rejoin (issue #1639)', () => {
       }
     })
 
-    // A new document with the chat hidden: the async store read and the
-    // restore of the in-flight run both finish while no view is attached.
+    // A new document with the client detached: the async store read and the
+    // restore of the in-flight run both finish before `attach()`.
     await page.goto(
       `/async-store-rejoin?threadId=${encodeURIComponent(threadId)}&deferAttach=true`,
     )
-    await expect(page.getByTestId('assistant-text')).toBeHidden()
-    await expect(page.locator('html')).toHaveAttribute(
+    await expect(page.getByTestId('async-store-rejoin-page')).toHaveAttribute(
       'data-async-store-hydrated',
       'true',
     )
+    await expect(page.getByTestId('assistant-text')).toContainText('PART_ONE')
     // The hydrate must not open a connection while detached.
     expect(joinRequests).toHaveLength(0)
 

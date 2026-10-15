@@ -8,7 +8,7 @@ type WireResponse = {
 }
 
 test.describe('anthropic — claude-haiku-5-5 model options wire format', () => {
-  test('the request carries thinking, output_config.effort and the provider tool', async ({
+  test('reasoning off sends disabled thinking, no effort, and the provider tool', async ({
     request,
   }) => {
     const res = await request.post('/api/anthropic-haiku-5-5-wire')
@@ -21,7 +21,7 @@ test.describe('anthropic — claude-haiku-5-5 model options wire format', () => 
     const body = payload.capturedRequests[0]
     expect(body?.['model']).toBe('claude-haiku-5-5')
     expect(body?.['thinking']).toEqual({ type: 'disabled' })
-    expect(body?.['output_config']).toEqual({ effort: 'low' })
+    expect(body?.['output_config']).toBeUndefined()
     expect(body?.['max_tokens']).toBe(1024)
     expect(body?.['tools']).toEqual(
       expect.arrayContaining([

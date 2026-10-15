@@ -68,3 +68,19 @@ export function withBedrockDefaults(
     fetch: fetch ?? createSigV4Fetch(resolved),
   }
 }
+
+/**
+ * True when an error from Bedrock's OpenAI-compatible endpoints says the input
+ * does not fit in the model's context window. They have no error code for it.
+ * They answer `validation_error` for every bad request, so the message text
+ * is the only signal.
+ */
+export function isBedrockOpenAIContextOverflow(error: {
+  message: string
+  code: string | undefined
+}): boolean {
+  return (
+    error.code === 'validation_error' &&
+    error.message.includes('maximum context length')
+  )
+}

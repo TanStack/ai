@@ -363,8 +363,15 @@ export async function startHostToolBridge(
     name: BRIDGED_MCP_SERVER_NAME,
     url,
     token,
-    close: () =>
-      new Promise<void>((resolve) => httpServer.close(() => resolve())),
+    close: () => {
+      const closed = new Promise<void>((resolve) =>
+        httpServer.close(() => resolve()),
+      )
+      // `close()` alone waits for every open connection. An agent that keeps
+      // a request or a keep-alive socket open would hold the run's teardown.
+      httpServer.closeAllConnections()
+      return closed
+    },
   }
 }
 
