@@ -453,7 +453,10 @@ describe('providerKeys', () => {
       await session.prompt('hi'),
     ]
     expect(keyed.keys).toEqual([PASTED_KEY])
-    const inbox = await persistence.stores.inbox.get(receipt.inputId)
+    const inbox = await persistence.stores.inbox.get({
+      threadId: 't',
+      inputId: receipt.inputId,
+    })
     const transcript = await persistence.stores.messages.loadThread('t')
     const everything = JSON.stringify({ events, results, inbox, transcript })
     expect(everything).not.toContain(PASTED_KEY)
