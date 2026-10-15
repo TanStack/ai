@@ -168,7 +168,7 @@ interface BaseCreateChatReturn<
    * `messages[i].parts.find(p => p.type === 'structured-output')` is typed
    * with the schema's inferred shape: `data: T`, `partial: DeepPartial<T>`.
    */
-  messages: Array<UIMessage<TTools, TData>>
+  messages: ReadonlyArray<UIMessage<TTools, TData>>
 
   /**
    * Send a message and get a response.
@@ -187,7 +187,7 @@ interface BaseCreateChatReturn<
    * Pending messages queued while the client is busy (streaming, claiming a
    * send, or draining). Separate from `messages` until they drain.
    */
-  queue: Array<QueuedMessage>
+  queue: ReadonlyArray<QueuedMessage>
 
   /**
    * Cancel a queued message before it drains. No-op if already sent.
@@ -320,7 +320,7 @@ interface BaseCreateChatReturn<
   /**
    * Set messages manually
    */
-  setMessages: (messages: Array<UIMessage<TTools, TData>>) => void
+  setMessages: (messages: ReadonlyArray<UIMessage<TTools, TData>>) => void
 
   /**
    * Clear all messages

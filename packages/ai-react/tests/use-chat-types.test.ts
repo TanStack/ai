@@ -48,7 +48,7 @@ describe('useChat() return type', () => {
       type R = UseChatReturn<NoTools, PersonSchema>
       expectTypeOf<R['sendMessage']>().toBeFunction()
       expectTypeOf<R['isLoading']>().toBeBoolean()
-      expectTypeOf<R['messages']>().toBeArray()
+      expectTypeOf<R['messages']>().toExtend<ReadonlyArray<unknown>>()
     })
 
     it('options accept outputSchema with the schema type', () => {

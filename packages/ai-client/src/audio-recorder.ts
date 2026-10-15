@@ -1,5 +1,6 @@
 import { arrayBufferToBase64 } from '@tanstack/ai-utils'
 import type { AudioPart } from '@tanstack/ai/client'
+import { notifyListeners } from './snapshot-atom'
 
 /** Lifecycle state of an {@link AudioRecorder}. */
 export type AudioRecorderState = 'idle' | 'recording' | 'stopping'
@@ -63,12 +64,12 @@ export class AudioRecorder {
   private chunks: Array<Blob> = []
   private startedAt = 0
   private _state: AudioRecorderState = 'idle'
+  private readonly listeners = new Set<(state: AudioRecorderState) => void>()
   // True while start() is awaiting getUserMedia (state is still 'idle' then).
   private starting = false
   // Set by cancel()/teardown during that window so start() releases the
   // freshly acquired stream instead of beginning a leaked recording.
   private pendingCancel = false
-  private readonly listeners = new Set<(state: AudioRecorderState) => void>()
   private stopResolve: ((recording: AudioRecording) => void) | null = null
   private stopReject: ((error: Error) => void) | null = null
 
@@ -92,20 +93,19 @@ export class AudioRecorder {
 
   subscribe(cb: (state: AudioRecorderState) => void): () => void {
     this.listeners.add(cb)
-    return () => {
-      this.listeners.delete(cb)
-    }
+    return () => this.listeners.delete(cb)
   }
+
+  /** Current recorder lifecycle state. */
+  getSnapshot = (): AudioRecorderState => this._state
 
   private setState(state: AudioRecorderState): void {
     this._state = state
-    for (const cb of this.listeners) {
-      cb(state)
-    }
+    notifyListeners(this.listeners, state)
   }
 
   async start(): Promise<void> {
-    if (this._state !== 'idle' || this.starting) {
+    if (this.state !== 'idle' || this.starting) {
       return
     }
     this.starting = true
@@ -168,7 +168,7 @@ export class AudioRecorder {
   }
 
   stop(): Promise<AudioRecording> {
-    if (this._state !== 'recording' || !this.recorder) {
+    if (this.state !== 'recording' || !this.recorder) {
       return Promise.reject(
         new Error('AudioRecorder.stop() called while not recording'),
       )
@@ -179,7 +179,7 @@ export class AudioRecorder {
       // Some browsers/codecs never fire onstop; this watchdog unwedges the
       // recorder instead of leaking this promise forever.
       const watchdog = setTimeout(() => {
-        if (this._state !== 'stopping') {
+        if (this.state !== 'stopping') {
           return
         }
         // Detach handlers so a late onstop/onerror from the stalled recorder
@@ -215,7 +215,7 @@ export class AudioRecorder {
       this.pendingCancel = true
       return
     }
-    if (this._state === 'idle') {
+    if (this.state === 'idle') {
       return
     }
     const recorder = this.recorder
@@ -244,8 +244,9 @@ export class AudioRecorder {
     const reject = this.stopReject
     this.stopResolve = null
     this.stopReject = null
-    this.setState('idle')
+    // Settle first. The pending stop() must not depend on listener code.
     reject?.(new Error('Recording cancelled'))
+    this.setState('idle')
   }
 
   private async finalize(): Promise<void> {
@@ -270,8 +271,8 @@ export class AudioRecorder {
       const resolve = this.stopResolve
       this.stopResolve = null
       this.stopReject = null
-      this.setState('idle')
       resolve?.(recording)
+      this.setState('idle')
     } catch (err) {
       this.handleError(
         err instanceof Error ? err : new Error('Failed to finalize recording'),
@@ -286,11 +287,11 @@ export class AudioRecorder {
     const reject = this.stopReject
     this.stopResolve = null
     this.stopReject = null
-    this.setState('idle')
-    // Settle the pending stop() promise before invoking the user callback so a
-    // throwing onError can't strand the awaiter (the two error channels are
-    // independent — see start()/stop() docs).
+    // Settle the pending stop() promise before listeners and the user callback
+    // run, so a throw there can't strand the awaiter (the two error channels
+    // are independent — see start()/stop() docs).
     reject?.(error)
+    this.setState('idle')
     this.notifyError(error)
   }
 

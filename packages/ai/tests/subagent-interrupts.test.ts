@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { chat } from '../src/activities/chat'
 import { defineAgent } from '../src/activities/chat/agents/define-agent'
+import { defineChatMiddleware } from '../src/activities/chat/middleware/define'
+import { defineInterrupt } from '../src/interrupt-definition'
 import { StreamProcessor } from '../src/activities/chat/stream/processor'
 import { uiMessagesToWire } from '../src/utilities/ag-ui-wire'
 import { fromSpecTokenUsage } from '../src/utilities/ag-ui-usage'
@@ -491,6 +493,50 @@ describe('subagent interrupts', () => {
     expect(toolResult).toBeDefined()
     expect(second.at(-1)).toMatchObject({ type: EventType.RUN_FINISHED })
     expect(second.at(-1)).not.toHaveProperty('outcome.type', 'interrupt')
+  })
+
+  it('keeps the child interrupt next to an afterTools boundary interrupt', async () => {
+    const { agent } = cleanerAgent()
+    const review = defineInterrupt({
+      id: 'after-review',
+      responseSchema: z.boolean(),
+    })
+    const chunks = await collectChunks(
+      chat({
+        adapter: toolParent('{}'),
+        threadId: 't',
+        runId: 'run-1',
+        messages: [user],
+        subagents: { agents: [agent] },
+        interrupts: [review],
+        middleware: [
+          defineChatMiddleware({
+            name: 'after-review',
+            onInterruptBoundary(ctx) {
+              if (ctx.phase !== 'afterTools') return undefined
+              return {
+                interrupts: [
+                  review.interrupt({
+                    key: 'review',
+                    reason: 'review',
+                    message: 'Review',
+                  }),
+                ],
+              }
+            },
+          }),
+        ],
+      }) as AsyncIterable<StreamChunk>,
+    )
+    expect(chunks.at(-1)).toMatchObject({
+      type: EventType.RUN_FINISHED,
+      outcome: {
+        type: 'interrupt',
+        interrupts: expect.arrayContaining([
+          expect.objectContaining({ id: 'approval_call_c' }),
+        ]),
+      },
+    })
   })
 
   it('gives a resumed child the same input the model wrote', async () => {

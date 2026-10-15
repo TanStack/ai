@@ -668,7 +668,26 @@ system prompt, is in [Apply Answers](../interrupts/apply-answers).
 
 ### onBeforeToolCall
 
-Called before each tool executes. The first middleware that returns a non-void decision short-circuits — remaining middleware are skipped for that tool call.
+Called before a server tool runs, and before a client tool goes to the client. The first middleware that returns a non-void decision skips the remaining middleware for that call.
+
+Each tool call goes through these steps:
+
+1. The engine parses the JSON arguments from the model.
+2. `onBeforeToolCall` gets the parsed input.
+3. The tool's `inputSchema` checks the final input. An async validator is awaited. A schema transform applies once, here.
+4. The server tool runs, or the client gets the call, with the checked input.
+
+The schema checks the input after your hook:
+
+- `hookCtx.args` has no schema defaults or transforms yet, and it can be invalid. Check its shape before you read it.
+- A `transformArgs` value or an in-place edit must fit the schema. If it does not fit, the call gets a tool error, `onAfterToolCall` runs with `ok: false`, and the tool does not run.
+
+When the hook runs:
+
+- A client tool runs the hook before the server sends the call to the client. The hook does not run when the client result comes back.
+- A client tool gets `onAfterToolCall` only when the hook skips the call or the schema check fails. The result from the client does not run it. If your middleware pairs the two hooks, return early when `hookCtx.tool?.execute` is missing.
+- A call that waits for approval does not run the hook. A denied call does not run it either.
+- After approval, the hook gets the approved input, including any `editedArgs`. See [Tool Approval](../interrupts/tool-approval).
 
 ```typescript
 import { type ChatMiddleware } from "@tanstack/ai";

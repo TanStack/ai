@@ -132,6 +132,98 @@ test.describe('Middleware Lifecycle', () => {
     expect(toolResults[0].content).toContain('skipped')
   })
 
+  test('onBeforeToolCall args that fail the inputSchema become a tool error', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    const params = new URLSearchParams()
+    if (testId) params.set('testId', testId)
+    if (aimockPort) params.set('aimockPort', String(aimockPort))
+    const qs = params.toString()
+    await page.goto(`/middleware-test${qs ? '?' + qs : ''}`)
+    await page.waitForTimeout(2000)
+    await page.locator('#mw-scenario-select').selectOption('with-tool')
+    await page.locator('#mw-mode-select').selectOption('tool-bad-args')
+    await page.locator('#mw-run-button').click()
+
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector('#mw-metadata')
+          ?.getAttribute('data-test-complete') === 'true',
+      { timeout: 10000 },
+    )
+
+    const messagesJson = await page.locator('#mw-messages-json').textContent()
+    const messages = JSON.parse(messagesJson || '[]')
+    const toolResults = messages.flatMap((m: any) =>
+      m.parts.filter((p: any) => p.type === 'tool-result'),
+    )
+    // The middleware rewrote { city: 'NYC' } to { city: { name: 'NYC' } }. The schema
+    // checks the rewritten args, so get_weather never runs.
+    expect(toolResults).toHaveLength(1)
+    expect(toolResults[0].content).toContain('Input validation failed')
+    expect(toolResults[0].content).not.toContain('temperature')
+  })
+
+  test('the next model call replays the exact tool argument bytes', async ({
+    page,
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const params = new URLSearchParams()
+    if (testId) params.set('testId', testId)
+    if (aimockPort) params.set('aimockPort', String(aimockPort))
+    const qs = params.toString()
+    await page.goto(`/middleware-test${qs ? '?' + qs : ''}`)
+    await page.waitForTimeout(2000)
+    await page.locator('#mw-scenario-select').selectOption('raw-tool-args')
+    await page.locator('#mw-run-button').click()
+
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector('#mw-metadata')
+          ?.getAttribute('data-test-complete') === 'true',
+      { timeout: 10000 },
+    )
+
+    // The fixture sends spaces and `1.50`. A re-serialized value would be
+    // `{"city":"NYC","days":1.5}`.
+    const raw = '{"city": "NYC",  "days": 1.50}'
+    const journal = await request.get(
+      `http://127.0.0.1:${aimockPort}/v1/_requests`,
+    )
+    const entries: Array<{
+      headers?: Record<string, string>
+      body: {
+        messages?: Array<{
+          role: string
+          tool_calls?: Array<{ function: { arguments: string } }>
+        }>
+      } | null
+    }> = await journal.json()
+    const calls = entries.filter(
+      (entry) => entry.headers?.['x-test-id'] === testId,
+    )
+    expect(calls).toHaveLength(2)
+    const replayed = calls[1]?.body?.messages
+      ?.flatMap((message) => message.tool_calls ?? [])
+      .map((call) => call.function.arguments)
+    expect(replayed).toEqual([raw])
+
+    // The client keeps the same string.
+    const messages = JSON.parse(
+      (await page.locator('#mw-messages-json').textContent()) || '[]',
+    )
+    const toolCall = messages
+      .flatMap((m: any) => m.parts)
+      .find((p: any) => p.type === 'tool-call')
+    expect(toolCall?.arguments).toBe(raw)
+  })
+
   test('onAfterToolCall replaceResult changes what the client and the model see', async ({
     page,
     request,

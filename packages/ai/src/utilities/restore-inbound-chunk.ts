@@ -3,6 +3,7 @@ import type { StreamChunk } from '../types'
 import type { AdapterYieldChunk } from './adapter-yield-chunk'
 import { isTanstackUsage, rebuildTokenUsage } from './ag-ui-usage'
 import { tanstackMetadata } from './merge-metadata'
+import { parseToolArguments } from './tool-call-arguments'
 
 /**
  * Rebuild TanStack `TokenUsage` (`promptTokens`) from spec `usage[]` plus
@@ -34,7 +35,12 @@ export function restorePublicUsage(chunk: StreamChunk): StreamChunk {
   }
 
   if (chunk.type === EventType.TOOL_CALL_END && chunk.input === undefined) {
-    const input = tanstackMetadata(chunk)?.input
+    const tanstack = tanstackMetadata(chunk)
+    const input =
+      tanstack?.input ??
+      (typeof tanstack?.args === 'string'
+        ? parseToolArguments(tanstack.args)
+        : undefined)
     if (input !== undefined) {
       chunk.input = input
     }

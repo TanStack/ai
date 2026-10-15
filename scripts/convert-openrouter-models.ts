@@ -68,6 +68,7 @@ const perModelInputModalities: Record<string, string> = {}
 const imageModels = new Set<string>([])
 const chatModels = new Set<string>([])
 const combinedToolsAndSchemaModels = new Set<string>([])
+const jsonObjectOnlyModels = new Set<string>([])
 const videoModels = new Set<string>([])
 const reasoningModels = new Set<string>([])
 const reasoningShapes: Array<ReasoningShape> = []
@@ -85,6 +86,22 @@ function generateCombinedToolsAndSchemaModelsSet(): string {
  */
 export const OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS: ReadonlySet<string> =
   new Set<string>([\n${Array.from(combinedToolsAndSchemaModels)
+    .map((id) => `    ${id},`)
+    .join('\n')}\n  ])`
+}
+
+/**
+ * Catalog ids whose `supported_parameters` include `response_format` and not
+ * `structured_outputs`. Structured output sends JSON mode for these.
+ */
+function generateJsonObjectOnlyModelsSet(): string {
+  return `/**
+ * Generated: chat models whose catalog \`supported_parameters\` include
+ * \`response_format\` and do not include \`structured_outputs\`.
+ * Structured output sends JSON mode for these ids.
+ */
+export const OPENROUTER_JSON_OBJECT_ONLY_MODELS: ReadonlySet<string> =
+  new Set<string>([\n${Array.from(jsonObjectOnlyModels)
     .map((id) => `    ${id},`)
     .join('\n')}\n  ])`
 }
@@ -331,6 +348,9 @@ function generateModelMetaString(model: OpenRouterModel): string {
     ) {
       combinedToolsAndSchemaModels.add(`${constName}.id`)
     }
+    if (params.has('response_format') && !params.has('structured_outputs')) {
+      jsonObjectOnlyModels.add(`${constName}.id`)
+    }
   }
   if (outputModalities.includes('image')) {
     imageModels.add(`${constName}.id`)
@@ -499,6 +519,8 @@ ${generateVideoModelMeta()}
 ${generateImageModelsArray()}
 
 ${generateCombinedToolsAndSchemaModelsSet()}
+
+${generateJsonObjectOnlyModelsSet()}
 `
 console.log(file)
 writeFile('packages/ai-openrouter/src/model-meta.ts', file).then(() => {

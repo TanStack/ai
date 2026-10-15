@@ -58,6 +58,8 @@ export const assistant = defineHarness({
 
 `agents` are agents you run from code. Put an agent in `subagents` instead when the model must call it as a tool, the same as in `chat()`.
 
+To ship the harness to users with no `.env` file, let each user connect their own key. See [Connect model providers](./provider-keys).
+
 ## 2. Open a session
 
 A host runs sessions. Give it the stores from `@tanstack/ai-persistence`, then open a session for a conversation id.

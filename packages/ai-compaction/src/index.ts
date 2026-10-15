@@ -1153,7 +1153,9 @@ export function withCompaction(
           await store?.delete(USAGE_NAMESPACE, ctx.threadId)
         }
 
-        if (logRecords) {
+        // A failed compact must not be stored. This call still uses the
+        // fallback. The next process tries compact again.
+        if (!error && logRecords) {
           // The model gets `next` now. The record makes the log fold the same.
           if (!ctx.signal?.aborted) {
             await logRecords.append([
@@ -1167,7 +1169,7 @@ export function withCompaction(
               }),
             ])
           }
-        } else if (metadata && inputMessages === messages) {
+        } else if (!error && metadata && inputMessages === messages) {
           const checkpoint: CompactionCheckpoint = {
             schemaVersion: 1,
             sourceMessageCount: messages.length,

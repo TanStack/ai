@@ -391,3 +391,51 @@ describe('injectChat — structured output', () => {
     expect(result.final()).toBeNull()
   })
 })
+
+describe('injectChat snapshot', () => {
+  it('reads one frozen client snapshot and drops it on destroy', async () => {
+    let resolveRead!: (value: {
+      messages: Array<{
+        id: string
+        role: 'user'
+        parts: Array<{ type: 'text'; content: string }>
+      }>
+    }) => void
+    const read = new Promise<Parameters<typeof resolveRead>[0]>((resolve) => {
+      resolveRead = resolve
+    })
+    const { result, flush, destroy } = renderInjectChat({
+      connection: createMockConnectionAdapter({
+        chunks: createTextChunks('Hi'),
+      }),
+      threadId: 'angular-snapshot',
+      persistence: {
+        getItem: () => read,
+        setItem: async () => {},
+        removeItem: async () => {},
+      },
+    })
+    flush()
+
+    expect(result.isHydrating()).toBe(true)
+    resolveRead({
+      messages: [
+        { id: 'm1', role: 'user', parts: [{ type: 'text', content: 'hi' }] },
+      ],
+    })
+    await vi.waitFor(() => expect(result.isHydrating()).toBe(false))
+    expect(result.messages()).toHaveLength(1)
+
+    await result.sendMessage('Hello')
+    expect(result.isLoading()).toBe(false)
+    expect(result.status()).toBe('ready')
+    const messages = result.messages()
+    expect(messages).toHaveLength(3)
+    expect(Object.isFrozen(messages)).toBe(true)
+    expect(() => (messages as Array<unknown>).push({})).toThrow(TypeError)
+
+    destroy()
+    result.setMessages([])
+    expect(result.messages()).toBe(messages)
+  })
+})

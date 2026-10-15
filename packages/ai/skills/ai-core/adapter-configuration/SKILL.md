@@ -373,6 +373,20 @@ adapter for a custom model that doesn't support the combination, return
 > Note `seed-2-0-lite-260428` (the obvious default) is one of them; use
 > `seed-2-0-lite-260228` or `dola-seed-2-1-turbo-260628` for typed output.
 
+> **JSON mode (`json_object`) is never combined.** Some OpenRouter and Groq
+> models reject strict `json_schema` and accept only `json_object`
+> (`OPENROUTER_JSON_OBJECT_ONLY_MODELS`, Groq models whose `features` list
+> `json_object` without `json_schema`). For these, structured output sends
+> `json_object` and adds the schema as a system prompt. A caller can also
+> set JSON mode in `modelOptions` (`responseFormat` / `text.format` on
+> OpenRouter, `response_format` / `text.format` on OpenAI-base adapters).
+> In JSON mode `supportsCombinedToolsAndSchema()` returns `false`, so the
+> schema prompt goes only on the separate finalization request. A subclass
+> of the OpenAI-base adapters marks its own JSON-only models by overriding
+> `protected modelPrefersJsonObject(model: string): boolean`. With a plain
+> JSON Schema `outputSchema`, TanStack AI does not validate the reply; use
+> a Standard Schema (Zod, Valibot, ArkType) to get it validated.
+
 ### 6. OpenAI-Compatible Providers
 
 Any provider that implements the OpenAI **Chat Completions** API (DeepSeek,

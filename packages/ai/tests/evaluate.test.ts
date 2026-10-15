@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { aiEventClient } from '@tanstack/ai-event-client'
 import { boolean, choice, decide, score } from '../src/index'
 import type { EvaluateAdapter } from '../src/activities/evaluate/adapter'
 import type {
@@ -83,6 +84,60 @@ function recordingMiddleware() {
     },
   }
   return { middleware, events }
+}
+
+function recordUsageEvents() {
+  const usage: Array<{ requestId: string; model: string; usage: TokenUsage }> =
+    []
+  const unsubscribe = aiEventClient.on(
+    'evaluate:usage',
+    (event) => {
+      const { requestId, model } = event.payload
+      usage.push({ requestId, model, usage: event.payload.usage })
+    },
+    { withEventTarget: true },
+  )
+  return { usage, unsubscribe }
+}
+
+function recordOrder(onUsage?: () => void) {
+  const order: Array<string> = []
+  const unsubscribes = [
+    aiEventClient.on(
+      'evaluate:request:completed',
+      () => {
+        order.push('event:completed')
+      },
+      { withEventTarget: true },
+    ),
+    aiEventClient.on(
+      'evaluate:usage',
+      () => {
+        order.push('event:usage')
+      },
+      { withEventTarget: true },
+    ),
+  ]
+  const middleware: GenerationMiddleware = {
+    name: 'order',
+    onUsage: () => {
+      order.push('onUsage')
+      onUsage?.()
+    },
+    onFinish: () => {
+      order.push('onFinish')
+    },
+    onAbort: () => {
+      order.push('onAbort')
+    },
+    onError: () => {
+      order.push('onError')
+    },
+  }
+  const unsubscribe = () => {
+    for (const off of unsubscribes) off()
+  }
+  return { order, middleware, unsubscribe }
 }
 
 const mixedQuestions = {
@@ -501,5 +556,213 @@ describe('decide()', () => {
 
     expect(events.error).toHaveLength(1)
     expect(events.abort).toHaveLength(0)
+  })
+
+  it('reports usage once on success', async () => {
+    const usage = { promptTokens: 3, completionTokens: 1, totalTokens: 4 }
+    const { middleware, events } = recordingMiddleware()
+    const recorded = recordUsageEvents()
+    const adapter = mockEvaluateAdapter(async () =>
+      adapterResult(mixedWireAnswers, usage),
+    )
+
+    try {
+      await decide({
+        adapter,
+        state: 'ticket',
+        questions: mixedQuestions,
+        middleware: [middleware],
+      })
+    } finally {
+      recorded.unsubscribe()
+    }
+
+    expect(events.usage).toEqual([usage])
+    expect(recorded.usage).toEqual([
+      { requestId: events.start[0]!.requestId, model: 'jev-1.13.0', usage },
+    ])
+  })
+
+  it('reports usage once, then fires onError, when the answers cannot be mapped', async () => {
+    const usage = { promptTokens: 3, completionTokens: 1, totalTokens: 4 }
+    const order: Array<string> = []
+    const { middleware, events } = recordingMiddleware()
+    const recorded = recordUsageEvents()
+    const adapter = mockEvaluateAdapter(async () =>
+      adapterResult({ queue: mixedWireAnswers.queue! }, usage),
+    )
+
+    let thrown: unknown
+    try {
+      await decide({
+        adapter,
+        state: 'ticket',
+        questions: mixedQuestions,
+        middleware: [
+          middleware,
+          {
+            onUsage: () => {
+              order.push('usage')
+            },
+            onError: () => {
+              order.push('error')
+            },
+          },
+        ],
+        debug: false,
+      })
+    } catch (error) {
+      thrown = error
+    } finally {
+      recorded.unsubscribe()
+    }
+
+    expect(thrown).toBeInstanceOf(Error)
+    expect((thrown as Error).message).toBe(
+      'decide(): missing answer for question "urgency"',
+    )
+    expect(events.error).toHaveLength(1)
+    expect(events.error[0]!.error).toBe(thrown)
+    expect(events.usage).toEqual([usage])
+    expect(recorded.usage).toEqual([
+      { requestId: events.start[0]!.requestId, model: 'jev-1.13.0', usage },
+    ])
+    expect(order).toEqual(['usage', 'error'])
+    expect(events.finish).toHaveLength(0)
+  })
+
+  it('reports no usage when the adapter throws', async () => {
+    const { middleware, events } = recordingMiddleware()
+    const recorded = recordUsageEvents()
+    const adapter = mockEvaluateAdapter(async () => {
+      throw new Error('evaluate boom')
+    })
+
+    try {
+      await expect(
+        decide({
+          adapter,
+          state: 'ticket',
+          questions: mixedQuestions,
+          middleware: [middleware],
+          debug: false,
+        }),
+      ).rejects.toThrow('evaluate boom')
+    } finally {
+      recorded.unsubscribe()
+    }
+
+    expect(events.usage).toHaveLength(0)
+    expect(recorded.usage).toHaveLength(0)
+    expect(events.error).toHaveLength(1)
+  })
+
+  it('keeps the success order: completed event, usage event, onUsage, onFinish', async () => {
+    const recorded = recordOrder()
+    const adapter = mockEvaluateAdapter(async () =>
+      adapterResult(mixedWireAnswers),
+    )
+
+    try {
+      await decide({
+        adapter,
+        state: 'ticket',
+        questions: mixedQuestions,
+        middleware: [recorded.middleware],
+      })
+    } finally {
+      recorded.unsubscribe()
+    }
+
+    expect(recorded.order).toEqual([
+      'event:completed',
+      'event:usage',
+      'onUsage',
+      'onFinish',
+    ])
+  })
+
+  it('still emits completed and runs onError when onUsage throws on success', async () => {
+    const hookError = new Error('onUsage boom')
+    const recorded = recordOrder(() => {
+      throw hookError
+    })
+    const adapter = mockEvaluateAdapter(async () =>
+      adapterResult(mixedWireAnswers),
+    )
+
+    let thrown: unknown
+    try {
+      await decide({
+        adapter,
+        state: 'ticket',
+        questions: mixedQuestions,
+        middleware: [recorded.middleware],
+        debug: false,
+      })
+    } catch (error) {
+      thrown = error
+    } finally {
+      recorded.unsubscribe()
+    }
+
+    expect(thrown).toBe(hookError)
+    expect(recorded.order).toEqual([
+      'event:completed',
+      'event:usage',
+      'onUsage',
+      'onError',
+    ])
+  })
+
+  it('emits no completed event when the answers cannot be mapped', async () => {
+    const recorded = recordOrder()
+    const adapter = mockEvaluateAdapter(async () =>
+      adapterResult({ queue: mixedWireAnswers.queue! }),
+    )
+
+    try {
+      await expect(
+        decide({
+          adapter,
+          state: 'ticket',
+          questions: mixedQuestions,
+          middleware: [recorded.middleware],
+          debug: false,
+        }),
+      ).rejects.toThrow('decide(): missing answer for question "urgency"')
+    } finally {
+      recorded.unsubscribe()
+    }
+
+    expect(recorded.order).toEqual(['event:usage', 'onUsage', 'onError'])
+  })
+
+  it('still runs onError once when onUsage throws after the answers cannot be mapped', async () => {
+    const hookError = new Error('onUsage boom')
+    const recorded = recordOrder(() => {
+      throw hookError
+    })
+    const adapter = mockEvaluateAdapter(async () =>
+      adapterResult({ queue: mixedWireAnswers.queue! }),
+    )
+
+    let thrown: unknown
+    try {
+      await decide({
+        adapter,
+        state: 'ticket',
+        questions: mixedQuestions,
+        middleware: [recorded.middleware],
+        debug: false,
+      })
+    } catch (error) {
+      thrown = error
+    } finally {
+      recorded.unsubscribe()
+    }
+
+    expect(thrown).toBe(hookError)
+    expect(recorded.order).toEqual(['event:usage', 'onUsage', 'onError'])
   })
 })
