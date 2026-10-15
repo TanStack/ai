@@ -260,14 +260,20 @@ export abstract class SessionAgents<
         const agent = agents.find((entry) => entry.name === call.agent)
         if (!agent) throw new Error(`Unknown agent "${call.agent}".`)
         const subagentRunId = createSubagentId()
-        this.runAgent(agent, call.input, startOptions, undefined, {
-          subagentRunId,
-          ...(call.prompt !== undefined && { prompt: call.prompt }),
-          ...(call.parentToolCallId !== undefined && {
-            parentToolCallId: call.parentToolCallId,
-          }),
-        })
-        return { subagentRunId }
+        const operation = this.runAgent(
+          agent,
+          call.input,
+          startOptions,
+          undefined,
+          {
+            subagentRunId,
+            ...(call.prompt !== undefined && { prompt: call.prompt }),
+            ...(call.parentToolCallId !== undefined && {
+              parentToolCallId: call.parentToolCallId,
+            }),
+          },
+        )
+        return { subagentRunId, done: Promise.resolve(operation) }
       })
     return {
       generationMiddleware: [

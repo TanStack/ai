@@ -721,10 +721,10 @@ describe('first-party plugin edges', () => {
     )
     const before = session.snapshot().plugins
     await session.prompt('plan')
-    // The tool has a plain JSON Schema, which chat() does not check, so the
-    // tool checks its input itself.
+    // chat() checks the tool's JSON Schema before it runs, so an invalid
+    // status is a tool error the model sees, and the tool never runs.
     expect(JSON.stringify(calls[1].messages)).toContain(
-      'Each todo needs text and a status.',
+      'Input validation failed for tool todo_write',
     )
     expect(session.snapshot().plugins).toEqual(before)
     expect(await session.command('todos')).toBe('The todo list is empty.')
