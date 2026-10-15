@@ -644,6 +644,27 @@ Known slugs:
 - `typesafe/jev-1.13`
 - `typesafe/jev-1.13.0`
 
+When OpenRouter sends an error response, the thrown error has the HTTP status code in `status`. A rate limit (429) needs a retry, but a bad key (401) does not:
+
+```typescript
+import { decide, boolean } from "@tanstack/ai";
+import { openRouterDecider } from "@tanstack/ai-openrouter";
+
+try {
+  await decide({
+    adapter: openRouterDecider("~typesafe/jev-latest"),
+    state: { body: "Please refund the extra payment." },
+    questions: {
+      refund: boolean({ instructions: "Is the customer asking for a refund?" }),
+    },
+  });
+} catch (error) {
+  if (error instanceof Error && "status" in error && error.status === 429) {
+    // Rate limited. Wait, then call decide() again.
+  }
+}
+```
+
 See the [Evaluate guide](../evaluate/evaluate) for question helpers, the result
 shape, abort, and middleware.
 

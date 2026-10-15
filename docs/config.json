@@ -1262,12 +1262,14 @@
         {
           "label": "TypeSafe",
           "to": "adapters/typesafe",
-          "addedAt": "2026-09-18"
+          "addedAt": "2026-09-18",
+          "updatedAt": "2026-10-13"
         },
         {
           "label": "Ollaya",
           "to": "adapters/ollaya",
-          "addedAt": "2026-09-29"
+          "addedAt": "2026-09-29",
+          "updatedAt": "2026-10-13"
         },
         {
           "label": "ElevenLabs",
@@ -1308,7 +1310,7 @@
           "label": "Vercel AI Gateway",
           "to": "adapters/vercel-gateway",
           "addedAt": "2026-08-12",
-          "updatedAt": "2026-10-09"
+          "updatedAt": "2026-10-13"
         },
         {
           "label": "Lovable AI Gateway",
