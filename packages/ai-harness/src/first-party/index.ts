@@ -30,6 +30,8 @@ export type {
   ProviderKeyStatus,
   ProviderKeysState,
 } from './provider-keys'
+export { GoalMet, goal, selectGoal } from './goal'
+export type { Goal } from './goal'
 export { agents, builtInAgents } from './agents'
 export type { AgentProfile } from './agents'
 export { question } from './question'

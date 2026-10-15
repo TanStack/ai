@@ -942,6 +942,11 @@
           "updatedAt": "2026-10-14"
         },
         {
+          "label": "Deploy a harness",
+          "to": "harness/deploy",
+          "addedAt": "2026-10-13"
+        },
+        {
           "label": "Send inputs safely",
           "to": "harness/inputs",
           "addedAt": "2026-10-13",
@@ -1046,6 +1051,11 @@
         {
           "label": "Code mode in a harness",
           "to": "harness/code-mode",
+          "addedAt": "2026-10-13"
+        },
+        {
+          "label": "Work until a goal is met",
+          "to": "harness/goal",
           "addedAt": "2026-10-13"
         },
         {
