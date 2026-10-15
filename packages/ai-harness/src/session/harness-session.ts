@@ -468,7 +468,10 @@ export class HarnessSession<
   protected async recoverFromLog(writer: LogWriter): Promise<void> {
     // A live owner runs its own inputs, also one that has no run lease yet.
     // A sweep recovers them after its claim expires.
-    if (await this.isOwnedElsewhere()) return
+    if (await this.isOwnedElsewhere()) {
+      this.recoveryDeferred = true
+      return
+    }
     const runs = this.persistence.stores.runs
     const maxAttempts = this.harness.durability?.maxAttempts ?? 10
     // True for an input that this session stored or took. Else the session

@@ -8,7 +8,7 @@ import {
   defineHarness,
   definePlugin,
 } from '../src'
-import { after, gate, mockAdapter, text } from './helpers'
+import { after, gate, messageTexts, mockAdapter, text } from './helpers'
 import type { AnyTextAdapter } from '@tanstack/ai'
 
 const THREAD = 't1'
@@ -229,5 +229,106 @@ describe('an input that reaches a host that does not own the thread', () => {
       status: 'queued',
     })
     expect(await running).toBe('deployed')
+  })
+
+  it('runs a forwarded POST run on the host that took it, under its run id, after the owner stopped', async () => {
+    const persistence = sharedStores()
+    const { adapter, calls } = mockAdapter([() => text('Picked up.')])
+    // A host that stopped holds a claim that is about to expire.
+    await persistence.stores.workClaims.claim({
+      threadId: THREAD,
+      harness: NAME,
+      ownerId: 'stopped-host',
+      until: Date.now() + 50,
+    })
+    const host = await createHarnessHost({ persistence }).open(
+      harnessOf(adapter),
+      { threadId: THREAD },
+    )
+    const turn = host.prompt('Still there?', { runId: 'run-9' })
+    expect((await turn.receipt).status).toBe('queued')
+    // The claim expires. This host reads the inbox and runs the input.
+    await vi.waitFor(() => expect(calls).toHaveLength(1), { timeout: 3_000 })
+    expect(turn.id).toBe('run-9')
+    expect((await turn).text).toBe('Picked up.')
+  })
+
+  it('keeps an inbox entry pending when the owner fails to store the input', async () => {
+    const persistence = sharedStores()
+    const release = gate()
+    const { adapter } = mockAdapter([after(release.opened, 'One.')])
+    const harness = harnessOf(adapter)
+    const log = persistence.stores.log
+    let failing: string | undefined
+    const owner = await createHarnessHost({
+      persistence: {
+        stores: {
+          ...persistence.stores,
+          log: Object.assign(Object.create(log), {
+            append: (batch: Parameters<typeof log.append>[0]) =>
+              batch.records.some(
+                (record) =>
+                  record.type === 'harness.input' &&
+                  record.inputId === failing,
+              )
+                ? Promise.reject(new Error('disk full'))
+                : log.append(batch),
+          }),
+        },
+      },
+    }).open(harness, { threadId: THREAD })
+    const other = await createHarnessHost({ persistence }).open(harness, {
+      threadId: THREAD,
+    })
+
+    const turn = owner.prompt('Go.')
+    await turn.receipt
+    const receipt = await other.prompt('And then?').receipt
+    expect(receipt.status).toBe('queued')
+    failing = receipt.inputId
+    // The owner reads the inbox within a second, and the write fails.
+    await new Promise((resolve) => setTimeout(resolve, 1_500))
+    // The input waits for the next host.
+    expect(
+      (await persistence.stores.inbox.listPending(THREAD)).map(
+        (entry) => entry.inputId,
+      ),
+    ).toEqual([receipt.inputId])
+    release.open()
+    await Promise.resolve(turn).catch(() => {})
+  })
+
+  it('recovers the input of the stopped owner when a host takes the thread from the inbox', async () => {
+    const persistence = sharedStores()
+    const { adapter, calls } = mockAdapter([
+      () => text('One.'),
+      () => text('Two.'),
+    ])
+    const harness = harnessOf(adapter)
+    // The owner stores its input, then stops before it writes its run lease.
+    const runs = persistence.stores.runs
+    const owner = await createHarnessHost({
+      lease: { ttlMs: 200, renewMs: 50 },
+      persistence: {
+        stores: {
+          ...persistence.stores,
+          runs: Object.assign(Object.create(runs), {
+            createOrResume: () => new Promise(() => {}),
+          }),
+        },
+      },
+    }).open(harness, { threadId: THREAD })
+    await owner.prompt('First.').receipt
+    const other = await createHarnessHost({ persistence }).open(harness, {
+      threadId: THREAD,
+    })
+    const receipt = await other.followUp('Second.')
+    expect(receipt.status).toBe('queued')
+
+    // The owner stops renewing its claim, as after a crash.
+    ;(owner as unknown as { stopClaimTimer: () => void }).stopClaimTimer()
+    await vi.waitFor(() => expect(calls).toHaveLength(2), { timeout: 4_000 })
+    // The owner's input runs first, then the forwarded one.
+    expect(messageTexts(calls[1])).toContain('Second.')
   })
 })

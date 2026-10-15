@@ -102,8 +102,14 @@ export abstract class SessionRequests<
     const known = this.knownTurn(inputId, input, principal)
     if (known) return known
     const runId = options?.runId
+    // A prompt that this host passed on comes back from the inbox when its
+    // owner stopped. It runs on the operation that its caller holds.
+    const passed = this.forwarded.has(inputId)
+      ? this.turnOperations.get(inputId)
+      : undefined
     // A run id must not take the id of another operation.
     if (
+      !passed &&
       runId !== undefined &&
       (this.operations.has(runId) || this.retiredIds.has(runId))
     ) {
@@ -111,7 +117,7 @@ export abstract class SessionRequests<
       this.refuse(refused, { inputId, status: 'rejected', reason: 'conflict' })
       return refused
     }
-    const operation = this.createTurnOperation(runId)
+    const operation = passed ?? this.createTurnOperation(runId)
     this.bindTurn(inputId, operation)
     void this.admitting(() =>
       this.accept(inputId, input, principal, runId).then(

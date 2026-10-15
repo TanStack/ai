@@ -48,7 +48,7 @@ export abstract class SessionInputs<
   THarness extends AnyHarness = AnyHarness,
 > extends SessionBase<THarness> {
   /** Chat inputs that this host passed to the owner of the thread. */
-  private readonly forwarded = new Set<string>()
+  protected readonly forwarded = new Set<string>()
 
   /**
    * Append host records to the session log, in one batch after the events

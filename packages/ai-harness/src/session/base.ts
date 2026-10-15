@@ -191,6 +191,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected inboxTimer: ReturnType<typeof setInterval> | undefined
   /** Reads the inbox until the inputs this host left there have run. */
   protected inboxWatch: ReturnType<typeof setInterval> | undefined
+  /** The open skipped recovery: another host owned the thread then. */
+  protected recoveryDeferred = false
   private draining: Promise<void> | undefined
   /** Called each time the thread goes idle. See `onIdle`. */
   protected readonly idleListeners = new Set<() => void>()
@@ -757,8 +759,16 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
         until: Date.now() + (this.lease?.ttlMs ?? LEASE.ttlMs),
       })
       if (!isHeld) return
+      // This host takes the thread from an owner that stopped. Its inputs
+      // run first, as on an open.
+      if (this.recoveryDeferred) {
+        await this.recoverFromLog(this.writer)
+        this.recoveryDeferred = false
+      }
       for (const entry of pending) {
         await this.applyForwarded(entry)
+        // The input was not stored. It waits for the next host.
+        if (this.closing || this.logFailure) return
         await inbox.markApplied({
           threadId: this.threadId,
           inputId: entry.inputId,
@@ -793,10 +803,15 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
         () => {},
       )
     }
+    // A turn is stored when its receipt comes. Only then is the entry applied.
+    const stored = (operation: Operation<ChatTurnResult>) => {
+      settle(operation)
+      return operation.receipt
+    }
     switch (input.op) {
       case 'prompt': {
         const { runId } = entry.input as { runId?: unknown }
-        return settle(
+        return stored(
           session.prompt(input.message, {
             ...sent,
             ...(input.busy ? { busy: input.busy } : {}),
@@ -805,7 +820,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
         )
       }
       case 'continue':
-        return settle(session.continue(sent))
+        return stored(session.continue(sent))
       case 'steer':
         return session.steer(input.message, sent)
       case 'followUp':
@@ -1055,6 +1070,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     operationId?: string,
   ): PluginSessionApi
   protected abstract resumeSignIns(): Promise<void>
+  protected abstract recoverFromLog(writer: LogWriter): Promise<void>
   protected abstract runAgent(
     target: string | AnyAgent,
     input: unknown,
