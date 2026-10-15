@@ -150,8 +150,9 @@ const attachmentsSchema: JSONSchema = {
  *
  * The tools are `chat`, `steer`, `cancel`, `approve`, `reject`, `resolve`,
  * `answer`, and `status`, plus `agent_<name>` for each agent in
- * `harness.expose.agents` and `command_<name>` for each plugin command in
- * `harness.expose.commands`.
+ * `harness.expose.agents`, `command_<name>` for each plugin command in
+ * `harness.expose.commands`, and `tool_<name>` for each tool in
+ * `harness.expose.tools`.
  * Every tool takes an optional `threadId`. Sessions open with
  * `host.open(harness, { threadId })`.
  *
@@ -483,6 +484,25 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
       }),
   )
 
+  // A tool runs with no model, so an MCP client runs only `expose.tools`.
+  const exposedTools: ReadonlyArray<string> = harness.expose?.tools ?? []
+  const tools = (harness.tools ?? []).filter(({ name }) =>
+    exposedTools.includes(name),
+  )
+  const toolTools = toolNames('tool', tools).map(
+    ({ item: tool, toolName, description }) =>
+      toolDefinition({
+        name: toolName,
+        description,
+        inputSchema: withThreadId(convertSchemaToJsonSchema(tool.inputSchema)),
+      }).server<MCPToolContext>(async (args, ctx) => {
+        const target = await open(args)
+        const from = target.snapshot().cursor
+        const operation = target.tool(tool.name, inputOf(args))
+        return finish(target, operation, from, ctx.context)
+      }),
+  )
+
   // The bytes of a `resource_link` from a result. The link names its thread,
   // and a thread reads only its own media.
   const mediaResource = resourceDefinition({
@@ -519,6 +539,7 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
       status,
       ...agentTools,
       ...commandTools,
+      ...toolTools,
     ],
   })
 }

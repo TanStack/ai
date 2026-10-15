@@ -8,6 +8,7 @@ import type {
   UIMessage,
 } from '@tanstack/ai'
 import type { OperationImpl } from '../operation'
+import type { ToolTurn } from '../tool-turn'
 import type {
   AIPersistence,
   ArtifactStore,
@@ -234,6 +235,10 @@ export interface QueuedTurn {
   /** A `resume` input: the interrupted run it continues. */
   parentRunId?: string
   inputId?: string
+  /** Per-run system/developer messages prepended ahead of harness prompts. */
+  systemPreamble?: Array<string>
+  /** A `tool()`: its only model call asks for this tool. */
+  tool?: ToolTurn
   /** The settings of this one turn. Kept in memory only, not in the log. */
   overrides?: TurnOverrides
   /** The `ephemeral` messages of the input. Kept in memory only, as `overrides`. */

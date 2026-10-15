@@ -910,6 +910,14 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
           value: input.value,
           inputId,
         })
+      case 'tool':
+        return stored(
+          session.tool(input.name, input.args, {
+            inputId,
+            ...(principal ? { principal } : {}),
+            ...(input.meta ? { meta: input.meta } : {}),
+          }),
+        )
       case 'revert':
       case 'unrevert':
       case 'agent':

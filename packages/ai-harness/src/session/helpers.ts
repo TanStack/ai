@@ -527,6 +527,7 @@ export const CHAT_OPS = new Set<string>([
   'steer',
   'followUp',
   'continue',
+  'tool',
   'resolve',
 ])
 
@@ -536,6 +537,7 @@ export const WORK_OPS = new Set<string>([
   'steer',
   'followUp',
   'continue',
+  'tool',
   'resolve',
   'reset',
   'agent',

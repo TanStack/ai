@@ -340,6 +340,20 @@ export class HarnessSession<
           context: input.context,
           ...(input.op === 'followUp' && input.wake ? { wake: true } : {}),
         })
+      } else if (input.op === 'tool') {
+        const operation = this.createTurnOperation()
+        this.admitted.set(entry.inputId, inputKey(input, entry.principal))
+        this.bindTurn(entry.inputId, operation)
+        this.enqueueTurn({
+          operation,
+          inputId: entry.inputId,
+          principal: entry.principal,
+          tool: {
+            name: input.name,
+            args: input.args,
+            ...(input.meta ? { meta: input.meta } : {}),
+          },
+        })
       } else if (input.op === 'reset') {
         this.queueReset(entry.inputId, input.note, entry.principal, 'end')
       } else {
@@ -536,7 +550,11 @@ export class HarnessSession<
         }
         if (
           !isChat ||
-          !('message' in input.input || input.input.op === 'continue')
+          !(
+            'message' in input.input ||
+            input.input.op === 'continue' ||
+            input.input.op === 'tool'
+          )
         ) {
           this.reject(input.inputId, 'expired_on_restart')
           continue
@@ -568,6 +586,18 @@ export class HarnessSession<
             context: input.input.context,
             overrides: decision.overrides,
             isContinue: true,
+          })
+          continue
+        }
+        if (input.input.op === 'tool') {
+          const { name, args, meta } = input.input
+          const operation = this.createTurnOperation()
+          this.bindTurn(input.inputId, operation)
+          this.enqueueTurn({
+            operation,
+            inputId: input.inputId,
+            principal: input.principal,
+            tool: { name, args, ...(meta ? { meta } : {}) },
           })
           continue
         }

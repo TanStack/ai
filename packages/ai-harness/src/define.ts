@@ -284,6 +284,13 @@ export interface HarnessConfig<
      * opens, so `defineHarness` does not check these names.
      */
     commands?: ReadonlyArray<string>
+    /**
+     * The harness tools a client may run with a `tool` input, with no model
+     * turn, for example from a schedule or a webhook. An input for any other
+     * tool is refused with `not_exposed`. The call goes through the same
+     * middleware, input check, and `permissions()` rules as a model call.
+     */
+    tools?: ReadonlyArray<string>
   }
 }
 
