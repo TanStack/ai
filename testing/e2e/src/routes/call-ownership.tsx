@@ -8,7 +8,7 @@ import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
  * `tool_calls` `RUN_FINISHED` between calls, with reasoning before each
  * call's text id. The page prints one assistant message per call.
  */
-function partLabel(part: { type: string; content?: string }): string {
+function partLabel(part: { type: string; content?: unknown }): string {
   if (
     (part.type === 'thinking' || part.type === 'text') &&
     typeof part.content === 'string'
