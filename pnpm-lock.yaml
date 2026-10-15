@@ -3138,6 +3138,9 @@ importers:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
+      '@tanstack/ai-harness':
+        specifier: workspace:*
+        version: link:../ai-harness
       '@tanstack/ai-persistence':
         specifier: workspace:*
         version: link:../ai-persistence
