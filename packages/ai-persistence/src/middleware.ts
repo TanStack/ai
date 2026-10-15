@@ -2347,13 +2347,17 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       if (snapshotStreaming && isParentChunk && current) {
         if (chunk.type === 'RUN_STARTED') resetStreaming(current)
         // Keep the call metadata (source, response id) for the snapshot rows.
+        // A CUSTOM event adds none. An emitted one can carry the durability
+        // batch hint, which only the stream encoders strip.
         const tanstack = tanstackMetadata(chunk)
         const metadata =
-          chunk.type === 'TOOL_CALL_START'
-            ? tanstack === undefined
-              ? undefined
-              : { tanstack }
-            : chunk.metadata
+          chunk.type === 'CUSTOM'
+            ? undefined
+            : chunk.type === 'TOOL_CALL_START'
+              ? tanstack === undefined
+                ? undefined
+                : { tanstack }
+              : chunk.metadata
         current.streamingMetadata = mergeMetadata(
           current.streamingMetadata,
           metadata,

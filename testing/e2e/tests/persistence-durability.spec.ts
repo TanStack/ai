@@ -368,6 +368,36 @@ test.describe('server persistence', () => {
     )
   })
 
+  test('keeps the durability batch hint off a stopped message', async ({
+    request,
+  }) => {
+    const threadId = `stopped-progress-${crypto.randomUUID()}`
+    const run = await request.post(
+      '/api/persistence-durability?scenario=stopped-progress',
+      { data: { threadId, runId: crypto.randomUUID() } },
+    )
+    expect(run.ok()).toBe(true)
+
+    const hydration = await request.get(
+      `/api/persistence-durability?scenario=stopped-progress&threadId=${encodeURIComponent(threadId)}`,
+    )
+    expect(hydration.ok()).toBe(true)
+    const body = (await hydration.json()) as {
+      messages: Array<{
+        role: string
+        metadata?: { tanstack?: Record<string, unknown> }
+      }>
+    }
+    const assistant = body.messages.find(
+      (message) => message.role === 'assistant',
+    )
+
+    expect(assistant?.metadata?.tanstack).toMatchObject({
+      stopReason: 'aborted',
+    })
+    expect(assistant?.metadata?.tanstack).not.toHaveProperty('batch')
+  })
+
   test('restores the error of a stopped child', async ({ request }) => {
     const threadId = `subagent-stopped-${crypto.randomUUID()}`
     const runId = crypto.randomUUID()
