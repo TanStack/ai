@@ -20,7 +20,7 @@ Your agent has tools that change files or run commands. It must not do that with
 import { writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { toolDefinition } from '@tanstack/ai'
-import { HARNESS_EVENTS, createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
 import { permissions } from '@tanstack/ai-harness/plugins'
 import { openaiText } from '@tanstack/ai-openai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
@@ -57,20 +57,13 @@ The rule makes each `save_note` call wait for the user.
 
 ## 2. Answer the first question
 
-The question shows up as a `harness.question` event and in `session.snapshot().pendingQuestions`. Listen for the event, then answer with `session.answer`:
+`session.onQuestion` calls you once for each question. Answer it with `session.answer`:
 
 ```ts group=harness-permissions
-// Calls can run in parallel, so answer each open question once.
-const answered = new Set<string>()
-const stopAnswering = session.onEvent('CUSTOM', async ({ event }) => {
-  if (event.name !== HARNESS_EVENTS.question) return
-  for (const question of session.snapshot().pendingQuestions) {
-    if (answered.has(question.questionId)) continue
-    answered.add(question.questionId)
-    // For example: Allow save_note {"path":"meeting.md","text":"..."}?
-    await session.answer({ questionId: question.questionId, value: 'once' })
-  }
-})
+const stopAnswering = session.onQuestion(({ question }) =>
+  // question.message is, for example: Allow save_note {"path":"meeting.md","text":"..."}?
+  session.answer({ questionId: question.questionId, value: 'once' }),
+)
 
 await session.prompt('Save a note with the time of the meeting.')
 stopAnswering()

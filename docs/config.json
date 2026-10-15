@@ -1010,7 +1010,7 @@
           "label": "Ask before risky tool calls",
           "to": "harness/permissions",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-14"
+          "updatedAt": "2026-10-15"
         },
         {
           "label": "Switch between agent profiles",
