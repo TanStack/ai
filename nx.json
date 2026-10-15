@@ -5,6 +5,7 @@
   "useDaemonProcess": true,
   "useInferencePlugins": false,
   "plugins": ["@tanstack/workspace-plugin"],
+  "bust": "baseline-2026-10-08--1",
   "analytics": false,
   "parallel": 4,
   "tui": {
