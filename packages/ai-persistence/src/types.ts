@@ -700,6 +700,11 @@ export interface InboxStore {
     threadId: string
     inputId: string
   }) => Promise<InboxEntry | null>
+  /**
+   * Remove the entry. A no-op for an unknown id. The host removes an answer
+   * after it applies it, so a secret answer does not stay in the store.
+   */
+  delete: (entry: { threadId: string; inputId: string }) => Promise<void>
 }
 
 /** Type an {@link InboxStore} implementation inline. */

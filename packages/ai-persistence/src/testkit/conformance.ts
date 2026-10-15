@@ -1639,6 +1639,7 @@ export function runPersistenceConformance(
         const in2 = id('in-2')
         const other = id('in-other')
         const missing = id('missing')
+        const otherThread = id('other-thread')
 
         const first = await store.append({
           inputId: in1,
@@ -1665,7 +1666,7 @@ export function runPersistenceConformance(
         })
         await store.append({
           inputId: other,
-          threadId: id('other-thread'),
+          threadId: otherThread,
           input: { op: 'prompt', message: 'x' },
           createdAt: 0,
         })
@@ -1715,6 +1716,16 @@ export function runPersistenceConformance(
         ).toBeNull()
         // An id is found only with its own thread.
         expect(await store.get({ threadId: thread, inputId: other })).toBeNull()
+
+        // A delete removes the entry. With another thread, or an unknown
+        // id, it does nothing.
+        await store.delete({ threadId: thread, inputId: other })
+        await store.delete({ threadId: thread, inputId: missing })
+        expect(
+          await store.get({ threadId: otherThread, inputId: other }),
+        ).toMatchObject({ status: 'pending' })
+        await store.delete({ threadId: thread, inputId: in1 })
+        expect(await store.get({ threadId: thread, inputId: in1 })).toBeNull()
       })
     })
 

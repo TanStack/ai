@@ -630,6 +630,7 @@ interface InboxStore {
   markApplied(entry: { threadId: string; inputId: string; operationId: string }): Promise<void>
   markRejected(entry: { threadId: string; inputId: string; reason: string }): Promise<void>
   get(entry: { threadId: string; inputId: string }): Promise<InboxEntry | null>
+  delete(entry: { threadId: string; inputId: string }): Promise<void>
 }
 ```
 
@@ -642,6 +643,8 @@ Rules for an implementation:
 - `markApplied` and `markRejected` do nothing for an unknown `inputId`.
 - `get` returns `null` for an unknown `inputId`, and for an `inputId` of another
   thread.
+- `delete` removes the entry. It does nothing for an unknown `inputId`, or for
+  an `inputId` of another thread.
 
 In SQL, make `input_id` the primary key and write with `INSERT ... ON CONFLICT DO
 NOTHING`, then read the row back.

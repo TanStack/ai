@@ -664,6 +664,16 @@ class MemoryInboxStore implements InboxStore {
     const existing = this.of(threadId, inputId)
     return Promise.resolve(existing ? structuredClone(existing) : null)
   }
+  delete({
+    threadId,
+    inputId,
+  }: {
+    threadId: string
+    inputId: string
+  }): Promise<void> {
+    if (this.of(threadId, inputId)) this.entries.delete(inputId)
+    return Promise.resolve()
+  }
   private of(threadId: string, inputId: string) {
     const existing = this.entries.get(inputId)
     return existing?.threadId === threadId ? existing : undefined

@@ -149,6 +149,8 @@ The session gives the claim back when the thread is idle: no queued or running t
 
 A question from `ctx.session.ask` is different. The question waits in the memory of its host, so the session keeps the claim until the answer comes. Then an answer that reaches another host goes to this host. See [One host drives a thread](#one-host-drives-a-thread).
 
+The other host cannot tell if the question is a secret, so it stores the answer in `stores.inbox` as the user typed it. The host that asked removes that entry after it applies the answer. The log keeps a secret answer as `[secret]`. Keep the inbox in a store you trust as much as the log.
+
 ### What a sweep does
 
 `host.resumePending({ harnesses, close, limit })`:

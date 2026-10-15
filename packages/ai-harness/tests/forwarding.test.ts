@@ -238,6 +238,62 @@ describe('an input that reaches a host that does not own the thread', () => {
     expect(await running).toBe('deployed')
   })
 
+  it('keeps a secret answer from another host out of the inbox and the log', async () => {
+    const persistence = sharedStores()
+    const login = definePlugin({
+      name: 'test/login',
+      setup: () => ({
+        commands: {
+          login: defineCommand({
+            description: 'Sign in with a password',
+            run: async (_input, ctx) => {
+              const password = await ctx.session.ask({
+                message: 'Password?',
+                schema: z.string(),
+                secret: true,
+              })
+              return password === 'hunter2' ? 'signed in' : 'wrong'
+            },
+          }),
+        },
+      }),
+    })
+    const harness = defineHarness({
+      name: NAME,
+      adapter: mockAdapter([]).adapter,
+      plugins: () => [login],
+    })
+    const owner = await createHarnessHost({ persistence }).open(harness, {
+      threadId: THREAD,
+    })
+    const other = await createHarnessHost({ persistence }).open(harness, {
+      threadId: THREAD,
+    })
+
+    const running = owner.command('login')
+    await vi.waitFor(() =>
+      expect(owner.snapshot().pendingQuestions).toHaveLength(1),
+    )
+    const [question] = owner.snapshot().pendingQuestions
+    const receipt = await other.answer({
+      questionId: question!.questionId,
+      value: 'hunter2',
+    })
+    expect(receipt.status).toBe('queued')
+    expect(await running).toBe('signed in')
+    // The owner deletes the entry after it applies the answer.
+    await vi.waitFor(async () =>
+      expect(
+        await persistence.stores.inbox!.get({
+          threadId: THREAD,
+          inputId: receipt.inputId,
+        }),
+      ).toBeNull(),
+    )
+    const log = await persistence.stores.log.read(THREAD)
+    expect(JSON.stringify(log)).not.toContain('hunter2')
+  })
+
   it('runs a forwarded POST run on the host that took it, under its run id, after the owner stopped', async () => {
     const persistence = sharedStores()
     const { adapter, calls } = mockAdapter([() => text('Picked up.')])

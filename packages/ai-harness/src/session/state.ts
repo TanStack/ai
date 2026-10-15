@@ -617,8 +617,10 @@ export abstract class SessionState<
     value: unknown
   }): Promise<Receipt> {
     const inputId = createInputId()
-    // A secret (a key or a password) stays out of the inbox. A restart does
-    // not replay an answer, so the inbox never needs it.
+    // A secret (a key or a password) stays out of the inbox and the log. A
+    // restart does not replay an answer, so they never need it. A host that
+    // does not have the question cannot tell: the owner deletes the inbox
+    // entry of the answer after it applies it.
     const isSecret = this.questions.get(questionId)?.secret === true
     // A host that does not have the question passes the value on to its owner.
     const admission = await this.accept(inputId, {

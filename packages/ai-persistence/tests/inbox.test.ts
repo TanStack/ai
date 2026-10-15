@@ -32,6 +32,7 @@ describe('inbox store', () => {
       markApplied: () => Promise.resolve(),
       markRejected: () => Promise.resolve(),
       get: () => Promise.resolve(null),
+      delete: () => Promise.resolve(),
     })
 
     expect(defineAIPersistence({ stores: { inbox } }).stores.inbox).toBe(inbox)

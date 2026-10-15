@@ -770,9 +770,16 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
         await this.applyForwarded(entry)
         // The input was not stored. It waits for the next host.
         if (this.closing || this.logFailure) return
+        const { inputId } = entry
+        // The host that stored an answer did not know if it is a secret.
+        // This host does, and logs it hidden. The entry goes.
+        if ((entry.input as HarnessInput).op === 'answer') {
+          await inbox.delete({ threadId: this.threadId, inputId })
+          continue
+        }
         await inbox.markApplied({
           threadId: this.threadId,
-          inputId: entry.inputId,
+          inputId,
           operationId: 'forwarded',
         })
       }
