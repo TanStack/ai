@@ -64,19 +64,14 @@ The provider-specific details are handled for you. The same `chat({ outputSchema
 
 ### When strict JSON schema is rejected
 
-Some models accept a JSON response format and reject strict JSON schema. The call fails before the model runs.
+Some models reject strict JSON schema. They accept JSON mode (`response_format` type `json_object`) only. A strict request to one of these models fails before the model runs.
 
-1. Put the word `json` in the message. Some providers require that word.
-2. Describe the object shape in the prompt. JSON mode does not send the schema.
-3. Set `structuredOutputMode` to `"auto"` or `"json_object"`.
+The OpenRouter and Groq adapters find these models in their catalogs. For these models, `chat({ outputSchema })` does two things:
 
-| Value | Request |
-| --- | --- |
-| `json_schema` | Strict JSON schema. This is the default. |
-| `json_object` | `response_format` type `json_object`. The client still checks the reply with your schema. |
-| `auto` | JSON mode for an OpenRouter or Groq model that declares a response format and does not declare strict structured outputs. Other adapters stay on strict JSON schema until you set `json_object`. |
+- It sends JSON mode.
+- It adds your schema to the system prompt, because JSON mode does not send the schema.
 
-JSON of the wrong shape throws when you await the `chat` call.
+The client still checks the reply with your schema. JSON of the wrong shape throws when you await the `chat` call.
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -87,19 +82,18 @@ const Person = z.object({ name: z.string(), age: z.number() });
 
 const person = await chat({
   adapter: openRouterText("qwen/qwen3.7-flash"),
-  messages: [
-    {
-      role: "user",
-      content: "Return Ada Lovelace, age 36, as json with name and age.",
-    },
-  ],
-  structuredOutputMode: "auto",
+  messages: [{ role: "user", content: "Return Ada Lovelace, age 36." }],
   outputSchema: Person,
 });
 
 person.name;
 person.age;
 ```
+
+To send JSON mode to a model that is not in the catalog, set it in `modelOptions`:
+
+- OpenRouter: `modelOptions: { responseFormat: { type: "json_object" } }`
+- Groq: `modelOptions: { response_format: { type: "json_object" } }`
 
 ### Anthropic schema complexity limits
 

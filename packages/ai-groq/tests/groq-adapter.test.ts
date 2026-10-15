@@ -143,7 +143,7 @@ describe('Groq adapters', () => {
       expect(adapter).toBeDefined()
     })
 
-    it('sends json_object for auto on a json_object-only model', async () => {
+    it('sends json_object on a json_object-only model', async () => {
       const mockCreate = setupMockSdkClient([], {
         choices: [{ message: { content: '{"name":"Ada"}' } }],
       })
@@ -154,7 +154,6 @@ describe('Groq adapters', () => {
           model: 'llama-3.3-70b-versatile',
           messages: [{ role: 'user', content: 'Return a person as json' }],
           logger: testLogger,
-          structuredOutputMode: 'auto',
         },
         outputSchema: {
           type: 'object',
@@ -168,7 +167,7 @@ describe('Groq adapters', () => {
       })
     })
 
-    it('keeps json_schema for auto on a model that declares json_schema', async () => {
+    it('keeps json_schema on a model that declares json_schema', async () => {
       const mockCreate = setupMockSdkClient([], {
         choices: [{ message: { content: '{"name":"Ada"}' } }],
       })
@@ -182,7 +181,6 @@ describe('Groq adapters', () => {
           model: 'moonshotai/kimi-k2-instruct-0905',
           messages: [{ role: 'user', content: 'Return a person as json' }],
           logger: testLogger,
-          structuredOutputMode: 'auto',
         },
         outputSchema: {
           type: 'object',

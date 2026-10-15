@@ -2471,7 +2471,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       )
     })
 
-    it('sends text.format json_object when structuredOutputMode is json_object', async () => {
+    it('sends text.format json_object and the schema as instructions when modelOptions sets json_object', async () => {
       setupMockResponsesClient([], {
         output: [
           {
@@ -2492,8 +2492,8 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         chatOptions: {
           logger: testLogger,
           model: 'test-model',
-          messages: [{ role: 'user', content: 'Give me a person as json' }],
-          structuredOutputMode: 'json_object',
+          messages: [{ role: 'user', content: 'Give me a person' }],
+          modelOptions: { text: { format: { type: 'json_object' } } },
         },
         outputSchema: {
           type: 'object',
@@ -2509,6 +2509,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         expect.objectContaining({
           stream: false,
           text: { format: { type: 'json_object' } },
+          instructions: expect.stringContaining('"required":["name","age"]'),
         }),
         expect.anything(),
       )

@@ -1434,7 +1434,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       )
     })
 
-    it('sends json_object on the combined request when structuredOutputMode is json_object', async () => {
+    it('sends json_object and the schema prompt on the combined request when modelOptions sets json_object', async () => {
       const streamChunks = [
         {
           id: 'chatcmpl-1',
@@ -1458,7 +1458,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
         tools: [weatherTool],
-        structuredOutputMode: 'json_object',
+        modelOptions: { response_format: { type: 'json_object' } },
         outputSchema: {
           type: 'object',
           properties: { city: { type: 'string' } },
@@ -1473,6 +1473,12 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
           stream: true,
           tools: expect.any(Array),
           response_format: { type: 'json_object' },
+          messages: expect.arrayContaining([
+            {
+              role: 'system',
+              content: expect.stringContaining('"required":["city"]'),
+            },
+          ]),
         }),
         expect.anything(),
       )

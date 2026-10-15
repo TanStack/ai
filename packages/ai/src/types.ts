@@ -1112,19 +1112,6 @@ export interface ToolConfig {
  *
  * @template TData - TypeScript type of the expected data structure (for type safety)
  */
-/**
- * How `chat({ outputSchema })` asks the provider for JSON.
- *
- * - `json_schema`: strict schema on the wire. Default.
- * - `json_object`: `response_format: { type: "json_object" }`. The schema
- *   stays on the client. The prompt must describe the object, and some
- *   providers require the word `json` in the messages.
- * - `auto`: JSON mode when the adapter catalog says the model accepts a
- *   response format and does not accept strict structured outputs.
- *   Otherwise strict schema.
- */
-export type StructuredOutputMode = 'json_schema' | 'json_object' | 'auto'
-
 export interface ResponseFormat<TData = any> {
   /**
    * Type of structured output.
@@ -1398,11 +1385,6 @@ export interface TextOptions<
    *    `structuredOutputStream` after the agent loop.
    */
   outputSchema?: SchemaInput
-  /**
-   * Wire format for `outputSchema`. See {@link StructuredOutputMode}.
-   * Omitted means `json_schema`.
-   */
-  structuredOutputMode?: StructuredOutputMode
   /**
    * @deprecated Use `threadId` instead. `conversationId` is the legacy
    * pre-AG-UI name for the same concept (a stable per-conversation

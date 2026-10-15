@@ -284,7 +284,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter.structuredOutputStream', () => {
       expect(request.tools).toBeUndefined()
     })
 
-    it('sends response_format: { type: "json_object" } when structuredOutputMode is json_object', async () => {
+    it('sends json_object and the schema as a system prompt when modelOptions sets json_object', async () => {
       setupStreamingMock([deltaChunk('{"name":"X","age":1}'), finishChunk()])
       const adapter = new TestAdapter()
 
@@ -292,9 +292,9 @@ describe('OpenAIBaseChatCompletionsTextAdapter.structuredOutputStream', () => {
         adapter.structuredOutputStream!({
           chatOptions: {
             model: 'test-model',
-            messages: [{ role: 'user', content: 'extract as json' }],
+            messages: [{ role: 'user', content: 'extract' }],
             logger: testLogger,
-            structuredOutputMode: 'json_object',
+            modelOptions: { response_format: { type: 'json_object' } },
           },
           outputSchema: personSchema,
         }),
@@ -302,8 +302,13 @@ describe('OpenAIBaseChatCompletionsTextAdapter.structuredOutputStream', () => {
 
       const request = mockCreate.mock.calls[0]![0] as {
         response_format?: { type: string; json_schema?: unknown }
+        messages: Array<{ role: string; content: unknown }>
       }
       expect(request.response_format).toEqual({ type: 'json_object' })
+      expect(request.messages[0]).toEqual({
+        role: 'system',
+        content: expect.stringContaining(JSON.stringify(personSchema)),
+      })
     })
 
     it('accumulates JSON text from deltas and emits exactly one structured-output.complete', async () => {

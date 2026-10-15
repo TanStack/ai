@@ -29,9 +29,8 @@ import type {
 import { buildChatCompletionsUsage } from '../usage'
 import {
   explicitJsonObject,
-  requestUsesJsonObject,
+  withJsonModePrompt,
 } from '../utils/json-object-mode'
-import type { JsonObjectModeInput } from '../utils/json-object-mode'
 import { toChatCompletionsToolChoice } from '../tools/tool-choice'
 import { convertToolsToChatCompletionsFormat } from './chat-completions-tool-converter'
 import type OpenAI from 'openai'
@@ -304,9 +303,12 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     options: StructuredOutputOptions<TProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
-    const requestParams = this.mapOptionsToRequest(chatOptions)
+    const jsonMode = this.usesJsonObject(chatOptions)
+    const requestParams = this.mapOptionsToRequest(
+      jsonMode ? withJsonModePrompt(chatOptions, outputSchema) : chatOptions,
+    )
     const responseFormat = this.chatCompletionsResponseFormat(
-      chatOptions,
+      jsonMode,
       outputSchema,
     )
 
@@ -405,9 +407,12 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     options: StructuredOutputOptions<TProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
     const { chatOptions, outputSchema } = options
-    const requestParams = this.mapOptionsToRequest(chatOptions)
+    const jsonMode = this.usesJsonObject(chatOptions)
+    const requestParams = this.mapOptionsToRequest(
+      jsonMode ? withJsonModePrompt(chatOptions, outputSchema) : chatOptions,
+    )
     const responseFormat = this.chatCompletionsResponseFormat(
-      chatOptions,
+      jsonMode,
       outputSchema,
     )
 
@@ -808,26 +813,26 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   }
 
   /**
-   * `true` when `structuredOutputMode: 'auto'` must send JSON mode for this
-   * model. The default is strict `json_schema`. Groq overrides this from its
-   * model catalog.
+   * `true` when this model takes `json_object` and rejects strict
+   * `json_schema`. Subclasses answer from their model catalog. Default `false`.
    */
   protected modelPrefersJsonObject(_model: string): boolean {
     return false
   }
 
-  protected usesJsonObjectResponseFormat(
-    options: JsonObjectModeInput,
-  ): boolean {
-    return requestUsesJsonObject({
-      mode: options.structuredOutputMode,
-      explicit: explicitJsonObject(options.modelOptions),
-      auto: this.modelPrefersJsonObject(options.model),
-    })
+  /** JSON mode when `modelOptions` sets it or the model catalog needs it. */
+  protected usesJsonObject(options: {
+    model: string
+    modelOptions?: unknown
+  }): boolean {
+    return (
+      explicitJsonObject(options.modelOptions) ||
+      this.modelPrefersJsonObject(options.model)
+    )
   }
 
   protected chatCompletionsResponseFormat(
-    options: JsonObjectModeInput,
+    jsonMode: boolean,
     schema: Record<string, any>,
   ):
     | { type: 'json_object' }
@@ -839,7 +844,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           strict: true
         }
       } {
-    if (this.usesJsonObjectResponseFormat(options)) {
+    if (jsonMode) {
       return { type: 'json_object' }
     }
     return {
@@ -1423,6 +1428,10 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   protected mapOptionsToRequest(
     options: TextOptions,
   ): ChatCompletionCreateParamsStreaming {
+    // Tools + schema in JSON mode: the schema goes in a system prompt.
+    const jsonMode =
+      options.outputSchema != null && this.usesJsonObject(options)
+    if (jsonMode) options = withJsonModePrompt(options, options.outputSchema)
     if (this.strictFallbackWarning) {
       warnStrictFallback(options.tools, options.logger)
     }
@@ -1513,7 +1522,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     const responseFormat = combinedSchema
       ? {
           response_format: this.chatCompletionsResponseFormat(
-            options,
+            jsonMode,
             combinedSchema,
           ),
         }

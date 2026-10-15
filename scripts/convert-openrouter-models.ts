@@ -92,13 +92,13 @@ export const OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS: ReadonlySet<string> =
 
 /**
  * Catalog ids whose `supported_parameters` include `response_format` and not
- * `structured_outputs`. `structuredOutputMode: 'auto'` sends JSON mode for these.
+ * `structured_outputs`. Structured output sends JSON mode for these.
  */
 function generateJsonObjectOnlyModelsSet(): string {
   return `/**
  * Generated: chat models whose catalog \`supported_parameters\` include
  * \`response_format\` and do not include \`structured_outputs\`.
- * \`structuredOutputMode: 'auto'\` sends JSON mode for these ids.
+ * Structured output sends JSON mode for these ids.
  */
 export const OPENROUTER_JSON_OBJECT_ONLY_MODELS: ReadonlySet<string> =
   new Set<string>([\n${Array.from(jsonObjectOnlyModels)

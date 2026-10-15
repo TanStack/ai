@@ -7,3 +7,4 @@ export {
   base64ToArrayBuffer,
   base64ToUint8Array,
 } from './base64'
+export { jsonModeSystemPrompt } from './json-mode'

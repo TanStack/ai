@@ -247,7 +247,7 @@
           "label": "Overview",
           "to": "structured-outputs/overview",
           "addedAt": "2026-05-19",
-          "updatedAt": "2026-10-14"
+          "updatedAt": "2026-10-15"
         },
         {
           "label": "One-Shot Extraction",
@@ -1245,7 +1245,7 @@
           "label": "Groq",
           "to": "adapters/groq",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-09"
+          "updatedAt": "2026-10-15"
         },
         {
           "label": "Mistral",
@@ -1297,7 +1297,7 @@
           "label": "OpenRouter Adapter",
           "to": "adapters/openrouter",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-14"
+          "updatedAt": "2026-10-15"
         },
         {
           "label": "Perplexity Search",

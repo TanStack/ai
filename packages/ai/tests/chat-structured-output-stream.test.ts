@@ -170,39 +170,6 @@ describe('chat({ outputSchema, stream: true })', () => {
       expect(value.object).toEqual(validPerson)
     })
 
-    it('passes structuredOutputMode into the structured-output adapter call', async () => {
-      let seen: unknown
-      const adapter = makeAdapter({
-        structuredOutputStream: (options) => {
-          seen = options
-          return (async function* () {
-            for (const chunk of structuredStreamChunks(
-              JSON.stringify(validPerson),
-              validPerson,
-            ))
-              yield chunk
-          })()
-        },
-      })
-
-      const stream = chat({
-        adapter,
-        messages: [{ role: 'user', content: 'extract' }],
-        outputSchema: PersonSchema,
-        structuredOutputMode: 'json_object',
-        stream: true,
-      })
-      await collectChunks(stream)
-
-      expect(seen).toEqual(
-        expect.objectContaining({
-          chatOptions: expect.objectContaining({
-            structuredOutputMode: 'json_object',
-          }),
-        }),
-      )
-    })
-
     it('forwards the adapter-emitted structured-output.complete event without orchestrator-side schema validation', async () => {
       // The streaming orchestrator no longer schema-validates the terminal
       // event — that's the consumer's responsibility (they call

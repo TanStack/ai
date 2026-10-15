@@ -32,9 +32,8 @@ import type {
 import { buildResponsesUsage } from '../usage'
 import {
   explicitJsonObject,
-  requestUsesJsonObject,
+  withJsonModePrompt,
 } from '../utils/json-object-mode'
-import type { JsonObjectModeInput } from '../utils/json-object-mode'
 import { toResponsesToolChoice } from '../tools/tool-choice'
 import { getOpenAIProviderToolKind } from '../tools/openai-provider-tool'
 import { convertToolsToResponsesFormat } from './responses-tool-converter'
@@ -594,8 +593,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     options: StructuredOutputOptions<TProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
-    const requestParams = this.mapOptionsToRequest(chatOptions)
-    const textFormat = this.responsesStructuredFormat(chatOptions, outputSchema)
+    const jsonMode = this.usesJsonObject(chatOptions)
+    const requestParams = this.mapOptionsToRequest(
+      jsonMode ? withJsonModePrompt(chatOptions, outputSchema) : chatOptions,
+    )
+    const textFormat = this.responsesStructuredFormat(jsonMode, outputSchema)
 
     try {
       // Strip streaming-only fields a subclass override of mapOptionsToRequest
@@ -697,8 +699,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     options: StructuredOutputOptions<TProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
     const { chatOptions, outputSchema } = options
-    const requestParams = this.mapOptionsToRequest(chatOptions)
-    const textFormat = this.responsesStructuredFormat(chatOptions, outputSchema)
+    const jsonMode = this.usesJsonObject(chatOptions)
+    const requestParams = this.mapOptionsToRequest(
+      jsonMode ? withJsonModePrompt(chatOptions, outputSchema) : chatOptions,
+    )
+    const textFormat = this.responsesStructuredFormat(jsonMode, outputSchema)
 
     const aguiState = {
       runId: generateId(this.name),
@@ -1190,25 +1195,26 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   }
 
   /**
-   * `true` when `structuredOutputMode: 'auto'` must send JSON mode for this
-   * model. The default is strict `json_schema`.
+   * `true` when this model takes `json_object` and rejects strict
+   * `json_schema`. Subclasses answer from their model catalog. Default `false`.
    */
   protected modelPrefersJsonObject(_model: string): boolean {
     return false
   }
 
-  protected usesJsonObjectResponseFormat(
-    options: JsonObjectModeInput,
-  ): boolean {
-    return requestUsesJsonObject({
-      mode: options.structuredOutputMode,
-      explicit: explicitJsonObject(options.modelOptions),
-      auto: this.modelPrefersJsonObject(options.model),
-    })
+  /** JSON mode when `modelOptions` sets it or the model catalog needs it. */
+  protected usesJsonObject(options: {
+    model: string
+    modelOptions?: unknown
+  }): boolean {
+    return (
+      explicitJsonObject(options.modelOptions) ||
+      this.modelPrefersJsonObject(options.model)
+    )
   }
 
   protected responsesStructuredFormat(
-    options: JsonObjectModeInput,
+    jsonMode: boolean,
     schema: Record<string, any>,
   ):
     | { type: 'json_object' }
@@ -1218,7 +1224,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         schema: Record<string, any>
         strict: true
       } {
-    if (this.usesJsonObjectResponseFormat(options)) {
+    if (jsonMode) {
       return { type: 'json_object' }
     }
     return {
@@ -2584,6 +2590,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   protected mapOptionsToRequest(
     options: TextOptions<TProviderOptions>,
   ): Omit<ResponseCreateParams, 'stream'> {
+    // Tools + schema in JSON mode: the schema goes in a system prompt.
+    const jsonMode =
+      options.outputSchema != null && this.usesJsonObject(options)
+    if (jsonMode) options = withJsonModePrompt(options, options.outputSchema)
     const mid = this.midConversationRequest(options)
     const input = this.convertMessagesToInput(
       options.messages,
@@ -2612,7 +2622,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     const textFormat = combinedSchema
       ? {
           text: {
-            format: this.responsesStructuredFormat(options, combinedSchema),
+            format: this.responsesStructuredFormat(jsonMode, combinedSchema),
           },
         }
       : undefined

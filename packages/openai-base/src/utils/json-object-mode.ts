@@ -1,28 +1,5 @@
-import type { StructuredOutputMode } from '@tanstack/ai'
-
-/** Fields the JSON-mode decision reads. Wider than `TextOptions<T>` so both call sites pass. */
-export type JsonObjectModeInput = {
-  model: string
-  structuredOutputMode?: StructuredOutputMode
-  modelOptions?: unknown
-}
-
-/**
- * True when a schema-bearing call must send JSON mode (`json_object`)
- * instead of strict `json_schema`.
- *
- * `explicit` is a caller wire override (`response_format` or `text.format`).
- * `auto` is the adapter's catalog answer for `structuredOutputMode: 'auto'`.
- */
-export function requestUsesJsonObject(input: {
-  mode: StructuredOutputMode | undefined
-  explicit: boolean
-  auto: boolean
-}): boolean {
-  if (input.explicit || input.mode === 'json_object') return true
-  if (input.mode === 'auto') return input.auto
-  return false
-}
+import { jsonModeSystemPrompt } from '@tanstack/ai-utils'
+import type { TextOptions } from '@tanstack/ai'
 
 /** Caller set JSON mode on a Chat Completions or Responses body. */
 export function explicitJsonObject(modelOptions: unknown): boolean {
@@ -38,4 +15,20 @@ export function explicitJsonObject(modelOptions: unknown): boolean {
     if (text?.format?.type === 'json_object') return true
   }
   return false
+}
+
+/** Add the schema as a system prompt, because JSON mode does not send it. */
+export function withJsonModePrompt<
+  TProviderOptions extends Record<string, any>,
+>(
+  options: TextOptions<TProviderOptions>,
+  schema: unknown,
+): TextOptions<TProviderOptions> {
+  return {
+    ...options,
+    systemPrompts: [
+      ...(options.systemPrompts ?? []),
+      jsonModeSystemPrompt(schema),
+    ],
+  }
 }

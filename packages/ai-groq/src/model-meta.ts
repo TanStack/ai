@@ -352,7 +352,7 @@ const GROQ_CHAT_MODEL_META = [
 ] as const
 
 /**
- * `true` when `structuredOutputMode: 'auto'` must send JSON mode.
+ * `true` when structured output must send JSON mode (`json_object`).
  * The model declares `json_object` and does not declare `json_schema`.
  */
 export function groqModelPrefersJsonObject(model: string): boolean {

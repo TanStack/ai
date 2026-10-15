@@ -20,8 +20,8 @@ import { extractRequestOptions } from '../internal/request-options'
 import { clientForCall } from '../internal/wrap-fetch'
 import { openRouterSupportsCombinedToolsAndSchema } from '../internal/combined-tools-and-schema'
 import {
-  openRouterFormatRequest,
   openRouterUsesJsonObject,
+  withJsonModePrompt,
 } from '../internal/json-object-mode'
 import { makeStructuredOutputCompatible } from '../internal/schema-converter'
 import {
@@ -284,8 +284,14 @@ export class OpenRouterResponsesTextAdapter<
     options: StructuredOutputOptions<OpenRouterResponsesTextProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
-    const responsesRequest = this.mapOptionsToRequest(chatOptions)
-    const textFormat = this.structuredTextFormat(chatOptions, outputSchema)
+    const jsonMode = openRouterUsesJsonObject(
+      chatOptions.model || this.model,
+      chatOptions.modelOptions,
+    )
+    const responsesRequest = this.mapOptionsToRequest(
+      jsonMode ? withJsonModePrompt(chatOptions, outputSchema) : chatOptions,
+    )
+    const textFormat = this.structuredTextFormat(jsonMode, outputSchema)
 
     try {
       chatOptions.logger.request(
@@ -406,8 +412,14 @@ export class OpenRouterResponsesTextAdapter<
     options: StructuredOutputOptions<OpenRouterResponsesTextProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
     const { chatOptions, outputSchema } = options
-    const responsesRequest = this.mapOptionsToRequest(chatOptions)
-    const textFormat = this.structuredTextFormat(chatOptions, outputSchema)
+    const jsonMode = openRouterUsesJsonObject(
+      chatOptions.model || this.model,
+      chatOptions.modelOptions,
+    )
+    const responsesRequest = this.mapOptionsToRequest(
+      jsonMode ? withJsonModePrompt(chatOptions, outputSchema) : chatOptions,
+    )
+    const textFormat = this.structuredTextFormat(jsonMode, outputSchema)
 
     const aguiState = {
       runId: generateId(this.name),
@@ -1808,6 +1820,13 @@ export class OpenRouterResponsesTextAdapter<
   protected mapOptionsToRequest(
     options: TextOptions<OpenRouterResponsesTextProviderOptions>,
   ): Omit<ResponsesRequest, 'stream'> {
+    // Tools + schema in JSON mode: the schema goes in a system prompt.
+    const useJsonObject =
+      options.outputSchema != null &&
+      openRouterUsesJsonObject(options.model, options.modelOptions)
+    if (useJsonObject) {
+      options = withJsonModePrompt(options, options.outputSchema)
+    }
     // Fail loud on webSearchTool() / webFetchTool() — v1 only routes function tools.
     if (options.tools) {
       for (const tool of options.tools) {
@@ -1853,13 +1872,6 @@ export class OpenRouterResponsesTextAdapter<
     // routed model is in the combined-capable set, and this call is not
     // JSON mode.
     const combinedOutputSchema: JSONSchema | undefined = options.outputSchema
-    const formatRequest = openRouterFormatRequest(options.modelOptions)
-    const useJsonObject = openRouterUsesJsonObject({
-      mode: options.structuredOutputMode,
-      requestedType: formatRequest.requestedType,
-      model: options.model,
-      fallbackModels: formatRequest.fallbackModels,
-    })
     const combinedSchema =
       combinedOutputSchema &&
       !useJsonObject &&
@@ -1965,12 +1977,9 @@ export class OpenRouterResponsesTextAdapter<
     return openRouterSupportsCombinedToolsAndSchema(this.model, modelOptions)
   }
 
-  /**
-   * JSON mode when the caller asked for it, or when `auto` matches a catalog
-   * model that has a response format and no strict structured outputs.
-   */
+  /** `json_object` in JSON mode, else strict `json_schema` from `outputSchema`. */
   private structuredTextFormat(
-    chatOptions: TextOptions<OpenRouterResponsesTextProviderOptions>,
+    jsonMode: boolean,
     outputSchema: JSONSchema,
   ):
     | { type: 'json_object' }
@@ -1980,15 +1989,7 @@ export class OpenRouterResponsesTextAdapter<
         schema: Record<string, any>
         strict: true
       } {
-    const formatRequest = openRouterFormatRequest(chatOptions.modelOptions)
-    if (
-      openRouterUsesJsonObject({
-        mode: chatOptions.structuredOutputMode,
-        requestedType: formatRequest.requestedType,
-        model: chatOptions.model || this.model,
-        fallbackModels: formatRequest.fallbackModels,
-      })
-    ) {
+    if (jsonMode) {
       return { type: 'json_object' }
     }
     return {
