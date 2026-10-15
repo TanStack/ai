@@ -110,6 +110,14 @@
       "response": {
         "content": "Hello with your key."
       }
+    },
+    {
+      "match": {
+        "userMessage": "[first-party-code-mode] which tools"
+      },
+      "response": {
+        "content": "I can run TypeScript."
+      }
     }
   ]
 }

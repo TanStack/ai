@@ -1,0 +1,29 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[harness-retry] try twice",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "error": { "message": "Service Unavailable", "type": "server_error" },
+        "status": 503
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-retry] try twice",
+        "sequenceIndex": 1
+      },
+      "response": { "content": "Back after a retry." }
+    },
+    {
+      "match": { "userMessage": "[harness-finish] post it" },
+      "response": { "content": "Draft answer." }
+    },
+    {
+      "match": { "userMessage": "[harness-finish] reminder: post the answer" },
+      "response": { "content": "Posted answer." }
+    }
+  ]
+}

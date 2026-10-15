@@ -65,6 +65,12 @@ export function compact(options: {
               ],
               stream: false,
             })
+            // An empty summary would replace the history with nothing.
+            if (!summary.trim()) {
+              throw new Error(
+                'The summary model returned no text. The conversation did not change.',
+              )
+            }
             await ctx.session.replaceTranscript([
               {
                 role: 'user',

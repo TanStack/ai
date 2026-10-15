@@ -438,7 +438,10 @@ describe('inbox', () => {
     )
 
     await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
-    expect((await persistence.stores.inbox.get('in-1'))?.status).toBe('applied')
+    expect(
+      (await persistence.stores.inbox.get({ threadId: 't1', inputId: 'in-1' }))
+        ?.status,
+    ).toBe('applied')
     expect(messageTexts(calls[0])).toEqual(['left over'])
     await host.close()
   })

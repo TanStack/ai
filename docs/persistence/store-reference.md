@@ -627,9 +627,10 @@ interface InboxEntry {
 interface InboxStore {
   append(entry: Omit<InboxEntry, 'status'>): Promise<InboxEntry>
   listPending(threadId: string): Promise<Array<InboxEntry>>
-  markApplied(entry: { inputId: string; operationId: string }): Promise<void>
-  markRejected(entry: { inputId: string; reason: string }): Promise<void>
-  get(inputId: string): Promise<InboxEntry | null>
+  markApplied(entry: { threadId: string; inputId: string; operationId: string }): Promise<void>
+  markRejected(entry: { threadId: string; inputId: string; reason: string }): Promise<void>
+  get(entry: { threadId: string; inputId: string }): Promise<InboxEntry | null>
+  delete(entry: { threadId: string; inputId: string }): Promise<void>
 }
 ```
 
@@ -640,7 +641,10 @@ Rules for an implementation:
   stored, it returns the stored entry and ignores the new payload.
 - `listPending` returns the pending entries of one thread, oldest `createdAt` first.
 - `markApplied` and `markRejected` do nothing for an unknown `inputId`.
-- `get` returns `null` for an unknown `inputId`.
+- `get` returns `null` for an unknown `inputId`, and for an `inputId` of another
+  thread.
+- `delete` removes the entry. It does nothing for an unknown `inputId`, or for
+  an `inputId` of another thread.
 
 In SQL, make `input_id` the primary key and write with `INSERT ... ON CONFLICT DO
 NOTHING`, then read the row back.
@@ -855,6 +859,7 @@ interface WorkClaimStore {
     until: number // epoch ms
   }): Promise<boolean>
   release(claim: { threadId: string; ownerId: string }): Promise<void>
+  get(threadId: string): Promise<{ ownerId: string; until: number } | null>
   listExpired(options: {
     now: number // epoch ms
     limit?: number
@@ -870,6 +875,8 @@ Rules for an implementation:
 - `claim` returns `false` while another owner holds a claim that has not expired.
 - `release` removes the claim only for its owner. For another `ownerId`, it does
   nothing.
+- `get` returns the owner and the `until` of the claim, or `null` when no one holds
+  the thread. It can return a claim that expired.
 - `listExpired` returns the claims that expired before `now`, oldest first, at most
   `limit`. Without `limit`, it returns all of them.
 
@@ -996,9 +1003,9 @@ Rules for `getVersioned` and `upsertIf`:
 
 - `getVersioned` returns the entry and its revision, or `undefined` for an unknown
   thread. The format of the revision is yours.
-- Each write gives the entry a new revision: `upsert` and `upsertIf` both. After
-  `delete`, the next write gets a new revision. The deleted revision is never used
-  again.
+- A write that changes the entry gives it a new revision: `upsert` and `upsertIf`
+  both. A revision can be a hash of the content (an ETag of S3 or Netlify Blobs).
+  Then the same entry, written again after a `delete`, gets the same revision back.
 - `upsertIf` writes only when the current revision is `expectedRevision`, and returns
   `{ ok: true, revision }`. Pass `null` to write only when the thread has no entry.
 - On any other revision, `upsertIf` writes nothing and returns

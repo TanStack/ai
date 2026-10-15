@@ -1,0 +1,12 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "[harness-agent-msg] keep it short" },
+      "response": { "content": "Short draft." }
+    },
+    {
+      "match": { "userMessage": "[harness-agent-msg] add a title" },
+      "response": { "content": "Titled draft." }
+    }
+  ]
+}
