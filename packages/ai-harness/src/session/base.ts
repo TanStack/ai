@@ -7,7 +7,14 @@ import {
 } from '@tanstack/ai'
 import { credentialsFor, providerKeysFor, scrubSecrets } from '../auth'
 import { AgentRegistry } from '../agents'
-import { SessionFeed, onEventOf } from '../feed'
+import {
+  SessionFeed,
+  onAuthRequiredOf,
+  onEventOf,
+  onMediaOf,
+  onQuestionOf,
+  onUsageOf,
+} from '../feed'
 import { createMediaStore } from '../media'
 import { LEASE } from '../resume'
 import { HARNESS_EVENTS } from '../types'
@@ -34,6 +41,7 @@ import type {
 import type {
   AIPersistence,
   ChatTranscriptStores,
+  InboxEntry,
   InboxStore,
   MessageStore,
   SessionIndexStore,
@@ -60,6 +68,7 @@ import type {
 import type {
   ChatTurnResult,
   Cursor,
+  HarnessInput,
   InputSettlement,
   OnEvent,
   Operation,
@@ -67,6 +76,7 @@ import type {
   Receipt,
   SessionEvent,
   ThreadSettings,
+  UserInput,
 } from '../types'
 import type {
   AgentRunOptions,
@@ -92,13 +102,16 @@ import type { HarnessSession } from './harness-session'
 // the inbox. The duplicate check of an input with no operation of its own (a
 // command, a cancel) keeps its id forever: one string each. Make the window
 // an option if a host needs more.
-const KEPT_SETTLED = 500
+export const KEPT_SETTLED = 500
 
 /**
  * The fields of a {@link HarnessSession}, and the helpers every layer uses. The
  * session class is split into layers, one per file: base, inputs, state,
  * requests, turn-parts, agents, turn, harness-session.
  */
+/** How often the owner of a thread reads `stores.inbox`. */
+const INBOX_POLL_MS = 1_000
+
 export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   readonly threadId: string
   /** The log of this session. Sessions with the same log id share one log. */
@@ -180,6 +193,15 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected claimTimer: ReturnType<typeof setInterval> | undefined
   /** The claim write of the last `markBusy`. An input waits for it. */
   protected claimWrite: Promise<void> = Promise.resolve()
+  /** The last claim write found another host's claim. */
+  protected claimLost = false
+  /** Drains `stores.inbox` while this host owns the thread. */
+  protected inboxTimer: ReturnType<typeof setInterval> | undefined
+  /** Reads the inbox until the inputs this host left there have run. */
+  protected inboxWatch: ReturnType<typeof setInterval> | undefined
+  /** The open skipped recovery: another host owned the thread then. */
+  protected recoveryDeferred = false
+  private draining: Promise<void> | undefined
   /** Called each time the thread goes idle. See `onIdle`. */
   protected readonly idleListeners = new Set<() => void>()
   /** Work inputs that are being stored and are not queued yet. */
@@ -461,6 +483,31 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     this.feed.listen(listener),
   )
 
+  /**
+   * Call `listener` for each question that a command or a plugin asks.
+   * Answer it with `session.answer`. Returns a function that stops the calls.
+   *
+   * @example
+   * ```ts
+   * session.onQuestion(({ question }) =>
+   *   session.answer({ questionId: question.questionId, value: 'once' }),
+   * )
+   * ```
+   */
+  readonly onQuestion = onQuestionOf(this.onEvent)
+
+  /**
+   * Call `listener` when a tool needs a sign-in to a connector. Show the
+   * `url` (and the `userCode`, for a device login) to the user.
+   */
+  readonly onAuthRequired = onAuthRequiredOf(this.onEvent)
+
+  /** Call `listener` for each media file that an operation of this session saves. */
+  readonly onMedia = onMediaOf(this.onEvent)
+
+  /** Call `listener` after each model call, with its usage and the new thread totals. */
+  readonly onUsage = onUsageOf(this.onEvent)
+
   /** The ordered events of every operation, from `from` (exclusive). */
   events(options?: {
     from?: Cursor
@@ -647,12 +694,13 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
         // Another host's claim that has not expired is left alone: the call
         // returns false. The timer tries again while this thread has work,
         // so the work gets a claim once that one expires.
-        await claims.claim({
+        const isHeld = await claims.claim({
           threadId: this.threadId,
           harness: this.harness.name,
           ownerId: this.hostId,
           until: Date.now() + ttlMs,
         })
+        this.claimLost = !isHeld
       } catch (error) {
         // The work goes on without a claim.
         this.warnClaim(error)
@@ -666,11 +714,209 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     if (typeof timer === 'object' && 'unref' in timer) timer.unref()
     this.claimTimer = timer
     this.claimWrite = claim()
+    if (this.writer && this.persistence.stores.inbox) {
+      // ponytail: a 1s poll. A store that can push could wake the owner instead.
+      const poll = setInterval(() => void this.drainInbox(), INBOX_POLL_MS)
+      if (typeof poll === 'object' && 'unref' in poll) poll.unref()
+      this.inboxTimer = poll
+    }
   }
 
   protected stopClaimTimer(): void {
     if (this.claimTimer) clearInterval(this.claimTimer)
     this.claimTimer = undefined
+    if (this.inboxTimer) clearInterval(this.inboxTimer)
+    this.inboxTimer = undefined
+  }
+
+  /**
+   * Does another host hold a live claim on this thread? Only a durable host
+   * with `stores.workClaims` asks. Its inputs then go to that host, through
+   * `stores.inbox`: a write here would take the log from the running owner.
+   */
+  protected async isOwnedElsewhere(): Promise<boolean> {
+    const claims = this.persistence.stores.workClaims
+    if (!this.writer || !claims) return false
+    const held = await claims.get(this.threadId)
+    return (
+      held !== null && held.ownerId !== this.hostId && held.until > Date.now()
+    )
+  }
+
+  /**
+   * This host left an input for the owner: read the inbox every second until
+   * it is empty. If the owner stops, its claim expires, and this host claims
+   * the thread and runs the input.
+   */
+  protected watchInbox(): void {
+    const inbox = this.persistence.stores.inbox
+    if (this.inboxWatch || !inbox) return
+    const stop = () => {
+      clearInterval(timer)
+      this.inboxWatch = undefined
+    }
+    const check = async () => {
+      if (this.closing) return stop()
+      const pending = await inbox.listPending(this.threadId).catch(() => null)
+      if (pending?.length === 0) return stop()
+      void this.drainInbox()
+    }
+    const timer = setInterval(() => void check(), INBOX_POLL_MS)
+    if (typeof timer === 'object' && 'unref' in timer) timer.unref()
+    this.inboxWatch = timer
+  }
+
+  /**
+   * Apply the inputs that other hosts left in `stores.inbox` for this
+   * thread, in order. Only the host that holds the claim does: it claims the
+   * thread first. An input that ran before (a drain cut by a crash) is a
+   * duplicate in the log.
+   */
+  protected drainInbox(): Promise<void> {
+    this.draining ??= this.drainOnce().finally(() => {
+      this.draining = undefined
+    })
+    return this.draining
+  }
+
+  private async drainOnce(): Promise<void> {
+    const inbox = this.persistence.stores.inbox
+    const claims = this.persistence.stores.workClaims
+    if (!this.writer || !inbox || !claims || this.closing) return
+    try {
+      const pending = await inbox.listPending(this.threadId)
+      if (pending.length === 0) return
+      const isHeld = await claims.claim({
+        threadId: this.threadId,
+        harness: this.harness.name,
+        ownerId: this.hostId,
+        until: Date.now() + (this.lease?.ttlMs ?? LEASE.ttlMs),
+      })
+      if (!isHeld) return
+      // This host takes the thread from an owner that stopped. Its inputs
+      // run first, as on an open.
+      if (this.recoveryDeferred) {
+        await this.recoverFromLog(this.writer)
+        this.recoveryDeferred = false
+      }
+      for (const entry of pending) {
+        await this.applyForwarded(entry)
+        // The input was not stored. It waits for the next host.
+        if (this.closing || this.logFailure) return
+        const { inputId } = entry
+        // The host that stored an answer did not know if it is a secret.
+        // This host does, and logs it hidden. The entry goes.
+        if ((entry.input as HarnessInput).op === 'answer') {
+          await inbox.delete({ threadId: this.threadId, inputId })
+          continue
+        }
+        await inbox.markApplied({
+          threadId: this.threadId,
+          inputId,
+          operationId: 'forwarded',
+        })
+      }
+      // A drain of controls only leaves the thread idle: give the claim back.
+      this.checkIdle()
+    } catch (error) {
+      this.warnClaim(error)
+    }
+  }
+
+  /** Apply an input that another host stored, as if it arrived here. */
+  private async applyForwarded(entry: InboxEntry): Promise<unknown> {
+    const session = this.self()
+    // The host that stored it checked the input against `HarnessInput`.
+    const input = entry.input as HarnessInput
+    const { inputId } = entry
+    const principal = entry.principal
+    const sent = {
+      inputId,
+      ...(principal ? { principal } : {}),
+      ...('context' in input && input.context !== undefined
+        ? { context: input.context }
+        : {}),
+    }
+    const settle = (operation: PromiseLike<unknown>) => {
+      // Nobody awaits a forwarded turn here. Its client reads the log.
+      operation.then(
+        () => {},
+        () => {},
+      )
+    }
+    // A turn is stored when its receipt comes. Only then is the entry applied.
+    const stored = (operation: Operation<ChatTurnResult>) => {
+      settle(operation)
+      return operation.receipt
+    }
+    const { runId } = entry.input as { runId?: unknown }
+    const run = typeof runId === 'string' ? { runId } : {}
+    switch (input.op) {
+      case 'prompt':
+        return stored(
+          session.prompt(input.message, {
+            ...sent,
+            ...(input.busy ? { busy: input.busy } : {}),
+            ...run,
+          }),
+        )
+      case 'continue':
+        return stored(session.continue(sent))
+      case 'steer':
+        return session.steer(input.message, sent)
+      case 'followUp':
+        return this.queueFollowUp(input.message, {
+          ...sent,
+          ...(input.wake ? { wake: true } : {}),
+        })
+      case 'resolve':
+        return session.resolve(input.resume, { ...sent, ...run })
+      case 'reset':
+        return session.reset(input.note, sent)
+      case 'configure':
+        return session.configure(input.settings, sent)
+      case 'agentMessage':
+        return session.sendToAgent({
+          ...sent,
+          operationId: input.operationId,
+          message: input.message,
+          mode: input.mode,
+        })
+      case 'cancel':
+        return session.cancel(input.operationId, { inputId })
+      case 'cancelInput':
+        return session.cancelInput(input.inputId)
+      case 'setDelivery':
+        return session.setDelivery({
+          inputId: input.inputId,
+          delivery: input.delivery,
+        })
+      case 'command':
+        return settle(
+          session.command(input.name, input.input, {
+            inputId,
+            ...(principal ? { principal } : {}),
+          }),
+        )
+      case 'answer':
+        return session.answer({
+          questionId: input.questionId,
+          value: input.value,
+          inputId,
+        })
+      case 'config':
+        return session.setConfig({
+          key: input.key,
+          value: input.value,
+          inputId,
+        })
+      case 'revert':
+      case 'unrevert':
+      case 'agent':
+      case 'background':
+        // These run only on the owner. Another host never stores them.
+        return undefined
+    }
   }
 
   /** Give the thread's claim back. A failed write is a warning. */
@@ -717,6 +963,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     )
     if (hasFollowUps) return false
     return (
+      // A question waits in this host's memory: its answer must come here.
+      this.questions.size === 0 &&
       this.inputsInFlight === 0 &&
       this.activeTurn === undefined &&
       this.queue.length === 0 &&
@@ -753,7 +1001,10 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     // ponytail: one release write per idle thread, also when this host
     // holds no claim (a sweep may hold one for it). Track the claim if the
     // writes matter.
-    void this.releaseClaim()
+    // An input that another host stored after the last drain runs now.
+    void this.releaseClaim().then(() =>
+      this.draining ? undefined : this.drainInbox(),
+    )
     for (const listener of [...this.idleListeners]) listener()
   }
 
@@ -866,6 +1117,16 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     operationId?: string,
   ): PluginSessionApi
   protected abstract resumeSignIns(): Promise<void>
+  protected abstract recoverFromLog(writer: LogWriter): Promise<void>
+  protected abstract queueFollowUp(
+    message: UserInput,
+    options?: {
+      inputId?: string
+      principal?: Principal
+      context?: unknown
+      wake?: boolean
+    },
+  ): Promise<Receipt>
   protected abstract runAgent(
     target: string | AnyAgent,
     input: unknown,

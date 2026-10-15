@@ -208,6 +208,7 @@ describe('oauthConnector edges', () => {
     return oauthConnector({
       id: 'svc',
       label: 'Service',
+      login: 'loopback',
       oauth,
       fetch: fetchFn,
       tools: (token) => [

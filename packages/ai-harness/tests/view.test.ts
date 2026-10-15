@@ -309,6 +309,7 @@ describe('createSessionView', () => {
     const handler = createHarnessHandler({
       host,
       harness,
+      canAccess: () => true,
       authorize: () => ({ id: 'u' }),
     })
     const client = createHarnessClient({
@@ -345,6 +346,7 @@ describe('createSessionView', () => {
     const handler = createHarnessHandler({
       host,
       harness,
+      canAccess: () => true,
       authorize: () => ({ id: 'u' }),
     })
     const view = createSessionView(

@@ -49,6 +49,7 @@ describe('session view client tools', () => {
     const handler = createHarnessHandler({
       host,
       harness,
+      canAccess: () => true,
       authorize: () => ({ id: 'u' }),
     })
     const controls: Array<unknown> = []

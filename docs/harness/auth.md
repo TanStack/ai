@@ -23,6 +23,8 @@ import { openaiText } from '@tanstack/ai-openai'
 const github = oauthConnector({
   id: 'github',
   label: 'GitHub',
+  // The harness runs on the user's machine (a CLI), so open a browser here.
+  login: 'loopback',
   oauth: {
     authorizationUrl: 'https://github.com/login/oauth/authorize',
     tokenUrl: 'https://github.com/login/oauth/access_token',
@@ -54,12 +56,24 @@ export const assistant = defineHarness({
 ## 2. Sign in
 
 - The user runs `/connect github`.
-- The CLI opens the browser. The harness listens on `127.0.0.1` on a random port for one callback, with PKCE and a random `state`.
+- With `login: 'loopback'`, the CLI opens the browser. The harness listens on `127.0.0.1` on a random port for one callback, with PKCE and a random `state`.
 - The token goes into the credential store. `/disconnect github` deletes it.
 
-Set `login: 'device'` for SSH sessions, containers, and CI. The CLI then shows a code to enter on the service's page.
+`login` is required. Use `login: 'device'` for a harness on a server, and for SSH sessions, containers, and CI. The user then gets a code to enter on the service's page. Device login needs `oauth.deviceUrl`.
 
-If a tool runs before sign-in, it stops with a `harness.auth_required` event. The CLI shows which service to connect.
+If a tool runs before sign-in, it stops with a `harness.auth_required` event. The CLI shows which service to connect. In your own app, `session.onAuthRequired` tells you which service to show:
+
+```ts group=harness-auth-prompt
+import type { HarnessSession } from '@tanstack/ai-harness'
+
+export function showSignIns(session: HarnessSession) {
+  // Call the returned function to stop the calls.
+  return session.onAuthRequired(({ connector, url, userCode }) => {
+    console.log(`Sign in to ${connector}: ${url ?? `run /connect ${connector}`}`)
+    if (userCode) console.log(`Enter this code on that page: ${userCode}`)
+  })
+}
+```
 
 ## Wait for the sign-in
 

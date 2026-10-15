@@ -46,6 +46,8 @@ For agents and users:
 
 If two plugins add the same tool, command, setting, or prompt id, `host.open` fails and names both plugins.
 
+Return these from `setup`, not from the top level of `definePlugin`. A key like `adapter` or `tools` at the top level is a type error, and `definePlugin` throws for it. Other keys at the top level stay on the plugin object, so a plugin can give your code its own functions.
+
 ## Add commands and settings
 
 Commands are actions for the user, not the model: slash commands and buttons in your app. Settings are typed, saved per session, and apply at the next turn.
@@ -80,7 +82,7 @@ export const greeter = definePlugin({
 
 - `session.command('greet', { name: 'Ada' })` runs the command. The input is checked against its schema.
 - `session.setConfig({ key: 'tone', value: 'warm' })` changes the setting. A value the option does not accept is rejected.
-- `ask` waits for `session.answer({ questionId, value })`. The question shows up in `session.snapshot().pendingQuestions`.
+- `ask` waits for `session.answer({ questionId, value })`. The question goes to `session.onQuestion` listeners, and it stays in `session.snapshot().pendingQuestions` until someone answers.
 
 ## Change commands while the session runs
 
@@ -399,3 +401,5 @@ If a `setup` throws, the session keeps working with no plugins. The promise reje
 - A picker that chooses the model of each turn from its message, context, and sender.
 - Plugins that share services, lists, and events without knowing each other.
 - Commands, agents, and whole plugins that change while the session runs.
+
+Next: add the first-party plugins from `@tanstack/ai-harness/plugins`. [Ask before risky tool calls](./permissions) and [Switch between agent profiles](./agents) are two of them.

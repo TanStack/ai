@@ -6,6 +6,7 @@ import {
   memoryPersistence,
 } from '@tanstack/ai-persistence'
 import {
+  LogVersionError,
   SharedLog,
   emptySharedLogState,
   engineMessageStore,
@@ -534,6 +535,38 @@ describe('write failures', () => {
     ])
   })
 
+  it('reads a log with a record type from a newer harness, and writes nothing to it', async () => {
+    const store = memoryLogStore()
+    const old = newWriter(store)
+    await old.commit({ messages: [user('u1', 'one')] })
+    // A newer host appends a harness record type that this version does not know.
+    await store.append({
+      threadId: THREAD,
+      seq: 2,
+      records: [{ type: 'harness.later', value: 1 }],
+    })
+    const state = await loadLogState({ store, logId: THREAD })
+    expect(state.newerRecord).toBe('harness.later')
+    expect(sessionOf(state, THREAD).messages).toEqual([user('u1', 'one')])
+
+    const failures: Array<unknown> = []
+    const writer = newWriter(store, {
+      state,
+      onFailure: (e) => failures.push(e),
+    })
+    await expect(writer.append([{ type: 'app.mine' }])).rejects.toBeInstanceOf(
+      LogVersionError,
+    )
+    expect(failures[0]).toBeInstanceOf(LogVersionError)
+    await expect(
+      logMessageStore({ store }).saveThread(THREAD, [user('u2', 'two')]),
+    ).rejects.toBeInstanceOf(LogVersionError)
+    expect((await records(store)).map((record) => record.type)).toEqual([
+      'harness.transcript',
+      'harness.later',
+    ])
+  })
+
   it('calls onFailure on a conflict and rejects every later write', async () => {
     const store = memoryLogStore()
     const failures: Array<unknown> = []
@@ -707,6 +740,10 @@ describe('fold checkpoints', () => {
     ['another projection version', checkpoint({ version: 'v0' })],
     ['a position past the end of the log', checkpoint({ seq: 99 })],
     ['a state that is not shaped', checkpoint({ sessions: 'x' })],
+    [
+      'a record type from a newer harness',
+      checkpoint({ recordTypes: ['harness.transcript', 'harness.later'] }),
+    ],
   ])('ignores a checkpoint with %s', async (_name, value) => {
     const store = memoryLogStore()
     await seedLog(store)

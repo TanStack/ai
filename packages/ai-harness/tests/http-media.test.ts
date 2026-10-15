@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { memoryPersistence } from '@tanstack/ai-persistence'
+import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import {
   createHarnessHandler,
   createHarnessHost,
@@ -127,6 +127,29 @@ afterEach(() => {
 })
 
 describe('media upload and signed URLs', () => {
+  it('needs mediaSecret on a durable host, where another instance verifies the URL', () => {
+    const { adapter } = mockAdapter(() => text('ok'))
+    const harness = defineHarness({ name: 'test/http-media-durable', adapter })
+    const host = createHarnessHost({
+      persistence: {
+        stores: {
+          log: memoryLogStore(),
+          runs: memoryPersistence().stores.runs,
+        },
+      },
+    })
+    const options = {
+      host,
+      harness,
+      authorize: allowUser,
+      canAccess: () => true,
+    }
+    expect(() => createHarnessHandler(options)).toThrow(/mediaSecret/)
+    expect(() =>
+      createHarnessHandler({ ...options, mediaSecret: 'shared' }),
+    ).not.toThrow()
+  })
+
   it('stores an upload, signs its URL for 1 hour, and serves the signed URL without auth', async () => {
     vi.useFakeTimers({ toFake: ['Date'], now: NOW })
     const { host, upload, signedPath, fetchSigned } = setup()

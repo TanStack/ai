@@ -761,7 +761,7 @@
           "label": "Store Reference",
           "to": "persistence/store-reference",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-10-14"
+          "updatedAt": "2026-10-15"
         },
         {
           "label": "How Persistence Works",
@@ -933,7 +933,7 @@
           "label": "Send and show media",
           "to": "harness/media",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-14"
+          "updatedAt": "2026-10-15"
         },
         {
           "label": "Connect clients",
@@ -955,13 +955,14 @@
         {
           "label": "Durable sessions",
           "to": "harness/durable-sessions",
-          "addedAt": "2026-10-13"
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-15"
         },
         {
           "label": "List, rename, and fork sessions",
           "to": "harness/sessions",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-14"
+          "updatedAt": "2026-10-15"
         },
         {
           "label": "Run side effects once",
@@ -1003,11 +1004,23 @@
           "label": "Write a plugin",
           "to": "harness/plugins",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-14"
+          "updatedAt": "2026-10-15"
         },
         {
           "label": "Track usage and cost",
           "to": "harness/usage",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-15"
+        },
+        {
+          "label": "Ask before risky tool calls",
+          "to": "harness/permissions",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-15"
+        },
+        {
+          "label": "Switch between agent profiles",
+          "to": "harness/agents",
           "addedAt": "2026-10-13",
           "updatedAt": "2026-10-14"
         },
@@ -1015,7 +1028,7 @@
           "label": "Auth and connectors",
           "to": "harness/auth",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-14"
+          "updatedAt": "2026-10-15"
         },
         {
           "label": "Share a thread between people",
@@ -1028,6 +1041,11 @@
           "to": "harness/custom-ui",
           "addedAt": "2026-10-13",
           "updatedAt": "2026-10-14"
+        },
+        {
+          "label": "Code mode in a harness",
+          "to": "harness/code-mode",
+          "addedAt": "2026-10-13"
         },
         {
           "label": "Run agents from a harness",
@@ -1044,7 +1062,7 @@
           "label": "Use MCP servers",
           "to": "harness/mcp",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-14"
+          "updatedAt": "2026-10-15"
         },
         {
           "label": "Use from any MCP client",
