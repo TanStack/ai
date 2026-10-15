@@ -54,6 +54,11 @@ export class SubagentBudget {
     return undefined
   }
 
+  /** Undo one `reserve`. A background start that throws never began. */
+  release(): void {
+    this.shared.calls = Math.max(0, this.shared.calls - 1)
+  }
+
   /** Milliseconds a child started now may run, or `undefined` for no limit. */
   childTimeout(now = Date.now()): number | undefined {
     const own = this.limits.timeoutMs

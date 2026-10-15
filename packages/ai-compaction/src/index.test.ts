@@ -3243,6 +3243,40 @@ describe('withCompaction native', () => {
     expect(other?.providerMessages?.[0]?.content).toBe('gpt-5.4')
   })
 
+  it('does not keep a failed native compact as the checkpoint', async () => {
+    const store = memoryStore()
+    const strategy = vi.fn<CompactionStrategy>(() => [text('user', 'cut')])
+    const messages = [big('user'), big('assistant'), big('user')]
+    const context = () => {
+      const ctx = checkpointContext(store)
+      ctx.model = 'gpt-5.5'
+      return ctx
+    }
+    const failed = await runOnConfig(
+      withCompaction({
+        maxTokens: 50,
+        strategy,
+        native: { compact: () => Promise.reject(new Error('404 Not Found')) },
+      }),
+      messages,
+      context(),
+    )
+
+    expect(failed).toStrictEqual({ providerMessages: [text('user', 'cut')] })
+
+    const compact = vi.fn(() => Promise.resolve([text('user', 'sealed')]))
+    const retried = await runOnConfig(
+      withCompaction({ maxTokens: 50, strategy, native: { compact } }),
+      messages,
+      context(),
+    )
+
+    expect(compact).toHaveBeenCalledTimes(1)
+    expect(retried).toStrictEqual({
+      providerMessages: [text('user', 'sealed')],
+    })
+  })
+
   it('passes the system prompts to the adapter compact', async () => {
     const compact = vi.fn((_options: TextCompactOptions) =>
       Promise.resolve([text('user', 'kept')]),

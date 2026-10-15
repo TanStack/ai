@@ -90,8 +90,8 @@ export function buildChatCompletionsUsage(
  * `ResponseUsage` object.
  *
  * Shared by every provider that routes through
- * {@link OpenAIBaseResponsesTextAdapter}. Surfaces cached prompt tokens and
- * reasoning detail tokens when present. Returns `undefined` when the provider
+ * {@link OpenAIBaseResponsesTextAdapter}. Surfaces cache read, cache write,
+ * and reasoning detail tokens when present. Returns `undefined` when the provider
  * reported no usage object, so callers omit the field rather than fabricating
  * zeroed totals.
  */
@@ -113,6 +113,15 @@ export function buildResponsesUsage(
     result.promptTokensDetails = {
       ...result.promptTokensDetails,
       cachedTokens,
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  const cacheWriteTokens = usage.input_tokens_details?.cache_write_tokens
+  if (cacheWriteTokens && cacheWriteTokens > 0) {
+    result.promptTokensDetails = {
+      ...result.promptTokensDetails,
+      cacheWriteTokens,
     }
   }
 

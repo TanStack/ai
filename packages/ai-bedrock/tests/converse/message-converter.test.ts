@@ -117,22 +117,25 @@ describe('toConverseMessages', () => {
     })
   })
 
-  it('throws on malformed JSON tool-call arguments instead of forwarding {}', () => {
-    expect(() =>
-      toConverseMessages([
-        {
-          role: 'assistant',
-          content: '',
-          toolCalls: [
-            {
-              id: 't1',
-              type: 'function',
-              function: { name: 'getX', arguments: '{"a":' },
-            },
-          ],
-        },
-      ]),
-    ).toThrow(/malformed JSON/)
+  it('sends malformed JSON tool-call arguments as {}', () => {
+    const {
+      messages: [message],
+    } = toConverseMessages([
+      {
+        role: 'assistant',
+        content: '',
+        toolCalls: [
+          {
+            id: 't1',
+            type: 'function',
+            function: { name: 'getX', arguments: '{"a":' },
+          },
+        ],
+      },
+    ])
+    expect(message?.content).toEqual([
+      { toolUse: { toolUseId: 't1', name: 'getX', input: {} } },
+    ])
   })
 
   it('throws when tool-call arguments parse to a non-object', () => {

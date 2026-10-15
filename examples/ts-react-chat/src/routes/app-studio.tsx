@@ -137,7 +137,7 @@ function ThreadNav({
   )
 }
 
-function collectPreviewUrls(messages: Array<UIMessage>): Set<string> {
+function collectPreviewUrls(messages: ReadonlyArray<UIMessage>): Set<string> {
   const urls = new Set<string>()
   for (const message of messages) {
     for (const part of message.parts) {
@@ -155,7 +155,7 @@ function collectPreviewUrls(messages: Array<UIMessage>): Set<string> {
 }
 
 function latestPreview(
-  messages: Array<UIMessage>,
+  messages: ReadonlyArray<UIMessage>,
   skip: ReadonlySet<string> = new Set(),
 ): string | null {
   for (let index = messages.length - 1; index >= 0; index--) {
@@ -175,7 +175,10 @@ function latestPreview(
   return null
 }
 
-function hasUserText(messages: Array<UIMessage>, text: string): boolean {
+function hasUserText(
+  messages: ReadonlyArray<UIMessage>,
+  text: string,
+): boolean {
   return messages.some(
     (message) =>
       message.role === 'user' &&
@@ -683,7 +686,7 @@ function MessageList({
   messages,
   isLoading,
 }: {
-  messages: Array<UIMessage>
+  messages: ReadonlyArray<UIMessage>
   isLoading: boolean
 }) {
   const [node, setNode] = useState<HTMLDivElement | null>(null)

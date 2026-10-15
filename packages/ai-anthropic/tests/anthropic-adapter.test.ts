@@ -12,6 +12,7 @@ import { AnthropicTextAdapter } from '../src/adapters/text'
 import type { AnthropicTextProviderOptions } from '../src/adapters/text'
 import type { AnthropicDocumentMetadata } from '../src/message-types'
 import { ANTHROPIC_MAX_NONSTREAMING_TOKENS } from '../src/model-meta'
+import { createSilentLogger } from './utils/logger'
 import { z } from 'zod'
 
 const mocks = vi.hoisted(() => {
@@ -2519,6 +2520,98 @@ describe('Anthropic stream processing', () => {
       'reasoning end 1',
       'text B',
     ])
+  })
+
+  /** The TOOL_CALL_END of one streamed `tool_use` block. */
+  async function toolCallEnd(
+    initialInput: Record<string, unknown> | undefined,
+    deltas: Array<string>,
+  ) {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(
+      (async function* () {
+        yield {
+          type: 'content_block_start',
+          index: 0,
+          content_block: {
+            type: 'tool_use',
+            id: 'toolu_raw',
+            name: 'inspect',
+            ...(initialInput !== undefined && { input: initialInput }),
+          },
+        }
+        for (const partial_json of deltas) {
+          yield {
+            type: 'content_block_delta',
+            index: 0,
+            delta: { type: 'input_json_delta', partial_json },
+          }
+        }
+        yield { type: 'content_block_stop', index: 0 }
+        yield {
+          type: 'message_delta',
+          delta: { stop_reason: 'tool_use' },
+          usage: { output_tokens: 1 },
+        }
+        yield { type: 'message_stop' }
+      })(),
+    )
+
+    const chunks: Array<AdapterYieldChunk> = []
+    for await (const chunk of createAdapter('claude-opus-4-1').chatStream({
+      model: 'claude-opus-4-1',
+      messages: [{ role: 'user', content: 'Go' }],
+      logger: createSilentLogger(),
+    })) {
+      chunks.push(chunk)
+    }
+    return chunks.find((chunk) => chunk.type === 'TOOL_CALL_END')
+  }
+
+  it.each([
+    {
+      name: 'the streamed input',
+      initial: {},
+      deltas: ['{"count":2}'],
+      args: '{"count":2}',
+      input: { count: 2 },
+    },
+    {
+      name: 'the streamed bytes as sent',
+      initial: {},
+      deltas: ['{"n": ', '1.50}'],
+      args: '{"n": 1.50}',
+      input: { n: 1.5 },
+    },
+    {
+      name: 'the initial input snapshot when no delta arrives',
+      initial: { value: 'start' },
+      deltas: [],
+      args: '{"value":"start"}',
+      input: { value: 'start' },
+    },
+    {
+      name: 'the streamed input over the initial snapshot',
+      initial: { value: 'start' },
+      deltas: ['{"count":2}'],
+      args: '{"count":2}',
+      input: { count: 2 },
+    },
+  ])(
+    'sends $name as the raw TOOL_CALL_END args',
+    async ({ initial, deltas, args, input }) => {
+      expect(await toolCallEnd(initial, deltas)).toMatchObject({ args, input })
+    },
+  )
+
+  it('sends malformed tool input raw on TOOL_CALL_END with no input', async () => {
+    const end = await toolCallEnd({}, ['{"a":'])
+    expect(end).toMatchObject({ args: '{"a":' })
+    expect(end).not.toHaveProperty('input')
+  })
+
+  it('sends empty input as {} with empty raw args', async () => {
+    const end = await toolCallEnd(undefined, [])
+    expect(end).toMatchObject({ input: {}, args: '' })
   })
 })
 

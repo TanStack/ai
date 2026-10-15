@@ -1353,6 +1353,108 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     })
   })
 
+  describe('raw tool arguments', () => {
+    type EndSite = 'arguments.done' | 'output_item.done' | 'response.completed'
+
+    // Each site emits TOOL_CALL_END from a different event. Without a name on
+    // output_item.added, args.done is deferred to a later backfill.
+    function rawArgsStream(
+      site: EndSite,
+      raw: string,
+    ): Array<Record<string, unknown>> {
+      const named = {
+        type: 'function_call',
+        id: 'item_raw',
+        callId: 'call_raw',
+        name: 'lookup_weather',
+      }
+      return [
+        {
+          type: 'response.output_item.added',
+          sequenceNumber: 0,
+          outputIndex: 0,
+          item:
+            site === 'arguments.done'
+              ? { ...named, arguments: '' }
+              : {
+                  type: 'function_call',
+                  id: 'item_raw',
+                  callId: 'call_raw',
+                  arguments: '',
+                },
+        },
+        {
+          type: 'response.function_call_arguments.done',
+          sequenceNumber: 1,
+          itemId: 'item_raw',
+          outputIndex: 0,
+          arguments: raw,
+        },
+        ...(site === 'output_item.done'
+          ? [
+              {
+                type: 'response.output_item.done',
+                sequenceNumber: 2,
+                outputIndex: 0,
+                item: { ...named, arguments: raw },
+              },
+            ]
+          : []),
+        {
+          type: 'response.completed',
+          sequenceNumber: 3,
+          response: {
+            model: 'm',
+            output: [{ ...named, arguments: raw }],
+            usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+          },
+        },
+      ]
+    }
+
+    async function toolEnds(site: EndSite, raw: string) {
+      setupMockSdkClient(rawArgsStream(site, raw))
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of createAdapter().chatStream({
+        model: 'openai/gpt-4o-mini',
+        messages: [{ role: 'user', content: 'hi' }],
+        tools: [weatherTool],
+        logger: testLogger,
+      })) {
+        chunks.push(chunk)
+      }
+      return chunks.filter((chunk) => chunk.type === 'TOOL_CALL_END')
+    }
+
+    it.each<EndSite>([
+      'arguments.done',
+      'output_item.done',
+      'response.completed',
+    ])(
+      'sends the raw argument string as args on TOOL_CALL_END (%s)',
+      async (site) => {
+        const ends = await toolEnds(site, '{"n": 1.50}')
+        expect(ends).toHaveLength(1)
+        expect(ends[0]).toMatchObject({
+          toolCallId: 'call_raw',
+          args: '{"n": 1.50}',
+          input: { n: 1.5 },
+        })
+      },
+    )
+
+    it.each<EndSite>([
+      'arguments.done',
+      'output_item.done',
+      'response.completed',
+    ])('sends malformed arguments as args with no input (%s)', async (site) => {
+      const ends = await toolEnds(site, '{"a":')
+      expect(ends).toHaveLength(1)
+      expect(ends[0]).toMatchObject({ toolCallId: 'call_raw', args: '{"a":' })
+      expect(ends[0]).not.toHaveProperty('input')
+    })
+  })
+
   it('round-trips distinct Responses item and call IDs through a server tool', async () => {
     const firstTurn = [
       {

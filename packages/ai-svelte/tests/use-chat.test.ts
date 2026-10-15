@@ -419,4 +419,28 @@ describe('createChat', () => {
       await promise.catch(() => {})
     })
   })
+
+  describe('snapshot', () => {
+    it('publishes frozen messages and stops updating after dispose', async () => {
+      const chat = createChat({
+        connection: createMockConnectionAdapter({
+          chunks: createTextChunks('Hi'),
+        }),
+      })
+
+      await chat.sendMessage('Hello')
+      const messages = chat.messages
+      expect(messages).toHaveLength(2)
+      expect(Object.isFrozen(messages)).toBe(true)
+      expect(() => (messages as Array<unknown>).push({})).toThrow(TypeError)
+
+      // The frozen list goes back in as it is.
+      chat.setMessages(messages)
+      expect(chat.messages).toHaveLength(2)
+
+      chat.dispose()
+      chat.setMessages([])
+      expect(chat.messages).toHaveLength(2)
+    })
+  })
 })

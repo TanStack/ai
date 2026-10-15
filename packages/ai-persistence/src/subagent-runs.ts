@@ -461,7 +461,10 @@ export function createSubagentRunRecorder(stores: {
           initialMessages: modelMessagesToUIMessages(initial),
         }),
         status: 'running',
-        base: resumes ? (marker.base ?? 0) : stored.length,
+        // No stored base means the cut point is unknown. Keep every message
+        // that is already stored. `0` would drop them on the next continue.
+        base:
+          resumes && marker.base !== undefined ? marker.base : stored.length,
         // A nested child belongs to the thread of the child that started it.
         parentThreadId: ownerThread({
           threadId: input.threadId,

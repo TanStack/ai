@@ -86,6 +86,7 @@ import { Route as ApiDevtoolsMemoryRouteImport } from './routes/api.devtools-mem
 import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-delivery'
 import { Route as ApiDurableTakeoverRouteImport } from './routes/api.durable-takeover'
 import { Route as ApiEmbeddingRouteImport } from './routes/api.embedding'
+import { Route as ApiEvaluateUsageOnFailureRouteImport } from './routes/api.evaluate-usage-on-failure'
 import { Route as ApiFakeTextRouteImport } from './routes/api.fake-text'
 import { Route as ApiFileSourceWireRouteImport } from './routes/api.file-source-wire'
 import { Route as ApiForeignChunkEventsRouteImport } from './routes/api.foreign-chunk-events'
@@ -98,6 +99,7 @@ import { Route as ApiGenerationPersistenceServerRouteImport } from './routes/api
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiInterruptsTestRouteImport } from './routes/api.interrupts-test'
 import { Route as ApiJoinRunClientToolRouteImport } from './routes/api.join-run-client-tool'
+import { Route as ApiJsonSchemaToolInputRouteImport } from './routes/api.json-schema-tool-input'
 import { Route as ApiJsonTransportRouteImport } from './routes/api.json-transport'
 import { Route as ApiKeyedAdapterRouteImport } from './routes/api.keyed-adapter'
 import { Route as ApiLazyToolsWireRouteImport } from './routes/api.lazy-tools-wire'
@@ -130,6 +132,7 @@ import { Route as ApiNonStreamingRunErrorRouteImport } from './routes/api.non-st
 import { Route as ApiOpenaiCompletedResponseTextRouteImport } from './routes/api.openai-completed-response-text'
 import { Route as ApiOpenaiImage25ModelsRouteImport } from './routes/api.openai-image-2-5-models'
 import { Route as ApiOpenaiMalformedToolArgumentsRouteImport } from './routes/api.openai-malformed-tool-arguments'
+import { Route as ApiOpenaiResponsesUsageRouteImport } from './routes/api.openai-responses-usage'
 import { Route as ApiOpenaiShellSkillsWireRouteImport } from './routes/api.openai-shell-skills-wire'
 import { Route as ApiOpenaiStrictToolNullWireRouteImport } from './routes/api.openai-strict-tool-null-wire'
 import { Route as ApiOpenaiUsageDetailsRouteImport } from './routes/api.openai-usage-details'
@@ -584,6 +587,12 @@ const ApiEmbeddingRoute = ApiEmbeddingRouteImport.update({
   path: '/api/embedding',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiEvaluateUsageOnFailureRoute =
+  ApiEvaluateUsageOnFailureRouteImport.update({
+    id: '/api/evaluate-usage-on-failure',
+    path: '/api/evaluate-usage-on-failure',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiFakeTextRoute = ApiFakeTextRouteImport.update({
   id: '/api/fake-text',
   path: '/api/fake-text',
@@ -645,6 +654,11 @@ const ApiInterruptsTestRoute = ApiInterruptsTestRouteImport.update({
 const ApiJoinRunClientToolRoute = ApiJoinRunClientToolRouteImport.update({
   id: '/api/join-run-client-tool',
   path: '/api/join-run-client-tool',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiJsonSchemaToolInputRoute = ApiJsonSchemaToolInputRouteImport.update({
+  id: '/api/json-schema-tool-input',
+  path: '/api/json-schema-tool-input',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiJsonTransportRoute = ApiJsonTransportRouteImport.update({
@@ -812,6 +826,11 @@ const ApiOpenaiMalformedToolArgumentsRoute =
     path: '/api/openai-malformed-tool-arguments',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiOpenaiResponsesUsageRoute = ApiOpenaiResponsesUsageRouteImport.update({
+  id: '/api/openai-responses-usage',
+  path: '/api/openai-responses-usage',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiOpenaiShellSkillsWireRoute =
   ApiOpenaiShellSkillsWireRouteImport.update({
     id: '/api/openai-shell-skills-wire',
@@ -1156,6 +1175,7 @@ export interface FileRoutesByFullPath {
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
+  '/api/evaluate-usage-on-failure': typeof ApiEvaluateUsageOnFailureRoute
   '/api/fake-text': typeof ApiFakeTextRoute
   '/api/file-source-wire': typeof ApiFileSourceWireRoute
   '/api/foreign-chunk-events': typeof ApiForeignChunkEventsRoute
@@ -1168,6 +1188,7 @@ export interface FileRoutesByFullPath {
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
+  '/api/json-schema-tool-input': typeof ApiJsonSchemaToolInputRoute
   '/api/json-transport': typeof ApiJsonTransportRoute
   '/api/keyed-adapter': typeof ApiKeyedAdapterRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
@@ -1200,6 +1221,7 @@ export interface FileRoutesByFullPath {
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
   '/api/openai-image-2-5-models': typeof ApiOpenaiImage25ModelsRoute
   '/api/openai-malformed-tool-arguments': typeof ApiOpenaiMalformedToolArgumentsRoute
+  '/api/openai-responses-usage': typeof ApiOpenaiResponsesUsageRoute
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
   '/api/openai-strict-tool-null-wire': typeof ApiOpenaiStrictToolNullWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
@@ -1329,6 +1351,7 @@ export interface FileRoutesByTo {
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
+  '/api/evaluate-usage-on-failure': typeof ApiEvaluateUsageOnFailureRoute
   '/api/fake-text': typeof ApiFakeTextRoute
   '/api/file-source-wire': typeof ApiFileSourceWireRoute
   '/api/foreign-chunk-events': typeof ApiForeignChunkEventsRoute
@@ -1341,6 +1364,7 @@ export interface FileRoutesByTo {
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
+  '/api/json-schema-tool-input': typeof ApiJsonSchemaToolInputRoute
   '/api/json-transport': typeof ApiJsonTransportRoute
   '/api/keyed-adapter': typeof ApiKeyedAdapterRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
@@ -1373,6 +1397,7 @@ export interface FileRoutesByTo {
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
   '/api/openai-image-2-5-models': typeof ApiOpenaiImage25ModelsRoute
   '/api/openai-malformed-tool-arguments': typeof ApiOpenaiMalformedToolArgumentsRoute
+  '/api/openai-responses-usage': typeof ApiOpenaiResponsesUsageRoute
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
   '/api/openai-strict-tool-null-wire': typeof ApiOpenaiStrictToolNullWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
@@ -1503,6 +1528,7 @@ export interface FileRoutesById {
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
+  '/api/evaluate-usage-on-failure': typeof ApiEvaluateUsageOnFailureRoute
   '/api/fake-text': typeof ApiFakeTextRoute
   '/api/file-source-wire': typeof ApiFileSourceWireRoute
   '/api/foreign-chunk-events': typeof ApiForeignChunkEventsRoute
@@ -1515,6 +1541,7 @@ export interface FileRoutesById {
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
+  '/api/json-schema-tool-input': typeof ApiJsonSchemaToolInputRoute
   '/api/json-transport': typeof ApiJsonTransportRoute
   '/api/keyed-adapter': typeof ApiKeyedAdapterRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
@@ -1547,6 +1574,7 @@ export interface FileRoutesById {
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
   '/api/openai-image-2-5-models': typeof ApiOpenaiImage25ModelsRoute
   '/api/openai-malformed-tool-arguments': typeof ApiOpenaiMalformedToolArgumentsRoute
+  '/api/openai-responses-usage': typeof ApiOpenaiResponsesUsageRoute
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
   '/api/openai-strict-tool-null-wire': typeof ApiOpenaiStrictToolNullWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
@@ -1678,6 +1706,7 @@ export interface FileRouteTypes {
     | '/api/durable-delivery'
     | '/api/durable-takeover'
     | '/api/embedding'
+    | '/api/evaluate-usage-on-failure'
     | '/api/fake-text'
     | '/api/file-source-wire'
     | '/api/foreign-chunk-events'
@@ -1690,6 +1719,7 @@ export interface FileRouteTypes {
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
+    | '/api/json-schema-tool-input'
     | '/api/json-transport'
     | '/api/keyed-adapter'
     | '/api/lazy-tools-wire'
@@ -1722,6 +1752,7 @@ export interface FileRouteTypes {
     | '/api/openai-completed-response-text'
     | '/api/openai-image-2-5-models'
     | '/api/openai-malformed-tool-arguments'
+    | '/api/openai-responses-usage'
     | '/api/openai-shell-skills-wire'
     | '/api/openai-strict-tool-null-wire'
     | '/api/openai-usage-details'
@@ -1851,6 +1882,7 @@ export interface FileRouteTypes {
     | '/api/durable-delivery'
     | '/api/durable-takeover'
     | '/api/embedding'
+    | '/api/evaluate-usage-on-failure'
     | '/api/fake-text'
     | '/api/file-source-wire'
     | '/api/foreign-chunk-events'
@@ -1863,6 +1895,7 @@ export interface FileRouteTypes {
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
+    | '/api/json-schema-tool-input'
     | '/api/json-transport'
     | '/api/keyed-adapter'
     | '/api/lazy-tools-wire'
@@ -1895,6 +1928,7 @@ export interface FileRouteTypes {
     | '/api/openai-completed-response-text'
     | '/api/openai-image-2-5-models'
     | '/api/openai-malformed-tool-arguments'
+    | '/api/openai-responses-usage'
     | '/api/openai-shell-skills-wire'
     | '/api/openai-strict-tool-null-wire'
     | '/api/openai-usage-details'
@@ -2024,6 +2058,7 @@ export interface FileRouteTypes {
     | '/api/durable-delivery'
     | '/api/durable-takeover'
     | '/api/embedding'
+    | '/api/evaluate-usage-on-failure'
     | '/api/fake-text'
     | '/api/file-source-wire'
     | '/api/foreign-chunk-events'
@@ -2036,6 +2071,7 @@ export interface FileRouteTypes {
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
+    | '/api/json-schema-tool-input'
     | '/api/json-transport'
     | '/api/keyed-adapter'
     | '/api/lazy-tools-wire'
@@ -2068,6 +2104,7 @@ export interface FileRouteTypes {
     | '/api/openai-completed-response-text'
     | '/api/openai-image-2-5-models'
     | '/api/openai-malformed-tool-arguments'
+    | '/api/openai-responses-usage'
     | '/api/openai-shell-skills-wire'
     | '/api/openai-strict-tool-null-wire'
     | '/api/openai-usage-details'
@@ -2198,6 +2235,7 @@ export interface RootRouteChildren {
   ApiDurableDeliveryRoute: typeof ApiDurableDeliveryRoute
   ApiDurableTakeoverRoute: typeof ApiDurableTakeoverRoute
   ApiEmbeddingRoute: typeof ApiEmbeddingRoute
+  ApiEvaluateUsageOnFailureRoute: typeof ApiEvaluateUsageOnFailureRoute
   ApiFakeTextRoute: typeof ApiFakeTextRoute
   ApiFileSourceWireRoute: typeof ApiFileSourceWireRoute
   ApiForeignChunkEventsRoute: typeof ApiForeignChunkEventsRoute
@@ -2210,6 +2248,7 @@ export interface RootRouteChildren {
   ApiImageRoute: typeof ApiImageRouteWithChildren
   ApiInterruptsTestRoute: typeof ApiInterruptsTestRoute
   ApiJoinRunClientToolRoute: typeof ApiJoinRunClientToolRoute
+  ApiJsonSchemaToolInputRoute: typeof ApiJsonSchemaToolInputRoute
   ApiJsonTransportRoute: typeof ApiJsonTransportRoute
   ApiKeyedAdapterRoute: typeof ApiKeyedAdapterRoute
   ApiLazyToolsWireRoute: typeof ApiLazyToolsWireRoute
@@ -2242,6 +2281,7 @@ export interface RootRouteChildren {
   ApiOpenaiCompletedResponseTextRoute: typeof ApiOpenaiCompletedResponseTextRoute
   ApiOpenaiImage25ModelsRoute: typeof ApiOpenaiImage25ModelsRoute
   ApiOpenaiMalformedToolArgumentsRoute: typeof ApiOpenaiMalformedToolArgumentsRoute
+  ApiOpenaiResponsesUsageRoute: typeof ApiOpenaiResponsesUsageRoute
   ApiOpenaiShellSkillsWireRoute: typeof ApiOpenaiShellSkillsWireRoute
   ApiOpenaiStrictToolNullWireRoute: typeof ApiOpenaiStrictToolNullWireRoute
   ApiOpenaiUsageDetailsRoute: typeof ApiOpenaiUsageDetailsRoute
@@ -2831,6 +2871,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiEmbeddingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/evaluate-usage-on-failure': {
+      id: '/api/evaluate-usage-on-failure'
+      path: '/api/evaluate-usage-on-failure'
+      fullPath: '/api/evaluate-usage-on-failure'
+      preLoaderRoute: typeof ApiEvaluateUsageOnFailureRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/fake-text': {
       id: '/api/fake-text'
       path: '/api/fake-text'
@@ -2913,6 +2960,13 @@ declare module '@tanstack/react-router' {
       path: '/api/join-run-client-tool'
       fullPath: '/api/join-run-client-tool'
       preLoaderRoute: typeof ApiJoinRunClientToolRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/json-schema-tool-input': {
+      id: '/api/json-schema-tool-input'
+      path: '/api/json-schema-tool-input'
+      fullPath: '/api/json-schema-tool-input'
+      preLoaderRoute: typeof ApiJsonSchemaToolInputRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/json-transport': {
@@ -3137,6 +3191,13 @@ declare module '@tanstack/react-router' {
       path: '/api/openai-malformed-tool-arguments'
       fullPath: '/api/openai-malformed-tool-arguments'
       preLoaderRoute: typeof ApiOpenaiMalformedToolArgumentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/openai-responses-usage': {
+      id: '/api/openai-responses-usage'
+      path: '/api/openai-responses-usage'
+      fullPath: '/api/openai-responses-usage'
+      preLoaderRoute: typeof ApiOpenaiResponsesUsageRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/openai-shell-skills-wire': {
@@ -3632,6 +3693,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiDurableDeliveryRoute: ApiDurableDeliveryRoute,
   ApiDurableTakeoverRoute: ApiDurableTakeoverRoute,
   ApiEmbeddingRoute: ApiEmbeddingRoute,
+  ApiEvaluateUsageOnFailureRoute: ApiEvaluateUsageOnFailureRoute,
   ApiFakeTextRoute: ApiFakeTextRoute,
   ApiFileSourceWireRoute: ApiFileSourceWireRoute,
   ApiForeignChunkEventsRoute: ApiForeignChunkEventsRoute,
@@ -3644,6 +3706,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiImageRoute: ApiImageRouteWithChildren,
   ApiInterruptsTestRoute: ApiInterruptsTestRoute,
   ApiJoinRunClientToolRoute: ApiJoinRunClientToolRoute,
+  ApiJsonSchemaToolInputRoute: ApiJsonSchemaToolInputRoute,
   ApiJsonTransportRoute: ApiJsonTransportRoute,
   ApiKeyedAdapterRoute: ApiKeyedAdapterRoute,
   ApiLazyToolsWireRoute: ApiLazyToolsWireRoute,
@@ -3676,6 +3739,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOpenaiCompletedResponseTextRoute: ApiOpenaiCompletedResponseTextRoute,
   ApiOpenaiImage25ModelsRoute: ApiOpenaiImage25ModelsRoute,
   ApiOpenaiMalformedToolArgumentsRoute: ApiOpenaiMalformedToolArgumentsRoute,
+  ApiOpenaiResponsesUsageRoute: ApiOpenaiResponsesUsageRoute,
   ApiOpenaiShellSkillsWireRoute: ApiOpenaiShellSkillsWireRoute,
   ApiOpenaiStrictToolNullWireRoute: ApiOpenaiStrictToolNullWireRoute,
   ApiOpenaiUsageDetailsRoute: ApiOpenaiUsageDetailsRoute,

@@ -160,7 +160,7 @@
           "label": "Subagents",
           "to": "chat/subagents",
           "addedAt": "2026-09-21",
-          "updatedAt": "2026-10-13"
+          "updatedAt": "2026-10-14"
         },
         {
           "label": "Agentic Cycle",
@@ -294,7 +294,7 @@
           "label": "Server Tools",
           "to": "tools/server-tools",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-13"
+          "updatedAt": "2026-10-14"
         },
         {
           "label": "Client Tools",
@@ -353,7 +353,7 @@
           "label": "Middleware",
           "to": "advanced/middleware",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-13"
+          "updatedAt": "2026-10-14"
         },
         {
           "label": "Built-in Middleware",
@@ -880,7 +880,7 @@
           "label": "Evaluate",
           "to": "evaluate/evaluate",
           "addedAt": "2026-09-18",
-          "updatedAt": "2026-10-08"
+          "updatedAt": "2026-10-13"
         }
       ],
       "tab": "guides"
@@ -1485,7 +1485,7 @@
           "label": "@tanstack/ai-client",
           "to": "api/ai-client",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-08"
+          "updatedAt": "2026-10-14"
         },
         {
           "label": "@tanstack/ai-react",

@@ -220,6 +220,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         toolCallId,
         toolCallName: rejectedToolCall.toolName,
         toolName: rejectedToolCall.toolName,
+        args: rejectedToolCall.arguments,
         ...(rejectedToolCall.input !== undefined && {
           input: rejectedToolCall.input,
         }),
@@ -1166,7 +1167,8 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
                 toolName: toolCall.name,
                 model: chunk.model || options.model,
                 timestamp: Date.now(),
-                input: parsedInput,
+                args: toolCall.arguments,
+                ...(parsedInput !== undefined && { input: parsedInput }),
               }
               emittedAnyToolCallEnd = true
             }
@@ -1236,7 +1238,8 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             toolName: toolCall.name,
             model: lastModel || options.model,
             timestamp: Date.now(),
-            input: parsedInput,
+            args: toolCall.arguments,
+            ...(parsedInput !== undefined && { input: parsedInput }),
           }
           pendingToolCount += 1
           emittedAnyToolCallEnd = true

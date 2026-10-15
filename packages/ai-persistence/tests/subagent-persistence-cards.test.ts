@@ -789,6 +789,43 @@ describe('subagent run recorder', () => {
     })
   })
 
+  it('keeps stored messages when a suspended child has no base', async () => {
+    const { stores } = memoryPersistence()
+    await stores.messages.saveThread('subagent:child', [
+      {
+        id: 'm1',
+        role: 'assistant',
+        content: 'Old notes',
+        metadata: {
+          tanstack: { subagent: { name: 'writer', status: 'suspended' } },
+          'tanstack:subagentChild': {
+            parentThreadId: 'desk',
+            prompt: 'Take notes',
+          },
+        },
+      },
+    ])
+    const recorder = createSubagentRunRecorder({
+      messages: stores.messages,
+      intervalMs: 0,
+    })
+    await feed(recorder, 'run-2', [
+      childStarted('child', { parentToolCallId: 'call_2' }),
+      ...textMessage('m2', 'More notes', { subagentRunId: 'child' }),
+      {
+        type: EventType.SUBAGENT_FINISHED,
+        subagentRunId: 'child',
+        outcome: { type: 'suspended', interruptIds: ['approval'] },
+        timestamp: t,
+      },
+    ])
+
+    const loaded = await recorder.loadChild('child', { threadId: 'desk' })
+    expect(loaded?.messages.map((message) => message.content)).toContain(
+      'Old notes',
+    )
+  })
+
   it('loads nothing for an unknown child', async () => {
     const { stores } = memoryPersistence()
     const recorder = createSubagentRunRecorder({ messages: stores.messages })
