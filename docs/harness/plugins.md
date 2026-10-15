@@ -82,7 +82,7 @@ export const greeter = definePlugin({
 
 - `session.command('greet', { name: 'Ada' })` runs the command. The input is checked against its schema.
 - `session.setConfig({ key: 'tone', value: 'warm' })` changes the setting. A value the option does not accept is rejected.
-- `ask` waits for `session.answer({ questionId, value })`. The question shows up in `session.snapshot().pendingQuestions`.
+- `ask` waits for `session.answer({ questionId, value })`. The question goes to `session.onQuestion` listeners, and it stays in `session.snapshot().pendingQuestions` until someone answers.
 
 ## Change commands while the session runs
 
@@ -401,3 +401,5 @@ If a `setup` throws, the session keeps working with no plugins. The promise reje
 - A picker that chooses the model of each turn from its message, context, and sender.
 - Plugins that share services, lists, and events without knowing each other.
 - Commands, agents, and whole plugins that change while the session runs.
+
+Next: add the first-party plugins from `@tanstack/ai-harness/plugins`. [Ask before risky tool calls](./permissions) and [Switch between agent profiles](./agents) are two of them.

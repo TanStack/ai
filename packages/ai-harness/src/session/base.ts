@@ -7,7 +7,14 @@ import {
 } from '@tanstack/ai'
 import { credentialsFor, providerKeysFor, scrubSecrets } from '../auth'
 import { AgentRegistry } from '../agents'
-import { SessionFeed, onEventOf } from '../feed'
+import {
+  SessionFeed,
+  onAuthRequiredOf,
+  onEventOf,
+  onMediaOf,
+  onQuestionOf,
+  onUsageOf,
+} from '../feed'
 import { createMediaStore } from '../media'
 import { LEASE } from '../resume'
 import { HARNESS_EVENTS } from '../types'
@@ -475,6 +482,31 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   readonly onEvent: OnEvent = onEventOf((listener) =>
     this.feed.listen(listener),
   )
+
+  /**
+   * Call `listener` for each question that a command or a plugin asks.
+   * Answer it with `session.answer`. Returns a function that stops the calls.
+   *
+   * @example
+   * ```ts
+   * session.onQuestion(({ question }) =>
+   *   session.answer({ questionId: question.questionId, value: 'once' }),
+   * )
+   * ```
+   */
+  readonly onQuestion = onQuestionOf(this.onEvent)
+
+  /**
+   * Call `listener` when a tool needs a sign-in to a connector. Show the
+   * `url` (and the `userCode`, for a device login) to the user.
+   */
+  readonly onAuthRequired = onAuthRequiredOf(this.onEvent)
+
+  /** Call `listener` for each media file that an operation of this session saves. */
+  readonly onMedia = onMediaOf(this.onEvent)
+
+  /** Call `listener` after each model call, with its usage and the new thread totals. */
+  readonly onUsage = onUsageOf(this.onEvent)
 
   /** The ordered events of every operation, from `from` (exclusive). */
   events(options?: {

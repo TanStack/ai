@@ -119,6 +119,7 @@ console.log(`The turn made ${media.length} files.`)
 ```
 
 - `onMedia` also works on an agent run that you start from code with `session.agents`.
+- `session.onMedia` gets the files of every turn and agent run of the session.
 - Each file also sends a `harness.media` event (`HARNESS_EVENTS.media`) with the record as its value. Use it when you read the raw events.
 
 A media record has:

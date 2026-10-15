@@ -129,21 +129,23 @@ Answer with `session.answer({ questionId, value })`, or from a [`HarnessClient`]
 | `{ action: 'decline' }` | `decline` |
 | `{ action: 'cancel' }` | `cancel` |
 
-This code answers the first open question with a city:
+`session.onQuestion` calls you the moment a server asks. This code answers every question with a city:
 
 ```ts group=harness-mcp
 import type { HarnessSession } from '@tanstack/ai-harness'
 
-export async function answerCity(session: HarnessSession) {
-  const [question] = session.snapshot().pendingQuestions
-  if (question) {
-    await session.answer({
+export function answerWithCity(session: HarnessSession) {
+  // Call the returned function to stop answering.
+  return session.onQuestion(({ question }) =>
+    session.answer({
       questionId: question.questionId,
       value: { city: 'Paris' },
-    })
-  }
+    }),
+  )
 }
 ```
+
+Open questions also stay in `session.snapshot().pendingQuestions`, so a client that connects later still sees them.
 
 ## Set a time limit
 

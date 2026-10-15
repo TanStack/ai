@@ -61,7 +61,19 @@ export const assistant = defineHarness({
 
 `login` is required. Use `login: 'device'` for a harness on a server, and for SSH sessions, containers, and CI. The user then gets a code to enter on the service's page. Device login needs `oauth.deviceUrl`.
 
-If a tool runs before sign-in, it stops with a `harness.auth_required` event. The CLI shows which service to connect.
+If a tool runs before sign-in, it stops with a `harness.auth_required` event. The CLI shows which service to connect. In your own app, `session.onAuthRequired` tells you which service to show:
+
+```ts group=harness-auth-prompt
+import type { HarnessSession } from '@tanstack/ai-harness'
+
+export function showSignIns(session: HarnessSession) {
+  // Call the returned function to stop the calls.
+  return session.onAuthRequired(({ connector, url, userCode }) => {
+    console.log(`Sign in to ${connector}: ${url ?? `run /connect ${connector}`}`)
+    if (userCode) console.log(`Enter this code on that page: ${userCode}`)
+  })
+}
+```
 
 ## Wait for the sign-in
 

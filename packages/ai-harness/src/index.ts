@@ -49,6 +49,21 @@ export type {
 } from './plugins'
 
 export { createExtensionPoint, createPluginEvent } from './extensions'
+// Portable (no Node imports), so edge-safe plugins such as code mode can read
+// the permission rules and resources without the Node-only `./plugins` entry.
+export {
+  PermissionDecisionCapability,
+  PermissionResources,
+  PermissionRules,
+  decidePermission,
+} from './first-party/permissions'
+export type {
+  CallResources,
+  PermissionDecision,
+  PermissionMode,
+  PermissionRule,
+  ToolResources,
+} from './first-party/permissions'
 export type { ExtensionItem, ExtensionPoint, PluginEvent } from './extensions'
 
 export { checkConfigValue, configOption } from './config'
@@ -111,6 +126,7 @@ export type {
   SessionSnapshot,
 } from './session/index'
 export type { SessionUsage, UsageCounts } from './usage'
+export type { OnHarnessEvent } from './feed'
 
 export type {
   FinishContext,
@@ -128,6 +144,7 @@ export { isTransientModelError, retryTransientErrors } from './turn'
 export { HARNESS_EVENTS, InputRejectedError } from './types'
 export type {
   AgentRun,
+  AuthRequest,
   BusyPolicy,
   ChatTurnResult,
   Cursor,
@@ -141,6 +158,7 @@ export type {
   Operation,
   OperationKind,
   OperationStatus,
+  PendingQuestion,
   Principal,
   Receipt,
   SessionEvent,
@@ -150,6 +168,7 @@ export type {
   ThreadSettingsChange,
   TurnInfo,
   TurnOverrides,
+  UsageUpdate,
   UserInput,
   WaitingInput,
 } from './types'

@@ -1,0 +1,107 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[first-party-plan] write x.txt",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "writer",
+            "arguments": "{}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[first-party-plan] write x.txt",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "The writer could not write in plan mode."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[first-party-plan-writer] write x.txt",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "write_file",
+            "arguments": "{\"path\":\"x.txt\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[first-party-plan-writer] write x.txt",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Plan mode blocked the write."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[first-party-agents] first"
+      },
+      "response": {
+        "content": "Built it."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[first-party-agents] second",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "lookup",
+            "arguments": "{}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[first-party-agents] second",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Stopped at the step limit."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[first-party-env] where am i"
+      },
+      "response": {
+        "content": "You are in a new repository."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[first-party-title] plan a trip to Rome",
+        "model": "gpt-5.4-nano"
+      },
+      "response": {
+        "content": "\"Trip to Rome\""
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[first-party-title] plan a trip to Rome",
+        "model": "gpt-5.5"
+      },
+      "response": {
+        "content": "Here is a plan for Rome."
+      }
+    }
+  ]
+}

@@ -93,6 +93,7 @@ import { Route as ApiGeminiNativeImageWireRouteImport } from './routes/api.gemin
 import { Route as ApiGenerationPersistenceResumeRouteImport } from './routes/api.generation-persistence-resume'
 import { Route as ApiGenerationPersistenceServerRouteImport } from './routes/api.generation-persistence-server'
 import { Route as ApiHarnessContinueRouteImport } from './routes/api.harness-continue'
+import { Route as ApiHarnessFirstPartyRouteImport } from './routes/api.harness-first-party'
 import { Route as ApiHarnessForwardingRouteImport } from './routes/api.harness-forwarding'
 import { Route as ApiHarnessRetryAfterRouteImport } from './routes/api.harness-retry-after'
 import { Route as ApiImageRouteImport } from './routes/api.image'
@@ -107,8 +108,8 @@ import { Route as ApiMcpAppsCallRouteImport } from './routes/api.mcp-apps-call'
 import { Route as ApiMcpAppsChatRouteImport } from './routes/api.mcp-apps-chat'
 import { Route as ApiMcpAppsServerRouteImport } from './routes/api.mcp-apps-server'
 import { Route as ApiMcpInputServerRouteImport } from './routes/api.mcp-input-server'
-import { Route as ApiMcpLegacyInputServerRouteImport } from './routes/api.mcp-legacy-input-server'
 import { Route as ApiMcpInputTestRouteImport } from './routes/api.mcp-input-test'
+import { Route as ApiMcpLegacyInputServerRouteImport } from './routes/api.mcp-legacy-input-server'
 import { Route as ApiMcpLifecycleTestRouteImport } from './routes/api.mcp-lifecycle-test'
 import { Route as ApiMcpManagedTestRouteImport } from './routes/api.mcp-managed-test'
 import { Route as ApiMcpNoTasksServerRouteImport } from './routes/api.mcp-no-tasks-server'
@@ -623,6 +624,11 @@ const ApiHarnessContinueRoute = ApiHarnessContinueRouteImport.update({
   path: '/api/harness-continue',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHarnessFirstPartyRoute = ApiHarnessFirstPartyRouteImport.update({
+  id: '/api/harness-first-party',
+  path: '/api/harness-first-party',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHarnessForwardingRoute = ApiHarnessForwardingRouteImport.update({
   id: '/api/harness-forwarding',
   path: '/api/harness-forwarding',
@@ -693,14 +699,14 @@ const ApiMcpInputServerRoute = ApiMcpInputServerRouteImport.update({
   path: '/api/mcp-input-server',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiMcpLegacyInputServerRoute = ApiMcpLegacyInputServerRouteImport.update({
-  id: '/api/mcp-legacy-input-server',
-  path: '/api/mcp-legacy-input-server',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiMcpInputTestRoute = ApiMcpInputTestRouteImport.update({
   id: '/api/mcp-input-test',
   path: '/api/mcp-input-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpLegacyInputServerRoute = ApiMcpLegacyInputServerRouteImport.update({
+  id: '/api/mcp-legacy-input-server',
+  path: '/api/mcp-legacy-input-server',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiMcpLifecycleTestRoute = ApiMcpLifecycleTestRouteImport.update({
@@ -1174,6 +1180,7 @@ export interface FileRoutesByFullPath {
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
   '/api/harness-continue': typeof ApiHarnessContinueRoute
+  '/api/harness-first-party': typeof ApiHarnessFirstPartyRoute
   '/api/harness-forwarding': typeof ApiHarnessForwardingRoute
   '/api/harness-retry-after': typeof ApiHarnessRetryAfterRoute
   '/api/image': typeof ApiImageRouteWithChildren
@@ -1188,8 +1195,8 @@ export interface FileRoutesByFullPath {
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
   '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
   '/api/mcp-input-server': typeof ApiMcpInputServerRoute
-  '/api/mcp-legacy-input-server': typeof ApiMcpLegacyInputServerRoute
   '/api/mcp-input-test': typeof ApiMcpInputTestRoute
+  '/api/mcp-legacy-input-server': typeof ApiMcpLegacyInputServerRoute
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
   '/api/mcp-no-tasks-server': typeof ApiMcpNoTasksServerRoute
@@ -1349,6 +1356,7 @@ export interface FileRoutesByTo {
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
   '/api/harness-continue': typeof ApiHarnessContinueRoute
+  '/api/harness-first-party': typeof ApiHarnessFirstPartyRoute
   '/api/harness-forwarding': typeof ApiHarnessForwardingRoute
   '/api/harness-retry-after': typeof ApiHarnessRetryAfterRoute
   '/api/image': typeof ApiImageRouteWithChildren
@@ -1363,8 +1371,8 @@ export interface FileRoutesByTo {
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
   '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
   '/api/mcp-input-server': typeof ApiMcpInputServerRoute
-  '/api/mcp-legacy-input-server': typeof ApiMcpLegacyInputServerRoute
   '/api/mcp-input-test': typeof ApiMcpInputTestRoute
+  '/api/mcp-legacy-input-server': typeof ApiMcpLegacyInputServerRoute
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
   '/api/mcp-no-tasks-server': typeof ApiMcpNoTasksServerRoute
@@ -1525,6 +1533,7 @@ export interface FileRoutesById {
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
   '/api/harness-continue': typeof ApiHarnessContinueRoute
+  '/api/harness-first-party': typeof ApiHarnessFirstPartyRoute
   '/api/harness-forwarding': typeof ApiHarnessForwardingRoute
   '/api/harness-retry-after': typeof ApiHarnessRetryAfterRoute
   '/api/image': typeof ApiImageRouteWithChildren
@@ -1539,8 +1548,8 @@ export interface FileRoutesById {
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
   '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
   '/api/mcp-input-server': typeof ApiMcpInputServerRoute
-  '/api/mcp-legacy-input-server': typeof ApiMcpLegacyInputServerRoute
   '/api/mcp-input-test': typeof ApiMcpInputTestRoute
+  '/api/mcp-legacy-input-server': typeof ApiMcpLegacyInputServerRoute
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
   '/api/mcp-no-tasks-server': typeof ApiMcpNoTasksServerRoute
@@ -1702,6 +1711,7 @@ export interface FileRouteTypes {
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
     | '/api/harness-continue'
+    | '/api/harness-first-party'
     | '/api/harness-forwarding'
     | '/api/harness-retry-after'
     | '/api/image'
@@ -1716,8 +1726,8 @@ export interface FileRouteTypes {
     | '/api/mcp-apps-chat'
     | '/api/mcp-apps-server'
     | '/api/mcp-input-server'
-    | '/api/mcp-legacy-input-server'
     | '/api/mcp-input-test'
+    | '/api/mcp-legacy-input-server'
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
     | '/api/mcp-no-tasks-server'
@@ -1877,6 +1887,7 @@ export interface FileRouteTypes {
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
     | '/api/harness-continue'
+    | '/api/harness-first-party'
     | '/api/harness-forwarding'
     | '/api/harness-retry-after'
     | '/api/image'
@@ -1891,8 +1902,8 @@ export interface FileRouteTypes {
     | '/api/mcp-apps-chat'
     | '/api/mcp-apps-server'
     | '/api/mcp-input-server'
-    | '/api/mcp-legacy-input-server'
     | '/api/mcp-input-test'
+    | '/api/mcp-legacy-input-server'
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
     | '/api/mcp-no-tasks-server'
@@ -2052,6 +2063,7 @@ export interface FileRouteTypes {
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
     | '/api/harness-continue'
+    | '/api/harness-first-party'
     | '/api/harness-forwarding'
     | '/api/harness-retry-after'
     | '/api/image'
@@ -2066,8 +2078,8 @@ export interface FileRouteTypes {
     | '/api/mcp-apps-chat'
     | '/api/mcp-apps-server'
     | '/api/mcp-input-server'
-    | '/api/mcp-legacy-input-server'
     | '/api/mcp-input-test'
+    | '/api/mcp-legacy-input-server'
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
     | '/api/mcp-no-tasks-server'
@@ -2228,6 +2240,7 @@ export interface RootRouteChildren {
   ApiGenerationPersistenceResumeRoute: typeof ApiGenerationPersistenceResumeRoute
   ApiGenerationPersistenceServerRoute: typeof ApiGenerationPersistenceServerRoute
   ApiHarnessContinueRoute: typeof ApiHarnessContinueRoute
+  ApiHarnessFirstPartyRoute: typeof ApiHarnessFirstPartyRoute
   ApiHarnessForwardingRoute: typeof ApiHarnessForwardingRoute
   ApiHarnessRetryAfterRoute: typeof ApiHarnessRetryAfterRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
@@ -2242,8 +2255,8 @@ export interface RootRouteChildren {
   ApiMcpAppsChatRoute: typeof ApiMcpAppsChatRoute
   ApiMcpAppsServerRoute: typeof ApiMcpAppsServerRoute
   ApiMcpInputServerRoute: typeof ApiMcpInputServerRoute
-  ApiMcpLegacyInputServerRoute: typeof ApiMcpLegacyInputServerRoute
   ApiMcpInputTestRoute: typeof ApiMcpInputTestRoute
+  ApiMcpLegacyInputServerRoute: typeof ApiMcpLegacyInputServerRoute
   ApiMcpLifecycleTestRoute: typeof ApiMcpLifecycleTestRoute
   ApiMcpManagedTestRoute: typeof ApiMcpManagedTestRoute
   ApiMcpNoTasksServerRoute: typeof ApiMcpNoTasksServerRoute
@@ -2905,6 +2918,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHarnessContinueRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/harness-first-party': {
+      id: '/api/harness-first-party'
+      path: '/api/harness-first-party'
+      fullPath: '/api/harness-first-party'
+      preLoaderRoute: typeof ApiHarnessFirstPartyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/harness-forwarding': {
       id: '/api/harness-forwarding'
       path: '/api/harness-forwarding'
@@ -3003,18 +3023,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMcpInputServerRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/mcp-legacy-input-server': {
-      id: '/api/mcp-legacy-input-server'
-      path: '/api/mcp-legacy-input-server'
-      fullPath: '/api/mcp-legacy-input-server'
-      preLoaderRoute: typeof ApiMcpLegacyInputServerRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/mcp-input-test': {
       id: '/api/mcp-input-test'
       path: '/api/mcp-input-test'
       fullPath: '/api/mcp-input-test'
       preLoaderRoute: typeof ApiMcpInputTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-legacy-input-server': {
+      id: '/api/mcp-legacy-input-server'
+      path: '/api/mcp-legacy-input-server'
+      fullPath: '/api/mcp-legacy-input-server'
+      preLoaderRoute: typeof ApiMcpLegacyInputServerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/mcp-lifecycle-test': {
@@ -3678,6 +3698,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGenerationPersistenceResumeRoute: ApiGenerationPersistenceResumeRoute,
   ApiGenerationPersistenceServerRoute: ApiGenerationPersistenceServerRoute,
   ApiHarnessContinueRoute: ApiHarnessContinueRoute,
+  ApiHarnessFirstPartyRoute: ApiHarnessFirstPartyRoute,
   ApiHarnessForwardingRoute: ApiHarnessForwardingRoute,
   ApiHarnessRetryAfterRoute: ApiHarnessRetryAfterRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
@@ -3692,8 +3713,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpAppsChatRoute: ApiMcpAppsChatRoute,
   ApiMcpAppsServerRoute: ApiMcpAppsServerRoute,
   ApiMcpInputServerRoute: ApiMcpInputServerRoute,
-  ApiMcpLegacyInputServerRoute: ApiMcpLegacyInputServerRoute,
   ApiMcpInputTestRoute: ApiMcpInputTestRoute,
+  ApiMcpLegacyInputServerRoute: ApiMcpLegacyInputServerRoute,
   ApiMcpLifecycleTestRoute: ApiMcpLifecycleTestRoute,
   ApiMcpManagedTestRoute: ApiMcpManagedTestRoute,
   ApiMcpNoTasksServerRoute: ApiMcpNoTasksServerRoute,
