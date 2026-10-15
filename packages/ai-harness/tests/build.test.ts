@@ -72,6 +72,7 @@ describe('harnessText({ url })', () => {
     const handler = createHarnessHandler({
       host,
       harness: defineHarness({ name: 'test/remote', adapter }),
+      canAccess: () => true,
       authorize: (request) =>
         request.headers.get('authorization') === 'Bearer t'
           ? { id: 'u' }
