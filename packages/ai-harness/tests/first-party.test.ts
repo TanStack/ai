@@ -115,6 +115,18 @@ describe('workspace tools with permissions', () => {
     expect(globToRegExp('src/**/*.ts').test('src/b.ts')).toBe(true)
     expect(globToRegExp('*.md').test('docs/a.md')).toBe(false)
   })
+
+  it('matches whole folders with **/, and one of the parts with {a,b}', () => {
+    expect(globToRegExp('src/**/test.ts').test('src/test.ts')).toBe(true)
+    expect(globToRegExp('src/**/test.ts').test('src/a/test.ts')).toBe(true)
+    expect(globToRegExp('src/**/test.ts').test('src/mytest.ts')).toBe(false)
+    expect(globToRegExp('**/.env').test('a/.env')).toBe(true)
+    expect(globToRegExp('**/.env').test('prod.env')).toBe(false)
+    const keys = globToRegExp('secrets/**/*.{pem,key}')
+    expect(keys.test('secrets/a/b.key')).toBe(true)
+    expect(keys.test('secrets/b.pem')).toBe(true)
+    expect(keys.test('secrets/b.txt')).toBe(false)
+  })
 })
 
 describe('modelPicker', () => {

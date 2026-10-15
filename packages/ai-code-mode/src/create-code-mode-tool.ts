@@ -365,6 +365,7 @@ function buildToolDescription(tools: Array<CodeModeTool>): string {
     `Execute TypeScript code in a secure sandbox environment. ` +
     `The code can use these external API functions: ${externalFunctions}.${discoverable} ` +
     `All external_* calls are async and must be awaited. ` +
-    `Return a value to pass results back. Use console.log() for debugging.`
+    `Return a value to pass results back. Use console.log() for debugging. ` +
+    `The tool returns { success, result, logs, error }, where result is the value your code returned.`
   )
 }

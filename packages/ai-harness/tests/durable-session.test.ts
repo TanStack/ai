@@ -209,7 +209,7 @@ describe('durable host stores', () => {
           stores: { log: memoryLogStore(), runs, messages },
         } as never,
       }),
-    ).toThrow('Remove stores.messages and stores.inbox')
+    ).toThrow('Remove stores.messages.')
   })
 
   it('refuses host records without a log, and harness record types', async () => {

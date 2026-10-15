@@ -1,7 +1,13 @@
 import { expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
 import { defineAgent } from '@tanstack/ai'
-import { defineHarness, definePlugin } from '../src'
+import {
+  createHarnessHandler,
+  createHarnessHost,
+  defineHarness,
+  definePlugin,
+  oauthConnector,
+} from '../src'
 import { mockAdapter } from './helpers'
 import type { AnyTextAdapter, KeyedAdapter } from '@tanstack/ai'
 import type { SessionIndexEntry } from '@tanstack/ai-persistence'
@@ -157,4 +163,20 @@ it('refuses a plugin whose metadata the harness does not have', () => {
     // @ts-expect-error The plugin reads `other`, which the harness does not have.
     plugins: () => [other],
   })
+})
+
+it('needs an explicit canAccess and an explicit login mode', () => {
+  const host = createHarnessHost()
+  // @ts-expect-error `canAccess` is required: allow-all must be explicit.
+  createHarnessHandler({ host, harness, authorize: () => ({ id: 'u' }) })
+  createHarnessHandler({
+    host,
+    harness,
+    authorize: () => ({ id: 'u' }),
+    canAccess: () => true,
+  })
+  const oauth = { authorizationUrl: 'a', tokenUrl: 't', clientId: 'c' }
+  // @ts-expect-error `login` is required: no implicit loopback listener.
+  oauthConnector({ id: 'svc', label: 'Service', oauth })
+  oauthConnector({ id: 'svc', label: 'Service', oauth, login: 'device' })
 })

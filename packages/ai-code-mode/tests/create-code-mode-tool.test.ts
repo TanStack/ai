@@ -57,6 +57,7 @@ describe('createCodeModeTool', () => {
     })
     expect(tool.description).toContain('external_fetchWeather')
     expect(tool.description).toContain('external_dbQuery')
+    expect(tool.description).toContain('{ success, result, logs, error }')
   })
 
   it('tool description says discover_tools is a separate tool', () => {

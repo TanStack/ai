@@ -892,8 +892,8 @@ importers:
         specifier: ^1.168.42
         version: 1.168.42(@tanstack/react-router@1.170.41(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(esbuild@0.28.1)(rolldown@1.2.9)(rollup@4.60.1)(vite-plugin-solid@2.11.14(solid-js@1.9.10)(vite@8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)))(vite@8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0))
       '@tanstack/store':
-        specifier: ^0.8.0
-        version: 0.8.0
+        specifier: ^0.11.1
+        version: 0.11.2
       framer-motion:
         specifier: ^11.15.0
         version: 11.18.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -1197,8 +1197,8 @@ importers:
         specifier: ^1.168.42
         version: 1.168.42(@tanstack/react-router@1.170.41(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(esbuild@0.28.1)(rolldown@1.2.9)(rollup@4.60.1)(vite-plugin-solid@2.11.14(solid-js@1.9.10)(vite@8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)))(vite@8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0))
       '@tanstack/store':
-        specifier: ^0.8.0
-        version: 0.8.0
+        specifier: ^0.11.1
+        version: 0.11.2
       dockerode:
         specifier: ^4.0.2
         version: 4.0.12(supports-color@7.2.0)
@@ -1795,8 +1795,8 @@ importers:
         specifier: ^0.8.0
         version: 0.8.0(solid-js@1.9.10)
       '@tanstack/store':
-        specifier: ^0.8.0
-        version: 0.8.0
+        specifier: ^0.11.1
+        version: 0.11.2
       highlight.js:
         specifier: ^11.11.1
         version: 11.11.1
@@ -2275,6 +2275,12 @@ importers:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
+      '@tanstack/ai-harness':
+        specifier: workspace:*
+        version: link:../ai-harness
+      '@tanstack/ai-persistence':
+        specifier: workspace:*
+        version: link:../ai-persistence
       '@vitest/coverage-v8':
         specifier: 4.1.10
         version: 4.1.10(vitest@4.1.11)
@@ -2591,6 +2597,10 @@ importers:
         version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
 
   packages/ai-harness:
+    dependencies:
+      '@tanstack/store':
+        specifier: ^0.11.1
+        version: 0.11.2
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -2761,6 +2771,12 @@ importers:
         specifier: ^6.2.12
         version: 6.2.12
     devDependencies:
+      '@tanstack/ai-harness':
+        specifier: workspace:*
+        version: link:../ai-harness
+      '@tanstack/ai-persistence':
+        specifier: workspace:*
+        version: link:../ai-persistence
       '@vitest/coverage-v8':
         specifier: 4.1.10
         version: 4.1.10(vitest@4.1.11)
@@ -3705,6 +3721,9 @@ importers:
       '@tanstack/ai-cloudflare':
         specifier: workspace:*
         version: link:../../packages/ai-cloudflare
+      '@tanstack/ai-code-mode':
+        specifier: workspace:*
+        version: link:../../packages/ai-code-mode
       '@tanstack/ai-compaction':
         specifier: workspace:*
         version: link:../../packages/ai-compaction

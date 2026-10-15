@@ -63,7 +63,7 @@ export const review = definePlugin({
 - `ctx.agents.start(agent, input, { wake: true })` runs it in the background and starts a turn when it finishes or fails.
 - `ctx.agents.group(options, body)` runs several. With `onFailure: 'cancel-siblings'`, one failure cancels the others. With `'collect'`, use `group.runSettled` to get every result or error. Every child settles before `group` returns.
 
-The turn that `wake: true` starts sends the model a user message from the harness, for example `Background agent pricer finished: ...`. The user did not write it. So the transcript marks it with `metadata.harness.wake: true`. In your chat UI, skip the user messages with this mark.
+The turn that `wake: true` starts sends the model a user message from the harness, for example `Background agent pricer finished: ...`. The user did not write it. So the transcript marks it with `metadata.harness.wake: true`, and a view from `createSessionView` does not show it. In your own chat UI, skip the user messages with this mark.
 
 To track usage or apply a policy in each of these runs, see [Middleware in every agent](./plugins#middleware-in-every-agent).
 
@@ -177,6 +177,8 @@ For a follow-up, `receipt.operationId` is the id of the new run. While the run b
 A steer joins only a run of the same sender. A steer from another sender runs as a follow-up for that sender. As a result, no message runs with the credentials of another person.
 
 An agent written as plain code, with no `ctx.chat` call, makes no model call. It gets a steer only as a follow-up.
+
+To message a run from the browser, see [Send a message to a running agent](./connect#send-a-message-to-a-running-agent).
 
 ### Find a run by its id
 
@@ -347,6 +349,23 @@ What you get back:
 - Each message has the child's card in `metadata.tanstack.subagent`: its `name` and its `status` (`running`, `finished`, `error`, or `suspended`).
 - A child that failed before it wrote anything gives you one empty message. It holds only the card, so you can still show that it failed.
 - A nested child works the same way. Pass its own `subagentRunId`.
+
+In the browser, `client.agentTranscript` reads the same messages through [your handler](./connect):
+
+```ts group=harness-subagents-transcript-client
+import { createHarnessClient } from '@tanstack/ai-harness/client'
+import type { studio } from './harness'
+
+const client = createHarnessClient<typeof studio>({
+  url: '/api/harness',
+  threadId: 'user-1-thread',
+  headers: { authorization: 'Bearer my-token' },
+})
+
+export async function childMessages(subagentRunId: string) {
+  return client.agentTranscript(subagentRunId)
+}
+```
 
 You get an empty list when the id is unknown, or when the child belongs to another thread. The id can come from a prompt, so a session never reads the children of another thread. A [fork](./fork-and-reset) copies the agent results, but their children stay with the thread that ran them. So in the fork, `agentTranscript` gives an empty list for them.
 

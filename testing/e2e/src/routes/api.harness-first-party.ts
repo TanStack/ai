@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { createFileRoute } from '@tanstack/react-router'
+import { codeMode } from '@tanstack/ai-code-mode/harness'
 import { defineAgent, toolDefinition } from '@tanstack/ai'
 import {
   createHarnessHost,
@@ -195,8 +196,40 @@ async function sessionTitle(
 }
 
 /**
+ * `codeMode()` from `@tanstack/ai-code-mode/harness`: the safe `list_issues`
+ * tool leaves the tool list and becomes `external_list_issues` in the code
+ * mode prompt. The model answers with text, so no program runs and the
+ * driver is never used. The spec reads the request in aimock's journal.
+ */
+async function codeModeTools(host: HarnessHost, model: () => AnyTextAdapter) {
+  const listIssues = toolDefinition({
+    name: 'list_issues',
+    description: 'List the open issues',
+    inputSchema: z.object({}),
+  }).server(async () => [{ id: 'ENG-1', title: 'Fix login' }])
+  const session = await host.open(
+    defineHarness({
+      name: 'e2e/harness-code-mode',
+      adapter: model(),
+      tools: [listIssues],
+      plugins: () => [
+        codeMode({
+          driver: {
+            createContext: () =>
+              Promise.reject(new Error('This scenario runs no program.')),
+          },
+        }),
+      ],
+    }),
+    { threadId: 'e2e-code-mode' },
+  )
+  const turn = await session.prompt('[first-party-code-mode] which tools')
+  return { text: turn.text }
+}
+
+/**
  * First-party harness plugins, one scenario per request:
- * `?scenario=agents|plan-subagent|env|title&testId=...`. The models are
+ * `?scenario=agents|plan-subagent|env|title|code-mode&testId=...`. The models are
  * OpenAI adapters against aimock.
  */
 export const Route = createFileRoute('/api/harness-first-party')({
@@ -227,6 +260,9 @@ export const Route = createFileRoute('/api/harness-first-party')({
               testId,
             ).adapter
             return Response.json(await sessionTitle(host, model, titleModel))
+          }
+          if (scenario === 'code-mode') {
+            return Response.json(await codeModeTools(host, model))
           }
           return Response.json(
             { error: `Unknown scenario ${scenario}` },
