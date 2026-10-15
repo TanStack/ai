@@ -45,6 +45,10 @@
     "./view": {
       "types": "./dist/esm/view/index.d.ts",
       "import": "./dist/esm/view/index.js"
+    },
+    "./plugins": {
+      "types": "./dist/esm/first-party/index.d.ts",
+      "import": "./dist/esm/first-party/index.js"
     }
   },
   "scripts": {

@@ -177,7 +177,11 @@ export interface SessionViewSource {
 type MediaBody = ArrayBuffer | Uint8Array
 type MediaInfo = { name: string; mimeType: string }
 
-/** What `view.on(name, handler)` sends. */
+/**
+ * What `view.on(name, handler)` sends.
+ *
+ * @experimental The event names and values can change in a minor release.
+ */
 export interface SessionViewEvents {
   approval: Approval
   clientTool: ClientToolCall
@@ -341,6 +345,8 @@ function coalesce(task: () => Promise<void>) {
  * view.on('approval', (approval) => approval.approve())
  * await view.send('fix the failing test')
  * ```
+ *
+ * @experimental The view API and its state can change in a minor release.
  */
 export function createSessionView(source: SessionViewSource) {
   const internal = createStore(emptyState())

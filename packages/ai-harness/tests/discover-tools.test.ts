@@ -1,0 +1,109 @@
+import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
+import { EventType, toolDefinition } from '@tanstack/ai'
+import { memoryPersistence } from '@tanstack/ai-persistence'
+import { createHarnessHost, defineHarness, definePlugin } from '../src'
+import { mockAdapter, text, toolCall } from './helpers'
+import type { SessionEvent } from '../src'
+
+const echoTool = (name: string, reply: string) =>
+  toolDefinition({
+    name,
+    description: `The ${name} tool`,
+    inputSchema: z.object({}),
+  }).server(async () => reply)
+
+describe('discoverTools', () => {
+  it('adds tools a plugin finds at run time, skips taken names, and warns on failure', async () => {
+    let online = false
+    const connector = definePlugin({
+      name: 'test/connector',
+      setup: () => ({
+        discoverTools: () =>
+          online
+            ? [
+                echoTool('remote_search', 'remote result'),
+                echoTool('lookup', 'shadowed'),
+              ]
+            : [],
+      }),
+    })
+    const broken = definePlugin({
+      name: 'test/broken',
+      setup: () => ({
+        discoverTools: async () => {
+          throw new Error('server is down')
+        },
+      }),
+    })
+    const { adapter, calls } = mockAdapter([
+      () => text('nothing yet'),
+      () => toolCall('remote_search', {}),
+      () => text('done'),
+    ])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/discover',
+        adapter,
+        tools: [echoTool('lookup', 'local result')],
+        plugins: () => [connector, broken],
+      }),
+      { threadId: 't' },
+    )
+    const names = (call: number) =>
+      (calls[call].tools ?? []).map((tool: { name: string }) => tool.name)
+
+    const seen: Array<SessionEvent> = []
+    const controller = new AbortController()
+    const reading = (async () => {
+      for await (const entry of session.events({ signal: controller.signal }))
+        seen.push(entry)
+    })()
+
+    await session.prompt('before sign-in')
+    expect(names(0)).toEqual(['lookup'])
+
+    online = true
+    const turn = await session.prompt('after sign-in')
+    expect(turn.text).toBe('done')
+    // The static `lookup` wins over the discovered one with the same name.
+    expect(names(1)).toEqual(['lookup', 'remote_search'])
+    expect(JSON.stringify(calls[2].messages)).toContain('remote result')
+
+    controller.abort()
+    await reading
+    const warnings = seen.filter(
+      (entry) =>
+        entry.event.type === EventType.CUSTOM &&
+        entry.event.name === 'harness.plugin.warning',
+    )
+    expect(warnings[0]?.event).toMatchObject({
+      value: { plugin: 'test/broken', message: 'server is down' },
+    })
+    await host.close()
+  })
+})
+
+describe('the default agent loop', () => {
+  it('keeps calling the model past five steps', async () => {
+    const steps = Array.from(
+      { length: 7 },
+      (_, index) => () => toolCall('lookup', {}, `call-${index}`),
+    )
+    const { adapter, calls } = mockAdapter([...steps, () => text('finally')])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/long-turn',
+        adapter,
+        tools: [echoTool('lookup', 'fact')],
+      }),
+      { threadId: 't' },
+    )
+    const turn = await session.prompt('dig deep')
+    expect(calls).toHaveLength(8)
+    expect(turn.text).toBe('finally')
+    await host.close()
+  })
+})

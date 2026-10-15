@@ -14,8 +14,17 @@ export interface OAuthConnectorOptions {
   id: string
   label: string
   oauth: OAuthConfig
-  /** `'loopback'` (default) opens a browser here. `'device'` shows a code to enter elsewhere. */
-  login?: 'loopback' | 'device'
+  /**
+   * How the user signs in. Required, because only you know where the harness
+   * runs:
+   *
+   * - `'device'`: show a code to enter on another device. It works on a
+   *   server, and needs `oauth.deviceUrl`.
+   * - `'loopback'`: open a browser on this machine and listen on
+   *   `127.0.0.1` for the redirect. Only for a harness that runs on the
+   *   user's own machine, such as a CLI.
+   */
+  login: 'loopback' | 'device'
   /**
    * The tools of this service. Call `token()` inside a tool: it returns a
    * fresh access token, or fails with `auth_required` before sign-in. With
@@ -39,6 +48,7 @@ export interface OAuthConnectorOptions {
  * const github = oauthConnector({
  *   id: 'github',
  *   label: 'GitHub',
+ *   login: 'device',
  *   oauth: { authorizationUrl, tokenUrl, deviceUrl, clientId, scopes: ['repo'] },
  *   tools: (token) => [listIssues(token)],
  * })

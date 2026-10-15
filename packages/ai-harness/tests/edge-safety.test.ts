@@ -20,7 +20,12 @@ const srcDir = resolve(here, '..', 'src')
  * the whole folder. `build.ts` and `worker.ts` are the Node-only `./build`
  * and `./worker` entries.
  */
-const ALLOWED: Array<string> = ['build.ts', 'worker.ts']
+const ALLOWED: Array<string> = [
+  'build.ts',
+  'worker.ts',
+  'first-party/files.ts',
+  'first-party/bound-output.ts',
+]
 
 const isAllowed = (file: string) =>
   ALLOWED.some((entry) =>

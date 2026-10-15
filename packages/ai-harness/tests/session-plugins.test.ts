@@ -1,4 +1,7 @@
-import { describe, expect, it, vi } from 'vitest'
+import { mkdtemp, rm, writeFile, mkdir } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { EventType, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
@@ -11,6 +14,14 @@ import {
   defineHarness,
   definePlugin,
 } from '../src'
+import {
+  compact,
+  fileCommands,
+  modelPicker,
+  projectInstructions,
+  todos,
+  usage,
+} from '../src/first-party'
 import { gate, mockAdapter, text, toolCall } from './helpers'
 import type { PluginState, SessionEvent } from '../src'
 
@@ -616,6 +627,201 @@ describe('the plugin session API and inspect', () => {
       expect.arrayContaining([expect.objectContaining({ name: 'ping' })]),
     )
     expect(inspected.config.map((entry) => entry.key)).toContain('retries')
+    await host.close()
+  })
+})
+
+describe('first-party plugin edges', () => {
+  let dir: string
+  beforeAll(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'harness-files-'))
+    await mkdir(join(dir, 'commands'))
+    await writeFile(
+      join(dir, 'commands', 'review.md'),
+      '---\ndescription: Review a file\n---\nReview $ARGUMENTS carefully.',
+    )
+    await writeFile(join(dir, 'commands', 'plain.md'), 'Say hi to $ARGUMENTS.')
+    await writeFile(join(dir, 'commands', 'skip.txt'), 'not a command')
+    await writeFile(join(dir, 'RULES.md'), 'Use tabs.')
+    await writeFile(join(dir, 'EMPTY.md'), '   ')
+  })
+  afterAll(async () => {
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it('turns markdown files into commands and reads chosen instruction files', async () => {
+    const { adapter, calls } = mockAdapter([
+      () => text('a'),
+      () => text('b'),
+      () => text('c'),
+    ])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/files',
+        adapter,
+        plugins: () => [
+          fileCommands({ dir: join(dir, 'commands') }),
+          projectInstructions({
+            root: dir,
+            files: ['RULES.md', 'EMPTY.md', 'NONE.md'],
+          }),
+        ],
+      }),
+      { threadId: 't' },
+    )
+    const described = session.commands()
+    expect(
+      described.map((command) => [command.name, command.description]).sort(),
+    ).toEqual([
+      ['plain', 'Run plain.md'],
+      ['review', 'Review a file'],
+    ])
+    expect(await session.command('review', 'src/a.ts')).toBe('Sent /review.')
+    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
+    await session.command('plain', { who: 'Ada' })
+    await vi.waitFor(() => expect(calls).toHaveLength(2))
+    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
+    await session.command('plain')
+    await vi.waitFor(() => expect(calls).toHaveLength(3))
+
+    // A missing folder gives no commands.
+    const empty = await host.open(
+      defineHarness({
+        name: 'test/files-missing',
+        adapter,
+        plugins: () => [fileCommands({ dir: join(dir, 'missing') })],
+      }),
+      { threadId: 'empty' },
+    )
+    expect(empty.commands()).toEqual([])
+
+    const said = calls.map((call) => JSON.stringify(call.messages.at(-1)))
+    expect(said[0]).toContain('Review src/a.ts carefully.')
+    expect(said[1]).toContain('Say hi to {\\"who\\":\\"Ada\\"}.')
+    expect(said[2]).toContain('Say hi to .')
+    const prompts = JSON.stringify(calls[0].systemPrompts)
+    expect(prompts).toContain('Project instructions from RULES.md')
+    expect(prompts).not.toContain('EMPTY.md')
+    await host.close()
+  })
+
+  it('checks todo input and shows an empty list', async () => {
+    const { adapter, calls } = mockAdapter([
+      () => toolCall('todo_write', { todos: [{ text: 'x', status: 'later' }] }),
+      () => text('bad input'),
+      () => toolCall('todo_write', { todos: [] }, 'call-2'),
+      () => text('cleared'),
+    ])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({ name: 'test/todos', adapter, plugins: () => [todos()] }),
+      { threadId: 't' },
+    )
+    const before = session.snapshot().plugins
+    await session.prompt('plan')
+    // The tool has a plain JSON Schema, which chat() does not check, so the
+    // tool checks its input itself.
+    expect(JSON.stringify(calls[1].messages)).toContain(
+      'Each todo needs text and a status.',
+    )
+    expect(session.snapshot().plugins).toEqual(before)
+    expect(await session.command('todos')).toBe('The todo list is empty.')
+    await session.prompt('clear')
+    expect(JSON.stringify(calls[3].messages)).toContain(
+      'The todo list is empty.',
+    )
+    expect(await session.command('todos')).toBe('The todo list is empty.')
+    await host.close()
+  })
+
+  it('needs a model choice and answers every /model form', async () => {
+    expect(() => modelPicker({ choices: {} })).toThrow('at least one choice')
+    const fast = mockAdapter([]).adapter
+    const smart = mockAdapter([]).adapter
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/models',
+        adapter: smart,
+        plugins: () => [modelPicker({ choices: { smart, fast } })],
+      }),
+      { threadId: 't' },
+    )
+    expect(await session.command('model')).toBe(
+      'Model: smart. Choices: smart, fast.',
+    )
+    expect(await session.command('model', 'slow')).toBe(
+      'Unknown model "slow". Choices: smart, fast.',
+    )
+    expect(await session.command('model', { name: 'fast' })).toBe(
+      'Model: fast. It applies at the next turn.',
+    )
+    await host.close()
+  })
+
+  it('keeps the conversation when the summary is empty', async () => {
+    const summarizer = mockAdapter([() => text('  ')])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/compact-empty',
+        adapter: mockAdapter([() => text('one'), () => text('two')]).adapter,
+        plugins: () => [compact({ adapter: summarizer.adapter })],
+      }),
+      { threadId: 't' },
+    )
+    await session.prompt('first')
+    await session.prompt('second')
+    await expect(session.command('compact')).rejects.toThrow(
+      'The summary model returned no text.',
+    )
+    expect(await session.transcript()).toHaveLength(4)
+    await host.close()
+  })
+
+  it('keeps short conversations, keeps the last messages, and counts usage', async () => {
+    const summarizer = mockAdapter([() => text('the summary')])
+    const withUsage = (content: string) =>
+      text(content).map((chunk) =>
+        chunk.type === EventType.RUN_FINISHED
+          ? {
+              ...chunk,
+              usage: { promptTokens: 3, completionTokens: 2, totalTokens: 5 },
+            }
+          : chunk,
+      )
+    const { adapter } = mockAdapter([
+      () => withUsage('one'),
+      () => withUsage('two'),
+    ])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/compact',
+        adapter,
+        plugins: () => [
+          compact({ adapter: summarizer.adapter, keepLast: 1 }),
+          usage(),
+        ],
+      }),
+      { threadId: 't' },
+    )
+    expect(await session.command('compact')).toBe(
+      'The conversation is already short.',
+    )
+    await session.prompt([{ type: 'text', content: 'first question' }] as never)
+    await session.prompt('second question')
+    expect(await session.command('compact')).toBe(
+      'Compacted 3 messages into a summary.',
+    )
+    expect(JSON.stringify(summarizer.calls[0].messages)).toContain(
+      'first question',
+    )
+    expect(await session.command('usage')).toBe(
+      '2 model calls, 6 input tokens, 4 output tokens, 10 total.',
+    )
     await host.close()
   })
 })
