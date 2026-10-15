@@ -55,7 +55,7 @@ To use the harness from another program:
 
 - `--acp`: serve the harness as an ACP v2 agent over stdio, for editors. Needs `@tanstack/ai-acp` with harness support.
 - `--mcp`: serve the harness as an MCP server over stdio, for Claude Code, Cursor, and other MCP clients. Needs `@tanstack/ai-mcp` with harness support. Add `--yes` to approve every tool call.
-- `--serve`: serve the session protocol over HTTP on `127.0.0.1:8787`. Every request needs the bearer token. Pass `--token`, set `HARNESS_TOKEN`, or copy the token the CLI prints. With `@tanstack/ai-mcp` and its harness support, it also serves MCP at `/mcp`.
+- `--serve`: serve the session protocol over HTTP on `127.0.0.1:8787`. Every request needs the bearer token. Pass `--token`, set `HARNESS_TOKEN`, or copy the token the CLI prints. With `@tanstack/ai-mcp` and its harness support, it also serves MCP at `/mcp`. One token, one user, every thread, so keep it on a network you trust (see [Serve over HTTP safely](#serve-over-http-safely)).
 
 `--mcp` and `--serve` run only the commands in `expose.commands` of the harness. `--serve` also sets only the config keys in `expose.config`. Add the names to `expose` in `defineHarness`, for example `expose: { commands: ['connect:github'] }`. Line mode and `-p` run every command. See [Choose what clients can change](./connect#choose-what-clients-can-change).
 
@@ -71,6 +71,15 @@ Line mode reads one message or command per line and waits for each turn. It work
 | 1 | The turn failed. |
 | 2 | The turn waits for an approval. |
 | 130 | The turn was cancelled. |
+
+## Serve over HTTP safely
+
+`--serve` is the quick way to put a harness on HTTP, so it makes the trust decisions for you: one bearer token, one user, every thread. Anyone with the token acts as that one user. They can open or drive any thread on the host, including the tools it runs (shell commands, file edits) on the machine the CLI runs on. Treat the token like a shell login.
+
+- It binds to `127.0.0.1:8787`, reachable only from the same machine. Change the bind with `--host` and `--port`. `--host 0.0.0.0` puts it on the network, so do that only behind TLS and a proxy you trust.
+- The CLI signs media links with the token, so rotating the token stops any link a turn already handed out.
+
+Need per-user access, your own sign-in check, or a rule for which threads each user can open? Use [`createHarnessHandler`](./connect) instead. It requires `authorize` and `canAccess`, so no thread is open by accident.
 
 ## Use your own host and user
 
