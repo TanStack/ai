@@ -135,6 +135,7 @@ import { Route as ApiOpenaiStrictToolNullWireRouteImport } from './routes/api.op
 import { Route as ApiOpenaiUsageDetailsRouteImport } from './routes/api.openai-usage-details'
 import { Route as ApiOpenrouterCostRouteImport } from './routes/api.openrouter-cost'
 import { Route as ApiOpenrouterJsonObjectWireRouteImport } from './routes/api.openrouter-json-object-wire'
+import { Route as ApiOpenrouterMalformedToolArgumentsRouteImport } from './routes/api.openrouter-malformed-tool-arguments'
 import { Route as ApiOpenrouterReasoningWireRouteImport } from './routes/api.openrouter-reasoning-wire'
 import { Route as ApiOpenrouterResponsesStreamFieldsRouteImport } from './routes/api.openrouter-responses-stream-fields'
 import { Route as ApiOpenrouterRetryCodesRouteImport } from './routes/api.openrouter-retry-codes'
@@ -840,6 +841,12 @@ const ApiOpenrouterJsonObjectWireRoute =
     path: '/api/openrouter-json-object-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiOpenrouterMalformedToolArgumentsRoute =
+  ApiOpenrouterMalformedToolArgumentsRouteImport.update({
+    id: '/api/openrouter-malformed-tool-arguments',
+    path: '/api/openrouter-malformed-tool-arguments',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiOpenrouterReasoningWireRoute =
   ApiOpenrouterReasoningWireRouteImport.update({
     id: '/api/openrouter-reasoning-wire',
@@ -1205,6 +1212,7 @@ export interface FileRoutesByFullPath {
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-json-object-wire': typeof ApiOpenrouterJsonObjectWireRoute
+  '/api/openrouter-malformed-tool-arguments': typeof ApiOpenrouterMalformedToolArgumentsRoute
   '/api/openrouter-reasoning-wire': typeof ApiOpenrouterReasoningWireRoute
   '/api/openrouter-responses-stream-fields': typeof ApiOpenrouterResponsesStreamFieldsRoute
   '/api/openrouter-retry-codes': typeof ApiOpenrouterRetryCodesRoute
@@ -1378,6 +1386,7 @@ export interface FileRoutesByTo {
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-json-object-wire': typeof ApiOpenrouterJsonObjectWireRoute
+  '/api/openrouter-malformed-tool-arguments': typeof ApiOpenrouterMalformedToolArgumentsRoute
   '/api/openrouter-reasoning-wire': typeof ApiOpenrouterReasoningWireRoute
   '/api/openrouter-responses-stream-fields': typeof ApiOpenrouterResponsesStreamFieldsRoute
   '/api/openrouter-retry-codes': typeof ApiOpenrouterRetryCodesRoute
@@ -1552,6 +1561,7 @@ export interface FileRoutesById {
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-json-object-wire': typeof ApiOpenrouterJsonObjectWireRoute
+  '/api/openrouter-malformed-tool-arguments': typeof ApiOpenrouterMalformedToolArgumentsRoute
   '/api/openrouter-reasoning-wire': typeof ApiOpenrouterReasoningWireRoute
   '/api/openrouter-responses-stream-fields': typeof ApiOpenrouterResponsesStreamFieldsRoute
   '/api/openrouter-retry-codes': typeof ApiOpenrouterRetryCodesRoute
@@ -1727,6 +1737,7 @@ export interface FileRouteTypes {
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
     | '/api/openrouter-json-object-wire'
+    | '/api/openrouter-malformed-tool-arguments'
     | '/api/openrouter-reasoning-wire'
     | '/api/openrouter-responses-stream-fields'
     | '/api/openrouter-retry-codes'
@@ -1900,6 +1911,7 @@ export interface FileRouteTypes {
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
     | '/api/openrouter-json-object-wire'
+    | '/api/openrouter-malformed-tool-arguments'
     | '/api/openrouter-reasoning-wire'
     | '/api/openrouter-responses-stream-fields'
     | '/api/openrouter-retry-codes'
@@ -2073,6 +2085,7 @@ export interface FileRouteTypes {
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
     | '/api/openrouter-json-object-wire'
+    | '/api/openrouter-malformed-tool-arguments'
     | '/api/openrouter-reasoning-wire'
     | '/api/openrouter-responses-stream-fields'
     | '/api/openrouter-retry-codes'
@@ -2247,6 +2260,7 @@ export interface RootRouteChildren {
   ApiOpenaiUsageDetailsRoute: typeof ApiOpenaiUsageDetailsRoute
   ApiOpenrouterCostRoute: typeof ApiOpenrouterCostRoute
   ApiOpenrouterJsonObjectWireRoute: typeof ApiOpenrouterJsonObjectWireRoute
+  ApiOpenrouterMalformedToolArgumentsRoute: typeof ApiOpenrouterMalformedToolArgumentsRoute
   ApiOpenrouterReasoningWireRoute: typeof ApiOpenrouterReasoningWireRoute
   ApiOpenrouterResponsesStreamFieldsRoute: typeof ApiOpenrouterResponsesStreamFieldsRoute
   ApiOpenrouterRetryCodesRoute: typeof ApiOpenrouterRetryCodesRoute
@@ -3174,6 +3188,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOpenrouterJsonObjectWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/openrouter-malformed-tool-arguments': {
+      id: '/api/openrouter-malformed-tool-arguments'
+      path: '/api/openrouter-malformed-tool-arguments'
+      fullPath: '/api/openrouter-malformed-tool-arguments'
+      preLoaderRoute: typeof ApiOpenrouterMalformedToolArgumentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/openrouter-reasoning-wire': {
       id: '/api/openrouter-reasoning-wire'
       path: '/api/openrouter-reasoning-wire'
@@ -3681,6 +3702,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOpenaiUsageDetailsRoute: ApiOpenaiUsageDetailsRoute,
   ApiOpenrouterCostRoute: ApiOpenrouterCostRoute,
   ApiOpenrouterJsonObjectWireRoute: ApiOpenrouterJsonObjectWireRoute,
+  ApiOpenrouterMalformedToolArgumentsRoute:
+    ApiOpenrouterMalformedToolArgumentsRoute,
   ApiOpenrouterReasoningWireRoute: ApiOpenrouterReasoningWireRoute,
   ApiOpenrouterResponsesStreamFieldsRoute:
     ApiOpenrouterResponsesStreamFieldsRoute,
