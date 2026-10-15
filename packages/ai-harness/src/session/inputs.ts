@@ -12,7 +12,7 @@ import {
   lastAssistantText,
   checkHostRecords,
 } from './helpers'
-import { SessionBase } from './base'
+import { KEPT_SETTLED, SessionBase } from './base'
 import type { OperationImpl } from '../operation'
 import type { LogRecord } from '@tanstack/ai-persistence'
 import type { HarnessRecord } from '../log'
@@ -409,8 +409,15 @@ export abstract class SessionInputs<
     this.admitted.delete(inputId)
     const inbox = this.persistence.stores.inbox
     if (!inbox) return 'owned_elsewhere'
-    // `settled` waits for the owner to end it.
-    if (CHAT_OPS.has(input.op)) this.forwarded.add(inputId)
+    // `settled` waits for the owner to end it. The oldest ids go, as in the
+    // window of settled operations.
+    if (CHAT_OPS.has(input.op)) {
+      this.forwarded.add(inputId)
+      for (const old of this.forwarded) {
+        if (this.forwarded.size <= KEPT_SETTLED) break
+        this.forwarded.delete(old)
+      }
+    }
     await inbox.append({
       inputId,
       threadId: this.threadId,

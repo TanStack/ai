@@ -335,6 +335,8 @@ The host that runs the thread holds its work claim. An input that reaches anothe
 
 In both cases, the running turn continues. A client reads the events of the thread from the log, on any instance. A `POST run` on the second instance streams the turn that the owner runs.
 
+No store keeps the `overrides` and the `ephemeral` messages of a prompt. So the owner runs a forwarded prompt without them. They apply only to a prompt that reaches the owner.
+
 When the owner stops, its claim expires. Then the next host that opens the thread, or a `resumePending` sweep, runs the inputs that wait.
 
 Without `workClaims`, a host cannot see the owner. When a second host writes to the thread, the first host's session stops, and its running turn fails with a clear error.

@@ -29,7 +29,6 @@ import {
   storedPrincipal,
   SETTINGS,
   changeSettings,
-  isElsewhere,
 } from './helpers'
 import { SessionInputs } from './inputs'
 import type { OperationImpl } from '../operation'
@@ -285,13 +284,15 @@ export abstract class SessionState<
   async setConfig({
     key,
     value,
+    inputId = createInputId(),
   }: {
     key: string
     value: unknown
+    /** @internal The id of a forwarded input, so a replay is a duplicate. */
+    inputId?: string
   }): Promise<Receipt> {
-    const inputId = createInputId()
     const admission = await this.accept(inputId, { op: 'config', key, value })
-    if (isElsewhere(admission)) return this.duplicateReceipt(inputId, admission)
+    if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
     const entry = this.sessionPlugins?.config.get(key)
     if (!entry) return this.reject(inputId, 'unknown_config')
     let checked: unknown
@@ -612,11 +613,13 @@ export abstract class SessionState<
   async answer({
     questionId,
     value,
+    inputId = createInputId(),
   }: {
     questionId: string
     value: unknown
+    /** @internal The id of a forwarded input, so a replay is a duplicate. */
+    inputId?: string
   }): Promise<Receipt> {
-    const inputId = createInputId()
     // A secret (a key or a password) stays out of the inbox and the log. A
     // restart does not replay an answer, so they never need it. A host that
     // does not have the question cannot tell: the owner deletes the inbox
@@ -628,7 +631,7 @@ export abstract class SessionState<
       questionId,
       value: isSecret ? '[secret]' : value,
     })
-    if (isElsewhere(admission)) return this.duplicateReceipt(inputId, admission)
+    if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
     const question = this.questions.get(questionId)
     if (!question) return this.reject(inputId, 'unknown_question')
     let checked: unknown = value

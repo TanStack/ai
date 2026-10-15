@@ -38,7 +38,6 @@ import {
   lastAssistantText,
   isRoutedBag,
   keepTurnTools,
-  isElsewhere,
 } from './helpers'
 import { SessionAgents } from './agents'
 import type {
@@ -75,7 +74,11 @@ export abstract class SessionTurn<
   command(
     name: string,
     input?: unknown,
-    options?: { principal?: Principal },
+    options?: {
+      principal?: Principal
+      /** @internal The id of a forwarded input, so a replay is a duplicate. */
+      inputId?: string
+    },
   ): Operation<unknown> {
     const operation = new OperationImpl<unknown>(
       'command',
@@ -85,7 +88,8 @@ export abstract class SessionTurn<
     this.track(operation)
     const principal = options?.principal ?? this.principal
     // A store write that throws (the inbox, the log) still ends the command.
-    this.executeCommand(operation, name, input, principal).catch(
+    const inputId = options?.inputId ?? createInputId()
+    this.executeCommand(operation, name, input, principal, inputId).catch(
       (error: unknown) => this.failOperation(operation, error),
     )
     return operation
@@ -96,8 +100,8 @@ export abstract class SessionTurn<
     name: string,
     input: unknown,
     principal: Principal | undefined,
+    inputId: string,
   ): Promise<void> {
-    const inputId = createInputId()
     // The log keeps the input for replay, so a command must not take a secret
     // as its input. Ask a `secret` question instead.
     const admission = await this.accept(
@@ -105,8 +109,8 @@ export abstract class SessionTurn<
       { op: 'command', name, input },
       principal,
     )
-    // The owner runs it. Its result is in the owner's events.
-    if (isElsewhere(admission)) {
+    // The owner runs it, or it ran before. Its result is in the events.
+    if (admission !== 'new') {
       const receipt = this.duplicateReceipt(inputId, admission)
       if (receipt.status === 'rejected') {
         operation.fail('failed', new InputRejectedError(receipt))

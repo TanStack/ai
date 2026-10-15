@@ -15,6 +15,7 @@ import {
   mockAdapter,
   text,
   toolCall,
+  wakeMessages,
 } from './helpers'
 import type { AnyTextAdapter } from '@tanstack/ai'
 
@@ -292,6 +293,115 @@ describe('an input that reaches a host that does not own the thread', () => {
     )
     const log = await persistence.stores.log.read(THREAD)
     expect(JSON.stringify(log)).not.toContain('hunter2')
+  })
+
+  it('runs a forwarded command once when the owner applies it again', async () => {
+    const persistence = sharedStores()
+    const release = gate()
+    const { adapter } = mockAdapter([after(release.opened, 'One.')])
+    let runs = 0
+    const counter = definePlugin({
+      name: 'test/counter',
+      setup: () => ({
+        commands: {
+          count: defineCommand({
+            description: 'Count the runs',
+            run: () => (runs += 1),
+          }),
+        },
+      }),
+    })
+    const harness = defineHarness({
+      name: NAME,
+      adapter,
+      plugins: () => [counter],
+    })
+    // The owner's first `markApplied` fails, so the next read applies the
+    // entry again.
+    const inbox = persistence.stores.inbox!
+    let failed = false
+    const owner = await createHarnessHost({
+      persistence: {
+        stores: {
+          ...persistence.stores,
+          inbox: Object.assign(Object.create(inbox), {
+            markApplied: (entry: Parameters<typeof inbox.markApplied>[0]) => {
+              if (failed) return inbox.markApplied(entry)
+              failed = true
+              return Promise.reject(new Error('store down'))
+            },
+          }),
+        },
+      },
+    }).open(harness, { threadId: THREAD })
+    const other = await createHarnessHost({ persistence }).open(harness, {
+      threadId: THREAD,
+    })
+
+    const turn = owner.prompt('Go.')
+    await turn.receipt
+    await other.command('count')
+    await vi.waitFor(
+      async () => expect(await inbox.listPending(THREAD)).toEqual([]),
+      { timeout: 4_000 },
+    )
+    expect(runs).toBe(1)
+    release.open()
+    await turn
+  })
+
+  it('keeps the wake mark of a forwarded follow-up', async () => {
+    const persistence = sharedStores()
+    const release = gate()
+    const { adapter, calls } = mockAdapter([
+      after(release.opened, 'One.'),
+      () => text('Two.'),
+    ])
+    const harness = harnessOf(adapter)
+    const owner = await createHarnessHost({ persistence }).open(harness, {
+      threadId: THREAD,
+    })
+    const other = await createHarnessHost({ persistence }).open(harness, {
+      threadId: THREAD,
+    })
+
+    const turn = owner.prompt('Go.')
+    await turn.receipt
+    // A background job ended on the other host and wakes the session.
+    const wake = other as unknown as {
+      queueFollowUp: (
+        message: string,
+        options: { wake: boolean },
+      ) => Promise<{ status: string }>
+    }
+    expect((await wake.queueFollowUp('Job done.', { wake: true })).status).toBe(
+      'queued',
+    )
+    release.open()
+    await vi.waitFor(() => expect(calls).toHaveLength(2), { timeout: 3_000 })
+    expect(wakeMessages(calls[1]!.messages)).toEqual(['Job done.'])
+  })
+
+  it('keeps a bounded number of forwarded ids', async () => {
+    const persistence = sharedStores()
+    await persistence.stores.workClaims.claim({
+      threadId: THREAD,
+      harness: NAME,
+      ownerId: 'busy-host',
+      until: Date.now() + 60_000,
+    })
+    const other = await createHarnessHost({ persistence }).open(
+      harnessOf(mockAdapter([]).adapter),
+      { threadId: THREAD },
+    )
+    let last = ''
+    for (let index = 0; index < 510; index++) {
+      last = (await other.followUp(`Message ${index}.`)).inputId
+    }
+    const { forwarded } = other as unknown as { forwarded: Set<string> }
+    expect(forwarded.size).toBe(500)
+    expect(forwarded.has(last)).toBe(true)
+    await other.close()
   })
 
   it('runs a forwarded POST run on the host that took it, under its run id, after the owner stopped', async () => {

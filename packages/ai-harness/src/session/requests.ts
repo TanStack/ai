@@ -495,10 +495,14 @@ export abstract class SessionRequests<
     })
   }
 
-  async cancel(operationId?: string): Promise<Receipt> {
-    const inputId = createInputId()
+  async cancel(
+    operationId?: string,
+    /** @internal The id of a forwarded input, so a replay is a duplicate. */
+    options?: { inputId?: string },
+  ): Promise<Receipt> {
+    const inputId = options?.inputId ?? createInputId()
     const admission = await this.accept(inputId, { op: 'cancel', operationId })
-    if (isElsewhere(admission)) return this.duplicateReceipt(inputId, admission)
+    if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
     const target = operationId
       ? this.operations.get(operationId)
       : this.activeTurn

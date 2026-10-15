@@ -69,6 +69,7 @@ import type {
   Receipt,
   SessionEvent,
   ThreadSettings,
+  UserInput,
 } from '../types'
 import type {
   AgentRunOptions,
@@ -94,7 +95,7 @@ import type { HarnessSession } from './harness-session'
 // the inbox. The duplicate check of an input with no operation of its own (a
 // command, a cancel) keeps its id forever: one string each. Make the window
 // an option if a host needs more.
-const KEPT_SETTLED = 500
+export const KEPT_SETTLED = 500
 
 /**
  * The fields of a {@link HarnessSession}, and the helpers every layer uses. The
@@ -832,7 +833,10 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       case 'steer':
         return session.steer(input.message, sent)
       case 'followUp':
-        return session.followUp(input.message, sent)
+        return this.queueFollowUp(input.message, {
+          ...sent,
+          ...(input.wake ? { wake: true } : {}),
+        })
       case 'resolve':
         return session.resolve(input.resume, { ...sent, ...run })
       case 'reset':
@@ -847,7 +851,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
           mode: input.mode,
         })
       case 'cancel':
-        return session.cancel(input.operationId)
+        return session.cancel(input.operationId, { inputId })
       case 'cancelInput':
         return session.cancelInput(input.inputId)
       case 'setDelivery':
@@ -857,19 +861,23 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
         })
       case 'command':
         return settle(
-          session.command(
-            input.name,
-            input.input,
-            principal ? { principal } : undefined,
-          ),
+          session.command(input.name, input.input, {
+            inputId,
+            ...(principal ? { principal } : {}),
+          }),
         )
       case 'answer':
         return session.answer({
           questionId: input.questionId,
           value: input.value,
+          inputId,
         })
       case 'config':
-        return session.setConfig({ key: input.key, value: input.value })
+        return session.setConfig({
+          key: input.key,
+          value: input.value,
+          inputId,
+        })
       case 'revert':
         return session.revert(input.messageId)
       case 'unrevert':
@@ -1080,6 +1088,15 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   ): PluginSessionApi
   protected abstract resumeSignIns(): Promise<void>
   protected abstract recoverFromLog(writer: LogWriter): Promise<void>
+  protected abstract queueFollowUp(
+    message: UserInput,
+    options?: {
+      inputId?: string
+      principal?: Principal
+      context?: unknown
+      wake?: boolean
+    },
+  ): Promise<Receipt>
   protected abstract runAgent(
     target: string | AnyAgent,
     input: unknown,
