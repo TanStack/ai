@@ -164,6 +164,13 @@ describe('Groq adapters', () => {
 
       expect(mockCreate.mock.calls[0]?.[0]).toMatchObject({
         response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'system',
+            content: expect.stringContaining('"required":["name"]'),
+          },
+          { role: 'user', content: 'Return a person as json' },
+        ],
       })
     })
 

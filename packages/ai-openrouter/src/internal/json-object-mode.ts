@@ -1,17 +1,13 @@
 import { jsonModeSystemPrompt } from '@tanstack/ai-utils'
 import { OPENROUTER_JSON_OBJECT_ONLY_MODELS } from '../model-meta'
+import { openRouterModelIn, openRouterRoutedModels } from './model-ids'
 import type { TextOptions } from '@tanstack/ai'
-
-function stripOpenRouterModelVariant(model: string): string {
-  const variantIndex = model.indexOf(':')
-  return variantIndex === -1 ? model : model.slice(0, variantIndex)
-}
 
 /**
  * True when this OpenRouter call must send `json_object`. The caller set it
  * in `modelOptions` (`responseFormat` or `text.format`), or a routed model
- * (`model` or `modelOptions.models`) has `response_format` and not
- * `structured_outputs` in the catalog.
+ * (`model` with its `variant`, or `modelOptions.models`) has
+ * `response_format` and not `structured_outputs` in the catalog.
  */
 export function openRouterUsesJsonObject(
   model: string,
@@ -20,7 +16,6 @@ export function openRouterUsesJsonObject(
   const record = (modelOptions ?? {}) as {
     responseFormat?: { type?: unknown }
     text?: { format?: { type?: unknown } }
-    models?: unknown
   }
   if (
     record.responseFormat?.type === 'json_object' ||
@@ -28,11 +23,8 @@ export function openRouterUsesJsonObject(
   ) {
     return true
   }
-  const fallbacks = Array.isArray(record.models) ? record.models : []
-  return [model, ...fallbacks].some(
-    (id) =>
-      typeof id === 'string' &&
-      OPENROUTER_JSON_OBJECT_ONLY_MODELS.has(stripOpenRouterModelVariant(id)),
+  return openRouterRoutedModels(model, modelOptions).some((id) =>
+    openRouterModelIn(OPENROUTER_JSON_OBJECT_ONLY_MODELS, id),
   )
 }
 

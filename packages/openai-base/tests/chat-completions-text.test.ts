@@ -1434,31 +1434,26 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       )
     })
 
-    it('sends json_object and the schema prompt on the combined request when modelOptions sets json_object', async () => {
+    it('is not combined in JSON mode, and keeps the caller json_object without a schema prompt', async () => {
       const streamChunks = [
         {
           id: 'chatcmpl-1',
           model: 'test-model',
-          choices: [
-            { delta: { content: '{"city":"NYC"}' }, finish_reason: null },
-          ],
-        },
-        {
-          id: 'chatcmpl-1',
-          model: 'test-model',
-          choices: [{ delta: {}, finish_reason: 'stop' }],
+          choices: [{ delta: { content: 'ok' }, finish_reason: 'stop' }],
         },
       ]
 
       setupMockSdkClient(streamChunks)
       const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
+      const modelOptions = { response_format: { type: 'json_object' } }
+      expect(adapter.supportsCombinedToolsAndSchema(modelOptions)).toBe(false)
 
       for await (const _ of adapter.chatStream({
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
         tools: [weatherTool],
-        modelOptions: { response_format: { type: 'json_object' } },
+        modelOptions,
         outputSchema: {
           type: 'object',
           properties: { city: { type: 'string' } },
@@ -1468,20 +1463,12 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
         // drain
       }
 
-      expect(mockCreate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          stream: true,
-          tools: expect.any(Array),
-          response_format: { type: 'json_object' },
-          messages: expect.arrayContaining([
-            {
-              role: 'system',
-              content: expect.stringContaining('"required":["city"]'),
-            },
-          ]),
-        }),
-        expect.anything(),
-      )
+      const request = mockCreate.mock.calls[0]![0] as {
+        response_format?: unknown
+        messages: Array<{ role: string }>
+      }
+      expect(request.response_format).toEqual({ type: 'json_object' })
+      expect(request.messages.some((m) => m.role === 'system')).toBe(false)
     })
 
     it('omits response_format when outputSchema is not set', async () => {

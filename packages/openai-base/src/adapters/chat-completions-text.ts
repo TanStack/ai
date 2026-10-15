@@ -1428,10 +1428,6 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   protected mapOptionsToRequest(
     options: TextOptions,
   ): ChatCompletionCreateParamsStreaming {
-    // Tools + schema in JSON mode: the schema goes in a system prompt.
-    const jsonMode =
-      options.outputSchema != null && this.usesJsonObject(options)
-    if (jsonMode) options = withJsonModePrompt(options, options.outputSchema)
     if (this.strictFallbackWarning) {
       warnStrictFallback(options.tools, options.logger)
     }
@@ -1516,13 +1512,16 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     // `response_format` alongside any `tools`. Modern OpenAI-compatible
     // Chat Completions accepts both together and emits the schema-
     // constrained text on the natural final turn.
-    const combinedSchema = options.outputSchema as
-      | Record<string, unknown>
-      | undefined
+    // JSON mode is never combined (see `supportsCombinedToolsAndSchema`).
+    // A caller's own `json_object` reaches the request through the
+    // `modelOptions` spread.
+    const combinedSchema = this.usesJsonObject(options)
+      ? undefined
+      : (options.outputSchema as Record<string, unknown> | undefined)
     const responseFormat = combinedSchema
       ? {
           response_format: this.chatCompletionsResponseFormat(
-            jsonMode,
+            false,
             combinedSchema,
           ),
         }
@@ -1573,8 +1572,10 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
    * return `false` because its API rejects schema + tools + stream with a
    * 400.
    */
-  supportsCombinedToolsAndSchema(): boolean {
-    return true
+  supportsCombinedToolsAndSchema(modelOptions?: unknown): boolean {
+    // JSON mode sends the schema as a system prompt on a separate
+    // structured-output request, not on the tool-calling turns.
+    return !this.usesJsonObject({ model: this.model, modelOptions })
   }
 
   /**

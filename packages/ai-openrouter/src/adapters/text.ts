@@ -1403,13 +1403,6 @@ export class OpenRouterTextAdapter<
   protected mapOptionsToRequest(
     options: TextOptions<ResolveProviderOptions<TModel>>,
   ): Omit<ChatRequest, 'stream'> {
-    // Tools + schema in JSON mode: the schema goes in a system prompt.
-    const useJsonObject =
-      options.outputSchema != null &&
-      openRouterUsesJsonObject(options.model, options.modelOptions)
-    if (useJsonObject) {
-      options = withJsonModePrompt(options, options.outputSchema)
-    }
     // `variant` is OpenRouter metadata used only to build the `:variant` model
     // suffix — it must NOT be spread into the request body. Destructure it out
     // so the remaining sampling/provider options flow through `...restModelOptions`.
@@ -1504,12 +1497,11 @@ export class OpenRouterTextAdapter<
       ? convertToolsToProviderFormat(options.tools)
       : undefined
 
-    // Attach json_schema only when outputSchema is set, every routed model
-    // is in the combined set, and this call is not JSON mode.
+    // Attach json_schema only when outputSchema is set and the combined gate
+    // passes (every routed model is in the combined set, and not JSON mode).
     const combinedOutputSchema: JSONSchema | undefined = options.outputSchema
     const combinedSchema =
       combinedOutputSchema &&
-      !useJsonObject &&
       this.supportsCombinedToolsAndSchema(options.modelOptions)
         ? this.makeStructuredOutputCompatible(
             combinedOutputSchema,
@@ -1537,9 +1529,6 @@ export class OpenRouterTextAdapter<
       model: options.model + variantSuffix,
       messages,
       ...(tools && tools.length > 0 && { tools }),
-      ...(useJsonObject && combinedOutputSchema
-        ? { responseFormat: { type: 'json_object' as const } }
-        : {}),
       ...(combinedSchema && {
         responseFormat: {
           type: 'json_schema' as const,
@@ -1558,13 +1547,17 @@ export class OpenRouterTextAdapter<
 
   /**
    * Combined mode is safe only when this model and every `modelOptions.models`
-   * fallback are in `OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS`.
-   * `:variant` suffixes are routing directives and do not change the gate.
+   * fallback are in `OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS`. JSON mode
+   * is never combined: the schema goes in a system prompt on a separate
+   * structured-output request, not on the tool-calling turns.
    */
   supportsCombinedToolsAndSchema(
     modelOptions?: ResolveProviderOptions<TModel>,
   ): boolean {
-    return openRouterSupportsCombinedToolsAndSchema(this.model, modelOptions)
+    return (
+      !openRouterUsesJsonObject(this.model, modelOptions) &&
+      openRouterSupportsCombinedToolsAndSchema(this.model, modelOptions)
+    )
   }
 
   /**

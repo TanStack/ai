@@ -2590,10 +2590,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   protected mapOptionsToRequest(
     options: TextOptions<TProviderOptions>,
   ): Omit<ResponseCreateParams, 'stream'> {
-    // Tools + schema in JSON mode: the schema goes in a system prompt.
-    const jsonMode =
-      options.outputSchema != null && this.usesJsonObject(options)
-    if (jsonMode) options = withJsonModePrompt(options, options.outputSchema)
     const mid = this.midConversationRequest(options)
     const input = this.convertMessagesToInput(
       options.messages,
@@ -2616,13 +2612,16 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     // (pre-converted at the activity boundary). Wire it into `text.format`
     // alongside any `tools` — the Responses API supports both together and
     // emits the schema-constrained text on the natural final turn.
-    const combinedSchema = options.outputSchema as
-      | Record<string, unknown>
-      | undefined
+    // JSON mode is never combined (see `supportsCombinedToolsAndSchema`).
+    // A caller's own `json_object` reaches the request through the
+    // `modelOptions` spread.
+    const combinedSchema = this.usesJsonObject(options)
+      ? undefined
+      : (options.outputSchema as Record<string, unknown> | undefined)
     const textFormat = combinedSchema
       ? {
           text: {
-            format: this.responsesStructuredFormat(jsonMode, combinedSchema),
+            format: this.responsesStructuredFormat(false, combinedSchema),
           },
         }
       : undefined
@@ -2749,8 +2748,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
    * together in a single streaming request (per issue #605). Subclasses
    * that route to providers without this capability should override.
    */
-  supportsCombinedToolsAndSchema(): boolean {
-    return true
+  supportsCombinedToolsAndSchema(modelOptions?: unknown): boolean {
+    // JSON mode sends the schema as a system prompt on a separate
+    // structured-output request, not on the tool-calling turns.
+    return !this.usesJsonObject({ model: this.model, modelOptions })
   }
 
   /**

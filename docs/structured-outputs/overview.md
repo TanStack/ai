@@ -71,7 +71,7 @@ The OpenRouter and Groq adapters find these models in their catalogs. For these 
 - It sends JSON mode.
 - It adds your schema to the system prompt, because JSON mode does not send the schema.
 
-The client still checks the reply with your schema. JSON of the wrong shape throws when you await the `chat` call.
+When your schema is a Standard Schema, such as Zod, `await chat({ outputSchema })` still checks the reply. JSON of the wrong shape throws. TanStack AI does not check a plain JSON Schema or a streamed reply. Check those in your own code.
 
 ```typescript
 import { chat } from "@tanstack/ai";

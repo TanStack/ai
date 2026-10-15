@@ -1820,13 +1820,6 @@ export class OpenRouterResponsesTextAdapter<
   protected mapOptionsToRequest(
     options: TextOptions<OpenRouterResponsesTextProviderOptions>,
   ): Omit<ResponsesRequest, 'stream'> {
-    // Tools + schema in JSON mode: the schema goes in a system prompt.
-    const useJsonObject =
-      options.outputSchema != null &&
-      openRouterUsesJsonObject(options.model, options.modelOptions)
-    if (useJsonObject) {
-      options = withJsonModePrompt(options, options.outputSchema)
-    }
     // Fail loud on webSearchTool() / webFetchTool() — v1 only routes function tools.
     if (options.tools) {
       for (const tool of options.tools) {
@@ -1868,13 +1861,12 @@ export class OpenRouterResponsesTextAdapter<
         )
       : undefined
 
-    // Attach text.format json_schema only when outputSchema is set, every
-    // routed model is in the combined-capable set, and this call is not
-    // JSON mode.
+    // Attach text.format json_schema only when outputSchema is set and the
+    // combined gate passes (every routed model is combined-capable, and not
+    // JSON mode).
     const combinedOutputSchema: JSONSchema | undefined = options.outputSchema
     const combinedSchema =
       combinedOutputSchema &&
-      !useJsonObject &&
       this.supportsCombinedToolsAndSchema(options.modelOptions)
         ? this.makeStructuredOutputCompatible(
             combinedOutputSchema,
@@ -1943,24 +1935,20 @@ export class OpenRouterResponsesTextAdapter<
               : {}),
           },
         }),
-      ...((useJsonObject && combinedOutputSchema) || combinedSchema
-        ? {
-            // Merge onto any caller-supplied `text` (spread above via
-            // `...modelOptions`) so sibling fields like `text.verbosity` survive;
-            // only `text.format` is overridden.
-            text: {
-              ...modelOptions.text,
-              format: combinedSchema
-                ? {
-                    type: 'json_schema' as const,
-                    name: 'structured_output',
-                    schema: combinedSchema,
-                    strict: true,
-                  }
-                : { type: 'json_object' as const },
-            },
-          }
-        : {}),
+      ...(combinedSchema && {
+        // Merge onto any caller-supplied `text` (spread above via
+        // `...modelOptions`) so sibling fields like `text.verbosity` survive;
+        // only `text.format` is overridden by the combined-mode schema.
+        text: {
+          ...modelOptions.text,
+          format: {
+            type: 'json_schema' as const,
+            name: 'structured_output',
+            schema: combinedSchema,
+            strict: true,
+          },
+        },
+      }),
     }
 
     return built
@@ -1968,13 +1956,17 @@ export class OpenRouterResponsesTextAdapter<
 
   /**
    * Combined mode is safe only when this model and every `modelOptions.models`
-   * fallback are in `OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS`.
-   * `:variant` suffixes are routing directives and do not change the gate.
+   * fallback are in `OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS`. JSON mode
+   * is never combined: the schema goes in a system prompt on a separate
+   * structured-output request, not on the tool-calling turns.
    */
   supportsCombinedToolsAndSchema(
     modelOptions?: OpenRouterResponsesTextProviderOptions,
   ): boolean {
-    return openRouterSupportsCombinedToolsAndSchema(this.model, modelOptions)
+    return (
+      !openRouterUsesJsonObject(this.model, modelOptions) &&
+      openRouterSupportsCombinedToolsAndSchema(this.model, modelOptions)
+    )
   }
 
   /** `json_object` in JSON mode, else strict `json_schema` from `outputSchema`. */

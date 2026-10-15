@@ -284,7 +284,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter.structuredOutputStream', () => {
       expect(request.tools).toBeUndefined()
     })
 
-    it('sends json_object and the schema as a system prompt when modelOptions sets json_object', async () => {
+    it('sends json_object and the schema as one system prompt when modelOptions sets json_object', async () => {
       setupStreamingMock([deltaChunk('{"name":"X","age":1}'), finishChunk()])
       const adapter = new TestAdapter()
 
@@ -295,6 +295,8 @@ describe('OpenAIBaseChatCompletionsTextAdapter.structuredOutputStream', () => {
             messages: [{ role: 'user', content: 'extract' }],
             logger: testLogger,
             modelOptions: { response_format: { type: 'json_object' } },
+            // A direct caller can also set it here; the prompt must not repeat.
+            outputSchema: personSchema,
           },
           outputSchema: personSchema,
         }),
@@ -305,10 +307,12 @@ describe('OpenAIBaseChatCompletionsTextAdapter.structuredOutputStream', () => {
         messages: Array<{ role: string; content: unknown }>
       }
       expect(request.response_format).toEqual({ type: 'json_object' })
-      expect(request.messages[0]).toEqual({
-        role: 'system',
-        content: expect.stringContaining(JSON.stringify(personSchema)),
-      })
+      expect(request.messages.filter((m) => m.role === 'system')).toEqual([
+        {
+          role: 'system',
+          content: expect.stringContaining(JSON.stringify(personSchema)),
+        },
+      ])
     })
 
     it('accumulates JSON text from deltas and emits exactly one structured-output.complete', async () => {
