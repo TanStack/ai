@@ -123,6 +123,7 @@ import { MiddlewareRunner } from './middleware/compose'
 import { getRunDetached } from './middleware/run-store'
 import { LoadChildCapability } from './middleware/load-child'
 import { publishRunDetachedSignal } from '../../delivery-detach'
+import { publishRunCompletionSignal } from '../../delivery-completion'
 import { publishRunDisconnectHandler } from '../../delivery-disconnect'
 import { provideSandboxRuntime } from './middleware/sandbox-runtime'
 import { provideRunDisconnect } from './middleware/run-disconnect'
@@ -1111,6 +1112,7 @@ class TextEngine<
   // observe both cancellation sources via ctx.abortSignal.
   private readonly toolAbortSignal?: AbortSignal
   private terminalHookCalled = false
+  private runEnded = false
   /**
    * Latched the first time the delivery socket closes; see `notifyDisconnected`.
    * Also read by `subscribe` so a listener registered AFTER the disconnect (a
@@ -1414,6 +1416,7 @@ class TextEngine<
   }
 
   private async runTerminalHook(): Promise<void> {
+    this.runEnded = true
     if (this.terminalHookCalled || this.isCancelled()) return
 
     this.terminalHookCalled = true
@@ -1485,6 +1488,7 @@ class TextEngine<
 
       if (this.earlyTermination) {
         yield* this.emitSuccessfulEarlyTermination()
+        this.runEnded = true
         if (!this.terminalHookCalled) {
           this.terminalHookCalled = true
           await this.middlewareRunner.runOnFinish(this.middlewareCtx, {
@@ -1631,6 +1635,7 @@ class TextEngine<
         'continuationRunId' in error &&
         typeof error.continuationRunId === 'string'
       ) {
+        this.runEnded = true
         this.terminalHookCalled = true
         yield* this.pipeThroughMiddleware({
           type: EventType.RUN_FINISHED,
@@ -1718,6 +1723,10 @@ class TextEngine<
     // Update middleware context with computed fields
     this.middlewareCtx.options = this.eventOptions
     this.middlewareCtx.toolNames = this.eventToolNames
+  }
+
+  hasRunEnded(): boolean {
+    return this.runEnded
   }
 
   private async beginCycle(): Promise<void> {
@@ -3852,6 +3861,7 @@ class TextEngine<
       })
     }
     for (const output of terminalOutputs) {
+      this.runEnded = true
       yield this.publicInterruptTerminal(output)
     }
     return true
@@ -6025,19 +6035,20 @@ function validateInterruptDefinitions(
 
 /**
  * The slice of the engine that the durable delivery sink reaches back into, in
- * BOTH directions: it reads the detach verdict (`wasDetached`) and pushes the
- * socket-closed fact in (`notifyDisconnected`). Filled by the generator body as
- * soon as its engine exists.
+ * BOTH directions: it reads run completion and detach state, and pushes the
+ * socket-closed fact in (`notifyDisconnected`). Filled by the generator body
+ * as soon as its engine exists.
  */
 interface DeliveryEngineRef {
   current?: {
     wasDetached: () => boolean
     notifyDisconnected: () => void
+    hasRunEnded: () => boolean
   }
 }
 
 /**
- * Publish both delivery-side seams for `stream`.
+ * Publish delivery-side state and callbacks for `stream`.
  *
  * Shared by the two streaming paths so they cannot drift apart — the
  * structured-output path having been wired for one seam and not the other is
@@ -6048,6 +6059,7 @@ function publishDeliverySeams(
   stream: object,
   engineRef: DeliveryEngineRef,
 ): void {
+  publishRunCompletionSignal(stream, () => engineRef.current?.hasRunEnded())
   // A thunk, evaluated on the sink's teardown path: the engine does not exist
   // yet, and the verdict it will report is only written during `onAbort`.
   publishRunDetachedSignal(

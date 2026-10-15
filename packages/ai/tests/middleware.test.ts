@@ -1401,6 +1401,48 @@ describe('chat() middleware', () => {
   // onAfterToolCall error path
   // ==========================================================================
   describe('onAfterToolCall error handling', () => {
+    it('does not turn a failed after-hook into a second tool result', async () => {
+      const execute = vi.fn(() => ({ sent: true }))
+      const onAfterToolCall = vi.fn()
+      const onError = vi.fn()
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('tc-1', 'sendEmail'),
+            ev.toolArgs('tc-1', '{}'),
+            ev.toolEnd('tc-1', 'sendEmail', { input: {} }),
+            ev.runFinished('tool_calls'),
+          ],
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Send it' }],
+        tools: [serverTool('sendEmail', execute)],
+        middleware: [
+          {
+            name: 'failing-after-hook',
+            onAfterToolCall: (...args) => {
+              onAfterToolCall(...args)
+              if (onAfterToolCall.mock.calls.length === 1) {
+                throw new Error('post-hook failed')
+              }
+            },
+            onError: (_ctx, info) => onError(info),
+          },
+        ],
+      })
+
+      await expect(
+        collectChunks(stream as AsyncIterable<StreamChunk>),
+      ).rejects.toThrow('post-hook failed')
+      expect(execute).toHaveBeenCalledOnce()
+      expect(onAfterToolCall).toHaveBeenCalledOnce()
+      expect(onError).toHaveBeenCalledOnce()
+    })
+
     it('should report tool execution errors in onAfterToolCall', async () => {
       const afterCalls: Array<{ ok: boolean; error?: unknown }> = []
 

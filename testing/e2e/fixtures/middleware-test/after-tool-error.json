@@ -1,0 +1,24 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "[with-tool] run twice", "sequenceIndex": 0 },
+      "response": {
+        "toolCalls": [
+          { "name": "get_weather", "arguments": "{\"city\":\"NYC\"}" }
+        ]
+      }
+    },
+    {
+      "match": { "userMessage": "[with-tool] run twice", "sequenceIndex": 1 },
+      "response": {
+        "toolCalls": [
+          { "name": "get_weather", "arguments": "{\"city\":\"London\"}" }
+        ]
+      }
+    },
+    {
+      "match": { "userMessage": "[with-tool] run twice", "sequenceIndex": 2 },
+      "response": { "content": "Both cities are sunny." }
+    }
+  ]
+}
