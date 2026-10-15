@@ -286,7 +286,7 @@ describe('persisted replay metadata', () => {
         }
       },
     })
-    await collectChunks(
+    const chunks = await collectChunks(
       chat({
         adapter: { ...adapter, ...source, name: source.provider },
         messages: [],
@@ -309,7 +309,78 @@ describe('persisted replay metadata', () => {
       stopReason: 'aborted',
     })
     expect(stored[0]?.metadata?.tanstack).not.toHaveProperty('batch')
+    const emitted = chunks.find(
+      (chunk) => chunk.type === EventType.CUSTOM && chunk.name === 'progress',
+    )
+    expect(emitted?.metadata?.tanstack?.batch).toBe(true)
   })
+
+  it.each([
+    { end: 'stop', expected: 'aborted' },
+    { end: 'error', expected: 'error' },
+  ] as const)(
+    'keeps the other metadata of a batch-hinted CUSTOM event on $end',
+    async ({ end, expected }) => {
+      const { persistence, messages } = createStore()
+      const controller = new AbortController()
+      const { adapter } = createMockAdapter({
+        chatStreamFn: () =>
+          (async function* () {
+            yield ev.runStarted()
+            yield ev.textStart()
+            yield ev.textContent('partial')
+            if (end === 'stop') controller.abort()
+            else yield { type: EventType.RUN_ERROR, message: 'failed' }
+          })(),
+      })
+      const progress = defineChatMiddleware({
+        name: 'progress',
+        onChunk(_ctx, chunk) {
+          if (chunk.type !== EventType.TEXT_MESSAGE_CONTENT) return
+          return [
+            chunk,
+            {
+              type: EventType.CUSTOM,
+              name: 'progress',
+              value: { step: 1 },
+              timestamp: Date.now(),
+              metadata: {
+                trace: 'trace-1',
+                tanstack: { responseId: 'response-1', batch: true },
+              },
+            },
+          ]
+        },
+      })
+      const chunks = await collectChunks(
+        chat({
+          adapter: { ...adapter, ...source, name: source.provider },
+          messages: [],
+          threadId: 'thread-1',
+          runId: 'run-1',
+          abortController: controller,
+          middleware: [
+            progress,
+            withPersistence(persistence, {
+              snapshotStreaming: true,
+              snapshotIntervalMs: 0,
+            }),
+          ],
+        }),
+      )
+      const stored = await messages.loadThread('thread-1')
+      expect(stored).toHaveLength(1)
+      expect(stored[0]?.metadata).toMatchObject({
+        trace: 'trace-1',
+        tanstack: { source, responseId: 'response-1', stopReason: expected },
+      })
+      expect(stored[0]?.metadata?.tanstack).not.toHaveProperty('batch')
+      const emitted = chunks.find(
+        (chunk) => chunk.type === EventType.CUSTOM && chunk.name === 'progress',
+      )
+      expect(emitted?.metadata?.tanstack?.batch).toBe(true)
+    },
+  )
 
   it.each([false, true])(
     'does not mark an earlier successful call when a later call fails before start: %s',
