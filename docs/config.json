@@ -933,6 +933,18 @@
           "label": "Send and show media",
           "to": "harness/media",
           "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-15"
+        },
+        {
+          "label": "Connect clients",
+          "to": "harness/connect",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-14"
+        },
+        {
+          "label": "Send inputs safely",
+          "to": "harness/inputs",
+          "addedAt": "2026-10-13",
           "updatedAt": "2026-10-14"
         },
         {
@@ -986,23 +998,41 @@
           "label": "Write a plugin",
           "to": "harness/plugins",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-14"
+          "updatedAt": "2026-10-15"
         },
         {
           "label": "Track usage and cost",
           "to": "harness/usage",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-14"
+          "updatedAt": "2026-10-15"
         },
         {
           "label": "Ask before risky tool calls",
           "to": "harness/permissions",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-14"
+          "updatedAt": "2026-10-15"
         },
         {
           "label": "Switch between agent profiles",
           "to": "harness/agents",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-14"
+        },
+        {
+          "label": "Auth and connectors",
+          "to": "harness/auth",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-15"
+        },
+        {
+          "label": "Share a thread between people",
+          "to": "harness/shared-threads",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-14"
+        },
+        {
+          "label": "Build your own UI",
+          "to": "harness/custom-ui",
           "addedAt": "2026-10-13",
           "updatedAt": "2026-10-14"
         },
@@ -1020,6 +1050,17 @@
         {
           "label": "Add skills",
           "to": "harness/skills",
+          "addedAt": "2026-10-13"
+        },
+        {
+          "label": "Use MCP servers",
+          "to": "harness/mcp",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-15"
+        },
+        {
+          "label": "Use from any MCP client",
+          "to": "harness/mcp-server",
           "addedAt": "2026-10-13"
         },
         {

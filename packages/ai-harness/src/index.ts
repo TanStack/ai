@@ -126,6 +126,7 @@ export type {
   SessionSnapshot,
 } from './session/index'
 export type { SessionUsage, UsageCounts } from './usage'
+export type { OnHarnessEvent } from './feed'
 
 export type {
   FinishContext,
@@ -143,6 +144,7 @@ export { isTransientModelError, retryTransientErrors } from './turn'
 export { HARNESS_EVENTS, InputRejectedError } from './types'
 export type {
   AgentRun,
+  AuthRequest,
   BusyPolicy,
   ChatTurnResult,
   Cursor,
@@ -156,6 +158,7 @@ export type {
   Operation,
   OperationKind,
   OperationStatus,
+  PendingQuestion,
   Principal,
   Receipt,
   SessionEvent,
@@ -165,6 +168,7 @@ export type {
   ThreadSettingsChange,
   TurnInfo,
   TurnOverrides,
+  UsageUpdate,
   UserInput,
   WaitingInput,
 } from './types'
@@ -182,8 +186,40 @@ export {
 export { MediaError } from './media'
 export type { MediaOptions } from './media'
 
+export {
+  HARNESS_PROTOCOL_VERSION,
+  applyInput,
+  capabilitiesOf,
+  parseControlFrame,
+  parseHarnessInput,
+} from './protocol'
+export type { ControlFrame, HostFrame } from './protocol'
+
+export { createHarnessHandler, handleHarnessSocket } from './http'
+export type {
+  Authorize,
+  CanAccess,
+  HarnessHandlerOptions,
+  HarnessSocketOptions,
+} from './http'
+
 export { harnessText } from './harness-text'
 export type { HarnessTextOptions, RemoteHarness } from './harness-text'
+
+export {
+  buildAuthorizationUrl,
+  createPkce,
+  deviceLogin,
+  exchangeCode,
+  isExpired,
+  loopbackLogin,
+  refreshCredential,
+  startLoopbackReceiver,
+} from './oauth'
+export type { OAuthConfig } from './oauth'
+
+export { oauthConnector } from './connectors'
+export type { OAuthConnectorOptions } from './connectors'
 
 export { harnessAgent } from './harness-agent'
 export { DEFAULT_SUBAGENT_LIMITS } from './session/index'

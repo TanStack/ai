@@ -80,7 +80,7 @@ export const greeter = definePlugin({
 
 - `session.command('greet', { name: 'Ada' })` runs the command. The input is checked against its schema.
 - `session.setConfig({ key: 'tone', value: 'warm' })` changes the setting. A value the option does not accept is rejected.
-- `ask` waits for `session.answer({ questionId, value })`. The question shows up in `session.snapshot().pendingQuestions`.
+- `ask` waits for `session.answer({ questionId, value })`. The question goes to `session.onQuestion` listeners, and it stays in `session.snapshot().pendingQuestions` until someone answers.
 
 ## Change commands while the session runs
 
@@ -115,7 +115,7 @@ export const macros = definePlugin({
 
 - `ctx.commands.set(name, command)` adds a command of this plugin, or replaces it. A name that another plugin owns throws.
 - `ctx.commands.delete(name)` removes a command of this plugin. Another plugin's name does nothing.
-- Each change sends a `harness.commands.changed` event, so a client can read `session.commands()` again.
+- Each change sends a `harness.commands.changed` event, so a client can read `session.commands()` again. A [session view](./custom-ui) reads the new list by itself.
 - During `setup`, wait for `ctx.commands.ready` before you call `has` or `set`. The plugins after this one add their commands later, so a name can look free and still be taken.
 
 ```ts group=harness-plugins
@@ -250,8 +250,8 @@ The `turn` has these fields:
 | `operationId` | The id of the operation that runs the turn. |
 | `inputId` | The id of the input, when the turn has one. |
 | `message` | The user message of the input. `undefined` for a resolve and a continue. |
-| `context` | The `context` of the input. It is client data, so do not trust it. |
-| `principal` | Who sent the input. Default: the principal that opened the session. |
+| `context` | The [context of the input](./inputs#send-context-with-a-message). It is client data, so do not trust it. |
+| `principal` | Who sent the input. Default: the principal that opened the session. See [Share a thread](./shared-threads). |
 | `overrides` | The [overrides of the prompt](./turn-control#give-one-prompt-its-own-settings), when it has some. |
 
 The session uses the picks like this:
