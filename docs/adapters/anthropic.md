@@ -436,6 +436,8 @@ const result = await summarize({
 console.log(result.summary);
 ```
 
+Some models reject a non-default `temperature`, `top_p`, or `top_k`. On those models, `summarize()` does not send its default `temperature` of `0.3`.
+
 ## Environment Variables
 
 Set one of these. `anthropicText`, `anthropicSummarize`, and `anthropicFiles` use the first one that is set:

@@ -143,6 +143,26 @@ describe('ChatStreamSummarizeAdapter — maxLength reaches the wrapped adapter u
     expect(opts?.['temperature']).toBe(0.9)
   })
 
+  it('skips the temperature default when supportsSamplingTemperature is false', async () => {
+    const { textAdapter, lastModelOptions } = createRecordingTextAdapter()
+    const adapter = new ChatStreamSummarizeAdapter(
+      { ...textAdapter, supportsSamplingTemperature: false },
+      'claude-sonnet-5-5',
+      'anthropic',
+    )
+
+    await adapter.summarize({
+      model: 'claude-sonnet-5-5',
+      text: 'hi',
+      maxLength: 200,
+      logger,
+    })
+
+    const opts = lastModelOptions()
+    expect(opts?.['temperature']).toBeUndefined()
+    expect(opts?.['max_tokens']).toBe(200)
+  })
+
   it('unknown adapter name sets no token key and warns instead of silently dropping maxLength', async () => {
     const { textAdapter, lastModelOptions } = createRecordingTextAdapter()
     // Default name is 'chat-stream-summarize' — not a recognised provider.

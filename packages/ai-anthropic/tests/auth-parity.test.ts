@@ -390,7 +390,7 @@ describe('summarize factories', () => {
     expect(result.summary).toBe('Summary')
   })
 
-  it('anthropicSummarize sends ANTHROPIC_API_KEY and keeps the request unchanged', async () => {
+  it('anthropicSummarize sends ANTHROPIC_API_KEY and omits temperature on no-sampling models', async () => {
     vi.stubEnv('ANTHROPIC_API_KEY', 'summarize-key')
     const { fetch, requests } = captureTransport()
     const result = await anthropicSummarize('claude-sonnet-5', {
@@ -405,6 +405,8 @@ describe('summarize factories', () => {
       authorization: null,
       xApiKey: 'summarize-key',
     })
+    // claude-sonnet-5 rejects non-default sampling — summarize must not
+    // inject temperature: 0.3 (#1703).
     expect(requests[0]!.body).toEqual({
       model: 'claude-sonnet-5',
       max_tokens: 128,
@@ -415,7 +417,6 @@ describe('summarize factories', () => {
           text: 'You are a professional summarizer. Provide a clear and concise summary. ',
         },
       ],
-      temperature: 0.3,
       stream: true,
     })
     expect(result.summary).toBe('Summary')
