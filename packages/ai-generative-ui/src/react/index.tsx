@@ -61,6 +61,45 @@ function setStatePath(obj: Record<string, unknown>, path: string, value: unknown
   return copy
 }
 
+// A dotted identifier with no spaces, e.g. "computedMortgage.monthlyPayment".
+// A display value that looks like this and resolves against live state is
+// almost certainly a binding the model placed as a literal instead of in `bind`.
+const PATH_LIKE = /^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+$/
+
+/**
+ * Resolve a binding path against state, tolerant of the output-name drift a
+ * live model introduces: if `a.b` is undefined, fall back to the leaf `b` at
+ * the state root. Compute flattens every object-result key to the root
+ * (see the compute effect), so `computedMortgage.monthlyPayment` still resolves
+ * to `monthlyPayment` even when the model misremembers the output object's name.
+ */
+function resolveBinding(state: unknown, path: string): unknown {
+  const direct = resolveStatePath(state, path)
+  if (direct !== undefined) return direct
+  if (path.includes('.')) {
+    const leaf = path.split('.').pop()
+    if (leaf) return resolveStatePath(state, leaf)
+  }
+  return undefined
+}
+
+/**
+ * For display props (Metric/Text value): if a live model wrote a binding path
+ * as a literal string instead of using `bind`, resolve it when — and only when
+ * — it is path-shaped and resolves to a defined scalar. Otherwise it is real
+ * text and passes through untouched.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- display props are untyped catalog values rendered as ReactNode
+function resolveDisplayValue(val: any, state: unknown): any {
+  if (typeof val === 'string' && PATH_LIKE.test(val)) {
+    const resolved = resolveBinding(state, val)
+    if (resolved !== undefined && resolved !== null && typeof resolved !== 'object') {
+      return resolved
+    }
+  }
+  return val
+}
+
 /**
  * The state path an input reads and writes: an explicit `bind.value`, or the
  * implicit `<nodeId>.value` convention a live model naturally reaches for
@@ -227,10 +266,11 @@ interface NodeRendererProps {
 function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistry }: NodeRendererProps) {
   const { id, type, props = {}, children, bind = {}, on = {} } = node
 
-  // Resolve bound props from state
+  // Resolve bound props from state (tolerant of compute output-name drift)
   const resolvedProps = { ...props }
   for (const [propKey, statePath] of Object.entries(bind)) {
-    const val = resolveStatePath(state, statePath)
+    if (typeof statePath !== 'string') continue
+    const val = resolveBinding(state, statePath)
     if (val !== undefined) {
       resolvedProps[propKey] = val
     }
@@ -408,7 +448,10 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
   // 6.2 Content Components
   if (type === 'Text') {
     const variant = resolvedProps.variant || 'body'
-    const content = resolvedProps.content ?? resolvedProps.text ?? resolvedProps.value ?? ''
+    const content = resolveDisplayValue(
+      resolvedProps.content ?? resolvedProps.text ?? resolvedProps.value ?? '',
+      state,
+    )
     if (variant === 'heading') {
       return <h4 className="font-semibold text-slate-900 text-[15px] tracking-[-0.01em]">{content}</h4>
     }
@@ -470,7 +513,10 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
         ? 'text-rose-700 bg-rose-50 border-rose-200/70'
         : 'text-slate-500 bg-slate-50 border-slate-200/70'
 
-    const metricValue = resolvedProps.value ?? resolvedProps.content ?? resolvedProps.text
+    const metricValue = resolveDisplayValue(
+      resolvedProps.value ?? resolvedProps.content ?? resolvedProps.text,
+      state,
+    )
     const hasValue = metricValue !== undefined && metricValue !== null && metricValue !== ''
     return (
       <div className="bg-white border border-slate-200/80 rounded-xl p-4 flex flex-col gap-1.5 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">

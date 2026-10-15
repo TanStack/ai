@@ -125,6 +125,42 @@ export class ComputeRegistry {
     }
     this.register('loanPayment', loanPaymentFn, loanPaymentDesc)
 
+    // U4: Balloon loan — finance part of the principal over the term and pay a
+    // lump sum (the balloon) at a later year. Monthly payment amortizes
+    // (loanAmount - balloonAmount); the balloon is due at balloonYear.
+    const balloonLoanFn: ComputeFunction = (inputs) => {
+      const principal = pick(inputs, ['loanAmount', 'principal', 'amount'])
+      const annualRatePct = pick(inputs, ['annualInterestRate', 'interestRate', 'rate', 'apr'])
+      const termYears = pick(inputs, ['termYears', 'years', 'term', 'loanTerm'], 30)
+      const balloonAmount = pick(inputs, ['balloonAmount', 'balloon', 'balloonPayment'])
+      const balloonYear = pick(inputs, ['balloonYear', 'balloonDueYear', 'dueYear'], termYears)
+      const financed = Math.max(0, principal - balloonAmount)
+      const monthlyRate = annualRatePct / 100 / 12
+      const months = Math.max(1, Math.round(termYears * 12))
+      const monthlyPayment =
+        monthlyRate === 0
+          ? financed / months
+          : (financed * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -months))
+      const paymentMonths = Math.max(1, Math.round(Math.min(balloonYear, termYears) * 12))
+      const totalMonthly = monthlyPayment * paymentMonths
+      const totalPaid = totalMonthly + balloonAmount
+      return {
+        monthlyPayment: round2(monthlyPayment),
+        balloonDue: round2(balloonAmount),
+        balloonYear: Math.round(balloonYear),
+        totalPaid: round2(totalPaid),
+        totalInterest: round2(totalPaid - principal),
+      }
+    }
+    const balloonLoanDesc: ComputeDescriptor = {
+      description:
+        'Balloon loan/mortgage: monthly payment amortizes (loanAmount - balloonAmount) over the term, with the balloonAmount due as a lump sum at balloonYear.',
+      inputs: ['loanAmount', 'annualInterestRate', 'termYears', 'balloonAmount', 'balloonYear'],
+      output: '{ monthlyPayment, balloonDue, balloonYear, totalPaid, totalInterest }',
+    }
+    this.register('balloonLoan', balloonLoanFn, balloonLoanDesc)
+    this.register('balloonMortgage', balloonLoanFn, balloonLoanDesc)
+
     // U4: Savings growth — compound interest with monthly contributions.
     this.register(
       'savingsGrowth',

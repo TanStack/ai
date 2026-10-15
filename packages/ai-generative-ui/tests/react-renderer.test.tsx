@@ -197,4 +197,57 @@ describe('GenerativeUIRenderer React Component', () => {
     root.unmount()
     container.remove()
   })
+
+  // A live model commonly mis-wires a computed value: it writes the binding
+  // PATH as a literal props.value string, or references the compute output by a
+  // drifted name. The host must still show the host-computed number.
+  it('resolves computed Metric values despite path-in-props and output-name drift', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+
+    const graph: GraphDocument = {
+      specVersion: '0.1',
+      graphId: 'g_mortgage_live',
+      revision: 1,
+      title: 'Mortgage',
+      fallbackText: 'mortgage calculator',
+      provenance: { driver: 'live' },
+      root: {
+        id: 'calc',
+        type: 'Stack',
+        compute: {
+          name: 'loanPayment',
+          inputs: {
+            loanAmount: 'loanAmount',
+            annualInterestRate: 'annualInterestRate',
+            termYears: 'termYears',
+          },
+          output: 'loan',
+        },
+        children: [
+          { id: 'amt', type: 'NumberInput', props: { label: 'Loan', value: 400000 }, bind: { value: 'loanAmount' } },
+          { id: 'rate', type: 'NumberInput', props: { label: 'Rate', value: 6.5 }, bind: { value: 'annualInterestRate' } },
+          { id: 'term', type: 'NumberInput', props: { label: 'Term', value: 30 }, bind: { value: 'termYears' } },
+          // Mistake 1: the binding path sits in props.value as a literal string.
+          { id: 'mo', type: 'Metric', props: { label: 'Monthly Payment', value: 'loan.monthlyPayment' } },
+          // Mistake 2: metric binds to a drifted output name; the leaf resolves.
+          { id: 'tot', type: 'Metric', props: { label: 'Total Paid' }, bind: { value: 'wrongName.totalPaid' } },
+        ],
+      },
+    }
+
+    await act(async () => {
+      root.render(<GenerativeUIRenderer graph={graph} />)
+    })
+
+    // loanPayment(400000, 6.5%, 30y) => monthlyPayment 2528.27, totalPaid 910177.95
+    expect(container.textContent).toContain('2528.27')
+    expect(container.textContent).toContain('910177.95')
+    // The raw binding path must never leak into the rendered output.
+    expect(container.textContent).not.toContain('loan.monthlyPayment')
+
+    root.unmount()
+    container.remove()
+  })
 })

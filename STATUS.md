@@ -83,19 +83,20 @@ Located at `packages/ai-generative-ui`.
 
 ---
 
-### B. Web Playground: `examples/generative-ui`
-Located at `examples/generative-ui`.
+### B. Web Example: `examples/generative-ui`
+Located at `examples/generative-ui`. Two surfaces behind a top-bar toggle, with a deliberate default: **Chat is the product; the Playground is a test bench** (spec §1 principle 6, §15.1).
 
 - **Live Multi-Provider LLM Integration**:
   - Middleware in `vite.config.ts` supporting OpenAI (`gpt-4o`), Anthropic (`claude-sonnet-4-5-20250929`), Gemini (`gemini-3.8-flash`), xAI (`grok-4.20-0309-non-reasoning`), and OpenRouter via native fetch and `.env.local` keys.
-  - Automatic tool calling invocation using the `render_ui` specification schema.
-- **Playground Features (`src/App.tsx`)**:
+  - `/api/chat` (conversational, `tool_choice: auto` so the model interleaves prose + an optional `render_ui` call) and `/api/generate` (one-shot, forced tool call, used by the Playground) share one provider-call helper.
+- **Chat surface (`src/ChatSurface.tsx`) — the default, inline-first demo**:
+  - A conversation stream where a graph is **message content**, interleaved with the model's markdown prose in chat typography (a small inline-markdown renderer, no new deps).
+  - **In-place revision**: a per-`graphId` store keeps the latest revision; a graph renders only in the latest message that references its `graphId`, so a follow-up ("make it a 15-year term") reuses the same `graphId` at the next `revision` with a *revised in place* badge, and never duplicates.
+  - **Instant, model-free starters** backed by canonical fixtures (spec §14) plus live suggestion chips; provider selector; a dev-only `window.__genuiGraphs` hook for browser/E2E assertions.
+  - Structured intents (§8) route into the stream as system pills (`intent · selectPlan · {plan:'pro'} · routed to agent`).
+- **Playground surface (`src/Playground.tsx`) — developer test bench**:
   - Scenario Selector covering all 9 canonical fixtures (U1–U8 + §6.4.3 chord diagram) plus the stored "Live-shape: Recipe Card" regression scenario.
-  - Live AI prompt bar with sample chips (*Mortgage calculator*, *Streaming tiers*, *Recipe checklist*, *Dmaj9 chord voicing*).
-  - Bounded Repair banner detailing applied schema repairs.
-  - Visual vs. Fallback Text mode toggle (§9.2).
-  - Interactive JSON inspector toggle.
-  - Real-time Outbound Intent Stream logging and visual confirmation toast.
+  - Live AI prompt bar, Bounded Repair banner, Visual vs. Fallback Text toggle (§9.2), JSON inspector, real-time Outbound Intent log.
   - Styled with Tailwind CSS v4 using `@source` workspace resolution.
 
 ---
@@ -117,7 +118,7 @@ Located at `/Users/jherr/projects/goose` on branch `feat/generative-ui-poc`.
 
 | Check | Tool / Target | Status |
 |-------|---------------|--------|
-| Unit Tests | `pnpm --filter @tanstack/ai-generative-ui test:lib` | ✅ 21/21 passing |
+| Unit Tests | `pnpm --filter @tanstack/ai-generative-ui test:lib` | ✅ 23/23 passing |
 | Type Check (package) | `nx test:types ai-generative-ui` | ✅ Passing |
 | Type Check (example) | `nx test:types generative-ui-example` | ✅ Passing |
 | Lint | `pnpm test:oxlint` | ✅ 0 errors (pre-existing `no-explicit-any` warnings only) |
@@ -150,3 +151,35 @@ Reworked the host renderer into a cohesive "technical atelier" design system (re
 
 ### Stored regression artifact
 The real-world graph that first surfaced the bind-less interactivity bug is now checked in verbatim as the `recipe-card` canonical fixture and a **"Live-shape: Recipe Card"** scenario in the playground dropdown, so the tricky pattern (inputs by node id, no `bind`, no item ids, section titles via `label`) can be reproduced deterministically without the LLM and is locked down by a unit test.
+
+---
+
+## 5. This Session: Inline-First Conversation Surface (spec §15.1)
+
+The updated Draft 0.1 (§1 principle 6, §15) promotes **inline-first** from preference to requirement: the flagship surface is a conversation stream where graphs render as message content, not a standalone playground. This session builds that surface and makes it the default; the playground is retained as a labelled test bench. Every behaviour below was driven and verified in a real browser (Chrome automation) against live provider calls.
+
+### What was built
+- **Conversational endpoint** `/api/chat` (`vite.config.ts`): a shared `callProvider()` helper across all five providers with `tool_choice: auto`, so the model narrates in markdown **and** optionally emits a `render_ui` graph in the same turn. Conversation history (including on-screen graphs) is serialized back to the model; the most recent graph is embedded in full so it can be revised field-by-field.
+- **`ChatSurface.tsx`**: message stream with user bubbles, assistant prose (minimal inline-markdown renderer), and graphs rendered inline as native message content. Per-`graphId` store realizes **revise-in-place** — a follow-up turn reuses the same `graphId` at the next `revision`, the live graph moves to the turn that mentions it (never duplicated), and shows a *revised in place* badge. Fixture-backed starters render instantly with no model (spec §14).
+- **App shell** (`App.tsx`): a top-bar **Chat / Playground** toggle, Chat default. The former playground moved verbatim to `Playground.tsx`.
+
+### Renderer hardening for live wiring drift (`src/react/index.tsx`)
+Live models mis-wire computed values in two recurring ways; both are now absorbed and locked by a regression test:
+- **Binding path placed in `props.value` as a literal string** (e.g. `"loan.monthlyPayment"`) instead of `bind.value` → `resolveDisplayValue` resolves path-shaped display strings against live state.
+- **Compute output-name drift** (metric binds `wrongName.totalPaid`) → `resolveBinding` falls back to the leaf key at the state root (compute already flattens every object-result key there).
+- The system prompt now carries a **complete worked mortgage example** (exact compute + `bind.value` wiring), which markedly improves first-try correctness.
+
+### Browser-verified end-to-end
+- Instant fixture (Compare Plans) renders inline as message content; `selectPlan` **action intent** routes into the stream.
+- Live-composed **mortgage calculator** renders inline and computes host-side (**$2,528.27 / mo**, total **$910,177.95** for $400k @ 6.5% / 30y — matching the compute verified in isolation), and **recomputes reactively** ($600k → **$3,792.41 / mo**).
+- **In-place revision**: "change it to a 15-year term" returned `mortgage_calculator_01` at **revision 2** with the badge; the rev-1 graph collapsed to text.
+- Playground test bench still renders all fixtures, live generation, repair, and the intent log.
+
+### Follow-up fix: graph JSON leaked into chat prose
+A revision follow-up ("add a balloon payment feature") came back with the raw graph JSON dumped as text instead of rendering. Root cause: prior graphs were embedded as fenced JSON inside **assistant text** in the history, which taught the model (few-shot) to reply in that same textual format rather than calling `render_ui`. Fixes:
+- Prior graphs now ride the provider history as real **`render_ui` tool-call / tool-result messages** (OpenAI `tool_calls` + `tool` role; Anthropic `tool_use` + `tool_result`), so the model keeps calling the tool for revisions. No graph JSON is ever placed in assistant text.
+- Safety net in `/api/chat`: recover a graph the model still text-dumps (fenced block that parses to a `{ specVersion, root }`) and strip any leaked `[UI currently on screen …]` marker from the shown prose.
+- Added a `balloonLoan` / `balloonMortgage` compute function (amortizes the financed portion, defers the lump sum) so "add a balloon payment" actually computes instead of adding inert inputs. Browser-verified: the follow-up revised `mortgageCalc` to **rev 2** in place with a clean "Here you go." prose line, Balloon inputs, and host-computed Monthly **$1,347.13** / Balloon Due **$100,000** / Total **$261,656.09**.
+
+### Gates
+23/23 unit tests (added the live-wiring + balloon-loan regression tests), package + example typecheck, oxlint (0 errors), and both builds all green via `nx run-many --targets=test:lib,test:types,test:oxlint,build --projects=ai-generative-ui,generative-ui-example`.

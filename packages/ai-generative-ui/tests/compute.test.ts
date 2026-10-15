@@ -79,6 +79,25 @@ describe('Compute Registry (§5.3)', () => {
     expect(result.totalInterest).toBe(0)
   })
 
+  it('computes a balloon loan: amortizes the financed part, defers the lump sum', () => {
+    // Finance (400000 - 50000) over 30yr @ 6.5%; 50000 balloon due in year 15.
+    const result = defaultComputeRegistry.execute(
+      'balloonLoan',
+      { loanAmount: 400000, annualInterestRate: 6.5, termYears: 30, balloonAmount: 50000, balloonYear: 15 },
+      {},
+    )
+    // Monthly payment is lower than the no-balloon loan because less is financed.
+    const plain = defaultComputeRegistry.execute(
+      'loanPayment',
+      { loanAmount: 400000, annualInterestRate: 6.5, termYears: 30 },
+      {},
+    )
+    expect(result.monthlyPayment).toBeLessThan(plain.monthlyPayment)
+    expect(result.balloonDue).toBe(50000)
+    expect(result.balloonYear).toBe(15)
+    expect(result.totalPaid).toBeGreaterThan(400000)
+  })
+
   it('applies a percentage to a value', () => {
     const result = defaultComputeRegistry.execute('percentOf', { value: 80, percent: 8.25 }, {})
     expect(result.amount).toBe(6.6)
