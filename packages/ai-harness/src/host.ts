@@ -518,6 +518,17 @@ export function sessionOfTurn(
   )
 }
 
+/** The log and run stores of each durable host. Not public API. */
+const durableStores = new WeakMap<object, { log: LogStore; runs?: RunStore }>()
+
+/**
+ * @internal The log and run stores of `host` when it is durable
+ * (`stores.log`), else `undefined`.
+ */
+export function durableStoresOf(host: HarnessHost) {
+  return durableStores.get(host)
+}
+
 /** Throw a clear error for a durable store set that cannot work. */
 function checkDurableStores(persistence: HarnessPersistence) {
   const { stores } = persistence
@@ -943,6 +954,10 @@ export function createHarnessHost<TLogState = undefined>(
         signal?.removeEventListener('abort', onAbort)
       }
     },
+  }
+  if (logStore) {
+    const { runs } = persistence.stores
+    durableStores.set(host, { log: logStore, ...(runs ? { runs } : {}) })
   }
   turnFinders.set(host, async (name, operationId) => {
     for (const [key, opening] of sessions) {

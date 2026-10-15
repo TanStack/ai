@@ -179,6 +179,7 @@ export type { ControlFrame, HostFrame } from './protocol'
 export { createHarnessHandler, handleHarnessSocket } from './http'
 export type {
   Authorize,
+  CanAccess,
   HarnessHandlerOptions,
   HarnessSocketOptions,
 } from './http'

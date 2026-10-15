@@ -6,11 +6,10 @@ import {
   modelMessagesToUIMessages,
   readInterruptBinding,
   resolveResumeRunId,
-  toServerSentEventsResponse,
   toServerSentEventsStream,
 } from '@tanstack/ai'
 import { parseRangeHeader, resolveBlobRange } from '@tanstack/ai-persistence'
-import { sessionOfTurn } from './host'
+import { durableStoresOf, sessionOfTurn } from './host'
 import { MediaError } from './media'
 import { base64url } from './oauth'
 import {
@@ -25,7 +24,7 @@ import { isRecord } from './utils'
 import { SessionMetadataError } from './session-entry'
 import type {
   ModelMessage,
-  StreamChunk,
+  RunStore,
   UIMessage,
   WebSocketLike,
 } from '@tanstack/ai'
@@ -34,7 +33,7 @@ import type { AnyHarness } from './define'
 import type { HarnessHost, HostEvent } from './host'
 import type { HostFrame } from './protocol'
 import type { HarnessSession } from './session/index'
-import type { Principal, UserInput } from './types'
+import type { Principal, SessionEvent, UserInput } from './types'
 
 /**
  * Decide who sends a request. Return `null` to refuse it with 401. Every
@@ -45,22 +44,28 @@ export type Authorize = (
   request: Request,
 ) => Principal | null | Promise<Principal | null>
 
+/** May this principal use this thread? */
+export type CanAccess = (
+  principal: Principal,
+  threadId: string,
+) => boolean | Promise<boolean>
+
 export interface HarnessHandlerOptions {
   host: HarnessHost
   harness: AnyHarness
   authorize: Authorize
   /**
-   * May this principal use this thread? Default: yes. Use it to keep users
-   * out of each other's threads.
+   * May this principal use this thread? Required: use it to keep users out
+   * of each other's threads. Pass `() => true` to let every principal use
+   * every thread.
    */
-  canAccess?: (
-    principal: Principal,
-    threadId: string,
-  ) => boolean | Promise<boolean>
+  canAccess: CanAccess
   /**
-   * The secret that signs media URLs (HMAC SHA-256). Default: a random key
-   * per handler, so signed URLs stop working after a restart. Set it to keep
-   * them working, and use the same value on every server behind one URL.
+   * The secret that signs media URLs (HMAC SHA-256). Use the same value on
+   * every server behind one URL. Required on a durable host (`stores.log`),
+   * where another instance can serve the next request. Without a log store,
+   * the default is a random key per handler, so signed URLs stop working
+   * after a restart.
    */
   mediaSecret?: string
 }
@@ -119,6 +124,34 @@ function sseResponse(
     },
   })
   return new Response(body, { headers: SSE_HEADERS })
+}
+
+/**
+ * Session events as an AG-UI SSE response. With `withIds`, each event has its
+ * cursor as `id`, so a client that loses the connection resumes with
+ * `Last-Event-ID`. When the client leaves, the read stops.
+ */
+function cursorResponse(
+  read: (signal: AbortSignal) => AsyncIterable<SessionEvent>,
+  withIds: boolean,
+) {
+  // Not `request.signal`: some servers abort it once the body is read.
+  const reader = new AbortController()
+  const cursors: Array<string> = []
+  async function* chunks() {
+    for await (const entry of read(reader.signal)) {
+      cursors.push(entry.cursor)
+      yield entry.event
+    }
+  }
+  return new Response(
+    toServerSentEventsStream(
+      chunks(),
+      reader,
+      withIds ? (_chunk, index) => cursors.at(index) : undefined,
+    ),
+    { headers: SSE_HEADERS },
+  )
 }
 
 /** A handler error as JSON: a `MediaError` keeps its status, the rest is 400. */
@@ -254,7 +287,8 @@ async function mediaResponse(
  * - `GET  .../capabilities`: the AG-UI capabilities document.
  * - `POST .../run`: standard AG-UI. One request is one prompt (or one
  *   `resume`), streamed as SSE. The turn runs as the request's `runId`, and a
- *   retry with the same `runId` runs once. The prompt keeps every content
+ *   retry with the same `runId` runs once. On a durable host, each event id
+ *   is its log cursor, and a retry with `Last-Event-ID` streams from there. The prompt keeps every content
  *   part of the last user message, and its `forwardedProps` are the input's
  *   `context`.
  * - `GET  .../run?threadId=`: the transcript, the running turn, and the
@@ -262,8 +296,9 @@ async function mediaResponse(
  *   `persistence` reads.
  * - `GET  .../run?runId=` (or `X-Run-Id`): the chat turn with that run id, as
  *   SSE from its start, so a reloaded `ChatClient` joins it. Each event id is
- *   a cursor, so `Last-Event-ID` resumes it. 404 for a turn this host does
- *   not run.
+ *   a cursor, so `Last-Event-ID` resumes it. On a durable host (`stores.log`
+ *   and `stores.runs`), any instance finds the turn in the shared log.
+ *   Without a log, 404 for a turn this host does not run.
  * - `GET  .../events?threadId=&from=`: the session stream as SSE. Each event id
  *   is a cursor, so `Last-Event-ID` resumes it.
  * - `POST .../control`: `{ threadId, input }`. Returns the receipt.
@@ -309,16 +344,21 @@ async function mediaResponse(
 export function createHarnessHandler(
   options: HarnessHandlerOptions,
 ): (request: Request) => Promise<Response> {
-  const { host, harness, authorize } = options
-  const canAccess = options.canAccess ?? (() => true)
+  const { host, harness, authorize, canAccess } = options
+  const durable = durableStoresOf(host)
+  if (options.mediaSecret === undefined && durable) {
+    throw new Error(
+      'createHarnessHandler needs mediaSecret on a durable host (stores.log): another instance must verify the media URLs this one signs. Set the same secret on every instance.',
+    )
+  }
 
   const openFor = async (principal: Principal, threadId: string) => {
     if (!(await canAccess(principal, threadId))) return null
     return host.open(harness, { threadId, principal })
   }
 
-  // ponytail: without `mediaSecret`, a random key per handler, so signed URLs
-  // stop working after a restart. Set `mediaSecret` to keep them.
+  // ponytail: without `mediaSecret` (only allowed without a log store), a
+  // random key per handler, so signed URLs stop working after a restart.
   const secret =
     options.mediaSecret === undefined
       ? crypto.getRandomValues(new Uint8Array(32))
@@ -372,34 +412,49 @@ export function createHarnessHandler(
     principal: Principal,
     runId: string,
   ) => {
-    const session = await sessionOfTurn(host, harness, runId)
-    const turn = session?.operation(runId)
-    if (!session || !turn) return json({ error: 'unknown run' }, 404)
-    if (!(await canAccess(principal, session.threadId))) {
-      return json({ error: 'forbidden' }, 403)
-    }
     // `offset=-1` is the start. A reconnect sends the last cursor it saw.
     const offset = new URL(request.url).searchParams.get('offset')
     const resumeFrom =
       request.headers.get('Last-Event-ID') ?? (offset === '-1' ? null : offset)
-    const startedCursor = session
-      .snapshot()
-      .activeOperations.find((item) => item.id === runId)?.startedCursor
-    const from = resumeFrom ?? startedCursor ?? '0'
-    const reader = new AbortController()
-    const events = turn.events({ from, signal: reader.signal })
-    const cursors: Array<string> = []
-    async function* chunks() {
-      for await (const entry of events) {
-        cursors.push(entry.cursor)
-        yield entry.event
+    const session = await sessionOfTurn(host, harness, runId)
+    const turn = session?.operation(runId)
+    if (session && turn) {
+      if (!(await canAccess(principal, session.threadId))) {
+        return json({ error: 'forbidden' }, 403)
       }
+      const startedCursor = session
+        .snapshot()
+        .activeOperations.find((item) => item.id === runId)?.startedCursor
+      const from = resumeFrom ?? startedCursor ?? '0'
+      return cursorResponse((signal) => turn.events({ from, signal }), true)
     }
-    return new Response(
-      toServerSentEventsStream(chunks(), reader, (_chunk, index) =>
-        cursors.at(index),
-      ),
-      { headers: SSE_HEADERS },
+    // Another instance runs the turn. A durable host finds its thread in the
+    // run store, and its events in the shared log. Not a child run or an
+    // agent run: only a chat turn of a thread.
+    const record = await durable?.runs?.get(runId)
+    const isChatTurn =
+      record != null &&
+      record.kind !== 'agent' &&
+      record.parentRunId === undefined
+    if (!record || !isChatTurn) return json({ error: 'unknown run' }, 404)
+    const { threadId } = record
+    if (!(await canAccess(principal, threadId))) {
+      return json({ error: 'forbidden' }, 403)
+    }
+    const entry = await host.sessions.get(threadId)
+    if (entry?.harness !== undefined && entry.harness !== harness.name) {
+      return json({ error: 'unknown run' }, 404)
+    }
+    const shared = await host.open(harness, { threadId, principal })
+    // ponytail: from the start of the log without a cursor. Store the
+    // started position on the run record if long threads make this slow.
+    return cursorResponse(
+      (signal) =>
+        followOperation(
+          shared.events({ from: resumeFrom ?? '0', signal }),
+          runId,
+        ),
+      true,
     )
   }
 
@@ -429,20 +484,23 @@ export function createHarnessHandler(
         // its events and interrupts. The run id is the input id too, so a
         // retried request runs once. It runs as this request's principal.
         const ids = { inputId: params.runId, runId: params.runId, principal }
+        const lastEventId = request.headers.get('Last-Event-ID')
         if (params.resume && params.resume.length > 0) {
           const receipt = await session.resolve(params.resume, ids)
           if (receipt.status === 'rejected' || !receipt.operationId) {
             return json({ error: receipt.reason ?? 'rejected' }, 409)
           }
-          // Not `request.signal`: some servers abort it once the body is
-          // read. The response aborts this controller when the client leaves.
-          const reader = new AbortController()
-          const events = session.events({ signal: reader.signal })
-          return toServerSentEventsResponse(
-            followOperation(events, receipt.operationId),
-            {
-              abortController: reader,
-            },
+          const { operationId } = receipt
+          return cursorResponse(
+            (signal) =>
+              followOperation(
+                session.events({
+                  ...(durable && lastEventId ? { from: lastEventId } : {}),
+                  signal,
+                }),
+                operationId,
+              ),
+            durable !== undefined,
           )
         }
         if (message === undefined)
@@ -459,12 +517,14 @@ export function createHarnessHandler(
         if (receipt.status === 'rejected') {
           return json({ error: receipt.reason ?? 'rejected' }, 409)
         }
-        const reader = new AbortController()
-        return toServerSentEventsResponse(
-          operation.stream({ signal: reader.signal }),
-          {
-            abortController: reader,
-          },
+        // A durable host sends each log cursor as the event id. A client cut
+        // off sends the same request with `Last-Event-ID`, maybe to another
+        // instance: the run id finds the same turn, and it streams from there.
+        // Without a log a cursor means nothing on another instance, so no id.
+        const from = (durable && lastEventId) || '0'
+        return cursorResponse(
+          (signal) => operation.events({ from, signal }),
+          durable !== undefined,
         )
       }
 
@@ -476,7 +536,7 @@ export function createHarnessHandler(
         if (!threadId) return json({ error: 'threadId is required' }, 400)
         const session = await openFor(principal, threadId)
         if (!session) return json({ error: 'forbidden' }, 403)
-        return json(await hydration(session))
+        return json(await hydration(session, durable?.runs))
       }
 
       if (request.method === 'GET' && route === 'events') {
@@ -714,9 +774,10 @@ export function createHarnessHandler(
  * What a `ChatClient` with `persistence` reads when it loads a thread (a
  * `ChatHydrationResult`): the transcript, the running chat turn (the client
  * joins it with `GET run?runId=`), and the interrupts that the last turn
- * waits for.
+ * waits for. On a durable host, `runs` finds a turn that another instance
+ * runs.
  */
-async function hydration(session: HarnessSession) {
+async function hydration(session: HarnessSession, runs?: RunStore) {
   const { pendingInterrupts, activeOperations } = session.snapshot()
   const [first] = pendingInterrupts
   const runId = first
@@ -727,21 +788,26 @@ async function hydration(session: HarnessSession) {
       item.kind === 'chat' &&
       session.operation(item.id)?.status() === 'running',
   )
+  const remote = running
+    ? undefined
+    : await runs?.findActiveRun(session.threadId)
+  const runningId =
+    running?.id ?? (remote?.kind !== 'agent' ? remote?.runId : undefined)
   return {
     messages: modelMessagesToUIMessages(await session.transcript()),
-    activeRun: running ? { runId: running.id } : null,
+    activeRun: runningId ? { runId: runningId } : null,
     interrupts: runId ? { runId, pending: pendingInterrupts } : null,
   }
 }
 
 /** Session events of one operation, until it finishes. */
 async function* followOperation(
-  events: AsyncIterable<{ operationId: string; event: StreamChunk }>,
+  events: AsyncIterable<SessionEvent>,
   operationId: string,
 ) {
   for await (const entry of events) {
     if (entry.operationId !== operationId) continue
-    yield entry.event
+    yield entry
     if (
       entry.event.type === EventType.CUSTOM &&
       entry.event.name === 'harness.operation.finished'
@@ -757,10 +823,8 @@ export interface HarnessSocketOptions {
   socket: WebSocketLike
   /** The principal your upgrade handler authorized. */
   principal: Principal
-  canAccess?: (
-    principal: Principal,
-    threadId: string,
-  ) => boolean | Promise<boolean>
+  /** May this principal use this thread? Pass `() => true` to allow all. */
+  canAccess: CanAccess
 }
 
 /**
@@ -768,8 +832,7 @@ export interface HarnessSocketOptions {
  * `harness.subscribe`. Authorize the upgrade request before you call this.
  */
 export function handleHarnessSocket(options: HarnessSocketOptions): void {
-  const { host, harness, socket, principal } = options
-  const canAccess = options.canAccess ?? (() => true)
+  const { host, harness, socket, principal, canAccess } = options
   const reader = new AbortController()
   // Set by the first subscribe, before its awaits, so a second subscribe is
   // refused and an input sent right after the subscribe waits for the open.

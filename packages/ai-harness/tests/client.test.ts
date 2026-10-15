@@ -26,6 +26,7 @@ describe('createHarnessClient', () => {
     const handler = createHarnessHandler({
       host,
       harness: studio,
+      canAccess: () => true,
       authorize: (request) =>
         request.headers.get('authorization') === 'Bearer t'
           ? { id: 'u' }
@@ -71,6 +72,7 @@ describe('createHarnessClient', () => {
     const handler = createHarnessHandler({
       host,
       harness: studio,
+      canAccess: () => true,
       authorize: () => ({ id: 'u' }),
     })
     const client = createHarnessClient<typeof studio>({
@@ -102,6 +104,7 @@ describe('createHarnessClient', () => {
     const handler = createHarnessHandler({
       host,
       harness: studio,
+      canAccess: () => true,
       authorize: () => ({ id: 'u' }),
     })
     const client = createHarnessClient<typeof studio>({
@@ -133,6 +136,7 @@ describe('createHarnessClient', () => {
     const handler = createHarnessHandler({
       host,
       harness: studio,
+      canAccess: () => true,
       authorize: () => ({ id: 'u' }),
     })
     const client = createHarnessClient<typeof studio>({
@@ -164,6 +168,7 @@ describe('createHarnessClient', () => {
     const handler = createHarnessHandler({
       host,
       harness: studio,
+      canAccess: () => true,
       authorize: () => null,
     })
     const client = createHarnessClient<typeof studio>({
@@ -201,6 +206,7 @@ describe('client.sendToAgent', () => {
     const handler = createHarnessHandler({
       host,
       harness: studio,
+      canAccess: () => true,
       authorize: () => ({ id: 'u' }),
     })
     const client = createHarnessClient<typeof studio>({

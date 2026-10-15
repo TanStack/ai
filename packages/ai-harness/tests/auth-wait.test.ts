@@ -385,6 +385,7 @@ describe('sign-ins in a shared thread', () => {
     const handler = createHarnessHandler({
       host,
       harness,
+      canAccess: () => true,
       authorize: (request) => ({ id: request.headers.get('x-user') ?? '' }),
     })
     const control = async (user: string, input: object) =>
@@ -459,7 +460,9 @@ describe('sign-ins in a shared thread', () => {
     const handler = createHarnessHandler({
       host,
       harness,
+      canAccess: () => true,
       authorize: () => bob,
+      mediaSecret: 'test-secret',
     })
     const session = await host.open(harness, {
       threadId: 't',
