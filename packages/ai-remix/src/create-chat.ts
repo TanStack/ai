@@ -2,13 +2,9 @@ import { ChatClient } from '@tanstack/ai-client'
 import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import type { Handle } from 'remix/ui'
 import type {
-  ChatClientState,
   ResolvableChatInterrupt,
-  ChatInterruptState,
   ChatResumeState,
-  ConnectionStatus,
   InferredClientContext,
-  QueuedMessage,
   SendMessageOptions,
   StructuredOutputPart,
 } from '@tanstack/ai-client'
@@ -29,16 +25,12 @@ import type {
   UIMessage,
 } from './types.ts'
 
-const EMPTY_INTERRUPTS = Object.freeze([])
-const EMPTY_INTERRUPT_ERRORS = Object.freeze([])
-
 /**
  * Create a chat helper for a Remix component.
  *
  * Call this in setup with the component Handle from `remix/ui`. The helper
- * wraps ChatClient and stores chat state in local variables. ChatClient state
- * callbacks write those variables and then call `handle.update()`, so render
- * reads the latest snapshot through getters.
+ * wraps ChatClient and calls `handle.update()` when the client snapshot
+ * changes, so render reads the latest frozen snapshot through getters.
  *
  * The default thread id is `options.threadId ?? handle.id`. Cleanup runs when
  * `handle.signal` aborts. Do not pass identification in `options.devtools`;
@@ -81,23 +73,6 @@ export function createChat<
   handle: Pick<Handle, 'id' | 'update' | 'signal'>,
   options: CreateChatOptions<TTools, TSchema, TContext, TInterrupts>,
 ) {
-  let messages = options.initialMessages || []
-  let isLoading = false
-  let hasOlderMessages = false
-  let error: Error | undefined
-  let status: ChatClientState = 'ready'
-  let isSubscribed = false
-  let connectionStatus: ConnectionStatus = 'disconnected'
-  let sessionGenerating = false
-  let isHydrating = false
-  let queue: Array<QueuedMessage> = []
-  let runId: string | null = null
-  let interruptState: ChatInterruptState<TTools, TInterrupts> = {
-    interrupts: EMPTY_INTERRUPTS,
-    pendingInterrupts: EMPTY_INTERRUPTS,
-    interruptErrors: EMPTY_INTERRUPT_ERRORS,
-    resuming: false,
-  }
   let closed = false
 
   type Partial = DeepPartial<InferSchemaType<NonNullable<TSchema>>>
@@ -168,69 +143,19 @@ export function createChat<
     ...(options.streamProcessor !== undefined && {
       streamProcessor: options.streamProcessor,
     }),
-    onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
-      messages = newMessages
-      hasOlderMessages = client.getHasOlderMessages()
-      commit()
-    },
-    onLoadingChange: (newIsLoading: boolean) => {
-      isLoading = newIsLoading
-      syncResumeState()
-      commit()
-    },
-    onStatusChange: (newStatus: ChatClientState) => {
-      status = newStatus
-      commit()
-    },
-    onErrorChange: (newError: Error | undefined) => {
-      error = newError
-      commit()
-    },
-    onSubscriptionChange: (nextIsSubscribed: boolean) => {
-      isSubscribed = nextIsSubscribed
-      commit()
-    },
-    onConnectionStatusChange: (nextStatus: ConnectionStatus) => {
-      connectionStatus = nextStatus
-      commit()
-    },
-    onSessionGeneratingChange: (isGenerating: boolean) => {
-      sessionGenerating = isGenerating
-      commit()
-    },
-    onHydratingChange: (nextIsHydrating: boolean) => {
-      isHydrating = nextIsHydrating
-      commit()
-    },
     ...(options.queue !== undefined && { queue: options.queue }),
-    onQueueChange: (nextQueue: Array<QueuedMessage>) => {
-      queue = nextQueue
-      commit()
-    },
-    onRunIdChange: (nextRunId) => {
-      runId = nextRunId
-      commit()
-    },
     onInterruptStateChange: (nextInterruptState, context) => {
-      interruptState = nextInterruptState
       options.onInterruptStateChange?.(nextInterruptState, context)
-      commit()
     },
   })
 
-  function syncResumeState() {
-    runId = client.getCurrentRunId()
-    interruptState = client.getInterruptState()
-  }
-
-  messages = client.getMessages()
-  isHydrating = client.getIsHydrating()
-  interruptState = client.getInterruptState()
-  runId = client.getCurrentRunId()
+  // Render reads the frozen client snapshot through the getters below.
+  const unsubscribeSnapshot = client.subscribeSnapshot(commit)
 
   function close() {
     if (closed) return
     closed = true
+    unsubscribeSnapshot()
     client.detach()
     if (options.live) {
       client.unsubscribe()
@@ -265,37 +190,23 @@ export function createChat<
     sendOptions?: SendMessageOptions,
   ) => {
     syncTools()
-    try {
-      await client.sendMessage(content, undefined, sendOptions)
-    } finally {
-      syncResumeState()
-    }
+    await client.sendMessage(content, undefined, sendOptions)
   }
 
   const cancelQueued = (id: string) => client.cancelQueued(id)
 
   const append = async (message: ModelMessage | UIMessage<TTools>) => {
     syncTools()
-    try {
-      await client.append(message)
-    } finally {
-      syncResumeState()
-    }
+    await client.append(message)
   }
 
   const reload = async () => {
     syncTools()
-    try {
-      await client.reload()
-    } finally {
-      syncResumeState()
-    }
+    await client.reload()
   }
 
   const loadOlderMessages = async () => {
     await client.loadOlderMessages()
-    hasOlderMessages = client.getHasOlderMessages()
-    commit()
   }
 
   const stop = () => {
@@ -304,10 +215,9 @@ export function createChat<
 
   const clear = () => {
     client.clear()
-    syncResumeState()
   }
 
-  const setMessages = (newMessages: Array<UIMessage<TTools>>) => {
+  const setMessages = (newMessages: ReadonlyArray<UIMessage<TTools>>) => {
     client.setMessagesManually(newMessages)
   }
 
@@ -329,7 +239,6 @@ export function createChat<
   }) => {
     syncTools()
     await client.addToolApprovalResponse(response)
-    syncResumeState()
   }
 
   const resumeInterrupts = async (
@@ -337,9 +246,7 @@ export function createChat<
     state?: ChatResumeState,
   ) => {
     syncTools()
-    const result = await client.resumeInterrupts(resumeItems, state)
-    syncResumeState()
-    return result
+    return await client.resumeInterrupts(resumeItems, state)
   }
 
   const resolveInterrupts = (
@@ -375,6 +282,7 @@ export function createChat<
   }
 
   function activeStructuredPart(): StructuredOutputPart | null {
+    const { messages } = client.getSnapshot()
     let lastUserIndex = -1
     for (let i = messages.length - 1; i >= 0; i--) {
       if (messages[i]?.role === 'user') {
@@ -396,49 +304,49 @@ export function createChat<
 
   return {
     get messages() {
-      return messages
+      return client.getSnapshot().messages
     },
     get isLoading() {
-      return isLoading
+      return client.getSnapshot().isLoading
     },
     get hasOlderMessages() {
-      return hasOlderMessages
+      return client.getSnapshot().hasOlderMessages
     },
     get error() {
-      return error
+      return client.getSnapshot().error
     },
     get status() {
-      return status
+      return client.getSnapshot().status
     },
     get isSubscribed() {
-      return isSubscribed
+      return client.getSnapshot().isSubscribed
     },
     get connectionStatus() {
-      return connectionStatus
+      return client.getSnapshot().connectionStatus
     },
     get sessionGenerating() {
-      return sessionGenerating
+      return client.getSnapshot().sessionGenerating
     },
     get isHydrating() {
-      return isHydrating
+      return client.getSnapshot().isHydrating
     },
     get queue() {
-      return queue
+      return client.getSnapshot().queue
     },
     get runId() {
-      return runId
+      return client.getSnapshot().runId
     },
     get interrupts() {
-      return interruptState.interrupts
+      return client.getSnapshot().interruptState.interrupts
     },
     get pendingInterrupts() {
-      return interruptState.interrupts
+      return client.getSnapshot().interruptState.interrupts
     },
     get interruptErrors() {
-      return interruptState.interruptErrors
+      return client.getSnapshot().interruptState.interruptErrors
     },
     get resuming() {
-      return interruptState.resuming
+      return client.getSnapshot().interruptState.resuming
     },
     get partial() {
       const part = activeStructuredPart()

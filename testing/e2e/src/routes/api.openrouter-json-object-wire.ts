@@ -18,6 +18,9 @@ export const Route = createFileRoute('/api/openrouter-json-object-wire')({
       POST: async ({ request }) => {
         const url = new URL(request.url)
         const testId = url.searchParams.get('testId') ?? undefined
+        // `via=catalog`: a json_object-only catalog model, no modelOptions.
+        const catalog = url.searchParams.get('via') === 'catalog'
+        const model = catalog ? 'qwen/qwen3.7-flash' : 'openai/gpt-4o'
 
         const httpClient = new HTTPClient()
         if (testId) {
@@ -28,7 +31,7 @@ export const Route = createFileRoute('/api/openrouter-json-object-wire')({
           })
         }
 
-        const adapter = createOpenRouterText('openai/gpt-4o', DUMMY_KEY, {
+        const adapter = createOpenRouterText(model, DUMMY_KEY, {
           serverURL: `${LLMOCK_DEFAULT_BASE}/v1`,
           httpClient,
         })
@@ -42,9 +45,9 @@ export const Route = createFileRoute('/api/openrouter-json-object-wire')({
                 content: '[json-object-wire] return a person as json',
               },
             ],
-            modelOptions: {
-              responseFormat: { type: 'json_object' },
-            },
+            ...(catalog
+              ? {}
+              : { modelOptions: { responseFormat: { type: 'json_object' } } }),
             outputSchema: {
               type: 'object',
               properties: {

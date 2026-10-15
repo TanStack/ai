@@ -83,7 +83,11 @@ export interface SubagentBinding {
       parentToolCallId?: string
     },
     options: { wake: true },
-  ) => Promise<{ subagentRunId: string }>
+  ) => Promise<{
+    subagentRunId: string
+    /** Settles when the child ends. `maxConcurrent` counts the child until then. */
+    done: Promise<unknown>
+  }>
 }
 
 /**

@@ -297,6 +297,98 @@ describe('ChatClient subagent handles for restored messages', () => {
     expect(client.getSubagents()).toEqual([])
   })
 
+  it('accepts frozen snapshot messages back without throwing', () => {
+    const client = new ChatClient({
+      connection: createMockConnectionAdapter({ chunks: [] }),
+      initialMessages: [
+        {
+          id: 'a1',
+          role: 'assistant',
+          parts: [
+            {
+              type: 'subagent',
+              subagent: {
+                id: 'sub-restored',
+                name: 'researcher',
+                status: 'finished',
+                messages: [],
+              },
+            },
+          ],
+        },
+      ],
+    })
+    const saved = client.getSnapshot().messages
+    expect(Object.isFrozen(saved[0]?.parts[0])).toBe(true)
+
+    client.clear()
+    expect(() => client.setMessagesManually([...saved])).not.toThrow()
+    expect(typeof client.getSubagents()[0]?.stop).toBe('function')
+
+    const fork = new ChatClient({
+      connection: createMockConnectionAdapter({ chunks: [] }),
+      initialMessages: [...saved],
+    })
+    expect(typeof fork.getSubagents()[0]?.stop).toBe('function')
+    // Each client owns its handle, so `stop()` reaches the right client.
+    expect(fork.getSubagents()[0]).not.toBe(client.getSubagents()[0])
+  })
+
+  it('accepts a frozen nested subagent card back without throwing', () => {
+    const client = new ChatClient({
+      connection: createMockConnectionAdapter({ chunks: [] }),
+      initialMessages: [
+        {
+          id: 'a1',
+          role: 'assistant',
+          parts: [
+            {
+              type: 'subagent',
+              subagent: {
+                id: 'sub-outer',
+                name: 'planner',
+                status: 'finished',
+                messages: [
+                  {
+                    id: 'child-1',
+                    role: 'assistant',
+                    parts: [
+                      {
+                        type: 'subagent',
+                        subagent: {
+                          id: 'sub-inner',
+                          name: 'researcher',
+                          status: 'finished',
+                          messages: [],
+                        },
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    })
+    const saved = client.getSnapshot().messages
+    const outer = saved[0]?.parts[0]
+    expect(
+      outer?.type === 'subagent' &&
+        Object.isFrozen(outer.subagent.messages[0]?.parts[0]),
+    ).toBe(true)
+
+    client.clear()
+    expect(() => client.setMessagesManually(saved)).not.toThrow()
+    expect(client.getSubagents().map((handle) => handle.id)).toEqual([
+      'sub-outer',
+      'sub-inner',
+    ])
+    for (const handle of client.getSubagents()) {
+      expect(typeof handle.stop).toBe('function')
+    }
+  })
+
   it('gives a nested card a handle with stop', () => {
     const client = new ChatClient({
       connection: createMockConnectionAdapter({ chunks: [] }),

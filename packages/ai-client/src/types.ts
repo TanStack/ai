@@ -369,6 +369,31 @@ export type ToolResultState =
 export type ChatClientState = 'ready' | 'submitted' | 'streaming' | 'error'
 
 /**
+ * UI snapshot published by {@link ChatClient.subscribeSnapshot} /
+ * {@link ChatClient.getSnapshot}.
+ */
+export interface ChatClientSnapshot<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
+> {
+  readonly messages: ReadonlyArray<UIMessage<TTools>>
+  readonly status: ChatClientState
+  readonly isLoading: boolean
+  readonly error: Error | undefined
+  readonly isSubscribed: boolean
+  readonly connectionStatus: ConnectionStatus
+  readonly sessionGenerating: boolean
+  readonly queue: ReadonlyArray<QueuedMessage>
+  readonly runId: string | null
+  /** True when the last hydrate or older-page response said more messages exist. */
+  readonly hasOlderMessages: boolean
+  /** True while a store or server load may still repaint the transcript. */
+  readonly isHydrating: boolean
+  readonly interruptState: ChatInterruptState<TTools, TInterrupts>
+}
+
+/**
  * Connection lifecycle state for the subscription loop.
  */
 export type ConnectionStatus =
@@ -1076,7 +1101,8 @@ export interface ChatClientBaseOptions<
   onError?: (error: Error) => void
 
   /**
-   * Callback when messages change
+   * Callback when messages change. Receives the client's live array, not the
+   * frozen snapshot copy. Do not change it in place; use `setMessagesManually`.
    */
   onMessagesChange?: (messages: Array<UIMessage<TTools>>) => void
 
@@ -1134,7 +1160,7 @@ export interface ChatClientBaseOptions<
 
   /**
    * Callback when the pending send queue changes (enqueue, cancel, drain,
-   * or flush).
+   * or flush). Receives a live array, not the frozen snapshot copy.
    */
   onQueueChange?: (queue: Array<QueuedMessage>) => void
 

@@ -3,6 +3,7 @@ import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
 import {
   GROQ_MODEL_INPUT_MODALITIES,
   GROQ_MODEL_REASONING,
+  groqModelPrefersJsonObject,
 } from '../model-meta'
 import { getGroqApiKeyFromEnv, withGroqDefaults } from '../utils/client'
 import { makeGroqStructuredOutputCompatibleWithMap } from '../utils/schema-converter'
@@ -195,6 +196,10 @@ export class GroqTextAdapter<
    */
   override supportsCombinedToolsAndSchema(): boolean {
     return false
+  }
+
+  protected override modelPrefersJsonObject(model: string): boolean {
+    return groqModelPrefersJsonObject(model)
   }
 }
 

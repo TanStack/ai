@@ -135,7 +135,7 @@ function ToolResultView({ part }: { part: ToolResultPart }) {
   )
 }
 
-function Messages({ messages }: { messages: Array<UIMessage> }) {
+function Messages({ messages }: { messages: ReadonlyArray<UIMessage> }) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
 
   const visibleMessages = messages.filter((message) =>

@@ -85,6 +85,7 @@ import { SUBAGENT_PLAN_KEY, readSubagentTurn } from './agents/turn'
 import {
   MiddlewareAbortError,
   ToolCallManager,
+  approvalResolution,
   executeToolCalls,
 } from './tools/tool-calls'
 import {
@@ -136,8 +137,11 @@ import type {
 import type {
   ApprovalRequest,
   ClientToolRequest,
+  ExecuteToolCallsResult,
   McpInputRequest,
+  ToolExecutionMiddlewareHooks,
   ToolResult,
+  ToolResumeExecutionState,
 } from './tools/tool-calls'
 import type {
   ApprovalSchemaConfig,
@@ -615,6 +619,11 @@ export interface TextActivityOptions<
   agentLoopStrategy?: TextOptions['agentLoopStrategy']
   /** How the server tools of one model turn run. Default `'parallel'`. */
   toolExecution?: TextOptions['toolExecution']
+  /**
+   * How a tool input that fails the final check is repaired. Default: the
+   * built-in repair. `false`: no repair. A function replaces it.
+   */
+  repairToolInput?: TextOptions['repairToolInput']
   /**
    * Retry a rate-limited model call after the wait the provider asks for.
    *
@@ -2352,8 +2361,19 @@ class TextEngine<
   }
 
   private handleToolCallEndEvent(chunk: ToolCallEndEvent): void {
-    this.toolCallManager.completeToolCall(chunk)
+    const final = this.toolCallManager.completeToolCall(chunk)
     const end = chunk as AdapterYieldChunk
+    if (final) {
+      // The client stores the same argument string as the server history.
+      // The wire carries only `args`; `input` is parsed back from it.
+      end.args = final.args
+      end.input = final.input
+      const metadata = tanstackMetadata(end)
+      if (metadata) {
+        delete metadata.args
+        delete metadata.input
+      }
+    }
     const state = end.state ?? tanstackMetadata(end)?.state
     if (state !== 'output-error' || end.result === undefined) return
     this.handleToolCallResultEvent({
@@ -2607,44 +2627,12 @@ class TextEngine<
       clientToolResults,
       (eventName, data, options) =>
         this.createCustomEventChunk(eventName, data, options),
-      {
-        onBeforeToolCall: async (toolCall, tool, args) => {
-          this.logger.tools(`phase=before name=${toolCall.function.name}`, {
-            name: toolCall.function.name,
-            args,
-          })
-          const hookCtx = {
-            toolCall,
-            tool,
-            args,
-            toolName: toolCall.function.name,
-            toolCallId: toolCall.id,
-          }
-          return this.middlewareRunner.runOnBeforeToolCall(
-            this.middlewareCtx,
-            hookCtx,
-          )
-        },
-        onAfterToolCall: async (info) => {
-          this.logger.tools(`phase=after name=${info.toolName}`, {
-            name: info.toolName,
-            result: info.result,
-          })
-          return this.middlewareRunner.runOnAfterToolCall(
-            this.middlewareCtx,
-            info,
-          )
-        },
-      },
+      this.toolMiddlewareHooks(),
       this.middlewareCtx.context,
       this.toolAbortSignal,
-      {
-        clientToolErrors: this.resumeClientToolErrors,
-        deniedToolResults: this.resumeDeniedToolResults,
-        cancelledToolCallIds: this.resumeCancelledToolCallIds,
-        inputResponses: this.resumeInputResponses,
-      },
+      this.toolResumeState(),
       this.params.toolExecution,
+      this.params.repairToolInput,
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -2873,44 +2861,12 @@ class TextEngine<
       clientToolResults,
       (eventName, data, options) =>
         this.createCustomEventChunk(eventName, data, options),
-      {
-        onBeforeToolCall: async (toolCall, tool, args) => {
-          this.logger.tools(`phase=before name=${toolCall.function.name}`, {
-            name: toolCall.function.name,
-            args,
-          })
-          const hookCtx = {
-            toolCall,
-            tool,
-            args,
-            toolName: toolCall.function.name,
-            toolCallId: toolCall.id,
-          }
-          return this.middlewareRunner.runOnBeforeToolCall(
-            this.middlewareCtx,
-            hookCtx,
-          )
-        },
-        onAfterToolCall: async (info) => {
-          this.logger.tools(`phase=after name=${info.toolName}`, {
-            name: info.toolName,
-            result: info.result,
-          })
-          return this.middlewareRunner.runOnAfterToolCall(
-            this.middlewareCtx,
-            info,
-          )
-        },
-      },
+      this.toolMiddlewareHooks(),
       this.middlewareCtx.context,
       this.toolAbortSignal,
-      {
-        clientToolErrors: this.resumeClientToolErrors,
-        deniedToolResults: this.resumeDeniedToolResults,
-        cancelledToolCallIds: this.resumeCancelledToolCallIds,
-        inputResponses: this.resumeInputResponses,
-      },
+      this.toolResumeState(),
       this.params.toolExecution,
+      this.params.repairToolInput,
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -2957,7 +2913,8 @@ class TextEngine<
         finishEvent,
         toolCalls,
         afterToolRequests,
-        executionResult.inputRequired,
+        // Its results already went out with the chunks above.
+        { ...executionResult, results: [] },
       )
       this.setToolPhase('wait')
       return
@@ -3907,7 +3864,8 @@ class TextEngine<
     requests?: ReadonlyArray<
       GenericInterruptRequest<InterruptDefinition<any, any, any, any>>
     >,
-    inputRequired: ReadonlyArray<McpInputRequest> = [],
+    // The tool phase result, so an afterTools boundary runs no hook twice.
+    executed?: ExecuteToolCallsResult,
   ): AsyncGenerator<StreamChunk, boolean, void> {
     this.middlewareCtx.phase = phase
     const boundaryRequests =
@@ -3937,62 +3895,107 @@ class TextEngine<
         this.addTerminalAssistantMessages()
       }
     }
-    const actionable = this.getBoundaryActionableToolRequests(toolCalls)
+    const actionable =
+      executed ??
+      (yield* this.drainToolCallGenerator(this.boundaryToolRequests(toolCalls)))
+    for (const chunk of this.buildToolResultChunks(
+      actionable.results,
+      finishEvent,
+    )) {
+      yield* this.pipeThroughMiddleware(chunk)
+    }
     yield* this.emitActionableInterruptBoundary(
       finishEvent,
-      actionable.approvals,
-      actionable.clientRequests,
+      actionable.needsApproval,
+      actionable.needsClientExecution,
       boundaryRequests,
-      inputRequired,
+      actionable.inputRequired,
+      actionable.subagentInterrupts,
     )
     return true
   }
 
-  private getBoundaryActionableToolRequests(
+  /**
+   * The approval previews and client requests a boundary pauses with. They get
+   * the same middleware hook and final input check as the tool phase, and a
+   * skip or an invalid input becomes a tool result. No server tool runs here:
+   * a server tool is in the list only while it waits for approval.
+   */
+  private boundaryToolRequests(
     toolCalls: ReadonlyArray<ToolCall>,
-  ): {
-    approvals: Array<ApprovalRequest>
-    clientRequests: Array<ClientToolRequest>
-  } {
+  ): ReturnType<typeof executeToolCalls> {
     const { approvals, clientToolResults } = this.collectClientState()
-    const approvalRequests: Array<ApprovalRequest> = []
-    const clientRequests: Array<ClientToolRequest> = []
-    for (const toolCall of toolCalls) {
+    const tools = this.resolveExecutableTools(toolCalls)
+    const pendingCalls = toolCalls.filter((toolCall) => {
       // Provider-executed calls are complete; never surface them as client work.
-      if (isProviderExecutedToolCall(toolCall)) continue
-      const tool = this.resolveExecutableTools([toolCall]).find(
+      if (isProviderExecutedToolCall(toolCall)) return false
+      const tool = tools.find(
         (candidate) => candidate.name === toolCall.function.name,
-      ) as RuntimeToolWithApproval | undefined
-      if (!tool) continue
-      let input: unknown = {}
-      try {
-        const parsed = JSON.parse(toolCall.function.arguments.trim() || '{}')
-        input = parsed && typeof parsed === 'object' ? parsed : {}
-      } catch {
-        input = {}
+      )
+      if (!tool) return false
+      if (
+        tool.needsApproval &&
+        approvalResolution(approvals, toolCall.id) === undefined
+      ) {
+        return true
       }
-      const approvalId = `approval_${toolCall.id}`
-      if (tool.needsApproval && !approvals.has(approvalId)) {
-        approvalRequests.push({
-          toolCallId: toolCall.id,
-          toolName: toolCall.function.name,
-          input,
-          approvalId,
-        })
-      } else if (
+      return (
         !tool.execute &&
         !clientToolResults.has(toolCall.id) &&
         !this.resumeClientToolErrors.has(toolCall.id) &&
         !this.resumeCancelledToolCallIds.has(toolCall.id)
-      ) {
-        clientRequests.push({
-          toolCallId: toolCall.id,
-          toolName: toolCall.function.name,
-          input,
+      )
+    })
+    return executeToolCalls(
+      pendingCalls,
+      tools,
+      approvals,
+      clientToolResults,
+      undefined,
+      this.toolMiddlewareHooks(),
+      this.middlewareCtx.context,
+      this.toolAbortSignal,
+      this.toolResumeState(),
+      undefined,
+      this.params.repairToolInput,
+    )
+  }
+
+  private toolMiddlewareHooks(): ToolExecutionMiddlewareHooks {
+    return {
+      onBeforeToolCall: async (toolCall, tool, args) => {
+        this.logger.tools(`phase=before name=${toolCall.function.name}`, {
+          name: toolCall.function.name,
+          args,
         })
-      }
+        return this.middlewareRunner.runOnBeforeToolCall(this.middlewareCtx, {
+          toolCall,
+          tool,
+          args,
+          toolName: toolCall.function.name,
+          toolCallId: toolCall.id,
+        })
+      },
+      onAfterToolCall: async (info) => {
+        this.logger.tools(`phase=after name=${info.toolName}`, {
+          name: info.toolName,
+          result: info.result,
+        })
+        return this.middlewareRunner.runOnAfterToolCall(
+          this.middlewareCtx,
+          info,
+        )
+      },
     }
-    return { approvals: approvalRequests, clientRequests }
+  }
+
+  private toolResumeState(): ToolResumeExecutionState {
+    return {
+      clientToolErrors: this.resumeClientToolErrors,
+      deniedToolResults: this.resumeDeniedToolResults,
+      cancelledToolCallIds: this.resumeCancelledToolCallIds,
+      inputResponses: this.resumeInputResponses,
+    }
   }
 
   private completeEphemeralInterruptBindings(chunk: StreamChunk): StreamChunk {

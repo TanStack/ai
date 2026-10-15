@@ -5347,6 +5347,155 @@ describe('StreamProcessor', () => {
       )
     })
 
+    it('files each model call on its own assistant message (#1533)', () => {
+      // Public agent-loop order: one RUN_STARTED, then a tool_calls
+      // RUN_FINISHED between calls. Later calls do not send RUN_STARTED.
+      const processor = new StreamProcessor()
+      processor.processChunk(ev.runStarted('run-1'))
+      processor.processChunk(ev.stepStarted('step-a'))
+      processor.processChunk(ev.reasoningContent('think A', 'rs_A'))
+      processor.processChunk(ev.textStart('msg-1'))
+      processor.processChunk(ev.textContent('hello', 'msg-1'))
+      processor.processChunk(
+        chunk(EventType.TOOL_CALL_START, {
+          toolCallId: 'call_S',
+          toolCallName: 'search',
+          parentMessageId: 'msg-1',
+        }),
+      )
+      processor.processChunk(ev.toolArgs('call_S', '{}'))
+      processor.processChunk(ev.toolEnd('call_S'))
+      processor.processChunk(ev.runFinished('tool_calls', 'run-1'))
+      processor.processChunk(ev.toolResult('call_S', '{"ok":true}'))
+
+      processor.processChunk(
+        chunk(EventType.TOOL_CALL_START, {
+          toolCallId: 'call_G',
+          toolCallName: 'get',
+          parentMessageId: 'msg-2',
+        }),
+      )
+      processor.processChunk(ev.toolArgs('call_G', '{}'))
+      processor.processChunk(ev.toolEnd('call_G'))
+      processor.processChunk(ev.runFinished('tool_calls', 'run-2'))
+      processor.processChunk(ev.toolResult('call_G', '{"ok":true}'))
+
+      processor.processChunk(ev.stepStarted('step-b'))
+      processor.processChunk(ev.reasoningContent('think B', 'rs_B'))
+      processor.processChunk(ev.textStart('msg-3'))
+      processor.processChunk(ev.textContent('bye', 'msg-3'))
+      processor.processChunk(ev.runFinished('stop', 'run-3'))
+
+      const messages = processor.getMessages()
+      expect(messages.map((message) => message.id)).toEqual([
+        'msg-1',
+        'msg-2',
+        'msg-3',
+      ])
+      expect(messages[0]?.parts.map((part) => part.type)).toEqual([
+        'thinking',
+        'text',
+        'tool-call',
+        'tool-result',
+      ])
+      expect(messages[1]?.parts.map((part) => part.type)).toEqual([
+        'tool-call',
+        'tool-result',
+      ])
+      expect(messages[2]?.parts.map((part) => part.type)).toEqual([
+        'thinking',
+        'text',
+      ])
+      const thinking = (index: number) => {
+        const part = messages[index]?.parts.find(
+          (item) => item.type === 'thinking',
+        )
+        if (part?.type !== 'thinking') throw new Error('expected thinking')
+        return part
+      }
+      expect(thinking(0).content).toBe('think A')
+      expect(thinking(0).stepId).toBe('step-a')
+      expect(thinking(2).content).toBe('think B')
+      expect(thinking(2).stepId).toBe('step-b')
+    })
+
+    it('puts a signature on the step it names, not the active step (#1533)', () => {
+      const processor = new StreamProcessor()
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.stepStarted('step-1'))
+      processor.processChunk(ev.reasoningContent('first', 'rs_A'))
+      processor.processChunk(ev.stepStarted('step-2'))
+      processor.processChunk(ev.reasoningContent('second', 'rs_B'))
+      processor.processChunk(
+        chunk(EventType.REASONING_ENCRYPTED_VALUE, {
+          subtype: 'message',
+          entityId: 'rs_A',
+          encryptedValue: 'sig-a',
+        }),
+      )
+      processor.processChunk(ev.runFinished('tool_calls'))
+      processor.processChunk(ev.reasoningContent('next', 'rs_C'))
+      processor.processChunk(
+        chunk(EventType.REASONING_ENCRYPTED_VALUE, {
+          subtype: 'message',
+          entityId: 'rs_A',
+          encryptedValue: 'sig-a-late',
+        }),
+      )
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(2)
+      const first = messages[0]?.parts.filter(
+        (part) => part.type === 'thinking',
+      )
+      const second = messages[1]?.parts.filter(
+        (part) => part.type === 'thinking',
+      )
+      expect(first).toEqual([
+        {
+          type: 'thinking',
+          content: 'first',
+          stepId: 'step-1',
+          signature: 'sig-a-late',
+        },
+        { type: 'thinking', content: 'second', stepId: 'step-2' },
+      ])
+      expect(second).toEqual([
+        { type: 'thinking', content: 'next', stepId: 'rs_C' },
+      ])
+    })
+
+    it('keeps reasoning from a second open run off the first message (#1533)', () => {
+      const processor = new StreamProcessor()
+      processor.processChunk(ev.runStarted('run-A'))
+      processor.processChunk(ev.textStart('message-A'))
+      processor.processChunk(ev.textContent('A output', 'message-A'))
+      processor.processChunk(ev.runStarted('run-B'))
+      processor.processChunk(
+        chunk(EventType.REASONING_MESSAGE_CONTENT, {
+          messageId: 'reasoning-B',
+          delta: 'B reasoning',
+          metadata: { tanstack: { runId: 'run-B' } },
+        }),
+      )
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(2)
+      expect(messages[0]?.id).toBe('message-A')
+      expect(messages[0]?.metadata).toBeUndefined()
+      expect(messages[0]?.parts).toEqual([
+        { type: 'text', content: 'A output' },
+      ])
+      const thinking = messages[1]?.parts[0]
+      expect(thinking).toMatchObject({
+        type: 'thinking',
+        content: 'B reasoning',
+      })
+      expect(messages[1]?.metadata).toMatchObject({
+        tanstack: { runId: 'run-B' },
+      })
+    })
+
     it('flushes leftover text after a stop RUN_FINISHED and fires onStreamEnd once', () => {
       const events = spyEvents()
       const processor = new StreamProcessor({ events })

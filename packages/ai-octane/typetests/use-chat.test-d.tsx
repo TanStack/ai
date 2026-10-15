@@ -51,7 +51,7 @@ describe('useChat() return type', () => {
       type R = UseChatReturn<any, PersonSchema>
       expectTypeOf<R['sendMessage']>().toBeFunction()
       expectTypeOf<R['isLoading']>().toBeBoolean()
-      expectTypeOf<R['messages']>().toBeArray()
+      expectTypeOf<R['messages']>().toExtend<ReadonlyArray<unknown>>()
     })
 
     it('options accept outputSchema with the schema type', () => {
@@ -81,7 +81,7 @@ describe('useChat() return type', () => {
 
     it('exposes queue, runId, and interrupt controls', () => {
       type R = UseChatReturn<any>
-      expectTypeOf<R['queue']>().toEqualTypeOf<Array<QueuedMessage>>()
+      expectTypeOf<R['queue']>().toEqualTypeOf<ReadonlyArray<QueuedMessage>>()
       expectTypeOf<R['cancelQueued']>().toEqualTypeOf<(id: string) => void>()
       expectTypeOf<R['runId']>().toEqualTypeOf<string | null>()
       expectTypeOf<R['resuming']>().toBeBoolean()

@@ -190,6 +190,27 @@ export async function POST(request: Request) {
 }
 ```
 
+## JSON mode
+
+Some OpenRouter models reject strict JSON schema. For these models, `chat({ outputSchema })` sends `json_object` and adds your schema to the system prompt.
+
+To send JSON mode to any other model, set `modelOptions.responseFormat`:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openRouterText } from "@tanstack/ai-openrouter";
+import { z } from "zod";
+
+const person = await chat({
+  adapter: openRouterText("openai/gpt-5.6-sol"),
+  messages: [{ role: "user", content: "Return Ada Lovelace, age 36." }],
+  modelOptions: { responseFormat: { type: "json_object" } },
+  outputSchema: z.object({ name: z.string(), age: z.number() }),
+});
+```
+
+Read [When strict JSON schema is rejected](../structured-outputs/overview.md#when-strict-json-schema-is-rejected).
+
 ## Tools and structured output together
 
 You can pass both `tools` and `outputSchema` on one `chat()` call. For some

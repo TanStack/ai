@@ -157,6 +157,9 @@ export default async function globalSetup() {
   // Provider-executed web search responses need native Responses/Gemini wire
   // items that aimock does not synthesize. These mounts feed the adapter E2E
   // route deterministic search calls and grounding metadata.
+  // OpenAI Responses usage for a call that writes the prompt cache (#1734).
+  // aimock's native Responses helper cannot emit `input_tokens_details`.
+  mock.mount('/openai-responses-usage', openaiResponsesUsageMount())
   mock.mount('/provider-search-openai', openaiProviderSearchMount())
   mock.mount('/provider-search-gemini', geminiProviderSearchMount())
 
@@ -176,6 +179,12 @@ export default async function globalSetup() {
   // `/v1/messages` JSON the adapter expects. The companion spec asserts the
   // `usage` survives onto `RUN_FINISHED.usage` on the fallback path.
   mock.mount('/anthropic-structured-usage', anthropicStructuredUsageMount())
+
+  // decide() usage on a failed answer mapping. aimock has no OpenAI Decisions
+  // endpoint, so this mount hand-crafts a `/v1/decisions` response with valid
+  // usage and a choice with no entry in `probabilities`. The companion spec
+  // asserts `decide()` rejects and still reports that usage.
+  mock.mount('/evaluate-usage-on-failure', evaluateUsageOnFailureMount())
 
   // BytePlus. Ark (chat, Seedream image, Seedance video) serves its whole data
   // plane under /api/v3, and Seed Speech (TTS/ASR) mounts its own endpoints at
@@ -1958,6 +1967,68 @@ function openaiUsageDetailsMount(
   }
 }
 
+function openaiResponsesUsageMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (req.method !== 'POST' || pathname !== '/v1/responses') {
+        return false
+      }
+      await drainBody(req)
+
+      const message = {
+        id: 'msg_e2e_usage',
+        type: 'message',
+        role: 'assistant',
+        status: 'completed',
+        content: [{ type: 'output_text', text: 'Hi', annotations: [] }],
+      }
+      const events = [
+        {
+          type: 'response.output_text.delta',
+          item_id: 'msg_e2e_usage',
+          output_index: 0,
+          content_index: 0,
+          delta: 'Hi',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp_e2e_usage',
+            object: 'response',
+            status: 'completed',
+            model: 'gpt-4o',
+            output: [message],
+            usage: {
+              input_tokens: 1941,
+              input_tokens_details: {
+                cached_tokens: 0,
+                cache_write_tokens: 1938,
+              },
+              output_tokens: 5,
+              output_tokens_details: { reasoning_tokens: 0 },
+              total_tokens: 1946,
+            },
+          },
+        },
+      ]
+
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'text/event-stream')
+      res.setHeader('Cache-Control', 'no-cache')
+      for (const event of events) {
+        res.write(`data: ${JSON.stringify(event)}\n\n`)
+      }
+      res.write('data: [DONE]\n\n')
+      res.end()
+      return true
+    },
+  }
+}
+
 function openaiProviderSearchMount(): Mountable {
   return {
     async handleRequest(
@@ -2179,6 +2250,52 @@ function anthropicStructuredUsageMount(): Mountable {
             input_tokens: 125,
             output_tokens: 1346,
             cache_read_input_tokens: 5760,
+          },
+        }),
+      )
+      return true
+    },
+  }
+}
+
+/**
+ * Mounts the OpenAI Decisions `/v1/decisions` response for the
+ * `evaluate-usage-on-failure` spec: valid usage, but a `queue` answer whose
+ * choice (`sales`) has no entry in `probabilities`, so `decide()` throws
+ * "missing probability for choice".
+ */
+function evaluateUsageOnFailureMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (req.method !== 'POST' || pathname !== '/v1/decisions') {
+        return false
+      }
+      await drainBody(req)
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          model: 'gpt-6-luna',
+          answers: [
+            {
+              type: 'choice',
+              name: 'queue',
+              choice: 'sales',
+              confidence: 0.9,
+              probabilities: [
+                { value: 'billing', probability: 0.6 },
+                { value: 'tech', probability: 0.4 },
+              ],
+            },
+          ],
+          usage: {
+            input_tokens: 42,
+            output_tokens: 7,
+            total_tokens: 49,
           },
         }),
       )

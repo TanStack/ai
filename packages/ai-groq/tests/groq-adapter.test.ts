@@ -143,6 +143,64 @@ describe('Groq adapters', () => {
       expect(adapter).toBeDefined()
     })
 
+    it('sends json_object on a json_object-only model', async () => {
+      const mockCreate = setupMockSdkClient([], {
+        choices: [{ message: { content: '{"name":"Ada"}' } }],
+      })
+      const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
+
+      await adapter.structuredOutput({
+        chatOptions: {
+          model: 'llama-3.3-70b-versatile',
+          messages: [{ role: 'user', content: 'Return a person as json' }],
+          logger: testLogger,
+        },
+        outputSchema: {
+          type: 'object',
+          properties: { name: { type: 'string' } },
+          required: ['name'],
+        },
+      })
+
+      expect(mockCreate.mock.calls[0]?.[0]).toMatchObject({
+        response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'system',
+            content: expect.stringContaining('"required":["name"]'),
+          },
+          { role: 'user', content: 'Return a person as json' },
+        ],
+      })
+    })
+
+    it('keeps json_schema on a model that declares json_schema', async () => {
+      const mockCreate = setupMockSdkClient([], {
+        choices: [{ message: { content: '{"name":"Ada"}' } }],
+      })
+      const adapter = createGroqText(
+        'moonshotai/kimi-k2-instruct-0905',
+        'test-api-key',
+      )
+
+      await adapter.structuredOutput({
+        chatOptions: {
+          model: 'moonshotai/kimi-k2-instruct-0905',
+          messages: [{ role: 'user', content: 'Return a person as json' }],
+          logger: testLogger,
+        },
+        outputSchema: {
+          type: 'object',
+          properties: { name: { type: 'string' } },
+          required: ['name'],
+        },
+      })
+
+      expect(mockCreate.mock.calls[0]?.[0]).toMatchObject({
+        response_format: { type: 'json_schema' },
+      })
+    })
+
     it('opts out of native combined tools+schema mode (#605) — Groq API rejects the combination', () => {
       const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
       // The OpenAI Chat Completions base defaults to `true`; Groq must

@@ -400,6 +400,7 @@ function ChatFeature({
     interrupts,
     stop,
     clear,
+    setMessages,
     queue,
     cancelQueued,
   } = useChat({
@@ -474,6 +475,13 @@ function ChatFeature({
           </button>
           <button type="button" data-testid="clear-button" onClick={clear}>
             Clear
+          </button>
+          <button
+            type="button"
+            data-testid="set-messages-button"
+            onClick={() => setMessages(messages)}
+          >
+            Set messages
           </button>
         </div>
       )}
