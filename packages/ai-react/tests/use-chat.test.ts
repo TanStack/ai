@@ -730,8 +730,8 @@ describe('useChat', () => {
 
       await waitFor(() => {
         expect(persistence.getItem).toHaveBeenCalledWith('persisted-empty-chat')
+        expect(result.current.messages).toEqual([])
       })
-      expect(result.current.messages).toEqual([])
     })
 
     it('should ignore async persisted messages from a previous id', async () => {

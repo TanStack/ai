@@ -1,13 +1,6 @@
 import { ChatClient } from '@tanstack/ai-client'
 import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useSyncExternalStore,
-} from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type {
   AnyClientTool,
   InferSchemaType,
@@ -208,8 +201,6 @@ export function useChat<
       }
     }, [clientId])
 
-  const getServerSnapshot = useCallback(() => serverSnapshot, [serverSnapshot])
-
   useEffect(() => {
     activeClientRef.current = client
     try {
@@ -228,11 +219,23 @@ export function useChat<
     }
   }, [client, initialization])
 
-  const snapshot = useSyncExternalStore(
-    client.subscribeSnapshot,
-    client.getSnapshot,
-    getServerSnapshot,
-  )
+  // Plain state, not useSyncExternalStore: that renders synchronously on every
+  // change, so a buffered stream rendered once per chunk. setState batches the
+  // changes into one render per task.
+  const [held, setHeld] = useState(() => ({ client, snapshot: serverSnapshot }))
+  useEffect(() => {
+    const sync = () => {
+      const next = client.getSnapshot()
+      setHeld((prev) =>
+        prev.client === client && prev.snapshot === next
+          ? prev
+          : { client, snapshot: next },
+      )
+    }
+    sync()
+    return client.subscribeSnapshot(sync)
+  }, [client])
+  const snapshot = held.client === client ? held.snapshot : serverSnapshot
 
   // Sync each wire-payload slot in its own effect so an unrelated option
   // changing doesn't re-run the others. `updateOptions` declares strict-optional
