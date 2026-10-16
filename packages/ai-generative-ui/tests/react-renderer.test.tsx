@@ -250,4 +250,49 @@ describe('GenerativeUIRenderer React Component', () => {
     root.unmount()
     container.remove()
   })
+
+  it('tolerates TanStack/HTML Table column + row naming (bounded repair, §9.3)', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+
+    // A live model commonly drifts to accessor/header + data instead of the
+    // catalog's key/label + rows; the renderer must still show the data.
+    const graph: GraphDocument = {
+      specVersion: '0.1',
+      graphId: 'drifted-table',
+      revision: 1,
+      title: 'Plans',
+      fallbackText: 'A table.',
+      provenance: { driver: 'live' },
+      root: {
+        id: 't',
+        type: 'Table',
+        props: {
+          columns: [
+            { accessor: 'plan', header: 'Plan' },
+            { accessorKey: 'price', title: 'Price' },
+          ],
+          data: [
+            { plan: 'Basic', price: '$5' },
+            { plan: 'Pro', price: '$20' },
+          ],
+        },
+      },
+    }
+
+    await act(async () => {
+      root.render(<GenerativeUIRenderer graph={graph} />)
+    })
+
+    expect(container.textContent).toContain('Plan')
+    expect(container.textContent).toContain('Price')
+    expect(container.textContent).toContain('Basic')
+    expect(container.textContent).toContain('$5')
+    expect(container.textContent).toContain('Pro')
+    expect(container.textContent).toContain('$20')
+
+    root.unmount()
+    container.remove()
+  })
 })

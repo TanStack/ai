@@ -67,6 +67,12 @@ export interface ArtifactRecord {
   registryVersion?: string
   /** connect-src domains granted for this revision (§9.3). */
   networkGrants?: Array<string>
+  /**
+   * Authoritative host data for the artifact — react-tsx `props.data` and the
+   * bridge `host.init.data` (§6.2, §7.3.4). Numbers presented as computed come
+   * from here, not from model arithmetic.
+   */
+  data?: unknown
   provenance: ArtifactProvenance
   ownership: ArtifactOwnership
   trustTier: TrustTier

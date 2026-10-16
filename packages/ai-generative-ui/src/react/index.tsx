@@ -539,8 +539,20 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
   }
 
   if (type === 'Table') {
-    const columns: Array<{ key: string; label: string }> = (resolvedProps.columns as Array<{ key: string; label: string }>) || []
-    const rows: Array<Record<string, unknown>> = (resolvedProps.rows as Array<Record<string, unknown>>) || []
+    // Bounded repair (§9.3): accept the catalog shape {key,label} as well as the
+    // common model drifts toward TanStack/HTML naming (accessor/accessorKey/field,
+    // header/title) so a live graph still renders rather than showing an empty shell.
+    const rawColumns = (resolvedProps.columns as Array<Record<string, unknown>>) || []
+    const columns: Array<{ key: string; label: string }> = rawColumns.map((c) => {
+      const key = String(c.key ?? c.accessor ?? c.accessorKey ?? c.field ?? c.dataIndex ?? c.label ?? c.header ?? '')
+      const label = String(c.label ?? c.header ?? c.title ?? c.name ?? key)
+      return { key, label }
+    })
+    const rows: Array<Record<string, unknown>> =
+      (resolvedProps.rows as Array<Record<string, unknown>>) ||
+      (resolvedProps.data as Array<Record<string, unknown>>) ||
+      (resolvedProps.items as Array<Record<string, unknown>>) ||
+      []
 
     return (
       <div className="overflow-x-auto border border-[var(--gui-border)] rounded-xl">

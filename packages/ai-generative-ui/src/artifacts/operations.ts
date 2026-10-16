@@ -57,6 +57,7 @@ export function createFrameArtifacts(ctx: FrameArtifactsContext) {
     source: string
     scope: ArtifactRecord['ownership']['scope']
     networkGrants?: Array<string>
+    data?: unknown
   }): Promise<ArtifactToolResult> {
     const build = await ctx.builder.build({ kind: partial.kind, source: partial.source, registry })
     if (!build.ok) {
@@ -83,6 +84,7 @@ export function createFrameArtifacts(ctx: FrameArtifactsContext) {
       buildLog: build.buildLog,
       registryVersion,
       networkGrants: partial.networkGrants,
+      data: partial.data,
       provenance: { driver: 'live', ...ctx.provenance },
       ownership: { ownerId: ctx.ownerId ?? 'anon', scope: partial.scope, channelId: ctx.channelId },
       trustTier: 'untrusted',
@@ -104,6 +106,7 @@ export function createFrameArtifacts(ctx: FrameArtifactsContext) {
         source: input.source,
         scope: input.scope ?? 'private',
         networkGrants: input.networkGrants,
+        data: input.data,
       })
     },
 
@@ -120,6 +123,7 @@ export function createFrameArtifacts(ctx: FrameArtifactsContext) {
         source: input.source,
         scope: prev.ownership.scope,
         networkGrants: prev.networkGrants,
+        data: prev.data,
       })
     },
 
