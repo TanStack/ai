@@ -33,6 +33,7 @@ export default mergeConfig(
     entry: [
       './src/index.ts',
       './src/react.ts',
+      './src/artifacts.ts',
     ],
     srcDir: './src',
     cjs: false,

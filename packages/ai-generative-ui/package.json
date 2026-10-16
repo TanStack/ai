@@ -28,6 +28,10 @@
     "./react": {
       "types": "./dist/esm/react.d.ts",
       "import": "./dist/esm/react.js"
+    },
+    "./artifacts": {
+      "types": "./dist/esm/artifacts.d.ts",
+      "import": "./dist/esm/artifacts.js"
     }
   },
   "files": [
@@ -52,10 +56,18 @@
     "agent-ui"
   ],
   "peerDependencies": {
+    "@tanstack/ai": "workspace:^",
+    "@tanstack/ai-persistence": "workspace:^",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"
   },
   "peerDependenciesMeta": {
+    "@tanstack/ai": {
+      "optional": true
+    },
+    "@tanstack/ai-persistence": {
+      "optional": true
+    },
     "react": {
       "optional": true
     },
@@ -64,6 +76,8 @@
     }
   },
   "devDependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-persistence": "workspace:*",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "premove": "^4.0.0",
