@@ -26,6 +26,7 @@ import { SessionTurn } from './turn'
 import type { ModelMessage } from '@tanstack/ai'
 import type { InboxEntry } from '@tanstack/ai-persistence'
 import type { InputState, LogWriter } from '../log'
+import type { EventFeed } from '../feed'
 import type { AnyHarness } from '../define'
 import type { RecoverContext, RecoverDecision } from '../turn'
 import type { HarnessInput, SettlementOutcome } from '../types'
@@ -48,6 +49,9 @@ export class HarnessSession<
     // First: plugins publish events while they mount.
     await this.openLog()
     try {
+      // Before the plugins mount: their events stay off the log of a thread
+      // that another host owns.
+      await this.isOwnedElsewhere()
       await this.mountSessionPlugins()
       await this.loadSettings()
       this.reverted = this.writer
@@ -212,7 +216,21 @@ export class HarnessSession<
       this.writer = await this.log.open(this.threadId, (error) =>
         this.stopOnLogFailure(error),
       )
-      this.feed = tapFeed(this.writer, this.notifyHost, this.eventListeners)
+      const writer = this.writer
+      // ponytail: session events (plugin state, warnings) of a host that does
+      // not own the thread are dropped, not passed to the owner. Clients of
+      // this host miss them until it owns the thread.
+      const feed: EventFeed = {
+        publish: (operationId, event) => {
+          if (operationId === 'session' && this.ownerElsewhere) return
+          writer.publish(operationId, event)
+        },
+        head: () => writer.head(),
+        read: (options) => writer.read(options),
+        close: () => writer.close(),
+        wake: () => writer.wake(),
+      }
+      this.feed = tapFeed(feed, this.notifyHost, this.eventListeners)
       const view = {
         writer: this.writer,
         store,

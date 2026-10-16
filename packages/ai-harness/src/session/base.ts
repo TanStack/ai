@@ -201,6 +201,12 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected inboxWatch: ReturnType<typeof setInterval> | undefined
   /** The open skipped recovery: another host owned the thread then. */
   protected recoveryDeferred = false
+  /**
+   * Another host held a live claim on this thread when this host last read
+   * it. Session events of this host then stay off the log: an append here
+   * would take the log from the owner.
+   */
+  protected ownerElsewhere = false
   private draining: Promise<void> | undefined
   /** Called each time the thread goes idle. See `onIdle`. */
   protected readonly idleListeners = new Set<() => void>()
@@ -738,9 +744,22 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     const claims = this.persistence.stores.workClaims
     if (!this.writer || !claims) return false
     const held = await claims.get(this.threadId)
-    return (
-      held !== null && held.ownerId !== this.hostId && held.until > Date.now()
-    )
+    const now = Date.now()
+    if (held !== null && held.ownerId !== this.hostId && held.until > now) {
+      this.ownerElsewhere = true
+      return true
+    }
+    // A claim can lapse while its host still runs a turn: claim writes can
+    // stall (a store that retries) while the run lease renews. A live run
+    // lease of another host means that host still drives the thread.
+    const run = await this.persistence.stores.runs?.findActiveRun(this.threadId)
+    this.ownerElsewhere =
+      run !== null &&
+      run !== undefined &&
+      run.leaseOwner !== undefined &&
+      run.leaseOwner !== this.hostId &&
+      (run.leaseExpiresAt ?? 0) > now
+    return this.ownerElsewhere
   }
 
   /**
@@ -786,6 +805,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     try {
       const pending = await inbox.listPending(this.threadId)
       if (pending.length === 0) return
+      // Its claim lapsed, but the owner still runs a turn: leave its inputs.
+      if (await this.isOwnedElsewhere()) return
       const isHeld = await claims.claim({
         threadId: this.threadId,
         harness: this.harness.name,

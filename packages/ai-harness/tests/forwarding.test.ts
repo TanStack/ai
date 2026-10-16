@@ -201,6 +201,132 @@ describe('an input that reaches a host that does not own the thread', () => {
     await other.close()
   })
 
+  it('keeps the plugin state of another host off the log while the owner runs a tool', async () => {
+    const persistence = sharedStores()
+    const release = gate()
+    const wait = toolDefinition({
+      name: 'wait',
+      description: 'Wait',
+      inputSchema: z.object({}),
+    }).server(async () => {
+      await release.opened
+      return 'waited'
+    })
+    // Like the MCP plugin: each host reports its own connection on mount.
+    const status = definePlugin({
+      name: 'test/status',
+      setup: (ctx) => {
+        void ctx.state({ connected: false }).update(() => ({ connected: true }))
+        return {}
+      },
+    })
+    const { adapter, calls } = mockAdapter([
+      () => toolCall('wait', {}),
+      () => text('One.'),
+      () => text('Two.'),
+    ])
+    const harness = defineHarness({
+      name: NAME,
+      adapter,
+      tools: [wait],
+      plugins: () => [status],
+    })
+    const owner = await createHarnessHost({ persistence }).open(harness, {
+      threadId: THREAD,
+    })
+    const turn = owner.send('Go.')
+    await vi.waitFor(() => expect(calls).toHaveLength(1))
+
+    const other = await createHarnessHost({ persistence }).open(harness, {
+      threadId: THREAD,
+    })
+    const receipt = await other.send('And then?', { mode: 'followUp' }).receipt
+    expect(receipt.status).toBe('queued')
+    // The other host's state write had time to land on the log.
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    release.open()
+    expect((await turn).text).toBe('One.')
+    const settled = await vi.waitFor(() => owner.settled(receipt.inputId), {
+      timeout: 3_000,
+    })
+    expect(settled.outcome).toBe('completed')
+    expect(calls).toHaveLength(3)
+    await other.close()
+  })
+
+  it('leaves a turn alone when its host claim lapsed but its run lease is live', async () => {
+    const persistence = sharedStores()
+    // The owner's claim writes hang (a store that retries for a while), and
+    // its claim expires. Its run lease still renews.
+    const claimWrites = gate()
+    let isStalled = false
+    const { workClaims } = persistence.stores
+    const stalledClaims = Object.assign(Object.create(workClaims), {
+      claim: async (...args: Parameters<typeof workClaims.claim>) => {
+        if (isStalled) await claimWrites.opened
+        return workClaims.claim(...args)
+      },
+    })
+    const toolDone = gate()
+    const wait = toolDefinition({
+      name: 'wait',
+      description: 'Wait',
+      inputSchema: z.object({}),
+    }).server(async () => {
+      await toolDone.opened
+      return 'waited'
+    })
+    const { adapter, calls } = mockAdapter([
+      () => toolCall('wait', {}),
+      () => text('One.'),
+      () => text('Two.'),
+      () => text('Three.'),
+    ])
+    const harness = defineHarness({ name: NAME, adapter, tools: [wait] })
+    const lease = { renewMs: 50, ttlMs: 300 }
+    const ownerHost = createHarnessHost({
+      persistence: {
+        stores: { ...persistence.stores, workClaims: stalledClaims },
+      },
+      lease,
+    })
+    const owner = await ownerHost.open(harness, { threadId: THREAD })
+    const turn = owner.send('Go.')
+    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await owner.send('And then?', { mode: 'followUp' }).receipt
+    isStalled = true
+    await new Promise((resolve) => setTimeout(resolve, 600))
+
+    // Another host opens the thread after the claim expired.
+    const otherHost = createHarnessHost({ persistence, lease })
+    const other = await otherHost.open(harness, { threadId: THREAD })
+    await otherHost.recover()
+    // An input on that host waits in the inbox for the owner, and its inbox
+    // watch (every second) leaves it there.
+    const queued = await other.send('Also?', { mode: 'followUp' }).receipt
+    expect(queued.status).toBe('queued')
+    await new Promise((resolve) => setTimeout(resolve, 1_500))
+    expect(calls).toHaveLength(1)
+
+    isStalled = false
+    claimWrites.open()
+    toolDone.open()
+    expect((await turn).text).toBe('One.')
+    await vi.waitFor(() => expect(calls).toHaveLength(4), { timeout: 5_000 })
+    expect(await owner.transcript()).toMatchObject([
+      { role: 'user', content: 'Go.' },
+      { role: 'assistant' },
+      { role: 'tool', content: 'waited' },
+      { role: 'assistant', content: 'One.' },
+      { role: 'user', content: 'And then?' },
+      { role: 'assistant', content: 'Two.' },
+      { role: 'user', content: 'Also?' },
+      { role: 'assistant', content: 'Three.' },
+    ])
+    await otherHost.close()
+    await ownerHost.close()
+  })
+
   it('answers a question that waits on another host', async () => {
     const persistence = sharedStores()
     const deploy = definePlugin({

@@ -966,7 +966,7 @@
           "label": "Durable sessions",
           "to": "harness/durable-sessions",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-15"
+          "updatedAt": "2026-10-16"
         },
         {
           "label": "List, rename, and fork sessions",

@@ -328,16 +328,18 @@ const replica = createHarnessHost({
 })
 ```
 
-The host that runs the thread holds its work claim. An input that reaches another host:
+The host that runs the thread holds its work claim. A claim can expire while its host still runs a turn, for example when the claim writes are slow. A live run lease of that host still makes it the owner. An input that reaches another host:
 
 - With `inbox`: waits in the inbox, and the owner applies it within a second. The receipt is `queued`.
 - Without `inbox`: is refused. The receipt is `rejected`, with the reason `owned_elsewhere`.
 
 In both cases, the running turn continues. A client reads the events of the thread from the log, on any instance. A `POST run` on the second instance streams the turn that the owner runs.
 
+A host that does not own the thread writes nothing to its log. This includes plugin state and plugin events, for example the status of an MCP connection on that host. Clients of that host do not see these events until it owns the thread.
+
 No store keeps the `overrides` and the `ephemeral` messages of a prompt. So the owner runs a forwarded prompt without them. They apply only to a prompt that reaches the owner.
 
-When the owner stops, its claim expires. Then the next host that opens the thread, or a `resumePending` sweep, runs the inputs that wait.
+When the owner stops, its claim and its run lease expire. Then the next host that opens the thread, or a `resumePending` sweep, runs the inputs that wait.
 
 Without `workClaims`, a host cannot see the owner. When a second host writes to the thread, the first host's session stops, and its running turn fails with a clear error.
 
