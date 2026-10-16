@@ -298,6 +298,29 @@ body{background:var(--ui-bg,transparent);color:var(--ui-text,#111);font:14px/1.5
 `
 
 /**
+ * A minimal SELF-CONTAINED document for an `html-fragment` artifact — theme
+ * tokens + base style + the authored fragment, with no CSP `<meta>` and no
+ * `ogui/1` bridge client. This is the form delivered as a `ui://` resource's
+ * `text` for the MCP Apps path (SEP-1865): the host's sandbox proxy owns the
+ * CSP and the MCP Apps bridge, so the document must not impose its own. Local
+ * interactivity in the fragment still works; host round-trips arrive once the
+ * fragment speaks the MCP Apps guest protocol.
+ */
+export function buildFragmentDocument(record: ArtifactRecord, theme?: FrameTheme): string {
+  const themeCss = theme ? themeStyle(theme) : ''
+  // Center the authored content; the host iframe sizes it (true content-height
+  // arrives once the fragment sends MCP Apps `ui/notifications/size-changed`).
+  return `<!doctype html><html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${escapeHtml(record.title)}</title>
+<style>${BASE_STYLE}body{display:flex;justify-content:center;padding:14px}#root{width:100%;max-width:420px}${themeCss}</style>
+</head><body>
+<div id="root">${record.source}</div>
+</body></html>`
+}
+
+/**
  * Build the complete shell document for one pinned revision (§5.1). The model
  * authored only `record.source`; everything structural — skeleton, bridge,
  * theme, error boundary, (for react-tsx) the import map and `createRoot`

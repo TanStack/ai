@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
+import { useChat, fetchServerSentEvents, useMcpAppBridge } from '@tanstack/ai-react'
+import { MCPAppResource } from '@tanstack/ai-react/mcp-apps'
 import {
   GenerativeUIRenderer,
   FrameArtifactRenderer,
@@ -90,6 +91,11 @@ function parseGraph(argsJson: string): GraphDocument | null {
 const sandboxUrl = (pin: ArtifactPin, instanceId: string) =>
   `/sandbox/${pin.artifactId}/${pin.revision}?i=${encodeURIComponent(instanceId)}`
 
+// MCP Apps (SEP-1865) sandbox proxy — served cross-origin (scripts/serve-sandbox.mjs)
+// as @mcp-ui/client's AppRenderer requires. html-fragment artifacts render through
+// this standard host path; react-tsx keeps the FrameArtifactRenderer.
+const MCP_SANDBOX = { url: new URL('http://localhost:8765/sandbox_proxy.html') }
+
 export function ChatSurface() {
   const [providers, setProviders] = useState<Array<string>>([])
   const [provider, setProvider] = useState('openai')
@@ -123,6 +129,18 @@ export function ChatSurface() {
         setFramePins((p) => ({ ...p, [context.toolCallId!]: { ...data.pin, title: data.title, kind: data.kind } }))
       }
     },
+  })
+
+  // Host bridge for MCP Apps widgets: routes a widget's ui/message back into
+  // this chat and opens links. (Our html-fragment artifacts don't call server
+  // tools, so no callEndpoint is needed.)
+  const mcpBridge = useMcpAppBridge({
+    threadId: 'genui-chat',
+    // Our html-fragment artifacts don't call server tools; this endpoint is a
+    // required nominal (only hit if a widget invokes tools/call).
+    callEndpoint: '/api/mcp-apps-call',
+    chat: { sendMessage: async (content: string) => { await sendMessage(content) } },
+    onLink: (url: string) => window.open(url, '_blank', 'noopener,noreferrer'),
   })
 
   useEffect(() => {
@@ -178,6 +196,7 @@ export function ChatSurface() {
                   message={m}
                   framePins={framePins}
                   latest={latest}
+                  mcpBridge={mcpBridge}
                   onIntent={handleIntent}
                   onExpand={setExpandedGraph}
                 />
@@ -280,12 +299,14 @@ function MessageRow({
   message,
   framePins,
   latest,
+  mcpBridge,
   onIntent,
   onExpand,
 }: {
   message: any
   framePins: Record<string, FramePin>
   latest: LatestMap
+  mcpBridge: any
   onIntent: (i: IntentPayload) => void
   onExpand: (g: GraphDocument) => void
 }) {
@@ -310,7 +331,28 @@ function MessageRow({
             <Prose text={text} />
           </div>
         )}
-        {parts.map((part) => {
+        {parts.map((part, i) => {
+          // ---- Tier F via the MCP Apps standard path: a ui-resource part ----
+          // html-fragment artifacts flow through the SDK's MCPAppResource
+          // (@mcp-ui/client AppRenderer) — the exact component that renders
+          // external MCP server widgets.
+          if (part.type === 'ui-resource') {
+            return (
+              <div className="chat-graph-frame animate-surface-rise" key={part.toolCallId ?? `uir-${i}`}>
+                <div className="chat-graph-meta">
+                  <span className="chat-graph-dot" />
+                  <span className="font-mono">{part.resource?.uri}</span>
+                  <span className="text-slate-600">·</span>
+                  <span>MCP App</span>
+                </div>
+                {/* Fixed height until the fragment speaks the MCP Apps guest
+                    protocol (ui/notifications/size-changed) for content sizing. */}
+                <div style={{ height: 320, overflow: 'hidden' }}>
+                  <MCPAppResource part={part} sandbox={MCP_SANDBOX} bridge={mcpBridge} />
+                </div>
+              </div>
+            )
+          }
           if (part.type !== 'tool-call') return null
           // ---- Tier N: render_ui graph ----
           if (part.name === 'render_ui') {
@@ -337,6 +379,9 @@ function MessageRow({
             )
           }
           // ---- Tier F: create/revise_artifact -> sandboxed frame ----
+          // react-tsx keeps our FrameArtifactRenderer (needs a serving origin for
+          // its import map + built bundle); html-fragment renders via the
+          // ui-resource part above (the MCP Apps path), so skip its pin here.
           if (part.name === 'create_artifact' || part.name === 'revise_artifact') {
             const pin = framePins[part.id]
             if (!pin) {
@@ -346,6 +391,7 @@ function MessageRow({
                 </div>
               )
             }
+            if (pin.kind === 'html-fragment') return null
             if (latest.framePartByArtifact[pin.artifactId] !== part.id) return null
             return (
               <FrameArtifactRenderer

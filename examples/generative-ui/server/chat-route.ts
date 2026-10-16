@@ -21,10 +21,31 @@ import { anthropicText } from '@tanstack/ai-anthropic'
 import { generativeUiArtifacts } from '@tanstack/ai-generative-ui/artifacts'
 import {
   LiveDriver,
+  buildFragmentDocument,
   describeRegistryForPrompt,
   renderUICompositionGuidance,
+  type FrameTheme,
 } from '@tanstack/ai-generative-ui'
 import { reactBuilder, registry, store } from './frame-host'
+
+// Light theme injected into html-fragment MCP-Apps documents (fragments also
+// carry var() fallbacks). A dedicated sandbox origin can't read the host's CSS.
+const FRAGMENT_THEME: FrameTheme = {
+  mode: 'light',
+  tokens: {
+    '--ui-bg': '#ffffff',
+    '--ui-surface': '#ffffff',
+    '--ui-surface-2': '#f8fafc',
+    '--ui-text': '#0f172a',
+    '--ui-muted': '#64748b',
+    '--ui-border': '#e5e7eb',
+    '--ui-accent': '#2563eb',
+    '--ui-accent-text': '#ffffff',
+    '--ui-positive': '#16a34a',
+    '--ui-negative': '#dc2626',
+    '--ui-radius': '14px',
+  },
+}
 
 const MODELS: Record<string, string> = {
   openai: 'gpt-4o',
@@ -93,7 +114,17 @@ export async function handleChat(req: IncomingMessage, res: ServerResponse): Pro
     adapter: adapterFor(provider),
     systemPrompts: [SYSTEM_PROMPT],
     agentLoopStrategy: maxIterations(8),
-    middleware: [generativeUiArtifacts({ store, builder: reactBuilder, registry })],
+    middleware: [
+      generativeUiArtifacts({
+        store,
+        builder: reactBuilder,
+        registry,
+        // Additive: also emit the standard MCP Apps ui-resource part for
+        // html-fragment artifacts so they render through the SDK's MCPAppResource.
+        emitUiResource: true,
+        renderShell: (rec) => buildFragmentDocument(rec, FRAGMENT_THEME),
+      }),
+    ],
     tools: [renderUiTool()],
     messages: params.messages as any,
     threadId: params.threadId,

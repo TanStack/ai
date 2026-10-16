@@ -4,12 +4,14 @@
   "type": "module",
   "version": "0.1.0",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently -k -n proxy,vite -c magenta,cyan \"node scripts/serve-sandbox.mjs\" \"vite\"",
+    "dev:vite": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "test:types": "tsc --noEmit"
   },
   "dependencies": {
+    "@mcp-ui/client": "^7.1.1",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-anthropic": "workspace:*",
     "@tanstack/ai-generative-ui": "workspace:*",
@@ -21,6 +23,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.18",
+    "concurrently": "^9.1.0",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.2.0",
