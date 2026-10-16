@@ -1782,6 +1782,23 @@ export function runPersistenceConformance(
 
     // Each case uses its own log, because the suite shares one persistence.
     const newLog = () => `log-${crypto.randomUUID()}`
+    // The suite shares one store. A case that lists orphans filters by its
+    // own harness, so the orphans of other cases cannot fill the limit.
+    const newHarness = () => `harness-${crypto.randomUUID()}`
+    // Subscribe a listener that counts its calls.
+    const countCalls = (store: LogStore, logId: string) => {
+      let calls = 0
+      const stop = store.subscribe({
+        logId,
+        listener: () => {
+          calls += 1
+        },
+      })
+      return { calls: () => calls, stop }
+    }
+    // Give a store that notifies later (a poller) the time to call again.
+    const waitForLateCalls = () =>
+      new Promise((resolve) => setTimeout(resolve, 50))
 
     describe('log', () => {
       const types = async (store: LogStore, logId: string) =>
@@ -2014,13 +2031,7 @@ export function runPersistenceConformance(
         const store = persistence.stores.log
         if (!store) return ctx.skip('log store not provided')
         const logId = newLog()
-        let calls = 0
-        const stop = store.subscribe({
-          logId,
-          listener: () => {
-            calls += 1
-          },
-        })
+        const counter = countCalls(store, logId)
 
         await store.append({
           logId,
@@ -2028,8 +2039,8 @@ export function runPersistenceConformance(
           epoch: UNOWNED_EPOCH,
           records: [{ type: 'one' }],
         })
-        await expect.poll(() => calls).toBe(1)
-        stop()
+        await expect.poll(counter.calls).toBe(1)
+        counter.stop()
         await store.append({
           logId,
           seq: 2,
@@ -2037,9 +2048,8 @@ export function runPersistenceConformance(
           records: [{ type: 'two' }],
         })
 
-        // Give a store that notifies later (a poller) the time to call again.
-        await new Promise((resolve) => setTimeout(resolve, 50))
-        expect(calls).toBe(1)
+        await waitForLateCalls()
+        expect(counter.calls()).toBe(1)
       })
 
       it('does not share record objects with the caller', async (ctx) => {
@@ -2071,9 +2081,6 @@ export function runPersistenceConformance(
       const SHORT_MS = 50
       const waitPastShort = () =>
         new Promise((resolve) => setTimeout(resolve, 120))
-      // The suite shares one store. A case that lists orphans filters by its
-      // own harness, so the orphans of other cases cannot fill the limit.
-      const newHarness = () => `harness-${crypto.randomUUID()}`
       const claimOf = (logId: string, ownerId: string) => ({
         logId,
         harness: 'h',
@@ -2373,6 +2380,256 @@ export function runPersistenceConformance(
         // The store has an orphan, so the empty list comes from the limit.
         expect(await store.listOrphaned({ limit: 1 })).toHaveLength(1)
         expect(await store.listOrphaned({ limit: 0 })).toEqual([])
+      })
+    })
+
+    describe('log input lane', () => {
+      const inputOf = (text: string) => ({ type: 'input', text })
+      const offerOf = (logId: string, inputId: string, text = 'hi') => ({
+        logId,
+        harness: 'h',
+        inputId,
+        record: inputOf(text),
+      })
+      const pendingIds = async (store: LogStore, logId: string) =>
+        (await store.offered({ logId })).map((input) => input.inputId)
+
+      it('offers an input once and reports a duplicate with the same record', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+
+        expect(await store.offer(offerOf(logId, 'i1'))).toBe('offered')
+        expect(await store.offer(offerOf(logId, 'i1'))).toBe('duplicate')
+        // The duplicate added no second offer.
+        expect(await pendingIds(store, logId)).toEqual(['i1'])
+      })
+
+      it('reports a conflict for the same id with another record', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        await store.offer(offerOf(logId, 'i1', 'first'))
+
+        expect(await store.offer(offerOf(logId, 'i1', 'second'))).toBe(
+          'conflict',
+        )
+        // The first record stays.
+        expect(await store.offered({ logId })).toEqual([
+          {
+            inputId: 'i1',
+            record: inputOf('first'),
+            offeredAt: expect.any(Number),
+          },
+        ])
+      })
+
+      it('keeps offers apart per log', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+
+        expect(await store.offer(offerOf(newLog(), 'i1'))).toBe('offered')
+        expect(await store.offer(offerOf(newLog(), 'i1'))).toBe('offered')
+      })
+
+      it('lists pending offers in offer order', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        // The offer order is not the order of the ids, so a store that sorts
+        // by id fails.
+        await store.offer(offerOf(logId, 'i2', 'first'))
+        await store.offer(offerOf(logId, 'i3', 'second'))
+        await store.offer(offerOf(logId, 'i1', 'third'))
+
+        expect(await store.offered({ logId })).toEqual([
+          {
+            inputId: 'i2',
+            record: inputOf('first'),
+            offeredAt: expect.any(Number),
+          },
+          {
+            inputId: 'i3',
+            record: inputOf('second'),
+            offeredAt: expect.any(Number),
+          },
+          {
+            inputId: 'i1',
+            record: inputOf('third'),
+            offeredAt: expect.any(Number),
+          },
+        ])
+      })
+
+      it('consumes offers in the same write as the records', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        await store.offer(offerOf(logId, 'i1', 'one'))
+        await store.offer(offerOf(logId, 'i2', 'two'))
+
+        await store.append({
+          logId,
+          seq: 1,
+          epoch: UNOWNED_EPOCH,
+          records: [inputOf('one')],
+          consumes: ['i1'],
+        })
+
+        expect(await pendingIds(store, logId)).toEqual(['i2'])
+        expect(await store.read({ logId })).toEqual([
+          { seq: 1, record: inputOf('one') },
+        ])
+        // The store keeps the consumed id, so a retry of the offer is a
+        // duplicate, and a second consume of it is refused.
+        expect(await store.offer(offerOf(logId, 'i1', 'one'))).toBe('duplicate')
+        await expect(
+          store.append({
+            logId,
+            seq: 2,
+            epoch: UNOWNED_EPOCH,
+            records: [inputOf('one again')],
+            consumes: ['i1'],
+          }),
+        ).rejects.toBeInstanceOf(TypeError)
+        expect(await store.read({ logId, after: 1 })).toEqual([])
+      })
+
+      it('rejects consumes of an id that is not pending and writes nothing', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        await store.offer(offerOf(logId, 'i1'))
+
+        // The position check comes before the consumes check. A writer that
+        // lost a race gets LogConflictError, also when the winner consumed
+        // the same offers.
+        await expect(
+          store.append({
+            logId,
+            seq: 2,
+            epoch: UNOWNED_EPOCH,
+            records: [inputOf('hi')],
+            consumes: ['missing'],
+          }),
+        ).rejects.toBeInstanceOf(LogConflictError)
+        await expect(
+          store.append({
+            logId,
+            seq: 1,
+            epoch: UNOWNED_EPOCH,
+            records: [inputOf('hi')],
+            consumes: ['i1', 'missing'],
+          }),
+        ).rejects.toBeInstanceOf(TypeError)
+
+        expect(await store.read({ logId })).toEqual([])
+        // The batch also named a pending id. That offer is still pending.
+        expect(await pendingIds(store, logId)).toEqual(['i1'])
+      })
+
+      it('writes nothing when a consuming batch cannot become JSON', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        await store.offer(offerOf(logId, 'i1'))
+
+        await expect(
+          store.append({
+            logId,
+            seq: 1,
+            epoch: UNOWNED_EPOCH,
+            records: [{ type: 'input', count: BigInt(1) }],
+            consumes: ['i1'],
+          }),
+        ).rejects.toThrow()
+
+        expect(await store.read({ logId })).toEqual([])
+        expect(await pendingIds(store, logId)).toEqual(['i1'])
+        // Position 1 and the offer are still free for a valid batch.
+        await store.append({
+          logId,
+          seq: 1,
+          epoch: UNOWNED_EPOCH,
+          records: [{ type: 'input', count: '1' }],
+          consumes: ['i1'],
+        })
+        expect(await pendingIds(store, logId)).toEqual([])
+      })
+
+      it('rejects an offer that cannot become JSON and stores nothing', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+
+        await expect(
+          store.offer({
+            ...offerOf(logId, 'i1'),
+            record: { type: 'input', count: BigInt(1) },
+          }),
+        ).rejects.toThrow()
+
+        expect(await store.offered({ logId })).toEqual([])
+        // The refused offer did not take the id.
+        expect(await store.offer(offerOf(logId, 'i1'))).toBe('offered')
+      })
+
+      it('lists a log with pending offers and no live owner as orphaned', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        const harness = newHarness()
+        const orphans = () =>
+          store.listOrphaned({ limit: 10, harnesses: [harness] })
+        // No host ever acquired the log.
+        await store.offer({ ...offerOf(logId, 'i1'), harness })
+
+        expect(await orphans()).toEqual([{ logId, harness, reason: 'offered' }])
+        await store.acquire({ logId, harness, ownerId: 'a', ttlMs: 10_000 })
+        expect(await orphans()).toEqual([])
+        // The owner leaves, and the offer is still pending. The wake is due
+        // too, and 'offered' comes first.
+        await store.release({ logId, ownerId: 'a', epoch: 1, wakeInMs: 0 })
+        expect(await orphans()).toEqual([{ logId, harness, reason: 'offered' }])
+
+        // A pin applies to a log that no host acquired too.
+        const pinned = newLog()
+        const pinnedHarness = newHarness()
+        await store.setAffinity({
+          logId: pinned,
+          epoch: UNOWNED_EPOCH,
+          affinity: 'host-1',
+        })
+        await store.offer({ ...offerOf(pinned, 'i1'), harness: pinnedHarness })
+        expect(
+          await store.listOrphaned({ limit: 10, harnesses: [pinnedHarness] }),
+        ).toEqual([])
+        expect(
+          await store.listOrphaned({
+            limit: 10,
+            harnesses: [pinnedHarness],
+            affinity: 'host-1',
+          }),
+        ).toEqual([
+          { logId: pinned, harness: pinnedHarness, reason: 'offered' },
+        ])
+      })
+
+      it('notifies subscribers of a new offer', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        const counter = countCalls(store, logId)
+
+        await store.offer(offerOf(logId, 'i1'))
+        await expect.poll(counter.calls).toBe(1)
+        // A duplicate and a conflict change nothing, so they do not notify.
+        await store.offer(offerOf(logId, 'i1'))
+        await store.offer(offerOf(logId, 'i1', 'other'))
+
+        await waitForLateCalls()
+        expect(counter.calls()).toBe(1)
+        counter.stop()
       })
     })
 

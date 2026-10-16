@@ -728,6 +728,25 @@ interface Ownership {
   wakeAt?: number
 }
 
+/** An input that a host offered to a log. */
+interface Offer {
+  record: LogRecord
+  /** Epoch milliseconds, from the store clock. */
+  offeredAt: number
+  /** True after an append consumed it. The id stays, so a retry is a duplicate. */
+  consumed: boolean
+}
+
+/** The offers of one log. */
+interface Lane {
+  /** The harness of the latest offer, for `listOrphaned`. */
+  harness: string
+  /** By input id, in offer order. */
+  inputs: Map<string, Offer>
+}
+
+// The methods are `async`, so a thrown error becomes a rejection. They never
+// await, so each call runs to its end before the next one starts.
 class MemoryLogStore implements LogStore {
   private readonly logs = new Map<string, Array<LogRecord>>()
   private readonly listeners = new Map<string, Set<() => void>>()
@@ -735,6 +754,9 @@ class MemoryLogStore implements LogStore {
   // Kept apart from `owners`, because a log that no host acquired can have a
   // pin too (`setAffinity` with UNOWNED_EPOCH).
   private readonly affinities = new Map<string, string>()
+  // Kept apart from `owners`, because any machine can offer to a log that no
+  // host acquired.
+  private readonly lanes = new Map<string, Lane>()
 
   /**
    * The fence of every fenced write. A log that a host acquired needs the
@@ -755,7 +777,28 @@ class MemoryLogStore implements LogStore {
     return isHolder ? owner : undefined
   }
 
-  append({
+  /** The offers of `logId` that no append consumed, in offer order. */
+  private pending(logId: string) {
+    const inputs = this.lanes.get(logId)?.inputs ?? []
+    return [...inputs].filter(([, offer]) => !offer.consumed)
+  }
+
+  /**
+   * Call the listeners of `logId`. The write is done, so a listener error
+   * must not fail it.
+   */
+  private notify(logId: string) {
+    const listeners = [...(this.listeners.get(logId) ?? [])]
+    for (const listener of listeners) {
+      try {
+        listener()
+      } catch (error) {
+        console.error('[ai-persistence] log listener failed', error)
+      }
+    }
+  }
+
+  async append({
     logId,
     seq,
     epoch,
@@ -763,38 +806,35 @@ class MemoryLogStore implements LogStore {
     consumes = [],
   }: Parameters<LogStore['append']>[0]) {
     const isNoop = records.length === 0 && consumes.length === 0
-    if (isNoop) return Promise.resolve()
+    if (isNoop) return
     // The fence comes first, so a stale writer gets OwnershipLostError, also
     // at a taken position.
     if (!this.canWrite(logId, epoch)) {
-      return Promise.reject(new OwnershipLostError(logId, epoch))
+      throw new OwnershipLostError(logId, epoch)
     }
     const log = this.logs.get(logId) ?? []
-    if (seq !== log.length + 1) {
-      return Promise.reject(new LogConflictError(logId, seq))
-    }
-    if (consumes.length > 0) {
-      return Promise.reject(new Error('not implemented'))
-    }
-    // Copy the whole batch before the push, so a record that cannot become
-    // JSON rejects the batch with nothing written.
-    let copies: Array<LogRecord>
-    try {
-      copies = records.map(copyJson)
-    } catch (error) {
-      return Promise.reject(error)
-    }
+    // The position check comes before the consumes check, so the writer that
+    // lost a race gets LogConflictError, also when the winner consumed the
+    // same offers.
+    if (seq !== log.length + 1) throw new LogConflictError(logId, seq)
+    const inputs = this.lanes.get(logId)?.inputs
+    const offers = consumes.map((inputId) => {
+      const offer = inputs?.get(inputId)
+      const isPending = offer !== undefined && !offer.consumed
+      if (!isPending) {
+        throw new TypeError(
+          `Input ${JSON.stringify(inputId)} is not a pending offer of log ${JSON.stringify(logId)}.`,
+        )
+      }
+      return offer
+    })
+    // Copy the whole batch before the write, so a record that cannot become
+    // JSON rejects the batch with nothing written and nothing consumed.
+    const copies = records.map(copyJson)
     log.push(...copies)
     this.logs.set(logId, log)
-    for (const listener of [...(this.listeners.get(logId) ?? [])]) {
-      // The batch is written. A listener error must not fail the append.
-      try {
-        listener()
-      } catch (error) {
-        console.error('[ai-persistence] log listener failed', error)
-      }
-    }
-    return Promise.resolve()
+    for (const offer of offers) offer.consumed = true
+    this.notify(logId)
   }
 
   read({ logId, after = 0, limit }: Parameters<LogStore['read']>[0]) {
@@ -819,8 +859,6 @@ class MemoryLogStore implements LogStore {
     }
   }
 
-  // The ownership methods are `async`, so a thrown error becomes a rejection.
-  // They never await, so each call runs to its end before the next one.
   async acquire({
     logId,
     harness,
@@ -899,36 +937,90 @@ class MemoryLogStore implements LogStore {
     affinity,
   }: Parameters<LogStore['listOrphaned']>[0]) {
     const now = Date.now()
+    // A log with offers can have no ownership record, so look in both maps.
+    const logIds = new Set([...this.owners.keys(), ...this.lanes.keys()])
     const due: Array<{ orphan: OrphanedLog; dueAt: number }> = []
-    for (const [logId, owner] of this.owners) {
+    for (const logId of logIds) {
+      const found = this.orphanOf(logId, now)
+      if (found === undefined) continue
       const pin = this.affinities.get(logId)
       const isOtherHarness =
-        harnesses !== undefined && !harnesses.includes(owner.harness)
+        harnesses !== undefined && !harnesses.includes(found.orphan.harness)
       const isOtherAffinity = pin !== undefined && pin !== affinity
       if (isOtherHarness || isOtherAffinity) continue
-      const { harness, released, expiresAt, wakeAt } = owner
-      const isExpired = !released && expiresAt <= now
-      const isWakeDue = released && wakeAt !== undefined && wakeAt <= now
-      if (isExpired) {
-        due.push({
-          orphan: { logId, harness, reason: 'expired' },
-          dueAt: expiresAt,
-        })
-      } else if (isWakeDue) {
-        due.push({ orphan: { logId, harness, reason: 'wake' }, dueAt: wakeAt })
-      }
+      due.push(found)
     }
     // The log that is due first comes first.
     due.sort((left, right) => left.dueAt - right.dueAt)
     return due.slice(0, limit).map(({ orphan }) => orphan)
   }
 
-  offer() {
-    return Promise.reject(new Error('not implemented'))
+  /**
+   * Why `logId` is orphaned and when it became due, or `undefined` when it
+   * has no work. The first reason that applies wins: `'expired'`, then
+   * `'offered'`, then `'wake'`.
+   */
+  private orphanOf(logId: string, now: number) {
+    const owner = this.owners.get(logId)
+    const lane = this.lanes.get(logId)
+    const [firstPending] = this.pending(logId)
+    const found = (
+      reason: OrphanedLog['reason'],
+      harness: string,
+      dueAt: number,
+    ) => ({ orphan: { logId, harness, reason }, dueAt })
+    // An owner that did not release the log has the work until it expires.
+    const isHeld = owner !== undefined && !owner.released
+    if (isHeld) {
+      const isExpired = owner.expiresAt <= now
+      return isExpired
+        ? found('expired', owner.harness, owner.expiresAt)
+        : undefined
+    }
+    if (lane !== undefined && firstPending !== undefined) {
+      const [, offer] = firstPending
+      return found('offered', lane.harness, offer.offeredAt)
+    }
+    const wakeAt = owner?.wakeAt
+    const isWakeDue = owner !== undefined && wakeAt !== undefined
+    if (isWakeDue && wakeAt <= now) {
+      return found('wake', owner.harness, wakeAt)
+    }
+    return undefined
   }
 
-  offered() {
-    return Promise.reject(new Error('not implemented'))
+  async offer({
+    logId,
+    harness,
+    inputId,
+    record,
+  }: Parameters<LogStore['offer']>[0]) {
+    // Copy first, so a record that cannot become JSON stores nothing.
+    const copy = copyJson(record)
+    const inputs = this.lanes.get(logId)?.inputs ?? new Map<string, Offer>()
+    // A consumed id stays taken too.
+    const previous = inputs.get(inputId)
+    if (previous !== undefined) {
+      const isEqual = JSON.stringify(previous.record) === JSON.stringify(copy)
+      return isEqual ? 'duplicate' : 'conflict'
+    }
+    inputs.set(inputId, {
+      record: copy,
+      offeredAt: Date.now(),
+      consumed: false,
+    })
+    // The latest offer names the harness of the log.
+    this.lanes.set(logId, { harness, inputs })
+    this.notify(logId)
+    return 'offered'
+  }
+
+  async offered({ logId }: Parameters<LogStore['offered']>[0]) {
+    return this.pending(logId).map(([inputId, offer]) => ({
+      inputId,
+      record: copyJson(offer.record),
+      offeredAt: offer.offeredAt,
+    }))
   }
 
   getSnapshot() {
