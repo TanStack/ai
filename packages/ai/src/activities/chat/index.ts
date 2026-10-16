@@ -1483,8 +1483,6 @@ class TextEngine<
         this.middlewareRunner.runOnStart(this.middlewareCtx),
       )
 
-      yield* this.checkCompletedResumedClientTools()
-
       if (this.earlyTermination) {
         yield* this.emitSuccessfulEarlyTermination()
         if (!this.terminalHookCalled) {
@@ -2640,17 +2638,7 @@ class TextEngine<
     // Consume the async generator, yielding custom events and collecting the return value
     const rawEdits = this.captureApprovedArgumentEdits(pendingToolCalls)
     const executionResult = yield* this.drainToolCallGenerator(generator)
-    this.retainApprovedArgumentEdits(
-      [
-        ...executionResult.results
-          .filter((entry) => entry.state !== 'output-error')
-          .map((entry) => entry.toolCallId),
-        ...executionResult.needsClientExecution.map(
-          (entry) => entry.toolCallId,
-        ),
-      ],
-      rawEdits,
-    )
+    this.retainApprovedArgumentEdits(executionResult, rawEdits)
 
     // Check if middleware aborted during pending tool execution
     if (this.isMiddlewareAborted()) {
@@ -2886,17 +2874,7 @@ class TextEngine<
     // Consume the async generator, yielding custom events and collecting the return value
     const rawEdits = this.captureApprovedArgumentEdits(toolCalls)
     const executionResult = yield* this.drainToolCallGenerator(generator)
-    this.retainApprovedArgumentEdits(
-      [
-        ...executionResult.results
-          .filter((entry) => entry.state !== 'output-error')
-          .map((entry) => entry.toolCallId),
-        ...executionResult.needsClientExecution.map(
-          (entry) => entry.toolCallId,
-        ),
-      ],
-      rawEdits,
-    )
+    this.retainApprovedArgumentEdits(executionResult, rawEdits)
 
     this.middlewareCtx.phase = 'afterTools'
 
@@ -3947,15 +3925,7 @@ class TextEngine<
     const result = yield* this.drainToolCallGenerator(
       this.boundaryToolRequests(toolCalls),
     )
-    this.retainApprovedArgumentEdits(
-      [
-        ...result.results
-          .filter((entry) => entry.state !== 'output-error')
-          .map((entry) => entry.toolCallId),
-        ...result.needsClientExecution.map((entry) => entry.toolCallId),
-      ],
-      rawEdits,
-    )
+    this.retainApprovedArgumentEdits(result, rawEdits)
     return result
   }
 
@@ -4381,81 +4351,6 @@ class TextEngine<
       }
     }
     return pending
-  }
-
-  /** Check resumed client calls whose UI result already makes them look complete. */
-  private async *checkCompletedResumedClientTools(): AsyncGenerator<
-    StreamChunk,
-    void,
-    void
-  > {
-    if (
-      this.resumeClientToolResults.size === 0 &&
-      this.resumeClientToolErrors.size === 0
-    )
-      return
-    const pendingIds = new Set(
-      this.getPendingToolCallsFromMessages().map((call) => call.id),
-    )
-    const completedCalls: Array<ToolCall> = []
-    const resumedIds = new Set([
-      ...this.resumeClientToolResults.keys(),
-      ...this.resumeClientToolErrors.keys(),
-    ])
-    for (const id of resumedIds) {
-      if (pendingIds.has(id)) continue
-      const call = this.findToolCallInMessages(id)
-      if (!call) continue
-      const tool = this.tools.find(
-        (candidate) => candidate.name === call.function.name,
-      )
-      if (tool && !tool.execute && !isProviderExecutedToolCall(call))
-        completedCalls.push(call)
-    }
-    if (completedCalls.length === 0) return
-    const { approvals, clientToolResults } = this.collectClientState()
-    const rawEdits = this.captureApprovedArgumentEdits(completedCalls)
-    const result = yield* this.drainToolCallGenerator(
-      executeToolCalls(
-        completedCalls,
-        this.resolveExecutableTools(completedCalls),
-        approvals,
-        clientToolResults,
-        undefined,
-        {
-          onBeforeToolCall: (toolCall, tool, args) =>
-            this.middlewareRunner.runOnBeforeToolCall(this.middlewareCtx, {
-              toolCall,
-              tool,
-              args,
-              toolName: toolCall.function.name,
-              toolCallId: toolCall.id,
-            }),
-          onAfterToolCall: (info) =>
-            this.middlewareRunner.runOnAfterToolCall(this.middlewareCtx, info),
-        },
-        this.middlewareCtx.context,
-        this.toolAbortSignal,
-        {
-          clientToolErrors: this.resumeClientToolErrors,
-          cancelledToolCallIds: this.resumeCancelledToolCallIds,
-        },
-      ),
-    )
-    this.retainApprovedArgumentEdits(
-      result.results
-        .filter((entry) => entry.state !== 'output-error')
-        .map((entry) => entry.toolCallId),
-      rawEdits,
-    )
-    for (const chunk of this.buildToolResultChunks(
-      result.results,
-      this.createSyntheticFinishedEvent(),
-      undefined,
-      true,
-    )) {
-      yield* this.pipeThroughMiddleware(chunk)
-    }
   }
 
   private createSyntheticFinishedEvent(
@@ -5783,7 +5678,8 @@ class TextEngine<
       if (
         typeof resolution !== 'object' ||
         !resolution.approved ||
-        resolution.editedArgs === undefined
+        // ponytail: `== null` matches `editedArgs ?? input` in executeToolCalls.
+        resolution.editedArgs == null
       )
         continue
       try {
@@ -5812,13 +5708,25 @@ class TextEngine<
     return snapshots
   }
 
-  /** Keep checked raw edits in the selected history occurrence. */
+  /**
+   * Keep checked raw edits in the selected history occurrence. A call passed
+   * the check when it waits for the client or ran with its input. A middleware
+   * skip has no input, and a failed check is an output error.
+   */
   private retainApprovedArgumentEdits(
-    checkedIds: Array<string>,
+    executed: ExecuteToolCallsResult,
     snapshots: Map<ToolCall, unknown>,
   ): void {
     if (snapshots.size === 0) return
-    const selectedIds = new Set(checkedIds)
+    const selectedIds = new Set([
+      ...executed.results
+        .filter(
+          (entry) =>
+            entry.input !== undefined && entry.state !== 'output-error',
+        )
+        .map((entry) => entry.toolCallId),
+      ...executed.needsClientExecution.map((entry) => entry.toolCallId),
+    ])
     const historyCalls = this.messages.flatMap((message) =>
       message.role === 'assistant' ? (message.toolCalls ?? []) : [],
     )
