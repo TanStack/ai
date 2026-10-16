@@ -52,6 +52,11 @@ const FIXTURE_STARTERS: FixtureStarter[] = [
     ask: 'How is our spend tracking this month?',
     reply: 'Here’s the month at a glance.',
   },
+  {
+    scenario: 'savings-widget',
+    ask: 'Let me explore retirement savings',
+    reply: 'Here — a custom widget in a sandbox. Drag the contribution; the chart is drawn in-widget but the projected value is computed host-side, and "Save" comes back to me as a structured intent.',
+  },
 ]
 
 const LIVE_SUGGESTIONS = [
@@ -116,6 +121,7 @@ export function ChatSurface() {
   const [busy, setBusy] = useState(false)
   const [providers, setProviders] = useState<string[]>([])
   const [provider, setProvider] = useState('openai')
+  const [expandedGraphId, setExpandedGraphId] = useState<string | null>(null)
 
   const endRef = useRef<HTMLDivElement | null>(null)
   const taRef = useRef<HTMLTextAreaElement | null>(null)
@@ -271,6 +277,7 @@ export function ChatSurface() {
                   graph={m.graphId ? graphs[m.graphId] : undefined}
                   showGraph={!!m.graphId && latestGraphRef[m.graphId] === m.id}
                   onIntent={handleIntent}
+                  onExpand={setExpandedGraphId}
                 />
               ))}
               {busy && <TypingRow />}
@@ -279,6 +286,14 @@ export function ChatSurface() {
           )}
         </div>
       </div>
+
+      {expandedGraphId && graphs[expandedGraphId] && (
+        <ExpandedGraphOverlay
+          graph={graphs[expandedGraphId]}
+          onIntent={handleIntent}
+          onClose={() => setExpandedGraphId(null)}
+        />
+      )}
 
       {/* Composer */}
       <div className="border-t border-white/5 bg-[#070b14]/80 backdrop-blur">
@@ -398,11 +413,13 @@ function MessageRow({
   graph,
   showGraph,
   onIntent,
+  onExpand,
 }: {
   message: Message
   graph?: GraphDocument
   showGraph: boolean
   onIntent: (i: IntentPayload) => void
+  onExpand: (graphId: string) => void
 }) {
   if (message.role === 'system') {
     return (
@@ -438,10 +455,52 @@ function MessageRow({
               <span className="text-slate-600">·</span>
               <span>rev {graph.revision}</span>
               {graph.revision > 1 && <span className="chat-revised-badge">revised in place</span>}
+              <button
+                type="button"
+                className="chat-expand-btn"
+                onClick={() => onExpand(graph.graphId)}
+                title="Expand"
+                aria-label="Expand"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
+                  <path d="M9 3H3v6M15 21h6v-6M3 3l7 7M21 21l-7-7" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
             </div>
-            <GenerativeUIRenderer graph={graph} onIntent={onIntent} />
+            {/* Inline is height-capped (chat-graph-scroll); expand for the full surface. */}
+            <div className="chat-graph-scroll">
+              <GenerativeUIRenderer graph={graph} onIntent={onIntent} />
+            </div>
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+function ExpandedGraphOverlay({
+  graph,
+  onIntent,
+  onClose,
+}: {
+  graph: GraphDocument
+  onIntent: (i: IntentPayload) => void
+  onClose: () => void
+}) {
+  return (
+    <div className="chat-overlay" role="dialog" aria-modal="true" onClick={onClose}>
+      <div className="chat-overlay-panel" onClick={(e) => e.stopPropagation()}>
+        <div className="chat-overlay-bar">
+          <span className="font-mono text-[11px] text-slate-400">
+            {graph.graphId} · rev {graph.revision}
+          </span>
+          <button type="button" className="chat-overlay-close" onClick={onClose} aria-label="Close">
+            ✕
+          </button>
+        </div>
+        <div className="chat-overlay-body">
+          <GenerativeUIRenderer graph={graph} onIntent={onIntent} />
+        </div>
       </div>
     </div>
   )

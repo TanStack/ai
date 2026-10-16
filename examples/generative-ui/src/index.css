@@ -9,6 +9,45 @@
   --font-display: 'Bricolage Grotesque', 'Hanken Grotesk', sans-serif;
 }
 
+/* Host-provided semantic tokens for the portable renderer (spec §9.5).
+   The renderer carries no palette — it reads these; the host supplies them.
+   Core tokens fall back to the de-facto shadcn/Radix vocabulary (--card,
+   --foreground, --primary, …) so the renderer is drop-in native in any
+   shadcn-themed host with no mapping; if none is present, the light "technical
+   atelier" values below apply (the web surface's own look). */
+:root {
+  --gui-surface: var(--card, #ffffff);
+  --gui-surface-sunken: var(--muted, #f8fafc);
+  --gui-surface-muted: var(--muted, #f1f5f9);
+  --gui-surface-inverse: var(--foreground, #0f172a);
+  --gui-text: var(--card-foreground, var(--foreground, #0f172a));
+  --gui-text-secondary: var(--foreground, #334155);
+  --gui-text-muted: var(--muted-foreground, #64748b);
+  --gui-text-faint: var(--muted-foreground, #cbd5e1);
+  --gui-text-on-inverse: var(--background, #f1f5f9);
+  --gui-on-accent: var(--primary-foreground, #ffffff);
+  --gui-border: var(--border, #e2e8f0);
+  --gui-border-subtle: var(--border, #eef2f6);
+  --gui-accent: var(--primary, #2563eb);
+  --gui-accent-strong: var(--primary, #1d4ed8);
+  --gui-accent-surface: var(--accent, #eff6ff);
+  --gui-accent-border: var(--primary, #bfdbfe);
+  --gui-accent-ring: var(--ring, #3b82f6);
+  --gui-accent-2: var(--primary, #38bdf8);
+  --gui-positive: #059669;
+  --gui-positive-solid: #10b981;
+  --gui-positive-surface: #ecfdf5;
+  --gui-positive-border: #a7f3d0;
+  --gui-danger: var(--destructive, #e11d48);
+  --gui-danger-solid: var(--destructive, #f43f5e);
+  --gui-danger-strong: var(--destructive, #be123c);
+  --gui-danger-surface: #fff1f2;
+  --gui-danger-border: #fecdd3;
+  --gui-warning: #f59e0b;
+  --gui-warning-surface: #fffbeb;
+  --gui-warning-border: #fde68a;
+}
+
 @layer base {
   html {
     -webkit-font-smoothing: antialiased;
@@ -161,6 +200,80 @@
   border: 1px solid rgba(245, 158, 11, 0.3);
   padding: 0.12rem 0.45rem;
   border-radius: 999px;
+}
+
+/* Inline graphs are height-capped (cf. Antigravity's 500px inline viewport);
+   the expand control opens the full surface in an overlay. */
+.chat-graph-scroll {
+  max-height: 520px;
+  overflow: auto;
+}
+.chat-expand-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(148, 163, 184, 0.06);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.chat-expand-btn:hover {
+  color: #e2e8f0;
+  border-color: rgba(99, 102, 241, 0.5);
+}
+
+.chat-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem 1.5rem;
+  background: rgba(2, 4, 10, 0.72);
+  backdrop-filter: blur(6px);
+  animation: surface-rise 0.2s ease both;
+}
+.chat-overlay-panel {
+  width: 100%;
+  max-width: 920px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: 1rem;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(9, 13, 22, 0.96);
+  box-shadow: 0 30px 80px -30px rgba(0, 0, 0, 0.9);
+  overflow: hidden;
+}
+.chat-overlay-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.9rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+}
+.chat-overlay-close {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: transparent;
+  cursor: pointer;
+}
+.chat-overlay-close:hover {
+  color: #fff;
+  border-color: rgba(148, 163, 184, 0.4);
+}
+.chat-overlay-body {
+  overflow: auto;
+  padding: 1.1rem;
 }
 
 .chat-system-pill {

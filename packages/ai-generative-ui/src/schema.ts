@@ -108,6 +108,8 @@ export const KNOWN_CATALOG_TYPES = new Set([
   'Choice',
   // 6.4 Vector Scenes
   'Scene',
+  // 6.5 Escape hatch — sandboxed custom widget (research prototype)
+  'Widget',
 ])
 
 export const CONTAINER_TYPES = new Set([

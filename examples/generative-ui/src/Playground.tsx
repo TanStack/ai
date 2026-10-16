@@ -189,6 +189,7 @@ export function Playground() {
             <option value="trip-stops">U8: Locate (trip-stops itinerary)</option>
             <option value="chord-diagram-emaj7">§6.4.3: Guitar Voicing Scene (chord-diagram-emaj7)</option>
             <option value="recipe-card">Live-shape: Recipe Card (bind-less stepper + checklist)</option>
+            <option value="savings-widget">§6.5: Sandboxed Custom Widget (bridge: compute + state + intent)</option>
           </select>
 
           {/* View Mode Toggle */}

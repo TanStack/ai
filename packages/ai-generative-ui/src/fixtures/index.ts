@@ -695,6 +695,112 @@ export const recipeCardFixture: GraphDocument = {
   },
 }
 
+// A self-contained custom widget for the escape-hatch (§6.5) research prototype.
+// It draws a bespoke growth curve (arbitrary rendering a catalog can't express),
+// but the headline number comes from host.compute('savingsGrowth') and "Save"
+// leaves as a structured intent — "sandbox the rendering, not the truth".
+const SAVINGS_WIDGET_SRCDOC = `<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  html,body { margin:0; background:transparent; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; color: var(--gui-text, #0f172a); }
+  .wrap { padding: 14px; }
+  .card { background: var(--gui-surface, #fff); border:1px solid var(--gui-border,#e2e8f0); border-radius:12px; padding:16px; }
+  .row { display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
+  .label { font-size:11px; color: var(--gui-text-muted,#64748b); text-transform:uppercase; letter-spacing:.06em; }
+  .value { font-size:30px; font-weight:700; letter-spacing:-.02em; color: var(--gui-positive, #059669); font-variant-numeric: tabular-nums; }
+  .mc { font-weight:600; color: var(--gui-accent,#2563eb); }
+  input[type=range]{ width:100%; accent-color: var(--gui-accent,#2563eb); margin-top:10px; }
+  svg { width:100%; height:92px; display:block; margin:14px 0 6px; overflow:visible; }
+  .curve { fill:none; stroke: var(--gui-accent,#2563eb); stroke-width:2.5; stroke-linejoin:round; stroke-linecap:round; }
+  .area { fill: var(--gui-accent-surface, rgba(37,99,235,.12)); opacity:.5; }
+  .cap { font-size:11px; color: var(--gui-text-muted,#64748b); line-height:1.4; }
+  button { margin-top:14px; width:100%; padding:10px; border-radius:10px; border:1px solid var(--gui-accent,#2563eb); background: var(--gui-accent,#2563eb); color: var(--gui-on-accent,#fff); font-weight:600; font-size:14px; cursor:pointer; }
+  .saved { margin-top:10px; font-size:12px; color: var(--gui-positive,#059669); text-align:center; min-height:16px; }
+</style></head><body>
+<div class="wrap"><div class="card">
+  <div class="row">
+    <div><div class="label">Projected value · 30 yrs</div><div class="value" id="out">&mdash;</div></div>
+    <div style="text-align:right"><div class="label">Monthly</div><div class="mc" id="mclbl">$300/mo</div></div>
+  </div>
+  <svg viewBox="0 0 300 92" preserveAspectRatio="none"><path class="area" id="area" d=""></path><path class="curve" id="curve" d=""></path></svg>
+  <input type="range" id="mc" min="0" max="1500" step="50" value="300" />
+  <div class="cap">Curve drawn in-widget (arbitrary rendering). Headline value computed host-side via <b>savingsGrowth</b>.</div>
+  <button id="save">Save this plan</button>
+  <div class="saved" id="saved"></div>
+</div></div>
+<script>
+(function(){
+  var seq=0, pending={};
+  function call(type,payload){ return new Promise(function(res){ var id=++seq; pending[id]=res; parent.postMessage(Object.assign({type:type,id:id},payload),'*'); }); }
+  var host={
+    compute:function(name,inputs){ return call('gui:compute',{name:name,inputs:inputs}); },
+    getState:function(path){ return call('gui:getState',{path:path}); },
+    setState:function(path,value){ parent.postMessage({type:'gui:setState',path:path,value:value},'*'); },
+    emitIntent:function(intent,payload,ic){ parent.postMessage({type:'gui:intent',intent:intent,payload:payload,intentClass:ic||'action'},'*'); }
+  };
+  function applyTheme(t){ var r=document.documentElement; for(var k in t){ if(t[k]) r.style.setProperty(k,t[k]); } }
+  window.addEventListener('message',function(e){
+    var m=e.data; if(!m||typeof m!=='object') return;
+    if(m.type==='gui:theme') applyTheme(m.tokens);
+    if(m.type==='gui:compute:result'||m.type==='gui:getState:result'){ var r=pending[m.id]; if(r){ r(m.result); delete pending[m.id]; } }
+  });
+  var slider=document.getElementById('mc'), out=document.getElementById('out'), lbl=document.getElementById('mclbl'),
+      curve=document.getElementById('curve'), area=document.getElementById('area'), saved=document.getElementById('saved');
+  var principal=1000, annualRate=7, years=30;
+  function drawCurve(mc){
+    var W=300,H=92, months=years*12, mr=annualRate/100/12, fv=principal, pts=[], i;
+    for(i=0;i<=months;i++){ if(i%12===0) pts.push(fv); fv=(fv+mc)*(1+mr); }
+    var max=pts[pts.length-1]||1, d='', a='M0 '+H+' ', j;
+    for(j=0;j<pts.length;j++){ var x=(j/(pts.length-1))*W, y=H-(pts[j]/max)*(H-6)-3; d+=(j?'L':'M')+x.toFixed(1)+' '+y.toFixed(1)+' '; a+='L'+x.toFixed(1)+' '+y.toFixed(1)+' '; }
+    a+='L'+W+' '+H+' Z'; curve.setAttribute('d',d); area.setAttribute('d',a);
+  }
+  var t;
+  function render(){
+    var mc=+slider.value; lbl.textContent='$'+mc+'/mo'; drawCurve(mc); saved.textContent='';
+    host.compute('savingsGrowth',{principal:principal,annualRate:annualRate,years:years,monthlyContribution:mc}).then(function(res){
+      out.textContent = (res && res.futureValue!=null) ? ('$'+Math.round(res.futureValue).toLocaleString()) : '\\u2014';
+    });
+  }
+  slider.addEventListener('input',function(){ clearTimeout(t); t=setTimeout(render,16); });
+  document.getElementById('save').addEventListener('click',function(){
+    host.emitIntent('savePlan',{monthlyContribution:+slider.value, projected:out.textContent}); saved.textContent='\\u2713 Plan sent to the agent';
+  });
+  parent.postMessage({type:'gui:ready'},'*'); render();
+})();
+</script></body></html>`
+
+export const savingsWidgetFixture: GraphDocument = {
+  specVersion: '0.1',
+  graphId: 'g_savings_widget_01',
+  revision: 1,
+  title: 'Retirement Savings Explorer',
+  fallbackText:
+    'A custom savings-growth widget: drag the monthly contribution to see the projected 30-year value, computed by host code. Save the plan to send it back to the agent.',
+  provenance: { driver: 'fixture', sourceId: 'savings-widget' },
+  root: {
+    id: 'root',
+    type: 'Stack',
+    props: { gap: 'md' },
+    children: [
+      {
+        id: 'intro',
+        type: 'Callout',
+        props: {
+          tone: 'info',
+          title: 'Escape hatch — sandboxed custom widget',
+          text: 'The chart below is hand-drawn inside a sandboxed iframe (arbitrary rendering a catalog cannot express). The projected value is still computed by host code, state lives host-side, and "Save" leaves as a structured intent. Draw anything; the truth stays host-side.',
+        },
+      },
+      {
+        id: 'widget',
+        type: 'Widget',
+        props: { title: 'Savings growth', height: 360, srcdoc: SAVINGS_WIDGET_SRCDOC },
+      },
+    ],
+  },
+}
+
 export const CANONICAL_FIXTURES: Record<string, GraphDocument> = {
   'compare-plans-basic': comparePlansBasicFixture,
   'bicycle-drivetrain': bicycleDrivetrainFixture,
@@ -706,4 +812,5 @@ export const CANONICAL_FIXTURES: Record<string, GraphDocument> = {
   'trip-stops': tripStopsFixture,
   'chord-diagram-emaj7': chordDiagramEmaj7Fixture,
   'recipe-card': recipeCardFixture,
+  'savings-widget': savingsWidgetFixture,
 }

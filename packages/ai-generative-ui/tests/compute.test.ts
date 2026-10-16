@@ -3,6 +3,7 @@ import {
   ComputeRegistry,
   defaultComputeRegistry,
   describeComputeForPrompt,
+  renderUICompositionGuidance,
 } from '../src/index'
 
 describe('Compute Registry (§5.3)', () => {
@@ -102,6 +103,18 @@ describe('Compute Registry (§5.3)', () => {
     const result = defaultComputeRegistry.execute('percentOf', { value: 80, percent: 8.25 }, {})
     expect(result.amount).toBe(6.6)
     expect(result.total).toBe(86.6)
+  })
+
+  it('render_ui composition guidance embeds the live compute catalog and worked wiring', () => {
+    const guidance = renderUICompositionGuidance()
+    // Catalog families a producer needs
+    expect(guidance).toContain('Layout: Stack, Columns, Section, Tabs, Timeline')
+    // The actual compute catalog (so a model binds to functions that exist)
+    expect(guidance).toContain(describeComputeForPrompt())
+    expect(guidance).toContain('loanPayment')
+    // The worked example that anchors correct compute wiring
+    expect(guidance).toContain('"bind": { "value": "loan.monthlyPayment" }')
+    expect(guidance).toContain('provenance.driver to "live"')
   })
 
   it('describes the compute catalog for model prompting with real function names', () => {

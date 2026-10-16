@@ -3,7 +3,7 @@
  * Host React Renderer with catalog components, state binding, and vector scenes.
  */
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import type {
   GraphDocument,
   UINode,
@@ -24,12 +24,12 @@ export interface GenerativeUIRendererProps {
 
 // Map semantic paint roles to CSS values
 const PAINT_ROLES: Record<SemanticPaintRole, string> = {
-  accent: '#2563eb', // blue-600
-  muted: '#94a3b8', // slate-400
-  danger: '#ef4444', // red-500
-  neutral: '#334155', // slate-700
-  highlight: '#f59e0b', // amber-500
-  surface: '#ffffff', // white
+  accent: 'var(--gui-accent)', // blue-600
+  muted: 'var(--gui-text-muted)', // slate-400
+  danger: 'var(--gui-danger)', // red-500
+  neutral: 'var(--gui-text-secondary)', // slate-700
+  highlight: 'var(--gui-warning)', // amber-500
+  surface: 'var(--gui-surface)',
   none: 'none',
 }
 
@@ -224,15 +224,15 @@ export function GenerativeUIRenderer({
 
   return (
     <div
-      className={`open-gen-ui-container text-slate-800 bg-[#fcfcfd] border border-slate-200/80 rounded-2xl p-6 sm:p-7 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_12px_32px_-12px_rgba(15,23,42,0.18)] max-w-4xl mx-auto ${className}`}
+      className={`open-gen-ui-container text-[var(--gui-text)] bg-[var(--gui-surface)] border border-[var(--gui-border)] rounded-2xl p-6 sm:p-7 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_12px_32px_-12px_rgba(15,23,42,0.18)] max-w-4xl mx-auto ${className}`}
       data-graph-id={graph.graphId}
     >
       <header className="mb-6 flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <h2 className="text-2xl font-semibold tracking-[-0.02em] text-slate-900 leading-tight">{graph.title}</h2>
+          <h2 className="text-2xl font-semibold tracking-[-0.02em] text-[var(--gui-text)] leading-tight">{graph.title}</h2>
         </div>
-        <span className="shrink-0 inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400 bg-slate-100/70 border border-slate-200/80 rounded-full px-2.5 py-1 mt-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+        <span className="shrink-0 inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-[var(--gui-text-muted)] bg-[var(--gui-surface-muted)] border border-[var(--gui-border)] rounded-full px-2.5 py-1 mt-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-[var(--gui-positive-solid)]" />
           Spec v{graph.specVersion} · Rev {graph.revision}
         </span>
       </header>
@@ -324,23 +324,23 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
       <section
         className={`relative rounded-xl border p-5 h-full transition-shadow ${
           recommended
-            ? 'border-blue-300 bg-gradient-to-b from-blue-50/60 to-white ring-1 ring-blue-200/60 shadow-[0_8px_24px_-12px_rgba(37,99,235,0.35)]'
-            : 'border-slate-200/70 bg-slate-50/40'
+            ? 'border-[var(--gui-accent-border)] bg-gradient-to-b from-[var(--gui-accent-surface)] to-[var(--gui-surface)] ring-1 ring-[var(--gui-accent-ring)] shadow-[0_8px_24px_-12px_rgba(37,99,235,0.35)]'
+            : 'border-[var(--gui-border)] bg-[var(--gui-surface-sunken)]'
         }`}
       >
         {(cleanTitle || recommended) && (
           <div className="flex items-center justify-between gap-2 flex-wrap">
             {cleanTitle && (
-              <h3 className="font-semibold text-slate-900 text-[15px] tracking-[-0.01em]">{cleanTitle}</h3>
+              <h3 className="font-semibold text-[var(--gui-text)] text-[15px] tracking-[-0.01em]">{cleanTitle}</h3>
             )}
             {recommended && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.06em] text-blue-700 bg-blue-100 rounded-full px-2 py-0.5">
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--gui-accent-strong)] bg-[var(--gui-accent-surface)] rounded-full px-2 py-0.5">
                 ★ Recommended
               </span>
             )}
           </div>
         )}
-        {resolvedProps.subtitle && <p className="text-[13px] text-slate-500 mt-0.5 mb-1">{resolvedProps.subtitle}</p>}
+        {resolvedProps.subtitle && <p className="text-[13px] text-[var(--gui-text-muted)] mt-0.5 mb-1">{resolvedProps.subtitle}</p>}
         <div className={`space-y-3 ${cleanTitle || recommended || resolvedProps.subtitle ? 'mt-4' : ''}`}>
           {children?.map((child) => (
             <NodeRenderer
@@ -364,15 +364,15 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
 
     return (
       <div className="space-y-3">
-        <div className="flex border-b border-slate-200 gap-2">
+        <div className="flex border-b border-[var(--gui-border)] gap-2">
           {tabs.map((t) => (
             <button
               key={t.id}
               type="button"
               className={`py-1.5 px-3 font-medium text-sm border-b-2 -mb-px transition-colors cursor-pointer ${
                 activeTab === t.id
-                  ? 'border-blue-600 text-blue-600 font-semibold'
-                  : 'border-transparent text-slate-500 hover:text-slate-800'
+                  ? 'border-[var(--gui-accent)] text-[var(--gui-accent)] font-semibold'
+                  : 'border-transparent text-[var(--gui-text-muted)] hover:text-[var(--gui-text)]'
               }`}
               onClick={() => {
                 onStateChange(tabKey, t.id)
@@ -415,16 +415,16 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
             <div key={child.id} className="relative flex gap-4 pb-5 last:pb-0">
               {!isLast && (
                 <span
-                  className={`absolute left-[13px] top-7 bottom-0 w-0.5 ${done ? 'bg-blue-500' : 'bg-slate-200'}`}
+                  className={`absolute left-[13px] top-7 bottom-0 w-0.5 ${done ? 'bg-[var(--gui-accent)]' : 'bg-[var(--gui-surface-muted)]'}`}
                 />
               )}
               <span
                 className={`relative z-10 shrink-0 w-[27px] h-[27px] rounded-full flex items-center justify-center text-[11px] font-bold border-2 transition-colors ${
                   done
-                    ? 'bg-blue-600 border-blue-600 text-white'
+                    ? 'bg-[var(--gui-accent)] border-[var(--gui-accent)] text-[var(--gui-on-accent)]'
                     : current
-                      ? 'bg-white border-blue-600 text-blue-600 ring-4 ring-blue-100'
-                      : 'bg-white border-slate-300 text-slate-400'
+                      ? 'bg-[var(--gui-surface)] border-[var(--gui-accent)] text-[var(--gui-accent)] ring-4 ring-[var(--gui-accent-ring)]'
+                      : 'bg-[var(--gui-surface)] border-[var(--gui-border)] text-[var(--gui-text-muted)]'
                 }`}
               >
                 {done ? '✓' : stepNum}
@@ -453,39 +453,39 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
       state,
     )
     if (variant === 'heading') {
-      return <h4 className="font-semibold text-slate-900 text-[15px] tracking-[-0.01em]">{content}</h4>
+      return <h4 className="font-semibold text-[var(--gui-text)] text-[15px] tracking-[-0.01em]">{content}</h4>
     }
     if (variant === 'caption') {
-      return <p className="text-xs text-slate-500">{content}</p>
+      return <p className="text-xs text-[var(--gui-text-muted)]">{content}</p>
     }
     if (variant === 'code') {
       return (
-        <pre className="bg-slate-900 text-slate-100 text-xs p-3.5 rounded-lg overflow-x-auto font-mono leading-relaxed">
+        <pre className="bg-[var(--gui-surface-inverse)] text-[var(--gui-text-on-inverse)] text-xs p-3.5 rounded-lg overflow-x-auto font-mono leading-relaxed">
           <code>{content}</code>
         </pre>
       )
     }
-    return <p className="text-sm text-slate-700 whitespace-pre-line leading-relaxed">{content}</p>
+    return <p className="text-sm text-[var(--gui-text-secondary)] whitespace-pre-line leading-relaxed">{content}</p>
   }
 
   if (type === 'Callout') {
     const tone = resolvedProps.tone || 'info'
     const colors =
       tone === 'warning'
-        ? 'bg-amber-50/80 border-amber-200/80 text-amber-900'
+        ? 'bg-[var(--gui-warning-surface)] border-[var(--gui-warning-border)] text-[var(--gui-warning)]'
         : tone === 'danger'
-          ? 'bg-rose-50/80 border-rose-200/80 text-rose-900'
+          ? 'bg-[var(--gui-danger-surface)] border-[var(--gui-danger-border)] text-[var(--gui-danger)]'
           : tone === 'success'
-            ? 'bg-emerald-50/80 border-emerald-200/80 text-emerald-900'
-            : 'bg-blue-50/70 border-blue-200/70 text-blue-900'
+            ? 'bg-[var(--gui-positive-surface)] border-[var(--gui-positive-border)] text-[var(--gui-positive)]'
+            : 'bg-[var(--gui-accent-surface)] border-[var(--gui-accent-border)] text-[var(--gui-accent-strong)]'
     const accent =
-      tone === 'warning' ? 'bg-amber-400' : tone === 'danger' ? 'bg-rose-500' : tone === 'success' ? 'bg-emerald-500' : 'bg-blue-500'
+      tone === 'warning' ? 'bg-[var(--gui-warning)]' : tone === 'danger' ? 'bg-[var(--gui-danger-solid)]' : tone === 'success' ? 'bg-[var(--gui-positive-solid)]' : 'bg-[var(--gui-accent)]'
     const icon = tone === 'warning' ? '!' : tone === 'danger' ? '✕' : tone === 'success' ? '✓' : 'i'
 
     return (
       <div className={`relative flex gap-3 p-4 pl-5 rounded-xl border text-sm overflow-hidden ${colors}`}>
         <span className={`absolute left-0 top-0 bottom-0 w-1 ${accent}`} />
-        <span className={`shrink-0 w-5 h-5 rounded-full ${accent} text-white text-[11px] font-bold flex items-center justify-center mt-0.5`}>
+        <span className={`shrink-0 w-5 h-5 rounded-full ${accent} text-[var(--gui-on-accent)] text-[11px] font-bold flex items-center justify-center mt-0.5`}>
           {icon}
         </span>
         <div className="min-w-0">
@@ -499,19 +499,19 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
   if (type === 'Metric') {
     const toneClass =
       resolvedProps.tone === 'positive'
-        ? 'text-emerald-600'
+        ? 'text-[var(--gui-positive)]'
         : resolvedProps.tone === 'negative'
-          ? 'text-rose-600'
-          : 'text-slate-900'
+          ? 'text-[var(--gui-danger)]'
+          : 'text-[var(--gui-text)]'
     const deltaStr =
       resolvedProps.delta != null ? String(resolvedProps.delta).trim() : ''
     const deltaUp = deltaStr.startsWith('+')
     const deltaDown = deltaStr.startsWith('-')
     const deltaClass = deltaUp
-      ? 'text-emerald-700 bg-emerald-50 border-emerald-200/70'
+      ? 'text-[var(--gui-positive)] bg-[var(--gui-positive-surface)] border-[var(--gui-positive-border)]'
       : deltaDown
-        ? 'text-rose-700 bg-rose-50 border-rose-200/70'
-        : 'text-slate-500 bg-slate-50 border-slate-200/70'
+        ? 'text-[var(--gui-danger)] bg-[var(--gui-danger-surface)] border-[var(--gui-danger-border)]'
+        : 'text-[var(--gui-text-muted)] bg-[var(--gui-surface-sunken)] border-[var(--gui-border)]'
 
     const metricValue = resolveDisplayValue(
       resolvedProps.value ?? resolvedProps.content ?? resolvedProps.text,
@@ -519,11 +519,11 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
     )
     const hasValue = metricValue !== undefined && metricValue !== null && metricValue !== ''
     return (
-      <div className="bg-white border border-slate-200/80 rounded-xl p-4 flex flex-col gap-1.5 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
-        <div className="text-[11px] font-medium uppercase tracking-[0.07em] text-slate-400">{resolvedProps.label}</div>
-        <div className={`text-[28px] leading-none font-semibold tracking-[-0.02em] tabular-nums ${hasValue ? toneClass : 'text-slate-300'}`}>
+      <div className="bg-[var(--gui-surface)] border border-[var(--gui-border)] rounded-xl p-4 flex flex-col gap-1.5 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+        <div className="text-[11px] font-medium uppercase tracking-[0.07em] text-[var(--gui-text-muted)]">{resolvedProps.label}</div>
+        <div className={`text-[28px] leading-none font-semibold tracking-[-0.02em] tabular-nums ${hasValue ? toneClass : 'text-[var(--gui-text-faint)]'}`}>
           {hasValue ? metricValue : '—'}
-          {hasValue && resolvedProps.unit && <span className="text-sm text-slate-400 font-normal ml-1 tracking-normal">{resolvedProps.unit}</span>}
+          {hasValue && resolvedProps.unit && <span className="text-sm text-[var(--gui-text-muted)] font-normal ml-1 tracking-normal">{resolvedProps.unit}</span>}
         </div>
         {deltaStr && (
           <div className="mt-0.5">
@@ -543,12 +543,12 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
     const rows: Array<Record<string, unknown>> = (resolvedProps.rows as Array<Record<string, unknown>>) || []
 
     return (
-      <div className="overflow-x-auto border border-slate-200/80 rounded-xl">
+      <div className="overflow-x-auto border border-[var(--gui-border)] rounded-xl">
         <table className="min-w-full text-[13px] border-collapse">
           <thead>
-            <tr className="bg-slate-50/80 border-b border-slate-200">
+            <tr className="bg-[var(--gui-surface-sunken)] border-b border-[var(--gui-border)]">
               {columns.map((col) => (
-                <th key={col.key} className="px-4 py-2.5 text-left font-semibold text-[11px] uppercase tracking-[0.05em] text-slate-500">
+                <th key={col.key} className="px-4 py-2.5 text-left font-semibold text-[11px] uppercase tracking-[0.05em] text-[var(--gui-text-muted)]">
                   {col.label}
                 </th>
               ))}
@@ -556,9 +556,9 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
           </thead>
           <tbody>
             {rows.map((row, i) => (
-              <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-blue-50/30 transition-colors">
+              <tr key={i} className="border-b border-[var(--gui-border-subtle)] last:border-0 hover:bg-[var(--gui-accent-surface)] transition-colors">
                 {columns.map((col, ci) => (
-                  <td key={col.key} className={`px-4 py-2.5 tabular-nums ${ci === 0 ? 'font-medium text-slate-800' : 'text-slate-600'}`}>
+                  <td key={col.key} className={`px-4 py-2.5 tabular-nums ${ci === 0 ? 'font-medium text-[var(--gui-text)]' : 'text-[var(--gui-text-secondary)]'}`}>
                     {String(row[col.key] ?? '')}
                   </td>
                 ))}
@@ -580,11 +580,11 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
           const text = typeof item === 'string' ? item : (item as any)?.text
           const subtitle = typeof item === 'object' && item !== null ? (item as any)?.subtitle : undefined
           return (
-            <div key={idx} className="flex gap-2 text-sm text-slate-700 items-start">
-              <span className="font-semibold text-slate-400">{isOrdered ? `${idx + 1}.` : '•'}</span>
+            <div key={idx} className="flex gap-2 text-sm text-[var(--gui-text-secondary)] items-start">
+              <span className="font-semibold text-[var(--gui-text-muted)]">{isOrdered ? `${idx + 1}.` : '•'}</span>
               <div>
                 <div>{text}</div>
-                {subtitle && <div className="text-xs text-slate-500">{subtitle}</div>}
+                {subtitle && <div className="text-xs text-[var(--gui-text-muted)]">{subtitle}</div>}
               </div>
             </div>
           )
@@ -599,9 +599,9 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
     const PLOT_HEIGHT = 156
 
     return (
-      <figure className="rounded-xl border border-slate-200/80 bg-white p-4 m-0">
+      <figure className="rounded-xl border border-[var(--gui-border)] bg-[var(--gui-surface)] p-4 m-0">
         {resolvedProps.title && (
-          <figcaption className="text-[11px] font-semibold text-slate-500 uppercase tracking-[0.08em] mb-4">
+          <figcaption className="text-[11px] font-semibold text-[var(--gui-text-muted)] uppercase tracking-[0.08em] mb-4">
             {resolvedProps.title}
           </figcaption>
         )}
@@ -610,20 +610,20 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
             const barHeight = Math.max(4, Math.round((d.value / maxValue) * (PLOT_HEIGHT - 24)))
             return (
               <div key={i} className="group flex-1 h-full flex flex-col justify-end items-center gap-1.5">
-                <span className="text-[11px] font-semibold text-slate-700 tabular-nums transition-colors group-hover:text-blue-600">
+                <span className="text-[11px] font-semibold text-[var(--gui-text-secondary)] tabular-nums transition-colors group-hover:text-[var(--gui-accent)]">
                   {d.value}
                 </span>
                 <div
-                  className="w-full max-w-[44px] rounded-md bg-gradient-to-t from-blue-600 to-sky-400 shadow-[0_1px_2px_rgba(37,99,235,0.3)] transition-all duration-300 ease-out group-hover:from-blue-700 group-hover:to-sky-500"
+                  className="w-full max-w-[44px] rounded-md bg-gradient-to-t from-[var(--gui-accent)] to-[var(--gui-accent-2)] shadow-[0_1px_2px_rgba(37,99,235,0.3)] transition-all duration-300 ease-out group-hover:from-[var(--gui-accent-strong)] group-hover:to-[var(--gui-accent-2)]"
                   style={{ height: barHeight }}
                 />
               </div>
             )
           })}
         </div>
-        <div className="flex gap-2.5 mt-2.5 pt-2.5 border-t border-slate-100">
+        <div className="flex gap-2.5 mt-2.5 pt-2.5 border-t border-[var(--gui-border-subtle)]">
           {data.map((d, i) => (
-            <span key={i} className="flex-1 text-center text-[11px] text-slate-400 font-medium truncate">
+            <span key={i} className="flex-1 text-center text-[11px] text-[var(--gui-text-muted)] font-medium truncate">
               {d.label}
             </span>
           ))}
@@ -670,17 +670,17 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
       .join(' ')
 
     return (
-      <div className="rounded-xl border border-slate-200/80 bg-white overflow-hidden">
+      <div className="rounded-xl border border-[var(--gui-border)] bg-[var(--gui-surface)] overflow-hidden">
         {projected.length > 0 ? (
-          <div className="relative bg-[#eef2f6]">
+          <div className="relative bg-[var(--gui-surface-muted)]">
             <svg viewBox={`0 0 ${W} ${H}`} className="w-full block" role="img" aria-label={resolvedProps.title || 'Route map'}>
               <defs>
                 <pattern id={`grid-${id}`} width="28" height="28" patternUnits="userSpaceOnUse">
-                  <path d="M 28 0 L 0 0 0 28" fill="none" stroke="#dbe2ea" strokeWidth="1" />
+                  <path d="M 28 0 L 0 0 0 28" fill="none" stroke="var(--gui-border)" strokeWidth="1" />
                 </pattern>
                 <linearGradient id={`land-${id}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#f6f8fb" />
-                  <stop offset="100%" stopColor="#e9eef4" />
+                  <stop offset="0%" stopColor="var(--gui-surface-sunken)" />
+                  <stop offset="100%" stopColor="var(--gui-surface-muted)" />
                 </linearGradient>
               </defs>
               <rect width={W} height={H} fill={`url(#land-${id})`} />
@@ -689,7 +689,7 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
                 <path
                   d={routeD}
                   fill="none"
-                  stroke="#2563eb"
+                  stroke="var(--gui-accent)"
                   strokeWidth="2.5"
                   strokeDasharray="2 7"
                   strokeLinecap="round"
@@ -714,16 +714,16 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
                       }
                     }}
                   >
-                    <circle r={isSel ? 15 : 12} fill="#2563eb" opacity={isSel ? 0.18 : 0.1} />
+                    <circle r={isSel ? 15 : 12} fill="var(--gui-accent)" opacity={isSel ? 0.18 : 0.1} />
                     <circle
                       r={isSel ? 11 : 9}
-                      fill={isSel ? '#1d4ed8' : '#2563eb'}
-                      stroke="#ffffff"
+                      fill={isSel ? 'var(--gui-accent-strong)' : 'var(--gui-accent)'}
+                      stroke="var(--gui-surface)"
                       strokeWidth="2.5"
                     />
                     <text
                       y="1"
-                      fill="#ffffff"
+                      fill="var(--gui-on-accent)"
                       fontSize="11"
                       fontWeight="700"
                       textAnchor="middle"
@@ -735,12 +735,12 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
                 )
               })}
             </svg>
-            <div className="absolute top-2.5 left-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500 bg-white/80 backdrop-blur-sm rounded-md px-2 py-1 border border-slate-200/60">
+            <div className="absolute top-2.5 left-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--gui-text-muted)] bg-[var(--gui-surface)] backdrop-blur-sm rounded-md px-2 py-1 border border-[var(--gui-border)]">
               {resolvedProps.title || 'Route Map'}
             </div>
           </div>
         ) : null}
-        <div className="divide-y divide-slate-100">
+        <div className="divide-y divide-[var(--gui-border-subtle)]">
           {markers.map((m, i) => {
             const isSel = selectedMarker === m.id
             return (
@@ -749,19 +749,19 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
                 type="button"
                 onClick={() => selectMarker(m)}
                 className={`w-full flex items-start gap-3 text-left px-4 py-2.5 transition-colors ${
-                  isSel ? 'bg-blue-50/70' : 'hover:bg-slate-50'
+                  isSel ? 'bg-[var(--gui-accent-surface)]' : 'hover:bg-[var(--gui-surface-sunken)]'
                 }`}
               >
                 <span
-                  className={`shrink-0 mt-0.5 w-5 h-5 rounded-full text-[11px] font-bold text-white flex items-center justify-center ${
-                    isSel ? 'bg-blue-700' : 'bg-blue-600'
+                  className={`shrink-0 mt-0.5 w-5 h-5 rounded-full text-[11px] font-bold text-[var(--gui-on-accent)] flex items-center justify-center ${
+                    isSel ? 'bg-[var(--gui-accent-strong)]' : 'bg-[var(--gui-accent)]'
                   }`}
                 >
                   {i + 1}
                 </span>
                 <span className="min-w-0">
-                  <span className="block text-sm font-medium text-slate-800">{m.label}</span>
-                  {m.note && <span className="block text-xs text-slate-500 mt-0.5">{m.note}</span>}
+                  <span className="block text-sm font-medium text-[var(--gui-text)]">{m.label}</span>
+                  {m.note && <span className="block text-xs text-[var(--gui-text-muted)] mt-0.5">{m.note}</span>}
                 </span>
               </button>
             )
@@ -777,8 +777,8 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
     const selectedPart = resolveStatePath(state, selectedPath)
 
     return (
-      <div className="border border-slate-200/80 rounded-xl p-4 bg-white space-y-3">
-        {resolvedProps.title && <h4 className="font-semibold text-slate-800 text-sm">{resolvedProps.title}</h4>}
+      <div className="border border-[var(--gui-border)] rounded-xl p-4 bg-[var(--gui-surface)] space-y-3">
+        {resolvedProps.title && <h4 className="font-semibold text-[var(--gui-text)] text-sm">{resolvedProps.title}</h4>}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {hotspots.map((spot) => (
             <button
@@ -786,8 +786,8 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
               type="button"
               className={`p-2.5 rounded-lg text-left border text-xs font-medium transition-colors ${
                 selectedPart === spot.id
-                  ? 'border-blue-600 bg-blue-50 text-blue-900'
-                  : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
+                  ? 'border-[var(--gui-accent)] bg-[var(--gui-accent-surface)] text-[var(--gui-accent-strong)]'
+                  : 'border-[var(--gui-border)] bg-[var(--gui-surface-sunken)] text-[var(--gui-text-secondary)] hover:bg-[var(--gui-surface-muted)]'
               }`}
               onClick={() => {
                 onStateChange(selectedPath, spot.id)
@@ -799,7 +799,7 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
           ))}
         </div>
         {selectedPart && (
-          <div className="p-3 bg-slate-50 rounded border border-slate-200 text-xs text-slate-700">
+          <div className="p-3 bg-[var(--gui-surface-sunken)] rounded border border-[var(--gui-border)] text-xs text-[var(--gui-text-secondary)]">
             <strong>{hotspots.find((h) => h.id === selectedPart)?.label}:</strong>{' '}
             {hotspots.find((h) => h.id === selectedPart)?.explanation}
           </div>
@@ -831,7 +831,7 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
         ))}
         <button
           type="submit"
-          className="w-full py-2 px-4 rounded-lg bg-blue-600 text-white font-medium text-sm hover:bg-blue-700 transition-colors shadow-sm"
+          className="w-full py-2 px-4 rounded-lg bg-[var(--gui-accent)] text-[var(--gui-on-accent)] font-medium text-sm hover:bg-[var(--gui-accent-strong)] transition-colors shadow-sm"
         >
           {resolvedProps.submitLabel || 'Submit'}
         </button>
@@ -840,8 +840,8 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
   }
 
   const inputClass =
-    'w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-400 transition-shadow'
-  const labelClass = 'block text-[13px] font-medium text-slate-600 mb-1.5'
+    'w-full px-3.5 py-2 text-sm rounded-lg border border-[var(--gui-border)] bg-[var(--gui-surface)] text-[var(--gui-text)] focus:outline-none focus:ring-2 focus:ring-[var(--gui-accent-ring)] focus:border-[var(--gui-accent-border)] transition-shadow'
+  const labelClass = 'block text-[13px] font-medium text-[var(--gui-text-secondary)] mb-1.5'
 
   if (type === 'TextInput') {
     const vp = valueBindPath(node)
@@ -916,14 +916,14 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
     return (
       <div>
         <div className="flex justify-between items-center mb-2">
-          <label className="text-[13px] font-medium text-slate-600">{resolvedProps.label}</label>
-          <span className="text-[13px] font-semibold text-blue-600 tabular-nums bg-blue-50 rounded-md px-2 py-0.5">{val}</span>
+          <label className="text-[13px] font-medium text-[var(--gui-text-secondary)]">{resolvedProps.label}</label>
+          <span className="text-[13px] font-semibold text-[var(--gui-accent)] tabular-nums bg-[var(--gui-accent-surface)] rounded-md px-2 py-0.5">{val}</span>
         </div>
         <input
           type="range"
           className="w-full accent-blue-600 cursor-pointer"
           style={{
-            background: `linear-gradient(to right, #2563eb ${pct}%, #e2e8f0 ${pct}%)`,
+            background: `linear-gradient(to right, var(--gui-accent) ${pct}%, var(--gui-border) ${pct}%)`,
             height: '6px',
             borderRadius: '9999px',
             WebkitAppearance: 'none',
@@ -949,12 +949,12 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
     const vp = valueBindPath(node)
     const val = (resolveStatePath(state, vp) ?? resolvedProps.value ?? min) as number
     const stepBtn =
-      'w-9 h-9 rounded-lg border border-slate-300 bg-white text-lg font-semibold text-slate-600 flex items-center justify-center hover:bg-slate-50 hover:border-slate-400 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100'
+      'w-9 h-9 rounded-lg border border-[var(--gui-border)] bg-[var(--gui-surface)] text-lg font-semibold text-[var(--gui-text-secondary)] flex items-center justify-center hover:bg-[var(--gui-surface-sunken)] hover:border-[var(--gui-border)] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100'
 
     return (
       <div>
         <label className={labelClass}>{resolvedProps.label}</label>
-        <div className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50/60 p-1">
+        <div className="inline-flex items-center gap-1 rounded-xl border border-[var(--gui-border)] bg-[var(--gui-surface-sunken)] p-1">
           <button
             type="button"
             className={stepBtn}
@@ -963,7 +963,7 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
           >
             −
           </button>
-          <span className="text-base font-semibold w-10 text-center tabular-nums text-slate-900">{val}</span>
+          <span className="text-base font-semibold w-10 text-center tabular-nums text-[var(--gui-text)]">{val}</span>
           <button
             type="button"
             className={stepBtn}
@@ -982,10 +982,10 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
     const isChecked = Boolean(resolveStatePath(state, vp))
 
     return (
-      <label className="flex items-center gap-2.5 text-sm text-slate-700 cursor-pointer select-none">
+      <label className="flex items-center gap-2.5 text-sm text-[var(--gui-text-secondary)] cursor-pointer select-none">
         <input
           type="checkbox"
-          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+          className="rounded border-[var(--gui-border)] text-[var(--gui-accent)] focus:ring-[var(--gui-accent-ring)] w-4 h-4 cursor-pointer"
           checked={isChecked}
           onChange={(e) => onStateChange(vp, e.target.checked)}
         />
@@ -1012,12 +1012,12 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
             <label
               key={itemKey}
               className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-[13px] cursor-pointer transition-colors ${
-                isDone ? 'bg-slate-50 border-slate-200 line-through text-slate-400' : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+                isDone ? 'bg-[var(--gui-surface-sunken)] border-[var(--gui-border)] line-through text-[var(--gui-text-muted)]' : 'bg-[var(--gui-surface)] border-[var(--gui-border)] text-[var(--gui-text-secondary)] hover:border-[var(--gui-border)]'
               }`}
             >
               <input
                 type="checkbox"
-                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                className="w-4 h-4 rounded border-[var(--gui-border)] text-[var(--gui-accent)] focus:ring-[var(--gui-accent-ring)]"
                 checked={isDone}
                 onChange={(e) => {
                   const updated = { ...checklistState, [itemKey]: e.target.checked }
@@ -1040,17 +1040,17 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
       : false
     const btnClass =
       tone === 'danger'
-        ? 'bg-rose-600 text-white hover:bg-rose-700 active:bg-rose-800'
+        ? 'bg-[var(--gui-danger)] text-[var(--gui-on-accent)] hover:bg-[var(--gui-danger-strong)] active:bg-[var(--gui-danger-strong)]'
         : tone === 'secondary'
-          ? 'bg-slate-100 text-slate-800 border border-slate-300 hover:bg-slate-200 active:bg-slate-300'
-          : 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'
+          ? 'bg-[var(--gui-surface-muted)] text-[var(--gui-text)] border border-[var(--gui-border)] hover:bg-[var(--gui-surface-muted)] active:bg-[var(--gui-border)]'
+          : 'bg-[var(--gui-accent)] text-[var(--gui-on-accent)] hover:bg-[var(--gui-accent-strong)] active:bg-[var(--gui-accent-strong)]'
 
     return (
       <button
         type="button"
         disabled={resolvedProps.disabled}
         className={`px-4 py-2 rounded-lg font-medium text-xs transition-all shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${btnClass} ${
-          isSelected ? 'ring-2 ring-blue-500 ring-offset-2 font-bold' : ''
+          isSelected ? 'ring-2 ring-[var(--gui-accent-ring)] ring-offset-2 font-bold' : ''
         }`}
         onClick={() => {
           if (bind.selected) {
@@ -1095,7 +1095,7 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
 
     return (
       <div className="space-y-2">
-        {resolvedProps.label && <div className="text-[11px] font-semibold uppercase tracking-[0.07em] text-slate-400 mb-1">{resolvedProps.label}</div>}
+        {resolvedProps.label && <div className="text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--gui-text-muted)] mb-1">{resolvedProps.label}</div>}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {options.map((opt) => {
             const danger = opt.tone === 'danger' || /reject|cancel|abort|decline|deny/i.test(opt.id + ' ' + opt.label)
@@ -1103,10 +1103,10 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
               <button
                 key={opt.id}
                 type="button"
-                className={`group relative flex items-start gap-3 p-4 border rounded-xl text-left bg-white transition-all duration-150 hover:-translate-y-px ${
+                className={`group relative flex items-start gap-3 p-4 border rounded-xl text-left bg-[var(--gui-surface)] transition-all duration-150 hover:-translate-y-px ${
                   danger
-                    ? 'border-slate-200 hover:border-rose-300 hover:bg-rose-50/40 hover:shadow-[0_4px_14px_-6px_rgba(244,63,94,0.4)]'
-                    : 'border-slate-200 hover:border-blue-400 hover:bg-blue-50/40 hover:shadow-[0_4px_14px_-6px_rgba(37,99,235,0.4)]'
+                    ? 'border-[var(--gui-border)] hover:border-[var(--gui-danger-border)] hover:bg-[var(--gui-danger-surface)] hover:shadow-[0_4px_14px_-6px_rgba(244,63,94,0.4)]'
+                    : 'border-[var(--gui-border)] hover:border-[var(--gui-accent-border)] hover:bg-[var(--gui-accent-surface)] hover:shadow-[0_4px_14px_-6px_rgba(37,99,235,0.4)]'
                 }`}
                 onClick={() => {
                   const action = on.select
@@ -1118,10 +1118,10 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
                 }}
               >
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold text-slate-800">{opt.label}</span>
-                  {opt.description && <span className="block text-[13px] text-slate-500 mt-1 leading-snug">{opt.description}</span>}
+                  <span className="block text-sm font-semibold text-[var(--gui-text)]">{opt.label}</span>
+                  {opt.description && <span className="block text-[13px] text-[var(--gui-text-muted)] mt-1 leading-snug">{opt.description}</span>}
                 </span>
-                <span className={`shrink-0 mt-0.5 text-slate-300 transition-all group-hover:translate-x-0.5 ${danger ? 'group-hover:text-rose-500' : 'group-hover:text-blue-500'}`}>
+                <span className={`shrink-0 mt-0.5 text-[var(--gui-text-faint)] transition-all group-hover:translate-x-0.5 ${danger ? 'group-hover:text-[var(--gui-danger)]' : 'group-hover:text-[var(--gui-accent)]'}`}>
                   →
                 </span>
               </button>
@@ -1140,7 +1140,7 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
     const height = resolvedProps.height ?? 'auto'
 
     return (
-      <div className="border border-slate-200 rounded-lg p-3 bg-white flex justify-center">
+      <div className="border border-[var(--gui-border)] rounded-lg p-3 bg-[var(--gui-surface)] flex justify-center">
         <svg
           viewBox={viewBox}
           width={width}
@@ -1166,7 +1166,7 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
   // Degradation for unknown nodes (§9.3): render children if container
   if (children && children.length > 0) {
     return (
-      <div className="space-y-2 border-l-2 border-dashed border-amber-300 pl-2">
+      <div className="space-y-2 border-l-2 border-dashed border-[var(--gui-warning-border)] pl-2">
         {children.map((child) => (
           <NodeRenderer
             key={child.id}
@@ -1180,8 +1180,22 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
     )
   }
 
+  // 6.5 Escape hatch — sandboxed custom widget (research prototype).
+  if (type === 'Widget') {
+    return (
+      <WidgetRenderer
+        nodeId={id}
+        props={resolvedProps}
+        state={state}
+        onStateChange={onStateChange}
+        onFireIntent={onFireIntent}
+        computeRegistry={computeRegistry ?? defaultComputeRegistry}
+      />
+    )
+  }
+
   // Degradation for unknown leaf nodes
-  return <div className="text-xs text-slate-400 italic">[Unsupported node: {type}]</div>
+  return <div className="text-xs text-[var(--gui-text-muted)] italic">[Unsupported node: {type}]</div>
 }
 
 function SceneShapeRenderer({
@@ -1246,7 +1260,7 @@ function SceneShapeRenderer({
 
   // Highlight selected shape
   const appliedFill = isSelected ? PAINT_ROLES.highlight : fillColor
-  const appliedStroke = isSelected ? '#b45309' : strokeColor
+  const appliedStroke = isSelected ? 'var(--gui-warning)' : strokeColor
   const appliedStrokeWidth = isSelected ? (strokeWidth ?? 1) + 2 : strokeWidth
 
   if (kind === 'rect') {
@@ -1332,7 +1346,7 @@ function SceneShapeRenderer({
         {...commonProps}
         x={shape.x}
         y={shape.y}
-        fill={appliedFill === 'none' ? '#1e293b' : appliedFill}
+        fill={appliedFill === 'none' ? 'var(--gui-text)' : appliedFill}
         fontSize={fontSize}
         textAnchor="middle"
         dominantBaseline="middle"
@@ -1363,14 +1377,150 @@ function SceneShapeRenderer({
 }
 
 /**
+ * Sandboxed custom-widget renderer (spec escape-hatch tier, §11 / §15.3).
+ *
+ * The widget runs in a sandboxed iframe (`allow-scripts`, NO `allow-same-origin`
+ * → opaque origin, no access to the host DOM/cookies/storage). It may draw
+ * ANYTHING, but the three things that matter stay host-side, reached only over a
+ * narrow postMessage bridge: deterministic compute (the registry — the widget
+ * cannot author arithmetic), local state (the host owns it), and intents (§8,
+ * routed through the host). The widget has no network and no generic host access.
+ * Theme tokens (§9.5) are injected so it blends into the host surface.
+ */
+const BRIDGE_TOKENS = [
+  '--gui-surface',
+  '--gui-surface-sunken',
+  '--gui-surface-muted',
+  '--gui-text',
+  '--gui-text-secondary',
+  '--gui-text-muted',
+  '--gui-border',
+  '--gui-accent',
+  '--gui-accent-strong',
+  '--gui-accent-surface',
+  '--gui-on-accent',
+  '--gui-positive',
+  '--gui-danger',
+]
+
+function WidgetRenderer({
+  nodeId,
+  props,
+  state,
+  onStateChange,
+  onFireIntent,
+  computeRegistry,
+}: {
+  nodeId: string
+  props: Record<string, any>
+  state: Record<string, unknown>
+  onStateChange: (path: string, value: unknown) => void
+  onFireIntent: (nodeId: string, intent: string, intentClass: 'local' | 'submit' | 'action', payload?: unknown) => void
+  computeRegistry: ComputeRegistry
+}) {
+  const iframeRef = useRef<HTMLIFrameElement | null>(null)
+  // Keep the latest state/handlers available to async bridge callbacks without
+  // re-subscribing the message listener on every render.
+  const stateRef = useRef(state)
+  stateRef.current = state
+
+  const rawSrcdoc = typeof props.srcdoc === 'string' ? props.srcdoc : ''
+  const height = typeof props.height === 'number' ? props.height : 340
+
+  // `sandbox="allow-scripts"` isolates DOM/storage but does NOT block the
+  // network — the widget could still fetch() out. The host enforces "no phone
+  // home" by injecting a CSP: default-src 'none' (so connect-src falls through
+  // to none → no network), with inline script/style allowed for a self-contained
+  // widget. The ONLY channel out is the postMessage bridge the host controls.
+  const CSP =
+    `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; ` +
+    `script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:;">`
+  const srcdoc = rawSrcdoc.includes('<head>')
+    ? rawSrcdoc.replace('<head>', `<head>${CSP}`)
+    : `<head>${CSP}</head>${rawSrcdoc}`
+
+  function readThemeTokens(): Record<string, string> {
+    const el = iframeRef.current
+    const out: Record<string, string> = {}
+    if (!el) return out
+    const cs = getComputedStyle(el)
+    for (const name of BRIDGE_TOKENS) out[name] = cs.getPropertyValue(name).trim()
+    return out
+  }
+
+  useEffect(() => {
+    function handleMessage(e: MessageEvent) {
+      const el = iframeRef.current
+      // Only trust messages from THIS widget's sandboxed frame.
+      if (!el || e.source !== el.contentWindow) return
+      const m = e.data
+      if (!m || typeof m !== 'object') return
+      const post = (msg: unknown) => el.contentWindow?.postMessage(msg, '*')
+
+      switch (m.type) {
+        case 'gui:ready':
+          post({ type: 'gui:theme', tokens: readThemeTokens() })
+          post({ type: 'gui:state', state: stateRef.current })
+          break
+        case 'gui:compute':
+          post({
+            type: 'gui:compute:result',
+            id: m.id,
+            result: computeRegistry.execute(m.name, m.inputs ?? {}, stateRef.current),
+          })
+          break
+        case 'gui:getState':
+          post({ type: 'gui:getState:result', id: m.id, result: resolveStatePath(stateRef.current, m.path) })
+          break
+        case 'gui:setState':
+          if (typeof m.path === 'string') onStateChange(m.path, m.value)
+          break
+        case 'gui:intent':
+          onFireIntent(
+            nodeId,
+            typeof m.intent === 'string' ? m.intent : 'widgetIntent',
+            m.intentClass === 'local' || m.intentClass === 'submit' ? m.intentClass : 'action',
+            m.payload,
+          )
+          break
+      }
+    }
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [nodeId, computeRegistry, onStateChange, onFireIntent])
+
+  // Push a fresh state snapshot when host state changes elsewhere.
+  useEffect(() => {
+    iframeRef.current?.contentWindow?.postMessage({ type: 'gui:state', state }, '*')
+  }, [state])
+
+  return (
+    <iframe
+      ref={iframeRef}
+      title={typeof props.title === 'string' ? props.title : 'Custom widget'}
+      srcDoc={srcdoc}
+      sandbox="allow-scripts"
+      style={{
+        width: '100%',
+        height,
+        border: '1px solid var(--gui-border)',
+        borderRadius: 12,
+        background: 'transparent',
+        display: 'block',
+      }}
+    />
+  )
+}
+
+/**
  * Text Fallback Component (§9.2)
  * For text-only surfaces (CLI, notifications) or accessible degradation.
  */
 export function GenerativeUITextFallback({ graph }: { graph: GraphDocument }) {
   return (
-    <div className="font-mono text-xs bg-slate-900 text-slate-100 p-4 rounded-lg border border-slate-700">
-      <div className="font-bold text-amber-400 mb-1">{graph.title}</div>
-      <div className="text-slate-300">{graph.fallbackText}</div>
+    <div className="font-mono text-xs bg-[var(--gui-surface-inverse)] text-[var(--gui-text-on-inverse)] p-4 rounded-lg border border-[var(--gui-border)]">
+      <div className="font-bold text-[var(--gui-warning)] mb-1">{graph.title}</div>
+      <div className="text-[var(--gui-text-faint)]">{graph.fallbackText}</div>
     </div>
   )
 }
