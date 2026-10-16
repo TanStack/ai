@@ -94,7 +94,7 @@ while (line !== 'exit') {
     const [name = '', ...args] = line.slice(1).split(' ')
     console.log(await session.command(name, args.join(' ') || undefined))
   } else {
-    const turn = session.prompt(line)
+    const turn = session.send(line)
     turn.onEvent('TEXT_MESSAGE_CONTENT', ({ event }) => {
       process.stdout.write(event.delta)
     })

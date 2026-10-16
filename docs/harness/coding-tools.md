@@ -95,7 +95,7 @@ const stopAsking = session.onEvent('CUSTOM', ({ event }) => {
 // Send each line as a prompt. Print the answer. Type `exit` to stop.
 let line = await terminal.question('\n> ')
 while (line !== 'exit') {
-  const turn = session.prompt(line)
+  const turn = session.send(line)
   turn.onEvent('TEXT_MESSAGE_CONTENT', ({ event }) => {
     process.stdout.write(event.delta)
   })

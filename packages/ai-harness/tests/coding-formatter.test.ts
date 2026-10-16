@@ -296,7 +296,7 @@ describe('formatter', () => {
       { threadId: 't' },
     )
 
-    await session.prompt('work')
+    await session.send('work')
     await host.close()
 
     const command = `npx --no-install prettier --write ${quoted('a.ts')}`
@@ -366,7 +366,7 @@ describe('formatter with permissions()', () => {
       'prettier.config.js',
     ])
 
-    const turn = session.prompt('change the config')
+    const turn = session.send('change the config')
     const message = await answer(session, { answer: 'reject' })
     await turn
 
@@ -386,7 +386,7 @@ describe('formatter with permissions()', () => {
       ['prettier.config.js', 'a.ts'],
       persistence,
     )
-    const turn = first.session.prompt('write twice')
+    const turn = first.session.send('write twice')
     await answer(first.session, { answer: 'always' })
     await turn
     expect(first.runs.map((run) => run.command)).toEqual([
@@ -399,7 +399,7 @@ describe('formatter with permissions()', () => {
     const second = await openWith('acceptEdits', ['b.ts'], persistence, {
       'prettier.config.js': '',
     })
-    await second.session.prompt('write again')
+    await second.session.send('write again')
     expect(second.runs.map((run) => run.command)).toEqual([
       `npx --no-install prettier --write ${quoted('b.ts')}`,
     ])
@@ -410,7 +410,7 @@ describe('formatter with permissions()', () => {
     const { host, session, runs } = await openWith('bypass', [
       'prettier.config.js',
     ])
-    await session.prompt('change the config')
+    await session.send('change the config')
     expect(runs.map((run) => run.command)).toEqual([
       `npx --no-install prettier --write ${quoted('prettier.config.js')}`,
     ])
@@ -436,7 +436,7 @@ describe('formatter with permissions()', () => {
       }),
       { threadId: 't' },
     )
-    await session.prompt('change the config')
+    await session.send('change the config')
     expect(runs.map((run) => run.command)).toEqual([
       `npx --no-install prettier --write ${quoted('prettier.config.js')}`,
     ])

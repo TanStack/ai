@@ -172,7 +172,7 @@ describe('workspace hooks', () => {
       { threadId: 't' },
     )
 
-    await session.prompt('work')
+    await session.send('work')
 
     expect(written).toEqual(['one', 'two'])
     expect(JSON.stringify(calls[3].messages)).toContain(

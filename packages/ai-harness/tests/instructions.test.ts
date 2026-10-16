@@ -250,7 +250,7 @@ describe('projectInstructions', () => {
       projectInstructions({ root, env: false }),
     ])
 
-    await session.prompt('read')
+    await session.send('read')
     await host.close()
 
     // What each read added after the lines of the file.

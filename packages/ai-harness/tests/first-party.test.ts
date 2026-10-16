@@ -75,7 +75,7 @@ describe('workspace tools with permissions', () => {
       workspaceTools({ root }),
     ])
 
-    const turn = session.prompt('work')
+    const turn = session.send('work')
     await vi.waitFor(() =>
       expect(session.snapshot().pendingQuestions).toHaveLength(1),
     )
@@ -104,7 +104,7 @@ describe('workspace tools with permissions', () => {
       workspaceTools({ root }),
     ])
     expect(await session.command('mode', 'plan')).toBe('Mode: plan.')
-    await session.prompt('write')
+    await session.send('write')
     await expect(readFile(join(root, 'x.txt'), 'utf8')).rejects.toThrow()
     expect(session.snapshot().pendingQuestions).toHaveLength(0)
     await host.close()

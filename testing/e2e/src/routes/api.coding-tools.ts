@@ -50,9 +50,7 @@ async function* codingTurn(
       { threadId: scenario },
     )
     if (formatAsk) await session.command('mode', 'acceptEdits')
-    for await (const chunk of session
-      .prompt(`[${scenario}] run test`)
-      .stream()) {
+    for await (const chunk of session.send(`[${scenario}] run test`).stream()) {
       yield chunk
       const asks =
         chunk.type === EventType.CUSTOM &&
@@ -94,9 +92,9 @@ async function* revertTurns(
       }),
       { threadId: 'coding-revert' },
     )
-    yield* session.prompt('[coding-revert] run test').stream()
+    yield* session.send('[coding-revert] run test').stream()
     await writeFile(join(root, 'other.txt'), 'mine\n')
-    yield* session.prompt('[coding-revert-2] run test').stream()
+    yield* session.send('[coding-revert-2] run test').stream()
     const [prompt] = await session.transcript()
     if (prompt?.id) await session.revert(prompt.id)
   } finally {
@@ -131,7 +129,7 @@ async function* sandboxTurn(
       }),
       { threadId: 'coding-sandbox' },
     )
-    yield* session.prompt('[coding-sandbox] run test').stream()
+    yield* session.send('[coding-sandbox] run test').stream()
   } finally {
     await host.close()
     // With `dir`, destroy keeps the folder.

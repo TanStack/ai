@@ -209,8 +209,8 @@ describe('codingAgents', () => {
       ],
       agents: { claude_code: { adapter: claude.adapter } },
     })
-    await session.prompt('first')
-    await session.prompt('second')
+    await session.send('first')
+    await session.send('second')
 
     expect(claude.calls).toHaveLength(2)
     expect(claude.calls[0].messages).toEqual([
@@ -247,15 +247,15 @@ describe('codingAgents', () => {
       'claude_code',
       'codex',
     ])
-    await session.prompt('a')
-    await session.prompt('b')
+    await session.send('a')
+    await session.send('b')
     expect(await session.command('fresh', 'nope')).toBe(
       'Unknown coding agent "nope". Agents: claude_code, codex.',
     )
     expect(await session.command('fresh', 'claude_code')).toBe(
       'claude_code starts a new session next time.',
     )
-    await session.prompt('c')
+    await session.send('c')
     expect(claude.calls[1].modelOptions?.sessionId).toBeUndefined()
     expect(await session.command('fresh')).toBe(
       'Every coding agent starts a new session next time.',
@@ -271,7 +271,7 @@ describe('codingAgents', () => {
       agents: { claude_code: { adapter: first.adapter } },
       persistence,
     })
-    await before.session.prompt('go')
+    await before.session.send('go')
     await before.host.close()
 
     const second = codingAgent('claude-code')
@@ -280,7 +280,7 @@ describe('codingAgents', () => {
       agents: { claude_code: { adapter: second.adapter } },
       persistence,
     })
-    await after.session.prompt('go on')
+    await after.session.send('go on')
     expect(second.calls[0].modelOptions).toEqual({
       sessionId: 'claude-code-session-1',
     })
@@ -368,7 +368,7 @@ describe('codingAgents', () => {
       },
     })
     await session.setConfig({ key: 'mode', value: 'plan' })
-    await session.prompt('plan it')
+    await session.send('plan it')
     expect(claude.calls[0].modelOptions).toMatchObject({
       permissionMode: 'plan',
     })

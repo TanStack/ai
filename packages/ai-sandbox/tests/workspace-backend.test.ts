@@ -439,7 +439,7 @@ describe('sandboxWorkspaceBackend with workspaceTools', () => {
       }),
       { threadId: 't' },
     )
-    await session.prompt('work')
+    await session.send('work')
     await host.close()
 
     expect(decoder.decode(sandbox.files.get('/workspace/src/a.ts'))).toBe(

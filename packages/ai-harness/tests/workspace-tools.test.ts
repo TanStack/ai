@@ -472,7 +472,7 @@ describe('editStyle', () => {
           editStyle,
         }),
       ])
-      await session.prompt('hi')
+      await session.send('hi')
       expect(
         toolNames(calls[0]).filter((name) => EDIT_TOOLS.includes(name)),
       ).toEqual(tools)
@@ -555,7 +555,7 @@ describe('permission resources', () => {
       }),
       workspaceTools({ root: '/workspace', backend, editStyle: 'patch' }),
     ])
-    await session.prompt('work')
+    await session.send('work')
     expect(session.snapshot().pendingQuestions).toHaveLength(0)
     expect([...files.keys()]).toEqual(['/workspace/src/a.ts'])
     await host.close()
@@ -645,7 +645,7 @@ describe('permission rules, links, and grep', () => {
     const { host, session, seen } = await callTools(backend, [
       ['read_file', { path: 'notes' }],
     ])
-    const turn = session.prompt('read the notes')
+    const turn = session.send('read the notes')
     await vi.waitFor(() =>
       expect(session.snapshot().pendingQuestions).toHaveLength(1),
     )
@@ -672,7 +672,7 @@ describe('permission rules, links, and grep', () => {
         ],
       },
     )
-    await session.prompt('read the key')
+    await session.send('read the key')
     expect(session.snapshot().pendingQuestions).toHaveLength(0)
     expect(result('c0')).toContain('The permission rules do not allow')
     expect(seen()).not.toContain('hunter2')
@@ -686,7 +686,7 @@ describe('permission rules, links, and grep', () => {
       [['read_file', { path: 'notes' }]],
       { mode: 'plan' },
     )
-    await session.prompt('read the notes')
+    await session.send('read the notes')
     expect(session.snapshot().pendingQuestions).toHaveLength(0)
     expect(seen()).not.toContain('hunter2')
     await host.close()
@@ -714,7 +714,7 @@ describe('permission rules, links, and grep', () => {
           mode,
         },
       )
-      await session.prompt('search')
+      await session.send('search')
       expect(session.snapshot().pendingQuestions).toHaveLength(0)
       for (const id of ['c0', 'c1']) {
         expect(result(id)).toBe(`"src/a.ts:1: KEY=1\\n${SKIPPED_TWO}"`)
@@ -739,7 +739,7 @@ describe('permission rules, links, and grep', () => {
         ],
       },
     )
-    await session.prompt('search')
+    await session.send('search')
     expect(result('c0')).toBe(
       '"No matches.\\n[Skipped 1 file that the permission rules protect.]"',
     )
@@ -775,7 +775,7 @@ describe('webfetch approval', () => {
 
   it('asks before webfetch by default', async () => {
     const { host, session } = await fetchOnce()
-    const turn = session.prompt('read the page')
+    const turn = session.send('read the page')
     await vi.waitFor(() =>
       expect(session.snapshot().pendingQuestions).toHaveLength(1),
     )
@@ -794,7 +794,7 @@ describe('webfetch approval', () => {
     const { host, session, calls } = await fetchOnce([
       { tool: 'webfetch', decision: 'allow' },
     ])
-    await session.prompt('read the page')
+    await session.send('read the page')
     expect(session.snapshot().pendingQuestions).toHaveLength(0)
     expect(JSON.stringify(calls[1].messages)).toContain('fetched body')
     await host.close()
@@ -818,7 +818,7 @@ describe('background bash in a session', () => {
     const { host, session } = await openSession(adapter, [
       workspaceTools({ root: '/workspace', backend }),
     ])
-    await session.prompt('build')
+    await session.send('build')
     await vi.waitFor(() => expect(calls).toHaveLength(3))
     expect(JSON.stringify(calls[2].messages)).toContain(
       'Background job bash-1 ended.\\nexit code: 0\\nbuilt',
@@ -851,7 +851,7 @@ describe('background bash in a session', () => {
     const { host, session } = await openSession(adapter, [
       workspaceTools({ root: '/workspace', backend }),
     ])
-    await session.prompt('serve')
+    await session.send('serve')
     expect(killed).toBe(false)
     await host.close()
     expect(killed).toBe(true)
@@ -948,7 +948,7 @@ describe('links on the host', () => {
       }),
       workspaceTools({ root, backend: hostBackend, web: false }),
     ])
-    await session.prompt('read through the link')
+    await session.send('read through the link')
     const seen = JSON.stringify(calls[1].messages)
     expect(seen).toContain(
       'The permission rules do not allow read_file on src/a.ts, the real path of inner/a.ts.',

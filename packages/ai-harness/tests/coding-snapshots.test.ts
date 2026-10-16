@@ -152,7 +152,7 @@ describe.skipIf(!hasGit)('snapshots', () => {
     })
     const exec = vi.spyOn(hostBackend, 'exec')
 
-    await session.prompt('Edit the file')
+    await session.send('Edit the file')
 
     const commands = exec.mock.calls.map(([command]) => command)
     // `git --version` and `git init` once, the turn start, and one snapshot
@@ -178,7 +178,7 @@ describe.skipIf(!hasGit)('snapshots', () => {
       ],
     })
 
-    await session.prompt('Edit the files')
+    await session.send('Edit the files')
 
     const steps = savedSteps(session)
     expect(steps).toMatchObject([{ files: ['a.txt', 'src/b.txt'] }])
@@ -198,7 +198,7 @@ describe.skipIf(!hasGit)('snapshots', () => {
       persistence: { stores: { log, runs, metadata } },
     })
 
-    await session.prompt('Edit a.txt')
+    await session.send('Edit a.txt')
 
     const entries = await log.read(THREAD, { after: 0 })
     const records = entries
@@ -214,7 +214,7 @@ describe.skipIf(!hasGit)('snapshots', () => {
       replies: editTurn('Done.'),
       changes: [() => put('a.txt', 'two\n')],
     })
-    await session.prompt('Edit a.txt')
+    await session.send('Edit a.txt')
     const [step] = savedSteps(session)
 
     const between = await plugin.diff(step.from, step.to)
@@ -242,8 +242,8 @@ describe.skipIf(!hasGit)('snapshots', () => {
         },
       ],
     })
-    await session.prompt('Hello')
-    await session.prompt('Edit the files')
+    await session.send('Hello')
+    await session.send('Edit the files')
 
     expect(await session.command('undo')).toBe(
       'Undid the last turn. Files restored: 3.',
@@ -270,7 +270,7 @@ describe.skipIf(!hasGit)('snapshots', () => {
         },
       ],
     })
-    await session.prompt('Edit the files')
+    await session.send('Edit the files')
     const edited = await session.transcript()
     await session.command('undo')
 
@@ -291,7 +291,7 @@ describe.skipIf(!hasGit)('snapshots', () => {
       replies: editTurn('Done.'),
       changes: [() => put('a.txt', 'two')],
     })
-    await session.prompt('Edit a.txt')
+    await session.send('Edit a.txt')
     // The user adds and edits files after the turn.
     await put('b.txt', 'mine')
     await put('c.txt', 'mine')
@@ -317,7 +317,7 @@ describe.skipIf(!hasGit)('snapshots', () => {
       replies: editTurn('Done.'),
       changes: [() => put('new/c.txt', 'added')],
     })
-    await session.prompt('Add a file')
+    await session.send('Add a file')
 
     await session.command('undo')
     expect(await readdir(root)).toEqual(['a.txt'])
@@ -341,7 +341,7 @@ describe.skipIf(!hasGit)('snapshots', () => {
         },
       ],
     })
-    await session.prompt('Edit the files')
+    await session.send('Edit the files')
     await put('x.txt', 'mine')
     // No file has the name `[x].txt` now. As a glob, it matches `x.txt`, so
     // git must read it as a plain name.
@@ -362,9 +362,9 @@ describe.skipIf(!hasGit)('snapshots', () => {
       replies: [...editTurn('Done.'), () => text('Sure.')],
       changes: [() => put('a.txt', 'two')],
     })
-    await session.prompt('Edit a.txt')
+    await session.send('Edit a.txt')
     await session.command('undo')
-    await session.prompt('Something else')
+    await session.send('Something else')
 
     expect(await session.command('redo')).toBe('Nothing to redo.')
     expect(await read('a.txt')).toBe('one')
@@ -386,7 +386,7 @@ describe.skipIf(!hasGit)('snapshots', () => {
       changes: [() => put('b.txt', 'new')],
     })
 
-    await session.prompt('Add b.txt')
+    await session.send('Add b.txt')
     await session.command('undo')
 
     expect(savedSteps(session)).toMatchObject([{ files: ['b.txt'] }])
@@ -412,9 +412,9 @@ const threeTurns = () => ({
 
 /** Run the three turns of {@link threeTurns}. Gives the id of the first answer. */
 async function runThreeTurns(session: HarnessSession) {
-  await session.prompt('One')
-  await session.prompt('Two')
-  await session.prompt('Three')
+  await session.send('One')
+  await session.send('Two')
+  await session.send('Three')
   const transcript = await session.transcript()
   const first = transcript.find((message) => message.content === 'First.')
   if (!first?.id) throw new Error('The first answer has no id.')
@@ -460,7 +460,7 @@ describe.skipIf(!hasGit)('session.revert', () => {
     const { transcript, firstId } = await runThreeTurns(session)
     await session.revert(firstId)
 
-    await session.prompt('Four')
+    await session.send('Four')
 
     expect(messageTexts(calls.at(-1))).toEqual([
       'One',
@@ -486,9 +486,9 @@ describe.skipIf(!hasGit)('session.revert', () => {
     const { host, session } = await open({
       replies: [() => text('Hi.'), after(wait.opened, 'Later.')],
     })
-    await session.prompt('Hello')
+    await session.send('Hello')
     const [message] = await session.transcript()
-    const running = session.prompt('Again')
+    const running = session.send('Again')
     await vi.waitFor(() => expect(session.snapshot().status).toBe('running'))
 
     expect(await session.revert(message?.id ?? '')).toMatchObject({
@@ -545,11 +545,11 @@ describe.skipIf(!hasGit)('session.revert keeps the edits of the user', () => {
     await put('a.txt', 'one')
     await put('c.txt', 'one')
     const { host, session } = await open(threeTurns())
-    await session.prompt('One')
-    await session.prompt('Two')
+    await session.send('One')
+    await session.send('Two')
     // The user edits a file that no turn changes.
     await put('c.txt', 'mine')
-    await session.prompt('Three')
+    await session.send('Three')
     const first = (await session.transcript()).find(
       (message) => message.content === 'First.',
     )
@@ -605,7 +605,7 @@ describe.skipIf(!hasGit)('session.revert keeps the edits of the user', () => {
     const reverting = session.revert(firstId)
     await reached.opened
 
-    const prompting = session.prompt('Four')
+    const prompting = session.send('Four')
     await vi.waitFor(() => expect(session.snapshot().queuedTurns).toBe(1))
     expect(session.snapshot().status).toBe('idle')
     blocking = false
@@ -636,7 +636,7 @@ describe.skipIf(!hasGit)('session.revert keeps the edits of the user', () => {
     await session.revert(firstId)
 
     await session.configure({ cwd: 'sub' })
-    await session.prompt('Four')
+    await session.send('Four')
 
     expect(
       (await session.transcript()).slice(4).map((message) => message.content),
@@ -697,7 +697,7 @@ describe('snapshots on a cmd.exe backend', () => {
       backend,
     })
 
-    await session.prompt('Hello')
+    await session.send('Hello')
 
     // `git --version`, then the init of the shadow repository.
     expect(commands[1]).toMatch(/^git init --bare -q \^".+\^"$/)
@@ -718,7 +718,7 @@ describe('snapshots without git', () => {
       })),
     })
 
-    await session.prompt('Hello')
+    await session.send('Hello')
 
     expect(session.commands()).toEqual([])
     expect(await session.transcript()).toMatchObject([

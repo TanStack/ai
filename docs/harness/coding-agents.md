@@ -83,7 +83,7 @@ import { memoryPersistence } from '@tanstack/ai-persistence'
 const host = createHarnessHost({ persistence: memoryPersistence() })
 const session = await host.open(lead, { threadId: 'date-parser' })
 
-const turn = await session.prompt(
+const turn = await session.send(
   'Have claude_code add a test for the date parser, then have codex fix what fails.',
 )
 console.log(turn.text)

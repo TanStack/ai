@@ -51,7 +51,7 @@ const session = await host.open(coder, { threadId: 'fix-login' })
 
 ## 2. Undo and redo a turn
 
-1. Send a prompt that changes files: `await session.prompt('Fix the login form.')`.
+1. Send a prompt that changes files: `await session.send('Fix the login form.')`.
 2. Run `await session.command('undo')`. It returns the number of files that it put back, for example `Undid the last turn. Files restored: 3.`
 3. Look at the files that the turn changed: they are as they were before the turn. The turn is gone from the conversation too.
 4. To bring back the files and the turn, run `await session.command('redo')`. It returns `Redid the last turn.`
@@ -73,7 +73,7 @@ Each model step that changed files leaves a step: `{ from, to, files, toolCallId
 On a [durable host](./durable-sessions), like the host above, the steps are `tanstack/snapshots:step` records in the session log:
 
 ```ts group=harness-snapshots
-await session.prompt('Fix the login form.')
+await session.send('Fix the login form.')
 
 for (const { record } of await log.read('fix-login')) {
   if (record.type !== 'tanstack/snapshots:step') continue
