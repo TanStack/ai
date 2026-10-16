@@ -89,6 +89,7 @@ By default, the CLI builds its own host in memory and opens sessions with no use
 import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
 import { runCli } from '@tanstack/ai-harness-cli'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
+import { memoryCredentialStore } from '@tanstack/ai/byok/server'
 import { openaiText } from '@tanstack/ai-openai'
 
 const assistant = defineHarness({
@@ -96,9 +97,10 @@ const assistant = defineHarness({
   adapter: openaiText('gpt-6.1-sol'),
 })
 
-const { runs, metadata, credentials } = memoryPersistence().stores
+const { runs, metadata } = memoryPersistence().stores
 const host = createHarnessHost({
-  persistence: { stores: { log: memoryLogStore(), runs, metadata, credentials } },
+  persistence: { stores: { log: memoryLogStore(), runs, metadata } },
+  credentials: memoryCredentialStore(),
 })
 
 process.exitCode = await runCli(assistant, { host, principal: { id: 'ada' } })
