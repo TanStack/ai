@@ -1836,28 +1836,21 @@ function sumNumberFields<T extends object>(
 }
 
 /**
- * A copy of `chunk.metadata` without the durability batch hint of
- * `emitCustomEvent(..., { batch: true })`, dropped when nothing else is left,
- * like `stripDurabilityBatchHint`. The chunk keeps the hint. The durability
- * producer reads it after this middleware, and only the stream encoders
- * strip it.
+ * `chunk.metadata` without the durability batch hint. It copies instead of
+ * calling `stripDurabilityBatchHint`, because the durability producer reads
+ * the hint on this same chunk after this middleware.
  */
 function metadataWithoutBatchHint(chunk: StreamChunk) {
-  const metadata = chunk.metadata
   const tanstack = tanstackMetadata(chunk)
-  if (!metadata || !tanstack || Reflect.get(tanstack, 'batch') !== true) {
-    return metadata
+  if (tanstack == null || Reflect.get(tanstack, 'batch') !== true) {
+    return chunk.metadata
   }
-  const { tanstack: _tanstack, ...rest } = metadata
-  void _tanstack
-  const { batch: _batch, ...tanstackRest }: Record<string, unknown> = {
-    ...tanstack,
-  }
-  void _batch
-  if (Object.keys(tanstackRest).length > 0) {
-    return { ...rest, tanstack: tanstackRest }
-  }
-  return Object.keys(rest).length > 0 ? rest : undefined
+  const metadata = { ...chunk.metadata }
+  const rest = { ...tanstack }
+  Reflect.deleteProperty(rest, 'batch')
+  if (Object.keys(rest).length > 0) return { ...metadata, tanstack: rest }
+  Reflect.deleteProperty(metadata, 'tanstack')
+  return Object.keys(metadata).length > 0 ? metadata : undefined
 }
 
 function tokenUsageFromChunk(chunk: StreamChunk): TokenUsage | undefined {
