@@ -17,7 +17,7 @@ there is no separate enable list.
 | `artifacts` | File metadata. Needs `blobs`. | `withGenerationPersistence`, portable snapshots |
 | `blobs` | File bytes. Needs `artifacts`. | `withGenerationPersistence`, portable snapshots |
 | `inbox` | Inputs a host accepted, one entry per input id. | Your host code |
-| `log` | Append-only session log per thread. | Your host code |
+| `log` | Append-only session log, with ownership, an input lane, and snapshots. | Your host code |
 | `leases` | Turn leases from a system that already has them. | Your host code |
 | `workClaims` | Claims on threads that have pending work. | Your host code |
 | `sessions` | One index entry per thread, for a list of sessions. | `withPersistence` (subagent children), your host code |
@@ -650,63 +650,115 @@ NOTHING`, then read the row back.
 
 ## LogStore
 
-Some hosts keep each thread's events, transcript, inputs, and tool steps in one
-append-only log, so that a turn survives a crash. `LogStore` stores that log.
+A host keeps the events, the transcript, the inputs, and the tool steps of a session
+in one append-only log. With the log, a turn survives a crash. When several machines
+serve the sessions, the log also records which host runs each session, and it keeps
+the inputs that any machine accepts. `LogStore` stores all of this.
+
+The types, `UNOWNED_EPOCH`, and the three errors come from `@tanstack/ai-persistence`:
 
 ```ts
+const UNOWNED_EPOCH = 0 // the epoch of a log that no host ever acquired
+
 interface LogRecord {
   type: string
   [key: string]: unknown
 }
 
 interface LogEntry {
-  seq: number
+  seq: number // the first record of a log is at 1
   record: LogRecord
 }
 
+interface LogSnapshot {
+  seq: number // the last position that `state` includes
+  version: string // the version of the `state` shape, yours to name
+  state: unknown // JSON
+}
+
+type OfferResult = 'offered' | 'duplicate' | 'conflict'
+
+interface OfferedInput {
+  inputId: string
+  record: LogRecord
+  offeredAt: number // epoch ms, from the store clock
+}
+
+interface OrphanedLog {
+  logId: string
+  harness: string // the name of the setup that runs the log
+  reason: 'expired' | 'offered' | 'wake'
+}
+
 interface LogStore {
+  // Records
   append(batch: {
-    threadId: string
+    logId: string
     seq: number
+    epoch: number
     records: ReadonlyArray<LogRecord>
+    consumes?: ReadonlyArray<string> // input ids to consume in the same write
   }): Promise<void>
-  read(
-    threadId: string,
-    options?: { after?: number; limit?: number },
-  ): Promise<Array<LogEntry>>
-  subscribe(options: { threadId: string; listener: () => void }): () => void
+  read(query: {
+    logId: string
+    after?: number
+    limit?: number
+  }): Promise<Array<LogEntry>>
+  subscribe(watch: { logId: string; listener: () => void }): () => void
+
+  // Ownership
+  acquire(claim: {
+    logId: string
+    harness: string
+    ownerId: string
+    ttlMs: number
+    affinity?: string
+  }): Promise<{ epoch: number } | null>
+  renew(claim: {
+    logId: string
+    ownerId: string
+    epoch: number
+    ttlMs: number
+  }): Promise<boolean>
+  release(claim: {
+    logId: string
+    ownerId: string
+    epoch: number
+    wakeInMs?: number
+  }): Promise<void>
+  setAffinity(pin: {
+    logId: string
+    epoch: number
+    affinity: string | null
+  }): Promise<void>
+  listOrphaned(query: {
+    limit: number
+    harnesses?: ReadonlyArray<string>
+    affinity?: string
+  }): Promise<Array<OrphanedLog>>
+
+  // Input lane
+  offer(input: {
+    logId: string
+    harness: string
+    inputId: string
+    record: LogRecord
+  }): Promise<OfferResult>
+  offered(query: { logId: string }): Promise<Array<OfferedInput>>
+
+  // Snapshots and lifecycle
+  getSnapshot(query: { logId: string }): Promise<LogSnapshot | null>
+  putSnapshot(
+    snapshot: { logId: string; epoch: number } & LogSnapshot,
+  ): Promise<void>
+  truncate(cut: {
+    logId: string
+    epoch: number
+    beforeSeq: number
+  }): Promise<void>
+  deleteLog(target: { logId: string }): Promise<void>
 }
 ```
-
-- `append` writes the batch at `seq`, `seq + 1`, and so on. The first record of a
-  thread is at `1`.
-- The batch is atomic. Write all of it or none of it, in one transaction.
-- `seq` must be the next free position. For a taken position or a gap, reject with
-  `LogConflictError` from `@tanstack/ai-persistence`, and write nothing. This is how
-  a writer finds a second writer on the same thread.
-- An empty batch writes nothing.
-- `read` returns the entries after `after`, in `seq` order, at most `limit`. A thread
-  with no records returns `[]`. Return copies, so a caller cannot change the log.
-- `subscribe` calls `listener` after each append that the store can see. A store that
-  cannot see appends from other processes can poll, or call only for its own appends.
-
-In SQL, a primary key on `(thread_id, seq)` gives the conflict rule. Insert the batch
-in one transaction, and map the key violation to `LogConflictError`:
-
-```sql
-CREATE TABLE session_log (
-  thread_id TEXT NOT NULL,
-  seq INTEGER NOT NULL,
-  record TEXT NOT NULL,
-  PRIMARY KEY (thread_id, seq)
-);
-```
-
-A key violation covers a taken position. A gap needs one more check in the same
-transaction: `seq` must equal `MAX(seq) + 1` for the thread, or `1`.
-
-Each record is JSON. Store it as text or as a JSON column. The store does not read
-the records.
 
 `memoryLogStore()` is the reference store. It is not part of `memoryPersistence()`,
 so add it yourself:
@@ -722,6 +774,222 @@ const persistence = defineAIPersistence({
   stores: { ...memoryPersistence().stores, log: memoryLogStore() },
 })
 ```
+
+### Fence the writes with the epoch
+
+Two machines can work on one log. Host A owns the log, and then it stops for a
+while: a long garbage collection pause, or a lost network. Its ownership expires,
+and host B acquires the log. When host A continues, it writes again. Without a
+fence, the log gets the records of two owners.
+
+The epoch is the fence. Each `acquire` that starts a new ownership adds 1 to the
+epoch of the log. The owner sends that epoch with each write, and the store refuses
+an old epoch. So the late write of host A rejects with `OwnershipLostError`, and the
+log does not change.
+
+`append`, `putSnapshot`, `truncate`, and `setAffinity` are fenced. They check the
+epoch before anything else:
+
+- On a log that a host acquired, `epoch` must be the current epoch. A released log
+  refuses every epoch.
+- On a log that no host acquired, `epoch` must be `UNOWNED_EPOCH`. A writer that
+  never calls `acquire` writes with it.
+- A call with any other epoch rejects with `OwnershipLostError`, and the store writes
+  nothing.
+
+### Rules for records
+
+`append` writes `records` at `seq`, `seq + 1`, and so on. The first record of a log
+is at 1. `append` checks in this order, and the first check that fails rejects:
+
+1. The fence.
+2. `seq` is the next free position: the last position plus 1, or 1 for a new log.
+   Else it rejects with `LogConflictError`.
+3. Each id in `consumes` is a pending offer. Else it rejects with a `TypeError`.
+4. Each record can become JSON. Else it rejects with the error of the JSON copy.
+
+The batch is atomic. The store writes all the records and consumes all of
+`consumes`, or it changes nothing. An empty batch with no `consumes` resolves. It
+writes nothing and checks nothing.
+
+`read` gives the log back in order:
+
+- It returns the entries with `seq` more than `after` (default 0), in `seq` order, at
+  most `limit`.
+- `limit: 0` returns `[]`. A log with no records returns `[]`.
+- If a truncate dropped the record at `after + 1`, `read` rejects with
+  `LogTruncatedError`.
+- The entries are copies. A change to them does not change the log.
+
+`subscribe` wakes a host when the log changes:
+
+- The store calls the listener after each successful `append`, each `offer` that
+  returns `'offered'`, and each `deleteLog` of the log.
+- The calls come from every store instance on the same backend. That is how one
+  machine hears the writes of another.
+- A store that cannot push must poll inside `subscribe`.
+- If a listener throws, the store logs the error with `console.error`. The write
+  still succeeds.
+
+### Rules for ownership
+
+Each log has one ownership record: `harness`, `ownerId`, the epoch, the expiry time,
+a released flag, and an optional affinity and wake time. The epoch never goes down.
+It stays after `release` and after `deleteLog`. The store clock decides each expiry,
+so callers pass `ttlMs` and `wakeInMs`, never a timestamp. A `ttlMs` of 0 or less,
+or a `wakeInMs` less than 0, rejects with `RangeError`.
+
+`acquire` gives the log to `ownerId` for `ttlMs` milliseconds:
+
+- It returns `null` when another owner holds a live record: not released, and not
+  expired.
+- It returns `null` when the log has an affinity that is not `claim.affinity`.
+- For the owner of a live record, it extends the expiry and returns the same epoch.
+- Else it adds 1 to the epoch, stores `harness`, clears the wake time, and returns
+  `{ epoch }`.
+
+For the other ownership methods:
+
+- `renew` returns `true` only for the current epoch and owner of a log that is not
+  released. In that case, it sets the expiry to `ttlMs` from now. A renew after the
+  expiry also succeeds if no other host acquired the log in between.
+- `release` with the current epoch and owner marks the log released. With
+  `wakeInMs`, it also sets the wake time to `wakeInMs` from now. Any other `release`
+  does nothing.
+- `setAffinity` pins the log to the workers with that affinity, or unpins it with
+  `null`. It is fenced.
+
+`listOrphaned` finds the logs that have work and no live owner. A worker sweep calls
+it, then calls `acquire` for each log. A log is listed for the first reason that
+applies:
+
+1. `'expired'`: the log is not released, and its expiry is due.
+2. `'offered'`: the log has pending offers, and no live owner.
+3. `'wake'`: the log is released, and its wake time is due.
+
+Then:
+
+- With `harnesses`, the store lists only the logs with one of those harness names.
+- A log with an affinity is listed only when the query has the same `affinity`.
+- The log that is due first comes first, and the store lists at most `limit` logs.
+  `limit: 0` returns `[]`.
+
+### Rules for the input lane
+
+A client can send an input to any machine, but only the owner of the log runs it.
+`offer` keeps the input as a pending offer. The owner consumes it with
+`append({ consumes })`, in the same write as the records of the input.
+
+- If the `inputId` is new, `offer` stores a pending offer with `offeredAt` from the
+  store clock. It records `harness` for the log, calls the listeners, and returns
+  `'offered'`.
+- If the `inputId` was offered before (pending or consumed), `offer` changes nothing.
+  It returns `'duplicate'` when the JSON of the record is equal, else `'conflict'`.
+- If the record cannot become JSON, `offer` rejects and stores nothing.
+- Offers belong to one log. The same `inputId` on two logs gives two offers.
+- `offered` returns the pending offers in offer order.
+
+### Rules for snapshots, truncate, and delete
+
+A long log is slow to read from the start. A snapshot saves the state at one
+position. Then a reader loads the snapshot and reads only the records after it.
+With a snapshot, the owner can also drop the old records.
+
+- `putSnapshot` is fenced, and it replaces the previous snapshot. If `seq` is after
+  the last position, it rejects with `RangeError`.
+- `getSnapshot` returns the latest snapshot, or `null` when the log has none.
+- `truncate` is fenced. It drops the records with `seq` less than `beforeSeq`. If the
+  log has no snapshot with a `seq` of `beforeSeq - 1` or more, it rejects with
+  `RangeError`.
+- After a truncate, the positions keep counting, so the next `append` is still at the
+  last position plus 1. A `read` from before the cut rejects with
+  `LogTruncatedError`, and its `firstSeq` is the first kept position.
+- `deleteLog` removes the records, the offers, the snapshot, the truncation point,
+  the affinity, and the wake time, and calls the listeners. Only the epoch counter
+  stays, so a write with an old epoch still fails.
+
+### In SQL
+
+Run each method that writes in one transaction. Three tables hold the records, the
+ownership, and the offers:
+
+- `log_records`: the primary key `(log_id, seq)` refuses a taken position.
+- `log_owner`: one row per log, with the epoch, the last position (`head`), and the
+  first kept position. Insert the row with `epoch` 0 at the first write to the log.
+  Then one compare-and-set on `epoch` fences both kinds of log: acquired, and never
+  acquired.
+- `log_offers`: the unique key `(log_id, input_id)` finds a duplicate offer.
+
+```sql
+CREATE TABLE log_records (
+  log_id TEXT NOT NULL,
+  seq BIGINT NOT NULL,
+  record TEXT NOT NULL,
+  PRIMARY KEY (log_id, seq)
+);
+
+CREATE TABLE log_owner (
+  log_id TEXT PRIMARY KEY,
+  epoch BIGINT NOT NULL DEFAULT 0, -- 0 is UNOWNED_EPOCH. It never goes down.
+  head BIGINT NOT NULL DEFAULT 0, -- the last position
+  first_seq BIGINT NOT NULL DEFAULT 1, -- the first kept position, after a truncate
+  harness TEXT,
+  owner_id TEXT,
+  expires_at TIMESTAMPTZ,
+  released BOOLEAN NOT NULL DEFAULT FALSE,
+  affinity TEXT,
+  wake_at TIMESTAMPTZ
+);
+
+CREATE TABLE log_offers (
+  id BIGSERIAL PRIMARY KEY, -- the offer order
+  log_id TEXT NOT NULL,
+  input_id TEXT NOT NULL,
+  harness TEXT NOT NULL,
+  record TEXT NOT NULL,
+  offered_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  consumed BOOLEAN NOT NULL DEFAULT FALSE,
+  UNIQUE (log_id, input_id)
+);
+```
+
+`append` does the fence, the position check, and the consume in the same
+transaction as the insert:
+
+```sql
+BEGIN;
+INSERT INTO log_owner (log_id) VALUES (:log_id) ON CONFLICT DO NOTHING;
+
+-- The fence and the position in one compare-and-set.
+UPDATE log_owner SET head = :seq + :count - 1
+WHERE log_id = :log_id AND epoch = :epoch AND NOT released AND head = :seq - 1;
+-- No row changed: roll back. Read the row, then reject with
+-- OwnershipLostError (epoch or released) or LogConflictError (head).
+
+-- One row for each record of the batch.
+INSERT INTO log_records (log_id, seq, record) VALUES (:log_id, :seq, :record);
+
+UPDATE log_offers SET consumed = TRUE
+WHERE log_id = :log_id AND input_id = ANY(:consumes) AND NOT consumed;
+-- Fewer rows changed than ids in :consumes: roll back, and reject with TypeError.
+COMMIT;
+```
+
+For the other methods:
+
+- `acquire` is one conditional `UPDATE` of the `log_owner` row. It changes the row
+  only when the rules for `acquire` allow it.
+- Use the database clock (`now()`) for each expiry, wake time, and `offeredAt`. The
+  clocks of the hosts can disagree.
+- Keep the snapshot in one more table, with one row per log.
+- `deleteLog` deletes the rows of the log in the other tables. It keeps `epoch` in
+  `log_owner`, so a write with an old epoch still fails.
+- Each record is JSON. Store it as text or as a JSON column. The store does not read
+  the records.
+
+Your store is done when the
+[conformance suite](#check-the-session-stores-with-the-conformance-suite) passes
+with `twin`.
 
 ## LeaseStore
 
@@ -1005,6 +1273,47 @@ runPersistenceConformance(
   },
 )
 ```
+
+Some `log` cases need two machines on one backend:
+
+- A listener on one instance runs after an append on the other.
+- Only one instance gets the log from `acquire`.
+- An offer on one instance is a `'duplicate'` on the other.
+- A listener that throws does not stop the listeners of the other instance.
+
+Pass `twin`: a function that returns a second store set on the same backend. If your
+persistence has `log` and no `twin`, these cases fail.
+
+```ts
+import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
+import { db } from './db'
+import { myLogStore } from './log-store'
+
+runPersistenceConformance(
+  'my log store',
+  () => ({ stores: { log: myLogStore(db) } }),
+  {
+    skip: [
+      'messages',
+      'activities',
+      'runs',
+      'interrupts',
+      'metadata',
+      'generationRuns',
+      'artifacts',
+      'blobs',
+    ],
+    // A second store on the same database acts as a second machine.
+    twin: (persistence) => ({
+      stores: { ...persistence.stores, log: myLogStore(db) },
+    }),
+  },
+)
+```
+
+For the memory store, share one `memoryLogBackend()`. Each
+`memoryLogStore({ backend })` call on it gives one more store instance on that
+backend.
 
 ## How the records relate
 
