@@ -136,7 +136,7 @@ describe('Artifact store (§3)', () => {
 describe('Shell + CSP (§4.3, §5)', () => {
   it('react-tsx CSP is strict (no unsafe-inline/eval), fragment relaxes script-src', () => {
     const react = buildCsp({ kind: 'react-tsx', appOrigin: 'https://app.test', nonce: 'abc' })
-    expect(react).toContain(`script-src 'self' 'nonce-abc'`)
+    expect(react).toContain(`script-src 'self' https://app.test 'nonce-abc'`)
     expect(react).not.toContain('unsafe-eval')
     // script-src must not relax to unsafe-inline (style-src still may).
     expect(react).not.toContain(`script-src 'self' 'unsafe-inline'`)

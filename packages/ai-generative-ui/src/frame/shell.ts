@@ -53,9 +53,14 @@ export interface CspOptions {
  */
 export function buildCsp(opts: CspOptions): string {
   const connect = opts.connectGrants && opts.connectGrants.length ? opts.connectGrants.join(' ') : "'none'"
+  // Single-origin POC: a sandboxed iframe (allow-scripts, no allow-same-origin)
+  // has an opaque origin, so `'self'` matches nothing and would block the
+  // built bundle + runtime modules. Allow the serving origin explicitly. A
+  // production host serves `/sandbox/*` from a dedicated origin where `'self'`
+  // is the sandbox origin and this extra source is unnecessary (§4.2, §4.3).
   const scriptSrc =
     opts.kind === 'react-tsx'
-      ? `script-src 'self'${opts.nonce ? ` 'nonce-${opts.nonce}'` : ''}`
+      ? `script-src 'self' ${opts.appOrigin}${opts.nonce ? ` 'nonce-${opts.nonce}'` : ''}`
       : `script-src 'self' 'unsafe-inline'`
   return [
     `default-src 'none'`,
@@ -337,7 +342,7 @@ export function buildShellDocument(opts: ShellOptions): string {
 
   const bootstrap = /* js */ `
 import React from 'react';
-import { createRoot } from 'react-dom/client';
+import { createRoot } from 'react-dom';
 import Artifact from ${JSON.stringify(builtUrl)};
 
 var PROPS = ${propsJson};

@@ -46,6 +46,21 @@
   --gui-warning: #f59e0b;
   --gui-warning-surface: #fffbeb;
   --gui-warning-border: #fde68a;
+
+  /* Draft 0.2 Tier F — semantic tokens the host projects into frame artifacts
+     (§5.2). Mapped to the same palette as the catalog renderer so a sandboxed
+     frame blends into the host surface. */
+  --ui-bg: var(--gui-surface, #ffffff);
+  --ui-surface: var(--gui-surface, #ffffff);
+  --ui-surface-2: var(--gui-surface-sunken, #f8fafc);
+  --ui-text: var(--gui-text, #0f172a);
+  --ui-muted: var(--gui-text-muted, #64748b);
+  --ui-border: var(--gui-border, #e5e7eb);
+  --ui-accent: var(--gui-accent, #2563eb);
+  --ui-accent-text: var(--gui-on-accent, #ffffff);
+  --ui-positive: var(--gui-positive, #16a34a);
+  --ui-negative: var(--gui-danger, #dc2626);
+  --ui-radius: 14px;
 }
 
 @layer base {

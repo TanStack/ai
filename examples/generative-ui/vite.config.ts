@@ -9,6 +9,7 @@ import {
   renderUICompositionGuidance,
   type GraphDocument,
 } from '@tanstack/ai-generative-ui'
+import { frameApiPlugin } from './server/frame-plugin'
 
 // Load .env.local if present
 for (const envFile of ['.env.local', '.env']) {
@@ -345,7 +346,7 @@ function generativeUiApiPlugin(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), generativeUiApiPlugin()],
+  plugins: [react(), tailwindcss(), generativeUiApiPlugin(), frameApiPlugin()],
   server: {
     port: 3000,
   },
