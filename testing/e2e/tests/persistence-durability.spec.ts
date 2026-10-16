@@ -368,7 +368,7 @@ test.describe('server persistence', () => {
     )
   })
 
-  test('keeps the durability batch hint off a stopped message', async ({
+  test('stores only the call metadata on a stopped message', async ({
     request,
   }) => {
     const threadId = `stopped-progress-${crypto.randomUUID()}`
@@ -392,10 +392,12 @@ test.describe('server persistence', () => {
       (message) => message.role === 'assistant',
     )
 
-    expect(assistant?.metadata?.tanstack).toMatchObject({
-      stopReason: 'aborted',
+    expect(assistant?.metadata).toEqual({
+      tanstack: {
+        source: { provider: 'fixed', api: 'text', model: 'test-model' },
+        stopReason: 'aborted',
+      },
     })
-    expect(assistant?.metadata?.tanstack).not.toHaveProperty('batch')
   })
 
   test('restores the error of a stopped child', async ({ request }) => {

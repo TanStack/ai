@@ -248,11 +248,10 @@ Streaming snapshots default off (finish is the authoritative save); enable
 them to trade extra writes for partial-output durability. Tune the interval
 with `snapshotIntervalMs` (default `1000`).
 
-If a run stops or fails, its last snapshot stays as the assistant message.
-That message keeps the chunk metadata of its model call, such as `source`, and
-gets `metadata.tanstack.stopReason` (`'aborted'` or `'error'`). It never gets
-the durability batch hint (`tanstack.batch`) of
-`emitCustomEvent(name, value, { batch: true })`.
+Snapshot rows keep the same call metadata as a finished message, such as
+`source` and `responseId`, and no other chunk metadata. If a run fails or is
+aborted after a snapshot, that snapshot stays as its assistant message with
+`metadata.tanstack.stopReason` set to `'error'` or `'aborted'`.
 
 The chat engine completes the canonical transcript before `onFinish` runs, and
 `withPersistence` saves that transcript directly.

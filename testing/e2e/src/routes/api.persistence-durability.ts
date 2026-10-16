@@ -59,9 +59,9 @@ import type {
  *   then hydrates the failed tool call from `reconstructChat`.
  * - `subagent-stopped` — reconstructs a stopped child. Its run record has no
  *   error, so the card error comes from the stored child metadata.
- * - `stopped-progress` — stops a run after a middleware emits a
+ * - `stopped-progress`: stops a run after a middleware emits a
  *   `{ batch: true }` CUSTOM event, then hydrates the stopped assistant
- *   message (and its stored metadata) from `reconstructChat`.
+ *   message from `reconstructChat` to check its stored metadata.
  *
  * Exempt from the aimock policy: this route never reaches an LLM provider's HTTP
  * layer, so there is nothing to mock.
@@ -230,43 +230,24 @@ const toolErrorAdapter: AnyTextAdapter = {
 } as unknown as AnyTextAdapter
 
 const stoppedProgressPersistence = memoryPersistence()
+const stoppedProgressAdapter: AnyTextAdapter = {
+  kind: 'text',
+  name: 'fixed',
+  model: 'test-model',
+  '~types': {},
+  chatStream: ({ threadId, runId }: { threadId: string; runId: string }) =>
+    textRun(threadId, runId),
+} as unknown as AnyTextAdapter
 const progressMiddleware = defineChatMiddleware({
   name: 'progress',
   onChunk(ctx, chunk) {
     if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
       ctx.emitCustomEvent('progress', { step: 1 }, { batch: true })
     }
+    // Stop once withPersistence, listed first, has seen the batched event.
+    if (chunk.type === 'CUSTOM' && chunk.name === 'progress') ctx.abort()
   },
 })
-
-function stoppedProgressRun(
-  threadId: string,
-  runId: string,
-  stop: () => void,
-): AsyncIterable<StreamChunk> {
-  return (async function* () {
-    yield {
-      type: 'RUN_STARTED',
-      threadId,
-      runId,
-      timestamp: Date.now(),
-    } as StreamChunk
-    yield {
-      type: 'TEXT_MESSAGE_START',
-      messageId: 'assistant-1',
-      role: 'assistant',
-      timestamp: Date.now(),
-    } as StreamChunk
-    yield {
-      type: 'TEXT_MESSAGE_CONTENT',
-      messageId: 'assistant-1',
-      delta: REPLY_TEXT,
-      content: REPLY_TEXT,
-      timestamp: Date.now(),
-    } as StreamChunk
-    stop()
-  })()
-}
 
 const confirmSchema = {
   type: 'object',
@@ -580,24 +561,13 @@ export const Route = createFileRoute('/api/persistence-durability')({
           return Response.json({ runId, threadId })
         }
         if (scenario === 'stopped-progress') {
-          const abortController = new AbortController()
           const stream = chat({
-            adapter: {
-              kind: 'text',
-              name: 'fixed',
-              model: 'test-model',
-              '~types': {},
-              chatStream: () =>
-                stoppedProgressRun(threadId, runId, () =>
-                  abortController.abort(),
-                ),
-            } as unknown as AnyTextAdapter,
+            adapter: stoppedProgressAdapter,
             messages: [
               { role: 'user', content: 'tell me about the lighthouse' },
             ],
             threadId,
             runId,
-            abortController,
             middleware: [
               withPersistence(stoppedProgressPersistence, {
                 snapshotStreaming: true,

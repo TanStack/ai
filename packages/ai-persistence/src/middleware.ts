@@ -65,6 +65,7 @@ import type {
   PersistedArtifactRole,
   RunAgentResumeItem,
   StreamChunk,
+  TanStackMessageMetadata,
   Tool,
   ToolApprovalResolution,
   BilledUsage,
@@ -1836,21 +1837,28 @@ function sumNumberFields<T extends object>(
 }
 
 /**
- * `chunk.metadata` without the durability batch hint. It copies instead of
- * calling `stripDurabilityBatchHint`, because the durability producer reads
- * the hint on this same chunk after this middleware.
+ * The call metadata that the chat engine keeps on a finished assistant message
+ * (`withCallMetadata` in `@tanstack/ai`). Snapshot rows keep only these keys,
+ * so a stopped or failed row matches a finished one.
  */
-function metadataWithoutBatchHint(chunk: StreamChunk) {
+const CALL_METADATA_KEYS = [
+  'source',
+  'stopReason',
+  'model',
+  'responseId',
+  'finishReason',
+  'responseItems',
+] as const satisfies ReadonlyArray<keyof TanStackMessageMetadata>
+
+function callMetadata(chunk: StreamChunk) {
   const tanstack = tanstackMetadata(chunk)
-  if (tanstack == null || Reflect.get(tanstack, 'batch') !== true) {
-    return chunk.metadata
-  }
-  const metadata = { ...chunk.metadata }
-  const rest = { ...tanstack }
-  Reflect.deleteProperty(rest, 'batch')
-  if (Object.keys(rest).length > 0) return { ...metadata, tanstack: rest }
-  Reflect.deleteProperty(metadata, 'tanstack')
-  return Object.keys(metadata).length > 0 ? metadata : undefined
+  if (tanstack === undefined) return undefined
+  const kept = Object.fromEntries(
+    CALL_METADATA_KEYS.filter((key) => tanstack[key] !== undefined).map(
+      (key) => [key, tanstack[key]],
+    ),
+  )
+  return Object.keys(kept).length > 0 ? { tanstack: kept } : undefined
 }
 
 function tokenUsageFromChunk(chunk: StreamChunk): TokenUsage | undefined {
@@ -2364,17 +2372,9 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
         !('subagentRunId' in chunk) || chunk.subagentRunId === undefined
       if (snapshotStreaming && isParentChunk && current) {
         if (chunk.type === 'RUN_STARTED') resetStreaming(current)
-        // Keep the call metadata (source, response id) for the snapshot rows.
-        const tanstack = tanstackMetadata(chunk)
-        const metadata =
-          chunk.type === 'TOOL_CALL_START'
-            ? tanstack === undefined
-              ? undefined
-              : { tanstack }
-            : metadataWithoutBatchHint(chunk)
         current.streamingMetadata = mergeMetadata(
           current.streamingMetadata,
-          metadata,
+          callMetadata(chunk),
         )
         if (chunk.type === 'RUN_FINISHED') {
           current.streamingMetadata = withTanstackMetadata(
