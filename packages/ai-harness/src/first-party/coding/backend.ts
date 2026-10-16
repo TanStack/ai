@@ -21,6 +21,24 @@ export interface WorkspaceBackend {
   shell?: 'sh' | 'cmd'
   /** The bytes of a file. Throws when there is no file. */
   readFile: (path: string) => Promise<Uint8Array>
+  /**
+   * One page of a file, without the whole file in memory: the first 8 KiB
+   * (`head`), the size in bytes, the lines from line `offset` (from 1) as
+   * UTF-8 text, and the number of lines. It gives at most `limit` lines, and
+   * fewer when the lines are long: no more lines after 64 KiB. A final
+   * newline ends the last line. It does not start a new one. Throws when
+   * there is no file. Optional: without it, `read_file` reads the whole
+   * file.
+   */
+  readLines?: (
+    path: string,
+    options: { offset: number; limit: number },
+  ) => Promise<{
+    head: Uint8Array
+    size: number
+    lines: Array<string>
+    total: number
+  }>
   /** Create or replace a file. Missing parent folders are created. */
   writeFile: (path: string, data: Uint8Array | string) => Promise<void>
   /**
@@ -143,6 +161,15 @@ export function commandEnv(
 const isMissing = (error: unknown) =>
   error instanceof Error && 'code' in error && error.code === 'ENOENT'
 
+/** `readLines` reads this many bytes at a time. */
+const READ_CHUNK = 1024 * 1024
+/** The first bytes that `readLines` gives, for the file type check. */
+const HEAD_BYTES = 8 * 1024
+/** `readLines` gives no more lines after this many bytes. */
+const MAX_PAGE_BYTES = 64 * 1024
+// Drops a byte order mark, like the whole-file read of `read_file`.
+const pageDecoder = new TextDecoder()
+
 /** `exec` stops a command that writes more than 10 MiB of output. */
 const MAX_EXEC_OUTPUT = 10 * 1024 * 1024
 
@@ -209,9 +236,71 @@ function startShell(
 export const hostBackend = {
   shell: process.platform === 'win32' ? 'cmd' : 'sh',
   readFile: (path) => fs.readFile(path),
+  readLines: async (path, { offset, limit }) => {
+    const handle = await fs.open(path, 'r')
+    try {
+      const { size } = await handle.stat()
+      const chunk = Buffer.allocUnsafe(Math.max(1, Math.min(size, READ_CHUNK)))
+      let head: Uint8Array | undefined
+      // The line of the next byte. At the end, one more than the newlines.
+      let line = 1
+      let last = -1
+      // The first line after the page. A long page ends early.
+      let end = offset + limit
+      const page: Array<Buffer> = []
+      let pageBytes = 0
+      // ponytail: reads up to the size at the start. Bytes added later wait
+      // for the next read.
+      for (let position = 0; position < size;) {
+        const { bytesRead } = await handle.read(
+          chunk,
+          0,
+          chunk.length,
+          position,
+        )
+        if (bytesRead === 0) break
+        position += bytesRead
+        const data = chunk.subarray(0, bytesRead)
+        // A copy: the next read writes over `chunk`.
+        head ??= Buffer.from(data.subarray(0, HEAD_BYTES))
+        last = data[bytesRead - 1] ?? last
+        // The page bytes of this read. The page lines are one after another.
+        let pageFrom = -1
+        let pageTo = -1
+        // Count the lines with `indexOf`. Only the page is decoded.
+        for (let from = 0; from < bytesRead;) {
+          const newline = data.indexOf(10, from)
+          const to = newline === -1 ? bytesRead : newline + 1
+          if (line >= offset && line < end) {
+            if (pageFrom === -1) pageFrom = from
+            pageTo = to
+            pageBytes += to - from
+            if (newline !== -1 && pageBytes > MAX_PAGE_BYTES) end = line + 1
+          }
+          if (newline === -1) break
+          line += 1
+          from = to
+        }
+        if (pageFrom !== -1)
+          page.push(Buffer.from(data.subarray(pageFrom, pageTo)))
+      }
+      // An empty file has one empty line, like `''.split('\n')`.
+      const total = line - 1 + (size === 0 || last !== 10 ? 1 : 0)
+      const text = pageDecoder.decode(Buffer.concat(page))
+      const lines = offset > total ? [] : text.split('\n')
+      if (text.endsWith('\n')) lines.pop()
+      return { head: head ?? Buffer.alloc(0), size, lines, total }
+    } finally {
+      await handle.close()
+    }
+  },
   writeFile: async (path, data) => {
-    await fs.mkdir(nodePath.dirname(path), { recursive: true })
-    await fs.writeFile(path, data)
+    // One call when the folder is there. When it is not, make it and write again.
+    await fs.writeFile(path, data).catch(async (error: unknown) => {
+      if (!isMissing(error)) throw error
+      await fs.mkdir(nodePath.dirname(path), { recursive: true })
+      await fs.writeFile(path, data)
+    })
   },
   // Without `recursive`, `fs.rm` refuses a folder.
   remove: (path) => fs.rm(path),

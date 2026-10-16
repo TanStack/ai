@@ -137,6 +137,48 @@ describe('hostBackend', () => {
   })
 })
 
+describe('hostBackend.readLines', () => {
+  /** The page and the line count of a whole-file read, as `read_file` makes them. */
+  const expected = (text: string, offset: number, limit: number) => {
+    const all = text.replace(/^﻿/, '').split('\n')
+    if (text.endsWith('\n')) all.pop()
+    return {
+      lines: all.slice(offset - 1, offset - 1 + limit),
+      total: all.length,
+    }
+  }
+  // 1 MiB is the read size: `é` is split over the edge of the first read.
+  const edge = `${'x'.repeat(1024 * 1024 - 1)}é\nlast`
+
+  it.each([
+    ['an empty file', '', 1, 5],
+    ['no final newline', 'a\nb', 1, 5],
+    ['a final newline', 'a\nb\n', 2, 5],
+    ['CRLF lines', 'a\r\nb\r\n', 1, 5],
+    ['a byte order mark', '﻿a\nb\n', 1, 1],
+    ['an offset after the end', 'a\nb\n', 9, 5],
+    ['a character over the read edge', edge, 1, 1],
+    ['a page after the read edge', edge, 2, 1],
+  ])('reads %s like a whole-file read', async (_, text, offset, limit) => {
+    const file = join(dir, 'f.txt')
+    await writeFile(file, text)
+    const read = await hostBackend.readLines(file, { offset, limit })
+    expect({ lines: read.lines, total: read.total }).toEqual(
+      expected(text, offset, limit),
+    )
+    expect(read.size).toBe(Buffer.byteLength(text))
+    expect(read.head).toEqual(Buffer.from(text).subarray(0, 8 * 1024))
+  })
+
+  it('stops after 64 KiB of lines, and still counts every line', async () => {
+    const file = join(dir, 'long.txt')
+    await writeFile(file, `${'y'.repeat(40 * 1024)}\n`.repeat(4))
+    const read = await hostBackend.readLines(file, { offset: 1, limit: 10 })
+    expect(read.lines).toHaveLength(2)
+    expect(read.total).toBe(4)
+  })
+})
+
 describe('workspace hooks', () => {
   it('runs afterWrite after each write, and adds afterRead text to read_file', async () => {
     const written: Array<string> = []

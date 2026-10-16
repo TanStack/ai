@@ -7,11 +7,13 @@ const BOM = '﻿'
 
 /**
  * How one match level changes text before the search. `pieces` cuts the text
- * into pieces, and `change` gives the new text of each piece.
+ * into pieces, and `change` gives the new text of each piece. `changes` is a
+ * fast test: false when the level leaves the text as it is.
  */
 interface Level {
   pieces: RegExp
   change: (piece: RegExpExecArray) => string
+  changes: (text: string) => boolean
 }
 
 // The match levels after the exact text, from strict to loose.
@@ -21,11 +23,13 @@ const LEVELS: ReadonlyArray<Level> = [
   {
     pieces: /\P{M}\p{M}*|\p{M}+/gu,
     change: (piece) => piece[0].normalize('NFC'),
+    changes: (text) => text.normalize('NFC') !== text,
   },
   // Spaces and tabs at the end of each line removed.
   {
     pieces: /([^\S\n]+(?=\n|$))|[\s\S]/g,
     change: (piece) => (piece[1] ? '' : piece[0]),
+    changes: (text) => /[^\S\n](?=\n|$)/.test(text),
   },
 ]
 
@@ -96,6 +100,9 @@ export function findMatches(content: string, find: string) {
     return exact.map((start) => ({ start, end: start + wanted.length }))
   }
   for (const level of LEVELS) {
+    // A level that changes neither side finds only the exact matches, and
+    // there are none. On a big file the change is slow, so skip it.
+    if (!level.changes(content) && !level.changes(wanted)) continue
     const { text, at } = changed(content, level)
     const needle = changed(wanted, level).text
     const starts = indexesOf(text, needle)

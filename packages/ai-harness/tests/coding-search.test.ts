@@ -366,6 +366,37 @@ describe('limits', () => {
     expect(lines[200]).toBe(MATCHES_NOTE)
   })
 
+  it('reads up to 16 folders and files at a time in JS, and keeps the order', async () => {
+    const files = Object.fromEntries(
+      Array.from({ length: 40 }, (_, index) => [
+        `d${String(index).padStart(2, '0')}${sep}a.txt`,
+        'two\n',
+      ]),
+    )
+    const { backend } = fakeBackend(files)
+    let running = 0
+    let most = 0
+    /** `fn` with a pause, counting the calls that run at the same time. */
+    const counted =
+      <A extends Array<unknown>, R>(fn: (...args: A) => Promise<R>) =>
+      async (...args: A) => {
+        most = Math.max(most, ++running)
+        await new Promise((done) => setTimeout(done, 1))
+        try {
+          return await fn(...args)
+        } finally {
+          running--
+        }
+      }
+    backend.readdir = counted(backend.readdir)
+    backend.stat = counted(backend.stat)
+    const lines = (await searchOn(backend).grep({ pattern: 'two' })).split('\n')
+    expect(most).toBe(16)
+    expect(lines).toHaveLength(40)
+    expect(lines[0]).toBe('d00/a.txt:1: two')
+    expect(lines[39]).toBe('d39/a.txt:1: two')
+  })
+
   it('says so when the JS walk stops before the end', async () => {
     const fake = fakeBackend({ ...numbered(5001), 'z.md': '' })
     expect(await searchOn(fake.backend).listFiles({ pattern: '*.md' })).toBe(

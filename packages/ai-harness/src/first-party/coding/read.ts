@@ -93,22 +93,25 @@ function numbered(lineNumber: number, line: string) {
 }
 
 /**
- * The numbered lines from line `offset`, at most `limit` lines (2000 when
- * `limit` is not set) and 50 KiB. When the page shows fewer lines than were
- * asked for and the file goes on, a note says how to read the next page.
+ * The lines of `text` from line `offset`, at most `limit`, and the number of
+ * lines. A final newline ends the last line. It does not start a new one.
+ */
+function linesOf(text: string, offset: number, limit: number) {
+  const all = text.split('\n')
+  if (text.endsWith('\n')) all.pop()
+  return { lines: all.slice(offset - 1, offset - 1 + limit), total: all.length }
+}
+
+/**
+ * The numbered lines of `window`, which starts at line `offset` of a file of
+ * `total` lines. At most 50 KiB. When the page shows fewer lines than
+ * `limit` and the file goes on, a note says how to read the next page.
  */
 function page(
-  text: string,
+  { lines: window, total }: { lines: Array<string>; total: number },
   options: { path: string; offset: number; limit: number | undefined },
 ) {
   const { path, offset, limit } = options
-  const lines = text.split('\n')
-  // A final newline ends the last line. It does not start a new one.
-  if (text.endsWith('\n')) lines.pop()
-  const window = lines.slice(
-    offset - 1,
-    offset - 1 + Math.min(limit ?? MAX_LINES, MAX_LINES),
-  )
   const shown: Array<string> = []
   let bytes = 0
   for (const [index, line] of window.entries()) {
@@ -119,12 +122,12 @@ function page(
     shown.push(row)
   }
   if (shown.length === 0) {
-    return `[No lines from line ${offset}. ${path} has ${lines.length} lines.]`
+    return `[No lines from line ${offset}. ${path} has ${total} lines.]`
   }
   const last = offset + shown.length - 1
-  const isCut = shown.length < (limit ?? Infinity) && last < lines.length
+  const isCut = shown.length < (limit ?? Infinity) && last < total
   if (!isCut) return shown.join('\n')
-  return `${shown.join('\n')}\n\n[Showing lines ${offset}-${last} of ${lines.length}. Read more with offset ${last + 1}.]`
+  return `${shown.join('\n')}\n\n[Showing lines ${offset}-${last} of ${total}. Read more with offset ${last + 1}.]`
 }
 
 /**
@@ -159,19 +162,34 @@ export function readTools(env: ToolEnv) {
         isRecord(args) && typeof args.limit === 'number'
           ? args.limit
           : undefined
+      const pageLimit = Math.min(limit ?? MAX_LINES, MAX_LINES)
       return env.lock(full, async () => {
         const path = env.shown(full)
-        if (!(await env.backend.stat(full))) throw await notFound(env, full)
-        const bytes = await env.backend.readFile(full)
-        const head = String.fromCharCode(...bytes.subarray(0, 12))
-        const media = MEDIA.find((item) => item.signature.test(head))
+        const { backend } = env
+        // One call when the file is there. A failed read checks if it is.
+        const missing = async (error: unknown): Promise<never> => {
+          if (!(await backend.stat(full))) throw await notFound(env, full)
+          throw error
+        }
+        // `readLines` reads one page. Without it, the whole file is read.
+        const paged = await backend
+          .readLines?.(full, { offset, limit: pageLimit })
+          .catch(missing)
+        const whole = paged
+          ? undefined
+          : await backend.readFile(full).catch(missing)
+        const head = paged?.head ?? whole?.subarray(0, BINARY_CHECK_BYTES)
+        const size = paged?.size ?? whole?.length ?? 0
+        const start = String.fromCharCode(...(head ?? []).slice(0, 12))
+        const media = MEDIA.find((item) => item.signature.test(start))
         if (media) {
-          if (bytes.length > MAX_MEDIA_BYTES) {
-            const size = (bytes.length / 1024 / 1024).toFixed(1)
+          if (size > MAX_MEDIA_BYTES) {
+            const mb = (size / 1024 / 1024).toFixed(1)
             throw new Error(
-              `${path} is ${size} MB. read_file sends images and PDFs up to 5 MB.`,
+              `${path} is ${mb} MB. read_file sends images and PDFs up to 5 MB.`,
             )
           }
+          const bytes = whole ?? (await backend.readFile(full))
           const part: ContentPart = {
             type: media.type,
             source: {
@@ -182,12 +200,12 @@ export function readTools(env: ToolEnv) {
           }
           return [part]
         }
-        if (bytes.subarray(0, BINARY_CHECK_BYTES).includes(0)) {
+        if (head?.includes(0)) {
           const type = mimeTypeOf(full)
           const typeNote = type === undefined ? '' : `, ${type}`
-          return `${path} is a binary file (${bytes.length} bytes${typeNote}). read_file shows text, images, and PDFs only.`
+          return `${path} is a binary file (${size} bytes${typeNote}). read_file shows text, images, and PDFs only.`
         }
-        const text = decoder.decode(bytes)
+        const text = paged ?? linesOf(decoder.decode(whole), offset, pageLimit)
         const parts = [page(text, { path, offset, limit })]
         const hooks = env.hooks()
         for (const hook of hooks) {

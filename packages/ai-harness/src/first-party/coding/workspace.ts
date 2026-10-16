@@ -174,15 +174,27 @@ export function createWorkspaceTools(
     }
   }
 
+  // ponytail: the real path of the root is read once, when the root is there.
+  // A root that turns into a link later is not seen.
+  let knownRoot: string | undefined
+  /** The real path of `root`. */
+  const realRoot = async () => {
+    if (knownRoot !== undefined) return knownRoot
+    const real = backend.realpath ? await backend.realpath(root) : root
+    if (real === undefined) return realPath(root)
+    knownRoot = real
+    return real
+  }
+
   /**
-   * The real path of `full`, as the permission rules see it. In the real
-   * root, it is a path in `root`, so a root that is a link (like `/tmp` on
-   * macOS) does not move every path outside.
+   * `real`, a real path, as the permission rules see it. In the real root,
+   * it is a path in `root`, so a root that is a link (like `/tmp` on macOS)
+   * does not move every path outside.
    */
-  const realForRules = async (full: string) => {
-    const [real, realRoot] = await Promise.all([realPath(full), realPath(root)])
-    return within(realRoot, real, paths.sep)
-      ? paths.join(root, paths.relative(realRoot, real))
+  const forRules = async (real: string) => {
+    const rootReal = await realRoot()
+    return within(rootReal, real, paths.sep)
+      ? paths.join(root, paths.relative(rootReal, real))
       : real
   }
 
@@ -219,11 +231,16 @@ export function createWorkspaceTools(
    * with a stricter rule, like `notes` to `.env`. So the rules check the
    * real path too, and the strictest decision wins.
    */
-  const checkRealPath = async (path: string, tool: string, full: string) => {
+  const checkRealPath = async (
+    path: string,
+    tool: string,
+    full: string,
+    realFull: string,
+  ) => {
     const decide = access?.rules?.()
     // `bash` touches commands. Its rules do not match paths.
     if (!access || !decide || !resources[tool]?.paths) return
-    const real = await realForRules(full)
+    const real = await forRules(realFull)
     if (paths.relative(full, real) === '') return
     // `permissions()` checked `full` before the call. Act only when the
     // real path makes the decision stricter.
@@ -278,10 +295,10 @@ export function createWorkspaceTools(
       await allowOutside(path, tool, kind, full, full)
     }
     const real = await realPath(full)
-    const folders = [await realPath(root), ...allowed]
+    const folders = [await realRoot(), ...allowed]
     const isAllowed = folders.some((dir) => within(dir, real, paths.sep))
     if (!isAllowed) await allowOutside(path, tool, kind, full, real)
-    await checkRealPath(path, tool, full)
+    await checkRealPath(path, tool, full, real)
     return full
   }
 
@@ -299,7 +316,7 @@ export function createWorkspaceTools(
       if (!decide) return undefined
       // rg and the other engines do not follow links in `dir`. So only `dir`
       // itself can be a link, and its real path covers the files in it.
-      const real = await realForRules(dir)
+      const real = await forRules(await realPath(dir))
       return (path) =>
         decide('read_file', [
           paths.resolve(dir, path),

@@ -94,6 +94,7 @@ The backend can also have:
 | --- | --- | --- |
 | `shell` | `'sh'` or `'cmd'`. Sets the path style and how arguments are quoted. | `sh` quotes, and the path style of this machine. |
 | `remove(path)` | Removes one file. | `patch` cannot delete or move files. |
+| `readLines(path, { offset, limit })` | Gives one page of a file: `{ head, size, lines, total }`. `head` is the first 8 KiB. | `read_file` reads the whole file for each page. |
 | `realpath(path)` | Gives the path with every link resolved. | The tools do not check links. |
 | `spawn(command, options)` | Starts a command in the background. | `background: true` gives an error. |
 

@@ -23,6 +23,8 @@ const MAX_SIZE = 1024 * 1024
 // ponytail: the JS walk stops after 5000 files, and the tools say so. Raise
 // it if folders without rg and without git get that big.
 const MAX_WALK = 5000
+/** The JS walk and grep run this many backend calls at a time. */
+const PARALLEL = 16
 
 const FILES_NOTE =
   '[Not all files are shown. Use a pattern or a folder to see fewer.]'
@@ -164,25 +166,40 @@ function rgHits(out: string) {
 }
 
 /**
- * Add the files under `dir` to `out`, as paths that start with `prefix`.
- * Stops after MAX_WALK files. It skips links, so it never leaves `dir`.
+ * The files under `dir`, as paths from `dir` with `/`. Stops after MAX_WALK
+ * files, and then gives one more, so the caller can tell. It skips links, so
+ * it never leaves `dir`. It reads up to PARALLEL folders at a time.
  */
-async function walk(
-  backend: WorkspaceBackend,
-  dir: string,
-  prefix: string,
-  out: Array<string>,
-) {
-  const entries = await backend.readdir(dir)
-  for (const entry of entries) {
-    if (out.length > MAX_WALK) return
-    if (SKIP.has(entry.name) || entry.type === 'link') continue
-    const path = prefix + entry.name
-    if (entry.type === 'dir') {
-      const next = pathsOf(backend).join(dir, entry.name)
-      await walk(backend, next, `${path}/`, out)
-    } else out.push(path)
+async function walk(backend: WorkspaceBackend, dir: string) {
+  const { join } = pathsOf(backend)
+  const out: Array<string> = []
+  let folders = [{ dir, prefix: '' }]
+  while (folders.length > 0 && out.length <= MAX_WALK) {
+    const next: typeof folders = []
+    for (
+      let i = 0;
+      i < folders.length && out.length <= MAX_WALK;
+      i += PARALLEL
+    ) {
+      const listed = await Promise.all(
+        folders.slice(i, i + PARALLEL).map(async (folder) => ({
+          folder,
+          entries: await backend.readdir(folder.dir),
+        })),
+      )
+      for (const { folder, entries } of listed) {
+        for (const entry of entries) {
+          if (SKIP.has(entry.name) || entry.type === 'link') continue
+          const path = folder.prefix + entry.name
+          if (entry.type === 'dir') {
+            next.push({ dir: join(folder.dir, entry.name), prefix: `${path}/` })
+          } else out.push(path)
+        }
+      }
+    }
+    folders = next
   }
+  return out.slice(0, MAX_WALK + 1)
 }
 
 /**
@@ -233,7 +250,33 @@ async function withoutLinks(
   return kept
 }
 
-/** grep in JS: read each file through the backend and test each line. */
+/** The hits of `regex` in one file. Too big and binary files have none. */
+async function grepFile(
+  backend: WorkspaceBackend,
+  base: string,
+  path: string,
+  regex: RegExp,
+) {
+  const hits: Array<Hit> = []
+  const full = pathsOf(backend).resolve(base, path)
+  const info = await backend.stat(full)
+  if (info?.type !== 'file' || info.size > MAX_SIZE) return hits
+  const text = await readText(backend, full)
+  // rg skips binary files too.
+  if (text.includes('\0')) return hits
+  const lines = text.split('\n')
+  for (const [index, line] of lines.entries()) {
+    if (!regex.test(line)) continue
+    hits.push({ path, line: index + 1, text: line })
+    if (hits.length > MAX_MATCHES) break
+  }
+  return hits
+}
+
+/**
+ * grep in JS: read the files through the backend and test each line. It reads
+ * up to PARALLEL files at a time, and keeps the hits in the order of `files`.
+ */
 async function grepFiles(
   backend: WorkspaceBackend,
   base: string,
@@ -241,17 +284,14 @@ async function grepFiles(
   regex: RegExp,
 ) {
   const hits: Array<Hit> = []
-  for (const path of files) {
-    const full = pathsOf(backend).resolve(base, path)
-    const info = await backend.stat(full)
-    if (info?.type !== 'file' || info.size > MAX_SIZE) continue
-    const text = await readText(backend, full)
-    // rg skips binary files too.
-    if (text.includes('\0')) continue
-    const lines = text.split('\n')
-    for (const [index, line] of lines.entries()) {
-      if (!regex.test(line)) continue
-      hits.push({ path, line: index + 1, text: line })
+  for (let i = 0; i < files.length; i += PARALLEL) {
+    const found = await Promise.all(
+      files
+        .slice(i, i + PARALLEL)
+        .map((path) => grepFile(backend, base, path, regex)),
+    )
+    for (const hit of found.flat()) {
+      hits.push(hit)
       if (hits.length > MAX_MATCHES) return hits
     }
   }
@@ -305,8 +345,7 @@ export function searchTools(env: ToolEnv) {
       const files = await withoutLinks(backend, base, listed)
       return { files, partial: false }
     }
-    const walked: Array<string> = []
-    await walk(backend, base, '', walked)
+    const walked = await walk(backend, base)
     return { files: tidy(walked), partial: walked.length > MAX_WALK }
   }
 

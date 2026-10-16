@@ -85,6 +85,18 @@ describe('edit_file', () => {
     expect(text).toBe('x\nc  \n')
   })
 
+  // Only the old text needs the change. The level must still run.
+  it.each([
+    ['another Unicode form', 'café\n', 'café', 'tea\n'],
+    ['spaces at the end of a line', 'a\nb\n', 'a  \nb', 'tea\n'],
+  ])(
+    'matches old text in %s, in a file without it',
+    async (_, file, old, expected) => {
+      const { text } = await edit('reverse.txt', file, { old, new: 'tea' })
+      expect(text).toBe(expected)
+    },
+  )
+
   it('prefers an exact match over a looser one', async () => {
     // With trailing spaces ignored, `foo\n` is in the file twice.
     const { text } = await edit('prefer.txt', 'foo\nfoo  \n', {
