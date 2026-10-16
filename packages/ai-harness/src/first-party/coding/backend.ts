@@ -298,13 +298,14 @@ export const hostBackend = {
     }),
   spawn: (command, options = {}) => {
     const { child, kill } = startShell(command, options)
-    // ponytail: keeps all output in memory. Cap it if long jobs need that.
+    // ponytail: keeps the last 10 MiB of a long job, like `exec` keeps the first.
     let output = ''
-    const collect = (chunk: Buffer) => {
-      output += chunk.toString()
+    const collect = (chunk: string) => {
+      output = keepTail(output + chunk)
     }
-    child.stdout.on('data', collect)
-    child.stderr.on('data', collect)
+    // The stream decodes UTF-8, so a character split over two chunks stays whole.
+    child.stdout.setEncoding('utf8').on('data', collect)
+    child.stderr.setEncoding('utf8').on('data', collect)
     const exited = new Promise<{ exitCode: number }>((done) => {
       child.on('close', (code) => done({ exitCode: code ?? 1 }))
       child.on('error', (error) => {
@@ -315,6 +316,10 @@ export const hostBackend = {
     return { wait: () => exited, kill, output: () => output }
   },
 } satisfies WorkspaceBackend
+
+/** Keep the last `MAX_EXEC_OUTPUT` characters. Cuts at twice that, so it copies rarely. */
+const keepTail = (text: string) =>
+  text.length > 2 * MAX_EXEC_OUTPUT ? text.slice(-MAX_EXEC_OUTPUT) : text
 
 const MAX_OUTPUT = 20_000
 

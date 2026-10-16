@@ -216,6 +216,25 @@ describe('formatOnWrite', () => {
     expect(commands).toEqual([])
   })
 
+  it('checks the project again at the next write when the check failed', async () => {
+    const { backend, runs } = project(prettier)
+    const readdir = backend.readdir
+    let fail = true
+    backend.readdir = async (dir) => {
+      if (fail) throw new Error('EBUSY')
+      return readdir(dir)
+    }
+    const failures: Array<FormatFailure> = []
+    const afterWrite = formatOnWrite({ root, backend }, (failure) =>
+      failures.push(failure),
+    )
+    await afterWrite(join(root, 'a.ts'))
+    fail = false
+    await afterWrite(join(root, 'a.ts'))
+    expect(failures).toEqual([{ path: join(root, 'a.ts'), message: 'EBUSY' }])
+    expect(runs).toHaveLength(1)
+  })
+
   it('checks the config files once, at the first write', async () => {
     const { backend, runs, put } = project({})
     const afterWrite = formatOnWrite({ root, backend }, () => undefined)

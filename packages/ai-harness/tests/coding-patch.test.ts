@@ -28,9 +28,12 @@ function patch(...lines: Array<string>) {
 /**
  * The patch tool on files in memory that start as `files`. `written` lists
  * the files that the `afterWrite` hook saw, in order. With `canRemove:
- * false`, the backend has no `remove`.
+ * false`, the backend has no `remove`. `dirs` are folders.
  */
-function workspace(files: Record<string, string>, { canRemove = true } = {}) {
+function workspace(
+  files: Record<string, string>,
+  { canRemove = true, dirs = [] as Array<string> } = {},
+) {
   const store = new Map<string, Uint8Array>()
   for (const [path, text] of Object.entries(files)) {
     store.set(join(root, path), encoder.encode(text))
@@ -50,6 +53,9 @@ function workspace(files: Record<string, string>, { canRemove = true } = {}) {
         }
       : undefined,
     stat: async (path) => {
+      if (dirs.some((dir) => join(root, dir) === path)) {
+        return { type: 'dir', size: 0, mtimeMs: 0 }
+      }
       const data = store.get(path)
       return data && { type: 'file', size: data.length, mtimeMs: 0 }
     },
@@ -390,6 +396,21 @@ describe('patch tool', () => {
     )
     expect(files.files()).toEqual({ 'a.txt': 'a\n', 'b.txt': 'b\n' })
     expect(files.written).toEqual([])
+  })
+
+  it('changes no file when an added file is a folder', async () => {
+    const files = workspace({ 'a.txt': 'a\n' }, { dirs: ['src'] })
+    const text = patch(
+      '*** Update File: a.txt',
+      '-a',
+      '+A',
+      '*** Add File: src',
+      '+c',
+    )
+    await expect(files.run(text)).rejects.toThrow(
+      'Cannot add src: it is a folder.',
+    )
+    expect(files.files()).toEqual({ 'a.txt': 'a\n' })
   })
 
   it('runs the afterWrite hook once for each written file', async () => {

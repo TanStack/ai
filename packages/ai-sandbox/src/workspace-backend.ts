@@ -1,6 +1,9 @@
 import type { WorkspaceBackend } from '@tanstack/ai-harness/plugins/coding'
 import type { ExecResult, SandboxHandle } from './contracts'
 
+/** The most output a background job keeps, in characters. */
+const MAX_OUTPUT = 10 * 1024 * 1024
+
 /**
  * A `WorkspaceBackend` over a live sandbox. With it, `workspaceTools()`
  * reads and writes files and runs commands in the sandbox, not on this
@@ -59,10 +62,13 @@ export function sandboxWorkspaceBackend(handle: SandboxHandle) {
   }
 
   const spawn: WorkspaceBackend['spawn'] = (command, options) => {
-    // ponytail: keeps all output in memory, like `hostBackend`.
+    // ponytail: keeps the last 10 MiB of a long job, like `hostBackend`.
     let output = ''
     const collect = async (stream: AsyncIterable<string>) => {
-      for await (const chunk of stream) output += chunk
+      for await (const chunk of stream) {
+        output += chunk
+        if (output.length > 2 * MAX_OUTPUT) output = output.slice(-MAX_OUTPUT)
+      }
     }
     const started = handle.process.spawn(command, options)
     // Wait for the end of the output too, so `output()` is complete.

@@ -319,6 +319,10 @@ async function applyAll(env: ToolEnv, steps: ReadonlyArray<Step>) {
     const shown = env.shown(full)
     switch (operation.type) {
       case 'add':
+        // Checked here, so a patch that does not fit writes nothing.
+        if ((await backend.stat(full))?.type === 'dir') {
+          throw new Error(`Cannot add ${shown}: it is a folder.`)
+        }
         planned.set(full, operation.content)
         changes.push(`added ${shown}`)
         break

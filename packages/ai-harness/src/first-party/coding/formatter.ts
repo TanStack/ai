@@ -175,7 +175,11 @@ export function formatOnWrite(
 
   const format = async (path: string) => {
     const extension = extname(path).toLowerCase()
-    const formatters = await (detected ??= detect())
+    // A failed detection is not kept, so the next write tries again.
+    const formatters = await (detected ??= detect().catch((error: unknown) => {
+      detected = undefined
+      throw error
+    }))
     const match = formatters.find((candidate) =>
       candidate.extensions.includes(extension),
     )

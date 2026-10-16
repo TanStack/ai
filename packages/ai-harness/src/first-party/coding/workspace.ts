@@ -75,6 +75,9 @@ export interface OutsideAccess {
     | undefined
 }
 
+/** A Windows network path (`\\server\share`). Not `\\?\` or `\\.\`. */
+const isUnc = (path: string) => /^[\\/]{2}[^\\/?.]/.test(path)
+
 /** Is `full` the folder `dir`, or a path in it? `sep` is the separator. */
 function within(dir: string, full: string, sep: string) {
   return full === dir || full.startsWith(dir.endsWith(sep) ? dir : dir + sep)
@@ -269,6 +272,11 @@ export function createWorkspaceTools(
   // leads out of it counts as outside.
   const reach: ToolEnv['reach'] = async (path, tool, kind) => {
     const full = paths.resolve(here(), path)
+    // `realpath` on a UNC path connects to its server, and Windows can send
+    // the user's credentials. So the boundary check runs first.
+    if (isUnc(full) && !isUnc(root)) {
+      await allowOutside(path, tool, kind, full, full)
+    }
     const real = await realPath(full)
     const folders = [await realPath(root), ...allowed]
     const isAllowed = folders.some((dir) => within(dir, real, paths.sep))

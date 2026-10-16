@@ -1038,3 +1038,23 @@ describe('bash', () => {
     },
   )
 })
+
+describe('a network path', () => {
+  it('is refused before realpath can connect to its server', async () => {
+    const realpath = vi.fn(async (path: string) => path)
+    const backend: WorkspaceBackend = {
+      shell: 'cmd',
+      realpath,
+      readFile: async () => new Uint8Array(),
+      writeFile: async () => undefined,
+      stat: async () => undefined,
+      readdir: async () => [],
+      exec: async () => ({ exitCode: 0, stdout: '', stderr: '' }),
+    }
+    const tools = toolsOf({ root: 'C:/work', backend })
+    await expect(
+      runIn(tools, 'read_file', { path: '//attacker/share/a.txt' }),
+    ).rejects.toThrow('outside the workspace')
+    expect(realpath.mock.calls.flat().join()).not.toContain('attacker')
+  })
+})
