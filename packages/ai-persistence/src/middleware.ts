@@ -65,6 +65,7 @@ import type {
   PersistedArtifactRole,
   RunAgentResumeItem,
   StreamChunk,
+  TanStackMessageMetadata,
   Tool,
   ToolApprovalResolution,
   BilledUsage,
@@ -1835,6 +1836,31 @@ function sumNumberFields<T extends object>(
   return result
 }
 
+/**
+ * The call metadata that the chat engine keeps on a finished assistant message
+ * (`withCallMetadata` in `@tanstack/ai`). Snapshot rows keep only these keys,
+ * so a stopped or failed row matches a finished one.
+ */
+const CALL_METADATA_KEYS = [
+  'source',
+  'stopReason',
+  'model',
+  'responseId',
+  'finishReason',
+  'responseItems',
+] as const satisfies ReadonlyArray<keyof TanStackMessageMetadata>
+
+function callMetadata(chunk: StreamChunk) {
+  const tanstack = tanstackMetadata(chunk)
+  if (tanstack === undefined) return undefined
+  const kept = Object.fromEntries(
+    CALL_METADATA_KEYS.filter((key) => tanstack[key] !== undefined).map(
+      (key) => [key, tanstack[key]],
+    ),
+  )
+  return Object.keys(kept).length > 0 ? { tanstack: kept } : undefined
+}
+
 function tokenUsageFromChunk(chunk: StreamChunk): TokenUsage | undefined {
   if (chunk.type !== 'RUN_FINISHED' && chunk.type !== 'RUN_ERROR') {
     return undefined
@@ -2346,17 +2372,9 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
         !('subagentRunId' in chunk) || chunk.subagentRunId === undefined
       if (snapshotStreaming && isParentChunk && current) {
         if (chunk.type === 'RUN_STARTED') resetStreaming(current)
-        // Keep the call metadata (source, response id) for the snapshot rows.
-        const tanstack = tanstackMetadata(chunk)
-        const metadata =
-          chunk.type === 'TOOL_CALL_START'
-            ? tanstack === undefined
-              ? undefined
-              : { tanstack }
-            : chunk.metadata
         current.streamingMetadata = mergeMetadata(
           current.streamingMetadata,
-          metadata,
+          callMetadata(chunk),
         )
         if (chunk.type === 'RUN_FINISHED') {
           current.streamingMetadata = withTanstackMetadata(
