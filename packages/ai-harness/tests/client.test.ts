@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { defineAgent } from '@tanstack/ai'
+import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHandler, createHarnessHost, defineHarness } from '../src'
 import { createHarnessClient } from '../src/client'
@@ -39,7 +39,7 @@ describe('createHarnessClient', () => {
       fetch: (input, init) => handler(new Request(input, init)),
     })
 
-    const receipt = await client.prompt('hi')
+    const receipt = await client.send('hi')
     expect(receipt.status).toBe('accepted')
 
     const controller = new AbortController()
@@ -81,10 +81,13 @@ describe('createHarnessClient', () => {
       fetch: (input, init) => handler(new Request(input, init)),
     })
 
-    const first = await client.prompt('hi', { inputId: 'req-1' })
-    const retry = await client.prompt('hi', { inputId: 'req-1' })
-    const steer = await client.steer('also', { inputId: 'req-2' })
-    const steerRetry = await client.steer('also', { inputId: 'req-2' })
+    const first = await client.send('hi', { inputId: 'req-1' })
+    const retry = await client.send('hi', { inputId: 'req-1' })
+    const steer = await client.send('also', { mode: 'steer', inputId: 'req-2' })
+    const steerRetry = await client.send('also', {
+      mode: 'steer',
+      inputId: 'req-2',
+    })
 
     expect(first).toMatchObject({ inputId: 'req-1', status: 'accepted' })
     expect(retry).toEqual(first)
@@ -121,6 +124,57 @@ describe('createHarnessClient', () => {
     await host.close()
   })
 
+  it('runs an exposed tool with typed args, and refuses an append it does not expose', async () => {
+    const stats = toolDefinition({
+      name: 'fetch_stats',
+      description: 'Stats of a queue',
+      inputSchema: z.object({ queue: z.string() }),
+    }).server(async ({ queue }) => ({ queue, open: 7 }))
+    const { adapter, calls } = mockAdapter([])
+    const studio = defineHarness({
+      name: 'test/client-tool',
+      adapter,
+      tools: [stats],
+      expose: { tools: ['fetch_stats'] },
+    })
+    const persistence = memoryPersistence()
+    const host = createHarnessHost({ persistence })
+    const handler = createHarnessHandler({
+      host,
+      harness: studio,
+      canAccess: () => true,
+      authorize: () => ({ id: 'u' }),
+    })
+    const client = createHarnessClient<typeof studio>({
+      url: 'http://local/api/harness',
+      threadId: 'thread-tool',
+      fetch: (input, init) => handler(new Request(input, init)),
+    })
+
+    expect(
+      await client.tool(
+        'fetch_stats',
+        { queue: 'billing' },
+        { inputId: 't-1' },
+      ),
+    ).toMatchObject({ inputId: 't-1', status: 'accepted' })
+    // @ts-expect-error `queue` must be a string.
+    void client.tool('fetch_stats', { queue: 1 }).catch(() => {})
+    await vi.waitFor(async () =>
+      expect(
+        JSON.stringify(
+          await persistence.stores.messages.loadThread('thread-tool'),
+        ),
+      ).toContain('billing'),
+    )
+    expect(calls).toHaveLength(0)
+    expect(await client.append([{ type: 'app.signal' }])).toMatchObject({
+      status: 'rejected',
+      reason: 'not_exposed',
+    })
+    await host.close()
+  })
+
   it('sends ephemeral messages with prompt and continue, and no store keeps them', async () => {
     const { adapter, calls } = mockAdapter([
       () => text('one'),
@@ -146,7 +200,7 @@ describe('createHarnessClient', () => {
     })
 
     await client.continue({ ephemeral: [{ role: 'user', content: 'note 1' }] })
-    await client.prompt('again', {
+    await client.send('again', {
       ephemeral: [{ role: 'user', content: 'note 2' }],
     })
     await vi.waitFor(async () =>
@@ -176,7 +230,7 @@ describe('createHarnessClient', () => {
       threadId: 't',
       fetch: (input, init) => handler(new Request(input, init)),
     })
-    await expect(client.prompt('hi')).rejects.toThrow('401')
+    await expect(client.send('hi')).rejects.toThrow('401')
     await expect(async () => {
       for await (const _ of client.events()) break
     }).rejects.toThrow('401')
@@ -184,7 +238,7 @@ describe('createHarnessClient', () => {
   })
 })
 
-describe('client.sendToAgent', () => {
+describe('client.send to an agent run', () => {
   it('sends a message to an agent run, as the request principal', async () => {
     const hold = gate()
     const drafter = defineAgent({
@@ -216,9 +270,8 @@ describe('client.sendToAgent', () => {
     })
 
     const started = await client.agents.drafter.start({ topic: 'tea' })
-    const receipt = await client.sendToAgent({
-      operationId: started.operationId ?? '',
-      message: 'Add a title.',
+    const receipt = await client.send('Add a title.', {
+      to: started.operationId ?? '',
       mode: 'followUp',
       inputId: 'm-1',
     })

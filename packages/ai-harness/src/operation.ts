@@ -121,11 +121,14 @@ export class OperationImpl<TResult> implements Operation<TResult> {
   finish(status: 'completed' | 'interrupted', result: TResult): void {
     this.current = status
     this.resolveResult(result)
+    // A reader of `events()` waits for the next event: it ends now instead.
+    this.feed.wake()
   }
 
   fail(status: 'failed' | 'cancelled', error: unknown): void {
     this.current = status
     this.rejectResult(error)
+    this.feed.wake()
   }
 
   events(options?: {

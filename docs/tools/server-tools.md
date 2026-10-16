@@ -355,7 +355,96 @@ const getUserData = getUserDataDef.server(async ({ userId }) => {
 
 **Throwing vs. returning an error:** if your `.server()` function throws, the SDK catches it and surfaces it as a tool-result *error* (the model sees the failure but you lose control over the message). Returning a structured `{ error }` shape keeps the model in control of how to recover and is usually preferable. Either way, when an `outputSchema` is defined the returned value is validated against it (Zod) before being added to the conversation — so include the `error` field in your `outputSchema` if you return it.
 
-Malformed JSON arguments and Standard Schema input validation failures are also surfaced as tool-result errors. The tool implementation is not called, and the agent loop can return the error to the model so it can repair the tool call. This also applies to Chat Completions tools with no required input fields.
+Malformed JSON arguments and input validation failures (Standard Schema or JSON Schema) are also surfaced as tool-result errors. The tool implementation is not called, and the agent loop can return the error to the model so it can repair the tool call. This also applies to Chat Completions tools with no required input fields.
+
+The `inputSchema` checks the input just before the tool runs:
+
+- The check runs after approval edits and after middleware `onBeforeToolCall`. An approval edit that does not fit the schema stops the resume with an `invalid-edited-args` error. A middleware change that does not fit becomes a tool error.
+- An async validator is awaited.
+- The tool gets the schema's output, so a transform such as `z.string().transform(Number)` applies once.
+
+Models often send a value with the wrong type, such as `"5"` for a number. The check repairs these against the schema before it fails the call:
+
+| The model sends | The schema wants | The tool gets |
+| --- | --- | --- |
+| `"5"` | `number` or `integer` | `5` |
+| `"true"` | `boolean` | `true` |
+| `5` | `string` | `"5"` |
+| `null` for an optional field | a type with no `null` | no field |
+| `null` for a required field | `string`, `number`, or `boolean` | `""`, `0`, or `false` |
+
+- A JSON Schema tool, and an MCP tool, gets the repair when its input fails the check. A valid input runs as it is.
+- A Standard Schema that can export JSON Schema (Zod, ArkType, Valibot) runs first as written. If it fails, the input is repaired and the schema runs again. If it still fails, the error shows the issues of the first run.
+- An input that cannot be repaired, such as `"many"` for a number, becomes a tool error.
+
+### Turn off or replace the repair
+
+Sometimes the built-in repair is the wrong move. Maybe your tool moves money, and a `null` must never turn into `0`. Or maybe your model makes the same odd mistake every time, and you know the fix. Pass `repairToolInput` to `chat()` and take control.
+
+Turn the repair off, so a bad input always goes back to the model as an error:
+
+```typescript
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { transferFunds } from "./tools";
+
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: openaiText("gpt-6.1-sol"),
+    messages,
+    tools: [transferFunds],
+    repairToolInput: false,
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+Or write your own fix. Say the model keeps sending `"limit": "all"` to `search_products`. Map it to a number:
+
+```typescript
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { searchProducts } from "./tools";
+
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: openaiText("gpt-6.1-sol"),
+    messages,
+    tools: [searchProducts],
+    repairToolInput: ({ tool, input }) => {
+      if (
+        tool.name === "search_products" &&
+        typeof input === "object" &&
+        input !== null &&
+        "limit" in input &&
+        input.limit === "all"
+      ) {
+        return { ...input, limit: 100 };
+      }
+      return undefined;
+    },
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+How your function works:
+
+- It runs only when an input fails the check. A valid input never gets to it.
+- It replaces the built-in repair. A `"5"` stays a string unless your function changes it.
+- It gets `tool`, `toolCall`, `input`, and `error` (the validation error).
+- Return the new input, and the check runs again. If that check fails, the model gets the original error.
+- Return `undefined` to send the original error to the model. If your function throws, the model gets the thrown message.
+
+The option works the same for Standard Schema tools, JSON Schema tools, and MCP tools.
+
+A client tool, or a tool that waits for approval, is checked twice: once before it goes out, and once when it comes back. So your function can run twice for one call.
 
 ## Using JSON Schema
 
@@ -403,14 +492,24 @@ const getUserData = getUserDataDef.server(async (args) => {
 });
 ```
 
-> **Note:** JSON Schema tools skip runtime validation. Zod schemas are recommended for full type safety and validation.
+The JSON Schema checks each call before the tool runs. MCP tools get the same check. If the input does not fit, the call gets a tool error, and the error names each failed field:
+
+```text
+Input validation failed for tool get_user_data: #: Instance does not have required property "userId".
+```
+
+- The check uses the draft that `$schema` names: draft-04, draft-07, 2019-09, or 2020-12. With no `$schema`, it uses 2020-12.
+- Got an OpenAPI 3.0 schema? `nullable: true` works, so that field can be `null`. A boolean `exclusiveMinimum` or `exclusiveMaximum` works too.
+- The check does not test `format` (such as `uri` or `email`). A `format` only describes the value.
+- The check does not compile code, so it also runs on Cloudflare Workers.
+- `args` is still typed as `unknown`. A Zod schema gives you the type too.
 
 > **Tip:** When you pass `.client()` tools to `useChat`, a check on `part.name` narrows `part.input` and `part.output`. See [Type-safe tool call events](../chat/stream-events#type-safe-tool-call-events).
 
 ## Best Practices
 
 1. **Keep tools focused** - Each tool should do one thing well
-2. **Validate inputs** - Use Zod schemas to ensure type safety (JSON Schema skips validation)
+2. **Validate inputs** - The `inputSchema` checks every call. A Zod schema also gives you types
 3. **Handle errors** - Return meaningful error messages
 4. **Use descriptions** - Clear descriptions help the model use tools correctly
 5. **Secure sensitive operations** - Never expose API keys or secrets to the client

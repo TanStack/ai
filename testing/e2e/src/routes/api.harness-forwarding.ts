@@ -105,9 +105,11 @@ export const Route = createFileRoute('/api/harness-forwarding')({
           const owner = await ownerHost.open(harness, { threadId })
           const other = await otherHost.open(harness, { threadId })
 
-          const turn = owner.prompt('[harness-forwarding] go')
+          const turn = owner.send('[harness-forwarding] go')
           await turn.receipt
-          const receipt = await other.followUp('[harness-forwarding] and then')
+          const receipt = await other.send('[harness-forwarding] and then', {
+            mode: 'followUp',
+          }).receipt
           release()
           const first = await turn
 
@@ -116,7 +118,11 @@ export const Route = createFileRoute('/api/harness-forwarding')({
             followUp = (await other.settled(receipt.inputId)).outcome
           }
           return Response.json({
-            receipt: { status: receipt.status, reason: receipt.reason },
+            receipt: {
+              status: receipt.status,
+              reason:
+                receipt.status === 'rejected' ? receipt.reason : undefined,
+            },
             first: first.text,
             followUp,
             calls,

@@ -49,4 +49,19 @@ describe('SessionFeed', () => {
     expect(names).toEqual(['three'])
     expect(feed.head()).toBe('3')
   })
+
+  it('ends a read when wake() finds until() true, with no new event', async () => {
+    const feed = new SessionFeed()
+    let done = false
+    const reading = (async () => {
+      let count = 0
+      for await (const _entry of feed.read({ until: () => done })) count += 1
+      return count
+    })()
+    feed.publish('a', custom('one'))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    done = true
+    feed.wake()
+    expect(await reading).toBe(1)
+  })
 })

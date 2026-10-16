@@ -41,6 +41,8 @@ export interface EventFeed {
     until?: () => boolean
   }) => AsyncIterable<SessionEvent>
   close: () => void
+  /** Let every waiting reader check `until` again, when nothing was published. */
+  wake: () => void
 }
 
 /** A listener of the events a session publishes. */
@@ -233,7 +235,7 @@ export class SessionFeed implements EventFeed {
     this.wake()
   }
 
-  private wake(): void {
+  wake(): void {
     const waiters = [...this.waiters]
     this.waiters.clear()
     for (const wake of waiters) wake()

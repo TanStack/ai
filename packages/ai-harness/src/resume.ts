@@ -94,12 +94,22 @@ export async function holdRunLease(
 ): Promise<() => void> {
   if (!runs) return () => {}
   const ttlMs = lease?.ttlMs ?? LEASE.ttlMs
-  const renew = () =>
+  const stamp = () =>
     runs.update(runId, {
       leaseOwner: hostId,
       leaseExpiresAt: Date.now() + ttlMs,
     })
-  await renew()
+  await stamp()
+  // A renewal restamps only a run this host still drives. After a takeover
+  // (another owner, or the run ended), the timer stops instead.
+  const renew = async () => {
+    const record = await runs.get(runId)
+    const isMine =
+      record?.status === 'running' &&
+      (record.leaseOwner === undefined || record.leaseOwner === hostId)
+    if (isMine) await stamp()
+    else clearInterval(timer)
+  }
   // A failed renewal is retried at the next tick. The lease expires if they
   // keep failing.
   const timer = setInterval(
@@ -234,8 +244,9 @@ export async function findCrashedRuns(
       (record.kind === undefined ||
         record.kind === 'chat' ||
         record.kind === 'agent') &&
-      record.leaseExpiresAt !== undefined &&
-      record.leaseExpiresAt < now,
+      // A run that crashed before its first lease stamp has no
+      // leaseExpiresAt: it is dead once a TTL passed since it started.
+      (record.leaseExpiresAt ?? record.startedAt + LEASE.ttlMs) < now,
   )
 }
 

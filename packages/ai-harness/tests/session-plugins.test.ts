@@ -274,7 +274,7 @@ describe('questions', () => {
       }),
       { threadId: 't' },
     )
-    const turn = session.prompt('Go.')
+    const turn = session.send('Go.')
     await vi.waitFor(() =>
       expect(session.snapshot().pendingQuestions).toHaveLength(1),
     )
@@ -605,7 +605,7 @@ describe('the plugin session API and inspect', () => {
     )
     expect(api.threadId).toBe('t')
     expect(api.principal).toEqual({ id: 'u1' })
-    await session.prompt('hello')
+    await session.send('hello')
     expect(
       (await api.transcript()).map((m: { content: string }) => m.content),
     ).toEqual(['hello', 'first'])
@@ -613,7 +613,7 @@ describe('the plugin session API and inspect', () => {
     expect(await api.transcript()).toEqual([
       { role: 'user', content: 'replaced' },
     ])
-    api.prompt('queued by a plugin')
+    api.send('queued by a plugin')
     await vi.waitFor(() => expect(calls).toHaveLength(2))
     await vi.waitFor(() => expect(api.snapshot().status).toBe('idle'))
     expect(JSON.stringify(calls[1].messages)).toContain('replaced')
@@ -720,15 +720,15 @@ describe('first-party plugin edges', () => {
       { threadId: 't' },
     )
     const before = session.snapshot().plugins
-    await session.prompt('plan')
-    // The tool has a plain JSON Schema, which chat() does not check, so the
-    // tool checks its input itself.
+    await session.send('plan')
+    // chat() checks the tool's JSON Schema before it runs, so an invalid
+    // status is a tool error the model sees, and the tool never runs.
     expect(JSON.stringify(calls[1].messages)).toContain(
-      'Each todo needs text and a status.',
+      'Input validation failed for tool todo_write',
     )
     expect(session.snapshot().plugins).toEqual(before)
     expect(await session.command('todos')).toBe('The todo list is empty.')
-    await session.prompt('clear')
+    await session.send('clear')
     expect(JSON.stringify(calls[3].messages)).toContain(
       'The todo list is empty.',
     )
@@ -772,8 +772,8 @@ describe('first-party plugin edges', () => {
       }),
       { threadId: 't' },
     )
-    await session.prompt('first')
-    await session.prompt('second')
+    await session.send('first')
+    await session.send('second')
     await expect(session.command('compact')).rejects.toThrow(
       'The summary model returned no text.',
     )
@@ -811,8 +811,8 @@ describe('first-party plugin edges', () => {
     expect(await session.command('compact')).toBe(
       'The conversation is already short.',
     )
-    await session.prompt([{ type: 'text', content: 'first question' }] as never)
-    await session.prompt('second question')
+    await session.send([{ type: 'text', content: 'first question' }] as never)
+    await session.send('second question')
     expect(await session.command('compact')).toBe(
       'Compacted 3 messages into a summary.',
     )

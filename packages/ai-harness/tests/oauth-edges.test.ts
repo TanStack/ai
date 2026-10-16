@@ -1,3 +1,4 @@
+import { memoryCredentialStore } from '@tanstack/ai/byok/server'
 import { describe, expect, it } from 'vitest'
 import { toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
@@ -224,7 +225,8 @@ describe('oauthConnector edges', () => {
 
   it('refreshes an expired token, and passes an API key through', async () => {
     const persistence = memoryPersistence()
-    await persistence.stores.credentials.set({
+    const credentials = memoryCredentialStore()
+    await credentials.set({
       scope: { threadId: 't1', userId: 'u1' },
       id: 'svc',
       credential: {
@@ -234,7 +236,7 @@ describe('oauthConnector edges', () => {
         expiresAt: Date.now() - 1,
       },
     })
-    await persistence.stores.credentials.set({
+    await credentials.set({
       scope: { threadId: 't2', userId: 'u2' },
       id: 'svc',
       credential: {
@@ -250,7 +252,7 @@ describe('oauthConnector edges', () => {
       () => toolCall('whoami', {}),
       () => text('done'),
     ])
-    const host = createHarnessHost({ persistence })
+    const host = createHarnessHost({ persistence, credentials })
     const harness = defineHarness({
       name: 'test/refresh',
       adapter,
@@ -258,13 +260,13 @@ describe('oauthConnector edges', () => {
     })
     await (
       await host.open(harness, { threadId: 't1', principal: { id: 'u1' } })
-    ).prompt('who')
+    ).send('who')
     await (
       await host.open(harness, { threadId: 't2', principal: { id: 'u2' } })
-    ).prompt('who')
+    ).send('who')
     expect(seen).toEqual(['fresh', 'key-1'])
     expect(
-      await persistence.stores.credentials.get({
+      await credentials.get({
         scope: { threadId: 't1', userId: 'u1' },
         id: 'svc',
       }),
@@ -274,8 +276,9 @@ describe('oauthConnector edges', () => {
 
   it('signs in through the loopback and signs out', async () => {
     const persistence = memoryPersistence()
+    const credentials = memoryCredentialStore()
     const { fake } = replies([{ access_token: 'loop-token' }])
-    const host = createHarnessHost({ persistence })
+    const host = createHarnessHost({ persistence, credentials })
     const session = await host.open(
       defineHarness({
         name: 'test/loopback-connector',
@@ -307,7 +310,7 @@ describe('oauthConnector edges', () => {
     controller.abort()
     await signIn
     expect(
-      await persistence.stores.credentials.get({
+      await credentials.get({
         scope: { threadId: 't' },
         id: 'svc',
       }),
@@ -316,7 +319,7 @@ describe('oauthConnector edges', () => {
       'Disconnected from Service.',
     )
     expect(
-      await persistence.stores.credentials.get({
+      await credentials.get({
         scope: { threadId: 't' },
         id: 'svc',
       }),

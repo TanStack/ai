@@ -62,6 +62,39 @@ Every adapter handles structured output through its provider's native API:
 
 The provider-specific details are handled for you. The same `chat({ outputSchema })` call works across all of them. For a coding agent in a sandbox, see [Harness Agents](./harnesses).
 
+### When strict JSON schema is rejected
+
+Some models reject strict JSON schema. They accept JSON mode (`response_format` type `json_object`) only. A strict request to one of these models fails before the model runs.
+
+The OpenRouter and Groq adapters find these models in their catalogs. For these models, `chat({ outputSchema })` does two things:
+
+- It sends JSON mode.
+- It adds your schema to the system prompt, because JSON mode does not send the schema.
+
+When your schema is a Standard Schema, such as Zod, `await chat({ outputSchema })` still checks the reply. JSON of the wrong shape throws. TanStack AI does not check a plain JSON Schema or a streamed reply. Check those in your own code.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openRouterText } from "@tanstack/ai-openrouter";
+import { z } from "zod";
+
+const Person = z.object({ name: z.string(), age: z.number() });
+
+const person = await chat({
+  adapter: openRouterText("qwen/qwen3.7-flash"),
+  messages: [{ role: "user", content: "Return Ada Lovelace, age 36." }],
+  outputSchema: Person,
+});
+
+person.name;
+person.age;
+```
+
+To send JSON mode to a model that is not in the catalog, set it in `modelOptions`:
+
+- OpenRouter: `modelOptions: { responseFormat: { type: "json_object" } }`
+- Groq: `modelOptions: { response_format: { type: "json_object" } }`
+
 ### Anthropic schema complexity limits
 
 Anthropic compiles a structured-output schema into a grammar and rejects schemas it considers too large or too complex with a 400 error — typically `Schema is too complex for compilation` or `output_config.format.schema: Invalid schema: The compiled grammar is too large`. This affects Claude models directly and `anthropic/*` models routed through OpenRouter, even when every other provider accepts the same schema.

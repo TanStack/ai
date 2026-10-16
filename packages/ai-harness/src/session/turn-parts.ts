@@ -136,11 +136,11 @@ export abstract class SessionTurnParts<
   }
 
   /**
-   * Middleware that gives each tool call of a turn `detach` in its context,
-   * so `background()` can move the call to the background. A tool that
-   * calls `detach` supports it.
+   * Middleware that gives each tool call of a turn `threadId`, `runId`, and
+   * `detach` in its context. `detach` lets `background()` move the call to
+   * the background. A tool that calls `detach` supports it.
    */
-  protected detachTools(): AnyChatMiddleware {
+  protected detachTools(runId: string): AnyChatMiddleware {
     // Each model call gets the tools of the last one. Wrap each tool once.
     const wrapped = new WeakSet<AnyTool>()
     const wrap = (tool: AnyTool): AnyTool => {
@@ -151,6 +151,10 @@ export abstract class SessionTurnParts<
         execute: (args: unknown, context?: ToolExecutionContext) => {
           const id = context?.toolCallId
           if (!context || id === undefined) return execute(args, context)
+          context.threadId = this.threadId
+          context.runId = runId
+          // The wake turn runs as the sender of the turn that detached the job.
+          const principal = this.sender()
           context.detach = (work) =>
             new Promise((moved) => {
               this.detachable.set(id, () => {
@@ -168,7 +172,9 @@ export abstract class SessionTurnParts<
                         `Background job ${id} failed: ${error instanceof Error ? error.message : String(error)}`,
                       ),
                   )
-                  .then((text) => this.pluginApi().note(text, { wake: true }))
+                  .then((text) =>
+                    this.pluginApi(principal).note(text, { wake: true }),
+                  )
                   .then(() => this.logJob(id, true))
                   .catch(() => undefined)
               })
@@ -596,7 +602,10 @@ export abstract class SessionTurnParts<
     })
     await leases.acquire(lease())
     const timer = setInterval(
-      () => void leases.renew(lease()).catch(() => {}),
+      () =>
+        void leases
+          .renew(lease())
+          .catch((error: unknown) => this.warnSession('harness:leases', error)),
       renewMs,
     )
     // A lease timer must not keep a CLI or a test process alive.

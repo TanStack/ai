@@ -42,7 +42,7 @@ async function open(questions: Array<object>) {
     }),
     { threadId: 't' },
   )
-  const turn = session.prompt('ask me')
+  const turn = session.send('ask me')
   return { host, session, calls, turn }
 }
 

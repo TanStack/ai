@@ -55,15 +55,15 @@ describe('sessions that share one log', () => {
       logId: LOG,
     })
 
-    const rootTurn = root.prompt('root question', { inputId: 'root-1' })
+    const rootTurn = root.send('root question', { inputId: 'root-1' })
     // The child answers while the root turn still waits.
-    expect(await child.prompt('child question')).toEqual({
+    expect(await child.send('child question')).toEqual({
       text: 'child answer',
       media: [],
     })
     release.open()
     expect(await rootTurn).toEqual({ text: 'root answer', media: [] })
-    const childTurn = child.prompt('second child question', {
+    const childTurn = child.send('second child question', {
       inputId: 'child-2',
     })
     await vi.waitFor(() => expect(childModel.calls).toHaveLength(2))
@@ -241,7 +241,7 @@ describe('sessions that share one log', () => {
 
     await child.close()
 
-    expect(await root.prompt('are you there?')).toEqual({
+    expect(await root.send('are you there?')).toEqual({
       text: 'still here',
       media: [],
     })
@@ -258,7 +258,7 @@ describe('sessions that share one log', () => {
         logId: LOG,
       },
     )
-    await child.prompt('child question')
+    await child.send('child question')
 
     const messages = logMessageStore({
       store: persistence.stores.log,

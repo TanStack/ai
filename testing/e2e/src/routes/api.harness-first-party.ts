@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { createFileRoute } from '@tanstack/react-router'
 import { codeMode } from '@tanstack/ai-code-mode/harness'
-import { defineAgent, toolDefinition } from '@tanstack/ai'
+import { defineAgent, keyedAdapter, toolDefinition } from '@tanstack/ai'
 import {
   createHarnessHost,
   defineHarness,
@@ -14,15 +14,20 @@ import {
 import {
   TitleFailed,
   agents,
+  goal,
   permissions,
   projectInstructions,
+  providerKeys,
+  selectGoal,
   title,
 } from '@tanstack/ai-harness/plugins'
+import { createOpenaiChat } from '@tanstack/ai-openai'
+import { openaiByok } from '@tanstack/ai-openai/byok'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { z } from 'zod'
 import type { AnyTextAdapter } from '@tanstack/ai'
 import type { HarnessHost } from '@tanstack/ai-harness'
-import { createTextAdapter } from '@/lib/providers'
+import { LLMOCK_DEFAULT_BASE, createTextAdapter } from '@/lib/providers'
 
 const run = promisify(execFile)
 
@@ -60,9 +65,9 @@ async function agentProfiles(host: HarnessHost, model: () => AnyTextAdapter) {
     }),
     { threadId: 'e2e-agents' },
   )
-  const first = (await session.prompt('[first-party-agents] first')).text
+  const first = (await session.send('[first-party-agents] first')).text
   const switched = await session.command('agent', 'brief')
-  const second = (await session.prompt('[first-party-agents] second')).text
+  const second = (await session.send('[first-party-agents] second')).text
   return { first, switched, second }
 }
 
@@ -117,7 +122,7 @@ async function planSubagent(host: HarnessHost, model: () => AnyTextAdapter) {
     { threadId: 'e2e-plan' },
   )
   await session.command('mode', 'plan')
-  const turn = await session.prompt('[first-party-plan] write x.txt')
+  const turn = await session.send('[first-party-plan] write x.txt')
   return { writes, results, text: turn.text }
 }
 
@@ -157,7 +162,7 @@ async function environmentPrompt(
       }),
       { threadId: 'e2e-env' },
     )
-    const turn = await session.prompt('[first-party-env] where am i')
+    const turn = await session.send('[first-party-env] where am i')
     return { root, platform: process.platform, text: turn.text }
   } finally {
     await rm(root, { recursive: true, force: true })
@@ -185,7 +190,7 @@ async function sessionTitle(
     }),
     { threadId: 'e2e-title' },
   )
-  const turn = await session.prompt('[first-party-title] plan a trip to Rome')
+  const turn = await session.send('[first-party-title] plan a trip to Rome')
   const deadline = Date.now() + 5_000
   let entry = await host.sessions.get('e2e-title')
   while (!entry?.title && failures.length === 0 && Date.now() < deadline) {
@@ -193,6 +198,86 @@ async function sessionTitle(
     entry = await host.sessions.get('e2e-title')
   }
   return { text: turn.text, title: entry?.title, failures }
+}
+
+/** The key that the user pastes in the `provider-keys` scenario. */
+const USER_KEY = 'sk-e2e-user-key-7f3a'
+
+/**
+ * `providerKeys()`: `/connect:openai` asks for the key as a secret question,
+ * saves the answer, and the next turn builds the model adapter with that key.
+ */
+async function connectedKey(host: HarnessHost, testId: string | undefined) {
+  // The keys the adapter is built with. aimock's journal redacts the
+  // authorization header, so the spec reads them here.
+  const keysUsed: Array<string> = []
+  const gpt = keyedAdapter(openaiByok, (key) => {
+    keysUsed.push(key)
+    return createOpenaiChat('gpt-6.1-sol', key, {
+      baseURL: `${LLMOCK_DEFAULT_BASE}/v1`,
+      ...(testId ? { defaultHeaders: { 'X-Test-Id': testId } } : {}),
+    })
+  })
+  const session = await host.open(
+    defineHarness({
+      name: 'e2e/harness-provider-keys',
+      adapter: gpt,
+      plugins: () => [providerKeys({ providers: [openaiByok] })],
+    }),
+    { threadId: 'e2e-keys', principal: { id: 'ada' } },
+  )
+  const connecting = session.command('connect:openai')
+  const deadline = Date.now() + 5_000
+  while (
+    session.snapshot().pendingQuestions.length === 0 &&
+    Date.now() < deadline
+  ) {
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+  const [question] = session.snapshot().pendingQuestions
+  // Without a question, `connecting` never settles: fail now.
+  if (!question) throw new Error('/connect:openai asked no question.')
+  await session.answer({ questionId: question.questionId, value: USER_KEY })
+  const connected = await connecting
+  const turn = await session.send('[first-party-keys] hello')
+  return {
+    secret: question.secret ?? false,
+    connected,
+    text: turn.text,
+    key: USER_KEY,
+    usedUserKey: keysUsed.includes(USER_KEY),
+  }
+}
+
+/**
+ * `goal()`: `/goal` starts a turn, the judge says that the goal is met, and
+ * no next turn starts.
+ */
+async function goalLoop(
+  host: HarnessHost,
+  model: () => AnyTextAdapter,
+  judgeModel: AnyTextAdapter,
+) {
+  const session = await host.open(
+    defineHarness({
+      name: 'e2e/harness-goal',
+      adapter: model(),
+      plugins: () => [goal({ judge: judgeModel })],
+    }),
+    { threadId: 'e2e-goal' },
+  )
+  await session.command('goal', '[first-party-goal] finish the report')
+  const deadline = Date.now() + 10_000
+  while (
+    selectGoal(session.snapshot())?.status !== 'met' &&
+    Date.now() < deadline
+  ) {
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
+  return {
+    goal: selectGoal(session.snapshot()),
+    shown: await session.command('goal'),
+  }
 }
 
 /**
@@ -223,13 +308,13 @@ async function codeModeTools(host: HarnessHost, model: () => AnyTextAdapter) {
     }),
     { threadId: 'e2e-code-mode' },
   )
-  const turn = await session.prompt('[first-party-code-mode] which tools')
+  const turn = await session.send('[first-party-code-mode] which tools')
   return { text: turn.text }
 }
 
 /**
  * First-party harness plugins, one scenario per request:
- * `?scenario=agents|plan-subagent|env|title|code-mode&testId=...`. The models are
+ * `?scenario=agents|plan-subagent|env|title|goal|provider-keys|code-mode&testId=...`. The models are
  * OpenAI adapters against aimock.
  */
 export const Route = createFileRoute('/api/harness-first-party')({
@@ -260,6 +345,18 @@ export const Route = createFileRoute('/api/harness-first-party')({
               testId,
             ).adapter
             return Response.json(await sessionTitle(host, model, titleModel))
+          }
+          if (scenario === 'provider-keys') {
+            return Response.json(await connectedKey(host, testId))
+          }
+          if (scenario === 'goal') {
+            const judgeModel = createTextAdapter(
+              'openai',
+              'gpt-5.4-nano',
+              undefined,
+              testId,
+            ).adapter
+            return Response.json(await goalLoop(host, model, judgeModel))
           }
           if (scenario === 'code-mode') {
             return Response.json(await codeModeTools(host, model))

@@ -57,7 +57,7 @@ function setup(
 describe('client reads and actions', () => {
   it('reads the transcript and the description', async () => {
     const { host, client } = setup()
-    await client.prompt('hi')
+    await client.send('hi')
     await vi.waitFor(async () =>
       expect(JSON.stringify(await client.transcript())).toContain(
         'hello from the host',
@@ -104,7 +104,7 @@ describe('client reads and actions', () => {
 
   it('renames, updates, and forks a session of the user', async () => {
     const { host, client } = setup()
-    await client.prompt('hi')
+    await client.send('hi')
     await vi.waitFor(async () =>
       expect(await client.transcript()).toHaveLength(2),
     )
@@ -169,7 +169,7 @@ describe('client reads and actions', () => {
       threadId: 'thread-a',
       fetch: (input, init) => handler(new Request(input, init)),
     })
-    await client.prompt('Notes, please')
+    await client.send('Notes, please')
     const childId = await vi.waitFor(async () => {
       const result = (await client.transcript()).find(
         (message) => message.role === 'tool',

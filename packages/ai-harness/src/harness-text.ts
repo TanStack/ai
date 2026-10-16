@@ -5,12 +5,13 @@ import type {
   AnyTextAdapter,
   Modality,
   ModelMessage,
+  RunFinishedEvent,
   StreamChunk,
 } from '@tanstack/ai'
 import { isHarnessDefinition } from './define'
 import type { AnyHarness } from './define'
 import type { HarnessHost } from './host'
-import type { UserInput } from './types'
+import type { Principal, UserInput } from './types'
 
 export interface HarnessTextOptions {
   /** The host that runs the inner sessions. Default: a memory host. */
@@ -22,6 +23,8 @@ export interface HarnessTextOptions {
    * `media.accepts` narrows it.
    */
   inputModalities?: ReadonlyArray<Modality>
+  /** Who opens the inner sessions, as in `host.open()`. */
+  principal?: Principal
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -96,6 +99,13 @@ const TYPES = {
   systemPromptMetadata: undefined as never,
 }
 
+/** The `data:` payload of one SSE block. */
+const dataOf = (block: string) =>
+  block
+    .split(/\r?\n/)
+    .find((line) => line.startsWith('data: '))
+    ?.slice(6)
+
 /** Stream the SSE `data:` payloads of a response. */
 async function* sseData(response: Response): AsyncGenerator<unknown> {
   if (!response.body) return
@@ -111,17 +121,29 @@ async function* sseData(response: Response): AsyncGenerator<unknown> {
       const blocks = buffer.split(/\r?\n\r?\n/)
       buffer = blocks.pop() ?? ''
       for (const block of blocks) {
-        const data = block
-          .split(/\r?\n/)
-          .find((line) => line.startsWith('data: '))
-          ?.slice(6)
+        const data = dataOf(block)
         if (data) yield JSON.parse(data)
       }
     }
+    // A stream that ends without a blank line still has its last event.
+    const last = dataOf(buffer)
+    if (last) yield JSON.parse(last)
   } finally {
     // An early return or a failed read stops the body too.
     await reader.cancel().catch(() => {})
   }
+}
+
+type FinishReason = NonNullable<RunFinishedEvent['finishReason']>
+
+/**
+ * The finish reason of an inner RUN_FINISHED. An interrupted inner turn
+ * stopped for an answer the outer chat cannot give, so it is not a `'stop'`:
+ * the outer run gets `'tool_calls'`, as a turn that waits on a tool does.
+ */
+function finishReasonOf(chunk: RunFinishedEvent): FinishReason {
+  if (chunk.outcome?.type === 'interrupt') return 'tool_calls'
+  return chunk.finishReason ?? chunk.metadata?.tanstack?.finishReason ?? 'stop'
 }
 
 /** The abort signal of a `chatStream` call, if the caller gave one. */
@@ -147,8 +169,9 @@ function remoteHarnessText(remote: RemoteHarness): AnyTextAdapter {
       ),
     chatStream: (chatOptions) =>
       (async function* (): AsyncGenerator<StreamChunk> {
-        const threadId = chatOptions.threadId ?? 'default'
         const runId = chatOptions.runId ?? `harness-${Date.now().toString(36)}`
+        // No thread id: a new remote session per call, as codexText does.
+        const threadId = chatOptions.threadId ?? runId
         // AG-UI parts: text parts carry `text`, media parts pass through.
         const [message] = uiMessagesToWire([
           { role: 'user', content: lastUserInput(chatOptions.messages) },
@@ -184,14 +207,16 @@ function remoteHarnessText(remote: RemoteHarness): AnyTextAdapter {
           threadId,
           timestamp: Date.now(),
         }
-        let hasFinished = false
+        let finished: FinishReason | undefined
         for await (const data of sseData(response)) {
           if (!isRecord(data) || typeof data.type !== 'string') continue
           // The handler sends AG-UI chunks over SSE.
           const chunk = data as StreamChunk
           const isOwn = !('subagentRunId' in chunk && chunk.subagentRunId)
           if (FORWARDED.has(chunk.type) && isOwn) yield chunk
-          if (chunk.type === EventType.RUN_FINISHED && isOwn) hasFinished = true
+          if (chunk.type === EventType.RUN_FINISHED && isOwn) {
+            finished = finishReasonOf(chunk)
+          }
           if (chunk.type === EventType.RUN_ERROR) {
             yield {
               type: EventType.RUN_ERROR,
@@ -202,7 +227,7 @@ function remoteHarnessText(remote: RemoteHarness): AnyTextAdapter {
           }
         }
         // A stream that ends with no RUN_FINISHED lost the end of the run.
-        if (!hasFinished) {
+        if (finished === undefined) {
           yield {
             type: EventType.RUN_ERROR,
             message:
@@ -216,7 +241,7 @@ function remoteHarnessText(remote: RemoteHarness): AnyTextAdapter {
           runId,
           threadId,
           timestamp: Date.now(),
-          metadata: { tanstack: { finishReason: 'stop' } },
+          metadata: { tanstack: { finishReason: finished } },
         }
       })(),
   }
@@ -259,11 +284,26 @@ export function harnessText(
     chatStream: (chatOptions) =>
       (async function* (): AsyncGenerator<StreamChunk> {
         host ??= createHarnessHost()
-        const threadId = `${chatOptions.threadId ?? 'default'}:${harness.name}`
         const runId = chatOptions.runId ?? `harness-${Date.now().toString(36)}`
+        // No thread id: a new inner session per call, as codexText does.
+        const threadId = `${chatOptions.threadId ?? runId}:${harness.name}`
         const signal = signalOf(chatOptions.request)
-        const session = await host.open(harness, { threadId })
-        const operation = session.prompt(lastUserInput(chatOptions.messages))
+        // A session this call opens closes with it. One the caller holds open
+        // stays, as in host.fork.
+        const wasOpen = host.isOpen(harness, { threadId })
+        const session = await host.open(harness, {
+          threadId,
+          ...(options.principal ? { principal: options.principal } : {}),
+        })
+        // The outer call's tools join the inner turn. Its system prompts do
+        // not: the harness owns its prompt stack.
+        const tools = chatOptions.tools?.length
+          ? { overrides: { tools: chatOptions.tools } }
+          : {}
+        const operation = session.send(
+          lastUserInput(chatOptions.messages),
+          tools,
+        )
         const cancel = () => {
           operation.cancel().catch(() => {})
         }
@@ -278,12 +318,12 @@ export function harnessText(
             timestamp: Date.now(),
           }
           let failed: string | undefined
+          let finished: FinishReason = 'stop'
           for await (const chunk of operation.stream()) {
-            if (
-              FORWARDED.has(chunk.type) &&
-              !('subagentRunId' in chunk && chunk.subagentRunId)
-            ) {
-              yield chunk
+            const isOwn = !('subagentRunId' in chunk && chunk.subagentRunId)
+            if (FORWARDED.has(chunk.type) && isOwn) yield chunk
+            if (chunk.type === EventType.RUN_FINISHED && isOwn) {
+              finished = finishReasonOf(chunk)
             }
             if (chunk.type === EventType.RUN_ERROR) failed = chunk.message
           }
@@ -306,11 +346,20 @@ export function harnessText(
             runId,
             threadId,
             timestamp: Date.now(),
-            metadata: { tanstack: { finishReason: 'stop' } },
+            metadata: { tanstack: { finishReason: finished } },
           }
         } finally {
           // A long-lived signal must not keep one listener per call.
           signal?.removeEventListener('abort', cancel)
+          if (!wasOpen)
+            await session
+              .close()
+              .catch((error: unknown) =>
+                console.error(
+                  '[@tanstack/ai-harness] The session did not close.',
+                  error,
+                ),
+              )
         }
       })(),
     structuredOutput: () =>

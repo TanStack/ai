@@ -65,7 +65,7 @@ const stopAnswering = session.onQuestion(({ question }) =>
   session.answer({ questionId: question.questionId, value: 'once' }),
 )
 
-await session.prompt('Save a note with the time of the meeting.')
+await session.send('Save a note with the time of the meeting.')
 stopAnswering()
 ```
 

@@ -22,7 +22,6 @@ import type {
   ChatPersistence,
   ChatTranscriptPersistence,
   ChatTranscriptStores,
-  CredentialStore,
   GenerationRunStore,
   InboxStore,
   InterruptStore,
@@ -148,7 +147,6 @@ expectTypeOf(memoryPersistence()).toEqualTypeOf<
     artifacts: ArtifactStore
     blobs: BlobStore
     inbox: InboxStore
-    credentials: CredentialStore
     workClaims: WorkClaimStore
     sessions: SessionIndexStore
   }>

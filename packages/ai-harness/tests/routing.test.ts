@@ -170,7 +170,7 @@ describe('routing.router', () => {
       agents: [writer.agent, seo.agent],
     })
 
-    const turn = await session.prompt('write it')
+    const turn = await session.send('write it')
 
     expect(turn.text).toBe('writer:\nDraft')
     expect(main.calls).toHaveLength(0)
@@ -189,7 +189,7 @@ describe('routing.router', () => {
       agents: [pricer],
     })
 
-    expect((await session.prompt('price acme')).text).toBe(
+    expect((await session.send('price acme')).text).toBe(
       'pricer:\nPrice for acme',
     )
     await host.close()
@@ -205,7 +205,7 @@ describe('routing.router', () => {
       replies: [() => text('Main answer')],
     })
 
-    expect((await session.prompt('hello')).text).toBe('Main answer')
+    expect((await session.send('hello')).text).toBe('Main answer')
     expect(
       main.calls[0].tools.map((tool: { name: string }) => tool.name),
     ).toContain('checker')
@@ -222,7 +222,7 @@ describe('routing.router', () => {
       subagents: { agents: [checker.agent], router: () => 'checker' },
     })
 
-    expect((await session.prompt('check it')).text).toBe('checker:\nChecked')
+    expect((await session.send('check it')).text).toBe('checker:\nChecked')
     expect(main.calls).toHaveLength(0)
     expect(writer.runs).toEqual([])
     await host.close()
@@ -249,8 +249,8 @@ describe('routing.router', () => {
       ],
     })
 
-    expect((await session.prompt('research')).text).toBe('researcher:\nFacts')
-    expect((await session.prompt('optimize')).text).toBe('seo:\nKeywords')
+    expect((await session.send('research')).text).toBe('researcher:\nFacts')
+    expect((await session.send('optimize')).text).toBe('seo:\nKeywords')
     expect(seen.map((ctx) => ctx.agents.map((agent) => agent.name))).toEqual([
       ['writer', 'researcher', 'seo'],
       ['writer', 'researcher', 'seo'],
@@ -276,7 +276,7 @@ describe('routing.router', () => {
       ],
     })
 
-    await expect(session.prompt('check it')).rejects.toThrow(
+    await expect(session.send('check it')).rejects.toThrow(
       'Unknown subagent: checker',
     )
     expect(seen[0]?.agents.map((agent) => agent.name)).toEqual([
@@ -297,8 +297,8 @@ describe('routing.router', () => {
     })
     const input = [{ type: 'text' as const, content: 'second' }]
 
-    await session.prompt('first')
-    const turn = session.prompt(input, { inputId: 'in-2' })
+    await session.send('first')
+    const turn = session.send(input, { inputId: 'in-2' })
     await turn
 
     const ctx = seen[1]
@@ -327,7 +327,7 @@ describe('routing.router', () => {
       replies: [() => text('Edited draft')],
     })
 
-    const turn = await session.prompt('write it')
+    const turn = await session.send('write it')
 
     expect(turn.text).toBe('Edited draft')
     expect(main.calls).toHaveLength(1)
@@ -356,7 +356,7 @@ describe('routing.router', () => {
       ],
     })
 
-    const turn = await session.prompt('write it')
+    const turn = await session.send('write it')
 
     expect(turn.text).toBe('Edited draft')
     expect(onModelError).toHaveBeenCalledTimes(1)
@@ -381,7 +381,7 @@ describe('routing.router', () => {
       replies: [() => text('Edited draft'), () => text('Edited again')],
     })
 
-    await session.prompt('write it')
+    await session.send('write it')
 
     expect(beforeFinish).toHaveBeenCalledTimes(2)
     expect(main.calls).toHaveLength(2)
@@ -417,9 +417,9 @@ describe('routing.router', () => {
         replies: [() => text('Main 1'), () => text('Main 2')],
       })
 
-      const turn = session.prompt('first')
+      const turn = session.send('first')
       await started.opened
-      const receipt = await session.steer('second')
+      const receipt = await session.send('second', { mode: 'steer' }).receipt
       release.open()
 
       expect((await turn).text).toBe(firstText)
@@ -449,8 +449,8 @@ describe('routing.router', () => {
       turn: { beforeFinish, onModelError },
     })
 
-    expect((await session.prompt('write it')).text).toBe('writer:\nDraft')
-    await expect(session.prompt('again')).rejects.toThrow(
+    expect((await session.send('write it')).text).toBe('writer:\nDraft')
+    await expect(session.send('again')).rejects.toThrow(
       'Unknown subagent: ghost',
     )
     expect(writer.runs).toHaveLength(1)
@@ -475,7 +475,7 @@ describe('routing.router', () => {
       replies: [() => toolCall('removeAll', {}, 'call_m'), () => text('Done')],
     })
 
-    const turn = await session.prompt('remove everything')
+    const turn = await session.send('remove everything')
     const resumed = await approve(session, turn)
 
     expect(await resumed).toEqual({ text: 'Done', media: [] })
@@ -520,7 +520,7 @@ describe('routing.router', () => {
       ],
     })
 
-    const turn = await session.prompt('clean up')
+    const turn = await session.send('clean up')
     expect(turn.interrupts).toHaveLength(1)
     const resumed = await approve(session, turn)
 
@@ -556,7 +556,7 @@ describe.each([
       agents: [writer],
     })
 
-    const turn = session.prompt('go')
+    const turn = session.send('go')
     await started.opened
     expect((await runs.get(turn.id))?.leaseExpiresAt).toBeGreaterThan(
       Date.now(),
@@ -586,7 +586,7 @@ describe.each([
         replies: [() => text('Main answer')],
       })
 
-      const turn = session.prompt('go', { inputId: 'in-1' })
+      const turn = session.send('go', { inputId: 'in-1' })
       await routerStarted.opened
       await turn.cancel()
       releaseRouter.open()
@@ -610,7 +610,7 @@ describe.each([
       agents: [make()],
     })
 
-    const turn = await session.prompt('clean up', { inputId: 'in-1' })
+    const turn = await session.send('clean up', { inputId: 'in-1' })
     expect(turn.interrupts).toHaveLength(1)
     expect(execute).not.toHaveBeenCalled()
     expect((await session.settled('in-1')).outcome).toBe('interrupted')
@@ -673,7 +673,7 @@ describe.each([
       agents: [writer.agent, pricer],
     })
 
-    const turn = session.prompt('go', { inputId: 'in-1' })
+    const turn = session.send('go', { inputId: 'in-1' })
 
     await expect(turn).rejects.toThrow(error)
     expect(turn.status()).toBe('failed')

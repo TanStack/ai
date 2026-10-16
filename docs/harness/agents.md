@@ -64,11 +64,11 @@ const host = createHarnessHost({ persistence: memoryPersistence() })
 const session = await host.open(coder, { threadId: 'dark-mode' })
 
 await session.command('agent', 'plan')
-const plan = await session.prompt('How do I add a dark mode?')
+const plan = await session.send('How do I add a dark mode?')
 console.log(plan.text)
 
 await session.command('agent', 'build')
-await session.prompt('Do step 1.')
+await session.send('Do step 1.')
 ```
 
 1. The `plan` agent reads the code and gives numbered steps. It has no tool that changes a file.

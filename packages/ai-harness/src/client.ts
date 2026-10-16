@@ -4,11 +4,18 @@
 import { isMediaRecord } from './media-ref'
 import type { ModelMessage, RunAgentResumeItem } from '@tanstack/ai'
 import type {
+  LogRecord,
   SessionIndexEntry,
   SessionIndexPage,
 } from '@tanstack/ai-persistence'
 import type { AgentInputOf } from './agents'
-import type { AnyHarness, HarnessAgentsOf, SessionMetadataOf } from './define'
+import type {
+  AnyHarness,
+  HarnessAgentsOf,
+  HarnessToolInput,
+  HarnessToolsOf,
+  SessionMetadataOf,
+} from './define'
 import type { HostEvent } from './host'
 import type { SessionDescription, SessionSnapshot } from './session/index'
 import type { SessionEntryChange } from './session-entry'
@@ -63,29 +70,33 @@ export type ClientAgentHandles<THarness> = {
   }
 }
 
+/** The options of `HarnessClient.send`. */
+export type ClientSendOptions = { inputId?: string } & (
+  | {
+      to?: undefined
+      mode?: 'prompt'
+      busy?: BusyPolicy
+      ephemeral?: ReadonlyArray<ModelMessage & { role: 'user' }>
+    }
+  | {
+      to?: undefined
+      mode: 'steer' | 'followUp'
+      busy?: never
+      ephemeral?: never
+    }
+  | { to: string; mode?: 'steer' | 'followUp'; busy?: never; ephemeral?: never }
+)
+
 export interface HarnessClient<THarness extends AnyHarness> {
   /**
-   * Send a prompt. `inputId` is an id you choose: a retry with the same id
-   * and message gets the first receipt and does not run again. `ephemeral`
-   * are messages for the model calls of this turn only. See
-   * `session.prompt`.
+   * Send a message, as `session.send` does. `mode` is `'prompt'` (default),
+   * `'steer'` (join the running turn), or `'followUp'` (run after the
+   * current work). `to` sends it to an agent run; the harness must list the
+   * run's agent in `expose.agents`. `inputId` is an id you choose: a retry
+   * with the same id and message gets the first receipt and does not run
+   * again. `ephemeral` are messages for the model calls of a prompt only.
    */
-  prompt: (
-    message: UserInput,
-    options?: {
-      busy?: BusyPolicy
-      inputId?: string
-      ephemeral?: ReadonlyArray<ModelMessage & { role: 'user' }>
-    },
-  ) => Promise<Receipt>
-  steer: (
-    message: UserInput,
-    options?: { inputId?: string },
-  ) => Promise<Receipt>
-  followUp: (
-    message: UserInput,
-    options?: { inputId?: string },
-  ) => Promise<Receipt>
+  send: (message: UserInput, options?: ClientSendOptions) => Promise<Receipt>
   /**
    * Start a turn from the stored transcript, with no new message. See
    * `session.continue`.
@@ -114,6 +125,21 @@ export interface HarnessClient<THarness extends AnyHarness> {
   answer: (answer: { questionId: string; value: unknown }) => Promise<Receipt>
   /** Run a plugin command. Its result arrives as a `harness.command.result` event. */
   command: (name: string, input?: unknown) => Promise<Receipt>
+  /**
+   * Run a harness tool with no model turn, as `session.tool` does. The
+   * harness must list it in `expose.tools`. `args` is typed from the
+   * tool's input schema.
+   */
+  tool: <TName extends HarnessToolsOf<THarness>['name']>(
+    name: TName,
+    args?: HarnessToolInput<THarness, TName>,
+    options?: { inputId?: string; meta?: Record<string, unknown> },
+  ) => Promise<Receipt>
+  /**
+   * Add host records to the session log, as `session.append` does. The
+   * harness must list each record type in `expose.records`.
+   */
+  append: (records: ReadonlyArray<LogRecord>) => Promise<Receipt>
   /** Change a session setting. */
   setConfig: (change: { key: string; value: unknown }) => Promise<Receipt>
   /** Change the stored settings of the thread. See `session.configure`. */
@@ -130,16 +156,6 @@ export interface HarnessClient<THarness extends AnyHarness> {
   revert: (messageId: string) => Promise<Receipt>
   /** End the revert that stands, as `session.unrevert` does. */
   unrevert: () => Promise<Receipt>
-  /**
-   * Send a message to the agent run `operationId`, as `AgentRun.send`
-   * does. The harness must list the run's agent in `expose.agents`.
-   */
-  sendToAgent: (options: {
-    operationId: string
-    message: UserInput
-    mode?: 'steer' | 'followUp'
-    inputId?: string
-  }) => Promise<Receipt>
   /**
    * The session events from `from` (exclusive). Reconnects after a network
    * error and resumes from the last cursor. Ends when `signal` aborts.
@@ -494,28 +510,29 @@ export function createHarnessClient<THarness extends AnyHarness>(
   })
 
   return {
-    prompt: (message, promptOptions) =>
-      send({
+    send: (message, sendOptions) => {
+      const inputId = sendOptions?.inputId
+        ? { inputId: sendOptions.inputId }
+        : {}
+      if (sendOptions?.to !== undefined) {
+        return send({
+          op: 'agentMessage',
+          operationId: sendOptions.to,
+          message,
+          ...(sendOptions.mode ? { mode: sendOptions.mode } : {}),
+          ...inputId,
+        })
+      }
+      const mode = sendOptions?.mode ?? 'prompt'
+      if (mode !== 'prompt') return send({ op: mode, message, ...inputId })
+      return send({
         op: 'prompt',
         message,
-        ...(promptOptions?.busy ? { busy: promptOptions.busy } : {}),
-        ...(promptOptions?.inputId ? { inputId: promptOptions.inputId } : {}),
-        ...(promptOptions?.ephemeral
-          ? { ephemeral: promptOptions.ephemeral }
-          : {}),
-      }),
-    steer: (message, steerOptions) =>
-      send({
-        op: 'steer',
-        message,
-        ...(steerOptions?.inputId ? { inputId: steerOptions.inputId } : {}),
-      }),
-    followUp: (message, followOptions) =>
-      send({
-        op: 'followUp',
-        message,
-        ...(followOptions?.inputId ? { inputId: followOptions.inputId } : {}),
-      }),
+        ...(sendOptions?.busy ? { busy: sendOptions.busy } : {}),
+        ...(sendOptions?.ephemeral ? { ephemeral: sendOptions.ephemeral } : {}),
+        ...inputId,
+      })
+    },
     continue: (continueOptions) =>
       send({
         op: 'continue',
@@ -536,6 +553,15 @@ export function createHarnessClient<THarness extends AnyHarness>(
     answer: ({ questionId, value }) =>
       send({ op: 'answer', questionId, value }),
     command: (name, input) => send({ op: 'command', name, input }),
+    tool: (name, args, toolOptions) =>
+      send({
+        op: 'tool',
+        name,
+        ...(args !== undefined ? { args } : {}),
+        ...(toolOptions?.meta ? { meta: toolOptions.meta } : {}),
+        ...(toolOptions?.inputId ? { inputId: toolOptions.inputId } : {}),
+      }),
+    append: (records) => send({ op: 'append', records: [...records] }),
     setConfig: ({ key, value }) => send({ op: 'config', key, value }),
     configure: (settings) => send({ op: 'configure', settings }),
     reset: (note, resetOptions) =>
@@ -546,14 +572,6 @@ export function createHarnessClient<THarness extends AnyHarness>(
       }),
     revert: (messageId) => send({ op: 'revert', messageId }),
     unrevert: () => send({ op: 'unrevert' }),
-    sendToAgent: ({ operationId, message, mode, inputId }) =>
-      send({
-        op: 'agentMessage',
-        operationId,
-        message,
-        ...(mode ? { mode } : {}),
-        ...(inputId ? { inputId } : {}),
-      }),
     events,
     hostEvents,
     snapshot: () => read('snapshot'),

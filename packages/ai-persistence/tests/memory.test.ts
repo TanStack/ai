@@ -17,7 +17,6 @@ describe('memoryPersistence', () => {
       'activities',
       'artifacts',
       'blobs',
-      'credentials',
       'generationRuns',
       'inbox',
       'interrupts',

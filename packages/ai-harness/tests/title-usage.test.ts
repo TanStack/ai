@@ -43,7 +43,7 @@ describe('title()', () => {
     const titler = mockAdapter(() => text('"Trip to Rome"\nA second line'))
     const { host, session } = await open([title({ adapter: titler.adapter })])
 
-    const turn = await session.prompt('Plan a trip to Rome for me')
+    const turn = await session.send('Plan a trip to Rome for me')
 
     expect(turn.text).toBe('answer')
     await vi.waitFor(async () =>
@@ -61,12 +61,12 @@ describe('title()', () => {
       () => text('Another title'),
     ])
     const { host, session } = await open([title({ adapter: titler.adapter })])
-    await session.prompt('Plan a trip to Rome for me')
+    await session.send('Plan a trip to Rome for me')
     await vi.waitFor(async () =>
       expect((await host.sessions.get('t'))?.title).toBe('Trip to Rome'),
     )
 
-    await session.prompt('Add a day in Florence')
+    await session.send('Add a day in Florence')
 
     expect(titler.calls).toHaveLength(1)
     expect((await host.sessions.get('t'))?.title).toBe('Trip to Rome')
@@ -89,7 +89,7 @@ describe('title()', () => {
       title({ adapter: titler.adapter }),
     ])
 
-    const turn = await session.prompt('Plan a trip to Rome for me')
+    const turn = await session.send('Plan a trip to Rome for me')
 
     expect(turn.text).toBe('answer')
     await vi.waitFor(() =>
@@ -106,7 +106,7 @@ describe('title()', () => {
       persistence: { stores: { messages, runs, metadata } },
     })
 
-    await session.prompt('Plan a trip to Rome for me')
+    await session.send('Plan a trip to Rome for me')
 
     expect(titler.calls).toHaveLength(0)
     await host.close()
@@ -157,7 +157,7 @@ describe('usage()', () => {
       { reply: withUsage, agents: [workerWith({ ...CALL, cost: 0.5 })] },
     )
 
-    await session.prompt('one')
+    await session.send('one')
     await session.agent('worker')?.start()
 
     // The lead call costs $3.25 from the lookup, the worker call $0.50 from
@@ -188,7 +188,7 @@ describe('usage()', () => {
       reply: replyWith({ ...CALL, cost: 0.5 }),
     })
 
-    await session.prompt('one')
+    await session.send('one')
 
     expect(await session.command('usage')).toBe(`${CALL_LINE} Cost: $0.5000.`)
     expect((await host.sessions.get('t'))?.usage?.cost).toBe(0.5)
@@ -200,8 +200,8 @@ describe('usage()', () => {
       reply: replyWith({ ...CALL, cost: 0.5 }),
     })
 
-    await session.prompt('one')
-    await session.prompt('two')
+    await session.send('one')
+    await session.send('two')
 
     // Two calls at $0.50. The host writes no cost of its own.
     expect((await host.sessions.get('t'))?.usage?.cost).toBeCloseTo(1, 10)
@@ -214,9 +214,9 @@ describe('usage()', () => {
       agents: [workerWith(CALL)],
     })
 
-    await session.prompt('one')
+    await session.send('one')
     await session.agent('worker')?.start()
-    await session.prompt('two')
+    await session.send('two')
 
     // Two lead calls and one worker call.
     expect((await host.sessions.get('t'))?.usage).toEqual({
@@ -236,7 +236,7 @@ describe('usage()', () => {
       agents: [workerWith({ ...CALL, promptTokens: 2_000_000 })],
     })
 
-    await session.prompt('one')
+    await session.send('one')
     await session.agent('worker')?.start()
 
     // The worker's call is in the copy too.
@@ -258,8 +258,8 @@ describe('usage()', () => {
       reply: withUsage,
     })
 
-    await session.prompt('one')
-    await session.prompt('two')
+    await session.send('one')
+    await session.send('two')
 
     expect(await session.command('usage')).toBe(
       '2 model calls, 2000000 input tokens (500000 cache read, 500000 cache write), 200000 output tokens, 2200000 total. Cost: $6.5000.',
@@ -272,8 +272,8 @@ describe('usage()', () => {
       reply: withUsage,
     })
 
-    await session.prompt('one')
-    await session.prompt('two')
+    await session.send('one')
+    await session.send('two')
 
     expect((await host.sessions.get('t'))?.usage).toEqual({
       turns: 2,
@@ -292,7 +292,7 @@ describe('usage()', () => {
       reply: withUsage,
     })
 
-    await session.prompt('one')
+    await session.send('one')
 
     expect(await session.command('usage')).toBe(
       `${CALL_LINE} Cost: $0.0000 (cost unknown for 1 call).`,

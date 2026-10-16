@@ -143,10 +143,10 @@ describe('durable joins', () => {
       [wait],
     )
 
-    const turn = session.prompt('start', { inputId: 'host' })
+    const turn = session.send('start', { inputId: 'host' })
     await toolStarted.opened
     const joins = ['a', 'b', 'c'].map((name) =>
-      session.prompt(name, { busy: 'steer', inputId: `join-${name}` }),
+      session.send(name, { busy: 'steer', inputId: `join-${name}` }),
     )
     await Promise.all(joins.map((join) => join.receipt))
     toolDone.open()
@@ -178,9 +178,9 @@ describe('durable joins', () => {
       () => text('late answer'),
     ])
 
-    const turn = session.prompt('first', { inputId: 'host' })
+    const turn = session.send('first', { inputId: 'host' })
     await vi.waitFor(() => expect(calls).toHaveLength(1))
-    const late = session.prompt('one more thing', {
+    const late = session.send('one more thing', {
       busy: 'steer',
       inputId: 'late',
     })
@@ -205,9 +205,9 @@ describe('durable joins', () => {
       fails,
     ])
 
-    const turn = session.prompt('first', { inputId: 'host' })
+    const turn = session.send('first', { inputId: 'host' })
     await vi.waitFor(() => expect(calls).toHaveLength(1))
-    const late = session.prompt('this fails', {
+    const late = session.send('this fails', {
       busy: 'steer',
       inputId: 'late',
     })
@@ -294,10 +294,10 @@ describe('the join rule', () => {
       [wait.tool],
     )
 
-    const turn = session.prompt('start', { inputId: 'host' })
+    const turn = session.send('start', { inputId: 'host' })
     await wait.started.opened
     const steer = (name: string) =>
-      session.prompt(name, { busy: 'steer', inputId: `join-${name}` })
+      session.send(name, { busy: 'steer', inputId: `join-${name}` })
     const a = steer('a')
     const b = steer('b')
     const c = steer('c')
@@ -341,9 +341,9 @@ describe('the join rule', () => {
       { threadId: THREAD },
     )
 
-    const turn = session.prompt('start', { inputId: 'host' })
+    const turn = session.send('start', { inputId: 'host' })
     await wait.started.opened
-    const later = session.prompt('later', { busy: 'steer', inputId: 'later' })
+    const later = session.send('later', { busy: 'steer', inputId: 'later' })
     await later.receipt
     wait.done.open()
 
@@ -379,9 +379,9 @@ describe('the join rule', () => {
       { threadId: THREAD },
     )
 
-    const turn = session.prompt('start', { inputId: 'host' })
+    const turn = session.send('start', { inputId: 'host' })
     await wait.started.opened
-    await session.prompt('more', { busy: 'steer', inputId: 'join-1' }).receipt
+    await session.send('more', { busy: 'steer', inputId: 'join-1' }).receipt
     wait.done.open()
     await turn
 
@@ -406,9 +406,9 @@ describe('the join rule', () => {
       { onJoin: () => ({ records: [{ type: 'app.start_hook' }] }) },
     )
 
-    const turn = session.prompt('start', { inputId: 'host' })
+    const turn = session.send('start', { inputId: 'host' })
     await wait.started.opened
-    const join = session.prompt('more', { busy: 'steer', inputId: 'join-1' })
+    const join = session.send('more', { busy: 'steer', inputId: 'join-1' })
     await join.receipt
     wait.done.open()
     await expect(turn).rejects.toThrow()
@@ -446,10 +446,10 @@ describe('the join rule', () => {
       { canJoin: ({ message }) => message !== 'x' },
     )
 
-    const turn = session.prompt('start', { inputId: 'host' })
+    const turn = session.send('start', { inputId: 'host' })
     await wait.started.opened
-    const x = session.prompt('x', { busy: 'steer', inputId: 'x' })
-    const y = session.prompt('y', { busy: 'steer', inputId: 'y' })
+    const x = session.send('x', { busy: 'steer', inputId: 'x' })
+    const y = session.send('y', { busy: 'steer', inputId: 'y' })
     await Promise.all([x.receipt, y.receipt])
     wait.done.open()
 
@@ -472,9 +472,9 @@ describe('the join rule', () => {
       { onJoin: () => ({ messages: [{ role: 'user', content: 'hook' }] }) },
     )
 
-    const turn = session.prompt('start', { inputId: 'host' })
+    const turn = session.send('start', { inputId: 'host' })
     await wait.started.opened
-    await session.prompt('more', { busy: 'steer', inputId: 'join-1' }).receipt
+    await session.send('more', { busy: 'steer', inputId: 'join-1' }).receipt
     wait.done.open()
 
     await turn
@@ -494,9 +494,9 @@ describe('the join rule', () => {
       },
     )
 
-    const turn = session.prompt('start', { inputId: 'host' })
+    const turn = session.send('start', { inputId: 'host' })
     await wait.started.opened
-    await session.prompt('more', { busy: 'steer', inputId: 'join-1' }).receipt
+    await session.send('more', { busy: 'steer', inputId: 'join-1' }).receipt
     wait.done.open()
 
     await turn
@@ -523,9 +523,9 @@ describe('the join rule', () => {
       },
     )
 
-    const turn = session.prompt('start', { inputId: 'host' })
+    const turn = session.send('start', { inputId: 'host' })
     await wait.started.opened
-    const steer = session.prompt('stop me', { busy: 'steer', inputId: 's1' })
+    const steer = session.send('stop me', { busy: 'steer', inputId: 's1' })
     await steer.receipt
     wait.done.open()
     await inJoin.opened
@@ -574,10 +574,10 @@ describe('the join rule', () => {
       },
     )
 
-    const turn = session.prompt('start', { inputId: 'host' })
+    const turn = session.send('start', { inputId: 'host' })
     await wait.started.opened
-    const a = session.prompt('a', { busy: 'steer', inputId: 'join-a' })
-    const steer = session.prompt('stop me', { busy: 'steer', inputId: 's1' })
+    const a = session.send('a', { busy: 'steer', inputId: 'join-a' })
+    const steer = session.send('stop me', { busy: 'steer', inputId: 's1' })
     await Promise.all([a.receipt, steer.receipt])
     wait.done.open()
     await vi.waitFor(() => expect(cancelled).toBeDefined())
@@ -605,8 +605,8 @@ describe('the join rule', () => {
       () => text('never'),
     ])
 
-    const turn = session.prompt('start', { inputId: 'host' })
-    const steer = session.prompt('more', { busy: 'steer', inputId: 's1' })
+    const turn = session.send('start', { inputId: 'host' })
+    const steer = session.send('more', { busy: 'steer', inputId: 's1' })
     await expect(turn).rejects.toThrow('store down')
     await expect(steer).rejects.toThrow('Session closed.')
     await session.close()

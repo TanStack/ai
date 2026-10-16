@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ActivityTestRouteImport } from './routes/activity-test'
 import { Route as ByokRouteImport } from './routes/byok'
+import { Route as CallOwnershipRouteImport } from './routes/call-ownership'
 import { Route as ChatClientDefaultBridgeRouteImport } from './routes/chat-client-default-bridge'
 import { Route as ChatClientStreamProcessingRouteImport } from './routes/chat-client-stream-processing'
 import { Route as ChatClientWatcherStatusRouteImport } from './routes/chat-client-watcher-status'
@@ -71,8 +72,10 @@ import { Route as ApiBedrockConverseTruncatedToolCallRouteImport } from './route
 import { Route as ApiByokChatRouteImport } from './routes/api.byok-chat'
 import { Route as ApiByteplusEncryptedReasoningWireRouteImport } from './routes/api.byteplus-encrypted-reasoning-wire'
 import { Route as ApiByteplusSeedance1080pWireRouteImport } from './routes/api.byteplus-seedance-1080p-wire'
+import { Route as ApiCallOwnershipWireRouteImport } from './routes/api.call-ownership-wire'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiChatCompletionsIncompleteStreamRouteImport } from './routes/api.chat-completions-incomplete-stream'
+import { Route as ApiClientToolResumeStoreRouteImport } from './routes/api.client-tool-resume-store'
 import { Route as ApiCloudflareBindingWireRouteImport } from './routes/api.cloudflare-binding-wire'
 import { Route as ApiCodingToolsRouteImport } from './routes/api.coding-tools'
 import { Route as ApiCompactionUsageWireRouteImport } from './routes/api.compaction-usage-wire'
@@ -84,6 +87,7 @@ import { Route as ApiDevtoolsMemoryRouteImport } from './routes/api.devtools-mem
 import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-delivery'
 import { Route as ApiDurableTakeoverRouteImport } from './routes/api.durable-takeover'
 import { Route as ApiEmbeddingRouteImport } from './routes/api.embedding'
+import { Route as ApiEvaluateUsageOnFailureRouteImport } from './routes/api.evaluate-usage-on-failure'
 import { Route as ApiFakeTextRouteImport } from './routes/api.fake-text'
 import { Route as ApiFileSourceWireRouteImport } from './routes/api.file-source-wire'
 import { Route as ApiForeignChunkEventsRouteImport } from './routes/api.foreign-chunk-events'
@@ -100,6 +104,7 @@ import { Route as ApiHarnessRetryAfterRouteImport } from './routes/api.harness-r
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiInterruptsTestRouteImport } from './routes/api.interrupts-test'
 import { Route as ApiJoinRunClientToolRouteImport } from './routes/api.join-run-client-tool'
+import { Route as ApiJsonSchemaToolInputRouteImport } from './routes/api.json-schema-tool-input'
 import { Route as ApiJsonTransportRouteImport } from './routes/api.json-transport'
 import { Route as ApiKeyedAdapterRouteImport } from './routes/api.keyed-adapter'
 import { Route as ApiLazyToolsWireRouteImport } from './routes/api.lazy-tools-wire'
@@ -133,6 +138,7 @@ import { Route as ApiNonStreamingRunErrorRouteImport } from './routes/api.non-st
 import { Route as ApiOpenaiCompletedResponseTextRouteImport } from './routes/api.openai-completed-response-text'
 import { Route as ApiOpenaiImage25ModelsRouteImport } from './routes/api.openai-image-2-5-models'
 import { Route as ApiOpenaiMalformedToolArgumentsRouteImport } from './routes/api.openai-malformed-tool-arguments'
+import { Route as ApiOpenaiResponsesUsageRouteImport } from './routes/api.openai-responses-usage'
 import { Route as ApiOpenaiShellSkillsWireRouteImport } from './routes/api.openai-shell-skills-wire'
 import { Route as ApiOpenaiStrictToolNullWireRouteImport } from './routes/api.openai-strict-tool-null-wire'
 import { Route as ApiOpenaiUsageDetailsRouteImport } from './routes/api.openai-usage-details'
@@ -198,6 +204,11 @@ const ActivityTestRoute = ActivityTestRouteImport.update({
 const ByokRoute = ByokRouteImport.update({
   id: '/byok',
   path: '/byok',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CallOwnershipRoute = CallOwnershipRouteImport.update({
+  id: '/call-ownership',
+  path: '/call-ownership',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChatClientDefaultBridgeRoute = ChatClientDefaultBridgeRouteImport.update({
@@ -510,6 +521,11 @@ const ApiByteplusSeedance1080pWireRoute =
     path: '/api/byteplus-seedance-1080p-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiCallOwnershipWireRoute = ApiCallOwnershipWireRouteImport.update({
+  id: '/api/call-ownership-wire',
+  path: '/api/call-ownership-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
@@ -519,6 +535,12 @@ const ApiChatCompletionsIncompleteStreamRoute =
   ApiChatCompletionsIncompleteStreamRouteImport.update({
     id: '/api/chat-completions-incomplete-stream',
     path: '/api/chat-completions-incomplete-stream',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiClientToolResumeStoreRoute =
+  ApiClientToolResumeStoreRouteImport.update({
+    id: '/api/client-tool-resume-store',
+    path: '/api/client-tool-resume-store',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiCloudflareBindingWireRoute =
@@ -577,6 +599,12 @@ const ApiEmbeddingRoute = ApiEmbeddingRouteImport.update({
   path: '/api/embedding',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiEvaluateUsageOnFailureRoute =
+  ApiEvaluateUsageOnFailureRouteImport.update({
+    id: '/api/evaluate-usage-on-failure',
+    path: '/api/evaluate-usage-on-failure',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiFakeTextRoute = ApiFakeTextRouteImport.update({
   id: '/api/fake-text',
   path: '/api/fake-text',
@@ -658,6 +686,11 @@ const ApiInterruptsTestRoute = ApiInterruptsTestRouteImport.update({
 const ApiJoinRunClientToolRoute = ApiJoinRunClientToolRouteImport.update({
   id: '/api/join-run-client-tool',
   path: '/api/join-run-client-tool',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiJsonSchemaToolInputRoute = ApiJsonSchemaToolInputRouteImport.update({
+  id: '/api/json-schema-tool-input',
+  path: '/api/json-schema-tool-input',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiJsonTransportRoute = ApiJsonTransportRouteImport.update({
@@ -830,6 +863,11 @@ const ApiOpenaiMalformedToolArgumentsRoute =
     path: '/api/openai-malformed-tool-arguments',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiOpenaiResponsesUsageRoute = ApiOpenaiResponsesUsageRouteImport.update({
+  id: '/api/openai-responses-usage',
+  path: '/api/openai-responses-usage',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiOpenaiShellSkillsWireRoute =
   ApiOpenaiShellSkillsWireRouteImport.update({
     id: '/api/openai-shell-skills-wire',
@@ -1106,6 +1144,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/activity-test': typeof ActivityTestRoute
   '/byok': typeof ByokRoute
+  '/call-ownership': typeof CallOwnershipRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/chat-client-stream-processing': typeof ChatClientStreamProcessingRoute
   '/chat-client-watcher-status': typeof ChatClientWatcherStatusRoute
@@ -1164,8 +1203,10 @@ export interface FileRoutesByFullPath {
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-encrypted-reasoning-wire': typeof ApiByteplusEncryptedReasoningWireRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
+  '/api/call-ownership-wire': typeof ApiCallOwnershipWireRoute
   '/api/chat': typeof ApiChatRoute
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
+  '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
   '/api/coding-tools': typeof ApiCodingToolsRoute
   '/api/compaction-usage-wire': typeof ApiCompactionUsageWireRoute
@@ -1177,6 +1218,7 @@ export interface FileRoutesByFullPath {
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
+  '/api/evaluate-usage-on-failure': typeof ApiEvaluateUsageOnFailureRoute
   '/api/fake-text': typeof ApiFakeTextRoute
   '/api/file-source-wire': typeof ApiFileSourceWireRoute
   '/api/foreign-chunk-events': typeof ApiForeignChunkEventsRoute
@@ -1193,6 +1235,7 @@ export interface FileRoutesByFullPath {
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
+  '/api/json-schema-tool-input': typeof ApiJsonSchemaToolInputRoute
   '/api/json-transport': typeof ApiJsonTransportRoute
   '/api/keyed-adapter': typeof ApiKeyedAdapterRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
@@ -1226,6 +1269,7 @@ export interface FileRoutesByFullPath {
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
   '/api/openai-image-2-5-models': typeof ApiOpenaiImage25ModelsRoute
   '/api/openai-malformed-tool-arguments': typeof ApiOpenaiMalformedToolArgumentsRoute
+  '/api/openai-responses-usage': typeof ApiOpenaiResponsesUsageRoute
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
   '/api/openai-strict-tool-null-wire': typeof ApiOpenaiStrictToolNullWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
@@ -1283,6 +1327,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/activity-test': typeof ActivityTestRoute
   '/byok': typeof ByokRoute
+  '/call-ownership': typeof CallOwnershipRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/chat-client-stream-processing': typeof ChatClientStreamProcessingRoute
   '/chat-client-watcher-status': typeof ChatClientWatcherStatusRoute
@@ -1341,8 +1386,10 @@ export interface FileRoutesByTo {
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-encrypted-reasoning-wire': typeof ApiByteplusEncryptedReasoningWireRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
+  '/api/call-ownership-wire': typeof ApiCallOwnershipWireRoute
   '/api/chat': typeof ApiChatRoute
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
+  '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
   '/api/coding-tools': typeof ApiCodingToolsRoute
   '/api/compaction-usage-wire': typeof ApiCompactionUsageWireRoute
@@ -1354,6 +1401,7 @@ export interface FileRoutesByTo {
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
+  '/api/evaluate-usage-on-failure': typeof ApiEvaluateUsageOnFailureRoute
   '/api/fake-text': typeof ApiFakeTextRoute
   '/api/file-source-wire': typeof ApiFileSourceWireRoute
   '/api/foreign-chunk-events': typeof ApiForeignChunkEventsRoute
@@ -1370,6 +1418,7 @@ export interface FileRoutesByTo {
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
+  '/api/json-schema-tool-input': typeof ApiJsonSchemaToolInputRoute
   '/api/json-transport': typeof ApiJsonTransportRoute
   '/api/keyed-adapter': typeof ApiKeyedAdapterRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
@@ -1403,6 +1452,7 @@ export interface FileRoutesByTo {
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
   '/api/openai-image-2-5-models': typeof ApiOpenaiImage25ModelsRoute
   '/api/openai-malformed-tool-arguments': typeof ApiOpenaiMalformedToolArgumentsRoute
+  '/api/openai-responses-usage': typeof ApiOpenaiResponsesUsageRoute
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
   '/api/openai-strict-tool-null-wire': typeof ApiOpenaiStrictToolNullWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
@@ -1461,6 +1511,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/activity-test': typeof ActivityTestRoute
   '/byok': typeof ByokRoute
+  '/call-ownership': typeof CallOwnershipRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/chat-client-stream-processing': typeof ChatClientStreamProcessingRoute
   '/chat-client-watcher-status': typeof ChatClientWatcherStatusRoute
@@ -1519,8 +1570,10 @@ export interface FileRoutesById {
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-encrypted-reasoning-wire': typeof ApiByteplusEncryptedReasoningWireRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
+  '/api/call-ownership-wire': typeof ApiCallOwnershipWireRoute
   '/api/chat': typeof ApiChatRoute
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
+  '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
   '/api/coding-tools': typeof ApiCodingToolsRoute
   '/api/compaction-usage-wire': typeof ApiCompactionUsageWireRoute
@@ -1532,6 +1585,7 @@ export interface FileRoutesById {
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
+  '/api/evaluate-usage-on-failure': typeof ApiEvaluateUsageOnFailureRoute
   '/api/fake-text': typeof ApiFakeTextRoute
   '/api/file-source-wire': typeof ApiFileSourceWireRoute
   '/api/foreign-chunk-events': typeof ApiForeignChunkEventsRoute
@@ -1548,6 +1602,7 @@ export interface FileRoutesById {
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
+  '/api/json-schema-tool-input': typeof ApiJsonSchemaToolInputRoute
   '/api/json-transport': typeof ApiJsonTransportRoute
   '/api/keyed-adapter': typeof ApiKeyedAdapterRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
@@ -1581,6 +1636,7 @@ export interface FileRoutesById {
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
   '/api/openai-image-2-5-models': typeof ApiOpenaiImage25ModelsRoute
   '/api/openai-malformed-tool-arguments': typeof ApiOpenaiMalformedToolArgumentsRoute
+  '/api/openai-responses-usage': typeof ApiOpenaiResponsesUsageRoute
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
   '/api/openai-strict-tool-null-wire': typeof ApiOpenaiStrictToolNullWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
@@ -1640,6 +1696,7 @@ export interface FileRouteTypes {
     | '/'
     | '/activity-test'
     | '/byok'
+    | '/call-ownership'
     | '/chat-client-default-bridge'
     | '/chat-client-stream-processing'
     | '/chat-client-watcher-status'
@@ -1698,8 +1755,10 @@ export interface FileRouteTypes {
     | '/api/byok-chat'
     | '/api/byteplus-encrypted-reasoning-wire'
     | '/api/byteplus-seedance-1080p-wire'
+    | '/api/call-ownership-wire'
     | '/api/chat'
     | '/api/chat-completions-incomplete-stream'
+    | '/api/client-tool-resume-store'
     | '/api/cloudflare-binding-wire'
     | '/api/coding-tools'
     | '/api/compaction-usage-wire'
@@ -1711,6 +1770,7 @@ export interface FileRouteTypes {
     | '/api/durable-delivery'
     | '/api/durable-takeover'
     | '/api/embedding'
+    | '/api/evaluate-usage-on-failure'
     | '/api/fake-text'
     | '/api/file-source-wire'
     | '/api/foreign-chunk-events'
@@ -1727,6 +1787,7 @@ export interface FileRouteTypes {
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
+    | '/api/json-schema-tool-input'
     | '/api/json-transport'
     | '/api/keyed-adapter'
     | '/api/lazy-tools-wire'
@@ -1760,6 +1821,7 @@ export interface FileRouteTypes {
     | '/api/openai-completed-response-text'
     | '/api/openai-image-2-5-models'
     | '/api/openai-malformed-tool-arguments'
+    | '/api/openai-responses-usage'
     | '/api/openai-shell-skills-wire'
     | '/api/openai-strict-tool-null-wire'
     | '/api/openai-usage-details'
@@ -1817,6 +1879,7 @@ export interface FileRouteTypes {
     | '/'
     | '/activity-test'
     | '/byok'
+    | '/call-ownership'
     | '/chat-client-default-bridge'
     | '/chat-client-stream-processing'
     | '/chat-client-watcher-status'
@@ -1875,8 +1938,10 @@ export interface FileRouteTypes {
     | '/api/byok-chat'
     | '/api/byteplus-encrypted-reasoning-wire'
     | '/api/byteplus-seedance-1080p-wire'
+    | '/api/call-ownership-wire'
     | '/api/chat'
     | '/api/chat-completions-incomplete-stream'
+    | '/api/client-tool-resume-store'
     | '/api/cloudflare-binding-wire'
     | '/api/coding-tools'
     | '/api/compaction-usage-wire'
@@ -1888,6 +1953,7 @@ export interface FileRouteTypes {
     | '/api/durable-delivery'
     | '/api/durable-takeover'
     | '/api/embedding'
+    | '/api/evaluate-usage-on-failure'
     | '/api/fake-text'
     | '/api/file-source-wire'
     | '/api/foreign-chunk-events'
@@ -1904,6 +1970,7 @@ export interface FileRouteTypes {
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
+    | '/api/json-schema-tool-input'
     | '/api/json-transport'
     | '/api/keyed-adapter'
     | '/api/lazy-tools-wire'
@@ -1937,6 +2004,7 @@ export interface FileRouteTypes {
     | '/api/openai-completed-response-text'
     | '/api/openai-image-2-5-models'
     | '/api/openai-malformed-tool-arguments'
+    | '/api/openai-responses-usage'
     | '/api/openai-shell-skills-wire'
     | '/api/openai-strict-tool-null-wire'
     | '/api/openai-usage-details'
@@ -1994,6 +2062,7 @@ export interface FileRouteTypes {
     | '/'
     | '/activity-test'
     | '/byok'
+    | '/call-ownership'
     | '/chat-client-default-bridge'
     | '/chat-client-stream-processing'
     | '/chat-client-watcher-status'
@@ -2052,8 +2121,10 @@ export interface FileRouteTypes {
     | '/api/byok-chat'
     | '/api/byteplus-encrypted-reasoning-wire'
     | '/api/byteplus-seedance-1080p-wire'
+    | '/api/call-ownership-wire'
     | '/api/chat'
     | '/api/chat-completions-incomplete-stream'
+    | '/api/client-tool-resume-store'
     | '/api/cloudflare-binding-wire'
     | '/api/coding-tools'
     | '/api/compaction-usage-wire'
@@ -2065,6 +2136,7 @@ export interface FileRouteTypes {
     | '/api/durable-delivery'
     | '/api/durable-takeover'
     | '/api/embedding'
+    | '/api/evaluate-usage-on-failure'
     | '/api/fake-text'
     | '/api/file-source-wire'
     | '/api/foreign-chunk-events'
@@ -2081,6 +2153,7 @@ export interface FileRouteTypes {
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
+    | '/api/json-schema-tool-input'
     | '/api/json-transport'
     | '/api/keyed-adapter'
     | '/api/lazy-tools-wire'
@@ -2114,6 +2187,7 @@ export interface FileRouteTypes {
     | '/api/openai-completed-response-text'
     | '/api/openai-image-2-5-models'
     | '/api/openai-malformed-tool-arguments'
+    | '/api/openai-responses-usage'
     | '/api/openai-shell-skills-wire'
     | '/api/openai-strict-tool-null-wire'
     | '/api/openai-usage-details'
@@ -2172,6 +2246,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ActivityTestRoute: typeof ActivityTestRoute
   ByokRoute: typeof ByokRoute
+  CallOwnershipRoute: typeof CallOwnershipRoute
   ChatClientDefaultBridgeRoute: typeof ChatClientDefaultBridgeRoute
   ChatClientStreamProcessingRoute: typeof ChatClientStreamProcessingRoute
   ChatClientWatcherStatusRoute: typeof ChatClientWatcherStatusRoute
@@ -2230,8 +2305,10 @@ export interface RootRouteChildren {
   ApiByokChatRoute: typeof ApiByokChatRoute
   ApiByteplusEncryptedReasoningWireRoute: typeof ApiByteplusEncryptedReasoningWireRoute
   ApiByteplusSeedance1080pWireRoute: typeof ApiByteplusSeedance1080pWireRoute
+  ApiCallOwnershipWireRoute: typeof ApiCallOwnershipWireRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiChatCompletionsIncompleteStreamRoute: typeof ApiChatCompletionsIncompleteStreamRoute
+  ApiClientToolResumeStoreRoute: typeof ApiClientToolResumeStoreRoute
   ApiCloudflareBindingWireRoute: typeof ApiCloudflareBindingWireRoute
   ApiCodingToolsRoute: typeof ApiCodingToolsRoute
   ApiCompactionUsageWireRoute: typeof ApiCompactionUsageWireRoute
@@ -2243,6 +2320,7 @@ export interface RootRouteChildren {
   ApiDurableDeliveryRoute: typeof ApiDurableDeliveryRoute
   ApiDurableTakeoverRoute: typeof ApiDurableTakeoverRoute
   ApiEmbeddingRoute: typeof ApiEmbeddingRoute
+  ApiEvaluateUsageOnFailureRoute: typeof ApiEvaluateUsageOnFailureRoute
   ApiFakeTextRoute: typeof ApiFakeTextRoute
   ApiFileSourceWireRoute: typeof ApiFileSourceWireRoute
   ApiForeignChunkEventsRoute: typeof ApiForeignChunkEventsRoute
@@ -2259,6 +2337,7 @@ export interface RootRouteChildren {
   ApiImageRoute: typeof ApiImageRouteWithChildren
   ApiInterruptsTestRoute: typeof ApiInterruptsTestRoute
   ApiJoinRunClientToolRoute: typeof ApiJoinRunClientToolRoute
+  ApiJsonSchemaToolInputRoute: typeof ApiJsonSchemaToolInputRoute
   ApiJsonTransportRoute: typeof ApiJsonTransportRoute
   ApiKeyedAdapterRoute: typeof ApiKeyedAdapterRoute
   ApiLazyToolsWireRoute: typeof ApiLazyToolsWireRoute
@@ -2292,6 +2371,7 @@ export interface RootRouteChildren {
   ApiOpenaiCompletedResponseTextRoute: typeof ApiOpenaiCompletedResponseTextRoute
   ApiOpenaiImage25ModelsRoute: typeof ApiOpenaiImage25ModelsRoute
   ApiOpenaiMalformedToolArgumentsRoute: typeof ApiOpenaiMalformedToolArgumentsRoute
+  ApiOpenaiResponsesUsageRoute: typeof ApiOpenaiResponsesUsageRoute
   ApiOpenaiShellSkillsWireRoute: typeof ApiOpenaiShellSkillsWireRoute
   ApiOpenaiStrictToolNullWireRoute: typeof ApiOpenaiStrictToolNullWireRoute
   ApiOpenaiUsageDetailsRoute: typeof ApiOpenaiUsageDetailsRoute
@@ -2362,6 +2442,13 @@ declare module '@tanstack/react-router' {
       path: '/byok'
       fullPath: '/byok'
       preLoaderRoute: typeof ByokRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/call-ownership': {
+      id: '/call-ownership'
+      path: '/call-ownership'
+      fullPath: '/call-ownership'
+      preLoaderRoute: typeof CallOwnershipRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/chat-client-default-bridge': {
@@ -2777,6 +2864,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiByteplusSeedance1080pWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/call-ownership-wire': {
+      id: '/api/call-ownership-wire'
+      path: '/api/call-ownership-wire'
+      fullPath: '/api/call-ownership-wire'
+      preLoaderRoute: typeof ApiCallOwnershipWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/chat': {
       id: '/api/chat'
       path: '/api/chat'
@@ -2789,6 +2883,13 @@ declare module '@tanstack/react-router' {
       path: '/api/chat-completions-incomplete-stream'
       fullPath: '/api/chat-completions-incomplete-stream'
       preLoaderRoute: typeof ApiChatCompletionsIncompleteStreamRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/client-tool-resume-store': {
+      id: '/api/client-tool-resume-store'
+      path: '/api/client-tool-resume-store'
+      fullPath: '/api/client-tool-resume-store'
+      preLoaderRoute: typeof ApiClientToolResumeStoreRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/cloudflare-binding-wire': {
@@ -2866,6 +2967,13 @@ declare module '@tanstack/react-router' {
       path: '/api/embedding'
       fullPath: '/api/embedding'
       preLoaderRoute: typeof ApiEmbeddingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/evaluate-usage-on-failure': {
+      id: '/api/evaluate-usage-on-failure'
+      path: '/api/evaluate-usage-on-failure'
+      fullPath: '/api/evaluate-usage-on-failure'
+      preLoaderRoute: typeof ApiEvaluateUsageOnFailureRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/fake-text': {
@@ -2978,6 +3086,13 @@ declare module '@tanstack/react-router' {
       path: '/api/join-run-client-tool'
       fullPath: '/api/join-run-client-tool'
       preLoaderRoute: typeof ApiJoinRunClientToolRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/json-schema-tool-input': {
+      id: '/api/json-schema-tool-input'
+      path: '/api/json-schema-tool-input'
+      fullPath: '/api/json-schema-tool-input'
+      preLoaderRoute: typeof ApiJsonSchemaToolInputRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/json-transport': {
@@ -3209,6 +3324,13 @@ declare module '@tanstack/react-router' {
       path: '/api/openai-malformed-tool-arguments'
       fullPath: '/api/openai-malformed-tool-arguments'
       preLoaderRoute: typeof ApiOpenaiMalformedToolArgumentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/openai-responses-usage': {
+      id: '/api/openai-responses-usage'
+      path: '/api/openai-responses-usage'
+      fullPath: '/api/openai-responses-usage'
+      preLoaderRoute: typeof ApiOpenaiResponsesUsageRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/openai-shell-skills-wire': {
@@ -3633,6 +3755,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ActivityTestRoute: ActivityTestRoute,
   ByokRoute: ByokRoute,
+  CallOwnershipRoute: CallOwnershipRoute,
   ChatClientDefaultBridgeRoute: ChatClientDefaultBridgeRoute,
   ChatClientStreamProcessingRoute: ChatClientStreamProcessingRoute,
   ChatClientWatcherStatusRoute: ChatClientWatcherStatusRoute,
@@ -3695,9 +3818,11 @@ const rootRouteChildren: RootRouteChildren = {
   ApiByteplusEncryptedReasoningWireRoute:
     ApiByteplusEncryptedReasoningWireRoute,
   ApiByteplusSeedance1080pWireRoute: ApiByteplusSeedance1080pWireRoute,
+  ApiCallOwnershipWireRoute: ApiCallOwnershipWireRoute,
   ApiChatRoute: ApiChatRoute,
   ApiChatCompletionsIncompleteStreamRoute:
     ApiChatCompletionsIncompleteStreamRoute,
+  ApiClientToolResumeStoreRoute: ApiClientToolResumeStoreRoute,
   ApiCloudflareBindingWireRoute: ApiCloudflareBindingWireRoute,
   ApiCodingToolsRoute: ApiCodingToolsRoute,
   ApiCompactionUsageWireRoute: ApiCompactionUsageWireRoute,
@@ -3709,6 +3834,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiDurableDeliveryRoute: ApiDurableDeliveryRoute,
   ApiDurableTakeoverRoute: ApiDurableTakeoverRoute,
   ApiEmbeddingRoute: ApiEmbeddingRoute,
+  ApiEvaluateUsageOnFailureRoute: ApiEvaluateUsageOnFailureRoute,
   ApiFakeTextRoute: ApiFakeTextRoute,
   ApiFileSourceWireRoute: ApiFileSourceWireRoute,
   ApiForeignChunkEventsRoute: ApiForeignChunkEventsRoute,
@@ -3725,6 +3851,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiImageRoute: ApiImageRouteWithChildren,
   ApiInterruptsTestRoute: ApiInterruptsTestRoute,
   ApiJoinRunClientToolRoute: ApiJoinRunClientToolRoute,
+  ApiJsonSchemaToolInputRoute: ApiJsonSchemaToolInputRoute,
   ApiJsonTransportRoute: ApiJsonTransportRoute,
   ApiKeyedAdapterRoute: ApiKeyedAdapterRoute,
   ApiLazyToolsWireRoute: ApiLazyToolsWireRoute,
@@ -3758,6 +3885,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOpenaiCompletedResponseTextRoute: ApiOpenaiCompletedResponseTextRoute,
   ApiOpenaiImage25ModelsRoute: ApiOpenaiImage25ModelsRoute,
   ApiOpenaiMalformedToolArgumentsRoute: ApiOpenaiMalformedToolArgumentsRoute,
+  ApiOpenaiResponsesUsageRoute: ApiOpenaiResponsesUsageRoute,
   ApiOpenaiShellSkillsWireRoute: ApiOpenaiShellSkillsWireRoute,
   ApiOpenaiStrictToolNullWireRoute: ApiOpenaiStrictToolNullWireRoute,
   ApiOpenaiUsageDetailsRoute: ApiOpenaiUsageDetailsRoute,

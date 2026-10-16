@@ -642,12 +642,12 @@ export interface BlobStore {
 // ===========================================================================
 //
 // Opt-in stores for a host that keeps long-lived sessions: the inputs it
-// accepted, user credentials, an append-only log, turn leases, work claims,
+// accepted, an append-only log, turn leases, work claims,
 // and a list of sessions. `withPersistence` writes only `sessions`, an entry
 // for each subagent child.
 
 /** Lifecycle of one inbox entry. */
-export type InboxStatus = 'pending' | 'applied' | 'rejected' | 'expired'
+export type InboxStatus = 'pending' | 'applied' | 'rejected'
 
 /**
  * One input a client sent to a session (a prompt, a steer message, a
@@ -709,56 +709,6 @@ export interface InboxStore {
 
 /** Type an {@link InboxStore} implementation inline. */
 export function defineInboxStore(store: InboxStore): InboxStore {
-  return store
-}
-
-/** A secret a user or an organization saved: an API key or OAuth tokens. */
-export type Credential =
-  | { type: 'api_key'; value: string }
-  | {
-      type: 'oauth'
-      accessToken: string
-      refreshToken?: string
-      expiresAt?: number
-      scopes?: Array<string>
-      /**
-       * The OAuth client these tokens belong to (for example one made by
-       * dynamic client registration). A refresh needs it. `issuer` is the
-       * authorization server that issued the client and the tokens.
-       */
-      client?: {
-        clientId: string
-        clientSecret?: string
-        redirectUri?: string
-        issuer?: string
-      }
-    }
-
-/**
- * Durable store for credentials, keyed by scope and credential id (for
- * example `'github'`). The key is `scope.tenantId` and `scope.userId`, not
- * `scope.threadId`. A credential saved without `scope.userId` belongs to the
- * tenant. A scope with neither is one shared bucket. Encrypt at rest in your
- * implementation.
- */
-export interface CredentialStore {
-  get: (key: { scope: Scope; id: string }) => Promise<Credential | null>
-  set: (entry: {
-    scope: Scope
-    id: string
-    credential: Credential
-  }) => Promise<void>
-  delete: (key: { scope: Scope; id: string }) => Promise<void>
-  /** Ids and types only. `list` never returns secret values. */
-  list: (
-    scope: Scope,
-  ) => Promise<
-    Array<{ id: string; type: Credential['type']; expiresAt?: number }>
-  >
-}
-
-/** Type a {@link CredentialStore} implementation inline. */
-export function defineCredentialStore(store: CredentialStore): CredentialStore {
   return store
 }
 
@@ -880,6 +830,11 @@ export interface LeaseStore {
   release: (lease: TurnLease) => Promise<void>
   /** True while another host still runs the attempt. */
   isAlive: (key: TurnLeaseKey) => Promise<boolean>
+}
+
+/** Type a {@link LeaseStore} implementation inline. */
+export function defineLeaseStore(store: LeaseStore): LeaseStore {
+  return store
 }
 
 /**
@@ -1093,8 +1048,6 @@ export interface AIPersistenceStores {
   blobs?: BlobStore
   /** Session inputs. */
   inbox?: InboxStore
-  /** User and tenant credentials. */
-  credentials?: CredentialStore
   /** Append-only session log. */
   log?: LogStore
   /** Turn leases from a system that already has them. */
@@ -1282,7 +1235,6 @@ const storeKeys = [
   'artifacts',
   'blobs',
   'inbox',
-  'credentials',
   'log',
   'leases',
   'workClaims',

@@ -104,7 +104,7 @@ export interface UseRealtimeChatReturn {
   /** Current mode (idle, listening, thinking, speaking) */
   mode: RealtimeMode
   /** Conversation messages */
-  messages: Array<RealtimeMessage>
+  messages: ReadonlyArray<RealtimeMessage>
   /** User transcript while speaking (before finalized) */
   pendingUserTranscript: string | null
   /** Assistant transcript while speaking (before finalized) */

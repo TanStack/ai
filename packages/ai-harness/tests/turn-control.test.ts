@@ -164,7 +164,7 @@ describe('turn.onModelError', () => {
       },
     })
 
-    expect(await session.prompt('a very long chat')).toEqual({
+    expect(await session.send('a very long chat')).toEqual({
       text: 'fits now',
       media: [],
     })
@@ -181,7 +181,7 @@ describe('turn.onModelError', () => {
       },
     })
 
-    const turn = session.prompt('go')
+    const turn = session.send('go')
     await expect(turn).rejects.toThrow('503 Service Unavailable')
 
     expect(calls).toHaveLength(3)
@@ -203,7 +203,7 @@ describe('turn.onModelError', () => {
       },
     })
 
-    await expect(session.prompt('go')).rejects.toThrow('overloaded')
+    await expect(session.send('go')).rejects.toThrow('overloaded')
 
     expect(calls).toHaveLength(3)
     await host.close()
@@ -215,7 +215,7 @@ describe('turn.onModelError', () => {
       turn: { onModelError: retryTransientErrors({ baseDelayMs: 1 }) },
     })
 
-    expect(await session.prompt('go')).toEqual({
+    expect(await session.send('go')).toEqual({
       text: 'partial second try',
       media: [],
     })
@@ -234,7 +234,7 @@ describe('turn.onModelError', () => {
       },
     })
 
-    await expect(session.prompt('go')).rejects.toThrow('boom')
+    await expect(session.send('go')).rejects.toThrow('boom')
     expect(seen).toEqual([{ message: 'boom', code: 'overloaded_error' }])
     await host.close()
   })
@@ -250,7 +250,7 @@ describe('turn.onModelError', () => {
       turn: { onModelError: retryTransientErrors({ baseDelayMs: 1 }) },
     })
 
-    expect(await session.prompt('weather?')).toEqual({
+    expect(await session.send('weather?')).toEqual({
       text: 'Let me check. It is sunny.',
       media: [],
     })
@@ -278,7 +278,7 @@ describe('turn.onModelError', () => {
         turn: { onModelError: retryTransientErrors({ baseDelayMs: 1 }) },
       })
 
-      const first = await session.prompt('remove a.txt')
+      const first = await session.send('remove a.txt')
       const receipt = await session.resolve([
         {
           interruptId: first.interrupts![0]!.id,
@@ -314,9 +314,9 @@ describe('turn.onModelError', () => {
       turn: { onModelError: retryTransientErrors({ baseDelayMs: 1 }) },
     })
 
-    const turn = session.prompt('find x')
+    const turn = session.send('find x')
     await started.opened
-    await session.steer('also check y')
+    await session.send('also check y', { mode: 'steer' }).receipt
     release.open()
 
     expect(await turn).toEqual({ text: 'done', media: [] })
@@ -339,7 +339,7 @@ describe('turn.onModelError', () => {
       },
     })
 
-    const turn = session.prompt('go')
+    const turn = session.send('go')
     await waiting.opened
     await turn.cancel()
 
@@ -355,7 +355,7 @@ describe('turn.onModelError', () => {
       turn: { onModelError: retryTransientErrors({ baseDelayMs: 1 }) },
     })
 
-    const turn = session.prompt('go')
+    const turn = session.send('go')
     await turn
 
     const record = await runs.get(turn.id)
@@ -379,7 +379,7 @@ describe('turn.onModelError', () => {
       },
     })
 
-    expect(await session.prompt('go')).toEqual({
+    expect(await session.send('go')).toEqual({
       text: 'Hello world',
       media: [],
     })
@@ -394,7 +394,7 @@ describe('turn.onModelError', () => {
       turn: { onModelError: () => 'continue' },
     })
 
-    const turn = session.prompt('go')
+    const turn = session.send('go')
     expect(await turn).toEqual({ text: 'Hello world', media: [] })
     const sent = calls[1].messages
     expect(sent).toHaveLength(3)
@@ -428,7 +428,7 @@ describe('turn.onModelError', () => {
       turn: { onModelError: () => 'continue' },
     })
 
-    const turn = session.prompt('go')
+    const turn = session.send('go')
     await turn
     const retries: Array<unknown> = []
     for await (const entry of session.events({
@@ -455,7 +455,7 @@ describe('turn.onModelError', () => {
       turn: { onModelError: () => 'continue' },
     })
 
-    expect(await session.prompt('go')).toEqual({ text: 'ok', media: [] })
+    expect(await session.send('go')).toEqual({ text: 'ok', media: [] })
     expect(messageTexts(calls[1])).toEqual(['go'])
     await host.close()
   })
@@ -566,7 +566,7 @@ describe('turn.onModelError', () => {
         },
       })
 
-      expect(await session.prompt('go')).toEqual({ text: 'ok', media: [] })
+      expect(await session.send('go')).toEqual({ text: 'ok', media: [] })
       expect(seen).toEqual([
         { message: 'rate limited', code: '429', retryAfterMs: 7_000 },
       ])
@@ -618,7 +618,7 @@ describe('turn.onModelError', () => {
       },
     })
 
-    expect(await session.prompt('go')).toEqual({ text: 'ok', media: [] })
+    expect(await session.send('go')).toEqual({ text: 'ok', media: [] })
     expect(seen).toEqual([true])
     await host.close()
   })
@@ -650,7 +650,7 @@ describe('turn.onModelError', () => {
       turn: { onModelError: () => 'continue' },
     })
 
-    expect(await session.prompt('go')).toEqual({ text: 'ok', media: [] })
+    expect(await session.send('go')).toEqual({ text: 'ok', media: [] })
     // No continue note: the model never wrote text to continue.
     expect(messageTexts(calls[1])).toEqual(['go'])
     await host.close()
@@ -678,7 +678,7 @@ describe('turn.onModelError', () => {
       },
     })
 
-    expect(await session.prompt('go')).toEqual({ text: 'ok', media: [] })
+    expect(await session.send('go')).toEqual({ text: 'ok', media: [] })
     expect(seen).toEqual([true])
     await host.close()
   })
@@ -689,7 +689,7 @@ describe('turn.onModelError', () => {
       turn: {},
     })
 
-    await expect(session.prompt('go')).rejects.toThrow('overloaded')
+    await expect(session.send('go')).rejects.toThrow('overloaded')
     expect(calls).toHaveLength(1)
     await host.close()
   })
@@ -725,7 +725,7 @@ describe('turn.onModelError', () => {
       /** Run `replies`, then a call that hangs, and stop that host there. */
       const crashAfter = async (replies: Array<Reply>) => {
         const first = await openOn([...replies, untilAborted()])
-        const turn = first.session.prompt('go', { inputId: 'in-1' })
+        const turn = first.session.send('go', { inputId: 'in-1' })
         await vi.waitFor(() =>
           expect(first.calls).toHaveLength(replies.length + 1),
         )
@@ -790,7 +790,7 @@ describe('turn.onModelError', () => {
         return { host, session, seen }
       }
       const first = await openOn([failsWith('503 Service Unavailable')], 60_000)
-      void first.session.prompt('go', { inputId: 'in-1' }).then(
+      void first.session.send('go', { inputId: 'in-1' }).then(
         () => {},
         () => {},
       )
@@ -826,7 +826,7 @@ describe('turn.beforeFinish', () => {
       },
     })
 
-    const turn = session.prompt('answer the user')
+    const turn = session.send('answer the user')
     expect(await turn).toEqual({ text: 'draftposted', media: [] })
 
     expect(calls).toHaveLength(2)
@@ -871,7 +871,7 @@ describe('turn.beforeFinish', () => {
       { threadId: THREAD },
     )
 
-    expect(await session.prompt('go')).toEqual({ text: 'onetwo', media: [] })
+    expect(await session.send('go')).toEqual({ text: 'onetwo', media: [] })
     expect(messageTexts(calls[1]).at(-1)).toBe('check the result')
     expect(cycles).toBe(1)
     await host.close()
@@ -889,7 +889,7 @@ describe('turn.beforeFinish', () => {
       },
     })
 
-    expect(await session.prompt('go')).toEqual({ text: 'done', media: [] })
+    expect(await session.send('go')).toEqual({ text: 'done', media: [] })
     expect(calls).toHaveLength(1)
     expect(
       (await log.read(THREAD)).map((entry) => entry.record.type),
@@ -915,7 +915,7 @@ describe('turn.beforeFinish', () => {
         },
       })
 
-      const turn = session.prompt('go')
+      const turn = session.send('go')
       await waiting.opened
       await turn.cancel()
 
@@ -942,7 +942,7 @@ describe('turn.beforeFinish', () => {
       },
     })
 
-    await expect(session.prompt('go')).rejects.toThrow('2 times')
+    await expect(session.send('go')).rejects.toThrow('2 times')
     expect(calls).toHaveLength(3)
     await host.close()
   })
@@ -959,7 +959,7 @@ describe('turn.beforeFinish', () => {
       },
     })
 
-    expect(await session.prompt('answer the user')).toEqual({
+    expect(await session.send('answer the user')).toEqual({
       text: 'draftposted',
       media: [],
     })
@@ -986,7 +986,7 @@ describe('turn.beforeFinish', () => {
       },
     })
 
-    await expect(session.prompt('go')).rejects.toThrow('2 times')
+    await expect(session.send('go')).rejects.toThrow('2 times')
     expect(calls).toHaveLength(3)
     await host.close()
   })
@@ -1051,7 +1051,7 @@ describe('turn.beforeFinish', () => {
       },
     })
 
-    expect(await session.prompt('look it up')).toEqual({
+    expect(await session.send('look it up')).toEqual({
       text: 'posted',
       media: [],
     })
@@ -1077,7 +1077,7 @@ describe('turn.beforeFinish', () => {
       turn: { beforeFinish: () => ({ records: [{ type: 'app.note' }] }) },
     })
 
-    await expect(session.prompt('go')).rejects.toThrow('durable host')
+    await expect(session.send('go')).rejects.toThrow('durable host')
     await host.close()
   })
 
@@ -1102,7 +1102,7 @@ describe('turn.beforeFinish', () => {
       return { host, session, calls }
     }
     const first = await openOn([() => text('draft'), untilAborted()])
-    const turn = first.session.prompt('answer the user', { inputId: 'in-1' })
+    const turn = first.session.send('answer the user', { inputId: 'in-1' })
     await vi.waitFor(() => expect(first.calls).toHaveLength(2))
     await runs.update(turn.id, { leaseExpiresAt: Date.now() - 1 })
 

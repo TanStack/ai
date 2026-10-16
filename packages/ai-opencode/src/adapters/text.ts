@@ -54,6 +54,7 @@ import type { OpencodeTextProviderOptions } from '../provider-options'
 
 const DEFAULT_WORKDIR = '/workspace'
 const DEFAULT_PORT = 4096
+const TEARDOWN_STEP_MS = 1000
 
 export interface OpencodeTextConfig {
   /** Working directory inside the sandbox. Defaults to `/workspace`. */
@@ -544,9 +545,26 @@ export class OpencodeTextAdapter<
         externalSignal.removeEventListener('abort', onAbort)
       }
       channel.close()
-      await handle?.dispose()
-      await server?.dispose()
-      await bridge?.close()
+      // Each step gets a time limit: a step that never settles (a sandbox
+      // `kill()` that never returns, a bridge request held open) must not
+      // hold back RUN_FINISHED.
+      const bounded = (step: () => Promise<void> | undefined) =>
+        Promise.race([
+          Promise.resolve()
+            .then(step)
+            .catch((error: unknown) =>
+              logger.errors('opencode teardown failed', {
+                error,
+                source: 'opencode.chatStream',
+              }),
+            ),
+          new Promise<void>((resolve) =>
+            setTimeout(resolve, TEARDOWN_STEP_MS).unref?.(),
+          ),
+        ])
+      await bounded(() => handle?.dispose())
+      await bounded(() => server?.dispose())
+      await bounded(() => bridge?.close())
     }
   }
 

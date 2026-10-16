@@ -773,6 +773,8 @@ export interface TanStackRunMetadata {
   state?: ToolOutputState
   /** Parsed `TOOL_CALL_END` input. Spec `TOOL_CALL_END` has no top-level `input`. */
   input?: unknown
+  /** The raw tool argument string on `TOOL_CALL_END`, as the provider sent it. */
+  args?: string
 }
 
 /**
@@ -899,6 +901,13 @@ export type ToolExecutionContext<TContext = unknown> =
      * ```
      */
     detach?: (work: Promise<unknown>) => Promise<string>
+    /**
+     * The thread of the call, when a host knows it. `chat()` does not set it:
+     * a host such as the harness wraps the tool's `execute` to add it.
+     */
+    threadId?: string
+    /** The run of the call, when a host knows it. Set as `threadId` is. */
+    runId?: string
     /**
      * Emit a custom event during tool execution.
      * Events are streamed to the client in real-time as AG-UI CUSTOM events.
@@ -1278,6 +1287,20 @@ export interface ResolvedPromptCache {
 export type FetchWrapper = (next: typeof fetch) => typeof fetch
 
 /**
+ * What a `repairToolInput` function gets: a tool input that failed the check.
+ */
+export interface ToolInputRepairContext {
+  /** The tool the model called. */
+  tool: AnyTool
+  /** The call, with its id and the raw arguments text. */
+  toolCall: ToolCall
+  /** The input that failed, after approval edits and middleware. */
+  input: unknown
+  /** The validation error. A Standard Schema error also has `issues`. */
+  error: Error
+}
+
+/**
  * Options passed into the SDK and further piped to the AI provider.
  */
 export interface TextOptions<
@@ -1314,6 +1337,16 @@ export interface TextOptions<
    * starts them together, and `'sequential'` runs them one at a time.
    */
   toolExecution?: 'parallel' | 'sequential'
+  /**
+   * How a tool input that fails the final check is repaired. By default,
+   * common model mistakes such as `"5"` for a number are repaired against the
+   * schema. `false` turns the repair off. A function replaces the built-in
+   * repair: it returns the input to check again, or `undefined` to send the
+   * validation error to the model.
+   */
+  repairToolInput?:
+    | false
+    | ((context: ToolInputRepairContext) => unknown | Promise<unknown>)
   /**
    * Retry a model call when the provider error has a wait time (usually a
    * 429). `chat()` waits for the `retryAfterMs` time of the `RUN_ERROR`, then

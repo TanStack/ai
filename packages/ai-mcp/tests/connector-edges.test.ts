@@ -1,3 +1,4 @@
+import { memoryCredentialStore } from '@tanstack/ai/byok/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { EventType } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
@@ -9,7 +10,7 @@ import {
 import { mcpConnector } from '../src/connector'
 import { approveSignIns, recorder } from './connector-helpers'
 import { startProtectedServer } from './protected-server'
-import type { Credential } from '@tanstack/ai-persistence'
+import type { Credential } from '@tanstack/ai/byok'
 import type {
   HarnessHost,
   HarnessSession,
@@ -29,11 +30,11 @@ async function setup(
   const server = await startProtectedServer(serverOptions)
   cleanups.push(() => server.close())
   const persistence = memoryPersistence()
-  if (credential)
-    await persistence.stores.credentials.set({ scope, id: 'demo', credential })
-  const host = createHarnessHost({ persistence })
+  const credentials = memoryCredentialStore()
+  if (credential) await credentials.set({ scope, id: 'demo', credential })
+  const host = createHarnessHost({ persistence, credentials })
   cleanups.push(() => host.close())
-  return { server, persistence, host }
+  return { server, credentials, host }
 }
 
 /** A harness with only the `demo` connector, with default options. */
@@ -69,7 +70,7 @@ async function promptAndCollect(session: HarnessSession, text: string) {
     }))
       seen.push(entry)
   })()
-  await session.prompt(text)
+  await session.send(text)
   controller.abort()
   await reading
   return seen
@@ -97,7 +98,7 @@ describe('mcpConnector with a saved sign-in', () => {
     })
     const model = recorder('demo_echo')
     const session = await openDemo(host, server.url, model)
-    await session.prompt('echo')
+    await session.send('echo')
     expect(model.toolNames(0)).toEqual(['demo_echo'])
     expect(JSON.stringify(model.calls[1]?.messages)).toContain('echo: hi')
     // The status prompt is empty once connected.
@@ -121,7 +122,7 @@ describe('mcpConnector with a saved sign-in', () => {
   ])(
     'refreshes an expired token with $redirect and keeps the old refresh token and client',
     async ({ client, redirectUri }) => {
-      const { server, persistence, host } = await setup({
+      const { server, credentials, host } = await setup({
         type: 'oauth',
         accessToken: 'stale',
         refreshToken: 'refresh-1',
@@ -130,16 +131,14 @@ describe('mcpConnector with a saved sign-in', () => {
       })
       const model = recorder('demo_echo')
       const session = await openDemo(host, server.url, model)
-      await session.prompt('echo')
+      await session.send('echo')
       expect(model.toolNames(0)).toEqual(['demo_echo'])
       expect(
         server.seen.tokenRequests.map((form) => form.get('grant_type')),
       ).toEqual(['refresh_token'])
       expect(server.seen.registrations).toHaveLength(0)
       // A sign-in saved without an issuer gets the issuer of this server.
-      expect(
-        await persistence.stores.credentials.get({ scope, id: 'demo' }),
-      ).toEqual({
+      expect(await credentials.get({ scope, id: 'demo' })).toEqual({
         type: 'oauth',
         accessToken: 'access-2',
         refreshToken: 'refresh-1',
@@ -174,7 +173,7 @@ describe('mcpConnector with a saved sign-in', () => {
   }>)(
     'drops the tools and asks the user to run /connect when $failure',
     async ({ credential, revoke, kept }) => {
-      const { server, persistence, host } = await setup(credential)
+      const { server, credentials, host } = await setup(credential)
       for (const token of revoke) server.revoke(token)
       const model = recorder()
       const session = await openDemo(host, server.url, model)
@@ -194,7 +193,7 @@ describe('mcpConnector with a saved sign-in', () => {
       expect(JSON.stringify(model.calls[0]?.systemPrompts)).toContain(
         'run /connect demo',
       )
-      const saved = await persistence.stores.credentials.get({
+      const saved = await credentials.get({
         scope,
         id: 'demo',
       })
@@ -203,7 +202,7 @@ describe('mcpConnector with a saved sign-in', () => {
   )
 
   it('keeps the sign-in and a connection error when the network is down', async () => {
-    const { server, persistence, host } = await setup({
+    const { server, credentials, host } = await setup({
       type: 'oauth',
       accessToken: 'access-1',
     })
@@ -235,9 +234,7 @@ describe('mcpConnector with a saved sign-in', () => {
     expect(JSON.stringify(model.calls[0]?.systemPrompts ?? [])).not.toContain(
       'is not connected',
     )
-    expect(
-      await persistence.stores.credentials.get({ scope, id: 'demo' }),
-    ).toEqual({
+    expect(await credentials.get({ scope, id: 'demo' })).toEqual({
       type: 'oauth',
       accessToken: 'access-1',
     })
@@ -246,7 +243,7 @@ describe('mcpConnector with a saved sign-in', () => {
 
 describe('mcpConnector /connect', () => {
   it('asks for scopes, shows the client name, and uses the prefix and approval rule', async () => {
-    const { server, persistence, host } = await setup()
+    const { server, credentials, host } = await setup()
     const model = recorder()
     const session = await host.open(
       defineHarness({
@@ -276,9 +273,7 @@ describe('mcpConnector /connect', () => {
       client_name: 'Acme Agent',
       scope: 'read',
     })
-    expect(
-      await persistence.stores.credentials.get({ scope, id: 'demo' }),
-    ).toMatchObject({
+    expect(await credentials.get({ scope, id: 'demo' })).toMatchObject({
       scopes: ['read', 'write'],
       client: {
         clientId: 'client-1',
@@ -286,7 +281,7 @@ describe('mcpConnector /connect', () => {
       },
     })
 
-    await session.prompt('hi')
+    await session.send('hi')
     expect(model.toolNames(0)).toEqual(['d_echo'])
     expect(model.calls[0]?.tools?.[0]?.needsApproval).toBe(true)
   })
@@ -308,15 +303,13 @@ describe('mcpConnector /connect', () => {
   ] satisfies Array<{ before: string; earlier: Credential | undefined }>)(
     'saves only the new sign-in, which gives no refresh token, after $before',
     async ({ earlier }) => {
-      const { persistence, host, server } = await setup(earlier)
+      const { credentials, host, server } = await setup(earlier)
       const session = await openDemo(host, server.url)
       const browser = approveSignIns(session, 'code-2')
       cleanups.push(browser.stop)
 
       expect(await session.command('connect:demo')).toBe('Connected to Demo.')
-      expect(
-        await persistence.stores.credentials.get({ scope, id: 'demo' }),
-      ).toEqual({
+      expect(await credentials.get({ scope, id: 'demo' })).toEqual({
         type: 'oauth',
         accessToken: 'access-1',
         client: {
@@ -332,7 +325,7 @@ describe('mcpConnector /connect', () => {
     // The SDK prints its SEP-2352 warnings with console.warn.
     const warn = vi.spyOn(console, 'warn')
     cleanups.push(() => warn.mockRestore())
-    const { server, persistence, host } = await setup()
+    const { server, credentials, host } = await setup()
     const model = recorder()
     const session = await openDemo(host, server.url, model)
     const browser = approveSignIns(session, 'code-1')
@@ -341,14 +334,12 @@ describe('mcpConnector /connect', () => {
 
     // The server stops taking the first token, so the next turn refreshes it.
     server.revoke('access-1')
-    await session.prompt('hi')
+    await session.send('hi')
     expect(model.toolNames(0)).toEqual(['demo_echo'])
     expect(
       server.seen.tokenRequests.map((form) => form.get('grant_type')),
     ).toEqual(['authorization_code', 'refresh_token'])
-    expect(
-      await persistence.stores.credentials.get({ scope, id: 'demo' }),
-    ).toMatchObject({
+    expect(await credentials.get({ scope, id: 'demo' })).toMatchObject({
       accessToken: 'access-2',
       refreshToken: 'refresh-1',
       client: { clientId: 'client-1', issuer: server.issuer },
@@ -360,16 +351,16 @@ describe('mcpConnector /connect', () => {
   })
 
   it('passes the iss of the callback on, for a server that sends one (RFC 9207)', async () => {
-    const { server, persistence, host } = await setup(undefined, {
+    const { server, credentials, host } = await setup(undefined, {
       issParameter: true,
     })
     const session = await openDemo(host, server.url, recorder())
     const browser = approveSignIns(session, 'code-1', server.issuer)
     cleanups.push(browser.stop)
     expect(await session.command('connect:demo')).toBe('Connected to Demo.')
-    expect(
-      await persistence.stores.credentials.get({ scope, id: 'demo' }),
-    ).toMatchObject({ accessToken: 'access-1' })
+    expect(await credentials.get({ scope, id: 'demo' })).toMatchObject({
+      accessToken: 'access-1',
+    })
   })
 
   it.each([
@@ -393,7 +384,7 @@ describe('mcpConnector /connect', () => {
   }>)(
     'keeps $before when a new sign-in fails',
     async ({ earlier, tools, asks }) => {
-      const { persistence, host, server } = await setup(earlier)
+      const { credentials, host, server } = await setup(earlier)
       const model = recorder()
       const session = await openDemo(host, server.url, model)
       const browser = approveSignIns(session, 'wrong-code')
@@ -402,10 +393,10 @@ describe('mcpConnector /connect', () => {
       await expect(session.command('connect:demo')).rejects.toMatchObject({
         code: 'invalid_grant',
       })
-      expect(
-        await persistence.stores.credentials.get({ scope, id: 'demo' }),
-      ).toEqual(earlier ?? null)
-      await session.prompt('hi')
+      expect(await credentials.get({ scope, id: 'demo' })).toEqual(
+        earlier ?? null,
+      )
+      await session.send('hi')
       expect(model.toolNames(0)).toEqual(tools)
       expect(
         JSON.stringify(model.calls[0]?.systemPrompts ?? []).includes(
@@ -418,14 +409,14 @@ describe('mcpConnector /connect', () => {
 
 describe('mcpConnector stored credential shapes', () => {
   it('works with a bare token, reuses the tools, and signs out before any tool call', async () => {
-    const { server, persistence, host } = await setup({
+    const { server, credentials, host } = await setup({
       type: 'oauth',
       accessToken: 'access-1',
     })
     const model = recorder()
     const session = await openDemo(host, server.url, model)
-    await session.prompt('one')
-    await session.prompt('two')
+    await session.send('one')
+    await session.send('two')
     expect(model.toolNames(0)).toEqual(['demo_echo'])
     expect(model.toolNames(1)).toEqual(['demo_echo'])
 
@@ -433,9 +424,7 @@ describe('mcpConnector stored credential shapes', () => {
     expect(await fresh.command('disconnect:demo')).toBe(
       'Disconnected from Demo.',
     )
-    expect(
-      await persistence.stores.credentials.get({ scope, id: 'demo' }),
-    ).toBeNull()
+    expect(await credentials.get({ scope, id: 'demo' })).toBeNull()
   })
 
   it('refreshes a token saved without a client, and keeps a client secret', async () => {
@@ -446,9 +435,9 @@ describe('mcpConnector stored credential shapes', () => {
     })
     const model = recorder()
     const session = await openDemo(bare.host, bare.server.url, model)
-    await session.prompt('hi')
+    await session.send('hi')
     expect(model.toolNames(0)).toEqual(['demo_echo'])
-    const saved = await bare.persistence.stores.credentials.get({
+    const saved = await bare.credentials.get({
       scope,
       id: 'demo',
     })
@@ -467,9 +456,9 @@ describe('mcpConnector stored credential shapes', () => {
       client: { clientId: 'client-1', clientSecret: 'secret-1' },
     })
     const other = await openDemo(withSecret.host, withSecret.server.url)
-    await other.prompt('hi')
+    await other.send('hi')
     expect(
-      await withSecret.persistence.stores.credentials.get({
+      await withSecret.credentials.get({
         scope,
         id: 'demo',
       }),
@@ -486,7 +475,7 @@ describe('mcpConnector stored credential shapes', () => {
     })
     const model = recorder()
     const session = await openDemo(host, server.url, model)
-    await session.prompt('hi')
+    await session.send('hi')
     expect(model.toolNames(0)).toEqual([])
   })
 })
@@ -513,7 +502,7 @@ describe('mcpConnector client options', () => {
       }),
       { threadId: 't', principal: { id: 'user-1' } },
     )
-    await session.prompt('hi')
+    await session.send('hi')
     expect(model.toolNames(0)).toEqual(['mcp__demo__echo'])
   })
 

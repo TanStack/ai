@@ -58,6 +58,8 @@ export const assistant = defineHarness({
 
 `agents` are agents you run from code. Put an agent in `subagents` instead when the model must call it as a tool, the same as in `chat()`.
 
+To ship the harness to users with no `.env` file, let each user connect their own key. See [Connect model providers](./provider-keys).
+
 ## 2. Open a session
 
 A host runs sessions. Give it the stores from `@tanstack/ai-persistence`, then open a session for a conversation id.
@@ -72,21 +74,21 @@ const session = await host.open(assistant, { threadId: 'thread-1' })
 
 Opening the same `threadId` again returns the live session.
 
-## 3. Send a prompt
+## 3. Send a message
 
-`prompt` returns an operation. Await it for the text of the turn.
+`send` returns an operation. Await it for the text of the turn.
 
 ```ts group=harness-first
-const turn = await session.prompt('Write a haiku about the sea.')
+const turn = await session.send('Write a haiku about the sea.')
 console.log(turn.text)
 ```
 
-The session saves the transcript, so the next prompt continues the same conversation.
+The session saves the transcript, so the next message continues the same conversation.
 
 Want the words as they arrive? Give the operation a listener for the event type you care about:
 
 ```ts group=harness-first
-const next = session.prompt('Now one about the mountains.')
+const next = session.send('Now one about the mountains.')
 next.onEvent('TEXT_MESSAGE_CONTENT', ({ event }) => {
   process.stdout.write(event.delta)
 })
@@ -99,14 +101,16 @@ The events are standard AG-UI events, and `event` has the type you asked for. To
 
 Users type while the agent works. Pick what a new message does:
 
-- `session.prompt(text)`: runs after the current turn. This is the default.
-- `session.prompt(text, { busy: 'reject' })`: refuses the message while a turn runs.
-- `session.steer(text)`: adds the message to the running turn, before its next model call.
-- `session.followUp(text)`: runs after all current work.
+- `session.send(text)`: runs after the current turn. This is the default.
+- `session.send(text, { busy: 'reject' })`: refuses the message while a turn runs.
+- `session.send(text, { mode: 'steer' })`: adds the message to the running turn, before its next model call. The operation ends with that turn.
+- `session.send(text, { mode: 'followUp' })`: runs after all current work.
+
+Each call returns an operation. `await operation.receipt` resolves when the session stored the message.
 
 ```ts group=harness-first
-const long = session.prompt('Plan a three-day trip to Lisbon.')
-await session.steer('Keep it under 500 euros.')
+const long = session.send('Plan a three-day trip to Lisbon.')
+await session.send('Keep it under 500 euros.', { mode: 'steer' })
 await long
 ```
 

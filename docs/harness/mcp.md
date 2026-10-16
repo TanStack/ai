@@ -98,7 +98,7 @@ The sign-in follows the MCP authorization spec:
 
 - The connector reads the server's OAuth metadata and registers a client for this sign-in.
 - It signs in with PKCE and a random `state`, and listens on `127.0.0.1` for one callback.
-- The token and the registered client go into `stores.credentials`. The next start of the harness uses them, so the user signs in once.
+- The token and the registered client go into the `credentials` store of the host. The next start of the harness uses them, so the user signs in once.
 - A new `/connect linear` replaces them. Nothing from the old sign-in stays.
 - `/disconnect linear` deletes them.
 

@@ -274,6 +274,56 @@ Stop tailing and drop the connection. Keeps messages, the run pointer and the ru
 id, so a later `attach()` continues where it left off. See
 [Lifecycle](#lifecycle-attach-and-detach).
 
+#### `getSnapshot()`
+
+Returns the current `ChatClientSnapshot`. The field names are
+`messages`, `status`, `isLoading`, `error`, `queue`, `runId`, `isSubscribed`,
+`connectionStatus`, `sessionGenerating`, `hasOlderMessages`, `isHydrating`,
+and `interruptState`. The snapshot object, `messages`, `queue`, and their
+entries are frozen copies. `interruptState` is not copied. In-place
+`messages.push` throws. Use `setMessages`.
+
+`subscribeSnapshot(listener)` returns an unsubscribe function. It does not
+fire with the current value. Read `getSnapshot()` first. This is not
+`subscribe()`, which starts the live connection loop.
+
+```typescript
+import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-client";
+
+const client = new ChatClient({
+  connection: fetchServerSentEvents("/api/chat"),
+});
+
+function logSnapshot() {
+  const snapshot = client.getSnapshot();
+  console.log(snapshot.status, snapshot.messages.length);
+}
+
+logSnapshot();
+
+const unsubscribe = client.subscribeSnapshot(() => {
+  logSnapshot();
+});
+
+client.attach();
+client.sendMessage("Hello");
+```
+
+`GenerationClient`, `VideoGenerationClient`, `RealtimeClient`, and
+`ByokClient` use `subscribe(listener)` / `getSnapshot()`. The listener takes
+no argument. Call `getSnapshot()` inside it. A listener that throws does not
+skip the other listeners. The error goes to `reportError` in the browser and
+to `console.error` in other runtimes.
+
+When `RealtimeClient.connect()` connects, it clears the previous transcript.
+A transcript that arrives while the microphone starts is kept. A failed
+connection keeps the previous transcript. Snapshot `parts` are frozen at
+runtime, but their TypeScript type stays mutable. Tool `input`, `output`, and
+subagent transcripts on a snapshot are copies.
+
+`AudioRecorder.subscribe` still passes the new state:
+`subscribe((state) => ...)`. `getSnapshot()` returns that same state value.
+
 #### `stop()`
 
 Stops the current response generation. It aborts the in-flight request.
@@ -296,7 +346,7 @@ import { client } from "./client";
 client.clear();
 ```
 
-#### `setMessagesManually(messages: UIMessage[])`
+#### `setMessagesManually(messages: ReadonlyArray<UIMessage>)`
 
 Manually sets the messages array.
 

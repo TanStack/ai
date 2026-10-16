@@ -104,7 +104,7 @@ async function promptsOfOneTurn(
 ) {
   const { adapter, calls } = okModel()
   const { host, session } = await open(adapter, [projectInstructions(options)])
-  await session.prompt('hi')
+  await session.send('hi')
   await host.close()
   return calls[0].systemPrompts
 }
@@ -147,9 +147,9 @@ describe('projectInstructions', () => {
       projectInstructions({ root, env: false }),
     ])
 
-    await session.prompt('one')
+    await session.send('one')
     await change('project/AGENTS.md', 'Use spaces.', 1)
-    await session.prompt('two')
+    await session.send('two')
     await host.close()
 
     expect(calls[1].systemPrompts).toEqual([
@@ -169,10 +169,10 @@ describe('projectInstructions', () => {
       projectInstructions({ root, env: false }),
     ])
 
-    await session.prompt('one')
+    await session.send('one')
     await rm(join(root, 'AGENTS.md'))
     await put('project/CLAUDE.md', 'Be brief.')
-    await session.prompt('two')
+    await session.send('two')
     await host.close()
 
     expect(calls[1].systemPrompts).toEqual([
@@ -190,10 +190,10 @@ describe('projectInstructions', () => {
       projectInstructions({ root, files: ['AGENTS.md'], env: false }),
     ])
 
-    await session.prompt('turn 0')
+    await session.send('turn 0')
     for (let version = 1; version <= 9; version++) {
       await change('project/AGENTS.md', `Version ${version}.`, version)
-      await session.prompt(`turn ${version}`)
+      await session.send(`turn ${version}`)
     }
     await host.close()
 

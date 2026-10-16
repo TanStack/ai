@@ -204,7 +204,9 @@ export interface PluginCommands {
   /**
    * Resolves when every plugin of the session is set up. Wait for it before
    * `has` or `set`: during `setup`, the plugins after this one have not
-   * added their commands yet.
+   * added their commands yet. Do not `await` it inside `setup`: it resolves
+   * after every `setup` returned, so that `await` never ends. Use
+   * `ready.then(...)` there, or wait in a session hook.
    */
   ready: Promise<void>
 }
@@ -500,7 +502,7 @@ const NO_SESSION: PluginSessionApi = {
   threadId: '',
   principal: undefined,
   snapshot: unavailable('ctx.session'),
-  prompt: unavailable('ctx.session'),
+  send: unavailable('ctx.session'),
   note: unavailable('ctx.session'),
   transcript: unavailable('ctx.session'),
   replaceTranscript: unavailable('ctx.session'),

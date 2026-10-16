@@ -66,7 +66,7 @@ describe('background work after a crash', () => {
       }),
       { threadId: THREAD },
     )
-    const turn = crashed.prompt('Wait')
+    const turn = crashed.send('Wait')
     await started.opened
     expect(await crashed.background('call-1')).toMatchObject({
       status: 'accepted',
@@ -117,7 +117,7 @@ describe('background work after a crash', () => {
       }),
       { threadId: THREAD },
     )
-    void Promise.resolve(crashed.prompt('Remind me')).catch(() => {})
+    void Promise.resolve(crashed.send('Remind me')).catch(() => {})
     await noted.opened
     await vi.waitFor(() => expect(first.calls).toHaveLength(2))
 

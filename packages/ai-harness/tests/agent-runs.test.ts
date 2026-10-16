@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness, harnessContext } from '../src'
+import { createHarnessHost, defineHarness } from '../src'
 import {
   after,
   gate,
@@ -213,7 +213,7 @@ describe('follow-ups to an agent run', () => {
       records: [{ type: 'app.from-another-host' }],
     })
 
-    await Promise.resolve(session.prompt('Next.')).catch(() => {})
+    await Promise.resolve(session.send('Next.')).catch(() => {})
 
     await expect(followUp).rejects.toThrow('Session closed.')
     expect(model.calls).toHaveLength(1)
@@ -247,10 +247,7 @@ describe('follow-ups to an agent run', () => {
     const { host, session } = await open(writing(mockAdapter([]).adapter))
 
     expect(
-      await session.sendToAgent({
-        operationId: 'op-agent-none',
-        message: 'Hello.',
-      }),
+      await session.send('Hello.', { to: 'op-agent-none' }).receipt,
     ).toMatchObject({
       status: 'rejected',
       reason: 'not_running',
@@ -293,11 +290,10 @@ describe('steers to an agent run', () => {
     const run = session.agents.researcher.start()
     await vi.waitFor(() => expect(model.calls).toHaveLength(1))
 
-    const receipt = await session.sendToAgent({
-      operationId: run.id,
-      message: 'Ignore the brief.',
+    const receipt = await session.send('Ignore the brief.', {
+      to: run.id,
       principal: { id: 'bob' },
-    })
+    }).receipt
     release.open()
     await run
     await vi.waitFor(() => expect(model.calls).toHaveLength(3))
@@ -404,11 +400,10 @@ describe('agentRuns() and agentRun(id)', () => {
     const run = session.agents.researcher.start()
     await vi.waitFor(() => expect(model.calls).toHaveLength(1))
 
-    const receipt = await session.sendToAgent({
-      operationId: run.id,
-      message: 'Ignore the brief.',
+    const receipt = await session.send('Ignore the brief.', {
+      to: run.id,
       principal: { id: 'bob' },
-    })
+    }).receipt
     release.open()
     await run
     await vi.waitFor(() => expect(model.calls).toHaveLength(3))
@@ -438,7 +433,7 @@ describe('agents that agent code starts', () => {
       name: 'lead',
       description: 'Starts a helper',
       run: async (ctx) => {
-        const child = harnessContext(ctx).agents.start('helper')
+        const child = ctx.harness.agents.start('helper')
         childId = child.id
         return await child
       },
@@ -478,7 +473,7 @@ describe('agents that agent code starts', () => {
       description: 'Starts a helper',
       run: async (ctx) => {
         try {
-          harnessContext(ctx).agents.start('helper')
+          ctx.harness.agents.start('helper')
           return 'started'
         } catch (error) {
           return String(error)
@@ -521,7 +516,7 @@ describe('agents that agent code starts', () => {
       name: 'lead',
       description: 'Starts a waiter, then waits',
       run: (ctx) => {
-        void harnessContext(ctx).agents.start('waiter')
+        void ctx.harness.agents.start('waiter')
         return waitForAbort('lead', ctx.abortSignal)
       },
     })

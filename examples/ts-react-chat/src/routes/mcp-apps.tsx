@@ -82,7 +82,7 @@ function Messages({
   messages,
   bridge,
 }: {
-  messages: Array<UIMessage>
+  messages: ReadonlyArray<UIMessage>
   bridge: McpAppBridge
 }) {
   const visible = messages.filter((m) =>

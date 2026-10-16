@@ -9,7 +9,13 @@ import {
 } from '../src/view/reduce'
 import { at, sessionSnapshot } from './view-fixtures'
 import type { ModelMessage } from '@tanstack/ai'
-import type { MediaRecord, Receipt, SessionEvent, UserInput } from '../src'
+import type {
+  MediaKind,
+  MediaRecord,
+  Receipt,
+  SessionEvent,
+  UserInput,
+} from '../src'
 import type {
   MediaPart,
   SessionView,
@@ -22,18 +28,32 @@ const MINUTE = 60_000
 const HOUR = 60 * MINUTE
 const receipt: Receipt = { inputId: 'i', status: 'accepted' }
 
-function record(over: Partial<MediaRecord> = {}): MediaRecord {
-  return {
-    id: 'm1',
-    threadId: 't',
-    kind: 'image',
-    mimeType: 'image/png',
-    name: 'cat.png',
-    size: 3,
-    source: 'generated',
-    createdAt: 0,
-    ...over,
-  }
+const base = {
+  id: 'm1',
+  threadId: 't',
+  kind: 'image' as MediaKind,
+  mimeType: 'image/png',
+  name: 'cat.png',
+  size: 3,
+  createdAt: 0,
+}
+
+function record(
+  over: Partial<typeof base> & {
+    source?: 'generated' | 'user'
+    subagentRunId?: string
+  } = {},
+): MediaRecord {
+  const { source = 'generated', subagentRunId, ...rest } = over
+  return source === 'user'
+    ? { ...base, ...rest, source }
+    : {
+        ...base,
+        ...rest,
+        source,
+        runId: 'r1',
+        ...(subagentRunId ? { subagentRunId } : {}),
+      }
 }
 
 /** The media part the view shows for `record()`, with `over` on top. */
@@ -109,10 +129,7 @@ async function openView(over: Partial<SessionViewSource> = {}) {
   const sent: Array<UserInput> = []
   const commands: Array<{ name: string; input: unknown }> = []
   const source: SessionViewSource = {
-    prompt: (message) => {
-      sent.push(message)
-    },
-    steer: async (message) => {
+    send: async (message) => {
       sent.push(message)
       return receipt
     },

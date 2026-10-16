@@ -88,8 +88,8 @@ function createFake(overrides: Partial<SessionViewSource>) {
     return accepted
   }
   const source: SessionViewSource = {
-    prompt: (message) => accept({ op: 'prompt', message }),
-    steer: (message) => accept({ op: 'steer', message }),
+    send: (message, options) =>
+      accept({ op: options?.mode ?? 'prompt', message }),
     resolve: (resume) => accept({ op: 'resolve', resume }),
     cancel: () => accept({ op: 'cancel' }),
     answer: ({ questionId, value }) =>
@@ -457,14 +457,14 @@ describe('session view actions', () => {
     {
       action: 'a steer',
       overrides: {
-        steer: down,
+        send: down,
         snapshot: () => sessionSnapshot({ status: 'running' }),
       },
       act: (view) => view.send('faster'),
     },
     {
       action: 'a remote prompt',
-      overrides: { prompt: down },
+      overrides: { send: down },
       act: (view) => view.send('hi'),
     },
     {
@@ -493,7 +493,7 @@ describe('session view actions', () => {
   it('adds nothing when a local operation fails', async () => {
     const { view, errors } = await openView({
       // A local session returns an Operation. It reports failures as events.
-      prompt: () =>
+      send: () =>
         Object.assign(Promise.reject(new Error('turn failed')), {
           status: () => 'failed',
         }),
@@ -828,7 +828,7 @@ describe('session view inputs', () => {
     const calls: Array<Array<unknown>> = []
     const record = recorder(calls)
     const { view, errors } = await openView({
-      followUp: record('followUp'),
+      send: record('followUp'),
       continue: record('continue'),
       cancel: record('cancel'),
       cancelInput: record('cancelInput'),
@@ -851,7 +851,7 @@ describe('session view inputs', () => {
     await drain()
 
     expect(calls).toEqual([
-      ['followUp', 'then the tests'],
+      ['followUp', 'then the tests', { mode: 'followUp' }],
       ['continue'],
       ['cancel', 'op-2'],
       ['cancelInput', 'in-1'],
@@ -870,13 +870,11 @@ describe('session view inputs', () => {
   it('shows an error for an action the source does not have', async () => {
     const { view, errors } = await openView()
 
-    await view.followUp('later')
     await view.reset()
     await view.continue()
     await drain()
 
     expect(errors).toEqual([
-      'This view source cannot follow up.',
       'This view source cannot reset.',
       'This view source cannot continue.',
     ])

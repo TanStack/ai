@@ -211,7 +211,7 @@ async function firstToolNames(options: {
     }),
     { threadId: 't' },
   )
-  await session.prompt('hi')
+  await session.send('hi')
   await host.close()
   return calls[0].tools.map((tool: { name: string }) => tool.name)
 }
@@ -233,7 +233,7 @@ describe('codeMode', () => {
       }),
       { threadId: 't' },
     )
-    const turn = await session.prompt('look it up')
+    const turn = await session.send('look it up')
     expect(turn.text).toBe('done')
 
     const names = calls[0].tools.map((tool: { name: string }) => tool.name)
@@ -270,7 +270,7 @@ describe('codeMode', () => {
       }),
       { threadId: 'picked' },
     )
-    await picked.prompt('hi')
+    await picked.send('hi')
     expect(calls[0].tools.map((tool: { name: string }) => tool.name)).toEqual([
       'lookup',
       'execute_typescript',
@@ -285,7 +285,7 @@ describe('codeMode', () => {
       }),
       { threadId: 'none' },
     )
-    await none.prompt('hi')
+    await none.send('hi')
     expect(calls[1].tools.map((tool: { name: string }) => tool.name)).toEqual([
       'remove',
     ])
@@ -311,7 +311,7 @@ describe('codeMode', () => {
       }),
       { threadId: 't' },
     )
-    expect((await session.prompt('what can you call?')).text).toBe('found it')
+    expect((await session.send('what can you call?')).text).toBe('found it')
 
     expect(calls[0].tools.map((tool: { name: string }) => tool.name)).toEqual([
       'remove',
@@ -364,7 +364,7 @@ describe('codeMode', () => {
       }),
       { threadId: 't' },
     )
-    await session.prompt('search')
+    await session.send('search')
     // web_search clashes with web-search after the rename, so it stays direct.
     expect(calls[0].tools.map((tool: { name: string }) => tool.name)).toEqual([
       'web_search',
@@ -506,7 +506,7 @@ describe('codeMode', () => {
         { threadId: 't' },
       )
       if (mode === 'plan') await session.command('mode', 'plan')
-      expect((await session.prompt('look it up')).text).toBe('done')
+      expect((await session.send('look it up')).text).toBe('done')
       // The program ran: a question would wait, and plan mode would deny it.
       expect(seen).toHaveLength(1)
       await host.close()
@@ -532,7 +532,7 @@ describe('codeMode', () => {
       }),
       { threadId: 't' },
     )
-    const turn = session.prompt('look it up')
+    const turn = session.send('look it up')
     await vi.waitFor(() =>
       expect(session.snapshot().pendingQuestions).toHaveLength(1),
     )
@@ -570,11 +570,11 @@ describe('codeMode', () => {
       }),
       { threadId: 't' },
     )
-    await session.prompt('first')
+    await session.send('first')
     expect(JSON.stringify(calls[0].systemPrompts)).toContain('external_lookup')
 
     isBroken = true
-    await session.prompt('second')
+    await session.send('second')
     // The harness keeps the tool list as it was, without the old prompt.
     expect(calls[1].tools.map((tool: { name: string }) => tool.name)).toEqual([
       'lookup',

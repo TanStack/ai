@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test'
 import type { PhaseCapture } from '../src/lib/phase-capture'
 import { expect, test } from './fixtures'
+import { collectHydrationErrors } from './helpers'
 
 const genericMode = 'generic-lifecycle'
 
@@ -320,6 +321,7 @@ test('restores a pending generic interrupt after reload and resumes it', async (
   aimockPort,
 }) => {
   await startScenario(page, testId, aimockPort, 'generic-before-model')
+  const hydrationErrors = collectHydrationErrors(page)
   await page.reload()
   await expect(page.getByTestId('generic-review-plan')).toBeVisible()
   await resolveReview(page)
@@ -331,4 +333,5 @@ test('restores a pending generic interrupt after reload and resumes it', async (
   expect(capture.resolutions).toEqual([
     expect.objectContaining({ status: 'resolved' }),
   ])
+  expect(hydrationErrors).toEqual([])
 })

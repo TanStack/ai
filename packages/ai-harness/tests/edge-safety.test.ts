@@ -17,9 +17,13 @@ const srcDir = resolve(here, '..', 'src')
 
 /**
  * Node-only entry points, relative to `src`. A path that ends with `/` allows
- * the whole folder: `first-party/coding/` is the Node-only `plugins/coding` entry.
+ * the whole folder. `build.ts` and `worker.ts` are the Node-only `./build`
+ * and `./worker` entries. `first-party/coding/` is the Node-only
+ * `plugins/coding` entry.
  */
-const ALLOWED = [
+const ALLOWED: Array<string> = [
+  'build.ts',
+  'worker.ts',
   'first-party/files.ts',
   'first-party/bound-output.ts',
   'first-party/coding/',

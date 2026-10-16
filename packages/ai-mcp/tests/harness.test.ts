@@ -16,7 +16,7 @@ import {
   defineHarness,
   definePlugin,
 } from '@tanstack/ai-harness'
-import { memoryPersistence } from '@tanstack/ai-persistence'
+import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { afterEach, describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { createHarnessMcpServer } from '../src/harness'
@@ -540,6 +540,89 @@ describe('createHarnessMcpServer', () => {
 
     const listed = await client.listTools()
     expect(listed.tools.map((tool) => tool.name).sort()).toEqual(controlTools)
+  })
+
+  it('runs an exposed harness tool with no model call', async () => {
+    const stats = toolDefinition({
+      name: 'fetch_stats',
+      description: 'Fetch the stats of a queue',
+      inputSchema: z.object({ queue: z.string() }),
+    }).server(async ({ queue }) => ({ queue, open: 7 }))
+    const hidden = toolDefinition({
+      name: 'hidden',
+      description: 'Not exposed',
+      inputSchema: z.object({}),
+    }).server(async () => 'no')
+    const model = scripted([])
+    const { server } = await serve(
+      defineHarness({
+        name: 'test/tools',
+        adapter: model.adapter,
+        tools: [stats, hidden],
+        expose: { tools: ['fetch_stats'] },
+      }),
+    )
+    const { client } = await connect(server)
+
+    const listed = await client.listTools()
+    const names = listed.tools.map((tool) => tool.name)
+    expect(names).toContain('tool_fetch_stats')
+    expect(names).not.toContain('tool_hidden')
+    const result = await client.callTool({
+      name: 'tool_fetch_stats',
+      arguments: { queue: 'billing' },
+    })
+    expect(result.isError).toBeFalsy()
+    expect(model.calls).toHaveLength(0)
+  })
+
+  it('adds the exposed record types to the session log with append', async () => {
+    const model = scripted([])
+    const harness = defineHarness({
+      name: 'test/append',
+      adapter: model.adapter,
+      expose: { records: ['app.signal'] },
+    })
+    const { runs, metadata } = memoryPersistence().stores
+    const log = memoryLogStore()
+    const host = createHarnessHost({
+      persistence: { stores: { log, runs, metadata } },
+    })
+    cleanups.push(() => host.close())
+    const server = await createHarnessMcpServer({ host, harness })
+    const { client } = await connect(server)
+
+    const ok = await client.callTool({
+      name: 'append',
+      arguments: { threadId: 't-sig', records: [{ type: 'app.signal', n: 1 }] },
+    })
+    expect(ok.isError).toBeFalsy()
+    const stored = await log.read('t-sig')
+    expect(JSON.stringify(stored)).toContain('"type":"app.signal"')
+    const refused = await client.callTool({
+      name: 'append',
+      arguments: { records: [{ type: 'app.other' }] },
+    })
+    expect(refused.isError).toBe(true)
+  })
+
+  it('refuses a tool input that has its own threadId field', async () => {
+    const lookup = toolDefinition({
+      name: 'lookup',
+      description: 'Looks up a thread',
+      inputSchema: z.object({ threadId: z.string() }),
+    }).server(async () => 'found')
+    const model = scripted([])
+    await expect(
+      serve(
+        defineHarness({
+          name: 'test/clash',
+          adapter: model.adapter,
+          tools: [lookup],
+          expose: { tools: ['lookup'] },
+        }),
+      ),
+    ).rejects.toThrow(/cannot have a threadId field/)
   })
 
   it('gives command names that clash as tool names distinct tool names, in name order', async () => {
@@ -1318,7 +1401,7 @@ describe('createHarnessMcpServer', () => {
       arguments: { message: 'work' },
     })
     await held.hold.reached
-    await (await session()).followUp('then this')
+    await (await session()).send('then this', { mode: 'followUp' }).receipt
     const agent = client.callTool({ name: 'agent_waiter', arguments: {} })
     await agentHold.reached
 

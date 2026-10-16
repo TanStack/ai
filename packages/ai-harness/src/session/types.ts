@@ -1,3 +1,4 @@
+import type { CredentialStore } from '@tanstack/ai/byok'
 import type {
   SubagentBudget,
   Interrupt,
@@ -8,11 +9,11 @@ import type {
   UIMessage,
 } from '@tanstack/ai'
 import type { OperationImpl } from '../operation'
+import type { ToolTurn } from '../tool-turn'
 import type {
   AIPersistence,
   ArtifactStore,
   BlobStore,
-  CredentialStore,
   GenerationRunStore,
   InboxStore,
   LogStore,
@@ -61,13 +62,19 @@ export interface AgentStartOptions extends AgentRunOptions {
    * On a durable host, when the host stops during the run, the host that
    * takes over runs the agent again with the same input, instead of failing
    * it. The agent code runs again from its start: put each side effect in
-   * `harnessContext(ctx).step.do(name, fn)`, so a finished step returns its
+   * `ctx.harness.step.do(name, fn)`, so a finished step returns its
    * stored value.
    * Its `ctx.chat` calls continue from their saved transcript. After
    * `durability.maxAttempts` runs (default 10), the run fails with
    * `attempts_exhausted`. A host without `stores.log` throws at start.
    */
   resume?: boolean
+  /**
+   * Who starts the agent. The run, its credentials, and its wake turn are
+   * theirs. Default: the sender of the running turn, else the principal that
+   * opened the session.
+   */
+  principal?: Principal
 }
 
 /** One agent run as a child of the session thread. */
@@ -234,6 +241,10 @@ export interface QueuedTurn {
   /** A `resume` input: the interrupted run it continues. */
   parentRunId?: string
   inputId?: string
+  /** Per-run system/developer messages prepended ahead of harness prompts. */
+  systemPreamble?: Array<string>
+  /** A `tool()`: its only model call asks for this tool. */
+  tool?: ToolTurn
   /** The settings of this one turn. Kept in memory only, not in the log. */
   overrides?: TurnOverrides
   /** The `ephemeral` messages of the input. Kept in memory only, as `overrides`. */

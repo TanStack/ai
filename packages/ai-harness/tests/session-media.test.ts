@@ -226,7 +226,7 @@ describe('media sent to a turn', () => {
       mimeType: 'image/png',
       name: 'cat.png',
     })
-    await session.prompt(askAbout(record))
+    await session.send(askAbout(record))
     return { host, session, record, calls }
   }
 
@@ -308,7 +308,7 @@ describe('media sent to a turn', () => {
         name: 'file',
       })
 
-      await expect(session.prompt(askAbout(record))).rejects.toThrow(message)
+      await expect(session.send(askAbout(record))).rejects.toThrow(message)
       expect(calls).toHaveLength(0)
       await host.close()
     },
@@ -324,7 +324,7 @@ describe('media sent to a turn', () => {
       name: 'voice.mp3',
     })
 
-    await session.prompt(askAbout(record))
+    await session.send(askAbout(record))
 
     expect(calls[0].messages[0].content).toEqual([
       { type: 'text', content: 'What is this?' },
@@ -364,7 +364,7 @@ describe('media an agent makes', () => {
       }),
     )
 
-    const turn = session.prompt('Paint a cat')
+    const turn = session.send('Paint a cat')
     await turn
     const events = await collect(turn.events({ from: '0' }))
 
@@ -391,7 +391,7 @@ describe('media an agent makes', () => {
       }),
     )
 
-    const turn = session.prompt('Paint a cat')
+    const turn = session.send('Paint a cat')
     const live: Array<MediaRecord> = []
     turn.onMedia(({ media }) => live.push(media))
     const result = await turn

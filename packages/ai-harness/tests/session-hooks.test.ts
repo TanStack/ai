@@ -78,7 +78,7 @@ describe('session event hooks', () => {
     const { host, session } = await open()
     const seen: Array<UsageUpdate> = []
     const stop = session.onUsage((update) => seen.push(update))
-    await session.prompt('hello')
+    await session.send('hello')
     expect(seen).toHaveLength(1)
     expect(seen[0]?.usage.totalTokens).toBe(5)
     expect(seen[0]?.total.totalTokens).toBe(5)

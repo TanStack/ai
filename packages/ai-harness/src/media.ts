@@ -88,18 +88,24 @@ function toMediaRecord(record: ArtifactRecord, kind: MediaKind) {
   const subagentRunId = segments.findLast((segment) =>
     segment.startsWith('subagent-'),
   )
-  const media: MediaRecord = {
+  const base = {
     id: record.artifactId,
     threadId: record.threadId,
     kind,
     mimeType: record.mimeType,
     name: record.name,
     size: record.size,
-    source: isUpload ? 'user' : 'generated',
     createdAt: record.createdAt,
-    ...(runId ? { runId } : {}),
-    ...(subagentRunId ? { subagentRunId } : {}),
   }
+  const media: MediaRecord =
+    isUpload || !runId
+      ? { ...base, source: 'user' }
+      : {
+          ...base,
+          source: 'generated',
+          runId,
+          ...(subagentRunId ? { subagentRunId } : {}),
+        }
   return media
 }
 

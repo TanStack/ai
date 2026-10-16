@@ -119,6 +119,22 @@ function model(withThinking: boolean) {
   ]
 }
 
+const toolCall = (
+  toolCallId: string,
+  toolCallName: string,
+  parentMessageId: string,
+): Array<AdapterYieldChunk> => [
+  {
+    type: EventType.TOOL_CALL_START,
+    toolCallId,
+    toolCallName,
+    parentMessageId,
+    timestamp: t,
+  },
+  { type: EventType.TOOL_CALL_ARGS, toolCallId, delta: '{}', timestamp: t },
+  { type: EventType.TOOL_CALL_END, toolCallId, timestamp: t },
+]
+
 const call1Count = (messages: ReadonlyArray<ModelMessage>) =>
   messages.flatMap((m) => m.toolCalls ?? []).filter((c) => c.id === 'call_1')
     .length
@@ -196,4 +212,69 @@ describe('useChat + withPersistence: message ids across model calls', () => {
       expect(call1Count(stored)).toBe(1)
     })
   }
+
+  it('stores each tool result once when a run resumes from a client tool', async () => {
+    const persistence = memoryPersistence()
+    // Server tool, then a client tool that interrupts the run, then text.
+    const { adapter, prompts } = mockAdapter([
+      run('r1', toolCall('call_1', 'lookup', 'm1'), 'tool_calls'),
+      run('r1', toolCall('call_2', 'ask', 'm2'), 'tool_calls'),
+      run('r1', text('m3', 'done'), 'stop'),
+    ])
+    const tools = [
+      { name: 'lookup', description: 'Lookup', execute: () => ({ ok: true }) },
+      { name: 'ask', description: 'Ask the user' },
+    ]
+    const middleware = [withPersistence(persistence)]
+
+    const processor = new StreamProcessor()
+    const user1: UIMessage = {
+      id: 'u1',
+      role: 'user',
+      parts: [{ type: 'text', content: 'hi' }],
+    }
+    processor.setMessages([user1])
+    processor.prepareAssistantMessage()
+    for await (const chunk of chat({
+      adapter,
+      messages: await serverMessages([user1], 'r1'),
+      tools,
+      runId: 'r1',
+      threadId: 't1',
+      middleware,
+    }) as AsyncIterable<StreamChunk>) {
+      processor.processChunk(chunk)
+    }
+    processor.finalizeStream()
+
+    // The interrupt snapshot gave the stored server tool result a snapshot id.
+    processor.addToolResult('call_2', { answer: 'yes' })
+    for await (const _ of chat({
+      adapter,
+      messages: await serverMessages(processor.getMessages(), 'r1'),
+      tools,
+      runId: 'r1',
+      threadId: 't1',
+      resume: [
+        {
+          interruptId: 'client_tool_call_2',
+          status: 'resolved',
+          payload: { answer: 'yes' },
+        },
+      ],
+      middleware,
+    }) as AsyncIterable<StreamChunk>) {
+      // drain
+    }
+
+    const stored = threadMessages(
+      await persistence.stores.messages!.loadThread('t1'),
+    )
+    expect(
+      stored.filter((m) => m.role === 'tool').map((m) => m.toolCallId),
+    ).toEqual(['call_1', 'call_2'])
+    expect(
+      prompts[2]!.filter((m) => m.role === 'tool').map((m) => m.toolCallId),
+    ).toEqual(['call_1', 'call_2'])
+  })
 })

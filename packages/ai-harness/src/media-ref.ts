@@ -126,7 +126,7 @@ export function mimeTypeOf(fileName: string) {
  * it calls the model, so the transcript stays small.
  *
  * @example
- * session.prompt([{ type: 'text', content: 'What is this?' }, mediaPart(record)])
+ * session.send([{ type: 'text', content: 'What is this?' }, mediaPart(record)])
  */
 export function mediaPart(record: MediaRecord) {
   const part: ContentPart = {

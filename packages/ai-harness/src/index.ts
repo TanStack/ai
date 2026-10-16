@@ -8,6 +8,8 @@ export type {
   HarnessRouterContext,
   HarnessRouting,
   HarnessSubagents,
+  HarnessToolInput,
+  HarnessToolsOf,
   SessionMetadataOf,
   SessionWithMetadata,
 } from './define'
@@ -82,7 +84,6 @@ export type {
 export { AuthRequiredError, scrubSecrets } from './auth'
 export type { CredentialsAccess } from './auth'
 
-export { harnessContext } from './agents'
 export type {
   AgentInputOf,
   AgentRegistryView,
@@ -144,6 +145,7 @@ export { isTransientModelError, retryTransientErrors } from './turn'
 export { HARNESS_EVENTS, InputRejectedError } from './types'
 export type {
   AgentRun,
+  AgentSendOptions,
   AuthRequest,
   BusyPolicy,
   ChatTurnResult,
@@ -161,6 +163,7 @@ export type {
   PendingQuestion,
   Principal,
   Receipt,
+  SendOptions,
   SessionEvent,
   StreamChunkOf,
   StreamChunkType,

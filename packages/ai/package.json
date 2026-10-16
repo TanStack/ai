@@ -102,6 +102,7 @@
   ],
   "dependencies": {
     "@ag-ui/core": "1.0.0",
+    "@cfworker/json-schema": "^4.1.1",
     "@standard-schema/spec": "^1.1.0",
     "@tanstack/ai-event-client": "workspace:^",
     "@tanstack/ai-utils": "workspace:^",

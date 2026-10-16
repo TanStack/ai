@@ -1,5 +1,6 @@
 import { convertSchemaToJsonSchema } from '@tanstack/ai'
 import { isRecord } from './utils'
+import { createInputId, errorText } from './session/helpers'
 import type { StreamChunk } from '@tanstack/ai'
 import type { AnyAgent } from './agents'
 import type { AnyHarness } from './define'
@@ -49,6 +50,8 @@ const INPUT_OPS = new Set([
   'command',
   'answer',
   'config',
+  'tool',
+  'append',
   'configure',
   'reset',
   'revert',
@@ -104,6 +107,20 @@ export function parseHarnessInput(value: unknown): HarnessInput {
   }
   if (value.op === 'config' && typeof value.key !== 'string') {
     throw new Error('Invalid input: config needs a key.')
+  }
+  if (value.op === 'tool' && typeof value.name !== 'string') {
+    throw new Error('Invalid input: tool needs a name.')
+  }
+  const isRecords =
+    Array.isArray(value.records) &&
+    value.records.length > 0 &&
+    value.records.every(
+      (record) => isRecord(record) && typeof record.type === 'string',
+    )
+  if (value.op === 'append' && !isRecords) {
+    throw new Error(
+      'Invalid input: append needs records, each with a string type.',
+    )
   }
   const namesInput = value.op === 'cancelInput' || value.op === 'setDelivery'
   if (namesInput && typeof value.inputId !== 'string') {
@@ -189,8 +206,9 @@ export function parseControlFrame(data: string): ControlFrame {
 /**
  * Apply a client input to a session. A client can run, or send messages to,
  * only the agents in `expose.agents`. It can run only the commands in
- * `expose.commands`, and change only the settings in `expose.settings` and the
- * config keys in `expose.config`. Resolves to the receipt. `principal` is who
+ * `expose.commands` and the tools in `expose.tools`, and change only the
+ * settings in `expose.settings` and the config keys in `expose.config`.
+ * Resolves to the receipt. `principal` is who
  * sent the input, from your `authorize`, never from the input itself. A chat
  * input runs with its credentials.
  */
@@ -217,7 +235,7 @@ export async function applyInput(
   }
   switch (input.op) {
     case 'prompt': {
-      const operation = session.prompt(input.message, {
+      const operation = session.send(input.message, {
         ...(input.busy ? { busy: input.busy } : {}),
         ...(input.ephemeral ? { ephemeral: input.ephemeral } : {}),
         ...sent,
@@ -241,9 +259,14 @@ export async function applyInput(
       return operation.receipt
     }
     case 'steer':
-      return session.steer(input.message, sent)
-    case 'followUp':
-      return session.followUp(input.message, sent)
+    case 'followUp': {
+      const operation = session.send(input.message, { ...sent, mode: input.op })
+      operation.then(
+        () => {},
+        () => {},
+      )
+      return operation.receipt
+    }
     case 'resolve':
       return session.resolve(input.resume, id)
     case 'cancel':
@@ -288,6 +311,36 @@ export async function applyInput(
         return notExposed
       }
       return session.setConfig({ key: input.key, value: input.value })
+    case 'tool': {
+      if (!(harness.expose?.tools ?? []).includes(input.name)) {
+        return notExposed
+      }
+      const operation = session.tool(input.name, input.args, {
+        ...(input.meta ? { meta: input.meta } : {}),
+        ...id,
+      })
+      // Nobody may await a turn a client started. Its receipt is the answer.
+      operation.then(
+        () => {},
+        () => {},
+      )
+      return operation.receipt
+    }
+    case 'append': {
+      // A client adds only the exposed types, and only to this thread.
+      const types: ReadonlyArray<string> = harness.expose?.records ?? []
+      const isExposed = input.records.every(
+        (record) => types.includes(record.type) && !('thread' in record),
+      )
+      if (!isExposed) return notExposed
+      const inputId = input.inputId ?? createInputId()
+      try {
+        await session.append(input.records)
+        return { inputId, status: 'accepted' }
+      } catch (error) {
+        return { inputId, status: 'rejected', reason: errorText(error) }
+      }
+    }
     case 'configure': {
       // A client changes only the settings the harness exposes.
       const exposed: ReadonlyArray<string> = harness.expose?.settings ?? []
@@ -342,12 +395,16 @@ export async function applyInput(
           reason: 'not_exposed',
         }
       }
-      return session.sendToAgent({
-        operationId: input.operationId,
-        message: input.message,
+      const operation = session.send(input.message, {
+        to: input.operationId,
         ...id,
         ...(input.mode ? { mode: input.mode } : {}),
       })
+      operation.then(
+        () => {},
+        () => {},
+      )
+      return operation.receipt
     }
   }
 }
@@ -389,6 +446,7 @@ export function capabilitiesOf(harness: AnyHarness) {
       items: (harness.tools ?? []).map((tool) => ({
         name: tool.name,
         description: tool.description,
+        exposed: (harness.expose?.tools ?? []).includes(tool.name),
       })),
     },
     multiAgent: {

@@ -1,4 +1,4 @@
-import type { Credential } from '@tanstack/ai-persistence'
+import type { Credential } from '@tanstack/ai/byok'
 
 /** An OAuth 2 app: where to send the user, and where to get tokens. */
 export interface OAuthConfig {

@@ -4,7 +4,7 @@ import type { UIMessage } from '@tanstack/ai-react'
 import type { VMEvent } from './JavaScriptVM'
 
 interface MessageSizeOverlayProps {
-  messages: Array<UIMessage>
+  messages: ReadonlyArray<UIMessage>
   toolCallEvents: Map<string, Array<VMEvent>>
 }
 
@@ -20,7 +20,7 @@ function formatBytes(bytes: number): string {
 /**
  * Calculate the actual byte size of the messages array
  */
-function calculateActualSize(messages: Array<UIMessage>): number {
+function calculateActualSize(messages: ReadonlyArray<UIMessage>): number {
   return new TextEncoder().encode(JSON.stringify(messages)).length
 }
 
@@ -29,7 +29,7 @@ function calculateActualSize(messages: Array<UIMessage>): number {
  * as individual tool call parts in the messages array.
  */
 function calculateTheoreticalSize(
-  messages: Array<UIMessage>,
+  messages: ReadonlyArray<UIMessage>,
   toolCallEvents: Map<string, Array<VMEvent>>,
 ): number {
   // Start with the actual messages size

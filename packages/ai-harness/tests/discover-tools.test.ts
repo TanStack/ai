@@ -61,11 +61,11 @@ describe('discoverTools', () => {
         seen.push(entry)
     })()
 
-    await session.prompt('before sign-in')
+    await session.send('before sign-in')
     expect(names(0)).toEqual(['lookup'])
 
     online = true
-    const turn = await session.prompt('after sign-in')
+    const turn = await session.send('after sign-in')
     expect(turn.text).toBe('done')
     // The static `lookup` wins over the discovered one with the same name.
     expect(names(1)).toEqual(['lookup', 'remote_search'])
@@ -101,7 +101,7 @@ describe('the default agent loop', () => {
       }),
       { threadId: 't' },
     )
-    const turn = await session.prompt('dig deep')
+    const turn = await session.send('dig deep')
     expect(calls).toHaveLength(8)
     expect(turn.text).toBe('finally')
     await host.close()

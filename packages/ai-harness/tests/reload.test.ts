@@ -81,7 +81,7 @@ describe('session.reload', () => {
     ])
     const session = await host.open(harness, { threadId: 't' })
     const reloaded = reloadedEvents(session)
-    await session.prompt('first')
+    await session.send('first')
     expect(toolNames(calls[0])).not.toContain('extra')
     expect(session.agent('helper')).toBeUndefined()
 
@@ -92,7 +92,7 @@ describe('session.reload', () => {
     expect(session.inspect().plugins.map((plugin) => plugin.name)).toEqual([
       'test/extra',
     ])
-    await session.prompt('second')
+    await session.send('second')
     expect(toolNames(calls[1])).toContain('extra')
     const contents = (await session.transcript()).map(
       (message) => message.content,
@@ -133,7 +133,7 @@ describe('session.reload', () => {
       () => text('next'),
     ])
     const session = await host.open(harness, { threadId: 't' })
-    const running = session.prompt('first')
+    const running = session.send('first')
     // The model call has started, so the turn runs.
     await expect.poll(() => calls.length).toBe(1)
 
@@ -166,7 +166,7 @@ describe('session.reload', () => {
       }),
     )
     const session = await host.open(harness, { threadId: 't' })
-    const running = session.prompt('first')
+    const running = session.send('first')
     await running.receipt
 
     const reload = session.reload()
@@ -231,7 +231,7 @@ describe('session.reload', () => {
 
     expect(session.inspect().plugins).toEqual([])
     expect(session.agent('helper')).toBeUndefined()
-    await session.prompt('still here')
+    await session.send('still here')
     expect(toolNames(calls[0])).not.toContain('extra')
     await expect.poll(() => failed).toEqual([{ error: 'broken setup' }])
   })
@@ -340,11 +340,11 @@ describe('ctx.agents.set with subagent', () => {
       run: async () => 'written',
     })
     agents?.set(writer, { subagent: true })
-    await session.prompt('first')
+    await session.send('first')
     expect(toolNames(calls[0])).toEqual(['writer'])
 
     agents?.delete('writer')
-    await session.prompt('second')
+    await session.send('second')
     expect(toolNames(calls[1])).toEqual([])
     expect(session.agent('writer')).toBeUndefined()
   })

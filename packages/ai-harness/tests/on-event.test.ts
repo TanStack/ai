@@ -33,7 +33,7 @@ describe('session.onEvent', () => {
     const live: Array<LiveEvent> = []
     session.onEvent((entry) => live.push(entry))
 
-    const turn = session.prompt('Hi')
+    const turn = session.send('Hi')
     await turn
     const stored = await collect(turn.events({ from: '0' }))
 
@@ -55,7 +55,7 @@ describe('session.onEvent', () => {
       types.add(event.type),
     )
 
-    await session.prompt('Hi')
+    await session.send('Hi')
 
     expect(deltas.join('')).toBe('Hello world')
     expect([...types]).toEqual([EventType.RUN_FINISHED])
@@ -70,7 +70,7 @@ describe('session.onEvent', () => {
     session.onEvent(second)
 
     stop()
-    await session.prompt('Hi')
+    await session.send('Hi')
 
     expect(first).not.toHaveBeenCalled()
     expect(second).toHaveBeenCalled()
@@ -86,7 +86,7 @@ describe('session.onEvent', () => {
     })
     session.onEvent(after)
 
-    await expect(session.prompt('Hi')).resolves.toMatchObject({
+    await expect(session.send('Hi')).resolves.toMatchObject({
       text: 'Hello world',
     })
     expect(after).toHaveBeenCalled()
@@ -101,7 +101,7 @@ describe('session.onEvent', () => {
       throw new Error('socket closed')
     })
 
-    await expect(session.prompt('Hi')).resolves.toMatchObject({
+    await expect(session.send('Hi')).resolves.toMatchObject({
       text: 'Hello world',
     })
     await vi.waitFor(() => expect(error).toHaveBeenCalled())
@@ -115,7 +115,7 @@ describe('session.onEvent', () => {
     session.onEvent(() => stopSecond())
     stopSecond = session.onEvent(second)
 
-    await session.prompt('Hi')
+    await session.send('Hi')
 
     expect(second).not.toHaveBeenCalled()
     await host.close()
@@ -131,7 +131,7 @@ describe('session.onEvent', () => {
       deltas.push(event.delta)
     })
 
-    await session.prompt('Hi')
+    await session.send('Hi')
 
     expect(deltas.join('')).toBe('Hello world')
     await host.close()
@@ -149,7 +149,7 @@ describe('operation.onEvent', () => {
   it('drops its listener when the operation finishes', async () => {
     const { host, session } = await open()
     const listeners: Set<unknown> = Reflect.get(session, 'eventListeners')
-    const turn = session.prompt('Hi')
+    const turn = session.send('Hi')
     turn.onEvent(() => {})
     turn.onMedia(() => {})
     expect(listeners.size).toBe(2)
@@ -165,8 +165,8 @@ describe('operation.onEvent', () => {
 
   it('gets only the events of its operation', async () => {
     const { host, session } = await open()
-    const first = session.prompt('One')
-    const second = session.prompt('Two')
+    const first = session.send('One')
+    const second = session.send('Two')
     const ofFirst: Array<string> = []
     first.onEvent(({ operationId }) => ofFirst.push(operationId))
 

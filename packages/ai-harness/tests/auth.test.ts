@@ -1,3 +1,4 @@
+import { memoryCredentialStore } from '@tanstack/ai/byok/server'
 import { describe, expect, it, vi } from 'vitest'
 import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
@@ -202,13 +203,14 @@ describe('oauthConnector', () => {
       ],
     })
     const persistence = memoryPersistence()
+    const credentials = memoryCredentialStore()
     const { adapter } = mockAdapter([
       () => toolCall('list_issues', {}),
       () => text('Sign in first.'),
       () => toolCall('list_issues', {}),
       () => text('One issue.'),
     ])
-    const host = createHarnessHost({ persistence })
+    const host = createHarnessHost({ persistence, credentials })
     const session = await host.open(
       defineHarness({
         name: 'test/connector',
@@ -225,7 +227,7 @@ describe('oauthConnector', () => {
     })()
 
     // Before sign-in, the tool asks for it.
-    await session.prompt('list my issues')
+    await session.send('list my issues')
     expect(seenTokens).toEqual([])
     expect(
       events.some(
@@ -239,13 +241,13 @@ describe('oauthConnector', () => {
     await expect(session.command('connect:github')).resolves.toBe(
       'Connected to GitHub.',
     )
-    const saved = await persistence.stores.credentials.get({
+    const saved = await credentials.get({
       scope: { threadId: 't', userId: 'user-1' },
       id: 'github',
     })
     expect(saved).toMatchObject({ accessToken: 'gh-token' })
 
-    await session.prompt('list my issues again')
+    await session.send('list my issues again')
     expect(seenTokens).toEqual(['gh-token'])
     // The model never sees the token.
     const transcript = JSON.stringify(
@@ -255,7 +257,7 @@ describe('oauthConnector', () => {
 
     await session.command('disconnect:github')
     expect(
-      await persistence.stores.credentials.list({
+      await credentials.list({
         threadId: 't',
         userId: 'user-1',
       }),
@@ -296,13 +298,14 @@ describe('errors a session publishes', () => {
       }),
     })
     const persistence = memoryPersistence()
-    await persistence.stores.credentials.set({
+    const credentials = memoryCredentialStore()
+    await credentials.set({
       scope: { threadId: 't1' },
       id: 'acme',
       credential: { type: 'api_key', value: secret },
     })
     const { adapter } = mockAdapter(() => text('ok'))
-    const host = createHarnessHost({ persistence })
+    const host = createHarnessHost({ persistence, credentials })
     const session = await host.open(
       defineHarness({ name: 'test/scrub', adapter, plugins: () => [plugin] }),
       { threadId: 't1' },
@@ -331,13 +334,14 @@ describe('errors a session publishes', () => {
       },
     })
     const persistence = memoryPersistence()
-    await persistence.stores.credentials.set({
+    const credentials = memoryCredentialStore()
+    await credentials.set({
       scope: { threadId: 't1' },
       id: 'acme',
       credential: { type: 'api_key', value: secret },
     })
     const { adapter } = mockAdapter(() => text('ok'))
-    const host = createHarnessHost({ persistence })
+    const host = createHarnessHost({ persistence, credentials })
     const session = await host.open(
       defineHarness({ name: 'test/scrub', adapter, agents: [leaky] }),
       { threadId: 't1' },

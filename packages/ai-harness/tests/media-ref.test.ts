@@ -1,20 +1,22 @@
 import { describe, expect, it } from 'vitest'
 import { kindOf, mediaIdOf, mediaOfMessage, mediaPart } from '../src'
 import type { ModelMessage } from '@tanstack/ai'
-import type { MediaRecord } from '../src'
+import type { MediaKind, MediaRecord } from '../src'
 
-function record(overrides?: Partial<MediaRecord>): MediaRecord {
-  return {
-    id: 'm1',
-    threadId: 't1',
-    kind: 'image',
-    mimeType: 'image/png',
-    name: 'cat.png',
-    size: 42,
-    source: 'user',
-    createdAt: 1_700_000_000_000,
-    ...overrides,
-  }
+const base = {
+  id: 'm1',
+  threadId: 't1',
+  kind: 'image' as MediaKind,
+  mimeType: 'image/png',
+  name: 'cat.png',
+  size: 42,
+  createdAt: 1_700_000_000_000,
+} satisfies Omit<MediaRecord, 'source'>
+
+function record(
+  overrides?: Partial<typeof base> & { source?: 'user' },
+): MediaRecord {
+  return { ...base, ...overrides, source: 'user' }
 }
 
 function assistantWith(metadata: ModelMessage['metadata']): ModelMessage {
@@ -104,7 +106,8 @@ describe('mediaIdOf', () => {
 
 describe('mediaOfMessage', () => {
   it('returns the media records in metadata.harness.media', () => {
-    const generated = record({
+    const generated: MediaRecord = {
+      ...base,
       id: 'm2',
       kind: 'video',
       mimeType: 'video/mp4',
@@ -112,7 +115,7 @@ describe('mediaOfMessage', () => {
       source: 'generated',
       runId: 'run-1',
       subagentRunId: 'sub-1',
-    })
+    }
     const message = assistantWith({ harness: { media: [record(), generated] } })
     expect(mediaOfMessage(message)).toEqual([record(), generated])
   })

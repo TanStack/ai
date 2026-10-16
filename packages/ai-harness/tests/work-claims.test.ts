@@ -51,7 +51,7 @@ describe('work claims while a session runs', () => {
       threadId: THREAD,
     })
 
-    const turn = session.prompt('Go.')
+    const turn = session.send('Go.')
     await turn.receipt
     expect(await otherHostCanClaim(claims)).toBe(false)
 
@@ -82,7 +82,7 @@ describe('work claims while a session runs', () => {
       { threadId: THREAD },
     )
 
-    const turn = session.prompt('Deploy.')
+    const turn = session.send('Deploy.')
     await turn.receipt
     expect(await otherHostCanClaim(claims)).toBe(false)
 
@@ -141,7 +141,7 @@ describe('work claims while a session runs', () => {
       threadId: THREAD,
     })
 
-    expect(await session.prompt('Go.').receipt).toMatchObject({
+    expect(await session.send('Go.').receipt).toMatchObject({
       status: 'rejected',
       reason: 'owned_elsewhere',
     })
@@ -167,7 +167,7 @@ describe('work claims while a session runs', () => {
       threadId: THREAD,
     })
 
-    const turn = session.prompt('Go.')
+    const turn = session.send('Go.')
     expect((await turn.receipt).status).toBe('queued')
     // The other host stops, so its claim expires, and this host runs the input.
     expect((await turn).text).toBe('Done.')
@@ -197,7 +197,7 @@ describe('work claims while a session runs', () => {
       }
     })()
 
-    const turn = session.prompt('Go.')
+    const turn = session.send('Go.')
     const { inputId } = await turn.receipt
     expect((await turn).text).toBe('Done.')
     expect(await session.settled(inputId)).toMatchObject({
@@ -540,7 +540,7 @@ describe('host.resumePending', () => {
     const harness = defineHarness({ name: NAME, adapter })
     const live = createHarnessHost({ persistence })
     const session = await live.open(harness, { threadId: THREAD })
-    const turn = session.prompt('Go.')
+    const turn = session.send('Go.')
     await turn.receipt
 
     const sweeper = createHarnessHost({ persistence })
@@ -660,7 +660,7 @@ describe('host.resumePending', () => {
       queueMicrotask(() => {
         arriving = host
           .open(harness, { threadId: THREAD })
-          .then(async (session) => (await session.prompt('Again.')).text)
+          .then(async (session) => (await session.send('Again.')).text)
       })
       return release(claim)
     })
@@ -669,6 +669,50 @@ describe('host.resumePending', () => {
 
     await expect(arriving).resolves.toBe('Answered.')
     expect(calls).toHaveLength(2)
+    await host.close()
+  })
+
+  it('goes on after a thread that fails to open, and names the threads it opened', async () => {
+    const persistence = durablePersistence()
+    // The failing thread has the older claim, so it comes first.
+    await persistence.stores.workClaims.claim({
+      threadId: 't-bad',
+      harness: NAME,
+      ownerId: 'host-gone',
+      until: Date.now() - 3_000,
+    })
+    await seedStoppedTurn(persistence)
+    const { adapter, calls } = mockAdapter([() => text('Recovered.')])
+    const broken = definePlugin({
+      name: 'test/broken',
+      setup: (ctx) => {
+        if (ctx.session.threadId === 't-bad') throw new Error('bad thread')
+        return {}
+      },
+    })
+    const host = createHarnessHost({ persistence })
+
+    const failure = await host
+      .resumePending({
+        harnesses: [
+          defineHarness({ name: NAME, adapter, plugins: () => [broken] }),
+        ],
+      })
+      .then(
+        () => undefined,
+        (error: unknown) => error,
+      )
+    expect(failure).toBeInstanceOf(AggregateError)
+    expect((failure as AggregateError).errors).toHaveLength(1)
+    expect(failure).toMatchObject({
+      opened: [{ threadId: THREAD, harness: NAME }],
+    })
+    await vi.waitFor(async () =>
+      expect(await settledRecord(persistence, 'in-1')).toMatchObject({
+        outcome: 'completed',
+      }),
+    )
+    expect(calls).toHaveLength(1)
     await host.close()
   })
 

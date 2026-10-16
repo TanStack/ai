@@ -154,7 +154,7 @@ export abstract class SessionState<
    *
    * @example
    * const record = await session.putMedia(bytes, { mimeType: 'image/png', name: 'cat.png' })
-   * session.prompt([{ type: 'text', content: 'What is this?' }, mediaPart(record)])
+   * session.send([{ type: 'text', content: 'What is this?' }, mediaPart(record)])
    */
   putMedia(body: BlobBody, info: { mimeType: string; name: string }) {
     return this.mediaStore.put(body, info)

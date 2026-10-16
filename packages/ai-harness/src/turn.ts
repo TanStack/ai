@@ -1,7 +1,13 @@
 import type { ModelMessage } from '@tanstack/ai'
 import type { LogRecord } from '@tanstack/ai-persistence'
 import type { SessionWithMetadata } from './define'
-import type { HarnessInput, Principal, TurnOverrides, UserInput } from './types'
+import type {
+  HarnessInput,
+  Principal,
+  SettlementOutcome,
+  TurnOverrides,
+  UserInput,
+} from './types'
 
 /** What recovery does with one input. */
 export type RecoverDecision =
@@ -14,11 +20,10 @@ export type RecoverDecision =
        */
       overrides?: TurnOverrides
     }
-  | {
-      action: 'settle'
-      outcome: 'completed' | 'failed' | 'aborted'
-      error?: { message: string; code?: string }
-    }
+  | ({ action: 'settle' } & Exclude<
+      SettlementOutcome,
+      { outcome: 'interrupted' }
+    >)
 
 /** What `durability.recover` gets for one input. */
 export interface RecoverContext<TMetadataSchema = any> {

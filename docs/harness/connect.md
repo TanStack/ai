@@ -84,11 +84,13 @@ export const team = defineHarness({
 | `settings` | Change these [thread settings](./thread-settings) with `client.configure(settings)`. |
 | `config` | Set these plugin config keys with `client.setConfig({ key, value })`. |
 | `commands` | Run these commands with `client.command(name)`, or with `/name` in a [session view](./custom-ui) on a client. |
+| `tools` | Run these harness tools with no model turn, with `client.tool(name, args)`. See [Run a tool without a model](./tool-runs). |
+| `records` | Add records of these types to the thread with `client.append(records)`. See [Let a client add records](./session-log#let-a-client-add-records). |
 
 - Any other input of these kinds gets `{ status: 'rejected', reason: 'not_exposed' }`.
 - `GET describe` and `client.describe()` list only the exposed commands and config keys. A UI built from them shows only what a client can use.
 - Server code that calls the session is not limited. `session.setConfig()` and `session.command()` work for every key and command, and `session.describe()` lists all of them.
-- `defineHarness` checks the names in `agents`. Plugins add their config keys and commands when a session opens, so it does not check those names.
+- `defineHarness` checks the names in `agents` and `tools`, and TypeScript suggests them. Plugins add their config keys and commands when a session opens, so it does not check those names.
 
 ## Talk to it from a web app
 
@@ -104,7 +106,7 @@ const client = createHarnessClient<typeof assistant>({
   headers: { authorization: 'Bearer my-token' },
 })
 
-await client.prompt('Summarize my open tickets.')
+await client.send('Summarize my open tickets.')
 
 for await (const entry of client.events()) {
   if (entry.event.type === 'TEXT_MESSAGE_CONTENT') {
@@ -119,7 +121,7 @@ To upload files and show the media that your agents make, read [Send and show me
 
 ## Send a message to a running agent
 
-A background agent runs for minutes, and the user wants to correct it from the page, or ask for one more change after it ends. The browser sends the run a message with `client.sendToAgent`.
+A background agent runs for minutes, and the user wants to correct it from the page, or ask for one more change after it ends. The browser sends the run a message with `client.send(message, { to: operationId })`.
 
 1. On the server, list the agent in `expose.agents`. A client can start and message only those agents:
 
@@ -166,9 +168,8 @@ const client = createHarnessClient<typeof studio>({
 })
 
 export async function correct(operationId: string) {
-  const receipt = await client.sendToAgent({
-    operationId,
-    message: 'Cite papers, not blogs.',
+  const receipt = await client.send('Cite papers, not blogs.', {
+    to: operationId,
   })
   if (receipt.status === 'rejected') {
     console.warn(receipt.reason)
@@ -176,11 +177,7 @@ export async function correct(operationId: string) {
 }
 
 export function addTitle(operationId: string) {
-  return client.sendToAgent({
-    operationId,
-    message: 'Add a title.',
-    mode: 'followUp',
-  })
+  return client.send('Add a title.', { to: operationId, mode: 'followUp' })
 }
 ```
 
@@ -189,7 +186,7 @@ The id of the run is the `operationId` in the receipt of `client.agents.drafter.
 - `mode: 'steer'` (the default): the message joins the next model call of the run.
 - `mode: 'followUp'`: the agent runs again after the run ends. `receipt.operationId` is the id of the new run.
 
-`sendToAgent` posts an `agentMessage` input to `POST control`. It runs as the user that `authorize` returned. The input looks like this:
+`send` with `to` posts an `agentMessage` input to `POST control`. It runs as the user that `authorize` returned. The input looks like this:
 
 ```json
 { "op": "agentMessage", "operationId": "op-agent-m1x2-3", "message": "Add a title.", "mode": "followUp" }
@@ -356,4 +353,4 @@ If a plugin picks the model of the harness, the harness has no adapter to read i
 - Messages from the browser to a running agent.
 - A WebSocket, and a harness you can call from `chat()`.
 
-Next: send more than a prompt with [inputs](./inputs).
+Next: run the same harness in a terminal with the [CLI](./cli).

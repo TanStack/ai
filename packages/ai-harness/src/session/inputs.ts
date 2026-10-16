@@ -15,7 +15,7 @@ import {
 import { KEPT_SETTLED, SessionBase } from './base'
 import type { OperationImpl } from '../operation'
 import type { LogRecord } from '@tanstack/ai-persistence'
-import type { HarnessRecord } from '../log'
+import type { HarnessRecord, InputState } from '../log'
 import type { AnyHarness } from '../define'
 import type {
   ChatTurnResult,
@@ -152,7 +152,7 @@ export abstract class SessionInputs<
    *
    * @example
    * ```ts
-   * const turn = session.prompt('Summarize the report.', { inputId: 'req-42' })
+   * const turn = session.send('Summarize the report.', { inputId: 'req-42' })
    * const { outcome } = await session.settled('req-42')
    * ```
    */
@@ -295,6 +295,30 @@ export abstract class SessionInputs<
     return taken
   }
 
+  /** Take a queued `continue()` out of the queue, for `cancelInput`. */
+  protected takeQueuedContinue(
+    inputId: string,
+  ): Pick<WaitingSteer, 'operation'> | undefined {
+    const turn = this.queue.find(
+      (item) => item.inputId === inputId && item.isContinue,
+    )
+    if (!turn) return undefined
+    this.queue.splice(this.queue.indexOf(turn), 1)
+    return { operation: turn.operation }
+  }
+
+  /**
+   * The thread waits for interrupts and nothing queued or running can
+   * resolve them, so a new turn would fail with `pending_interrupts`.
+   */
+  protected waitsForInterrupts(): boolean {
+    return (
+      this.interrupted !== undefined &&
+      this.activeTurn === undefined &&
+      this.queue.length === 0
+    )
+  }
+
   /**
    * Mark a `cancelInput` or `setDelivery` input applied. On a durable host,
    * `change` lands in the same append, so a crash never keeps one without
@@ -379,9 +403,10 @@ export abstract class SessionInputs<
         })
         // The inbox had the id before this session: a restart.
         if (stored.createdAt !== at || stored.status !== 'pending') {
-          return inputKey(stored.input, stored.principal) === payload
-            ? 'duplicate'
-            : 'conflict'
+          if (inputKey(stored.input, stored.principal) === payload)
+            return 'duplicate'
+          this.admitted.delete(inputId)
+          return 'conflict'
         }
       }
     } catch (error) {
@@ -496,6 +521,7 @@ export abstract class SessionInputs<
         .catch((error: unknown) => this.warnSession('harness:inbox', error))
     }
     const receipt: Receipt = { inputId, status: 'rejected', reason }
+    this.admitted.delete(inputId)
     this.receipts.set(inputId, receipt)
     this.feed.publish(
       'session',
@@ -520,6 +546,10 @@ export abstract class SessionInputs<
       )
     }
     for (const settlement of settlements) {
+      // A turn input leaves the set with its operation (`forget`): a client
+      // may send its id again until then. Other inputs leave now.
+      if (!this.turnOperations.has(settlement.inputId))
+        this.admitted.delete(settlement.inputId)
       this.settlements.set(settlement.inputId, settlement)
       this.feed.publish(
         settlement.operationId ?? 'session',
@@ -534,7 +564,11 @@ export abstract class SessionInputs<
     if (logged?.settlement) return logged.settlement
     const refused =
       logged?.status === 'rejected'
-        ? { inputId, status: 'rejected' as const, reason: logged.reason ?? '' }
+        ? {
+            inputId,
+            status: 'rejected' as const,
+            reason: rejectedReason(logged),
+          }
         : this.receipts.get(inputId)
     if (refused?.status === 'rejected') throw new InputRejectedError(refused)
     return this.settlements.get(inputId)
@@ -709,4 +743,14 @@ export abstract class SessionInputs<
     }
     this.publishFinished(operation)
   }
+}
+
+/** The reason of a rejected input record. A rejected record always has one. */
+function rejectedReason(logged: InputState): string {
+  if (logged.reason === undefined) {
+    throw new Error(
+      `The log has a rejected input "${logged.inputId}" with no reason.`,
+    )
+  }
+  return logged.reason
 }

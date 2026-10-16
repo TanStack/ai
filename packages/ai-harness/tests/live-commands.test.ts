@@ -72,11 +72,35 @@ describe('ctx.commands', () => {
     ).toMatchObject({ owner: 'test/live', description: 'Says hi' })
     expect(await session.command('hello')).toBe('hi')
 
+    const settled: Array<unknown> = []
+    session.onEvent(EventType.CUSTOM, ({ event }) => {
+      if (event.name === 'harness.input.settled') settled.push(event.value)
+    })
+    expect(await session.command('hello')).toBe('hi')
+    expect(settled).toMatchObject([{ outcome: 'completed' }])
+
     live.live().delete('hello')
     expect(names()).not.toContain('hello')
     await expect(session.command('hello')).rejects.toThrow(
       'Unknown command: hello',
     )
+  })
+
+  it('runs a command with a JSON Schema input on the raw input', async () => {
+    const live = capture('test/live')
+    const { session } = await open(live.plugin)
+    live.live().set(
+      'raw',
+      defineCommand({
+        description: 'Echoes its input.',
+        input: { type: 'object', properties: { n: { type: 'number' } } },
+        run: (input) => input,
+      }),
+    )
+    // A JSON Schema is not checked, as a JSON Schema tool input is not.
+    expect(await session.command('raw', { n: 'not a number' })).toEqual({
+      n: 'not a number',
+    })
   })
 
   it('keeps the commands of other plugins', async () => {

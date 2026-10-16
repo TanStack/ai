@@ -43,7 +43,7 @@ describe('plugin subagents', () => {
       { threadId: 't' },
     )
 
-    const turn = await session.prompt('paint a fox')
+    const turn = await session.send('paint a fox')
     expect(turn.text).toBe('done')
     expect(toolNames(calls[0])).toEqual(['lead_helper', 'painter', 'writer'])
     expect(JSON.stringify(calls[1].messages)).toContain('painted: a fox')
@@ -67,7 +67,7 @@ describe('plugin subagents', () => {
       }),
       { threadId: 't' },
     )
-    await session.prompt('hello')
+    await session.send('hello')
     expect(toolNames(calls[0])).toEqual([])
     await host.close()
   })

@@ -17,7 +17,6 @@ there is no separate enable list.
 | `artifacts` | File metadata. Needs `blobs`. | `withGenerationPersistence`, portable snapshots |
 | `blobs` | File bytes. Needs `artifacts`. | `withGenerationPersistence`, portable snapshots |
 | `inbox` | Inputs a host accepted, one entry per input id. | Your host code |
-| `credentials` | API keys and OAuth tokens by scope and id. | Your host code |
 | `log` | Append-only session log per thread. | Your host code |
 | `leases` | Turn leases from a system that already has them. | Your host code |
 | `workClaims` | Claims on threads that have pending work. | Your host code |
@@ -610,7 +609,7 @@ Write the input to the inbox before you answer the client. `InboxStore` keeps on
 entry per `inputId`.
 
 ```ts
-type InboxStatus = 'pending' | 'applied' | 'rejected' | 'expired'
+type InboxStatus = 'pending' | 'applied' | 'rejected'
 
 interface InboxEntry {
   inputId: string // the idempotency key
@@ -648,51 +647,6 @@ Rules for an implementation:
 
 In SQL, make `input_id` the primary key and write with `INSERT ... ON CONFLICT DO
 NOTHING`, then read the row back.
-
-## CredentialStore
-
-Your users connect their own accounts: an API key, or the OAuth tokens of a sign-in.
-`CredentialStore` keeps each secret by scope and by an id that you choose, for example
-`'github'`.
-
-```ts
-import type { Scope } from '@tanstack/ai-persistence'
-
-type Credential =
-  | { type: 'api_key'; value: string }
-  | {
-      type: 'oauth'
-      accessToken: string
-      refreshToken?: string
-      expiresAt?: number // epoch ms
-      scopes?: Array<string>
-      client?: {
-        clientId: string
-        clientSecret?: string
-        redirectUri?: string
-        issuer?: string
-      }
-    }
-
-interface CredentialStore {
-  get(key: { scope: Scope; id: string }): Promise<Credential | null>
-  set(entry: { scope: Scope; id: string; credential: Credential }): Promise<void>
-  delete(key: { scope: Scope; id: string }): Promise<void>
-  list(
-    scope: Scope,
-  ): Promise<Array<{ id: string; type: Credential['type']; expiresAt?: number }>>
-}
-```
-
-Rules for an implementation:
-
-- Key each credential by `scope.tenantId`, `scope.userId`, and `id`. Do not use
-  `scope.threadId`. A credential saved without `scope.userId` belongs to the tenant.
-- A user credential is not visible at the tenant scope, and a tenant credential is
-  not visible at the user scope.
-- `list` returns ids and types only. It never returns a secret value.
-- `client` is the OAuth client that the tokens belong to. A token refresh needs it.
-- Encrypt the secrets at rest.
 
 ## LogStore
 
@@ -809,7 +763,7 @@ Rules for an implementation:
 - `renew` and `release` for a lease you do not hold can do nothing.
 - Key a lease by input id and attempt. Two attempts of one input are two leases.
 
-This store keeps leases in a `Map`:
+`memoryLeaseStore()` is the reference store. It is not part of `memoryPersistence()`, so add it yourself. This store does the same with a `Map`:
 
 ```ts
 import type {
@@ -1023,7 +977,7 @@ last entry of a page.
 
 ### Check the session stores with the conformance suite
 
-`runPersistenceConformance` runs the cases of `credentials`, `inbox`, `workClaims`,
+`runPersistenceConformance` runs the cases of `inbox`, `workClaims`,
 `log`, and `sessions` when your persistence has that store. A persistence without one
 needs no `skip` entry for it. The compare-and-set cases run only when `sessions` has
 `getVersioned` and `upsertIf`.
@@ -1107,11 +1061,11 @@ erDiagram
 
 ## Typing an adapter
 
-Each store except `leases` has a `define*Store` helper (`defineMessageStore`,
+Each store has a `define*Store` helper (`defineMessageStore`,
 `defineRunStore`, `defineInterruptStore`, `defineMetadataStore`,
 `defineActivityStore`, `defineGenerationRunStore`, `defineArtifactStore`,
-`defineBlobStore`, `defineInboxStore`, `defineCredentialStore`, `defineLogStore`,
-`defineWorkClaimStore`, `defineSessionIndexStore`). They compose into `defineAIPersistence`, which tracks
+`defineBlobStore`, `defineInboxStore`, `defineLogStore`,
+`defineWorkClaimStore`, `defineSessionIndexStore`, `defineLeaseStore`). They compose into `defineAIPersistence`, which tracks
 exact presence: the stores you passed autocomplete on `persistence.stores`, and
 reading one you did not pass is a compile error.
 

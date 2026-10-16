@@ -314,7 +314,7 @@ describe('permissions()', () => {
       () => toolCall('read_file', { path: '.env' }, 'c2'),
     ])
 
-    const turn = first.session.prompt('read it twice')
+    const turn = first.session.send('read it twice')
     expect(await answer(first.session, { answer: 'always' })).toContain('.env')
     await turn
 
@@ -336,7 +336,7 @@ describe('permissions()', () => {
       ],
       't2',
     )
-    const next = second.session.prompt('read again')
+    const next = second.session.send('read again')
     // `.env` runs at once. `other.env` has no saved answer, so it asks.
     expect(await answer(second.session, { answer: 'once' })).toContain(
       'other.env',
@@ -359,7 +359,7 @@ describe('permissions()', () => {
       ],
     )
 
-    const turn = session.prompt('read it twice')
+    const turn = session.send('read it twice')
     await answer(session, { answer: 'always' })
     await turn
 
@@ -376,7 +376,7 @@ describe('permissions()', () => {
       [() => toolCall('read_file', { path: '../secret.txt' }, 'c1')],
     )
 
-    const turn = session.prompt('read outside')
+    const turn = session.send('read outside')
     await answer(session, {
       answer: 'reject',
       message: 'Stay inside the repo.',
@@ -399,7 +399,7 @@ describe('permissions()', () => {
       [() => toolCall('bash', { command }, 'c1')],
     )
 
-    const turn = session.prompt('run it')
+    const turn = session.send('run it')
     const message = await answer(session, 'reject')
     await turn
 
@@ -424,7 +424,7 @@ describe('permissions()', () => {
       ],
     )
 
-    const turn = session.prompt('list, then clean')
+    const turn = session.send('list, then clean')
     expect(await answer(session, { answer: 'reject' })).toContain('rm x')
     await turn
 
@@ -452,7 +452,7 @@ describe('permissions()', () => {
       [],
     )
 
-    await session.prompt('hi')
+    await session.send('hi')
 
     const names = calls[0].tools.map((tool: { name: string }) => tool.name)
     expect(names.sort()).toEqual(['bash', 'read_file'])
@@ -467,7 +467,7 @@ describe('permissions()', () => {
       [() => toolCall('read_file', {}, 'c1')],
     )
 
-    await session.prompt('read nothing')
+    await session.send('read nothing')
 
     expect(tools.ran).toEqual([])
     expect(session.snapshot().pendingQuestions).toHaveLength(0)
@@ -501,7 +501,7 @@ describe('permissions()', () => {
       [() => toolCall('read_file', { path: 'src/a.ts' }, 'c1')],
     )
 
-    const turn = session.prompt('read a file')
+    const turn = session.send('read a file')
     expect(await answer(session, { answer: 'reject' })).toContain('src/a.ts')
     await turn
 
@@ -548,7 +548,7 @@ describe('permissions()', () => {
     )
 
     // The rule allows lookup, and deploy has no rule, so it asks.
-    const turn = session.prompt('look up, then deploy')
+    const turn = session.send('look up, then deploy')
     expect(await answer(session, { answer: 'reject' })).toContain('deploy')
     await turn
     expect(ran).toEqual(['lookup'])
@@ -557,7 +557,7 @@ describe('permissions()', () => {
 
     // Plan mode denies what would ask.
     await session.command('mode', 'plan')
-    await session.prompt('again, in plan mode')
+    await session.send('again, in plan mode')
     expect(ran).toEqual(['lookup', 'lookup'])
     expect(JSON.stringify(calls.at(-1).messages)).toContain(
       'This tool is not allowed in plan mode.',
@@ -626,7 +626,7 @@ describe('permissions()', () => {
       [() => toolCall('read_file', { path: 'secret.txt' }, 'c1')],
     )
 
-    await session.prompt('read the secret')
+    await session.send('read the secret')
 
     expect(tools.ran).toEqual([])
     await host.close()
@@ -644,7 +644,7 @@ describe('permissions()', () => {
       ],
     )
 
-    const turn = session.prompt('read, then run')
+    const turn = session.send('read, then run')
     await answer(session, { answer: 'always' })
     await answer(session, { answer: 'always' })
     await turn
@@ -717,14 +717,14 @@ describe('permissions()', () => {
       ],
     )
 
-    const first = session.prompt('run it')
+    const first = session.send('run it')
     await answer(session, { answer: 'always' })
     await first
     expect(await session.command('permissions', 'forget 1')).toBe(
       'Forgot rule 1: bash git status.',
     )
 
-    const second = session.prompt('run it again')
+    const second = session.send('run it again')
     expect(await answer(session, { answer: 'once' })).toContain('git status')
     await second
     expect(tools.ran).toEqual(['bash', 'bash'])

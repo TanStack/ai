@@ -99,7 +99,7 @@ describe('agents', () => {
     expect(await session.command('agent')).toBe(
       'Agent: build. Agents: build, plan.',
     )
-    await session.prompt('hi')
+    await session.send('hi')
 
     expect(toolNames(calls[0])).toEqual([
       'read_file',
@@ -120,11 +120,11 @@ describe('agents', () => {
       agents({ adapter: () => adapter }),
     ])
 
-    await session.prompt('build it')
+    await session.send('build it')
     expect(await session.command('agent', 'plan')).toBe(
       'Agent: plan. It applies at the next turn.',
     )
-    await session.prompt('plan it')
+    await session.send('plan it')
 
     expect(toolNames(calls[0])).toEqual([
       'read_file',
@@ -154,7 +154,7 @@ describe('agents', () => {
     expect(
       (await session.setConfig({ key: 'agent', value: 'general' })).status,
     ).toBe('rejected')
-    await session.prompt('plan it')
+    await session.send('plan it')
 
     expect(toolNames(calls[0])).toEqual(['read_file'])
     await host.close()
@@ -177,12 +177,12 @@ describe('agents', () => {
       agents({ adapter: byModel, agents: [quick] }),
     ])
 
-    expect(await session.prompt('one')).toEqual({
+    expect(await session.send('one')).toEqual({
       text: 'from main',
       media: [],
     })
     await session.command('agent', 'quick')
-    expect(await session.prompt('two')).toEqual({
+    expect(await session.send('two')).toEqual({
       text: 'from fast',
       media: [],
     })
@@ -206,7 +206,7 @@ describe('agents', () => {
       agents({ adapter: () => adapter, agents: [short], default: 'short' }),
     ])
 
-    await session.prompt('go')
+    await session.send('go')
 
     expect(calls.map((call) => call.toolChoice)).toEqual([
       undefined,
@@ -236,7 +236,7 @@ describe('agents', () => {
       agents({ adapter: () => adapter, agents: [short], default: 'short' }),
     ])
 
-    await session.prompt('go')
+    await session.send('go')
 
     // The run ends after the last call, and only the first call ran.
     expect(calls).toHaveLength(2)
@@ -244,7 +244,7 @@ describe('agents', () => {
     expect(ran).toEqual(['read_file'])
 
     // The next turn shows the model the refusal of the last call.
-    await session.prompt('and now?')
+    await session.send('and now?')
     const refused = calls[2].messages.find(
       (message: { role: string; toolCallId?: string }) =>
         message.role === 'tool' && message.toolCallId === 'c2',
@@ -270,7 +270,7 @@ describe('agents', () => {
       }),
     ])
 
-    await session.prompt('Where is the config?')
+    await session.send('Where is the config?')
 
     // Without its own model, the child uses the model of the main turn.
     expect(models).toEqual(['test-model'])
@@ -300,9 +300,9 @@ describe('agents', () => {
     ])
 
     await session.command('agent', 'careful')
-    await session.prompt('one')
+    await session.send('one')
     await session.command('agent', 'build')
-    await session.prompt('two')
+    await session.send('two')
 
     expect(toolNames(calls[0])).toEqual(['read_file', 'general', 'explore'])
     expect(toolNames(calls[1])).toEqual([
@@ -330,7 +330,7 @@ describe('agents', () => {
       'Agent: build. Agents: build, plan.',
     )
     await session.command('agent', 'plan')
-    await session.prompt('plan it')
+    await session.send('plan it')
 
     expect(toolNames(calls[0])).toEqual([
       'read_file',
@@ -361,7 +361,7 @@ describe('agents', () => {
     ])
 
     expect(await session.command('agent')).toBe('Agent: solo. Agents: solo.')
-    await session.prompt('hi')
+    await session.send('hi')
 
     expect(toolNames(calls[0])).toEqual(['read_file', 'write_file'])
     await host.close()
@@ -407,14 +407,14 @@ describe('agents from Markdown files', () => {
     expect(await session.command('agent')).toBe(
       'Agent: build. Agents: build, plan, reviewer.',
     )
-    await session.prompt('build it')
+    await session.send('build it')
     expect(
       main.calls[0].tools.find(
         (entry: { name: string }) => entry.name === 'reviewer',
       )?.description,
     ).toBe('Reviews code')
     await session.command('agent', 'reviewer')
-    await session.prompt('review it')
+    await session.send('review it')
 
     expect(toolNames(smart.calls[0])).toEqual(['read_file'])
     expect(promptsOf(smart.calls[0])).toContain('You review code.')
