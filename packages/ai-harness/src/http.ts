@@ -487,9 +487,10 @@ export function createHarnessHandler(
         const lastEventId = request.headers.get('Last-Event-ID')
         if (params.resume && params.resume.length > 0) {
           const receipt = await session.resolve(params.resume, ids)
-          if (receipt.status === 'rejected' || !receipt.operationId) {
-            return json({ error: receipt.reason ?? 'rejected' }, 409)
+          if (receipt.status === 'rejected') {
+            return json({ error: receipt.reason }, 409)
           }
+          if (!receipt.operationId) return json({ error: 'rejected' }, 409)
           const { operationId } = receipt
           return cursorResponse(
             (signal) =>
@@ -507,7 +508,7 @@ export function createHarnessHandler(
           return json({ error: 'no user message' }, 400)
         // AG-UI `forwardedProps` are the input's context.
         const { forwardedProps } = params
-        const operation = session.prompt(message, {
+        const operation = session.send(message, {
           ...ids,
           ...(Object.keys(forwardedProps).length > 0
             ? { context: forwardedProps }

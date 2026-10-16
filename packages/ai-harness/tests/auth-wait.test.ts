@@ -1,3 +1,4 @@
+import { memoryCredentialStore } from '@tanstack/ai/byok/server'
 import { describe, expect, it } from 'vitest'
 import { toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
@@ -81,7 +82,9 @@ function nextEnd(session: HarnessSession) {
     })) {
       if (event.type !== 'CUSTOM' || event.name !== HARNESS_EVENTS.inputSettled)
         continue
-      const value = event.value as { outcome: string }
+      const value = event.value as { inputId: string; outcome: string }
+      // The connect command settles too. Wait for the turn the sign-in resumes.
+      if (!value.inputId.startsWith('sign-in:')) continue
       if (value.outcome !== 'interrupted') return value
     }
     throw new Error('The session closed.')
@@ -90,8 +93,8 @@ function nextEnd(session: HarnessSession) {
 
 /** The stores of a durable host, so a second host reads the same thread. */
 function durableStores() {
-  const { runs, metadata, credentials } = memoryPersistence().stores
-  return { log: memoryLogStore(), runs, metadata, credentials }
+  const { runs, metadata } = memoryPersistence().stores
+  return { log: memoryLogStore(), runs, metadata }
 }
 
 describe('require with wait', () => {
@@ -153,7 +156,7 @@ describe('require with wait', () => {
       }
     })()
 
-    const turn = await session.prompt('List my issues.', { inputId: 'ask' })
+    const turn = await session.send('List my issues.', { inputId: 'ask' })
     expect(turn.interrupts).toMatchObject([
       {
         reason: 'auth_required',
@@ -201,7 +204,7 @@ describe('require with wait', () => {
     }
 
     const a = start([() => toolCall('list_issues', {})])
-    const turn = await (await a.open()).prompt('List my issues.')
+    const turn = await (await a.open()).send('List my issues.')
     expect(turn.interrupts?.[0]?.reason).toBe('auth_required')
     await a.host.close()
 
@@ -232,7 +235,7 @@ describe('require with wait', () => {
       }),
       { threadId: 't', principal: { id: 'user-1' } },
     )
-    const turn = await session.prompt('List my issues.')
+    const turn = await session.send('List my issues.')
     const interruptId = turn.interrupts?.[0]?.id
     if (!interruptId) throw new Error('The turn did not stop for the sign-in.')
 
@@ -268,7 +271,7 @@ describe('require with wait', () => {
       }),
       { threadId: 't', principal: { id: 'user-1' } },
     )
-    const turn = await session.prompt('List my issues.', { inputId: 'ask' })
+    const turn = await session.send('List my issues.', { inputId: 'ask' })
     expect(turn.interrupts).toBeUndefined()
     expect(await session.settled('ask')).toMatchObject({
       outcome: 'completed',
@@ -315,7 +318,7 @@ describe('require with wait', () => {
       }),
       { threadId: 't', principal: { id: 'user-1' } },
     )
-    const turn = session.prompt('Work.')
+    const turn = session.send('Work.')
     await started.opened
     await session.command('check')
     release.open()
@@ -338,12 +341,13 @@ describe('sign-ins in a shared thread', () => {
       () => text('One issue.'),
     ])
     const persistence = memoryPersistence()
-    await persistence.stores.credentials.set({
+    const credentials = memoryCredentialStore()
+    await credentials.set({
       scope: { threadId: 't', userId: 'alice' },
       id: 'github',
       credential: { type: 'api_key', value: 'alice-key' },
     })
-    const host = createHarnessHost({ persistence })
+    const host = createHarnessHost({ persistence, credentials })
     const session = await host.open(
       defineHarness({
         name: 'test/auth-wait-shared',
@@ -352,7 +356,7 @@ describe('sign-ins in a shared thread', () => {
       }),
       { threadId: 't', principal: alice },
     )
-    const turn = await session.prompt('List my issues.', { principal: bob })
+    const turn = await session.send('List my issues.', { principal: bob })
     expect(turn.interrupts?.[0]?.reason).toBe('auth_required')
 
     // Saves for alice, while bob's turn waits for bob's sign-in.
@@ -375,7 +379,8 @@ describe('sign-ins in a shared thread', () => {
       () => text('One issue.'),
     ])
     const persistence = memoryPersistence()
-    const host = createHarnessHost({ persistence })
+    const credentials = memoryCredentialStore()
+    const host = createHarnessHost({ persistence, credentials })
     const harness = defineHarness({
       name: 'test/auth-wait-shared-http',
       adapter,
@@ -416,7 +421,6 @@ describe('sign-ins in a shared thread', () => {
     expect(await ended).toMatchObject({ outcome: 'completed' })
     expect(seen).toEqual(['bob-key'])
     expect(calls).toHaveLength(2)
-    const { credentials } = persistence.stores
     expect(
       await credentials.get({
         scope: { threadId: 't', userId: 'bob' },
@@ -511,7 +515,7 @@ describe('sign-ins in a shared thread', () => {
       }
     }
     const a = start([() => toolCall('list_issues', {})])
-    await (await a.open()).prompt('List my issues.')
+    await (await a.open()).send('List my issues.')
     await a.host.close()
     // A copy without `principal`, as an older version wrote it.
     const stored = await stores.metadata.get('harness:interrupted', 't')

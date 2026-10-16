@@ -47,13 +47,13 @@ describe.each([
       () => text('One.'),
       () => text('Two.'),
     ])
-    await session.prompt('First.')
+    await session.send('First.')
     const receipt = await session.reset('We agreed on plan B.', {
       inputId: 'r1',
     })
     expect(receipt).toMatchObject({ status: 'accepted' })
     expect(await session.settled('r1')).toMatchObject({ outcome: 'completed' })
-    await session.prompt('Second.')
+    await session.send('Second.')
 
     expect(messageTexts(calls[1])).toEqual(['We agreed on plan B.', 'Second.'])
     // The transcript keeps every message, with the marker.
@@ -76,9 +76,9 @@ describe.each([
       () => text('One.'),
       () => text('Two.'),
     ])
-    await session.prompt('First.')
+    await session.send('First.')
     await session.reset()
-    await session.prompt('Second.')
+    await session.send('Second.')
 
     expect(messageTexts(calls[1])).toEqual(['Second.'])
     const transcript = await session.transcript()
@@ -100,11 +100,11 @@ describe.each([
       () => text('Three.'),
       () => text('Four.'),
     ])
-    await session.prompt('First.')
+    await session.send('First.')
     await session.reset('Note.')
-    await session.prompt('Second.')
-    await session.prompt('Third.')
-    await session.prompt('Fourth.')
+    await session.send('Second.')
+    await session.send('Third.')
+    await session.send('Fourth.')
 
     expect(messageTexts(calls[3])).toEqual([
       'Note.',
@@ -128,9 +128,9 @@ describe.each([
       after(release.opened, 'One.'),
       () => text('Two.'),
     ])
-    const first = session.prompt('First.')
+    const first = session.send('First.')
     // Queued while the first turn runs, before the reset.
-    const second = session.prompt('Second.')
+    const second = session.send('Second.')
     const receipt = await session.reset('Note.')
     expect(receipt).toMatchObject({ status: 'queued' })
     release.open()
@@ -165,12 +165,12 @@ describe.each([
       [() => text('One.'), () => toolCall('lookup', {}), () => text('Two.')],
       { tools: [lookup] },
     )
-    await session.prompt('First.')
+    await session.send('First.')
     await session.reset('Note.')
-    const turn = session.prompt('Second.')
+    const turn = session.send('Second.')
     await started.opened
     // Joins at the model call after the tool.
-    await session.steer('Also this.')
+    await session.send('Also this.', { mode: 'steer' }).receipt
     release.open()
     await turn
 
@@ -198,9 +198,9 @@ describe.each([
       [() => text('One.'), () => text('Two.')],
       { middleware: [watch] },
     )
-    await session.prompt('First.')
+    await session.send('First.')
     await session.reset('Note.')
-    await session.prompt('Second.')
+    await session.send('Second.')
 
     expect(seen.at(-1)).toEqual(['Note.', 'Second.'])
     await host.close()
@@ -208,7 +208,7 @@ describe.each([
 
   it('runs once for the same inputId and refuses another note', async () => {
     const { session, host } = await open([() => text('One.')])
-    await session.prompt('First.')
+    await session.send('First.')
     await session.reset('Note.', { inputId: 'r1' })
     await session.settled('r1')
     expect(await session.reset('Note.', { inputId: 'r1' })).toMatchObject({
@@ -235,7 +235,7 @@ describe.each([
     const { session, host } = await open([() => toolCall('deploy', {})], {
       tools: [deploy],
     })
-    await session.prompt('Deploy.')
+    await session.send('Deploy.')
     expect(await session.reset('Note.')).toMatchObject({
       status: 'rejected',
       reason: 'pending_interrupts',
@@ -253,7 +253,7 @@ describe('reset on a durable host', () => {
       defineHarness({ name: 'test/reset', adapter: first.adapter }),
       { threadId: 't1' },
     )
-    await sessionA.prompt('First.')
+    await sessionA.send('First.')
     await sessionA.reset('Note.', { inputId: 'r1' })
     await sessionA.settled('r1')
     await hostA.close()
@@ -264,7 +264,7 @@ describe('reset on a durable host', () => {
       defineHarness({ name: 'test/reset', adapter: second.adapter }),
       { threadId: 't1' },
     )
-    await sessionB.prompt('Second.')
+    await sessionB.send('Second.')
     expect(messageTexts(second.calls[0])).toEqual(['Note.', 'Second.'])
     expect(contents(await sessionB.transcript())).toEqual([
       'First.',
@@ -299,7 +299,7 @@ describe('reset on a durable host', () => {
       { threadId: 't1' },
     )
     expect(await session.settled('r1')).toMatchObject({ outcome: 'completed' })
-    await session.prompt('Second.')
+    await session.send('Second.')
     expect(messageTexts(calls[0])).toEqual(['Note.', 'Second.'])
     await host.close()
   })

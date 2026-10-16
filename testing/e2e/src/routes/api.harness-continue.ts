@@ -120,8 +120,7 @@ export const Route = createFileRoute('/api/harness-continue')({
           session.onEvent('TEXT_MESSAGE_CONTENT', ({ event }) => {
             deltas.push(event.delta)
           })
-          text = (await session.prompt('[harness-continue] say hello world'))
-            .text
+          text = (await session.send('[harness-continue] say hello world')).text
         } catch (error) {
           return Response.json({
             error: error instanceof Error ? error.message : String(error),

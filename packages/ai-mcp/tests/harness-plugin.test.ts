@@ -104,7 +104,7 @@ if (process.env[childEnv] === '1') {
           throw new TypeError('connection refused')
         }),
       })
-      await session.prompt('hi')
+      await session.send('hi')
 
       expect(model.toolNames(0)).toEqual(['good_echo'])
       const error =
@@ -136,7 +136,7 @@ if (process.env[childEnv] === '1') {
           { timeoutMs: 100 },
         ),
       })
-      await session.prompt('hi')
+      await session.send('hi')
 
       expect(model.toolNames(0)).toEqual([])
       await expect(session.command('mcp')).resolves.toMatch(
@@ -161,7 +161,7 @@ if (process.env[childEnv] === '1') {
           },
         },
       })
-      await session.prompt('hi')
+      await session.send('hi')
 
       expect(model.toolNames(0)).toEqual(['good_echo'])
       await expect(session.command('mcp')).resolves.toBe(
@@ -180,7 +180,7 @@ if (process.env[childEnv] === '1') {
           codeMode: true,
         }),
       })
-      await session.prompt('hi')
+      await session.send('hi')
 
       const marks = (model.calls[0]?.tools ?? []).map((tool) => [
         tool.name,
@@ -209,7 +209,7 @@ if (process.env[childEnv] === '1') {
           { trips: httpServer((request) => trips.fetch(request)) },
           model,
         )
-        const turn = session.prompt('book a trip')
+        const turn = session.send('book a trip')
         await vi.waitFor(() =>
           expect(session.snapshot().pendingQuestions).toHaveLength(1),
         )
@@ -236,7 +236,7 @@ if (process.env[childEnv] === '1') {
         { trips: httpServer((request) => trips.fetch(request)) },
         recorder('trips_book'),
       )
-      const turn = session.prompt('book a trip')
+      const turn = session.send('book a trip')
       await vi.waitFor(() =>
         expect(session.snapshot().pendingQuestions).toHaveLength(1),
       )
@@ -271,7 +271,7 @@ if (process.env[childEnv] === '1') {
           { trips: httpServer((request) => trips.fetch(request)) },
           model,
         )
-        const turn = session.prompt('book a trip')
+        const turn = session.send('book a trip')
         await vi.waitFor(() =>
           expect(session.snapshot().pendingQuestions).toHaveLength(1),
         )
@@ -299,7 +299,7 @@ if (process.env[childEnv] === '1') {
         { trips: httpServer((request) => trips.fetch(request)) },
         recorder('trips_book'),
       )
-      const turn = session.prompt('book a trip')
+      const turn = session.send('book a trip')
       await vi.waitFor(() =>
         expect(session.snapshot().pendingQuestions).toHaveLength(1),
       )
@@ -335,7 +335,7 @@ if (process.env[childEnv] === '1') {
         { trips: httpServer((request) => trips.fetch(request)) },
         model,
       )
-      const turn = session.prompt('book a trip')
+      const turn = session.send('book a trip')
       for (const [message, value] of [
         ['Which city?', { city: 'Paris' }],
         ['Which seat?', { seat: '12A' }],
@@ -363,7 +363,7 @@ if (process.env[childEnv] === '1') {
         { trips: httpServer((request) => trips.fetch(request)) },
         model,
       )
-      const turn = session.prompt('book a trip')
+      const turn = session.send('book a trip')
       for (let round = 0; round < 5; round++) {
         await vi.waitFor(() =>
           expect(session.snapshot().pendingQuestions).toHaveLength(1),
@@ -395,7 +395,7 @@ if (process.env[childEnv] === '1') {
         },
         model,
       )
-      await session.prompt('which process runs the server?')
+      await session.send('which process runs the server?')
       const seen = JSON.stringify(model.calls[1]?.messages)
       const pid = Number(/pid:(\d+)/.exec(seen)?.[1])
       expect(isRunning(pid)).toBe(true)
@@ -412,7 +412,7 @@ if (process.env[childEnv] === '1') {
       const { session, model } = await openWith({
         demo: { type: 'http', url: protectedServer.url, oauth: true },
       })
-      await session.prompt('before')
+      await session.send('before')
       await expect(session.command('mcp')).resolves.toBe(
         'demo: failed: Not signed in. Run /connect demo.',
       )
@@ -422,7 +422,7 @@ if (process.env[childEnv] === '1') {
       await expect(session.command('connect:demo')).resolves.toBe(
         'Connected to demo.',
       )
-      await session.prompt('after')
+      await session.send('after')
 
       expect(model.toolNames(0)).toEqual([])
       expect(model.toolNames(1)).toEqual(['demo_echo'])

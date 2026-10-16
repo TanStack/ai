@@ -89,7 +89,7 @@ describe('modelPicker', () => {
       }),
     ])
     expect(await session.command('model', 'fast')).toContain('Model: fast')
-    expect(await session.prompt('hi')).toEqual({
+    expect(await session.send('hi')).toEqual({
       text: 'fast answer',
       media: [],
     })
@@ -109,9 +109,9 @@ describe('todos', () => {
       () => text('next'),
     ])
     const { host, session, persistence } = await open(adapter, [todos()])
-    await session.prompt('plan it')
+    await session.send('plan it')
     expect(await session.command('todos')).toBe('[~] write tests')
-    await session.prompt('continue')
+    await session.send('continue')
     expect(JSON.stringify(calls[2].systemPrompts)).toContain('[~] write tests')
     expect(
       await persistence.stores.metadata.get('plugin:tanstack/todos', 't'),
@@ -177,8 +177,8 @@ describe('compact and usage', () => {
       compact({ adapter: summarizer.adapter }),
       usage(),
     ])
-    await session.prompt('first')
-    await session.prompt('second')
+    await session.send('first')
+    await session.send('second')
     expect(await session.command('compact')).toBe(
       'Compacted 4 messages into a summary.',
     )

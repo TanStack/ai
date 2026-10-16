@@ -50,7 +50,7 @@ export interface PluginSessionApi<TMetadata = Record<string, unknown>> {
    * Start a chat turn, as if the user typed `text`. While a turn runs, the new
    * turn waits in the queue. Cancel the returned turn to drop it before it starts.
    */
-  prompt: (text: string) => Operation<ChatTurnResult>
+  send: (text: string) => Operation<ChatTurnResult>
   /**
    * Add `text` to the transcript as an assistant note, not as a user prompt.
    * When no turn runs, the note is written at once. Else it is written before

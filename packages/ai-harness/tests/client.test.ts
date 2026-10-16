@@ -39,7 +39,7 @@ describe('createHarnessClient', () => {
       fetch: (input, init) => handler(new Request(input, init)),
     })
 
-    const receipt = await client.prompt('hi')
+    const receipt = await client.send('hi')
     expect(receipt.status).toBe('accepted')
 
     const controller = new AbortController()
@@ -81,10 +81,13 @@ describe('createHarnessClient', () => {
       fetch: (input, init) => handler(new Request(input, init)),
     })
 
-    const first = await client.prompt('hi', { inputId: 'req-1' })
-    const retry = await client.prompt('hi', { inputId: 'req-1' })
-    const steer = await client.steer('also', { inputId: 'req-2' })
-    const steerRetry = await client.steer('also', { inputId: 'req-2' })
+    const first = await client.send('hi', { inputId: 'req-1' })
+    const retry = await client.send('hi', { inputId: 'req-1' })
+    const steer = await client.send('also', { mode: 'steer', inputId: 'req-2' })
+    const steerRetry = await client.send('also', {
+      mode: 'steer',
+      inputId: 'req-2',
+    })
 
     expect(first).toMatchObject({ inputId: 'req-1', status: 'accepted' })
     expect(retry).toEqual(first)
@@ -146,7 +149,7 @@ describe('createHarnessClient', () => {
     })
 
     await client.continue({ ephemeral: [{ role: 'user', content: 'note 1' }] })
-    await client.prompt('again', {
+    await client.send('again', {
       ephemeral: [{ role: 'user', content: 'note 2' }],
     })
     await vi.waitFor(async () =>
@@ -176,7 +179,7 @@ describe('createHarnessClient', () => {
       threadId: 't',
       fetch: (input, init) => handler(new Request(input, init)),
     })
-    await expect(client.prompt('hi')).rejects.toThrow('401')
+    await expect(client.send('hi')).rejects.toThrow('401')
     await expect(async () => {
       for await (const _ of client.events()) break
     }).rejects.toThrow('401')
@@ -184,7 +187,7 @@ describe('createHarnessClient', () => {
   })
 })
 
-describe('client.sendToAgent', () => {
+describe('client.send to an agent run', () => {
   it('sends a message to an agent run, as the request principal', async () => {
     const hold = gate()
     const drafter = defineAgent({
@@ -216,9 +219,8 @@ describe('client.sendToAgent', () => {
     })
 
     const started = await client.agents.drafter.start({ topic: 'tea' })
-    const receipt = await client.sendToAgent({
-      operationId: started.operationId ?? '',
-      message: 'Add a title.',
+    const receipt = await client.send('Add a title.', {
+      to: started.operationId ?? '',
       mode: 'followUp',
       inputId: 'm-1',
     })

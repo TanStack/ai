@@ -150,11 +150,11 @@ After the sign-in, the turn finishes its work with no new message.
 
 ## Keep credentials
 
-The host reads credentials from `stores.credentials`, keyed by the sender of the running turn. Without it, credentials live in memory until the process stops. When several people write in one thread, see [Share a thread between people](./shared-threads).
+Pass a credential store to the host. The host reads credentials from it, keyed by the sender of the running turn. Without one, credentials live in memory until the process stops. When several people write in one thread, see [Share a thread between people](./shared-threads).
 
 ```ts group=harness-auth
-import { defineCredentialStore } from '@tanstack/ai-persistence'
-import type { Credential } from '@tanstack/ai-persistence'
+import { defineCredentialStore } from '@tanstack/ai/byok'
+import type { Credential } from '@tanstack/ai/byok'
 
 const saved = new Map<string, Credential>()
 const keyOf = (userId: string | undefined, id: string) => `${userId ?? 'tenant'}:${id}`
@@ -173,6 +173,14 @@ export const credentials = defineCredentialStore({
       .map(([key, credential]) => ({ id: key.split(':')[1] ?? key, type: credential.type })),
 })
 ```
+
+```ts group=harness-auth
+import { createHarnessHost } from '@tanstack/ai-harness'
+
+export const host = createHarnessHost({ credentials })
+```
+
+The store can be a table in your own database or a secrets manager. See the rules in [Write a store for production](../advanced/server-keys#write-a-store-for-production).
 
 - Encrypt tokens at rest in a real store.
 - `list` returns ids and types only, never the secret values.

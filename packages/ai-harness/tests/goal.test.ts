@@ -222,7 +222,7 @@ describe('goal', () => {
       verdicts: [{ met: true, reason: 'Done.' }],
     })
 
-    const question = session.prompt('what time is it?')
+    const question = session.send('what time is it?')
     await vi.waitFor(() => expect(calls).toHaveLength(1))
     await session.command('goal', 'finish')
     await vi.waitFor(() => expect(session.inputs()).toHaveLength(1))
@@ -260,7 +260,7 @@ describe('goal', () => {
 
     await session.command('goal', 'all tests pass')
     await vi.waitFor(() => expect(calls).toHaveLength(1))
-    const question = session.prompt('what time is it?')
+    const question = session.send('what time is it?')
     hold.open()
     await question
 
@@ -297,7 +297,7 @@ describe('goal', () => {
     await session.command('goal', 'all tests pass')
     await vi.waitFor(() => expect(calls).toHaveLength(1))
     // The last model call of the turn is in flight, so the steer comes too late.
-    await session.steer('what time is it?')
+    await session.send('what time is it?', { mode: 'steer' }).receipt
     hold.open()
 
     await waitForStatus(
@@ -330,7 +330,7 @@ describe('goal', () => {
       replies: [() => text('Hello.')],
     })
 
-    await session.prompt('hello')
+    await session.send('hello')
     expect(await status(session)).toBe(
       'Goal: all tests pass\nStatus: paused, round 1 of 20.\nYou sent a message, so the goal paused. Run /goal resume to continue.',
     )

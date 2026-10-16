@@ -67,7 +67,7 @@ export async function editAndResend(threadId: string, messageId: string, text: s
     at: { before: messageId },
   })
   const fork = await host.open(assistant, { threadId: entry.threadId })
-  await fork.prompt(text)
+  await fork.send(text)
   return entry.threadId
 }
 ```

@@ -62,8 +62,9 @@ export function createToolStep(options: {
       }
       used.add(name)
       const stored = options.recorded(name)
-      // The log holds what an earlier run of this step returned.
-      if (stored.found) return stored.value as T
+      // The log holds what an earlier run of this step returned. A copy, so
+      // the tool cannot change the fold.
+      if (stored.found) return structuredClone(stored.value) as T
       const value = await fn()
       await options.record(name, value)
       return value

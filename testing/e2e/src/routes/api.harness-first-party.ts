@@ -65,9 +65,9 @@ async function agentProfiles(host: HarnessHost, model: () => AnyTextAdapter) {
     }),
     { threadId: 'e2e-agents' },
   )
-  const first = (await session.prompt('[first-party-agents] first')).text
+  const first = (await session.send('[first-party-agents] first')).text
   const switched = await session.command('agent', 'brief')
-  const second = (await session.prompt('[first-party-agents] second')).text
+  const second = (await session.send('[first-party-agents] second')).text
   return { first, switched, second }
 }
 
@@ -122,7 +122,7 @@ async function planSubagent(host: HarnessHost, model: () => AnyTextAdapter) {
     { threadId: 'e2e-plan' },
   )
   await session.command('mode', 'plan')
-  const turn = await session.prompt('[first-party-plan] write x.txt')
+  const turn = await session.send('[first-party-plan] write x.txt')
   return { writes, results, text: turn.text }
 }
 
@@ -162,7 +162,7 @@ async function environmentPrompt(
       }),
       { threadId: 'e2e-env' },
     )
-    const turn = await session.prompt('[first-party-env] where am i')
+    const turn = await session.send('[first-party-env] where am i')
     return { root, platform: process.platform, text: turn.text }
   } finally {
     await rm(root, { recursive: true, force: true })
@@ -190,7 +190,7 @@ async function sessionTitle(
     }),
     { threadId: 'e2e-title' },
   )
-  const turn = await session.prompt('[first-party-title] plan a trip to Rome')
+  const turn = await session.send('[first-party-title] plan a trip to Rome')
   const deadline = Date.now() + 5_000
   let entry = await host.sessions.get('e2e-title')
   while (!entry?.title && failures.length === 0 && Date.now() < deadline) {
@@ -239,7 +239,7 @@ async function connectedKey(host: HarnessHost, testId: string | undefined) {
   if (!question) throw new Error('/connect:openai asked no question.')
   await session.answer({ questionId: question.questionId, value: USER_KEY })
   const connected = await connecting
-  const turn = await session.prompt('[first-party-keys] hello')
+  const turn = await session.send('[first-party-keys] hello')
   return {
     secret: question.secret ?? false,
     connected,
@@ -308,7 +308,7 @@ async function codeModeTools(host: HarnessHost, model: () => AnyTextAdapter) {
     }),
     { threadId: 'e2e-code-mode' },
   )
-  const turn = await session.prompt('[first-party-code-mode] which tools')
+  const turn = await session.send('[first-party-code-mode] which tools')
   return { text: turn.text }
 }
 

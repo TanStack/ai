@@ -6,7 +6,6 @@ import {
   validateWithStandardSchema,
 } from '@tanstack/ai'
 import { withPersistence } from '@tanstack/ai-persistence'
-import { withHarnessContext } from '../agents'
 import { mediaCapture, mediaMiddleware } from '../media'
 import { OperationImpl } from '../operation'
 import {
@@ -15,7 +14,7 @@ import {
   repairTranscript,
   truncationMiddleware,
 } from '../resume'
-import { HARNESS_EVENTS } from '../types'
+import { HARNESS_EVENTS, InputRejectedError } from '../types'
 import {
   agentKey,
   chainFields,
@@ -42,14 +41,18 @@ import type {
   SubagentBinding,
 } from '@tanstack/ai'
 import type { InputState, LogWriter } from '../log'
-import type { AgentStarter, AnyAgent } from '../agents'
+import { NO_SESSION_CONTEXT } from '../agents'
+import type { AgentStarter, AnyAgent, HarnessAgentContext } from '../agents'
 import type { AnyHarness } from '../define'
 import type { AgentGroup, MountedPlugins } from '../plugins'
 import type {
   AgentRun,
+  AgentSendOptions,
   ChatTurnResult,
   InputSettlement,
+  SettlementOutcome,
   MediaRecord,
+  Operation,
   Principal,
   Receipt,
   UserInput,
@@ -86,12 +89,83 @@ export abstract class SessionAgents<
     }
   }
 
+  protected override sendToRun(
+    message: UserInput,
+    options: AgentSendOptions,
+  ): Operation<unknown> {
+    const { to } = options
+    const inputId = options.inputId ?? createInputId()
+    const chain = this.chainOf.get(to) ?? this.loggedChain(to)
+    // The operation ends with the run that gets the message. Its cancel
+    // cancels that run.
+    let target = to
+    const follower = new OperationImpl<unknown>(
+      'agent',
+      this.feed,
+      () => this.cancel(target),
+      chain?.agent,
+    )
+    void this.sendToAgent({
+      ...options,
+      inputId,
+      operationId: to,
+      message,
+    }).then(
+      (receipt) => {
+        follower.resolveReceipt(receipt)
+        const run =
+          receipt.status === 'rejected'
+            ? undefined
+            : receipt.operationId
+              ? this.agentRun(receipt.operationId)
+              : undefined
+        if (!run) {
+          follower.fail(
+            'failed',
+            new InputRejectedError(
+              receipt.status === 'rejected'
+                ? receipt
+                : {
+                    inputId,
+                    status: 'rejected',
+                    reason: 'not_running',
+                  },
+            ),
+          )
+          return
+        }
+        target = run.id
+        run.then(
+          (result) =>
+            follower.finish(
+              run.status() === 'interrupted' ? 'interrupted' : 'completed',
+              result,
+            ),
+          (error: unknown) =>
+            follower.fail(
+              run.status() === 'cancelled' ? 'cancelled' : 'failed',
+              error,
+            ),
+        )
+      },
+      (error: unknown) => {
+        follower.resolveReceipt({
+          inputId: options.inputId ?? '',
+          status: 'rejected',
+          reason: error instanceof Error ? error.message : String(error),
+        })
+        follower.fail('failed', error)
+      },
+    )
+    return follower
+  }
+
   /**
    * Add a message to the agent run `operationId`, as `AgentRun.send` does.
    * `principal` is who sent it. A follow-up runs for its sender. An unknown
    * run gets `not_running`.
    */
-  async sendToAgent(options: {
+  protected async sendToAgent(options: {
     operationId: string
     message: UserInput
     mode?: 'steer' | 'followUp'
@@ -314,6 +388,7 @@ export abstract class SessionAgents<
       // No `promptCache`: a tool-mode child then uses the retention of the
       // turn's chat() call, so a turn override reaches it.
       ...(start && { start }),
+      extend: () => ({ harness: NO_SESSION_CONTEXT }),
     } satisfies SubagentBinding
   }
 
@@ -334,7 +409,8 @@ export abstract class SessionAgents<
     this.markBusy()
     // The agent runs for the sender of the turn that starts it, also after
     // that turn ends. A child of agent code runs for its parent run's sender.
-    const principal = parent ? parent.current.principal : this.sender()
+    const principal =
+      options.principal ?? (parent ? parent.current.principal : this.sender())
     const sender = principal ? { principal } : {}
     const fromParent = parent
       ? {
@@ -362,7 +438,7 @@ export abstract class SessionAgents<
   }
 
   /**
-   * `harnessContext(ctx).agents` in the runs of `chain`: start a child in the
+   * `ctx.harness.agents` in the runs of `chain`: start a child in the
    * background.
    * The child counts against the chain's tree budget, and over it `start`
    * throws. The child records the run that started it, and runs for that
@@ -390,12 +466,17 @@ export abstract class SessionAgents<
       agent,
       id,
     )
-    const run = Object.assign(operation, {
-      send: (
-        message: UserInput,
-        options?: { mode?: 'steer' | 'followUp'; inputId?: string },
-      ) => this.sendToAgent({ ...options, operationId: operation.id, message }),
-    })
+    const run = Object.assign(
+      // `kind` and `agent` are fixed by the constructor call above.
+      operation as OperationImpl<unknown> & { kind: 'agent'; agent: string },
+      {
+        send: (
+          message: UserInput,
+          options?: { mode?: 'steer' | 'followUp'; inputId?: string },
+        ) =>
+          this.sendToAgent({ ...options, operationId: operation.id, message }),
+      },
+    )
     this.track(run)
     return run
   }
@@ -466,7 +547,7 @@ export abstract class SessionAgents<
 
   /**
    * What a resumable agent run adds on a durable host: checkpoints of its
-   * `ctx.chat` tool phases, and `harnessContext(ctx).step` values in the
+   * `ctx.chat` tool phases, and `ctx.harness.step` values in the
    * session log, under the key of the input the run applies.
    */
   protected resumable(inputId: string) {
@@ -792,11 +873,12 @@ export abstract class SessionAgents<
           : saved
       const binding = this.binding(operation, [], principal)
       const durable = options.resume ? this.resumable(inputId) : undefined
+      const harnessContext: HarnessAgentContext = {
+        step: durable?.step ?? NO_SESSION_CONTEXT.step,
+        agents: this.agentStarter(chain),
+      }
       const stream = runAgentStream(
-        withHarnessContext(agent, {
-          ...(durable ? { step: durable.step } : {}),
-          agents: this.agentStarter(chain),
-        }),
+        agent,
         {
           input: checkedInput,
           // A prompt is one more user message at the end, as in core.
@@ -834,6 +916,7 @@ export abstract class SessionAgents<
           budget: chain.budget,
           // No parent chat() call to take it from, so the session's retention.
           promptCache: this.promptCache.retention,
+          extend: () => ({ harness: harnessContext }),
         },
       )
       for await (const raw of stream) {
@@ -876,7 +959,7 @@ export abstract class SessionAgents<
     const end = async (
       run: Pick<RunRecord, 'status'> &
         Partial<Pick<RunRecord, 'error' | 'result'>>,
-      settlement: Pick<InputSettlement, 'outcome' | 'error'>,
+      settlement: SettlementOutcome,
     ) => {
       if (this.logFailure) return
       await runs?.update(operation.id, { ...run, finishedAt: Date.now() })
@@ -889,8 +972,13 @@ export abstract class SessionAgents<
           operationId: operation.id,
           ...settlement,
         })),
-      ).catch(() => {})
+      ).catch((error: unknown) => this.warnSession('harness:agents', error))
     }
+    // The run settled already: a note that fails must not leave it open.
+    const note = (ended: 'finished' | 'failed', result: unknown) =>
+      this.noteAgentEnd(name, ended, result, options, principal).catch(
+        (error: unknown) => this.warnSession('harness:agents', error),
+      )
     // A recoverable close: the run stops as on a crash, and the next host
     // runs it again.
     if (operation.abortController.signal.reason === SHUTDOWN_REASON) {
@@ -917,7 +1005,7 @@ export abstract class SessionAgents<
         })
         const error = { message: failure }
         await end({ status: 'failed', error }, { outcome: 'failed', error })
-        await this.noteAgentEnd(name, 'failed', failure, options, principal)
+        await note('failed', failure)
         operation.fail('failed', new Error(failure))
       } else {
         operation.publish({
@@ -931,7 +1019,7 @@ export abstract class SessionAgents<
           { status: 'completed', result: compactForModel(value) },
           { outcome: 'completed' },
         )
-        await this.noteAgentEnd(name, 'finished', value, options, principal)
+        await note('finished', value)
         operation.finish('completed', value)
       }
     } finally {
@@ -997,10 +1085,20 @@ export abstract class SessionAgents<
       await this.addNote(note)
     }
     if (options.wake) {
-      this.queueFollowUp(`Background agent ${name} ${ended}: ${note}`, {
-        ...(principal ? { principal } : {}),
-        wake: true,
-      }).catch((error: unknown) => this.warnSession('harness:agents', error))
+      this.startTurn(
+        {
+          op: 'followUp',
+          message: `Background agent ${name} ${ended}: ${note}`,
+        },
+        { ...(principal ? { principal } : {}), wake: true },
+      ).receipt.then(
+        // A refused wake (the thread waits for an interrupt) is reported.
+        (receipt) => {
+          if (receipt.status === 'rejected')
+            this.warnSession('harness:agents', new InputRejectedError(receipt))
+        },
+        (error: unknown) => this.warnSession('harness:agents', error),
+      )
     }
   }
 
@@ -1080,6 +1178,6 @@ export abstract class SessionAgents<
         { type: 'harness.job', jobId, ended: true },
       ])
     }
-    if (!this.activeTurn && !this.reverted) await this.flushNotes()
+    if (this.canFlushNotes()) await this.flushNotes()
   }
 }

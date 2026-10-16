@@ -63,10 +63,17 @@ export interface SubagentRunInput<
  */
 export type SubagentRunContext<TInput extends SchemaInput | undefined = any> =
   SubagentRunInput<TInput> &
-    BoundActivities & {
+    BoundActivities &
+    SubagentContextExtension & {
       forward: SubagentForward
       keys: ProviderKeys
     }
+
+/**
+ * What a host adds to `ctx` through `SubagentBinding.extend`. Empty here: a
+ * host package augments it, so its fields type-check on `ctx` in every `run`.
+ */
+export interface SubagentContextExtension {}
 
 /**
  * What an agent makes. Informative: a host can use it to find an agent by

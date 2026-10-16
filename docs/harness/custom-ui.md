@@ -103,6 +103,8 @@ await view.send('Summarize the README.')
 
 Put the code of steps 1 and 2 in one `.tsx` file, then run it. The screen shows your prompt, then the answer while it streams, then the status `idle`. Press Ctrl+C to quit.
 
+An Ink screen with approvals, questions, sign-ins, and child agents is in [`examples/harness-cli/src/tui.tsx`](https://github.com/TanStack/ai/blob/main/examples/harness-cli/src/tui.tsx). It runs from [`runCli({ ui })`](./cli#run-your-own-screen).
+
 Each TanStack Store adapter reads the store the same way. Vue, Solid, Svelte, and Preact have `useSelector`. Angular has `injectSelector`. With no UI library, subscribe to the store:
 
 ```ts group=harness-custom-ui
@@ -222,7 +224,7 @@ if (agent) {
 
 `agent.cancel()` stops the run, and the runs it started.
 
-A session and a `HarnessClient` can do all of this. If you give `createSessionView` your own `SessionViewSource`, some members are optional. Without `sendToAgent`, `agent.send` rejects with an error. Without `followUp`, `reset`, or another optional member, its action adds an `error` notice instead.
+A session and a `HarnessClient` can do all of this. If you give `createSessionView` your own `SessionViewSource`, `send`, `resolve`, and `cancel` are required. `send` takes `mode` for a steer or a follow-up, and `to` for a message to an agent run. Without `reset` or another optional member, its action adds an `error` notice instead.
 
 ## 4. Listen for events
 

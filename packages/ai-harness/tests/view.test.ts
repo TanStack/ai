@@ -13,7 +13,6 @@ import { createHarnessClient } from '../src/client'
 import { createSessionView } from '../src/view'
 import { after, gate, mockAdapter, text, toolCall } from './helpers'
 import type { Reply } from './helpers'
-import type { SessionViewSource } from '../src/view'
 
 const Pinged = createPluginEvent<{ count: number }>('test/pinged')
 
@@ -108,12 +107,12 @@ describe('createSessionView', () => {
     ])
     await view.send('start')
     await vi.waitFor(() => expect(view.store.get().status).toBe('running'))
-    const steer = vi.spyOn(session, 'steer')
+    const steer = vi.spyOn(session, 'send')
 
     await view.send('faster')
     hold.open()
 
-    expect(steer).toHaveBeenCalledWith('faster')
+    expect(steer).toHaveBeenCalledWith('faster', { mode: 'steer' })
     await vi.waitFor(() => expect(view.store.get().status).toBe('idle'))
     expect(calls.length).toBeGreaterThanOrEqual(1)
     view.dispose()
@@ -251,7 +250,7 @@ describe('createSessionView', () => {
   it('shows history after a restart, then the notices added before ready', async () => {
     const persistence = memoryPersistence()
     const first = await open([() => text('Saved answer.')], persistence)
-    await first.session.prompt('remember this')
+    await first.session.send('remember this')
     await first.host.close()
 
     const second = await open([], persistence)
@@ -437,35 +436,6 @@ describe('the agents of a session view', () => {
     await host.close()
   })
 
-  it('rejects send when the view source cannot send to agents', async () => {
-    const { hold, host, session, run } = await openWriter()
-    const source: SessionViewSource = {
-      prompt: (message) => session.prompt(message),
-      steer: (message) => session.steer(message),
-      resolve: (resume) => session.resolve(resume),
-      cancel: (operationId) => session.cancel(operationId),
-      answer: ({ questionId, value }) => session.answer({ questionId, value }),
-      command: (name, input) => session.command(name, input),
-      setConfig: ({ key, value }) => session.setConfig({ key, value }),
-      events: (options) => session.events(options),
-      snapshot: () => session.snapshot(),
-      transcript: () => session.transcript(),
-      describe: () => session.describe(),
-    }
-    const view = createSessionView(source)
-    await view.ready
-
-    const [agent] = view.store.get().agents
-
-    await expect(agent?.send('x')).rejects.toThrow(
-      'This view source cannot send messages to agents.',
-    )
-    hold.open()
-    await run
-    view.dispose()
-    await host.close()
-  })
-
   it('shows what a child agent wrote after a reload', async () => {
     const writer = defineAgent({
       name: 'writer',
@@ -485,7 +455,7 @@ describe('the agents of a session view', () => {
       }),
       { threadId: 't' },
     )
-    await session.prompt('Notes, please')
+    await session.send('Notes, please')
 
     const view = createSessionView(session)
     await view.ready

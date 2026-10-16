@@ -151,6 +151,8 @@ export abstract class SessionTurnParts<
         execute: (args: unknown, context?: ToolExecutionContext) => {
           const id = context?.toolCallId
           if (!context || id === undefined) return execute(args, context)
+          // The wake turn runs as the sender of the turn that detached the job.
+          const principal = this.sender()
           context.detach = (work) =>
             new Promise((moved) => {
               this.detachable.set(id, () => {
@@ -168,7 +170,9 @@ export abstract class SessionTurnParts<
                         `Background job ${id} failed: ${error instanceof Error ? error.message : String(error)}`,
                       ),
                   )
-                  .then((text) => this.pluginApi().note(text, { wake: true }))
+                  .then((text) =>
+                    this.pluginApi(principal).note(text, { wake: true }),
+                  )
                   .then(() => this.logJob(id, true))
                   .catch(() => undefined)
               })
@@ -596,7 +600,10 @@ export abstract class SessionTurnParts<
     })
     await leases.acquire(lease())
     const timer = setInterval(
-      () => void leases.renew(lease()).catch(() => {}),
+      () =>
+        void leases
+          .renew(lease())
+          .catch((error: unknown) => this.warnSession('harness:leases', error)),
       renewMs,
     )
     // A lease timer must not keep a CLI or a test process alive.

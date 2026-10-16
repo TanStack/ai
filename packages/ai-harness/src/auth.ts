@@ -1,7 +1,16 @@
 import { isKeyedAdapter } from '@tanstack/ai'
 import type { ProviderKeys, Scope } from '@tanstack/ai'
-import type { ByokProvider, ProviderId } from '@tanstack/ai/byok'
-import type { Credential, CredentialStore } from '@tanstack/ai-persistence'
+import {
+  envKeyEntry,
+  readCredential,
+  tenantScopeOf,
+} from '@tanstack/ai/byok/server'
+import type {
+  ByokProvider,
+  Credential,
+  CredentialStore,
+  ProviderId,
+} from '@tanstack/ai/byok'
 
 /**
  * Thrown when a tool or command needs a credential the user has not saved.
@@ -76,13 +85,6 @@ function signInRequired(error: AuthRequiredError) {
   })
 }
 
-/**
- * The tenant scope of a user scope: the same tenant, no user. A credential
- * saved there belongs to every user of the tenant.
- */
-const tenantOf = ({ userId, ...tenant }: Scope): Scope | undefined =>
-  userId === undefined ? undefined : tenant
-
 function secretValues(credential: Credential) {
   if (credential.type === 'api_key') return [credential.value]
   const { accessToken, refreshToken, client } = credential
@@ -115,13 +117,8 @@ export function credentialsFor(
   // ponytail: a refreshed tenant OAuth token is saved for the user, so each
   // user keeps a copy. A provider that rotates refresh tokens would need a
   // save for the whole tenant to share one token.
-  const get = async (id: string) => {
-    const user = scopeNow()
-    const own = await store.get({ scope: user, id })
-    if (own) return keep(own)
-    const tenant = tenantOf(user)
-    return keep(tenant ? await store.get({ scope: tenant, id }) : null)
-  }
+  const get = async (id: string) =>
+    keep(await readCredential(store, scopeNow(), id))
   const access: CredentialsAccess = {
     get,
     require: async (id, options) => {
@@ -140,7 +137,7 @@ export function credentialsFor(
     delete: (id) => store.delete({ scope: scopeNow(), id }),
     list: async () => {
       const user = scopeNow()
-      const tenant = tenantOf(user)
+      const tenant = tenantScopeOf(user)
       const own = await store.list(user)
       if (!tenant) return own
       const shared = await store.list(tenant)
@@ -151,21 +148,6 @@ export function credentialsFor(
     },
   }
   return access
-}
-
-/**
- * The first name in `provider.env` that is set, with its value. A provider
- * id has no env names. Where `process` is missing (a browser, a worker) it
- * returns `null`.
- */
-export function envKeyOf(provider: ByokProvider | ProviderId) {
-  if (typeof provider === 'string') return null
-  const env = globalThis.process?.env
-  for (const name of provider.env ?? []) {
-    const value = env?.[name]
-    if (typeof value === 'string' && value.length > 0) return { name, value }
-  }
-  return null
 }
 
 /**
@@ -185,7 +167,7 @@ export function providerKeysFor(
   const get = async (provider: ByokProvider | ProviderId) => {
     const saved = await credentials.get(providerIdOf(provider))
     if (saved?.type === 'api_key') return saved.value
-    const fromEnv = envKeyOf(provider)?.value
+    const fromEnv = envKeyEntry(provider)?.value
     if (fromEnv) secrets?.add(fromEnv)
     return fromEnv ?? null
   }

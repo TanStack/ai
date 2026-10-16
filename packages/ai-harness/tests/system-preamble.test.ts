@@ -35,7 +35,7 @@ describe('systemPreamble on the prompt op', () => {
     const host = createHarnessHost({ persistence: memoryPersistence() })
     const session = await host.open(harness, { threadId: 't-preamble' })
 
-    await session.prompt('hello', {
+    await session.send('hello', {
       systemPreamble: ['MEMORY: intranet-only', 'MEMORY: watchlist=repo'],
     })
 
@@ -87,7 +87,7 @@ describe('tool execution context carries the calling thread', () => {
     const host = createHarnessHost({ persistence: memoryPersistence() })
     const session = await host.open(harness, { threadId: 't-inband' })
 
-    await session.prompt('go')
+    await session.send('go')
 
     expect(seen).toHaveLength(1)
     expect(seen[0].context.threadId).toBe('t-inband')

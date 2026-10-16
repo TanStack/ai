@@ -118,7 +118,7 @@ export class AgentRegistry implements AgentRegistryView {
   }
 }
 
-/** `harnessContext(ctx).agents`: start agents in the background. */
+/** `ctx.harness.agents`: start agents in the background. */
 export interface AgentStarter {
   /**
    * Start `agent` (a definition, or a name the session knows) in the
@@ -145,40 +145,31 @@ export interface HarnessAgentContext {
   agents: AgentStarter
 }
 
-const NO_SESSION: HarnessAgentContext = {
+/**
+ * `ctx.harness` outside a run that a session started from code (a tool-mode
+ * child of a chat turn): `step.do` runs `fn` each time, `agents.start` throws.
+ */
+export const NO_SESSION_CONTEXT: HarnessAgentContext = {
   step: { do: async (_name, fn) => fn() },
   agents: {
     start: () => {
       throw new Error(
-        'harnessContext(ctx).agents needs a run that a harness session started.',
+        'ctx.harness.agents needs a run that a harness session started.',
       )
     },
   },
 }
 
-const contexts = new WeakMap<object, HarnessAgentContext>()
-
-/**
- * Read `step` and `agents` in the `run` of an agent: `harnessContext(ctx)`.
- * A harness session gives them to each agent run it starts from code (a
- * session agent, `harnessContext(ctx).agents.start`, a background child).
- * In a tool-mode child or outside a harness, `step.do` runs `fn` each time
- * and `agents.start` throws. Pass the `ctx` that `run` gets, not a copy.
- */
-export function harnessContext(ctx: object): HarnessAgentContext {
-  return contexts.get(ctx) ?? NO_SESSION
-}
-
-/** `agent`, with `extras` as its {@link harnessContext} in every run. */
-export function withHarnessContext(
-  agent: AnyAgent,
-  extras: Partial<HarnessAgentContext>,
-): AnyAgent {
-  return {
-    ...agent,
-    run: (ctx) => {
-      contexts.set(ctx, { ...NO_SESSION, ...extras })
-      return agent.run(ctx)
-    },
+declare module '@tanstack/ai' {
+  /**
+   * `ctx.harness` in the `run` of an agent: `step` and `agents`. A harness
+   * session gives them to each agent run it starts from code (a session
+   * agent, `ctx.harness.agents.start`, a background child), and to the
+   * children those runs start through `ctx.chat({ subagents })`. A run
+   * that a plain `chat()` starts outside a harness has no `harness` at
+   * run time: such an agent reads `ctx.harness` only inside a harness.
+   */
+  interface SubagentContextExtension {
+    harness: HarnessAgentContext
   }
 }

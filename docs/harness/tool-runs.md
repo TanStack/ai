@@ -50,7 +50,7 @@ const { text } = await run
 - The call goes through your middleware, the input check, and `permissions()`, the same as a model call.
 - The tool call and its result join the transcript, so the next chat turn sees them.
 - A tool that asks for approval stops the turn with an interrupt. Resolve it as you resolve any approval. See [Ask before a tool runs](./permissions).
-- Pass `inputId` to make the run idempotent, as [`prompt`](./inputs) does.
+- Pass `inputId` to make the run idempotent, as [`send`](./inputs) does.
 - `session.tool` runs only a tool in `harness.tools`. An unknown name fails the run.
 
 ## Tag a run with its trigger

@@ -103,8 +103,8 @@ describe.each([
       agent,
       pick: 'writer',
     })
-    await session.prompt('first')
-    await session.prompt('second')
+    await session.send('first')
+    await session.send('second')
     expect(routerSaw).toEqual([
       ['first'],
       ['first', 'writer:\nDraft 1', 'second'],
@@ -119,8 +119,8 @@ describe.each([
       agent,
       pick: 'writer',
     })
-    await session.prompt('first')
-    await session.prompt('second')
+    await session.send('first')
+    await session.send('second')
     expect(seen).toEqual([['first'], ['first', 'writer:\nDraft 1', 'second']])
     expect(messageTexts({ messages: await session.transcript() })).toEqual([
       'first',
@@ -138,7 +138,7 @@ describe.each([
       agent,
       pick: 'writer',
     })
-    const turn = await session.prompt('go')
+    const turn = await session.send('go')
     expect(turn.text).toBe('writer:\nDraft 1')
     expect(calls).toHaveLength(0)
     await host.close()
@@ -152,8 +152,8 @@ describe.each([
       pick: 'main',
       replies: [() => text('Main 1'), () => text('Main 2')],
     })
-    expect((await session.prompt('first')).text).toBe('Main 1')
-    expect((await session.prompt('second')).text).toBe('Main 2')
+    expect((await session.send('first')).text).toBe('Main 1')
+    expect((await session.send('second')).text).toBe('Main 2')
     // The main model gets each earlier message once.
     expect(messageTexts(calls[1])).toEqual(['first', 'Main 1', 'second'])
     expect(seen).toEqual([])
@@ -177,7 +177,7 @@ describe.each([
       agent,
       pick: 'writer',
     })
-    const turn = session.prompt('go')
+    const turn = session.send('go')
     await started.opened
     const running = await runs.get(turn.id)
     expect(running?.leaseOwner).toMatch(/^host-/)
@@ -195,7 +195,7 @@ describe.each([
       pick: 'writer',
       lease: { renewMs: 5 },
     })
-    const turn = session.prompt('go')
+    const turn = session.send('go')
     await turn
     const ended = (await runs.get(turn.id))?.leaseExpiresAt
     expect(ended).toBeTypeOf('number')
@@ -222,7 +222,7 @@ describe.each([
       pick: 'cleaner',
     })
 
-    const turn = await session.prompt('clean up')
+    const turn = await session.send('clean up')
     expect(remove.execute).not.toHaveBeenCalled()
     const resumed = await approveFirst(session, turn)
 
@@ -250,7 +250,7 @@ describe.each([
       ],
     })
 
-    const turn = await session.prompt('clean up')
+    const turn = await session.send('clean up')
     const resumed = await approveFirst(session, turn)
 
     expect(await resumed).toEqual({ text: 'Removed b.txt', media: [] })

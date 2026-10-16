@@ -168,7 +168,12 @@ describe('ACP v2 agent', () => {
       .join('')
     expect(text).toContain('Removed a.txt.')
     expect(
-      updates.some((update) => update.sessionUpdate === 'tool_call_update'),
+      updates.some(
+        (update) =>
+          update.sessionUpdate === 'tool_call_update' &&
+          'rawInput' in update &&
+          update.rawInput !== undefined,
+      ),
     ).toBe(true)
     await host.close()
   })

@@ -60,7 +60,7 @@ describe('chat turns', () => {
     const harness = defineHarness({ name: 'test/chat', adapter })
     const session = await host.open(harness, { threadId: 't1' })
 
-    const turn = session.prompt('Hi')
+    const turn = session.send('Hi')
     await expect(turn).resolves.toEqual({ text: 'Hello there', media: [] })
     expect(turn.status()).toBe('completed')
 
@@ -87,8 +87,8 @@ describe('chat turns', () => {
       },
     )
 
-    const a = session.prompt('first')
-    const b = session.prompt('second')
+    const a = session.send('first')
+    const b = session.send('second')
     await vi.waitFor(() => expect(calls).toHaveLength(1))
     expect(session.snapshot().queuedTurns).toBe(1)
     first.open()
@@ -110,9 +110,9 @@ describe('chat turns', () => {
       },
     )
 
-    const a = session.prompt('first')
+    const a = session.send('first')
     await vi.waitFor(() => expect(calls).toHaveLength(1))
-    await expect(session.prompt('second', { busy: 'reject' })).rejects.toThrow(
+    await expect(session.send('second', { busy: 'reject' })).rejects.toThrow(
       'already running',
     )
     first.open()
@@ -142,9 +142,10 @@ describe('chat turns', () => {
       { threadId: 't1' },
     )
 
-    const turn = session.prompt('find x')
+    const turn = session.send('find x')
     await toolStarted.opened
-    const receipt = await session.steer('also check y')
+    const receipt = await session.send('also check y', { mode: 'steer' })
+      .receipt
     expect(receipt).toMatchObject({ status: 'accepted', operationId: turn.id })
     releaseTool.open()
 
@@ -168,9 +169,9 @@ describe('chat turns', () => {
       },
     )
 
-    const a = session.prompt('first')
+    const a = session.send('first')
     await vi.waitFor(() => expect(calls).toHaveLength(1))
-    const joined = session.prompt('and this', { busy: 'steer' })
+    const joined = session.send('and this', { busy: 'steer' })
     first.open()
 
     // One turn answers both messages: the joined prompt settles with it.
@@ -195,7 +196,7 @@ describe('chat turns', () => {
       },
     )
 
-    const turn = session.prompt('go')
+    const turn = session.send('go')
     await vi.waitFor(() => expect(calls).toHaveLength(1))
     const receipt = await turn.cancel()
     expect(receipt.status).toBe('accepted')
@@ -223,7 +224,7 @@ describe('chat turns', () => {
       { threadId: 't1' },
     )
 
-    const turn = await session.prompt('remove a.txt')
+    const turn = await session.send('remove a.txt')
     expect(turn.interrupts).toHaveLength(1)
     expect(session.snapshot().status).toBe('requires_action')
 
@@ -295,9 +296,9 @@ describe('events', () => {
         threadId: 't1',
       },
     )
-    await session.prompt('a')
+    await session.send('a')
     const cursor = session.snapshot().cursor
-    const second = session.prompt('b')
+    const second = session.send('b')
     await second
 
     const controller = new AbortController()
@@ -350,7 +351,7 @@ describe('agents', () => {
       status: 'completed',
     })
 
-    await session.prompt('what did it cost?')
+    await session.send('what did it cost?')
     expect(
       messageTexts(calls[0]).some((line) => line.includes('[pricer finished]')),
     ).toBe(true)
@@ -498,10 +499,10 @@ describe('inbox', () => {
       new Error('inbox down'),
     )
 
-    await expect(session.prompt('Go.', { inputId: 'in-1' })).rejects.toThrow(
+    await expect(session.send('Go.', { inputId: 'in-1' })).rejects.toThrow(
       'inbox down',
     )
-    expect(await session.prompt('Go.', { inputId: 'in-1' })).toEqual({
+    expect(await session.send('Go.', { inputId: 'in-1' })).toEqual({
       text: 'ran',
       media: [],
     })
@@ -516,17 +517,19 @@ describe('inbox', () => {
       defineHarness({ name: 'test/closing', adapter }),
       { threadId: 't1' },
     )
-    const running = session.prompt('First.')
+    const running = session.send('First.')
     await running.receipt
 
     const closed = session.close()
-    const late = session.prompt('Late.')
+    const late = session.send('Late.')
     expect(await late.receipt).toMatchObject({
       status: 'rejected',
       reason: 'closed',
     })
     await expect(late).rejects.toThrow()
-    expect(await session.followUp('Later.')).toMatchObject({
+    expect(
+      await session.send('Later.', { mode: 'followUp' }).receipt,
+    ).toMatchObject({
       status: 'rejected',
       reason: 'closed',
     })
@@ -577,7 +580,7 @@ describe('inbox', () => {
       new Error('interrupts down'),
     )
 
-    const turn = session.prompt('Go.', { inputId: 'in-early' })
+    const turn = session.send('Go.', { inputId: 'in-early' })
     await expect(turn).rejects.toThrow('interrupts down')
     expect(await session.settled('in-early')).toMatchObject({
       outcome: 'failed',
@@ -614,7 +617,7 @@ describe('plugins', () => {
       { threadId: 't1' },
     )
 
-    await expect(session.prompt('Go.')).rejects.toThrow(
+    await expect(session.send('Go.')).rejects.toThrow(
       "lifetime 'turn' cannot add commands or config",
     )
     await host.close()
@@ -656,8 +659,8 @@ describe('plugins', () => {
         { threadId: 't1' },
       )
 
-      await session.prompt('one')
-      await session.prompt('two')
+      await session.send('one')
+      await session.send('two')
       await session.close()
 
       expect(log).toEqual([
@@ -686,7 +689,7 @@ describe('plugins', () => {
       { threadId: 't1' },
     )
 
-    expect((await session.prompt('hi')).text).toBe('picked')
+    expect((await session.send('hi')).text).toBe('picked')
     expect(calls).toHaveLength(1)
     await host.close()
   })
@@ -697,7 +700,7 @@ describe('plugins', () => {
       threadId: 't1',
     })
 
-    const turn = session.prompt('hi', { inputId: 'in-1' })
+    const turn = session.send('hi', { inputId: 'in-1' })
     const chunks: Array<StreamChunk> = []
     for await (const chunk of turn.stream()) chunks.push(chunk)
 
@@ -755,7 +758,7 @@ describe('plugins', () => {
       { threadId: 't1' },
     )
 
-    await session.prompt('time?')
+    await session.send('time?')
     expect(calls[0].tools.map((tool: { name: string }) => tool.name)).toContain(
       'clock',
     )
@@ -805,9 +808,9 @@ describe('a waiting steer with an abort request, without a log', () => {
       { threadId: 't-abort' },
     )
 
-    const turn = session.prompt('start')
+    const turn = session.send('start')
     await started.opened
-    const steer = session.prompt('stop me', {
+    const steer = session.send('stop me', {
       busy: 'steer',
       inputId: 'steer-1',
     })
@@ -856,9 +859,9 @@ describe('joins without a log', () => {
       {},
     )
 
-    const turn = session.prompt('start')
+    const turn = session.send('start')
     await wait.started.opened
-    const steer = session.prompt('join me', { busy: 'steer' })
+    const steer = session.send('join me', { busy: 'steer' })
     await steer.receipt
     wait.done.open()
     await vi.waitFor(() => expect(calls).toHaveLength(2))
@@ -888,9 +891,9 @@ describe('joins without a log', () => {
       },
     )
 
-    const turn = session.prompt('start')
+    const turn = session.send('start')
     await wait.started.opened
-    const steer = session.prompt('stop me', { busy: 'steer', inputId: 's1' })
+    const steer = session.send('stop me', { busy: 'steer', inputId: 's1' })
     await steer.receipt
     wait.done.open()
     await inJoin.opened
@@ -929,9 +932,9 @@ describe('joins without a log', () => {
       persistence,
     )
 
-    const turn = session.prompt('first')
+    const turn = session.send('first')
     await vi.waitFor(() => expect(calls).toHaveLength(1))
-    const late = session.prompt('late', { busy: 'steer', inputId: 'late' })
+    const late = session.send('late', { busy: 'steer', inputId: 'late' })
     await late.receipt
     isArmed = true
     release.open()
@@ -956,9 +959,9 @@ describe('joins without a log', () => {
       },
     )
 
-    const turn = session.prompt('start')
+    const turn = session.send('start')
     await wait.started.opened
-    await session.prompt('more', { busy: 'steer' }).receipt
+    await session.send('more', { busy: 'steer' }).receipt
     wait.done.open()
 
     await turn
@@ -982,9 +985,9 @@ describe('joins without a log', () => {
       { threadId: 't-context' },
     )
 
-    const turn = session.prompt('secret')
+    const turn = session.send('secret')
     await vi.waitFor(() => expect(calls).toHaveLength(1))
-    await session.prompt('more', { busy: 'steer' }).receipt
+    await session.send('more', { busy: 'steer' }).receipt
     release.open()
     await turn
 
@@ -1045,9 +1048,9 @@ describe('joins without a log', () => {
         image,
       ]
 
-      const turn = session.prompt('look')
+      const turn = session.send('look')
       await vi.waitFor(() => expect(calls).toHaveLength(1))
-      await session.prompt(steer, { busy: 'steer' }).receipt
+      await session.send(steer, { busy: 'steer' }).receipt
       release.open()
       await turn
 
@@ -1076,9 +1079,9 @@ describe('joins without a log', () => {
       },
     )
 
-    const turn = session.prompt('start')
+    const turn = session.send('start')
     await wait.started.opened
-    const steer = session.prompt('more', { busy: 'steer', inputId: 's1' })
+    const steer = session.send('more', { busy: 'steer', inputId: 's1' })
     await steer.receipt
     wait.done.open()
 
@@ -1107,9 +1110,9 @@ describe('joins without a log', () => {
       },
     )
 
-    const turn = session.prompt('start')
+    const turn = session.send('start')
     await wait.started.opened
-    const steer = session.prompt('more', { busy: 'steer', inputId: 's1' })
+    const steer = session.send('more', { busy: 'steer', inputId: 's1' })
     await steer.receipt
     wait.done.open()
     await inJoin.opened
@@ -1147,11 +1150,11 @@ describe('joins without a log', () => {
     session = joins.session
     const { host, calls, wait } = joins
 
-    const turn = session.prompt('start')
+    const turn = session.send('start')
     await wait.started.opened
-    const a = session.prompt('a', { busy: 'steer', inputId: 'a' })
+    const a = session.send('a', { busy: 'steer', inputId: 'a' })
     aId = a.id
-    const b = session.prompt('b', { busy: 'steer', inputId: 'b' })
+    const b = session.send('b', { busy: 'steer', inputId: 'b' })
     await Promise.all([a.receipt, b.receipt])
     wait.done.open()
     await turn

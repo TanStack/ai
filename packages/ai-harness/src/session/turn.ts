@@ -4,6 +4,7 @@ import {
   chat,
   compactForModel,
   modelMessagesToUIMessages,
+  isStandardSchema,
   validateWithStandardSchema,
 } from '@tanstack/ai'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
@@ -54,7 +55,7 @@ import type { AnyHarness } from '../define'
 import type { ModelErrorContext } from '../turn'
 import type { MountedPlugins } from '../plugins'
 import type {
-  InputSettlement,
+  SettlementOutcome,
   MediaRecord,
   Operation,
   Principal,
@@ -128,7 +129,11 @@ export abstract class SessionTurn<
       return
     }
     let checked: unknown = input
-    if (entry.command.input !== undefined) {
+    // A JSON Schema input runs unchecked, as a JSON Schema tool input does in
+    // core. A Standard Schema input is validated and its parsed value runs.
+    // A bare `/name` sends no input: an object schema with only optional
+    // fields accepts `{}`.
+    if (isStandardSchema(entry.command.input)) {
       const result = await validateWithStandardSchema(
         entry.command.input,
         input ?? {},
@@ -161,17 +166,33 @@ export abstract class SessionTurn<
           result: compactForModel(result),
         }),
       )
+      // The command ran: a failed settle append is reported, not a failure.
+      await this.settle({
+        inputId,
+        operationId: operation.id,
+        outcome: 'completed',
+      }).catch((failure: unknown) =>
+        this.warnSession('harness:commands', failure),
+      )
       operation.finish('completed', result)
     } catch (error) {
+      const message = this.scrub(errorText(error))
       operation.publish({
         type: EventType.RUN_ERROR,
-        message: this.scrub(errorText(error)),
+        message,
         timestamp: Date.now(),
       })
-      operation.fail(
-        operation.abortController.signal.aborted ? 'cancelled' : 'failed',
-        error,
+      const cancelled = operation.abortController.signal.aborted
+      await this.settle({
+        inputId,
+        operationId: operation.id,
+        ...(cancelled
+          ? { outcome: 'aborted' }
+          : { outcome: 'failed', error: { message } }),
+      }).catch((failure: unknown) =>
+        this.warnSession('harness:commands', failure),
       )
+      operation.fail(cancelled ? 'cancelled' : 'failed', error)
     }
     this.publishFinished(operation)
   }
@@ -246,9 +267,8 @@ export abstract class SessionTurn<
       await this.settle({
         inputId,
         operationId: operation.id,
-        outcome: error ? 'failed' : 'completed',
-        ...(error ? { error } : {}),
-      }).catch(() => {})
+        ...(error ? { outcome: 'failed', error } : { outcome: 'completed' }),
+      }).catch((failure: unknown) => this.warnSession('harness:log', failure))
     }
     if (error) operation.fail('failed', new Error(error.message))
     else operation.finish('completed', { text: '', media: [] })
@@ -277,7 +297,7 @@ export abstract class SessionTurn<
           operationId: operation.id,
           outcome: 'failed',
           error: { message },
-        }).catch(() => {})
+        }).catch((failure: unknown) => this.warnSession('harness:log', failure))
       }
       operation.fail('failed', failure)
       this.publishFinished(operation)
@@ -671,7 +691,9 @@ export abstract class SessionTurn<
                 ),
                 transcribe: this.harness.media?.transcribe,
               }),
-            ],
+              // The registry types of the harness interrupts do not line up
+              // with the middleware tuple chat() infers. Only this field.
+            ] as never,
             ...(bag
               ? {
                   subagents: {
@@ -699,15 +721,16 @@ export abstract class SessionTurn<
               : {}),
             // A plain-object (or absent) turn context also carries the live
             // thread/run ids, so in-band tools can resolve the calling thread.
+            // The context type narrows per harness; chat() wants it exact.
             ...(context === undefined || isPlainObject(context)
               ? {
                   context: {
                     ...context,
                     threadId: this.threadId,
                     runId: operation.id,
-                  },
+                  } as never,
                 }
-              : { context }),
+              : { context: context as never }),
             ...(reasoning !== undefined ? { reasoning } : {}),
             promptCache,
             threadId: this.threadId,
@@ -716,7 +739,7 @@ export abstract class SessionTurn<
             ...(resume ? { resume } : {}),
             abortController: operation.abortController,
             stream: true,
-          } as never) as AsyncIterable<StreamChunk>
+          }) as AsyncIterable<StreamChunk>
 
           routedFrom = undefined
           for await (const raw of stream) {
@@ -1021,9 +1044,7 @@ export abstract class SessionTurn<
       ...this.joinedInputs(operation.id, inputId),
     ]
     this.turnJoins.delete(operation.id)
-    const settleTurn = async (
-      settlement: Omit<InputSettlement, 'inputId' | 'operationId'>,
-    ) => {
+    const settleTurn = async (settlement: SettlementOutcome) => {
       if (settled.length > 0 && !this.logFailure) {
         await this.settle(
           ...settled.map((id) => ({

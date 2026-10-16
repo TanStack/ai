@@ -121,7 +121,7 @@ export function goal(options: {
       let queuedTurn: Operation<ChatTurnResult> | undefined
 
       const queue = (message: string) => {
-        queuedTurn = ctx.session.prompt(message)
+        queuedTurn = ctx.session.send(message)
       }
 
       /** Cancel the queued turn if it has not started. */

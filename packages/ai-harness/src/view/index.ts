@@ -40,6 +40,7 @@ import type {
   ThreadSettingsChange,
   UserInput,
   WaitingInput,
+  Operation,
 } from '../types'
 import type { ItemFactory } from './reduce'
 import type {
@@ -127,14 +128,31 @@ function isEnd({ event }: SessionEvent) {
 /** Get a new media URL this long before the old one expires. */
 const URL_REFRESH_EARLY = 60_000
 
+/** The options a view gives `source.send` for a turn. */
+export interface ViewSendOptions {
+  to?: undefined
+  mode?: 'prompt' | 'steer' | 'followUp'
+}
+
+/** The options a view gives `source.send` for a message to an agent run. */
+export interface ViewAgentSendOptions {
+  to: string
+  mode?: 'steer' | 'followUp'
+}
+
 /** A local `HarnessSession` and a remote `HarnessClient` both fit this. */
 export interface SessionViewSource {
-  prompt: (message: UserInput) => unknown
-  steer: (message: UserInput) => Promise<Receipt>
+  /**
+   * `session.send` or `client.send`. A local session returns an operation,
+   * a client the receipt. With `to`, it goes to an agent run.
+   */
+  send: {
+    (message: UserInput, options: ViewAgentSendOptions): unknown
+    (message: UserInput, options?: ViewSendOptions): unknown
+  }
   resolve: (resume: Array<RunAgentResumeItem>) => Promise<Receipt>
   cancel: (operationId?: string) => Promise<Receipt>
   // Both sources have these. Without one, its view action shows an error.
-  followUp?: (message: UserInput) => Promise<Receipt>
   continue?: () => unknown
   cancelInput?: (inputId: string) => Promise<Receipt>
   setDelivery?: (change: {
@@ -148,12 +166,6 @@ export interface SessionViewSource {
   answer: (answer: { questionId: string; value: unknown }) => Promise<Receipt>
   command: (name: string, input?: unknown) => unknown
   setConfig: (change: { key: string; value: unknown }) => Promise<Receipt>
-  /** Send a message to an agent run. Without it, an agent's `send` rejects. */
-  sendToAgent?: (options: {
-    operationId: string
-    message: UserInput
-    mode?: 'steer' | 'followUp'
-  }) => Promise<Receipt>
   events: (options: {
     from?: Cursor
     signal?: AbortSignal
@@ -303,7 +315,7 @@ function isNotExposed(value: unknown) {
   )
 }
 
-function isOperation(value: unknown): value is PromiseLike<unknown> {
+function isOperation(value: unknown): value is Operation<unknown> {
   return (
     typeof value === 'object' &&
     value !== null &&
@@ -420,6 +432,12 @@ export function createSessionView(source: SessionViewSource) {
   }
   const missing = (what: string) =>
     Promise.reject(new Error(`This view source cannot ${what}.`))
+  /** The receipt of a source call: an operation's receipt, or the call's result. */
+  const receiptOf = (result: unknown): Promise<Receipt> => {
+    if (!isOperation(result)) return Promise.resolve(result) as Promise<Receipt>
+    result.then(undefined, () => {})
+    return result.receipt
+  }
   /** A local operation reports failures as events. A remote call that throws did not arrive. */
   const settle = (result: unknown) => {
     if (isOperation(result)) {
@@ -620,16 +638,12 @@ export function createSessionView(source: SessionViewSource) {
       ...operation,
       send: (message, options) => {
         alive()
-        if (!source.sendToAgent) {
-          return Promise.reject(
-            new Error('This view source cannot send messages to agents.'),
-          )
-        }
-        return source.sendToAgent({
-          operationId: operation.id,
-          message,
-          ...(options?.mode ? { mode: options.mode } : {}),
-        })
+        return receiptOf(
+          source.send(message, {
+            to: operation.id,
+            ...(options?.mode ? { mode: options.mode } : {}),
+          }),
+        )
       },
       cancel: () => {
         alive()
@@ -951,10 +965,13 @@ export function createSessionView(source: SessionViewSource) {
       commit(withUserMessage(get(), line, attachments))
       const message = userInput(line, attachments)
       if (get().status === 'running') {
-        await source.steer(message).then(refused, fail)
+        await receiptOf(source.send(message, { mode: 'steer' })).then(
+          refused,
+          fail,
+        )
         return
       }
-      settle(source.prompt(message))
+      settle(source.send(message))
     },
     followUp: async (text, attachments = []) => {
       alive()
@@ -962,9 +979,7 @@ export function createSessionView(source: SessionViewSource) {
       if (line === '' && attachments.length === 0) return
       commit(withUserMessage(get(), line, attachments))
       const message = userInput(line, attachments)
-      await act(() =>
-        source.followUp ? source.followUp(message) : missing('follow up'),
-      )
+      await act(() => receiptOf(source.send(message, { mode: 'followUp' })))
     },
     continue: async () => {
       alive()

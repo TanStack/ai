@@ -222,7 +222,7 @@ export async function applyInput(
   }
   switch (input.op) {
     case 'prompt': {
-      const operation = session.prompt(input.message, {
+      const operation = session.send(input.message, {
         ...(input.busy ? { busy: input.busy } : {}),
         ...(input.ephemeral ? { ephemeral: input.ephemeral } : {}),
         ...sent,
@@ -246,9 +246,14 @@ export async function applyInput(
       return operation.receipt
     }
     case 'steer':
-      return session.steer(input.message, sent)
-    case 'followUp':
-      return session.followUp(input.message, sent)
+    case 'followUp': {
+      const operation = session.send(input.message, { ...sent, mode: input.op })
+      operation.then(
+        () => {},
+        () => {},
+      )
+      return operation.receipt
+    }
     case 'resolve':
       return session.resolve(input.resume, id)
     case 'cancel':
@@ -366,12 +371,16 @@ export async function applyInput(
           reason: 'not_exposed',
         }
       }
-      return session.sendToAgent({
-        operationId: input.operationId,
-        message: input.message,
+      const operation = session.send(input.message, {
+        to: input.operationId,
         ...id,
         ...(input.mode ? { mode: input.mode } : {}),
       })
+      operation.then(
+        () => {},
+        () => {},
+      )
+      return operation.receipt
     }
   }
 }

@@ -63,29 +63,33 @@ export type ClientAgentHandles<THarness> = {
   }
 }
 
+/** The options of `HarnessClient.send`. */
+export type ClientSendOptions = { inputId?: string } & (
+  | {
+      to?: undefined
+      mode?: 'prompt'
+      busy?: BusyPolicy
+      ephemeral?: ReadonlyArray<ModelMessage & { role: 'user' }>
+    }
+  | {
+      to?: undefined
+      mode: 'steer' | 'followUp'
+      busy?: never
+      ephemeral?: never
+    }
+  | { to: string; mode?: 'steer' | 'followUp'; busy?: never; ephemeral?: never }
+)
+
 export interface HarnessClient<THarness extends AnyHarness> {
   /**
-   * Send a prompt. `inputId` is an id you choose: a retry with the same id
-   * and message gets the first receipt and does not run again. `ephemeral`
-   * are messages for the model calls of this turn only. See
-   * `session.prompt`.
+   * Send a message, as `session.send` does. `mode` is `'prompt'` (default),
+   * `'steer'` (join the running turn), or `'followUp'` (run after the
+   * current work). `to` sends it to an agent run; the harness must list the
+   * run's agent in `expose.agents`. `inputId` is an id you choose: a retry
+   * with the same id and message gets the first receipt and does not run
+   * again. `ephemeral` are messages for the model calls of a prompt only.
    */
-  prompt: (
-    message: UserInput,
-    options?: {
-      busy?: BusyPolicy
-      inputId?: string
-      ephemeral?: ReadonlyArray<ModelMessage & { role: 'user' }>
-    },
-  ) => Promise<Receipt>
-  steer: (
-    message: UserInput,
-    options?: { inputId?: string },
-  ) => Promise<Receipt>
-  followUp: (
-    message: UserInput,
-    options?: { inputId?: string },
-  ) => Promise<Receipt>
+  send: (message: UserInput, options?: ClientSendOptions) => Promise<Receipt>
   /**
    * Start a turn from the stored transcript, with no new message. See
    * `session.continue`.
@@ -130,16 +134,6 @@ export interface HarnessClient<THarness extends AnyHarness> {
   revert: (messageId: string) => Promise<Receipt>
   /** End the revert that stands, as `session.unrevert` does. */
   unrevert: () => Promise<Receipt>
-  /**
-   * Send a message to the agent run `operationId`, as `AgentRun.send`
-   * does. The harness must list the run's agent in `expose.agents`.
-   */
-  sendToAgent: (options: {
-    operationId: string
-    message: UserInput
-    mode?: 'steer' | 'followUp'
-    inputId?: string
-  }) => Promise<Receipt>
   /**
    * The session events from `from` (exclusive). Reconnects after a network
    * error and resumes from the last cursor. Ends when `signal` aborts.
@@ -494,28 +488,29 @@ export function createHarnessClient<THarness extends AnyHarness>(
   })
 
   return {
-    prompt: (message, promptOptions) =>
-      send({
+    send: (message, sendOptions) => {
+      const inputId = sendOptions?.inputId
+        ? { inputId: sendOptions.inputId }
+        : {}
+      if (sendOptions?.to !== undefined) {
+        return send({
+          op: 'agentMessage',
+          operationId: sendOptions.to,
+          message,
+          ...(sendOptions.mode ? { mode: sendOptions.mode } : {}),
+          ...inputId,
+        })
+      }
+      const mode = sendOptions?.mode ?? 'prompt'
+      if (mode !== 'prompt') return send({ op: mode, message, ...inputId })
+      return send({
         op: 'prompt',
         message,
-        ...(promptOptions?.busy ? { busy: promptOptions.busy } : {}),
-        ...(promptOptions?.inputId ? { inputId: promptOptions.inputId } : {}),
-        ...(promptOptions?.ephemeral
-          ? { ephemeral: promptOptions.ephemeral }
-          : {}),
-      }),
-    steer: (message, steerOptions) =>
-      send({
-        op: 'steer',
-        message,
-        ...(steerOptions?.inputId ? { inputId: steerOptions.inputId } : {}),
-      }),
-    followUp: (message, followOptions) =>
-      send({
-        op: 'followUp',
-        message,
-        ...(followOptions?.inputId ? { inputId: followOptions.inputId } : {}),
-      }),
+        ...(sendOptions?.busy ? { busy: sendOptions.busy } : {}),
+        ...(sendOptions?.ephemeral ? { ephemeral: sendOptions.ephemeral } : {}),
+        ...inputId,
+      })
+    },
     continue: (continueOptions) =>
       send({
         op: 'continue',
@@ -546,14 +541,6 @@ export function createHarnessClient<THarness extends AnyHarness>(
       }),
     revert: (messageId) => send({ op: 'revert', messageId }),
     unrevert: () => send({ op: 'unrevert' }),
-    sendToAgent: ({ operationId, message, mode, inputId }) =>
-      send({
-        op: 'agentMessage',
-        operationId,
-        message,
-        ...(mode ? { mode } : {}),
-        ...(inputId ? { inputId } : {}),
-      }),
     events,
     hostEvents,
     snapshot: () => read('snapshot'),

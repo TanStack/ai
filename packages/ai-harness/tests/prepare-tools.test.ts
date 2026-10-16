@@ -58,7 +58,7 @@ describe('prepareTools', () => {
         seen.push(entry)
     })()
 
-    await session.prompt('go')
+    await session.send('go')
     expect(calls[0].tools.map((entry: { name: string }) => entry.name)).toEqual(
       ['bundled', 'extra'],
     )

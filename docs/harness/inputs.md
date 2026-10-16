@@ -19,7 +19,7 @@ A network retry can send the same prompt twice, and a client that reconnects doe
 
 ## Send a prompt with your own id
 
-On the server, pass `inputId` to `prompt`. `await turn.receipt` resolves when the session stored the input.
+On the server, pass `inputId` to `send`. `await turn.receipt` resolves when the session stored the input.
 
 ```ts group=harness-inputs
 import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
@@ -37,14 +37,14 @@ const host = createHarnessHost({
 })
 const session = await host.open(assistant, { threadId: 'user-1-thread' })
 
-const turn = session.prompt('Summarize the report.', { inputId: 'req-42' })
+const turn = session.send('Summarize the report.', { inputId: 'req-42' })
 const receipt = await turn.receipt
 console.log(receipt.status) // 'accepted' or 'queued'
 ```
 
 - The same id and the same message: you get the first input's operation, and the model is not called again.
 - The same id and another message: the receipt has `status: 'rejected'` and `reason: 'conflict'`, and `await turn` rejects with `InputRejectedError`.
-- `steer`, `followUp`, and `resolve` take `{ inputId }` too.
+- `send` with `mode: 'steer'` or `mode: 'followUp'`, and `resolve`, take `{ inputId }` too.
 - [`configure`](./thread-settings) and [`reset`](./fork-and-reset#reset-with-a-handoff-note) are inputs too. They take `{ inputId }` and run once per id.
 
 ## Retry from the client
@@ -60,7 +60,7 @@ const client = createHarnessClient<AnyHarness>({
   threadId: 'user-1-thread',
 })
 
-const send = () => client.prompt('Summarize the report.', { inputId: 'req-42' })
+const send = () => client.send('Summarize the report.', { inputId: 'req-42' })
 const receipt = await send().catch(send)
 console.log(receipt.operationId)
 ```
@@ -111,14 +111,14 @@ From the client:
 const continuedReceipt = await client.continue({ inputId: 'req-43' })
 ```
 
-- `inputId` works as for `prompt`: a retry with the same id runs once.
-- `continue` takes `overrides`, `principal`, and `context` too, as `prompt` does.
+- `inputId` works as for `send`: a retry with the same id runs once.
+- `continue` takes `overrides`, `principal`, and `context` too, as `send` does.
 - When the turn starts, the last message of the transcript must be a user message or a tool result. Else the input is rejected with the reason `nothing_to_continue`, and `await continued` rejects with `InputRejectedError`.
 - A `continue` that a host left after a crash runs on the next host, as a prompt does.
 
 ## Give the model a note for one turn
 
-A reminder such as "call `finish` or `give_up`" helps the model in one turn, but it does not belong in the transcript. Pass it as `ephemeral` to `prompt` or `continue`:
+A reminder such as "call `finish` or `give_up`" helps the model in one turn, but it does not belong in the transcript. Pass it as `ephemeral` to `send` or `continue`:
 
 ```ts group=harness-inputs
 const reminded = session.continue({
@@ -131,7 +131,7 @@ await reminded
 From the client:
 
 ```ts group=harness-inputs-client
-const remindedReceipt = await client.prompt('Summarize the report.', {
+const remindedReceipt = await client.send('Summarize the report.', {
   inputId: 'req-45',
   ephemeral: [{ role: 'user', content: 'Answer in three bullets.' }],
 })
@@ -141,16 +141,16 @@ const remindedReceipt = await client.prompt('Summarize the report.', {
 - The transcript, the session log, and the message store never keep them.
 - A retry with the same `inputId` gets the first input, also when its `ephemeral` messages are different.
 - A turn that recovery runs again after a crash has no `ephemeral` messages, because the log does not keep them.
-- From the client, `ephemeral` takes user messages only. On the server, `session.prompt` and `session.continue` take any message.
+- From the client, `ephemeral` takes user messages only. On the server, `session.send` and `session.continue` take any message.
 
 To add a note from a hook when the model stops, see [Remind the model without saving the reminder](./turn-control#remind-the-model-without-saving-the-reminder).
 
 ## Add a system note from server code
 
-The model needs standing context for a turn: the team's memory, the tenant's rules, or the user's plan. It is not a user message, and it should not go in the transcript. Pass `systemPreamble` to `prompt` or `continue`. The strings go in ahead of the harness's own system prompts, for this one turn.
+The model needs standing context for a turn: the team's memory, the tenant's rules, or the user's plan. It is not a user message, and it should not go in the transcript. Pass `systemPreamble` to `session.send`. The strings go in ahead of the harness's own system prompts, for this one turn.
 
 ```ts group=harness-inputs
-const drafted = session.prompt('Draft a reply to the ticket.', {
+const drafted = session.send('Draft a reply to the ticket.', {
   inputId: 'req-50',
   systemPreamble: [
     'Team memory: keep the tone terse.',
@@ -167,11 +167,11 @@ await drafted
 
 ## Send a message while a turn runs
 
-With `busy: 'steer'`, a prompt joins the running turn. It reaches the model at the next model call, in the order the messages arrived, and it ends with that turn.
+With `busy: 'steer'` or `mode: 'steer'`, a message joins the running turn. It reaches the model at the next model call, in the order the messages arrived, and it ends with that turn.
 
 ```ts group=harness-inputs
-const running = session.prompt('Plan the migration.', { inputId: 'req-43' })
-const joined = session.prompt('Keep it under five steps.', {
+const running = session.send('Plan the migration.', { inputId: 'req-43' })
+const joined = session.send('Keep it under five steps.', {
   busy: 'steer',
   inputId: 'req-44',
 })
@@ -184,8 +184,8 @@ A message that arrives while the model writes its final answer still gets an ans
 
 Waiting `steer` inputs join before each model call, in the order they arrived. They join as a prefix: the join stops at the first input that has an abort request, or that `turn.canJoin` refuses. The inputs after it wait.
 
-- The `operationId` in the receipt of a `busy: 'steer'` prompt or a `session.steer` input is the running turn. A cancel with that id cancels the turn.
-- A `busy: 'steer'` prompt also has its own operation, `joined`. To stop it before it joins, call `joined.cancel()` or `session.cancel(joined.id)`. It does not join, and it settles `aborted` when the running turn ends.
+- The `operationId` in the receipt of a `busy: 'steer'` or `mode: 'steer'` message is the running turn. A cancel with that id cancels the turn.
+- A `busy: 'steer'` message also has its own operation, `joined`. To stop it before it joins, call `joined.cancel()` or `session.cancel(joined.id)`. It does not join, and it settles `aborted` when the running turn ends.
 - The session rejects a cancel that comes after the join started, with `reason: 'not_running'`.
 - A refused or late input runs as its own turn after the running one.
 
@@ -196,10 +196,11 @@ To choose which inputs join, or to add records when they join, see [Choose which
 A user sends two more messages while a turn runs. Before they run, the user wants to cancel one, and wants the other to reach the running turn now. `session.inputs()` lists the inputs that wait. `cancelInput` cancels one, and `setDelivery` moves one:
 
 ```ts group=harness-inputs
-const migration = session.prompt('Plan the migration.', { inputId: 'req-45' })
+const migration = session.send('Plan the migration.', { inputId: 'req-45' })
 // The turn runs, so these two wait for their own turns.
-await session.followUp('Then write the tests.', { inputId: 'req-46' })
-await session.followUp('Use tabs, not spaces.', { inputId: 'req-47' })
+const tests = session.send('Then write the tests.', { inputId: 'req-46', mode: 'followUp' })
+const style = session.send('Use tabs, not spaces.', { inputId: 'req-47', mode: 'followUp' })
+await Promise.all([tests.receipt, style.receipt])
 
 for (const input of session.inputs()) {
   console.log(input.inputId, input.delivery, input.message)
@@ -235,7 +236,7 @@ Over `POST control`, they are `{ op: 'cancelInput', inputId }` and `{ op: 'setDe
 A long command or a subagent blocks the turn, and the user wants to go on. `session.background()` moves the running tool call to the background:
 
 ```ts group=harness-inputs
-const build = session.prompt('Run the full test suite.', { inputId: 'req-48' })
+const build = session.send('Run the full test suite.', { inputId: 'req-48' })
 // Later, while the `bash` call of that turn runs:
 const moved = await session.background()
 console.log(moved.status) // 'accepted', or 'rejected' with 'not_running'
@@ -309,12 +310,12 @@ const records = defineHarness({
 })
 const recordSession = await host.open(records, { threadId: 'user-1-records' })
 
-await recordSession.prompt('Summarize the record I have open.', {
+await recordSession.send('Summarize the record I have open.', {
   context: { recordId: 'inv-42' },
 })
 ```
 
-`prompt`, `steer`, and `followUp` take `context`. A client sends it in a `control` input:
+`send` takes `context` in every mode. A client sends it in a `control` input:
 
 ```ts group=harness-inputs-client
 await fetch('/api/harness/control', {

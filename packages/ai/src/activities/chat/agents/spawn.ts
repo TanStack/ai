@@ -701,7 +701,7 @@ function runContext(
   abortController: AbortController,
   binding?: SubagentBinding,
 ) {
-  return {
+  const ctx = {
     ...input,
     forward: {
       threadId: input.threadId,
@@ -719,6 +719,7 @@ function runContext(
     keys: binding?.keys ?? envProviderKeys,
     ...createBoundActivities(agentName, input, abortController, binding),
   } satisfies SubagentRunContext
+  return binding?.extend ? { ...ctx, ...binding.extend(ctx) } : ctx
 }
 
 /**

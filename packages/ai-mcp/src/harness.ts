@@ -305,7 +305,7 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
     const session = await open(args)
     const message = await userInputOf(session, args, filePaths)
     const from = session.snapshot().cursor
-    const turn = session.prompt(message, { busy: 'queue' })
+    const turn = session.send(message, { busy: 'queue' })
     return finish(session, turn, from, ctx.context)
   })
 
@@ -320,7 +320,11 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
       },
       required: ['message'],
     }),
-  }).server(async (args) => (await open(args)).steer(textArg(args, 'message')))
+  }).server(
+    async (args) =>
+      (await open(args)).send(textArg(args, 'message'), { mode: 'steer' })
+        .receipt,
+  )
 
   const cancel = toolDefinition({
     name: 'cancel',
@@ -556,7 +560,7 @@ async function resolveAll(session: HarnessSession, answers: Array<Answer>) {
       : session.operation(receipt.operationId)
   if (operation === undefined) {
     throw new Error(
-      `The harness refused the decisions: ${receipt.reason ?? 'no reason'}.`,
+      `The harness refused the decisions: ${receipt.status === 'rejected' ? receipt.reason : 'no operation'}.`,
     )
   }
   return { turn: operation }

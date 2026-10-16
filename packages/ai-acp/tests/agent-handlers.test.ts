@@ -230,6 +230,50 @@ function setup() {
 }
 
 describe('toSessionUpdate', () => {
+  it('starts a tool call, then sends its collected arguments as rawInput', () => {
+    const args = new Map<string, string>()
+    const at = (chunk: StreamChunk) => toSessionUpdate(chunk, args)
+    expect(
+      at({
+        type: EventType.TOOL_CALL_START,
+        toolCallId: 'call_1',
+        toolCallName: 'remove',
+        timestamp: 1,
+      }),
+    ).toEqual({
+      sessionUpdate: 'tool_call_update',
+      toolCallId: 'call_1',
+      name: 'remove',
+      title: 'remove',
+      status: 'in_progress',
+    })
+    expect(
+      at({
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId: 'call_1',
+        delta: '{"path":',
+        timestamp: 1,
+      }),
+    ).toBeUndefined()
+    expect(
+      at({
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId: 'call_1',
+        delta: '"a.txt"}',
+        timestamp: 1,
+      }),
+    ).toBeUndefined()
+    expect(
+      at({ type: EventType.TOOL_CALL_END, toolCallId: 'call_1', timestamp: 1 }),
+    ).toEqual({
+      sessionUpdate: 'tool_call_update',
+      toolCallId: 'call_1',
+      status: 'in_progress',
+      rawInput: { path: 'a.txt' },
+    })
+    expect(args.size).toBe(0)
+  })
+
   it('maps reasoning and tool results, and skips child and unknown events', () => {
     expect(
       toSessionUpdate({

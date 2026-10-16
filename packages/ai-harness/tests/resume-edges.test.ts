@@ -142,7 +142,7 @@ describe('crash recovery edges', () => {
       defineHarness({ name: 'test/fails', adapter }),
       { threadId: 't-fail' },
     )
-    const turn = session.prompt('hi')
+    const turn = session.send('hi')
     await expect(turn).rejects.toThrow('model down')
     expect(turn.status()).toBe('failed')
     await host.close()

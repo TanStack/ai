@@ -28,7 +28,7 @@ import type { InboxEntry } from '@tanstack/ai-persistence'
 import type { InputState, LogWriter } from '../log'
 import type { AnyHarness } from '../define'
 import type { RecoverContext, RecoverDecision } from '../turn'
-import type { HarnessInput, InputSettlement } from '../types'
+import type { HarnessInput, SettlementOutcome } from '../types'
 import type { WaitingSteer } from './types'
 
 /**
@@ -83,7 +83,17 @@ export class HarnessSession<
   /** Also waits for the last append of the log, so a reopen reads it. */
   override async close(options?: { recoverable?: boolean }): Promise<void> {
     await super.close(options)
-    await this.writer?.flush().catch(() => {})
+    // A recovery in flight queues turns after the stop: wait for it, then
+    // drop what it queued.
+    await this.recovery
+    for (const turn of this.queue.splice(0)) {
+      turn.operation.fail('cancelled', new Error('Session closed.'))
+    }
+    await this.writer
+      ?.flush()
+      .catch((error: unknown) =>
+        console.error('[@tanstack/ai-harness] The log flush failed.', error),
+      )
   }
 
   /** Read `harness.plugins()` and set up its session plugins. */
@@ -181,6 +191,7 @@ export class HarnessSession<
       // First the records that other hosts wrote since this session read.
       await writer.catchUp()
       if (this.logFailure) throw this.logFailure
+      // close() ran while catchUp waited: nothing resumes.
       if (this.closing) return
       await this.recoverFromLog(writer)
     })
@@ -486,16 +497,35 @@ export class HarnessSession<
       this.recoveryDeferred = true
       return
     }
-    const runs = this.persistence.stores.runs
-    const maxAttempts = this.harness.durability?.maxAttempts ?? 10
     // True for an input that this session stored or took. Else the session
     // takes it now, so `recover()` does not take it again.
+    const taken: Array<string> = []
     const isTaken = (input: InputState) => {
       if (this.admitted.has(input.inputId)) return true
       this.admitted.set(input.inputId, inputKey(input.input, input.principal))
+      taken.push(input.inputId)
       return false
     }
+    try {
+      await this.recoverInputs(writer, isTaken)
+    } catch (error) {
+      // Not recovered, so the next `recover()` takes them again.
+      for (const inputId of taken) {
+        if (!this.turnOperations.has(inputId)) this.admitted.delete(inputId)
+      }
+      throw error
+    }
+    // After the turns are decided: a note must not end the transcript that
+    // a cut turn continues.
     await this.recoverBackground(writer)
+  }
+
+  private async recoverInputs(
+    writer: LogWriter,
+    isTaken: (input: InputState) => boolean,
+  ): Promise<void> {
+    const runs = this.persistence.stores.runs
+    const maxAttempts = this.harness.durability?.maxAttempts ?? 10
     const logged = [...writer.state.inputs.values()]
     for (const input of logged) {
       const isControl =
@@ -520,6 +550,17 @@ export class HarnessSession<
             'end',
           )
         }
+        continue
+      }
+      // A command that the host stopped during: no host runs it again.
+      if (input.input.op === 'command' && input.status === 'applied') {
+        if (isTaken(input)) continue
+        await this.settle({
+          inputId: input.inputId,
+          ...(input.operationId ? { operationId: input.operationId } : {}),
+          outcome: 'failed',
+          error: { message: 'The host stopped during this command.' },
+        })
         continue
       }
       const isChat = CHAT_OPS.has(input.input.op)
@@ -568,11 +609,8 @@ export class HarnessSession<
             : { action: 'run' },
         )
         if (decision.action === 'settle') {
-          await this.settle({
-            inputId: input.inputId,
-            outcome: decision.outcome,
-            ...(decision.error ? { error: decision.error } : {}),
-          })
+          const { action: _action, ...outcome } = decision
+          await this.settle({ inputId: input.inputId, ...outcome })
           continue
         }
         if (input.input.op === 'continue') {
@@ -658,7 +696,7 @@ export class HarnessSession<
             continue
           }
           await this.failStoppedAgent({
-            operationId: input.operationId ?? '',
+            operationId: appliedOperationId(input),
             agent: first.input.agent,
             inputId: input.inputId,
             wake: first.input.detached,
@@ -682,10 +720,10 @@ export class HarnessSession<
           error: { message: 'The host stopped during this turn.' },
         })
       }
-      const operationId = input.operationId
+      const operationId = appliedOperationId(input)
       // The inputs that joined this turn settle with it, in one append.
-      const joined = this.joinedInputs(operationId ?? '', input.inputId)
-      const ended = (settlement: Omit<InputSettlement, 'inputId'>) =>
+      const joined = this.joinedInputs(operationId, input.inputId)
+      const ended = (settlement: SettlementOutcome) =>
         this.settle(
           ...[input.inputId, ...joined].map((inputId) => ({
             inputId,
@@ -743,10 +781,8 @@ export class HarnessSession<
         interruptedTools,
       )
       if (decision.action === 'settle') {
-        await ended({
-          outcome: decision.outcome,
-          ...(decision.error ? { error: decision.error } : {}),
-        })
+        const { action: _action, ...outcome } = decision
+        await ended(outcome)
         continue
       }
       if (input.input.op === 'resolve') {
@@ -866,4 +902,17 @@ export class HarnessSession<
       })
     }
   }
+}
+
+/**
+ * The operation of an input that the log says was applied. An applied record
+ * always names one: a missing id is a corrupt log, not an empty operation.
+ */
+function appliedOperationId(input: InputState): string {
+  if (input.operationId === undefined) {
+    throw new Error(
+      `The log has an applied input "${input.inputId}" with no operation id.`,
+    )
+  }
+  return input.operationId
 }

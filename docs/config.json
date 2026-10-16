@@ -712,7 +712,7 @@
           "label": "Build Your Own Adapter",
           "to": "persistence/build-your-own-adapter",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-10-13"
+          "updatedAt": "2026-10-16"
         },
         {
           "label": "Migrations",
@@ -761,7 +761,7 @@
           "label": "Store Reference",
           "to": "persistence/store-reference",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-10-15"
+          "updatedAt": "2026-10-16"
         },
         {
           "label": "How Persistence Works",
@@ -927,19 +927,24 @@
           "label": "Build your first harness",
           "to": "harness/overview",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-14"
+          "updatedAt": "2026-10-16"
         },
         {
           "label": "Send and show media",
           "to": "harness/media",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-15"
+          "updatedAt": "2026-10-16"
         },
         {
           "label": "Connect clients",
           "to": "harness/connect",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-14"
+          "updatedAt": "2026-10-16"
+        },
+        {
+          "label": "Run in the terminal",
+          "to": "harness/cli",
+          "addedAt": "2026-10-13"
         },
         {
           "label": "Deploy a harness",
@@ -950,7 +955,7 @@
           "label": "Send inputs safely",
           "to": "harness/inputs",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-15"
+          "updatedAt": "2026-10-16"
         },
         {
           "label": "Run a tool without a model",
@@ -967,7 +972,7 @@
           "label": "List, rename, and fork sessions",
           "to": "harness/sessions",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-15"
+          "updatedAt": "2026-10-16"
         },
         {
           "label": "Run side effects once",
@@ -982,7 +987,8 @@
         {
           "label": "Control how a turn ends",
           "to": "harness/turn-control",
-          "addedAt": "2026-10-13"
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-16"
         },
         {
           "label": "Store settings per thread",
@@ -998,7 +1004,7 @@
           "label": "Fork and reset a thread",
           "to": "harness/fork-and-reset",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-14"
+          "updatedAt": "2026-10-16"
         },
         {
           "label": "Share one log between sessions",
@@ -1009,49 +1015,49 @@
           "label": "Write a plugin",
           "to": "harness/plugins",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-15"
+          "updatedAt": "2026-10-16"
         },
         {
           "label": "Track usage and cost",
           "to": "harness/usage",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-15"
+          "updatedAt": "2026-10-16"
         },
         {
           "label": "Ask before risky tool calls",
           "to": "harness/permissions",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-15"
+          "updatedAt": "2026-10-16"
         },
         {
           "label": "Switch between agent profiles",
           "to": "harness/agents",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-14"
+          "updatedAt": "2026-10-16"
         },
         {
           "label": "Auth and connectors",
           "to": "harness/auth",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-15"
+          "updatedAt": "2026-10-16"
         },
         {
           "label": "Share a thread between people",
           "to": "harness/shared-threads",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-14"
+          "updatedAt": "2026-10-16"
         },
         {
           "label": "Connect model providers",
           "to": "harness/provider-keys",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-14"
+          "updatedAt": "2026-10-16"
         },
         {
           "label": "Build your own UI",
           "to": "harness/custom-ui",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-14"
+          "updatedAt": "2026-10-16"
         },
         {
           "label": "Code mode in a harness",
@@ -1067,7 +1073,7 @@
           "label": "Run agents from a harness",
           "to": "harness/subagents",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-14"
+          "updatedAt": "2026-10-16"
         },
         {
           "label": "Add skills",
@@ -1078,7 +1084,7 @@
           "label": "Use MCP servers",
           "to": "harness/mcp",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-15"
+          "updatedAt": "2026-10-16"
         },
         {
           "label": "Use from any MCP client",
@@ -1303,7 +1309,12 @@
           "label": "Bring Your Own Key",
           "to": "advanced/byok",
           "addedAt": "2026-08-18",
-          "updatedAt": "2026-10-13"
+          "updatedAt": "2026-10-16"
+        },
+        {
+          "label": "Keep Keys on the Server",
+          "to": "advanced/server-keys",
+          "addedAt": "2026-10-16"
         },
         {
           "label": "Debug Logging",
@@ -1624,7 +1635,7 @@
           "updatedAt": "2026-08-21"
         },
         {
-          "label": "Sampling \u00e2\u2020\u2019 modelOptions",
+          "label": "Sampling â†’ modelOptions",
           "to": "migration/sampling-options-to-model-options",
           "addedAt": "2026-06-03"
         },

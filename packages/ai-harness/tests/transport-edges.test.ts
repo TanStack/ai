@@ -520,11 +520,9 @@ describe('createHarnessClient edges', () => {
         return handler(request)
       },
     })
-    expect((await client.prompt('hi', { busy: 'queue' })).status).toBe(
-      'accepted',
-    )
-    await client.steer('go on')
-    await client.followUp('then')
+    expect((await client.send('hi', { busy: 'queue' })).status).toBe('accepted')
+    await client.send('go on', { mode: 'steer' })
+    await client.send('then', { mode: 'followUp' })
     expect((await client.resolve([])).status).toBe('rejected')
     await client.cancel()
     await client.cancel('op-missing')
@@ -549,7 +547,7 @@ describe('createHarnessClient edges', () => {
           ? new Response('nope', { status: 500 })
           : new Response('"plain"', { status: 502, statusText: 'Bad Gateway' }),
     })
-    await expect(client.prompt('hi')).rejects.toThrow(
+    await expect(client.send('hi')).rejects.toThrow(
       'Harness request failed (502): Bad Gateway',
     )
     await expect(client.snapshot()).rejects.toThrow(
@@ -616,7 +614,7 @@ describe('an operation that waits for cancel', () => {
   it('cancels through a control input', async () => {
     const { host, harness } = setup([untilAborted()])
     const session = await host.open(harness, { threadId: 'user-1-cancel' })
-    const operation = session.prompt('wait')
+    const operation = session.send('wait')
     await vi.waitFor(() => expect(session.snapshot().status).toBe('running'))
     await applyInput(harness, session, {
       op: 'cancel',

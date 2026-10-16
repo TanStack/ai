@@ -49,7 +49,7 @@ function toolMessageIn(call: { messages: Array<ModelMessage> }) {
 async function promptOnce(harness: AnyHarness) {
   const host = createHarnessHost({ persistence: memoryPersistence() })
   const session = await host.open(harness, { threadId: 't' })
-  await session.prompt('go')
+  await session.send('go')
   await host.close()
 }
 

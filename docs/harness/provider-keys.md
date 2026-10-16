@@ -137,13 +137,13 @@ After `/connect:openai`, send the message again.
 
 ## Where the keys are stored
 
-`/connect:<id>` saves the key in the credential store of the host (`stores.credentials`), as an `api_key` credential with the provider id. The store keeps it for the principal of the session:
+`/connect:<id>` saves the key in the credential store of the host, as an `api_key` credential with the provider id. The store keeps it for the principal of the session:
 
-- CLI or desktop app: a file in the home folder of the user.
-- Hosted app: your database. Each signed-in user is a principal, so each user has their own keys. Write the store with `defineCredentialStore` from `@tanstack/ai-persistence`.
-- `memoryPersistence()`: the keys stay in memory until the process stops.
+- CLI: pass the store to `runCli(harness, { credentials })`.
+- Hosted app: your database or your secrets manager. Each signed-in user is a principal, so each user has their own keys. Pass the store to `createHarnessHost({ credentials })`.
+- No `credentials`: the keys stay in memory until the process stops.
 
-Encrypt the keys at rest in a real store.
+To write a store, see [Write a store for production](../advanced/server-keys#write-a-store-for-production). Your own routes can read the same keys with `storedProviderKeys`.
 
 ## Use an Anthropic token
 

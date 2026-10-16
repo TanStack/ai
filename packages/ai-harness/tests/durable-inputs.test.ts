@@ -314,7 +314,7 @@ describe('recovery of a durable input', () => {
       replies: [() => toolCall('mail', {})],
       tools: [mail],
     })
-    const turn = first.session.prompt('mail it', { inputId: 'in-1' })
+    const turn = first.session.send('mail it', { inputId: 'in-1' })
     await started.opened
     // The first host stops: its run lease expires.
     await persistence.stores.runs.update(turn.id, {
@@ -407,7 +407,7 @@ describe('recovery of a durable input', () => {
       replies: [cutAnswer],
       tools,
     })
-    await first.session.prompt('look it up', { inputId: 'in-1' })
+    await first.session.send('look it up', { inputId: 'in-1' })
     await first.host.close()
     // The host stopped after it saved the answer, before the turn settled.
     // The live run gave the call its result. A log from before that has none.
@@ -487,7 +487,7 @@ describe('recovery of a durable input', () => {
       durability: { truncatedToolResult },
     })
 
-    expect(await session.prompt('look it up')).toEqual({
+    expect(await session.send('look it up')).toEqual({
       text: 'done',
       media: [],
     })
@@ -897,7 +897,7 @@ describe('session.recover()', () => {
     await Promise.all([session.recover(), host.recover(THREAD)])
     await session.settled('in-1')
     // A second run of the turn would run before this one.
-    await session.prompt('later')
+    await session.send('later')
 
     expect(calls).toHaveLength(2)
     const applied = (await logRecords(persistence)).filter(
@@ -920,8 +920,8 @@ describe('session.recover()', () => {
         () => text('x'),
       ],
     })
-    const one = session.prompt('one', { inputId: 'in-1' })
-    const two = session.prompt('two', { inputId: 'in-2' })
+    const one = session.send('one', { inputId: 'in-1' })
+    const two = session.send('two', { inputId: 'in-2' })
     await two.receipt
     await vi.waitFor(() => expect(calls).toHaveLength(1))
 
@@ -929,7 +929,7 @@ describe('session.recover()', () => {
     release.open()
     await Promise.all([one, two])
     // A second run of `two` would run before this one.
-    await session.prompt('three')
+    await session.send('three')
 
     expect(calls.map((call) => messageTexts(call).at(-1))).toEqual([
       'one',
@@ -949,7 +949,7 @@ describe('durable input limits while a turn runs', () => {
       durability: { timeoutMs: 30 },
     })
 
-    const turn = session.prompt('slow', { inputId: 'slow-1' })
+    const turn = session.send('slow', { inputId: 'slow-1' })
 
     await expect(turn).rejects.toThrow('The input passed its time limit.')
     expect(await session.settled('slow-1')).toMatchObject({
@@ -965,7 +965,7 @@ describe('durable input limits while a turn runs', () => {
       persistence,
       replies: [untilAborted()],
     })
-    const turn = session.prompt('wait', { inputId: 'wait-1' })
+    const turn = session.send('wait', { inputId: 'wait-1' })
     await vi.waitFor(() => expect(calls).toHaveLength(1))
 
     await session.cancel(turn.id)
@@ -1011,10 +1011,11 @@ describe('waiting inputs', () => {
       persistence,
       replies: [after(release.opened, 'first done'), () => text('steer done')],
     })
-    const first = session.prompt('first', { inputId: 'first' })
+    const first = session.send('first', { inputId: 'first' })
     await vi.waitFor(() => expect(calls).toHaveLength(1))
-    await session.followUp('second', { inputId: 'second' })
-    await session.steer('third', { inputId: 'third' })
+    await session.send('second', { inputId: 'second', mode: 'followUp' })
+      .receipt
+    await session.send('third', { inputId: 'third', mode: 'steer' }).receipt
 
     expect(session.inputs()).toEqual([
       { inputId: 'third', delivery: 'steer', message: 'third' },
@@ -1050,7 +1051,7 @@ describe('waiting inputs', () => {
       persistence: durablePersistence(),
       replies: [after(release.opened, 'done')],
     })
-    const turn = session.prompt('first', { inputId: 'first' })
+    const turn = session.send('first', { inputId: 'first' })
     await vi.waitFor(() => expect(calls).toHaveLength(1))
 
     expect(await session.cancelInput('first')).toMatchObject({
@@ -1066,9 +1067,9 @@ describe('waiting inputs', () => {
     const { host, session, calls, persistence, release } = await openHolding([
       () => text('done'),
     ])
-    const first = session.prompt('first', { inputId: 'first' })
+    const first = session.send('first', { inputId: 'first' })
     await vi.waitFor(() => expect(calls).toHaveLength(1))
-    await session.followUp('later', { inputId: 'later' })
+    await session.send('later', { inputId: 'later', mode: 'followUp' }).receipt
 
     expect(
       await session.setDelivery({ inputId: 'later', delivery: 'steer' }),
@@ -1095,14 +1096,56 @@ describe('waiting inputs', () => {
     await host.close()
   })
 
+  it('runs a waiting input as its own turn with setDelivery steer when no turn runs', async () => {
+    const persistence = durablePersistence()
+    const { host, session, calls } = await openDurable({
+      persistence,
+      replies: [() => text('done')],
+    })
+    // A turn that holds the queue: the follow-up waits behind it.
+    await session.reset()
+    await session.send('later', { inputId: 'later', mode: 'followUp' }).receipt
+    await session.setDelivery({ inputId: 'later', delivery: 'steer' })
+
+    expect(await session.settled('later')).toMatchObject({
+      outcome: 'completed',
+    })
+    expect(messageTexts(calls[0])).toContain('later')
+    await host.close()
+  })
+
+  it('cancels a queued continue', async () => {
+    const { host, session, release, persistence } = await openHolding([
+      () => text('done'),
+    ])
+    const first = session.send('first', { inputId: 'first' })
+    await vi.waitFor(() => expect(session.snapshot().status).toBe('running'))
+    const queued = session.continue({ inputId: 'c-1' })
+    await vi.waitFor(async () =>
+      expect(await recordTypesOf(persistence, 'c-1')).toContain(
+        'harness.input',
+      ),
+    )
+
+    expect(await session.cancelInput('c-1')).toMatchObject({
+      status: 'accepted',
+    })
+    expect(await session.settled('c-1')).toMatchObject({ outcome: 'aborted' })
+    await expect(queued).rejects.toThrow()
+
+    release.open()
+    await first
+    await host.close()
+  })
+
   it('runs a steer as its own turn with setDelivery queue', async () => {
     const { host, session, calls, release } = await openHolding([
       () => text('done'),
       () => text('own turn'),
     ])
-    const first = session.prompt('first', { inputId: 'first' })
+    const first = session.send('first', { inputId: 'first' })
     await vi.waitFor(() => expect(calls).toHaveLength(1))
-    await session.steer('now', { inputId: 'now' })
+    await session.send('now', { inputId: 'now', mode: 'steer' }).receipt
 
     expect(
       await session.setDelivery({ inputId: 'now', delivery: 'queue' }),
@@ -1216,8 +1259,8 @@ describe('input ids', () => {
       replies: [() => text('once')],
     })
 
-    const first = session.prompt('hi', { inputId: 'dup-1' })
-    const again = session.prompt('hi', { inputId: 'dup-1' })
+    const first = session.send('hi', { inputId: 'dup-1' })
+    const again = session.send('hi', { inputId: 'dup-1' })
 
     expect(again).toBe(first)
     expect(await first).toEqual({ text: 'once', media: [] })
@@ -1231,9 +1274,9 @@ describe('input ids', () => {
       persistence,
       replies: [() => text('first')],
     })
-    await session.prompt('hi', { inputId: 'dup-1' })
+    await session.send('hi', { inputId: 'dup-1' })
 
-    const other = session.prompt('something else', { inputId: 'dup-1' })
+    const other = session.send('something else', { inputId: 'dup-1' })
 
     await expect(other).rejects.toBeInstanceOf(InputRejectedError)
     expect(await other.receipt).toEqual({
@@ -1241,7 +1284,9 @@ describe('input ids', () => {
       status: 'rejected',
       reason: 'conflict',
     })
-    expect(await session.followUp('x', { inputId: 'dup-1' })).toMatchObject({
+    expect(
+      await session.send('x', { inputId: 'dup-1', mode: 'followUp' }).receipt,
+    ).toMatchObject({
       status: 'rejected',
       reason: 'conflict',
     })
@@ -1254,7 +1299,7 @@ describe('input ids', () => {
       persistence,
       replies: [() => text('from the first host')],
     })
-    const original = first.session.prompt('hi', { inputId: 'dup-1' })
+    const original = first.session.send('hi', { inputId: 'dup-1' })
     await original
     await first.host.close()
 
@@ -1262,7 +1307,7 @@ describe('input ids', () => {
       persistence,
       replies: [() => text('never')],
     })
-    const replay = second.session.prompt('hi', { inputId: 'dup-1' })
+    const replay = second.session.send('hi', { inputId: 'dup-1' })
 
     expect(await replay).toEqual({ text: 'from the first host', media: [] })
     expect(await replay.receipt).toEqual({
@@ -1284,7 +1329,7 @@ describe('input ids', () => {
         () => text('second answer'),
       ],
     })
-    const one = first.session.prompt('one', { inputId: 'old-1' })
+    const one = first.session.send('one', { inputId: 'old-1' })
     await vi.waitFor(async () =>
       expect(await recordTypes(persistence)).toContain('harness.transcript'),
     )
@@ -1292,12 +1337,12 @@ describe('input ids', () => {
     await first.session.configure({ instructions: 'Be brief.' })
     release.open()
     await one
-    await first.session.prompt('two', { inputId: 'new-1' })
+    await first.session.send('two', { inputId: 'new-1' })
     await first.host.close()
 
     const second = await openDurable({ persistence, replies: [] })
 
-    expect(await second.session.prompt('one', { inputId: 'old-1' })).toEqual({
+    expect(await second.session.send('one', { inputId: 'old-1' })).toEqual({
       text: 'first answer',
       media: [],
     })
@@ -1318,7 +1363,7 @@ describe('input ids', () => {
       ],
     })
 
-    const turn = session.prompt('hi', { inputId: 'r-1' })
+    const turn = session.send('hi', { inputId: 'r-1' })
     const receipt = await turn.receipt
 
     expect(receipt).toEqual({
@@ -1484,7 +1529,7 @@ describe('settled() without a log', () => {
       { threadId: THREAD },
     )
 
-    const turn = session.prompt('hi', { inputId: 'live-1' })
+    const turn = session.send('hi', { inputId: 'live-1' })
     await turn
 
     expect(await session.settled('live-1')).toEqual({
@@ -1528,7 +1573,7 @@ describe('durable approval recovery', () => {
     })
     const host = createHarnessHost({ persistence })
     const session = await host.open(config, { threadId: THREAD })
-    const initial = await session.prompt('remove')
+    const initial = await session.send('remove')
     const approval = initial.interrupts?.[0]
     if (!approval) throw new Error('The turn did not stop for approval.')
     const receipt = await session.resolve([
@@ -1596,7 +1641,7 @@ describe('durable approval recovery', () => {
       })
       const host = createHarnessHost({ persistence })
       const session = await host.open(config, { threadId: THREAD })
-      const result = await session.prompt('remove')
+      const result = await session.send('remove')
       const approval = result.interrupts?.[0]
       if (!approval) throw new Error('The turn did not stop for approval.')
       const append = log.append.bind(log)
@@ -1676,7 +1721,7 @@ describe('durable approval recovery', () => {
         }),
         { threadId: THREAD },
       )
-      const result = await firstSession.prompt('remove')
+      const result = await firstSession.send('remove')
       const approval = result.interrupts?.[0]
       if (!approval) throw new Error('The turn did not stop for approval.')
       await first.close()
@@ -1766,7 +1811,7 @@ describe('durable approval recovery', () => {
         tools: [tool],
       })
       const session = await host.open(config, { threadId: THREAD })
-      const result = await session.prompt('remove')
+      const result = await session.send('remove')
       const approval = result.interrupts?.[0]
       if (!approval) throw new Error('The turn did not stop for approval.')
       const cached = await stores.metadata.get('harness:interrupted', THREAD)
@@ -1822,7 +1867,7 @@ describe('metadata-only approval consumption', () => {
     })
     const host = createHarnessHost({ persistence })
     const session = await host.open(config, { threadId: THREAD })
-    const initial = await session.prompt('remove')
+    const initial = await session.send('remove')
     const approval = initial.interrupts?.[0]
     if (!approval) throw new Error('The approval is missing.')
     const deletion = vi

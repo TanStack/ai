@@ -69,11 +69,11 @@ describe('host.events', () => {
     const a = await host.open(askingHarness(), { threadId: 'a' })
     const b = await host.open(plainHarness(), { threadId: 'b' })
 
-    const turn = a.prompt('go')
+    const turn = a.send('go')
     await vi.waitFor(() =>
       expect(a.snapshot().pendingQuestions).toHaveLength(1),
     )
-    await b.prompt('hi')
+    await b.send('hi')
     const [question] = a.snapshot().pendingQuestions
     await a.answer({ questionId: question?.questionId ?? '', value: 'yes' })
     await turn
@@ -96,7 +96,7 @@ describe('host.events', () => {
     const host = createHarnessHost({ persistence: memoryPersistence() })
     const a = await host.open(askingHarness(), { threadId: 'a' })
     await host.open(plainHarness(), { threadId: 'b' })
-    void a.prompt('go')
+    void a.send('go')
     await vi.waitFor(() =>
       expect(a.snapshot().pendingQuestions).toHaveLength(1),
     )

@@ -89,7 +89,7 @@ The `replay` option of `durableTool` decides this. A `replay` on the tool defini
 
 ## Add records with the tool batch
 
-`append` adds your own records to the session log. They land when the tool phase completes, in the same append as the batch commit. If a crash cuts the batch, the records never happened.
+`append` adds your own records to the session log. They land with the tool result, in the same append as its `harness.tool.result` record. If a crash cuts the tool call before its result, the records never happened.
 
 ```ts group=harness-durable-tools
 export const remember = durableTool(

@@ -32,7 +32,7 @@ const session = await host.open(assistant, {
   principal: { id: 'ada' },
 })
 
-await session.prompt('Summarize the open tickets.')
+await session.send('Summarize the open tickets.')
 
 const { total, byModel, bySender } = session.usage()
 console.log(total.calls, total.totalTokens, total.cost)
@@ -95,7 +95,7 @@ export async function send(threadId: string, userId: string, text: string) {
   if (spent >= BUDGET_USD) {
     return { error: 'You used your budget for this thread.' }
   }
-  return thread.prompt(text, { principal: { id: userId } }).receipt
+  return thread.send(text, { principal: { id: userId } }).receipt
 }
 ```
 

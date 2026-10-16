@@ -91,7 +91,7 @@ console.log(await messages.loadThread('thread-1'))
 
 ## Tune how text streams into the log
 
-A durable host merges streamed text for `coalesceMs` (default 100) before it appends it. A message start or end, a tool call, and your own records append at once.
+A durable host merges streamed text and tool call arguments for `coalesceMs` (default 100) before it appends them. A message start or end, a tool call start or end, and your own records append at once.
 
 ```ts group=harness-session-log
 const smoothHost = createHarnessHost({

@@ -20,7 +20,7 @@ async function cacheOfTurn(
     }),
     { threadId: 't', ...(sessionCache ? { promptCache: sessionCache } : {}) },
   )
-  await session.prompt('hi')
+  await session.send('hi')
   await host.close()
   return calls[0].promptCache
 }
@@ -93,7 +93,7 @@ describe('prompt cache', () => {
       }),
       { threadId: 't' },
     )
-    await session.prompt('write', { overrides: { promptCache: 'long' } })
+    await session.send('write', { overrides: { promptCache: 'long' } })
     expect(lead.calls[0].promptCache).toEqual({ retention: 'long', key: 't' })
     // The default is 'short', so only the override gives the child 'long'.
     expect(child.calls[0].promptCache?.retention).toBe('long')

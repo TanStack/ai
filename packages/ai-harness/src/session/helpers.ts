@@ -665,12 +665,16 @@ export function tapFeed(
   return {
     publish: (operationId, event) => {
       feed.publish(operationId, event)
-      notifyHost(event)
       const report = (error: unknown) =>
         console.error(
           '[@tanstack/ai-harness] An onEvent listener threw.',
           error,
         )
+      try {
+        notifyHost(event)
+      } catch (error) {
+        report(error)
+      }
       for (const listener of [...listeners]) {
         // A listener that an earlier listener stopped gets nothing.
         if (!listeners.has(listener)) continue
@@ -693,6 +697,7 @@ export function tapFeed(
     head: () => feed.head(),
     read: (options) => feed.read(options),
     close: () => feed.close(),
+    wake: () => feed.wake(),
   }
 }
 

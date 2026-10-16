@@ -1,5 +1,5 @@
 import { maskKey } from '@tanstack/ai/byok'
-import { envKeyOf } from '../auth'
+import { envKeyEntry } from '@tanstack/ai/byok/server'
 import { defineCommand } from '../commands'
 import { definePlugin } from '../plugins'
 import type { ByokProvider } from '@tanstack/ai/byok'
@@ -64,7 +64,7 @@ async function describeKey(
       line: `${label}: connected (key ...${maskKey(saved.value)})`,
     }
   }
-  const env = envKeyOf(provider)
+  const env = envKeyEntry(provider)
   if (env) {
     return {
       status: status('env'),

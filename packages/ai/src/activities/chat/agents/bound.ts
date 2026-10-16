@@ -14,7 +14,11 @@ import { decide } from '../../evaluate/index'
 import type { GenerationMiddleware } from '../../middleware/types'
 import type { AnyChatMiddleware } from '../middleware/types'
 import type { PromptCacheRetention, RunAgentResumeItem } from '../../../types'
-import type { SubagentRunInput } from './define-agent'
+import type {
+  SubagentContextExtension,
+  SubagentRunContext,
+  SubagentRunInput,
+} from './define-agent'
 import type { SubagentBudget } from './limits'
 import type { ProviderKeys } from '../../../byok/keyed'
 
@@ -69,6 +73,11 @@ export interface SubagentBinding {
    * uses it when the call gives no `promptCache`.
    */
   promptCache?: PromptCacheRetention
+  /**
+   * Adds fields to the `ctx` of every run. A host declares their types by
+   * augmenting `SubagentContextExtension`. It passes down to nested children.
+   */
+  extend?: (ctx: SubagentRunContext) => Partial<SubagentContextExtension>
   /**
    * Starts a child without waiting for it and returns its id at once. The
    * agent tools call it for `background: true`. With
@@ -182,6 +191,7 @@ export function createBoundActivities(
                     ...(options.subagents.binding?.generationMiddleware ?? []),
                   ],
                   ...(binding?.budget ? { budget: binding.budget } : {}),
+                  ...(binding?.extend ? { extend: binding.extend } : {}),
                 },
               },
             }

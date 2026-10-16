@@ -71,7 +71,7 @@ describe('mid-conversation changes in a harness', () => {
     ) => {
       const host = createHarnessHost({ persistence })
       const session = await host.open(harness(tools), { threadId: THREAD })
-      await session.prompt(message)
+      await session.send(message)
       const transcript = await session.transcript()
       await host.close()
       return transcript
@@ -148,12 +148,12 @@ describe('mid-conversation changes in a harness', () => {
       { threadId: THREAD },
     )
 
-    const turn = session.prompt('find x')
+    const turn = session.send('find x')
     await started.opened
-    await session.steer('also check y')
+    await session.send('also check y', { mode: 'steer' }).receipt
     release.open()
     expect(await turn).toEqual({ text: 'done', media: [] })
-    expect(await session.prompt('and now?')).toEqual({
+    expect(await session.send('and now?')).toEqual({
       text: 'next turn',
       media: [],
     })

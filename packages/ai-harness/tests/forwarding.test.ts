@@ -18,6 +18,7 @@ import {
   wakeMessages,
 } from './helpers'
 import type { AnyTextAdapter } from '@tanstack/ai'
+import type { ChatTurnResult, Operation } from '../src'
 
 const THREAD = 't1'
 const NAME = 'test/forwarding'
@@ -55,9 +56,9 @@ describe('an input that reaches a host that does not own the thread', () => {
       threadId: THREAD,
     })
 
-    const turn = owner.prompt('Go.')
+    const turn = owner.send('Go.')
     await turn.receipt
-    const receipt = await other.followUp('And then?')
+    const receipt = await other.send('And then?', { mode: 'followUp' }).receipt
     expect(receipt.status).toBe('queued')
 
     release.open()
@@ -93,10 +94,10 @@ describe('an input that reaches a host that does not own the thread', () => {
       threadId: THREAD,
     })
 
-    const first = owner.prompt('Go.')
+    const first = owner.send('Go.')
     await first.receipt
     // A `POST run` on the other host: the turn runs on the owner as `run-2`.
-    const second = other.prompt('And then?', { runId: 'run-2' })
+    const second = other.send('And then?', { runId: 'run-2' })
     expect((await second.receipt).status).toBe('queued')
     release.open()
     const texts: Array<string> = []
@@ -119,9 +120,14 @@ describe('an input that reaches a host that does not own the thread', () => {
       threadId: THREAD,
     })
 
-    const turn = owner.prompt('Go.')
+    const turn = owner.send('Go.')
     await turn.receipt
-    expect(await other.steer('Faster.')).toMatchObject({
+    const steer = other.send('Faster.', { mode: 'steer' })
+    steer.then(
+      () => {},
+      () => {},
+    )
+    expect(await steer.receipt).toMatchObject({
       status: 'rejected',
       reason: 'owned_elsewhere',
     })
@@ -144,7 +150,8 @@ describe('an input that reaches a host that does not own the thread', () => {
     const first = await createHarnessHost({ persistence }).open(harness, {
       threadId: THREAD,
     })
-    const receipt = await first.followUp('Still there?')
+    const receipt = await first.send('Still there?', { mode: 'followUp' })
+      .receipt
     expect(receipt.status).toBe('queued')
     expect(calls).toHaveLength(0)
 
@@ -181,7 +188,7 @@ describe('an input that reaches a host that does not own the thread', () => {
         },
       },
     }).open(harness, { threadId: THREAD })
-    const turn = owner.prompt('Go.')
+    const turn = owner.send('Go.')
     await turn.receipt
 
     // In that window, another host opens the thread and finds the input.
@@ -338,7 +345,7 @@ describe('an input that reaches a host that does not own the thread', () => {
       threadId: THREAD,
     })
 
-    const turn = owner.prompt('Go.')
+    const turn = owner.send('Go.')
     await turn.receipt
     await other.command('count')
     await vi.waitFor(
@@ -365,18 +372,20 @@ describe('an input that reaches a host that does not own the thread', () => {
       threadId: THREAD,
     })
 
-    const turn = owner.prompt('Go.')
+    const turn = owner.send('Go.')
     await turn.receipt
     // A background job ended on the other host and wakes the session.
     const wake = other as unknown as {
-      queueFollowUp: (
-        message: string,
+      startTurn: (
+        input: { op: 'followUp'; message: string },
         options: { wake: boolean },
-      ) => Promise<{ status: string }>
+      ) => { receipt: Promise<{ status: string }> }
     }
-    expect((await wake.queueFollowUp('Job done.', { wake: true })).status).toBe(
-      'queued',
+    const woken = wake.startTurn(
+      { op: 'followUp', message: 'Job done.' },
+      { wake: true },
     )
+    expect((await woken.receipt).status).toBe('queued')
     release.open()
     await vi.waitFor(() => expect(calls).toHaveLength(2), { timeout: 3_000 })
     expect(wakeMessages(calls[1]!.messages)).toEqual(['Job done.'])
@@ -395,13 +404,17 @@ describe('an input that reaches a host that does not own the thread', () => {
       { threadId: THREAD },
     )
     let last = ''
+    let operation: Operation<ChatTurnResult> | undefined
     for (let index = 0; index < 510; index++) {
-      last = (await other.followUp(`Message ${index}.`)).inputId
+      operation = other.send(`Message ${index}.`, { mode: 'followUp' })
+      last = (await operation.receipt).inputId
     }
     const { forwarded } = other as unknown as { forwarded: Set<string> }
     expect(forwarded.size).toBe(500)
     expect(forwarded.has(last)).toBe(true)
+    // The owner runs the input. The follower here ends with the session.
     await other.close()
+    await expect(operation).rejects.toThrow('Session closed.')
   })
 
   it('refuses a revert on a host that does not own the thread, and the owner turn goes on', async () => {
@@ -415,8 +428,8 @@ describe('an input that reaches a host that does not own the thread', () => {
     const owner = await createHarnessHost({ persistence }).open(harness, {
       threadId: THREAD,
     })
-    await owner.prompt('First.')
-    const turn = owner.prompt('Second.')
+    await owner.send('First.')
+    const turn = owner.send('Second.')
     await turn.receipt
     // Another instance opens the thread while the owner runs the turn.
     const other = await createHarnessHost({ persistence }).open(harness, {
@@ -449,7 +462,7 @@ describe('an input that reaches a host that does not own the thread', () => {
       harnessOf(adapter),
       { threadId: THREAD },
     )
-    const turn = host.prompt('Still there?', { runId: 'run-9' })
+    const turn = host.send('Still there?', { runId: 'run-9' })
     expect((await turn.receipt).status).toBe('queued')
     // The claim expires. This host reads the inbox and runs the input.
     await vi.waitFor(() => expect(calls).toHaveLength(1), { timeout: 3_000 })
@@ -484,9 +497,9 @@ describe('an input that reaches a host that does not own the thread', () => {
       threadId: THREAD,
     })
 
-    const turn = owner.prompt('Go.')
+    const turn = owner.send('Go.')
     await turn.receipt
-    const receipt = await other.prompt('And then?').receipt
+    const receipt = await other.send('And then?').receipt
     expect(receipt.status).toBe('queued')
     failing = receipt.inputId
     // The owner reads the inbox within a second, and the write fails.
@@ -521,11 +534,11 @@ describe('an input that reaches a host that does not own the thread', () => {
         },
       },
     }).open(harness, { threadId: THREAD })
-    await owner.prompt('First.').receipt
+    await owner.send('First.').receipt
     const other = await createHarnessHost({ persistence }).open(harness, {
       threadId: THREAD,
     })
-    const receipt = await other.followUp('Second.')
+    const receipt = await other.send('Second.', { mode: 'followUp' }).receipt
     expect(receipt.status).toBe('queued')
 
     // The owner stops renewing its claim, as after a crash.
@@ -551,11 +564,12 @@ describe('an input that reaches a host that does not own the thread', () => {
     const owner = await createHarnessHost({ persistence }).open(harness, {
       threadId: THREAD,
     })
-    const turn = await owner.prompt('Open settings.')
+    const turn = await owner.send('Open settings.')
     const interruptId = turn.interrupts?.[0]?.id
     if (!interruptId) throw new Error('The turn did not stop for the tool.')
-    // Another host holds the thread when the resume comes (a turn that
-    // still ends, for example), then stops.
+    // The owner stops, and another host holds the thread when the resume
+    // comes (a turn that still ends, for example), then stops too.
+    await owner.close()
     await persistence.stores.workClaims.claim({
       threadId: THREAD,
       harness: NAME,

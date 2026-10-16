@@ -308,7 +308,7 @@ export function fileCommands(options: { dir: string }) {
                 : input === undefined
                   ? ''
                   : JSON.stringify(input)
-            ctx.session.prompt(body.split('$ARGUMENTS').join(args).trim())
+            ctx.session.send(body.split('$ARGUMENTS').join(args).trim())
             return `Sent /${name}.`
           },
         })

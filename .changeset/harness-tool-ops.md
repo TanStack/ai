@@ -16,6 +16,6 @@ Add out-of-band tool invocation and a per-run system preamble to the harness.
   capabilities document marks each tool with `exposed`.
 - `createHarnessMcpServer` adds a `tool_<name>` tool for each tool in
   `expose.tools`.
-- `session.prompt(message, { systemPreamble })` prepends per-run,
+- `session.send(message, { systemPreamble })` prepends per-run,
   server-only system prompts ahead of the harness's own system prompts (for
   example host-provided memory). A client input cannot set them.

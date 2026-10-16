@@ -586,8 +586,8 @@ describe('snapshot', () => {
       { threadId: 't-1' },
     )
     // Events of another turn come before this one.
-    await session.prompt('Warm up.')
-    const turn = session.prompt('Start.')
+    await session.send('Warm up.')
+    const turn = session.send('Start.')
     await turn.receipt
     const [active] = session.snapshot().activeOperations
     expect(active?.id).toBe(turn.id)

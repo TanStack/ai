@@ -35,7 +35,7 @@ describe('a harness as a child agent', () => {
       subagents: { agents: [child] },
     })
     const session = await host.open(lead, { threadId: 't' })
-    const turn = await session.prompt('review my change')
+    const turn = await session.send('review my change')
     expect(turn.text).toBe('The reviewer approved.')
     expect(JSON.stringify(outer.calls[1].messages)).toContain(
       'Reviewed: looks good.',
@@ -155,7 +155,7 @@ describe('default limits', () => {
       }),
       { threadId: 't' },
     )
-    await session.prompt('work twice')
+    await session.send('work twice')
     expect(run).toHaveBeenCalledTimes(1)
     expect(JSON.stringify(outer.calls[2].messages)).toContain(
       'subagent limit reached (maxCalls 1)',

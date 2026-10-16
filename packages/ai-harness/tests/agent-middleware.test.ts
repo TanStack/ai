@@ -96,7 +96,7 @@ describe('plugin agentMiddleware', () => {
       }),
     )
 
-    const turn = await session.prompt('research')
+    const turn = await session.send('research')
 
     expect(turn.text).toBe('lead done')
     expect(runs).toEqual(['researcher', 'fetcher'])
@@ -132,7 +132,7 @@ describe('plugin agentMiddleware', () => {
       }),
     )
 
-    await session.prompt('help')
+    await session.send('help')
 
     expect(runs).toEqual(['helper'])
     await host.close()
@@ -167,7 +167,7 @@ describe('plugin agentMiddleware', () => {
       }),
     )
 
-    await session.prompt('research')
+    await session.send('research')
 
     expect(calls).toEqual([
       { agent: 'lead', totalTokens: 1 },
@@ -194,7 +194,7 @@ describe('plugin agentMiddleware', () => {
       }),
     )
 
-    await session.prompt('research')
+    await session.send('research')
 
     // The lead (1 + 2), the researcher (10 + 20), and the fetcher (100).
     expect(await session.command('usage')).toBe(
@@ -240,7 +240,7 @@ describe('plugin agentMiddleware', () => {
     )
     await session.command('mode', 'plan')
 
-    await session.prompt('write it')
+    await session.send('write it')
 
     expect(writes).toEqual([])
     expect(JSON.stringify(writerModel.calls[1].messages)).toContain(

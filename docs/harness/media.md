@@ -37,7 +37,7 @@ const scan = await session.putMedia(await readFile('./receipt.png'), {
   mimeType: 'image/png',
   name: 'receipt.png',
 })
-const turn = await session.prompt([
+const turn = await session.send([
   { type: 'text', content: 'What is the total on this receipt?' },
   mediaPart(scan),
 ])
@@ -109,7 +109,7 @@ import { memoryPersistence } from '@tanstack/ai-persistence'
 const host = createHarnessHost({ persistence: memoryPersistence() })
 const session = await host.open(studio, { threadId: 'thread-1' })
 
-const turn = session.prompt('Draw a lighthouse at night.')
+const turn = session.send('Draw a lighthouse at night.')
 turn.onMedia(({ media }) => {
   console.log(`${media.kind} saved: ${media.name}`)
 })

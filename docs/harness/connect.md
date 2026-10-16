@@ -104,7 +104,7 @@ const client = createHarnessClient<typeof assistant>({
   headers: { authorization: 'Bearer my-token' },
 })
 
-await client.prompt('Summarize my open tickets.')
+await client.send('Summarize my open tickets.')
 
 for await (const entry of client.events()) {
   if (entry.event.type === 'TEXT_MESSAGE_CONTENT') {
@@ -119,7 +119,7 @@ To upload files and show the media that your agents make, read [Send and show me
 
 ## Send a message to a running agent
 
-A background agent runs for minutes, and the user wants to correct it from the page, or ask for one more change after it ends. The browser sends the run a message with `client.sendToAgent`.
+A background agent runs for minutes, and the user wants to correct it from the page, or ask for one more change after it ends. The browser sends the run a message with `client.send(message, { to: operationId })`.
 
 1. On the server, list the agent in `expose.agents`. A client can start and message only those agents:
 
@@ -166,9 +166,8 @@ const client = createHarnessClient<typeof studio>({
 })
 
 export async function correct(operationId: string) {
-  const receipt = await client.sendToAgent({
-    operationId,
-    message: 'Cite papers, not blogs.',
+  const receipt = await client.send('Cite papers, not blogs.', {
+    to: operationId,
   })
   if (receipt.status === 'rejected') {
     console.warn(receipt.reason)
@@ -176,11 +175,7 @@ export async function correct(operationId: string) {
 }
 
 export function addTitle(operationId: string) {
-  return client.sendToAgent({
-    operationId,
-    message: 'Add a title.',
-    mode: 'followUp',
-  })
+  return client.send('Add a title.', { to: operationId, mode: 'followUp' })
 }
 ```
 
@@ -189,7 +184,7 @@ The id of the run is the `operationId` in the receipt of `client.agents.drafter.
 - `mode: 'steer'` (the default): the message joins the next model call of the run.
 - `mode: 'followUp'`: the agent runs again after the run ends. `receipt.operationId` is the id of the new run.
 
-`sendToAgent` posts an `agentMessage` input to `POST control`. It runs as the user that `authorize` returned. The input looks like this:
+`send` with `to` posts an `agentMessage` input to `POST control`. It runs as the user that `authorize` returned. The input looks like this:
 
 ```json
 { "op": "agentMessage", "operationId": "op-agent-m1x2-3", "message": "Add a title.", "mode": "followUp" }
@@ -356,4 +351,4 @@ If a plugin picks the model of the harness, the harness has no adapter to read i
 - Messages from the browser to a running agent.
 - A WebSocket, and a harness you can call from `chat()`.
 
-Next: send more than a prompt with [inputs](./inputs).
+Next: run the same harness in a terminal with the [CLI](./cli).

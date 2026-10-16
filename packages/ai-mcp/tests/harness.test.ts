@@ -1352,7 +1352,7 @@ describe('createHarnessMcpServer', () => {
       arguments: { message: 'work' },
     })
     await held.hold.reached
-    await (await session()).followUp('then this')
+    await (await session()).send('then this', { mode: 'followUp' }).receipt
     const agent = client.callTool({ name: 'agent_waiter', arguments: {} })
     await agentHold.reached
 
