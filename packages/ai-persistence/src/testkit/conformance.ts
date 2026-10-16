@@ -1781,8 +1781,9 @@ export function runPersistenceConformance(
     })
 
     // Each case uses its own log, because the suite shares one persistence.
+    const newLog = () => `log-${crypto.randomUUID()}`
+
     describe('log', () => {
-      const newLog = () => `log-${crypto.randomUUID()}`
       const types = async (store: LogStore, logId: string) =>
         (await store.read({ logId })).map((entry) => [
           entry.seq,
@@ -2060,6 +2061,318 @@ export function runPersistenceConformance(
         expect(await store.read({ logId })).toEqual([
           { seq: 1, record: { type: 'shared', list: [1] } },
         ])
+      })
+    })
+
+    // Expiry uses real time, so that every backend can run these cases: a
+    // short ttl or wake is due after `waitPastShort()`.
+    describe('log ownership', () => {
+      const LIVE_MS = 10_000
+      const SHORT_MS = 50
+      const waitPastShort = () =>
+        new Promise((resolve) => setTimeout(resolve, 120))
+      // The suite shares one store. A case that lists orphans filters by its
+      // own harness, so the orphans of other cases cannot fill the limit.
+      const newHarness = () => `harness-${crypto.randomUUID()}`
+      const claimOf = (logId: string, ownerId: string) => ({
+        logId,
+        harness: 'h',
+        ownerId,
+        ttlMs: LIVE_MS,
+      })
+      // Owner `a` lets the log expire. Then owner `b` acquires it.
+      const handOver = async (store: LogStore) => {
+        const logId = newLog()
+        await store.acquire({ ...claimOf(logId, 'a'), ttlMs: SHORT_MS })
+        await waitPastShort()
+        const taken = await store.acquire(claimOf(logId, 'b'))
+        return { logId, taken }
+      }
+
+      it('gives the first acquire epoch 1 and refuses a second owner', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+
+        expect(await store.acquire(claimOf(logId, 'a'))).toEqual({ epoch: 1 })
+        expect(await store.acquire(claimOf(logId, 'b'))).toBeNull()
+      })
+
+      it('returns the same epoch when the owner acquires again', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+
+        expect(await store.acquire(claimOf(logId, 'a'))).toEqual({ epoch: 1 })
+        expect(await store.acquire(claimOf(logId, 'a'))).toEqual({ epoch: 1 })
+      })
+
+      it('hands a log to a new owner after expiry with a higher epoch', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+
+        const { taken } = await handOver(store)
+
+        expect(taken).toEqual({ epoch: 2 })
+      })
+
+      it('fences a write from the previous owner', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const { logId } = await handOver(store)
+
+        await expect(
+          store.append({ logId, seq: 1, epoch: 1, records: [{ type: 'old' }] }),
+        ).rejects.toBeInstanceOf(OwnershipLostError)
+        await store.append({
+          logId,
+          seq: 1,
+          epoch: 2,
+          records: [{ type: 'new' }],
+        })
+        // The fence comes before the position check: a stale write at a
+        // taken position is an OwnershipLostError, not a LogConflictError.
+        await expect(
+          store.append({ logId, seq: 1, epoch: 1, records: [{ type: 'old' }] }),
+        ).rejects.toBeInstanceOf(OwnershipLostError)
+
+        expect(await store.read({ logId })).toEqual([
+          { seq: 1, record: { type: 'new' } },
+        ])
+      })
+
+      it('refuses UNOWNED_EPOCH once a log was acquired', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        await store.acquire(claimOf(logId, 'a'))
+        await store.release({ logId, ownerId: 'a', epoch: 1 })
+
+        await expect(
+          store.append({
+            logId,
+            seq: 1,
+            epoch: UNOWNED_EPOCH,
+            records: [{ type: 'unowned' }],
+          }),
+        ).rejects.toBeInstanceOf(OwnershipLostError)
+        // The owner released the log, so its own epoch cannot write either.
+        await expect(
+          store.append({
+            logId,
+            seq: 1,
+            epoch: 1,
+            records: [{ type: 'released' }],
+          }),
+        ).rejects.toBeInstanceOf(OwnershipLostError)
+        expect(await store.read({ logId })).toEqual([])
+      })
+
+      it('renews only with the current epoch and owner', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const { logId } = await handOver(store)
+
+        expect(
+          await store.renew({ logId, ownerId: 'a', epoch: 1, ttlMs: LIVE_MS }),
+        ).toBe(false)
+        expect(
+          await store.renew({ logId, ownerId: 'a', epoch: 2, ttlMs: LIVE_MS }),
+        ).toBe(false)
+        expect(
+          await store.renew({ logId, ownerId: 'b', epoch: 2, ttlMs: LIVE_MS }),
+        ).toBe(true)
+      })
+
+      it('renews after expiry when nobody took the log', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        await store.acquire({ ...claimOf(logId, 'a'), ttlMs: SHORT_MS })
+        await waitPastShort()
+
+        expect(
+          await store.renew({ logId, ownerId: 'a', epoch: 1, ttlMs: LIVE_MS }),
+        ).toBe(true)
+        expect(await store.acquire(claimOf(logId, 'b'))).toBeNull()
+      })
+
+      it('releases and lets anyone acquire with the next epoch', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        await store.acquire(claimOf(logId, 'a'))
+
+        await store.release({ logId, ownerId: 'a', epoch: 1 })
+
+        expect(await store.acquire(claimOf(logId, 'b'))).toEqual({ epoch: 2 })
+      })
+
+      it('ignores a release with a stale epoch', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const { logId } = await handOver(store)
+
+        await store.release({ logId, ownerId: 'a', epoch: 1 })
+        // The current epoch with another owner is ignored too.
+        await store.release({ logId, ownerId: 'a', epoch: 2 })
+
+        expect(await store.acquire(claimOf(logId, 'c'))).toBeNull()
+      })
+
+      it('lists an expired log as orphaned', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        const harness = newHarness()
+        await store.acquire({
+          ...claimOf(logId, 'a'),
+          harness,
+          ttlMs: SHORT_MS,
+        })
+
+        // A live owner holds the log, so the log is not orphaned yet.
+        expect(
+          await store.listOrphaned({ limit: 10, harnesses: [harness] }),
+        ).toEqual([])
+        await waitPastShort()
+        expect(
+          await store.listOrphaned({ limit: 10, harnesses: [harness] }),
+        ).toEqual([{ logId, harness, reason: 'expired' }])
+      })
+
+      it('lists a released log with a due wake', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        const harness = newHarness()
+        await store.acquire({ ...claimOf(logId, 'a'), harness })
+        await store.release({
+          logId,
+          ownerId: 'a',
+          epoch: 1,
+          wakeInMs: SHORT_MS,
+        })
+
+        expect(
+          await store.listOrphaned({ limit: 10, harnesses: [harness] }),
+        ).toEqual([])
+        await waitPastShort()
+        expect(
+          await store.listOrphaned({ limit: 10, harnesses: [harness] }),
+        ).toEqual([{ logId, harness, reason: 'wake' }])
+      })
+
+      it('filters orphaned logs by harness', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const first = newLog()
+        const second = newLog()
+        const h1 = newHarness()
+        const h2 = newHarness()
+        await store.acquire({
+          ...claimOf(first, 'a'),
+          harness: h1,
+          ttlMs: SHORT_MS,
+        })
+        // This log is due later, so the order below is fixed.
+        await store.acquire({
+          ...claimOf(second, 'a'),
+          harness: h2,
+          ttlMs: SHORT_MS + 10,
+        })
+        await waitPastShort()
+
+        expect(
+          await store.listOrphaned({ limit: 10, harnesses: [h1] }),
+        ).toEqual([{ logId: first, harness: h1, reason: 'expired' }])
+        // The log that is due first comes first, in any order of `harnesses`.
+        expect(
+          await store.listOrphaned({ limit: 10, harnesses: [h2, h1] }),
+        ).toEqual([
+          { logId: first, harness: h1, reason: 'expired' },
+          { logId: second, harness: h2, reason: 'expired' },
+        ])
+      })
+
+      it('keeps a pinned log away from other affinities', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        const harness = newHarness()
+        const claim = { ...claimOf(logId, 'a'), harness }
+        await store.acquire(claim)
+        await store.setAffinity({ logId, epoch: 1, affinity: 'host-1' })
+        await store.release({ logId, ownerId: 'a', epoch: 1, wakeInMs: 0 })
+
+        // List before the acquires below, because a new owner makes the log
+        // live again.
+        expect(
+          await store.listOrphaned({ limit: 10, harnesses: [harness] }),
+        ).toEqual([])
+        expect(
+          await store.listOrphaned({
+            limit: 10,
+            harnesses: [harness],
+            affinity: 'host-1',
+          }),
+        ).toEqual([{ logId, harness, reason: 'wake' }])
+        expect(
+          await store.acquire({ ...claim, ownerId: 'b', affinity: 'host-2' }),
+        ).toBeNull()
+        expect(
+          await store.acquire({ ...claim, ownerId: 'b', affinity: 'host-1' }),
+        ).toEqual({ epoch: 2 })
+      })
+
+      it('fences setAffinity', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        await store.acquire(claimOf(logId, 'a'))
+        await store.release({ logId, ownerId: 'a', epoch: 1 })
+        await store.acquire(claimOf(logId, 'b'))
+
+        await expect(
+          store.setAffinity({ logId, epoch: 1, affinity: 'host-1' }),
+        ).rejects.toBeInstanceOf(OwnershipLostError)
+
+        // The refused pin wrote nothing, so a host with no affinity can
+        // acquire the log.
+        await store.release({ logId, ownerId: 'b', epoch: 2 })
+        expect(await store.acquire(claimOf(logId, 'c'))).toEqual({ epoch: 3 })
+      })
+
+      it('rejects a ttlMs that is not positive, or a negative wakeInMs', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+
+        await expect(
+          store.acquire({ ...claimOf(logId, 'a'), ttlMs: 0 }),
+        ).rejects.toBeInstanceOf(RangeError)
+        // The refused acquire took no epoch.
+        expect(await store.acquire(claimOf(logId, 'a'))).toEqual({ epoch: 1 })
+        await expect(
+          store.renew({ logId, ownerId: 'a', epoch: 1, ttlMs: -1 }),
+        ).rejects.toBeInstanceOf(RangeError)
+        await expect(
+          store.release({ logId, ownerId: 'a', epoch: 1, wakeInMs: -1 }),
+        ).rejects.toBeInstanceOf(RangeError)
+        // The refused release did not release the log.
+        expect(await store.acquire(claimOf(logId, 'b'))).toBeNull()
+      })
+
+      it('lists nothing with limit 0', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        await store.acquire({ ...claimOf(logId, 'a'), harness: newHarness() })
+        await store.release({ logId, ownerId: 'a', epoch: 1, wakeInMs: 0 })
+
+        // The store has an orphan, so the empty list comes from the limit.
+        expect(await store.listOrphaned({ limit: 1 })).toHaveLength(1)
+        expect(await store.listOrphaned({ limit: 0 })).toEqual([])
       })
     })
 

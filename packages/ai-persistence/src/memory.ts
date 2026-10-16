@@ -27,6 +27,7 @@ import type {
   InterruptStore,
   LogRecord,
   LogStore,
+  OrphanedLog,
   MessageStore,
   MetadataStore,
   RunRecord,
@@ -692,9 +693,67 @@ function copyJson<T>(value: T): T {
   return JSON.parse(JSON.stringify(value))
 }
 
+/**
+ * Throw a `RangeError` for a duration that the log contract refuses: a value
+ * below 0, `NaN`, or 0 when `allowZero` is false.
+ */
+function assertMs({
+  name,
+  value,
+  allowZero,
+}: {
+  name: string
+  value: number
+  allowZero: boolean
+}) {
+  const isValid = allowZero ? value >= 0 : value > 0
+  if (!isValid) {
+    const rule = allowZero ? '0 or more' : 'more than 0'
+    throw new RangeError(`${name} must be ${rule}, got ${value}.`)
+  }
+}
+
+/**
+ * The ownership record of a log that a host acquired. The record stays after
+ * a release, because the epoch never goes down.
+ */
+interface Ownership {
+  harness: string
+  ownerId: string
+  epoch: number
+  /** Epoch milliseconds, from the store clock. */
+  expiresAt: number
+  released: boolean
+  /** Epoch milliseconds, from `release({ wakeInMs })`. */
+  wakeAt?: number
+}
+
 class MemoryLogStore implements LogStore {
   private readonly logs = new Map<string, Array<LogRecord>>()
   private readonly listeners = new Map<string, Set<() => void>>()
+  private readonly owners = new Map<string, Ownership>()
+  // Kept apart from `owners`, because a log that no host acquired can have a
+  // pin too (`setAffinity` with UNOWNED_EPOCH).
+  private readonly affinities = new Map<string, string>()
+
+  /**
+   * The fence of every fenced write. A log that a host acquired needs the
+   * current epoch and an owner that did not release it. A log that no host
+   * acquired needs UNOWNED_EPOCH.
+   */
+  private canWrite(logId: string, epoch: number) {
+    const owner = this.owners.get(logId)
+    if (owner === undefined) return epoch === UNOWNED_EPOCH
+    return owner.epoch === epoch && !owner.released
+  }
+
+  /** The record, when `ownerId` holds the log at `epoch` and did not release it. */
+  private heldBy(logId: string, ownerId: string, epoch: number) {
+    const owner = this.owners.get(logId)
+    const isHolder =
+      owner?.ownerId === ownerId && owner.epoch === epoch && !owner.released
+    return isHolder ? owner : undefined
+  }
 
   append({
     logId,
@@ -705,8 +764,9 @@ class MemoryLogStore implements LogStore {
   }: Parameters<LogStore['append']>[0]) {
     const isNoop = records.length === 0 && consumes.length === 0
     if (isNoop) return Promise.resolve()
-    // The fence. This store has no owners yet, so every log is unowned.
-    if (epoch !== UNOWNED_EPOCH) {
+    // The fence comes first, so a stale writer gets OwnershipLostError, also
+    // at a taken position.
+    if (!this.canWrite(logId, epoch)) {
       return Promise.reject(new OwnershipLostError(logId, epoch))
     }
     const log = this.logs.get(logId) ?? []
@@ -759,24 +819,108 @@ class MemoryLogStore implements LogStore {
     }
   }
 
-  acquire() {
-    return Promise.reject(new Error('not implemented'))
+  // The ownership methods are `async`, so a thrown error becomes a rejection.
+  // They never await, so each call runs to its end before the next one.
+  async acquire({
+    logId,
+    harness,
+    ownerId,
+    ttlMs,
+    affinity,
+  }: Parameters<LogStore['acquire']>[0]) {
+    assertMs({ name: 'ttlMs', value: ttlMs, allowZero: false })
+    const now = Date.now()
+    const owner = this.owners.get(logId)
+    const isLive =
+      owner !== undefined && !owner.released && owner.expiresAt > now
+    if (isLive && owner.ownerId !== ownerId) return null
+    const pin = this.affinities.get(logId)
+    if (pin !== undefined && pin !== affinity) return null
+    // The caller holds the log already: extend it at the same epoch.
+    if (isLive) {
+      owner.expiresAt = now + ttlMs
+      return { epoch: owner.epoch }
+    }
+    const epoch = (owner?.epoch ?? UNOWNED_EPOCH) + 1
+    this.owners.set(logId, {
+      harness,
+      ownerId,
+      epoch,
+      expiresAt: now + ttlMs,
+      released: false,
+    })
+    return { epoch }
   }
 
-  renew() {
-    return Promise.reject(new Error('not implemented'))
+  async renew({
+    logId,
+    ownerId,
+    epoch,
+    ttlMs,
+  }: Parameters<LogStore['renew']>[0]) {
+    assertMs({ name: 'ttlMs', value: ttlMs, allowZero: false })
+    // An expired owner can renew. A new acquire would have changed the epoch.
+    const owner = this.heldBy(logId, ownerId, epoch)
+    if (owner === undefined) return false
+    owner.expiresAt = Date.now() + ttlMs
+    return true
   }
 
-  release() {
-    return Promise.reject(new Error('not implemented'))
+  async release({
+    logId,
+    ownerId,
+    epoch,
+    wakeInMs,
+  }: Parameters<LogStore['release']>[0]) {
+    if (wakeInMs !== undefined) {
+      assertMs({ name: 'wakeInMs', value: wakeInMs, allowZero: true })
+    }
+    const owner = this.heldBy(logId, ownerId, epoch)
+    if (owner === undefined) return
+    owner.released = true
+    if (wakeInMs !== undefined) owner.wakeAt = Date.now() + wakeInMs
   }
 
-  setAffinity() {
-    return Promise.reject(new Error('not implemented'))
+  async setAffinity({
+    logId,
+    epoch,
+    affinity,
+  }: Parameters<LogStore['setAffinity']>[0]) {
+    if (!this.canWrite(logId, epoch)) {
+      throw new OwnershipLostError(logId, epoch)
+    }
+    if (affinity === null) this.affinities.delete(logId)
+    else this.affinities.set(logId, affinity)
   }
 
-  listOrphaned() {
-    return Promise.reject(new Error('not implemented'))
+  async listOrphaned({
+    limit,
+    harnesses,
+    affinity,
+  }: Parameters<LogStore['listOrphaned']>[0]) {
+    const now = Date.now()
+    const due: Array<{ orphan: OrphanedLog; dueAt: number }> = []
+    for (const [logId, owner] of this.owners) {
+      const pin = this.affinities.get(logId)
+      const isOtherHarness =
+        harnesses !== undefined && !harnesses.includes(owner.harness)
+      const isOtherAffinity = pin !== undefined && pin !== affinity
+      if (isOtherHarness || isOtherAffinity) continue
+      const { harness, released, expiresAt, wakeAt } = owner
+      const isExpired = !released && expiresAt <= now
+      const isWakeDue = released && wakeAt !== undefined && wakeAt <= now
+      if (isExpired) {
+        due.push({
+          orphan: { logId, harness, reason: 'expired' },
+          dueAt: expiresAt,
+        })
+      } else if (isWakeDue) {
+        due.push({ orphan: { logId, harness, reason: 'wake' }, dueAt: wakeAt })
+      }
+    }
+    // The log that is due first comes first.
+    due.sort((left, right) => left.dueAt - right.dueAt)
+    return due.slice(0, limit).map(({ orphan }) => orphan)
   }
 
   offer() {
