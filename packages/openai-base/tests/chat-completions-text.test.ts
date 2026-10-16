@@ -1493,6 +1493,43 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       )
     })
 
+    it('is not combined in JSON mode, and keeps the caller json_object without a schema prompt', async () => {
+      const streamChunks = [
+        {
+          id: 'chatcmpl-1',
+          model: 'test-model',
+          choices: [{ delta: { content: 'ok' }, finish_reason: 'stop' }],
+        },
+      ]
+
+      setupMockSdkClient(streamChunks)
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
+      const modelOptions = { response_format: { type: 'json_object' } }
+      expect(adapter.supportsCombinedToolsAndSchema(modelOptions)).toBe(false)
+
+      for await (const _ of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Hello' }],
+        tools: [weatherTool],
+        modelOptions,
+        outputSchema: {
+          type: 'object',
+          properties: { city: { type: 'string' } },
+          required: ['city'],
+        },
+      })) {
+        // drain
+      }
+
+      const request = mockCreate.mock.calls[0]![0] as {
+        response_format?: unknown
+        messages: Array<{ role: string }>
+      }
+      expect(request.response_format).toEqual({ type: 'json_object' })
+      expect(request.messages.some((m) => m.role === 'system')).toBe(false)
+    })
+
     it('omits response_format when outputSchema is not set', async () => {
       const streamChunks = [
         {

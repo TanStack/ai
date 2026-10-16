@@ -136,13 +136,16 @@ export function skills(options: SkillsPluginOptions) {
           // ran the command.
           run: (input: unknown, command) => {
             called.add(name)
-            void command.session.prompt(skillPrompt(name, input))
+            void command.session.send(skillPrompt(name, input))
           },
         })
 
+      /** The folder each parent watcher watches, by key. */
+      const parents = new Map<string, string>()
       const drop = (key: string) => {
         watchers.get(key)?.close()
         watchers.delete(key)
+        parents.delete(key)
       }
 
       /** Watch `path` under `key`. `false` when `path` does not exist. */
@@ -183,7 +186,8 @@ export function skills(options: SkillsPluginOptions) {
 
       /**
        * Watch each skill folder. While a folder does not exist, watch its
-       * parent folder, so the skills show as soon as you make the folder.
+       * nearest folder that does, so the skills show as soon as you make the
+       * folders, one level at a time.
        */
       const watchFolders = () => {
         for (const dir of dirs) {
@@ -193,9 +197,15 @@ export function skills(options: SkillsPluginOptions) {
           const parentKey = `${dir} (parent)`
           if (tryWatch(dir, dir, true)) {
             drop(parentKey)
-          } else if (!watchers.has(parentKey)) {
-            tryWatch(parentKey, dirname(dir), false)
+            continue
           }
+          let parent = dirname(dir)
+          while (!existsSync(parent) && dirname(parent) !== parent) {
+            parent = dirname(parent)
+          }
+          if (parents.get(parentKey) === parent) continue
+          drop(parentKey)
+          if (tryWatch(parentKey, parent, false)) parents.set(parentKey, parent)
         }
       }
 

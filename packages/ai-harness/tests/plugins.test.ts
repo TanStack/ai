@@ -38,6 +38,25 @@ describe('ResourceScope', () => {
     expect(scope.signal.aborted).toBe(true)
   })
 
+  it('disposes while an open still runs, and closes that resource when it arrives', async () => {
+    const scope = new ResourceScope()
+    const log: Array<string> = []
+    let finishOpen!: () => void
+    const opening = scope.acquire(
+      () =>
+        new Promise<string>((resolve) => {
+          finishOpen = () => resolve('late')
+        }),
+      () => log.push('closed late'),
+    )
+    // Resolves before the open ends.
+    await scope.dispose()
+    expect(log).toEqual([])
+    finishOpen()
+    await expect(opening).rejects.toThrow('Resource scope disposed')
+    expect(log).toEqual(['closed late'])
+  })
+
   it('closes a resource that finishes opening after dispose', async () => {
     const scope = new ResourceScope()
     const log: Array<string> = []

@@ -30,6 +30,10 @@ import type {
   StructuredOutputCompatibility,
 } from '../utils/schema-converter'
 import { buildResponsesUsage } from '../usage'
+import {
+  explicitJsonObject,
+  withJsonModePrompt,
+} from '../utils/json-object-mode'
 import { toResponsesToolChoice } from '../tools/tool-choice'
 import { getOpenAIProviderToolKind } from '../tools/openai-provider-tool'
 import { convertToolsToResponsesFormat } from './responses-tool-converter'
@@ -322,17 +326,56 @@ function fromCompactedItem(
       content: item.content.map((part): ContentPart => {
         if (isRecord(part) && typeof part.text === 'string')
           return { type: 'text', content: part.text }
-        if (
-          isRecord(part) &&
-          part.type === 'input_image' &&
-          typeof part.image_url === 'string'
-        )
-          return {
-            type: 'image',
-            source: { type: 'url', value: part.image_url },
-          }
-        // ponytail: text and image urls only. Map files here when a
-        // compacted history holds them.
+        if (isRecord(part) && part.type === 'input_image') {
+          if (typeof part.image_url === 'string')
+            return {
+              type: 'image',
+              source: { type: 'url', value: part.image_url },
+            }
+          if (typeof part.file_id === 'string')
+            return {
+              type: 'image',
+              source: { type: 'file', value: part.file_id },
+            }
+        }
+        if (isRecord(part) && part.type === 'input_file') {
+          if (typeof part.file_id === 'string')
+            return {
+              type: 'document',
+              source: { type: 'file', value: part.file_id },
+            }
+          if (typeof part.file_url === 'string')
+            return {
+              type: 'document',
+              source: { type: 'url', value: part.file_url },
+            }
+          if (
+            typeof part.file_data === 'string' &&
+            typeof part.filename === 'string'
+          )
+            return {
+              type: 'document',
+              source: {
+                type: 'data',
+                value: part.file_data,
+                mimeType: 'application/pdf',
+              },
+              metadata: { filename: part.filename },
+            }
+          // Audio leaves as input_file with file_data and no filename.
+          if (typeof part.file_data === 'string')
+            return {
+              type: 'audio',
+              source: {
+                type: 'data',
+                value: part.file_data,
+                mimeType: 'application/octet-stream',
+              },
+            }
+        }
+        // ponytail: other item types still throw. A throw with no HTTP
+        // status does not latch. Pass an item through when a real compact
+        // result holds one.
         throw new Error(
           `Cannot map a compacted ${isRecord(part) ? String(part.type) : 'part'} part.`,
         )
@@ -589,13 +632,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     options: StructuredOutputOptions<TProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
-    const requestParams = this.mapOptionsToRequest(chatOptions)
-
-    // Apply provider-specific transformations for structured output compatibility
-    const jsonSchema = this.makeStructuredOutputCompatible(
-      outputSchema,
-      outputSchema.required,
+    const jsonMode = this.usesJsonObject(chatOptions)
+    const requestParams = this.mapOptionsToRequest(
+      jsonMode ? withJsonModePrompt(chatOptions, outputSchema) : chatOptions,
     )
+    const textFormat = this.responsesStructuredFormat(jsonMode, outputSchema)
 
     try {
       // Strip streaming-only fields a subclass override of mapOptionsToRequest
@@ -621,14 +662,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         {
           ...(cleanParams as Omit<ResponseCreateParams, 'stream'>),
           stream: false,
-          // Configure structured output via text.format
           text: {
-            format: {
-              type: 'json_schema',
-              name: 'structured_output',
-              schema: jsonSchema,
-              strict: true,
-            },
+            format: textFormat,
           },
         },
         extractRequestOptions(chatOptions.request),
@@ -703,12 +738,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     options: StructuredOutputOptions<TProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
     const { chatOptions, outputSchema } = options
-    const requestParams = this.mapOptionsToRequest(chatOptions)
-
-    const jsonSchema = this.makeStructuredOutputCompatible(
-      outputSchema,
-      outputSchema.required,
+    const jsonMode = this.usesJsonObject(chatOptions)
+    const requestParams = this.mapOptionsToRequest(
+      jsonMode ? withJsonModePrompt(chatOptions, outputSchema) : chatOptions,
     )
+    const textFormat = this.responsesStructuredFormat(jsonMode, outputSchema)
 
     const aguiState = {
       runId: generateId(this.name),
@@ -808,12 +842,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           ...cleanParams,
           stream: true,
           text: {
-            format: {
-              type: 'json_schema',
-              name: 'structured_output',
-              schema: jsonSchema,
-              strict: true,
-            },
+            format: textFormat,
           },
         },
         extractRequestOptions(chatOptions.request),
@@ -1202,6 +1231,52 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   ): Record<string, any> {
     return this.makeStructuredOutputCompatibleWithMap(schema, originalRequired)
       .schema
+  }
+
+  /**
+   * `true` when this model takes `json_object` and rejects strict
+   * `json_schema`. Subclasses answer from their model catalog. Default `false`.
+   */
+  protected modelPrefersJsonObject(_model: string): boolean {
+    return false
+  }
+
+  /** JSON mode when `modelOptions` sets it or the model catalog needs it. */
+  protected usesJsonObject(options: {
+    model: string
+    modelOptions?: unknown
+  }): boolean {
+    return (
+      explicitJsonObject(options.modelOptions) ||
+      this.modelPrefersJsonObject(options.model)
+    )
+  }
+
+  protected responsesStructuredFormat(
+    jsonMode: boolean,
+    schema: Record<string, any>,
+  ):
+    | { type: 'json_object' }
+    | {
+        type: 'json_schema'
+        name: string
+        schema: Record<string, any>
+        strict: true
+      } {
+    if (jsonMode) {
+      return { type: 'json_object' }
+    }
+    return {
+      type: 'json_schema',
+      name: 'structured_output',
+      schema: this.makeStructuredOutputCompatible(
+        schema,
+        Array.isArray(schema.required)
+          ? (schema.required as Array<string>)
+          : undefined,
+      ),
+      strict: true,
+    }
   }
 
   /**
@@ -2182,7 +2257,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 toolName: name,
                 model: model || options.model,
                 timestamp: Date.now(),
-                ...(rawArgs !== undefined && { args: rawArgs }),
+                args: rawArgs,
                 ...(parsedInput !== undefined && { input: parsedInput }),
               }
               metadata.ended = true
@@ -2354,7 +2429,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 toolName: name,
                 model: model || options.model,
                 timestamp: Date.now(),
-                ...(rawArgs !== undefined && { args: rawArgs }),
+                args: rawArgs,
                 ...(parsedInput !== undefined && { input: parsedInput }),
               }
               metadata.ended = true
@@ -2579,23 +2654,16 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     // (pre-converted at the activity boundary). Wire it into `text.format`
     // alongside any `tools` — the Responses API supports both together and
     // emits the schema-constrained text on the natural final turn.
-    const combinedSchema = options.outputSchema as
-      | Record<string, unknown>
-      | undefined
+    // JSON mode is never combined (see `supportsCombinedToolsAndSchema`).
+    // A caller's own `json_object` reaches the request through the
+    // `modelOptions` spread.
+    const combinedSchema = this.usesJsonObject(options)
+      ? undefined
+      : (options.outputSchema as Record<string, unknown> | undefined)
     const textFormat = combinedSchema
       ? {
           text: {
-            format: {
-              type: 'json_schema' as const,
-              name: 'structured_output',
-              schema: this.makeStructuredOutputCompatible(
-                combinedSchema,
-                Array.isArray(combinedSchema.required)
-                  ? (combinedSchema.required as Array<string>)
-                  : undefined,
-              ),
-              strict: true,
-            },
+            format: this.responsesStructuredFormat(false, combinedSchema),
           },
         }
       : undefined
@@ -2722,8 +2790,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
    * together in a single streaming request (per issue #605). Subclasses
    * that route to providers without this capability should override.
    */
-  supportsCombinedToolsAndSchema(): boolean {
-    return true
+  supportsCombinedToolsAndSchema(modelOptions?: unknown): boolean {
+    // JSON mode sends the schema as a system prompt on a separate
+    // structured-output request, not on the tool-calling turns.
+    return !this.usesJsonObject({ model: this.model, modelOptions })
   }
 
   /**

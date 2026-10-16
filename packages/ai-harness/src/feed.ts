@@ -1,14 +1,18 @@
 import { EventType } from '@tanstack/ai'
 import { isMediaRecord } from './media-ref'
 import { HARNESS_EVENTS } from './types'
+import { isRecord } from './utils'
 import type { StreamChunk } from '@tanstack/ai'
 import type {
+  AuthRequest,
   Cursor,
   LiveEvent,
   MediaRecord,
   OnEvent,
+  PendingQuestion,
   SessionEvent,
   StreamChunkType,
+  UsageUpdate,
 } from './types'
 
 // ponytail: in-memory log capped at MAX_EVENTS per session. A reader whose
@@ -37,6 +41,8 @@ export interface EventFeed {
     until?: () => boolean
   }) => AsyncIterable<SessionEvent>
   close: () => void
+  /** Let every waiting reader check `until` again, when nothing was published. */
+  wake: () => void
 }
 
 /** A listener of the events a session publishes. */
@@ -84,17 +90,82 @@ export function onEventOf(
   return onEvent
 }
 
-/** The `onMedia` of an operation: its `harness.media` events. */
+/** A listener of one kind of harness event. Returns a function that stops it. */
+export type OnHarnessEvent<TEntry> = (
+  listener: (entry: TEntry & { operationId: string }) => void,
+) => () => void
+
+/**
+ * Listen to the `CUSTOM` events named `name`. `read` turns the event value
+ * into the listener entry, or returns `undefined` to skip a bad value.
+ */
+function onCustomOf<TEntry>(
+  onEvent: OnEvent,
+  name: string,
+  read: (value: unknown) => TEntry | undefined,
+): OnHarnessEvent<TEntry> {
+  return (listener) =>
+    onEvent(EventType.CUSTOM, ({ operationId, event }) => {
+      if (event.name !== name) return
+      const entry = read(event.value)
+      // The result goes back, so the feed can catch a promise that rejects.
+      if (entry !== undefined) return listener({ ...entry, operationId })
+    })
+}
+
+/** The `onMedia` of a session or an operation: its `harness.media` events. */
 export function onMediaOf(
   onEvent: OnEvent,
-): (listener: (entry: { media: MediaRecord }) => void) => () => void {
-  return (listener) =>
-    onEvent(EventType.CUSTOM, ({ event }) => {
-      if (event.name === HARNESS_EVENTS.media && isMediaRecord(event.value)) {
-        // The result goes back, so the feed can catch a promise that rejects.
-        return listener({ media: event.value })
-      }
-    })
+): OnHarnessEvent<{ media: MediaRecord }> {
+  return onCustomOf(onEvent, HARNESS_EVENTS.media, (value) =>
+    isMediaRecord(value) ? { media: value } : undefined,
+  )
+}
+
+/** The `onQuestion` of a session: its `harness.question` events. */
+export function onQuestionOf(
+  onEvent: OnEvent,
+): OnHarnessEvent<{ question: PendingQuestion }> {
+  return onCustomOf(onEvent, HARNESS_EVENTS.question, (value) =>
+    isPendingQuestion(value) ? { question: value } : undefined,
+  )
+}
+
+/** The `onAuthRequired` of a session: its `harness.auth_required` events. */
+export function onAuthRequiredOf(
+  onEvent: OnEvent,
+): OnHarnessEvent<AuthRequest> {
+  return onCustomOf(onEvent, HARNESS_EVENTS.authRequired, (value) =>
+    isAuthRequest(value) ? value : undefined,
+  )
+}
+
+/** The `onUsage` of a session: its `harness.usage` events. */
+export function onUsageOf(onEvent: OnEvent): OnHarnessEvent<UsageUpdate> {
+  return onCustomOf(onEvent, HARNESS_EVENTS.usage, (value) =>
+    isUsageUpdate(value) ? value : undefined,
+  )
+}
+
+function isPendingQuestion(value: unknown): value is PendingQuestion {
+  return (
+    isRecord(value) &&
+    typeof value.questionId === 'string' &&
+    typeof value.message === 'string'
+  )
+}
+
+function isAuthRequest(value: unknown): value is AuthRequest {
+  return isRecord(value) && typeof value.connector === 'string'
+}
+
+function isUsageUpdate(value: unknown): value is UsageUpdate {
+  return (
+    isRecord(value) &&
+    typeof value.model === 'string' &&
+    isRecord(value.usage) &&
+    isRecord(value.total)
+  )
 }
 
 /**
@@ -164,7 +235,7 @@ export class SessionFeed implements EventFeed {
     this.wake()
   }
 
-  private wake(): void {
+  wake(): void {
     const waiters = [...this.waiters]
     this.waiters.clear()
     for (const wake of waiters) wake()

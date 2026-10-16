@@ -20,6 +20,10 @@ import { clientForCall } from '../internal/wrap-fetch'
 import { makeStructuredOutputCompatible } from '../internal/schema-converter'
 import { openRouterSupportsCombinedToolsAndSchema } from '../internal/combined-tools-and-schema'
 import {
+  openRouterUsesJsonObject,
+  withJsonModePrompt,
+} from '../internal/json-object-mode'
+import {
   OPENROUTER_MODEL_INPUT_MODALITIES,
   OPENROUTER_MODEL_REASONING,
 } from '../model-meta'
@@ -289,16 +293,23 @@ export class OpenRouterTextAdapter<
   /**
    * Generate structured output via OpenRouter's `responseFormat`. Uses
    * `stream: false`. Default is strict `json_schema` from `outputSchema`.
-   * Callers can opt into JSON mode with
-   * `modelOptions.responseFormat: { type: 'json_object' }`.
+   * JSON mode is `modelOptions.responseFormat: { type: 'json_object' }`, or
+   * a catalog model that has a response format and no strict structured
+   * outputs. JSON mode adds the schema as a system prompt.
    */
   async structuredOutput(
     options: StructuredOutputOptions<ResolveProviderOptions<TModel>>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
-    const chatRequest = this.mapOptionsToRequest(chatOptions)
+    const jsonMode = openRouterUsesJsonObject(
+      chatOptions.model || this.model,
+      chatOptions.modelOptions,
+    )
+    const chatRequest = this.mapOptionsToRequest(
+      jsonMode ? withJsonModePrompt(chatOptions, outputSchema) : chatOptions,
+    )
     const responseFormat = this.resolveStructuredResponseFormat(
-      chatRequest.responseFormat,
+      jsonMode,
       outputSchema,
     )
 
@@ -438,9 +449,15 @@ export class OpenRouterTextAdapter<
     options: StructuredOutputOptions<ResolveProviderOptions<TModel>>,
   ): AsyncIterable<AdapterYieldChunk> {
     const { chatOptions, outputSchema } = options
-    const chatRequest = this.mapOptionsToRequest(chatOptions)
+    const jsonMode = openRouterUsesJsonObject(
+      chatOptions.model || this.model,
+      chatOptions.modelOptions,
+    )
+    const chatRequest = this.mapOptionsToRequest(
+      jsonMode ? withJsonModePrompt(chatOptions, outputSchema) : chatOptions,
+    )
     const responseFormat = this.resolveStructuredResponseFormat(
-      chatRequest.responseFormat,
+      jsonMode,
       outputSchema,
     )
 
@@ -788,15 +805,14 @@ export class OpenRouterTextAdapter<
   /**
    * Resolve the provider request format for a schema-bearing call.
    *
-   * Explicit `modelOptions.responseFormat: { type: 'json_object' }` is
-   * forwarded. Every other value is replaced with strict `json_schema`
-   * generated from `outputSchema`.
+   * `json_object` in JSON mode. Every other call gets strict
+   * `json_schema` from `outputSchema`.
    */
   protected resolveStructuredResponseFormat(
-    requested: ChatRequest['responseFormat'],
+    jsonMode: boolean,
     outputSchema: JSONSchema,
   ): NonNullable<ChatRequest['responseFormat']> {
-    if (requested?.type === 'json_object') {
+    if (jsonMode) {
       return { type: 'json_object' }
     }
 
@@ -1483,16 +1499,11 @@ export class OpenRouterTextAdapter<
       ? convertToolsToProviderFormat(options.tools)
       : undefined
 
-    // Attach json_schema only when outputSchema is set, every routed model
-    // is in the combined set, and the caller did not opt into JSON mode.
+    // Attach json_schema only when outputSchema is set and the combined gate
+    // passes (every routed model is in the combined set, and not JSON mode).
     const combinedOutputSchema: JSONSchema | undefined = options.outputSchema
-    const requestedResponseFormat =
-      options.modelOptions != null && 'responseFormat' in options.modelOptions
-        ? options.modelOptions.responseFormat
-        : undefined
     const combinedSchema =
       combinedOutputSchema &&
-      requestedResponseFormat?.type !== 'json_object' &&
       this.supportsCombinedToolsAndSchema(options.modelOptions)
         ? this.makeStructuredOutputCompatible(
             combinedOutputSchema,
@@ -1538,13 +1549,17 @@ export class OpenRouterTextAdapter<
 
   /**
    * Combined mode is safe only when this model and every `modelOptions.models`
-   * fallback are in `OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS`.
-   * `:variant` suffixes are routing directives and do not change the gate.
+   * fallback are in `OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS`. JSON mode
+   * is never combined: the schema goes in a system prompt on a separate
+   * structured-output request, not on the tool-calling turns.
    */
   supportsCombinedToolsAndSchema(
     modelOptions?: ResolveProviderOptions<TModel>,
   ): boolean {
-    return openRouterSupportsCombinedToolsAndSchema(this.model, modelOptions)
+    return (
+      !openRouterUsesJsonObject(this.model, modelOptions) &&
+      openRouterSupportsCombinedToolsAndSchema(this.model, modelOptions)
+    )
   }
 
   /**

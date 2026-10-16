@@ -11,7 +11,13 @@ import {
   maskKey,
   scrubSecrets,
 } from '../src/byok'
-import { getByokKey, getByokKeys } from '../src/byok/server'
+import {
+  getByokKey,
+  getByokKeys,
+  memoryCredentialStore,
+  readCredential,
+  storedProviderKeys,
+} from '../src/byok/server'
 import type { ByokProviderInit } from '../src/byok'
 
 describe('byok slugs', () => {
@@ -258,5 +264,110 @@ describe('ByokUnresolvedProviderError', () => {
     expect(error).toBeInstanceOf(Error)
     expect(error).toBeInstanceOf(ByokUnresolvedProviderError)
     expect(error.name).toBe('ByokUnresolvedProviderError')
+  })
+})
+
+describe('stored credentials', () => {
+  const user = { tenantId: 'acme', userId: 'ann' }
+  const tenant = { tenantId: 'acme' }
+
+  it('keys by user and tenant, lists without values, and deletes', async () => {
+    const credentials = memoryCredentialStore()
+    await credentials.set({
+      scope: user,
+      id: 'github',
+      credential: {
+        type: 'oauth',
+        accessToken: 'secret-access',
+        refreshToken: 'secret-refresh',
+        expiresAt: 100,
+      },
+    })
+    await credentials.set({
+      scope: tenant,
+      id: 'notion',
+      credential: { type: 'api_key', value: 'secret-key' },
+    })
+
+    expect(await credentials.get({ scope: user, id: 'github' })).toMatchObject({
+      accessToken: 'secret-access',
+    })
+    // A user credential is not visible at tenant scope, and the other way around.
+    expect(await credentials.get({ scope: tenant, id: 'github' })).toBeNull()
+    expect(await credentials.get({ scope: user, id: 'notion' })).toBeNull()
+
+    const listed = await credentials.list(user)
+    expect(listed).toEqual([{ id: 'github', type: 'oauth', expiresAt: 100 }])
+    // `list` never returns secret values.
+    expect(JSON.stringify(listed)).not.toContain('secret')
+
+    await credentials.delete({ scope: user, id: 'github' })
+    expect(await credentials.get({ scope: user, id: 'github' })).toBeNull()
+    expect(await credentials.list(user)).toEqual([])
+  })
+
+  it("reads the user's own credential before the tenant's", async () => {
+    const credentials = memoryCredentialStore()
+    await credentials.set({
+      scope: tenant,
+      id: 'openai',
+      credential: { type: 'api_key', value: 'sk-tenant' },
+    })
+    expect(await readCredential(credentials, user, 'openai')).toEqual({
+      type: 'api_key',
+      value: 'sk-tenant',
+    })
+    await credentials.set({
+      scope: user,
+      id: 'openai',
+      credential: { type: 'api_key', value: 'sk-ann' },
+    })
+    expect(await readCredential(credentials, user, 'openai')).toEqual({
+      type: 'api_key',
+      value: 'sk-ann',
+    })
+  })
+
+  it("does not read another tenant's credential", async () => {
+    const credentials = memoryCredentialStore()
+    await credentials.set({
+      scope: tenant,
+      id: 'openai',
+      credential: { type: 'api_key', value: 'sk-tenant' },
+    })
+    const other = { tenantId: 'other', userId: 'ann' }
+    expect(await readCredential(credentials, other, 'openai')).toBeNull()
+  })
+
+  it('does not give a user without a tenant the shared bucket', async () => {
+    const credentials = memoryCredentialStore()
+    // Saved with neither a user nor a tenant: the bucket everyone shares.
+    await credentials.set({
+      scope: {},
+      id: 'openai',
+      credential: { type: 'api_key', value: 'sk-shared' },
+    })
+    const solo = { userId: 'ann' }
+    expect(await readCredential(credentials, solo, 'openai')).toBeNull()
+  })
+
+  it('gives saved api keys to storedProviderKeys, and skips oauth', async () => {
+    const credentials = memoryCredentialStore()
+    await credentials.set({
+      scope: user,
+      id: 'openai',
+      credential: { type: 'api_key', value: 'sk-ann' },
+    })
+    await credentials.set({
+      scope: user,
+      id: 'github',
+      credential: { type: 'oauth', accessToken: 'gho-token' },
+    })
+    const keys = storedProviderKeys(credentials, user)
+    expect(await keys.get('openai')).toBe('sk-ann')
+    expect(await keys.get('github')).toBeNull()
+    await expect(keys.require('github')).rejects.toBeInstanceOf(
+      ByokMissingError,
+    )
   })
 })

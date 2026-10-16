@@ -1,4 +1,4 @@
-import { reconcileToolCallArguments } from '../../../utilities/tool-call-arguments'
+import { finishToolCallArguments } from '../../../utilities/tool-call-arguments'
 import { normalizeToolResult } from '../../../utilities/tool-result'
 import { tanstackMetadata } from '../../../utilities/merge-metadata'
 import { isProviderExecutedToolCall } from '../../../utilities/provider-executed'
@@ -353,37 +353,16 @@ export class ToolCallManager<
    * Complete a tool call with its final input
    * Called when TOOL_CALL_END is received
    */
-  completeToolCall(event: ToolCallEndEvent): void {
+  completeToolCall(
+    event: ToolCallEndEvent,
+  ): { args: string; input: unknown } | undefined {
     for (const toolCall of this.toolCallsMap.values()) {
       if (toolCall.id !== event.toolCallId) continue
-      // The provider's raw argument string wins when the parsed input is the
-      // same JSON value, so replay sends the exact bytes back. Malformed raw
-      // JSON stays as it is, for the tool error.
-      const extra = event as AdapterYieldChunk
-      const snapshot = extra.args ?? tanstackMetadata(extra)?.args
-      // A non-object input (an empty tool_use block) is `{}`.
-      const input =
-        event.input === undefined
-          ? undefined
-          : event.input && typeof event.input === 'object'
-            ? event.input
-            : {}
-      let raw: string | undefined = snapshot ?? toolCall.function.arguments
-      if (snapshot === undefined && input !== undefined) {
-        try {
-          JSON.parse(raw)
-        } catch {
-          raw = undefined
-        }
-      }
-      try {
-        toolCall.function.arguments = reconcileToolCallArguments(raw, input)
-      } catch {
-        // An input with no JSON form (a cycle): keep the raw arguments.
-        if (raw !== undefined) toolCall.function.arguments = raw
-      }
-      return
+      const final = finishToolCallArguments(toolCall.function.arguments, event)
+      toolCall.function.arguments = final.args
+      return final
     }
+    return undefined
   }
 
   /**
@@ -611,7 +590,7 @@ export interface ToolResumeExecutionState {
   inputResponses?: ReadonlyMap<string, ToolInputResponse>
 }
 
-function approvalResolution(
+export function approvalResolution(
   approvals: ReadonlyMap<string, ToolApprovalResolution>,
   toolCallId: string,
 ): ToolApprovalResolution | undefined {
@@ -636,7 +615,7 @@ function deniedApprovalResult(resolution: ToolApprovalResolution): unknown {
     : { error: 'User declined tool execution' }
 }
 
-interface ExecuteToolCallsResult {
+export interface ExecuteToolCallsResult {
   /** Tool results ready to send to LLM */
   results: Array<ToolResult>
   /** Tools that need user approval before execution */
@@ -1000,6 +979,8 @@ async function buildClientToolResult(
  * @param toolExecution - `'parallel'` (default) prepares every call in call
  *   order, then starts the server tools together. `'sequential'` runs one
  *   call at a time. Results come back in call order either way.
+ * @param repairToolInput - How an input that fails the final check is
+ *   repaired: the built-in repair (default), none (`false`), or a function.
  */
 export async function* executeToolCalls<TContext = unknown>(
   toolCalls: Array<ToolCall>,
@@ -1016,6 +997,7 @@ export async function* executeToolCalls<TContext = unknown>(
   abortSignal?: AbortSignal,
   resumeState?: ToolResumeExecutionState,
   toolExecution: NonNullable<TextOptions['toolExecution']> = 'parallel',
+  repairToolInput?: TextOptions['repairToolInput'],
 ): AsyncGenerator<CustomEvent | StreamChunk, ExecuteToolCallsResult, void> {
   const results: Array<ToolResult> = []
   const needsApproval: Array<ApprovalRequest> = []
@@ -1102,6 +1084,8 @@ export async function* executeToolCalls<TContext = unknown>(
       !resumeState?.cancelledToolCallIds?.has(tc.id)
     )
   })
+  // The calls that the gating holds back.
+  const held: Array<ToolCall> = []
 
   for (const toolCall of toolCalls) {
     // Provider-executed tools (Anthropic web_search / web_fetch) already ran
@@ -1123,13 +1107,17 @@ export async function* executeToolCalls<TContext = unknown>(
       continue
     }
 
-    // Skip non-pending tools while approvals are outstanding
+    // Skip non-pending tools while approvals are outstanding. A client tool
+    // with no approval, or an approved one, is still sent to the client.
     if (hasPendingApprovals) {
-      const isPendingApproval =
-        tool.needsApproval &&
-        approvalResolution(approvals, toolCall.id) === undefined
-      const isPlainClientRequest = !tool.needsApproval && !tool.execute
-      if (!isPendingApproval && !isPlainClientRequest) {
+      const resolution = approvalResolution(approvals, toolCall.id)
+      const isPendingApproval = tool.needsApproval && resolution === undefined
+      const isClientRequest =
+        !tool.execute &&
+        (!tool.needsApproval ||
+          (resolution !== undefined && isApproved(resolution)))
+      if (!isPendingApproval && !isClientRequest) {
+        held.push(toolCall)
         continue
       }
     }
@@ -1166,6 +1154,8 @@ export async function* executeToolCalls<TContext = unknown>(
         continue
       }
     }
+    // The input that the model sent, to tell later edits apart from it.
+    const sentInput = JSON.stringify(input)
 
     const resolution = tool.needsApproval
       ? approvalResolution(approvals, toolCall.id)
@@ -1190,14 +1180,28 @@ export async function* executeToolCalls<TContext = unknown>(
     if (resolution !== undefined) {
       input = editedApprovalArgs(resolution) ?? input
     }
-    // A client tool whose result came back already went through the hook
-    // before dispatch. Its input is checked again, with no second hook run.
+    // A client tool whose result came back already ran with the input that
+    // the hook and the check gave it before dispatch. Checking the raw model
+    // input again would drop a real result.
     const clientError = resumeState?.clientToolErrors?.get(toolCall.id)
-    const clientDone =
+    if (
       !tool.execute &&
       (clientResults.has(toolCall.id) || clientError !== undefined)
+    ) {
+      results.push(
+        await buildClientToolResult(
+          toolCall.id,
+          toolName,
+          tool,
+          clientResults.get(toolCall.id),
+          input,
+          clientError,
+        ),
+      )
+      continue
+    }
 
-    if (!needsPreview && !clientDone && middlewareHooks) {
+    if (!needsPreview && middlewareHooks) {
       let decision: Awaited<ReturnType<typeof applyBeforeToolCallDecision>>
       try {
         decision = await applyBeforeToolCallDecision(
@@ -1220,10 +1224,33 @@ export async function* executeToolCalls<TContext = unknown>(
     // The final check, after approval edits and middleware: invalid input
     // becomes a tool error, and the checked value is what runs.
     try {
-      input = await validateToolInput(tool.inputSchema, input, toolName)
+      input = await validateToolInput(
+        tool.inputSchema,
+        input,
+        toolName,
+        typeof repairToolInput === 'function'
+          ? (failed, error) =>
+              repairToolInput({ tool, toolCall, input: failed, error })
+          : repairToolInput,
+      )
     } catch (error) {
-      const message =
+      // The model sees its own arguments, never values that middleware put
+      // in. They stay out of the error, so tracing does not record them.
+      // When an edit or middleware changed the input, the model is told so,
+      // so it does not retry the same valid call.
+      let changed: boolean
+      try {
+        changed = JSON.stringify(input) !== sentInput
+      } catch {
+        changed = true
+      }
+      const message = `${
         error instanceof Error ? error.message : 'Validation failed'
+      }\nReceived arguments: ${argsStr}${
+        changed
+          ? '\nAn approval edit or middleware changed these arguments before the check. The changed input failed the check.'
+          : ''
+      }`
       await pushResultAndRunAfterHook(
         results,
         {
@@ -1243,8 +1270,8 @@ export async function* executeToolCalls<TContext = unknown>(
           duration: 0,
           error,
         },
-        // A preview call and a returned client call run no hooks.
-        needsPreview || clientDone ? undefined : middlewareHooks,
+        // A preview call runs no hooks.
+        needsPreview ? undefined : middlewareHooks,
       )
       continue
     }
@@ -1288,25 +1315,7 @@ export async function* executeToolCalls<TContext = unknown>(
 
     // Client-side tool (no execute function), approved or with no approval
     if (!tool.execute) {
-      if (clientDone) {
-        results.push(
-          await buildClientToolResult(
-            toolCall.id,
-            toolName,
-            tool,
-            clientResults.get(toolCall.id),
-            input,
-            clientError,
-          ),
-        )
-      } else {
-        // Request client execution
-        needsClientExecution.push({
-          toolCallId: toolCall.id,
-          toolName,
-          input,
-        })
-      }
+      needsClientExecution.push({ toolCallId: toolCall.id, toolName, input })
       continue
     }
 
@@ -1330,12 +1339,36 @@ export async function* executeToolCalls<TContext = unknown>(
   yield* mergeStreams(runs)
   if (failures.length > 0) throw failures[0]
 
+  // No approval waits after all: each held-back call's preview failed its
+  // check or its arguments. The held calls run now, so each call has a result.
+  let heldInterrupts: Array<Interrupt> = []
+  if (held.length > 0 && needsApproval.length === 0) {
+    const rest = yield* executeToolCalls(
+      held,
+      tools,
+      approvals,
+      clientResults,
+      createCustomEventChunk,
+      middlewareHooks,
+      userContext,
+      abortSignal,
+      resumeState,
+      toolExecution,
+      repairToolInput,
+    )
+    results.push(...rest.results)
+    needsClientExecution.push(...rest.needsClientExecution)
+    inputRequired.push(...rest.inputRequired)
+    heldInterrupts = rest.subagentInterrupts
+  }
+
   // Parallel tools finish in any order. The model gets the results, input
   // requests, and interrupts in the order it made the calls.
   const callOrder = new Map(toolCalls.map((tc, index) => [tc.id, index]))
   const byCallOrder = (a: { toolCallId: string }, b: { toolCallId: string }) =>
     (callOrder.get(a.toolCallId) ?? 0) - (callOrder.get(b.toolCallId) ?? 0)
   results.sort(byCallOrder)
+  needsClientExecution.sort(byCallOrder)
   inputRequired.sort(byCallOrder)
 
   return {
@@ -1343,8 +1376,9 @@ export async function* executeToolCalls<TContext = unknown>(
     needsApproval,
     needsClientExecution,
     inputRequired,
-    subagentInterrupts: toolCalls.flatMap(
-      (tc) => interruptsByCall.get(tc.id) ?? [],
-    ),
+    subagentInterrupts: [
+      ...toolCalls.flatMap((tc) => interruptsByCall.get(tc.id) ?? []),
+      ...heldInterrupts,
+    ],
   }
 }

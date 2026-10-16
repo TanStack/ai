@@ -224,6 +224,7 @@ describe('VideoGenerationClient', () => {
       )
       expect(client.getStatus()).toBe('success')
       expect(client.getJobId()).toBe('job-123')
+      expect(client.getSnapshot().runId).toBeNull()
     })
 
     it('should track video status updates', async () => {
@@ -314,6 +315,7 @@ describe('VideoGenerationClient', () => {
       expect(onError).toHaveBeenCalledWith(expect.any(Error))
       expect(client.getStatus()).toBe('error')
       expect(client.getError()?.message).toBe('Video generation failed')
+      expect(client.getSnapshot().runId).toBeNull()
     })
 
     it('should report progress from video:status events', async () => {
@@ -483,10 +485,12 @@ describe('VideoGenerationClient', () => {
 
       const generatePromise = client.generate({ prompt: 'test' })
       expect(client.getIsLoading()).toBe(true)
+      expect(client.getSnapshot().runId).toEqual(expect.any(String))
 
       client.stop()
       expect(client.getIsLoading()).toBe(false)
       expect(client.getStatus()).toBe('idle')
+      expect(client.getSnapshot().runId).toBeNull()
 
       resolvePromise!({
         jobId: 'job-1',
@@ -561,6 +565,7 @@ describe('VideoGenerationClient', () => {
       expect(client.getVideoStatus()).toBeNull()
       expect(client.getError()).toBeUndefined()
       expect(client.getStatus()).toBe('idle')
+      expect(client.getSnapshot().runId).toBeNull()
     })
   })
 

@@ -54,9 +54,9 @@ function textOf(message: UIMessage): string {
 }
 
 interface PanelChat {
-  messages: Array<UIMessage>
+  messages: ReadonlyArray<UIMessage>
   isLoading: boolean
-  queue: Array<QueuedMessage>
+  queue: ReadonlyArray<QueuedMessage>
   cancelQueued: (id: string) => void
   stop: () => void
   error: Error | undefined

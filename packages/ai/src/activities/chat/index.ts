@@ -39,7 +39,6 @@ import {
   tanstackMetadata,
   withTanstackMetadata,
 } from '../../utilities/merge-metadata'
-import { isToolInputJsonLossless } from '../../utilities/tool-call-arguments'
 import { subagentHostMessageId } from '../../utilities/subagent-wire'
 import { withDurabilityBatchHint } from '../../utilities/durability-batch'
 import { normalizeStreamChunk } from '../../utilities/normalize-stream-chunk'
@@ -86,6 +85,7 @@ import { SUBAGENT_PLAN_KEY, readSubagentTurn } from './agents/turn'
 import {
   MiddlewareAbortError,
   ToolCallManager,
+  approvalResolution,
   executeToolCalls,
 } from './tools/tool-calls'
 import {
@@ -137,8 +137,11 @@ import type {
 import type {
   ApprovalRequest,
   ClientToolRequest,
+  ExecuteToolCallsResult,
   McpInputRequest,
+  ToolExecutionMiddlewareHooks,
   ToolResult,
+  ToolResumeExecutionState,
 } from './tools/tool-calls'
 import type {
   ApprovalSchemaConfig,
@@ -616,6 +619,11 @@ export interface TextActivityOptions<
   agentLoopStrategy?: TextOptions['agentLoopStrategy']
   /** How the server tools of one model turn run. Default `'parallel'`. */
   toolExecution?: TextOptions['toolExecution']
+  /**
+   * How a tool input that fails the final check is repaired. Default: the
+   * built-in repair. `false`: no repair. A function replaces it.
+   */
+  repairToolInput?: TextOptions['repairToolInput']
   /**
    * Retry a rate-limited model call after the wait the provider asks for.
    *
@@ -2355,26 +2363,18 @@ class TextEngine<
   }
 
   private handleToolCallEndEvent(chunk: ToolCallEndEvent): void {
-    this.toolCallManager.completeToolCall(chunk)
+    const final = this.toolCallManager.completeToolCall(chunk)
     const end = chunk as AdapterYieldChunk
-    const call = this.toolCallManager
-      .getToolCalls()
-      .find((candidate) => candidate.id === chunk.toolCallId)
-    if (call) {
+    if (final) {
       // The client stores the same argument string as the server history.
-      // `input` rides along only when JSON keeps it exactly.
-      const args = call.function.arguments
-      end.args = args
-      end.metadata = withTanstackMetadata(end, { args }).metadata
-      try {
-        const projection: unknown = args.trim() === '' ? {} : JSON.parse(args)
-        if (isToolInputJsonLossless(projection)) end.input = projection
-        else delete end.input
-      } catch {
-        delete end.input
-      }
+      // The wire carries only `args`; `input` is parsed back from it.
+      end.args = final.args
+      end.input = final.input
       const metadata = tanstackMetadata(end)
-      if (metadata) delete metadata.input
+      if (metadata) {
+        delete metadata.args
+        delete metadata.input
+      }
     }
     const state = end.state ?? tanstackMetadata(end)?.state
     if (state !== 'output-error' || end.result === undefined) return
@@ -2629,44 +2629,12 @@ class TextEngine<
       clientToolResults,
       (eventName, data, options) =>
         this.createCustomEventChunk(eventName, data, options),
-      {
-        onBeforeToolCall: async (toolCall, tool, args) => {
-          this.logger.tools(`phase=before name=${toolCall.function.name}`, {
-            name: toolCall.function.name,
-            args,
-          })
-          const hookCtx = {
-            toolCall,
-            tool,
-            args,
-            toolName: toolCall.function.name,
-            toolCallId: toolCall.id,
-          }
-          return this.middlewareRunner.runOnBeforeToolCall(
-            this.middlewareCtx,
-            hookCtx,
-          )
-        },
-        onAfterToolCall: async (info) => {
-          this.logger.tools(`phase=after name=${info.toolName}`, {
-            name: info.toolName,
-            result: info.result,
-          })
-          return this.middlewareRunner.runOnAfterToolCall(
-            this.middlewareCtx,
-            info,
-          )
-        },
-      },
+      this.toolMiddlewareHooks(),
       this.middlewareCtx.context,
       this.toolAbortSignal,
-      {
-        clientToolErrors: this.resumeClientToolErrors,
-        deniedToolResults: this.resumeDeniedToolResults,
-        cancelledToolCallIds: this.resumeCancelledToolCallIds,
-        inputResponses: this.resumeInputResponses,
-      },
+      this.toolResumeState(),
       this.params.toolExecution,
+      this.params.repairToolInput,
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -2907,44 +2875,12 @@ class TextEngine<
       clientToolResults,
       (eventName, data, options) =>
         this.createCustomEventChunk(eventName, data, options),
-      {
-        onBeforeToolCall: async (toolCall, tool, args) => {
-          this.logger.tools(`phase=before name=${toolCall.function.name}`, {
-            name: toolCall.function.name,
-            args,
-          })
-          const hookCtx = {
-            toolCall,
-            tool,
-            args,
-            toolName: toolCall.function.name,
-            toolCallId: toolCall.id,
-          }
-          return this.middlewareRunner.runOnBeforeToolCall(
-            this.middlewareCtx,
-            hookCtx,
-          )
-        },
-        onAfterToolCall: async (info) => {
-          this.logger.tools(`phase=after name=${info.toolName}`, {
-            name: info.toolName,
-            result: info.result,
-          })
-          return this.middlewareRunner.runOnAfterToolCall(
-            this.middlewareCtx,
-            info,
-          )
-        },
-      },
+      this.toolMiddlewareHooks(),
       this.middlewareCtx.context,
       this.toolAbortSignal,
-      {
-        clientToolErrors: this.resumeClientToolErrors,
-        deniedToolResults: this.resumeDeniedToolResults,
-        cancelledToolCallIds: this.resumeCancelledToolCallIds,
-        inputResponses: this.resumeInputResponses,
-      },
+      this.toolResumeState(),
       this.params.toolExecution,
+      this.params.repairToolInput,
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -3003,7 +2939,8 @@ class TextEngine<
         finishEvent,
         toolCalls,
         afterToolRequests,
-        executionResult.inputRequired,
+        // Its results already went out with the chunks above.
+        { ...executionResult, results: [] },
       )
       this.setToolPhase('wait')
       return
@@ -3953,7 +3890,8 @@ class TextEngine<
     requests?: ReadonlyArray<
       GenericInterruptRequest<InterruptDefinition<any, any, any, any>>
     >,
-    inputRequired: ReadonlyArray<McpInputRequest> = [],
+    // The tool phase result, so an afterTools boundary runs no hook twice.
+    executed?: ExecuteToolCallsResult,
   ): AsyncGenerator<StreamChunk, boolean, void> {
     this.middlewareCtx.phase = phase
     const boundaryRequests =
@@ -3983,9 +3921,8 @@ class TextEngine<
         this.addTerminalAssistantMessages()
       }
     }
-    const actionable = yield* this.runWhileYielding(
-      this.getBoundaryActionableToolRequests(toolCalls),
-    )
+    const actionable =
+      executed ?? (yield* this.drainBoundaryToolRequests(toolCalls))
     for (const chunk of this.buildToolResultChunks(
       actionable.results,
       finishEvent,
@@ -3994,32 +3931,58 @@ class TextEngine<
     }
     yield* this.emitActionableInterruptBoundary(
       finishEvent,
-      actionable.approvals,
-      actionable.clientRequests,
+      actionable.needsApproval,
+      actionable.needsClientExecution,
       boundaryRequests,
-      inputRequired,
+      actionable.inputRequired,
+      actionable.subagentInterrupts,
     )
     return true
   }
 
-  private async getBoundaryActionableToolRequests(
+  private async *drainBoundaryToolRequests(
     toolCalls: ReadonlyArray<ToolCall>,
-  ): Promise<{
-    approvals: Array<ApprovalRequest>
-    clientRequests: Array<ClientToolRequest>
-    results: Array<ToolResult>
-  }> {
+  ): AsyncGenerator<StreamChunk, ExecuteToolCallsResult, void> {
+    const rawEdits = this.captureApprovedArgumentEdits(toolCalls)
+    const result = yield* this.drainToolCallGenerator(
+      this.boundaryToolRequests(toolCalls),
+    )
+    this.retainApprovedArgumentEdits(
+      [
+        ...result.results
+          .filter((entry) => entry.state !== 'output-error')
+          .map((entry) => entry.toolCallId),
+        ...result.needsClientExecution.map((entry) => entry.toolCallId),
+      ],
+      rawEdits,
+    )
+    return result
+  }
+
+  /**
+   * The approval previews and client requests a boundary pauses with. They get
+   * the same middleware hook and final input check as the tool phase, and a
+   * skip or an invalid input becomes a tool result. No server tool runs here:
+   * a server tool is in the list only while it waits for approval.
+   */
+  private boundaryToolRequests(
+    toolCalls: ReadonlyArray<ToolCall>,
+  ): ReturnType<typeof executeToolCalls> {
     const { approvals, clientToolResults } = this.collectClientState()
+    const tools = this.resolveExecutableTools(toolCalls)
     const pendingCalls = toolCalls.filter((toolCall) => {
       // Provider-executed calls are complete; never surface them as client work.
       if (isProviderExecutedToolCall(toolCall)) return false
-      const tool = this.resolveExecutableTools([toolCall]).find(
+      const tool = tools.find(
         (candidate) => candidate.name === toolCall.function.name,
       )
       if (!tool) return false
-      const resolution =
-        approvals.get(toolCall.id) ?? approvals.get(`approval_${toolCall.id}`)
-      if (tool.needsApproval && resolution === undefined) return true
+      if (
+        tool.needsApproval &&
+        approvalResolution(approvals, toolCall.id) === undefined
+      ) {
+        return true
+      }
       return (
         !tool.execute &&
         !clientToolResults.has(toolCall.id) &&
@@ -4027,49 +3990,55 @@ class TextEngine<
         !this.resumeCancelledToolCallIds.has(toolCall.id)
       )
     })
-    // Approval previews and client requests get the same final input check
-    // as the tool phase. No server tool runs here: a server tool is in the
-    // list only while it waits for approval.
-    const generator = executeToolCalls(
+    return executeToolCalls(
       pendingCalls,
-      this.resolveExecutableTools(pendingCalls),
+      tools,
       approvals,
       clientToolResults,
       undefined,
-      {
-        onBeforeToolCall: (toolCall, tool, args) =>
-          this.middlewareRunner.runOnBeforeToolCall(this.middlewareCtx, {
-            toolCall,
-            tool,
-            args,
-            toolName: toolCall.function.name,
-            toolCallId: toolCall.id,
-          }),
-        onAfterToolCall: (info) =>
-          this.middlewareRunner.runOnAfterToolCall(this.middlewareCtx, info),
-      },
+      this.toolMiddlewareHooks(),
       this.middlewareCtx.context,
       this.toolAbortSignal,
+      this.toolResumeState(),
+      undefined,
+      this.params.repairToolInput,
     )
-    const rawEdits = this.captureApprovedArgumentEdits(pendingCalls)
-    while (true) {
-      const next = await generator.next()
-      if (next.done) {
-        this.retainApprovedArgumentEdits(
-          [
-            ...next.value.results
-              .filter((entry) => entry.state !== 'output-error')
-              .map((entry) => entry.toolCallId),
-            ...next.value.needsClientExecution.map((entry) => entry.toolCallId),
-          ],
-          rawEdits,
+  }
+
+  private toolMiddlewareHooks(): ToolExecutionMiddlewareHooks {
+    return {
+      onBeforeToolCall: async (toolCall, tool, args) => {
+        this.logger.tools(`phase=before name=${toolCall.function.name}`, {
+          name: toolCall.function.name,
+          args,
+        })
+        return this.middlewareRunner.runOnBeforeToolCall(this.middlewareCtx, {
+          toolCall,
+          tool,
+          args,
+          toolName: toolCall.function.name,
+          toolCallId: toolCall.id,
+        })
+      },
+      onAfterToolCall: async (info) => {
+        this.logger.tools(`phase=after name=${info.toolName}`, {
+          name: info.toolName,
+          result: info.result,
+        })
+        return this.middlewareRunner.runOnAfterToolCall(
+          this.middlewareCtx,
+          info,
         )
-        return {
-          approvals: next.value.needsApproval,
-          clientRequests: next.value.needsClientExecution,
-          results: next.value.results,
-        }
-      }
+      },
+    }
+  }
+
+  private toolResumeState(): ToolResumeExecutionState {
+    return {
+      clientToolErrors: this.resumeClientToolErrors,
+      deniedToolResults: this.resumeDeniedToolResults,
+      cancelledToolCallIds: this.resumeCancelledToolCallIds,
+      inputResponses: this.resumeInputResponses,
     }
   }
 

@@ -313,7 +313,12 @@ describe('agent tool input', () => {
       {},
       {
         middleware: [storedChildren(oldChild)],
-        binding: { start: async () => ({ subagentRunId: 'unused' }) },
+        binding: {
+          start: async () => ({
+            subagentRunId: 'unused',
+            done: Promise.resolve(),
+          }),
+        },
       },
     )
 
@@ -446,7 +451,10 @@ describe('agent tool input', () => {
   })
 
   it('starts a background child through the start hook', async () => {
-    const start = vi.fn(async () => ({ subagentRunId: 'subagent-bg' }))
+    const start = vi.fn(async () => ({
+      subagentRunId: 'subagent-bg',
+      done: Promise.resolve(),
+    }))
     const { result } = await callSubagent(
       'writer',
       { prompt: 'Draft', background: true },
@@ -464,8 +472,143 @@ describe('agent tool input', () => {
     expect(runs).toEqual([])
   })
 
+  it('rejects sessionId when the agent schema result is not an object', async () => {
+    const flat = defineAgent({
+      name: 'flat',
+      description: 'Returns text',
+      inputSchema: {
+        '~standard': {
+          version: 1 as const,
+          vendor: 'test',
+          validate: () => ({ value: 'plain' }),
+          jsonSchema: {
+            input: () => ({ type: 'string' }),
+            output: () => ({ type: 'string' }),
+          },
+        },
+      },
+      run: async (ctx) => {
+        runs.push({ agent: 'flat', input: ctx.input, messages: ctx.messages })
+        return 'ran'
+      },
+    })
+    const { adapter } = parentCalling('flat', { sessionId: 'subagent-old' })
+    const chunks = await collectChunks(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Go' }],
+        middleware: [storedChildren(oldChild)],
+        subagents: { agents: [flat] },
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(toolResult(chunks).error).toContain(
+      'Agent input must be an object when the call uses sessionId or background.',
+    )
+    expect(runs).toEqual([])
+  })
+
+  it('advertises sessionId beside a top-level anyOf schema', async () => {
+    const either = defineAgent({
+      name: 'either',
+      description: 'One of two shapes',
+      inputSchema: z.union([
+        z.object({ topic: z.string() }),
+        z.object({ note: z.string() }),
+      ]),
+      run: async () => 'ok',
+    })
+    const { adapter, calls } = parentCalling('either', { topic: 'tides' })
+    await collectChunks(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Go' }],
+        middleware: [storedChildren(oldChild)],
+        subagents: { agents: [either] },
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(JSON.stringify(toolSchemas(calls).either)).toContain('sessionId')
+  })
+
+  it('holds maxConcurrent until a background child ends', async () => {
+    let release!: () => void
+    const done = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const start = vi.fn(async () => ({ subagentRunId: 'subagent-bg', done }))
+    const { adapter } = createMockAdapter({
+      iterations: [
+        [
+          ev.runStarted(),
+          ev.toolStart('c1', 'writer'),
+          ev.toolArgs('c1', JSON.stringify({ prompt: 'A', background: true })),
+          ev.toolStart('c2', 'writer'),
+          ev.toolArgs('c2', JSON.stringify({ prompt: 'B', background: true })),
+          ev.runFinished('tool_calls'),
+        ],
+        [ev.runStarted(), ev.runFinished('stop')],
+      ],
+    })
+    const chunks = await collectChunks(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Go' }],
+        subagents: {
+          agents: [writer],
+          limits: { maxConcurrent: 1 },
+          binding: { start },
+        },
+      }) as AsyncIterable<StreamChunk>,
+    )
+    release()
+
+    expect(start).toHaveBeenCalledTimes(1)
+    expect(JSON.stringify(chunks)).toContain(
+      'subagent limit reached (maxConcurrent 1)',
+    )
+  })
+
+  it('frees a maxCalls slot when a background start throws', async () => {
+    let n = 0
+    const start = vi.fn(async () => {
+      n += 1
+      if (n === 1) throw new Error('host down')
+      return { subagentRunId: 'subagent-bg', done: Promise.resolve() }
+    })
+    const { adapter } = createMockAdapter({
+      iterations: [
+        [
+          ev.runStarted(),
+          ev.toolStart('c1', 'writer'),
+          ev.toolArgs('c1', JSON.stringify({ prompt: 'A', background: true })),
+          ev.toolStart('c2', 'writer'),
+          ev.toolArgs('c2', JSON.stringify({ prompt: 'B', background: true })),
+          ev.runFinished('tool_calls'),
+        ],
+        [ev.runStarted(), ev.runFinished('stop')],
+      ],
+    })
+    const chunks = await collectChunks(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Go' }],
+        toolExecution: 'sequential',
+        subagents: {
+          agents: [writer],
+          limits: { maxCalls: 1 },
+          binding: { start },
+        },
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(start).toHaveBeenCalledTimes(2)
+    expect(JSON.stringify(chunks)).toContain('host down')
+    expect(JSON.stringify(chunks)).toContain('subagent-bg')
+  })
+
   const host: SubagentBinding = {
-    start: async () => ({ subagentRunId: 'unused' }),
+    start: async () => ({ subagentRunId: 'unused', done: Promise.resolve() }),
   }
   const toolErrors: Array<
     [
@@ -508,6 +651,7 @@ describe('agent tool input', () => {
     [
       'a background that is not a boolean',
       'writer',
+      // 'true' would be repaired into true. 'yes' cannot be.
       { background: 'yes' },
       { binding: host },
       // The JSON Schema of the tool checks the reserved fields too.

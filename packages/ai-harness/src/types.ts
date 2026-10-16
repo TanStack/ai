@@ -10,13 +10,15 @@ import type {
   RunAgentResumeItem,
   StreamChunk,
 } from '@tanstack/ai'
+import type { LogRecord } from '@tanstack/ai-persistence'
+import type { UsageCounts } from './usage'
 
 /** A user message: plain text, or content parts (text, images, files). */
 export type UserInput = string | Array<ContentPart>
 
 /**
- * Settings for one chat turn: `session.prompt(message, { overrides })` or
- * `session.followUp(message, { overrides })`. They apply to every model call
+ * Settings for one chat turn: `session.send(message, { overrides })` or
+ * `session.send(message, { mode: 'followUp', overrides })`. They apply to every model call
  * of the turn, retries included. The rest of the session keeps its defaults.
  *
  * They live only in memory, on the queued turn, so they are not part of the
@@ -26,7 +28,7 @@ export type UserInput = string | Array<ContentPart>
  *
  * @example
  * ```ts
- * session.prompt('Plan the migration.', {
+ * session.send('Plan the migration.', {
  *   overrides: { reasoning: { level: 'high', summary: true }, tools: [planTool] },
  * })
  * ```
@@ -46,12 +48,39 @@ export interface TurnOverrides {
 }
 
 /**
- * What a `prompt` does when a chat turn is already running:
+ * What a `send` (mode `'prompt'`) does when a chat turn is already running:
  * - `queue` (default): runs as a new turn after the current one settles.
  * - `steer`: joins the running turn at its next model call.
  * - `reject`: refuses the prompt.
  */
 export type BusyPolicy = 'queue' | 'steer' | 'reject'
+
+/** Options of `session.send` for a message to the session. See `send`. */
+export type SendOptions = {
+  to?: undefined
+  inputId?: string
+  principal?: Principal
+  context?: unknown
+  overrides?: TurnOverrides
+  ephemeral?: ReadonlyArray<ModelMessage>
+  /** System prompts ahead of the harness prompts, from server code only. */
+  systemPreamble?: Array<string>
+  /** @internal The AG-UI `runId` of a `POST run` request. The turn runs as it. */
+  runId?: string
+} & (
+  | { mode?: 'prompt'; busy?: BusyPolicy }
+  | { mode: 'steer' | 'followUp'; busy?: never }
+)
+
+/** Options of `session.send` for a message to an agent run. See `send`. */
+export interface AgentSendOptions {
+  /** The operation id of the agent run. Any run of its chain works. */
+  to: string
+  /** Default `'steer'`. See `AgentRun.send`. */
+  mode?: 'steer' | 'followUp'
+  inputId?: string
+  principal?: Principal
+}
 
 /** Kinds of work a session runs. */
 export type OperationKind = 'chat' | 'agent' | 'command' | 'compact'
@@ -65,12 +94,14 @@ export type OperationStatus =
   | 'cancelled'
 
 /** The immediate answer to an input. `applied` arrives later as an event. */
-export interface Receipt {
-  inputId: string
-  status: 'accepted' | 'queued' | 'rejected'
-  operationId?: string
-  reason?: string
-}
+export type Receipt = { inputId: string } & (
+  | {
+      status: 'accepted' | 'queued'
+      /** The operation that runs the input, when the session knows it already. */
+      operationId?: string
+    }
+  | { status: 'rejected'; reason: string; operationId?: never }
+)
 
 /** Opaque position in a session's event stream. */
 export type Cursor = string
@@ -121,7 +152,7 @@ export type StreamChunkOf<TType extends StreamChunkType> =
  * const stop = session.onEvent('TEXT_MESSAGE_CONTENT', ({ event }) => {
  *   process.stdout.write(event.delta)
  * })
- * await session.prompt('Write a haiku.')
+ * await session.send('Write a haiku.')
  * stop()
  * ```
  */
@@ -205,6 +236,10 @@ export type HarnessInput = (
   | { op: 'command'; name: string; input?: unknown }
   | { op: 'answer'; questionId: string; value: unknown }
   | { op: 'config'; key: string; value: unknown }
+  /** Run one tool in `expose.tools` with no model. See `session.tool`. */
+  | { op: 'tool'; name: string; args?: unknown; meta?: Record<string, unknown> }
+  /** Add host records of the types in `expose.records`. See `session.append`. */
+  | { op: 'append'; records: Array<LogRecord> }
   | { op: 'configure'; settings: ThreadSettingsChange }
   | { op: 'reset'; note?: string }
   | { op: 'revert'; messageId: string }
@@ -272,18 +307,32 @@ export type ThreadSettingsChange = {
 }
 
 /** How an input ended. `session.settled(inputId)` resolves to it. */
-export interface InputSettlement {
+export type InputSettlement = {
   inputId: string
-  /**
-   * `interrupted`: the turn stopped for human input. The `resolve` that
-   * answers it is a new input with its own settlement.
-   */
-  outcome: 'completed' | 'failed' | 'aborted' | 'interrupted'
   /** The operation that ran the input, when one started. */
   operationId?: string
-  /** Set for `failed`. `code` is `'attempts_exhausted'`, `'timeout'`, or absent. */
-  error?: { message: string; code?: string }
-}
+} & (
+  | {
+      /**
+       * `interrupted`: the turn stopped for human input. The `resolve` that
+       * answers it is a new input with its own settlement.
+       */
+      outcome: 'completed' | 'aborted' | 'interrupted'
+      error?: never
+    }
+  | {
+      outcome: 'failed'
+      /** `code` is `'attempts_exhausted'`, `'timeout'`, or absent. */
+      error: { message: string; code?: string }
+    }
+)
+
+/** The `outcome` of a settlement, with its `error` when it failed. */
+export type SettlementOutcome = InputSettlement extends infer S
+  ? S extends InputSettlement
+    ? Omit<S, 'inputId' | 'operationId'>
+    : never
+  : never
 
 /**
  * An awaited operation rejects with this error when the session refused its
@@ -294,18 +343,22 @@ export class InputRejectedError extends Error {
   readonly receipt: Receipt
 
   constructor(receipt: Receipt) {
-    super(rejectionMessage(receipt.reason))
+    super(
+      rejectionMessage(
+        receipt.status === 'rejected' ? receipt.reason : 'not rejected',
+      ),
+    )
     this.name = 'InputRejectedError'
     this.receipt = receipt
   }
 }
 
-function rejectionMessage(reason: string | undefined) {
+function rejectionMessage(reason: string) {
   if (reason === 'busy') return 'A chat turn is already running.'
   if (reason === 'conflict') {
     return 'An earlier input has this inputId and another payload.'
   }
-  return `The session rejected the input: ${reason ?? 'rejected'}.`
+  return `The session rejected the input: ${reason}.`
 }
 
 /** Who sent an input, from the host's `authorize`. */
@@ -392,6 +445,8 @@ export interface Operation<TResult> extends PromiseLike<TResult> {
 
 /** A background agent run. `send` adds a message to it. */
 export interface AgentRun<TResult> extends Operation<TResult> {
+  readonly kind: 'agent'
+  readonly agent: string
   /**
    * Add a message to this run. `mode: 'steer'` (default) gives it to the
    * run's next model call. When the run makes no further model call, it
@@ -410,7 +465,7 @@ export interface AgentRun<TResult> extends Operation<TResult> {
 export type MediaKind = 'image' | 'audio' | 'video' | 'document'
 
 /** A file in a thread's media store: sent by a user or made by an agent. */
-export interface MediaRecord {
+export type MediaRecord = {
   id: string
   threadId: string
   kind: MediaKind
@@ -418,13 +473,49 @@ export interface MediaRecord {
   name: string
   /** Size in bytes. */
   size: number
-  source: 'user' | 'generated'
   /** Epoch milliseconds. */
   createdAt: number
-  /** The operation that made generated media. */
-  runId?: string
-  /** The child agent run that made it, when a subagent did. */
-  subagentRunId?: string
+} & (
+  | { source: 'user'; runId?: never; subagentRunId?: never }
+  | {
+      source: 'generated'
+      /** The operation that made it. */
+      runId: string
+      /** The child agent run that made it, when a subagent did. */
+      subagentRunId?: string
+    }
+)
+
+/** A question that a command or a plugin asked. `session.answer` answers it. */
+export interface PendingQuestion {
+  questionId: string
+  message: string
+  schema?: unknown
+  /** The answer is a secret (a key or a password). Hide it as the user types. */
+  secret?: boolean
+  /** A page the user must open before they answer. Show the link. */
+  url?: string
+}
+
+/** A tool needs a sign-in to `connector` before it can run. */
+export interface AuthRequest {
+  connector: string
+  /** The page where the user signs in. */
+  url?: string
+  /** The code the user enters on that page, for a device login. */
+  userCode?: string
+}
+
+/** One model call reported its usage. */
+export interface UsageUpdate {
+  /** `provider/model`. */
+  model: string
+  /** The principal id of the sender, when known. */
+  sender?: string
+  /** The usage of this call. */
+  usage: Omit<UsageCounts, 'calls'>
+  /** The new totals of the thread. */
+  total: UsageCounts
 }
 
 /** Names of the `CUSTOM` events a harness session adds to the stream. */

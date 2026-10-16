@@ -8,6 +8,7 @@ import {
   LEASE,
   TRUNCATED_TOOL_RESULT,
   checkpointMiddleware,
+  findCrashedRuns,
   holdRunLease,
   repairTranscript,
 } from '../src/resume'
@@ -94,7 +95,7 @@ describe('checkpoints and leases', () => {
       { threadId: 't1' },
     )
 
-    const turn = session.prompt('go')
+    const turn = session.send('go')
     await started.opened
     const running = await persistence.stores.runs.get(turn.id)
     expect(running?.leaseOwner).toMatch(/^host-/)
@@ -568,6 +569,39 @@ describe('checkpoint middleware options', () => {
     process.off('unhandledRejection', unhandled)
 
     expect(unhandled).not.toHaveBeenCalled()
+  })
+
+  it('stops renewing after another host took the run over', async () => {
+    const { runs } = memoryPersistence().stores
+    await runs.createOrResume({
+      runId: 'run-1',
+      threadId: 't1',
+      startedAt: Date.now(),
+    })
+    const stop = await holdRunLease(runs, 'run-1', 'host-1', { renewMs: 1 })
+    await runs.update('run-1', {
+      leaseOwner: 'host-2',
+      leaseExpiresAt: Date.now() + 60_000,
+    })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect((await runs.get('run-1'))?.leaseOwner).toBe('host-2')
+    stop()
+  })
+
+  it('finds a running run that crashed before its first lease stamp', async () => {
+    const { runs } = memoryPersistence().stores
+    await runs.createOrResume({
+      runId: 'run-1',
+      threadId: 't1',
+      startedAt: Date.now() - LEASE.ttlMs - 1,
+    })
+    await runs.createOrResume({
+      runId: 'run-2',
+      threadId: 't1',
+      startedAt: Date.now(),
+    })
+    const crashed = await findCrashedRuns(runs, 't1')
+    expect(crashed.map((run) => run.runId)).toEqual(['run-1'])
   })
 
   it('uses the lease time it gets', async () => {

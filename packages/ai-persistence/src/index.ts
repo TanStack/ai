@@ -11,9 +11,9 @@ export {
   defineArtifactStore,
   defineBlobStore,
   defineInboxStore,
-  defineCredentialStore,
   defineLogStore,
   defineWorkClaimStore,
+  defineLeaseStore,
   defineSessionIndexStore,
   LogConflictError,
   // Run lifecycle helpers owned by @tanstack/ai, transiting through ./types so
@@ -38,8 +38,6 @@ export type {
   InboxEntry,
   InboxStatus,
   InboxStore,
-  Credential,
-  CredentialStore,
   LogEntry,
   LogRecord,
   LogStore,
@@ -133,7 +131,7 @@ export {
 export { parseRangeHeader, resolveBlobRange } from './blob-range'
 
 // Reference in-memory implementation
-export { memoryLogStore, memoryPersistence } from './memory'
+export { memoryLeaseStore, memoryLogStore, memoryPersistence } from './memory'
 
 // Persistence-owned capabilities only. Locks: @tanstack/ai.
 export {

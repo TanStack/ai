@@ -124,9 +124,9 @@ describe('turn overrides: adapter', () => {
     })
 
     expect(
-      await session.prompt('go', { overrides: { adapter: turnModel.adapter } }),
+      await session.send('go', { overrides: { adapter: turnModel.adapter } }),
     ).toEqual({ text: 'done', media: [] })
-    expect(await session.prompt('again')).toEqual({
+    expect(await session.send('again')).toEqual({
       text: 'default',
       media: [],
     })
@@ -151,9 +151,9 @@ describe('turn overrides: adapter', () => {
     })
     const { host, session } = await open([])
 
-    expect(
-      await session.prompt('go', { overrides: { adapter: keyed } }),
-    ).toEqual({ text: 'keyed', media: [] })
+    expect(await session.send('go', { overrides: { adapter: keyed } })).toEqual(
+      { text: 'keyed', media: [] },
+    )
     expect(keys).toEqual(['sk-env-1234'])
     await host.close()
   })
@@ -162,10 +162,11 @@ describe('turn overrides: adapter', () => {
     const turnModel = mockAdapter([() => text('followed')])
     const { host, session, calls } = await open([])
 
-    await session.followUp('go', {
+    await session.send('go', {
+      mode: 'followUp',
       inputId: 'follow-1',
       overrides: { adapter: turnModel.adapter },
-    })
+    }).receipt
 
     expect(await session.settled('follow-1')).toMatchObject({
       outcome: 'completed',
@@ -184,10 +185,10 @@ describe('turn overrides: reasoning and prompt cache', () => {
       { promptCache: 'long' },
     )
 
-    await session.prompt('go', {
+    await session.send('go', {
       overrides: { reasoning: HIGH, promptCache: { key: 'turn-key' } },
     })
-    await session.prompt('again')
+    await session.send('again')
 
     expect(calls[0].reasoning).toEqual({ level: 'high', summary: true })
     // The session retention stays. Only the key changes.
@@ -206,8 +207,8 @@ describe('turn overrides: reasoning and prompt cache', () => {
       { reasoning: 'low' },
     )
 
-    await session.prompt('one')
-    await session.prompt('two', { overrides: { reasoning: 'high' } })
+    await session.send('one')
+    await session.send('two', { overrides: { reasoning: 'high' } })
 
     expect(calls.map((call) => call.reasoning)).toEqual([
       { level: 'low', summary: true },
@@ -222,9 +223,9 @@ describe('turn overrides: reasoning and prompt cache', () => {
       { reasoning: LOW },
     )
 
-    await session.prompt('one')
-    await session.prompt('two')
-    await session.prompt('three', { overrides: { reasoning: HIGH } })
+    await session.send('one')
+    await session.send('two')
+    await session.send('three', { overrides: { reasoning: HIGH } })
 
     expect(calls.map((call) => call.reasoning)).toEqual([
       { level: 'low', summary: false },
@@ -243,8 +244,8 @@ describe('turn overrides: tools', () => {
       () => text('again'),
     ])
 
-    await session.prompt('go', { overrides: { tools: [lookup] } })
-    await session.prompt('again')
+    await session.send('go', { overrides: { tools: [lookup] } })
+    await session.send('again')
 
     expect(toolResult(await session.transcript(), 'call-lookup')).toBe('found')
     expect(toolNames(calls[0])).toEqual(['lookup'])
@@ -265,7 +266,7 @@ describe('turn overrides: tools', () => {
       { tools: [look], middleware: [onlyStatic] },
     )
 
-    await session.prompt('go', { overrides: { tools: [lookup] } })
+    await session.send('go', { overrides: { tools: [lookup] } })
 
     expect(toolNames(calls[0])).toEqual(['look', 'lookup'])
     expect(toolResult(await session.transcript(), 'call-lookup')).toBe('found')
@@ -287,7 +288,7 @@ describe('turn overrides: tools', () => {
       { persistence },
     )
 
-    await session.prompt('note it', { overrides: { tools: [note] } })
+    await session.send('note it', { overrides: { tools: [note] } })
 
     expect(toolResult(await session.transcript(), 'call-note')).toBe('noted')
     expect(await recordsOf(persistence, 'app.note')).toEqual([
@@ -314,9 +315,9 @@ describe('turn overrides: tools', () => {
     })
     const clash = await open([() => text('never')], { tools: [lookup] })
 
-    await expect(twoStatic.session.prompt('go')).rejects.toThrow(duplicate)
+    await expect(twoStatic.session.send('go')).rejects.toThrow(duplicate)
     await expect(
-      clash.session.prompt('go', { overrides: { tools: [other] } }),
+      clash.session.send('go', { overrides: { tools: [other] } }),
     ).rejects.toThrow(duplicate)
 
     expect(clash.calls).toHaveLength(0)
@@ -333,8 +334,8 @@ describe('turn overrides: queue, steer, and recovery', () => {
       after(release.opened, 'first'),
     ])
 
-    const first = session.prompt('one')
-    const second = session.prompt('two', {
+    const first = session.send('one')
+    const second = session.send('two', {
       overrides: { adapter: turnModel.adapter },
     })
     expect((await second.receipt).status).toBe('queued')
@@ -361,11 +362,11 @@ describe('turn overrides: queue, steer, and recovery', () => {
     const steerModel = mockAdapter([() => text('never')])
     const { host, session, calls } = await open([], { tools: [slowLookup] })
 
-    const turn = session.prompt('one', {
+    const turn = session.send('one', {
       overrides: { adapter: hostModel.adapter },
     })
     await toolRuns.opened
-    const steer = session.prompt('two', {
+    const steer = session.send('two', {
       busy: 'steer',
       overrides: { adapter: steerModel.adapter },
     })
@@ -388,11 +389,11 @@ describe('turn overrides: queue, steer, and recovery', () => {
       turn: { canJoin: () => false },
     })
 
-    const turn = session.prompt('one', {
+    const turn = session.send('one', {
       overrides: { adapter: hostModel.adapter },
     })
     await vi.waitFor(() => expect(hostModel.calls).toHaveLength(1))
-    const steer = session.prompt('two', {
+    const steer = session.send('two', {
       busy: 'steer',
       overrides: { adapter: steerModel.adapter },
     })
@@ -411,7 +412,7 @@ describe('turn overrides: queue, steer, and recovery', () => {
     const persistence = durablePersistence()
     const stopped = mockAdapter([untilAborted()])
     const first = await open([], {}, { persistence })
-    const turn = first.session.prompt('go', {
+    const turn = first.session.send('go', {
       inputId: 'in-1',
       overrides: {
         adapter: stopped.adapter,
@@ -445,7 +446,7 @@ describe('turn overrides: queue, steer, and recovery', () => {
     const persistence = durablePersistence()
     const stopped = mockAdapter([untilAborted()])
     const first = await open([], {}, { persistence })
-    const turn = first.session.prompt('go', {
+    const turn = first.session.send('go', {
       inputId: 'in-1',
       overrides: { adapter: stopped.adapter },
     })
@@ -500,7 +501,7 @@ describe('turn overrides: plugin adapter picker', () => {
     })
     const overrides = { adapter: turnModel.adapter }
 
-    const turn = session.prompt('go', { inputId: 'in-7', overrides })
+    const turn = session.send('go', { inputId: 'in-7', overrides })
 
     expect(await turn).toEqual({ text: 'turn', media: [] })
     expect(seen).toEqual([
@@ -524,7 +525,7 @@ describe('ephemeral input', () => {
       { persistence },
     )
 
-    expect(await session.prompt('go', { ephemeral: note })).toEqual({
+    expect(await session.send('go', { ephemeral: note })).toEqual({
       text: 'done',
       media: [],
     })
@@ -579,8 +580,8 @@ describe('ephemeral input', () => {
       { tools: [lookup] },
     )
 
-    await session.prompt('first')
-    await session.prompt('look', { ephemeral: note })
+    await session.send('first')
+    await session.send('look', { ephemeral: note })
 
     // The tool-call message has no text: its content is null.
     expect(messageTexts(calls[1])).toEqual(['first', 'one', 'look', NOTE])

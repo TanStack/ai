@@ -1,5 +1,7 @@
 import { EventType } from '@tanstack/ai'
+import { memoryCredentialStore } from '@tanstack/ai/byok/server'
 import { memoryPersistence } from '@tanstack/ai-persistence'
+import type { CredentialStore } from '@tanstack/ai/byok'
 import { SharedLog, loadLogState } from './log'
 import { LEASE } from './resume'
 import { HarnessSession } from './session/index'
@@ -12,7 +14,6 @@ import type {
   ArtifactStore,
   BlobStore,
   ChatTranscriptStores,
-  CredentialStore,
   GenerationRunStore,
   InboxStore,
   InterruptStore,
@@ -32,7 +33,6 @@ import type { LeaseOptions } from './resume'
 import type { ForkPoint, Principal } from './types'
 
 type SharedStores = {
-  credentials?: CredentialStore
   artifacts?: ArtifactStore
   blobs?: BlobStore
   generationRuns?: GenerationRunStore
@@ -55,7 +55,10 @@ type DurableLeases =
  *   not yet applied.
  * - Durable mode: a `log`, and `runs` or `leases`. The log holds the events,
  *   transcript, inputs, and tool steps of each thread, so this shape has no
- *   `messages` and no `inbox`.
+ *   `messages`. With several hosts, add `workClaims`: an input that reaches a
+ *   host while another host owns the thread is refused (`owned_elsewhere`),
+ *   so it never stops the owner's turn. Add `inbox` too, and that input waits
+ *   in the inbox for the owner instead (receipt `queued`).
  *
  * Without `artifacts`, `blobs`, and `generationRuns`, media is kept in memory.
  * With `sessions`, the host keeps one index entry per thread (see
@@ -75,7 +78,8 @@ export type HarnessPersistence =
         interrupts?: InterruptStore
         metadata?: MetadataStore
         messages?: never
-        inbox?: never
+        /** Inputs for the host that owns a thread. Needs `workClaims`. */
+        inbox?: InboxStore
       } & DurableLeases &
         SharedStores
     >
@@ -83,6 +87,12 @@ export type HarnessPersistence =
 export interface HarnessHostOptions<TLogState = undefined> {
   /** Where sessions keep their state. Default: in memory, lost on restart. */
   persistence?: HarnessPersistence
+  /**
+   * Where users' API keys and OAuth tokens are saved: a table in your own
+   * database, or a secrets manager. Encrypt the secrets at rest. Default: in
+   * memory, lost on restart.
+   */
+  credentials?: CredentialStore
   /**
    * How a durable host folds your own log records into the model context.
    * Only a host with `stores.log` reads it.
@@ -253,6 +263,8 @@ export interface ForkSessionOptions {
   at?: string | null
   /** Who opens the new thread, as in `open`. */
   principal?: Principal
+  /** The log of the source thread, as in `open`. Default: `threadId`. */
+  logId?: string
 }
 
 export interface ResumePendingOptions {
@@ -281,6 +293,8 @@ export interface HarnessHost<TLogState = unknown> {
     harness: THarness,
     options: OpenSessionOptions,
   ) => Promise<HarnessSession<THarness>>
+  /** Is a session of `harness` open on `threadId` on this host? */
+  isOpen: (harness: AnyHarness, options: { threadId: string }) => boolean
   /**
    * Start a new thread as a copy of another one, and return its open
    * session. It copies the transcript up to and including the message `at`,
@@ -496,6 +510,39 @@ function statusAfter(session: HarnessSession, event: StreamChunk) {
   }
 }
 
+/** How each host finds the open session of a chat turn. Not public API. */
+const turnFinders = new WeakMap<
+  object,
+  (harness: string, operationId: string) => Promise<HarnessSession | undefined>
+>()
+
+/**
+ * @internal The open session of `harness` in `host` that has the chat turn
+ * `operationId`, running or ended. A turn's events live in the host that runs
+ * it, so the handler joins a run through this.
+ */
+export function sessionOfTurn(
+  host: HarnessHost,
+  harness: AnyHarness,
+  operationId: string,
+): Promise<HarnessSession | undefined> {
+  return (
+    turnFinders.get(host)?.(harness.name, operationId) ??
+    Promise.resolve(undefined)
+  )
+}
+
+/** The log and run stores of each durable host. Not public API. */
+const durableStores = new WeakMap<object, { log: LogStore; runs?: RunStore }>()
+
+/**
+ * @internal The log and run stores of `host` when it is durable
+ * (`stores.log`), else `undefined`.
+ */
+export function durableStoresOf(host: HarnessHost) {
+  return durableStores.get(host)
+}
+
 /** Throw a clear error for a durable store set that cannot work. */
 function checkDurableStores(persistence: HarnessPersistence) {
   const { stores } = persistence
@@ -505,9 +552,14 @@ function checkDurableStores(persistence: HarnessPersistence) {
       'A durable host (stores.log) needs stores.runs or stores.leases: a lease finds a crashed host.',
     )
   }
-  if (stores.messages !== undefined || stores.inbox !== undefined) {
+  if (stores.messages !== undefined) {
     throw new Error(
-      'A durable host (stores.log) keeps the transcript and the inputs in the log. Remove stores.messages and stores.inbox. A reader outside a session can use logMessageStore({ store }).',
+      'A durable host (stores.log) keeps the transcript and the inputs in the log. Remove stores.messages. A reader outside a session can use logMessageStore({ store }).',
+    )
+  }
+  if (stores.inbox !== undefined && stores.workClaims === undefined) {
+    throw new Error(
+      'A durable host (stores.log) uses stores.inbox to pass inputs to the host that owns a thread. That needs stores.workClaims.',
     )
   }
 }
@@ -519,7 +571,7 @@ function checkDurableStores(persistence: HarnessPersistence) {
  * ```ts
  * const host = createHarnessHost({ persistence })
  * const session = await host.open(studio, { threadId: 'thread-1' })
- * const turn = await session.prompt('Write a haiku about the sea.')
+ * const turn = await session.send('Write a haiku about the sea.')
  * ```
  */
 export function createHarnessHost<TLogState = undefined>(
@@ -539,9 +591,9 @@ export function createHarnessHost<TLogState = undefined>(
   // to keep accepted inputs across restarts. A durable host keeps them in
   // the log instead.
   const inbox = persistence.stores.inbox ?? memory.inbox
-  // ponytail: memory credentials when the stores have none. Pass
-  // `stores.credentials` to keep sign-ins across restarts.
-  const credentials = persistence.stores.credentials ?? memory.credentials
+  // ponytail: memory credentials when none are given. Pass `credentials`
+  // to keep sign-ins across restarts.
+  const credentials = options.credentials ?? memoryCredentialStore()
   // ponytail: memory media stores when the stores have none. Pass
   // `stores.artifacts`, `stores.blobs`, and `stores.generationRuns` to keep
   // media across restarts.
@@ -558,7 +610,17 @@ export function createHarnessHost<TLogState = undefined>(
   /** One per running `host.events()` read. */
   const listeners = new Set<(event: HostEvent) => void>()
   const emit = (event: HostEvent) => {
-    for (const listener of listeners) listener(event)
+    for (const listener of [...listeners]) {
+      // One reader that throws must not stop the others.
+      try {
+        listener(event)
+      } catch (error) {
+        console.error(
+          '[@tanstack/ai-harness] A host events reader threw.',
+          error,
+        )
+      }
+    }
   }
   /** The latest status of each open session, by session key. */
   const statuses = new Map<string, HostStatusEvent>()
@@ -694,38 +756,59 @@ export function createHarnessHost<TLogState = undefined>(
       }
       return session as Promise<HarnessSession<typeof harness>>
     },
-    async fork(harness, { threadId, newThreadId, at, principal }) {
+    isOpen(harness, { threadId }) {
+      return sessions.has(`${harness.name}\u0000${threadId}`)
+    },
+    async fork(harness, { threadId, newThreadId, at, principal, logId }) {
       if (newThreadId === threadId) {
         throw new Error('A fork needs a new thread: newThreadId is threadId.')
       }
-      const source = await host.open(harness, { threadId })
-      const transcript = await source.transcript()
-      const end =
-        at === undefined
-          ? transcript.length
-          : at === null
-            ? 0
-            : transcript.findIndex((message) => message.id === at) + 1
-      if (typeof at === 'string' && end === 0) {
-        throw new Error(
-          `Thread ${JSON.stringify(threadId)} has no message ${JSON.stringify(at)}.`,
-        )
-      }
-      const isUsed = logStore
-        ? (await logStore.read(newThreadId, { limit: 1 })).length > 0
-        : ((await persistence.stores.messages?.loadThread(newThreadId))
-            ?.length ?? 0) > 0
-      if (isUsed) {
-        throw new Error(
-          `Thread ${JSON.stringify(newThreadId)} is not empty. Fork into a new thread.`,
-        )
-      }
-      const fork = await host.open(harness, {
-        threadId: newThreadId,
-        ...(principal ? { principal } : {}),
+      // A source that only this fork opens closes again at the end.
+      const wasOpen = host.isOpen(harness, { threadId })
+      const source = await host.open(harness, {
+        threadId,
+        ...(logId ? { logId } : {}),
       })
-      await fork.adoptFork(source, transcript.slice(0, end))
-      return fork
+      try {
+        const transcript = await source.transcript()
+        const end =
+          at === undefined
+            ? transcript.length
+            : at === null
+              ? 0
+              : transcript.findIndex((message) => message.id === at) + 1
+        if (typeof at === 'string' && end === 0) {
+          throw new Error(
+            `Thread ${JSON.stringify(threadId)} has no message ${JSON.stringify(at)}.`,
+          )
+        }
+        const isUsed = logStore
+          ? (await logStore.read(newThreadId, { limit: 1 })).length > 0
+          : ((await persistence.stores.messages?.loadThread(newThreadId))
+              ?.length ?? 0) > 0
+        if (isUsed) {
+          throw new Error(
+            `Thread ${JSON.stringify(newThreadId)} is not empty. Fork into a new thread.`,
+          )
+        }
+        const fork = await host.open(harness, {
+          threadId: newThreadId,
+          ...(principal ? { principal } : {}),
+        })
+        await fork.adoptFork(source, transcript.slice(0, end))
+        return fork
+      } finally {
+        // A failed close must not hide the fork's own error.
+        if (!wasOpen)
+          await source
+            .close()
+            .catch((error: unknown) =>
+              console.error(
+                '[@tanstack/ai-harness] The source session did not close.',
+                error,
+              ),
+            )
+      }
     },
     async resumePending({ harnesses, close = 'whenIdle', limit = 100 }) {
       const claims = persistence.stores.workClaims
@@ -747,6 +830,7 @@ export function createHarnessHost<TLogState = undefined>(
       }
       expired = expired.slice(0, limit)
       const opened: Array<{ threadId: string; harness: string }> = []
+      const failures: Array<unknown> = []
       for (const { threadId, harness: name } of expired) {
         const harness = byName.get(name)
         if (!harness) continue
@@ -763,7 +847,17 @@ export function createHarnessHost<TLogState = undefined>(
         // that the app has open stays open.
         const isOwn = close === 'whenIdle' && !sessions.has(key)
         if (isOwn) sweptOnly.add(key)
-        const session = await host.open(harness, { threadId })
+        let session: HarnessSession
+        try {
+          session = await host.open(harness, { threadId })
+        } catch (error) {
+          // One thread that cannot open must not stop the sweep. The claim
+          // goes back, so the next sweep tries again.
+          sweptOnly.delete(key)
+          await claims.release({ threadId, ownerId: hostId }).catch(() => {})
+          failures.push(error)
+          continue
+        }
         if (isOwn) {
           const stop = session.onIdle(() => {
             stop()
@@ -782,6 +876,16 @@ export function createHarnessHost<TLogState = undefined>(
           })
         }
         opened.push({ threadId, harness: name })
+      }
+      if (failures.length > 0) {
+        // `opened` says which threads did start.
+        throw Object.assign(
+          new AggregateError(
+            failures,
+            `resumePending opened ${opened.length} threads; ${failures.length} failed to open.`,
+          ),
+          { opened },
+        )
       }
       return opened
     },
@@ -888,8 +992,15 @@ export function createHarnessHost<TLogState = undefined>(
           ...(source?.title ? { title: `${source.title} (fork)` } : {}),
           ...(source?.principal ? { principal: source.principal } : {}),
         }
-        await index.update(entry.threadId, () => entry)
-        return entry
+        // The open of the fork wrote an entry already: keep what it holds.
+        return (
+          (await index.update(entry.threadId, (current) => ({
+            ...entry,
+            ...current,
+            ...(entry.title ? { title: entry.title } : {}),
+            updatedAt: now,
+          }))) ?? entry
+        )
       },
     },
     async *events({ signal } = {}) {
@@ -922,5 +1033,17 @@ export function createHarnessHost<TLogState = undefined>(
       }
     },
   }
+  if (logStore) {
+    const { runs } = persistence.stores
+    durableStores.set(host, { log: logStore, ...(runs ? { runs } : {}) })
+  }
+  turnFinders.set(host, async (name, operationId) => {
+    for (const [key, opening] of sessions) {
+      if (!key.startsWith(`${name}\u0000`)) continue
+      const session = await opening.catch(() => undefined)
+      if (session?.operation(operationId)?.kind === 'chat') return session
+    }
+    return undefined
+  })
   return host
 }

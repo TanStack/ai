@@ -44,9 +44,7 @@ export const Route = createFileRoute('/api/harness-retry-after')({
             }),
             { threadId: 'e2e-harness-retry-after' },
           )
-          const { text } = await session.prompt(
-            '[harness-retry-after] say hello',
-          )
+          const { text } = await session.send('[harness-retry-after] say hello')
           return Response.json({
             text,
             retryAfterMs: seen,

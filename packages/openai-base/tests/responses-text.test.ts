@@ -2573,6 +2573,50 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       )
     })
 
+    it('sends text.format json_object and the schema as instructions when modelOptions sets json_object', async () => {
+      setupMockResponsesClient([], {
+        output: [
+          {
+            type: 'message',
+            content: [
+              {
+                type: 'output_text',
+                text: '{"name":"Alice","age":30}',
+              },
+            ],
+          },
+        ],
+      })
+
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+
+      await adapter.structuredOutput({
+        chatOptions: {
+          logger: testLogger,
+          model: 'test-model',
+          messages: [{ role: 'user', content: 'Give me a person' }],
+          modelOptions: { text: { format: { type: 'json_object' } } },
+        },
+        outputSchema: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            age: { type: 'number' },
+          },
+          required: ['name', 'age'],
+        },
+      })
+
+      expect(mockResponsesCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          stream: false,
+          text: { format: { type: 'json_object' } },
+          instructions: expect.stringContaining('"required":["name","age"]'),
+        }),
+        expect.anything(),
+      )
+    })
+
     it('forwards response.usage on structuredOutput', async () => {
       setupMockResponsesClient([], {
         output: [

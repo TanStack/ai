@@ -83,7 +83,7 @@ const reminded = defineHarness({
 - The transcript, the session log, and the message store never keep them.
 - A return with only `ephemeral` messages also sends the model back to work, and it counts for `maxFinishCycles`.
 - `onJoin` can return `ephemeral` messages too. They go to the model call of the join.
-- A reminder that you send in your own loop, one turn at a time, does not count for `maxFinishCycles`. Pass it as `ephemeral` to `prompt` or `continue`. Each model call of that turn gets it, and no store keeps it.
+- A reminder that you send in your own loop, one turn at a time, does not count for `maxFinishCycles`. Pass it as `ephemeral` to `send` or `continue`. Each model call of that turn gets it, and no store keeps it. See [Give the model a note for one turn](./inputs#give-the-model-a-note-for-one-turn).
 
 ## Retry model errors
 
@@ -191,7 +191,7 @@ The join stops at the first message that:
 
 That message and the ones after it wait. `canJoin` runs again before each model call and at each final answer, so it can run more than once for one message. Keep it a quick check with no side effects. What still waits when the turn ends runs as its own turn, before other queued turns. A cancelled one settles `aborted` and does not run.
 
-A joined message runs with the credentials of the sender of the turn. So without `turn.canJoin`, a waiting message joins the running turn only when the same person sent both. A message from another person waits and runs as its own turn after the running one, as its sender. Joins are a prefix, so it also holds back the messages that wait after it. Set `canJoin` to choose your own rule. Compare `principal` with `turnPrincipal` to keep one person's message out of another person's turn.
+A joined message runs with the credentials of the sender of the turn. So without `turn.canJoin`, a waiting message joins the running turn only when the same person sent both. A message from another person waits and runs as its own turn after the running one, as its sender. Joins are a prefix, so it also holds back the messages that wait after it. Set `canJoin` to choose your own rule. Compare `principal` with `turnPrincipal` to keep one person's message out of another person's turn. See [Keep other people out of a running turn](./shared-threads#3-keep-other-people-out-of-a-running-turn).
 
 `onJoin` runs before the model call that the joined messages reach. It can return messages, which come after the joined ones, and records, which land in the same append as the join. Records need a durable host.
 
@@ -268,7 +268,7 @@ The setting applies to every turn of the harness. `overrides` cannot change it f
 
 ## Give one prompt its own settings
 
-Most prompts are fine with the harness settings. One job can need more: a stronger model for a review, more reasoning, or a tool that only this job uses. Pass `overrides` to `session.prompt` or `session.followUp`:
+Most prompts are fine with the harness settings. One job can need more: a stronger model for a review, more reasoning, or a tool that only this job uses. Pass `overrides` to `session.send`:
 
 ```ts group=harness-turn-control
 import { toolDefinition } from '@tanstack/ai'
@@ -284,7 +284,7 @@ const readDiff = toolDefinition({
 const host = createHarnessHost({ persistence: memoryPersistence() })
 const session = await host.open(resilient, { threadId: 'thread-1' })
 
-const review = await session.prompt('Review the open pull request.', {
+const review = await session.send('Review the open pull request.', {
   overrides: {
     adapter: anthropicText('claude-opus-5-5'),
     reasoning: 'high',
@@ -325,7 +325,7 @@ The session keeps the overrides in memory only. The session log does not store t
 
 - A queued prompt keeps its overrides until its turn runs.
 - A steer that joins a running turn uses the overrides of that turn. The session ignores the overrides of the steer.
-- A `prompt(text, { busy: 'steer', overrides })` that does not join runs as its own turn, with its own overrides.
+- A `send(text, { mode: 'steer', overrides })` that does not join runs as its own turn, with its own overrides.
 - After a restart, recovery runs an unfinished turn with the harness settings. To give it overrides again, return them from `durability.recover`. See [Decide recovery yourself](./durable-sessions#decide-recovery-yourself).
 - A second prompt with the same `inputId` and message is a duplicate, also when its overrides are different.
 

@@ -418,3 +418,4 @@ pnpm eval -- --no-judge      # skip Anthropic-based judging
 - [Showing Code Mode in the UI](./client-integration) — Display execution progress in your React app
 - [Code Mode with Snippets](./code-mode-with-snippets) — Add persistent, reusable snippet libraries
 - [Isolate Drivers](./code-mode-isolates): compare Node, QuickJS, QuickJS Bun, Cloudflare, Daytona, and E2B.
+- [Code mode in a harness](../harness/code-mode): add code mode to a harness session as a plugin.

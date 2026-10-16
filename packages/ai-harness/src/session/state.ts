@@ -154,7 +154,7 @@ export abstract class SessionState<
    *
    * @example
    * const record = await session.putMedia(bytes, { mimeType: 'image/png', name: 'cat.png' })
-   * session.prompt([{ type: 'text', content: 'What is this?' }, mediaPart(record)])
+   * session.send([{ type: 'text', content: 'What is this?' }, mediaPart(record)])
    */
   putMedia(body: BlobBody, info: { mimeType: string; name: string }) {
     return this.mediaStore.put(body, info)
@@ -284,12 +284,15 @@ export abstract class SessionState<
   async setConfig({
     key,
     value,
+    inputId = createInputId(),
   }: {
     key: string
     value: unknown
+    /** @internal The id of a forwarded input, so a replay is a duplicate. */
+    inputId?: string
   }): Promise<Receipt> {
-    const inputId = createInputId()
-    await this.accept(inputId, { op: 'config', key, value })
+    const admission = await this.accept(inputId, { op: 'config', key, value })
+    if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
     const entry = this.sessionPlugins?.config.get(key)
     if (!entry) return this.reject(inputId, 'unknown_config')
     let checked: unknown
@@ -473,12 +476,14 @@ export abstract class SessionState<
    * after it. With the snapshots plugin, the files that their tool calls
    * changed go back too. `unrevert()` undoes it. The next turn drops the
    * hidden messages for good. The revert state is saved, so it survives a
-   * restart. Refused while the session is not idle (`'busy'`), and for a
-   * message that is not in the transcript (`'unknown_message'`).
+   * restart. Refused while the session is not idle, or another host runs
+   * the thread (`'busy'`), and for a message that is not in the transcript
+   * (`'unknown_message'`).
    */
   async revert(messageId: string): Promise<Receipt> {
     const inputId = createInputId()
-    if (this.snapshot().status !== 'idle') {
+    // Another host runs the thread: its log write would stop that host.
+    if (this.snapshot().status !== 'idle' || (await this.isOwnedElsewhere())) {
       return { inputId, status: 'rejected', reason: 'busy' }
     }
     return this.holding(async () => {
@@ -503,7 +508,8 @@ export abstract class SessionState<
   /** End the revert that stands: its files and messages come back. */
   async unrevert(): Promise<Receipt> {
     const inputId = createInputId()
-    if (this.snapshot().status !== 'idle') {
+    // Another host runs the thread: its log write would stop that host.
+    if (this.snapshot().status !== 'idle' || (await this.isOwnedElsewhere())) {
       return { inputId, status: 'rejected', reason: 'busy' }
     }
     return this.holding(async () => {
@@ -610,19 +616,25 @@ export abstract class SessionState<
   async answer({
     questionId,
     value,
+    inputId = createInputId(),
   }: {
     questionId: string
     value: unknown
+    /** @internal The id of a forwarded input, so a replay is a duplicate. */
+    inputId?: string
   }): Promise<Receipt> {
-    const inputId = createInputId()
-    // A secret (a key or a password) stays out of the inbox. A restart does
-    // not replay an answer, so the inbox never needs it.
+    // A secret (a key or a password) stays out of the inbox and the log. A
+    // restart does not replay an answer, so they never need it. A host that
+    // does not have the question cannot tell: the owner deletes the inbox
+    // entry of the answer after it applies it.
     const isSecret = this.questions.get(questionId)?.secret === true
-    await this.accept(inputId, {
+    // A host that does not have the question passes the value on to its owner.
+    const admission = await this.accept(inputId, {
       op: 'answer',
       questionId,
       value: isSecret ? '[secret]' : value,
     })
+    if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
     const question = this.questions.get(questionId)
     if (!question) return this.reject(inputId, 'unknown_question')
     let checked: unknown = value
@@ -653,6 +665,9 @@ export abstract class SessionState<
       customEvent(HARNESS_EVENTS.questionAnswered, { questionId }),
     )
     question.resolve(checked)
+    // The question no longer holds the thread. The resolved work, if any,
+    // marks it busy again first.
+    queueMicrotask(() => this.checkIdle())
     return { inputId, status: 'accepted' }
   }
 
@@ -989,6 +1004,8 @@ export abstract class SessionState<
     // so a client that streams that operation sees it, and a cancel of it
     // rejects the question. The session stream has every operation's events.
     const operationId = owner ?? this.activeTurn?.id ?? 'session'
+    // The claim sends an answer that reaches another host here.
+    this.markBusy()
     return new Promise((resolve, reject) => {
       this.questions.set(questionId, {
         message: question.message,

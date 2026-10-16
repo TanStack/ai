@@ -209,7 +209,7 @@ describe('durable host stores', () => {
           stores: { log: memoryLogStore(), runs, messages },
         } as never,
       }),
-    ).toThrow('Remove stores.messages and stores.inbox')
+    ).toThrow('Remove stores.messages.')
   })
 
   it('refuses host records without a log, and harness record types', async () => {
@@ -266,7 +266,7 @@ describe('durable session log', () => {
     const harness = defineHarness({ name: 'test/crash-mid-text', adapter })
     const first = createHarnessHost({ persistence, coalesceMs: 5 })
     const session = await first.open(harness, { threadId: THREAD })
-    const turn = session.prompt('say hello')
+    const turn = session.send('say hello')
 
     // The deltas reach the log after the coalescing window.
     await vi.waitFor(async () => {
@@ -325,7 +325,7 @@ describe('durable session log', () => {
       defineHarness({ name: 'test/batch', adapter }),
       { threadId: THREAD },
     )
-    const turn = session.prompt('go')
+    const turn = session.send('go')
     await vi.waitFor(() =>
       expect(JSON.stringify(batches)).toContain('TEXT_MESSAGE_START'),
     )
@@ -354,7 +354,7 @@ describe('durable session log', () => {
       await session?.append([
         { type: 'app.signal', text: '[signal] tests failed' },
       ])
-      await session?.prompt('more', { busy: 'steer' }).receipt
+      await session?.send('more', { busy: 'steer' }).receipt
       return 'checked'
     })
     const { adapter, calls } = mockAdapter([
@@ -372,7 +372,7 @@ describe('durable session log', () => {
       { threadId: THREAD },
     )
 
-    await session.prompt('secret')
+    await session.send('secret')
 
     // The tool-call message has no text: its content is null.
     expect(messageTexts(calls[1])).toEqual([
@@ -408,12 +408,12 @@ describe('durable session log', () => {
       { threadId: THREAD },
     )
 
-    await session.prompt('one')
+    await session.send('one')
     // Between turns: the next turn starts with it.
     await session.append([
       { type: 'app.signal', text: '[signal] build failed' },
     ])
-    await session.prompt('two')
+    await session.send('two')
 
     expect(messageTexts(calls[1])).toEqual([
       'one',
@@ -456,13 +456,13 @@ describe('durable session log', () => {
       defineHarness({ name: 'test/compact', adapter }),
       { threadId: THREAD },
     )
-    await session.prompt('q1')
-    await session.prompt('q2')
+    await session.send('q1')
+    await session.send('q2')
 
     await session.append([
       { type: 'app.compact', summary: 'Earlier: q1 and a1.', firstKept: 2 },
     ])
-    await session.prompt('q3')
+    await session.send('q3')
 
     expect(messageTexts(calls[2])).toEqual([
       'Earlier: q1 and a1.',
@@ -507,7 +507,7 @@ describe('durable session log', () => {
       records: [{ type: 'app.from-another-host' }],
     })
 
-    await expect(session.prompt('hi')).rejects.toThrow('Another host wrote')
+    await expect(session.send('hi')).rejects.toThrow('Another host wrote')
 
     // The host opens a new session, which folds the log again.
     await vi.waitFor(async () =>
@@ -528,7 +528,7 @@ describe('durable session log', () => {
     const seen = eventsUntil(watching, (events) =>
       events.some((entry) => entry.event.type === EventType.TEXT_MESSAGE_END),
     )
-    const result = await live.prompt('hi')
+    const result = await live.send('hi')
 
     expect(result.text).toBe('streamed answer')
     expect((await seen).map((entry) => entry.event.type)).toContain(
@@ -556,7 +556,7 @@ describe('durable session log', () => {
     const host = createHarnessHost({ persistence })
     const session = await host.open(harness, { threadId: THREAD })
 
-    await session.prompt('Weather in Berlin and Paris?')
+    await session.send('Weather in Berlin and Paris?')
 
     const order = [
       { type: 'thinking', index: 0 },
@@ -616,8 +616,8 @@ describe('LogRecordsCapability', () => {
       { threadId: THREAD },
     )
 
-    await session.prompt('q1')
-    await session.prompt('q2')
+    await session.send('q1')
+    await session.send('q2')
 
     expect(messageTexts(calls[1])).toEqual(['q1', 'a1', '[signal] saved', 'q2'])
     const rebuilt = sessionOf(
@@ -666,7 +666,7 @@ describe('LogRecordsCapability', () => {
       { threadId: THREAD },
     )
 
-    await session.prompt('Weather in Berlin?')
+    await session.send('Weather in Berlin?')
 
     // The end of the turn tags the run on older messages. The signal must
     // stay in the fold, and a rebuild must give the same messages.
@@ -689,7 +689,7 @@ describe('LogRecordsCapability', () => {
     expect(rebuilt.messages).toEqual(transcript)
 
     // The next turn's model call gets it too.
-    await session.prompt('q2')
+    await session.send('q2')
     expect(messageTexts(calls[2])).toContain('[signal] saved')
     await host.close()
   })
@@ -713,7 +713,7 @@ describe('LogRecordsCapability', () => {
       { threadId: THREAD },
     )
 
-    await session.prompt('q1')
+    await session.send('q1')
 
     // The saved reply has its run id. The engine's copy has none, and it
     // must not replace the saved one.
@@ -746,7 +746,7 @@ describe('LogRecordsCapability', () => {
       { threadId: THREAD },
     )
 
-    await session.prompt('q1')
+    await session.send('q1')
 
     expect(failure).toBeInstanceOf(Error)
     expect(String(failure)).toContain('reserved for the harness')
@@ -772,7 +772,7 @@ describe('LogRecordsCapability', () => {
       { threadId: THREAD },
     )
 
-    await session.prompt('q1')
+    await session.send('q1')
 
     expect(seen).toBeUndefined()
     await host.close()
@@ -820,8 +820,8 @@ describe('compaction-style host records from a middleware', () => {
       { threadId: THREAD },
     )
 
-    await session.prompt('q1')
-    await session.prompt('q2')
+    await session.send('q1')
+    await session.send('q2')
 
     // (a) The record comes after the transcript record that saved the reply.
     const entries = await persistence.stores.log.read(THREAD, { after: 0 })
@@ -846,7 +846,7 @@ describe('compaction-style host records from a middleware', () => {
     ])
 
     // (c) The next model call gets the fold.
-    await session.prompt('q3')
+    await session.send('q3')
     expect(messageTexts(calls[2])).toEqual([summary, 'q2', 'a2', 'q3'])
     await host.close()
   })
@@ -877,9 +877,9 @@ describe('compaction-style host records from a middleware', () => {
       { threadId: THREAD },
     )
 
-    await session.prompt('q1')
-    await session.prompt('q2')
-    await session.prompt('q3')
+    await session.send('q1')
+    await session.send('q2')
+    await session.send('q3')
 
     expect(messageTexts(calls[2])).toEqual([summary, 'q2', 'a2', 'q3'])
     const rebuilt = await rebuild(persistence)
@@ -937,7 +937,7 @@ describe('compaction-style host records from a middleware', () => {
       { threadId: THREAD },
     )
 
-    await session.prompt('Weather in Berlin and Paris?')
+    await session.send('Weather in Berlin and Paris?')
 
     // Each result once, and the first one cleared.
     const results = (messages: ReadonlyArray<ModelMessage>) =>

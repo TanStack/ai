@@ -67,7 +67,7 @@ describe('session.background', () => {
       subagents: { agents: [writer] },
     })
 
-    const turn = session.prompt('Look around for me')
+    const turn = session.send('Look around for me')
     await vi.waitFor(() => expect(child.calls).toHaveLength(1))
     expect(await session.background()).toMatchObject({ status: 'accepted' })
     await turn
@@ -103,7 +103,7 @@ describe('session.background', () => {
     ])
     const { host, session } = await open(model.adapter, { tools: [wait] })
 
-    const turn = session.prompt('Wait')
+    const turn = session.send('Wait')
     await started.opened
     expect(await session.background()).toMatchObject({
       status: 'rejected',

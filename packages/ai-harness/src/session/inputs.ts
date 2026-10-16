@@ -12,10 +12,10 @@ import {
   lastAssistantText,
   checkHostRecords,
 } from './helpers'
-import { SessionBase } from './base'
+import { KEPT_SETTLED, SessionBase } from './base'
 import type { OperationImpl } from '../operation'
 import type { LogRecord } from '@tanstack/ai-persistence'
-import type { HarnessRecord } from '../log'
+import type { HarnessRecord, InputState } from '../log'
 import type { AnyHarness } from '../define'
 import type {
   ChatTurnResult,
@@ -28,12 +28,28 @@ import type {
 import type { QueuedTurn, WaitingSteer } from './types'
 
 /**
+ * How `accept` took an input. `forwarded`: another host owns the thread, and
+ * the input waits for it in `stores.inbox`. `owned_elsewhere`: another host
+ * owns the thread, and there is no inbox to pass the input on.
+ */
+export type Admission =
+  | 'new'
+  | 'duplicate'
+  | 'conflict'
+  | 'closed'
+  | 'forwarded'
+  | 'owned_elsewhere'
+
+/**
  * A layer of {@link HarnessSession}: admitting inputs, receipts, and
  * settlements.
  */
 export abstract class SessionInputs<
   THarness extends AnyHarness = AnyHarness,
 > extends SessionBase<THarness> {
+  /** Chat inputs that this host passed to the owner of the thread. */
+  protected readonly forwarded = new Set<string>()
+
   /**
    * Append host records to the session log, in one batch after the events
    * that wait. Only a durable host (with `stores.log`) has a log. A `type`
@@ -136,7 +152,7 @@ export abstract class SessionInputs<
    *
    * @example
    * ```ts
-   * const turn = session.prompt('Summarize the report.', { inputId: 'req-42' })
+   * const turn = session.send('Summarize the report.', { inputId: 'req-42' })
    * const { outcome } = await session.settled('req-42')
    * ```
    */
@@ -217,7 +233,11 @@ export abstract class SessionInputs<
     }
     if (!this.writer) {
       this.inbox
-        .markApplied({ inputId: steer.inputId, operationId })
+        .markApplied({
+          threadId: this.threadId,
+          inputId: steer.inputId,
+          operationId,
+        })
         .catch((error: unknown) => this.warnSession('harness:inbox', error))
     }
     this.feed.publish(
@@ -275,6 +295,30 @@ export abstract class SessionInputs<
     return taken
   }
 
+  /** Take a queued `continue()` out of the queue, for `cancelInput`. */
+  protected takeQueuedContinue(
+    inputId: string,
+  ): Pick<WaitingSteer, 'operation'> | undefined {
+    const turn = this.queue.find(
+      (item) => item.inputId === inputId && item.isContinue,
+    )
+    if (!turn) return undefined
+    this.queue.splice(this.queue.indexOf(turn), 1)
+    return { operation: turn.operation }
+  }
+
+  /**
+   * The thread waits for interrupts and nothing queued or running can
+   * resolve them, so a new turn would fail with `pending_interrupts`.
+   */
+  protected waitsForInterrupts(): boolean {
+    return (
+      this.interrupted !== undefined &&
+      this.activeTurn === undefined &&
+      this.queue.length === 0
+    )
+  }
+
   /**
    * Mark a `cancelInput` or `setDelivery` input applied. On a durable host,
    * `change` lands in the same append, so a crash never keeps one without
@@ -282,7 +326,11 @@ export abstract class SessionInputs<
    */
   protected async applyControl(inputId: string, change: HarnessRecord) {
     if (!this.writer) {
-      await this.inbox.markApplied({ inputId, operationId: 'session' })
+      await this.inbox.markApplied({
+        threadId: this.threadId,
+        inputId,
+        operationId: 'session',
+      })
       return
     }
     await this.writer.append([
@@ -309,7 +357,9 @@ export abstract class SessionInputs<
     inputId: string,
     input: HarnessInput,
     principal = this.principal,
-  ): Promise<'new' | 'duplicate' | 'conflict' | 'closed'> {
+    /** The AG-UI run id of a turn, so a forwarded turn runs as it. */
+    runId?: string,
+  ): Promise<Admission> {
     const sender = storedPrincipal(principal)
     const payload = inputKey(input, sender.principal)
     const local = this.admitted.get(inputId)
@@ -324,11 +374,19 @@ export abstract class SessionInputs<
     if (this.closing && WORK_OPS.has(input.op)) return 'closed'
     this.admitted.set(inputId, payload)
     try {
+      // An agent run starts from the running turn, on the owner.
+      if (input.op !== 'agent' && (await this.isOwnedElsewhere())) {
+        return await this.forward(inputId, input, sender, runId)
+      }
       // Before the input is stored, so a crash after the write leaves a claim
       // that a sweep finds.
       if (WORK_OPS.has(input.op)) {
         this.markBusy()
         await this.claimWrite
+        // Another host claimed the thread first, for example on a cold start.
+        if (this.writer && this.claimLost) {
+          return await this.forward(inputId, input, sender, runId)
+        }
       }
       const at = Date.now()
       if (this.writer) {
@@ -345,9 +403,10 @@ export abstract class SessionInputs<
         })
         // The inbox had the id before this session: a restart.
         if (stored.createdAt !== at || stored.status !== 'pending') {
-          return inputKey(stored.input, stored.principal) === payload
-            ? 'duplicate'
-            : 'conflict'
+          if (inputKey(stored.input, stored.principal) === payload)
+            return 'duplicate'
+          this.admitted.delete(inputId)
+          return 'conflict'
         }
       }
     } catch (error) {
@@ -360,6 +419,43 @@ export abstract class SessionInputs<
       customEvent(HARNESS_EVENTS.inputAccepted, { inputId, op: input.op }),
     )
     return 'new'
+  }
+
+  /**
+   * Another host owns the thread: store the input in `stores.inbox` for it.
+   * Without an inbox the input is refused, so the owner's turn goes on.
+   */
+  private async forward(
+    inputId: string,
+    input: HarnessInput,
+    sender: ReturnType<typeof storedPrincipal>,
+    runId: string | undefined,
+  ): Promise<Admission> {
+    this.admitted.delete(inputId)
+    const inbox = this.persistence.stores.inbox
+    if (!inbox) return 'owned_elsewhere'
+    // `settled` waits for the owner to end it. The oldest ids go, as in the
+    // window of settled operations.
+    if (CHAT_OPS.has(input.op)) {
+      this.forwarded.add(inputId)
+      for (const old of this.forwarded) {
+        if (this.forwarded.size <= KEPT_SETTLED) break
+        this.forwarded.delete(old)
+      }
+    }
+    await inbox.append({
+      inputId,
+      threadId: this.threadId,
+      // The owner runs the turn as `runId`, so this host streams it from the log.
+      input: runId === undefined ? input : { ...input, runId },
+      createdAt: Date.now(),
+      ...sender,
+    })
+    // The owner can go idle before it reads the inbox again, or stop. Then no
+    // host owns the thread, and this one runs the input.
+    if (!(await this.isOwnedElsewhere())) void this.drainInbox()
+    this.watchInbox()
+    return 'forwarded'
   }
 
   /**
@@ -381,7 +477,11 @@ export abstract class SessionInputs<
     operationId: string,
   ): Promise<void> {
     if (!this.writer) {
-      await this.inbox.markApplied({ inputId, operationId })
+      await this.inbox.markApplied({
+        threadId: this.threadId,
+        inputId,
+        operationId,
+      })
       return
     }
     const logged = this.writer.state.inputs.get(inputId)
@@ -417,10 +517,11 @@ export abstract class SessionInputs<
         .catch(() => {})
     } else {
       this.inbox
-        .markRejected({ inputId, reason })
+        .markRejected({ threadId: this.threadId, inputId, reason })
         .catch((error: unknown) => this.warnSession('harness:inbox', error))
     }
     const receipt: Receipt = { inputId, status: 'rejected', reason }
+    this.admitted.delete(inputId)
     this.receipts.set(inputId, receipt)
     this.feed.publish(
       'session',
@@ -445,6 +546,10 @@ export abstract class SessionInputs<
       )
     }
     for (const settlement of settlements) {
+      // A turn input leaves the set with its operation (`forget`): a client
+      // may send its id again until then. Other inputs leave now.
+      if (!this.turnOperations.has(settlement.inputId))
+        this.admitted.delete(settlement.inputId)
       this.settlements.set(settlement.inputId, settlement)
       this.feed.publish(
         settlement.operationId ?? 'session',
@@ -459,7 +564,11 @@ export abstract class SessionInputs<
     if (logged?.settlement) return logged.settlement
     const refused =
       logged?.status === 'rejected'
-        ? { inputId, status: 'rejected' as const, reason: logged.reason ?? '' }
+        ? {
+            inputId,
+            status: 'rejected' as const,
+            reason: rejectedReason(logged),
+          }
         : this.receipts.get(inputId)
     if (refused?.status === 'rejected') throw new InputRejectedError(refused)
     return this.settlements.get(inputId)
@@ -476,7 +585,11 @@ export abstract class SessionInputs<
         input.op === 'agent' ||
         input.op === 'agentMessage'
       )
-    return this.turnOperations.has(inputId) || this.receipts.has(inputId)
+    return (
+      this.turnOperations.has(inputId) ||
+      this.receipts.has(inputId) ||
+      this.forwarded.has(inputId)
+    )
   }
 
   /** Link a turn operation and its input. */
@@ -510,11 +623,12 @@ export abstract class SessionInputs<
   /** What a duplicate or a conflicting chat input gets back. */
   protected duplicateReceipt(
     inputId: string,
-    admission: 'duplicate' | 'conflict' | 'closed',
+    admission: Exclude<Admission, 'new'>,
   ): Receipt {
-    if (admission !== 'duplicate') {
+    if (admission !== 'duplicate' && admission !== 'forwarded') {
       return { inputId, status: 'rejected', reason: admission }
     }
+    if (admission === 'forwarded') return { inputId, status: 'queued' }
     const kept = this.receipts.get(inputId)
     if (kept) return kept
     const operationId = this.writer?.state.inputs.get(inputId)?.operationId
@@ -629,4 +743,14 @@ export abstract class SessionInputs<
     }
     this.publishFinished(operation)
   }
+}
+
+/** The reason of a rejected input record. A rejected record always has one. */
+function rejectedReason(logged: InputState): string {
+  if (logged.reason === undefined) {
+    throw new Error(
+      `The log has a rejected input "${logged.inputId}" with no reason.`,
+    )
+  }
+  return logged.reason
 }

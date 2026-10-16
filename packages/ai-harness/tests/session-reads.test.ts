@@ -54,7 +54,7 @@ async function open(persistence = memoryPersistence()) {
 describe('session reads for UIs', () => {
   it('returns the saved transcript', async () => {
     const { host, session } = await open()
-    await session.prompt('hi')
+    await session.send('hi')
 
     const messages = await session.transcript()
 

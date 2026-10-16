@@ -138,8 +138,15 @@ async function promptInput(
   return texts.length === parts.length ? texts.join('\n') : parts
 }
 
-/** One AG-UI chunk as an ACP session update, or `undefined` to skip it. */
-export function toSessionUpdate(chunk: StreamChunk): SessionUpdate | undefined {
+/**
+ * One AG-UI chunk as an ACP session update, or `undefined` to skip it.
+ * `args` collects the argument deltas of each tool call: its full input goes
+ * out as `rawInput` when the call's arguments end.
+ */
+export function toSessionUpdate(
+  chunk: StreamChunk,
+  args?: Map<string, string>,
+): SessionUpdate | undefined {
   // A child agent's text and thoughts stay out of the main message. Its tool
   // calls (the edits and commands it runs) show up like the lead's own.
   const fromChild = 'subagentRunId' in chunk && Boolean(chunk.subagentRunId)
@@ -160,12 +167,33 @@ export function toSessionUpdate(chunk: StreamChunk): SessionUpdate | undefined {
     }
   }
   if (chunk.type === EventType.TOOL_CALL_START) {
+    // ACP v2 has one update kind for a tool call, with patch semantics: the
+    // first update of an id makes the call.
     return {
       sessionUpdate: 'tool_call_update',
       toolCallId: chunk.toolCallId,
       name: chunk.toolCallName,
       title: chunk.toolCallName,
       status: 'in_progress',
+    }
+  }
+  if (chunk.type === EventType.TOOL_CALL_ARGS) {
+    args?.set(
+      chunk.toolCallId,
+      (args.get(chunk.toolCallId) ?? '') + chunk.delta,
+    )
+    return undefined
+  }
+  if (chunk.type === EventType.TOOL_CALL_END) {
+    const raw = args?.get(chunk.toolCallId)
+    args?.delete(chunk.toolCallId)
+    const rawInput = chunk.input ?? parseArgs(raw)
+    if (rawInput === undefined) return undefined
+    return {
+      sessionUpdate: 'tool_call_update',
+      toolCallId: chunk.toolCallId,
+      status: 'in_progress',
+      rawInput,
     }
   }
   if (chunk.type === EventType.TOOL_CALL_RESULT) {
@@ -176,6 +204,16 @@ export function toSessionUpdate(chunk: StreamChunk): SessionUpdate | undefined {
     }
   }
   return undefined
+}
+
+/** The collected arguments of a tool call: JSON when they parse, else the text. */
+function parseArgs(raw: string | undefined): unknown {
+  if (raw === undefined) return undefined
+  try {
+    return JSON.parse(raw)
+  } catch {
+    return raw
+  }
 }
 
 /** True for an interrupt that asks to approve a tool call. */
@@ -217,7 +255,10 @@ export function createAcpAgent(options: AcpAgentOptions): AgentApp {
 
   /** The session of an id that this agent or the session index knows. */
   const known = async (sessionId: string) => {
-    if (!opened.has(sessionId) && !(await host.sessions.get(sessionId))) {
+    if (
+      !opened.has(sessionId) &&
+      (await host.sessions.get(sessionId))?.harness !== harness.name
+    ) {
       throw RequestError.resourceNotFound(sessionId)
     }
     opened.add(sessionId)
@@ -327,7 +368,7 @@ export function createAcpAgent(options: AcpAgentOptions): AgentApp {
     client: AgentContext,
     sessionId: string,
     session: HarnessSession,
-    input: Parameters<HarnessSession['prompt']>[0],
+    input: Parameters<HarnessSession['send']>[0],
   ) => {
     let operation: Operation<unknown> | undefined
     let stopReason: 'end_turn' | 'cancelled' | 'error' = 'end_turn'
@@ -339,11 +380,12 @@ export function createAcpAgent(options: AcpAgentOptions): AgentApp {
       })
     try {
       await running()
-      if (await closeInterrupts(session)) operation = session.prompt(input)
+      if (await closeInterrupts(session)) operation = session.send(input)
       else stopReason = 'cancelled'
+      const args = new Map<string, string>()
       while (operation) {
         for await (const chunk of operation.stream()) {
-          const update = toSessionUpdate(chunk)
+          const update = toSessionUpdate(chunk, args)
           if (update) await notify(client, sessionId, update)
         }
         const result: unknown = await operation.then(

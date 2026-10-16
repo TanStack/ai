@@ -90,6 +90,7 @@ export {
   defineAgent,
   type DefinedAgent,
   type SubagentChoiceOptions,
+  type SubagentContextExtension,
   type SubagentRunContext,
   type SubagentRunInput,
   type AgentProduces,

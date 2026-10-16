@@ -2609,10 +2609,9 @@ describe('Anthropic stream processing', () => {
     expect(end).not.toHaveProperty('input')
   })
 
-  it('sends empty input as {} with no raw args', async () => {
+  it('sends empty input as {} with empty raw args', async () => {
     const end = await toolCallEnd(undefined, [])
-    expect(end).toMatchObject({ input: {} })
-    expect(end).not.toHaveProperty('args')
+    expect(end).toMatchObject({ input: {}, args: '' })
   })
 })
 

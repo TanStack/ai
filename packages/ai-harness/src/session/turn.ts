@@ -4,6 +4,7 @@ import {
   chat,
   compactForModel,
   modelMessagesToUIMessages,
+  isStandardSchema,
   validateWithStandardSchema,
 } from '@tanstack/ai'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
@@ -13,7 +14,7 @@ import { mediaMiddleware } from '../media'
 import { OperationImpl } from '../operation'
 import { mountPlugins } from '../plugins'
 import { holdRunLease, truncationMiddleware } from '../resume'
-import { HARNESS_EVENTS } from '../types'
+import { HARNESS_EVENTS, InputRejectedError } from '../types'
 import {
   createInputId,
   customEvent,
@@ -40,6 +41,7 @@ import {
   keepTurnTools,
 } from './helpers'
 import { SessionAgents } from './agents'
+import { ToolTurnAdapter } from '../tool-turn'
 import type {
   AnyChatMiddleware,
   AnyTextAdapter,
@@ -52,7 +54,7 @@ import type { AnyHarness } from '../define'
 import type { ModelErrorContext } from '../turn'
 import type { MountedPlugins } from '../plugins'
 import type {
-  InputSettlement,
+  SettlementOutcome,
   MediaRecord,
   Operation,
   Principal,
@@ -74,7 +76,11 @@ export abstract class SessionTurn<
   command(
     name: string,
     input?: unknown,
-    options?: { principal?: Principal },
+    options?: {
+      principal?: Principal
+      /** @internal The id of a forwarded input, so a replay is a duplicate. */
+      inputId?: string
+    },
   ): Operation<unknown> {
     const operation = new OperationImpl<unknown>(
       'command',
@@ -84,7 +90,8 @@ export abstract class SessionTurn<
     this.track(operation)
     const principal = options?.principal ?? this.principal
     // A store write that throws (the inbox, the log) still ends the command.
-    this.executeCommand(operation, name, input, principal).catch(
+    const inputId = options?.inputId ?? createInputId()
+    this.executeCommand(operation, name, input, principal, inputId).catch(
       (error: unknown) => this.failOperation(operation, error),
     )
     return operation
@@ -95,11 +102,25 @@ export abstract class SessionTurn<
     name: string,
     input: unknown,
     principal: Principal | undefined,
+    inputId: string,
   ): Promise<void> {
-    const inputId = createInputId()
     // The log keeps the input for replay, so a command must not take a secret
     // as its input. Ask a `secret` question instead.
-    await this.accept(inputId, { op: 'command', name, input }, principal)
+    const admission = await this.accept(
+      inputId,
+      { op: 'command', name, input },
+      principal,
+    )
+    // The owner runs it, or it ran before. Its result is in the events.
+    if (admission !== 'new') {
+      const receipt = this.duplicateReceipt(inputId, admission)
+      if (receipt.status === 'rejected') {
+        operation.fail('failed', new InputRejectedError(receipt))
+      } else {
+        operation.finish('completed', undefined)
+      }
+      return
+    }
     const entry = this.sessionPlugins?.commands.get(name)
     if (!entry) {
       this.reject(inputId, 'unknown_command')
@@ -107,7 +128,11 @@ export abstract class SessionTurn<
       return
     }
     let checked: unknown = input
-    if (entry.command.input !== undefined) {
+    // A JSON Schema input runs unchecked, as a JSON Schema tool input does in
+    // core. A Standard Schema input is validated and its parsed value runs.
+    // A bare `/name` sends no input: an object schema with only optional
+    // fields accepts `{}`.
+    if (isStandardSchema(entry.command.input)) {
       const result = await validateWithStandardSchema(
         entry.command.input,
         input ?? {},
@@ -140,17 +165,33 @@ export abstract class SessionTurn<
           result: compactForModel(result),
         }),
       )
+      // The command ran: a failed settle append is reported, not a failure.
+      await this.settle({
+        inputId,
+        operationId: operation.id,
+        outcome: 'completed',
+      }).catch((failure: unknown) =>
+        this.warnSession('harness:commands', failure),
+      )
       operation.finish('completed', result)
     } catch (error) {
+      const message = this.scrub(errorText(error))
       operation.publish({
         type: EventType.RUN_ERROR,
-        message: this.scrub(errorText(error)),
+        message,
         timestamp: Date.now(),
       })
-      operation.fail(
-        operation.abortController.signal.aborted ? 'cancelled' : 'failed',
-        error,
+      const cancelled = operation.abortController.signal.aborted
+      await this.settle({
+        inputId,
+        operationId: operation.id,
+        ...(cancelled
+          ? { outcome: 'aborted' }
+          : { outcome: 'failed', error: { message } }),
+      }).catch((failure: unknown) =>
+        this.warnSession('harness:commands', failure),
       )
+      operation.fail(cancelled ? 'cancelled' : 'failed', error)
     }
     this.publishFinished(operation)
   }
@@ -225,9 +266,8 @@ export abstract class SessionTurn<
       await this.settle({
         inputId,
         operationId: operation.id,
-        outcome: error ? 'failed' : 'completed',
-        ...(error ? { error } : {}),
-      }).catch(() => {})
+        ...(error ? { outcome: 'failed', error } : { outcome: 'completed' }),
+      }).catch((failure: unknown) => this.warnSession('harness:log', failure))
     }
     if (error) operation.fail('failed', new Error(error.message))
     else operation.finish('completed', { text: '', media: [] })
@@ -256,7 +296,7 @@ export abstract class SessionTurn<
           operationId: operation.id,
           outcome: 'failed',
           error: { message },
-        }).catch(() => {})
+        }).catch((failure: unknown) => this.warnSession('harness:log', failure))
       }
       operation.fail('failed', failure)
       this.publishFinished(operation)
@@ -411,8 +451,9 @@ export abstract class SessionTurn<
         stored.model === undefined
           ? undefined
           : this.harness.models?.[stored.model]
-      const model =
-        overrides?.adapter ?? named ?? picked ?? this.harness.adapter
+      const model = turn.tool
+        ? new ToolTurnAdapter(turn.tool, `tool-${turn.inputId ?? operation.id}`)
+        : (overrides?.adapter ?? named ?? picked ?? this.harness.adapter)
       if (!model) throw new Error(NO_MODEL)
       const adapter: AnyTextAdapter = await this.keys.adapter(model)
       const resolvePrompt = (prompt: string | (() => string)) =>
@@ -481,7 +522,12 @@ export abstract class SessionTurn<
       // A new turn asks the router once. A resolve does not: it continues the
       // turn it answers, the main model or the saved plan of the root agents.
       let pick: SubagentRouterPick | undefined
-      if (routing && rootAgents.length > 0 && turn.resume === undefined) {
+      if (
+        routing &&
+        rootAgents.length > 0 &&
+        turn.resume === undefined &&
+        !turn.tool
+      ) {
         const history = await this.messages.loadThread(this.threadId)
         pick = await routing.router({
           messages: resetContext([...history, ...(message ? [message] : [])]),
@@ -591,6 +637,9 @@ export abstract class SessionTurn<
             adapter,
             messages: routedFrom ?? turnMessages,
             systemPrompts: [
+              // Per-run preamble (e.g. pod memory) comes first, ahead of the
+              // harness's own system prompts.
+              ...(turn.systemPreamble ?? []),
               ...(this.harness.systemPrompts ?? []),
               ...[...(session?.prompts ?? []), ...(runPlugins?.prompts ?? [])]
                 .map(resolvePrompt)
@@ -621,7 +670,7 @@ export abstract class SessionTurn<
               ...(runPlugins?.middleware ?? []),
               ...(keepTools ? [keepTools] : []),
               ...(durableTools ? [durableTools] : []),
-              this.detachTools(),
+              this.detachTools(operation.id),
               ...(rootBag ? [] : [this.syncFold()]),
               // Again: a middleware that returns `messages` (as `syncFold`
               // does) resets what the model gets to the whole transcript.
@@ -641,7 +690,9 @@ export abstract class SessionTurn<
                 ),
                 transcribe: this.harness.media?.transcribe,
               }),
-            ],
+              // The registry types of the harness interrupts do not line up
+              // with the middleware tuple chat() infers. Only this field.
+            ] as never,
             ...(bag
               ? {
                   subagents: {
@@ -667,7 +718,8 @@ export abstract class SessionTurn<
             ...(this.harness.interrupts
               ? { interrupts: this.harness.interrupts }
               : {}),
-            ...(context !== undefined ? { context } : {}),
+            // The context type narrows per harness; chat() wants it exact.
+            ...(context !== undefined ? { context: context as never } : {}),
             ...(reasoning !== undefined ? { reasoning } : {}),
             promptCache,
             threadId: this.threadId,
@@ -676,7 +728,7 @@ export abstract class SessionTurn<
             ...(resume ? { resume } : {}),
             abortController: operation.abortController,
             stream: true,
-          } as never) as AsyncIterable<StreamChunk>
+          }) as AsyncIterable<StreamChunk>
 
           routedFrom = undefined
           for await (const raw of stream) {
@@ -981,9 +1033,7 @@ export abstract class SessionTurn<
       ...this.joinedInputs(operation.id, inputId),
     ]
     this.turnJoins.delete(operation.id)
-    const settleTurn = async (
-      settlement: Omit<InputSettlement, 'inputId' | 'operationId'>,
-    ) => {
+    const settleTurn = async (settlement: SettlementOutcome) => {
       if (settled.length > 0 && !this.logFailure) {
         await this.settle(
           ...settled.map((id) => ({

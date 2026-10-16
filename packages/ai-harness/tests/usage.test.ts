@@ -100,7 +100,7 @@ describe('session usage totals', () => {
     )
     const events = await readEvents(session)
 
-    const turn = session.prompt('Find it.')
+    const turn = session.send('Find it.')
     await turn
 
     const usage = session.usage()
@@ -142,8 +142,8 @@ describe('session usage totals', () => {
       { threadId: THREAD, principal: alice },
     )
 
-    await session.prompt('Hi.')
-    await session.prompt('Hello.', { principal: bob })
+    await session.send('Hi.')
+    await session.send('Hello.', { principal: bob })
 
     const usage = session.usage()
     expect(usage.total).toEqual({
@@ -191,7 +191,7 @@ describe('session usage totals', () => {
       { threadId: THREAD, principal: alice },
     )
 
-    expect((await session.prompt('Get help.')).text).toBe('lead done')
+    expect((await session.send('Get help.')).text).toBe('lead done')
     expect(await session.agent('worker')?.start()).toBe('worked')
 
     const usage = session.usage()
@@ -217,7 +217,7 @@ describe('usage totals after a restart', () => {
       threadId: THREAD,
       principal: alice,
     })
-    await session.prompt('Find it.')
+    await session.send('Find it.')
     const before = session.usage()
     await host.close()
 
@@ -245,7 +245,7 @@ describe('usage totals after a restart', () => {
     const session = await host.open(harness(first.adapter), {
       threadId: THREAD,
     })
-    await session.prompt('Find it.')
+    await session.send('Find it.')
     await host.close()
 
     const next = createHarnessHost({ persistence })

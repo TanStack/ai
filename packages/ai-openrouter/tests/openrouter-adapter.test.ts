@@ -1772,6 +1772,79 @@ describe('OpenRouter structured output', () => {
     expect(rawParams.chatRequest.stream).toBe(true)
   })
 
+  it('sends json_object and the schema prompt for a response-format-only model', async () => {
+    setupMockSdkClient([
+      {
+        id: 'c-auto',
+        model: 'qwen/qwen3.7-flash',
+        choices: [
+          {
+            delta: { content: '{"name":"Alice","age":30}' },
+            finishReason: 'stop',
+          },
+        ],
+      },
+    ])
+    const adapter = createOpenRouterText('qwen/qwen3.7-flash', 'test-key')
+
+    const result = await chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Give me a person as json' }],
+      outputSchema: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          age: { type: 'number' },
+        },
+        required: ['name', 'age'],
+      },
+    })
+
+    expect(result).toEqual({ name: 'Alice', age: 30 })
+    const structuredCall = mockSend.mock.calls.find(
+      ([args]: Array<any>) => args.chatRequest.responseFormat,
+    )
+    expect(structuredCall?.[0].chatRequest.responseFormat).toEqual({
+      type: 'json_object',
+    })
+    expect(structuredCall?.[0].chatRequest.messages[0]).toEqual({
+      role: 'system',
+      content: expect.stringContaining('"required":["name","age"]'),
+    })
+  })
+
+  it('keeps json_schema on a strict structured-output model', async () => {
+    setupMockSdkClient([
+      {
+        id: 'c-strict',
+        model: 'openai/gpt-4o-mini',
+        choices: [
+          {
+            delta: { content: '{"name":"Alice","age":30}' },
+            finishReason: 'stop',
+          },
+        ],
+      },
+    ])
+    const adapter = createAdapter()
+
+    await chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Give me a person as json' }],
+      outputSchema: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          age: { type: 'number' },
+        },
+        required: ['name', 'age'],
+      },
+    })
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    expect(rawParams.chatRequest.responseFormat.type).toBe('json_schema')
+  })
+
   it('respects includeUsage false for structured output streams', async () => {
     setupMockSdkClient([
       {

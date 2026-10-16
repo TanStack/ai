@@ -11,7 +11,6 @@ export class ResourceScope {
   private readonly controller = new AbortController()
   readonly signal: AbortSignal = this.controller.signal
   private readonly closers: Array<() => unknown> = []
-  private readonly pending = new Set<Promise<void>>()
   private closing?: Promise<void>
   private closed = false
 
@@ -20,23 +19,13 @@ export class ResourceScope {
     close: (resource: T) => unknown,
   ): Promise<T> {
     this.signal.throwIfAborted()
-    let release!: () => void
-    const pending = new Promise<void>((resolve) => {
-      release = resolve
-    })
-    this.pending.add(pending)
-    try {
-      const resource = await open()
-      if (this.closed) {
-        await close(resource)
-        throw this.signal.reason
-      }
-      this.closers.push(() => close(resource))
-      return resource
-    } finally {
-      this.pending.delete(pending)
-      release()
+    const resource = await open()
+    if (this.closed) {
+      await close(resource)
+      throw this.signal.reason
     }
+    this.closers.push(() => close(resource))
+    return resource
   }
 
   dispose(): Promise<void> {
@@ -44,8 +33,9 @@ export class ResourceScope {
     this.closed = true
     this.controller.abort(new Error('Resource scope disposed'))
     // Defer, so a closer that calls dispose() again gets the same promise.
+    // An `open` still running is not awaited: `acquire` closes its resource
+    // when it arrives, so an `open` that ignores `signal` cannot hang this.
     this.closing = Promise.resolve().then(async () => {
-      await Promise.all(this.pending)
       const errors: Array<unknown> = []
       for (const close of this.closers.reverse()) {
         try {

@@ -79,7 +79,7 @@ describe.each([
       tools: [remove.tool],
       replies: [() => toolCall('remove', { path: 'b.txt' }, 'call_m')],
     })
-    const stopped = await first.session.prompt('clean up')
+    const stopped = await first.session.send('clean up')
     const interrupt = stopped.interrupts?.[0]
     if (!interrupt) throw new Error('The turn did not stop for approval.')
     await first.host.close()
@@ -112,7 +112,7 @@ describe.each([
         tools: [remove.tool],
         replies: [() => toolCall('remove', { path: 'b.txt' }, 'call_m')],
       })
-      const stopped = await first.session.prompt('clean up')
+      const stopped = await first.session.send('clean up')
       const interrupt = stopped.interrupts?.[0]
       if (!interrupt) throw new Error('The turn did not stop for approval.')
       const valid = {
@@ -174,7 +174,7 @@ describe.each([
         () => text('Removed b.txt'),
       ],
     })
-    const stopped = await first.session.prompt('clean up')
+    const stopped = await first.session.send('clean up')
     const interrupt = stopped.interrupts?.[0]
     if (!interrupt) throw new Error('The turn did not stop for approval.')
     const receipt = await first.session.resolve([
@@ -200,7 +200,7 @@ describe.each([
     const cleaner = cleanerAgent(remove.tool)
     const subagents = { agents: [cleaner], router: () => 'cleaner' }
     const first = await open({ subagents })
-    const stopped = await first.session.prompt('clean up')
+    const stopped = await first.session.send('clean up')
     const interrupt = stopped.interrupts?.[0]
     if (!interrupt) throw new Error('The turn did not stop for approval.')
     await first.host.close()
@@ -225,7 +225,7 @@ describe.each([
     const cleaner = cleanerAgent(remove.tool)
     const router = vi.fn(() => 'cleaner')
     const first = await open({ agents: [cleaner], routing: { router } })
-    const stopped = await first.session.prompt('clean up')
+    const stopped = await first.session.send('clean up')
     const interrupt = stopped.interrupts?.[0]
     if (!interrupt) throw new Error('The turn did not stop for approval.')
     await first.host.close()
@@ -275,7 +275,7 @@ describe.each([false, true])(
         })
         const host = createHarnessHost({ persistence })
         const session = await host.open(config, { threadId: THREAD })
-        const initial = await session.prompt('remove')
+        const initial = await session.send('remove')
         const approval = initial.interrupts?.[0]
         if (!approval) throw new Error('The turn did not stop for approval.')
         const records = await stores.interrupts.listPending(THREAD)
@@ -471,7 +471,7 @@ describe.each([false, true])(
         })
         const host = createHarnessHost({ persistence })
         const session = await host.open(config, { threadId: THREAD })
-        const initial = await session.prompt('remove')
+        const initial = await session.send('remove')
         const approval = initial.interrupts?.[0]
         if (!approval) throw new Error('The turn did not stop for approval.')
         const hold = gate()
@@ -554,7 +554,7 @@ describe.each([false, true])(
         })
         const host = createHarnessHost({ persistence })
         const session = await host.open(config, { threadId: THREAD })
-        const initial = await session.prompt('remove')
+        const initial = await session.send('remove')
         const approval = initial.interrupts?.[0]
         if (!approval) throw new Error('The turn did not stop for approval.')
         const append = log.append.bind(log)
@@ -747,7 +747,7 @@ describe.each([false, true])(
       })
       const host = createHarnessHost({ persistence })
       const session = await host.open(config, { threadId: THREAD })
-      const initial = await session.prompt('remove')
+      const initial = await session.send('remove')
       const approval = initial.interrupts?.[0]
       if (!approval) throw new Error('The turn did not stop for approval.')
       await stores.interrupts.create({

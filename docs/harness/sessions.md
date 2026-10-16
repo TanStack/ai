@@ -39,7 +39,7 @@ const session = await host.open(assistant, {
   threadId: 'chat-1',
   principal: { id: 'ada' },
 })
-await session.prompt('Plan a trip to Lisbon.')
+await session.send('Plan a trip to Lisbon.')
 console.log((await host.sessions.get('chat-1'))?.principal) // { id: 'ada' }
 ```
 
@@ -116,12 +116,12 @@ const forked = await host.sessions.fork({
   at: { before: first.id },
 })
 const fork = await host.open(assistant, { threadId: forked.threadId })
-await fork.prompt('Plan a trip to Porto.')
+await fork.send('Plan a trip to Porto.')
 ```
 
 - `at: { through: id }` copies the messages up to and including `id`.
 - `at: { before: id }` copies the messages before `id`. A fork before the first message has no messages, but it keeps the settings.
-- The host picks the new thread id. The new entry has the title of the old one plus ` (fork)`, and the same owner.
+- The host picks the new thread id. The new entry has the title of the old one plus ` (fork)`, and the same owner. A thread without a title gives a fork without a title.
 - If the transcript has no message with that id, `fork` throws.
 - If the index entry of the thread names another harness, `fork` throws. One host can run more than one harness.
 
@@ -141,10 +141,10 @@ await session.unrevert()
 ```
 
 - While a revert stands, `transcript()` hides the messages after that message. The session keeps them.
-- The next prompt drops the hidden messages for good.
+- The next turn drops the hidden messages for good. A steer, a follow-up, and `continue` are turns too.
 - The session saves the revert in the log, or in `stores.metadata` on a host without a log. A restart keeps it.
 - Each change sends a `harness.revert` event. Read the transcript again when it arrives.
-- `revert` refuses with `busy` when the session is not idle. It refuses with `unknown_message` for an id that is not in the transcript.
+- `revert` and `unrevert` refuse with `busy` when the session is not idle, or when another host runs the thread. `revert` refuses with `unknown_message` for an id that is not in the transcript.
 
 ## Rename and remove a session
 

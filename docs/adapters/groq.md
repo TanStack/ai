@@ -291,6 +291,10 @@ Creates a Groq summarization adapter with an explicit API key.
 
 Creates a Groq transcription (speech-to-text) adapter. The short form reads `GROQ_API_KEY` from the environment; the `create*` form takes an explicit API key. Supported models: `whisper-large-v3-turbo`, `whisper-large-v3`.
 
+## Structured output
+
+Some Groq models, for example `llama-3.3-70b-versatile`, reject strict JSON schema. For these models, `chat({ outputSchema })` sends `json_object` and adds your schema to the system prompt. Read [When strict JSON schema is rejected](../structured-outputs/overview.md#when-strict-json-schema-is-rejected).
+
 ## Limitations
 
 - **Text-to-Speech**: Groq does not currently expose a TTS adapter. Use OpenAI, Gemini, ElevenLabs, or fal for speech generation.

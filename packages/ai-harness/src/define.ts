@@ -4,6 +4,7 @@ import type {
   AnyChatMiddleware,
   AnyTextAdapter,
   AnyTool,
+  InferToolInput,
   InterruptDefinition,
   KeyedAdapter,
   ModelMessage,
@@ -154,6 +155,7 @@ export interface HarnessConfig<
   TAgents extends ReadonlyArray<AnyAgent> = ReadonlyArray<AnyAgent>,
   TSubagents extends ReadonlyArray<AnyAgent> = ReadonlyArray<AnyAgent>,
   TMetadataSchema = undefined,
+  TTools extends ReadonlyArray<AnyTool> = ReadonlyArray<AnyTool>,
 > {
   /** A stable name, for example `'acme/studio'`. */
   name: string
@@ -174,7 +176,7 @@ export interface HarnessConfig<
    */
   models?: Record<string, AnyTextAdapter | KeyedAdapter<AnyTextAdapter>>
   systemPrompts?: Array<SystemPrompt>
-  tools?: ReadonlyArray<AnyTool>
+  tools?: TTools
   middleware?: ReadonlyArray<AnyChatMiddleware>
   /**
    * When a turn stops calling the model. Defaults to `maxIterations(50)`.
@@ -267,7 +269,7 @@ export interface HarnessConfig<
     settings?: ReadonlyArray<keyof ThreadSettings>
     /**
      * The plugin config keys a client may set with a `config` input, for
-     * example `client.setConfig('model', 'fast')`. An input with any other
+     * example `client.setConfig({ key: 'model', value: 'fast' })`. An input with any other
      * key is refused with `not_exposed`. Server code that calls
      * `session.setConfig()` can set every key. Warning: `mode` of
      * `permissions()` lets a client turn approvals off with `bypass`. Keep
@@ -284,6 +286,22 @@ export interface HarnessConfig<
      * opens, so `defineHarness` does not check these names.
      */
     commands?: ReadonlyArray<string>
+    /**
+     * The harness `tools` a client may run with a `tool` input, with no model
+     * turn, for example from a schedule or a webhook. An input for any other
+     * tool is refused with `not_exposed`. The call goes through the same
+     * middleware, input check, and `permissions()` rules as a model call.
+     */
+    tools?: ReadonlyArray<TTools[number]['name']>
+    /**
+     * The host record types a client may add with an `append` input, for
+     * example a webhook that adds `{ type: 'app.signal', text }`. An input
+     * with any other type, or with a `thread` field, is refused with
+     * `not_exposed`. Server code that calls `session.append()` can add every
+     * type. Only a durable host (with `stores.log`) keeps records, and its
+     * `project` decides what the model sees of them.
+     */
+    records?: ReadonlyArray<string>
   }
 }
 
@@ -295,13 +313,22 @@ export type HarnessDefinition<
   TAgents extends ReadonlyArray<AnyAgent> = ReadonlyArray<AnyAgent>,
   TSubagents extends ReadonlyArray<AnyAgent> = ReadonlyArray<AnyAgent>,
   TMetadataSchema = undefined,
-> = Readonly<HarnessConfig<TAdapter, TAgents, TSubagents, TMetadataSchema>> & {
+  TTools extends ReadonlyArray<AnyTool> = ReadonlyArray<AnyTool>,
+> = Readonly<
+  HarnessConfig<TAdapter, TAgents, TSubagents, TMetadataSchema, TTools>
+> & {
   readonly kind: typeof HARNESS_KIND
   readonly version: 1
 }
 
 /** A harness definition with any type parameters. */
-export type AnyHarness = HarnessDefinition<any, any, any, any>
+export type AnyHarness = HarnessDefinition<
+  any,
+  any,
+  any,
+  any,
+  ReadonlyArray<AnyTool>
+>
 
 /** A session whose harness has the metadata schema `TMetadataSchema`. */
 export type SessionWithMetadata<TMetadataSchema> = HarnessSession<
@@ -319,6 +346,22 @@ export type HarnessAgentsOf<THarness> =
   THarness extends HarnessDefinition<any, infer TAgents, infer TSubagents, any>
     ? TAgents[number] | TSubagents[number]
     : never
+
+/** The `tools` of a harness, as a union. */
+export type HarnessToolsOf<THarness> =
+  THarness extends HarnessDefinition<any, any, any, any, infer TTools>
+    ? TTools[number]
+    : never
+
+/**
+ * The input of the harness tool `TName`, from its input schema. `unknown`
+ * for a tool that is not in `tools`, for example a plugin tool.
+ */
+export type HarnessToolInput<THarness, TName> = [
+  Extract<HarnessToolsOf<THarness>, { name: TName }>,
+] extends [never]
+  ? unknown
+  : InferToolInput<Extract<HarnessToolsOf<THarness>, { name: TName }>>
 
 /** True for a value made with `defineHarness`. */
 export function isHarnessDefinition(value: unknown): value is AnyHarness {
@@ -349,9 +392,10 @@ export function defineHarness<
   const TAgents extends ReadonlyArray<AnyAgent> = readonly [],
   const TSubagents extends ReadonlyArray<AnyAgent> = readonly [],
   TMetadataSchema extends SchemaInput | undefined = undefined,
+  const TTools extends ReadonlyArray<AnyTool> = readonly [],
 >(
-  config: HarnessConfig<TAdapter, TAgents, TSubagents, TMetadataSchema>,
-): HarnessDefinition<TAdapter, TAgents, TSubagents, TMetadataSchema> {
+  config: HarnessConfig<TAdapter, TAgents, TSubagents, TMetadataSchema, TTools>,
+): HarnessDefinition<TAdapter, TAgents, TSubagents, TMetadataSchema, TTools> {
   if (config.name.trim() === '') {
     throw new Error('defineHarness requires a non-empty name')
   }
@@ -373,6 +417,21 @@ export function defineHarness<
     if (!byName.has(name)) {
       throw new Error(
         `defineHarness "${config.name}": expose.agents names "${name}", which is not a registered agent.`,
+      )
+    }
+  }
+  const toolNames = new Set((config.tools ?? []).map((tool) => tool.name))
+  for (const name of config.expose?.tools ?? []) {
+    if (!toolNames.has(name)) {
+      throw new Error(
+        `defineHarness "${config.name}": expose.tools names "${name}", which is not in tools.`,
+      )
+    }
+  }
+  for (const type of config.expose?.records ?? []) {
+    if (type.startsWith('harness.')) {
+      throw new Error(
+        `defineHarness "${config.name}": expose.records names "${type}", but the harness owns the record types that start with "harness.".`,
       )
     }
   }

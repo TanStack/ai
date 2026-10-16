@@ -37,7 +37,7 @@ const scan = await session.putMedia(await readFile('./receipt.png'), {
   mimeType: 'image/png',
   name: 'receipt.png',
 })
-const turn = await session.prompt([
+const turn = await session.send([
   { type: 'text', content: 'What is the total on this receipt?' },
   mediaPart(scan),
 ])
@@ -109,7 +109,7 @@ import { memoryPersistence } from '@tanstack/ai-persistence'
 const host = createHarnessHost({ persistence: memoryPersistence() })
 const session = await host.open(studio, { threadId: 'thread-1' })
 
-const turn = session.prompt('Draw a lighthouse at night.')
+const turn = session.send('Draw a lighthouse at night.')
 turn.onMedia(({ media }) => {
   console.log(`${media.kind} saved: ${media.name}`)
 })
@@ -119,6 +119,7 @@ console.log(`The turn made ${media.length} files.`)
 ```
 
 - `onMedia` also works on an agent run that you start from code with `session.agents`.
+- `session.onMedia` gets the files of every turn and agent run of the session.
 - Each file also sends a `harness.media` event (`HARNESS_EVENTS.media`) with the record as its value. Use it when you read the raw events.
 
 A media record has:
@@ -182,3 +183,5 @@ If a store is missing, the host keeps media in memory. `memoryPersistence()` has
 - Media from your agents, saved with no change to the agent code.
 - Limits, and a clear error when the model cannot read a file.
 - Media that stays after a restart.
+
+Next: show media in your own screen with [Build your own UI](./custom-ui#show-media).

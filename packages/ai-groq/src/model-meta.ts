@@ -336,6 +336,32 @@ const QWEN3_32B = {
   reasoning: EFFORT_NONE_DEFAULT,
 } as const satisfies ModelMeta<GroqTextProviderOptions>
 
+const GROQ_CHAT_MODEL_META = [
+  LLAMA_3_1_8B_INSTANT,
+  LLAMA_3_3_70B_VERSATILE,
+  LLAMA_4_MAVERICK_17B_128E_INSTRUCT,
+  LLAMA_4_SCOUT_17B_16E_INSTRUCT,
+  LLAMA_GUARD_4_12B,
+  LLAMA_PROMPT_GUARD_2_86M,
+  LLAMA_PROMPT_GUARD_2_22M,
+  GPT_OSS_20B,
+  GPT_OSS_120B,
+  GPT_OSS_SAFEGUARD_20B,
+  KIMI_K2_INSTRUCT_0905,
+  QWEN3_32B,
+] as const
+
+/**
+ * `true` when structured output must send JSON mode (`json_object`).
+ * The model declares `json_object` and does not declare `json_schema`.
+ */
+export function groqModelPrefersJsonObject(model: string): boolean {
+  const found = GROQ_CHAT_MODEL_META.find((item) => item.name === model)
+  if (!found) return false
+  const features: ReadonlyArray<string> = found.supports.features
+  return features.includes('json_object') && !features.includes('json_schema')
+}
+
 /**
  * All supported Groq chat model identifiers.
  */

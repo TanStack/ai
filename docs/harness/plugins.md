@@ -46,6 +46,8 @@ For agents and users:
 
 If two plugins add the same tool, command, setting, or prompt id, `host.open` fails and names both plugins.
 
+Return these from `setup`, not from the top level of `definePlugin`. A key like `adapter` or `tools` at the top level is a type error, and `definePlugin` throws for it. Other keys at the top level stay on the plugin object, so a plugin can give your code its own functions.
+
 ## Add commands and settings
 
 Commands are actions for the user, not the model: slash commands and buttons in your app. Settings are typed, saved per session, and apply at the next turn.
@@ -78,9 +80,9 @@ export const greeter = definePlugin({
 })
 ```
 
-- `session.command('greet', { name: 'Ada' })` runs the command. The input is checked against its schema.
+- `session.command('greet', { name: 'Ada' })` runs the command. A Standard Schema input (zod here) is checked, and the command gets the parsed value. A JSON Schema input is not checked, the same as a JSON Schema tool input.
 - `session.setConfig({ key: 'tone', value: 'warm' })` changes the setting. A value the option does not accept is rejected.
-- `ask` waits for `session.answer({ questionId, value })`. The question shows up in `session.snapshot().pendingQuestions`.
+- `ask` waits for `session.answer({ questionId, value })`. The question goes to `session.onQuestion` listeners, and it stays in `session.snapshot().pendingQuestions` until someone answers.
 
 ## Change commands while the session runs
 
@@ -101,7 +103,7 @@ export const macros = definePlugin({
             defineCommand({
               description: `Send: ${words.join(' ')}`,
               run: () => {
-                void ctx.session.prompt(words.join(' '))
+                void ctx.session.send(words.join(' '))
               },
             }),
           )
@@ -115,7 +117,7 @@ export const macros = definePlugin({
 
 - `ctx.commands.set(name, command)` adds a command of this plugin, or replaces it. A name that another plugin owns throws.
 - `ctx.commands.delete(name)` removes a command of this plugin. Another plugin's name does nothing.
-- Each change sends a `harness.commands.changed` event, so a client can read `session.commands()` again.
+- Each change sends a `harness.commands.changed` event, so a client can read `session.commands()` again. A [session view](./custom-ui) reads the new list by itself.
 - During `setup`, wait for `ctx.commands.ready` before you call `has` or `set`. The plugins after this one add their commands later, so a name can look free and still be taken.
 
 ```ts group=harness-plugins
@@ -166,7 +168,7 @@ export const helpers = definePlugin({
 
 ## Keep state
 
-`ctx.state(initial)` gives a plugin its own state, saved in the metadata store. Clients see each change as an AG-UI `STATE_SNAPSHOT` event.
+`ctx.state(initial)` gives a plugin its own state, saved in the metadata store. Without a metadata store, the state stays in memory, and a restart loses it. Clients see each change as an AG-UI `STATE_SNAPSHOT` event.
 
 ```ts group=harness-plugins
 export const counter = definePlugin({
@@ -250,8 +252,8 @@ The `turn` has these fields:
 | `operationId` | The id of the operation that runs the turn. |
 | `inputId` | The id of the input, when the turn has one. |
 | `message` | The user message of the input. `undefined` for a resolve and a continue. |
-| `context` | The `context` of the input. It is client data, so do not trust it. |
-| `principal` | Who sent the input. Default: the principal that opened the session. |
+| `context` | The [context of the input](./inputs#send-context-with-a-message). It is client data, so do not trust it. |
+| `principal` | Who sent the input. Default: the principal that opened the session. See [Share a thread](./shared-threads). |
 | `overrides` | The [overrides of the prompt](./turn-control#give-one-prompt-its-own-settings), when it has some. |
 
 The session uses the picks like this:
@@ -399,3 +401,5 @@ If a `setup` throws, the session keeps working with no plugins. The promise reje
 - A picker that chooses the model of each turn from its message, context, and sender.
 - Plugins that share services, lists, and events without knowing each other.
 - Commands, agents, and whole plugins that change while the session runs.
+
+Next: add the first-party plugins from `@tanstack/ai-harness/plugins`. [Ask before risky tool calls](./permissions) and [Switch between agent profiles](./agents) are two of them.

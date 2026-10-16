@@ -17,7 +17,6 @@ there is no separate enable list.
 | `artifacts` | File metadata. Needs `blobs`. | `withGenerationPersistence`, portable snapshots |
 | `blobs` | File bytes. Needs `artifacts`. | `withGenerationPersistence`, portable snapshots |
 | `inbox` | Inputs a host accepted, one entry per input id. | Your host code |
-| `credentials` | API keys and OAuth tokens by scope and id. | Your host code |
 | `log` | Append-only session log per thread. | Your host code |
 | `leases` | Turn leases from a system that already has them. | Your host code |
 | `workClaims` | Claims on threads that have pending work. | Your host code |
@@ -610,7 +609,7 @@ Write the input to the inbox before you answer the client. `InboxStore` keeps on
 entry per `inputId`.
 
 ```ts
-type InboxStatus = 'pending' | 'applied' | 'rejected' | 'expired'
+type InboxStatus = 'pending' | 'applied' | 'rejected'
 
 interface InboxEntry {
   inputId: string // the idempotency key
@@ -627,9 +626,10 @@ interface InboxEntry {
 interface InboxStore {
   append(entry: Omit<InboxEntry, 'status'>): Promise<InboxEntry>
   listPending(threadId: string): Promise<Array<InboxEntry>>
-  markApplied(entry: { inputId: string; operationId: string }): Promise<void>
-  markRejected(entry: { inputId: string; reason: string }): Promise<void>
-  get(inputId: string): Promise<InboxEntry | null>
+  markApplied(entry: { threadId: string; inputId: string; operationId: string }): Promise<void>
+  markRejected(entry: { threadId: string; inputId: string; reason: string }): Promise<void>
+  get(entry: { threadId: string; inputId: string }): Promise<InboxEntry | null>
+  delete(entry: { threadId: string; inputId: string }): Promise<void>
 }
 ```
 
@@ -640,55 +640,13 @@ Rules for an implementation:
   stored, it returns the stored entry and ignores the new payload.
 - `listPending` returns the pending entries of one thread, oldest `createdAt` first.
 - `markApplied` and `markRejected` do nothing for an unknown `inputId`.
-- `get` returns `null` for an unknown `inputId`.
+- `get` returns `null` for an unknown `inputId`, and for an `inputId` of another
+  thread.
+- `delete` removes the entry. It does nothing for an unknown `inputId`, or for
+  an `inputId` of another thread.
 
 In SQL, make `input_id` the primary key and write with `INSERT ... ON CONFLICT DO
 NOTHING`, then read the row back.
-
-## CredentialStore
-
-Your users connect their own accounts: an API key, or the OAuth tokens of a sign-in.
-`CredentialStore` keeps each secret by scope and by an id that you choose, for example
-`'github'`.
-
-```ts
-import type { Scope } from '@tanstack/ai-persistence'
-
-type Credential =
-  | { type: 'api_key'; value: string }
-  | {
-      type: 'oauth'
-      accessToken: string
-      refreshToken?: string
-      expiresAt?: number // epoch ms
-      scopes?: Array<string>
-      client?: {
-        clientId: string
-        clientSecret?: string
-        redirectUri?: string
-        issuer?: string
-      }
-    }
-
-interface CredentialStore {
-  get(key: { scope: Scope; id: string }): Promise<Credential | null>
-  set(entry: { scope: Scope; id: string; credential: Credential }): Promise<void>
-  delete(key: { scope: Scope; id: string }): Promise<void>
-  list(
-    scope: Scope,
-  ): Promise<Array<{ id: string; type: Credential['type']; expiresAt?: number }>>
-}
-```
-
-Rules for an implementation:
-
-- Key each credential by `scope.tenantId`, `scope.userId`, and `id`. Do not use
-  `scope.threadId`. A credential saved without `scope.userId` belongs to the tenant.
-- A user credential is not visible at the tenant scope, and a tenant credential is
-  not visible at the user scope.
-- `list` returns ids and types only. It never returns a secret value.
-- `client` is the OAuth client that the tokens belong to. A token refresh needs it.
-- Encrypt the secrets at rest.
 
 ## LogStore
 
@@ -805,7 +763,7 @@ Rules for an implementation:
 - `renew` and `release` for a lease you do not hold can do nothing.
 - Key a lease by input id and attempt. Two attempts of one input are two leases.
 
-This store keeps leases in a `Map`:
+`memoryLeaseStore()` is the reference store. It is not part of `memoryPersistence()`, so add it yourself. This store does the same with a `Map`:
 
 ```ts
 import type {
@@ -855,6 +813,7 @@ interface WorkClaimStore {
     until: number // epoch ms
   }): Promise<boolean>
   release(claim: { threadId: string; ownerId: string }): Promise<void>
+  get(threadId: string): Promise<{ ownerId: string; until: number } | null>
   listExpired(options: {
     now: number // epoch ms
     limit?: number
@@ -870,6 +829,8 @@ Rules for an implementation:
 - `claim` returns `false` while another owner holds a claim that has not expired.
 - `release` removes the claim only for its owner. For another `ownerId`, it does
   nothing.
+- `get` returns the owner and the `until` of the claim, or `null` when no one holds
+  the thread. It can return a claim that expired.
 - `listExpired` returns the claims that expired before `now`, oldest first, at most
   `limit`. Without `limit`, it returns all of them.
 
@@ -996,9 +957,9 @@ Rules for `getVersioned` and `upsertIf`:
 
 - `getVersioned` returns the entry and its revision, or `undefined` for an unknown
   thread. The format of the revision is yours.
-- Each write gives the entry a new revision: `upsert` and `upsertIf` both. After
-  `delete`, the next write gets a new revision. The deleted revision is never used
-  again.
+- A write that changes the entry gives it a new revision: `upsert` and `upsertIf`
+  both. A revision can be a hash of the content (an ETag of S3 or Netlify Blobs).
+  Then the same entry, written again after a `delete`, gets the same revision back.
 - `upsertIf` writes only when the current revision is `expectedRevision`, and returns
   `{ ok: true, revision }`. Pass `null` to write only when the thread has no entry.
 - On any other revision, `upsertIf` writes nothing and returns
@@ -1016,7 +977,7 @@ last entry of a page.
 
 ### Check the session stores with the conformance suite
 
-`runPersistenceConformance` runs the cases of `credentials`, `inbox`, `workClaims`,
+`runPersistenceConformance` runs the cases of `inbox`, `workClaims`,
 `log`, and `sessions` when your persistence has that store. A persistence without one
 needs no `skip` entry for it. The compare-and-set cases run only when `sessions` has
 `getVersioned` and `upsertIf`.
@@ -1100,11 +1061,11 @@ erDiagram
 
 ## Typing an adapter
 
-Each store except `leases` has a `define*Store` helper (`defineMessageStore`,
+Each store has a `define*Store` helper (`defineMessageStore`,
 `defineRunStore`, `defineInterruptStore`, `defineMetadataStore`,
 `defineActivityStore`, `defineGenerationRunStore`, `defineArtifactStore`,
-`defineBlobStore`, `defineInboxStore`, `defineCredentialStore`, `defineLogStore`,
-`defineWorkClaimStore`, `defineSessionIndexStore`). They compose into `defineAIPersistence`, which tracks
+`defineBlobStore`, `defineInboxStore`, `defineLogStore`,
+`defineWorkClaimStore`, `defineSessionIndexStore`, `defineLeaseStore`). They compose into `defineAIPersistence`, which tracks
 exact presence: the stores you passed autocomplete on `persistence.stores`, and
 reading one you did not pass is a compile error.
 

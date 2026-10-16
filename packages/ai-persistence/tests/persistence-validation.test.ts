@@ -105,13 +105,12 @@ describe('persistence store dependency validation', () => {
       release: async () => {},
       isAlive: async () => false,
     }
-    const { inbox, credentials, workClaims, sessions } =
-      memoryPersistence().stores
+    const { inbox, workClaims, sessions } = memoryPersistence().stores
     const log = memoryLogStore()
 
     expect(() =>
       defineAIPersistence({
-        stores: { inbox, credentials, log, leases, workClaims, sessions },
+        stores: { inbox, log, leases, workClaims, sessions },
       }),
     ).not.toThrow()
   })

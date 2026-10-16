@@ -2,7 +2,7 @@
 title: Track usage and cost
 id: harness-usage
 order: 7
-description: "Read the tokens and the cost of a thread, in total, by model, and by sender. Show a live total, and stop a person who is over budget."
+description: "Read the tokens and the cost of a thread, in total, by model, and by sender. Show a live total, stop a person who is over budget, and add /usage with your own prices."
 keywords:
   - tanstack ai
   - harness
@@ -17,7 +17,7 @@ Your app bills each person for what they use, or stops a thread that costs too m
 ## Read the totals
 
 ```ts group=harness-usage
-import { HARNESS_EVENTS, createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { openaiText } from '@tanstack/ai-openai'
 
@@ -32,7 +32,7 @@ const session = await host.open(assistant, {
   principal: { id: 'ada' },
 })
 
-await session.prompt('Summarize the open tickets.')
+await session.send('Summarize the open tickets.')
 
 const { total, byModel, bySender } = session.usage()
 console.log(total.calls, total.totalTokens, total.cost)
@@ -55,7 +55,7 @@ At the end of each call, the provider reports its usage. These calls count:
 - The subagents that a turn starts, for the same sender.
 - Background agents, for the person who started the agent.
 
-A call that fails before it ends does not count. Each message runs as its sender, so in a thread that several people use, `bySender` shows what each person used.
+A call that fails before it ends does not count. Each message runs as its sender, so in a [shared thread](./shared-threads), `bySender` shows what each person used.
 
 ## Where the totals live
 
@@ -69,20 +69,18 @@ A [fork of a thread](./fork-and-reset) starts at zero.
 
 ## Show a live total
 
-Want a token counter that ticks up while the chat runs? Each model call sends a `harness.usage` event (`HARNESS_EVENTS.usage`) on the operation that made the call. Listen for it, then read the new totals:
+Want a token counter that ticks up while the chat runs? `session.onUsage` calls you after each model call, with the new thread totals:
 
 ```ts group=harness-usage
-const stopCounting = session.onEvent('CUSTOM', ({ event }) => {
-  if (event.name === HARNESS_EVENTS.usage) {
-    console.log(`Tokens so far: ${session.usage().total.totalTokens}`)
-  }
+const stopCounting = session.onUsage(({ total }) => {
+  console.log(`Tokens so far: ${total.totalTokens}`)
 })
 
 // When the counter goes away:
 stopCounting()
 ```
 
-The event value has the `model`, the `sender` when it is known, the `usage` of the call, and the new thread `total`.
+You also get the `model`, the `sender` when it is known, and the `usage` of that one call. Reading raw events? Each call is a `harness.usage` event (`HARNESS_EVENTS.usage`).
 
 ## Stop a person who is over budget
 
@@ -97,7 +95,7 @@ export async function send(threadId: string, userId: string, text: string) {
   if (spent >= BUDGET_USD) {
     return { error: 'You used your budget for this thread.' }
   }
-  return thread.prompt(text, { principal: { id: userId } }).receipt
+  return thread.send(text, { principal: { id: userId } }).receipt
 }
 ```
 
@@ -116,6 +114,56 @@ for (const entry of page.entries) {
 
 A background agent can end after the turn. Then the index entry counts its tokens at the end of the next turn.
 
+## Show usage and price the calls
+
+Many providers report no cost, so `cost` stays empty. The `usage()` plugin adds a `/usage` command, and can price those calls with your own price list:
+
+```ts group=harness-usage
+import { usage } from '@tanstack/ai-harness/plugins'
+
+// USD per 1M tokens, by model id.
+const prices: Record<string, { input: number; output: number; cacheRead?: number }> = {
+  'gpt-6.1-sol': { input: 2, output: 8, cacheRead: 0.2 },
+}
+
+export const priced = defineHarness({
+  name: 'acme/priced',
+  adapter: openaiText('gpt-6.1-sol'),
+  plugins: () => [
+    usage({
+      model: (id) => {
+        const cost = prices[id]
+        return cost === undefined ? undefined : { cost }
+      },
+    }),
+  ],
+})
+```
+
+`session.command('usage')` reads `session.usage()` and shows the total. When the thread used more than one model, it also shows a line for each model:
+
+```text
+3 model calls, 41200 input tokens (30000 cache read, 0 cache write), 2100 output tokens, 43300 total. Cost: $0.0432.
+openai/gpt-6.1-sol: 2 model calls, 40000 input tokens (30000 cache read, 0 cache write), 2000 output tokens, 42000 total.
+openai/gpt-6-luna: 1 model calls, 1200 input tokens, 100 output tokens, 1300 total.
+```
+
+How the plugin finds the cost:
+
+- A call with a cost from its provider keeps that cost, as it is.
+- `model` prices only the calls with no provider cost. It gets the model id without the provider, like `gpt-6.1-sol`. It returns `{ cost }` with prices in USD per 1M tokens, or `undefined`.
+- Without `model`, `/usage` shows `Cost:` only when a provider reported a cost.
+- A call with no price adds a note, for example `(cost unknown for 1 call)`.
+
+The plugin also writes the cost to `usage.cost` of the session index entry, whenever it has one. `session.usage()` keeps only the costs that the providers report.
+
+The plugin state, `snapshot().plugins['tanstack/usage']`, has a copy of `session.usage().total` and `contextTokens`: the input tokens of the latest call of the lead model. Compare it with the context window of the model to show how full the context is.
+
+Limits of the plugin:
+
+- For one model, when some calls have a provider cost and others do not, `model` does not price the others.
+- On a host with a log, the cost in the index entry and the state copy can miss the last call of a run. They get it at the end of the next run.
+
 ## What you have now
 
 - The tokens and the cost of a thread, in total, by model, and by sender.
@@ -123,3 +171,4 @@ A background agent can end after the turn. Then the index entry counts its token
 - A live total from the `harness.usage` event.
 - A budget check before each prompt.
 - The token counts of each session in the session index.
+- `/usage` with your own prices, and a cost for each session in the session index.

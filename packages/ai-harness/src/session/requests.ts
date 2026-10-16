@@ -1,7 +1,7 @@
 import { RUN_CANCEL_REASON } from '@tanstack/ai'
 import { changedEntry } from '../session-entry'
 import { OperationImpl } from '../operation'
-import { HARNESS_EVENTS } from '../types'
+import { HARNESS_EVENTS, InputRejectedError } from '../types'
 import {
   signInConnector,
   createInputId,
@@ -9,6 +9,7 @@ import {
   errorText,
   inputKey,
   SHUTDOWN_REASON,
+  isElsewhere,
 } from './helpers'
 import { SessionState } from './state'
 import type {
@@ -18,19 +19,21 @@ import type {
 } from '@tanstack/ai'
 import type { SessionIndexEntry } from '@tanstack/ai-persistence'
 import type { PluginSessionApi, Question } from '../commands'
-import type { AnyHarness } from '../define'
+import type { AnyHarness, HarnessToolInput, HarnessToolsOf } from '../define'
 import type {
-  BusyPolicy,
+  AgentSendOptions,
   ChatTurnResult,
   HarnessInput,
   Operation,
   Principal,
   Receipt,
+  SendOptions,
   TurnOverrides,
   UserInput,
   WaitingInput,
 } from '../types'
 import type { QueuedTurn, WaitingSteer } from './types'
+import type { Admission } from './inputs'
 
 /**
  * A layer of {@link HarnessSession}: prompt, steer, follow-up, continue, reset,
@@ -44,9 +47,21 @@ export abstract class SessionRequests<
   // ===========================
 
   /**
-   * Start a chat turn, or queue it while one runs (see `busy`).
+   * Send a message to the session, or to one of its agent runs.
    *
-   * `inputId` is an id you choose. A second prompt with the same id and the
+   * `mode` is how it runs. `'prompt'` (default) starts a chat turn, or
+   * queues it while one runs (see `busy`). `'steer'` adds it to the running
+   * turn at its next model call, and the operation ends with that turn.
+   * With no turn running, it runs as its own turn. `'followUp'` runs a turn
+   * after all current work.
+   *
+   * `to` is the operation id of an agent run. The message goes to that run,
+   * as `AgentRun.send` does: a steer waits for the run's next model call, a
+   * follow-up runs the agent again after the run ends. The operation ends
+   * with the run that gets the message. An unknown run, or one that another
+   * host runs, is rejected with `'not_running'`.
+   *
+   * `inputId` is an id you choose. A second send with the same id and the
    * same message returns the first input's operation and does not run again.
    * The same id with another message is rejected with `'conflict'`.
    * `await operation.receipt` resolves when the input is stored.
@@ -71,37 +86,80 @@ export abstract class SessionRequests<
    * other ephemeral messages gets the first input's operation and its own
    * are dropped. A turn that recovery runs again has none. A steer that joins
    * the running turn ignores them.
+   *
+   * `systemPreamble` are system prompts that this turn gets ahead of the
+   * harness prompts, for example memory that the host adds. They are kept
+   * like `overrides`: in memory only, and only from server code. A client
+   * input cannot set them.
    */
-  prompt(
+  send(message: UserInput, options: AgentSendOptions): Operation<unknown>
+  send(message: UserInput, options?: SendOptions): Operation<ChatTurnResult>
+  send(
     message: UserInput,
-    options?: {
-      busy?: BusyPolicy
-      inputId?: string
-      overrides?: TurnOverrides
-      principal?: Principal
-      context?: unknown
-      ephemeral?: ReadonlyArray<ModelMessage>
-      /** @internal The AG-UI `runId` of a `POST run` request. The turn runs as it. */
-      runId?: string
-    },
+    options?: SendOptions | AgentSendOptions,
+  ): Operation<unknown> {
+    if (options?.to !== undefined) return this.sendToRun(message, options)
+    const context = options?.context
+    const mode = options?.mode ?? 'prompt'
+    const input: HarnessInput =
+      mode === 'prompt'
+        ? {
+            op: 'prompt',
+            message,
+            busy: options?.busy ?? this.harness.busy ?? 'queue',
+            ...(context !== undefined ? { context } : {}),
+          }
+        : mode === 'steer'
+          ? {
+              op: 'steer',
+              message,
+              ...(context !== undefined ? { context } : {}),
+            }
+          : {
+              op: 'followUp',
+              message,
+              ...(context !== undefined ? { context } : {}),
+            }
+    return this.startTurn(input, options)
+  }
+
+  /**
+   * Start the turn of `input` (a prompt, a steer, or a follow-up), with its
+   * operation. `wake`: the harness wakes the session with the message (a
+   * background job ended), so its user message is marked, not shown as
+   * something the user said.
+   */
+  protected startTurn(
+    input: HarnessInput & { op: 'prompt' | 'steer' | 'followUp' },
+    options?: SendOptions & { wake?: boolean },
   ): Operation<ChatTurnResult> {
-    const busy = options?.busy ?? this.harness.busy ?? 'queue'
+    const { message } = input
     const inputId = options?.inputId ?? createInputId()
     const overrides = options?.overrides
+    const systemPreamble = options?.systemPreamble
     const ephemeral = options?.ephemeral
     const principal = options?.principal ?? this.principal
     const context = options?.context
-    const input: HarnessInput = {
-      op: 'prompt',
-      message,
-      busy,
-      ...(context !== undefined ? { context } : {}),
-    }
-    const known = this.knownTurn(inputId, input, principal)
+    const wake = options?.wake === true
+    const busy =
+      input.op === 'prompt'
+        ? input.busy
+        : input.op === 'steer'
+          ? 'steer'
+          : 'queue'
+    const stored: HarnessInput =
+      input.op === 'followUp' && wake ? { ...input, wake: true } : input
+    const known = this.knownTurn(inputId, stored, principal)
     if (known) return known
     const runId = options?.runId
+    // A prompt that this host passed on comes back from the inbox when its
+    // owner stopped. It runs on the operation that its caller holds.
+    const passed = this.forwarded.has(inputId)
+      ? this.turnOperations.get(inputId)
+      : undefined
     // A run id must not take the id of another operation.
     if (
+      !passed &&
       runId !== undefined &&
       (this.operations.has(runId) || this.retiredIds.has(runId))
     ) {
@@ -109,10 +167,10 @@ export abstract class SessionRequests<
       this.refuse(refused, { inputId, status: 'rejected', reason: 'conflict' })
       return refused
     }
-    const operation = this.createTurnOperation(runId)
+    const operation = passed ?? this.createTurnOperation(runId)
     this.bindTurn(inputId, operation)
     void this.admitting(() =>
-      this.accept(inputId, input, principal).then(
+      this.accept(inputId, stored, principal, runId).then(
         async (admission) => {
           if (admission !== 'new') {
             this.answerDuplicate(operation, inputId, admission)
@@ -137,17 +195,25 @@ export abstract class SessionRequests<
             })
             return
           }
+          // A steer joins the running turn, so the receipt names that turn.
+          const running = busy === 'steer' ? this.activeTurn : undefined
+          if (!running && this.waitsForInterrupts()) {
+            this.reject(inputId, 'pending_interrupts')
+            this.refuse(operation, {
+              inputId,
+              status: 'rejected',
+              reason: 'pending_interrupts',
+            })
+            return
+          }
           const isWaiting =
             this.activeTurn !== undefined || this.queue.length > 0
-          // A steer joins the running turn, so the receipt names that turn, as
-          // `steer()` does.
-          const running = busy === 'steer' ? this.activeTurn : undefined
           this.answerTurn(operation, {
             inputId,
-            status: isWaiting && busy !== 'steer' ? 'queued' : 'accepted',
+            status: isWaiting && !running ? 'queued' : 'accepted',
             operationId: running?.id ?? operation.id,
           })
-          const sent = { principal, context }
+          const sent = { principal, context, ...(wake ? { wake } : {}) }
           if (running) {
             this.steerQueue.push({
               inputId,
@@ -164,6 +230,7 @@ export abstract class SessionRequests<
             message,
             inputId,
             overrides,
+            systemPreamble,
             ephemeral,
             ...sent,
           })
@@ -186,110 +253,89 @@ export abstract class SessionRequests<
   }
 
   /**
-   * Add a message to the running turn at its next model call. `principal`
-   * and `context` mean the same as in `prompt`.
+   * Run one tool with no model, for example from a schedule or a webhook.
+   * It runs as a chat turn whose only model call asks for the tool, so the
+   * call goes through middleware, the input check, and `permissions()`, and
+   * the call and its result join the transcript. A tool that asks for
+   * approval stops the turn with an interrupt. `meta` is echoed as a
+   * `tanstack.injection` custom event. The turn waits behind a running turn.
+   * While interrupts wait, it is refused with `'pending_interrupts'`.
+   *
+   * `args` is typed from the input schema of a harness tool. A plugin tool
+   * takes any `args`, and its input schema checks them.
    */
-  async steer(
-    message: UserInput,
-    options?: { inputId?: string; principal?: Principal; context?: unknown },
-  ): Promise<Receipt> {
-    return this.admitting(async () => {
-      const inputId = options?.inputId ?? createInputId()
-      const principal = options?.principal ?? this.principal
-      const context = options?.context
-      const admission = await this.accept(
-        inputId,
-        {
-          op: 'steer',
-          message,
-          ...(context !== undefined ? { context } : {}),
+  tool<TName extends HarnessToolsOf<THarness>['name'] | (string & {})>(
+    name: TName,
+    args?: HarnessToolInput<THarness, TName>,
+    options?: {
+      meta?: Record<string, unknown>
+      inputId?: string
+      principal?: Principal
+    },
+  ): Operation<ChatTurnResult> {
+    const inputId = options?.inputId ?? createInputId()
+    const principal = options?.principal ?? this.principal
+    const meta = options?.meta
+    const input: HarnessInput = {
+      op: 'tool',
+      name,
+      ...(args !== undefined ? { args } : {}),
+      ...(meta ? { meta } : {}),
+    }
+    const known = this.knownTurn(inputId, input, principal)
+    if (known) return known
+    const operation = this.createTurnOperation()
+    this.bindTurn(inputId, operation)
+    void this.admitting(() =>
+      this.accept(inputId, input, principal).then(
+        (admission) => {
+          if (admission !== 'new') {
+            this.answerDuplicate(operation, inputId, admission)
+            return
+          }
+          // As a prompt: the open interrupts are answered first.
+          if (this.waitsForInterrupts()) {
+            this.reject(inputId, 'pending_interrupts')
+            this.refuse(operation, {
+              inputId,
+              status: 'rejected',
+              reason: 'pending_interrupts',
+            })
+            return
+          }
+          const isWaiting =
+            this.activeTurn !== undefined || this.queue.length > 0
+          this.answerTurn(operation, {
+            inputId,
+            status: isWaiting ? 'queued' : 'accepted',
+            operationId: operation.id,
+          })
+          this.enqueueTurn({
+            operation,
+            inputId,
+            principal,
+            tool: { name, args, ...(meta ? { meta } : {}) },
+          })
         },
-        principal,
-      )
-      if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
-      if (!this.activeTurn) {
-        const operation = this.createTurnOperation()
-        this.bindTurn(inputId, operation)
-        this.enqueueTurn({ operation, message, inputId, principal, context })
-        return this.keep({
-          inputId,
-          status: 'accepted',
-          operationId: operation.id,
-        })
-      }
-      this.steerQueue.push({ inputId, message, principal, context })
-      return this.keep({
-        inputId,
-        status: 'accepted',
-        operationId: this.activeTurn.id,
-      })
-    })
+        (error: unknown) => {
+          const failure = this.logFailure ?? error
+          this.answerTurn(operation, {
+            inputId,
+            status: 'rejected',
+            reason: errorText(failure),
+          })
+          operation.fail('failed', failure)
+        },
+      ),
+    )
+    return operation
   }
 
-  /**
-   * Run a turn after the current work settles. `overrides` changes the
-   * adapter, reasoning, prompt cache, or tools of this turn only.
-   * `principal` and `context` mean the same as in `prompt`.
-   */
-  async followUp(
+  /** `send` to an agent run: the session agents layer implements it. */
+  protected abstract sendToRun(
     message: UserInput,
-    options?: {
-      inputId?: string
-      overrides?: TurnOverrides
-      principal?: Principal
-      context?: unknown
-    },
-  ): Promise<Receipt> {
-    return this.queueFollowUp(message, options)
-  }
-
-  /**
-   * `followUp`, plus `wake`: the harness wakes the session with `message`
-   * (a background job ended), so its user message is marked, not shown as
-   * something the user said.
-   */
-  protected async queueFollowUp(
-    message: UserInput,
-    options?: {
-      inputId?: string
-      overrides?: TurnOverrides
-      principal?: Principal
-      context?: unknown
-      wake?: boolean
-    },
-  ): Promise<Receipt> {
-    return this.admitting(async () => {
-      const inputId = options?.inputId ?? createInputId()
-      const principal = options?.principal ?? this.principal
-      const context = options?.context
-      const wake = options?.wake === true
-      const admission = await this.accept(
-        inputId,
-        {
-          op: 'followUp',
-          message,
-          ...(context !== undefined ? { context } : {}),
-          ...(wake ? { wake } : {}),
-        },
-        principal,
-      )
-      if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
-      const operation = this.createTurnOperation()
-      this.bindTurn(inputId, operation)
-      const status =
-        this.activeTurn || this.queue.length > 0 ? 'queued' : 'accepted'
-      this.enqueueTurn({
-        operation,
-        message,
-        inputId,
-        overrides: options?.overrides,
-        principal,
-        context,
-        ...(wake ? { wake } : {}),
-      })
-      return this.keep({ inputId, status, operationId: operation.id })
-    })
-  }
+    options: AgentSendOptions,
+  ): Operation<unknown>
 
   /**
    * Start a chat turn from the stored transcript, with no new message. While
@@ -389,10 +435,8 @@ export abstract class SessionRequests<
       )
       if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
       const isRunning = this.activeTurn !== undefined
-      if (!isRunning && this.queue.length === 0 && this.interrupted) {
-        this.reject(inputId, 'pending_interrupts')
-        return { inputId, status: 'rejected', reason: 'pending_interrupts' }
-      }
+      if (this.waitsForInterrupts())
+        return this.reject(inputId, 'pending_interrupts')
       const operation = this.queueReset(inputId, text, principal, 'front')
       return this.keep({
         inputId,
@@ -419,13 +463,22 @@ export abstract class SessionRequests<
     return this.admitting(async () => {
       const inputId = options?.inputId ?? createInputId()
       const principal = options?.principal ?? this.principal
+      const runId = options?.runId
       const admission = await this.accept(
         inputId,
         { op: 'resolve', resume },
         principal,
+        runId,
       )
-      if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
-      const runId = options?.runId
+      if (admission !== 'new') {
+        const receipt = this.duplicateReceipt(inputId, admission)
+        // The owner runs a forwarded resume as `runId`.
+        return admission === 'forwarded' &&
+          runId !== undefined &&
+          receipt.status !== 'rejected'
+          ? { ...receipt, operationId: runId }
+          : receipt
+      }
       // A run id must not take the id of another operation or stored run.
       const isTaken =
         runId !== undefined &&
@@ -480,9 +533,14 @@ export abstract class SessionRequests<
     })
   }
 
-  async cancel(operationId?: string): Promise<Receipt> {
-    const inputId = createInputId()
-    await this.accept(inputId, { op: 'cancel', operationId })
+  async cancel(
+    operationId?: string,
+    /** @internal The id of a forwarded input, so a replay is a duplicate. */
+    options?: { inputId?: string },
+  ): Promise<Receipt> {
+    const inputId = options?.inputId ?? createInputId()
+    const admission = await this.accept(inputId, { op: 'cancel', operationId })
+    if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
     const target = operationId
       ? this.operations.get(operationId)
       : this.activeTurn
@@ -574,14 +632,18 @@ export abstract class SessionRequests<
    *
    * @example
    * ```ts
-   * await session.followUp('Then write the tests.', { inputId: 'tests' })
+   * await session.send('Then write the tests.', { mode: 'followUp', inputId: 'tests' })
    * await session.cancelInput('tests')
    * ```
    */
   async cancelInput(target: string): Promise<Receipt> {
     const inputId = createInputId()
-    await this.accept(inputId, { op: 'cancelInput', inputId: target })
-    const taken = this.takeWaiting(target)
+    const admission = await this.accept(inputId, {
+      op: 'cancelInput',
+      inputId: target,
+    })
+    if (isElsewhere(admission)) return this.duplicateReceipt(inputId, admission)
+    const taken = this.takeWaiting(target) ?? this.takeQueuedContinue(target)
     if (!taken) return this.reject(inputId, 'not_waiting')
     await this.applyControl(inputId, {
       type: 'harness.input.abort',
@@ -590,7 +652,11 @@ export abstract class SessionRequests<
     // Without a log, the inbox entry must not stay pending: a restart runs
     // pending entries.
     if (!this.writer)
-      await this.inbox.markRejected({ inputId: target, reason: 'cancelled' })
+      await this.inbox.markRejected({
+        threadId: this.threadId,
+        inputId: target,
+        reason: 'cancelled',
+      })
     const { operation } = taken
     await this.settle({
       inputId: target,
@@ -613,7 +679,7 @@ export abstract class SessionRequests<
    *
    * @example
    * ```ts
-   * await session.followUp('Use tabs, not spaces.', { inputId: 'style' })
+   * await session.send('Use tabs, not spaces.', { mode: 'followUp', inputId: 'style' })
    * await session.setDelivery({ inputId: 'style', delivery: 'steer' })
    * ```
    */
@@ -625,12 +691,17 @@ export abstract class SessionRequests<
     delivery: WaitingInput['delivery']
   }): Promise<Receipt> {
     const inputId = createInputId()
-    await this.accept(inputId, { op: 'setDelivery', inputId: target, delivery })
+    const admission = await this.accept(inputId, {
+      op: 'setDelivery',
+      inputId: target,
+      delivery,
+    })
+    if (isElsewhere(admission)) return this.duplicateReceipt(inputId, admission)
     const current = this.inputs().find((input) => input.inputId === target)
     if (current?.delivery !== delivery) {
       const taken = this.takeWaiting(target)
       if (!taken) return this.reject(inputId, 'not_waiting')
-      if (delivery === 'steer') this.steerQueue.push(taken)
+      if (delivery === 'steer' && this.activeTurn) this.steerQueue.push(taken)
       else this.enqueueTurn(this.steerTurn(taken))
     }
     await this.applyControl(inputId, {
@@ -695,12 +766,21 @@ export abstract class SessionRequests<
       },
       snapshot: () => this.snapshot(),
       // A plugin turn always waits its turn. It cannot see a busy rejection.
-      prompt: (text) =>
-        this.prompt(text, { busy: 'queue', principal: sender() }),
+      send: (text) =>
+        this.startTurn(
+          { op: 'prompt', message: text, busy: 'queue' },
+          { principal: sender() },
+        ),
       note: async (text, options) => {
         await this.addNote(text)
-        if (options?.wake)
-          await this.queueFollowUp(text, { principal: sender(), wake: true })
+        if (options?.wake) {
+          const receipt = await this.startTurn(
+            { op: 'followUp', message: text },
+            { principal: sender(), wake: true },
+          ).receipt
+          if (receipt.status === 'rejected')
+            throw new InputRejectedError(receipt)
+        }
       },
       transcript: () => this.transcript(),
       replaceTranscript: (messages) =>
@@ -743,6 +823,9 @@ export abstract class SessionRequests<
     }
   }
 
+  /** Operations that follow an input another host runs, or that ran before. */
+  private readonly followers = new Set<OperationImpl<ChatTurnResult>>()
+
   /**
    * Stop every running operation, wait for them, then dispose session plugins.
    * Safe to call twice.
@@ -771,6 +854,13 @@ export abstract class SessionRequests<
         await this.refreshTurnInterrupts(turn.operation)
         turn.operation.fail('cancelled', new Error('Session closed.'))
       }
+      // A follower waits for a settlement in the log. The log view closes
+      // with the session, so it ends now.
+      for (const operation of this.followers) {
+        if (!operation.isSettled())
+          operation.fail('cancelled', new Error('Session closed.'))
+      }
+      this.followers.clear()
       const running = [...this.operations.values()].filter(
         (operation) => !operation.isSettled(),
       )
@@ -788,7 +878,10 @@ export abstract class SessionRequests<
       )
       // The events from before the close land first, so the next host has
       // the text of a cut answer.
-      if (options?.recoverable) await this.writer?.flush().catch(() => {})
+      if (options?.recoverable)
+        await this.writer
+          ?.flush()
+          .catch((error: unknown) => this.warnSession('harness:log', error))
       // A reload that mounts plugins now ends first, so its plugins are
       // disposed below.
       await this.reloads
@@ -902,7 +995,7 @@ export abstract class SessionRequests<
   protected answerDuplicate(
     operation: OperationImpl<ChatTurnResult>,
     inputId: string,
-    admission: 'duplicate' | 'conflict' | 'closed',
+    admission: Exclude<Admission, 'new'>,
   ) {
     const receipt = this.duplicateReceipt(inputId, admission)
     if (receipt.status === 'rejected') {
@@ -910,6 +1003,7 @@ export abstract class SessionRequests<
       return
     }
     operation.resolveReceipt(receipt)
+    this.followers.add(operation)
     if (!this.writer) {
       // Without a log, the result of an input from before a restart, or of
       // one the session no longer keeps, is gone.
@@ -921,10 +1015,12 @@ export abstract class SessionRequests<
       )
       return
     }
-    void this.settled(inputId).then(
-      (settlement) => this.settleOperation(operation, settlement),
-      (error: unknown) => operation.fail('failed', error),
-    )
+    void this.settled(inputId)
+      .then(
+        (settlement) => this.settleOperation(operation, settlement),
+        (error: unknown) => operation.fail('failed', error),
+      )
+      .finally(() => this.followers.delete(operation))
   }
 
   /**

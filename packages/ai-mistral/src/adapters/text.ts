@@ -542,7 +542,6 @@ export class MistralTextAdapter<
         id: string
         name: string
         arguments: string
-        hasArguments: boolean
         started: boolean
         ended: boolean
       }
@@ -665,7 +664,6 @@ export class MistralTextAdapter<
                 id: toolCallDelta.id || '',
                 name: toolCallDelta.function?.name || '',
                 arguments: '',
-                hasArguments: false,
                 started: false,
                 ended: false,
               }
@@ -686,7 +684,6 @@ export class MistralTextAdapter<
                   : JSON.stringify(rawArgs)
 
             if (argsDelta !== undefined) {
-              toolCall.hasArguments = true
               toolCall.arguments += argsDelta
             }
 
@@ -753,7 +750,7 @@ export class MistralTextAdapter<
                 toolName: toolCall.name,
                 model: chunkModel,
                 timestamp,
-                ...(toolCall.hasArguments && { args: toolCall.arguments }),
+                args: toolCall.arguments,
                 input: parsedInput,
               })
             }
@@ -850,7 +847,7 @@ export class MistralTextAdapter<
               toolName: toolCall.name,
               model: lastChunkModel,
               timestamp,
-              ...(toolCall.hasArguments && { args: toolCall.arguments }),
+              args: toolCall.arguments,
               input: parsedInput,
             })
           }
@@ -928,7 +925,7 @@ export class MistralTextAdapter<
             toolName: toolCall.name,
             model: lastChunkModel,
             timestamp,
-            ...(toolCall.hasArguments && { args: toolCall.arguments }),
+            args: toolCall.arguments,
             ...(partialInput !== undefined && { input: partialInput }),
           })
         }

@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { chat } from '../src/activities/chat/index'
 import { EventType } from '../src/types'
+import type { ToolCallEndEvent } from '../src/types'
 import { tanstackMetadata } from '../src/utilities/merge-metadata'
-import { reconcileToolCallArguments } from '../src/utilities/tool-call-arguments'
+import {
+  finishToolCallArguments,
+  reconcileToolCallArguments,
+} from '../src/utilities/tool-call-arguments'
 import { collectChunks, createMockAdapter, ev } from './test-utils'
 
 describe('lexical tool argument reconciliation', () => {
@@ -76,24 +80,55 @@ describe('raw JSON key spelling', () => {
   })
 })
 
-describe('ordinary custom input JSON semantics', () => {
-  it('uses Date and boxed primitive JSON values', () => {
-    expect(
-      reconcileToolCallArguments('{}', new Date('2026-10-04T00:00:00Z')),
-    ).toBe('"2026-10-04T00:00:00.000Z"')
-    expect(reconcileToolCallArguments(undefined, Object(7))).toBe('7')
+describe('finishToolCallArguments', () => {
+  const end = (
+    fields: Partial<ToolCallEndEvent> & { args?: string },
+  ): ToolCallEndEvent => ({
+    type: EventType.TOOL_CALL_END,
+    toolCallId: 'call-1',
+    timestamp: 0,
+    ...fields,
   })
-  it('passes the property key to custom toJSON', () => {
-    const input = {
-      value: {
-        toJSON(key: string) {
-          return key
-        },
-      },
-    }
-    expect(reconcileToolCallArguments(undefined, input)).toBe(
-      '{"value":"value"}',
-    )
+
+  it('keeps raw args when the input is null', () => {
+    expect(
+      finishToolCallArguments('', end({ args: '{"q":"x"}', input: null })),
+    ).toEqual({ args: '{"q":"x"}', input: { q: 'x' } })
+  })
+
+  it('keeps malformed raw args with no input', () => {
+    expect(finishToolCallArguments('', end({ args: '{"q":' }))).toEqual({
+      args: '{"q":',
+      input: undefined,
+    })
+  })
+
+  it('keeps the streamed bytes when they match the input', () => {
+    expect(
+      finishToolCallArguments('{"n": 1.50}', end({ input: { n: 1.5 } })),
+    ).toEqual({ args: '{"n": 1.50}', input: { n: 1.5 } })
+  })
+
+  it('ignores args that are not a string', () => {
+    expect(
+      finishToolCallArguments(
+        '{"a":1}',
+        end({ metadata: { tanstack: { args: { a: 1 } } } } as never),
+      ),
+    ).toEqual({ args: '{"a":1}', input: { a: 1 } })
+  })
+
+  it('reads args and input from metadata.tanstack', () => {
+    expect(
+      finishToolCallArguments(
+        '',
+        end({
+          metadata: {
+            tanstack: { args: '{"a": 1, "b": null}', input: { a: 1 } },
+          },
+        }),
+      ),
+    ).toEqual({ args: '{"a":1}', input: { a: 1 } })
   })
 })
 
@@ -158,6 +193,21 @@ describe('raw tool arguments through chat()', () => {
     const end = chunks.find((chunk) => chunk.type === EventType.TOOL_CALL_END)
     const metadata = end ? tanstackMetadata(end) : undefined
     expect(metadata && 'args' in metadata ? metadata.args : undefined).toBe(raw)
+    // `input` is not sent twice; in process it is parsed back from `args`.
+    expect(metadata && 'input' in metadata).toBe(false)
+    expect(end && 'input' in end ? end.input : undefined).toEqual({
+      count: 1.5,
+    })
+  })
+
+  it('keeps an in-process input that JSON spells as -0 or 1e999', async () => {
+    const raw = '{"zero": -0, "big": 1e999}'
+    const { chunks } = await run(raw, JSON.parse(raw))
+    const end = chunks.find((chunk) => chunk.type === EventType.TOOL_CALL_END)
+    expect(end && 'input' in end ? end.input : undefined).toEqual({
+      zero: -0,
+      big: Infinity,
+    })
   })
 
   it('reports malformed raw arguments instead of running with {}', async () => {

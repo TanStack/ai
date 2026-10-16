@@ -14,7 +14,11 @@ import { decide } from '../../evaluate/index'
 import type { GenerationMiddleware } from '../../middleware/types'
 import type { AnyChatMiddleware } from '../middleware/types'
 import type { PromptCacheRetention, RunAgentResumeItem } from '../../../types'
-import type { SubagentRunInput } from './define-agent'
+import type {
+  SubagentContextExtension,
+  SubagentRunContext,
+  SubagentRunInput,
+} from './define-agent'
 import type { SubagentBudget } from './limits'
 import type { ProviderKeys } from '../../../byok/keyed'
 
@@ -70,6 +74,11 @@ export interface SubagentBinding {
    */
   promptCache?: PromptCacheRetention
   /**
+   * Adds fields to the `ctx` of every run. A host declares their types by
+   * augmenting `SubagentContextExtension`. It passes down to nested children.
+   */
+  extend?: (ctx: SubagentRunContext) => Partial<SubagentContextExtension>
+  /**
    * Starts a child without waiting for it and returns its id at once. The
    * agent tools call it for `background: true`. With
    * `wake: true`, the host starts a new parent turn when the child ends. It
@@ -83,7 +92,11 @@ export interface SubagentBinding {
       parentToolCallId?: string
     },
     options: { wake: true },
-  ) => Promise<{ subagentRunId: string }>
+  ) => Promise<{
+    subagentRunId: string
+    /** Settles when the child ends. `maxConcurrent` counts the child until then. */
+    done: Promise<unknown>
+  }>
 }
 
 /**
@@ -178,6 +191,7 @@ export function createBoundActivities(
                     ...(options.subagents.binding?.generationMiddleware ?? []),
                   ],
                   ...(binding?.budget ? { budget: binding.budget } : {}),
+                  ...(binding?.extend ? { extend: binding.extend } : {}),
                 },
               },
             }

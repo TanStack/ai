@@ -20,7 +20,7 @@ A review command needs an explorer to collect facts, then a reviewer to judge th
 
 ```ts group=harness-subagents
 import { defineAgent } from '@tanstack/ai'
-import { defineCommand, definePlugin, harnessContext } from '@tanstack/ai-harness'
+import { defineCommand, definePlugin } from '@tanstack/ai-harness'
 import { openaiText } from '@tanstack/ai-openai'
 import { z } from 'zod'
 
@@ -61,9 +61,10 @@ export const review = definePlugin({
 
 - `ctx.agents.run(agent, input)` runs one agent and resolves with its result.
 - `ctx.agents.start(agent, input, { wake: true })` runs it in the background and starts a turn when it finishes or fails.
+- `ctx.agents.start(agent, input, { principal })` runs it as that user. Without `principal`, it runs as the user of the current turn. The wake turn runs as the same user.
 - `ctx.agents.group(options, body)` runs several. With `onFailure: 'cancel-siblings'`, one failure cancels the others. With `'collect'`, use `group.runSettled` to get every result or error. Every child settles before `group` returns.
 
-The turn that `wake: true` starts sends the model a user message from the harness, for example `Background agent pricer finished: ...`. The user did not write it. So the transcript marks it with `metadata.harness.wake: true`. In your chat UI, skip the user messages with this mark.
+The turn that `wake: true` starts sends the model a user message from the harness, for example `Background agent pricer finished: ...`. The user did not write it. So the transcript marks it with `metadata.harness.wake: true`, and a view from `createSessionView` does not show it. In your own chat UI, skip the user messages with this mark.
 
 To track usage or apply a policy in each of these runs, see [Middleware in every agent](./plugins#middleware-in-every-agent).
 
@@ -87,7 +88,7 @@ const migrator = defineAgent({
   description: 'Moves the data of one customer to the new region',
   inputSchema: z.object({ customer: z.string() }),
   run: async (ctx) => {
-    const { step } = harnessContext(ctx)
+    const { step } = ctx.harness
     // Each side effect is a step. A finished step does not run again.
     const exportId = await step.do('export', () => startExport(ctx.input.customer))
     await step.do('import', () => importInto('eu-west', exportId))
@@ -118,10 +119,10 @@ export const migrations = definePlugin({
 ```
 
 1. Give the host a session log (`stores.log`). See [Durable sessions](./durable-sessions). Without a log, `start` with `resume: true` throws.
-2. Put each side effect in `harnessContext(ctx).step.do(name, fn)`. The agent code runs again from its start, and a finished step returns its stored value.
+2. Put each side effect in `ctx.harness.step.do(name, fn)`. The agent code runs again from its start, and a finished step returns its stored value.
 3. Give each step a name that is the same on every run, and return a JSON value from `fn`.
 
-`harnessContext` comes from `@tanstack/ai-harness`. Outside a run that a session started, `step.do` runs `fn` each time.
+`ctx.harness` is on the context of every agent run that a session starts. Outside such a run, `step.do` runs `fn` each time.
 
 What the next host does:
 
@@ -138,7 +139,7 @@ A background agent drafts a post for ten minutes. Halfway through, the user sees
 
 ```ts group=harness-subagents-messages
 import { defineAgent } from '@tanstack/ai'
-import { createHarnessHost, defineHarness, harnessContext } from '@tanstack/ai-harness'
+import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { openaiText } from '@tanstack/ai-openai'
 
@@ -178,6 +179,8 @@ A steer joins only a run of the same sender. A steer from another sender runs as
 
 An agent written as plain code, with no `ctx.chat` call, makes no model call. It gets a steer only as a follow-up.
 
+To message a run from the browser, see [Send a message to a running agent](./connect#send-a-message-to-a-running-agent).
+
 ### Find a run by its id
 
 Your server often has only the id of a run, for example from a button in the UI. Use the session:
@@ -188,15 +191,11 @@ for (const info of session.agentRuns()) {
 }
 
 if (session.agentRun(run.id)) {
-  await session.sendToAgent({
-    operationId: run.id,
-    message: 'Make it shorter.',
-    mode: 'followUp',
-  })
+  await session.send('Make it shorter.', { to: run.id, mode: 'followUp' })
 }
 ```
 
-- `session.sendToAgent({ operationId, message, mode })`: does the same as `run.send`. An unknown id gets a receipt with `status: 'rejected'` and `reason: 'not_running'`.
+- `session.send(message, { to: operationId, mode })`: does the same as `run.send`, and returns an operation that ends with the run that gets the message. `await operation.receipt` is the receipt. An unknown id gets a receipt with `status: 'rejected'` and `reason: 'not_running'`, and the operation rejects with `InputRejectedError`.
 - `session.agentRun(id)`: the run, or `undefined`.
 - `session.agentRuns()`: every agent run of the session, oldest first.
 
@@ -213,14 +212,14 @@ A run and all of its follow-ups keep their messages in one thread: `<threadId>:<
 
 ### Start agents from agent code
 
-An agent can start other agents in the background with `harnessContext(ctx).agents.start(agent, input, options)`. It returns a run that you can await, message, and cancel:
+An agent can start other agents in the background with `ctx.harness.agents.start(agent, input, options)`. It returns a run that you can await, message, and cancel:
 
 ```ts group=harness-subagents-messages
 const editor = defineAgent({
   name: 'editor',
   description: 'Starts two drafts and joins them',
   run: async (ctx) => {
-    const { agents } = harnessContext(ctx)
+    const { agents } = ctx.harness
     const intro = agents.start(drafter)
     const outro = agents.start(drafter)
     await intro.send('Keep it under 100 words.')
@@ -244,7 +243,7 @@ This applies only to a durable host. When the host stops during a run, the messa
 
 ### Known limits
 
-- A run that another host runs is in `agentRuns()`, but it takes no message. `sendToAgent` gets `not_running`.
+- A run that another host runs is in `agentRuns()`, but it takes no message. `send` with `to` gets `not_running`.
 - A follow-up waits for its run. If that run had already ended when the host stopped, the follow-up settles `aborted`.
 
 ## Let the model run agents in the background
@@ -328,6 +327,7 @@ const studio = defineHarness({
 
 const host = createHarnessHost({ persistence: memoryPersistence() })
 const session = await host.open(studio, { threadId: 'user-1-thread' })
+await session.send('Write a short intro, then have the writer edit it.')
 
 for (const message of await session.transcript()) {
   if (message.role !== 'tool' || typeof message.content !== 'string') continue
@@ -348,11 +348,28 @@ What you get back:
 - A child that failed before it wrote anything gives you one empty message. It holds only the card, so you can still show that it failed.
 - A nested child works the same way. Pass its own `subagentRunId`.
 
+In the browser, `client.agentTranscript` reads the same messages through [your handler](./connect):
+
+```ts group=harness-subagents-transcript-client
+import { createHarnessClient } from '@tanstack/ai-harness/client'
+import type { studio } from './harness'
+
+const client = createHarnessClient<typeof studio>({
+  url: '/api/harness',
+  threadId: 'user-1-thread',
+  headers: { authorization: 'Bearer my-token' },
+})
+
+export async function childMessages(subagentRunId: string) {
+  return client.agentTranscript(subagentRunId)
+}
+```
+
 You get an empty list when the id is unknown, or when the child belongs to another thread. The id can come from a prompt, so a session never reads the children of another thread. A [fork](./fork-and-reset) copies the agent results, but their children stay with the thread that ran them. So in the fork, `agentTranscript` gives an empty list for them.
 
 ## Route a turn to an agent
 
-Your harness has a writer and a pricer, but the main model answers every turn. Add `routing.router` to send a turn to the agent that can answer it. The router runs at the start of each new turn: a `prompt`, a `followUp`, or the wake turn of a background agent.
+Your harness has a writer and a pricer, but the main model answers every turn. Add `routing.router` to send a turn to the agent that can answer it. The router runs at the start of each new turn: a new message, a follow-up, or the wake turn of a background agent.
 
 ```ts
 import { chat, decide, defineAgent, subagentRoute } from '@tanstack/ai'

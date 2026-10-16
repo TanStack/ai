@@ -689,6 +689,12 @@ describe('GeminiTextInteractionsAdapter', () => {
         args,
         input,
       })
+      // A client that only reads the deltas gets the same arguments.
+      const streamed = chunks
+        .filter((c) => c.type === 'TOOL_CALL_ARGS')
+        .map((c) => ('delta' in c ? c.delta : ''))
+        .join('')
+      expect(streamed).toBe(args)
     },
   )
 

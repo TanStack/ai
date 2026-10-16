@@ -1251,6 +1251,37 @@ async function* translateInteractionEvents(
     }
   }
 
+  // Ends a tool call. With no streamed argument text, the initial
+  // `step.arguments` snapshot goes out as the only TOOL_CALL_ARGS delta, so
+  // the deltas always add up to the final arguments.
+  const endToolCall = function* (
+    toolCallId: string,
+    state: ToolCallState,
+  ): Generator<AdapterYieldChunk> {
+    const end = toolCallEndArguments(
+      argStringByToolCallId.get(toolCallId),
+      state,
+    )
+    if (!argStringByToolCallId.get(toolCallId)?.trim() && end.args !== '{}') {
+      yield {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId,
+        model,
+        timestamp,
+        delta: end.args,
+        args: end.args,
+      }
+    }
+    yield {
+      type: EventType.TOOL_CALL_END,
+      toolCallId,
+      toolName: state.name,
+      model,
+      timestamp,
+      ...end,
+    }
+  }
+
   // Seals any in-flight messages and tool calls. Called both on the
   // normal terminal path (`interaction.complete`) and on the error path
   // (`error` SSE event + premature EOF) so the StreamProcessor never
@@ -1261,14 +1292,7 @@ async function* translateInteractionEvents(
     for (const [toolCallId, state] of toolCalls) {
       if (state.ended) continue
       state.ended = true
-      yield {
-        type: EventType.TOOL_CALL_END,
-        toolCallId,
-        toolName: state.name,
-        model,
-        timestamp,
-        ...toolCallEndArguments(argStringByToolCallId.get(toolCallId), state),
-      }
+      yield* endToolCall(toolCallId, state)
     }
     if (hasEmittedTextMessageStart) {
       hasEmittedTextMessageStart = false
@@ -1324,8 +1348,8 @@ async function* translateInteractionEvents(
             // `step.arguments` is required on FunctionCallStep but may
             // be an empty `{}` placeholder when streaming, where the
             // real args arrive as `arguments_delta` events. Keep this
-            // initial snapshot apart from the streamed text: the first
-            // argument delta starts the raw argument string.
+            // initial snapshot apart from the streamed text: it is sent
+            // only when no argument delta arrives (see `endToolCall`).
             const initialArgs = step.arguments
             const state: ToolCallState = {
               name: step.name,
@@ -1347,17 +1371,6 @@ async function* translateInteractionEvents(
               model,
               timestamp,
               index: state.index,
-            }
-            if (Object.keys(initialArgs).length > 0) {
-              const argsJson = JSON.stringify(initialArgs)
-              yield {
-                type: EventType.TOOL_CALL_ARGS,
-                toolCallId,
-                model,
-                timestamp,
-                delta: argsJson,
-                args: argsJson,
-              }
             }
             break
           }
@@ -1705,17 +1718,7 @@ async function* translateInteractionEvents(
           const state = toolCalls.get(toolCallId)
           if (state && !state.ended) {
             state.ended = true
-            yield {
-              type: EventType.TOOL_CALL_END,
-              toolCallId,
-              toolName: state.name,
-              model,
-              timestamp,
-              ...toolCallEndArguments(
-                argStringByToolCallId.get(toolCallId),
-                state,
-              ),
-            }
+            yield* endToolCall(toolCallId, state)
           }
           indexToToolCallId.delete(event.index)
         }

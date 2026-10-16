@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { EventType, defineAgent } from '@tanstack/ai'
+import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin } from '../src'
+import { permissions, usage } from '../src/first-party'
 import { mockAdapter, text, toolCall } from './helpers'
 import type { AnyChatMiddleware, StreamChunk } from '@tanstack/ai'
 import type { AnyHarness, PluginLifetime } from '../src'
@@ -95,7 +96,7 @@ describe('plugin agentMiddleware', () => {
       }),
     )
 
-    const turn = await session.prompt('research')
+    const turn = await session.send('research')
 
     expect(turn.text).toBe('lead done')
     expect(runs).toEqual(['researcher', 'fetcher'])
@@ -131,7 +132,7 @@ describe('plugin agentMiddleware', () => {
       }),
     )
 
-    await session.prompt('help')
+    await session.send('help')
 
     expect(runs).toEqual(['helper'])
     await host.close()
@@ -166,7 +167,7 @@ describe('plugin agentMiddleware', () => {
       }),
     )
 
-    await session.prompt('research')
+    await session.send('research')
 
     expect(calls).toEqual([
       { agent: 'lead', totalTokens: 1 },
@@ -175,6 +176,76 @@ describe('plugin agentMiddleware', () => {
       { agent: 'researcher', totalTokens: 20 },
       { agent: 'lead', totalTokens: 2 },
     ])
+    await host.close()
+  })
+
+  it('lets the usage() plugin count the model calls of every agent', async () => {
+    const researcher = parentAgent(
+      'researcher',
+      textAgent('fetcher', 'fetched', 100),
+      [10, 20],
+    )
+    const { host, session } = await open(
+      defineHarness({
+        name: 'test/agent-middleware',
+        adapter: leadCalling('researcher', [1, 2]),
+        subagents: { agents: [researcher] },
+        plugins: () => [usage()],
+      }),
+    )
+
+    await session.send('research')
+
+    // The lead (1 + 2), the researcher (10 + 20), and the fetcher (100).
+    expect(await session.command('usage')).toBe(
+      '5 model calls, 133 input tokens, 0 output tokens, 133 total.',
+    )
+    // The context size is the input of the lead's latest call, not an agent's.
+    expect(session.snapshot().plugins['tanstack/usage']).toMatchObject({
+      contextTokens: 2,
+    })
+    await host.close()
+  })
+
+  it('lets permissions() deny a write a subagent tries in plan mode', async () => {
+    const writes: Array<unknown> = []
+    const writeFile = toolDefinition({
+      name: 'write_file',
+      description: 'Write a file',
+    }).server(async (args) => {
+      writes.push(args)
+      return 'written'
+    })
+    const writerModel = mockAdapter([
+      () => toolCall('write_file', { path: 'x.txt' }),
+      () => text('writer done'),
+    ])
+    const writer = defineAgent({
+      name: 'writer',
+      description: 'Writes files',
+      run: (ctx) =>
+        ctx.chat({ adapter: writerModel.adapter, tools: [writeFile] }),
+    })
+    const { host, session } = await open(
+      defineHarness({
+        name: 'test/agent-middleware',
+        adapter: leadCalling('writer'),
+        subagents: { agents: [writer] },
+        plugins: () => [
+          permissions({
+            rules: [{ tool: 'write_file', decision: 'ask', kind: 'edit' }],
+          }),
+        ],
+      }),
+    )
+    await session.command('mode', 'plan')
+
+    await session.send('write it')
+
+    expect(writes).toEqual([])
+    expect(JSON.stringify(writerModel.calls[1].messages)).toContain(
+      'This tool is not allowed in plan mode.',
+    )
     await host.close()
   })
 })

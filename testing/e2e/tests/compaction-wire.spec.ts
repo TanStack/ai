@@ -133,9 +133,11 @@ test.describe('withCompaction — wire format', () => {
     }
     if (!result.ok) throw new Error(`Route failed: ${result.error}`)
 
-    // The compact call went out once, and its result was refused.
-    expect(result.compactRequestBodies).toHaveLength(1)
+    // Each run tries compact. A result with no item is not stored, so the
+    // next run tries again. evictOldest runs in its place.
+    expect(result.compactRequestBodies).toHaveLength(2)
     expect(result.compactionErrors).toEqual([
+      'The compact result has no compaction item.',
       'The compact result has no compaction item.',
     ])
     // evictOldest ran in its place.

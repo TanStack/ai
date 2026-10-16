@@ -144,7 +144,7 @@ describe('a durable host with a lease store and no run store', () => {
       [() => text('done')],
     )
 
-    await session.prompt('go', { inputId: 'in-1' })
+    await session.send('go', { inputId: 'in-1' })
 
     expect(leases.calls).toEqual(['acquire in-1:1', 'release in-1:1'])
     await host.close()
@@ -160,7 +160,7 @@ describe('a durable host with a lease store and no run store', () => {
       { renewMs: 5, ttlMs: 50 },
     )
 
-    const turn = session.prompt('go', { inputId: 'in-1' })
+    const turn = session.send('go', { inputId: 'in-1' })
     await vi.waitFor(() => expect(leases.calls).toContain('renew in-1:1'))
     hold.open()
     await turn
@@ -198,7 +198,7 @@ describe('a durable host with a lease store and no run store', () => {
       [remove],
     )
 
-    const turn = await session.prompt('remove a.txt')
+    const turn = await session.send('remove a.txt')
     const interrupt = turn.interrupts?.[0]
     if (!interrupt) throw new Error('The turn did not stop for approval.')
     expect(session.snapshot().status).toBe('requires_action')
@@ -213,7 +213,7 @@ describe('a durable host with a lease store and no run store', () => {
     const leases = memoryLeases()
     const persistence = leasedPersistence(leases.store)
     const first = await openLeased(persistence, [hangs])
-    first.session.prompt('go', { inputId: 'in-1' })
+    first.session.send('go', { inputId: 'in-1' })
     await vi.waitFor(() => expect(leases.leases.size).toBe(1))
 
     // A second host while the lease is alive: it leaves the turn alone.
@@ -328,7 +328,7 @@ describe('a durable host with a lease store and no run store', () => {
       ]
     }
     const first = await openLeased(persistence, [twoCalls], tools)
-    first.session.prompt('charge and mail', { inputId: 'batch-1' })
+    first.session.send('charge and mail', { inputId: 'batch-1' })
     await mailStarted.opened
     await vi.waitFor(async () =>
       expect(
@@ -384,7 +384,7 @@ describe('a durable host with runs and leases', () => {
       },
     )
 
-    const turn = session.prompt('go', { inputId: 'in-1' })
+    const turn = session.send('go', { inputId: 'in-1' })
     await turn
 
     expect(leases.calls).toEqual(['acquire in-1:1', 'release in-1:1'])
@@ -453,7 +453,7 @@ describe('close({ recoverable: true })', () => {
     async (withLeases) => {
       const persistence = durableStores(withLeases)
       const first = await openOn(persistence, [untilAborted()])
-      const turn = first.session.prompt('go', { inputId: 'in-1' })
+      const turn = first.session.send('go', { inputId: 'in-1' })
       await vi.waitFor(() => expect(first.calls).toHaveLength(1))
 
       await first.host.close({ recoverable: true })
@@ -495,7 +495,7 @@ describe('close({ recoverable: true })', () => {
     const first = await openOn(persistence, [() => toolCall('mail', {})], {
       tools: [mail],
     })
-    void first.session.prompt('mail it', { inputId: 'in-1' }).then(
+    void first.session.send('mail it', { inputId: 'in-1' }).then(
       () => {},
       () => {},
     )
@@ -524,7 +524,7 @@ describe('close({ recoverable: true })', () => {
   it('still settles a turn aborted at a plain close', async () => {
     const persistence = durableStores()
     const first = await openOn(persistence, [untilAborted()])
-    const turn = first.session.prompt('go', { inputId: 'in-1' })
+    const turn = first.session.send('go', { inputId: 'in-1' })
     await vi.waitFor(() => expect(first.calls).toHaveLength(1))
 
     await first.host.close()
@@ -555,7 +555,7 @@ describe('close({ recoverable: true })', () => {
     const first = await openCutOff(persistence, [
       cutAfter('The answer is ', streamed.open),
     ])
-    void first.session.prompt('go', { inputId: 'in-1' }).then(
+    void first.session.send('go', { inputId: 'in-1' }).then(
       () => {},
       () => {},
     )
@@ -622,7 +622,7 @@ describe('durability.continueCutOff', () => {
     const leases = memoryLeases()
     const persistence = leasedPersistence(leases.store)
     const first = await openCutOff(persistence, replies, options)
-    void first.session.prompt('go', { inputId: 'in-1' }).then(
+    void first.session.send('go', { inputId: 'in-1' }).then(
       () => {},
       () => {},
     )
@@ -850,7 +850,7 @@ describe('durability.continueCutOff', () => {
     const leases = memoryLeases()
     const persistence = leasedPersistence(leases.store)
     const first = await openCutOff(persistence, [hangs])
-    void first.session.prompt('go', { inputId: 'in-1' }).then(
+    void first.session.send('go', { inputId: 'in-1' }).then(
       () => {},
       () => {},
     )

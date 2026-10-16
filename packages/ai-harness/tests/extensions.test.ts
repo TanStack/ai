@@ -229,7 +229,7 @@ describe('session config', () => {
     const host = createHarnessHost({ persistence })
     const session = await host.open(harness, { threadId: 't' })
 
-    await session.prompt('one')
+    await session.send('one')
     expect(
       await session.setConfig({ key: 'thinking', value: 'extreme' }),
     ).toMatchObject({
@@ -245,7 +245,7 @@ describe('session config', () => {
     ).toMatchObject({
       status: 'accepted',
     })
-    await session.prompt('two')
+    await session.send('two')
     expect(seenThinking).toEqual(['low', 'high'])
     expect(session.config().thinking).toMatchObject({
       value: 'high',
@@ -383,7 +383,7 @@ describe('adapter override and credentials', () => {
     )
 
     await session.setConfig({ key: 'model', value: 'other' })
-    expect(await session.prompt('hi')).toEqual({
+    expect(await session.send('hi')).toEqual({
       text: 'from other',
       media: [],
     })

@@ -72,8 +72,8 @@ describe.each([
     const persistence = durable ? durablePersistence() : memoryPersistence()
     const { harness, host, calls } = setup(persistence)
     const source = await host.open(harness, { threadId: SOURCE })
-    await source.prompt('one')
-    await source.prompt('two')
+    await source.send('one')
+    await source.send('two')
     const before = await source.transcript()
     const firstAnswer = before[1]
     if (!firstAnswer?.id) throw new Error('The answer has no id.')
@@ -87,7 +87,7 @@ describe.each([
       contents(before.slice(0, 2)),
     )
 
-    await fork.prompt('three')
+    await fork.send('three')
     expect(messageTexts(calls[2])).toEqual(['one', 'A1', 'three'])
     // The source keeps its own transcript.
     expect(contents(await source.transcript())).toEqual(contents(before))
@@ -107,11 +107,27 @@ describe.each([
     }
   })
 
+  it('closes a source that only the fork opened, and keeps one the app has open', async () => {
+    const persistence = durable ? durablePersistence() : memoryPersistence()
+    const { harness, host } = setup(persistence)
+    const source = await host.open(harness, { threadId: SOURCE })
+    await source.send('one')
+    await host.fork(harness, { threadId: SOURCE, newThreadId: FORK })
+    // The app opened the source: the fork left it open.
+    expect(await host.open(harness, { threadId: SOURCE })).toBe(source)
+    await source.close()
+    await host.fork(harness, { threadId: SOURCE, newThreadId: 'other' })
+    // The fork opened the source itself, so it closed it again.
+    const reopened = await host.open(harness, { threadId: SOURCE })
+    expect(reopened).not.toBe(source)
+    await host.close()
+  })
+
   it('copies the whole transcript by default, no messages for a null at, and refuses an unknown message or a used thread', async () => {
     const persistence = durable ? durablePersistence() : memoryPersistence()
     const { harness, host } = setup(persistence)
     const source = await host.open(harness, { threadId: SOURCE })
-    await source.prompt('one')
+    await source.send('one')
 
     const whole = await host.fork(harness, {
       threadId: SOURCE,
@@ -161,8 +177,8 @@ describe('host.fork', () => {
     const source = await host.open(harness, { threadId: SOURCE })
     await source.configure({ model: 'main', instructions: 'Be brief.' })
     await source.setConfig({ key: 'tone', value: 'warm' })
-    await source.prompt('Count.')
-    await source.prompt('Deploy.')
+    await source.send('Count.')
+    await source.send('Deploy.')
     expect(source.snapshot().pendingInterrupts).toHaveLength(1)
     expect(source.snapshot().plugins['test/counter']).toEqual({ count: 1 })
 
@@ -190,7 +206,7 @@ describe('host.fork', () => {
       mimeType: 'image/png',
       name: 'cat.png',
     })
-    await source.prompt([
+    await source.send([
       { type: 'text', content: 'What is this?' },
       mediaPart(record),
     ])

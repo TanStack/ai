@@ -9,10 +9,9 @@
  *
  * Covers the five chat state stores (`messages`, `activities`, `runs`,
  * `interrupts`, `metadata`), the three generation stores (`generationRuns`,
- * `artifacts`, `blobs`), and the opt-in session stores (`credentials`, `inbox`,
- * `workClaims`, `log`, `sessions`). The session store cases run only when the
- * store is present, so they need no `skip` entry. `leases` has no cases: its
- * rules depend on the system that issues the leases. Locks are not part of
+ * `artifacts`, `blobs`), and the opt-in session stores (`inbox`,
+ * `workClaims`, `log`, `leases`, `sessions`). The session store cases run only
+ * when the store is present, so they need no `skip` entry. Locks are not part of
  * this suite — they are a separate coordination concern (`LockStore` +
  * `withLocks`), not a store.
  *
@@ -1582,52 +1581,6 @@ export function runPersistenceConformance(
 
     // The session stores below are opt-in. A backend without one skips its
     // cases and needs no `skip` entry.
-    describe('credentials', () => {
-      it('keys by user and tenant, lists without values, and deletes', async (ctx) => {
-        const store = persistence.stores.credentials
-        if (!store) return ctx.skip('credentials store not provided')
-
-        const user = { threadId: 't', userId: 'u1', tenantId: 'org' }
-        const tenant = { threadId: 't', tenantId: 'org' }
-        await store.set({
-          scope: user,
-          id: 'github',
-          credential: {
-            type: 'oauth',
-            accessToken: 'secret-access',
-            refreshToken: 'secret-refresh',
-            expiresAt: 100,
-          },
-        })
-        await store.set({
-          scope: tenant,
-          id: 'notion',
-          credential: {
-            type: 'api_key',
-            value: 'secret-key',
-          },
-        })
-
-        expect(await store.get({ scope: user, id: 'github' })).toMatchObject({
-          accessToken: 'secret-access',
-        })
-        // A user credential is not visible at tenant scope, and the other way around.
-        expect(await store.get({ scope: tenant, id: 'github' })).toBeNull()
-        expect(await store.get({ scope: user, id: 'notion' })).toBeNull()
-
-        const listed = await store.list(user)
-        expect(listed).toEqual([
-          { id: 'github', type: 'oauth', expiresAt: 100 },
-        ])
-        // `list` never returns secret values.
-        expect(JSON.stringify(listed)).not.toContain('secret')
-
-        await store.delete({ scope: user, id: 'github' })
-        expect(await store.get({ scope: user, id: 'github' })).toBeNull()
-        expect(await store.list(user)).toEqual([])
-      })
-    })
-
     describe('inbox', () => {
       it('appends idempotently, lists pending oldest first, and settles entries', async (ctx) => {
         const store = persistence.stores.inbox
@@ -1639,6 +1592,7 @@ export function runPersistenceConformance(
         const in2 = id('in-2')
         const other = id('in-other')
         const missing = id('missing')
+        const otherThread = id('other-thread')
 
         const first = await store.append({
           inputId: in1,
@@ -1665,7 +1619,7 @@ export function runPersistenceConformance(
         })
         await store.append({
           inputId: other,
-          threadId: id('other-thread'),
+          threadId: otherThread,
           input: { op: 'prompt', message: 'x' },
           createdAt: 0,
         })
@@ -1674,23 +1628,57 @@ export function runPersistenceConformance(
           (await store.listPending(thread)).map((entry) => entry.inputId),
         ).toEqual([in1, in2])
 
-        await store.markApplied({ inputId: in1, operationId: 'op-1' })
-        await store.markRejected({ inputId: in2, reason: 'busy' })
+        await store.markApplied({
+          threadId: thread,
+          inputId: in1,
+          operationId: 'op-1',
+        })
+        await store.markRejected({
+          threadId: thread,
+          inputId: in2,
+          reason: 'busy',
+        })
         expect(await store.listPending(thread)).toEqual([])
-        expect(await store.get(in1)).toMatchObject({
+        expect(
+          await store.get({ threadId: thread, inputId: in1 }),
+        ).toMatchObject({
           status: 'applied',
           operationId: 'op-1',
         })
-        expect(await store.get(in2)).toMatchObject({
+        expect(
+          await store.get({ threadId: thread, inputId: in2 }),
+        ).toMatchObject({
           status: 'rejected',
           reason: 'busy',
           principal: { id: 'user-1' },
         })
 
         // Unknown ids are no-ops.
-        await store.markApplied({ inputId: missing, operationId: 'op-x' })
-        await store.markRejected({ inputId: missing, reason: 'nope' })
-        expect(await store.get(missing)).toBeNull()
+        await store.markApplied({
+          threadId: thread,
+          inputId: missing,
+          operationId: 'op-x',
+        })
+        await store.markRejected({
+          threadId: thread,
+          inputId: missing,
+          reason: 'nope',
+        })
+        expect(
+          await store.get({ threadId: thread, inputId: missing }),
+        ).toBeNull()
+        // An id is found only with its own thread.
+        expect(await store.get({ threadId: thread, inputId: other })).toBeNull()
+
+        // A delete removes the entry. With another thread, or an unknown
+        // id, it does nothing.
+        await store.delete({ threadId: thread, inputId: other })
+        await store.delete({ threadId: thread, inputId: missing })
+        expect(
+          await store.get({ threadId: otherThread, inputId: other }),
+        ).toMatchObject({ status: 'pending' })
+        await store.delete({ threadId: thread, inputId: in1 })
+        expect(await store.get({ threadId: thread, inputId: in1 })).toBeNull()
       })
     })
 
@@ -1711,10 +1699,12 @@ export function runPersistenceConformance(
         expect(await claim('a')).toBe(true)
         // Another owner is refused while the claim is live.
         expect(await claim('b')).toBe(false)
+        expect(await store.get(threadId)).toMatchObject({ ownerId: 'a' })
         // Only the owner releases.
         await store.release({ threadId, ownerId: 'b' })
         expect(await claim('b')).toBe(false)
         await store.release({ threadId, ownerId: 'a' })
+        expect(await store.get(threadId)).toBeNull()
         expect(await claim('b')).toBe(true)
         await store.release({ threadId, ownerId: 'b' })
       })
@@ -1979,6 +1969,46 @@ export function runPersistenceConformance(
         expect(await store.read(threadId)).toEqual([
           { seq: 1, record: { type: 'shared', list: [1] } },
         ])
+      })
+    })
+
+    describe('leases', () => {
+      const keyOf = (attempt: number) => ({
+        threadId: `leases-${crypto.randomUUID()}`,
+        inputId: 'in-1',
+        operationId: 'op-1',
+        attempt,
+      })
+
+      it('is alive from acquire to release, by the owner only', async (ctx) => {
+        const store = persistence.stores.leases
+        if (!store) return ctx.skip('leases store not provided')
+        const key = keyOf(1)
+        const later = Date.now() + 60 * 60_000
+        expect(await store.isAlive(key)).toBe(false)
+        await store.acquire({ ...key, ownerId: 'a', expiresAt: later })
+        expect(await store.isAlive(key)).toBe(true)
+        // Another host cannot release it.
+        await store.release({ ...key, ownerId: 'b', expiresAt: later })
+        expect(await store.isAlive(key)).toBe(true)
+        await store.release({ ...key, ownerId: 'a', expiresAt: later })
+        expect(await store.isAlive(key)).toBe(false)
+      })
+
+      it('is not alive after expiresAt', async (ctx) => {
+        const store = persistence.stores.leases
+        if (!store) return ctx.skip('leases store not provided')
+        const key = keyOf(1)
+        await store.acquire({ ...key, ownerId: 'a', expiresAt: Date.now() - 1 })
+        expect(await store.isAlive(key)).toBe(false)
+        // A renewal by the owner brings it back.
+        await store.renew({
+          ...key,
+          ownerId: 'a',
+          expiresAt: Date.now() + 60_000,
+        })
+        expect(await store.isAlive(key)).toBe(true)
+        await store.release({ ...key, ownerId: 'a', expiresAt: 0 })
       })
     })
 

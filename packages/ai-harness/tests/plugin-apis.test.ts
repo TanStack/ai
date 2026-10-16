@@ -39,7 +39,7 @@ describe('ctx.session.note', () => {
     ])
 
     // The next model call is the user's prompt, after the note.
-    await session.prompt('Any news?')
+    await session.send('Any news?')
     expect(calls).toHaveLength(1)
     expect(calls[0].messages).toMatchObject([
       { role: 'assistant', content: 'Build finished.' },
@@ -87,7 +87,7 @@ describe('prepareTools', () => {
       { threadId: 't' },
     )
 
-    await session.prompt('go')
+    await session.send('go')
     expect(models).toEqual(['picked-model'])
     expect(picked.calls).toHaveLength(1)
     await host.close()

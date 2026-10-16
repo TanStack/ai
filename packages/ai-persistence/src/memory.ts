@@ -13,8 +13,6 @@ import type {
   BlobRange,
   BlobRecord,
   BlobStore,
-  Credential,
-  CredentialStore,
   GenerationRunRecord,
   GenerationRunStore,
   InboxEntry,
@@ -29,12 +27,14 @@ import type {
   MetadataStore,
   RunRecord,
   RunStore,
-  Scope,
   SessionIndexEntry,
   SessionIndexListOptions,
   SessionIndexPage,
   SessionIndexStore,
   WorkClaimStore,
+  LeaseStore,
+  TurnLease,
+  TurnLeaseKey,
 } from './types'
 
 const compareUtf8Bytes = (left: string, right: string): number => {
@@ -625,84 +625,58 @@ class MemoryInboxStore implements InboxStore {
     return Promise.resolve(pending)
   }
   markApplied({
+    threadId,
     inputId,
     operationId,
   }: {
+    threadId: string
     inputId: string
     operationId: string
   }): Promise<void> {
-    const existing = this.entries.get(inputId)
+    const existing = this.of(threadId, inputId)
     if (existing) {
       this.entries.set(inputId, { ...existing, status: 'applied', operationId })
     }
     return Promise.resolve()
   }
   markRejected({
+    threadId,
     inputId,
     reason,
   }: {
+    threadId: string
     inputId: string
     reason: string
   }): Promise<void> {
-    const existing = this.entries.get(inputId)
+    const existing = this.of(threadId, inputId)
     if (existing) {
       this.entries.set(inputId, { ...existing, status: 'rejected', reason })
     }
     return Promise.resolve()
   }
-  get(inputId: string): Promise<InboxEntry | null> {
-    const existing = this.entries.get(inputId)
+  get({
+    threadId,
+    inputId,
+  }: {
+    threadId: string
+    inputId: string
+  }): Promise<InboxEntry | null> {
+    const existing = this.of(threadId, inputId)
     return Promise.resolve(existing ? structuredClone(existing) : null)
   }
-}
-
-class MemoryCredentialStore implements CredentialStore {
-  private readonly values = new Map<string, Map<string, Credential>>()
-  // A credential without a userId belongs to the tenant.
-  private owner(scope: Scope): string {
-    return JSON.stringify([scope.tenantId ?? null, scope.userId ?? null])
-  }
-  get({ scope, id }: { scope: Scope; id: string }): Promise<Credential | null> {
-    const stored = this.values.get(this.owner(scope))?.get(id)
-    return Promise.resolve(stored ? structuredClone(stored) : null)
-  }
-  set({
-    scope,
-    id,
-    credential,
+  delete({
+    threadId,
+    inputId,
   }: {
-    scope: Scope
-    id: string
-    credential: Credential
+    threadId: string
+    inputId: string
   }): Promise<void> {
-    const key = this.owner(scope)
-    let bucket = this.values.get(key)
-    if (!bucket) {
-      bucket = new Map()
-      this.values.set(key, bucket)
-    }
-    bucket.set(id, structuredClone(credential))
+    if (this.of(threadId, inputId)) this.entries.delete(inputId)
     return Promise.resolve()
   }
-  delete({ scope, id }: { scope: Scope; id: string }): Promise<void> {
-    this.values.get(this.owner(scope))?.delete(id)
-    return Promise.resolve()
-  }
-  list(
-    scope: Scope,
-  ): Promise<
-    Array<{ id: string; type: Credential['type']; expiresAt?: number }>
-  > {
-    const bucket = this.values.get(this.owner(scope))
-    return Promise.resolve(
-      [...(bucket?.entries() ?? [])].map(([id, credential]) => ({
-        id,
-        type: credential.type,
-        ...(credential.type === 'oauth' && credential.expiresAt !== undefined
-          ? { expiresAt: credential.expiresAt }
-          : {}),
-      })),
-    )
+  private of(threadId: string, inputId: string) {
+    const existing = this.entries.get(inputId)
+    return existing?.threadId === threadId ? existing : undefined
   }
 }
 
@@ -830,6 +804,12 @@ class MemoryWorkClaimStore implements WorkClaimStore {
       this.claims.delete(threadId)
     }
     return Promise.resolve()
+  }
+  get(threadId: string) {
+    const held = this.claims.get(threadId)
+    return Promise.resolve(
+      held ? { ownerId: held.ownerId, until: held.until } : null,
+    )
   }
   listExpired(options: {
     now: number
@@ -971,7 +951,6 @@ interface MemoryPersistenceStores {
   artifacts: ArtifactStore
   blobs: BlobStore
   inbox: InboxStore
-  credentials: CredentialStore
   workClaims: WorkClaimStore
   sessions: SessionIndexStore
 }
@@ -980,7 +959,7 @@ interface MemoryPersistenceStores {
  * In-process reference backend for the full state + generation store set.
  *
  * Returns messages + activities + runs + generationRuns + interrupts +
- * metadata + artifacts + blobs + inbox + credentials + workClaims + sessions.
+ * metadata + artifacts + blobs + inbox + workClaims + sessions.
  * The session log is not included: a host can turn on more behavior when
  * `stores.log` is present, so add `memoryLogStore()` yourself (see its
  * example: a durable harness host takes no `messages` or `inbox`). Locks are not
@@ -998,9 +977,54 @@ export function memoryPersistence() {
     artifacts: new MemoryArtifactStore(),
     blobs: new MemoryBlobStore(),
     inbox: new MemoryInboxStore(),
-    credentials: new MemoryCredentialStore(),
     workClaims: new MemoryWorkClaimStore(),
     sessions: new MemorySessionIndexStore(),
   }
   return defineAIPersistence({ stores })
+}
+
+/**
+ * In-process {@link LeaseStore}, for tests and single-process hosts. A real
+ * backend puts the lease in the system that already has one (a job queue).
+ *
+ * @example
+ * ```ts
+ * const { metadata, workClaims, sessions } = memoryPersistence().stores
+ * const persistence = defineAIPersistence({
+ *   stores: { log: memoryLogStore(), leases: memoryLeaseStore(), metadata, workClaims, sessions },
+ * })
+ * ```
+ */
+export function memoryLeaseStore(): LeaseStore {
+  const leases = new Map<string, TurnLease>()
+  const keyOf = (key: TurnLeaseKey) =>
+    `${key.threadId}\u0000${key.inputId}\u0000${key.operationId}\u0000${key.attempt}`
+  return {
+    acquire: (lease) => {
+      leases.set(keyOf(lease), { ...lease })
+      return Promise.resolve()
+    },
+    renew: (lease) => {
+      const held = leases.get(keyOf(lease))
+      // Only the owner renews. Another host's expired lease is taken over.
+      if (
+        !held ||
+        held.ownerId === lease.ownerId ||
+        held.expiresAt <= Date.now()
+      ) {
+        leases.set(keyOf(lease), { ...lease })
+      }
+      return Promise.resolve()
+    },
+    release: (lease) => {
+      if (leases.get(keyOf(lease))?.ownerId === lease.ownerId) {
+        leases.delete(keyOf(lease))
+      }
+      return Promise.resolve()
+    },
+    isAlive: (key) => {
+      const held = leases.get(keyOf(key))
+      return Promise.resolve(held !== undefined && held.expiresAt > Date.now())
+    },
+  }
 }

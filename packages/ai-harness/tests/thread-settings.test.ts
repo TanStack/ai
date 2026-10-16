@@ -61,14 +61,14 @@ describe('thread settings', () => {
       status: 'accepted',
     })
     expect(session.settings()).toEqual({ model: 'strong' })
-    expect((await session.prompt('Hi.')).text).toBe('ok')
+    expect((await session.send('Hi.')).text).toBe('ok')
     expect(strong.calls).toHaveLength(1)
     expect(base.calls).toHaveLength(0)
 
     // `null` clears the field: the harness adapter answers again.
     await session.configure({ model: null })
     expect(session.settings()).toEqual({})
-    expect((await session.prompt('Again.')).text).toBe('base')
+    expect((await session.send('Again.')).text).toBe('base')
     await host.close()
   })
 
@@ -88,16 +88,16 @@ describe('thread settings', () => {
     })
     await session.configure({ model: 'fast' })
 
-    const overridden = await session.prompt('One.', {
+    const overridden = await session.send('One.', {
       overrides: { adapter: override.adapter },
     })
     expect(overridden.text).toBe('override')
-    expect((await session.prompt('Two.')).text).toBe('fast')
+    expect((await session.send('Two.')).text).toBe('fast')
     await session.configure({ model: null })
-    expect((await session.prompt('Three.')).text).toBe('picked')
+    expect((await session.send('Three.')).text).toBe('picked')
     // A removed plugin's pick is left out too.
     await session.configure({ plugins: { remove: ['test/picker'] } })
-    expect((await session.prompt('Four.')).text).toBe('base')
+    expect((await session.send('Four.')).text).toBe('base')
     await host.close()
   })
 
@@ -143,8 +143,8 @@ describe('thread settings', () => {
     const { host, session } = await open({ adapter })
     await session.configure({ reasoning: 'high' })
 
-    await session.prompt('One.')
-    await session.prompt('Two.', { overrides: { reasoning: 'low' } })
+    await session.send('One.')
+    await session.send('Two.', { overrides: { reasoning: 'low' } })
     expect(calls.map((call) => call.reasoning?.level)).toEqual(['high', 'low'])
     await host.close()
   })
@@ -163,7 +163,7 @@ describe('thread settings', () => {
     })
     await session.configure({ instructions: 'Answer in French.' })
 
-    await session.prompt('Hi.')
+    await session.send('Hi.')
     const prompts: Array<unknown> = calls[0].systemPrompts
     expect(JSON.stringify(prompts.at(-1))).toContain('Answer in French.')
     expect(JSON.stringify(prompts)).toContain('Use tabs.')
@@ -178,11 +178,11 @@ describe('thread settings', () => {
     })
 
     await session.configure({ tools: ['alpha'] })
-    await session.prompt('One.')
+    await session.send('One.')
     await session.configure({ tools: { remove: ['alpha'] } })
-    await session.prompt('Two.')
+    await session.send('Two.')
     // A tool of the turn override is kept.
-    await session.prompt('Three.', { overrides: { tools: [echo('delta')] } })
+    await session.send('Three.', { overrides: { tools: [echo('delta')] } })
 
     expect(calls.map(toolNames)).toEqual([
       ['alpha'],
@@ -216,9 +216,9 @@ describe('thread settings', () => {
       ],
     })
 
-    await session.prompt('One.')
+    await session.send('One.')
     await session.configure({ plugins: { remove: ['acme/notes'] } })
-    await session.prompt('Two.')
+    await session.send('Two.')
 
     expect(calls.map(toolNames)).toEqual([['note', 'search'], ['search']])
     expect(JSON.stringify(calls[1].systemPrompts)).not.toContain('Keep notes.')
@@ -271,7 +271,7 @@ describe('thread settings', () => {
       model: 'strong',
       instructions: 'Be short.',
     })
-    expect((await session.prompt('Hi.')).text).toBe('strong')
+    expect((await session.send('Hi.')).text).toBe('strong')
     await second.close()
   })
 })
@@ -285,7 +285,7 @@ describe('the working folder note', () => {
     const { host, session } = await open({ adapter })
 
     await session.configure({ cwd: '/repo/app' })
-    await session.prompt('Hi.')
+    await session.send('Hi.')
     const roles = calls[0]?.messages.map(
       (message: ModelMessage) => message.role,
     )
@@ -298,9 +298,9 @@ describe('the working folder note', () => {
     const { adapter, calls } = mockAdapter(() => text('ok'))
     const { host, session } = await open({ adapter })
 
-    await session.prompt('First.')
+    await session.send('First.')
     await session.configure({ cwd: '/repo/app' })
-    await session.prompt('Hi.')
+    await session.send('Hi.')
     expect(sent(calls[1])).toContain(
       'The working folder is now /repo/app. Paths are relative to it.',
     )
@@ -315,11 +315,11 @@ describe('the working folder note', () => {
     const { adapter, calls } = mockAdapter(() => text('ok'))
     const { host, session } = await open({ adapter })
 
-    await session.prompt('First.')
+    await session.send('First.')
     await session.configure({ cwd: '/repo/app' })
     await session.configure({ cwd: '/repo/app' })
     await session.configure({ instructions: 'Be short.' })
-    await session.prompt('Hi.')
+    await session.send('Hi.')
     expect(sent(calls[1]).split('The working folder is now')).toHaveLength(2)
     await host.close()
   })
@@ -329,12 +329,12 @@ describe('the working folder note', () => {
     const { host, session } = await open({ adapter })
 
     await session.configure({ cwd: null })
-    await session.prompt('Hi.')
+    await session.send('Hi.')
     expect(sent(calls[0])).not.toContain('working folder')
 
     await session.configure({ cwd: '/repo/app' })
     await session.configure({ cwd: null })
-    await session.prompt('Again.')
+    await session.send('Again.')
     expect(sent(calls[1])).toContain(
       'The working folder is the default folder again.',
     )

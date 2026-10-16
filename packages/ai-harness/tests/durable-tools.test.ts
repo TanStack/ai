@@ -117,7 +117,7 @@ describe('durable tools across a crash', () => {
       [() => toolCall('pay', { orderId: 'o1' }, 'call-pay')],
       [pay],
     )
-    const turn = first.session.prompt('pay order o1', { inputId: 'pay-1' })
+    const turn = first.session.send('pay order o1', { inputId: 'pay-1' })
     await twoDone.opened
     await vi.waitFor(async () =>
       expect(
@@ -175,7 +175,7 @@ describe('durable tools across a crash', () => {
       ],
       tools,
     )
-    const turn = first.session.prompt('charge and mail', { inputId: 'batch-1' })
+    const turn = first.session.send('charge and mail', { inputId: 'batch-1' })
     await mailStarted.opened
     await vi.waitFor(async () =>
       expect(await recordsOf(persistence, 'harness.tool.result')).toHaveLength(
@@ -224,7 +224,7 @@ describe('host records of a tool batch', () => {
       [note],
     )
 
-    await session.prompt('note it')
+    await session.send('note it')
 
     expect(await recordsOf(persistence, 'app.state_write')).toEqual([
       { type: 'app.state_write', name: 'x', value: 1 },
@@ -249,7 +249,7 @@ describe('host records of a tool batch', () => {
       [() => toolCall('note', {}, 'call-note')],
       [note],
     )
-    const turn = first.session.prompt('note it', { inputId: 'note-1' })
+    const turn = first.session.send('note it', { inputId: 'note-1' })
     await appended.opened
     await expireLease(persistence, turn.id)
 
@@ -293,7 +293,7 @@ describe('host records of a tool batch', () => {
       }),
       { threadId: THREAD },
     )
-    const turn = session.prompt('note and wait', { inputId: 'result-1' })
+    const turn = session.send('note and wait', { inputId: 'result-1' })
 
     await vi.waitFor(async () =>
       expect(await recordsOf(persistence, 'harness.tool.result')).toHaveLength(
@@ -355,7 +355,7 @@ describe('host records of a tool batch', () => {
       }),
       { threadId: THREAD },
     )
-    const turn = session.prompt('note and check', { inputId: 'audit-1' })
+    const turn = session.send('note and check', { inputId: 'audit-1' })
     await audited.opened
 
     expect(await recordsOf(persistence, 'app.audit')).toEqual([
@@ -385,7 +385,7 @@ describe('a durable tool with replay: never', () => {
       [note],
     )
 
-    await session.prompt('note it')
+    await session.send('note it')
 
     expect(note.replay).toBe('never')
     expect(await recordsOf(persistence, 'app.state_write')).toEqual([
@@ -415,7 +415,7 @@ describe('a durable tool with replay: never', () => {
       [() => toolCall('mail', {}, 'call-mail')],
       [mail],
     )
-    const turn = first.session.prompt('mail it', { inputId: 'mail-1' })
+    const turn = first.session.send('mail it', { inputId: 'mail-1' })
     await started.opened
     await expireLease(persistence, turn.id)
 
@@ -491,7 +491,7 @@ describe('durable tools that middleware returns', () => {
       () => toolCall('look', {}, 'call-look'),
       () => toolCall('pay', {}, 'call-pay'),
     ])
-    const turn = first.session.prompt('pay', { inputId: 'pay-1' })
+    const turn = first.session.send('pay', { inputId: 'pay-1' })
     await charged.opened
     await vi.waitFor(async () =>
       expect(await recordsOf(persistence, 'harness.tool.step')).toHaveLength(1),
@@ -550,7 +550,7 @@ describe('durable tools that middleware returns', () => {
       { threadId: THREAD },
     )
 
-    await session.prompt('note it')
+    await session.send('note it')
 
     expect(wrapped).toEqual(['note'])
     expect(await recordsOf(persistence, 'harness.tool.step')).toHaveLength(1)

@@ -642,12 +642,12 @@ export interface BlobStore {
 // ===========================================================================
 //
 // Opt-in stores for a host that keeps long-lived sessions: the inputs it
-// accepted, user credentials, an append-only log, turn leases, work claims,
+// accepted, an append-only log, turn leases, work claims,
 // and a list of sessions. `withPersistence` writes only `sessions`, an entry
 // for each subagent child.
 
 /** Lifecycle of one inbox entry. */
-export type InboxStatus = 'pending' | 'applied' | 'rejected' | 'expired'
+export type InboxStatus = 'pending' | 'applied' | 'rejected'
 
 /**
  * One input a client sent to a session (a prompt, a steer message, a
@@ -685,67 +685,30 @@ export interface InboxStore {
   listPending: (threadId: string) => Promise<Array<InboxEntry>>
   /** Mark an entry applied by `operationId`. A no-op for an unknown id. */
   markApplied: (entry: {
+    threadId: string
     inputId: string
     operationId: string
   }) => Promise<void>
   /** Mark an entry rejected with `reason`. A no-op for an unknown id. */
-  markRejected: (entry: { inputId: string; reason: string }) => Promise<void>
-  /** The entry for `inputId`, or `null`. */
-  get: (inputId: string) => Promise<InboxEntry | null>
+  markRejected: (entry: {
+    threadId: string
+    inputId: string
+    reason: string
+  }) => Promise<void>
+  /** The entry for `inputId` of `threadId`, or `null`. */
+  get: (entry: {
+    threadId: string
+    inputId: string
+  }) => Promise<InboxEntry | null>
+  /**
+   * Remove the entry. A no-op for an unknown id. The host removes an answer
+   * after it applies it, so a secret answer does not stay in the store.
+   */
+  delete: (entry: { threadId: string; inputId: string }) => Promise<void>
 }
 
 /** Type an {@link InboxStore} implementation inline. */
 export function defineInboxStore(store: InboxStore): InboxStore {
-  return store
-}
-
-/** A secret a user or an organization saved: an API key or OAuth tokens. */
-export type Credential =
-  | { type: 'api_key'; value: string }
-  | {
-      type: 'oauth'
-      accessToken: string
-      refreshToken?: string
-      expiresAt?: number
-      scopes?: Array<string>
-      /**
-       * The OAuth client these tokens belong to (for example one made by
-       * dynamic client registration). A refresh needs it. `issuer` is the
-       * authorization server that issued the client and the tokens.
-       */
-      client?: {
-        clientId: string
-        clientSecret?: string
-        redirectUri?: string
-        issuer?: string
-      }
-    }
-
-/**
- * Durable store for credentials, keyed by scope and credential id (for
- * example `'github'`). The key is `scope.tenantId` and `scope.userId`, not
- * `scope.threadId`. A credential saved without `scope.userId` belongs to the
- * tenant. A scope with neither is one shared bucket. Encrypt at rest in your
- * implementation.
- */
-export interface CredentialStore {
-  get: (key: { scope: Scope; id: string }) => Promise<Credential | null>
-  set: (entry: {
-    scope: Scope
-    id: string
-    credential: Credential
-  }) => Promise<void>
-  delete: (key: { scope: Scope; id: string }) => Promise<void>
-  /** Ids and types only. `list` never returns secret values. */
-  list: (
-    scope: Scope,
-  ) => Promise<
-    Array<{ id: string; type: Credential['type']; expiresAt?: number }>
-  >
-}
-
-/** Type a {@link CredentialStore} implementation inline. */
-export function defineCredentialStore(store: CredentialStore): CredentialStore {
   return store
 }
 
@@ -869,6 +832,11 @@ export interface LeaseStore {
   isAlive: (key: TurnLeaseKey) => Promise<boolean>
 }
 
+/** Type a {@link LeaseStore} implementation inline. */
+export function defineLeaseStore(store: LeaseStore): LeaseStore {
+  return store
+}
+
 /**
  * Claims on threads that have pending work. A host claims a thread while it
  * works on it and renews the claim. When the host stops, the claim expires,
@@ -891,6 +859,12 @@ export interface WorkClaimStore {
   }) => Promise<boolean>
   /** The thread is idle: remove the claim. Only its owner can. */
   release: (claim: { threadId: string; ownerId: string }) => Promise<void>
+  /**
+   * The owner of the claim on `threadId` and when it expires, or `null` when
+   * no one holds it. A claim that expired can still come back: compare
+   * `until` with the time.
+   */
+  get: (threadId: string) => Promise<{ ownerId: string; until: number } | null>
   /** Claims that expired before `now`: their host stopped. Oldest first. */
   listExpired: (options: {
     now: number
@@ -1004,8 +978,10 @@ export interface SessionIndexStore {
   /**
    * Optional. The entry with a revision, or `undefined` when it is absent.
    * Pair it with `upsertIf` for compare-and-set writes: implement both or
-   * neither. Each write (`upsert` or `upsertIf`) gives the entry a new
-   * revision, and a revision does not come back after a `delete`.
+   * neither. A write that changes the entry gives it a new revision. A
+   * revision may name the content (a content-hash ETag, as in S3 or Netlify
+   * Blobs), so the same entry written again, also after a `delete`, can get
+   * the same revision back.
    */
   getVersioned?: (
     threadId: string,
@@ -1072,8 +1048,6 @@ export interface AIPersistenceStores {
   blobs?: BlobStore
   /** Session inputs. */
   inbox?: InboxStore
-  /** User and tenant credentials. */
-  credentials?: CredentialStore
   /** Append-only session log. */
   log?: LogStore
   /** Turn leases from a system that already has them. */
@@ -1261,7 +1235,6 @@ const storeKeys = [
   'artifacts',
   'blobs',
   'inbox',
-  'credentials',
   'log',
   'leases',
   'workClaims',

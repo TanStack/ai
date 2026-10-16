@@ -97,7 +97,7 @@ describe('toolExecution', () => {
       { threadId: 't1' },
     )
 
-    await expect(session.prompt('go')).resolves.toEqual({
+    await expect(session.send('go')).resolves.toEqual({
       text: 'done',
       media: [],
     })

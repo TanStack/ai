@@ -527,6 +527,7 @@ export const CHAT_OPS = new Set<string>([
   'steer',
   'followUp',
   'continue',
+  'tool',
   'resolve',
 ])
 
@@ -536,6 +537,7 @@ export const WORK_OPS = new Set<string>([
   'steer',
   'followUp',
   'continue',
+  'tool',
   'resolve',
   'reset',
   'agent',
@@ -663,12 +665,16 @@ export function tapFeed(
   return {
     publish: (operationId, event) => {
       feed.publish(operationId, event)
-      notifyHost(event)
       const report = (error: unknown) =>
         console.error(
           '[@tanstack/ai-harness] An onEvent listener threw.',
           error,
         )
+      try {
+        notifyHost(event)
+      } catch (error) {
+        report(error)
+      }
       for (const listener of [...listeners]) {
         // A listener that an earlier listener stopped gets nothing.
         if (!listeners.has(listener)) continue
@@ -691,5 +697,12 @@ export function tapFeed(
     head: () => feed.head(),
     read: (options) => feed.read(options),
     close: () => feed.close(),
+    wake: () => feed.wake(),
   }
 }
+
+/** `accept` passed the input to the host that owns the thread, or refused it for that. */
+export const isElsewhere = (
+  admission: string,
+): admission is 'forwarded' | 'owned_elsewhere' =>
+  admission === 'forwarded' || admission === 'owned_elsewhere'

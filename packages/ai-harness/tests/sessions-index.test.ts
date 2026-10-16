@@ -143,8 +143,8 @@ describe('host.sessions', () => {
       principal: { id: 'u1', tenantId: 'org-1' },
     })
 
-    await session.prompt('first')
-    await session.prompt('second')
+    await session.send('first')
+    await session.send('second')
 
     expect((await host.sessions.get('t1'))?.usage).toEqual({
       turns: 2,
@@ -364,10 +364,10 @@ describe('host.sessions', () => {
   it('deletes the index entry only, and a later turn does not bring it back', async () => {
     const { persistence, host, harness } = hostWith()
     const session = await host.open(harness, { threadId: 't1' })
-    await session.prompt('hi')
+    await session.send('hi')
 
     await host.sessions.delete('t1')
-    await session.prompt('still here')
+    await session.send('still here')
 
     expect(await host.sessions.get('t1')).toBeUndefined()
     expect(turnsOf(await persistence.stores.messages.loadThread('t1'))).toEqual(
@@ -388,8 +388,8 @@ describe('host.sessions', () => {
       principal: { id: 'u1' },
     })
     await session.configure({ instructions: 'Be brief.' })
-    await session.prompt('first')
-    await session.prompt('second')
+    await session.send('first')
+    await session.send('second')
     await host.sessions.rename({ threadId: 't1', title: 'Chat' })
     const [, , second] = await session.transcript()
 
@@ -439,7 +439,7 @@ describe('host.sessions', () => {
     const { persistence, host, harness } = hostWith()
     const session = await host.open(harness, { threadId: 't1' })
     await session.configure({ instructions: 'Be brief.' })
-    await session.prompt('first')
+    await session.send('first')
     const [first] = await session.transcript()
 
     const fork = await host.sessions.fork({
@@ -469,7 +469,7 @@ describe('host.sessions', () => {
       adapter: mockAdapter(() => text('durable answer')).adapter,
     })
     const session = await host.open(harness, { threadId: 'd1' })
-    await session.prompt('hi')
+    await session.send('hi')
     const [, answer] = await session.transcript()
 
     const fork = await host.sessions.fork({
@@ -495,7 +495,7 @@ describe('host.sessions', () => {
   it('refuses a fork at a message that is not in the transcript', async () => {
     const { host, harness } = hostWith()
     const session = await host.open(harness, { threadId: 't1' })
-    await session.prompt('hi')
+    await session.send('hi')
 
     await expect(
       host.sessions.fork({
@@ -511,7 +511,7 @@ describe('host.sessions', () => {
   it('refuses a fork with a harness that does not run the thread', async () => {
     const { host, harness } = hostWith()
     const session = await host.open(harness, { threadId: 't1' })
-    await session.prompt('hi')
+    await session.send('hi')
     const [, answer] = await session.transcript()
     const other = defineHarness({
       name: 'test/other',
@@ -539,7 +539,7 @@ describe('host.sessions', () => {
     })
     const { harness } = hostWith()
     const session = await host.open(harness, { threadId: 't1' })
-    await session.prompt('hi')
+    await session.send('hi')
     const [, answer] = await session.transcript()
     const other = defineHarness({
       name: 'test/other',
@@ -611,7 +611,7 @@ describe('child sessions', () => {
       principal: { id: 'alice' },
     })
 
-    await session.prompt('Notes, please')
+    await session.send('Notes, please')
 
     const page = await host.sessions.list({ parentThreadId: 'lead' })
     expect(page.entries).toEqual([
@@ -745,7 +745,7 @@ describe('ctx.session.entry and updateEntry', () => {
     const { host, session, api } = await openWithApi({
       stores: { messages, runs, metadata },
     })
-    await session.prompt('hi')
+    await session.send('hi')
 
     expect(await host.sessions.list()).toEqual({ entries: [] })
     expect(await host.sessions.get('p1')).toBeUndefined()

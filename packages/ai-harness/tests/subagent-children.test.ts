@@ -80,7 +80,7 @@ describe('subagent children of a harness session', () => {
     const child = mockAdapter(() => text('Note 1'))
     const { host, session } = await openLead(lead.adapter, child.adapter)
 
-    await session.prompt('Notes, please')
+    await session.send('Notes, please')
 
     const threadId = `subagent:${childIdIn(lead.calls[1], 'call-1')}`
     expect(await host.sessions.get(threadId)).toEqual({
@@ -110,8 +110,8 @@ describe('subagent children of a harness session', () => {
     const child = mockAdapter([() => text('Note 1'), () => text('Note 2')])
     const { host, session } = await openLead(lead.adapter, child.adapter)
 
-    await session.prompt('Notes, please')
-    await session.prompt('Add more')
+    await session.send('Notes, please')
+    await session.send('Add more')
 
     expect(childIdIn(lead.calls[3], 'call-2')).toBe(
       childIdIn(lead.calls[3], 'call-1'),
@@ -131,7 +131,7 @@ describe('subagent children of a harness session', () => {
     const child = mockAdapter(after(finish.opened, 'Found it'))
     const { host, session } = await openLead(lead.adapter, child.adapter)
 
-    await session.prompt('Look around for me')
+    await session.send('Look around for me')
 
     expect(toolResultIn(lead.calls[1], 'call-1')).toEqual({
       subagentRunId: expect.any(String),
@@ -163,7 +163,7 @@ describe('subagent children of a harness session', () => {
       stores: { messages, runs, metadata },
     })
 
-    await session.prompt('Look around for me')
+    await session.send('Look around for me')
     await woke.opened
 
     expect(messageTexts(lead.calls[2]).at(-1)).toBe(WAKE)
@@ -182,7 +182,7 @@ describe('subagent children of a harness session', () => {
       child.adapter,
       persistence,
     )
-    await session.prompt('Notes, please')
+    await session.send('Notes, please')
     const id = childIdIn(lead.calls[1], 'call-1')
     // A fork copies the agent result, but the child stays a child of `t`.
     const fork = await host.fork(harness, { threadId: 't', newThreadId: 'f' })

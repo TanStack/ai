@@ -1962,7 +1962,7 @@ export class AnthropicTextAdapter<
                 toolName: existing.name,
                 model,
                 timestamp: Date.now(),
-                ...(existing.input !== '' && { args: existing.input }),
+                args: existing.input,
                 ...(parsedInput !== undefined && { input: parsedInput }),
               }
 

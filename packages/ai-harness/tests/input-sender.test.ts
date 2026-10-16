@@ -1,3 +1,4 @@
+import { memoryCredentialStore } from '@tanstack/ai/byok/server'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { defineAgent, keyedAdapter, toolDefinition } from '@tanstack/ai'
@@ -49,8 +50,8 @@ function whoami() {
 }
 
 function durablePersistence() {
-  const { runs, metadata, credentials } = memoryPersistence().stores
-  return { stores: { log: memoryLogStore(), runs, metadata, credentials } }
+  const { runs, metadata } = memoryPersistence().stores
+  return { stores: { log: memoryLogStore(), runs, metadata } }
 }
 
 describe('the sender of each input', () => {
@@ -77,9 +78,9 @@ describe('the sender of each input', () => {
       session,
     )
 
-    await session.prompt('Who am I?', { inputId: 'in-bob', principal: bob })
+    await session.send('Who am I?', { inputId: 'in-bob', principal: bob })
     // Without a principal, the input is the opener's.
-    await session.prompt('And now?', { inputId: 'in-default' })
+    await session.send('And now?', { inputId: 'in-default' })
 
     expect(seen.map((entry) => entry.principal)).toEqual(['bob', 'alice'])
     const inputs = (await persistence.stores.log.read(THREAD))
@@ -100,23 +101,24 @@ describe('the sender of each input', () => {
       return mockAdapter([() => text(`answered with ${key}`)]).adapter
     })
     const persistence = memoryPersistence()
+    const credentials = memoryCredentialStore()
     for (const user of ['alice', 'bob']) {
-      await persistence.stores.credentials.set({
+      await credentials.set({
         scope: { threadId: THREAD, userId: user },
         id: 'acme',
         credential: { type: 'api_key', value: `${user}-key` },
       })
     }
-    const host = createHarnessHost({ persistence })
+    const host = createHarnessHost({ persistence, credentials })
     const session = await host.open(
       defineHarness({ name: 'test/sender-keys', adapter }),
       { threadId: THREAD, principal: alice },
     )
 
-    expect((await session.prompt('Hi.', { principal: bob })).text).toBe(
+    expect((await session.send('Hi.', { principal: bob })).text).toBe(
       'answered with bob-key',
     )
-    expect((await session.prompt('Hi.')).text).toBe('answered with alice-key')
+    expect((await session.send('Hi.')).text).toBe('answered with alice-key')
     expect(keys).toEqual(['bob-key', 'alice-key'])
     await host.close()
   })
@@ -146,9 +148,13 @@ describe('the sender of each input', () => {
       { threadId: THREAD, principal: alice },
     )
 
-    const turn = session.prompt('Start.')
+    const turn = session.send('Start.')
     await turn.receipt
-    await session.steer('Mine.', { inputId: 'in-bob', principal: bob })
+    await session.send('Mine.', {
+      inputId: 'in-bob',
+      principal: bob,
+      mode: 'steer',
+    }).receipt
     release.open()
 
     expect(await turn).toEqual({ text: 'first', media: [] })
@@ -191,10 +197,11 @@ describe('the sender of each input', () => {
       { threadId: THREAD, principal: alice },
     )
 
-    const turn = session.prompt('Start.')
+    const turn = session.send('Start.')
     await started.opened
-    await session.steer('Also this.', { inputId: 'in-alice' })
-    const bobs = session.prompt('Mine.', {
+    await session.send('Also this.', { inputId: 'in-alice', mode: 'steer' })
+      .receipt
+    const bobs = session.send('Mine.', {
       busy: 'steer',
       inputId: 'in-bob',
       principal: bob,
@@ -237,10 +244,11 @@ describe('the sender of each input', () => {
       { threadId: THREAD, principal: alice },
     )
 
-    const turn = session.prompt('Start.')
+    const turn = session.send('Start.')
     await started.opened
-    await session.steer('Also this.', { inputId: 'in-alice' })
-    const bobs = session.prompt('Mine.', {
+    await session.send('Also this.', { inputId: 'in-alice', mode: 'steer' })
+      .receipt
+    const bobs = session.send('Mine.', {
       busy: 'steer',
       inputId: 'in-bob',
       principal: bob,
@@ -277,7 +285,7 @@ describe('the sender of each input', () => {
             description: 'Ask again',
             run: (_input, { session }) => {
               commandSaw.push(session.principal?.id)
-              again = session.prompt('Again.')
+              again = session.send('Again.')
               return 'ok'
             },
           }),
@@ -294,7 +302,7 @@ describe('the sender of each input', () => {
       { threadId: THREAD, principal: alice },
     )
 
-    const turn = session.prompt('Start.')
+    const turn = session.send('Start.')
     await started.opened
     // Bob runs a command while alice's turn runs.
     await session.command('again', undefined, { principal: bob })
@@ -347,7 +355,7 @@ describe('the sender of each input', () => {
       { threadId: THREAD, principal: alice },
     )
 
-    await session.prompt('Start the writer.', { principal: bob })
+    await session.send('Start the writer.', { principal: bob })
     await vi.waitFor(() => expect(seen).toHaveLength(1))
     expect(seen.map((entry) => entry.principal)).toEqual(['bob'])
     await host.close()
@@ -389,8 +397,9 @@ describe('the sender of each input', () => {
       }),
     })
     const persistence = memoryPersistence()
+    const credentials = memoryCredentialStore()
     for (const user of ['alice', 'bob']) {
-      await persistence.stores.credentials.set({
+      await credentials.set({
         scope: { threadId: THREAD, userId: user },
         id: 'acme',
         credential: { type: 'api_key', value: `${user}-key` },
@@ -400,7 +409,7 @@ describe('the sender of each input', () => {
       () => toolCall('startWriter', {}, 'c1'),
       () => text('started'),
     ])
-    const host = createHarnessHost({ persistence })
+    const host = createHarnessHost({ persistence, credentials })
     const session = await host.open(
       defineHarness({
         name: 'test/sender-agent',
@@ -410,7 +419,7 @@ describe('the sender of each input', () => {
       { threadId: THREAD, principal: alice },
     )
 
-    await session.prompt('Start the writer.', { principal: bob })
+    await session.send('Start the writer.', { principal: bob })
     release.open()
 
     expect(await started).toBe('drafted')
@@ -580,7 +589,7 @@ describe('the turn where the model is picked', () => {
       { threadId: THREAD, principal: alice },
     )
 
-    const turn = session.prompt('Pick for me.', {
+    const turn = session.send('Pick for me.', {
       inputId: 'in-1',
       principal: bob,
       context: { plan: 'pro' },
@@ -624,7 +633,7 @@ describe('the turn where the model is picked', () => {
       { threadId: THREAD, principal: alice },
     )
 
-    await session.prompt('Route me.', {
+    await session.send('Route me.', {
       principal: bob,
       context: { plan: 'pro' },
     })
@@ -661,8 +670,9 @@ describe('the tenant of a principal', () => {
       }),
     })
     const persistence = memoryPersistence()
+    const credentials = memoryCredentialStore()
     for (const tenantId of ['org-a', 'org-b']) {
-      await persistence.stores.credentials.set({
+      await credentials.set({
         scope: { threadId: THREAD, userId: 'u1', tenantId },
         id: 'github',
         credential: { type: 'api_key', value: `${tenantId}-token` },
@@ -674,14 +684,14 @@ describe('the tenant of a principal', () => {
       () => toolCall('readToken', {}, 'c2'),
       () => text('ok'),
     ])
-    const host = createHarnessHost({ persistence })
+    const host = createHarnessHost({ persistence, credentials })
     const session = await host.open(
       defineHarness({ name: 'test/tenant', adapter, plugins: () => [plugin] }),
       { threadId: THREAD, principal: { id: 'u1', tenantId: 'org-a' } },
     )
 
-    await session.prompt('Read it.')
-    await session.prompt('Read it again.', {
+    await session.send('Read it.')
+    await session.send('Read it again.', {
       principal: { id: 'u1', tenantId: 'org-b' },
     })
 
@@ -690,7 +700,7 @@ describe('the tenant of a principal', () => {
   })
 
   it("reads the tenant's credential when the user has none, and the user's own first", async () => {
-    const store = memoryPersistence().stores.credentials
+    const store = memoryCredentialStore()
     // Saved without a userId: it belongs to the whole tenant.
     await store.set({
       scope: { threadId: THREAD, tenantId: 'org-a' },
