@@ -896,7 +896,9 @@ position. Then a reader loads the snapshot and reads only the records after it.
 With a snapshot, the owner can also drop the old records.
 
 - `putSnapshot` is fenced, and it replaces the previous snapshot. If `seq` is after
-  the last position, it rejects with `RangeError`.
+  the last position, or before `firstSeq - 1`, it rejects with `RangeError`.
+  `firstSeq` is the first kept position, so an earlier snapshot needs records that
+  a truncate dropped.
 - `getSnapshot` returns the latest snapshot, or `null` when the log has none.
 - `truncate` is fenced. It drops the records with `seq` less than `beforeSeq`. If the
   log has no snapshot with a `seq` of `beforeSeq - 1` or more, it rejects with

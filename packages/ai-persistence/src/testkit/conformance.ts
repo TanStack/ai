@@ -40,7 +40,7 @@
  * exact-set assertion. A new case in `describe('runs')` must NOT seed a run id
  * starting with `rc-`, or it silently changes that expected set.
  */
-import { beforeAll, describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 import {
   LogConflictError,
   LogTruncatedError,
@@ -148,6 +148,20 @@ export interface PersistenceConformanceOptions {
    * {@link PersistenceConformanceCheck}.
    */
   checks?: Array<PersistenceConformanceCheck>
+  /**
+   * Make a second store set on the same backend as `persistence`, as a second
+   * machine sees it. The `log across instances` cases use its `log` store.
+   * A backend that provides `log` must pass `twin`, or those cases fail.
+   *
+   * @example
+   * ```ts
+   * twin: (persistence) =>
+   *   defineAIPersistence({
+   *     stores: { ...persistence.stores, log: myLogStore(sameDatabase) },
+   *   })
+   * ```
+   */
+  twin?: (persistence: AIPersistence) => AIPersistence | Promise<AIPersistence>
 }
 
 /**
@@ -188,6 +202,21 @@ export function runPersistenceConformance(
         `AIPersistence conformance: store '${key}' is missing. ` +
           `Provide it, or pass { skip: ['${key}'] } if the omission is intentional.`,
       )
+    }
+
+    /**
+     * Return the second store set from `options.twin`. Throws (failing the
+     * test) when the option is missing, mirroring `resolveStore`: a case
+     * that cannot run must never be reported as a pass.
+     */
+    async function resolveTwin() {
+      const twin = options?.twin
+      if (twin === undefined) {
+        throw new Error(
+          'AIPersistence conformance: Provide `twin`: a second store set on the same backend.',
+        )
+      }
+      return twin(persistence)
     }
 
     /**
@@ -2730,6 +2759,26 @@ export function runPersistenceConformance(
         expect(await store.getSnapshot({ logId })).toBeNull()
       })
 
+      it('refuses a snapshot before the truncation point', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = await logWithSnapshot(store)
+        await store.truncate({ logId, epoch: UNOWNED_EPOCH, beforeSeq: 4 })
+
+        // The cut dropped positions 1 to 3, so a reader cannot replay from 1.
+        await expect(
+          store.putSnapshot(snapshotAt(logId, 1)),
+        ).rejects.toBeInstanceOf(RangeError)
+        expect(await store.getSnapshot({ logId })).toMatchObject({ seq: 3 })
+        // Position 3 is the last dropped one, so the reader needs no dropped
+        // record and the snapshot is accepted.
+        await store.putSnapshot({ ...snapshotAt(logId, 3), version: 'v2' })
+        expect(await store.getSnapshot({ logId })).toMatchObject({
+          seq: 3,
+          version: 'v2',
+        })
+      })
+
       it('truncates before a snapshot and keeps counting positions', async (ctx) => {
         const store = persistence.stores.log
         if (!store) return ctx.skip('log store not provided')
@@ -2881,6 +2930,92 @@ export function runPersistenceConformance(
             ttlMs: LIVE_MS,
           }),
         ).toEqual({ epoch: 1 })
+      })
+    })
+
+    // Store A is `persistence.stores.log`. Store B is the log store of the
+    // twin, on the same backend, as a second machine sees it.
+    describe('log across instances', () => {
+      const twinLog = async () =>
+        required((await resolveTwin()).stores.log, 'the log store of the twin')
+
+      it('notifies a subscriber on the other instance', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const other = await twinLog()
+        const logId = newLog()
+        const counter = countCalls(other, logId)
+
+        await store.append({
+          logId,
+          seq: 1,
+          epoch: UNOWNED_EPOCH,
+          records: [{ type: 'from-a' }],
+        })
+
+        await expect.poll(counter.calls).toBe(1)
+        counter.stop()
+        // The listener on B can read the record that A wrote.
+        expect(await other.read({ logId })).toEqual([
+          { seq: 1, record: { type: 'from-a' } },
+        ])
+      })
+
+      it('gives one owner across instances', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const other = await twinLog()
+        const claim = { logId: newLog(), harness: 'h', ttlMs: 10_000 }
+
+        expect(await store.acquire({ ...claim, ownerId: 'a' })).toEqual({
+          epoch: 1,
+        })
+        expect(await other.acquire({ ...claim, ownerId: 'b' })).toBeNull()
+      })
+
+      it('deduplicates offers across instances', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const other = await twinLog()
+        const input = {
+          logId: newLog(),
+          harness: 'h',
+          inputId: 'i1',
+          record: { type: 'input', text: 'hi' },
+        }
+
+        expect(await store.offer(input)).toBe('offered')
+        expect(await other.offer(input)).toBe('duplicate')
+      })
+
+      it('keeps notifying after a listener throws', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const other = await twinLog()
+        const logId = newLog()
+        const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+        ctx.onTestFinished(() => errors.mockRestore())
+        const stopThrower = store.subscribe({
+          logId,
+          listener: () => {
+            throw new Error('listener failed')
+          },
+        })
+        const counter = countCalls(other, logId)
+
+        await expect(
+          store.append({
+            logId,
+            seq: 1,
+            epoch: UNOWNED_EPOCH,
+            records: [{ type: 'one' }],
+          }),
+        ).resolves.toBeUndefined()
+
+        await expect.poll(counter.calls).toBe(1)
+        await expect.poll(() => errors.mock.calls.length).toBeGreaterThan(0)
+        stopThrower()
+        counter.stop()
       })
     })
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { memoryPersistence } from '../src/memory'
+import { memoryLogStore, memoryPersistence } from '../src/memory'
 import { defineAIPersistence } from '../src/types'
 
 describe('memoryPersistence', () => {
@@ -263,5 +263,18 @@ describe('memoryPersistence', () => {
       await metadata!.delete('scope', 'present')
       expect(await metadata!.get('scope', 'present')).toBeNull()
     })
+  })
+})
+
+describe('memoryLogStore', () => {
+  it('refuses a backend that memoryLogBackend did not make', () => {
+    // The same shape as a real handle, but with no log state behind it.
+    const makeStore = () =>
+      memoryLogStore({ backend: Object.freeze({ kind: 'memory-log-backend' }) })
+
+    expect(makeStore).toThrow(TypeError)
+    expect(makeStore).toThrow(
+      'memoryLogStore: this backend was not made by memoryLogBackend().',
+    )
   })
 })

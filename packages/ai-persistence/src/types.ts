@@ -1008,8 +1008,10 @@ export interface LogStore {
   getSnapshot: (query: { logId: string }) => Promise<LogSnapshot | null>
   /**
    * Replace the snapshot of the log. Fenced like `append`: a wrong `epoch`
-   * rejects with {@link OwnershipLostError}. Rejects with a `RangeError` when
-   * `seq` is after the last position of the log.
+   * rejects with {@link OwnershipLostError}. Rejects with a `RangeError`
+   * unless `firstSeq - 1 <= seq <= head`. `head` is the last position of the
+   * log. `firstSeq` is the first kept position after a `truncate`, or 1. A
+   * snapshot before `firstSeq - 1` needs records that a truncate dropped.
    */
   putSnapshot: (
     snapshot: { logId: string; epoch: number } & LogSnapshot,
