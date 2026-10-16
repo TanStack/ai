@@ -1,4 +1,9 @@
-import { LogConflictError, defineAIPersistence } from './types'
+import {
+  LogConflictError,
+  OwnershipLostError,
+  UNOWNED_EPOCH,
+  defineAIPersistence,
+} from './types'
 import { resolveBlobRange } from './blob-range'
 import type { ActivityRecord, ModelMessage } from '@tanstack/ai'
 import type {
@@ -20,7 +25,6 @@ import type {
   InterruptCommitEntry,
   InterruptRecord,
   InterruptStore,
-  LogEntry,
   LogRecord,
   LogStore,
   MessageStore,
@@ -680,40 +684,49 @@ class MemoryInboxStore implements InboxStore {
   }
 }
 
-/** A JSON copy, so the log never shares an object with a caller. */
-function copyRecord(record: LogRecord): LogRecord {
-  return JSON.parse(JSON.stringify(record))
+/**
+ * A JSON copy, so a store never shares an object with a caller. Throws when
+ * the value cannot become JSON (a `BigInt`, a cycle).
+ */
+function copyJson<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value))
 }
 
 class MemoryLogStore implements LogStore {
-  private readonly threads = new Map<string, Array<LogRecord>>()
+  private readonly logs = new Map<string, Array<LogRecord>>()
   private readonly listeners = new Map<string, Set<() => void>>()
 
   append({
-    threadId,
+    logId,
     seq,
+    epoch,
     records,
-  }: {
-    threadId: string
-    seq: number
-    records: ReadonlyArray<LogRecord>
-  }): Promise<void> {
-    if (records.length === 0) return Promise.resolve()
-    const log = this.threads.get(threadId) ?? []
+    consumes = [],
+  }: Parameters<LogStore['append']>[0]) {
+    const isNoop = records.length === 0 && consumes.length === 0
+    if (isNoop) return Promise.resolve()
+    // The fence. This store has no owners yet, so every log is unowned.
+    if (epoch !== UNOWNED_EPOCH) {
+      return Promise.reject(new OwnershipLostError(logId, epoch))
+    }
+    const log = this.logs.get(logId) ?? []
     if (seq !== log.length + 1) {
-      return Promise.reject(new LogConflictError(threadId, seq))
+      return Promise.reject(new LogConflictError(logId, seq))
+    }
+    if (consumes.length > 0) {
+      return Promise.reject(new Error('not implemented'))
     }
     // Copy the whole batch before the push, so a record that cannot become
     // JSON rejects the batch with nothing written.
     let copies: Array<LogRecord>
     try {
-      copies = records.map(copyRecord)
+      copies = records.map(copyJson)
     } catch (error) {
       return Promise.reject(error)
     }
     log.push(...copies)
-    this.threads.set(threadId, log)
-    for (const listener of [...(this.listeners.get(threadId) ?? [])]) {
+    this.logs.set(logId, log)
+    for (const listener of [...(this.listeners.get(logId) ?? [])]) {
       // The batch is written. A listener error must not fail the append.
       try {
         listener()
@@ -724,37 +737,70 @@ class MemoryLogStore implements LogStore {
     return Promise.resolve()
   }
 
-  read(
-    threadId: string,
-    options?: { after?: number; limit?: number },
-  ): Promise<Array<LogEntry>> {
-    const log = this.threads.get(threadId) ?? []
-    const after = options?.after ?? 0
-    const end =
-      options?.limit === undefined ? log.length : after + options.limit
+  read({ logId, after = 0, limit }: Parameters<LogStore['read']>[0]) {
+    const log = this.logs.get(logId) ?? []
+    const end = limit === undefined ? log.length : after + limit
     const entries = log.slice(after, end).map((record, index) => ({
       seq: after + index + 1,
-      record: copyRecord(record),
+      record: copyJson(record),
     }))
     return Promise.resolve(entries)
   }
 
-  subscribe({
-    threadId,
-    listener,
-  }: {
-    threadId: string
-    listener: () => void
-  }): () => void {
-    let set = this.listeners.get(threadId)
+  subscribe({ logId, listener }: Parameters<LogStore['subscribe']>[0]) {
+    let set = this.listeners.get(logId)
     if (!set) {
       set = new Set()
-      this.listeners.set(threadId, set)
+      this.listeners.set(logId, set)
     }
     set.add(listener)
     return () => {
       set.delete(listener)
     }
+  }
+
+  acquire() {
+    return Promise.reject(new Error('not implemented'))
+  }
+
+  renew() {
+    return Promise.reject(new Error('not implemented'))
+  }
+
+  release() {
+    return Promise.reject(new Error('not implemented'))
+  }
+
+  setAffinity() {
+    return Promise.reject(new Error('not implemented'))
+  }
+
+  listOrphaned() {
+    return Promise.reject(new Error('not implemented'))
+  }
+
+  offer() {
+    return Promise.reject(new Error('not implemented'))
+  }
+
+  offered() {
+    return Promise.reject(new Error('not implemented'))
+  }
+
+  getSnapshot() {
+    return Promise.reject(new Error('not implemented'))
+  }
+
+  putSnapshot() {
+    return Promise.reject(new Error('not implemented'))
+  }
+
+  truncate() {
+    return Promise.reject(new Error('not implemented'))
+  }
+
+  deleteLog() {
+    return Promise.reject(new Error('not implemented'))
   }
 }
 

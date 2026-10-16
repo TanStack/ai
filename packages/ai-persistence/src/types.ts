@@ -724,75 +724,314 @@ export interface LogRecord {
 
 /** A {@link LogRecord} and its position in the log. */
 export interface LogEntry {
-  /** The position of the record. The first record of a thread is at 1. */
+  /** The position of the record. The first record of a log is at 1. */
   seq: number
   record: LogRecord
 }
 
 /**
+ * The epoch of a log that no host ever acquired. A writer that never calls
+ * {@link LogStore.acquire} writes with this epoch.
+ */
+export const UNOWNED_EPOCH = 0
+
+/**
  * The error {@link LogStore.append} rejects with when `seq` is not the next
- * free position of the thread. It means that another writer appended first.
+ * free position of the log. It means that another writer appended first.
  * Nothing of the rejected batch is written.
  */
 export class LogConflictError extends Error {
-  readonly threadId: string
+  readonly logId: string
   readonly seq: number
 
-  constructor(threadId: string, seq: number) {
+  constructor(logId: string, seq: number) {
     super(
-      `Log conflict on thread ${JSON.stringify(threadId)}: position ${seq} is not the next free position.`,
+      `Log conflict on log ${JSON.stringify(logId)}: position ${seq} is not the next free position.`,
     )
     this.name = 'LogConflictError'
-    this.threadId = threadId
+    this.logId = logId
     this.seq = seq
   }
 }
 
 /**
- * Durable append-only log of a session, one log per thread. A host keeps the
- * events, the transcript, the inputs, and the tool steps of a thread in it.
+ * The error that a fenced write ({@link LogStore.append},
+ * {@link LogStore.putSnapshot}, {@link LogStore.truncate},
+ * {@link LogStore.setAffinity}) rejects with when `epoch` does not give the
+ * writer the log. It means that another host acquired the log, or that the
+ * owner released it. Nothing is written. Stop the work on the log.
+ */
+export class OwnershipLostError extends Error {
+  readonly logId: string
+  readonly epoch: number
+
+  constructor(logId: string, epoch: number) {
+    super(
+      `Ownership lost on log ${JSON.stringify(logId)}: epoch ${epoch} does not own the log.`,
+    )
+    this.name = 'OwnershipLostError'
+    this.logId = logId
+    this.epoch = epoch
+  }
+}
+
+/**
+ * The error {@link LogStore.read} rejects with when the query starts before
+ * the first record that the log keeps. A truncate dropped the records before
+ * `firstSeq`. Load the snapshot, then read after its `seq`.
+ */
+export class LogTruncatedError extends Error {
+  readonly logId: string
+  readonly firstSeq: number
+
+  constructor(logId: string, firstSeq: number) {
+    super(
+      `Log ${JSON.stringify(logId)} is truncated: the first kept position is ${firstSeq}.`,
+    )
+    this.name = 'LogTruncatedError'
+    this.logId = logId
+    this.firstSeq = firstSeq
+  }
+}
+
+/**
+ * The result of {@link LogStore.offer}:
  *
- * The log has one writer at a time. `append` is a compare-and-append: the
- * writer names the position of the first record, and the store refuses the
- * batch when another writer took that position first. In SQL, a primary key
- * on `(thread_id, seq)` and one transaction per batch give this.
+ * - `'offered'`: the store keeps the input as a pending offer.
+ * - `'duplicate'`: the id was offered before with an equal record.
+ * - `'conflict'`: the id was offered before with a different record.
+ */
+export type OfferResult = 'offered' | 'duplicate' | 'conflict'
+
+/** A pending input of a log, from {@link LogStore.offered}. */
+export interface OfferedInput {
+  inputId: string
+  record: LogRecord
+  /** Epoch milliseconds, from the store clock. */
+  offeredAt: number
+}
+
+/** A log that has work and no live owner, from {@link LogStore.listOrphaned}. */
+export interface OrphanedLog {
+  logId: string
+  /** The name of the setup that runs the log, so a worker can open it. */
+  harness: string
+  /**
+   * Why the log has work:
+   *
+   * - `'expired'`: the ownership expired and the owner did not release it.
+   * - `'offered'`: the log has pending offers and no live owner.
+   * - `'wake'`: the owner released the log with a wake time that is due.
+   */
+  reason: 'expired' | 'offered' | 'wake'
+}
+
+/** The saved state of a log, from {@link LogStore.getSnapshot}. */
+export interface LogSnapshot {
+  /** The position of the last record that `state` includes. */
+  seq: number
+  /** The version of the `state` shape. The writer owns the version names. */
+  version: string
+  /** JSON state. The store does not read it. */
+  state: unknown
+}
+
+/**
+ * Durable append-only log of a session tree. A host keeps the events, the
+ * transcript, the inputs, and the tool steps of the tree in it. The store also
+ * keeps one ownership record per log, the pending inputs (the input lane), and
+ * the latest snapshot.
+ *
+ * The log has one writer at a time: the owner. A host gets the log with
+ * `acquire`, and each fenced write carries the epoch that `acquire` returned.
+ * When another host acquired the log, the epoch is old and the write fails.
+ * `append` is also a compare-and-append: the writer names the position of the
+ * first record, and the store refuses the batch when that position is taken.
+ *
+ * The store clock decides expiry. Callers pass `ttlMs` and `wakeInMs`, never
+ * timestamps. Records are JSON: a store keeps copies, never the objects of
+ * the caller.
  */
 export interface LogStore {
   /**
-   * Write `records` at positions `seq`, `seq + 1`, and so on.
+   * Write `records` at positions `seq`, `seq + 1`, and so on, and consume the
+   * pending offers in `consumes` in the same write.
    *
-   * INVARIANT (atomic): the whole batch is written, or none of it is. A crash
-   * or an error never leaves a part of the batch.
+   * The store checks in this order, and the first check that fails rejects:
    *
-   * INVARIANT (compare-and-append): `seq` must be the next free position (the
-   * last position of the thread plus 1, or 1 for a new thread). For any other
-   * `seq`, a position that is taken or a gap, reject with
-   * {@link LogConflictError} and write nothing.
+   * 1. The fence. On a log that a host acquired, `epoch` must be the current
+   *    epoch, and the owner must not have released the log. On a log that no
+   *    host acquired, `epoch` must be {@link UNOWNED_EPOCH}. Else reject with
+   *    {@link OwnershipLostError}.
+   * 2. `seq` must be the next free position (the last position plus 1, or 1
+   *    for a new log). Else reject with {@link LogConflictError}.
+   * 3. Each id in `consumes` must be a pending offer. Else reject with a
+   *    `TypeError`.
+   * 4. Each record must become JSON. Else reject with the error of the copy.
    *
-   * An empty batch writes nothing and resolves.
+   * INVARIANT (atomic): the store writes the whole batch and consumes all of
+   * `consumes`, or it changes nothing. A crash never leaves a part of a batch.
+   *
+   * An empty batch with no `consumes` resolves, writes nothing, and checks
+   * nothing.
    */
   append: (batch: {
-    threadId: string
+    logId: string
     seq: number
+    epoch: number
     records: ReadonlyArray<LogRecord>
+    consumes?: ReadonlyArray<string>
   }) => Promise<void>
   /**
-   * The entries of `threadId` with `seq` greater than `after` (default 0), in
+   * The entries of `logId` with `seq` greater than `after` (default 0), in
    * ascending order, at most `limit` of them. `limit: 0` gives `[]`.
    *
-   * INVARIANT: a thread that has no records gives `[]`. The returned records
-   * are copies: a change to them does not change the log.
+   * If a truncate dropped the record at position `after + 1`, reject with
+   * {@link LogTruncatedError}.
+   *
+   * INVARIANT: a log that has no records gives `[]`. The returned records are
+   * copies: a change to them does not change the log.
    */
-  read: (
-    threadId: string,
-    options?: { after?: number; limit?: number },
-  ) => Promise<Array<LogEntry>>
+  read: (query: {
+    logId: string
+    after?: number
+    limit?: number
+  }) => Promise<Array<LogEntry>>
   /**
-   * Call `listener` after each append to `threadId` that this store can see.
-   * A store that cannot see appends from other processes can poll. Returns a
-   * function that stops the calls.
+   * Call `listener` after each successful `append` to `logId`, each `offer`
+   * that returns `'offered'`, and each `deleteLog` of `logId`. The calls come
+   * from every store instance on the same backend (other machines). A store
+   * that cannot push must poll. A listener that throws is logged, and the
+   * write still succeeds. Returns a function that stops the calls.
    */
-  subscribe: (options: { threadId: string; listener: () => void }) => () => void
+  subscribe: (watch: { logId: string; listener: () => void }) => () => void
+
+  /**
+   * Get the log for `ownerId` for `ttlMs` milliseconds of the store clock.
+   *
+   * - Returns `null` when another owner holds the log (not released, and not
+   *   expired).
+   * - Returns `null` when the log has an affinity that is not
+   *   `claim.affinity`.
+   * - When `ownerId` already holds the log, extends the expiry and returns
+   *   the same epoch.
+   * - Else increments the epoch, stores `harness`, clears the wake time, and
+   *   returns the new epoch. The epoch never goes down, also after `release`
+   *   and `deleteLog`.
+   *
+   * Rejects with a `RangeError` when `ttlMs` is not more than 0.
+   */
+  acquire: (claim: {
+    logId: string
+    harness: string
+    ownerId: string
+    ttlMs: number
+    affinity?: string
+  }) => Promise<{ epoch: number } | null>
+  /**
+   * Extend the ownership to `ttlMs` milliseconds from now. Returns `true` only
+   * when the log is not released, `epoch` is the current epoch, and `ownerId`
+   * is the owner. A renew after the expiry succeeds when no other host
+   * acquired the log in between.
+   *
+   * Rejects with a `RangeError` when `ttlMs` is not more than 0.
+   */
+  renew: (claim: {
+    logId: string
+    ownerId: string
+    epoch: number
+    ttlMs: number
+  }) => Promise<boolean>
+  /**
+   * Give up the log. With a matching `epoch` and `ownerId`, mark the log
+   * released, and set a wake time `wakeInMs` from now when `wakeInMs` is
+   * given. Any other call does nothing.
+   *
+   * Rejects with a `RangeError` when `wakeInMs` is less than 0.
+   */
+  release: (claim: {
+    logId: string
+    ownerId: string
+    epoch: number
+    wakeInMs?: number
+  }) => Promise<void>
+  /**
+   * Pin the log to the workers with `affinity`, or unpin it with `null`.
+   * Fenced like `append`: a wrong `epoch` rejects with
+   * {@link OwnershipLostError}.
+   */
+  setAffinity: (pin: {
+    logId: string
+    epoch: number
+    affinity: string | null
+  }) => Promise<void>
+  /**
+   * The logs that have work and no live owner, at most `limit` of them. A log
+   * is listed for the first reason that applies:
+   *
+   * 1. `'expired'`: not released, and the expiry is due.
+   * 2. `'offered'`: pending offers, and no live owner.
+   * 3. `'wake'`: released, and the wake time is due.
+   *
+   * Only logs of `harnesses` are listed, when `harnesses` is given. A log with
+   * an affinity is listed only when `affinity` is equal. The log that is due
+   * first comes first. `limit: 0` gives `[]`.
+   */
+  listOrphaned: (query: {
+    limit: number
+    harnesses?: ReadonlyArray<string>
+    affinity?: string
+  }) => Promise<Array<OrphanedLog>>
+
+  /**
+   * Keep `record` as a pending input of the log. Any machine can offer. Only
+   * the owner consumes, with `append({ consumes })`.
+   *
+   * - An `inputId` that was offered before (pending or consumed) returns
+   *   `'duplicate'` when the JSON of the record is equal, else `'conflict'`.
+   *   Nothing changes.
+   * - A new `inputId` is stored with the store clock as `offeredAt`, records
+   *   `harness` for the log, calls the listeners, and returns `'offered'`.
+   *
+   * Rejects, and stores nothing, when the record cannot become JSON.
+   */
+  offer: (input: {
+    logId: string
+    harness: string
+    inputId: string
+    record: LogRecord
+  }) => Promise<OfferResult>
+  /** The pending offers of `logId`, in offer order. */
+  offered: (query: { logId: string }) => Promise<Array<OfferedInput>>
+
+  /** The latest snapshot of `logId`, or `null` when the log has none. */
+  getSnapshot: (query: { logId: string }) => Promise<LogSnapshot | null>
+  /**
+   * Replace the snapshot of the log. Fenced like `append`: a wrong `epoch`
+   * rejects with {@link OwnershipLostError}. Rejects with a `RangeError` when
+   * `seq` is after the last position of the log.
+   */
+  putSnapshot: (
+    snapshot: { logId: string; epoch: number } & LogSnapshot,
+  ) => Promise<void>
+  /**
+   * Drop the records with `seq` less than `beforeSeq`. The positions keep
+   * counting, so the next `append` is still at the last position plus 1.
+   * Fenced like `append`: a wrong `epoch` rejects with
+   * {@link OwnershipLostError}. Rejects with a `RangeError` unless a snapshot
+   * has a `seq` of `beforeSeq - 1` or more.
+   */
+  truncate: (cut: {
+    logId: string
+    epoch: number
+    beforeSeq: number
+  }) => Promise<void>
+  /**
+   * Remove the records, the offers, the snapshot, the truncation point, the
+   * affinity, and the wake time of `logId`, and call the listeners. Only the
+   * epoch counter stays, so a write with an old epoch still fails.
+   */
+  deleteLog: (target: { logId: string }) => Promise<void>
 }
 
 /** Type a {@link LogStore} implementation inline. */

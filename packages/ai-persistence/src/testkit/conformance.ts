@@ -41,7 +41,7 @@
  * starting with `rc-`, or it silently changes that expected set.
  */
 import { beforeAll, describe, expect, it } from 'vitest'
-import { LogConflictError } from '../types'
+import { LogConflictError, OwnershipLostError, UNOWNED_EPOCH } from '../types'
 import type { ModelMessage } from '@tanstack/ai'
 import type {
   AIPersistence,
@@ -1780,11 +1780,11 @@ export function runPersistenceConformance(
       })
     })
 
-    // Each case uses its own thread, because the suite shares one persistence.
+    // Each case uses its own log, because the suite shares one persistence.
     describe('log', () => {
-      const newThread = () => `log-${crypto.randomUUID()}`
-      const types = async (store: LogStore, threadId: string) =>
-        (await store.read(threadId)).map((entry) => [
+      const newLog = () => `log-${crypto.randomUUID()}`
+      const types = async (store: LogStore, logId: string) =>
+        (await store.read({ logId })).map((entry) => [
           entry.seq,
           entry.record.type,
         ])
@@ -1792,23 +1792,25 @@ export function runPersistenceConformance(
       it('writes a batch at consecutive positions and reads it in order', async (ctx) => {
         const store = persistence.stores.log
         if (!store) return ctx.skip('log store not provided')
-        const threadId = newThread()
+        const logId = newLog()
 
         await store.append({
-          threadId,
+          logId,
           seq: 1,
+          epoch: UNOWNED_EPOCH,
           records: [
             { type: 'a', n: 1 },
             { type: 'b', n: 2 },
           ],
         })
         await store.append({
-          threadId,
+          logId,
           seq: 3,
+          epoch: UNOWNED_EPOCH,
           records: [{ type: 'c', nested: { deep: [1] } }],
         })
 
-        expect(await store.read(threadId)).toEqual([
+        expect(await store.read({ logId })).toEqual([
           { seq: 1, record: { type: 'a', n: 1 } },
           { seq: 2, record: { type: 'b', n: 2 } },
           { seq: 3, record: { type: 'c', nested: { deep: [1] } } },
@@ -1818,35 +1820,90 @@ export function runPersistenceConformance(
       it('rejects a taken position or a gap with LogConflictError and writes nothing', async (ctx) => {
         const store = persistence.stores.log
         if (!store) return ctx.skip('log store not provided')
-        const threadId = newThread()
-        await store.append({ threadId, seq: 1, records: [{ type: 'first' }] })
-
-        const taken = store.append({
-          threadId,
+        const logId = newLog()
+        await store.append({
+          logId,
           seq: 1,
-          records: [{ type: 'late-1' }, { type: 'late-2' }],
+          epoch: UNOWNED_EPOCH,
+          records: [{ type: 'first' }],
         })
-        await expect(taken).rejects.toBeInstanceOf(LogConflictError)
-        await expect(taken).rejects.toMatchObject({ threadId, seq: 1 })
+
+        await expect(
+          store.append({
+            logId,
+            seq: 1,
+            epoch: UNOWNED_EPOCH,
+            records: [{ type: 'late-1' }, { type: 'late-2' }],
+          }),
+        ).rejects.toBeInstanceOf(LogConflictError)
 
         // A gap (position 3 while 2 is free) is a conflict too.
         await expect(
-          store.append({ threadId, seq: 3, records: [{ type: 'gap' }] }),
+          store.append({
+            logId,
+            seq: 3,
+            epoch: UNOWNED_EPOCH,
+            records: [{ type: 'gap' }],
+          }),
         ).rejects.toBeInstanceOf(LogConflictError)
 
-        expect(await types(store, threadId)).toEqual([[1, 'first']])
+        expect(await types(store, logId)).toEqual([[1, 'first']])
+      })
+
+      it('names the log in a LogConflictError', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        await store.append({
+          logId,
+          seq: 1,
+          epoch: UNOWNED_EPOCH,
+          records: [{ type: 'first' }],
+        })
+
+        await expect(
+          store.append({
+            logId,
+            seq: 1,
+            epoch: UNOWNED_EPOCH,
+            records: [{ type: 'late' }],
+          }),
+        ).rejects.toMatchObject({ name: 'LogConflictError', logId, seq: 1 })
+      })
+
+      it('rejects an epoch other than UNOWNED_EPOCH on a log that no host acquired', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+
+        const write = store.append({
+          logId,
+          seq: 1,
+          epoch: 1,
+          records: [{ type: 'fenced' }],
+        })
+        await expect(write).rejects.toBeInstanceOf(OwnershipLostError)
+        await expect(write).rejects.toMatchObject({ logId, epoch: 1 })
+
+        expect(await store.read({ logId })).toEqual([])
       })
 
       it('lets one of two concurrent appends at one position win', async (ctx) => {
         const store = persistence.stores.log
         if (!store) return ctx.skip('log store not provided')
-        const threadId = newThread()
+        const logId = newLog()
 
         const results = await Promise.allSettled([
-          store.append({ threadId, seq: 1, records: [{ type: 'left' }] }),
           store.append({
-            threadId,
+            logId,
             seq: 1,
+            epoch: UNOWNED_EPOCH,
+            records: [{ type: 'left' }],
+          }),
+          store.append({
+            logId,
+            seq: 1,
+            epoch: UNOWNED_EPOCH,
             records: [{ type: 'right-1' }, { type: 'right-2' }],
           }),
         ])
@@ -1860,7 +1917,7 @@ export function runPersistenceConformance(
         expect(lost[0]).toBeInstanceOf(LogConflictError)
         // Only the winner's batch is in the log, whole.
         const winner = results[0].status === 'fulfilled' ? 'left' : 'right'
-        expect(await types(store, threadId)).toEqual(
+        expect(await types(store, logId)).toEqual(
           winner === 'left'
             ? [[1, 'left']]
             : [
@@ -1873,26 +1930,28 @@ export function runPersistenceConformance(
       it('writes nothing for an empty batch', async (ctx) => {
         const store = persistence.stores.log
         if (!store) return ctx.skip('log store not provided')
-        const threadId = newThread()
+        const logId = newLog()
 
-        await store.append({ threadId, seq: 1, records: [] })
+        await store.append({ logId, seq: 1, epoch: UNOWNED_EPOCH, records: [] })
 
-        expect(await store.read(threadId)).toEqual([])
+        expect(await store.read({ logId })).toEqual([])
         await store.append({
-          threadId,
+          logId,
           seq: 1,
+          epoch: UNOWNED_EPOCH,
           records: [{ type: 'still-first' }],
         })
-        expect(await types(store, threadId)).toEqual([[1, 'still-first']])
+        expect(await types(store, logId)).toEqual([[1, 'still-first']])
       })
 
       it('reads after a position, with a limit', async (ctx) => {
         const store = persistence.stores.log
         if (!store) return ctx.skip('log store not provided')
-        const threadId = newThread()
+        const logId = newLog()
         await store.append({
-          threadId,
+          logId,
           seq: 1,
+          epoch: UNOWNED_EPOCH,
           records: [
             { type: 'r1' },
             { type: 'r2' },
@@ -1901,31 +1960,48 @@ export function runPersistenceConformance(
           ],
         })
 
-        const page = await store.read(threadId, { after: 1, limit: 2 })
+        const page = await store.read({ logId, after: 1, limit: 2 })
         expect(page.map((entry) => entry.seq)).toEqual([2, 3])
         expect(
-          (await store.read(threadId, { after: 3 })).map((entry) => entry.seq),
+          (await store.read({ logId, after: 3 })).map((entry) => entry.seq),
         ).toEqual([4])
-        expect(await store.read(threadId, { after: 4 })).toEqual([])
-        expect(await store.read(threadId, { limit: 0 })).toEqual([])
-        expect(await store.read(newThread())).toEqual([])
+        expect(await store.read({ logId, after: 4 })).toEqual([])
+        expect(await store.read({ logId: newLog() })).toEqual([])
       })
 
-      it('keeps threads apart', async (ctx) => {
+      it('reads nothing with limit 0', async (ctx) => {
         const store = persistence.stores.log
         if (!store) return ctx.skip('log store not provided')
-        const left = newThread()
-        const right = newThread()
+        const logId = newLog()
+        await store.append({
+          logId,
+          seq: 1,
+          epoch: UNOWNED_EPOCH,
+          records: [{ type: 'r1' }, { type: 'r2' }],
+        })
+
+        // The log has records, so the empty page comes from the limit.
+        expect(await types(store, logId)).toHaveLength(2)
+        expect(await store.read({ logId, limit: 0 })).toEqual([])
+      })
+
+      it('keeps logs apart', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const left = newLog()
+        const right = newLog()
 
         await store.append({
-          threadId: left,
+          logId: left,
           seq: 1,
+          epoch: UNOWNED_EPOCH,
           records: [{ type: 'left' }],
         })
-        // Position 1 is free on the other thread.
+        // Position 1 is free on the other log.
         await store.append({
-          threadId: right,
+          logId: right,
           seq: 1,
+          epoch: UNOWNED_EPOCH,
           records: [{ type: 'right' }],
         })
 
@@ -1936,19 +2012,29 @@ export function runPersistenceConformance(
       it('calls a listener after each append until it unsubscribes', async (ctx) => {
         const store = persistence.stores.log
         if (!store) return ctx.skip('log store not provided')
-        const threadId = newThread()
+        const logId = newLog()
         let calls = 0
         const stop = store.subscribe({
-          threadId,
+          logId,
           listener: () => {
             calls += 1
           },
         })
 
-        await store.append({ threadId, seq: 1, records: [{ type: 'one' }] })
+        await store.append({
+          logId,
+          seq: 1,
+          epoch: UNOWNED_EPOCH,
+          records: [{ type: 'one' }],
+        })
         await expect.poll(() => calls).toBe(1)
         stop()
-        await store.append({ threadId, seq: 2, records: [{ type: 'two' }] })
+        await store.append({
+          logId,
+          seq: 2,
+          epoch: UNOWNED_EPOCH,
+          records: [{ type: 'two' }],
+        })
 
         // Give a store that notifies later (a poller) the time to call again.
         await new Promise((resolve) => setTimeout(resolve, 50))
@@ -1958,15 +2044,20 @@ export function runPersistenceConformance(
       it('does not share record objects with the caller', async (ctx) => {
         const store = persistence.stores.log
         if (!store) return ctx.skip('log store not provided')
-        const threadId = newThread()
+        const logId = newLog()
         const written = { type: 'shared', list: [1] }
-        await store.append({ threadId, seq: 1, records: [written] })
+        await store.append({
+          logId,
+          seq: 1,
+          epoch: UNOWNED_EPOCH,
+          records: [written],
+        })
         written.list.push(2)
 
-        const [first] = await store.read(threadId)
-        if (first) first.record.type = 'changed'
+        const [first] = await store.read({ logId })
+        required(first, 'the first log entry').record.type = 'changed'
 
-        expect(await store.read(threadId)).toEqual([
+        expect(await store.read({ logId })).toEqual([
           { seq: 1, record: { type: 'shared', list: [1] } },
         ])
       })
