@@ -1525,3 +1525,57 @@ describe('repairToolInput', () => {
     ])
   })
 })
+
+describe('an approved edit in the transcript', () => {
+  const run = async (
+    editedArgs: unknown,
+    middleware: Array<ChatMiddleware> = [],
+  ) => {
+    const { adapter, calls } = createMockAdapter({
+      iterations: [[ev.runStarted(), ev.runFinished()]],
+    })
+    const execute = vi.fn(async (_input: unknown) => 'ok')
+    await collectChunks(
+      chat({
+        adapter,
+        parentRunId: 'old',
+        messages: history({ count: 1 }),
+        tools: [
+          { ...clientCheck(z.object({ count: z.number() }), true), execute },
+        ],
+        resume: [
+          {
+            interruptId: 'approval_call',
+            status: 'resolved',
+            payload: { approved: true, editedArgs },
+          },
+        ],
+        middleware,
+      }),
+    )
+    const sent = calls[0]?.messages.flatMap((message) =>
+      message.role === 'assistant' ? (message.toolCalls ?? []) : [],
+    )
+    return { execute, args: sent?.[0]?.function.arguments }
+  }
+
+  it('keeps an edit that the tool ran with', async () => {
+    const { execute, args } = await run({ count: 2 })
+    expect(execute.mock.calls[0]?.[0]).toEqual({ count: 2 })
+    expect(args).toBe('{"count":2}')
+  })
+
+  it('keeps the model input for a null edit, which the tool ignores', async () => {
+    const { execute, args } = await run(null)
+    expect(execute.mock.calls[0]?.[0]).toEqual({ count: 1 })
+    expect(args).toBe('{"count":1}')
+  })
+
+  it('keeps the model input when middleware skips the call', async () => {
+    const { execute, args } = await run({ count: 2 }, [
+      { onBeforeToolCall: () => ({ type: 'skip', result: 'skipped' }) },
+    ])
+    expect(execute).not.toHaveBeenCalled()
+    expect(args).toBe('{"count":1}')
+  })
+})

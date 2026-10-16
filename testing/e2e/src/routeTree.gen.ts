@@ -77,6 +77,7 @@ import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiChatCompletionsIncompleteStreamRouteImport } from './routes/api.chat-completions-incomplete-stream'
 import { Route as ApiClientToolResumeStoreRouteImport } from './routes/api.client-tool-resume-store'
 import { Route as ApiCloudflareBindingWireRouteImport } from './routes/api.cloudflare-binding-wire'
+import { Route as ApiCodingToolsRouteImport } from './routes/api.coding-tools'
 import { Route as ApiCompactionUsageWireRouteImport } from './routes/api.compaction-usage-wire'
 import { Route as ApiCompactionWireRouteImport } from './routes/api.compaction-wire'
 import { Route as ApiContextOverflowRouteImport } from './routes/api.context-overflow'
@@ -96,6 +97,10 @@ import { Route as ApiGeminiImageGaModelsRouteImport } from './routes/api.gemini-
 import { Route as ApiGeminiNativeImageWireRouteImport } from './routes/api.gemini-native-image-wire'
 import { Route as ApiGenerationPersistenceResumeRouteImport } from './routes/api.generation-persistence-resume'
 import { Route as ApiGenerationPersistenceServerRouteImport } from './routes/api.generation-persistence-server'
+import { Route as ApiHarnessContinueRouteImport } from './routes/api.harness-continue'
+import { Route as ApiHarnessFirstPartyRouteImport } from './routes/api.harness-first-party'
+import { Route as ApiHarnessForwardingRouteImport } from './routes/api.harness-forwarding'
+import { Route as ApiHarnessRetryAfterRouteImport } from './routes/api.harness-retry-after'
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiInterruptsTestRouteImport } from './routes/api.interrupts-test'
 import { Route as ApiJoinRunClientToolRouteImport } from './routes/api.join-run-client-tool'
@@ -110,6 +115,7 @@ import { Route as ApiMcpAppsChatRouteImport } from './routes/api.mcp-apps-chat'
 import { Route as ApiMcpAppsServerRouteImport } from './routes/api.mcp-apps-server'
 import { Route as ApiMcpInputServerRouteImport } from './routes/api.mcp-input-server'
 import { Route as ApiMcpInputTestRouteImport } from './routes/api.mcp-input-test'
+import { Route as ApiMcpLegacyInputServerRouteImport } from './routes/api.mcp-legacy-input-server'
 import { Route as ApiMcpLifecycleTestRouteImport } from './routes/api.mcp-lifecycle-test'
 import { Route as ApiMcpManagedTestRouteImport } from './routes/api.mcp-managed-test'
 import { Route as ApiMcpNoTasksServerRouteImport } from './routes/api.mcp-no-tasks-server'
@@ -179,6 +185,7 @@ import { Route as ApiWebMcpPageToolsRouteImport } from './routes/api.web-mcp-pag
 import { Route as ApiWorldRouteImport } from './routes/api.world'
 import { Route as ApiWrapFetchWireRouteImport } from './routes/api.wrap-fetch-wire'
 import { Route as ApiAudioStreamRouteImport } from './routes/api.audio.stream'
+import { Route as ApiHarnessProtocolSplatRouteImport } from './routes/api.harness-protocol.$'
 import { Route as ApiImageStreamRouteImport } from './routes/api.image.stream'
 import { Route as ApiTranscriptionStreamRouteImport } from './routes/api.transcription.stream'
 import { Route as ApiTtsStreamRouteImport } from './routes/api.tts.stream'
@@ -542,6 +549,11 @@ const ApiCloudflareBindingWireRoute =
     path: '/api/cloudflare-binding-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiCodingToolsRoute = ApiCodingToolsRouteImport.update({
+  id: '/api/coding-tools',
+  path: '/api/coding-tools',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCompactionUsageWireRoute = ApiCompactionUsageWireRouteImport.update({
   id: '/api/compaction-usage-wire',
   path: '/api/compaction-usage-wire',
@@ -641,6 +653,26 @@ const ApiGenerationPersistenceServerRoute =
     path: '/api/generation-persistence-server',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiHarnessContinueRoute = ApiHarnessContinueRouteImport.update({
+  id: '/api/harness-continue',
+  path: '/api/harness-continue',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHarnessFirstPartyRoute = ApiHarnessFirstPartyRouteImport.update({
+  id: '/api/harness-first-party',
+  path: '/api/harness-first-party',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHarnessForwardingRoute = ApiHarnessForwardingRouteImport.update({
+  id: '/api/harness-forwarding',
+  path: '/api/harness-forwarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHarnessRetryAfterRoute = ApiHarnessRetryAfterRouteImport.update({
+  id: '/api/harness-retry-after',
+  path: '/api/harness-retry-after',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiImageRoute = ApiImageRouteImport.update({
   id: '/api/image',
   path: '/api/image',
@@ -709,6 +741,11 @@ const ApiMcpInputServerRoute = ApiMcpInputServerRouteImport.update({
 const ApiMcpInputTestRoute = ApiMcpInputTestRouteImport.update({
   id: '/api/mcp-input-test',
   path: '/api/mcp-input-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpLegacyInputServerRoute = ApiMcpLegacyInputServerRouteImport.update({
+  id: '/api/mcp-legacy-input-server',
+  path: '/api/mcp-legacy-input-server',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiMcpLifecycleTestRoute = ApiMcpLifecycleTestRouteImport.update({
@@ -1077,6 +1114,11 @@ const ApiAudioStreamRoute = ApiAudioStreamRouteImport.update({
   path: '/stream',
   getParentRoute: () => ApiAudioRoute,
 } as any)
+const ApiHarnessProtocolSplatRoute = ApiHarnessProtocolSplatRouteImport.update({
+  id: '/api/harness-protocol/$',
+  path: '/api/harness-protocol/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiImageStreamRoute = ApiImageStreamRouteImport.update({
   id: '/stream',
   path: '/stream',
@@ -1166,6 +1208,7 @@ export interface FileRoutesByFullPath {
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
+  '/api/coding-tools': typeof ApiCodingToolsRoute
   '/api/compaction-usage-wire': typeof ApiCompactionUsageWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
   '/api/context-overflow': typeof ApiContextOverflowRoute
@@ -1185,6 +1228,10 @@ export interface FileRoutesByFullPath {
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
+  '/api/harness-continue': typeof ApiHarnessContinueRoute
+  '/api/harness-first-party': typeof ApiHarnessFirstPartyRoute
+  '/api/harness-forwarding': typeof ApiHarnessForwardingRoute
+  '/api/harness-retry-after': typeof ApiHarnessRetryAfterRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
@@ -1199,6 +1246,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
   '/api/mcp-input-server': typeof ApiMcpInputServerRoute
   '/api/mcp-input-test': typeof ApiMcpInputTestRoute
+  '/api/mcp-legacy-input-server': typeof ApiMcpLegacyInputServerRoute
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
   '/api/mcp-no-tasks-server': typeof ApiMcpNoTasksServerRoute
@@ -1269,6 +1317,7 @@ export interface FileRoutesByFullPath {
   '/api/wrap-fetch-wire': typeof ApiWrapFetchWireRoute
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
+  '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
   '/api/tts/stream': typeof ApiTtsStreamRoute
@@ -1342,6 +1391,7 @@ export interface FileRoutesByTo {
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
+  '/api/coding-tools': typeof ApiCodingToolsRoute
   '/api/compaction-usage-wire': typeof ApiCompactionUsageWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
   '/api/context-overflow': typeof ApiContextOverflowRoute
@@ -1361,6 +1411,10 @@ export interface FileRoutesByTo {
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
+  '/api/harness-continue': typeof ApiHarnessContinueRoute
+  '/api/harness-first-party': typeof ApiHarnessFirstPartyRoute
+  '/api/harness-forwarding': typeof ApiHarnessForwardingRoute
+  '/api/harness-retry-after': typeof ApiHarnessRetryAfterRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
@@ -1375,6 +1429,7 @@ export interface FileRoutesByTo {
   '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
   '/api/mcp-input-server': typeof ApiMcpInputServerRoute
   '/api/mcp-input-test': typeof ApiMcpInputTestRoute
+  '/api/mcp-legacy-input-server': typeof ApiMcpLegacyInputServerRoute
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
   '/api/mcp-no-tasks-server': typeof ApiMcpNoTasksServerRoute
@@ -1445,6 +1500,7 @@ export interface FileRoutesByTo {
   '/api/wrap-fetch-wire': typeof ApiWrapFetchWireRoute
   '/$provider': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
+  '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
   '/api/tts/stream': typeof ApiTtsStreamRoute
@@ -1519,6 +1575,7 @@ export interface FileRoutesById {
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
+  '/api/coding-tools': typeof ApiCodingToolsRoute
   '/api/compaction-usage-wire': typeof ApiCompactionUsageWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
   '/api/context-overflow': typeof ApiContextOverflowRoute
@@ -1538,6 +1595,10 @@ export interface FileRoutesById {
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
+  '/api/harness-continue': typeof ApiHarnessContinueRoute
+  '/api/harness-first-party': typeof ApiHarnessFirstPartyRoute
+  '/api/harness-forwarding': typeof ApiHarnessForwardingRoute
+  '/api/harness-retry-after': typeof ApiHarnessRetryAfterRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
@@ -1552,6 +1613,7 @@ export interface FileRoutesById {
   '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
   '/api/mcp-input-server': typeof ApiMcpInputServerRoute
   '/api/mcp-input-test': typeof ApiMcpInputTestRoute
+  '/api/mcp-legacy-input-server': typeof ApiMcpLegacyInputServerRoute
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
   '/api/mcp-no-tasks-server': typeof ApiMcpNoTasksServerRoute
@@ -1622,6 +1684,7 @@ export interface FileRoutesById {
   '/api/wrap-fetch-wire': typeof ApiWrapFetchWireRoute
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
+  '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
   '/api/tts/stream': typeof ApiTtsStreamRoute
@@ -1697,6 +1760,7 @@ export interface FileRouteTypes {
     | '/api/chat-completions-incomplete-stream'
     | '/api/client-tool-resume-store'
     | '/api/cloudflare-binding-wire'
+    | '/api/coding-tools'
     | '/api/compaction-usage-wire'
     | '/api/compaction-wire'
     | '/api/context-overflow'
@@ -1716,6 +1780,10 @@ export interface FileRouteTypes {
     | '/api/gemini-native-image-wire'
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
+    | '/api/harness-continue'
+    | '/api/harness-first-party'
+    | '/api/harness-forwarding'
+    | '/api/harness-retry-after'
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
@@ -1730,6 +1798,7 @@ export interface FileRouteTypes {
     | '/api/mcp-apps-server'
     | '/api/mcp-input-server'
     | '/api/mcp-input-test'
+    | '/api/mcp-legacy-input-server'
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
     | '/api/mcp-no-tasks-server'
@@ -1800,6 +1869,7 @@ export interface FileRouteTypes {
     | '/api/wrap-fetch-wire'
     | '/$provider/'
     | '/api/audio/stream'
+    | '/api/harness-protocol/$'
     | '/api/image/stream'
     | '/api/transcription/stream'
     | '/api/tts/stream'
@@ -1873,6 +1943,7 @@ export interface FileRouteTypes {
     | '/api/chat-completions-incomplete-stream'
     | '/api/client-tool-resume-store'
     | '/api/cloudflare-binding-wire'
+    | '/api/coding-tools'
     | '/api/compaction-usage-wire'
     | '/api/compaction-wire'
     | '/api/context-overflow'
@@ -1892,6 +1963,10 @@ export interface FileRouteTypes {
     | '/api/gemini-native-image-wire'
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
+    | '/api/harness-continue'
+    | '/api/harness-first-party'
+    | '/api/harness-forwarding'
+    | '/api/harness-retry-after'
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
@@ -1906,6 +1981,7 @@ export interface FileRouteTypes {
     | '/api/mcp-apps-server'
     | '/api/mcp-input-server'
     | '/api/mcp-input-test'
+    | '/api/mcp-legacy-input-server'
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
     | '/api/mcp-no-tasks-server'
@@ -1976,6 +2052,7 @@ export interface FileRouteTypes {
     | '/api/wrap-fetch-wire'
     | '/$provider'
     | '/api/audio/stream'
+    | '/api/harness-protocol/$'
     | '/api/image/stream'
     | '/api/transcription/stream'
     | '/api/tts/stream'
@@ -2049,6 +2126,7 @@ export interface FileRouteTypes {
     | '/api/chat-completions-incomplete-stream'
     | '/api/client-tool-resume-store'
     | '/api/cloudflare-binding-wire'
+    | '/api/coding-tools'
     | '/api/compaction-usage-wire'
     | '/api/compaction-wire'
     | '/api/context-overflow'
@@ -2068,6 +2146,10 @@ export interface FileRouteTypes {
     | '/api/gemini-native-image-wire'
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
+    | '/api/harness-continue'
+    | '/api/harness-first-party'
+    | '/api/harness-forwarding'
+    | '/api/harness-retry-after'
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
@@ -2082,6 +2164,7 @@ export interface FileRouteTypes {
     | '/api/mcp-apps-server'
     | '/api/mcp-input-server'
     | '/api/mcp-input-test'
+    | '/api/mcp-legacy-input-server'
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
     | '/api/mcp-no-tasks-server'
@@ -2152,6 +2235,7 @@ export interface FileRouteTypes {
     | '/api/wrap-fetch-wire'
     | '/$provider/'
     | '/api/audio/stream'
+    | '/api/harness-protocol/$'
     | '/api/image/stream'
     | '/api/transcription/stream'
     | '/api/tts/stream'
@@ -2226,6 +2310,7 @@ export interface RootRouteChildren {
   ApiChatCompletionsIncompleteStreamRoute: typeof ApiChatCompletionsIncompleteStreamRoute
   ApiClientToolResumeStoreRoute: typeof ApiClientToolResumeStoreRoute
   ApiCloudflareBindingWireRoute: typeof ApiCloudflareBindingWireRoute
+  ApiCodingToolsRoute: typeof ApiCodingToolsRoute
   ApiCompactionUsageWireRoute: typeof ApiCompactionUsageWireRoute
   ApiCompactionWireRoute: typeof ApiCompactionWireRoute
   ApiContextOverflowRoute: typeof ApiContextOverflowRoute
@@ -2245,6 +2330,10 @@ export interface RootRouteChildren {
   ApiGeminiNativeImageWireRoute: typeof ApiGeminiNativeImageWireRoute
   ApiGenerationPersistenceResumeRoute: typeof ApiGenerationPersistenceResumeRoute
   ApiGenerationPersistenceServerRoute: typeof ApiGenerationPersistenceServerRoute
+  ApiHarnessContinueRoute: typeof ApiHarnessContinueRoute
+  ApiHarnessFirstPartyRoute: typeof ApiHarnessFirstPartyRoute
+  ApiHarnessForwardingRoute: typeof ApiHarnessForwardingRoute
+  ApiHarnessRetryAfterRoute: typeof ApiHarnessRetryAfterRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
   ApiInterruptsTestRoute: typeof ApiInterruptsTestRoute
   ApiJoinRunClientToolRoute: typeof ApiJoinRunClientToolRoute
@@ -2259,6 +2348,7 @@ export interface RootRouteChildren {
   ApiMcpAppsServerRoute: typeof ApiMcpAppsServerRoute
   ApiMcpInputServerRoute: typeof ApiMcpInputServerRoute
   ApiMcpInputTestRoute: typeof ApiMcpInputTestRoute
+  ApiMcpLegacyInputServerRoute: typeof ApiMcpLegacyInputServerRoute
   ApiMcpLifecycleTestRoute: typeof ApiMcpLifecycleTestRoute
   ApiMcpManagedTestRoute: typeof ApiMcpManagedTestRoute
   ApiMcpNoTasksServerRoute: typeof ApiMcpNoTasksServerRoute
@@ -2328,6 +2418,7 @@ export interface RootRouteChildren {
   ApiWorldRoute: typeof ApiWorldRoute
   ApiWrapFetchWireRoute: typeof ApiWrapFetchWireRoute
   ProviderIndexRoute: typeof ProviderIndexRoute
+  ApiHarnessProtocolSplatRoute: typeof ApiHarnessProtocolSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -2808,6 +2899,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCloudflareBindingWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/coding-tools': {
+      id: '/api/coding-tools'
+      path: '/api/coding-tools'
+      fullPath: '/api/coding-tools'
+      preLoaderRoute: typeof ApiCodingToolsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/compaction-usage-wire': {
       id: '/api/compaction-usage-wire'
       path: '/api/compaction-usage-wire'
@@ -2941,6 +3039,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGenerationPersistenceServerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/harness-continue': {
+      id: '/api/harness-continue'
+      path: '/api/harness-continue'
+      fullPath: '/api/harness-continue'
+      preLoaderRoute: typeof ApiHarnessContinueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/harness-first-party': {
+      id: '/api/harness-first-party'
+      path: '/api/harness-first-party'
+      fullPath: '/api/harness-first-party'
+      preLoaderRoute: typeof ApiHarnessFirstPartyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/harness-forwarding': {
+      id: '/api/harness-forwarding'
+      path: '/api/harness-forwarding'
+      fullPath: '/api/harness-forwarding'
+      preLoaderRoute: typeof ApiHarnessForwardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/harness-retry-after': {
+      id: '/api/harness-retry-after'
+      path: '/api/harness-retry-after'
+      fullPath: '/api/harness-retry-after'
+      preLoaderRoute: typeof ApiHarnessRetryAfterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/image': {
       id: '/api/image'
       path: '/api/image'
@@ -3037,6 +3163,13 @@ declare module '@tanstack/react-router' {
       path: '/api/mcp-input-test'
       fullPath: '/api/mcp-input-test'
       preLoaderRoute: typeof ApiMcpInputTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-legacy-input-server': {
+      id: '/api/mcp-legacy-input-server'
+      path: '/api/mcp-legacy-input-server'
+      fullPath: '/api/mcp-legacy-input-server'
+      preLoaderRoute: typeof ApiMcpLegacyInputServerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/mcp-lifecycle-test': {
@@ -3522,6 +3655,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAudioStreamRouteImport
       parentRoute: typeof ApiAudioRoute
     }
+    '/api/harness-protocol/$': {
+      id: '/api/harness-protocol/$'
+      path: '/api/harness-protocol/$'
+      fullPath: '/api/harness-protocol/$'
+      preLoaderRoute: typeof ApiHarnessProtocolSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/image/stream': {
       id: '/api/image/stream'
       path: '/stream'
@@ -3684,6 +3824,7 @@ const rootRouteChildren: RootRouteChildren = {
     ApiChatCompletionsIncompleteStreamRoute,
   ApiClientToolResumeStoreRoute: ApiClientToolResumeStoreRoute,
   ApiCloudflareBindingWireRoute: ApiCloudflareBindingWireRoute,
+  ApiCodingToolsRoute: ApiCodingToolsRoute,
   ApiCompactionUsageWireRoute: ApiCompactionUsageWireRoute,
   ApiCompactionWireRoute: ApiCompactionWireRoute,
   ApiContextOverflowRoute: ApiContextOverflowRoute,
@@ -3703,6 +3844,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGeminiNativeImageWireRoute: ApiGeminiNativeImageWireRoute,
   ApiGenerationPersistenceResumeRoute: ApiGenerationPersistenceResumeRoute,
   ApiGenerationPersistenceServerRoute: ApiGenerationPersistenceServerRoute,
+  ApiHarnessContinueRoute: ApiHarnessContinueRoute,
+  ApiHarnessFirstPartyRoute: ApiHarnessFirstPartyRoute,
+  ApiHarnessForwardingRoute: ApiHarnessForwardingRoute,
+  ApiHarnessRetryAfterRoute: ApiHarnessRetryAfterRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
   ApiInterruptsTestRoute: ApiInterruptsTestRoute,
   ApiJoinRunClientToolRoute: ApiJoinRunClientToolRoute,
@@ -3717,6 +3862,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpAppsServerRoute: ApiMcpAppsServerRoute,
   ApiMcpInputServerRoute: ApiMcpInputServerRoute,
   ApiMcpInputTestRoute: ApiMcpInputTestRoute,
+  ApiMcpLegacyInputServerRoute: ApiMcpLegacyInputServerRoute,
   ApiMcpLifecycleTestRoute: ApiMcpLifecycleTestRoute,
   ApiMcpManagedTestRoute: ApiMcpManagedTestRoute,
   ApiMcpNoTasksServerRoute: ApiMcpNoTasksServerRoute,
@@ -3787,6 +3933,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWorldRoute: ApiWorldRoute,
   ApiWrapFetchWireRoute: ApiWrapFetchWireRoute,
   ProviderIndexRoute: ProviderIndexRoute,
+  ApiHarnessProtocolSplatRoute: ApiHarnessProtocolSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

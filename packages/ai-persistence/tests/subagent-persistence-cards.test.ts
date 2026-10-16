@@ -651,6 +651,7 @@ describe('subagent run recorder', () => {
     const { stores } = memoryPersistence()
     const recorder = createSubagentRunRecorder({
       messages: stores.messages,
+      sessions: stores.sessions,
       intervalMs: 0,
     })
     await feed(recorder, 'run-1', [
@@ -662,6 +663,10 @@ describe('subagent run recorder', () => {
       ...textMessage('m1', 'Inner notes', { subagentRunId: 'inner' }),
     ])
 
+    expect(await stores.sessions.get('subagent:inner')).toMatchObject({
+      parentThreadId: 'subagent:outer',
+      parentToolCallId: 'call_n',
+    })
     // The outer child's chat can continue it. The top thread cannot.
     const fromOuter = { threadId: 'desk:writer', subagentRunId: 'outer' }
     expect((await recorder.loadChild('inner', fromOuter))?.messages).toEqual([
@@ -670,6 +675,35 @@ describe('subagent run recorder', () => {
     expect(
       await recorder.loadChild('inner', { threadId: 'desk' }),
     ).toBeUndefined()
+  })
+
+  it('gives each child the owner of its parent thread', async () => {
+    const { stores } = memoryPersistence()
+    await stores.sessions.upsert({
+      threadId: 'desk',
+      principal: { id: 'alice' },
+      createdAt: t,
+      updatedAt: t,
+    })
+    const recorder = createSubagentRunRecorder({
+      messages: stores.messages,
+      sessions: stores.sessions,
+      intervalMs: 0,
+    })
+    await feed(recorder, 'run-1', [
+      childStarted('outer', { parentToolCallId: 'call_1' }),
+      childStarted('inner', {
+        parentSubagentRunId: 'outer',
+        parentToolCallId: 'call_n',
+      }),
+    ])
+
+    const owners = await Promise.all(
+      ['subagent:outer', 'subagent:inner'].map(
+        async (threadId) => (await stores.sessions.get(threadId))?.principal,
+      ),
+    )
+    expect(owners).toEqual([{ id: 'alice' }, { id: 'alice' }])
   })
 
   it('loads a waiting continued child without the messages of the call it waits in', async () => {
@@ -837,6 +871,66 @@ describe('subagent run recorder', () => {
 })
 
 describe('agent tools with persistence', () => {
+  it('writes one index entry per child and keeps fields others wrote', async () => {
+    const persistence = memoryPersistence()
+    const middleware = withPersistence(persistence)
+    const sessions = persistence.stores.sessions
+    const { agent } = noteTaker()
+    const first = await subagentTurn(middleware, agent, {
+      runId: 'run-1',
+      toolCallId: 'call_1',
+      args: { prompt: 'Take notes' },
+    })
+    const threadId = `subagent:${startedId(first)}`
+    const entry = await sessions.get(threadId)
+    expect(entry).toEqual({
+      threadId,
+      parentThreadId: 'desk',
+      parentToolCallId: 'call_1',
+      createdAt: expect.any(Number),
+      updatedAt: expect.any(Number),
+    })
+    if (!entry) throw new Error('no index entry')
+
+    // Another writer names the session. A continue keeps the name.
+    await sessions.upsert({ ...entry, title: 'Tide notes' })
+    await subagentTurn(middleware, agent, {
+      runId: 'run-2',
+      toolCallId: 'call_2',
+      args: { sessionId: startedId(first), prompt: 'More' },
+    })
+    expect(await sessions.get(threadId)).toEqual({
+      threadId,
+      title: 'Tide notes',
+      parentThreadId: 'desk',
+      parentToolCallId: 'call_2',
+      createdAt: entry.createdAt,
+      updatedAt: expect.any(Number),
+    })
+  })
+
+  it('gives a child entry the harness and owner of its parent entry', async () => {
+    const persistence = memoryPersistence()
+    const sessions = persistence.stores.sessions
+    await sessions.upsert({
+      threadId: 'desk',
+      harness: 'notes/desk',
+      principal: { id: 'alice' },
+      createdAt: 1,
+      updatedAt: 1,
+    })
+    const { agent } = noteTaker()
+    const chunks = await subagentTurn(withPersistence(persistence), agent, {
+      runId: 'run-1',
+      toolCallId: 'call_1',
+      args: { prompt: 'Take notes' },
+    })
+
+    const entry = await sessions.get(`subagent:${startedId(chunks)}`)
+    expect(entry?.harness).toBe('notes/desk')
+    expect(entry?.principal).toEqual({ id: 'alice' })
+  })
+
   it('continues a stored child by sessionId', async () => {
     const middleware = withPersistence(memoryPersistence())
     const { agent, seen } = noteTaker()

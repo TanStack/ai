@@ -17,6 +17,8 @@ The key stays in the browser, so you do not have to worry about storing user key
 
 Your relay uses it for one call, then forgets it. Each send puts it on an `x-byok-*` header, not in the JSON body.
 
+To save the key on your server instead, see [Keep Keys on the Server](./server-keys).
+
 Do these four steps:
 
 1. Create a store with `defineByok`.

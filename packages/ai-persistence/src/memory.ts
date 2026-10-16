@@ -1,4 +1,4 @@
-import { defineAIPersistence } from './types'
+import { LogConflictError, defineAIPersistence } from './types'
 import { resolveBlobRange } from './blob-range'
 import type { ActivityRecord, ModelMessage } from '@tanstack/ai'
 import type {
@@ -15,13 +15,26 @@ import type {
   BlobStore,
   GenerationRunRecord,
   GenerationRunStore,
+  InboxEntry,
+  InboxStore,
   InterruptCommitEntry,
   InterruptRecord,
   InterruptStore,
+  LogEntry,
+  LogRecord,
+  LogStore,
   MessageStore,
   MetadataStore,
   RunRecord,
   RunStore,
+  SessionIndexEntry,
+  SessionIndexListOptions,
+  SessionIndexPage,
+  SessionIndexStore,
+  WorkClaimStore,
+  LeaseStore,
+  TurnLease,
+  TurnLeaseKey,
 } from './types'
 
 const compareUtf8Bytes = (left: string, right: string): number => {
@@ -591,6 +604,343 @@ class MemoryBlobStore implements BlobStore {
   }
 }
 
+class MemoryInboxStore implements InboxStore {
+  private readonly entries = new Map<string, InboxEntry>()
+  append(entry: Omit<InboxEntry, 'status'>): Promise<InboxEntry> {
+    // Copies in and out, so a caller never changes a stored entry.
+    const existing = this.entries.get(entry.inputId)
+    if (existing) return Promise.resolve(structuredClone(existing))
+    const stored: InboxEntry = { ...entry, status: 'pending' }
+    this.entries.set(entry.inputId, structuredClone(stored))
+    return Promise.resolve(stored)
+  }
+  listPending(threadId: string): Promise<Array<InboxEntry>> {
+    // Map iteration keeps insertion order. The stable sort keeps it for ties.
+    const pending = [...this.entries.values()]
+      .filter(
+        (entry) => entry.threadId === threadId && entry.status === 'pending',
+      )
+      .sort((a, b) => a.createdAt - b.createdAt)
+      .map((entry) => structuredClone(entry))
+    return Promise.resolve(pending)
+  }
+  markApplied({
+    threadId,
+    inputId,
+    operationId,
+  }: {
+    threadId: string
+    inputId: string
+    operationId: string
+  }): Promise<void> {
+    const existing = this.of(threadId, inputId)
+    if (existing) {
+      this.entries.set(inputId, { ...existing, status: 'applied', operationId })
+    }
+    return Promise.resolve()
+  }
+  markRejected({
+    threadId,
+    inputId,
+    reason,
+  }: {
+    threadId: string
+    inputId: string
+    reason: string
+  }): Promise<void> {
+    const existing = this.of(threadId, inputId)
+    if (existing) {
+      this.entries.set(inputId, { ...existing, status: 'rejected', reason })
+    }
+    return Promise.resolve()
+  }
+  get({
+    threadId,
+    inputId,
+  }: {
+    threadId: string
+    inputId: string
+  }): Promise<InboxEntry | null> {
+    const existing = this.of(threadId, inputId)
+    return Promise.resolve(existing ? structuredClone(existing) : null)
+  }
+  delete({
+    threadId,
+    inputId,
+  }: {
+    threadId: string
+    inputId: string
+  }): Promise<void> {
+    if (this.of(threadId, inputId)) this.entries.delete(inputId)
+    return Promise.resolve()
+  }
+  private of(threadId: string, inputId: string) {
+    const existing = this.entries.get(inputId)
+    return existing?.threadId === threadId ? existing : undefined
+  }
+}
+
+/** A JSON copy, so the log never shares an object with a caller. */
+function copyRecord(record: LogRecord): LogRecord {
+  return JSON.parse(JSON.stringify(record))
+}
+
+class MemoryLogStore implements LogStore {
+  private readonly threads = new Map<string, Array<LogRecord>>()
+  private readonly listeners = new Map<string, Set<() => void>>()
+
+  append({
+    threadId,
+    seq,
+    records,
+  }: {
+    threadId: string
+    seq: number
+    records: ReadonlyArray<LogRecord>
+  }): Promise<void> {
+    if (records.length === 0) return Promise.resolve()
+    const log = this.threads.get(threadId) ?? []
+    if (seq !== log.length + 1) {
+      return Promise.reject(new LogConflictError(threadId, seq))
+    }
+    // Copy the whole batch before the push, so a record that cannot become
+    // JSON rejects the batch with nothing written.
+    let copies: Array<LogRecord>
+    try {
+      copies = records.map(copyRecord)
+    } catch (error) {
+      return Promise.reject(error)
+    }
+    log.push(...copies)
+    this.threads.set(threadId, log)
+    for (const listener of [...(this.listeners.get(threadId) ?? [])]) {
+      // The batch is written. A listener error must not fail the append.
+      try {
+        listener()
+      } catch (error) {
+        console.error('[ai-persistence] log listener failed', error)
+      }
+    }
+    return Promise.resolve()
+  }
+
+  read(
+    threadId: string,
+    options?: { after?: number; limit?: number },
+  ): Promise<Array<LogEntry>> {
+    const log = this.threads.get(threadId) ?? []
+    const after = options?.after ?? 0
+    const end =
+      options?.limit === undefined ? log.length : after + options.limit
+    const entries = log.slice(after, end).map((record, index) => ({
+      seq: after + index + 1,
+      record: copyRecord(record),
+    }))
+    return Promise.resolve(entries)
+  }
+
+  subscribe({
+    threadId,
+    listener,
+  }: {
+    threadId: string
+    listener: () => void
+  }): () => void {
+    let set = this.listeners.get(threadId)
+    if (!set) {
+      set = new Set()
+      this.listeners.set(threadId, set)
+    }
+    set.add(listener)
+    return () => {
+      set.delete(listener)
+    }
+  }
+}
+
+/**
+ * In-process reference {@link LogStore}, for tests and one-process hosts. The
+ * log is lost when the process stops. Records are JSON-copied in and out.
+ *
+ * Not part of `memoryPersistence()`: add it yourself. A durable harness host
+ * keeps the transcript and the inputs in the log, so leave out `messages`
+ * and `inbox`.
+ *
+ * @example
+ * ```ts
+ * const { runs, metadata, workClaims, sessions } = memoryPersistence().stores
+ * const persistence = defineAIPersistence({
+ *   stores: { log: memoryLogStore(), runs, metadata, workClaims, sessions },
+ * })
+ * ```
+ */
+export function memoryLogStore(): LogStore {
+  return new MemoryLogStore()
+}
+
+type WorkClaim = Parameters<WorkClaimStore['claim']>[0]
+
+class MemoryWorkClaimStore implements WorkClaimStore {
+  private readonly claims = new Map<string, WorkClaim>()
+  claim(entry: WorkClaim): Promise<boolean> {
+    // Synchronous, so two claims in one process never both win.
+    const held = this.claims.get(entry.threadId)
+    const isTaken =
+      held !== undefined &&
+      held.ownerId !== entry.ownerId &&
+      held.until > Date.now()
+    if (isTaken) return Promise.resolve(false)
+    this.claims.set(entry.threadId, { ...entry })
+    return Promise.resolve(true)
+  }
+  release({
+    threadId,
+    ownerId,
+  }: {
+    threadId: string
+    ownerId: string
+  }): Promise<void> {
+    if (this.claims.get(threadId)?.ownerId === ownerId) {
+      this.claims.delete(threadId)
+    }
+    return Promise.resolve()
+  }
+  get(threadId: string) {
+    const held = this.claims.get(threadId)
+    return Promise.resolve(
+      held ? { ownerId: held.ownerId, until: held.until } : null,
+    )
+  }
+  listExpired(options: {
+    now: number
+    limit?: number
+  }): Promise<Array<{ threadId: string; harness: string }>> {
+    const expired = [...this.claims.values()]
+      .filter((claim) => claim.until <= options.now)
+      .sort((a, b) => a.until - b.until)
+      .slice(0, options.limit)
+      .map(({ threadId, harness }) => ({ threadId, harness }))
+    return Promise.resolve(expired)
+  }
+}
+
+// Newest `updatedAt` first, then `threadId` order. The cursor uses it too.
+const bySessionOrder = (
+  a: Pick<SessionIndexEntry, 'updatedAt' | 'threadId'>,
+  b: Pick<SessionIndexEntry, 'updatedAt' | 'threadId'>,
+) => b.updatedAt - a.updatedAt || compareUtf8Bytes(a.threadId, b.threadId)
+
+// The cursor is `<updatedAt>:<threadId>` of the last entry of a page.
+function parseSessionCursor(cursor: string) {
+  const split = cursor.indexOf(':')
+  const updatedAt = Number(cursor.slice(0, split))
+  if (split <= 0 || !Number.isFinite(updatedAt)) {
+    throw new Error(`Invalid session index cursor: ${cursor}`)
+  }
+  return { updatedAt, threadId: cursor.slice(split + 1) }
+}
+
+class MemorySessionIndexStore implements SessionIndexStore {
+  private readonly entries = new Map<
+    string,
+    { entry: SessionIndexEntry; revision: string }
+  >()
+  // One counter for the whole store, so an entry that is deleted and written
+  // again never gets a revision that an earlier reader saw.
+  private lastRevision = 0
+  upsert(entry: SessionIndexEntry): Promise<void> {
+    this.write(entry)
+    return Promise.resolve()
+  }
+  get(threadId: string): Promise<SessionIndexEntry | undefined> {
+    const stored = this.entries.get(threadId)
+    return Promise.resolve(stored && structuredClone(stored.entry))
+  }
+  getVersioned(
+    threadId: string,
+  ): Promise<{ entry: SessionIndexEntry; revision: string } | undefined> {
+    const stored = this.entries.get(threadId)
+    return Promise.resolve(stored && structuredClone(stored))
+  }
+  upsertIf({
+    entry,
+    expectedRevision,
+  }: {
+    entry: SessionIndexEntry
+    expectedRevision: string | null
+  }): Promise<
+    { ok: true; revision: string } | { ok: false; reason: 'conflict' }
+  > {
+    const current = this.entries.get(entry.threadId)?.revision ?? null
+    if (current !== expectedRevision) {
+      return Promise.resolve({ ok: false, reason: 'conflict' })
+    }
+    return Promise.resolve({ ok: true, revision: this.write(entry) })
+  }
+  list(options: SessionIndexListOptions = {}): Promise<SessionIndexPage> {
+    const { limit, cursor, parentThreadId, principal, search, harness } =
+      options
+    const after = cursor === undefined ? undefined : parseSessionCursor(cursor)
+    const needle = search?.toLowerCase()
+    const metadata = Object.entries(options.metadata ?? {})
+    const matching = [...this.entries.values()]
+      .map((stored) => stored.entry)
+      .filter((entry) => {
+        // `null` asks for the entries with no parent.
+        const isChild =
+          parentThreadId === undefined ||
+          (entry.parentThreadId ?? null) === parentThreadId
+        const isSameTenant =
+          principal?.tenantId === undefined ||
+          entry.principal?.tenantId === principal.tenantId
+        const isOwned =
+          principal === undefined ||
+          (entry.principal?.id === principal.id && isSameTenant)
+        const isAfterCursor =
+          after === undefined || bySessionOrder(after, entry) < 0
+        const isFound =
+          needle === undefined ||
+          (entry.title?.toLowerCase().includes(needle) ?? false)
+        const isHarness = harness === undefined || entry.harness === harness
+        const hasMetadata = metadata.every(
+          ([key, value]) => entry.metadata?.[key] === value,
+        )
+        return (
+          isChild &&
+          isOwned &&
+          isFound &&
+          isHarness &&
+          hasMetadata &&
+          isAfterCursor
+        )
+      })
+      .sort(bySessionOrder)
+    const page = limit === undefined ? matching : matching.slice(0, limit)
+    const last = page.at(-1)
+    const hasMore =
+      limit !== undefined && matching.length > limit && last !== undefined
+    return Promise.resolve({
+      entries: page.map((entry) => structuredClone(entry)),
+      ...(hasMore
+        ? { cursor: `${last.updatedAt}:${last.threadId}`, truncated: true }
+        : {}),
+    })
+  }
+  delete(threadId: string): Promise<void> {
+    this.entries.delete(threadId)
+    return Promise.resolve()
+  }
+  // Copies in and out, so a caller never changes a stored entry.
+  private write(entry: SessionIndexEntry): string {
+    const revision = String(++this.lastRevision)
+    this.entries.set(entry.threadId, {
+      entry: structuredClone(entry),
+      revision,
+    })
+    return revision
+  }
+}
+
 interface MemoryPersistenceStores {
   messages: MessageStore
   activities: ActivityStore
@@ -600,15 +950,21 @@ interface MemoryPersistenceStores {
   metadata: MetadataStore
   artifacts: ArtifactStore
   blobs: BlobStore
+  inbox: InboxStore
+  workClaims: WorkClaimStore
+  sessions: SessionIndexStore
 }
 
 /**
  * In-process reference backend for the full state + generation store set.
  *
  * Returns messages + activities + runs + generationRuns + interrupts +
- * metadata + artifacts + blobs. Locks are not included — use
- * `InMemoryLockStore` + `withLocks` from `@tanstack/ai` when a test or
- * single-process app needs coordination.
+ * metadata + artifacts + blobs + inbox + workClaims + sessions.
+ * The session log is not included: a host can turn on more behavior when
+ * `stores.log` is present, so add `memoryLogStore()` yourself (see its
+ * example: a durable harness host takes no `messages` or `inbox`). Locks are not
+ * included either. Use `InMemoryLockStore` + `withLocks` from `@tanstack/ai`
+ * when a test or single-process app needs coordination.
  */
 export function memoryPersistence() {
   const stores: MemoryPersistenceStores = {
@@ -620,6 +976,55 @@ export function memoryPersistence() {
     metadata: new MemoryMetadataStore(),
     artifacts: new MemoryArtifactStore(),
     blobs: new MemoryBlobStore(),
+    inbox: new MemoryInboxStore(),
+    workClaims: new MemoryWorkClaimStore(),
+    sessions: new MemorySessionIndexStore(),
   }
   return defineAIPersistence({ stores })
+}
+
+/**
+ * In-process {@link LeaseStore}, for tests and single-process hosts. A real
+ * backend puts the lease in the system that already has one (a job queue).
+ *
+ * @example
+ * ```ts
+ * const { metadata, workClaims, sessions } = memoryPersistence().stores
+ * const persistence = defineAIPersistence({
+ *   stores: { log: memoryLogStore(), leases: memoryLeaseStore(), metadata, workClaims, sessions },
+ * })
+ * ```
+ */
+export function memoryLeaseStore(): LeaseStore {
+  const leases = new Map<string, TurnLease>()
+  const keyOf = (key: TurnLeaseKey) =>
+    `${key.threadId}\u0000${key.inputId}\u0000${key.operationId}\u0000${key.attempt}`
+  return {
+    acquire: (lease) => {
+      leases.set(keyOf(lease), { ...lease })
+      return Promise.resolve()
+    },
+    renew: (lease) => {
+      const held = leases.get(keyOf(lease))
+      // Only the owner renews. Another host's expired lease is taken over.
+      if (
+        !held ||
+        held.ownerId === lease.ownerId ||
+        held.expiresAt <= Date.now()
+      ) {
+        leases.set(keyOf(lease), { ...lease })
+      }
+      return Promise.resolve()
+    },
+    release: (lease) => {
+      if (leases.get(keyOf(lease))?.ownerId === lease.ownerId) {
+        leases.delete(keyOf(lease))
+      }
+      return Promise.resolve()
+    },
+    isAlive: (key) => {
+      const held = leases.get(keyOf(key))
+      return Promise.resolve(held !== undefined && held.expiresAt > Date.now())
+    },
+  }
 }

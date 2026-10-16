@@ -189,6 +189,11 @@ The optional run methods are `listByThread`, `listByParentRun`, and
 `skipMethods`. An omitted `listByParentRun` needs no entry: the subagent checks
 skip on their own.
 
+The session stores (`inbox`, `log`, `workClaims`, `sessions`) are
+opt-in too. Their cases run only when your persistence has the store, so a backend
+without them needs no `skip` entry. See the
+[session stores](./store-reference#session-stores) for their rules.
+
 ### Turn on the newer checks
 
 Some checks were added after the suite shipped. They are off by default, so an

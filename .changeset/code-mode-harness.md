@@ -1,0 +1,5 @@
+---
+'@tanstack/ai-code-mode': minor
+---
+
+Add `@tanstack/ai-code-mode/harness` with `codeMode({ driver })`: a harness plugin that gives the model one `execute_typescript` tool. The model writes a program that calls several tools, and the program runs in the isolate of any `@tanstack/ai-isolate-*` driver. By default, only tools that are safe to run without a question move into code mode: server tools with no `needsApproval` that the permission rules allow in plan mode, and never a tool that declares permission resources. `include` picks the tools yourself, a safe tool with `metadata.codeMode: true` always moves, and `lazy: true` lists only the tool names and adds `discover_tools`. Tool names that are not JavaScript identifiers get a safe name inside the program. `@tanstack/ai-harness` is an optional peer dependency.

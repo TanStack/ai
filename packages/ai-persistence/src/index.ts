@@ -10,6 +10,12 @@ export {
   defineGenerationRunStore,
   defineArtifactStore,
   defineBlobStore,
+  defineInboxStore,
+  defineLogStore,
+  defineWorkClaimStore,
+  defineLeaseStore,
+  defineSessionIndexStore,
+  LogConflictError,
   // Run lifecycle helpers owned by @tanstack/ai, transiting through ./types so
   // this package's public surface stays a single import for backend authors.
   isTerminalRunStatus,
@@ -28,6 +34,21 @@ export type {
   InterruptStatus,
   InterruptStore,
   MetadataStore,
+  // Session store contracts
+  InboxEntry,
+  InboxStatus,
+  InboxStore,
+  LogEntry,
+  LogRecord,
+  LogStore,
+  LeaseStore,
+  TurnLease,
+  TurnLeaseKey,
+  WorkClaimStore,
+  SessionIndexEntry,
+  SessionIndexListOptions,
+  SessionIndexPage,
+  SessionIndexStore,
   // Named product shapes (prefer these over a sparse bag)
   ChatTranscriptStores,
   ChatPersistenceStores,
@@ -84,6 +105,9 @@ export type {
 export { reconstructChat } from './reconstruct'
 export type { ReconstructChatOptions } from './reconstruct'
 
+// Server helper: the stored transcript of a child agent run, for a UI
+export { loadChildTranscript } from './subagent-runs'
+
 // Server helper: rehydrate the last generation job for a client load
 export {
   reconstructGeneration,
@@ -107,7 +131,7 @@ export {
 export { parseRangeHeader, resolveBlobRange } from './blob-range'
 
 // Reference in-memory implementation
-export { memoryPersistence } from './memory'
+export { memoryLeaseStore, memoryLogStore, memoryPersistence } from './memory'
 
 // Persistence-owned capabilities only. Locks: @tanstack/ai.
 export {

@@ -1,0 +1,439 @@
+import { assertMetadataSchema } from './session-entry'
+import type {
+  AgentLoopStrategy,
+  AnyChatMiddleware,
+  AnyTextAdapter,
+  AnyTool,
+  InferToolInput,
+  InterruptDefinition,
+  KeyedAdapter,
+  ModelMessage,
+  PromptCacheOptions,
+  ReasoningOption,
+  SchemaInput,
+  SubagentRouterPick,
+  SubagentsBag,
+  SystemPrompt,
+} from '@tanstack/ai'
+import type { AnyAgent } from './agents'
+import type { MediaOptions } from './media'
+import type { HarnessPlugin, PluginMetadataCheck } from './plugins'
+import type { HarnessSession } from './session/index'
+import type { MetadataOf } from './session-entry'
+import type { HarnessTurnOptions, RecoverHook } from './turn'
+import type { BusyPolicy, Principal, ThreadSettings, UserInput } from './types'
+
+/**
+ * The `subagents` option: the same as `chat({ subagents })`, without
+ * `binding` and `keys`. The session binds its own provider keys.
+ */
+export type HarnessSubagents<TSubagents extends ReadonlyArray<AnyAgent>> = Omit<
+  SubagentsBag<TSubagents>,
+  'binding' | 'keys'
+>
+
+/**
+ * What `routing.router` gets: the fields of the `subagents.router` context,
+ * plus the harness fields of the turn.
+ */
+export interface HarnessRouterContext<TMetadataSchema = any> {
+  /** The model messages of the turn: the history, then the new user message. */
+  messages: Array<ModelMessage>
+  /**
+   * The root agents of this turn, in registration order: the harness
+   * `agents`, then the `agents` of session plugins, then of turn plugins. An
+   * agent that is only in `subagents` is not in this list.
+   */
+  agents: ReadonlyArray<AnyAgent>
+  /** Aborted when the turn is cancelled. */
+  abortSignal?: AbortSignal
+  session: SessionWithMetadata<TMetadataSchema>
+  /**
+   * The user input of the turn as sent: text, or content parts. `undefined`
+   * for a turn with no new user message.
+   */
+  input?: UserInput
+  /** The id of the turn operation. */
+  operationId: string
+  /** The id of the turn input, when the turn has one. */
+  inputId?: string
+  /** Who sent the turn input. Default: the principal that opened the session. */
+  principal?: Principal
+  /** The `context` of the turn input. Client data: do not trust it. */
+  context?: unknown
+  /** The main text adapter of the turn, with the user's keys bound. */
+  adapter: AnyTextAdapter
+}
+
+/**
+ * The `routing` option. The other fields mean the same as in `subagents`.
+ * `limits` defaults to `subagents.limits`. With `strategy: 'handoff'`, the
+ * main model answers after the agents, in the same turn, and it keeps its
+ * `subagents`.
+ */
+export interface HarnessRouting<TMetadataSchema = any> extends Pick<
+  SubagentsBag,
+  'order' | 'strategy' | 'limits' | 'sandbox'
+> {
+  /**
+   * Pick who answers the turn, with the picks of `subagents.router`:
+   * `'main'`, an agent name, a list of names, `{ names, order }`, or
+   * `{ steps }`. Give an agent with `inputSchema` its input with
+   * `{ name, input }`. A throw fails the turn.
+   */
+  router: (
+    ctx: HarnessRouterContext<TMetadataSchema>,
+  ) => SubagentRouterPick | Promise<SubagentRouterPick>
+}
+
+/**
+ * Limits for one input on a durable host (a host with `stores.log`). A host
+ * without a log reads only `interruptedToolResult` and `truncatedToolResult`.
+ */
+export interface HarnessDurability<TMetadataSchema = any> {
+  /**
+   * Total attempts for one input, the first run included. Each recovery after
+   * a crash is one more attempt. When no attempt is left, the input fails
+   * with code `'attempts_exhausted'`. Default 10.
+   */
+  maxAttempts?: number
+  /**
+   * Time from the first run of an input until it fails with code
+   * `'timeout'`, in milliseconds. Retries do not reset it. Default: no
+   * timeout.
+   */
+  timeoutMs?: number
+  /**
+   * Decide how an input that a crashed host left recovers: an input that
+   * never ran, and a turn whose lease expired. The context has the decision
+   * the harness takes by default. Return `undefined` to keep it. Return
+   * `{ action: 'run', overrides }` to run the turn with `TurnOverrides`.
+   */
+  recover?: RecoverHook<TMetadataSchema>
+  /**
+   * The tool result that recovery gives a `replay: 'never'` tool call that
+   * a crash cut: the content and the error of its tool message. Default: a
+   * JSON note that the tool may or may not have run.
+   */
+  interruptedToolResult?: string
+  /**
+   * The tool result of each tool call of an answer that stopped at the output
+   * limit (finish reason `length`): the content and the error of its tool
+   * message. The function form gets the call. Such a call never runs, also
+   * with `replay: 'safe'`. When set, the answer keeps its calls, each cut
+   * call gets this text, and the turn calls the model again. Recovery gives
+   * the same text to a cut call with no result in the log. Not set: a cut
+   * answer ends the turn, and recovery uses the default. Default: `'The answer was cut off at the output limit before
+   * this tool call was complete. The call did not run.'`
+   */
+  truncatedToolResult?:
+    | string
+    | ((call: { toolCallId: string; toolName: string }) => string)
+  /**
+   * Continue an answer that a crash cut. Before the recovered attempt runs,
+   * recovery adds the part of the answer that the log has as an assistant
+   * message, then one user message for each note, in order, in one append.
+   * The model goes on after the notes. The assistant message has the answer
+   * text and each signed thinking block (a finished block with its
+   * signature, as the transcript keeps thinking), so the provider can replay
+   * it. A thinking block with no signature and tool calls are not kept. An
+   * attempt that streamed no answer text and no signed thinking (for example
+   * only thinking with no signature) runs again with no partial and no note.
+   * Signed thinking alone is enough to continue. A string `note` is one
+   * note. Default `false`. The default note: `'The previous answer was cut
+   * off. Continue exactly where it stopped, without repeating it.'`
+   */
+  continueCutOff?: boolean | { note?: string | ReadonlyArray<string> }
+}
+
+/**
+ * What `defineHarness` takes. Where it overlaps with `chat()`, the option
+ * names and types are the same.
+ */
+export interface HarnessConfig<
+  TAdapter extends AnyTextAdapter = AnyTextAdapter,
+  TAgents extends ReadonlyArray<AnyAgent> = ReadonlyArray<AnyAgent>,
+  TSubagents extends ReadonlyArray<AnyAgent> = ReadonlyArray<AnyAgent>,
+  TMetadataSchema = undefined,
+  TTools extends ReadonlyArray<AnyTool> = ReadonlyArray<AnyTool>,
+> {
+  /** A stable name, for example `'acme/studio'`. */
+  name: string
+  /** What the harness does. Shown when another agent can call it. */
+  description?: string
+  /**
+   * The main agent-loop model, the same as `chat({ adapter })`. A
+   * `keyedAdapter(...)` is built for each turn with the user's own key: the
+   * key saved with `/connect <provider>`, else the provider's env var.
+   * Leave it out when a plugin `adapter()` picks the model of every turn. A
+   * turn that gets no model from any of them fails.
+   */
+  adapter?: TAdapter | KeyedAdapter<TAdapter>
+  /**
+   * Models a thread can pick by name with `session.configure({ model })`.
+   * The stored name picks the model of each turn, after `overrides.adapter`
+   * and before a plugin `adapter()`.
+   */
+  models?: Record<string, AnyTextAdapter | KeyedAdapter<AnyTextAdapter>>
+  systemPrompts?: Array<SystemPrompt>
+  tools?: TTools
+  middleware?: ReadonlyArray<AnyChatMiddleware>
+  /**
+   * When a turn stops calling the model. Defaults to `maxIterations(50)`.
+   * Without `durability.truncatedToolResult`, the turn also stops after an
+   * answer cut at the output limit.
+   */
+  agentLoopStrategy?: AgentLoopStrategy
+  /**
+   * How the server tools of one model call run, the same as
+   * `chat({ toolExecution })`. `'parallel'` starts them together.
+   * `'sequential'` runs them one at a time, in call order. Default
+   * `'parallel'`.
+   */
+  toolExecution?: 'parallel' | 'sequential'
+  modelOptions?: TAdapter['~types']['providerOptions']
+  /**
+   * Automatic prompt caching for every session, the same as
+   * `chat({ promptCache })`. Default `'short'`. `'none'` turns it off. A
+   * `key` here is shared by all sessions, so usually leave it out: then each
+   * session uses its threadId as the key.
+   */
+  promptCache?: PromptCacheOptions
+  /**
+   * How hard the main model thinks on every turn, as the adapter gets it in
+   * `TextOptions`. Not set: no reasoning is sent, and the provider default
+   * applies. `overrides.reasoning` of a turn replaces it.
+   */
+  reasoning?: ReasoningOption
+  interrupts?: ReadonlyArray<InterruptDefinition<any, any, any, any>>
+  /**
+   * Runtime context passed to middleware hooks and server tools. When this
+   * and the `context` of a turn input are both plain objects, a turn gets
+   * both merged, and this value wins for a key in both, so a client cannot
+   * replace a server value. Otherwise a turn gets this value when it is set,
+   * else the input's.
+   */
+  context?: unknown
+  /**
+   * Typed agents the session can run from code, commands, plugins, and
+   * exposed clients: `session.agents.<name>.run(input)`.
+   */
+  agents?: TAgents
+  /**
+   * Agents the main model can call as tools, the same as `chat({ subagents })`.
+   * They are also registered in `session.agents`.
+   */
+  subagents?: HarnessSubagents<TSubagents>
+  /**
+   * A router for each new turn. It sends the turn to the main model, or to
+   * root agents: the harness `agents` and the `agents` of plugins. A resolve
+   * continues the turn it answers, so it does not call the router.
+   */
+  routing?: HarnessRouting<TMetadataSchema>
+  /** Called once per session, so every session gets fresh plugin instances. */
+  plugins?: () => ReadonlyArray<
+    HarnessPlugin & PluginMetadataCheck<MetadataOf<TMetadataSchema>>
+  >
+  /**
+   * The shape of the `metadata` of the session index entry of each thread,
+   * as a Standard Schema (for example a zod object). Each write checks it:
+   * `host.sessions.update`, the `update` op of `POST sessions`, and
+   * `updateEntry` of plugins and sessions. A write it refuses throws
+   * `SessionMetadataError` and writes nothing. It also types the metadata
+   * of those writes, of `session.entry()`, of the hooks, and of a client
+   * made with `createHarnessClient<typeof harness>`.
+   */
+  metadataSchema?: TMetadataSchema
+  /** What a `prompt` does while a chat turn runs. Default `'queue'`. */
+  busy?: BusyPolicy
+  /** Attempt and time limits for each input on a durable host. */
+  durability?: HarnessDurability<TMetadataSchema>
+  /** Hooks that control a chat turn: retries, joins, and the end of a turn. */
+  turn?: HarnessTurnOptions<TMetadataSchema>
+  /**
+   * Files sent to a turn, and media agents make: the size limit, the kinds a
+   * user can send, the kinds the model reads, and an optional transcriber for
+   * audio the model cannot read.
+   */
+  media?: MediaOptions
+  /** What clients may call. Nothing is exposed by default. */
+  expose?: {
+    agents?: ReadonlyArray<TAgents[number]['name'] | TSubagents[number]['name']>
+    /**
+     * The thread settings a client may change with a `configure` input. An
+     * input with any other field is refused with `not_exposed`. Server code
+     * that calls `session.configure()` can change every field. `plugins` and
+     * `instructions` let a client turn off a plugin and write into the
+     * system prompt, so expose them only to clients you trust.
+     */
+    settings?: ReadonlyArray<keyof ThreadSettings>
+    /**
+     * The plugin config keys a client may set with a `config` input, for
+     * example `client.setConfig({ key: 'model', value: 'fast' })`. An input with any other
+     * key is refused with `not_exposed`. Server code that calls
+     * `session.setConfig()` can set every key. Warning: `mode` of
+     * `permissions()` lets a client turn approvals off with `bypass`. Keep
+     * `mode` on the server, or expose it only to clients you trust.
+     */
+    config?: ReadonlyArray<string>
+    /**
+     * The commands a client may run with a `command` input, for example
+     * `client.command('undo')`, or `/undo` in a session view on a client.
+     * An input with any other command is refused with `not_exposed`. Server
+     * code that calls `session.command()` can run every command. Warning:
+     * `/mode bypass` of `permissions()` turns approvals off, so expose `mode`
+     * only to clients you trust. Plugins add their commands when a session
+     * opens, so `defineHarness` does not check these names.
+     */
+    commands?: ReadonlyArray<string>
+    /**
+     * The harness `tools` a client may run with a `tool` input, with no model
+     * turn, for example from a schedule or a webhook. An input for any other
+     * tool is refused with `not_exposed`. The call goes through the same
+     * middleware, input check, and `permissions()` rules as a model call.
+     */
+    tools?: ReadonlyArray<TTools[number]['name']>
+    /**
+     * The host record types a client may add with an `append` input, for
+     * example a webhook that adds `{ type: 'app.signal', text }`. An input
+     * with any other type, or with a `thread` field, is refused with
+     * `not_exposed`. Server code that calls `session.append()` can add every
+     * type. Only a durable host (with `stores.log`) keeps records, and its
+     * `project` decides what the model sees of them.
+     */
+    records?: ReadonlyArray<string>
+  }
+}
+
+const HARNESS_KIND = 'tanstack-ai-harness' as const
+
+/** An immutable harness definition. Importing it starts nothing. */
+export type HarnessDefinition<
+  TAdapter extends AnyTextAdapter = AnyTextAdapter,
+  TAgents extends ReadonlyArray<AnyAgent> = ReadonlyArray<AnyAgent>,
+  TSubagents extends ReadonlyArray<AnyAgent> = ReadonlyArray<AnyAgent>,
+  TMetadataSchema = undefined,
+  TTools extends ReadonlyArray<AnyTool> = ReadonlyArray<AnyTool>,
+> = Readonly<
+  HarnessConfig<TAdapter, TAgents, TSubagents, TMetadataSchema, TTools>
+> & {
+  readonly kind: typeof HARNESS_KIND
+  readonly version: 1
+}
+
+/** A harness definition with any type parameters. */
+export type AnyHarness = HarnessDefinition<
+  any,
+  any,
+  any,
+  any,
+  ReadonlyArray<AnyTool>
+>
+
+/** A session whose harness has the metadata schema `TMetadataSchema`. */
+export type SessionWithMetadata<TMetadataSchema> = HarnessSession<
+  HarnessDefinition<any, any, any, TMetadataSchema>
+>
+
+/** The type of the session index `metadata` of a harness. */
+export type SessionMetadataOf<THarness> =
+  THarness extends HarnessDefinition<any, any, any, infer TMetadataSchema>
+    ? MetadataOf<TMetadataSchema>
+    : Record<string, unknown>
+
+/** Every agent a harness registers, as a union. */
+export type HarnessAgentsOf<THarness> =
+  THarness extends HarnessDefinition<any, infer TAgents, infer TSubagents, any>
+    ? TAgents[number] | TSubagents[number]
+    : never
+
+/** The `tools` of a harness, as a union. */
+export type HarnessToolsOf<THarness> =
+  THarness extends HarnessDefinition<any, any, any, any, infer TTools>
+    ? TTools[number]
+    : never
+
+/**
+ * The input of the harness tool `TName`, from its input schema. `unknown`
+ * for a tool that is not in `tools`, for example a plugin tool.
+ */
+export type HarnessToolInput<THarness, TName> = [
+  Extract<HarnessToolsOf<THarness>, { name: TName }>,
+] extends [never]
+  ? unknown
+  : InferToolInput<Extract<HarnessToolsOf<THarness>, { name: TName }>>
+
+/** True for a value made with `defineHarness`. */
+export function isHarnessDefinition(value: unknown): value is AnyHarness {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { kind?: unknown }).kind === HARNESS_KIND &&
+    (value as { version?: unknown }).version === 1
+  )
+}
+
+/**
+ * Define a harness: a reusable, typed agent configuration. Use the same option
+ * names as `chat()`, plus `agents`, `plugins`, `busy`, `expose`, and `media`.
+ *
+ * @example
+ * ```ts
+ * const studio = defineHarness({
+ *   name: 'acme/studio',
+ *   adapter: anthropicText('claude-sonnet-4-5'),
+ *   agents: [heroImage],
+ *   subagents: { agents: [researcher] },
+ * })
+ * ```
+ */
+export function defineHarness<
+  TAdapter extends AnyTextAdapter = AnyTextAdapter,
+  const TAgents extends ReadonlyArray<AnyAgent> = readonly [],
+  const TSubagents extends ReadonlyArray<AnyAgent> = readonly [],
+  TMetadataSchema extends SchemaInput | undefined = undefined,
+  const TTools extends ReadonlyArray<AnyTool> = readonly [],
+>(
+  config: HarnessConfig<TAdapter, TAgents, TSubagents, TMetadataSchema, TTools>,
+): HarnessDefinition<TAdapter, TAgents, TSubagents, TMetadataSchema, TTools> {
+  if (config.name.trim() === '') {
+    throw new Error('defineHarness requires a non-empty name')
+  }
+  assertMetadataSchema(`defineHarness "${config.name}"`, config.metadataSchema)
+  const byName = new Map<string, AnyAgent>()
+  for (const agent of [
+    ...(config.agents ?? []),
+    ...(config.subagents?.agents ?? []),
+  ]) {
+    const existing = byName.get(agent.name)
+    if (existing && existing !== agent) {
+      throw new Error(
+        `defineHarness "${config.name}": two different agents are named "${agent.name}".`,
+      )
+    }
+    byName.set(agent.name, agent)
+  }
+  for (const name of config.expose?.agents ?? []) {
+    if (!byName.has(name)) {
+      throw new Error(
+        `defineHarness "${config.name}": expose.agents names "${name}", which is not a registered agent.`,
+      )
+    }
+  }
+  const toolNames = new Set((config.tools ?? []).map((tool) => tool.name))
+  for (const name of config.expose?.tools ?? []) {
+    if (!toolNames.has(name)) {
+      throw new Error(
+        `defineHarness "${config.name}": expose.tools names "${name}", which is not in tools.`,
+      )
+    }
+  }
+  for (const type of config.expose?.records ?? []) {
+    if (type.startsWith('harness.')) {
+      throw new Error(
+        `defineHarness "${config.name}": expose.records names "${type}", but the harness owns the record types that start with "harness.".`,
+      )
+    }
+  }
+  return Object.freeze({ ...config, kind: HARNESS_KIND, version: 1 as const })
+}

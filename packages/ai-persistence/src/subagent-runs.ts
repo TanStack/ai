@@ -17,7 +17,7 @@ import type {
   UIMessage,
 } from '@tanstack/ai'
 import { mergeStoredMessages } from './merge-stored'
-import type { InterruptStore, MessageStore } from './types'
+import type { InterruptStore, MessageStore, SessionIndexStore } from './types'
 
 function withSubagentInfo(
   metadata: ModelMessage['metadata'],
@@ -69,6 +69,48 @@ function ownerThread(caller: { threadId: string; subagentRunId?: string }) {
   return caller.subagentRunId === undefined
     ? caller.threadId
     : childStoreId(caller.subagentRunId)
+}
+
+/** The task of a child's first call, as its first user message. */
+function taskOf(
+  subagentRunId: string,
+  prompt: string | undefined,
+): Array<ModelMessage> {
+  if (prompt === undefined) return []
+  return [
+    {
+      id: `${childStoreId(subagentRunId)}:prompt`,
+      role: 'user',
+      content: prompt,
+    },
+  ]
+}
+
+/**
+ * The stored transcript of a child agent run of `threadId`, for a UI. It
+ * starts with the task of the first call as a user message. Each message
+ * keeps its card in `metadata.tanstack.subagent`. A nested child
+ * belongs to `threadId` when its parents do. `undefined` for an unknown id
+ * and for a child of another thread.
+ */
+export async function loadChildTranscript(
+  messages: MessageStore,
+  subagentRunId: string,
+  threadId: string,
+): Promise<Array<ModelMessage> | undefined> {
+  const stored = await messages.loadThread(childStoreId(subagentRunId))
+  const marker = storedMarker(stored)
+  // The id can come from a prompt injection. Walk up to the thread, and stop
+  // at the depth cap of `lineage`, so a loop in stored data ends.
+  let parent = marker.parentThreadId
+  for (let depth = 0; parent !== threadId; depth++) {
+    if (parent === undefined || depth >= 64) return undefined
+    if (!parent.startsWith('subagent:')) return undefined
+    parent = storedMarker(await messages.loadThread(parent)).parentThreadId
+  }
+  // A child with no messages keeps its card-only head, so a UI can read how
+  // it ended. The head has no content.
+  return [...taskOf(subagentRunId, marker.prompt), ...stored]
 }
 
 /** The `prompt` of an agent tool call, if any. */
@@ -255,6 +297,8 @@ export function createSubagentRunRecorder(stores: {
   messages: MessageStore
   runs?: RunStore
   interrupts?: InterruptStore
+  /** When present, each child gets a session index entry. */
+  sessions?: SessionIndexStore
   /** Minimum milliseconds between writes while a child streams. */
   intervalMs?: number
 }) {
@@ -481,6 +525,48 @@ export function createSubagentRunRecorder(stores: {
       children.get(chunk.parentSubagentRunId)?.processor.processChunk(chunk)
     }
     await saveChild(id)
+    const note = children.get(id)
+    if (stores.sessions && note) await indexChild(stores.sessions, id, note)
+  }
+
+  // One index entry per child. `upsert` replaces the whole entry, so keep the
+  // fields that other writers set, like a title. The child has the owner and
+  // the `harness` name of its parent thread, so a list filtered by them shows
+  // it. ponytail: get-then-upsert, use `upsertIf` if two hosts write one child.
+  // Best-effort: the index is a side store, so a failed write never fails the
+  // run.
+  async function indexChild(
+    sessions: SessionIndexStore,
+    subagentRunId: string,
+    note: ChildNote,
+  ) {
+    const childThreadId = childStoreId(subagentRunId)
+    try {
+      const [current, parent] = await Promise.all([
+        sessions.get(childThreadId),
+        sessions.get(note.parentThreadId),
+      ])
+      const now = Date.now()
+      await sessions.upsert({
+        ...current,
+        threadId: childThreadId,
+        parentThreadId: note.parentThreadId,
+        ...(note.parentToolCallId !== undefined && {
+          parentToolCallId: note.parentToolCallId,
+        }),
+        ...(parent?.principal !== undefined && {
+          principal: parent.principal,
+        }),
+        ...(parent?.harness !== undefined && { harness: parent.harness }),
+        createdAt: current?.createdAt ?? now,
+        updatedAt: now,
+      })
+    } catch (error) {
+      console.warn(
+        `[ai-persistence] session index write failed for '${childThreadId}'`,
+        error,
+      )
+    }
   }
 
   /**
@@ -506,19 +592,9 @@ export function createSubagentRunRecorder(stores: {
       waits && marker.base !== undefined
         ? messages.slice(0, marker.base)
         : messages
-    const task: Array<ModelMessage> =
-      marker.prompt === undefined
-        ? []
-        : [
-            {
-              id: `${childStoreId(subagentRunId)}:prompt`,
-              role: 'user',
-              content: marker.prompt,
-            },
-          ]
     // The agent the child ran under. Only that agent can continue it.
     return {
-      messages: [...task, ...transcript],
+      messages: [...taskOf(subagentRunId, marker.prompt), ...transcript],
       ...(info !== undefined && { agent: info.name }),
     }
   }

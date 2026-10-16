@@ -30,6 +30,10 @@
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
     },
+    "./harness": {
+      "types": "./dist/esm/harness.d.ts",
+      "import": "./dist/esm/harness.js"
+    },
     "./ngrok": {
       "types": "./dist/esm/ngrok.d.ts",
       "import": "./dist/esm/ngrok.js"
@@ -84,10 +88,14 @@
   "peerDependencies": {
     "@ngrok/ngrok": "^1.0.0",
     "@tanstack/ai": "workspace:^",
+    "@tanstack/ai-harness": "workspace:^",
     "@tanstack/ai-persistence": "workspace:^",
     "vitest": "^4.1.10"
   },
   "peerDependenciesMeta": {
+    "@tanstack/ai-harness": {
+      "optional": true
+    },
     "@ngrok/ngrok": {
       "optional": true
     },
@@ -101,6 +109,7 @@
   "devDependencies": {
     "@ngrok/ngrok": "^1.7.0",
     "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-harness": "workspace:*",
     "@tanstack/ai-persistence": "workspace:*",
     "@vitest/coverage-v8": "4.1.10",
     "vitest": "^4.1.10"

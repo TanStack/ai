@@ -902,6 +902,13 @@ export type ToolExecutionContext<TContext = unknown> =
      */
     detach?: (work: Promise<unknown>) => Promise<string>
     /**
+     * The thread of the call, when a host knows it. `chat()` does not set it:
+     * a host such as the harness wraps the tool's `execute` to add it.
+     */
+    threadId?: string
+    /** The run of the call, when a host knows it. Set as `threadId` is. */
+    runId?: string
+    /**
      * Emit a custom event during tool execution.
      * Events are streamed to the client in real-time as AG-UI CUSTOM events.
      *

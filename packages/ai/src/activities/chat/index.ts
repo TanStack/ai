@@ -2636,7 +2636,9 @@ class TextEngine<
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
+    const rawEdits = this.captureApprovedArgumentEdits(pendingToolCalls)
     const executionResult = yield* this.drainToolCallGenerator(generator)
+    this.retainApprovedArgumentEdits(executionResult, rawEdits)
 
     // Check if middleware aborted during pending tool execution
     if (this.isMiddlewareAborted()) {
@@ -2870,7 +2872,9 @@ class TextEngine<
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
+    const rawEdits = this.captureApprovedArgumentEdits(toolCalls)
     const executionResult = yield* this.drainToolCallGenerator(generator)
+    this.retainApprovedArgumentEdits(executionResult, rawEdits)
 
     this.middlewareCtx.phase = 'afterTools'
 
@@ -3896,8 +3900,7 @@ class TextEngine<
       }
     }
     const actionable =
-      executed ??
-      (yield* this.drainToolCallGenerator(this.boundaryToolRequests(toolCalls)))
+      executed ?? (yield* this.drainBoundaryToolRequests(toolCalls))
     for (const chunk of this.buildToolResultChunks(
       actionable.results,
       finishEvent,
@@ -3913,6 +3916,17 @@ class TextEngine<
       actionable.subagentInterrupts,
     )
     return true
+  }
+
+  private async *drainBoundaryToolRequests(
+    toolCalls: ReadonlyArray<ToolCall>,
+  ): AsyncGenerator<StreamChunk, ExecuteToolCallsResult, void> {
+    const rawEdits = this.captureApprovedArgumentEdits(toolCalls)
+    const result = yield* this.drainToolCallGenerator(
+      this.boundaryToolRequests(toolCalls),
+    )
+    this.retainApprovedArgumentEdits(result, rawEdits)
+    return result
   }
 
   /**
@@ -5597,6 +5611,164 @@ class TextEngine<
     this.middlewareCtx.hasTools = this.tools.length > 0
     this.middlewareCtx.toolNames = this.tools.map((t) => t.name)
     this.middlewareCtx.modelOptions = config.modelOptions
+  }
+
+  /** Copy only lossless JSON raw edits. Opaque execution inputs stay untouched. */
+  private captureApprovedArgumentEdits(
+    calls: ReadonlyArray<ToolCall>,
+  ): Map<ToolCall, unknown> {
+    const unsupported = Symbol('unsupported')
+    const copy = (value: unknown, ancestors = new Set<object>()): unknown => {
+      if (
+        value === null ||
+        typeof value === 'string' ||
+        typeof value === 'boolean'
+      )
+        return value
+      if (typeof value === 'number')
+        return Number.isFinite(value) && !Object.is(value, -0)
+          ? value
+          : unsupported
+      if (typeof value !== 'object' || ancestors.has(value)) return unsupported
+      const array = Array.isArray(value)
+      const prototype = Object.getPrototypeOf(value)
+      if (
+        array
+          ? prototype !== Array.prototype
+          : prototype !== Object.prototype && prototype !== null
+      )
+        return unsupported
+      const properties = Object.getOwnPropertyDescriptors(value)
+      const keys = Reflect.ownKeys(properties)
+      if (array && keys.length !== properties.length?.value + 1)
+        return unsupported
+      ancestors.add(value)
+      const result: Record<string, unknown> | Array<unknown> = array
+        ? []
+        : Object.create(null)
+      for (const key of keys) {
+        if (array && key === 'length') continue
+        const property = typeof key === 'string' ? properties[key] : undefined
+        if (
+          !property ||
+          !property.enumerable ||
+          !('value' in property) ||
+          (array && !/^(0|[1-9]\d*)$/.test(String(key)))
+        )
+          return unsupported
+        const copied = copy(property.value, ancestors)
+        if (copied === unsupported) return unsupported
+        Object.defineProperty(result, key, {
+          value: copied,
+          enumerable: true,
+          configurable: true,
+          writable: true,
+        })
+      }
+      ancestors.delete(value)
+      return result
+    }
+    const snapshots = new Map<ToolCall, unknown>()
+    for (const call of calls) {
+      const resolution =
+        this.resumeApprovals.get(call.id) ??
+        this.resumeApprovals.get(`approval_${call.id}`) ??
+        this.initialApprovals.get(call.id) ??
+        this.initialApprovals.get(`approval_${call.id}`)
+      if (
+        typeof resolution !== 'object' ||
+        !resolution.approved ||
+        // ponytail: `== null` matches `editedArgs ?? input` in executeToolCalls.
+        resolution.editedArgs == null
+      )
+        continue
+      try {
+        const snapshot = copy(resolution.editedArgs)
+        if (snapshot !== unsupported) {
+          const historyCalls = this.messages.flatMap((message) =>
+            message.role === 'assistant' ? (message.toolCalls ?? []) : [],
+          )
+          const selected = historyCalls.includes(call)
+            ? call
+            : historyCalls
+                .slice()
+                .reverse()
+                .find(
+                  (candidate) =>
+                    candidate.id === call.id &&
+                    candidate.function.name === call.function.name &&
+                    candidate.function.arguments === call.function.arguments,
+                )
+          if (selected) snapshots.set(selected, snapshot)
+        }
+      } catch {
+        // An opaque value can execute without changing its JSON history.
+      }
+    }
+    return snapshots
+  }
+
+  /**
+   * Keep checked raw edits in the selected history occurrence. A call passed
+   * the check when it waits for the client or ran with its input. A middleware
+   * skip has no input, and a failed check is an output error.
+   */
+  private retainApprovedArgumentEdits(
+    executed: ExecuteToolCallsResult,
+    snapshots: Map<ToolCall, unknown>,
+  ): void {
+    if (snapshots.size === 0) return
+    const selectedIds = new Set([
+      ...executed.results
+        .filter(
+          (entry) =>
+            entry.input !== undefined && entry.state !== 'output-error',
+        )
+        .map((entry) => entry.toolCallId),
+      ...executed.needsClientExecution.map((entry) => entry.toolCallId),
+    ])
+    const historyCalls = this.messages.flatMap((message) =>
+      message.role === 'assistant' ? (message.toolCalls ?? []) : [],
+    )
+    const update = (messages: Array<ModelMessage>): Array<ModelMessage> => {
+      const selected = new Map<ToolCall, unknown>()
+      const calls = messages.flatMap((message) =>
+        message.role === 'assistant' ? (message.toolCalls ?? []) : [],
+      )
+      for (const [call, snapshot] of snapshots) {
+        if (!selectedIds.has(call.id)) continue
+        if (calls.includes(call)) {
+          selected.set(call, snapshot)
+          continue
+        }
+        const sameCall = (candidate: ToolCall) =>
+          candidate.id === call.id &&
+          candidate.function.name === call.function.name &&
+          candidate.function.arguments === call.function.arguments
+        const occurrence = historyCalls.filter(sameCall).indexOf(call)
+        const equivalent = calls.filter(sameCall)[occurrence]
+        if (equivalent) selected.set(equivalent, snapshot)
+      }
+      return messages.map((message) => {
+        if (message.role !== 'assistant' || !message.toolCalls) return message
+        let changed = false
+        const toolCalls = message.toolCalls.map((call) => {
+          if (!selected.has(call)) return call
+          const argumentsJson = JSON.stringify(selected.get(call))
+          if (argumentsJson === undefined) return call
+          if (argumentsJson === call.function.arguments) return call
+          changed = true
+          return {
+            ...call,
+            function: { ...call.function, arguments: argumentsJson },
+          }
+        })
+        return changed ? { ...message, toolCalls } : message
+      })
+    }
+    this.messages = update(this.messages)
+    this.providerMessages = update(this.providerMessages)
+    this.middlewareCtx.messages = this.messages
   }
 
   private setToolPhase(phase: ToolPhaseResult): void {
