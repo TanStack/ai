@@ -982,7 +982,8 @@
         {
           "label": "Build on the session log",
           "to": "harness/session-log",
-          "addedAt": "2026-10-13"
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-16"
         },
         {
           "label": "Control how a turn ends",
@@ -1090,7 +1091,7 @@
           "label": "Use from any MCP client",
           "to": "harness/mcp-server",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-15"
+          "updatedAt": "2026-10-16"
         },
         {
           "label": "Use a harness from an editor (ACP)",

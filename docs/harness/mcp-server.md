@@ -102,12 +102,15 @@ To run what the harness has:
 - `agent_<name>`: one tool for each agent in `expose.agents`. It takes the agent input and returns the agent result.
 - `command_<name>`: one tool for each command in `expose.commands`. The command `connect:notion` becomes the tool `command_connect_notion`.
 - `tool_<name>`: one tool for each tool in `expose.tools`. It runs that one tool with no model turn. See [Run a tool without a model](./tool-runs).
+- `append`: add records to the thread, when `expose.records` lists record types. The next turn reads them. See [Let a client add records](./session-log#let-a-client-add-records).
 
-The harness exposes nothing by default. Add the agents, commands, and tools that an MCP client can run to `expose` in `defineHarness`. See [Choose what clients can change](./connect#choose-what-clients-can-change).
+The harness exposes nothing by default. Add the agents, commands, tools, and record types that an MCP client can use to `expose` in `defineHarness`. See [Choose what clients can change](./connect#choose-what-clients-can-change).
 
 Two names can give the same tool name, for example `connect:notion` and `connect_notion`. Then the later one in name order gets a number: `command_connect_notion_2`. The description of each of these tools names its command or agent.
 
 Every tool takes an optional `threadId`. Each thread is its own conversation. Without a `threadId`, a tool uses the `threadId` option of the server (default `main`).
+
+Because of that, the input of an agent, a command, or a tool cannot have its own `threadId` field. `createHarnessMcpServer` throws when one does. Give that field another name, for example `ticketThreadId`.
 
 `chat` answers with JSON:
 
@@ -241,4 +244,5 @@ claude mcp add --transport http assistant https://your-app.example.com/mcp --hea
 - Approvals that the client asks you about, or answers with `approve` and `reject`.
 - Every kind of interrupt, answered with one `resolve` call.
 - The agents, commands, and tools of your harness as MCP tools.
+- Records that the client adds to a thread with `append`.
 - Files that the client sends with a message, and the media of each turn in the result.
