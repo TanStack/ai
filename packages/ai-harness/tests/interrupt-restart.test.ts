@@ -355,7 +355,7 @@ describe.each([false, true])(
       })
       const host = createHarnessHost({ persistence })
       const session = await host.open(config, { threadId: THREAD })
-      const initial = await session.prompt('remove')
+      const initial = await session.send('remove')
       const approval = initial.interrupts?.[0]
       if (!approval) throw new Error('The turn did not stop for approval.')
       const receipt = await session.resolve([
@@ -401,7 +401,7 @@ describe.each([false, true])(
       })
       const first = createHarnessHost({ persistence })
       const session = await first.open(config, { threadId: THREAD })
-      const initial = await session.prompt('remove')
+      const initial = await session.send('remove')
       const approval = initial.interrupts?.[0]
       if (!approval) throw new Error('The turn did not stop for approval.')
       await first.close()
@@ -667,7 +667,7 @@ describe.each([false, true])(
       })
       const first = createHarnessHost({ persistence })
       const session = await first.open(config, { threadId: THREAD })
-      const initial = await session.prompt('check')
+      const initial = await session.send('check')
       const approval = initial.interrupts?.[0]
       if (!approval) throw new Error('The turn did not stop for approval.')
       const metadata = vi

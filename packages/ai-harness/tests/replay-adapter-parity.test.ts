@@ -68,9 +68,9 @@ describe('saved harness replay across turn adapters', () => {
       { threadId: 'replay' },
     )
     try {
-      await session.prompt('first')
+      await session.send('first')
       const before = JSON.parse(JSON.stringify(await session.transcript()))
-      await session.prompt('second', { overrides: { adapter: second.adapter } })
+      await session.send('second', { overrides: { adapter: second.adapter } })
       expect(execute).toHaveBeenCalledTimes(1)
       expect(first.calls).toHaveLength(2)
       expect(second.calls).toHaveLength(1)
@@ -148,7 +148,7 @@ describe('saved harness replay across turn adapters', () => {
         { threadId: 'raw' },
       )
       try {
-        await session.prompt('measure')
+        await session.send('measure')
         expect(execute).toHaveBeenCalledTimes(executes)
         if (executes) expect(execute.mock.calls[0]?.[0]).toEqual({ count })
         const saved = await session.transcript()
@@ -214,7 +214,7 @@ describe.each([false, true])(
       let approvalId = ''
       try {
         const session = await first.open(config, { threadId: 'approved' })
-        const stopped = await session.prompt('approve')
+        const stopped = await session.send('approve')
         approvalId = stopped.interrupts?.[0]?.id ?? ''
         expect(approvalId).not.toBe('')
         expect(seen).toEqual([])
@@ -291,7 +291,7 @@ describe.each([false, true])(
           }),
           { threadId: 'denied' },
         )
-        const stopped = await session.prompt('deny')
+        const stopped = await session.send('deny')
         const id = stopped.interrupts?.[0]?.id
         if (!id) throw new Error('Missing approval')
         const receipt = await session.resolve([
@@ -339,7 +339,7 @@ it('detaches a local event reader without aborting the model turn', async () => 
     defineHarness({ name: 'detach-replay', adapter: main.adapter }),
     { threadId: 'detach' },
   )
-  const turn = session.prompt('continue')
+  const turn = session.send('continue')
   const local = new AbortController()
   const detached = (async () => {
     for await (const entry of turn.events({
