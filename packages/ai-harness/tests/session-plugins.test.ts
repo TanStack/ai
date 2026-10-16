@@ -167,6 +167,38 @@ describe('commands', () => {
     await release.opened
     await waiting.cancel()
     await waiting.then(
+
+  it('gives a command without a schema the input as sent, typed unknown', async () => {
+    // Defined on their own, with no contextual type from a plugin's `setup`.
+    const peek = defineCommand({
+      description: 'Reads a field without a check',
+      // @ts-expect-error Without a schema, narrow the input before use.
+      run: (input) => input.foo,
+    })
+    const shout = defineCommand({
+      description: 'Shouts the text it gets',
+      run: (input) =>
+        typeof input === 'string' ? input.toUpperCase() : 'no text',
+    })
+    const raw = definePlugin({
+      name: 'test/raw-commands',
+      setup: () => ({ commands: { peek, shout } }),
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/raw-cmds',
+        adapter: mockAdapter([]).adapter,
+        plugins: () => [raw],
+      }),
+      { threadId: 't' },
+    )
+
+    expect(await session.command('peek', { foo: 'bar' })).toBe('bar')
+    expect(await session.command('shout', 'hi')).toBe('HI')
+    expect(await session.command('shout', { text: 'hi' })).toBe('no text')
+    await host.close()
+  })
       () => undefined,
       () => undefined,
     )

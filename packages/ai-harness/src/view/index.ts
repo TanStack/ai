@@ -2,6 +2,7 @@
 // ../types, ../media-ref, and ./reduce. Everything else is a type.
 import {
   EventType,
+  INTERRUPT_PAYLOAD_METADATA_KEY,
   readUnopenedInterruptBinding,
   wireSubagentInfo,
 } from '@tanstack/ai'
@@ -574,7 +575,7 @@ export function createSessionView(source: SessionViewSource) {
     },
     interrupt: (interrupt) => {
       const open = () => get().interrupts
-      const payload = interrupt.metadata?.['tanstack:interruptPayload']
+      const payload = interrupt.metadata?.[INTERRUPT_PAYLOAD_METADATA_KEY]
       const { message, toolCallId, subagentRunId, responseSchema } = interrupt
       const item: ViewInterrupt = {
         id: interrupt.id,

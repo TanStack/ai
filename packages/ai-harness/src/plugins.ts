@@ -34,9 +34,8 @@ import type { MetadataOf } from './session-entry'
  * - `session` (default): from session open to session close. Resources such
  *   as an index, a watcher, or an LSP server stay up across turns.
  * - `turn`: set up for each chat turn, disposed when that turn ends.
- * - `run`: deprecated, the old name of `turn`. It works the same.
  */
-export type PluginLifetime = 'session' | 'turn' | 'run'
+export type PluginLifetime = 'session' | 'turn'
 
 /**
  * A prompt a plugin contributes. `id` must be unique in the session. A

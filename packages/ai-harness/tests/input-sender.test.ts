@@ -433,18 +433,22 @@ describe('the sender of each input', () => {
 })
 
 describe('recovery keeps the sender and the context', () => {
-  /** A run plugin that keeps the turn it is set up for, and a tool that reports. */
+  /** A turn plugin that keeps the turn it is set up for, and a tool that reports. */
   function recorder() {
     const turns: Array<TurnInfo | undefined> = []
     const { plugin, seen } = whoami()
-    const run = definePlugin({
+    const perTurn = definePlugin({
       name: 'test/turns',
-      lifetime: 'run',
+      lifetime: 'turn',
       setup: (ctx) => {
         turns.push(ctx.turn)
       },
     })
-    return { plugins: (): Array<HarnessPlugin> => [plugin, run], turns, seen }
+    return {
+      plugins: (): Array<HarnessPlugin> => [plugin, perTurn],
+      turns,
+      seen,
+    }
   }
 
   const sent = {
@@ -561,12 +565,12 @@ describe('recovery keeps the sender and the context', () => {
 })
 
 describe('the turn where the model is picked', () => {
-  it('gives run plugins and adapter() the message, the context, and the sender', async () => {
+  it('gives turn plugins and adapter() the message, the context, and the sender', async () => {
     const setups: Array<TurnInfo | undefined> = []
     const picks: Array<TurnInfo> = []
-    const runPicker = definePlugin({
-      name: 'test/run-picker',
-      lifetime: 'run',
+    const turnPicker = definePlugin({
+      name: 'test/turn-picker',
+      lifetime: 'turn',
       setup: (ctx) => {
         setups.push(ctx.turn)
         return {
@@ -590,7 +594,7 @@ describe('the turn where the model is picked', () => {
       defineHarness({
         name: 'test/picker-turn',
         adapter,
-        plugins: () => [sessionPlugin, runPicker],
+        plugins: () => [sessionPlugin, turnPicker],
       }),
       { threadId: THREAD, principal: alice },
     )

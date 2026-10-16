@@ -1,4 +1,8 @@
-import { EventType, readUnopenedInterruptBinding } from '@tanstack/ai'
+import {
+  EventType,
+  INTERRUPT_PAYLOAD_METADATA_KEY,
+  readUnopenedInterruptBinding,
+} from '@tanstack/ai'
 import { isMediaRecord, mediaIdOf, mediaOfMessage } from '../media-ref'
 import { HARNESS_EVENTS } from '../types'
 import type { Interrupt, ModelMessage, StreamChunk } from '@tanstack/ai'
@@ -680,7 +684,7 @@ const isGeneric = (interrupt: Interrupt) =>
  */
 function signInOf(interrupt: Interrupt): SignIn | undefined {
   if (interrupt.reason !== 'auth_required') return undefined
-  const payload = recordOf(interrupt.metadata?.['tanstack:interruptPayload'])
+  const payload = recordOf(interrupt.metadata?.[INTERRUPT_PAYLOAD_METADATA_KEY])
   const request = recordOf(payload.request)
   if (typeof request.connector !== 'string') return undefined
   return {

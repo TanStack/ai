@@ -94,7 +94,7 @@ it('takes a harness without an adapter, and turn plugins', () => {
   expectTypeOf(picked.adapter).toEqualTypeOf<
     AnyTextAdapter | KeyedAdapter<AnyTextAdapter> | undefined
   >()
-  expectTypeOf<PluginLifetime>().toEqualTypeOf<'session' | 'turn' | 'run'>()
+  expectTypeOf<PluginLifetime>().toEqualTypeOf<'session' | 'turn'>()
 })
 
 it('takes attempt and time limits on the harness', () => {

@@ -1,5 +1,6 @@
 import {
   EventType,
+  INTERRUPT_BINDING_METADATA_KEY,
   convertSchemaToJsonSchema,
   validateWithStandardSchema,
 } from '@tanstack/ai'
@@ -751,7 +752,8 @@ export abstract class SessionState<
           typeof payload.toolCallId === 'string' ||
           metadata?.kind === 'approval' ||
           metadata?.kind === 'client_tool' ||
-          (metadata !== undefined && 'tanstack:interruptBinding' in metadata) ||
+          (metadata !== undefined &&
+            INTERRUPT_BINDING_METADATA_KEY in metadata) ||
           typeof payload.id !== 'string' ||
           typeof payload.reason !== 'string' ||
           typeof payload.message !== 'string'

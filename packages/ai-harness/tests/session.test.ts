@@ -623,59 +623,53 @@ describe('plugins', () => {
     await host.close()
   })
 
-  // 'run' is the old name of 'turn', and still works.
-  it.each(['turn', 'run'] as const)(
-    'keeps session plugins across turns and sets up %s plugins per turn',
-    async (lifetime) => {
-      const { host } = setup()
-      const log: Array<string> = []
-      const sessionPlugin = definePlugin({
-        name: 'test/session',
-        setup: async ({ resources }) => {
-          await resources.acquire(
-            () => log.push('session:open'),
-            () => log.push('session:close'),
-          )
-          return { prompts: ['Session prompt.'] }
-        },
-      })
-      const runPlugin = definePlugin({
-        name: 'test/run',
-        lifetime,
-        setup: async ({ resources }) => {
-          await resources.acquire(
-            () => log.push('run:open'),
-            () => log.push('run:close'),
-          )
-        },
-      })
-      const { adapter, calls } = mockAdapter([() => text('a'), () => text('b')])
-      const session = await host.open(
-        defineHarness({
-          name: 'test/plugins',
-          adapter,
-          plugins: () => [sessionPlugin, runPlugin],
-        }),
-        { threadId: 't1' },
-      )
+  it('keeps session plugins across turns and sets up turn plugins per turn', async () => {
+    const { host } = setup()
+    const log: Array<string> = []
+    const sessionPlugin = definePlugin({
+      name: 'test/session',
+      setup: async ({ resources }) => {
+        await resources.acquire(
+          () => log.push('session:open'),
+          () => log.push('session:close'),
+        )
+        return { prompts: ['Session prompt.'] }
+      },
+    })
+    const runPlugin = definePlugin({
+      name: 'test/run',
+      lifetime: 'turn',
+      setup: async ({ resources }) => {
+        await resources.acquire(
+          () => log.push('run:open'),
+          () => log.push('run:close'),
+        )
+      },
+    })
+    const { adapter, calls } = mockAdapter([() => text('a'), () => text('b')])
+    const session = await host.open(
+      defineHarness({
+        name: 'test/plugins',
+        adapter,
+        plugins: () => [sessionPlugin, runPlugin],
+      }),
+      { threadId: 't1' },
+    )
 
-      await session.send('one')
-      await session.send('two')
-      await session.close()
+    await session.send('one')
+    await session.send('two')
+    await session.close()
 
-      expect(log).toEqual([
-        'session:open',
-        'run:open',
-        'run:close',
-        'run:open',
-        'run:close',
-        'session:close',
-      ])
-      expect(JSON.stringify(calls[0].systemPrompts)).toContain(
-        'Session prompt.',
-      )
-    },
-  )
+    expect(log).toEqual([
+      'session:open',
+      'run:open',
+      'run:close',
+      'run:open',
+      'run:close',
+      'session:close',
+    ])
+    expect(JSON.stringify(calls[0].systemPrompts)).toContain('Session prompt.')
+  })
 
   it('runs a harness without an adapter on the model a plugin picks', async () => {
     const { host } = setup()

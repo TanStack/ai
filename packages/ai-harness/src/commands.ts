@@ -134,10 +134,13 @@ export interface CommandDefinition<
   TSchema extends SchemaInput | undefined = SchemaInput | undefined,
 > {
   description: string
-  /** The input shape, checked before `run`. */
+  /**
+   * The input shape, checked before `run`. Without one, `run` gets the input
+   * as sent, typed `unknown`: narrow it before use.
+   */
   input?: TSchema
   run: (
-    input: TSchema extends SchemaInput ? InferSchemaType<TSchema> : undefined,
+    input: TSchema extends SchemaInput ? InferSchemaType<TSchema> : unknown,
     ctx: CommandContext,
   ) => unknown
 }
