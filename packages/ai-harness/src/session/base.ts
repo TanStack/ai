@@ -1040,6 +1040,36 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     }
   }
 
+  /**
+   * Resolves when the thread is idle: no input is being stored, and no turn,
+   * steer, agent run, or command runs or waits. A thread that waits for a
+   * human (an approval, a sign-in) is idle. When the thread is idle now, it
+   * resolves at once. When `signal` aborts first, it rejects with the reason
+   * of `signal`.
+   *
+   * @example
+   * ```ts
+   * session.send('Write a haiku about the sea.')
+   * await session.whenIdle({ signal: AbortSignal.timeout(60_000) })
+   * ```
+   */
+  whenIdle({ signal }: { signal?: AbortSignal } = {}) {
+    return new Promise<void>((resolve, reject) => {
+      if (signal?.aborted) return reject(signal.reason)
+      if (this.isIdle()) return resolve()
+      const onAbort = () => {
+        stop()
+        reject(signal?.reason)
+      }
+      const stop = this.onIdle(() => {
+        stop()
+        signal?.removeEventListener('abort', onAbort)
+        resolve()
+      })
+      signal?.addEventListener('abort', onAbort, { once: true })
+    })
+  }
+
   protected warn(
     operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
     plugin: string,

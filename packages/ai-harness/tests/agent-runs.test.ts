@@ -6,7 +6,7 @@ import {
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness } from '../src'
+import { createHarnessHost, defineHarness, harnessOf } from '../src'
 import {
   after,
   gate,
@@ -434,7 +434,7 @@ describe('agents that agent code starts', () => {
       name: 'lead',
       description: 'Starts a helper',
       run: async (ctx) => {
-        const child = ctx.harness.agents.start('helper')
+        const child = harnessOf(ctx).agents.start('helper')
         childId = child.id
         return await child
       },
@@ -474,7 +474,7 @@ describe('agents that agent code starts', () => {
       description: 'Starts a helper',
       run: async (ctx) => {
         try {
-          ctx.harness.agents.start('helper')
+          harnessOf(ctx).agents.start('helper')
           return 'started'
         } catch (error) {
           return String(error)
@@ -517,7 +517,7 @@ describe('agents that agent code starts', () => {
       name: 'lead',
       description: 'Starts a waiter, then waits',
       run: (ctx) => {
-        void ctx.harness.agents.start('waiter')
+        void harnessOf(ctx).agents.start('waiter')
         return waitForAbort('lead', ctx.abortSignal)
       },
     })

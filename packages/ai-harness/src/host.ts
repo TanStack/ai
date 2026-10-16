@@ -4,7 +4,7 @@ import { memoryPersistence } from '@tanstack/ai-persistence'
 import type { CredentialStore } from '@tanstack/ai/byok'
 import { SharedLog, loadLogState } from './log'
 import { LEASE } from './resume'
-import { HarnessSession } from './session/index'
+import { SessionImpl } from './session/harness-session'
 import { HARNESS_EVENTS } from './types'
 import { isRecord } from './utils'
 import { changedEntry } from './session-entry'
@@ -30,6 +30,7 @@ import type { AnyHarness, SessionMetadataOf } from './define'
 import type { SessionEntryChange, SessionEntryUpdate } from './session-entry'
 import type { ProjectOptions, ReduceOptions } from './log'
 import type { LeaseOptions } from './resume'
+import type { HarnessSession } from './session/index'
 import type { ForkPoint, Principal } from './types'
 
 type SharedStores = {
@@ -676,7 +677,7 @@ export function createHarnessHost<TLogState = undefined>(
     logs.set(logId, loaded)
     return loaded
   }
-  const sessions = new Map<string, Promise<HarnessSession>>()
+  const sessions = new Map<string, Promise<SessionImpl>>()
   /**
    * The keys of sessions that only a `resumePending` sweep opened. With
    * `close: 'whenIdle'`, the sweep closes only these. An open by the app
@@ -687,75 +688,84 @@ export function createHarnessHost<TLogState = undefined>(
   const closing = new Map<string, Promise<void>>()
   const hostId = `host-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
 
-  const host: HarnessHost<TLogState> = {
-    open(harness, { threadId, principal, logId: openLogId, promptCache }) {
-      const key = `${harness.name}\u0000${threadId}`
-      let session = sessions.get(key)
-      // The app opened a thread that a sweep opened: it stays open.
-      if (session) sweptOnly.delete(key)
-      if (!session) {
-        const logId = openLogId ?? threadId
-        const created = new HarnessSession({
-          harness,
-          threadId,
-          logId,
-          persistence,
-          inbox,
-          credentials,
-          media,
-          hostId,
-          index,
-          ...(logStore
-            ? {
-                log: {
-                  store: logStore,
-                  ...(options.project ? { project: options.project } : {}),
-                  open: async (sessionThread, onFailure) => {
-                    let log = await sharedLog(logStore, logId)
-                    // The log closed while this open waited, and the host
-                    // dropped it.
-                    while (!log.isOpen) log = await sharedLog(logStore, logId)
-                    return log.view(sessionThread, onFailure)
-                  },
+  /**
+   * `host.open`. It gives the session class, so the host can call the
+   * members that the `HarnessSession` type does not have.
+   */
+  const openSession = <THarness extends AnyHarness>(
+    harness: THarness,
+    { threadId, principal, logId: openLogId, promptCache }: OpenSessionOptions,
+  ) => {
+    const key = `${harness.name}\u0000${threadId}`
+    let session = sessions.get(key)
+    // The app opened a thread that a sweep opened: it stays open.
+    if (session) sweptOnly.delete(key)
+    if (!session) {
+      const logId = openLogId ?? threadId
+      const created = new SessionImpl({
+        harness,
+        threadId,
+        logId,
+        persistence,
+        inbox,
+        credentials,
+        media,
+        hostId,
+        index,
+        ...(logStore
+          ? {
+              log: {
+                store: logStore,
+                ...(options.project ? { project: options.project } : {}),
+                open: async (sessionThread, onFailure) => {
+                  let log = await sharedLog(logStore, logId)
+                  // The log closed while this open waited, and the host
+                  // dropped it.
+                  while (!log.isOpen) log = await sharedLog(logStore, logId)
+                  return log.view(sessionThread, onFailure)
                 },
-              }
-            : {}),
-          ...(options.lease ? { lease: options.lease } : {}),
-          ...(principal ? { principal } : {}),
-          ...(promptCache ? { promptCache } : {}),
-          onEvent: (event) => {
-            const status = statusAfter(created, event)
-            if (status) setStatus(key, threadId, status)
+              },
+            }
+          : {}),
+        ...(options.lease ? { lease: options.lease } : {}),
+        ...(principal ? { principal } : {}),
+        ...(promptCache ? { promptCache } : {}),
+        onEvent: (event) => {
+          const status = statusAfter(created, event)
+          if (status) setStatus(key, threadId, status)
+        },
+        onClose: () => {
+          // A sweep may have put a new session under this key already. It
+          // opens only after this one closed, so its status is not set yet.
+          if (sessions.get(key) === session) sessions.delete(key)
+          statuses.delete(key)
+        },
+      })
+      // A swept session under this key may still close: it lets go of
+      // the thread first.
+      const closed = closing.get(key) ?? Promise.resolve()
+      session = closed
+        .then(() => created.open())
+        .then(
+          () => {
+            // A recovered turn can run already. Else the new session is
+            // idle.
+            if (!statuses.has(key)) setStatus(key, threadId, 'idle')
+            return created
           },
-          onClose: () => {
-            // A sweep may have put a new session under this key already. It
-            // opens only after this one closed, so its status is not set yet.
-            if (sessions.get(key) === session) sessions.delete(key)
+          (error: unknown) => {
+            sessions.delete(key)
             statuses.delete(key)
+            throw error
           },
-        })
-        // A swept session under this key may still close: it lets go of
-        // the thread first.
-        const closed = closing.get(key) ?? Promise.resolve()
-        session = closed
-          .then(() => created.open())
-          .then(
-            () => {
-              // A recovered turn can run already. Else the new session is
-              // idle.
-              if (!statuses.has(key)) setStatus(key, threadId, 'idle')
-              return created
-            },
-            (error: unknown) => {
-              sessions.delete(key)
-              statuses.delete(key)
-              throw error
-            },
-          )
-        sessions.set(key, session)
-      }
-      return session as Promise<HarnessSession<typeof harness>>
-    },
+        )
+      sessions.set(key, session)
+    }
+    return session as Promise<SessionImpl<THarness>>
+  }
+
+  const host: HarnessHost<TLogState> = {
+    open: openSession,
     isOpen(harness, { threadId }) {
       return sessions.has(`${harness.name}\u0000${threadId}`)
     },
@@ -765,7 +775,7 @@ export function createHarnessHost<TLogState = undefined>(
       }
       // A source that only this fork opens closes again at the end.
       const wasOpen = host.isOpen(harness, { threadId })
-      const source = await host.open(harness, {
+      const source = await openSession(harness, {
         threadId,
         ...(logId ? { logId } : {}),
       })
@@ -791,7 +801,7 @@ export function createHarnessHost<TLogState = undefined>(
             `Thread ${JSON.stringify(newThreadId)} is not empty. Fork into a new thread.`,
           )
         }
-        const fork = await host.open(harness, {
+        const fork = await openSession(harness, {
           threadId: newThreadId,
           ...(principal ? { principal } : {}),
         })
@@ -847,9 +857,9 @@ export function createHarnessHost<TLogState = undefined>(
         // that the app has open stays open.
         const isOwn = close === 'whenIdle' && !sessions.has(key)
         if (isOwn) sweptOnly.add(key)
-        let session: HarnessSession
+        let session: SessionImpl
         try {
-          session = await host.open(harness, { threadId })
+          session = await openSession(harness, { threadId })
         } catch (error) {
           // One thread that cannot open must not stop the sweep. The claim
           // goes back, so the next sweep tries again.

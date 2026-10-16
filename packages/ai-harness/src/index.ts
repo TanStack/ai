@@ -84,6 +84,7 @@ export type {
 export { AuthRequiredError, scrubSecrets } from './auth'
 export type { CredentialsAccess } from './auth'
 
+export { harnessOf } from './agents'
 export type {
   AgentInputOf,
   AgentRegistryView,
@@ -114,8 +115,8 @@ export type {
   SessionIndexStore,
 } from '@tanstack/ai-persistence'
 
-export { HarnessSession } from './session/index'
 export type {
+  HarnessSession,
   AgentHandle,
   AgentHandles,
   AgentRunInfo,

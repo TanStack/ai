@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness } from '../src'
+import { createHarnessHost, defineHarness, harnessOf } from '../src'
 import {
   messageTexts,
   mockAdapter,
@@ -47,7 +47,7 @@ async function stopDuringAgent(options: {
       name: 'worker',
       description: 'Works',
       run: async (ctx) => {
-        await ctx.harness.step.do('reserve', () => {
+        await harnessOf(ctx).step.do('reserve', () => {
           effects.push('reserve')
           return 'R-1'
         })

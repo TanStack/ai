@@ -160,16 +160,42 @@ export const NO_SESSION_CONTEXT: HarnessAgentContext = {
   },
 }
 
+/**
+ * The harness context of an agent run: `ctx.harness`. Use it in the `run` of
+ * an agent that only a harness session runs.
+ *
+ * @param ctx The context of the agent run.
+ * @throws TypeError when `ctx` has no `harness`: a plain `chat()` started
+ * the run, not a harness session.
+ *
+ * @example
+ * ```ts
+ * const lead = defineAgent({
+ *   name: 'lead',
+ *   description: 'Starts a helper',
+ *   run: async (ctx) => await harnessOf(ctx).agents.start('helper'),
+ * })
+ * ```
+ */
+export function harnessOf(ctx: { harness?: HarnessAgentContext }) {
+  if (ctx.harness === undefined) {
+    throw new TypeError(
+      'harnessOf: this agent runs outside a harness session. ctx.harness exists only in an agent run that a harness session started.',
+    )
+  }
+  return ctx.harness
+}
+
 declare module '@tanstack/ai' {
   /**
    * `ctx.harness` in the `run` of an agent: `step` and `agents`. A harness
    * session gives them to each agent run it starts from code (a session
    * agent, `ctx.harness.agents.start`, a background child), and to the
    * children those runs start through `ctx.chat({ subagents })`. A run
-   * that a plain `chat()` starts outside a harness has no `harness` at
-   * run time: such an agent reads `ctx.harness` only inside a harness.
+   * that a plain `chat()` starts has no `harness`. Read it with
+   * `harnessOf(ctx)`, which throws when it is missing.
    */
   interface SubagentContextExtension {
-    harness: HarnessAgentContext
+    harness?: HarnessAgentContext
   }
 }

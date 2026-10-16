@@ -63,7 +63,7 @@ import type {
   InterruptedTurn,
 } from './types'
 import type { SettingNames } from './helpers'
-import type { HarnessSession } from './harness-session'
+import type { HarnessSession, SessionImpl } from './harness-session'
 
 /**
  * A layer of {@link HarnessSession}: config, thread settings, revert,
@@ -192,7 +192,7 @@ export abstract class SessionState<
    * settings and plugin config of `source`. `host.fork` calls it.
    */
   async adoptFork(
-    source: HarnessSession,
+    source: SessionImpl,
     messages: ReadonlyArray<ModelMessage>,
   ): Promise<void> {
     // A media id belongs to one thread, so each file gets a copy here.

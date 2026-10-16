@@ -35,10 +35,22 @@ import type { WaitingSteer } from './types'
  * A live harness session: one conversation (`threadId`) with its plugins,
  * operations, inbox, and event stream. Open one with `host.open()`.
  */
-export class HarnessSession<
+export interface HarnessSession<
+  THarness extends AnyHarness = AnyHarness,
+> extends Omit<
+  SessionImpl<THarness>,
+  // The public members that only the host calls.
+  'open' | 'adoptFork' | 'onIdle'
+> {}
+
+/**
+ * The session class. The package does not export it: apps get the
+ * {@link HarnessSession} type from `host.open()`.
+ */
+export class SessionImpl<
   THarness extends AnyHarness = AnyHarness,
 > extends SessionTurn<THarness> {
-  /** This session, typed as the full class, for the hooks of each layer. */
+  /** This session, typed as the public type, for the hooks of each layer. */
   protected override self(): HarnessSession<THarness> {
     return this
   }
@@ -383,7 +395,7 @@ export class HarnessSession<
     const recover = this.harness.durability?.recover
     if (!recover) return decision
     const answer = await recover({
-      session: this,
+      session: this.self(),
       input: {
         inputId: input.inputId,
         input: input.input,
