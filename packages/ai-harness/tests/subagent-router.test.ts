@@ -60,7 +60,7 @@ async function openRouted(options: {
   agent: AnyAgent
   pick: SubagentRouterPick
   replies?: Array<Reply>
-  lease?: { renewMs?: number; ttlMs?: number }
+  ownership?: { renewMs?: number; ttlMs?: number }
   tools?: ReadonlyArray<AnyTool>
 }) {
   const { stores } = memoryPersistence()
@@ -72,7 +72,7 @@ async function openRouted(options: {
   const routerSaw: Array<Array<string>> = []
   const host = createHarnessHost({
     persistence,
-    ...(options.lease ? { lease: options.lease } : {}),
+    ...(options.ownership ? { ownership: options.ownership } : {}),
   })
   const session = await host.open(
     defineHarness({
@@ -193,7 +193,7 @@ describe.each([
       durable,
       agent,
       pick: 'writer',
-      lease: { renewMs: 5 },
+      ownership: { renewMs: 5 },
     })
     const turn = session.send('go')
     await turn

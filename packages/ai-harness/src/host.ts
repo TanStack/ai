@@ -26,9 +26,9 @@ import type {
   SessionIndexPage,
   SessionIndexStore,
 } from '@tanstack/ai-persistence'
-import type { AnyHarness, SessionMetadataOf } from './define'
+import type { AnyHarness, HarnessLogStateOf, SessionMetadataOf } from './define'
 import type { SessionEntryChange, SessionEntryUpdate } from './session-entry'
-import type { ProjectOptions, ReduceOptions } from './log'
+import type { ReduceOptions } from './log'
 import type { LeaseOptions } from './resume'
 import type { HarnessSession } from './session/index'
 import type { ForkPoint, Principal } from './types'
@@ -85,7 +85,7 @@ export type HarnessPersistence =
         SharedStores
     >
 
-export interface HarnessHostOptions<TLogState = undefined> {
+export interface HarnessHostOptions {
   /** Where sessions keep their state. Default: in memory, lost on restart. */
   persistence?: HarnessPersistence
   /**
@@ -95,24 +95,23 @@ export interface HarnessHostOptions<TLogState = undefined> {
    */
   credentials?: CredentialStore
   /**
-   * How a durable host folds your own log records into the model context.
-   * Only a host with `stores.log` reads it.
+   * How a durable host (`stores.log`) appends to the log. Leave it out for
+   * the defaults.
    */
-  project?: ProjectOptions
+  log?: {
+    /**
+     * How long the host merges streamed text before it appends it, in
+     * milliseconds. Boundaries (a message start or end, a tool call, a run
+     * event) append at once. Default 100.
+     */
+    coalesceMs?: number
+  }
   /**
-   * A fold of every host record of a log, across all its sessions, in log
-   * order. Read it with `host.logState(logId)`. Only a host with
-   * `stores.log` reads it.
+   * How this host holds the runs it owns: how long a run lease lasts
+   * (default 30000 ms), and how often the host renews it (default 10000 ms).
+   * Leave it out for the defaults.
    */
-  reduce?: ReduceOptions<TLogState>
-  /**
-   * How long a durable host merges streamed text before it appends it to the
-   * log, in milliseconds. Boundaries (a message start or end, a tool call, a
-   * run event) append at once. Default 100.
-   */
-  coalesceMs?: number
-  /** How long a run lease lasts, and how often the host renews it. */
-  lease?: LeaseOptions
+  ownership?: LeaseOptions
 }
 
 export interface OpenSessionOptions {
@@ -285,7 +284,7 @@ export interface ResumePendingOptions {
 }
 
 /** Runs sessions for one or more harnesses in this process. */
-export interface HarnessHost<TLogState = unknown> {
+export interface HarnessHost {
   /**
    * Open a session, or return the live one for this harness and thread.
    * Session plugins are set up here, so a plugin error rejects the promise.
@@ -363,10 +362,20 @@ export interface HarnessHost<TLogState = unknown> {
    */
   close: (options?: { recoverable?: boolean }) => Promise<void>
   /**
-   * The `reduce` fold of a log that has an open session in this host, or
-   * `undefined`.
+   * The `durability.reduce` fold of `harness` for a log that has an open
+   * session in this host. `undefined` when no session has the log open, or
+   * when the reduce of another harness folded the log (the harness of its
+   * first session folds a shared log).
+   *
+   * @example
+   * ```ts
+   * const state = host.logState({ harness: assistant, logId: 'agent-1' })
+   * ```
    */
-  logState: (logId: string) => TLogState | undefined
+  logState: <THarness extends AnyHarness>(options: {
+    harness: THarness
+    logId: string
+  }) => HarnessLogStateOf<THarness> | undefined
   /** The session index: list, rename, delete, and fork sessions. */
   sessions: HostSessions
   /**
@@ -575,9 +584,7 @@ function checkDurableStores(persistence: HarnessPersistence) {
  * const turn = await session.send('Write a haiku about the sea.')
  * ```
  */
-export function createHarnessHost<TLogState = undefined>(
-  options: HarnessHostOptions<TLogState> = {},
-): HarnessHost<TLogState> {
+export function createHarnessHost(options: HarnessHostOptions = {}) {
   if (!options.persistence && !warned) {
     warned = true
     console.warn(
@@ -641,36 +648,45 @@ export function createHarnessHost<TLogState = undefined>(
     emit(event)
   }
   const index = sessionIndex(sessionStore, emit)
-  const coalesceMs = options.coalesceMs ?? 100
+  const coalesceMs = options.log?.coalesceMs ?? 100
   /** The shared log of each log id with an open session, by log id. */
-  const logs = new Map<string, Promise<SharedLog<TLogState>>>()
-  /** The resolved shared logs, for `logState`. */
-  const resolved = new Map<string, SharedLog<TLogState>>()
-  const sharedLog = (store: LogStore, logId: string) => {
+  const logs = new Map<string, Promise<SharedLog>>()
+  /** The resolved shared logs, and the reduce that folds each one, for `logState`. */
+  const resolved = new Map<
+    string,
+    { log: SharedLog; reduce: ReduceOptions<unknown> | undefined }
+  >()
+  /**
+   * The shared log of `logId`. The harness of the session that opens it
+   * first gives the `project` and `reduce` that fold it.
+   */
+  const sharedLog = (store: LogStore, logId: string, harness: AnyHarness) => {
     const open = logs.get(logId)
     if (open) return open
+    const project = harness.durability?.project
+    const reduce = harness.durability?.reduce
     const loaded = loadLogState({
       store,
       logId,
       ...(metadata ? { metadata } : {}),
-      ...(options.project ? { project: options.project } : {}),
-      ...(options.reduce ? { reduce: options.reduce } : {}),
+      ...(project ? { project } : {}),
+      ...(reduce ? { reduce } : {}),
     }).then((state) => {
-      const log = new SharedLog<TLogState>({
+      const log = new SharedLog({
         store,
         logId,
         state,
         coalesceMs,
-        ...(options.project ? { project: options.project } : {}),
-        ...(options.reduce ? { reduce: options.reduce } : {}),
+        ...(project ? { project } : {}),
+        ...(reduce ? { reduce } : {}),
         ...(metadata ? { metadata } : {}),
         // The next open folds the log again.
         onIdle: () => {
           if (logs.get(logId) === loaded) logs.delete(logId)
-          if (resolved.get(logId) === log) resolved.delete(logId)
+          if (resolved.get(logId)?.log === log) resolved.delete(logId)
         },
       })
-      resolved.set(logId, log)
+      resolved.set(logId, { log, reduce })
       return log
     })
     loaded.catch(() => logs.delete(logId))
@@ -716,18 +732,22 @@ export function createHarnessHost<TLogState = undefined>(
           ? {
               log: {
                 store: logStore,
-                ...(options.project ? { project: options.project } : {}),
+                ...(harness.durability?.project
+                  ? { project: harness.durability.project }
+                  : {}),
                 open: async (sessionThread, onFailure) => {
-                  let log = await sharedLog(logStore, logId)
+                  let log = await sharedLog(logStore, logId, harness)
                   // The log closed while this open waited, and the host
                   // dropped it.
-                  while (!log.isOpen) log = await sharedLog(logStore, logId)
+                  while (!log.isOpen) {
+                    log = await sharedLog(logStore, logId, harness)
+                  }
                   return log.view(sessionThread, onFailure)
                 },
               },
             }
           : {}),
-        ...(options.lease ? { lease: options.lease } : {}),
+        ...(options.ownership ? { lease: options.ownership } : {}),
         ...(principal ? { principal } : {}),
         ...(promptCache ? { promptCache } : {}),
         onEvent: (event) => {
@@ -764,7 +784,7 @@ export function createHarnessHost<TLogState = undefined>(
     return session as Promise<SessionImpl<THarness>>
   }
 
-  const host: HarnessHost<TLogState> = {
+  const host: HarnessHost = {
     open: openSession,
     isOpen(harness, { threadId }) {
       return sessions.has(`${harness.name}\u0000${threadId}`)
@@ -823,7 +843,7 @@ export function createHarnessHost<TLogState = undefined>(
     async resumePending({ harnesses, close = 'whenIdle', limit = 100 }) {
       const claims = persistence.stores.workClaims
       if (!claims) throw new Error('resumePending needs stores.workClaims.')
-      const ttlMs = options.lease?.ttlMs ?? LEASE.ttlMs
+      const ttlMs = options.ownership?.ttlMs ?? LEASE.ttlMs
       const byName = new Map(
         harnesses.map((harness) => [harness.name, harness]),
       )
@@ -935,7 +955,17 @@ export function createHarnessHost<TLogState = undefined>(
           .map((entry) => entry.value.close(closeOptions)),
       )
     },
-    logState: (logId) => resolved.get(logId)?.state.reduced,
+    logState: ({ harness, logId }) => {
+      const folded = resolved.get(logId)
+      // The reduce of another harness folded this log: its state has
+      // another type.
+      if (folded?.reduce !== harness.durability?.reduce) return undefined
+      // The reduce of `harness` folded the state, so it has that type. A
+      // map of logs cannot carry a state type per log.
+      return folded?.log.state.reduced as
+        | HarnessLogStateOf<typeof harness>
+        | undefined
+    },
     sessions: {
       list: async (listOptions) =>
         (await sessionStore?.list({

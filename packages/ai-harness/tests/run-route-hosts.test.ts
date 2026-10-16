@@ -25,7 +25,7 @@ function twoHosts() {
   const { adapter, calls } = mockAdapter([reply])
   const harness = defineHarness({ name: 'test/run-hosts', adapter })
   const handlerOf = () => {
-    const host = createHarnessHost({ persistence, coalesceMs: 0 })
+    const host = createHarnessHost({ persistence, log: { coalesceMs: 0 } })
     const handler = createHarnessHandler({
       host,
       harness,
@@ -33,7 +33,7 @@ function twoHosts() {
         id: request.headers.get('x-user') ?? 'user-1',
       }),
       canAccess: (principal, threadId) => threadId.startsWith(principal.id),
-      mediaSecret: 'shared',
+      media: { secret: 'shared' },
     })
     const call = (path: string, init: RequestInit = {}) =>
       handler(new Request(`http://h.test/api/${path}`, init))

@@ -60,13 +60,18 @@ export interface HarnessHandlerOptions {
    */
   canAccess: CanAccess
   /**
-   * The secret that signs media URLs (HMAC SHA-256). Use the same value on
-   * every server behind one URL. Required on a durable host (`stores.log`),
-   * where another instance can serve the next request. Without a log store,
-   * the default is a random key per handler, so signed URLs stop working
-   * after a restart.
+   * How the handler signs media URLs. Required on a durable host
+   * (`stores.log`), where another instance can serve the next request.
+   * Without a log store, leave it out to sign with a random key per handler,
+   * so signed URLs stop working after a restart.
    */
-  mediaSecret?: string
+  media?: {
+    /**
+     * The secret that signs media URLs (HMAC SHA-256). Use the same value on
+     * every server behind one URL.
+     */
+    secret: string
+  }
 }
 
 /** How long a signed media URL works. */
@@ -343,11 +348,11 @@ async function mediaResponse(
 export function createHarnessHandler(
   options: HarnessHandlerOptions,
 ): (request: Request) => Promise<Response> {
-  const { host, harness, authorize, canAccess } = options
+  const { host, harness, authorize, canAccess, media } = options
   const durable = durableStoresOf(host)
-  if (options.mediaSecret === undefined && durable) {
+  if (media === undefined && durable) {
     throw new Error(
-      'createHarnessHandler needs mediaSecret on a durable host (stores.log): another instance must verify the media URLs this one signs. Set the same secret on every instance.',
+      'createHarnessHandler needs media.secret on a durable host (stores.log): another instance must verify the media URLs this one signs. Set the same secret on every instance.',
     )
   }
 
@@ -356,12 +361,12 @@ export function createHarnessHandler(
     return host.open(harness, { threadId, principal })
   }
 
-  // ponytail: without `mediaSecret` (only allowed without a log store), a
+  // ponytail: without `media.secret` (only allowed without a log store), a
   // random key per handler, so signed URLs stop working after a restart.
   const secret =
-    options.mediaSecret === undefined
+    media === undefined
       ? crypto.getRandomValues(new Uint8Array(32))
-      : encoder.encode(options.mediaSecret)
+      : encoder.encode(media.secret)
   let key: Promise<CryptoKey> | undefined
   const mediaKey = () =>
     (key ??= crypto.subtle.importKey('raw', secret, HMAC, false, [

@@ -20,11 +20,11 @@ function setup() {
     name: 'test/append',
     adapter,
     expose: { records: ['app.signal'] },
+    durability: { project },
   })
   const { runs, metadata } = memoryPersistence().stores
   const host = createHarnessHost({
     persistence: { stores: { log: memoryLogStore(), runs, metadata } },
-    project,
   })
   return { harness, host, calls }
 }

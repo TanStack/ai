@@ -14,7 +14,7 @@ import {
   wrapLogStore,
 } from './helpers'
 import type { LogRecord, LogStore } from '@tanstack/ai-persistence'
-import type { HarnessHost, ReduceOptions } from '../src'
+import type { ReduceOptions } from '../src'
 import type { Reply } from './helpers'
 
 const LOG = 'agent-1'
@@ -36,13 +36,25 @@ const reduce: ReduceOptions<Record<string, unknown>> = {
 }
 
 function hostFor(persistence: Durable) {
-  return createHarnessHost({ persistence, reduce })
+  return createHarnessHost({ persistence })
 }
 
+/** A harness whose `reduce` folds the logs it opens. */
 const harnessWith = (replies: Array<Reply>) => {
   const { adapter, calls } = mockAdapter(replies)
-  return { harness: defineHarness({ name: 'test/shared', adapter }), calls }
+  return {
+    harness: defineHarness({
+      name: 'test/shared',
+      adapter,
+      durability: { reduce },
+    }),
+    calls,
+  }
 }
+
+/** A harness with no `reduce`. */
+const plainHarness = () =>
+  defineHarness({ name: 'test/shared', adapter: mockAdapter([]).adapter })
 
 const expireLease = (persistence: Durable, runId: string) =>
   persistence.stores.runs.update(runId, { leaseExpiresAt: Date.now() - 1 })
@@ -134,44 +146,61 @@ describe('sessions that share one log', () => {
     await host.close().catch(() => {})
   })
 
-  it('folds state writes from two sessions in log order, also after a rebuild', async () => {
+  it('folds state writes from two sessions in log order, with the reduce of the first harness, also after a rebuild', async () => {
     const persistence = durablePersistence()
     const host = hostFor(persistence)
-    const root = await host.open(harnessWith([]).harness, { threadId: LOG })
-    const child = await host.open(harnessWith([]).harness, {
-      threadId: 'task-1',
-      logId: LOG,
-    })
+    const tracked = harnessWith([]).harness
+    const plain = plainHarness()
+    const root = await host.open(tracked, { threadId: LOG })
+    // The harness of the root opened the log first, so its reduce folds the
+    // records of this child too.
+    const child = await host.open(plain, { threadId: 'task-1', logId: LOG })
 
     await root.append([{ type: 'app.state_write', name: 'plan', value: 'a' }])
     await child.append([{ type: 'app.state_write', name: 'plan', value: 'b' }])
     await root.append([{ type: 'app.state_write', name: 'done', value: true }])
 
-    expect(host.logState(LOG)).toEqual({ plan: 'b', done: true })
-    expectTypeOf(host).toExtend<HarnessHost>()
+    expect(host.logState({ harness: tracked, logId: LOG })).toEqual({
+      plan: 'b',
+      done: true,
+    })
+    // The reduce of `plain` did not fold this log.
+    expect(host.logState({ harness: plain, logId: LOG })).toBeUndefined()
+    expectTypeOf(host.logState({ harness: tracked, logId: LOG })).toEqualTypeOf<
+      Record<string, unknown> | undefined
+    >()
     expectTypeOf(
-      createHarnessHost({ persistence: durablePersistence() }).logState('x'),
+      host.logState({ harness: plain, logId: LOG }),
     ).toEqualTypeOf<undefined>()
     await host.close()
     const next = hostFor(persistence)
-    await next.open(harnessWith([]).harness, { threadId: 'task-1', logId: LOG })
-    expect(next.logState(LOG)).toEqual({ plan: 'b', done: true })
-    expect(next.logState('another-log')).toBeUndefined()
+    await next.open(tracked, { threadId: 'task-1', logId: LOG })
+    expect(next.logState({ harness: tracked, logId: LOG })).toEqual({
+      plan: 'b',
+      done: true,
+    })
+    expect(
+      next.logState({ harness: tracked, logId: 'another-log' }),
+    ).toBeUndefined()
     await next.close()
   })
 
   it('gives project only the records of its own session', async () => {
-    const host = createHarnessHost({
-      persistence: durablePersistence(),
-      project: {
-        record: ({ messages, record }) =>
-          record.type === 'app.signal' && typeof record.text === 'string'
-            ? [...messages, { role: 'user', content: record.text }]
-            : undefined,
+    const host = createHarnessHost({ persistence: durablePersistence() })
+    const harness = defineHarness({
+      name: 'test/shared',
+      adapter: mockAdapter([]).adapter,
+      durability: {
+        project: {
+          record: ({ messages, record }) =>
+            record.type === 'app.signal' && typeof record.text === 'string'
+              ? [...messages, { role: 'user', content: record.text }]
+              : undefined,
+        },
       },
     })
-    const root = await host.open(harnessWith([]).harness, { threadId: LOG })
-    const child = await host.open(harnessWith([]).harness, {
+    const root = await host.open(harness, { threadId: LOG })
+    const child = await host.open(harness, {
       threadId: 'task-1',
       logId: LOG,
     })

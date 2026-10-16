@@ -16,6 +16,7 @@ import type {
   SystemPrompt,
 } from '@tanstack/ai'
 import type { AnyAgent } from './agents'
+import type { ProjectOptions, ReduceOptions } from './log'
 import type { MediaOptions } from './media'
 import type { HarnessPlugin, PluginMetadataCheck } from './plugins'
 import type { HarnessSession } from './session/index'
@@ -87,10 +88,14 @@ export interface HarnessRouting<TMetadataSchema = any> extends Pick<
 }
 
 /**
- * Limits for one input on a durable host (a host with `stores.log`). A host
- * without a log reads only `interruptedToolResult` and `truncatedToolResult`.
+ * Limits for one input on a durable host (a host with `stores.log`), and how
+ * that host folds your own log records. A host without a log reads only
+ * `interruptedToolResult` and `truncatedToolResult`.
  */
-export interface HarnessDurability<TMetadataSchema = any> {
+export interface HarnessDurability<
+  TMetadataSchema = any,
+  TLogState = undefined,
+> {
   /**
    * Total attempts for one input, the first run included. Each recovery after
    * a crash is one more attempt. When no attempt is left, the input fails
@@ -144,6 +149,18 @@ export interface HarnessDurability<TMetadataSchema = any> {
    * off. Continue exactly where it stopped, without repeating it.'`
    */
   continueCutOff?: boolean | { note?: string | ReadonlyArray<string> }
+  /**
+   * How a durable host folds your own log records into the model context of
+   * each session.
+   */
+  project?: ProjectOptions
+  /**
+   * A fold of every host record of a log, across all its sessions, in log
+   * order. Read it with `host.logState({ harness, logId })`. When sessions of
+   * several harnesses share one log, the harness of the first session that
+   * opens the log folds it (`project` too).
+   */
+  reduce?: ReduceOptions<TLogState>
 }
 
 /**
@@ -156,6 +173,7 @@ export interface HarnessConfig<
   TSubagents extends ReadonlyArray<AnyAgent> = ReadonlyArray<AnyAgent>,
   TMetadataSchema = undefined,
   TTools extends ReadonlyArray<AnyTool> = ReadonlyArray<AnyTool>,
+  TLogState = undefined,
 > {
   /** A stable name, for example `'acme/studio'`. */
   name: string
@@ -246,8 +264,11 @@ export interface HarnessConfig<
   metadataSchema?: TMetadataSchema
   /** What a `prompt` does while a chat turn runs. Default `'queue'`. */
   busy?: BusyPolicy
-  /** Attempt and time limits for each input on a durable host. */
-  durability?: HarnessDurability<TMetadataSchema>
+  /**
+   * Attempt and time limits for each input on a durable host, and how that
+   * host folds your own log records (`project` and `reduce`).
+   */
+  durability?: HarnessDurability<TMetadataSchema, TLogState>
   /** Hooks that control a chat turn: retries, joins, and the end of a turn. */
   turn?: HarnessTurnOptions<TMetadataSchema>
   /**
@@ -298,8 +319,8 @@ export interface HarnessConfig<
      * example a webhook that adds `{ type: 'app.signal', text }`. An input
      * with any other type, or with a `thread` field, is refused with
      * `not_exposed`. Server code that calls `session.append()` can add every
-     * type. Only a durable host (with `stores.log`) keeps records, and its
-     * `project` decides what the model sees of them.
+     * type. Only a durable host (with `stores.log`) keeps records, and
+     * `durability.project` decides what the model sees of them.
      */
     records?: ReadonlyArray<string>
   }
@@ -314,8 +335,16 @@ export type HarnessDefinition<
   TSubagents extends ReadonlyArray<AnyAgent> = ReadonlyArray<AnyAgent>,
   TMetadataSchema = undefined,
   TTools extends ReadonlyArray<AnyTool> = ReadonlyArray<AnyTool>,
+  TLogState = undefined,
 > = Readonly<
-  HarnessConfig<TAdapter, TAgents, TSubagents, TMetadataSchema, TTools>
+  HarnessConfig<
+    TAdapter,
+    TAgents,
+    TSubagents,
+    TMetadataSchema,
+    TTools,
+    TLogState
+  >
 > & {
   readonly kind: typeof HARNESS_KIND
   readonly version: 1
@@ -327,31 +356,59 @@ export type AnyHarness = HarnessDefinition<
   any,
   any,
   any,
-  ReadonlyArray<AnyTool>
+  ReadonlyArray<AnyTool>,
+  any
 >
 
 /** A session whose harness has the metadata schema `TMetadataSchema`. */
 export type SessionWithMetadata<TMetadataSchema> = HarnessSession<
-  HarnessDefinition<any, any, any, TMetadataSchema>
+  HarnessDefinition<any, any, any, TMetadataSchema, ReadonlyArray<AnyTool>, any>
 >
+
+// `durability.reduce` makes the log state type invariant, so each pattern
+// below takes any log state (the last `any`).
 
 /** The type of the session index `metadata` of a harness. */
 export type SessionMetadataOf<THarness> =
-  THarness extends HarnessDefinition<any, any, any, infer TMetadataSchema>
+  THarness extends HarnessDefinition<
+    any,
+    any,
+    any,
+    infer TMetadataSchema,
+    ReadonlyArray<AnyTool>,
+    any
+  >
     ? MetadataOf<TMetadataSchema>
     : Record<string, unknown>
 
 /** Every agent a harness registers, as a union. */
 export type HarnessAgentsOf<THarness> =
-  THarness extends HarnessDefinition<any, infer TAgents, infer TSubagents, any>
+  THarness extends HarnessDefinition<
+    any,
+    infer TAgents,
+    infer TSubagents,
+    any,
+    ReadonlyArray<AnyTool>,
+    any
+  >
     ? TAgents[number] | TSubagents[number]
     : never
 
 /** The `tools` of a harness, as a union. */
 export type HarnessToolsOf<THarness> =
-  THarness extends HarnessDefinition<any, any, any, any, infer TTools>
+  THarness extends HarnessDefinition<any, any, any, any, infer TTools, any>
     ? TTools[number]
     : never
+
+/**
+ * The state of the `durability.reduce` fold of a harness, as
+ * `host.logState` returns it. `undefined` for a harness without `reduce`.
+ */
+export type HarnessLogStateOf<THarness> = THarness extends {
+  durability?: { reduce?: ReduceOptions<infer TLogState> }
+}
+  ? TLogState
+  : undefined
 
 /**
  * The input of the harness tool `TName`, from its input schema. `unknown`
@@ -393,9 +450,24 @@ export function defineHarness<
   const TSubagents extends ReadonlyArray<AnyAgent> = readonly [],
   TMetadataSchema extends SchemaInput | undefined = undefined,
   const TTools extends ReadonlyArray<AnyTool> = readonly [],
+  TLogState = undefined,
 >(
-  config: HarnessConfig<TAdapter, TAgents, TSubagents, TMetadataSchema, TTools>,
-): HarnessDefinition<TAdapter, TAgents, TSubagents, TMetadataSchema, TTools> {
+  config: HarnessConfig<
+    TAdapter,
+    TAgents,
+    TSubagents,
+    TMetadataSchema,
+    TTools,
+    TLogState
+  >,
+): HarnessDefinition<
+  TAdapter,
+  TAgents,
+  TSubagents,
+  TMetadataSchema,
+  TTools,
+  TLogState
+> {
   if (config.name.trim() === '') {
     throw new Error('defineHarness requires a non-empty name')
   }

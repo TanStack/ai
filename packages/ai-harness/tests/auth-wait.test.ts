@@ -467,7 +467,7 @@ describe('sign-ins in a shared thread', () => {
       harness,
       canAccess: () => true,
       authorize: () => bob,
-      mediaSecret: 'test-secret',
+      media: { secret: 'test-secret' },
     })
     const session = await host.open(harness, {
       threadId: 't',

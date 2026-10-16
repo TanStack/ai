@@ -73,10 +73,10 @@ async function openLeased(
   persistence: ReturnType<typeof leasedPersistence>,
   replies: Array<Reply>,
   tools: Array<AnyTool> = [],
-  lease?: { renewMs?: number; ttlMs?: number },
+  ownership?: { renewMs?: number; ttlMs?: number },
 ) {
   const { adapter, calls } = mockAdapter(replies)
-  const host = createHarnessHost({ persistence, lease })
+  const host = createHarnessHost({ persistence, ownership })
   const session = await host.open(
     defineHarness({ name: 'test/leases', adapter, tools }),
     { threadId: THREAD },

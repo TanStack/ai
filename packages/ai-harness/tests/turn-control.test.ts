@@ -107,7 +107,6 @@ async function open(options: {
         persistence: {
           stores: { log, runs, metadata, interrupts },
         },
-        project,
       })
     : createHarnessHost({ persistence })
   const session = await host.open(
@@ -116,6 +115,8 @@ async function open(options: {
       adapter,
       tools: options.tools,
       turn: options.turn,
+      // Only the durable host reads it.
+      durability: { project },
     }),
     { threadId: THREAD },
   )
@@ -852,7 +853,6 @@ describe('turn.beforeFinish', () => {
     const { runs } = memoryPersistence().stores
     const host = createHarnessHost({
       persistence: { stores: { log: memoryLogStore(), runs } },
-      project: signalProject,
     })
     let cycles = 0
     const session = await host.open(
@@ -867,6 +867,7 @@ describe('turn.beforeFinish', () => {
               : undefined
           },
         },
+        durability: { project: signalProject },
       }),
       { threadId: THREAD },
     )

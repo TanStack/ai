@@ -524,7 +524,7 @@ describe('an input that reaches a host that does not own the thread', () => {
     // The owner stores its input, then stops before it writes its run lease.
     const runs = persistence.stores.runs
     const owner = await createHarnessHost({
-      lease: { ttlMs: 200, renewMs: 50 },
+      ownership: { ttlMs: 200, renewMs: 50 },
       persistence: {
         stores: {
           ...persistence.stores,

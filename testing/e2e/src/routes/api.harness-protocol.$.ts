@@ -3,6 +3,7 @@ import { defineAgent } from '@tanstack/ai'
 import { createOpenaiChat } from '@tanstack/ai-openai'
 import {
   type FinishContext,
+  type ProjectOptions,
   retryTransientErrors,
   configOption,
   createHarnessHost,
@@ -36,18 +37,19 @@ import { createTextAdapter } from '@/lib/providers'
 const host = createHarnessHost({ persistence: memoryPersistence() })
 // A durable host: a session log and run leases. A request picks it with the
 // `x-harness-durable: 1` header.
-// An `app.signal` record that a client appends becomes a user message.
 const durableHost = createHarnessHost({
   persistence: {
     stores: { log: memoryLogStore(), runs: memoryPersistence().stores.runs },
   },
-  project: {
-    record: ({ messages, record }) =>
-      record.type === 'app.signal' && typeof record.text === 'string'
-        ? [...messages, { role: 'user', content: record.text }]
-        : [...messages],
-  },
 })
+// On the durable host, an `app.signal` record that a client appends becomes
+// a user message. The host without a log does not read it.
+const signalProject: ProjectOptions = {
+  record: ({ messages, record }) =>
+    record.type === 'app.signal' && typeof record.text === 'string'
+      ? [...messages, { role: 'user', content: record.text }]
+      : [...messages],
+}
 
 // Two users, so a test can share one thread between them.
 const authorize = (req: Request) => {
@@ -159,6 +161,7 @@ function harnessFor(request: Request) {
   const harness = defineHarness({
     name: 'e2e/protocol',
     adapter,
+    durability: { project: signalProject },
     // App data in the session index entry: the context items a user pinned
     // in the composer. Each write over `POST sessions` checks it.
     metadataSchema: z.object({ chips: z.array(z.string()) }),
@@ -300,7 +303,7 @@ function handlerFor(request: Request) {
     canAccess: () => true,
     // Each request makes a new handler, so a fixed secret keeps a signed URL
     // working on the next request.
-    mediaSecret: 'e2e-media-secret',
+    media: { secret: 'e2e-media-secret' },
   })
 }
 
