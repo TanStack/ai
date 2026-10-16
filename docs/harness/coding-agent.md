@@ -63,7 +63,7 @@ const coder = defineHarness({
 })
 
 const host = createHarnessHost({ persistence: memoryPersistence() })
-const session = await host.open({ harness: coder, threadId: 'main' })
+const session = await host.open(coder, { threadId: 'main' })
 const terminal = createInterface({
   input: process.stdin,
   output: process.stdout,

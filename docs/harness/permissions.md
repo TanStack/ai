@@ -50,7 +50,7 @@ export const notes = defineHarness({
 })
 
 const host = createHarnessHost({ persistence: memoryPersistence() })
-const session = await host.open({ harness: notes, threadId: 'notes-1' })
+const session = await host.open(notes, { threadId: 'notes-1' })
 ```
 
 The rule makes each `save_note` call wait for the user.

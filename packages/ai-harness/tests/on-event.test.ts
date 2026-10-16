@@ -8,10 +8,12 @@ import type { HarnessPersistence, LiveEvent, SessionEvent } from '../src'
 async function open(persistence: HarnessPersistence = memoryPersistence()) {
   const { adapter } = mockAdapter(() => text('Hello world'))
   const host = createHarnessHost({ persistence })
-  const session = await host.open({
-    harness: defineHarness({ name: 'test/on-event', adapter }),
-    threadId: 't1',
-  })
+  const session = await host.open(
+    defineHarness({ name: 'test/on-event', adapter }),
+    {
+      threadId: 't1',
+    },
+  )
   return { host, session }
 }
 

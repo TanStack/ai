@@ -40,7 +40,7 @@ const types = (events: Array<{ event: { type: string } }>) =>
 describe('{ op: "tool" }', () => {
   it('runs an exposed tool with no model call and keeps the call in the transcript', async () => {
     const { harness, host, calls } = setup()
-    const session = await host.open({ harness, threadId: 't-run' })
+    const session = await host.open(harness, { threadId: 't-run' })
 
     const receipt = await applyInput({
       harness,
@@ -82,7 +82,7 @@ describe('{ op: "tool" }', () => {
 
   it('refuses a tool that is not in expose.tools', async () => {
     const { harness, host } = setup()
-    const session = await host.open({ harness, threadId: 't-deny' })
+    const session = await host.open(harness, { threadId: 't-deny' })
 
     expect(
       await applyInput({
@@ -104,7 +104,7 @@ describe('{ op: "tool" }', () => {
 
   it('checks the args against the tool input schema', async () => {
     const { harness, host } = setup()
-    const session = await host.open({ harness, threadId: 't-bad-args' })
+    const session = await host.open(harness, { threadId: 't-bad-args' })
 
     // Wire args are not typed, so a client can send the wrong shape.
     const receipt = await applyInput({
@@ -128,7 +128,7 @@ describe('{ op: "tool" }', () => {
     const { harness, host } = setup([
       permissions({ rules: [{ tool: 'fetch_stats', decision: 'deny' }] }),
     ])
-    const session = await host.open({ harness, threadId: 't-rules' })
+    const session = await host.open(harness, { threadId: 't-rules' })
 
     await session.tool({ name: 'fetch_stats', args: { ticketId: 'T-1' } }).then(
       () => {},
@@ -145,7 +145,7 @@ describe('{ op: "tool" }', () => {
     const { harness, host } = setup([
       permissions({ rules: [{ tool: 'fetch_stats', decision: 'ask' }] }),
     ])
-    const session = await host.open({ harness, threadId: 't-ask' })
+    const session = await host.open(harness, { threadId: 't-ask' })
 
     const operation = session.tool({
       name: 'fetch_stats',
@@ -180,7 +180,7 @@ describe('{ op: "tool" }', () => {
 
   it('answers a client input with the real receipt', async () => {
     const { harness, host } = setup()
-    const session = await host.open({ harness, threadId: 't-receipt' })
+    const session = await host.open(harness, { threadId: 't-receipt' })
 
     const input = {
       op: 'tool' as const,
@@ -220,7 +220,7 @@ describe('{ op: "tool" }', () => {
       tools: [risky, fetchStats],
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open({ harness, threadId: 't-waiting' })
+    const session = await host.open(harness, { threadId: 't-waiting' })
     await session.send('go')
 
     const operation = session.tool({
@@ -254,7 +254,7 @@ describe('{ op: "tool" }', () => {
     const { harness } = setup()
     const host = createHarnessHost({ persistence: memoryPersistence() })
     const check = async () => {
-      const session = await host.open({ harness, threadId: 't-types' })
+      const session = await host.open(harness, { threadId: 't-types' })
       // @ts-expect-error `ticketId` must be a string.
       void session.tool({ name: 'fetch_stats', args: { ticketId: 1 } })
       // A plugin tool takes any args.

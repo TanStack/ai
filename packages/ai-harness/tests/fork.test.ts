@@ -70,15 +70,14 @@ describe.each([
   it('copies the transcript up to a message, and the fork goes on alone', async () => {
     const persistence = durable ? durablePersistence() : memoryPersistence()
     const { harness, host, calls } = setup(persistence)
-    const source = await host.open({ harness, threadId: SOURCE })
+    const source = await host.open(harness, { threadId: SOURCE })
     await source.send('one')
     await source.send('two')
     const before = await source.transcript()
     const firstAnswer = before[1]
     if (!firstAnswer?.id) throw new Error('The answer has no id.')
 
-    const fork = await host.fork({
-      harness,
+    const fork = await host.fork(harness, {
       threadId: SOURCE,
       newThreadId: FORK,
       at: firstAnswer.id,
@@ -96,7 +95,7 @@ describe.each([
     if (durable) {
       // A later host folds the fork from its log.
       const later = createHarnessHost({ persistence })
-      const reopened = await later.open({ harness, threadId: FORK })
+      const reopened = await later.open(harness, { threadId: FORK })
       expect((await reopened.transcript()).map((m) => m.role)).toEqual([
         'user',
         'assistant',
@@ -110,15 +109,15 @@ describe.each([
   it('closes a source that only the fork opened, and keeps one the app has open', async () => {
     const persistence = durable ? durablePersistence() : memoryPersistence()
     const { harness, host } = setup(persistence)
-    const source = await host.open({ harness, threadId: SOURCE })
+    const source = await host.open(harness, { threadId: SOURCE })
     await source.send('one')
-    await host.fork({ harness, threadId: SOURCE, newThreadId: FORK })
+    await host.fork(harness, { threadId: SOURCE, newThreadId: FORK })
     // The app opened the source: the fork left it open.
-    expect(await host.open({ harness, threadId: SOURCE })).toBe(source)
+    expect(await host.open(harness, { threadId: SOURCE })).toBe(source)
     await source.close()
-    await host.fork({ harness, threadId: SOURCE, newThreadId: 'other' })
+    await host.fork(harness, { threadId: SOURCE, newThreadId: 'other' })
     // The fork opened the source itself, so it closed it again.
-    const reopened = await host.open({ harness, threadId: SOURCE })
+    const reopened = await host.open(harness, { threadId: SOURCE })
     expect(reopened).not.toBe(source)
     await host.close()
   })
@@ -126,30 +125,28 @@ describe.each([
   it('copies the whole transcript by default, no messages for a null at, and refuses an unknown message or a used thread', async () => {
     const persistence = durable ? durablePersistence() : memoryPersistence()
     const { harness, host } = setup(persistence)
-    const source = await host.open({ harness, threadId: SOURCE })
+    const source = await host.open(harness, { threadId: SOURCE })
     await source.send('one')
 
-    const whole = await host.fork({
-      harness,
+    const whole = await host.fork(harness, {
       threadId: SOURCE,
       newThreadId: FORK,
     })
     expect(contents(await whole.transcript())).toEqual(
       contents(await source.transcript()),
     )
-    const empty = await host.fork({
-      harness,
+    const empty = await host.fork(harness, {
       threadId: SOURCE,
       newThreadId: 'empty',
       at: null,
     })
     expect(await empty.transcript()).toEqual([])
     await expect(
-      host.fork({ harness, threadId: SOURCE, newThreadId: 'other', at: 'm-x' }),
+      host.fork(harness, { threadId: SOURCE, newThreadId: 'other', at: 'm-x' }),
     ).rejects.toThrow('m-x')
     // The fork thread has messages now.
     await expect(
-      host.fork({ harness, threadId: SOURCE, newThreadId: FORK }),
+      host.fork(harness, { threadId: SOURCE, newThreadId: FORK }),
     ).rejects.toThrow(FORK)
     await host.close()
   })
@@ -176,7 +173,7 @@ describe('host.fork', () => {
       plugins: () => [counter],
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const source = await host.open({ harness, threadId: SOURCE })
+    const source = await host.open(harness, { threadId: SOURCE })
     await source.configure({
       settings: { model: 'main', instructions: 'Be brief.' },
     })
@@ -186,8 +183,7 @@ describe('host.fork', () => {
     expect(source.snapshot().pendingInterrupts).toHaveLength(1)
     expect(source.snapshot().plugins['test/counter']).toEqual({ count: 1 })
 
-    const fork = await host.fork({
-      harness,
+    const fork = await host.fork(harness, {
       threadId: SOURCE,
       newThreadId: FORK,
     })
@@ -205,7 +201,7 @@ describe('host.fork', () => {
     const { adapter } = mockAdapter(() => text('a cat'))
     const harness = defineHarness({ name: 'test/fork', adapter })
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const source = await host.open({ harness, threadId: SOURCE })
+    const source = await host.open(harness, { threadId: SOURCE })
     const bytes = new Uint8Array([1, 2, 3, 4])
     const record = await source.putMedia({
       body: bytes,
@@ -217,8 +213,7 @@ describe('host.fork', () => {
       mediaPart(record),
     ])
 
-    const fork = await host.fork({
-      harness,
+    const fork = await host.fork(harness, {
       threadId: SOURCE,
       newThreadId: FORK,
     })

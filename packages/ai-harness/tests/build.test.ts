@@ -27,12 +27,14 @@ describe('worker mode', () => {
     const { adapter } = mockAdapter([() => text('from the worker')])
     const input = new PassThrough()
     const lines: Array<any> = []
-    const running = runHarnessWorker({
-      harness: defineHarness({ name: 'test/worker', adapter }),
-      input,
-      output: { write: (line: string) => lines.push(JSON.parse(line)) },
-      persistence: memoryPersistence(),
-    })
+    const running = runHarnessWorker(
+      defineHarness({ name: 'test/worker', adapter }),
+      {
+        input,
+        output: { write: (line: string) => lines.push(JSON.parse(line)) },
+        persistence: memoryPersistence(),
+      },
+    )
     input.write('{"type":"harness.subscribe","threadId":"w1"}\n')
     input.write(
       '{"type":"harness.input","requestId":"r1","input":{"op":"prompt","message":"hi"}}\n',

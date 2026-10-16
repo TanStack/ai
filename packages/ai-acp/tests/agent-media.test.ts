@@ -125,7 +125,7 @@ async function savedPrompt(prompt: Array<ContentBlock>) {
     await ctx.request('session/prompt', { sessionId, prompt })
     return { sessionId }
   })
-  const session = await host.open({ harness, threadId: sent.sessionId })
+  const session = await host.open(harness, { threadId: sent.sessionId })
   // The prompt goes to the harness after the response, so wait for it.
   const user = await vi.waitFor(async () => {
     const [first] = await session.transcript()
@@ -259,7 +259,7 @@ describe('ACP agent media', () => {
       return sessionId
     })
 
-    const session = await host.open({ harness, threadId })
+    const session = await host.open(harness, { threadId })
     expect(await session.transcript()).toEqual([])
   })
 })

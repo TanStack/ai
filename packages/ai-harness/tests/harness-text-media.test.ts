@@ -37,7 +37,7 @@ describe('harnessText media', () => {
 
     await drain(
       chat({
-        adapter: harnessText({ harness: studio, host }),
+        adapter: harnessText(studio, { host }),
         messages: [
           { role: 'user', content: 'an older question' },
           { role: 'user', content: question },
@@ -83,7 +83,7 @@ describe('harnessText media', () => {
       media: { accepts },
     })
 
-    expect(harnessText({ harness: studio }).inputModalities).toEqual(expected)
+    expect(harnessText(studio).inputModalities).toEqual(expected)
   })
 
   it('reads the inputModalities option, for a harness without an adapter', () => {
@@ -94,15 +94,14 @@ describe('harnessText media', () => {
       media: { accepts: ['image', 'audio'] },
     })
 
-    expect(harnessText({ harness: plain }).inputModalities).toBe(undefined)
+    expect(harnessText(plain).inputModalities).toBe(undefined)
     expect(
-      harnessText({ harness: plain, inputModalities: ['text', 'image'] })
+      harnessText(plain, { inputModalities: ['text', 'image'] })
         .inputModalities,
     ).toEqual(['text', 'image'])
     // The option wins over the adapter list, and media.accepts narrows it.
     expect(
-      harnessText({
-        harness: studio,
+      harnessText(studio, {
         inputModalities: ['text', 'image', 'video'],
       }).inputModalities,
     ).toEqual(['text', 'image'])

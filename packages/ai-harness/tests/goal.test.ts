@@ -60,8 +60,8 @@ async function start(options: {
   })
   const persistence = options.persistence ?? memoryPersistence()
   const host = createHarnessHost({ persistence })
-  const session = await host.open({
-    harness: defineHarness({
+  const session = await host.open(
+    defineHarness({
       name: 'test/goal',
       adapter: main.adapter,
       tools: options.tools ?? [],
@@ -74,8 +74,10 @@ async function start(options: {
         listener,
       ],
     }),
-    threadId: 't',
-  })
+    {
+      threadId: 't',
+    },
+  )
   return {
     host,
     session,

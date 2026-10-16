@@ -45,7 +45,7 @@ async function open(
 ) {
   const host = createHarnessHost({ persistence })
   const harness = defineHarness({ name: 'test/settings', ...extras })
-  const session = await host.open({ harness, threadId: THREAD })
+  const session = await host.open(harness, { threadId: THREAD })
   return { host, harness, session }
 }
 
@@ -271,12 +271,12 @@ describe('thread settings', () => {
     })
     const first = createHarnessHost({ persistence })
     await (
-      await first.open({ harness, threadId: THREAD })
+      await first.open(harness, { threadId: THREAD })
     ).configure({ settings: { model: 'strong', instructions: 'Be short.' } })
     await first.close()
 
     const second = createHarnessHost({ persistence })
-    const session = await second.open({ harness, threadId: THREAD })
+    const session = await second.open(harness, { threadId: THREAD })
     expect(session.settings()).toEqual({
       model: 'strong',
       instructions: 'Be short.',

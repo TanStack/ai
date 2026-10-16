@@ -86,7 +86,7 @@ async function open<THarness extends AnyHarness>(
   persistence: HarnessPersistence = memoryPersistence(),
 ) {
   const host = createHarnessHost({ persistence })
-  const session = await host.open({ harness, threadId: 't1' })
+  const session = await host.open(harness, { threadId: 't1' })
   return { host, session }
 }
 
@@ -193,7 +193,7 @@ describe('session media store', () => {
   it('does not show the media of another thread', async () => {
     const harness = harnessWith(mockAdapter([]).adapter)
     const { host, session } = await open(harness)
-    const other = await host.open({ harness, threadId: 't2' })
+    const other = await host.open(harness, { threadId: 't2' })
 
     const record = await session.putMedia({
       body: encoder.encode('secret'),

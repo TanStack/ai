@@ -282,7 +282,7 @@ const readDiff = toolDefinition({
 }).server(async () => 'diff --git a/src/cart.ts b/src/cart.ts')
 
 const host = createHarnessHost({ persistence: memoryPersistence() })
-const session = await host.open({ harness: resilient, threadId: 'thread-1' })
+const session = await host.open(resilient, { threadId: 'thread-1' })
 
 const review = await session.send('Review the open pull request.', {
   overrides: {

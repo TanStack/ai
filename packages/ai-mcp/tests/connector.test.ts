@@ -106,8 +106,7 @@ describe('mcpConnector', () => {
         mcpConnector({ id: 'demo', label: 'Demo', url: protectedServer.url }),
       ],
     })
-    const session = await host.open({
-      harness,
+    const session = await host.open(harness, {
       threadId: 't',
       principal: { id: 'user-1' },
     })
@@ -175,17 +174,19 @@ describe('mcpConnector', () => {
     cleanups.push(() => host.close())
     const alice = { id: 'alice' }
     const bob = { id: 'bob' }
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/mcp-connector-shared',
         adapter: model.adapter,
         plugins: () => [
           mcpConnector({ id: 'demo', label: 'Demo', url: protectedServer.url }),
         ],
       }),
-      threadId: 't',
-      principal: alice,
-    })
+      {
+        threadId: 't',
+        principal: alice,
+      },
+    )
     const browser = approveSignIns(session, 'code-1')
     cleanups.push(browser.stop)
     const savedFor = (userId: string) =>
@@ -289,8 +290,8 @@ describe('mcpConnector', () => {
     const model = recorder()
     const host = createHarnessHost({ persistence, credentials })
     cleanups.push(() => host.close())
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/mcp-connector-colliding-senders',
         adapter: model.adapter,
         plugins: () => [
@@ -302,9 +303,11 @@ describe('mcpConnector', () => {
           }),
         ],
       }),
-      threadId: 't',
-      principal: first,
-    })
+      {
+        threadId: 't',
+        principal: first,
+      },
+    )
     await session.send('first', { principal: first })
     await session.send('second', { principal: second })
     await session.send('first again', { principal: first })
@@ -327,8 +330,8 @@ describe('mcpConnector', () => {
     const model = recorder()
     const host = createHarnessHost({ persistence: memoryPersistence() })
     cleanups.push(() => host.close())
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/mcp-connector-off',
         adapter: model.adapter,
         plugins: () => [
@@ -339,8 +342,10 @@ describe('mcpConnector', () => {
           }),
         ],
       }),
-      threadId: 't',
-    })
+      {
+        threadId: 't',
+      },
+    )
     await session.send('hi')
     expect(JSON.stringify(model.calls[0]?.systemPrompts)).toContain(
       'run /connect demo',
@@ -373,8 +378,8 @@ describe('mcpConnector', () => {
       const model = recorder('trips_book')
       const host = createHarnessHost({ persistence, credentials })
       cleanups.push(() => host.close())
-      const session = await host.open({
-        harness: defineHarness({
+      const session = await host.open(
+        defineHarness({
           name: 'test/mcp-connector-elicit',
           adapter: model.adapter,
           plugins: () => [
@@ -388,9 +393,11 @@ describe('mcpConnector', () => {
             }),
           ],
         }),
-        threadId: 't',
-        principal: { id: 'user-1' },
-      })
+        {
+          threadId: 't',
+          principal: { id: 'user-1' },
+        },
+      )
       const turn = session.send('book a trip')
       await vi.waitFor(() =>
         expect(session.snapshot().pendingQuestions).toHaveLength(1),

@@ -35,7 +35,7 @@ const host = createHarnessHost({
     stores: { log: memoryLogStore(), runs: memoryPersistence().stores.runs },
   },
 })
-const session = await host.open({ harness: assistant, threadId: 'user-1-thread' })
+const session = await host.open(assistant, { threadId: 'user-1-thread' })
 
 const turn = session.send('Summarize the report.', { inputId: 'req-42' })
 const receipt = await turn.receipt
@@ -308,7 +308,7 @@ const records = defineHarness({
   adapter: openaiText('gpt-6.1-sol'),
   tools: [openRecord],
 })
-const recordSession = await host.open({ harness: records, threadId: 'user-1-records' })
+const recordSession = await host.open(records, { threadId: 'user-1-records' })
 
 await recordSession.send('Summarize the record I have open.', {
   context: { recordId: 'inv-42' },

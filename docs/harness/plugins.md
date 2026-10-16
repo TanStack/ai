@@ -368,7 +368,7 @@ import { watch } from 'node:fs'
 import { createHarnessHost } from '@tanstack/ai-harness'
 
 const host = createHarnessHost()
-const session = await host.open({ harness: assistant, threadId: 'thread-1' })
+const session = await host.open(assistant, { threadId: 'thread-1' })
 
 // One session.
 await session.reload()

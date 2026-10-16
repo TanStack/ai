@@ -55,17 +55,19 @@ async function open(options: {
   const persistence = memoryPersistence()
   const credentials = memoryCredentialStore()
   const host = createHarnessHost({ persistence, credentials })
-  const session = await host.open({
-    harness: defineHarness({
+  const session = await host.open(
+    defineHarness({
       name: 'test/provider-keys',
       adapter: options.adapter,
       agents: options.agents ?? [],
       subagents: { agents: options.subagents ?? [] },
       plugins: () => options.plugins ?? [],
     }),
-    threadId: 't',
-    principal: { id: 'user-1' },
-  })
+    {
+      threadId: 't',
+      principal: { id: 'user-1' },
+    },
+  )
   const events: Array<SessionEvent> = []
   const reader = new AbortController()
   const reading = (async () => {

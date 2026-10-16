@@ -194,7 +194,7 @@ async function open(input: {
       }),
     ],
   })
-  const session = await host.open({ harness, threadId: 't' })
+  const session = await host.open(harness, { threadId: 't' })
   return { host, session, provider, persistence, harness }
 }
 

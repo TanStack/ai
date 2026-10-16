@@ -53,7 +53,7 @@ const assistant = defineHarness({
 })
 
 const host = createHarnessHost({ persistence: memoryPersistence() })
-const session = await host.open({ harness: assistant, threadId: 'thread-1' })
+const session = await host.open(assistant, { threadId: 'thread-1' })
 
 const turn = await session.send('Hello!')
 console.log(turn.text)

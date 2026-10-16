@@ -48,7 +48,7 @@ function toolMessageIn(call: { messages: Array<ModelMessage> }) {
 /** Open a session on `harness`, send one prompt, and close it. */
 async function promptOnce(harness: AnyHarness) {
   const host = createHarnessHost({ persistence: memoryPersistence() })
-  const session = await host.open({ harness, threadId: 't' })
+  const session = await host.open(harness, { threadId: 't' })
   await session.send('go')
   await host.close()
 }

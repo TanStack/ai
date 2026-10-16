@@ -361,9 +361,9 @@ describe('ACP agent handlers', () => {
     const { harness, host, editor } = setup()
     close = () => host.close()
     const other = defineHarness({ name: 'test/other', adapter: model() })
-    await host.open({ harness: other, threadId: 'other-thread' })
+    await host.open(other, { threadId: 'other-thread' })
     for (let index = 0; index < 50; index++) {
-      await host.open({ harness, threadId: `old-${index}` })
+      await host.open(harness, { threadId: `old-${index}` })
     }
     await editor.connectWith(
       createAcpAgent({ host, harness, cwd: '/work' }),
@@ -611,7 +611,7 @@ describe('ACP agent handlers', () => {
         sessionId,
         prompt: [{ type: 'text', text: 'hello' }],
       })
-      const session = await host.open({ harness, threadId: sessionId })
+      const session = await host.open(harness, { threadId: sessionId })
       await vi.waitFor(() => expect(session.snapshot().status).toBe('running'))
       await ctx.notify('session/cancel', { sessionId })
       await vi.waitFor(() =>
@@ -646,7 +646,7 @@ describe('ACP agent handlers', () => {
         cwd: '/tmp',
         mcpServers: [],
       })
-      const session = await host.open({ harness, threadId: sessionId })
+      const session = await host.open(harness, { threadId: sessionId })
       vi.spyOn(session, 'resolve').mockResolvedValue({
         inputId: 'input-1',
         status: 'rejected',
@@ -700,8 +700,8 @@ describe('ACP agent handlers', () => {
     const { harness, host, editor, idle, running, textOf } = setup()
     close = () => host.close()
     // Sessions from before: the session index knows them.
-    await host.open({ harness, threadId: 'kept-session' })
-    await host.open({ harness, threadId: 'slow-session' })
+    await host.open(harness, { threadId: 'kept-session' })
+    await host.open(harness, { threadId: 'slow-session' })
     await editor.connectWith(createAcpAgent({ host, harness }), async (ctx) => {
       await ctx.request('initialize', {
         protocolVersion: 2,

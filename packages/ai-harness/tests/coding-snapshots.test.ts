@@ -85,15 +85,17 @@ async function open(options: {
   const host = createHarnessHost({
     persistence: options.persistence ?? memoryPersistence(),
   })
-  const session = await host.open({
-    harness: defineHarness({
+  const session = await host.open(
+    defineHarness({
       name: 'test/snapshots',
       adapter,
       tools: [change],
       plugins: () => [plugin],
     }),
-    threadId: THREAD,
-  })
+    {
+      threadId: THREAD,
+    },
+  )
   return { host, session, plugin, calls }
 }
 

@@ -73,10 +73,12 @@ beforeAll(async () => {
   await writeFile(join(dir, 'notes.xyz'), 'plain')
   await mkdir(join(dir, 'folder.png'))
   host = createHarnessHost({ persistence: memoryPersistence() })
-  session = await host.open({
-    harness: defineHarness({ name: 'test/attach', adapter: idleModel() }),
-    threadId: 't',
-  })
+  session = await host.open(
+    defineHarness({ name: 'test/attach', adapter: idleModel() }),
+    {
+      threadId: 't',
+    },
+  )
 })
 
 afterAll(async () => {

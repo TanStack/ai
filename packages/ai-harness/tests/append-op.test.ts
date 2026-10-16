@@ -32,7 +32,7 @@ function setup() {
 describe('{ op: "append" }', () => {
   it('adds an exposed record that the next turn reads', async () => {
     const { harness, host, calls } = setup()
-    const session = await host.open({ harness, threadId: 't-append' })
+    const session = await host.open(harness, { threadId: 't-append' })
 
     const input = parseHarnessInput({
       op: 'append',
@@ -51,7 +51,7 @@ describe('{ op: "append" }', () => {
 
   it('refuses a type that is not exposed, and a record for another thread', async () => {
     const { harness, host } = setup()
-    const session = await host.open({ harness, threadId: 't-refuse' })
+    const session = await host.open(harness, { threadId: 't-refuse' })
 
     for (const record of [
       { type: 'app.other' },
@@ -71,7 +71,7 @@ describe('{ op: "append" }', () => {
   it('rejects an append on a host with no log', async () => {
     const { harness } = setup()
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open({ harness, threadId: 't-no-log' })
+    const session = await host.open(harness, { threadId: 't-no-log' })
 
     expect(
       await applyInput({

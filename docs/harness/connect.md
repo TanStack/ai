@@ -336,7 +336,7 @@ import { chat } from '@tanstack/ai'
 import { harnessText } from '@tanstack/ai-harness'
 
 const stream = chat({
-  adapter: harnessText({ harness: assistant, host }),
+  adapter: harnessText(assistant, { host }),
   messages: [{ role: 'user', content: 'Fix the failing test.' }],
   threadId: 'outer-thread',
 })
@@ -344,7 +344,7 @@ const stream = chat({
 
 Each outer thread gets its own inner session, so the harness keeps its own history. The inner session gets every content part of the last user message, so images and files go through too.
 
-If a plugin picks the model of the harness, the harness has no adapter to read its input kinds from. Pass them with `harnessText({ harness: assistant, host, inputModalities: ['text', 'image'] })`.
+If a plugin picks the model of the harness, the harness has no adapter to read its input kinds from. Pass them with `harnessText(assistant, { host, inputModalities: ['text', 'image'] })`.
 
 ## What you have now
 

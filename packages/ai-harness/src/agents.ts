@@ -4,6 +4,7 @@ import type {
   InferSchemaType,
   SchemaInput,
 } from '@tanstack/ai'
+import { registerSubagentContextDefaults } from '@tanstack/ai/adapter-internals'
 import type { ToolStep } from './durable-tool'
 import type { AgentStartOptions } from './session/index'
 import type { AgentRun } from './types'
@@ -147,7 +148,8 @@ export interface HarnessAgentContext {
 
 /**
  * `ctx.harness` outside a run that a session started from code (a tool-mode
- * child of a chat turn): `step.do` runs `fn` each time, `agents.start` throws.
+ * child of a chat turn, or a run that a plain `chat()` starts): `step.do`
+ * runs `fn` each time, `agents.start` throws.
  */
 export const NO_SESSION_CONTEXT: HarnessAgentContext = {
   step: { do: async (_name, fn) => fn() },
@@ -160,42 +162,21 @@ export const NO_SESSION_CONTEXT: HarnessAgentContext = {
   },
 }
 
-/**
- * The harness context of an agent run: `ctx.harness`. Use it in the `run` of
- * an agent that only a harness session runs.
- *
- * @param ctx The context of the agent run.
- * @throws TypeError when `ctx` has no `harness`: a plain `chat()` started
- * the run, not a harness session.
- *
- * @example
- * ```ts
- * const lead = defineAgent({
- *   name: 'lead',
- *   description: 'Starts a helper',
- *   run: async (ctx) => await harnessOf(ctx).agents.start('helper'),
- * })
- * ```
- */
-export function harnessOf(ctx: { harness?: HarnessAgentContext }) {
-  if (ctx.harness === undefined) {
-    throw new TypeError(
-      'harnessOf: this agent runs outside a harness session. ctx.harness exists only in an agent run that a harness session started.',
-    )
-  }
-  return ctx.harness
-}
+// A run that a plain chat() starts gets NO_SESSION_CONTEXT, so ctx.harness is
+// always there. The sideEffects field of package.json keeps this module.
+registerSubagentContextDefaults(() => ({ harness: NO_SESSION_CONTEXT }))
 
 declare module '@tanstack/ai' {
   /**
    * `ctx.harness` in the `run` of an agent: `step` and `agents`. A harness
    * session gives them to each agent run it starts from code (a session
    * agent, `ctx.harness.agents.start`, a background child), and to the
-   * children those runs start through `ctx.chat({ subagents })`. A run
-   * that a plain `chat()` starts has no `harness`. Read it with
-   * `harnessOf(ctx)`, which throws when it is missing.
+   * children those runs start through `ctx.chat({ subagents })`. Any
+   * other run, for example one that a plain `chat()` starts, gets
+   * `NO_SESSION_CONTEXT`: `step.do` runs `fn` each time, and `agents.start`
+   * throws.
    */
   interface SubagentContextExtension {
-    harness?: HarnessAgentContext
+    harness: HarnessAgentContext
   }
 }

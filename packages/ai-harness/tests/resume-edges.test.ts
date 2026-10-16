@@ -52,10 +52,12 @@ describe('crash recovery edges', () => {
     await crash(persistence, 'new-run', Date.now() - 60_000)
     const { adapter, calls } = mockAdapter([() => text('picked up')])
     const host = createHarnessHost({ persistence })
-    const session = await host.open({
-      harness: defineHarness({ name: 'test/two-crashes', adapter }),
-      threadId: 't1',
-    })
+    const session = await host.open(
+      defineHarness({ name: 'test/two-crashes', adapter }),
+      {
+        threadId: 't1',
+      },
+    )
     await vi.waitFor(() => expect(calls).toHaveLength(1))
     await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
 
@@ -138,10 +140,12 @@ describe('crash recovery edges', () => {
         })(),
     ])
     const host = createHarnessHost({ persistence })
-    const session = await host.open({
-      harness: defineHarness({ name: 'test/fails', adapter }),
-      threadId: 't-fail',
-    })
+    const session = await host.open(
+      defineHarness({ name: 'test/fails', adapter }),
+      {
+        threadId: 't-fail',
+      },
+    )
     const turn = session.send('hi')
     await expect(turn).rejects.toThrow('model down')
     expect(turn.status()).toBe('failed')
@@ -153,7 +157,7 @@ describe('harnessText edges', () => {
   it('uses a memory host by default and keeps the content parts', async () => {
     const inner = mockAdapter([() => text('parts answer'), () => text('empty')])
     const studio = defineHarness({ name: 'test/parts', adapter: inner.adapter })
-    const model = harnessText({ harness: studio })
+    const model = harnessText(studio)
     const collect = async (messages: Array<any>) => {
       let out = ''
       for await (const chunk of chat({ adapter: model, messages })) {
@@ -194,12 +198,10 @@ describe('harnessText edges', () => {
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
     const chunks: Array<StreamChunk> = []
-    for await (const chunk of harnessText({ harness: studio, host }).chatStream(
-      {
-        model: 'test/inner-fail',
-        messages: [{ role: 'assistant', content: 'no user message here' }],
-      } as never,
-    )) {
+    for await (const chunk of harnessText(studio, { host }).chatStream({
+      model: 'test/inner-fail',
+      messages: [{ role: 'assistant', content: 'no user message here' }],
+    } as never)) {
       chunks.push(chunk)
     }
     expect(chunks.at(-1)).toMatchObject({
@@ -217,7 +219,7 @@ describe('harnessText edges', () => {
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
     const controller = new AbortController()
-    const stream = harnessText({ harness: studio, host }).chatStream({
+    const stream = harnessText(studio, { host }).chatStream({
       model: 'test/inner-abort',
       threadId: 'outer',
       messages: [{ role: 'user', content: 'wait' }],
@@ -243,14 +245,16 @@ describe('session agent and operation lookups', () => {
       run: async (ctx) => ctx.input.text.toUpperCase(),
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/lookups',
         adapter: mockAdapter([]).adapter,
         agents: [echo],
       }),
-      threadId: 't',
-    })
+      {
+        threadId: 't',
+      },
+    )
     expect(session.agent('missing')).toBeUndefined()
     const handle = session.agent('echo')
     const run = handle?.run({ text: 'hi' })

@@ -22,13 +22,13 @@ export interface HarnessWorkerOptions {
  *
  * @example
  * ```ts
- * await runHarnessWorker({ harness: assistant })
+ * await runHarnessWorker(assistant)
  * ```
  */
 export async function runHarnessWorker(
-  options: HarnessWorkerOptions & { harness: AnyHarness },
+  harness: AnyHarness,
+  options: HarnessWorkerOptions = {},
 ): Promise<void> {
-  const { harness } = options
   const output = options.output ?? process.stdout
   const send = (frame: HostFrame) => output.write(`${JSON.stringify(frame)}\n`)
   const host = createHarnessHost(
@@ -48,7 +48,7 @@ export async function runHarnessWorker(
         const frame = parseControlFrame(line)
         if (frame.type === 'harness.subscribe') {
           if (session) throw new Error('Already subscribed.')
-          session = await host.open({ harness, threadId: frame.threadId })
+          session = await host.open(harness, { threadId: frame.threadId })
           send({
             type: 'harness.hello',
             v: HARNESS_PROTOCOL_VERSION,

@@ -103,8 +103,7 @@ async function openWithApi(persistence: HarnessPersistence) {
     adapter: mockAdapter(() => text('ok')).adapter,
     plugins: () => [probe],
   })
-  const session = await host.open({
-    harness,
+  const session = await host.open(harness, {
     threadId: 'p1',
     principal: { id: 'u1' },
   })
@@ -131,8 +130,7 @@ describe('host.sessions', () => {
           promptTokensDetails: { cacheWriteTokens: 2 },
         }),
     ])
-    const session = await host.open({
-      harness,
+    const session = await host.open(harness, {
       threadId: 't1',
       principal: { id: 'u1', name: 'Ada', tenantId: 'org-1' },
     })
@@ -161,10 +159,10 @@ describe('host.sessions', () => {
 
   it('keeps the first owner when another user opens the thread again', async () => {
     const { host, harness } = hostWith()
-    await host.open({ harness, threadId: 't1', principal: { id: 'alice' } })
+    await host.open(harness, { threadId: 't1', principal: { id: 'alice' } })
     await host.close()
 
-    await host.open({ harness, threadId: 't1', principal: { id: 'bob' } })
+    await host.open(harness, { threadId: 't1', principal: { id: 'bob' } })
 
     expect((await host.sessions.get('t1'))?.principal).toEqual({ id: 'alice' })
     await host.close()
@@ -174,9 +172,9 @@ describe('host.sessions', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     const { persistence, host, harness } = hostWith()
     vi.setSystemTime(1000)
-    await host.open({ harness, threadId: 'older' })
+    await host.open(harness, { threadId: 'older' })
     vi.setSystemTime(2000)
-    await host.open({ harness, threadId: 'newer' })
+    await host.open(harness, { threadId: 'newer' })
     // A child session, as a subagent run writes it.
     await persistence.stores.sessions.upsert({
       threadId: 'subagent:run-1',
@@ -194,7 +192,7 @@ describe('host.sessions', () => {
 
   it('renames a session, and renames nothing for an unknown thread', async () => {
     const { host, harness } = hostWith()
-    await host.open({ harness, threadId: 't1' })
+    await host.open(harness, { threadId: 't1' })
 
     const renamed = await host.sessions.rename({
       threadId: 't1',
@@ -213,7 +211,7 @@ describe('host.sessions', () => {
   it('updates the title, pin, and metadata from app code, and nothing for an unknown thread', async () => {
     const host = createHarnessHost({ persistence: memoryPersistence() })
     const harness = chipsHarness()
-    await host.open({ harness, threadId: 't1', principal: { id: 'u1' } })
+    await host.open(harness, { threadId: 't1', principal: { id: 'u1' } })
 
     const updated = await host.sessions.update({
       harness,
@@ -253,7 +251,7 @@ describe('host.sessions', () => {
 
   it('writes nothing when the change function returns undefined', async () => {
     const { host, harness } = hostWith()
-    await host.open({ harness, threadId: 't1' })
+    await host.open(harness, { threadId: 't1' })
     const before = await host.sessions.get('t1')
 
     expect(
@@ -270,7 +268,7 @@ describe('host.sessions', () => {
   it('checks metadata with the harness schema, and writes nothing it refuses', async () => {
     const host = createHarnessHost({ persistence: memoryPersistence() })
     const harness = chipsHarness()
-    await host.open({ harness, threadId: 't1' })
+    await host.open(harness, { threadId: 't1' })
 
     const write = host.sessions.update({
       harness,
@@ -289,7 +287,7 @@ describe('host.sessions', () => {
 
   it('refuses an update of a thread that another harness runs', async () => {
     const { host, harness } = hostWith()
-    await host.open({ harness, threadId: 't1' })
+    await host.open(harness, { threadId: 't1' })
 
     await expect(
       host.sessions.update({
@@ -319,7 +317,7 @@ describe('host.sessions', () => {
     })
     const turnEnd = createHarnessHost({ persistence })
     const harness = chipsHarness()
-    await turnEnd.open({ harness, threadId: 't1' })
+    await turnEnd.open(harness, { threadId: 't1' })
     other = () =>
       turnEnd.sessions.rename({ threadId: 't1', title: 'From the other host' })
     let runs = 0
@@ -351,7 +349,7 @@ describe('host.sessions', () => {
     }))
     const harness = chipsHarness()
     const opener = createHarnessHost({ persistence })
-    await opener.open({ harness, threadId: 't1' })
+    await opener.open(harness, { threadId: 't1' })
     const host = createHarnessHost({
       persistence: { stores: { ...persistence.stores, sessions: losing } },
     })
@@ -365,7 +363,7 @@ describe('host.sessions', () => {
 
   it('deletes the index entry only, and a later turn does not bring it back', async () => {
     const { persistence, host, harness } = hostWith()
-    const session = await host.open({ harness, threadId: 't1' })
+    const session = await host.open(harness, { threadId: 't1' })
     await session.send('hi')
 
     await host.sessions.delete('t1')
@@ -385,8 +383,7 @@ describe('host.sessions', () => {
 
   it('forks the transcript before or through a message into a new thread, with the settings', async () => {
     const { persistence, host, harness } = hostWith()
-    const session = await host.open({
-      harness,
+    const session = await host.open(harness, {
       threadId: 't1',
       principal: { id: 'u1' },
     })
@@ -432,7 +429,7 @@ describe('host.sessions', () => {
       ['user', 'second'],
     ])
     for (const { threadId } of [before, through]) {
-      const fork = await host.open({ harness, threadId })
+      const fork = await host.open(harness, { threadId })
       expect(fork.settings()).toEqual({ instructions: 'Be brief.' })
     }
     await host.close()
@@ -440,7 +437,7 @@ describe('host.sessions', () => {
 
   it('forks before the first message into a thread with no messages, but with the settings', async () => {
     const { persistence, host, harness } = hostWith()
-    const session = await host.open({ harness, threadId: 't1' })
+    const session = await host.open(harness, { threadId: 't1' })
     await session.configure({ settings: { instructions: 'Be brief.' } })
     await session.send('first')
     const [first] = await session.transcript()
@@ -456,7 +453,7 @@ describe('host.sessions', () => {
     expect(await persistence.stores.messages.loadThread(fork.threadId)).toEqual(
       [],
     )
-    const forked = await host.open({ harness, threadId: fork.threadId })
+    const forked = await host.open(harness, { threadId: fork.threadId })
     expect(forked.settings()).toEqual({ instructions: 'Be brief.' })
     await host.close()
   })
@@ -471,7 +468,7 @@ describe('host.sessions', () => {
       name: 'test/sessions-durable',
       adapter: mockAdapter(() => text('durable answer')).adapter,
     })
-    const session = await host.open({ harness, threadId: 'd1' })
+    const session = await host.open(harness, { threadId: 'd1' })
     await session.send('hi')
     const [, answer] = await session.transcript()
 
@@ -487,7 +484,7 @@ describe('host.sessions', () => {
     expect(records.map(({ record }) => [record.type, record.keep])).toEqual([
       ['harness.transcript', 0],
     ])
-    const forked = await host.open({ harness, threadId: fork.threadId })
+    const forked = await host.open(harness, { threadId: fork.threadId })
     expect(turnsOf(await forked.transcript())).toEqual([
       ['user', 'hi'],
       ['assistant', 'durable answer'],
@@ -497,7 +494,7 @@ describe('host.sessions', () => {
 
   it('refuses a fork at a message that is not in the transcript', async () => {
     const { host, harness } = hostWith()
-    const session = await host.open({ harness, threadId: 't1' })
+    const session = await host.open(harness, { threadId: 't1' })
     await session.send('hi')
 
     await expect(
@@ -513,7 +510,7 @@ describe('host.sessions', () => {
 
   it('refuses a fork with a harness that does not run the thread', async () => {
     const { host, harness } = hostWith()
-    const session = await host.open({ harness, threadId: 't1' })
+    const session = await host.open(harness, { threadId: 't1' })
     await session.send('hi')
     const [, answer] = await session.transcript()
     const other = defineHarness({
@@ -541,7 +538,7 @@ describe('host.sessions', () => {
       persistence: { stores: { messages, runs, metadata } },
     })
     const { harness } = hostWith()
-    const session = await host.open({ harness, threadId: 't1' })
+    const session = await host.open(harness, { threadId: 't1' })
     await session.send('hi')
     const [, answer] = await session.transcript()
     const other = defineHarness({
@@ -575,14 +572,16 @@ describe('child sessions', () => {
         ctx.chat({ adapter: mockAdapter(() => text('ok')).adapter }),
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/agent-child',
         adapter: mockAdapter([]).adapter,
         agents: [writer],
       }),
-      threadId: 't1',
-    })
+      {
+        threadId: 't1',
+      },
+    )
 
     await session.agents.writer.start()
 
@@ -609,8 +608,7 @@ describe('child sessions', () => {
       subagents: { agents: [writer] },
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open({
-      harness,
+    const session = await host.open(harness, {
       threadId: 'lead',
       principal: { id: 'alice' },
     })
@@ -670,15 +668,17 @@ describe('ctx.session.entry and updateEntry', () => {
       },
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    await host.open({
-      harness: defineHarness({
+    await host.open(
+      defineHarness({
         name: 'test/chips',
         adapter: mockAdapter(() => text('ok')).adapter,
         metadataSchema: chipsSchema,
         plugins: () => [chipsPlugin],
       }),
-      threadId: 'p1',
-    })
+      {
+        threadId: 'p1',
+      },
+    )
     const [api] = apis
     if (!api) throw new Error('The chips plugin was not set up.')
 
@@ -712,7 +712,7 @@ describe('ctx.session.entry and updateEntry', () => {
       metadataSchema: chipsSchema.extend({ theme: z.string().optional() }),
       plugins: () => [chipsPlugin],
     })
-    await host.open({ harness, threadId: 'p1' })
+    await host.open(harness, { threadId: 'p1' })
     await host.sessions.update({
       harness,
       threadId: 'p1',

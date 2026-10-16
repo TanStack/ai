@@ -41,7 +41,7 @@ const log = memoryLogStore()
 const host = createHarnessHost({
   persistence: { stores: { log, runs: memoryPersistence().stores.runs } },
 })
-const session = await host.open({ harness: coder, threadId: 'fix-login' })
+const session = await host.open(coder, { threadId: 'fix-login' })
 ```
 
 - `root` is the workspace folder, an absolute path.

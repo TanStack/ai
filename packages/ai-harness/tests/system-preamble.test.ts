@@ -29,7 +29,7 @@ describe('systemPreamble on the prompt op', () => {
       systemPrompts: ['HARNESS_PROMPT'],
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open({ harness, threadId: 't-preamble' })
+    const session = await host.open(harness, { threadId: 't-preamble' })
 
     await session.send('hello', {
       systemPreamble: ['MEMORY: intranet-only', 'MEMORY: watchlist=repo'],
@@ -53,7 +53,7 @@ describe('systemPreamble on the prompt op', () => {
       systemPrompts: ['BASE'],
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open({ harness, threadId: 't-proto' })
+    const session = await host.open(harness, { threadId: 't-proto' })
 
     const input = parseHarnessInput({
       op: 'prompt',
@@ -81,7 +81,7 @@ describe('tool execution context carries the calling thread', () => {
       tools: [tool],
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open({ harness, threadId: 't-inband' })
+    const session = await host.open(harness, { threadId: 't-inband' })
 
     await session.send('go')
 
@@ -101,7 +101,7 @@ describe('tool execution context carries the calling thread', () => {
       tools: [tool],
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open({ harness, threadId: 't-oob' })
+    const session = await host.open(harness, { threadId: 't-oob' })
 
     await session.tool({ name: 'capture_ctx' })
 

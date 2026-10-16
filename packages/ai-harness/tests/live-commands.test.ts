@@ -48,14 +48,16 @@ function capture(name: string, fixed?: string) {
 async function open(...plugins: Array<HarnessPlugin>) {
   const host = createHarnessHost({ persistence: memoryPersistence() })
   hosts.push(host)
-  const session = await host.open({
-    harness: defineHarness({
+  const session = await host.open(
+    defineHarness({
       name: 'test/live-commands',
       adapter: mockAdapter([]).adapter,
       plugins: () => plugins,
     }),
-    threadId: 't',
-  })
+    {
+      threadId: 't',
+    },
+  )
   const names = () => session.commands().map((command) => command.name)
   return { session, names }
 }

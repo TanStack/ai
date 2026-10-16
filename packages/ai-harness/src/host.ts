@@ -205,7 +205,7 @@ export interface HostSessions {
    *   threadId: 't-1',
    *   at: { before: messageId },
    * })
-   * const fork = await host.open({ harness: assistant, threadId: entry.threadId })
+   * const fork = await host.open(assistant, { threadId: entry.threadId })
    * ```
    */
   fork: (options: {
@@ -292,14 +292,15 @@ export interface HarnessHost {
    *
    * @example
    * ```ts
-   * const session = await host.open({ harness: assistant, threadId: 't-1' })
+   * const session = await host.open(assistant, { threadId: 't-1' })
    * ```
    */
   open: <THarness extends AnyHarness>(
-    options: OpenSessionOptions & { harness: THarness },
+    harness: THarness,
+    options: OpenSessionOptions,
   ) => Promise<HarnessSession<THarness>>
   /** Is a session of `harness` open on `threadId` on this host? */
-  isOpen: (options: { harness: AnyHarness; threadId: string }) => boolean
+  isOpen: (harness: AnyHarness, options: { threadId: string }) => boolean
   /**
    * Start a new thread as a copy of another one, and return its open
    * session of `harness`. It copies the transcript up to and including the
@@ -310,11 +311,12 @@ export interface HarnessHost {
    *
    * @example
    * ```ts
-   * const fork = await host.fork({ harness: assistant, threadId: 't-1', newThreadId: 't-2', at: messageId })
+   * const fork = await host.fork(assistant, { threadId: 't-1', newThreadId: 't-2', at: messageId })
    * ```
    */
   fork: <THarness extends AnyHarness>(
-    options: ForkSessionOptions & { harness: THarness },
+    harness: THarness,
+    options: ForkSessionOptions,
   ) => Promise<HarnessSession<THarness>>
   /**
    * Continue the work of hosts that stopped. Needs `stores.workClaims`. It
@@ -585,7 +587,7 @@ function checkDurableStores(persistence: HarnessPersistence) {
  * @example
  * ```ts
  * const host = createHarnessHost({ persistence })
- * const session = await host.open({ harness: studio, threadId: 'thread-1' })
+ * const session = await host.open(studio, { threadId: 'thread-1' })
  * const turn = await session.send('Write a haiku about the sea.')
  * ```
  */
@@ -713,13 +715,10 @@ export function createHarnessHost(options: HarnessHostOptions = {}) {
    * `host.open`. It gives the session class, so the host can call the
    * members that the `HarnessSession` type does not have.
    */
-  const openSession = <THarness extends AnyHarness>({
-    harness,
-    threadId,
-    principal,
-    logId: openLogId,
-    promptCache,
-  }: OpenSessionOptions & { harness: THarness }) => {
+  const openSession = <THarness extends AnyHarness>(
+    harness: THarness,
+    { threadId, principal, logId: openLogId, promptCache }: OpenSessionOptions,
+  ) => {
     const key = `${harness.name}\u0000${threadId}`
     let session = sessions.get(key)
     // The app opened a thread that a sweep opened: it stays open.
@@ -794,17 +793,16 @@ export function createHarnessHost(options: HarnessHostOptions = {}) {
 
   const host: HarnessHost = {
     open: openSession,
-    isOpen({ harness, threadId }) {
+    isOpen(harness, { threadId }) {
       return sessions.has(`${harness.name}\u0000${threadId}`)
     },
-    async fork({ harness, threadId, newThreadId, at, principal, logId }) {
+    async fork(harness, { threadId, newThreadId, at, principal, logId }) {
       if (newThreadId === threadId) {
         throw new Error('A fork needs a new thread: newThreadId is threadId.')
       }
       // A source that only this fork opens closes again at the end.
-      const wasOpen = host.isOpen({ harness, threadId })
-      const source = await openSession({
-        harness,
+      const wasOpen = host.isOpen(harness, { threadId })
+      const source = await openSession(harness, {
         threadId,
         ...(logId ? { logId } : {}),
       })
@@ -830,8 +828,7 @@ export function createHarnessHost(options: HarnessHostOptions = {}) {
             `Thread ${JSON.stringify(newThreadId)} is not empty. Fork into a new thread.`,
           )
         }
-        const fork = await openSession({
-          harness,
+        const fork = await openSession(harness, {
           threadId: newThreadId,
           ...(principal ? { principal } : {}),
         })
@@ -889,7 +886,7 @@ export function createHarnessHost(options: HarnessHostOptions = {}) {
         if (isOwn) sweptOnly.add(key)
         let session: SessionImpl
         try {
-          session = await openSession({ harness, threadId })
+          session = await openSession(harness, { threadId })
         } catch (error) {
           // One thread that cannot open must not stop the sweep. The claim
           // goes back, so the next sweep tries again.
@@ -1010,7 +1007,7 @@ export function createHarnessHost(options: HarnessHostOptions = {}) {
         // the message just before it, or `null` before the first one.
         let last: string | null = 'through' in at ? at.through : null
         if ('before' in at) {
-          const opened = await host.open({ harness, threadId })
+          const opened = await host.open(harness, { threadId })
           const transcript = await opened.transcript()
           const position = transcript.findIndex(({ id }) => id === at.before)
           if (position === -1) {
@@ -1026,8 +1023,7 @@ export function createHarnessHost(options: HarnessHostOptions = {}) {
             last = previous
           }
         }
-        const forked = await host.fork({
-          harness,
+        const forked = await host.fork(harness, {
           threadId,
           newThreadId: `thread-${crypto.randomUUID()}`,
           at: last,

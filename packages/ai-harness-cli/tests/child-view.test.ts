@@ -111,14 +111,16 @@ describe('line mode with a child agent', () => {
       say('lead done', 'l1'),
     ])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/child-lines',
         adapter: lead,
         subagents: { agents: [helper] },
       }),
-      threadId: 't',
-    })
+      {
+        threadId: 't',
+      },
+    )
     const input = new PassThrough()
     let out = ''
     // This turn makes no media, so nothing is written to the media folder.

@@ -34,9 +34,8 @@ const host = createHarnessHost({
   persistence: { stores: { log, runs, metadata } },
 })
 
-const parent = await host.open({ harness: assistant, threadId: 'agent-1' })
-const child = await host.open({
-  harness: assistant,
+const parent = await host.open(assistant, { threadId: 'agent-1' })
+const child = await host.open(assistant, {
   threadId: 'task-1',
   logId: 'agent-1',
 })
@@ -90,7 +89,7 @@ const tracker = defineHarness({
   adapter: openaiText('gpt-6.1-sol'),
   durability: { reduce },
 })
-const tracked = await host.open({ harness: tracker, threadId: 'agent-2' })
+const tracked = await host.open(tracker, { threadId: 'agent-2' })
 await tracked.append([
   { type: 'app.child_created', thread: 'task-2', task: 'research' },
 ])

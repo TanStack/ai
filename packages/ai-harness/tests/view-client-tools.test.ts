@@ -31,7 +31,7 @@ async function open(replies: Array<Reply>) {
     tools: [openScreen, remove],
   })
   const host = createHarnessHost({ persistence: memoryPersistence() })
-  const session = await host.open({ harness, threadId: 't' })
+  const session = await host.open(harness, { threadId: 't' })
   return { host, harness, session, calls: main.calls }
 }
 

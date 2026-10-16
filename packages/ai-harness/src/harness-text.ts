@@ -8,6 +8,7 @@ import type {
   RunFinishedEvent,
   StreamChunk,
 } from '@tanstack/ai'
+import { isHarnessDefinition } from './define'
 import type { AnyHarness } from './define'
 import type { HarnessHost } from './host'
 import type { Principal, UserInput } from './types'
@@ -259,20 +260,23 @@ function remoteHarnessText(remote: RemoteHarness): AnyTextAdapter {
  *
  * @example
  * ```ts
- * const stream = chat({ adapter: harnessText({ harness: studio }), messages, threadId })
+ * const stream = chat({ adapter: harnessText(studio), messages, threadId })
  * const remote = harnessText({ url: 'http://127.0.0.1:8787', token })
  * ```
  */
 export function harnessText(
-  options: HarnessTextOptions & { harness: AnyHarness },
+  harness: AnyHarness,
+  options?: HarnessTextOptions,
 ): AnyTextAdapter
 export function harnessText(remote: RemoteHarness): AnyTextAdapter
 export function harnessText(
-  target: (HarnessTextOptions & { harness: AnyHarness }) | RemoteHarness,
+  target: AnyHarness | RemoteHarness,
+  options: HarnessTextOptions = {},
 ): AnyTextAdapter {
-  if (!('harness' in target)) return remoteHarnessText(target)
-  const { harness, inputModalities, principal } = target
-  let { host } = target
+  if (!isHarnessDefinition(target)) return remoteHarnessText(target)
+  const harness = target
+  const { inputModalities, principal } = options
+  let { host } = options
   return {
     kind: 'text',
     name: 'harness',
@@ -288,9 +292,8 @@ export function harnessText(
         const signal = signalOf(chatOptions.request)
         // A session this call opens closes with it. One the caller holds open
         // stays, as in host.fork.
-        const wasOpen = host.isOpen({ harness, threadId })
-        const session = await host.open({
-          harness,
+        const wasOpen = host.isOpen(harness, { threadId })
+        const session = await host.open(harness, {
           threadId,
           ...(principal ? { principal } : {}),
         })

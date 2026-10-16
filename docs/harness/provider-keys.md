@@ -70,8 +70,7 @@ export const assistant = defineHarness({
 })
 
 const host = createHarnessHost({ persistence: memoryPersistence() })
-const session = await host.open({
-  harness: assistant,
+const session = await host.open(assistant, {
   threadId: 'ada-chat',
   principal: { id: 'ada' },
 })

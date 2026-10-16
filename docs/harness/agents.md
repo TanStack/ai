@@ -62,7 +62,7 @@ const coder = defineHarness({
 
 ```ts group=harness-agents
 const host = createHarnessHost({ persistence: memoryPersistence() })
-const session = await host.open({ harness: coder, threadId: 'dark-mode' })
+const session = await host.open(coder, { threadId: 'dark-mode' })
 
 await session.command({ name: 'agent', input: 'plan' })
 const plan = await session.send('How do I add a dark mode?')

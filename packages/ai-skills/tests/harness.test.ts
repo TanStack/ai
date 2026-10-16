@@ -131,14 +131,16 @@ async function open(
   )
   const host = createHarnessHost()
   hosts.push(host)
-  const session = await host.open({
-    harness: defineHarness({
+  const session = await host.open(
+    defineHarness({
       name: 'test/skills',
       adapter: fake,
       plugins: () => [skills(options), ...others],
     }),
-    threadId: 't',
-  })
+    {
+      threadId: 't',
+    },
+  )
   const names = () => session.commands().map((command) => command.name)
   // `/skills` syncs the commands with the folders first, so a test needs
   // no watch event.

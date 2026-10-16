@@ -282,14 +282,16 @@ async function open(
 ) {
   const { adapter, calls } = mockAdapter([...replies, () => text('done')])
   const host = createHarnessHost({ persistence })
-  const session = await host.open({
-    harness: defineHarness({
+  const session = await host.open(
+    defineHarness({
       name: 'test/permissions',
       adapter,
       plugins: () => plugins,
     }),
-    threadId,
-  })
+    {
+      threadId,
+    },
+  )
   return { host, session, calls }
 }
 

@@ -128,14 +128,16 @@ async function openSession(
   plugins: Array<HarnessPlugin>,
 ) {
   const host = createHarnessHost({ persistence: memoryPersistence() })
-  const session = await host.open({
-    harness: defineHarness({
+  const session = await host.open(
+    defineHarness({
       name: 'test/workspace-tools',
       adapter,
       plugins: () => plugins,
     }),
-    threadId: 't',
-  })
+    {
+      threadId: 't',
+    },
+  )
   return { host, session }
 }
 

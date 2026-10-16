@@ -324,7 +324,7 @@ async function forkThread(request: Request) {
     at?: string
   }
   try {
-    const forked = await hostOf.fork({ harness, ...body, principal })
+    const forked = await hostOf.fork(harness, { ...body, principal })
     return Response.json({ transcript: await forked.transcript() })
   } catch (error) {
     return Response.json(

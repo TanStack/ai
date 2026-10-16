@@ -37,15 +37,17 @@ const tool = (name: string) =>
  */
 async function open(adapter: AnyTextAdapter, plugins: Array<HarnessPlugin>) {
   const host = createHarnessHost({ persistence: memoryPersistence() })
-  const session = await host.open({
-    harness: defineHarness({
+  const session = await host.open(
+    defineHarness({
       name: 'test/agents',
       adapter,
       tools: [tool('read_file'), tool('write_file')],
       plugins: () => plugins,
     }),
-    threadId: 't',
-  })
+    {
+      threadId: 't',
+    },
+  )
   return { host, session }
 }
 

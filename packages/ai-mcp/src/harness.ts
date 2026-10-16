@@ -155,7 +155,7 @@ const attachmentsSchema: JSONSchema = {
  * `harness.expose.commands`, and `tool_<name>` for each tool in
  * `harness.expose.tools`.
  * Every tool takes an optional `threadId`. Sessions open with
- * `host.open({ harness, threadId })`.
+ * `host.open(harness, { threadId })`.
  *
  * Each interrupt in a result has a `kind`: `approval`, `client-tool`, or
  * `generic`. `approve` and `reject` answer approvals only. `resolve` answers
@@ -188,8 +188,7 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
   const waiting = new Map<string, Operation<unknown>>()
 
   const open = (args: unknown) =>
-    host.open({
-      harness,
+    host.open(harness, {
       threadId:
         isRecord(args) && typeof args.threadId === 'string'
           ? args.threadId
@@ -444,7 +443,7 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
   })
 
   // Agents and commands come from a session. Every thread has the same ones.
-  const session = await host.open({ harness, threadId: defaultThread })
+  const session = await host.open(harness, { threadId: defaultThread })
 
   const exposed: ReadonlyArray<string> = harness.expose?.agents ?? []
   const agents = exposed.flatMap((name) => {
@@ -564,7 +563,7 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
     mimeType: 'application/octet-stream',
     argsSchema: { parse: mediaAddress },
   }).read(async (_uri, { threadId, id }) => {
-    const target = await host.open({ harness, threadId })
+    const target = await host.open(harness, { threadId })
     const record = await target.getMedia(id)
     if (record === null) {
       throw new Error(`Media ${id} was not found in thread ${threadId}.`)

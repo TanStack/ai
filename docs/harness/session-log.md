@@ -31,7 +31,7 @@ const assistant = defineHarness({
 const host = createHarnessHost({
   persistence: { stores: { log, runs: memoryPersistence().stores.runs } },
 })
-const session = await host.open({ harness: assistant, threadId: 'thread-1' })
+const session = await host.open(assistant, { threadId: 'thread-1' })
 
 await session.append([{ type: 'app.signal', text: 'The build failed.' }])
 ```

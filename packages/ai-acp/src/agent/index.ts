@@ -249,7 +249,7 @@ export function createAcpAgent(options: AcpAgentOptions): AgentApp {
   // The host gives back the live session of a thread, or opens it again after
   // it closed, so the agent keeps no session objects.
   const live = (sessionId: string) =>
-    host.open({ harness, threadId: sessionId })
+    host.open(harness, { threadId: sessionId })
 
   /** The session of an id that this agent or the session index knows. */
   const known = async (sessionId: string) => {

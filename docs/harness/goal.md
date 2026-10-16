@@ -30,7 +30,7 @@ export const coder = defineHarness({
 })
 
 const host = createHarnessHost({ persistence: memoryPersistence() })
-const session = await host.open({ harness: coder, threadId: 'fix-tests' })
+const session = await host.open(coder, { threadId: 'fix-tests' })
 ```
 
 `judge` is the model that decides if the goal is met. It can be a smaller model than the main model, or the same model.

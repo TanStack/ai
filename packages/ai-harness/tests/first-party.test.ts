@@ -30,14 +30,16 @@ afterEach(async () => {
 async function open(adapter: AnyTextAdapter, plugins: Array<HarnessPlugin>) {
   const persistence = memoryPersistence()
   const host = createHarnessHost({ persistence })
-  const session = await host.open({
-    harness: defineHarness({
+  const session = await host.open(
+    defineHarness({
       name: 'test/first-party',
       adapter,
       plugins: () => plugins,
     }),
-    threadId: 't',
-  })
+    {
+      threadId: 't',
+    },
+  )
   return { host, session, persistence }
 }
 

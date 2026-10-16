@@ -388,7 +388,8 @@ export abstract class SessionAgents<
       // No `promptCache`: a tool-mode child then uses the retention of the
       // turn's chat() call, so a turn override reaches it.
       ...(start && { start }),
-      extend: () => ({ harness: NO_SESSION_CONTEXT }),
+      // No `extend`: a tool-mode child gets the registered default
+      // `NO_SESSION_CONTEXT` as `ctx.harness`.
     } satisfies SubagentBinding
   }
 

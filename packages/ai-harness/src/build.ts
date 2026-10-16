@@ -125,7 +125,7 @@ export async function buildHarness(options: BuildHarnessOptions): Promise<{
       [
         `import * as entry from ${JSON.stringify(entryPath)}`,
         `import { runHarnessWorker } from ${JSON.stringify(workerModule)}`,
-        `await runHarnessWorker({ harness: entry[${JSON.stringify(exportName)}] })`,
+        `await runHarnessWorker(entry[${JSON.stringify(exportName)}])`,
       ].join('\n'),
     )
     await writeFile(

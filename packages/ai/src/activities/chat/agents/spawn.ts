@@ -42,6 +42,7 @@ import type {
 } from '../../../types'
 import { envProviderKeys } from '../../../byok/env-keys'
 import { createBoundActivities } from './bound'
+import { applySubagentContextDefaults } from './context-defaults'
 import { SubagentBudget } from './limits'
 import type { SubagentBinding } from './bound'
 import type { SubagentLimits } from './limits'
@@ -693,7 +694,8 @@ function* valueResultChunks(
 
 /**
  * Build the context `run` receives: the spawn input plus `forward`, the
- * provider keys, and the bound activity functions.
+ * provider keys, the bound activity functions, and the fields of the
+ * registered defaults and of `binding.extend`.
  */
 function runContext(
   agentName: string,
@@ -719,7 +721,12 @@ function runContext(
     keys: binding?.keys ?? envProviderKeys,
     ...createBoundActivities(agentName, input, abortController, binding),
   } satisfies SubagentRunContext
-  return binding?.extend ? { ...ctx, ...binding.extend(ctx) } : ctx
+  // A host binding wins over a registered default.
+  return {
+    ...ctx,
+    ...applySubagentContextDefaults(ctx),
+    ...binding?.extend?.(ctx),
+  }
 }
 
 /**

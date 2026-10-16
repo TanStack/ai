@@ -105,8 +105,8 @@ export const Route = createFileRoute('/api/harness-continue')({
         const deltas: Array<string> = []
         let text: string
         try {
-          const session = await host.open({
-            harness: defineHarness({
+          const session = await host.open(
+            defineHarness({
               name: 'e2e/harness-continue',
               adapter: createAnthropicChat(MODEL, DUMMY_KEY, {
                 fetch: scriptedFetch,
@@ -115,8 +115,10 @@ export const Route = createFileRoute('/api/harness-continue')({
                 onModelError: retryTransientErrors({ baseDelayMs: 1 }),
               },
             }),
-            threadId: 'e2e-harness-continue',
-          })
+            {
+              threadId: 'e2e-harness-continue',
+            },
+          )
           session.onEvent('TEXT_MESSAGE_CONTENT', ({ event }) => {
             deltas.push(event.delta)
           })

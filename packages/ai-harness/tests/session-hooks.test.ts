@@ -41,14 +41,16 @@ const asker = definePlugin({
 
 async function open() {
   const host = createHarnessHost({ persistence: memoryPersistence() })
-  const session = await host.open({
-    harness: defineHarness({
+  const session = await host.open(
+    defineHarness({
       name: 'test/hooks',
       adapter: mockAdapter([() => withUsage(text('hi'))]).adapter,
       plugins: () => [asker],
     }),
-    threadId: 't',
-  })
+    {
+      threadId: 't',
+    },
+  )
   return { host, session }
 }
 

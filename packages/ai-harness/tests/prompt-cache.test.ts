@@ -12,15 +12,17 @@ async function cacheOfTurn(
 ) {
   const { adapter, calls } = mockAdapter([() => text('ok')])
   const host = createHarnessHost({ persistence: memoryPersistence() })
-  const session = await host.open({
-    harness: defineHarness({
+  const session = await host.open(
+    defineHarness({
       name: 'test/prompt-cache',
       adapter,
       ...(harnessCache ? { promptCache: harnessCache } : {}),
     }),
-    threadId: 't',
-    ...(sessionCache ? { promptCache: sessionCache } : {}),
-  })
+    {
+      threadId: 't',
+      ...(sessionCache ? { promptCache: sessionCache } : {}),
+    },
+  )
   await session.send('hi')
   await host.close()
   return calls[0].promptCache
@@ -57,15 +59,17 @@ describe('prompt cache', () => {
       run: (ctx) => ctx.chat({ adapter: child.adapter }),
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/prompt-cache-agent',
         adapter: mockAdapter([]).adapter,
         agents: [writer],
       }),
-      threadId: 't',
-      promptCache: 'none',
-    })
+      {
+        threadId: 't',
+        promptCache: 'none',
+      },
+    )
     await session.agents.writer.run()
     // The agent keeps its own thread as the key.
     expect(child.calls[0].promptCache).toEqual({
@@ -87,14 +91,16 @@ describe('prompt cache', () => {
       () => text('done'),
     ])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/prompt-cache-child',
         adapter: lead.adapter,
         subagents: { agents: [writer] },
       }),
-      threadId: 't',
-    })
+      {
+        threadId: 't',
+      },
+    )
     await session.send('write', { overrides: { promptCache: 'long' } })
     expect(lead.calls[0].promptCache).toEqual({ retention: 'long', key: 't' })
     // The default is 'short', so only the override gives the child 'long'.

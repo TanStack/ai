@@ -32,7 +32,7 @@ const assistant = defineHarness({
 })
 
 const host = createHarnessHost({ persistence: memoryPersistence() })
-const session = await host.open({ harness: assistant, threadId: 'thread-1' })
+const session = await host.open(assistant, { threadId: 'thread-1' })
 
 const scan = await session.putMedia({
   body: await readFile('./receipt.png'),
@@ -109,7 +109,7 @@ import { createHarnessHost } from '@tanstack/ai-harness'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 
 const host = createHarnessHost({ persistence: memoryPersistence() })
-const session = await host.open({ harness: studio, threadId: 'thread-1' })
+const session = await host.open(studio, { threadId: 'thread-1' })
 
 const turn = session.send('Draw a lighthouse at night.')
 turn.onMedia(({ media }) => {

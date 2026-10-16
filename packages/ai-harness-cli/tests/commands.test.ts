@@ -139,14 +139,16 @@ const counter = defineAgent({
 
 async function open(plugins = true) {
   const host = createHarnessHost({ persistence: memoryPersistence() })
-  const session = await host.open({
-    harness: defineHarness({
+  const session = await host.open(
+    defineHarness({
       name: 'test/cli-commands',
       adapter: model(),
       ...(plugins ? { agents: [counter], plugins: () => [tools] } : {}),
     }),
-    threadId: 't',
-  })
+    {
+      threadId: 't',
+    },
+  )
   const say = async (line: string) => {
     const result = await handleLine(session, line)
     return result.type === 'notice' ? result.text : result.type

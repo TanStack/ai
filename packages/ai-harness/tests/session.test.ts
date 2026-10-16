@@ -58,7 +58,7 @@ describe('chat turns', () => {
     const { host, persistence } = setup()
     const { adapter } = mockAdapter([() => text('Hello there')])
     const harness = defineHarness({ name: 'test/chat', adapter })
-    const session = await host.open({ harness, threadId: 't1' })
+    const session = await host.open(harness, { threadId: 't1' })
 
     const turn = session.send('Hi')
     await expect(turn).resolves.toEqual({ text: 'Hello there', media: [] })
@@ -80,10 +80,12 @@ describe('chat turns', () => {
       after(first.opened, 'one'),
       () => text('two'),
     ])
-    const session = await host.open({
-      harness: defineHarness({ name: 'test/queue', adapter }),
-      threadId: 't1',
-    })
+    const session = await host.open(
+      defineHarness({ name: 'test/queue', adapter }),
+      {
+        threadId: 't1',
+      },
+    )
 
     const a = session.send('first')
     const b = session.send('second')
@@ -101,10 +103,12 @@ describe('chat turns', () => {
     const { host } = setup()
     const first = gate()
     const { adapter, calls } = mockAdapter([after(first.opened, 'one')])
-    const session = await host.open({
-      harness: defineHarness({ name: 'test/reject', adapter }),
-      threadId: 't1',
-    })
+    const session = await host.open(
+      defineHarness({ name: 'test/reject', adapter }),
+      {
+        threadId: 't1',
+      },
+    )
 
     const a = session.send('first')
     await vi.waitFor(() => expect(calls).toHaveLength(1))
@@ -133,10 +137,12 @@ describe('chat turns', () => {
       () => toolCall('lookup', { q: 'x' }),
       () => text('done'),
     ])
-    const session = await host.open({
-      harness: defineHarness({ name: 'test/steer', adapter, tools: [lookup] }),
-      threadId: 't1',
-    })
+    const session = await host.open(
+      defineHarness({ name: 'test/steer', adapter, tools: [lookup] }),
+      {
+        threadId: 't1',
+      },
+    )
 
     const turn = session.send('find x')
     await toolStarted.opened
@@ -158,10 +164,12 @@ describe('chat turns', () => {
       after(first.opened, 'one'),
       () => text('two'),
     ])
-    const session = await host.open({
-      harness: defineHarness({ name: 'test/late', adapter }),
-      threadId: 't1',
-    })
+    const session = await host.open(
+      defineHarness({ name: 'test/late', adapter }),
+      {
+        threadId: 't1',
+      },
+    )
 
     const a = session.send('first')
     await vi.waitFor(() => expect(calls).toHaveLength(1))
@@ -183,10 +191,12 @@ describe('chat turns', () => {
   it('cancels the running turn', async () => {
     const { host } = setup()
     const { adapter, calls } = mockAdapter([untilAborted()])
-    const session = await host.open({
-      harness: defineHarness({ name: 'test/cancel', adapter }),
-      threadId: 't1',
-    })
+    const session = await host.open(
+      defineHarness({ name: 'test/cancel', adapter }),
+      {
+        threadId: 't1',
+      },
+    )
 
     const turn = session.send('go')
     await vi.waitFor(() => expect(calls).toHaveLength(1))
@@ -211,14 +221,16 @@ describe('chat turns', () => {
       () => toolCall('remove', { path: 'a.txt' }, 'call_1'),
       () => text('removed'),
     ])
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/approve',
         adapter,
         tools: [remove],
       }),
-      threadId: 't1',
-    })
+      {
+        threadId: 't1',
+      },
+    )
 
     const turn = await session.send('remove a.txt')
     expect(turn.interrupts).toHaveLength(1)
@@ -242,10 +254,12 @@ describe('chat turns', () => {
   it('rejects resolve when nothing is waiting', async () => {
     const { host } = setup()
     const { adapter } = mockAdapter([() => text('hi')])
-    const session = await host.open({
-      harness: defineHarness({ name: 'test/noresolve', adapter }),
-      threadId: 't1',
-    })
+    const session = await host.open(
+      defineHarness({ name: 'test/noresolve', adapter }),
+      {
+        threadId: 't1',
+      },
+    )
     const receipt = await session.resolve({
       resume: [{ interruptId: 'x', status: 'resolved', payload: true }],
     })
@@ -260,13 +274,15 @@ describe('chat turns', () => {
 describe('settled operations', () => {
   it('keeps the last 500 settled operations, and drops older ones', async () => {
     const { host } = setup()
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/window',
         adapter: mockAdapter([]).adapter,
       }),
-      threadId: 't1',
-    })
+      {
+        threadId: 't1',
+      },
+    )
     const ids: Array<string> = []
     for (let index = 0; index < 501; index += 1) {
       const command = session.command({ name: 'unknown' })
@@ -289,10 +305,12 @@ describe('events', () => {
   it('replays events after a cursor', async () => {
     const { host } = setup()
     const { adapter } = mockAdapter([() => text('one'), () => text('two')])
-    const session = await host.open({
-      harness: defineHarness({ name: 'test/events', adapter }),
-      threadId: 't1',
-    })
+    const session = await host.open(
+      defineHarness({ name: 'test/events', adapter }),
+      {
+        threadId: 't1',
+      },
+    )
     await session.send('a')
     const cursor = session.snapshot().cursor
     const second = session.send('b')
@@ -331,14 +349,16 @@ describe('agents', () => {
   it('runs a typed agent from code and notes the result in the transcript', async () => {
     const { host, persistence } = setup()
     const { adapter, calls } = mockAdapter([() => text('noted')])
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/agents',
         adapter,
         agents: [pricer],
       }),
-      threadId: 't1',
-    })
+      {
+        threadId: 't1',
+      },
+    )
 
     const run = session.agents.pricer.run({ vendor: 'acme' })
     const result = await run
@@ -362,14 +382,16 @@ describe('agents', () => {
   it('rejects input that fails the schema', async () => {
     const { host } = setup()
     const { adapter } = mockAdapter([])
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/agents-bad',
         adapter,
         agents: [pricer],
       }),
-      threadId: 't1',
-    })
+      {
+        threadId: 't1',
+      },
+    )
     await expect(
       session.agents.pricer.run({ vendor: 1 } as never),
     ).rejects.toThrow('Input validation failed for agent pricer')
@@ -379,10 +401,12 @@ describe('agents', () => {
   it('starts a background agent that wakes the session when done', async () => {
     const { host } = setup()
     const { adapter, calls } = mockAdapter([() => text('thanks')])
-    const session = await host.open({
-      harness: defineHarness({ name: 'test/wake', adapter, agents: [pricer] }),
-      threadId: 't1',
-    })
+    const session = await host.open(
+      defineHarness({ name: 'test/wake', adapter, agents: [pricer] }),
+      {
+        threadId: 't1',
+      },
+    )
 
     await session.agents.pricer.start({ vendor: 'acme' }, { wake: true })
     await vi.waitFor(() => expect(calls).toHaveLength(1))
@@ -407,14 +431,16 @@ describe('agents', () => {
     })
     const { host } = setup()
     const { adapter, calls } = mockAdapter([() => text('sorry')])
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/wake-failed',
         adapter,
         agents: [failing],
       }),
-      threadId: 't1',
-    })
+      {
+        threadId: 't1',
+      },
+    )
 
     await expect(
       session.agents.failing.start(undefined, { wake: true }),
@@ -440,10 +466,12 @@ describe('inbox', () => {
     })
     const { adapter, calls } = mockAdapter([() => text('recovered')])
     const host = createHarnessHost({ persistence })
-    const session = await host.open({
-      harness: defineHarness({ name: 'test/recover', adapter }),
-      threadId: 't1',
-    })
+    const session = await host.open(
+      defineHarness({ name: 'test/recover', adapter }),
+      {
+        threadId: 't1',
+      },
+    )
 
     await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
     expect(
@@ -464,10 +492,12 @@ describe('inbox', () => {
     })
     const { adapter } = mockAdapter([() => text('noted')])
     const host = createHarnessHost({ persistence })
-    const session = await host.open({
-      harness: defineHarness({ name: 'test/recover-wake', adapter }),
-      threadId: 't1',
-    })
+    const session = await host.open(
+      defineHarness({ name: 'test/recover-wake', adapter }),
+      {
+        threadId: 't1',
+      },
+    )
 
     await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
     expect(wakeMessages(await session.transcript())).toEqual([
@@ -478,13 +508,15 @@ describe('inbox', () => {
 
   it('fails a command whose input the inbox cannot store', async () => {
     const { persistence, host } = setup()
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/inbox-down',
         adapter: mockAdapter([]).adapter,
       }),
-      threadId: 't1',
-    })
+      {
+        threadId: 't1',
+      },
+    )
     vi.spyOn(persistence.stores.inbox, 'append').mockRejectedValue(
       new Error('inbox down'),
     )
@@ -497,13 +529,15 @@ describe('inbox', () => {
 
   it('runs a retry of a prompt whose first store failed', async () => {
     const { persistence, host } = setup()
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/inbox-retry',
         adapter: mockAdapter([() => text('ran')]).adapter,
       }),
-      threadId: 't1',
-    })
+      {
+        threadId: 't1',
+      },
+    )
     vi.spyOn(persistence.stores.inbox, 'append').mockRejectedValueOnce(
       new Error('inbox down'),
     )
@@ -522,10 +556,12 @@ describe('inbox', () => {
     const { host } = setup()
     const release = gate()
     const { adapter } = mockAdapter([untilAborted(), after(release.opened, '')])
-    const session = await host.open({
-      harness: defineHarness({ name: 'test/closing', adapter }),
-      threadId: 't1',
-    })
+    const session = await host.open(
+      defineHarness({ name: 'test/closing', adapter }),
+      {
+        threadId: 't1',
+      },
+    )
     const running = session.send('First.')
     await running.receipt
 
@@ -549,13 +585,15 @@ describe('inbox', () => {
 
   it('warns when the inbox cannot mark an input rejected', async () => {
     const { persistence, host } = setup()
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/inbox-reject',
         adapter: mockAdapter([]).adapter,
       }),
-      threadId: 't1',
-    })
+      {
+        threadId: 't1',
+      },
+    )
     vi.spyOn(persistence.stores.inbox, 'markRejected').mockRejectedValue(
       new Error('inbox down'),
     )
@@ -578,13 +616,15 @@ describe('inbox', () => {
 
   it('settles a turn as failed when it fails before it runs', async () => {
     const { persistence, host } = setup()
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/early-fail',
         adapter: mockAdapter([]).adapter,
       }),
-      threadId: 't1',
-    })
+      {
+        threadId: 't1',
+      },
+    )
     vi.spyOn(persistence.stores.interrupts, 'listPending').mockRejectedValue(
       new Error('interrupts down'),
     )
@@ -607,8 +647,8 @@ describe('inbox', () => {
 describe('plugins', () => {
   it('fails a turn whose turn plugin adds a command', async () => {
     const { host } = setup()
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/turn-commands',
         adapter: mockAdapter([() => text('never')]).adapter,
         plugins: () => [
@@ -623,8 +663,10 @@ describe('plugins', () => {
           }),
         ],
       }),
-      threadId: 't1',
-    })
+      {
+        threadId: 't1',
+      },
+    )
 
     await expect(session.send('Go.')).rejects.toThrow(
       "lifetime 'turn' cannot add commands or config",
@@ -656,14 +698,16 @@ describe('plugins', () => {
       },
     })
     const { adapter, calls } = mockAdapter([() => text('a'), () => text('b')])
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/plugins',
         adapter,
         plugins: () => [sessionPlugin, runPlugin],
       }),
-      threadId: 't1',
-    })
+      {
+        threadId: 't1',
+      },
+    )
 
     await session.send('one')
     await session.send('two')
@@ -687,13 +731,15 @@ describe('plugins', () => {
       name: 'test/picker',
       setup: () => ({ adapter: () => adapter }),
     })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/no-adapter',
         plugins: () => [picker],
       }),
-      threadId: 't1',
-    })
+      {
+        threadId: 't1',
+      },
+    )
 
     expect((await session.send('hi')).text).toBe('picked')
     expect(calls).toHaveLength(1)
@@ -702,8 +748,7 @@ describe('plugins', () => {
 
   it('fails the turn when nothing gives it a model', async () => {
     const { host } = setup()
-    const session = await host.open({
-      harness: defineHarness({ name: 'test/no-model' }),
+    const session = await host.open(defineHarness({ name: 'test/no-model' }), {
       threadId: 't1',
     })
 
@@ -756,14 +801,16 @@ describe('plugins', () => {
       },
     })
     const { adapter, calls } = mockAdapter([() => text('ok')])
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/tools',
         adapter,
         plugins: () => [clockPlugin],
       }),
-      threadId: 't1',
-    })
+      {
+        threadId: 't1',
+      },
+    )
 
     await session.send('time?')
     expect(calls[0].tools.map((tool: { name: string }) => tool.name)).toContain(
@@ -782,14 +829,16 @@ describe('plugins', () => {
     const b = definePlugin({ name: 'test/b', setup: () => ({ tools: [tool] }) })
     const { adapter } = mockAdapter([])
     await expect(
-      host.open({
-        harness: defineHarness({
+      host.open(
+        defineHarness({
           name: 'test/dup',
           adapter,
           plugins: () => [a, b],
         }),
-        threadId: 't1',
-      }),
+        {
+          threadId: 't1',
+        },
+      ),
     ).rejects.toThrow(
       'Duplicate tool "dup": first owner test/a, second owner test/b',
     )
@@ -812,14 +861,16 @@ describe('a waiting steer with an abort request, without a log', () => {
       () => text('host answer'),
     ])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/steer-abort',
         adapter,
         tools: [wait],
       }),
-      threadId: 't-abort',
-    })
+      {
+        threadId: 't-abort',
+      },
+    )
 
     const turn = session.send('start')
     await started.opened
@@ -859,15 +910,17 @@ describe('joins without a log', () => {
     )
     const { adapter, calls } = mockAdapter(replies)
     const host = createHarnessHost({ persistence })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/joins',
         adapter,
         tools: [tool],
         turn,
       }),
-      threadId: 't-joins',
-    })
+      {
+        threadId: 't-joins',
+      },
+    )
     return { host, session, calls, wait: { started, done } }
   }
 
@@ -994,14 +1047,16 @@ describe('joins without a log', () => {
       () => text('second'),
     ])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/steer-context',
         adapter,
         middleware: [hideSecret],
       }),
-      threadId: 't-context',
-    })
+      {
+        threadId: 't-context',
+      },
+    )
 
     const turn = session.send('secret')
     await vi.waitFor(() => expect(calls).toHaveLength(1))
@@ -1053,14 +1108,16 @@ describe('joins without a log', () => {
           ? { stores: { log: memoryLogStore(), runs } }
           : memoryPersistence(),
       })
-      const session = await host.open({
-        harness: defineHarness({
+      const session = await host.open(
+        defineHarness({
           name: 'test/steer-convert',
           adapter,
           middleware: [noImages],
         }),
-        threadId: 't-convert',
-      })
+        {
+          threadId: 't-convert',
+        },
+      )
       const steer: Array<ContentPart> = [
         { type: 'text', content: 'this' },
         image,

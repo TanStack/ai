@@ -249,8 +249,7 @@ export async function runCli(
       return EXIT.ok
     }
 
-    const session = await host.open({
-      harness,
+    const session = await host.open(harness, {
       threadId: args.thread,
       ...(principal ? { principal } : {}),
     })

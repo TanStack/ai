@@ -42,8 +42,8 @@ async function agentProfiles(host: HarnessHost, model: () => AnyTextAdapter) {
     description: 'Look up a fact',
     inputSchema: z.object({}),
   }).server(async () => 'A fact.')
-  const session = await host.open({
-    harness: defineHarness({
+  const session = await host.open(
+    defineHarness({
       name: 'e2e/harness-agents',
       adapter: model(),
       tools: [lookup],
@@ -62,8 +62,10 @@ async function agentProfiles(host: HarnessHost, model: () => AnyTextAdapter) {
         }),
       ],
     }),
-    threadId: 'e2e-agents',
-  })
+    {
+      threadId: 'e2e-agents',
+    },
+  )
   const first = (await session.send('[first-party-agents] first')).text
   const switched = await session.command({ name: 'agent', input: 'brief' })
   const second = (await session.send('[first-party-agents] second')).text
@@ -107,8 +109,8 @@ async function planSubagent(host: HarnessHost, model: () => AnyTextAdapter) {
         stream: false,
       }),
   })
-  const session = await host.open({
-    harness: defineHarness({
+  const session = await host.open(
+    defineHarness({
       name: 'e2e/harness-plan',
       adapter: model(),
       subagents: { agents: [writer] },
@@ -118,8 +120,10 @@ async function planSubagent(host: HarnessHost, model: () => AnyTextAdapter) {
         }),
       ],
     }),
-    threadId: 'e2e-plan',
-  })
+    {
+      threadId: 'e2e-plan',
+    },
+  )
   await session.command({ name: 'mode', input: 'plan' })
   const turn = await session.send('[first-party-plan] write x.txt')
   return { writes, results, text: turn.text }
@@ -153,14 +157,16 @@ async function environmentPrompt(
       ],
       { cwd: root },
     )
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'e2e/harness-env',
         adapter: model(),
         plugins: () => [projectInstructions({ root })],
       }),
-      threadId: 'e2e-env',
-    })
+      {
+        threadId: 'e2e-env',
+      },
+    )
     const turn = await session.send('[first-party-env] where am i')
     return { root, platform: process.platform, text: turn.text }
   } finally {
@@ -181,14 +187,16 @@ async function sessionTitle(
       ctx.on(TitleFailed, (failure) => failures.push(failure.message))
     },
   })
-  const session = await host.open({
-    harness: defineHarness({
+  const session = await host.open(
+    defineHarness({
       name: 'e2e/harness-title',
       adapter: model(),
       plugins: () => [listener, title({ adapter: titleModel })],
     }),
-    threadId: 'e2e-title',
-  })
+    {
+      threadId: 'e2e-title',
+    },
+  )
   const turn = await session.send('[first-party-title] plan a trip to Rome')
   const deadline = Date.now() + 5_000
   let entry = await host.sessions.get('e2e-title')
@@ -217,15 +225,17 @@ async function connectedKey(host: HarnessHost, testId: string | undefined) {
       ...(testId ? { defaultHeaders: { 'X-Test-Id': testId } } : {}),
     })
   })
-  const session = await host.open({
-    harness: defineHarness({
+  const session = await host.open(
+    defineHarness({
       name: 'e2e/harness-provider-keys',
       adapter: gpt,
       plugins: () => [providerKeys({ providers: [openaiByok] })],
     }),
-    threadId: 'e2e-keys',
-    principal: { id: 'ada' },
-  })
+    {
+      threadId: 'e2e-keys',
+      principal: { id: 'ada' },
+    },
+  )
   const connecting = session.command({ name: 'connect:openai' })
   const deadline = Date.now() + 5_000
   while (
@@ -258,14 +268,16 @@ async function goalLoop(
   model: () => AnyTextAdapter,
   judgeModel: AnyTextAdapter,
 ) {
-  const session = await host.open({
-    harness: defineHarness({
+  const session = await host.open(
+    defineHarness({
       name: 'e2e/harness-goal',
       adapter: model(),
       plugins: () => [goal({ judge: judgeModel })],
     }),
-    threadId: 'e2e-goal',
-  })
+    {
+      threadId: 'e2e-goal',
+    },
+  )
   await session.command({
     name: 'goal',
     input: '[first-party-goal] finish the report',
@@ -295,8 +307,8 @@ async function codeModeTools(host: HarnessHost, model: () => AnyTextAdapter) {
     description: 'List the open issues',
     inputSchema: z.object({}),
   }).server(async () => [{ id: 'ENG-1', title: 'Fix login' }])
-  const session = await host.open({
-    harness: defineHarness({
+  const session = await host.open(
+    defineHarness({
       name: 'e2e/harness-code-mode',
       adapter: model(),
       tools: [listIssues],
@@ -309,8 +321,10 @@ async function codeModeTools(host: HarnessHost, model: () => AnyTextAdapter) {
         }),
       ],
     }),
-    threadId: 'e2e-code-mode',
-  })
+    {
+      threadId: 'e2e-code-mode',
+    },
+  )
   const turn = await session.send('[first-party-code-mode] which tools')
   return { text: turn.text }
 }

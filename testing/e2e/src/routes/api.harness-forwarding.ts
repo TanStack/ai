@@ -102,8 +102,8 @@ export const Route = createFileRoute('/api/harness-forwarding')({
         const otherHost = createHarnessHost({ persistence })
         try {
           const threadId = 'e2e-harness-forwarding'
-          const owner = await ownerHost.open({ harness, threadId })
-          const other = await otherHost.open({ harness, threadId })
+          const owner = await ownerHost.open(harness, { threadId })
+          const other = await otherHost.open(harness, { threadId })
 
           const turn = owner.send('[harness-forwarding] go')
           await turn.receipt

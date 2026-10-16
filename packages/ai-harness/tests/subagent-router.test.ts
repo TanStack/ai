@@ -74,8 +74,8 @@ async function openRouted(options: {
     persistence,
     ...(options.ownership ? { ownership: options.ownership } : {}),
   })
-  const session = await host.open({
-    harness: defineHarness({
+  const session = await host.open(
+    defineHarness({
       name: 'test/router',
       adapter: main.adapter,
       ...(options.tools ? { tools: options.tools } : {}),
@@ -87,8 +87,10 @@ async function openRouted(options: {
         },
       },
     }),
-    threadId: THREAD,
-  })
+    {
+      threadId: THREAD,
+    },
+  )
   return { host, session, runs, routerSaw, calls: main.calls }
 }
 

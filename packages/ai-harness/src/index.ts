@@ -84,7 +84,6 @@ export type {
 export { AuthRequiredError, scrubSecrets } from './auth'
 export type { CredentialsAccess } from './auth'
 
-export { harnessOf } from './agents'
 export type {
   AgentInputOf,
   AgentRegistryView,

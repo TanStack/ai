@@ -43,14 +43,16 @@ describe('extension points', () => {
     })
     const { adapter } = mockAdapter([])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/ext',
         adapter,
         plugins: () => [reader, writerA, writerB],
       }),
-      threadId: 't',
-    })
+      {
+        threadId: 't',
+      },
+    )
     await session.command({ name: 'rules' })
     expect(read).toEqual([{ tool: 'write_file' }, { tool: 'bash' }])
     expect(session.inspect().extensionPoints['test/rules']).toEqual([
@@ -93,14 +95,16 @@ describe('extension points', () => {
     })
     const { adapter } = mockAdapter([])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/ext-view',
         adapter,
         plugins: () => [reader, writer],
       }),
-      threadId: 't',
-    })
+      {
+        threadId: 't',
+      },
+    )
 
     await session.command({ name: 'rules' })
 
@@ -149,14 +153,16 @@ describe('events and state', () => {
     const persistence = memoryPersistence()
     const { adapter } = mockAdapter([])
     const host = createHarnessHost({ persistence })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/state',
         adapter,
         plugins: () => [todos, listener],
       }),
-      threadId: 't',
-    })
+      {
+        threadId: 't',
+      },
+    )
 
     const seen: Array<StreamChunk> = []
     const reader = new AbortController()
@@ -231,7 +237,7 @@ describe('session config', () => {
       plugins: () => [thinking],
     })
     const host = createHarnessHost({ persistence })
-    const session = await host.open({ harness, threadId: 't' })
+    const session = await host.open(harness, { threadId: 't' })
 
     await session.send('one')
     expect(
@@ -258,8 +264,7 @@ describe('session config', () => {
     await host.close()
 
     // A new host reads the saved setting.
-    const again = await createHarnessHost({ persistence }).open({
-      harness,
+    const again = await createHarnessHost({ persistence }).open(harness, {
       threadId: 't',
     })
     expect(again.config().thinking?.value).toBe('high')
@@ -288,14 +293,16 @@ describe('commands and questions', () => {
     })
     const { adapter } = mockAdapter([])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/ask',
         adapter,
         plugins: () => [deploy],
       }),
-      threadId: 't',
-    })
+      {
+        threadId: 't',
+      },
+    )
 
     const running = session.command({ name: 'deploy' })
     await vi.waitFor(() =>
@@ -334,14 +341,16 @@ describe('commands and questions', () => {
     const { adapter } = mockAdapter([])
     const host = createHarnessHost({ persistence: memoryPersistence() })
     await expect(
-      host.open({
-        harness: defineHarness({
+      host.open(
+        defineHarness({
           name: 'test/dup-cmd',
           adapter,
           plugins: () => [make('test/one'), make('test/two')],
         }),
-        threadId: 't',
-      }),
+        {
+          threadId: 't',
+        },
+      ),
     ).rejects.toThrow(
       'Duplicate command "same": first owner test/one, second owner test/two',
     )
@@ -380,15 +389,17 @@ describe('adapter override and credentials', () => {
       }),
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/pick',
         adapter: main.adapter,
         plugins: () => [picker],
       }),
-      threadId: 't',
-      principal: { id: 'user-1' },
-    })
+      {
+        threadId: 't',
+        principal: { id: 'user-1' },
+      },
+    )
 
     await session.setConfig({ key: 'model', value: 'other' })
     expect(await session.send('hi')).toEqual({

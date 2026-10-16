@@ -26,15 +26,17 @@ async function open(
   } = {},
 ) {
   const host = createHarnessHost({ persistence })
-  const session = await host.open({
-    harness: defineHarness({
+  const session = await host.open(
+    defineHarness({
       name: 'test/title-usage',
       adapter: mockAdapter(reply).adapter,
       agents,
       plugins: () => plugins,
     }),
-    threadId: 't',
-  })
+    {
+      threadId: 't',
+    },
+  )
   return { host, session }
 }
 

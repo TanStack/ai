@@ -77,10 +77,12 @@ async function openLeased(
 ) {
   const { adapter, calls } = mockAdapter(replies)
   const host = createHarnessHost({ persistence, ownership })
-  const session = await host.open({
-    harness: defineHarness({ name: 'test/leases', adapter, tools }),
-    threadId: THREAD,
-  })
+  const session = await host.open(
+    defineHarness({ name: 'test/leases', adapter, tools }),
+    {
+      threadId: THREAD,
+    },
+  )
   return { host, session, calls }
 }
 
@@ -125,10 +127,12 @@ async function openCutOff(
 ) {
   const { adapter, calls } = mockAdapter(replies)
   const host = createHarnessHost({ persistence })
-  const session = await host.open({
-    harness: defineHarness({ name: 'test/leases', adapter, ...options }),
-    threadId: THREAD,
-  })
+  const session = await host.open(
+    defineHarness({ name: 'test/leases', adapter, ...options }),
+    {
+      threadId: THREAD,
+    },
+  )
   return { host, session, calls }
 }
 
@@ -243,14 +247,16 @@ describe('a durable host with a lease store and no run store', () => {
       run: async () => 'priced',
     })
     const first = createHarnessHost({ persistence })
-    const session = await first.open({
-      harness: defineHarness({
+    const session = await first.open(
+      defineHarness({
         name: 'test/leases',
         adapter: mockAdapter([]).adapter,
         agents: [pricer, waiter],
       }),
-      threadId: THREAD,
-    })
+      {
+        threadId: THREAD,
+      },
+    )
     await session.agents.pricer.run()
     session.agents.waiter.start(undefined, { wake: true })
     await vi.waitFor(() => expect(leases.leases.size).toBe(1))
@@ -379,10 +385,12 @@ describe('a durable host with runs and leases', () => {
     }
     const { adapter } = mockAdapter([() => text('done')])
     const host = createHarnessHost({ persistence })
-    const session = await host.open({
-      harness: defineHarness({ name: 'test/leases', adapter }),
-      threadId: THREAD,
-    })
+    const session = await host.open(
+      defineHarness({ name: 'test/leases', adapter }),
+      {
+        threadId: THREAD,
+      },
+    )
 
     const turn = session.send('go', { inputId: 'in-1' })
     await turn
@@ -405,13 +413,13 @@ describe('a durable host with runs and leases', () => {
     })
     const first = createHarnessHost({ persistence })
     const run = (
-      await first.open({ harness, threadId: THREAD })
+      await first.open(harness, { threadId: THREAD })
     ).agents.waiter.start()
     await vi.waitFor(() => expect(leases.leases.size).toBe(1))
 
     leases.expire()
     const next = createHarnessHost({ persistence })
-    await next.open({ harness, threadId: THREAD })
+    await next.open(harness, { threadId: THREAD })
     // The first host sees the writes of the second host, so it stops and
     // cancels its agent.
     await expect(Promise.resolve(run)).rejects.toThrow('Cancelled.')
@@ -438,10 +446,12 @@ describe('close({ recoverable: true })', () => {
   ) {
     const { adapter, calls } = mockAdapter(replies)
     const host = createHarnessHost({ persistence })
-    const session = await host.open({
-      harness: defineHarness({ name: 'test/leases', adapter, ...options }),
-      threadId: THREAD,
-    })
+    const session = await host.open(
+      defineHarness({ name: 'test/leases', adapter, ...options }),
+      {
+        threadId: THREAD,
+      },
+    )
     return { host, session, calls }
   }
 

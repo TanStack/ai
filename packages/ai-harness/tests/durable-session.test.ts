@@ -222,14 +222,14 @@ describe('durable host stores', () => {
     const harness = defineHarness({ name: 'test/append', adapter })
     const today = await createHarnessHost({
       persistence: memoryPersistence(),
-    }).open({ harness, threadId: THREAD })
+    }).open(harness, { threadId: THREAD })
     await expect(today.append([{ type: 'app.x' }])).rejects.toThrow(
       'session.append needs a durable host',
     )
 
     const durable = await createHarnessHost({
       persistence: durablePersistence(),
-    }).open({ harness, threadId: THREAD })
+    }).open(harness, { threadId: THREAD })
     await expect(durable.append([{ type: 'harness.event' }])).rejects.toThrow(
       'reserved for the harness',
     )
@@ -254,11 +254,11 @@ describe('durable session log', () => {
     })
     const host = createHarnessHost({ persistence: durablePersistence() })
 
-    await expect(host.open({ harness, threadId: THREAD })).rejects.toThrow(
+    await expect(host.open(harness, { threadId: THREAD })).rejects.toThrow(
       'setup failed',
     )
     fail = false
-    await expect(host.open({ harness, threadId: THREAD })).resolves.toBeTruthy()
+    await expect(host.open(harness, { threadId: THREAD })).resolves.toBeTruthy()
     await host.close()
   })
 
@@ -270,7 +270,7 @@ describe('durable session log', () => {
     ])
     const harness = defineHarness({ name: 'test/crash-mid-text', adapter })
     const first = createHarnessHost({ persistence, log: { coalesceMs: 5 } })
-    const session = await first.open({ harness, threadId: THREAD })
+    const session = await first.open(harness, { threadId: THREAD })
     const turn = session.send('say hello')
 
     // The deltas reach the log after the coalescing window.
@@ -282,7 +282,7 @@ describe('durable session log', () => {
 
     // The first host never closes, like a process that stopped.
     const next = createHarnessHost({ persistence })
-    const reopened = await next.open({ harness, threadId: THREAD })
+    const reopened = await next.open(harness, { threadId: THREAD })
     const seen = await eventsUntil(
       reopened,
       (events) => deltasOf(events, 'm-live') === 'Hello, wor',
@@ -323,10 +323,12 @@ describe('durable session log', () => {
       persistence: durablePersistence(log),
       log: { coalesceMs: 60_000 },
     })
-    const session = await host.open({
-      harness: defineHarness({ name: 'test/batch', adapter }),
-      threadId: THREAD,
-    })
+    const session = await host.open(
+      defineHarness({ name: 'test/batch', adapter }),
+      {
+        threadId: THREAD,
+      },
+    )
     const turn = session.send('go')
     await vi.waitFor(() =>
       expect(JSON.stringify(batches)).toContain('TEXT_MESSAGE_START'),
@@ -364,16 +366,18 @@ describe('durable session log', () => {
       () => text('done'),
     ])
     const host = createHarnessHost({ persistence })
-    session = await host.open({
-      harness: defineHarness({
+    session = await host.open(
+      defineHarness({
         name: 'test/project',
         adapter,
         tools: [check],
         middleware: [hideSecret],
         durability: { project },
       }),
-      threadId: THREAD,
-    })
+      {
+        threadId: THREAD,
+      },
+    )
 
     await session.send('secret')
 
@@ -406,15 +410,17 @@ describe('durable session log', () => {
       () => text('second answer'),
     ])
     const host = createHarnessHost({ persistence })
-    session = await host.open({
-      harness: defineHarness({
+    session = await host.open(
+      defineHarness({
         name: 'test/project',
         adapter,
         tools: [check],
         durability: { project },
       }),
-      threadId: THREAD,
-    })
+      {
+        threadId: THREAD,
+      },
+    )
 
     await session.send('one')
     // Between turns: the next turn starts with it.
@@ -460,14 +466,16 @@ describe('durable session log', () => {
       () => text('a3'),
     ])
     const host = createHarnessHost({ persistence })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/compact',
         adapter,
         durability: { project },
       }),
-      threadId: THREAD,
-    })
+      {
+        threadId: THREAD,
+      },
+    )
     await session.send('q1')
     await session.send('q2')
 
@@ -507,7 +515,7 @@ describe('durable session log', () => {
     const { adapter } = mockAdapter([() => text('never saved')])
     const host = createHarnessHost({ persistence: durablePersistence(log) })
     const harness = defineHarness({ name: 'test/conflict', adapter })
-    const session = await host.open({ harness, threadId: THREAD })
+    const session = await host.open(harness, { threadId: THREAD })
     await inner.append({
       logId: THREAD,
       seq: 1,
@@ -519,7 +527,7 @@ describe('durable session log', () => {
 
     // The host opens a new session, which folds the log again.
     await vi.waitFor(async () =>
-      expect(await host.open({ harness, threadId: THREAD })).not.toBe(session),
+      expect(await host.open(harness, { threadId: THREAD })).not.toBe(session),
     )
     await host.close()
   })
@@ -530,8 +538,8 @@ describe('durable session log', () => {
     const harness = defineHarness({ name: 'test/reader', adapter })
     const writer = createHarnessHost({ persistence })
     const reader = createHarnessHost({ persistence })
-    const live = await writer.open({ harness, threadId: THREAD })
-    const watching = await reader.open({ harness, threadId: THREAD })
+    const live = await writer.open(harness, { threadId: THREAD })
+    const watching = await reader.open(harness, { threadId: THREAD })
 
     const seen = eventsUntil(watching, (events) =>
       events.some((entry) => entry.event.type === EventType.TEXT_MESSAGE_END),
@@ -562,7 +570,7 @@ describe('durable session log', () => {
       tools: [lookup],
     })
     const host = createHarnessHost({ persistence })
-    const session = await host.open({ harness, threadId: THREAD })
+    const session = await host.open(harness, { threadId: THREAD })
 
     await session.send('Weather in Berlin and Paris?')
 
@@ -595,7 +603,7 @@ describe('durable session log', () => {
     // The first host never closes, like a process that stopped. A second
     // host that opens the thread gets the same messages.
     const next = createHarnessHost({ persistence })
-    const reopened = await next.open({ harness, threadId: THREAD })
+    const reopened = await next.open(harness, { threadId: THREAD })
     expect(await reopened.transcript()).toEqual(transcript)
     await host.close().catch(() => {})
     await next.close()
@@ -615,15 +623,17 @@ describe('LogRecordsCapability', () => {
       },
     }
     const host = createHarnessHost({ persistence })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/log-records',
         adapter,
         middleware: [signal],
         durability: { project },
       }),
-      threadId: THREAD,
-    })
+      {
+        threadId: THREAD,
+      },
+    )
 
     await session.send('q1')
     await session.send('q2')
@@ -665,16 +675,18 @@ describe('LogRecordsCapability', () => {
       },
     }
     const host = createHarnessHost({ persistence })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/log-records-tool-phase',
         adapter,
         tools: [lookup],
         middleware: [signal],
         durability: { project },
       }),
-      threadId: THREAD,
-    })
+      {
+        threadId: THREAD,
+      },
+    )
 
     await session.send('Weather in Berlin?')
 
@@ -717,15 +729,17 @@ describe('LogRecordsCapability', () => {
       },
     }
     const host = createHarnessHost({ persistence })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/log-records-note',
         adapter,
         middleware: [note],
         durability: { project },
       }),
-      threadId: THREAD,
-    })
+      {
+        threadId: THREAD,
+      },
+    )
 
     await session.send('q1')
 
@@ -751,14 +765,16 @@ describe('LogRecordsCapability', () => {
     }
     const { adapter } = mockAdapter([() => text('a1')])
     const host = createHarnessHost({ persistence: durablePersistence() })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/log-records-bad',
         adapter,
         middleware: [bad],
       }),
-      threadId: THREAD,
-    })
+      {
+        threadId: THREAD,
+      },
+    )
 
     await session.send('q1')
 
@@ -777,14 +793,16 @@ describe('LogRecordsCapability', () => {
     }
     const { adapter } = mockAdapter([() => text('a1')])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/log-records-none',
         adapter,
         middleware: [probe],
       }),
-      threadId: THREAD,
-    })
+      {
+        threadId: THREAD,
+      },
+    )
 
     await session.send('q1')
 
@@ -825,15 +843,17 @@ describe('compaction-style host records from a middleware', () => {
       },
     }
     const host = createHarnessHost({ persistence })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/after-turn-record',
         adapter,
         middleware: [afterTurn],
         durability: { project },
       }),
-      threadId: THREAD,
-    })
+      {
+        threadId: THREAD,
+      },
+    )
 
     await session.send('q1')
     await session.send('q2')
@@ -886,15 +906,17 @@ describe('compaction-style host records from a middleware', () => {
       },
     }
     const host = createHarnessHost({ persistence })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/before-call-record',
         adapter,
         middleware: [beforeCall],
         durability: { project },
       }),
-      threadId: THREAD,
-    })
+      {
+        threadId: THREAD,
+      },
+    )
 
     await session.send('q1')
     await session.send('q2')
@@ -946,16 +968,18 @@ describe('compaction-style host records from a middleware', () => {
       },
     }
     const host = createHarnessHost({ persistence })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/tool-phase-record',
         adapter,
         tools: [lookup],
         middleware: [clearFirst],
         durability: { project },
       }),
-      threadId: THREAD,
-    })
+      {
+        threadId: THREAD,
+      },
+    )
 
     await session.send('Weather in Berlin and Paris?')
 

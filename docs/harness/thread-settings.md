@@ -38,7 +38,7 @@ const host = createHarnessHost({ persistence: memoryPersistence() })
 ## 2. Store the settings of a thread
 
 ```ts group=harness-thread-settings
-const session = await host.open({ harness: assistant, threadId: 'review-thread' })
+const session = await host.open(assistant, { threadId: 'review-thread' })
 
 const receipt = await session.configure({
   settings: {
@@ -109,7 +109,7 @@ For `reasoning`, the `overrides` of the prompt win, then the stored setting, the
 `cwd` is the working folder of the thread, for the plugins whose tools work in a folder. A plugin reads it at each call with `ctx.session.settings().cwd`, so a change applies from the next turn:
 
 ```ts group=harness-thread-settings
-const task = await host.open({ harness: assistant, threadId: 'fix-login' })
+const task = await host.open(assistant, { threadId: 'fix-login' })
 await task.configure({ settings: { cwd: 'web-app' } })
 console.log(task.settings().cwd) // 'web-app'
 ```

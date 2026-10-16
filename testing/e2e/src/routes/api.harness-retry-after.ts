@@ -26,8 +26,8 @@ export const Route = createFileRoute('/api/harness-retry-after')({
         const host = createHarnessHost()
         const started = Date.now()
         try {
-          const session = await host.open({
-            harness: defineHarness({
+          const session = await host.open(
+            defineHarness({
               name: 'e2e/harness-retry-after',
               adapter: createAnthropicChat('claude-sonnet-5-5', DUMMY_KEY, {
                 baseURL: LLMOCK_DEFAULT_BASE,
@@ -42,8 +42,10 @@ export const Route = createFileRoute('/api/harness-retry-after')({
                 },
               },
             }),
-            threadId: 'e2e-harness-retry-after',
-          })
+            {
+              threadId: 'e2e-harness-retry-after',
+            },
+          )
           const { text } = await session.send('[harness-retry-after] say hello')
           return Response.json({
             text,

@@ -42,15 +42,17 @@ describe('discoverTools', () => {
       () => text('done'),
     ])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/discover',
         adapter,
         tools: [echoTool('lookup', 'local result')],
         plugins: () => [connector, broken],
       }),
-      threadId: 't',
-    })
+      {
+        threadId: 't',
+      },
+    )
     const names = (call: number) =>
       (calls[call].tools ?? []).map((tool: { name: string }) => tool.name)
 
@@ -93,14 +95,16 @@ describe('the default agent loop', () => {
     )
     const { adapter, calls } = mockAdapter([...steps, () => text('finally')])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/long-turn',
         adapter,
         tools: [echoTool('lookup', 'fact')],
       }),
-      threadId: 't',
-    })
+      {
+        threadId: 't',
+      },
+    )
     const turn = await session.send('dig deep')
     expect(calls).toHaveLength(8)
     expect(turn.text).toBe('finally')

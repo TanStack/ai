@@ -441,7 +441,7 @@ async function harnessServer(
       : { middleware: [reviewer.middleware], interrupts: [review] }),
   })
   const { server, host } = await serve(harness, serverOptions)
-  const session = () => host.open({ harness, threadId: 'main' })
+  const session = () => host.open(harness, { threadId: 'main' })
   return {
     server,
     session,

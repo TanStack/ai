@@ -54,7 +54,7 @@ function agentPlugin(
 
 async function open(harness: AnyHarness) {
   const host = createHarnessHost({ persistence: memoryPersistence() })
-  const session = await host.open({ harness, threadId: 't' })
+  const session = await host.open(harness, { threadId: 't' })
   return { host, session }
 }
 

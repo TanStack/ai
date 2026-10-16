@@ -60,8 +60,7 @@ async function openWith(
     adapter: model.adapter,
     plugins: () => [mcp({ servers })],
   })
-  const session = await host.open({
-    harness,
+  const session = await host.open(harness, {
     threadId: 't',
     principal: { id: 'user-1' },
   })

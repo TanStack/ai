@@ -57,7 +57,7 @@ async function open(replies: Array<Reply>, persistence = memoryPersistence()) {
     plugins: () => [pinger],
   })
   const host = createHarnessHost({ persistence })
-  const session = await host.open({ harness, threadId: 't' })
+  const session = await host.open(harness, { threadId: 't' })
   return { host, session, harness, persistence, calls: main.calls }
 }
 
@@ -406,14 +406,16 @@ describe('the agents of a session view', () => {
       },
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/view-agents',
         adapter: mockAdapter([]).adapter,
         agents: [writer],
       }),
-      threadId: 't',
-    })
+      {
+        threadId: 't',
+      },
+    )
     const run = session.agents.writer.start()
     return { hold, host, session, run }
   }
@@ -446,8 +448,8 @@ describe('the agents of a session view', () => {
         ctx.chat({ adapter: mockAdapter(() => text('Note 1')).adapter }),
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/view-children',
         adapter: mockAdapter([
           () => toolCall('writer', { prompt: 'Take notes' }, 'call-1'),
@@ -455,8 +457,10 @@ describe('the agents of a session view', () => {
         ]).adapter,
         subagents: { agents: [writer] },
       }),
-      threadId: 't',
-    })
+      {
+        threadId: 't',
+      },
+    )
     await session.send('Notes, please')
 
     const view = createSessionView(session)

@@ -70,8 +70,7 @@ describe('mid-conversation changes in a harness', () => {
       message: string,
     ) => {
       const host = createHarnessHost({ persistence })
-      const session = await host.open({
-        harness: harness(tools),
+      const session = await host.open(harness(tools), {
         threadId: THREAD,
       })
       await session.send(message)
@@ -141,15 +140,17 @@ describe('mid-conversation changes in a harness', () => {
           : undefined,
     }
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/mid-conversation',
         adapter,
         tools: [installs],
         middleware: [addsExtra],
       }),
-      threadId: THREAD,
-    })
+      {
+        threadId: THREAD,
+      },
+    )
 
     const turn = session.send('find x')
     await started.opened

@@ -59,14 +59,16 @@ describe('saved harness replay across turn adapters', () => {
     const second = mockAdapter([
       () => sourced(text('Second answer'), secondSource, 'generation-second'),
     ])
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/replay-parity',
         adapter: first.adapter,
         tools: [lookup],
       }),
-      threadId: 'replay',
-    })
+      {
+        threadId: 'replay',
+      },
+    )
     try {
       await session.send('first')
       const before = JSON.parse(JSON.stringify(await session.transcript()))
@@ -139,14 +141,16 @@ describe('saved harness replay across turn adapters', () => {
         () => text('Checked'),
       ])
       const host = createHarnessHost({ persistence: memoryPersistence() })
-      const session = await host.open({
-        harness: defineHarness({
+      const session = await host.open(
+        defineHarness({
           name: 'test/raw-replay',
           adapter: model.adapter,
           tools: [tool],
         }),
-        threadId: 'raw',
-      })
+        {
+          threadId: 'raw',
+        },
+      )
       try {
         await session.send('measure')
         expect(execute).toHaveBeenCalledTimes(executes)
@@ -213,8 +217,7 @@ describe.each([false, true])(
       const first = createHarnessHost({ persistence })
       let approvalId = ''
       try {
-        const session = await first.open({
-          harness: config,
+        const session = await first.open(config, {
           threadId: 'approved',
         })
         const stopped = await session.send('approve')
@@ -227,8 +230,7 @@ describe.each([false, true])(
       }
       const next = createHarnessHost({ persistence })
       try {
-        const session = await next.open({
-          harness: config,
+        const session = await next.open(config, {
           threadId: 'approved',
         })
         const wrong = await session.resolve({
@@ -292,15 +294,17 @@ describe.each([false, true])(
       ])
       const host = createHarnessHost({ persistence })
       try {
-        const session = await host.open({
-          harness: defineHarness({
+        const session = await host.open(
+          defineHarness({
             name: 'test/denied-replay',
             adapter: model.adapter,
             tools: [tool],
             middleware: [{ name: 'count-hooks', onBeforeToolCall: hook }],
           }),
-          threadId: 'denied',
-        })
+          {
+            threadId: 'denied',
+          },
+        )
         const stopped = await session.send('deny')
         const id = stopped.interrupts?.[0]?.id
         if (!id) throw new Error('Missing approval')
@@ -345,10 +349,12 @@ it('detaches a local event reader without aborting the model turn', async () => 
       })(),
   ])
   const host = createHarnessHost({ persistence })
-  const session = await host.open({
-    harness: defineHarness({ name: 'detach-replay', adapter: main.adapter }),
-    threadId: 'detach',
-  })
+  const session = await host.open(
+    defineHarness({ name: 'detach-replay', adapter: main.adapter }),
+    {
+      threadId: 'detach',
+    },
+  )
   const turn = session.send('continue')
   const local = new AbortController()
   const detached = (async () => {

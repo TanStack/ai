@@ -90,10 +90,12 @@ describe('checkpoints and leases', () => {
       () => toolCall('lookup', { q: 'x' }),
       () => text('done'),
     ])
-    const session = await host.open({
-      harness: defineHarness({ name: 'test/lease', adapter, tools: [lookup] }),
-      threadId: 't1',
-    })
+    const session = await host.open(
+      defineHarness({ name: 'test/lease', adapter, tools: [lookup] }),
+      {
+        threadId: 't1',
+      },
+    )
 
     const turn = session.send('go')
     await started.opened
@@ -121,14 +123,16 @@ describe('checkpoints and leases', () => {
     const persistence = memoryPersistence()
     const host = createHarnessHost({ persistence })
     const { adapter } = mockAdapter([])
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/agent-lease',
         adapter,
         agents: [waiter],
       }),
-      threadId: 't1',
-    })
+      {
+        threadId: 't1',
+      },
+    )
 
     const run = session.agents.waiter.start()
     await vi.waitFor(async () =>
@@ -200,10 +204,12 @@ describe('crash resume', () => {
     ]
     const { adapter, calls } = mockAdapter([() => text('recovered')])
     const host = createHarnessHost({ persistence })
-    const session = await host.open({
-      harness: defineHarness({ name: 'test/resume', adapter, tools }),
-      threadId: 't1',
-    })
+    const session = await host.open(
+      defineHarness({ name: 'test/resume', adapter, tools }),
+      {
+        threadId: 't1',
+      },
+    )
 
     const seen: Array<SessionEvent> = []
     const controller = new AbortController()
@@ -485,14 +491,16 @@ describe('crash resume', () => {
     })
     const { adapter, calls } = mockAdapter([])
     const host = createHarnessHost({ persistence })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/agent-crash',
         adapter,
         agents: [waiter],
       }),
-      threadId: 't1',
-    })
+      {
+        threadId: 't1',
+      },
+    )
 
     expect(
       await operationEvents(session.events({ from: '0' }), 'crashed-agent'),
@@ -532,10 +540,12 @@ describe('crash resume', () => {
     }
     const { adapter, calls } = mockAdapter([])
     const host = createHarnessHost({ persistence })
-    const session = await host.open({
-      harness: defineHarness({ name: 'test/live', adapter }),
-      threadId: 't1',
-    })
+    const session = await host.open(
+      defineHarness({ name: 'test/live', adapter }),
+      {
+        threadId: 't1',
+      },
+    )
     expect(session.snapshot().status).toBe('idle')
     expect(calls).toHaveLength(0)
     expect((await persistence.stores.runs.get('live-run'))?.status).toBe(

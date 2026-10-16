@@ -24,10 +24,12 @@ async function openDurable(
 ) {
   const { adapter, calls } = mockAdapter(replies)
   const host = createHarnessHost({ persistence })
-  const session = await host.open({
-    harness: defineHarness({ name: 'test/durable-tools', adapter, tools }),
-    threadId: THREAD,
-  })
+  const session = await host.open(
+    defineHarness({ name: 'test/durable-tools', adapter, tools }),
+    {
+      threadId: THREAD,
+    },
+  )
   return { host, session, calls }
 }
 
@@ -285,14 +287,16 @@ describe('host records of a tool batch', () => {
         ]),
     ])
     const host = createHarnessHost({ persistence })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/durable-tools-result',
         adapter,
         tools: [note, wait],
       }),
-      threadId: THREAD,
-    })
+      {
+        threadId: THREAD,
+      },
+    )
     const turn = session.send('note and wait', { inputId: 'result-1' })
 
     await vi.waitFor(async () =>
@@ -346,15 +350,17 @@ describe('host records of a tool batch', () => {
         ]),
     ])
     const host = createHarnessHost({ persistence })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/durable-tools-audit',
         adapter,
         tools: [note, quick],
         middleware: [audit],
       }),
-      threadId: THREAD,
-    })
+      {
+        threadId: THREAD,
+      },
+    )
     const turn = session.send('note and check', { inputId: 'audit-1' })
     await audited.opened
 
@@ -476,15 +482,17 @@ describe('durable tools that middleware returns', () => {
     const open = async (replies: Array<Reply>) => {
       const { adapter, calls } = mockAdapter(replies)
       const host = createHarnessHost({ persistence })
-      const session = await host.open({
-        harness: defineHarness({
+      const session = await host.open(
+        defineHarness({
           name: 'test/durable-tools',
           adapter,
           tools: [look],
           middleware: [swap],
         }),
-        threadId: THREAD,
-      })
+        {
+          threadId: THREAD,
+        },
+      )
       return { host, session, calls }
     }
     const first = await open([
@@ -540,15 +548,17 @@ describe('durable tools that middleware returns', () => {
       () => text('done'),
     ])
     const host = createHarnessHost({ persistence })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/durable-tools',
         adapter,
         tools: [note],
         middleware: [wrap],
       }),
-      threadId: THREAD,
-    })
+      {
+        threadId: THREAD,
+      },
+    )
 
     await session.send('note it')
 

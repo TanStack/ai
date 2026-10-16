@@ -214,15 +214,17 @@ describe('oauthConnector', () => {
       () => text('One issue.'),
     ])
     const host = createHarnessHost({ persistence, credentials })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/connector',
         adapter,
         plugins: () => [github],
       }),
-      threadId: 't',
-      principal: { id: 'user-1' },
-    })
+      {
+        threadId: 't',
+        principal: { id: 'user-1' },
+      },
+    )
     const events: Array<SessionEvent> = []
     const reader = new AbortController()
     const reading = (async () => {
@@ -310,14 +312,16 @@ describe('errors a session publishes', () => {
     })
     const { adapter } = mockAdapter(() => text('ok'))
     const host = createHarnessHost({ persistence, credentials })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/scrub',
         adapter,
         plugins: () => [plugin],
       }),
-      threadId: 't1',
-    })
+      {
+        threadId: 't1',
+      },
+    )
     const errors: Array<string> = []
     session.onEvent(EventType.RUN_ERROR, ({ event }) => {
       errors.push(event.message)
@@ -350,10 +354,12 @@ describe('errors a session publishes', () => {
     })
     const { adapter } = mockAdapter(() => text('ok'))
     const host = createHarnessHost({ persistence, credentials })
-    const session = await host.open({
-      harness: defineHarness({ name: 'test/scrub', adapter, agents: [leaky] }),
-      threadId: 't1',
-    })
+    const session = await host.open(
+      defineHarness({ name: 'test/scrub', adapter, agents: [leaky] }),
+      {
+        threadId: 't1',
+      },
+    )
     const errors: Array<string> = []
     session.onEvent(EventType.RUN_ERROR, ({ event }) => {
       errors.push(event.message)

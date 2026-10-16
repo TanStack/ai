@@ -35,8 +35,8 @@ async function* codingTurn(
   const formatAsk = scenario === 'coding-format-ask'
   const host = createHarnessHost()
   try {
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'e2e/coding-tools',
         adapter,
         plugins: () => [
@@ -47,8 +47,10 @@ async function* codingTurn(
           ...(formatAsk ? [permissions({ root }), formatter({ root })] : []),
         ],
       }),
-      threadId: scenario,
-    })
+      {
+        threadId: scenario,
+      },
+    )
     if (formatAsk) await session.command({ name: 'mode', input: 'acceptEdits' })
     for await (const chunk of session.send(`[${scenario}] run test`).stream()) {
       yield chunk
@@ -79,8 +81,8 @@ async function* revertTurns(
   const dataDir = await mkdtemp(join(tmpdir(), 'e2e-snapshots-'))
   const host = createHarnessHost()
   try {
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'e2e/coding-tools-revert',
         adapter,
         plugins: () => [
@@ -90,8 +92,10 @@ async function* revertTurns(
           snapshots({ root, dataDir }),
         ],
       }),
-      threadId: 'coding-revert',
-    })
+      {
+        threadId: 'coding-revert',
+      },
+    )
     yield* session.send('[coding-revert] run test').stream()
     await writeFile(join(root, 'other.txt'), 'mine\n')
     yield* session.send('[coding-revert-2] run test').stream()
@@ -115,8 +119,8 @@ async function* sandboxTurn(
   const sandbox = await localProcessSandbox({ dir: root }).create({})
   const host = createHarnessHost()
   try {
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'e2e/coding-tools-sandbox',
         adapter,
         plugins: () => [
@@ -127,8 +131,10 @@ async function* sandboxTurn(
           }),
         ],
       }),
-      threadId: 'coding-sandbox',
-    })
+      {
+        threadId: 'coding-sandbox',
+      },
+    )
     yield* session.send('[coding-sandbox] run test').stream()
   } finally {
     await host.close()

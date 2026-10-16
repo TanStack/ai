@@ -27,8 +27,7 @@ export const assistant = defineHarness({
 })
 
 const host = createHarnessHost({ persistence: memoryPersistence() })
-const session = await host.open({
-  harness: assistant,
+const session = await host.open(assistant, {
   threadId: 'team-thread',
   principal: { id: 'ada' },
 })
@@ -91,7 +90,7 @@ Read the totals of the sender before you send a prompt. This route refuses a pro
 const BUDGET_USD = 5
 
 export async function send(threadId: string, userId: string, text: string) {
-  const thread = await host.open({ harness: assistant, threadId })
+  const thread = await host.open(assistant, { threadId })
   const spent = thread.usage().bySender[userId]?.cost ?? 0
   if (spent >= BUDGET_USD) {
     return { error: 'You used your budget for this thread.' }

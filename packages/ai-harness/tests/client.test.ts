@@ -283,7 +283,7 @@ describe('client.send to an agent run', () => {
     })
 
     expect(receipt).toMatchObject({ inputId: 'm-1', status: 'queued' })
-    const session = await host.open({ harness: studio, threadId: 'thread-m' })
+    const session = await host.open(studio, { threadId: 'thread-m' })
     expect(session.agentRuns()).toMatchObject([
       { operationId: started.operationId, agent: 'drafter' },
       {

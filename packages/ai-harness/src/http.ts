@@ -359,7 +359,7 @@ export function createHarnessHandler(
 
   const openFor = async (principal: Principal, threadId: string) => {
     if (!(await canAccess(principal, threadId))) return null
-    return host.open({ harness, threadId, principal })
+    return host.open(harness, { threadId, principal })
   }
 
   // ponytail: without `media.secret` (only allowed without a log store), a
@@ -403,7 +403,7 @@ export function createHarnessHandler(
         signed(threadId, id, exp),
       ))
     if (!isValid) return json({ error: 'forbidden' }, 403)
-    return mediaResponse(request, await host.open({ harness, threadId }), id)
+    return mediaResponse(request, await host.open(harness, { threadId }), id)
   }
 
   /**
@@ -450,7 +450,7 @@ export function createHarnessHandler(
     if (entry?.harness !== undefined && entry.harness !== harness.name) {
       return json({ error: 'unknown run' }, 404)
     }
-    const shared = await host.open({ harness, threadId, principal })
+    const shared = await host.open(harness, { threadId, principal })
     // ponytail: from the start of the log without a cursor. Store the
     // started position on the run record if long threads make this slow.
     return cursorResponse(
@@ -869,7 +869,7 @@ export function handleHarnessSocket(options: HarnessSocketOptions): void {
           const { threadId } = frame
           opened = (async () =>
             (await canAccess(principal, threadId))
-              ? host.open({ harness, threadId, principal })
+              ? host.open(harness, { threadId, principal })
               : undefined)()
           const session = await opened
           if (!session) {

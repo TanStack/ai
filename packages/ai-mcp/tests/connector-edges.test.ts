@@ -53,8 +53,7 @@ function openDemo(
   model = recorder(),
   threadId = 't',
 ) {
-  return host.open({
-    harness: connectorHarness(url, model),
+  return host.open(connectorHarness(url, model), {
     threadId,
     principal: { id: 'user-1' },
   })
@@ -208,8 +207,8 @@ describe('mcpConnector with a saved sign-in', () => {
       accessToken: 'access-1',
     })
     const model = recorder()
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/offline',
         adapter: model.adapter,
         plugins: () => [
@@ -224,9 +223,11 @@ describe('mcpConnector with a saved sign-in', () => {
           }),
         ],
       }),
-      threadId: 't',
-      principal: { id: 'user-1' },
-    })
+      {
+        threadId: 't',
+        principal: { id: 'user-1' },
+      },
+    )
     const seen = await promptAndCollect(session, 'hi')
     expect(model.toolNames(0)).toEqual([])
     expect(customValues(seen, 'harness.plugin.warning')).toEqual([
@@ -247,8 +248,8 @@ describe('mcpConnector /connect', () => {
   it('asks for scopes, shows the client name, and uses the prefix and approval rule', async () => {
     const { server, credentials, host } = await setup()
     const model = recorder()
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/options',
         adapter: model.adapter,
         plugins: () => [
@@ -264,9 +265,11 @@ describe('mcpConnector /connect', () => {
           }),
         ],
       }),
-      threadId: 't',
-      principal: { id: 'user-1' },
-    })
+      {
+        threadId: 't',
+        principal: { id: 'user-1' },
+      },
+    )
     const browser = approveSignIns(session, 'code-1')
     cleanups.push(browser.stop)
 
@@ -500,8 +503,8 @@ describe('mcpConnector client options', () => {
       accessToken: 'access-1',
     })
     const model = recorder()
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/tool-name',
         adapter: model.adapter,
         plugins: () => [
@@ -513,9 +516,11 @@ describe('mcpConnector client options', () => {
           }),
         ],
       }),
-      threadId: 't',
-      principal: { id: 'user-1' },
-    })
+      {
+        threadId: 't',
+        principal: { id: 'user-1' },
+      },
+    )
     await session.send('hi')
     expect(model.toolNames(0)).toEqual(['mcp__demo__echo'])
   })
@@ -527,8 +532,8 @@ describe('mcpConnector client options', () => {
     })
     const model = recorder()
     const held: Array<Promise<Response>> = []
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/request-options',
         adapter: model.adapter,
         plugins: () => [
@@ -554,9 +559,11 @@ describe('mcpConnector client options', () => {
           }),
         ],
       }),
-      threadId: 't',
-      principal: { id: 'user-1' },
-    })
+      {
+        threadId: 't',
+        principal: { id: 'user-1' },
+      },
+    )
     const seen = await promptAndCollect(session, 'hi')
     // Let the held answer finish before the server closes.
     await Promise.allSettled(held)

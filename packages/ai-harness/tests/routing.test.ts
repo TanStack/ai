@@ -108,8 +108,8 @@ async function openRouting(options: {
     : { stores }
   const main = mockAdapter(options.replies ?? [])
   const host = createHarnessHost({ persistence })
-  const session = await host.open({
-    harness: defineHarness({
+  const session = await host.open(
+    defineHarness({
       name: 'test/routing',
       adapter: main.adapter,
       agents: options.agents ?? [],
@@ -122,8 +122,10 @@ async function openRouting(options: {
         ...(options.strategy ? { strategy: options.strategy } : {}),
       },
     }),
-    threadId: THREAD,
-  })
+    {
+      threadId: THREAD,
+    },
+  )
   return { host, session, runs, main }
 }
 

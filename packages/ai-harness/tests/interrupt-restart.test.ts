@@ -53,8 +53,8 @@ function restartable(durable: boolean) {
   }) => {
     const main = mockAdapter(options.replies ?? [])
     const host = createHarnessHost({ persistence })
-    const opened = host.open({
-      harness: defineHarness({
+    const opened = host.open(
+      defineHarness({
         name: 'test/interrupt-restart',
         adapter: main.adapter,
         ...(options.tools ? { tools: options.tools } : {}),
@@ -62,8 +62,10 @@ function restartable(durable: boolean) {
         ...(options.subagents ? { subagents: options.subagents } : {}),
         ...(options.routing ? { routing: options.routing } : {}),
       }),
-      threadId: THREAD,
-    })
+      {
+        threadId: THREAD,
+      },
+    )
     return opened.then((session) => ({ host, session, calls: main.calls }))
   }
 }
@@ -284,7 +286,7 @@ describe.each([false, true])(
           tools: [remove.tool],
         })
         const host = createHarnessHost({ persistence })
-        const session = await host.open({ harness: config, threadId: THREAD })
+        const session = await host.open(config, { threadId: THREAD })
         const initial = await session.send('remove')
         const approval = initial.interrupts?.[0]
         if (!approval) throw new Error('The turn did not stop for approval.')
@@ -368,7 +370,7 @@ describe.each([false, true])(
         middleware: [{ name: 'observe', onBeforeToolCall: before }],
       })
       const host = createHarnessHost({ persistence })
-      const session = await host.open({ harness: config, threadId: THREAD })
+      const session = await host.open(config, { threadId: THREAD })
       const initial = await session.send('remove')
       const approval = initial.interrupts?.[0]
       if (!approval) throw new Error('The turn did not stop for approval.')
@@ -416,7 +418,7 @@ describe.each([false, true])(
         tools: [original.tool],
       })
       const first = createHarnessHost({ persistence })
-      const session = await first.open({ harness: config, threadId: THREAD })
+      const session = await first.open(config, { threadId: THREAD })
       const initial = await session.send('remove')
       const approval = initial.interrupts?.[0]
       if (!approval) throw new Error('The turn did not stop for approval.')
@@ -429,14 +431,16 @@ describe.each([false, true])(
         inputSchema: z.object({ path: z.number() }),
       }).server(changedExecute)
       const changed = createHarnessHost({ persistence })
-      const changedSession = await changed.open({
-        harness: defineHarness({
+      const changedSession = await changed.open(
+        defineHarness({
           name: 'schema-drift',
           adapter: main.adapter,
           tools: [changedTool],
         }),
-        threadId: THREAD,
-      })
+        {
+          threadId: THREAD,
+        },
+      )
       const rejected = await changedSession.resolve({
         resume: [
           { interruptId: approval.id, status: 'resolved', payload: true },
@@ -452,8 +456,7 @@ describe.each([false, true])(
       ).toEqual([approval.id])
       await changed.close()
       const next = createHarnessHost({ persistence })
-      const retrySession = await next.open({
-        harness: config,
+      const retrySession = await next.open(config, {
         threadId: THREAD,
       })
       const retry = await retrySession.resolve({
@@ -493,7 +496,7 @@ describe.each([false, true])(
           tools: [remove.tool],
         })
         const host = createHarnessHost({ persistence })
-        const session = await host.open({ harness: config, threadId: THREAD })
+        const session = await host.open(config, { threadId: THREAD })
         const initial = await session.send('remove')
         const approval = initial.interrupts?.[0]
         if (!approval) throw new Error('The turn did not stop for approval.')
@@ -526,7 +529,7 @@ describe.each([false, true])(
         ).toEqual([approval.id])
         await host.close()
         const next = createHarnessHost({ persistence })
-        const reopened = await next.open({ harness: config, threadId: THREAD })
+        const reopened = await next.open(config, { threadId: THREAD })
         const retry = await reopened.resolve({
           resume: [
             { interruptId: approval.id, status: 'resolved', payload: true },
@@ -582,7 +585,7 @@ describe.each([false, true])(
           tools: [remove.tool],
         })
         const host = createHarnessHost({ persistence })
-        const session = await host.open({ harness: config, threadId: THREAD })
+        const session = await host.open(config, { threadId: THREAD })
         const initial = await session.send('remove')
         const approval = initial.interrupts?.[0]
         if (!approval) throw new Error('The turn did not stop for approval.')
@@ -636,7 +639,7 @@ describe.each([false, true])(
         save.mockRestore()
         await host.close()
         const next = createHarnessHost({ persistence })
-        const reopened = await next.open({ harness: config, threadId: THREAD })
+        const reopened = await next.open(config, { threadId: THREAD })
         if (durable && kind === 'save') {
           // The failed log did not settle this applied input. Recovery retries it.
           expect(await reopened.settled(receipt.inputId)).toMatchObject({
@@ -701,7 +704,7 @@ describe.each([false, true])(
         tools: [tool],
       })
       const first = createHarnessHost({ persistence })
-      const session = await first.open({ harness: config, threadId: THREAD })
+      const session = await first.open(config, { threadId: THREAD })
       const initial = await session.send('check')
       const approval = initial.interrupts?.[0]
       if (!approval) throw new Error('The turn did not stop for approval.')
@@ -733,7 +736,7 @@ describe.each([false, true])(
       )
       await first.close()
       const next = createHarnessHost({ persistence })
-      const reopened = await next.open({ harness: config, threadId: THREAD })
+      const reopened = await next.open(config, { threadId: THREAD })
       expect(
         reopened.snapshot().pendingInterrupts.map((item) => item.id),
       ).toEqual([client.id])
@@ -787,7 +790,7 @@ describe.each([false, true])(
         tools: [remove.tool],
       })
       const host = createHarnessHost({ persistence })
-      const session = await host.open({ harness: config, threadId: THREAD })
+      const session = await host.open(config, { threadId: THREAD })
       const initial = await session.send('remove')
       const approval = initial.interrupts?.[0]
       if (!approval) throw new Error('The turn did not stop for approval.')

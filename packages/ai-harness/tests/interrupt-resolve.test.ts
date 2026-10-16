@@ -52,14 +52,16 @@ describe.each([
       () => text('Opened it.'),
     ])
     const host = createHarnessHost({ persistence: persistenceFor(durable) })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/bad-resume',
         adapter,
         tools: [openScreen],
       }),
-      threadId: 't1',
-    })
+      {
+        threadId: 't1',
+      },
+    )
     const turn = await session.send('Open settings.')
     const interruptId = turn.interrupts?.[0]?.id
     if (!interruptId) throw new Error('The turn did not stop for the tool.')
@@ -107,7 +109,7 @@ describe.each([
         adapter: mockAdapter(replies).adapter,
         tools: [probe],
       })
-      return { host, session: host.open({ harness, threadId: 't1' }) }
+      return { host, session: host.open(harness, { threadId: 't1' }) }
     }
 
     const first = open([() => toolCall('probe', {})])
@@ -140,10 +142,12 @@ describe.each([
     }).server(async () => ({ ok: true }))
     const { adapter } = mockAdapter([() => toolCall('deploy', { env: 'prod' })])
     const host = createHarnessHost({ persistence: persistenceFor(durable) })
-    const session = await host.open({
-      harness: defineHarness({ name: 'test/waits', adapter, tools: [deploy] }),
-      threadId: 't1',
-    })
+    const session = await host.open(
+      defineHarness({ name: 'test/waits', adapter, tools: [deploy] }),
+      {
+        threadId: 't1',
+      },
+    )
     const turn = await session.send('Deploy.')
     expect(turn.interrupts).toHaveLength(1)
 
@@ -170,14 +174,16 @@ describe.each([
       fails,
     ])
     const host = createHarnessHost({ persistence: persistenceFor(durable) })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/late-failure',
         adapter,
         tools: [deploy],
       }),
-      threadId: 't1',
-    })
+      {
+        threadId: 't1',
+      },
+    )
     const turn = await session.send('Deploy.')
     const interruptId = turn.interrupts?.[0]?.id
     if (!interruptId) throw new Error('The turn did not stop for approval.')
@@ -218,7 +224,7 @@ describe.each([
     })
     const persistence = persistenceFor(durable)
     const first = createHarnessHost({ persistence })
-    const session = await first.open({ harness, threadId: 't1' })
+    const session = await first.open(harness, { threadId: 't1' })
     const turn = await session.send('Deploy.')
     const interruptId = turn.interrupts?.[0]?.id
     if (!interruptId) throw new Error('The turn did not stop for approval.')
@@ -233,7 +239,7 @@ describe.each([
 
     // A new host on the same storage, like a restart.
     const second = createHarnessHost({ persistence })
-    const reopened = await second.open({ harness, threadId: 't1' })
+    const reopened = await second.open(harness, { threadId: 't1' })
     expect(reopened.snapshot().pendingInterrupts).toEqual([])
     expect(
       await reopened.resolve({
@@ -273,15 +279,17 @@ describe.each([
       () => text('Deployed.'),
     ])
     const host = createHarnessHost({ persistence: persistenceFor(durable) })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/resolve-on-finished',
         adapter,
         tools: [deploy],
         plugins: () => [slowCleanup],
       }),
-      threadId: 't1',
-    })
+      {
+        threadId: 't1',
+      },
+    )
 
     const turn = session.send('Deploy.')
     let interruptId = ''
@@ -356,15 +364,17 @@ describe('a resolve and a waiting steer', () => {
       () => text('Steered.'),
     ])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/resolve-before-steer',
         adapter,
         tools: [deploy],
         plugins: () => [slowCleanup],
       }),
-      threadId: 't1',
-    })
+      {
+        threadId: 't1',
+      },
+    )
 
     const turn = session.send('Deploy.')
     await vi.waitFor(() => expect(calls).toHaveLength(1))
@@ -401,10 +411,12 @@ describe("prompt({ busy: 'steer' })", () => {
       () => text('Second.'),
     ])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open({
-      harness: defineHarness({ name: 'test/steer-receipt', adapter }),
-      threadId: 't1',
-    })
+    const session = await host.open(
+      defineHarness({ name: 'test/steer-receipt', adapter }),
+      {
+        threadId: 't1',
+      },
+    )
 
     const turn = session.send('Start.')
     await vi.waitFor(() => expect(calls).toHaveLength(1))

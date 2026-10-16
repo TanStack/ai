@@ -12,22 +12,19 @@ import type { HarnessHost } from './host'
  * defineHarness({
  *   name: 'acme/lead',
  *   adapter,
- *   subagents: { agents: [harnessAgent({ harness: reviewer })] },
+ *   subagents: { agents: [harnessAgent(reviewer)] },
  * })
  * ```
  */
-export function harnessAgent({
-  harness,
-  host,
-  name,
-  description,
-}: {
-  harness: AnyHarness
-  host?: HarnessHost
-  name?: string
-  description?: string
-}) {
-  const adapter = harnessText({ harness, ...(host ? { host } : {}) })
+export function harnessAgent(
+  harness: AnyHarness,
+  {
+    host,
+    name,
+    description,
+  }: { host?: HarnessHost; name?: string; description?: string } = {},
+) {
+  const adapter = harnessText(harness, host ? { host } : {})
   return defineAgent({
     // Tool names allow letters, digits, `_`, and `-`.
     name: name ?? harness.name.replace(/[^a-zA-Z0-9_-]/g, '_'),

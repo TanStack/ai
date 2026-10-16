@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { defineAgent } from '@tanstack/ai'
+import { chat, defineAgent } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness, harnessOf } from '../src'
+import { createHarnessHost, defineHarness } from '../src'
 import { after, gate, mockAdapter } from './helpers'
 import type { Reply } from './helpers'
 
@@ -9,10 +9,12 @@ import type { Reply } from './helpers'
 async function open(replies: Array<Reply> = []) {
   const { adapter } = mockAdapter(replies)
   const host = createHarnessHost({ persistence: memoryPersistence() })
-  const session = await host.open({
-    harness: defineHarness({ name: 'test/session-surface', adapter }),
-    threadId: 't1',
-  })
+  const session = await host.open(
+    defineHarness({ name: 'test/session-surface', adapter }),
+    {
+      threadId: 't1',
+    },
+  )
   return { host, session }
 }
 
@@ -93,23 +95,38 @@ describe('the HarnessSession type', () => {
   })
 })
 
-describe('harnessOf', () => {
-  it('throws a TypeError that names harnessOf outside a harness run', () => {
-    const outside = () => harnessOf({})
-
-    expect(outside).toThrow(TypeError)
-    expect(outside).toThrow(/^harnessOf: /)
-  })
-
-  it('types ctx.harness as possibly undefined in agent code', () => {
-    // A type pin: this agent never runs.
-    defineAgent({
-      name: 'pin',
-      description: 'Reads ctx.harness without harnessOf',
+describe('ctx.harness in a run that a plain chat() starts', () => {
+  it('runs step.do each time, and agents.start throws the clear error', async () => {
+    const seen: { steps: Array<number>; startError?: unknown } = { steps: [] }
+    const probe = defineAgent({
+      name: 'probe',
+      description: 'Uses ctx.harness with no harness session',
       run: async (ctx) => {
-        // @ts-expect-error a plain chat() run has no ctx.harness.
-        await ctx.harness.step.do('step', async () => 1)
+        // No `?` and no @ts-expect-error: `ctx.harness` is always there.
+        seen.steps.push(await ctx.harness.step.do('count', () => 1))
+        seen.steps.push(await ctx.harness.step.do('count', () => 2))
+        try {
+          ctx.harness.agents.start('helper')
+        } catch (error) {
+          seen.startError = error
+        }
+        return 'done'
       },
     })
+
+    for await (const _chunk of chat({
+      adapter: mockAdapter([]).adapter,
+      messages: [{ role: 'user', content: 'Go' }],
+      subagents: { agents: [probe], router: () => 'probe' },
+    })) {
+      // drain
+    }
+
+    expect(seen.steps).toEqual([1, 2])
+    expect(seen.startError).toEqual(
+      new Error(
+        'ctx.harness.agents needs a run that a harness session started.',
+      ),
+    )
   })
 })

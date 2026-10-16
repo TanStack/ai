@@ -15,14 +15,16 @@ async function openWithApi(adapter: AnyTextAdapter) {
     },
   })
   const host = createHarnessHost({ persistence: memoryPersistence() })
-  const session = await host.open({
-    harness: defineHarness({
+  const session = await host.open(
+    defineHarness({
       name: 'test/plugin-apis',
       adapter,
       plugins: () => [probe],
     }),
-    threadId: 't',
-  })
+    {
+      threadId: 't',
+    },
+  )
   const api = apis[0]
   if (!api) throw new Error('The probe plugin was not set up.')
   return { host, session, api }
@@ -82,14 +84,16 @@ describe('prepareTools', () => {
       }),
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/model',
         adapter,
         plugins: () => [plugin],
       }),
-      threadId: 't',
-    })
+      {
+        threadId: 't',
+      },
+    )
 
     await session.send('go')
     expect(models).toEqual(['picked-model'])

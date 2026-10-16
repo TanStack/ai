@@ -261,10 +261,10 @@ describe('oauthConnector edges', () => {
       plugins: () => [connector(fake, seen)],
     })
     await (
-      await host.open({ harness, threadId: 't1', principal: { id: 'u1' } })
+      await host.open(harness, { threadId: 't1', principal: { id: 'u1' } })
     ).send('who')
     await (
-      await host.open({ harness, threadId: 't2', principal: { id: 'u2' } })
+      await host.open(harness, { threadId: 't2', principal: { id: 'u2' } })
     ).send('who')
     expect(seen).toEqual(['fresh', 'key-1'])
     expect(
@@ -281,14 +281,16 @@ describe('oauthConnector edges', () => {
     const credentials = memoryCredentialStore()
     const { fake } = replies([{ access_token: 'loop-token' }])
     const host = createHarnessHost({ persistence, credentials })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/loopback-connector',
         adapter: mockAdapter([]).adapter,
         plugins: () => [connector(fake, [])],
       }),
-      threadId: 't',
-    })
+      {
+        threadId: 't',
+      },
+    )
     const controller = new AbortController()
     const signIn = (async () => {
       for await (const entry of session.events({ signal: controller.signal })) {

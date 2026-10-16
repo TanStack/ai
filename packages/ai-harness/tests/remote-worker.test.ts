@@ -144,12 +144,14 @@ describe('runHarnessWorker edges', () => {
     const { adapter } = mockAdapter([() => text('worker answer')])
     const input = new PassThrough()
     const frames: Array<any> = []
-    const running = runHarnessWorker({
-      harness: defineHarness({ name: 'test/worker-edges', adapter }),
-      input,
-      output: { write: (line: string) => frames.push(JSON.parse(line)) },
-      persistence: memoryPersistence(),
-    })
+    const running = runHarnessWorker(
+      defineHarness({ name: 'test/worker-edges', adapter }),
+      {
+        input,
+        output: { write: (line: string) => frames.push(JSON.parse(line)) },
+        persistence: memoryPersistence(),
+      },
+    )
     const send = (frame: unknown) =>
       input.write(
         `${typeof frame === 'string' ? frame : JSON.stringify(frame)}\n`,

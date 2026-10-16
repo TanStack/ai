@@ -85,7 +85,7 @@ Bob sends his message while the turn of Ada runs. His message waits. Then it run
 On the server, give the sender to `send` yourself. `resolve` and `command` take `principal` too. Without it, the message runs as the person who opened the session:
 
 ```ts group=harness-shared-threads
-const session = await host.open({ harness: assistant, threadId: 'team-thread' })
+const session = await host.open(assistant, { threadId: 'team-thread' })
 const ada = { id: 'ada', tenantId: 'acme' }
 
 session.send('Summarize the open issues.', { principal: ada })

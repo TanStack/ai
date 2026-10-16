@@ -44,14 +44,16 @@ const counter = definePlugin({
 async function open(persistence = memoryPersistence()) {
   const { adapter } = mockAdapter([() => text('hello back')])
   const host = createHarnessHost({ persistence })
-  const session = await host.open({
-    harness: defineHarness({
+  const session = await host.open(
+    defineHarness({
       name: 'test/reads',
       adapter,
       plugins: () => [counter],
     }),
-    threadId: 't',
-  })
+    {
+      threadId: 't',
+    },
+  )
   return { host, session }
 }
 

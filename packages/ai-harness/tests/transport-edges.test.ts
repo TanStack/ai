@@ -433,7 +433,7 @@ describe('protocol parsing and inputs', () => {
       () => text('queued answer'),
       () => text('follow-up answer'),
     ])
-    const session = await host.open({ harness, threadId: 'user-1-apply' })
+    const session = await host.open(harness, { threadId: 'user-1-apply' })
 
     const first = await applyInput({
       harness,
@@ -640,7 +640,7 @@ describe('createHarnessClient edges', () => {
 describe('an operation that waits for cancel', () => {
   it('cancels through a control input', async () => {
     const { host, harness } = setup([untilAborted()])
-    const session = await host.open({ harness, threadId: 'user-1-cancel' })
+    const session = await host.open(harness, { threadId: 'user-1-cancel' })
     const operation = session.send('wait')
     await vi.waitFor(() => expect(session.snapshot().status).toBe('running'))
     await applyInput({

@@ -40,7 +40,7 @@ const dashboard = defineHarness({
 })
 
 const host = createHarnessHost({ persistence: memoryPersistence() })
-const session = await host.open({ harness: dashboard, threadId: 'ops-thread' })
+const session = await host.open(dashboard, { threadId: 'ops-thread' })
 
 // From a cron job, every hour:
 const run = session.tool({ name: 'fetchStats', args: { window: '1h' } })

@@ -33,7 +33,7 @@ async function openLead(
     adapter: lead,
     subagents: { agents: [writer] },
   })
-  const session = await host.open({ harness, threadId: 't' })
+  const session = await host.open(harness, { threadId: 't' })
   return { host, session, harness }
 }
 
@@ -185,7 +185,7 @@ describe('subagent children of a harness session', () => {
     await session.send('Notes, please')
     const id = childIdIn(lead.calls[1], 'call-1')
     // A fork copies the agent result, but the child stays a child of `t`.
-    const fork = await host.fork({ harness, threadId: 't', newThreadId: 'f' })
+    const fork = await host.fork(harness, { threadId: 't', newThreadId: 'f' })
 
     const transcript = await session.agentTranscript(id)
     expect(
@@ -195,13 +195,15 @@ describe('subagent children of a harness session', () => {
       ['assistant', 'Note 1'],
     ])
     expect(await session.agentTranscript('unknown')).toEqual([])
-    const other = await host.open({
-      harness: defineHarness({
+    const other = await host.open(
+      defineHarness({
         name: 'test/subagent-children',
         adapter: lead.adapter,
       }),
-      threadId: 'u',
-    })
+      {
+        threadId: 'u',
+      },
+    )
     expect(await other.agentTranscript(id)).toEqual([])
     expect(await fork.agentTranscript(id)).toEqual([])
     await host.close()

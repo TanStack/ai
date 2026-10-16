@@ -42,7 +42,7 @@ describe.each([
     const persistence = persistenceFor(durable)
     const host = createHarnessHost({ persistence })
     const harness = defineHarness({ name: 'test/reset', adapter, ...extra })
-    const session = await host.open({ harness, threadId: 't1' })
+    const session = await host.open(harness, { threadId: 't1' })
     return { session, calls, host, harness, persistence }
   }
 
@@ -258,10 +258,12 @@ describe('reset on a durable host', () => {
     const persistence = persistenceFor(true)
     const first = mockAdapter([() => text('One.')])
     const hostA = createHarnessHost({ persistence })
-    const sessionA = await hostA.open({
-      harness: defineHarness({ name: 'test/reset', adapter: first.adapter }),
-      threadId: 't1',
-    })
+    const sessionA = await hostA.open(
+      defineHarness({ name: 'test/reset', adapter: first.adapter }),
+      {
+        threadId: 't1',
+      },
+    )
     await sessionA.send('First.')
     await sessionA.reset({ note: 'Note.', inputId: 'r1' })
     await sessionA.settled('r1')
@@ -269,10 +271,12 @@ describe('reset on a durable host', () => {
 
     const second = mockAdapter([() => text('Two.')])
     const hostB = createHarnessHost({ persistence })
-    const sessionB = await hostB.open({
-      harness: defineHarness({ name: 'test/reset', adapter: second.adapter }),
-      threadId: 't1',
-    })
+    const sessionB = await hostB.open(
+      defineHarness({ name: 'test/reset', adapter: second.adapter }),
+      {
+        threadId: 't1',
+      },
+    )
     await sessionB.send('Second.')
     expect(messageTexts(second.calls[0])).toEqual(['Note.', 'Second.'])
     expect(contents(await sessionB.transcript())).toEqual([
@@ -304,10 +308,12 @@ describe('reset on a durable host', () => {
     })
     const { adapter, calls } = mockAdapter([() => text('Two.')])
     const host = createHarnessHost({ persistence })
-    const session = await host.open({
-      harness: defineHarness({ name: 'test/reset', adapter }),
-      threadId: 't1',
-    })
+    const session = await host.open(
+      defineHarness({ name: 'test/reset', adapter }),
+      {
+        threadId: 't1',
+      },
+    )
     expect(await session.settled('r1')).toMatchObject({ outcome: 'completed' })
     await session.send('Second.')
     expect(messageTexts(calls[0])).toEqual(['Note.', 'Second.'])

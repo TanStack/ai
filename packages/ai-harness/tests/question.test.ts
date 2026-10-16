@@ -34,14 +34,16 @@ async function open(questions: Array<object>) {
     () => text('done'),
   ])
   const host = createHarnessHost({ persistence: memoryPersistence() })
-  const session = await host.open({
-    harness: defineHarness({
+  const session = await host.open(
+    defineHarness({
       name: 'test/question',
       adapter,
       plugins: () => [question()],
     }),
-    threadId: 't',
-  })
+    {
+      threadId: 't',
+    },
+  )
   const turn = session.send('ask me')
   return { host, session, calls, turn }
 }
@@ -147,14 +149,16 @@ describe('ask with a url', () => {
       }),
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/url-question',
         adapter: mockAdapter([]).adapter,
         plugins: () => [asker],
       }),
-      threadId: 't',
-    })
+      {
+        threadId: 't',
+      },
+    )
     const running = session.command({ name: 'verify' })
 
     await vi.waitFor(() =>

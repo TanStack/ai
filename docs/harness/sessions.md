@@ -35,8 +35,7 @@ export const assistant = defineHarness({
 
 const host = createHarnessHost({ persistence: memoryPersistence() })
 
-const session = await host.open({
-  harness: assistant,
+const session = await host.open(assistant, {
   threadId: 'chat-1',
   principal: { id: 'ada' },
 })
@@ -116,7 +115,7 @@ const forked = await host.sessions.fork({
   threadId: 'chat-1',
   at: { before: first.id },
 })
-const fork = await host.open({ harness: assistant, threadId: forked.threadId })
+const fork = await host.open(assistant, { threadId: forked.threadId })
 await fork.send('Plan a trip to Porto.')
 ```
 

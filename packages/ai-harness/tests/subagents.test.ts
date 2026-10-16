@@ -21,7 +21,7 @@ describe('a harness as a child agent', () => {
       adapter: inner.adapter,
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const child = harnessAgent({ harness: reviewer, host })
+    const child = harnessAgent(reviewer, { host })
     expect(child.name).toBe('acme_reviewer')
     expect(child.description).toBe('Reviews code')
 
@@ -34,7 +34,7 @@ describe('a harness as a child agent', () => {
       adapter: outer.adapter,
       subagents: { agents: [child] },
     })
-    const session = await host.open({ harness: lead, threadId: 't' })
+    const session = await host.open(lead, { threadId: 't' })
     const turn = await session.send('review my change')
     expect(turn.text).toBe('The reviewer approved.')
     expect(JSON.stringify(outer.calls[1].messages)).toContain(
@@ -112,15 +112,17 @@ describe('ctx.agents in plugins', () => {
     })
     const { adapter } = mockAdapter([])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/orchestrate',
         adapter,
         agents: [echo, failing, slow],
         plugins: () => [orchestrator],
       }),
-      threadId: 't',
-    })
+      {
+        threadId: 't',
+      },
+    )
 
     expect(await session.command({ name: 'one' })).toBe('HI')
     expect(await session.command({ name: 'both' })).toEqual(['A', 'B'])
@@ -147,14 +149,16 @@ describe('default limits', () => {
       () => text('stopped'),
     ])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/limits',
         adapter: outer.adapter,
         subagents: { agents: [worker], limits: { maxCalls: 1 } },
       }),
-      threadId: 't',
-    })
+      {
+        threadId: 't',
+      },
+    )
     await session.send('work twice')
     expect(run).toHaveBeenCalledTimes(1)
     expect(JSON.stringify(outer.calls[2].messages)).toContain(

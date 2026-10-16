@@ -52,15 +52,17 @@ async function openDurable(
 ) {
   const { adapter, calls } = mockAdapter(replies)
   const host = createHarnessHost({ persistence })
-  const session = await host.open({
-    harness: defineHarness({
+  const session = await host.open(
+    defineHarness({
       name: 'test/joins',
       adapter,
       tools,
       ...(turn ? { turn } : {}),
     }),
-    threadId: THREAD,
-  })
+    {
+      threadId: THREAD,
+    },
+  )
   return { host, session, calls }
 }
 
@@ -338,15 +340,17 @@ describe('the join rule', () => {
       () => text('later answer'),
     ])
     const host = createHarnessHost({ persistence })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/joins',
         adapter,
         tools: [wait.tool],
         turn: { canJoin: ({ message }) => message !== 'later' },
       }),
-      threadId: THREAD,
-    })
+      {
+        threadId: THREAD,
+      },
+    )
 
     const turn = session.send('start', { inputId: 'host' })
     await wait.started.opened
@@ -369,8 +373,8 @@ describe('the join rule', () => {
       () => text('done'),
     ])
     const host = createHarnessHost({ persistence })
-    const session = await host.open({
-      harness: defineHarness({
+    const session = await host.open(
+      defineHarness({
         name: 'test/joins',
         adapter,
         tools: [wait.tool],
@@ -383,8 +387,10 @@ describe('the join rule', () => {
           }),
         },
       }),
-      threadId: THREAD,
-    })
+      {
+        threadId: THREAD,
+      },
+    )
 
     const turn = session.send('start', { inputId: 'host' })
     await wait.started.opened
