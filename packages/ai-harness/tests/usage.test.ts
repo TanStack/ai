@@ -221,7 +221,7 @@ describe('usage totals after a restart', () => {
     const before = session.usage()
     await host.close()
 
-    const records = (await log.read(THREAD)).filter(
+    const records = (await log.read({ logId: THREAD })).filter(
       (entry) => entry.record.type === 'harness.usage',
     )
     expect(records).toHaveLength(2)

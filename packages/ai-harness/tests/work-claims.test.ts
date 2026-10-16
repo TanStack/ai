@@ -1,11 +1,22 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
-import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
+import {
+  UNOWNED_EPOCH,
+  memoryLogStore,
+  memoryPersistence,
+} from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin } from '../src'
-import { after, gate, mockAdapter, text, toolCall } from './helpers'
+import {
+  after,
+  gate,
+  mockAdapter,
+  text,
+  toolCall,
+  wrapLogStore,
+} from './helpers'
 import type { StreamChunk } from '@tanstack/ai'
-import type { LogStore, WorkClaimStore } from '@tanstack/ai-persistence'
+import type { WorkClaimStore } from '@tanstack/ai-persistence'
 import type { Reply } from './helpers'
 
 const THREAD = 't1'
@@ -236,8 +247,9 @@ async function seedStoppedTurn(
   persistence: ReturnType<typeof durablePersistence>,
 ) {
   await persistence.stores.log.append({
-    threadId: THREAD,
+    logId: THREAD,
     seq: 1,
+    epoch: UNOWNED_EPOCH,
     records: [
       {
         type: 'harness.input',
@@ -276,7 +288,7 @@ const settledRecord = async (
   persistence: ReturnType<typeof durablePersistence>,
   inputId: string,
 ) =>
-  (await persistence.stores.log.read(THREAD))
+  (await persistence.stores.log.read({ logId: THREAD }))
     .map((entry) => entry.record)
     .find(
       (record) =>
@@ -288,8 +300,9 @@ async function seedStoppedAgent(
   persistence: ReturnType<typeof durablePersistence>,
 ) {
   await persistence.stores.log.append({
-    threadId: THREAD,
+    logId: THREAD,
     seq: 1,
+    epoch: UNOWNED_EPOCH,
     records: [
       {
         type: 'harness.input',
@@ -319,17 +332,14 @@ async function seedStoppedAgent(
 }
 
 /** A log store whose writes take about 30 ms. */
-function slowLogStore(): LogStore {
+function slowLogStore() {
   const log = memoryLogStore()
-  return {
-    append: async ({ threadId, seq, records }) => {
+  return wrapLogStore(log, {
+    append: async (batch) => {
       await new Promise((resolve) => setTimeout(resolve, 30))
-      return log.append({ threadId, seq, records })
+      return log.append(batch)
     },
-    read: (threadId, options) => log.read(threadId, options),
-    subscribe: ({ threadId, listener }) =>
-      log.subscribe({ threadId, listener }),
-  }
+  })
 }
 
 describe('host.resumePending', () => {
@@ -361,8 +371,9 @@ describe('host.resumePending', () => {
   it('runs an input that was stored just before the host stopped', async () => {
     const persistence = durablePersistence()
     await persistence.stores.log.append({
-      threadId: THREAD,
+      logId: THREAD,
       seq: 1,
+      epoch: UNOWNED_EPOCH,
       records: [
         {
           type: 'harness.input',
@@ -458,8 +469,9 @@ describe('host.resumePending', () => {
   it('continues a resumable background agent whose host stopped', async () => {
     const persistence = durablePersistence()
     await persistence.stores.log.append({
-      threadId: THREAD,
+      logId: THREAD,
       seq: 1,
+      epoch: UNOWNED_EPOCH,
       records: [
         {
           type: 'harness.input',

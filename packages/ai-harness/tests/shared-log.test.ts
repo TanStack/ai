@@ -1,7 +1,18 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
-import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
+import {
+  UNOWNED_EPOCH,
+  memoryLogStore,
+  memoryPersistence,
+} from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, logMessageStore } from '../src'
-import { gate, messageTexts, mockAdapter, text, untilAborted } from './helpers'
+import {
+  gate,
+  messageTexts,
+  mockAdapter,
+  text,
+  untilAborted,
+  wrapLogStore,
+} from './helpers'
 import type { LogRecord, LogStore } from '@tanstack/ai-persistence'
 import type { HarnessHost, ReduceOptions } from '../src'
 import type { Reply } from './helpers'
@@ -90,20 +101,15 @@ describe('sessions that share one log', () => {
       'child answer',
       'second child question',
     ])
-    expect(await persistence.stores.log.read('task-1')).toEqual([])
+    expect(await persistence.stores.log.read({ logId: 'task-1' })).toEqual([])
     await host.close().catch(() => {})
     await next.close()
   })
 
   it('lands a child record and a parent record in one append, or neither', async () => {
     const inner = memoryLogStore()
-    const log: LogStore = {
-      append: ({ threadId: logId, seq, records }) =>
-        inner.append({ threadId: logId, seq, records }),
-      read: (logId, options) => inner.read(logId, options),
-      subscribe: ({ threadId: logId, listener }) =>
-        inner.subscribe({ threadId: logId, listener }),
-    }
+    // A plain object, so the test can swap `append` below.
+    const log = wrapLogStore(inner, {})
     const persistence = durablePersistence(log)
     const host = hostFor(persistence)
     const root = await host.open(harnessWith([]).harness, { threadId: LOG })
@@ -114,7 +120,7 @@ describe('sessions that share one log', () => {
 
     await root.append(pair)
     const types = async () =>
-      (await inner.read(LOG)).map((entry) => entry.record.type)
+      (await inner.read({ logId: LOG })).map((entry) => entry.record.type)
     expect(await types()).toEqual(['app.child_created', 'app.child_linked'])
 
     // The writer tries twice, so both tries fail.
@@ -194,10 +200,11 @@ describe('sessions that share one log', () => {
     await root.append([{ type: 'app.signal' }])
 
     // Another writer takes the next position of the log.
-    const written = await persistence.stores.log.read(LOG)
+    const written = await persistence.stores.log.read({ logId: LOG })
     await persistence.stores.log.append({
-      threadId: LOG,
+      logId: LOG,
       seq: written.length + 1,
+      epoch: UNOWNED_EPOCH,
       records: [{ type: 'app.other' }],
     })
 

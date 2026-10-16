@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { defineAgent, toolDefinition } from '@tanstack/ai'
-import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
+import {
+  UNOWNED_EPOCH,
+  memoryLogStore,
+  memoryPersistence,
+} from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
 import {
   after,
@@ -11,9 +15,9 @@ import {
   text,
   toolCall,
   untilAborted,
+  wrapLogStore,
 } from './helpers'
 import type { AnyTextAdapter } from '@tanstack/ai'
-import type { LogStore } from '@tanstack/ai-persistence'
 import type { AnyHarness, HarnessSession, Operation } from '../src'
 
 const THREAD = 't1'
@@ -188,11 +192,7 @@ describe('follow-ups to an agent run', () => {
   it('cancels a queued follow-up when a log failure stops the session', async () => {
     const inner = memoryLogStore()
     // This host does not see the other writer, like one in another process.
-    const log: LogStore = {
-      append: (batch) => inner.append(batch),
-      read: (threadId, options) => inner.read(threadId, options),
-      subscribe: () => () => {},
-    }
+    const log = wrapLogStore(inner, { subscribe: () => () => {} })
     const { runs, metadata } = memoryPersistence().stores
     const model = mockAdapter([untilAborted(), () => text('Draft two.')])
     const host = createHarnessHost({
@@ -206,10 +206,11 @@ describe('follow-ups to an agent run', () => {
     await vi.waitFor(() => expect(model.calls).toHaveLength(1))
     const receipt = await run.send('Add a title.', { mode: 'followUp' })
     const followUp = session.operation(receipt.operationId ?? '')
-    const [last] = (await inner.read(THREAD)).slice(-1)
+    const [last] = (await inner.read({ logId: THREAD })).slice(-1)
     await inner.append({
-      threadId: THREAD,
+      logId: THREAD,
       seq: (last?.seq ?? 0) + 1,
+      epoch: UNOWNED_EPOCH,
       records: [{ type: 'app.from-another-host' }],
     })
 

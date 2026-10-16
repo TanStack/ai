@@ -12,12 +12,12 @@ import {
   text,
   toolCall,
   untilAborted,
+  wrapLogStore,
 } from './helpers'
 import type { AnyTool, StreamChunk } from '@tanstack/ai'
 import { EventType } from '@tanstack/ai'
 import type {
   LeaseStore,
-  LogStore,
   TurnLease,
   TurnLeaseKey,
 } from '@tanstack/ai-persistence'
@@ -332,7 +332,7 @@ describe('a durable host with a lease store and no run store', () => {
     await mailStarted.opened
     await vi.waitFor(async () =>
       expect(
-        (await persistence.stores.log.read(THREAD)).filter(
+        (await persistence.stores.log.read({ logId: THREAD })).filter(
           (entry) => entry.record.type === 'harness.tool.result',
         ),
       ).toHaveLength(1),
@@ -446,7 +446,9 @@ describe('close({ recoverable: true })', () => {
   }
 
   const logRecords = async (persistence: ReturnType<typeof durableStores>) =>
-    (await persistence.stores.log.read(THREAD)).map((entry) => entry.record)
+    (await persistence.stores.log.read({ logId: THREAD })).map(
+      (entry) => entry.record,
+    )
 
   it.each([true, false])(
     'runs a turn stopped in a model call again on the next host, with no settlement (lease store: %s)',
@@ -542,14 +544,12 @@ describe('close({ recoverable: true })', () => {
   it('keeps the text that a model call streamed before the close, for the next host', async () => {
     const log = memoryLogStore()
     // A store over the network: each append lands a little later.
-    const slow: LogStore = {
-      append: async (...args) => {
+    const slow = wrapLogStore(log, {
+      append: async (batch) => {
         await new Promise((resolve) => setTimeout(resolve, 20))
-        return log.append(...args)
+        return log.append(batch)
       },
-      read: (...args) => log.read(...args),
-      subscribe: (...args) => log.subscribe(...args),
-    }
+    })
     const persistence = { stores: { log: slow, leases: memoryLeases().store } }
     const streamed = gate()
     const first = await openCutOff(persistence, [
@@ -628,7 +628,7 @@ describe('durability.continueCutOff', () => {
     )
     await vi.waitFor(async () =>
       expect(
-        JSON.stringify(await persistence.stores.log.read(THREAD)),
+        JSON.stringify(await persistence.stores.log.read({ logId: THREAD })),
       ).toContain(streamed),
     )
     leases.expire()
@@ -671,7 +671,7 @@ describe('durability.continueCutOff', () => {
         ['assistant', '42.'],
       ])
       // One append, so the transcript never ends with the cut answer.
-      const added = (await persistence.stores.log.read(THREAD)).find(
+      const added = (await persistence.stores.log.read({ logId: THREAD })).find(
         (entry) =>
           entry.record.type === 'harness.transcript' &&
           JSON.stringify(entry.record).includes(note),
@@ -705,7 +705,7 @@ describe('durability.continueCutOff', () => {
       ['user', two],
     ]
     expect(roles(next.calls[0].messages)).toEqual([['user', 'go'], ...added])
-    const record = (await persistence.stores.log.read(THREAD)).find(
+    const record = (await persistence.stores.log.read({ logId: THREAD })).find(
       (entry) =>
         entry.record.type === 'harness.transcript' &&
         JSON.stringify(entry.record).includes(one),

@@ -200,7 +200,7 @@ describe.skipIf(!hasGit)('snapshots', () => {
 
     await session.send('Edit a.txt')
 
-    const entries = await log.read(THREAD, { after: 0 })
+    const entries = await log.read({ logId: THREAD, after: 0 })
     const records = entries
       .map((entry) => entry.record)
       .filter((record) => record.type === 'tanstack/snapshots:step')

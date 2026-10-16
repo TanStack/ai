@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import { EventType, toolDefinition } from '@tanstack/ai'
-import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
+import {
+  UNOWNED_EPOCH,
+  memoryLogStore,
+  memoryPersistence,
+} from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
 import {
   after,
@@ -9,9 +13,10 @@ import {
   mockAdapter,
   text,
   toolCall,
+  wrapLogStore,
 } from './helpers'
 import type { AnyTool, ModelMessage, StreamChunk } from '@tanstack/ai'
-import type { LogRecord, LogStore } from '@tanstack/ai-persistence'
+import type { LogRecord } from '@tanstack/ai-persistence'
 import type { HarnessTurnOptions } from '../src'
 import type { Reply } from './helpers'
 
@@ -26,16 +31,13 @@ function durablePersistence(
 ) {
   const inner = memoryLogStore()
   const batches: Array<Array<string>> = []
-  const log: LogStore = {
-    append: async ({ threadId, seq, records }) => {
-      await before?.(records)
-      await inner.append({ threadId, seq, records })
-      batches.push(records.map((record) => record.type))
+  const log = wrapLogStore(inner, {
+    append: async (batch) => {
+      await before?.(batch.records)
+      await inner.append(batch)
+      batches.push(batch.records.map((record) => record.type))
     },
-    read: (threadId, options) => inner.read(threadId, options),
-    subscribe: ({ threadId, listener }) =>
-      inner.subscribe({ threadId, listener }),
-  }
+  })
   const { runs, metadata } = memoryPersistence().stores
   return { persistence: { stores: { log, runs, metadata } }, batches, inner }
 }
@@ -112,7 +114,12 @@ async function seedStoppedTurn(
         ]
       : []),
   ]
-  await persistence.stores.log.append({ threadId: THREAD, seq: 1, records })
+  await persistence.stores.log.append({
+    logId: THREAD,
+    seq: 1,
+    epoch: UNOWNED_EPOCH,
+    records,
+  })
   await persistence.stores.runs.createOrResume({
     runId: 'op-stopped',
     threadId: THREAD,
@@ -415,7 +422,9 @@ describe('the join rule', () => {
     // It did not join, so it ends with the session that stopped.
     await expect(join).rejects.toThrow('Session closed.')
 
-    const types = (await inner.read(THREAD)).map((entry) => entry.record.type)
+    const types = (await inner.read({ logId: THREAD })).map(
+      (entry) => entry.record.type,
+    )
     expect(types).not.toContain('harness.input.joined')
     expect(types).not.toContain('app.start_hook')
     await host.close().catch(() => {})
@@ -501,7 +510,9 @@ describe('the join rule', () => {
 
     await turn
     expect(messageTexts(calls[1]).slice(-2)).toEqual(['more', 'only now'])
-    expect(JSON.stringify(await inner.read(THREAD))).not.toContain('only now')
+    expect(JSON.stringify(await inner.read({ logId: THREAD }))).not.toContain(
+      'only now',
+    )
     await host.close()
   })
 
@@ -539,7 +550,7 @@ describe('the join rule', () => {
       outcome: 'completed',
       operationId: turn.id,
     })
-    const types = (await inner.read(THREAD))
+    const types = (await inner.read({ logId: THREAD }))
       .map((entry) => entry.record)
       .filter((record) => record.inputId === 's1')
       .map((record) => record.type)

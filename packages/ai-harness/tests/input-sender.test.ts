@@ -2,7 +2,11 @@ import { memoryCredentialStore } from '@tanstack/ai/byok/server'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { defineAgent, keyedAdapter, toolDefinition } from '@tanstack/ai'
-import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
+import {
+  UNOWNED_EPOCH,
+  memoryLogStore,
+  memoryPersistence,
+} from '@tanstack/ai-persistence'
 import {
   createHarnessHost,
   defineCommand,
@@ -83,7 +87,7 @@ describe('the sender of each input', () => {
     await session.send('And now?', { inputId: 'in-default' })
 
     expect(seen.map((entry) => entry.principal)).toEqual(['bob', 'alice'])
-    const inputs = (await persistence.stores.log.read(THREAD))
+    const inputs = (await persistence.stores.log.read({ logId: THREAD }))
       .map((entry): LogRecord => entry.record)
       .filter((record) => record.type === 'harness.input')
       .map((record) => [record['inputId'], record['principal']])
@@ -453,8 +457,9 @@ describe('recovery keeps the sender and the context', () => {
   it('runs an input that never ran with its sender and context', async () => {
     const persistence = durablePersistence()
     await persistence.stores.log.append({
-      threadId: THREAD,
+      logId: THREAD,
       seq: 1,
+      epoch: UNOWNED_EPOCH,
       records: [
         {
           type: 'harness.input',
@@ -494,8 +499,9 @@ describe('recovery keeps the sender and the context', () => {
   it('runs a turn whose host stopped again with its message, sender, and context', async () => {
     const persistence = durablePersistence()
     await persistence.stores.log.append({
-      threadId: THREAD,
+      logId: THREAD,
       seq: 1,
+      epoch: UNOWNED_EPOCH,
       records: [
         {
           type: 'harness.input',

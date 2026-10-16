@@ -5,6 +5,34 @@ import type {
   ModelMessage,
   StreamChunk,
 } from '@tanstack/ai'
+import type { LogStore } from '@tanstack/ai-persistence'
+
+/**
+ * A log store that calls `overrides` for the methods it has, and `inner` for
+ * every other method. The object lists each method of {@link LogStore}, so a
+ * new method on the interface is a compile error here.
+ */
+export function wrapLogStore(
+  inner: LogStore,
+  overrides: Partial<LogStore>,
+): LogStore {
+  return {
+    append: overrides.append ?? inner.append.bind(inner),
+    read: overrides.read ?? inner.read.bind(inner),
+    subscribe: overrides.subscribe ?? inner.subscribe.bind(inner),
+    acquire: overrides.acquire ?? inner.acquire.bind(inner),
+    renew: overrides.renew ?? inner.renew.bind(inner),
+    release: overrides.release ?? inner.release.bind(inner),
+    setAffinity: overrides.setAffinity ?? inner.setAffinity.bind(inner),
+    listOrphaned: overrides.listOrphaned ?? inner.listOrphaned.bind(inner),
+    offer: overrides.offer ?? inner.offer.bind(inner),
+    offered: overrides.offered ?? inner.offered.bind(inner),
+    getSnapshot: overrides.getSnapshot ?? inner.getSnapshot.bind(inner),
+    putSnapshot: overrides.putSnapshot ?? inner.putSnapshot.bind(inner),
+    truncate: overrides.truncate ?? inner.truncate.bind(inner),
+    deleteLog: overrides.deleteLog ?? inner.deleteLog.bind(inner),
+  }
+}
 
 export type Reply = (
   options: any,

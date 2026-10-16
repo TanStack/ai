@@ -33,7 +33,7 @@ async function openDurable(
 
 /** The records of the log, of one type. */
 async function recordsOf(persistence: Durable, type: string) {
-  return (await persistence.stores.log.read(THREAD))
+  return (await persistence.stores.log.read({ logId: THREAD }))
     .map((entry) => entry.record)
     .filter((record) => record.type === type)
 }

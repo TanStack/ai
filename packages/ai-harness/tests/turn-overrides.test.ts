@@ -2,7 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { EventType, toolDefinition } from '@tanstack/ai'
 import { defineByokProvider, keyedAdapter } from '@tanstack/ai/byok'
-import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
+import {
+  UNOWNED_EPOCH,
+  memoryLogStore,
+  memoryPersistence,
+} from '@tanstack/ai-persistence'
 import {
   createHarnessHost,
   defineHarness,
@@ -104,7 +108,7 @@ const toolResult = (
 
 /** The records of the log, of one type. */
 async function recordsOf(persistence: Durable, type: string) {
-  return (await persistence.stores.log.read(THREAD))
+  return (await persistence.stores.log.read({ logId: THREAD }))
     .map((entry) => entry.record)
     .filter((record) => record.type === type)
 }
@@ -533,7 +537,7 @@ describe('ephemeral input', () => {
     expect(messageTexts(calls[0])).toEqual(['go', NOTE])
     expect(JSON.stringify(await session.transcript())).not.toContain(NOTE)
     expect(
-      JSON.stringify(await persistence.stores.log.read(THREAD)),
+      JSON.stringify(await persistence.stores.log.read({ logId: THREAD })),
     ).not.toContain(NOTE)
     await host.close()
   })
@@ -541,8 +545,9 @@ describe('ephemeral input', () => {
   it('gives the ephemeral messages of continue to the model, and no store keeps them', async () => {
     const persistence = durablePersistence()
     await persistence.stores.log.append({
-      threadId: THREAD,
+      logId: THREAD,
       seq: 1,
+      epoch: UNOWNED_EPOCH,
       records: [
         {
           type: 'harness.transcript',
@@ -565,7 +570,7 @@ describe('ephemeral input', () => {
     expect(messageTexts(calls[0])).toEqual(['go', NOTE])
     expect(JSON.stringify(await session.transcript())).not.toContain(NOTE)
     expect(
-      JSON.stringify(await persistence.stores.log.read(THREAD)),
+      JSON.stringify(await persistence.stores.log.read({ logId: THREAD })),
     ).not.toContain(NOTE)
     await host.close()
   })

@@ -88,7 +88,7 @@ async function stopDuringAgent(options: {
   refuse.mockRestore()
   await stores.runs.update(operation.id, { leaseExpiresAt: Date.now() - 1000 })
 
-  const record = (await log.read(THREAD))
+  const record = (await log.read({ logId: THREAD }))
     .map((entry) => entry.record)
     .find(
       (entry) =>
