@@ -9,10 +9,10 @@ import type { Reply } from './helpers'
 async function open(replies: Array<Reply> = []) {
   const { adapter } = mockAdapter(replies)
   const host = createHarnessHost({ persistence: memoryPersistence() })
-  const session = await host.open(
-    defineHarness({ name: 'test/session-surface', adapter }),
-    { threadId: 't1' },
-  )
+  const session = await host.open({
+    harness: defineHarness({ name: 'test/session-surface', adapter }),
+    threadId: 't1',
+  })
   return { host, session }
 }
 
@@ -72,7 +72,7 @@ describe('session.whenIdle', () => {
 })
 
 describe('the HarnessSession type', () => {
-  it('does not have the members that only the host calls', async () => {
+  it('does not have the members that only the host and the handler call', async () => {
     const { host, session } = await open()
 
     // @ts-expect-error `host.open` opens the session.
@@ -81,6 +81,14 @@ describe('the HarnessSession type', () => {
     void session.adoptFork
     // @ts-expect-error `session.whenIdle` is the public wait.
     void session.onIdle
+    // @ts-expect-error the handler resolves a `POST run` as its run id.
+    void session.resolveForRun
+    const answers: Parameters<typeof session.resolve>[0] = {
+      resume: [],
+      // @ts-expect-error `resolve` takes no run id.
+      runId: 'run-1',
+    }
+    void answers
     await host.close()
   })
 })

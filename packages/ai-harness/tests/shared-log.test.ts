@@ -72,8 +72,9 @@ describe('sessions that share one log', () => {
         })(),
     ])
     const childModel = harnessWith([() => text('child answer'), untilAborted()])
-    const root = await host.open(rootModel.harness, { threadId: LOG })
-    const child = await host.open(childModel.harness, {
+    const root = await host.open({ harness: rootModel.harness, threadId: LOG })
+    const child = await host.open({
+      harness: childModel.harness,
       threadId: 'task-1',
       logId: LOG,
     })
@@ -93,11 +94,13 @@ describe('sessions that share one log', () => {
     await expireLease(persistence, childTurn.id)
 
     const next = hostFor(persistence)
-    const rootAgain = await next.open(harnessWith([]).harness, {
+    const rootAgain = await next.open({
+      harness: harnessWith([]).harness,
       threadId: LOG,
     })
     const childNext = harnessWith([() => text('child recovered')])
-    const childAgain = await next.open(childNext.harness, {
+    const childAgain = await next.open({
+      harness: childNext.harness,
       threadId: 'task-1',
       logId: LOG,
     })
@@ -124,7 +127,10 @@ describe('sessions that share one log', () => {
     const log = wrapLogStore(inner, {})
     const persistence = durablePersistence(log)
     const host = hostFor(persistence)
-    const root = await host.open(harnessWith([]).harness, { threadId: LOG })
+    const root = await host.open({
+      harness: harnessWith([]).harness,
+      threadId: LOG,
+    })
     const pair: Array<LogRecord> = [
       { type: 'app.child_created', thread: 'task-1', task: 'research' },
       { type: 'app.child_linked', child: 'task-1' },
@@ -151,10 +157,14 @@ describe('sessions that share one log', () => {
     const host = hostFor(persistence)
     const tracked = harnessWith([]).harness
     const plain = plainHarness()
-    const root = await host.open(tracked, { threadId: LOG })
+    const root = await host.open({ harness: tracked, threadId: LOG })
     // The harness of the root opened the log first, so its reduce folds the
     // records of this child too.
-    const child = await host.open(plain, { threadId: 'task-1', logId: LOG })
+    const child = await host.open({
+      harness: plain,
+      threadId: 'task-1',
+      logId: LOG,
+    })
 
     await root.append([{ type: 'app.state_write', name: 'plan', value: 'a' }])
     await child.append([{ type: 'app.state_write', name: 'plan', value: 'b' }])
@@ -174,7 +184,7 @@ describe('sessions that share one log', () => {
     ).toEqualTypeOf<undefined>()
     await host.close()
     const next = hostFor(persistence)
-    await next.open(tracked, { threadId: 'task-1', logId: LOG })
+    await next.open({ harness: tracked, threadId: 'task-1', logId: LOG })
     expect(next.logState({ harness: tracked, logId: LOG })).toEqual({
       plan: 'b',
       done: true,
@@ -199,11 +209,8 @@ describe('sessions that share one log', () => {
         },
       },
     })
-    const root = await host.open(harness, { threadId: LOG })
-    const child = await host.open(harness, {
-      threadId: 'task-1',
-      logId: LOG,
-    })
+    const root = await host.open({ harness, threadId: LOG })
+    const child = await host.open({ harness, threadId: 'task-1', logId: LOG })
     await root.append([
       { type: 'app.signal', thread: 'task-1', text: 'for the child' },
       { type: 'app.signal', text: 'for the root' },
@@ -221,8 +228,12 @@ describe('sessions that share one log', () => {
   it('stops both sessions of the log when another host writes to it', async () => {
     const persistence = durablePersistence()
     const host = hostFor(persistence)
-    const root = await host.open(harnessWith([]).harness, { threadId: LOG })
-    const child = await host.open(harnessWith([]).harness, {
+    const root = await host.open({
+      harness: harnessWith([]).harness,
+      threadId: LOG,
+    })
+    const child = await host.open({
+      harness: harnessWith([]).harness,
       threadId: 'task-1',
       logId: LOG,
     })
@@ -247,12 +258,13 @@ describe('sessions that share one log', () => {
     // The host replaces a stopped session on the next open.
     await vi.waitFor(async () =>
       expect(
-        await host.open(harnessWith([]).harness, { threadId: LOG }),
+        await host.open({ harness: harnessWith([]).harness, threadId: LOG }),
       ).not.toBe(root),
     )
     await vi.waitFor(async () =>
       expect(
-        await host.open(harnessWith([]).harness, {
+        await host.open({
+          harness: harnessWith([]).harness,
           threadId: 'task-1',
           logId: LOG,
         }),
@@ -264,13 +276,12 @@ describe('sessions that share one log', () => {
   it('keeps the other session running when one closes', async () => {
     const persistence = durablePersistence()
     const host = hostFor(persistence)
-    const root = await host.open(
-      harnessWith([() => text('still here')]).harness,
-      {
-        threadId: LOG,
-      },
-    )
-    const child = await host.open(harnessWith([]).harness, {
+    const root = await host.open({
+      harness: harnessWith([() => text('still here')]).harness,
+      threadId: LOG,
+    })
+    const child = await host.open({
+      harness: harnessWith([]).harness,
       threadId: 'task-1',
       logId: LOG,
     })
@@ -287,13 +298,11 @@ describe('sessions that share one log', () => {
   it('reads one thread of a shared log with logMessageStore', async () => {
     const persistence = durablePersistence()
     const host = hostFor(persistence)
-    const child = await host.open(
-      harnessWith([() => text('child answer')]).harness,
-      {
-        threadId: 'task-1',
-        logId: LOG,
-      },
-    )
+    const child = await host.open({
+      harness: harnessWith([() => text('child answer')]).harness,
+      threadId: 'task-1',
+      logId: LOG,
+    })
     await child.send('child question')
 
     const messages = logMessageStore({
@@ -309,7 +318,10 @@ describe('sessions that share one log', () => {
 
   it('refuses a record whose thread field is not a string', async () => {
     const host = hostFor(durablePersistence())
-    const root = await host.open(harnessWith([]).harness, { threadId: LOG })
+    const root = await host.open({
+      harness: harnessWith([]).harness,
+      threadId: LOG,
+    })
 
     await expect(
       root.append([{ type: 'app.signal', thread: 7 }]),

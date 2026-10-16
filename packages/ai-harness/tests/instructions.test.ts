@@ -87,14 +87,14 @@ function okModel() {
 /** Open a session on `adapter` with `plugins`. */
 async function open(adapter: AnyTextAdapter, plugins: Array<HarnessPlugin>) {
   const host = createHarnessHost({ persistence: memoryPersistence() })
-  const session = await host.open(
-    defineHarness({
+  const session = await host.open({
+    harness: defineHarness({
       name: 'test/instructions',
       adapter,
       plugins: () => plugins,
     }),
-    { threadId: 't' },
-  )
+    threadId: 't',
+  })
   return { host, session }
 }
 

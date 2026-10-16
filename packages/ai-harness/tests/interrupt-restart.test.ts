@@ -53,8 +53,8 @@ function restartable(durable: boolean) {
   }) => {
     const main = mockAdapter(options.replies ?? [])
     const host = createHarnessHost({ persistence })
-    const opened = host.open(
-      defineHarness({
+    const opened = host.open({
+      harness: defineHarness({
         name: 'test/interrupt-restart',
         adapter: main.adapter,
         ...(options.tools ? { tools: options.tools } : {}),
@@ -62,8 +62,8 @@ function restartable(durable: boolean) {
         ...(options.subagents ? { subagents: options.subagents } : {}),
         ...(options.routing ? { routing: options.routing } : {}),
       }),
-      { threadId: THREAD },
-    )
+      threadId: THREAD,
+    })
     return opened.then((session) => ({ host, session, calls: main.calls }))
   }
 }
@@ -91,9 +91,11 @@ describe.each([
     expect(
       next.session.snapshot().pendingInterrupts.map((item) => item.id),
     ).toEqual([interrupt.id])
-    const receipt = await next.session.resolve([
-      { interruptId: interrupt.id, status: 'resolved', payload: true },
-    ])
+    const receipt = await next.session.resolve({
+      resume: [
+        { interruptId: interrupt.id, status: 'resolved', payload: true },
+      ],
+    })
     expect(receipt.status).toBe('accepted')
     expect(await next.session.operation(receipt.operationId ?? '')).toEqual({
       text: 'Removed b.txt',
@@ -128,7 +130,7 @@ describe.each([
             : kind === 'extra'
               ? [valid, { ...valid, interruptId: 'unknown' }]
               : [{ ...valid, payload: { approved: 'yes' } }]
-      const rejected = await first.session.resolve(resume)
+      const rejected = await first.session.resolve({ resume })
       expect(rejected.status).toBe('accepted')
       if (kind === 'missing' && durable) {
         await expect(
@@ -153,7 +155,7 @@ describe.each([
       expect(
         next.session.snapshot().pendingInterrupts.map((item) => item.id),
       ).toEqual([interrupt.id])
-      const receipt = await next.session.resolve([valid])
+      const receipt = await next.session.resolve({ resume: [valid] })
       expect(receipt.status).toBe('accepted')
       expect(await next.session.operation(receipt.operationId ?? '')).toEqual({
         text: 'Removed b.txt',
@@ -177,18 +179,22 @@ describe.each([
     const stopped = await first.session.send('clean up')
     const interrupt = stopped.interrupts?.[0]
     if (!interrupt) throw new Error('The turn did not stop for approval.')
-    const receipt = await first.session.resolve([
-      { interruptId: interrupt.id, status: 'resolved', payload: true },
-    ])
+    const receipt = await first.session.resolve({
+      resume: [
+        { interruptId: interrupt.id, status: 'resolved', payload: true },
+      ],
+    })
     await first.session.operation(receipt.operationId ?? '')
     await first.host.close()
 
     const next = await open({ tools: [remove.tool] })
     expect(next.session.snapshot().pendingInterrupts).toEqual([])
     expect(
-      await next.session.resolve([
-        { interruptId: interrupt.id, status: 'resolved', payload: true },
-      ]),
+      await next.session.resolve({
+        resume: [
+          { interruptId: interrupt.id, status: 'resolved', payload: true },
+        ],
+      }),
     ).toMatchObject({ status: 'rejected', reason: 'no_pending_interrupts' })
     expect(remove.execute).toHaveBeenCalledTimes(1)
     await next.host.close()
@@ -206,9 +212,11 @@ describe.each([
     await first.host.close()
 
     const next = await open({ subagents })
-    const receipt = await next.session.resolve([
-      { interruptId: interrupt.id, status: 'resolved', payload: true },
-    ])
+    const receipt = await next.session.resolve({
+      resume: [
+        { interruptId: interrupt.id, status: 'resolved', payload: true },
+      ],
+    })
     expect(receipt.status).toBe('accepted')
     expect(await next.session.operation(receipt.operationId ?? '')).toEqual({
       text: 'cleaner:\nRemoved a.txt',
@@ -231,9 +239,11 @@ describe.each([
     await first.host.close()
 
     const next = await open({ agents: [cleaner], routing: { router } })
-    const receipt = await next.session.resolve([
-      { interruptId: interrupt.id, status: 'resolved', payload: true },
-    ])
+    const receipt = await next.session.resolve({
+      resume: [
+        { interruptId: interrupt.id, status: 'resolved', payload: true },
+      ],
+    })
     expect(receipt.status).toBe('accepted')
     expect(await next.session.operation(receipt.operationId ?? '')).toEqual({
       text: 'cleaner:\nRemoved a.txt',
@@ -274,7 +284,7 @@ describe.each([false, true])(
           tools: [remove.tool],
         })
         const host = createHarnessHost({ persistence })
-        const session = await host.open(config, { threadId: THREAD })
+        const session = await host.open({ harness: config, threadId: THREAD })
         const initial = await session.send('remove')
         const approval = initial.interrupts?.[0]
         if (!approval) throw new Error('The turn did not stop for approval.')
@@ -309,9 +319,11 @@ describe.each([false, true])(
                     },
                   ],
           )
-        const receipt = await session.resolve([
-          { interruptId: approval.id, status: 'resolved', payload: true },
-        ])
+        const receipt = await session.resolve({
+          resume: [
+            { interruptId: approval.id, status: 'resolved', payload: true },
+          ],
+        })
         await expect(
           session.operation(receipt.operationId ?? ''),
         ).rejects.toThrow()
@@ -320,9 +332,11 @@ describe.each([false, true])(
         ).toEqual([approval.id])
         expect(remove.execute).not.toHaveBeenCalled()
         read.mockRestore()
-        const retry = await session.resolve([
-          { interruptId: approval.id, status: 'resolved', payload: true },
-        ])
+        const retry = await session.resolve({
+          resume: [
+            { interruptId: approval.id, status: 'resolved', payload: true },
+          ],
+        })
         await session.operation(retry.operationId ?? '')
         expect(remove.execute).toHaveBeenCalledTimes(1)
         await host.close()
@@ -354,17 +368,19 @@ describe.each([false, true])(
         middleware: [{ name: 'observe', onBeforeToolCall: before }],
       })
       const host = createHarnessHost({ persistence })
-      const session = await host.open(config, { threadId: THREAD })
+      const session = await host.open({ harness: config, threadId: THREAD })
       const initial = await session.send('remove')
       const approval = initial.interrupts?.[0]
       if (!approval) throw new Error('The turn did not stop for approval.')
-      const receipt = await session.resolve([
-        {
-          interruptId: approval.id,
-          status: 'resolved',
-          payload: { approved: true, editedArgs: { path: {} } },
-        },
-      ])
+      const receipt = await session.resolve({
+        resume: [
+          {
+            interruptId: approval.id,
+            status: 'resolved',
+            payload: { approved: true, editedArgs: { path: {} } },
+          },
+        ],
+      })
       await expect(
         session.operation(receipt.operationId ?? ''),
       ).resolves.toEqual({ text: 'Input rejected.', media: [] })
@@ -400,7 +416,7 @@ describe.each([false, true])(
         tools: [original.tool],
       })
       const first = createHarnessHost({ persistence })
-      const session = await first.open(config, { threadId: THREAD })
+      const session = await first.open({ harness: config, threadId: THREAD })
       const initial = await session.send('remove')
       const approval = initial.interrupts?.[0]
       if (!approval) throw new Error('The turn did not stop for approval.')
@@ -413,17 +429,19 @@ describe.each([false, true])(
         inputSchema: z.object({ path: z.number() }),
       }).server(changedExecute)
       const changed = createHarnessHost({ persistence })
-      const changedSession = await changed.open(
-        defineHarness({
+      const changedSession = await changed.open({
+        harness: defineHarness({
           name: 'schema-drift',
           adapter: main.adapter,
           tools: [changedTool],
         }),
-        { threadId: THREAD },
-      )
-      const rejected = await changedSession.resolve([
-        { interruptId: approval.id, status: 'resolved', payload: true },
-      ])
+        threadId: THREAD,
+      })
+      const rejected = await changedSession.resolve({
+        resume: [
+          { interruptId: approval.id, status: 'resolved', payload: true },
+        ],
+      })
       await expect(
         changedSession.operation(rejected.operationId ?? ''),
       ).rejects.toThrow()
@@ -434,10 +452,15 @@ describe.each([false, true])(
       ).toEqual([approval.id])
       await changed.close()
       const next = createHarnessHost({ persistence })
-      const retrySession = await next.open(config, { threadId: THREAD })
-      const retry = await retrySession.resolve([
-        { interruptId: approval.id, status: 'resolved', payload: true },
-      ])
+      const retrySession = await next.open({
+        harness: config,
+        threadId: THREAD,
+      })
+      const retry = await retrySession.resolve({
+        resume: [
+          { interruptId: approval.id, status: 'resolved', payload: true },
+        ],
+      })
       await expect(
         retrySession.operation(retry.operationId ?? ''),
       ).resolves.toEqual({ text: 'Done.', media: [] })
@@ -470,7 +493,7 @@ describe.each([false, true])(
           tools: [remove.tool],
         })
         const host = createHarnessHost({ persistence })
-        const session = await host.open(config, { threadId: THREAD })
+        const session = await host.open({ harness: config, threadId: THREAD })
         const initial = await session.send('remove')
         const approval = initial.interrupts?.[0]
         if (!approval) throw new Error('The turn did not stop for approval.')
@@ -482,11 +505,15 @@ describe.each([false, true])(
             await hold.opened
             return read(thread)
           })
-        const receipt = await session.resolve([
-          { interruptId: approval.id, status: 'resolved', payload: true },
-        ])
+        const receipt = await session.resolve({
+          resume: [
+            { interruptId: approval.id, status: 'resolved', payload: true },
+          ],
+        })
         const stopping =
-          kind === 'close' ? host.close() : session.cancel(receipt.operationId)
+          kind === 'close'
+            ? host.close()
+            : session.cancel({ operationId: receipt.operationId })
         hold.open()
         await stopping
         await expect(
@@ -499,10 +526,12 @@ describe.each([false, true])(
         ).toEqual([approval.id])
         await host.close()
         const next = createHarnessHost({ persistence })
-        const reopened = await next.open(config, { threadId: THREAD })
-        const retry = await reopened.resolve([
-          { interruptId: approval.id, status: 'resolved', payload: true },
-        ])
+        const reopened = await next.open({ harness: config, threadId: THREAD })
+        const retry = await reopened.resolve({
+          resume: [
+            { interruptId: approval.id, status: 'resolved', payload: true },
+          ],
+        })
         await expect(
           reopened.operation(retry.operationId ?? ''),
         ).resolves.toEqual({ text: 'Done.', media: [] })
@@ -553,7 +582,7 @@ describe.each([false, true])(
           tools: [remove.tool],
         })
         const host = createHarnessHost({ persistence })
-        const session = await host.open(config, { threadId: THREAD })
+        const session = await host.open({ harness: config, threadId: THREAD })
         const initial = await session.send('remove')
         const approval = initial.interrupts?.[0]
         if (!approval) throw new Error('The turn did not stop for approval.')
@@ -574,9 +603,11 @@ describe.each([false, true])(
         const save = vi.spyOn(stores.messages, 'saveThread')
         if (kind === 'save' && !durable)
           save.mockRejectedValue(new Error('transcript save failed'))
-        const receipt = await session.resolve([
-          { interruptId: approval.id, status: 'resolved', payload: true },
-        ])
+        const receipt = await session.resolve({
+          resume: [
+            { interruptId: approval.id, status: 'resolved', payload: true },
+          ],
+        })
         await expect(
           session.operation(receipt.operationId ?? ''),
         ).rejects.toThrow()
@@ -605,7 +636,7 @@ describe.each([false, true])(
         save.mockRestore()
         await host.close()
         const next = createHarnessHost({ persistence })
-        const reopened = await next.open(config, { threadId: THREAD })
+        const reopened = await next.open({ harness: config, threadId: THREAD })
         if (durable && kind === 'save') {
           // The failed log did not settle this applied input. Recovery retries it.
           expect(await reopened.settled(receipt.inputId)).toMatchObject({
@@ -613,9 +644,11 @@ describe.each([false, true])(
           })
         } else if (toolRan) {
           expect(
-            await reopened.resolve([
-              { interruptId: approval.id, status: 'resolved', payload: true },
-            ]),
+            await reopened.resolve({
+              resume: [
+                { interruptId: approval.id, status: 'resolved', payload: true },
+              ],
+            }),
           ).toMatchObject({
             status: 'rejected',
             reason: 'no_pending_interrupts',
@@ -624,9 +657,11 @@ describe.each([false, true])(
           expect(
             reopened.snapshot().pendingInterrupts.map((item) => item.id),
           ).toEqual([approval.id])
-          const retry = await reopened.resolve([
-            { interruptId: approval.id, status: 'resolved', payload: true },
-          ])
+          const retry = await reopened.resolve({
+            resume: [
+              { interruptId: approval.id, status: 'resolved', payload: true },
+            ],
+          })
           await expect(
             reopened.operation(retry.operationId ?? ''),
           ).resolves.toEqual({ text: 'Recovered.', media: [] })
@@ -666,20 +701,22 @@ describe.each([false, true])(
         tools: [tool],
       })
       const first = createHarnessHost({ persistence })
-      const session = await first.open(config, { threadId: THREAD })
+      const session = await first.open({ harness: config, threadId: THREAD })
       const initial = await session.send('check')
       const approval = initial.interrupts?.[0]
       if (!approval) throw new Error('The turn did not stop for approval.')
       const metadata = vi
         .spyOn(stores.metadata, 'set')
         .mockRejectedValueOnce(new Error('metadata replacement failed'))
-      const accepted = await session.resolve([
-        {
-          interruptId: approval.id,
-          status: 'resolved',
-          payload: { approved: true, editedArgs: { count: '2' } },
-        },
-      ])
+      const accepted = await session.resolve({
+        resume: [
+          {
+            interruptId: approval.id,
+            status: 'resolved',
+            payload: { approved: true, editedArgs: { count: '2' } },
+          },
+        ],
+      })
       await session.operation(accepted.operationId ?? '')
       metadata.mockRestore()
       const pending = session.snapshot().pendingInterrupts
@@ -696,26 +733,30 @@ describe.each([false, true])(
       )
       await first.close()
       const next = createHarnessHost({ persistence })
-      const reopened = await next.open(config, { threadId: THREAD })
+      const reopened = await next.open({ harness: config, threadId: THREAD })
       expect(
         reopened.snapshot().pendingInterrupts.map((item) => item.id),
       ).toEqual([client.id])
-      const wrong = await reopened.resolve([
-        {
-          interruptId: client.id,
-          status: 'resolved',
-          payload: { ok: 'wrong' },
-        },
-      ])
+      const wrong = await reopened.resolve({
+        resume: [
+          {
+            interruptId: client.id,
+            status: 'resolved',
+            payload: { ok: 'wrong' },
+          },
+        ],
+      })
       await expect(
         reopened.operation(wrong.operationId ?? ''),
       ).rejects.toThrow()
       expect(
         reopened.snapshot().pendingInterrupts.map((item) => item.id),
       ).toEqual([client.id])
-      const valid = await reopened.resolve([
-        { interruptId: client.id, status: 'resolved', payload: { ok: true } },
-      ])
+      const valid = await reopened.resolve({
+        resume: [
+          { interruptId: client.id, status: 'resolved', payload: { ok: true } },
+        ],
+      })
       await expect(
         reopened.operation(valid.operationId ?? ''),
       ).resolves.toEqual({ text: 'Checked.', media: [] })
@@ -746,7 +787,7 @@ describe.each([false, true])(
         tools: [remove.tool],
       })
       const host = createHarnessHost({ persistence })
-      const session = await host.open(config, { threadId: THREAD })
+      const session = await host.open({ harness: config, threadId: THREAD })
       const initial = await session.send('remove')
       const approval = initial.interrupts?.[0]
       if (!approval) throw new Error('The turn did not stop for approval.')
@@ -761,16 +802,18 @@ describe.each([false, true])(
           message: 'Another owner',
         },
       })
-      const wrong = await session.resolve([
-        { interruptId: 'unknown', status: 'resolved', payload: true },
-      ])
+      const wrong = await session.resolve({
+        resume: [{ interruptId: 'unknown', status: 'resolved', payload: true }],
+      })
       await expect(session.operation(wrong.operationId ?? '')).rejects.toThrow()
       expect(
         session.snapshot().pendingInterrupts.map((item) => item.id),
       ).toEqual([approval.id])
-      const valid = await session.resolve([
-        { interruptId: approval.id, status: 'resolved', payload: true },
-      ])
+      const valid = await session.resolve({
+        resume: [
+          { interruptId: approval.id, status: 'resolved', payload: true },
+        ],
+      })
       await session.operation(valid.operationId ?? '')
       expect(session.snapshot().pendingInterrupts).toEqual([])
       expect((await stores.interrupts.get('external'))?.status).toBe('pending')

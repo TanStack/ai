@@ -102,7 +102,7 @@ export abstract class SessionAgents<
     const follower = new OperationImpl<unknown>(
       'agent',
       this.feed,
-      () => this.cancel(target),
+      () => this.cancel({ operationId: target }),
       chain?.agent,
     )
     void this.sendToAgent({
@@ -462,7 +462,7 @@ export abstract class SessionAgents<
     const operation = new OperationImpl<unknown>(
       'agent',
       this.feed,
-      (running) => this.cancel(running.id),
+      (running) => this.cancel({ operationId: running.id }),
       agent,
       id,
     )

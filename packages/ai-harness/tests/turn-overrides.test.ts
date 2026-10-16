@@ -57,13 +57,11 @@ async function open(
   const host = createHarnessHost({
     persistence: options.persistence ?? memoryPersistence(),
   })
-  const session = await host.open(
-    defineHarness({ name: 'test/turn-overrides', adapter, ...extras }),
-    {
-      threadId: THREAD,
-      ...(options.promptCache ? { promptCache: options.promptCache } : {}),
-    },
-  )
+  const session = await host.open({
+    harness: defineHarness({ name: 'test/turn-overrides', adapter, ...extras }),
+    threadId: THREAD,
+    ...(options.promptCache ? { promptCache: options.promptCache } : {}),
+  })
   return { host, session, calls }
 }
 

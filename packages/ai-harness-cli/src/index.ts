@@ -93,17 +93,17 @@ function attachingSource(session: HarnessSession) {
         operation.then(undefined, () => {})
         return operation.receipt
       }),
-    resolve: (resume) => session.resolve(resume),
-    cancel: (operationId) => session.cancel(operationId),
+    resolve: (options) => session.resolve(options),
+    cancel: (options) => session.cancel(options),
     answer: (answer) => session.answer(answer),
-    command: (name, input) => session.command(name, input),
+    command: (options) => session.command(options),
     setConfig: (change) => session.setConfig(change),
     events: (options) => session.events(options),
     snapshot: () => session.snapshot(),
     transcript: () => session.transcript(),
     describe: () => session.describe(),
     mediaUrl: (id) => session.mediaUrl(id),
-    loadMedia: (id) => session.loadMedia(id),
+    loadMedia: (options) => session.loadMedia(options),
   }
   return source
 }
@@ -249,7 +249,8 @@ export async function runCli(
       return EXIT.ok
     }
 
-    const session = await host.open(harness, {
+    const session = await host.open({
+      harness,
       threadId: args.thread,
       ...(principal ? { principal } : {}),
     })

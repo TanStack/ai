@@ -203,16 +203,16 @@ describe('workspace hooks', () => {
       () => text('done'),
     ])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/hooks',
         adapter,
         // The hooks plugin comes after the tools: the tools read hooks
         // when they run.
         plugins: () => [workspaceTools({ root: dir }), hooks],
       }),
-      { threadId: 't' },
-    )
+      threadId: 't',
+    })
 
     await session.send('work')
 

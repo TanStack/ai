@@ -282,14 +282,14 @@ async function open(
 ) {
   const { adapter, calls } = mockAdapter([...replies, () => text('done')])
   const host = createHarnessHost({ persistence })
-  const session = await host.open(
-    defineHarness({
+  const session = await host.open({
+    harness: defineHarness({
       name: 'test/permissions',
       adapter,
       plugins: () => plugins,
     }),
-    { threadId },
-  )
+    threadId,
+  })
   return { host, session, calls }
 }
 
@@ -556,7 +556,7 @@ describe('permissions()', () => {
     expect(decide?.('deploy', 'default')).toBe('ask')
 
     // Plan mode denies what would ask.
-    await session.command('mode', 'plan')
+    await session.command({ name: 'mode', input: 'plan' })
     await session.send('again, in plan mode')
     expect(ran).toEqual(['lookup', 'lookup'])
     expect(JSON.stringify(calls.at(-1).messages)).toContain(
@@ -688,20 +688,22 @@ describe('permissions()', () => {
       [],
     )
 
-    expect(await session.command('permissions')).toBe(
+    expect(await session.command({ name: 'permissions' })).toBe(
       'Saved rules:\n1. bash git status\n2. deploy',
     )
-    expect(await session.command('permissions', 'forget 3')).toBe(
-      'No saved rule 3. Run /permissions to see the list.',
-    )
-    expect(await session.command('permissions', 'forget 1')).toBe(
-      'Forgot rule 1: bash git status.',
-    )
+    expect(
+      await session.command({ name: 'permissions', input: 'forget 3' }),
+    ).toBe('No saved rule 3. Run /permissions to see the list.')
+    expect(
+      await session.command({ name: 'permissions', input: 'forget 1' }),
+    ).toBe('Forgot rule 1: bash git status.')
     expect(await listSavedPermissions(persistence.stores, ROOT)).toEqual([
       { tool: 'deploy', decision: 'allow' },
     ])
-    await session.command('permissions', 'forget 1')
-    expect(await session.command('permissions')).toBe('No saved rules.')
+    await session.command({ name: 'permissions', input: 'forget 1' })
+    expect(await session.command({ name: 'permissions' })).toBe(
+      'No saved rules.',
+    )
     await host.close()
   })
 
@@ -720,9 +722,9 @@ describe('permissions()', () => {
     const first = session.send('run it')
     await answer(session, { answer: 'always' })
     await first
-    expect(await session.command('permissions', 'forget 1')).toBe(
-      'Forgot rule 1: bash git status.',
-    )
+    expect(
+      await session.command({ name: 'permissions', input: 'forget 1' }),
+    ).toBe('Forgot rule 1: bash git status.')
 
     const second = session.send('run it again')
     expect(await answer(session, { answer: 'once' })).toContain('git status')
@@ -768,7 +770,7 @@ describe('permissions()', () => {
 
     // A user rule allows biome. prettier asks, also in acceptEdits mode.
     expect(await prompt('formatter:biome', 'Run biome?')).toBe(true)
-    await session.command('mode', 'acceptEdits')
+    await session.command({ name: 'mode', input: 'acceptEdits' })
     const first = prompt('formatter:prettier', 'Run prettier?')
     expect(await answer(session, { answer: 'reject' })).toBe(
       'Run prettier? Answer once, always, or reject.',
@@ -788,9 +790,9 @@ describe('permissions()', () => {
     ).toEqual([{ tool: 'formatter:prettier', decision: 'allow' }])
 
     // bypass runs everything. plan runs no command.
-    await session.command('mode', 'bypass')
+    await session.command({ name: 'mode', input: 'bypass' })
     expect(await prompt('formatter:oxfmt', 'Run oxfmt?')).toBe(true)
-    await session.command('mode', 'plan')
+    await session.command({ name: 'mode', input: 'plan' })
     expect(await prompt('formatter:prettier', 'Run prettier?')).toBe(false)
     expect(session.snapshot().pendingQuestions).toHaveLength(0)
     await host.close()

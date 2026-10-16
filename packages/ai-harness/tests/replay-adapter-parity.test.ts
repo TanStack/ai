@@ -59,14 +59,14 @@ describe('saved harness replay across turn adapters', () => {
     const second = mockAdapter([
       () => sourced(text('Second answer'), secondSource, 'generation-second'),
     ])
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/replay-parity',
         adapter: first.adapter,
         tools: [lookup],
       }),
-      { threadId: 'replay' },
-    )
+      threadId: 'replay',
+    })
     try {
       await session.send('first')
       const before = JSON.parse(JSON.stringify(await session.transcript()))
@@ -139,14 +139,14 @@ describe('saved harness replay across turn adapters', () => {
         () => text('Checked'),
       ])
       const host = createHarnessHost({ persistence: memoryPersistence() })
-      const session = await host.open(
-        defineHarness({
+      const session = await host.open({
+        harness: defineHarness({
           name: 'test/raw-replay',
           adapter: model.adapter,
           tools: [tool],
         }),
-        { threadId: 'raw' },
-      )
+        threadId: 'raw',
+      })
       try {
         await session.send('measure')
         expect(execute).toHaveBeenCalledTimes(executes)
@@ -213,7 +213,10 @@ describe.each([false, true])(
       const first = createHarnessHost({ persistence })
       let approvalId = ''
       try {
-        const session = await first.open(config, { threadId: 'approved' })
+        const session = await first.open({
+          harness: config,
+          threadId: 'approved',
+        })
         const stopped = await session.send('approve')
         approvalId = stopped.interrupts?.[0]?.id ?? ''
         expect(approvalId).not.toBe('')
@@ -224,14 +227,19 @@ describe.each([false, true])(
       }
       const next = createHarnessHost({ persistence })
       try {
-        const session = await next.open(config, { threadId: 'approved' })
-        const wrong = await session.resolve([
-          {
-            interruptId: 'wrong-correlation',
-            status: 'resolved',
-            payload: true,
-          },
-        ])
+        const session = await next.open({
+          harness: config,
+          threadId: 'approved',
+        })
+        const wrong = await session.resolve({
+          resume: [
+            {
+              interruptId: 'wrong-correlation',
+              status: 'resolved',
+              payload: true,
+            },
+          ],
+        })
         expect(wrong.status).toBe('accepted')
         await expect(
           session.operation(wrong.operationId ?? ''),
@@ -239,13 +247,15 @@ describe.each([false, true])(
         expect(seen).toEqual([])
         expect(execute).not.toHaveBeenCalled()
         const before = transforms
-        const receipt = await session.resolve([
-          {
-            interruptId: approvalId,
-            status: 'resolved',
-            payload: { approved: true, editedArgs: { count: '2' } },
-          },
-        ])
+        const receipt = await session.resolve({
+          resume: [
+            {
+              interruptId: approvalId,
+              status: 'resolved',
+              payload: { approved: true, editedArgs: { count: '2' } },
+            },
+          ],
+        })
         expect(receipt.status).toBe('accepted')
         await session.operation(receipt.operationId ?? '')
         expect(seen).toEqual([{ count: '2' }])
@@ -282,21 +292,21 @@ describe.each([false, true])(
       ])
       const host = createHarnessHost({ persistence })
       try {
-        const session = await host.open(
-          defineHarness({
+        const session = await host.open({
+          harness: defineHarness({
             name: 'test/denied-replay',
             adapter: model.adapter,
             tools: [tool],
             middleware: [{ name: 'count-hooks', onBeforeToolCall: hook }],
           }),
-          { threadId: 'denied' },
-        )
+          threadId: 'denied',
+        })
         const stopped = await session.send('deny')
         const id = stopped.interrupts?.[0]?.id
         if (!id) throw new Error('Missing approval')
-        const receipt = await session.resolve([
-          { interruptId: id, status: 'resolved', payload: false },
-        ])
+        const receipt = await session.resolve({
+          resume: [{ interruptId: id, status: 'resolved', payload: false }],
+        })
         await session.operation(receipt.operationId ?? '')
         expect(hook).not.toHaveBeenCalled()
         expect(execute).not.toHaveBeenCalled()
@@ -335,10 +345,10 @@ it('detaches a local event reader without aborting the model turn', async () => 
       })(),
   ])
   const host = createHarnessHost({ persistence })
-  const session = await host.open(
-    defineHarness({ name: 'detach-replay', adapter: main.adapter }),
-    { threadId: 'detach' },
-  )
+  const session = await host.open({
+    harness: defineHarness({ name: 'detach-replay', adapter: main.adapter }),
+    threadId: 'detach',
+  })
   const turn = session.send('continue')
   const local = new AbortController()
   const detached = (async () => {

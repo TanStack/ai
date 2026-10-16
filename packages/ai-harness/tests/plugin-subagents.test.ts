@@ -33,15 +33,15 @@ describe('plugin subagents', () => {
       () => text('done'),
     ])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/plugin-subagents',
         adapter,
         subagents: { agents: [lead] },
         plugins: () => [fromSession, fromRun],
       }),
-      { threadId: 't' },
-    )
+      threadId: 't',
+    })
 
     const turn = await session.send('paint a fox')
     expect(turn.text).toBe('done')
@@ -57,16 +57,16 @@ describe('plugin subagents', () => {
   it('gives no agent tools when neither the harness nor a plugin has any', async () => {
     const { adapter, calls } = mockAdapter([() => text('hi')])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/no-subagents',
         adapter,
         plugins: () => [
           definePlugin({ name: 'test/empty', setup: () => ({}) }),
         ],
       }),
-      { threadId: 't' },
-    )
+      threadId: 't',
+    })
     await session.send('hello')
     expect(toolNames(calls[0])).toEqual([])
     await host.close()

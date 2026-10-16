@@ -118,15 +118,15 @@ async function openDurable(options: {
 }) {
   const { adapter, calls } = mockAdapter(options.replies)
   const host = createHarnessHost({ persistence: options.persistence })
-  const session = await host.open(
-    defineHarness({
+  const session = await host.open({
+    harness: defineHarness({
       name: 'test/durable-inputs',
       adapter,
       ...(options.durability ? { durability: options.durability } : {}),
       ...(options.tools ? { tools: options.tools } : {}),
     }),
-    { threadId: THREAD },
-  )
+    threadId: THREAD,
+  })
   return { host, session, calls }
 }
 
@@ -982,7 +982,7 @@ describe('durable input limits while a turn runs', () => {
     const turn = session.send('wait', { inputId: 'wait-1' })
     await vi.waitFor(() => expect(calls).toHaveLength(1))
 
-    await session.cancel(turn.id)
+    await session.cancel({ operationId: turn.id })
 
     await expect(turn).rejects.toThrow('Cancelled.')
     expect(await session.settled('wait-1')).toMatchObject({
@@ -1350,7 +1350,7 @@ describe('input ids', () => {
       expect(await recordTypes(persistence)).toContain('harness.transcript'),
     )
     // An input applied during the turn does not cut the turn's text.
-    await first.session.configure({ instructions: 'Be brief.' })
+    await first.session.configure({ settings: { instructions: 'Be brief.' } })
     release.open()
     await one
     await first.session.send('two', { inputId: 'new-1' })
@@ -1544,10 +1544,10 @@ describe('settled() without a log', () => {
   it('gives the outcome of a live input, and refuses an unknown id', async () => {
     const { adapter } = mockAdapter([() => text('fine')])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({ name: 'test/settled', adapter }),
-      { threadId: THREAD },
-    )
+    const session = await host.open({
+      harness: defineHarness({ name: 'test/settled', adapter }),
+      threadId: THREAD,
+    })
 
     const turn = session.send('hi', { inputId: 'live-1' })
     await turn
@@ -1592,13 +1592,13 @@ describe('durable approval recovery', () => {
       durability: { timeoutMs: 30 },
     })
     const host = createHarnessHost({ persistence })
-    const session = await host.open(config, { threadId: THREAD })
+    const session = await host.open({ harness: config, threadId: THREAD })
     const initial = await session.send('remove')
     const approval = initial.interrupts?.[0]
     if (!approval) throw new Error('The turn did not stop for approval.')
-    const receipt = await session.resolve([
-      { interruptId: approval.id, status: 'resolved', payload: true },
-    ])
+    const receipt = await session.resolve({
+      resume: [{ interruptId: approval.id, status: 'resolved', payload: true }],
+    })
     await expect(session.operation(receipt.operationId ?? '')).rejects.toThrow(
       'time limit',
     )
@@ -1613,12 +1613,14 @@ describe('durable approval recovery', () => {
     expect((await stores.interrupts.get(approval.id))?.status).toBe('resolved')
     await host.close()
     const next = createHarnessHost({ persistence })
-    const reopened = await next.open(config, { threadId: THREAD })
+    const reopened = await next.open({ harness: config, threadId: THREAD })
     expect(reopened.snapshot().pendingInterrupts).toEqual([])
     expect(
-      await reopened.resolve([
-        { interruptId: approval.id, status: 'resolved', payload: true },
-      ]),
+      await reopened.resolve({
+        resume: [
+          { interruptId: approval.id, status: 'resolved', payload: true },
+        ],
+      }),
     ).toMatchObject({ status: 'rejected', reason: 'no_pending_interrupts' })
     expect(execute).toHaveBeenCalledTimes(1)
     await next.close()
@@ -1660,7 +1662,7 @@ describe('durable approval recovery', () => {
         tools: [tool],
       })
       const host = createHarnessHost({ persistence })
-      const session = await host.open(config, { threadId: THREAD })
+      const session = await host.open({ harness: config, threadId: THREAD })
       const result = await session.send('remove')
       const approval = result.interrupts?.[0]
       if (!approval) throw new Error('The turn did not stop for approval.')
@@ -1680,9 +1682,11 @@ describe('durable approval recovery', () => {
       const lease = vi.spyOn(leases, 'acquire')
       if (kind === 'lease')
         lease.mockRejectedValueOnce(new Error('lease acquire failed'))
-      const receipt = await session.resolve([
-        { interruptId: approval.id, status: 'resolved', payload: true },
-      ])
+      const receipt = await session.resolve({
+        resume: [
+          { interruptId: approval.id, status: 'resolved', payload: true },
+        ],
+      })
       await expect(
         session.operation(receipt.operationId ?? ''),
       ).rejects.toThrow()
@@ -1694,13 +1698,15 @@ describe('durable approval recovery', () => {
       lease.mockRestore()
       await host.close()
       const next = createHarnessHost({ persistence })
-      const reopened = await next.open(config, { threadId: THREAD })
+      const reopened = await next.open({ harness: config, threadId: THREAD })
       if (kind === 'lease') await reopened.settled(receipt.inputId)
       // An applied lease failure can be retried by durable recovery itself.
       if (reopened.snapshot().pendingInterrupts.length > 0) {
-        const retry = await reopened.resolve([
-          { interruptId: approval.id, status: 'resolved', payload: true },
-        ])
+        const retry = await reopened.resolve({
+          resume: [
+            { interruptId: approval.id, status: 'resolved', payload: true },
+          ],
+        })
         await reopened.operation(retry.operationId ?? '')
       }
       expect(execute).toHaveBeenCalledTimes(1)
@@ -1733,14 +1739,14 @@ describe('durable approval recovery', () => {
         () => toolCall('remove', { path: 'a.txt' }, 'crash-call'),
       ])
       const first = createHarnessHost({ persistence })
-      const firstSession = await first.open(
-        defineHarness({
+      const firstSession = await first.open({
+        harness: defineHarness({
           name: 'crash-approval',
           adapter: firstAdapter.adapter,
           tools: [tool],
         }),
-        { threadId: THREAD },
-      )
+        threadId: THREAD,
+      })
       const result = await firstSession.send('remove')
       const approval = result.interrupts?.[0]
       if (!approval) throw new Error('The turn did not stop for approval.')
@@ -1781,14 +1787,14 @@ describe('durable approval recovery', () => {
       })
       const nextAdapter = mockAdapter([() => text('Recovered approval.')])
       const next = createHarnessHost({ persistence })
-      const session = await next.open(
-        defineHarness({
+      const session = await next.open({
+        harness: defineHarness({
           name: 'crash-approval',
           adapter: nextAdapter.adapter,
           tools: [tool],
         }),
-        { threadId: THREAD },
-      )
+        threadId: THREAD,
+      })
       expect(await session.settled('resume-crash')).toMatchObject({
         outcome: 'completed',
       })
@@ -1831,7 +1837,7 @@ describe('durable approval recovery', () => {
         adapter: adapter.adapter,
         tools: [tool],
       })
-      const session = await host.open(config, { threadId: THREAD })
+      const session = await host.open({ harness: config, threadId: THREAD })
       const result = await session.send('remove')
       const approval = result.interrupts?.[0]
       if (!approval) throw new Error('The turn did not stop for approval.')
@@ -1839,21 +1845,25 @@ describe('durable approval recovery', () => {
       const deletion = vi
         .spyOn(stores.metadata, 'delete')
         .mockRejectedValueOnce(new Error('metadata delete failed'))
-      const receipt = await session.resolve([
-        { interruptId: approval.id, status: 'resolved', payload: true },
-      ])
+      const receipt = await session.resolve({
+        resume: [
+          { interruptId: approval.id, status: 'resolved', payload: true },
+        ],
+      })
       await session.operation(receipt.operationId ?? '')
       deletion.mockRestore()
       expect(session.snapshot().pendingInterrupts).toEqual([])
       await host.close()
       await stores.metadata.set('harness:interrupted', THREAD, cached)
       const next = createHarnessHost({ persistence })
-      const reopened = await next.open(config, { threadId: THREAD })
+      const reopened = await next.open({ harness: config, threadId: THREAD })
       expect(reopened.snapshot().pendingInterrupts).toEqual([])
       expect(
-        await reopened.resolve([
-          { interruptId: approval.id, status: 'resolved', payload: true },
-        ]),
+        await reopened.resolve({
+          resume: [
+            { interruptId: approval.id, status: 'resolved', payload: true },
+          ],
+        }),
       ).toMatchObject({ status: 'rejected', reason: 'no_pending_interrupts' })
       expect(execute).toHaveBeenCalledTimes(1)
       await next.close()
@@ -1887,22 +1897,22 @@ describe('metadata-only approval consumption', () => {
       tools: [tool],
     })
     const host = createHarnessHost({ persistence })
-    const session = await host.open(config, { threadId: THREAD })
+    const session = await host.open({ harness: config, threadId: THREAD })
     const initial = await session.send('remove')
     const approval = initial.interrupts?.[0]
     if (!approval) throw new Error('The approval is missing.')
     const deletion = vi
       .spyOn(stores.metadata, 'delete')
       .mockRejectedValueOnce(new Error('delete unavailable'))
-    const receipt = await session.resolve([
-      { interruptId: approval.id, status: 'resolved', payload: true },
-    ])
+    const receipt = await session.resolve({
+      resume: [{ interruptId: approval.id, status: 'resolved', payload: true }],
+    })
     await session.operation(receipt.operationId ?? '')
     deletion.mockRestore()
     expect(session.snapshot().pendingInterrupts).toEqual([])
     await host.close()
     const next = createHarnessHost({ persistence })
-    const reopened = await next.open(config, { threadId: THREAD })
+    const reopened = await next.open({ harness: config, threadId: THREAD })
     expect(reopened.snapshot().pendingInterrupts).toEqual([])
     expect(execute).toHaveBeenCalledTimes(1)
     await next.close()

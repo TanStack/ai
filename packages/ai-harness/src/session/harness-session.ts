@@ -39,8 +39,8 @@ export interface HarnessSession<
   THarness extends AnyHarness = AnyHarness,
 > extends Omit<
   SessionImpl<THarness>,
-  // The public members that only the host calls.
-  'open' | 'adoptFork' | 'onIdle'
+  // The public members that only the host and the handler call.
+  'open' | 'adoptFork' | 'onIdle' | 'resolveForRun'
 > {}
 
 /**

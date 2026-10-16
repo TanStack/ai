@@ -66,8 +66,8 @@ describe('host.events', () => {
   it('shows each status change of two sessions', async () => {
     const host = createHarnessHost({ persistence: memoryPersistence() })
     const feed = watch((signal) => host.events({ signal }))
-    const a = await host.open(askingHarness(), { threadId: 'a' })
-    const b = await host.open(plainHarness(), { threadId: 'b' })
+    const a = await host.open({ harness: askingHarness(), threadId: 'a' })
+    const b = await host.open({ harness: plainHarness(), threadId: 'b' })
 
     const turn = a.send('go')
     await vi.waitFor(() =>
@@ -94,8 +94,8 @@ describe('host.events', () => {
 
   it('gives a late reader the current status of each open session first', async () => {
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const a = await host.open(askingHarness(), { threadId: 'a' })
-    await host.open(plainHarness(), { threadId: 'b' })
+    const a = await host.open({ harness: askingHarness(), threadId: 'a' })
+    await host.open({ harness: plainHarness(), threadId: 'b' })
     void a.send('go')
     await vi.waitFor(() =>
       expect(a.snapshot().pendingQuestions).toHaveLength(1),
@@ -119,7 +119,7 @@ describe('host.events', () => {
 
   it('shows a rename as a session event and a delete as session-deleted', async () => {
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    await host.open(plainHarness(), { threadId: 'b' })
+    await host.open({ harness: plainHarness(), threadId: 'b' })
     const feed = watch((signal) => host.events({ signal }))
 
     await host.sessions.rename({ threadId: 'b', title: 'Greetings' })
@@ -137,7 +137,7 @@ describe('host.events', () => {
 
   it('stops a read when its loop ends or its signal aborts', async () => {
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    await host.open(plainHarness(), { threadId: 'b' })
+    await host.open({ harness: plainHarness(), threadId: 'b' })
     const events = host.events()[Symbol.asyncIterator]()
     expect(await events.next()).toMatchObject({ value: { status: 'idle' } })
 

@@ -433,45 +433,73 @@ describe('protocol parsing and inputs', () => {
       () => text('queued answer'),
       () => text('follow-up answer'),
     ])
-    const session = await host.open(harness, { threadId: 'user-1-apply' })
+    const session = await host.open({ harness, threadId: 'user-1-apply' })
 
-    const first = await applyInput(harness, session, {
-      op: 'prompt',
-      message: 'slow',
+    const first = await applyInput({
+      harness,
+      session,
+      input: {
+        op: 'prompt',
+        message: 'slow',
+      },
     })
     expect(first.status).toBe('accepted')
-    const queued = await applyInput(harness, session, {
-      op: 'prompt',
-      message: 'next',
-      busy: 'queue',
+    const queued = await applyInput({
+      harness,
+      session,
+      input: {
+        op: 'prompt',
+        message: 'next',
+        busy: 'queue',
+      },
     })
     expect(queued.status).toBe('queued')
     expect(
-      await applyInput(harness, session, { op: 'steer', message: 'faster' }),
+      await applyInput({
+        harness,
+        session,
+        input: { op: 'steer', message: 'faster' },
+      }),
     ).toHaveProperty('status')
     expect(
-      await applyInput(harness, session, { op: 'followUp', message: 'after' }),
+      await applyInput({
+        harness,
+        session,
+        input: { op: 'followUp', message: 'after' },
+      }),
     ).toHaveProperty('status')
     release.open()
     await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
 
     expect(
-      await applyInput(harness, session, { op: 'resolve', resume: [] }),
+      await applyInput({
+        harness,
+        session,
+        input: { op: 'resolve', resume: [] },
+      }),
     ).toMatchObject({ status: 'rejected' })
-    expect(await applyInput(harness, session, { op: 'cancel' })).toHaveProperty(
-      'status',
-    )
+    expect(
+      await applyInput({ harness, session, input: { op: 'cancel' } }),
+    ).toHaveProperty('status')
     // defineHarness refuses this, but a hand-built harness object can name an
     // exposed agent that the session does not have.
     const loose = { ...harness, expose: { agents: ['pricer', 'ghost'] } }
     expect(
-      await applyInput(loose, session, { op: 'agent', agent: 'ghost' }),
+      await applyInput({
+        harness: loose,
+        session,
+        input: { op: 'agent', agent: 'ghost' },
+      }),
     ).toEqual({ inputId: '', status: 'rejected', reason: 'unknown_agent' })
-    const detached = await applyInput(harness, session, {
-      op: 'agent',
-      agent: 'pricer',
-      input: { vendor: 'acme' },
-      detached: true,
+    const detached = await applyInput({
+      harness,
+      session,
+      input: {
+        op: 'agent',
+        agent: 'pricer',
+        input: { vendor: 'acme' },
+        detached: true,
+      },
     })
     expect(detached).toMatchObject({ status: 'accepted' })
     await session.operation(detached.operationId ?? '')
@@ -522,9 +550,9 @@ describe('createHarnessClient edges', () => {
     expect((await client.send('hi', { busy: 'queue' })).status).toBe('accepted')
     await client.send('go on', { mode: 'steer' })
     await client.send('then', { mode: 'followUp' })
-    expect((await client.resolve([])).status).toBe('rejected')
+    expect((await client.resolve({ resume: [] })).status).toBe('rejected')
     await client.cancel()
-    await client.cancel('op-missing')
+    await client.cancel({ operationId: 'op-missing' })
     expect(
       (await client.agents.pricer.start({ vendor: 'x' }, { detached: true }))
         .status,
@@ -612,12 +640,16 @@ describe('createHarnessClient edges', () => {
 describe('an operation that waits for cancel', () => {
   it('cancels through a control input', async () => {
     const { host, harness } = setup([untilAborted()])
-    const session = await host.open(harness, { threadId: 'user-1-cancel' })
+    const session = await host.open({ harness, threadId: 'user-1-cancel' })
     const operation = session.send('wait')
     await vi.waitFor(() => expect(session.snapshot().status).toBe('running'))
-    await applyInput(harness, session, {
-      op: 'cancel',
-      operationId: operation.id,
+    await applyInput({
+      harness,
+      session,
+      input: {
+        op: 'cancel',
+        operationId: operation.id,
+      },
     })
     await operation.then(
       () => undefined,

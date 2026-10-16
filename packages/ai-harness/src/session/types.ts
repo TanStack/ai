@@ -34,6 +34,7 @@ import type {
   Operation,
   PendingQuestion,
   Principal,
+  ResolveOptions,
   ThreadSettings,
   TurnOverrides,
   UserInput,
@@ -308,6 +309,13 @@ export interface InterruptedTurn {
   principal?: { id: string; tenantId?: string }
   /** The `context` of the stopped turn's input, so the resume sees it too. */
   context?: unknown
+}
+
+/** What `resolveForRun` takes: the `resolve` options, plus the run id. */
+export interface ResolveForRunOptions extends ResolveOptions {
+  principal?: Principal
+  /** The AG-UI `runId` of a `POST run` request. The turn runs as it. */
+  runId?: string
 }
 
 /** An agent run operation. `send` adds a message to its chain. */

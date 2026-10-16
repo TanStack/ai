@@ -13,7 +13,7 @@ export function resolveAll(
     status: 'resolved',
     payload: approved,
   }))
-  return session.resolve(resume)
+  return session.resolve({ resume })
 }
 
 /** Open an http(s) URL in the default browser. No shell is involved. */

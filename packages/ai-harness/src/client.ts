@@ -2,7 +2,7 @@
 // package, plus `media-ref`, which has type-only imports itself. So no server
 // code (adapters, stores, secrets) reaches a client.
 import { isMediaRecord } from './media-ref'
-import type { ModelMessage, RunAgentResumeItem } from '@tanstack/ai'
+import type { ModelMessage } from '@tanstack/ai'
 import type {
   LogRecord,
   SessionIndexEntry,
@@ -21,13 +21,18 @@ import type { SessionDescription, SessionSnapshot } from './session/index'
 import type { SessionEntryChange } from './session-entry'
 import type {
   BusyPolicy,
+  CancelOptions,
+  CommandOptions,
+  ConfigureOptions,
   Cursor,
   ForkPoint,
   HarnessInput,
   MediaRecord,
+  MediaUpload,
   Receipt,
+  ResetOptions,
+  ResolveOptions,
   SessionEvent,
-  ThreadSettingsChange,
   UserInput,
   WaitingInput,
 } from './types'
@@ -105,8 +110,25 @@ export interface HarnessClient<THarness extends AnyHarness> {
     inputId?: string
     ephemeral?: ReadonlyArray<ModelMessage & { role: 'user' }>
   }) => Promise<Receipt>
-  resolve: (resume: Array<RunAgentResumeItem>) => Promise<Receipt>
-  cancel: (operationId?: string) => Promise<Receipt>
+  /**
+   * Answer the interrupts of the last turn, as `session.resolve` does.
+   *
+   * @example
+   * ```ts
+   * await client.resolve({ resume: [{ interruptId, status: 'resolved' }] })
+   * ```
+   */
+  resolve: (options: ResolveOptions) => Promise<Receipt>
+  /**
+   * Stop the operation `operationId`, or the running turn without it, as
+   * `session.cancel` does.
+   *
+   * @example
+   * ```ts
+   * await client.cancel({ operationId })
+   * ```
+   */
+  cancel: (options?: CancelOptions) => Promise<Receipt>
   /**
    * Cancel an input that waits (see `snapshot().waitingInputs`). An input
    * that started is refused with `not_waiting`: use `cancel`.
@@ -123,18 +145,32 @@ export interface HarnessClient<THarness extends AnyHarness> {
   agents: ClientAgentHandles<THarness>
   /** Answer a question from a command or a plugin. */
   answer: (answer: { questionId: string; value: unknown }) => Promise<Receipt>
-  /** Run a plugin command. Its result arrives as a `harness.command.result` event. */
-  command: (name: string, input?: unknown) => Promise<Receipt>
+  /**
+   * Run the plugin command `name`. Its result arrives as a
+   * `harness.command.result` event.
+   *
+   * @example
+   * ```ts
+   * await client.command({ name: 'mode', input: 'plan' })
+   * ```
+   */
+  command: (options: CommandOptions) => Promise<Receipt>
   /**
    * Run a harness tool with no model turn, as `session.tool` does. The
    * harness must list it in `expose.tools`. `args` is typed from the
    * tool's input schema.
+   *
+   * @example
+   * ```ts
+   * await client.tool({ name: 'sync_inbox', args: { folder: 'INBOX' } })
+   * ```
    */
-  tool: <TName extends HarnessToolsOf<THarness>['name']>(
-    name: TName,
-    args?: HarnessToolInput<THarness, TName>,
-    options?: { inputId?: string; meta?: Record<string, unknown> },
-  ) => Promise<Receipt>
+  tool: <TName extends HarnessToolsOf<THarness>['name']>(options: {
+    name: TName
+    args?: HarnessToolInput<THarness, TName>
+    meta?: Record<string, unknown>
+    inputId?: string
+  }) => Promise<Receipt>
   /**
    * Add host records to the session log, as `session.append` does. The
    * harness must list each record type in `expose.records`.
@@ -142,13 +178,25 @@ export interface HarnessClient<THarness extends AnyHarness> {
   append: (records: ReadonlyArray<LogRecord>) => Promise<Receipt>
   /** Change a session setting. */
   setConfig: (change: { key: string; value: unknown }) => Promise<Receipt>
-  /** Change the stored settings of the thread. See `session.configure`. */
-  configure: (settings: ThreadSettingsChange) => Promise<Receipt>
+  /**
+   * Change the stored settings of the thread. See `session.configure`.
+   *
+   * @example
+   * ```ts
+   * await client.configure({ settings: { model: 'strong' } })
+   * ```
+   */
+  configure: (options: ConfigureOptions) => Promise<Receipt>
   /**
    * Start a fresh model context from the next turn. The model sees `note`
    * first, when you give one. The transcript keeps every message.
+   *
+   * @example
+   * ```ts
+   * await client.reset({ note: 'The user wants a new plan.' })
+   * ```
    */
-  reset: (note?: string, options?: { inputId?: string }) => Promise<Receipt>
+  reset: (options?: ResetOptions) => Promise<Receipt>
   /**
    * Go back to the message `messageId`, as `session.revert` does. The
    * harness must list `'undo'` in `expose.commands`.
@@ -192,18 +240,29 @@ export interface HarnessClient<THarness extends AnyHarness> {
    * Store a file in the media store of the thread. Send the record in a
    * prompt with `mediaPart(record)`. Throws when the handler refuses the
    * file, for example `413` for a file over the size limit.
+   *
+   * @example
+   * ```ts
+   * const record = await client.upload({ body: file, mimeType: file.type, name: file.name })
+   * ```
    */
   upload: (
-    body: Blob | ArrayBuffer | Uint8Array,
-    info: { name: string; mimeType: string },
+    file: MediaUpload<Blob | ArrayBuffer | Uint8Array>,
   ) => Promise<MediaRecord>
   /**
    * A signed URL for a media file, for `<img>`, `<audio>`, or `<video>`. It
    * stops working at `expiresAt` (epoch milliseconds). Ask again for a new one.
    */
   mediaUrl: (id: string) => Promise<{ url?: string; expiresAt?: number }>
-  /** The bytes of a media file. */
-  loadMedia: (id: string) => Promise<Uint8Array>
+  /**
+   * The bytes of the media file `id`.
+   *
+   * @example
+   * ```ts
+   * const bytes = await client.loadMedia({ id: record.id })
+   * ```
+   */
+  loadMedia: (options: { id: string }) => Promise<Uint8Array>
   /**
    * One page of your sessions, newest first. Default: top-level sessions.
    * Pass `parentThreadId` to get the child sessions of a thread, and the
@@ -371,17 +430,18 @@ export function createHarnessClient<THarness extends AnyHarness>(
     // that reads it. That member type sets `T`.
     (await (await get(route, params)).json()) as T
 
-  const upload = async (
-    body: Blob | ArrayBuffer | Uint8Array,
-    info: { name: string; mimeType: string },
-  ) => {
+  const upload = async ({
+    body,
+    mimeType,
+    name,
+  }: MediaUpload<Blob | ArrayBuffer | Uint8Array>) => {
     const query = new URLSearchParams({
       threadId: options.threadId,
-      name: info.name,
+      name,
     })
     const response = await doFetch(`${base}/media?${query}`, {
       method: 'POST',
-      headers: { 'Content-Type': info.mimeType, ...headers() },
+      headers: { 'Content-Type': mimeType, ...headers() },
       // fetch refuses a view on a SharedArrayBuffer. ponytail: a Uint8Array
       // is copied once; skip the copy when `body.buffer` is an ArrayBuffer
       // if big uploads from bytes (not a Blob or File) ever matter.
@@ -401,7 +461,7 @@ export function createHarnessClient<THarness extends AnyHarness>(
     return { url: `${base}/${body.path}`, expiresAt: body.expiresAt }
   }
 
-  const loadMedia = async (id: string) =>
+  const loadMedia = async ({ id }: { id: string }) =>
     new Uint8Array(await (await get('media', { id })).arrayBuffer())
 
   // `POST sessions`: rename, delete, or fork a session of this user.
@@ -543,8 +603,9 @@ export function createHarnessClient<THarness extends AnyHarness>(
           ? { ephemeral: continueOptions.ephemeral }
           : {}),
       }),
-    resolve: (resume) => send({ op: 'resolve', resume }),
-    cancel: (operationId) =>
+    resolve: ({ resume, inputId }) =>
+      send({ op: 'resolve', resume, ...(inputId ? { inputId } : {}) }),
+    cancel: ({ operationId } = {}) =>
       send({ op: 'cancel', ...(operationId ? { operationId } : {}) }),
     cancelInput: (inputId) => send({ op: 'cancelInput', inputId }),
     setDelivery: ({ inputId, delivery }) =>
@@ -552,23 +613,24 @@ export function createHarnessClient<THarness extends AnyHarness>(
     agents,
     answer: ({ questionId, value }) =>
       send({ op: 'answer', questionId, value }),
-    command: (name, input) => send({ op: 'command', name, input }),
-    tool: (name, args, toolOptions) =>
+    command: ({ name, input }) => send({ op: 'command', name, input }),
+    tool: ({ name, args, meta, inputId }) =>
       send({
         op: 'tool',
         name,
         ...(args !== undefined ? { args } : {}),
-        ...(toolOptions?.meta ? { meta: toolOptions.meta } : {}),
-        ...(toolOptions?.inputId ? { inputId: toolOptions.inputId } : {}),
+        ...(meta ? { meta } : {}),
+        ...(inputId ? { inputId } : {}),
       }),
     append: (records) => send({ op: 'append', records: [...records] }),
     setConfig: ({ key, value }) => send({ op: 'config', key, value }),
-    configure: (settings) => send({ op: 'configure', settings }),
-    reset: (note, resetOptions) =>
+    configure: ({ settings, inputId }) =>
+      send({ op: 'configure', settings, ...(inputId ? { inputId } : {}) }),
+    reset: ({ note, inputId } = {}) =>
       send({
         op: 'reset',
         ...(note !== undefined ? { note } : {}),
-        ...(resetOptions?.inputId ? { inputId: resetOptions.inputId } : {}),
+        ...(inputId ? { inputId } : {}),
       }),
     revert: (messageId) => send({ op: 'revert', messageId }),
     unrevert: () => send({ op: 'unrevert' }),

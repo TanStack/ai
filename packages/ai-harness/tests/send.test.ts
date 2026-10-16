@@ -9,10 +9,10 @@ import type { AnyTool } from '@tanstack/ai'
 async function open(replies: Array<Reply>, tools: Array<AnyTool> = []) {
   const { adapter, calls } = mockAdapter(replies)
   const host = createHarnessHost({ persistence: memoryPersistence() })
-  const session = await host.open(
-    defineHarness({ name: 'test/send', adapter, tools }),
-    { threadId: 't1' },
-  )
+  const session = await host.open({
+    harness: defineHarness({ name: 'test/send', adapter, tools }),
+    threadId: 't1',
+  })
   return { host, session, calls }
 }
 

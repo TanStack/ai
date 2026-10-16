@@ -65,7 +65,7 @@ describe('config values', () => {
       adapter,
       plugins: () => [settings],
     })
-    const session = await host.open(harness, { threadId: 't' })
+    const session = await host.open({ harness, threadId: 't' })
     // The saved values were invalid or unknown, so the defaults apply.
     expect(session.config().verbose?.value).toBe(false)
     expect(await session.setConfig({ key: 'missing', value: 1 })).toMatchObject(
@@ -89,7 +89,7 @@ describe('config values', () => {
     await host.close()
 
     const again = createHarnessHost({ persistence })
-    const reopened = await again.open(harness, { threadId: 't' })
+    const reopened = await again.open({ harness, threadId: 't' })
     expect(reopened.config()).toMatchObject({
       level: { value: 'high', owner: 'test/settings' },
       label: { value: 'mine' },
@@ -131,14 +131,14 @@ describe('commands', () => {
       }),
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/cmds',
         adapter: mockAdapter([]).adapter,
         plugins: () => [tools],
       }),
-      { threadId: 't' },
-    )
+      threadId: 't',
+    })
     const listed = session.commands()
     expect(listed.find((command) => command.name === 'greet')).toMatchObject({
       owner: 'test/commands',
@@ -148,16 +148,20 @@ describe('commands', () => {
       listed.find((command) => command.name === 'boom')?.input,
     ).toBeUndefined()
 
-    expect(await session.command('greet', { name: 'Ada' })).toBe('hello Ada')
-    await expect(session.command('greet', { name: 1 })).rejects.toThrow(
-      'Input validation failed for command greet',
-    )
-    await expect(session.command('nope')).rejects.toThrow(
+    expect(
+      await session.command({ name: 'greet', input: { name: 'Ada' } }),
+    ).toBe('hello Ada')
+    await expect(
+      session.command({ name: 'greet', input: { name: 1 } }),
+    ).rejects.toThrow('Input validation failed for command greet')
+    await expect(session.command({ name: 'nope' })).rejects.toThrow(
       'Unknown command: nope',
     )
-    await expect(session.command('boom')).rejects.toThrow('command broke')
+    await expect(session.command({ name: 'boom' })).rejects.toThrow(
+      'command broke',
+    )
 
-    const waiting = session.command('wait')
+    const waiting = session.command({ name: 'wait' })
     await release.opened
     await waiting.cancel()
     await waiting.then(
@@ -185,18 +189,22 @@ describe('commands', () => {
       setup: () => ({ commands: { peek, shout } }),
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/raw-cmds',
         adapter: mockAdapter([]).adapter,
         plugins: () => [raw],
       }),
-      { threadId: 't' },
-    )
+      threadId: 't',
+    })
 
-    expect(await session.command('peek', { foo: 'bar' })).toBe('bar')
-    expect(await session.command('shout', 'hi')).toBe('HI')
-    expect(await session.command('shout', { text: 'hi' })).toBe('no text')
+    expect(await session.command({ name: 'peek', input: { foo: 'bar' } })).toBe(
+      'bar',
+    )
+    expect(await session.command({ name: 'shout', input: 'hi' })).toBe('HI')
+    expect(
+      await session.command({ name: 'shout', input: { text: 'hi' } }),
+    ).toBe('no text')
     await host.close()
   })
 })
@@ -225,15 +233,15 @@ describe('questions', () => {
       }),
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/questions',
         adapter: mockAdapter([]).adapter,
         plugins: () => [asker],
       }),
-      { threadId: 't' },
-    )
-    const picking = session.command('pick')
+      threadId: 't',
+    })
+    const picking = session.command({ name: 'pick' })
     await vi.waitFor(() =>
       expect(session.snapshot().pendingQuestions).toHaveLength(1),
     )
@@ -267,7 +275,7 @@ describe('questions', () => {
     ).toBe('accepted')
     expect(await picking).toBe(4)
 
-    const open = session.command('open')
+    const open = session.command({ name: 'open' })
     await vi.waitFor(() =>
       expect(session.snapshot().pendingQuestions).toHaveLength(1),
     )
@@ -292,20 +300,20 @@ describe('questions', () => {
       }),
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/turn-questions',
         adapter: mockAdapter([() => toolCall('confirm', {})]).adapter,
         plugins: () => [asker],
       }),
-      { threadId: 't' },
-    )
+      threadId: 't',
+    })
     const turn = session.send('Go.')
     await vi.waitFor(() =>
       expect(session.snapshot().pendingQuestions).toHaveLength(1),
     )
 
-    await session.cancel(turn.id)
+    await session.cancel({ operationId: turn.id })
 
     await expect(asked).rejects.toThrow('Cancelled.')
     expect(session.snapshot().pendingQuestions).toEqual([])
@@ -329,20 +337,20 @@ describe('questions', () => {
       }),
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/command-questions',
         adapter: mockAdapter([]).adapter,
         plugins: () => [asker],
       }),
-      { threadId: 't' },
-    )
-    const command = session.command('confirm')
+      threadId: 't',
+    })
+    const command = session.command({ name: 'confirm' })
     await vi.waitFor(() =>
       expect(session.snapshot().pendingQuestions).toHaveLength(1),
     )
 
-    await session.cancel(command.id)
+    await session.cancel({ operationId: command.id })
 
     await expect(asked).rejects.toThrow('Cancelled.')
     expect(session.snapshot().pendingQuestions).toEqual([])
@@ -367,15 +375,15 @@ describe('questions', () => {
     })
     const persistence = memoryPersistence()
     const host = createHarnessHost({ persistence })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/answer-store',
         adapter: mockAdapter([]).adapter,
         plugins: () => [asker],
       }),
-      { threadId: 't' },
-    )
-    void session.command('confirm')
+      threadId: 't',
+    })
+    void session.command({ name: 'confirm' })
     await vi.waitFor(() =>
       expect(session.snapshot().pendingQuestions).toHaveLength(1),
     )
@@ -444,16 +452,16 @@ describe('plugin state and events', () => {
     for (const persistence of [plain, none]) {
       const seen: Array<number> = []
       const host = createHarnessHost({ persistence: persistence as never })
-      const session = await host.open(
-        defineHarness({
+      const session = await host.open({
+        harness: defineHarness({
           name: 'test/state-store',
           adapter: mockAdapter([]).adapter,
           plugins: () => [statePlugin((value) => seen.push(value))],
         }),
-        { threadId: 't' },
-      )
-      expect(await session.command('bump')).toBe(1)
-      expect(await session.command('bump')).toBe(2)
+        threadId: 't',
+      })
+      expect(await session.command({ name: 'bump' })).toBe(1)
+      expect(await session.command({ name: 'bump' })).toBe(2)
       expect(seen).toEqual([1, 2])
       await host.close()
     }
@@ -474,15 +482,15 @@ describe('plugin state and events', () => {
       },
     }
     const host = createHarnessHost({ persistence: conflicting as never })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/state-conflict',
         adapter: mockAdapter([]).adapter,
         plugins: () => [statePlugin(() => {})],
       }),
-      { threadId: 't' },
-    )
-    await expect(session.command('bump')).rejects.toThrow(
+      threadId: 't',
+    })
+    await expect(session.command({ name: 'bump' })).rejects.toThrow(
       'state update conflicted 5 times',
     )
     await host.close()
@@ -504,8 +512,8 @@ describe('plugin state and events', () => {
     }
     let state: PluginState<{ count: number }> | undefined
     const host = createHarnessHost({ persistence: plain as never })
-    await host.open(
-      defineHarness({
+    await host.open({
+      harness: defineHarness({
         name: 'test/state-race',
         adapter: mockAdapter([]).adapter,
         plugins: () => [
@@ -517,8 +525,8 @@ describe('plugin state and events', () => {
           }),
         ],
       }),
-      { threadId: 't' },
-    )
+      threadId: 't',
+    })
     if (!state) throw new Error('The plugin did not set up.')
     const bump = (value: { count: number }) => ({ count: value.count + 1 })
 
@@ -530,8 +538,8 @@ describe('plugin state and events', () => {
 
   it('warns when an async listener rejects', async () => {
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/async-listener',
         adapter: mockAdapter([]).adapter,
         plugins: () => [
@@ -553,14 +561,14 @@ describe('plugin state and events', () => {
           }),
         ],
       }),
-      { threadId: 't' },
-    )
+      threadId: 't',
+    })
     const warnings: Array<unknown> = []
     session.onEvent(EventType.CUSTOM, ({ event }) => {
       if (event.name === 'harness.plugin.warning') warnings.push(event.value)
     })
 
-    await session.command('ping')
+    await session.command({ name: 'ping' })
 
     await vi.waitFor(() =>
       expect(warnings).toEqual([
@@ -576,8 +584,8 @@ describe('plugin state and events', () => {
       saved: true,
     })
     const host = createHarnessHost({ persistence })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/state-names',
         adapter: mockAdapter([]).adapter,
         plugins: () => [
@@ -589,8 +597,8 @@ describe('plugin state and events', () => {
           }),
         ],
       }),
-      { threadId: 't' },
-    )
+      threadId: 't',
+    })
 
     expect(session.snapshot().plugins).toEqual({
       constructor: { saved: true },
@@ -621,14 +629,15 @@ describe('the plugin session API and inspect', () => {
       () => text('from the plugin prompt'),
     ])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/api',
         adapter,
         plugins: () => [probe, settings],
       }),
-      { threadId: 't', principal: { id: 'u1' } },
-    )
+      threadId: 't',
+      principal: { id: 'u1' },
+    })
     expect(api.threadId).toBe('t')
     expect(api.principal).toEqual({ id: 'u1' })
     await session.send('hello')
@@ -682,8 +691,8 @@ describe('first-party plugin edges', () => {
       () => text('c'),
     ])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/files',
         adapter,
         plugins: () => [
@@ -694,8 +703,8 @@ describe('first-party plugin edges', () => {
           }),
         ],
       }),
-      { threadId: 't' },
-    )
+      threadId: 't',
+    })
     const described = session.commands()
     expect(
       described.map((command) => [command.name, command.description]).sort(),
@@ -703,24 +712,26 @@ describe('first-party plugin edges', () => {
       ['plain', 'Run plain.md'],
       ['review', 'Review a file'],
     ])
-    expect(await session.command('review', 'src/a.ts')).toBe('Sent /review.')
+    expect(await session.command({ name: 'review', input: 'src/a.ts' })).toBe(
+      'Sent /review.',
+    )
     await vi.waitFor(() => expect(calls).toHaveLength(1))
     await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
-    await session.command('plain', { who: 'Ada' })
+    await session.command({ name: 'plain', input: { who: 'Ada' } })
     await vi.waitFor(() => expect(calls).toHaveLength(2))
     await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
-    await session.command('plain')
+    await session.command({ name: 'plain' })
     await vi.waitFor(() => expect(calls).toHaveLength(3))
 
     // A missing folder gives no commands.
-    const empty = await host.open(
-      defineHarness({
+    const empty = await host.open({
+      harness: defineHarness({
         name: 'test/files-missing',
         adapter,
         plugins: () => [fileCommands({ dir: join(dir, 'missing') })],
       }),
-      { threadId: 'empty' },
-    )
+      threadId: 'empty',
+    })
     expect(empty.commands()).toEqual([])
 
     const said = calls.map((call) => JSON.stringify(call.messages.at(-1)))
@@ -741,10 +752,14 @@ describe('first-party plugin edges', () => {
       () => text('cleared'),
     ])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({ name: 'test/todos', adapter, plugins: () => [todos()] }),
-      { threadId: 't' },
-    )
+    const session = await host.open({
+      harness: defineHarness({
+        name: 'test/todos',
+        adapter,
+        plugins: () => [todos()],
+      }),
+      threadId: 't',
+    })
     const before = session.snapshot().plugins
     await session.send('plan')
     // chat() checks the tool's JSON Schema before it runs, so an invalid
@@ -753,12 +768,16 @@ describe('first-party plugin edges', () => {
       'Input validation failed for tool todo_write',
     )
     expect(session.snapshot().plugins).toEqual(before)
-    expect(await session.command('todos')).toBe('The todo list is empty.')
+    expect(await session.command({ name: 'todos' })).toBe(
+      'The todo list is empty.',
+    )
     await session.send('clear')
     expect(JSON.stringify(calls[3].messages)).toContain(
       'The todo list is empty.',
     )
-    expect(await session.command('todos')).toBe('The todo list is empty.')
+    expect(await session.command({ name: 'todos' })).toBe(
+      'The todo list is empty.',
+    )
     await host.close()
   })
 
@@ -767,40 +786,40 @@ describe('first-party plugin edges', () => {
     const fast = mockAdapter([]).adapter
     const smart = mockAdapter([]).adapter
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/models',
         adapter: smart,
         plugins: () => [modelPicker({ choices: { smart, fast } })],
       }),
-      { threadId: 't' },
-    )
-    expect(await session.command('model')).toBe(
+      threadId: 't',
+    })
+    expect(await session.command({ name: 'model' })).toBe(
       'Model: smart. Choices: smart, fast.',
     )
-    expect(await session.command('model', 'slow')).toBe(
+    expect(await session.command({ name: 'model', input: 'slow' })).toBe(
       'Unknown model "slow". Choices: smart, fast.',
     )
-    expect(await session.command('model', { name: 'fast' })).toBe(
-      'Model: fast. It applies at the next turn.',
-    )
+    expect(
+      await session.command({ name: 'model', input: { name: 'fast' } }),
+    ).toBe('Model: fast. It applies at the next turn.')
     await host.close()
   })
 
   it('keeps the conversation when the summary is empty', async () => {
     const summarizer = mockAdapter([() => text('  ')])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/compact-empty',
         adapter: mockAdapter([() => text('one'), () => text('two')]).adapter,
         plugins: () => [compact({ adapter: summarizer.adapter })],
       }),
-      { threadId: 't' },
-    )
+      threadId: 't',
+    })
     await session.send('first')
     await session.send('second')
-    await expect(session.command('compact')).rejects.toThrow(
+    await expect(session.command({ name: 'compact' })).rejects.toThrow(
       'The summary model returned no text.',
     )
     expect(await session.transcript()).toHaveLength(4)
@@ -823,8 +842,8 @@ describe('first-party plugin edges', () => {
       () => withUsage('two'),
     ])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/compact',
         adapter,
         plugins: () => [
@@ -832,20 +851,20 @@ describe('first-party plugin edges', () => {
           usage(),
         ],
       }),
-      { threadId: 't' },
-    )
-    expect(await session.command('compact')).toBe(
+      threadId: 't',
+    })
+    expect(await session.command({ name: 'compact' })).toBe(
       'The conversation is already short.',
     )
     await session.send([{ type: 'text', content: 'first question' }] as never)
     await session.send('second question')
-    expect(await session.command('compact')).toBe(
+    expect(await session.command({ name: 'compact' })).toBe(
       'Compacted 3 messages into a summary.',
     )
     expect(JSON.stringify(summarizer.calls[0].messages)).toContain(
       'first question',
     )
-    expect(await session.command('usage')).toBe(
+    expect(await session.command({ name: 'usage' })).toBe(
       '2 model calls, 6 input tokens, 4 output tokens, 10 total.',
     )
     await host.close()
@@ -855,14 +874,14 @@ describe('first-party plugin edges', () => {
 describe('session events', () => {
   it('publishes config changes', async () => {
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/events',
         adapter: mockAdapter([]).adapter,
         plugins: () => [settings],
       }),
-      { threadId: 't' },
-    )
+      threadId: 't',
+    })
     const seen: Array<SessionEvent> = []
     const controller = new AbortController()
     const reading = (async () => {

@@ -425,8 +425,8 @@ describe('sandboxWorkspaceBackend with workspaceTools', () => {
       toolCall('c2', 'read_file', { path: 'src/a.ts' }),
     ])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/sandbox-workspace',
         adapter,
         plugins: () => [
@@ -437,8 +437,8 @@ describe('sandboxWorkspaceBackend with workspaceTools', () => {
           }),
         ],
       }),
-      { threadId: 't' },
-    )
+      threadId: 't',
+    })
     await session.send('work')
     await host.close()
 

@@ -12,27 +12,26 @@ import {
   isElsewhere,
 } from './helpers'
 import { SessionState } from './state'
-import type {
-  ModelMessage,
-  RunAgentResumeItem,
-  SchemaInput,
-} from '@tanstack/ai'
+import type { ModelMessage, SchemaInput } from '@tanstack/ai'
 import type { SessionIndexEntry } from '@tanstack/ai-persistence'
 import type { PluginSessionApi, Question } from '../commands'
 import type { AnyHarness, HarnessToolInput, HarnessToolsOf } from '../define'
 import type {
   AgentSendOptions,
+  CancelOptions,
   ChatTurnResult,
   HarnessInput,
   Operation,
   Principal,
   Receipt,
+  ResetOptions,
+  ResolveOptions,
   SendOptions,
   TurnOverrides,
   UserInput,
   WaitingInput,
 } from '../types'
-import type { QueuedTurn, WaitingSteer } from './types'
+import type { QueuedTurn, ResolveForRunOptions, WaitingSteer } from './types'
 import type { Admission } from './inputs'
 
 /**
@@ -262,20 +261,26 @@ export abstract class SessionRequests<
    * While interrupts wait, it is refused with `'pending_interrupts'`.
    *
    * `args` is typed from the input schema of a harness tool. A plugin tool
-   * takes any `args`, and its input schema checks them.
+   * takes any `args`, and its input schema checks them. `inputId` and
+   * `principal` mean the same as in `send`.
+   *
+   * @example
+   * ```ts
+   * const turn = session.tool({ name: 'sync_inbox', args: { folder: 'INBOX' } })
+   * ```
    */
-  tool<TName extends HarnessToolsOf<THarness>['name'] | (string & {})>(
-    name: TName,
-    args?: HarnessToolInput<THarness, TName>,
-    options?: {
-      meta?: Record<string, unknown>
-      inputId?: string
-      principal?: Principal
-    },
-  ): Operation<ChatTurnResult> {
-    const inputId = options?.inputId ?? createInputId()
-    const principal = options?.principal ?? this.principal
-    const meta = options?.meta
+  tool<
+    TName extends HarnessToolsOf<THarness>['name'] | (string & {}),
+  >(options: {
+    name: TName
+    args?: HarnessToolInput<THarness, TName>
+    meta?: Record<string, unknown>
+    inputId?: string
+    principal?: Principal
+  }): Operation<ChatTurnResult> {
+    const { name, args, meta } = options
+    const inputId = options.inputId ?? createInputId()
+    const principal = options.principal ?? this.principal
     const input: HarnessInput = {
       op: 'tool',
       name,
@@ -418,12 +423,17 @@ export abstract class SessionRequests<
    * before the next queued turn. A thread that waits for interrupts is
    * refused with `'pending_interrupts'`: resolve them first. `principal` and
    * `inputId` mean the same as in `prompt`.
+   *
+   * @example
+   * ```ts
+   * await session.reset({ note: 'The user wants a new plan.' })
+   * ```
    */
   async reset(
-    note?: string,
-    options?: { principal?: Principal; inputId?: string },
+    options?: ResetOptions & { principal?: Principal },
   ): Promise<Receipt> {
     return this.admitting(async () => {
+      const note = options?.note
       const inputId = options?.inputId ?? createInputId()
       const principal = options?.principal ?? this.principal
       // An empty note is no note: the model never gets an empty message.
@@ -450,20 +460,32 @@ export abstract class SessionRequests<
    * Answer the interrupts of the last turn. One resume must answer every open
    * interrupt of that turn (the AG-UI rule). `principal` means the same as in
    * `prompt`: the turn that continues runs with its credentials.
+   *
+   * @example
+   * ```ts
+   * await session.resolve({
+   *   resume: [{ interruptId, status: 'resolved', payload: { approved: true } }],
+   * })
+   * ```
    */
-  async resolve(
-    resume: Array<RunAgentResumeItem>,
-    options?: {
-      inputId?: string
-      principal?: Principal
-      /** @internal The AG-UI `runId` of a `POST run` request. The turn runs as it. */
-      runId?: string
-    },
+  resolve(
+    options: ResolveOptions & { principal?: Principal },
   ): Promise<Receipt> {
+    return this.resolveForRun(options)
+  }
+
+  /**
+   * @internal `resolve`, with the AG-UI `runId` of a `POST run` request: the
+   * turn runs as it. The HTTP handler and a forwarded resolve call it.
+   */
+  override async resolveForRun(
+    options: ResolveForRunOptions,
+  ): Promise<Receipt> {
+    const { resume } = options
     return this.admitting(async () => {
-      const inputId = options?.inputId ?? createInputId()
-      const principal = options?.principal ?? this.principal
-      const runId = options?.runId
+      const inputId = options.inputId ?? createInputId()
+      const principal = options.principal ?? this.principal
+      const runId = options.runId
       const admission = await this.accept(
         inputId,
         { op: 'resolve', resume },
@@ -533,11 +555,21 @@ export abstract class SessionRequests<
     })
   }
 
+  /**
+   * Stop the operation `operationId`, or the running turn without it. A turn
+   * that waits in the queue never runs. Refused with `'not_running'` when
+   * nothing runs or the operation ended. `inputId` means the same as in
+   * `send`: a second cancel with the same id is a duplicate.
+   *
+   * @example
+   * ```ts
+   * await session.cancel({ operationId: turn.id })
+   * ```
+   */
   async cancel(
-    operationId?: string,
-    /** @internal The id of a forwarded input, so a replay is a duplicate. */
-    options?: { inputId?: string },
+    options?: CancelOptions & { inputId?: string },
   ): Promise<Receipt> {
+    const operationId = options?.operationId
     const inputId = options?.inputId ?? createInputId()
     const admission = await this.accept(inputId, { op: 'cancel', operationId })
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
@@ -595,7 +627,7 @@ export abstract class SessionRequests<
     // A run's children stop first, bottom-up.
     for (const child of chain?.children ?? []) {
       if (!child.current.operation.isSettled()) {
-        await this.cancel(child.current.operation.id)
+        await this.cancel({ operationId: child.current.operation.id })
       }
     }
     const queued = this.queue.findIndex((turn) => turn.operation === target)
@@ -628,7 +660,7 @@ export abstract class SessionRequests<
    * Cancel an input that waits, so it never runs, also after a restart. It
    * settles `aborted`. An input that started, or that joins the running
    * turn now, is refused with `not_waiting`: stop it with
-   * `cancel(operationId)`.
+   * `cancel({ operationId })`.
    *
    * @example
    * ```ts
@@ -735,17 +767,15 @@ export abstract class SessionRequests<
       if (!connector || !(await credentials.get(connector))) return
     }
     if (this.interrupted !== stopped) return
-    await this.resolve(
-      waiting.map((interrupt, index) => ({
+    await this.resolve({
+      resume: waiting.map((interrupt, index) => ({
         interruptId: interrupt.id,
         status: 'resolved',
         payload: { connector: connectors[index] },
       })),
-      {
-        inputId: `sign-in:${waiting.map((item) => item.id).join(',')}`,
-        ...(principal ? { principal } : {}),
-      },
-    )
+      inputId: `sign-in:${waiting.map((item) => item.id).join(',')}`,
+      ...(principal ? { principal } : {}),
+    })
   }
 
   /**
@@ -905,7 +935,7 @@ export abstract class SessionRequests<
     const operation = new OperationImpl<ChatTurnResult>(
       'chat',
       this.feed,
-      (target) => this.cancel(target.id),
+      (target) => this.cancel({ operationId: target.id }),
       undefined,
       id,
     )
@@ -1037,7 +1067,7 @@ export abstract class SessionRequests<
     const operation = new OperationImpl<ChatTurnResult>(
       'command',
       this.feed,
-      (target) => this.cancel(target.id),
+      (target) => this.cancel({ operationId: target.id }),
     )
     this.track(operation as OperationImpl<unknown>)
     this.bindTurn(inputId, operation)

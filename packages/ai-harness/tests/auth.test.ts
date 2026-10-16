@@ -214,14 +214,15 @@ describe('oauthConnector', () => {
       () => text('One issue.'),
     ])
     const host = createHarnessHost({ persistence, credentials })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/connector',
         adapter,
         plugins: () => [github],
       }),
-      { threadId: 't', principal: { id: 'user-1' } },
-    )
+      threadId: 't',
+      principal: { id: 'user-1' },
+    })
     const events: Array<SessionEvent> = []
     const reader = new AbortController()
     const reading = (async () => {
@@ -241,7 +242,7 @@ describe('oauthConnector', () => {
       ),
     ).toBe(true)
 
-    await expect(session.command('connect:github')).resolves.toBe(
+    await expect(session.command({ name: 'connect:github' })).resolves.toBe(
       'Connected to GitHub.',
     )
     const saved = await credentials.get({
@@ -258,7 +259,7 @@ describe('oauthConnector', () => {
     )
     expect(transcript).not.toContain('gh-token')
 
-    await session.command('disconnect:github')
+    await session.command({ name: 'disconnect:github' })
     expect(
       await credentials.list({
         threadId: 't',
@@ -309,16 +310,20 @@ describe('errors a session publishes', () => {
     })
     const { adapter } = mockAdapter(() => text('ok'))
     const host = createHarnessHost({ persistence, credentials })
-    const session = await host.open(
-      defineHarness({ name: 'test/scrub', adapter, plugins: () => [plugin] }),
-      { threadId: 't1' },
-    )
+    const session = await host.open({
+      harness: defineHarness({
+        name: 'test/scrub',
+        adapter,
+        plugins: () => [plugin],
+      }),
+      threadId: 't1',
+    })
     const errors: Array<string> = []
     session.onEvent(EventType.RUN_ERROR, ({ event }) => {
       errors.push(event.message)
     })
 
-    await expect(session.command('leak')).rejects.toThrow()
+    await expect(session.command({ name: 'leak' })).rejects.toThrow()
 
     expect(errors).toEqual([
       'fetch failed: Bearer [redacted] {"value":"[redacted]"}',
@@ -345,10 +350,10 @@ describe('errors a session publishes', () => {
     })
     const { adapter } = mockAdapter(() => text('ok'))
     const host = createHarnessHost({ persistence, credentials })
-    const session = await host.open(
-      defineHarness({ name: 'test/scrub', adapter, agents: [leaky] }),
-      { threadId: 't1' },
-    )
+    const session = await host.open({
+      harness: defineHarness({ name: 'test/scrub', adapter, agents: [leaky] }),
+      threadId: 't1',
+    })
     const errors: Array<string> = []
     session.onEvent(EventType.RUN_ERROR, ({ event }) => {
       errors.push(event.message)

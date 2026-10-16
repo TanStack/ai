@@ -41,14 +41,14 @@ const asker = definePlugin({
 
 async function open() {
   const host = createHarnessHost({ persistence: memoryPersistence() })
-  const session = await host.open(
-    defineHarness({
+  const session = await host.open({
+    harness: defineHarness({
       name: 'test/hooks',
       adapter: mockAdapter([() => withUsage(text('hi'))]).adapter,
       plugins: () => [asker],
     }),
-    { threadId: 't' },
-  )
+    threadId: 't',
+  })
   return { host, session }
 }
 
@@ -60,7 +60,7 @@ describe('session event hooks', () => {
       expect(operationId).toBeTruthy()
       return session.answer({ questionId: question.questionId, value: 'yes' })
     })
-    await expect(session.command('confirm')).resolves.toBe('yes')
+    await expect(session.command({ name: 'confirm' })).resolves.toBe('yes')
     stop()
     await host.close()
   })
@@ -69,7 +69,7 @@ describe('session event hooks', () => {
     const { host, session } = await open()
     const seen: Array<AuthRequest> = []
     session.onAuthRequired(({ operationId: _, ...auth }) => seen.push(auth))
-    await session.command('connect')
+    await session.command({ name: 'connect' })
     expect(seen).toEqual([{ connector: 'github', userCode: 'AB-12' }])
     await host.close()
   })

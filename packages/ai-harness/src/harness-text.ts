@@ -8,7 +8,6 @@ import type {
   RunFinishedEvent,
   StreamChunk,
 } from '@tanstack/ai'
-import { isHarnessDefinition } from './define'
 import type { AnyHarness } from './define'
 import type { HarnessHost } from './host'
 import type { Principal, UserInput } from './types'
@@ -260,26 +259,25 @@ function remoteHarnessText(remote: RemoteHarness): AnyTextAdapter {
  *
  * @example
  * ```ts
- * const stream = chat({ adapter: harnessText(studio), messages, threadId })
+ * const stream = chat({ adapter: harnessText({ harness: studio }), messages, threadId })
+ * const remote = harnessText({ url: 'http://127.0.0.1:8787', token })
  * ```
  */
 export function harnessText(
-  harness: AnyHarness,
-  options?: HarnessTextOptions,
+  options: HarnessTextOptions & { harness: AnyHarness },
 ): AnyTextAdapter
 export function harnessText(remote: RemoteHarness): AnyTextAdapter
 export function harnessText(
-  target: AnyHarness | RemoteHarness,
-  options: HarnessTextOptions = {},
+  target: (HarnessTextOptions & { harness: AnyHarness }) | RemoteHarness,
 ): AnyTextAdapter {
-  if (!isHarnessDefinition(target)) return remoteHarnessText(target)
-  const harness = target
-  let host = options.host
+  if (!('harness' in target)) return remoteHarnessText(target)
+  const { harness, inputModalities, principal } = target
+  let { host } = target
   return {
     kind: 'text',
     name: 'harness',
     model: harness.name,
-    inputModalities: inputsOf(harness, options.inputModalities),
+    inputModalities: inputsOf(harness, inputModalities),
     '~types': TYPES,
     chatStream: (chatOptions) =>
       (async function* (): AsyncGenerator<StreamChunk> {
@@ -290,10 +288,11 @@ export function harnessText(
         const signal = signalOf(chatOptions.request)
         // A session this call opens closes with it. One the caller holds open
         // stays, as in host.fork.
-        const wasOpen = host.isOpen(harness, { threadId })
-        const session = await host.open(harness, {
+        const wasOpen = host.isOpen({ harness, threadId })
+        const session = await host.open({
+          harness,
           threadId,
-          ...(options.principal ? { principal: options.principal } : {}),
+          ...(principal ? { principal } : {}),
         })
         // The outer call's tools join the inner turn. Its system prompts do
         // not: the harness owns its prompt stack.

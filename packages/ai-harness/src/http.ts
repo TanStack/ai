@@ -21,6 +21,7 @@ import {
 } from './protocol'
 import { base64url, isRecord } from './utils'
 import { SessionMetadataError } from './session-entry'
+import { SessionImpl } from './session/harness-session'
 import type {
   ModelMessage,
   RunStore,
@@ -267,7 +268,7 @@ async function mediaResponse(
       headers: { ...MEDIA_HEADERS, 'Content-Range': `bytes */${record.size}` },
     })
   }
-  const bytes = await session.loadMedia(id, range)
+  const bytes = await session.loadMedia({ id, range })
   const headers = {
     ...MEDIA_HEADERS,
     'Content-Type': record.mimeType,
@@ -358,7 +359,7 @@ export function createHarnessHandler(
 
   const openFor = async (principal: Principal, threadId: string) => {
     if (!(await canAccess(principal, threadId))) return null
-    return host.open(harness, { threadId, principal })
+    return host.open({ harness, threadId, principal })
   }
 
   // ponytail: without `media.secret` (only allowed without a log store), a
@@ -402,7 +403,7 @@ export function createHarnessHandler(
         signed(threadId, id, exp),
       ))
     if (!isValid) return json({ error: 'forbidden' }, 403)
-    return mediaResponse(request, await host.open(harness, { threadId }), id)
+    return mediaResponse(request, await host.open({ harness, threadId }), id)
   }
 
   /**
@@ -449,7 +450,7 @@ export function createHarnessHandler(
     if (entry?.harness !== undefined && entry.harness !== harness.name) {
       return json({ error: 'unknown run' }, 404)
     }
-    const shared = await host.open(harness, { threadId, principal })
+    const shared = await host.open({ harness, threadId, principal })
     // ponytail: from the start of the log without a cursor. Store the
     // started position on the run record if long threads make this slow.
     return cursorResponse(
@@ -490,7 +491,11 @@ export function createHarnessHandler(
         const ids = { inputId: params.runId, runId: params.runId, principal }
         const lastEventId = request.headers.get('Last-Event-ID')
         if (params.resume && params.resume.length > 0) {
-          const receipt = await session.resolve(params.resume, ids)
+          const answers = { resume: params.resume, ...ids }
+          // Only the session class takes the run id. `host.open` gives one.
+          const receipt = await (session instanceof SessionImpl
+            ? session.resolveForRun(answers)
+            : session.resolve(answers))
           if (receipt.status === 'rejected') {
             return json({ error: receipt.reason }, 409)
           }
@@ -597,7 +602,7 @@ export function createHarnessHandler(
         )
         const session = await openFor(principal, threadId)
         if (!session) return json({ error: 'forbidden' }, 403)
-        return json(await applyInput(harness, session, input, principal))
+        return json(await applyInput({ harness, session, input, principal }))
       }
 
       if (
@@ -738,10 +743,11 @@ export function createHarnessHandler(
           return json({ error: 'threadId and name are required' }, 400)
         const session = await openFor(principal, threadId)
         if (!session) return json({ error: 'forbidden' }, 403)
-        const record = await session.putMedia(
-          request.body ?? new Uint8Array(),
-          { mimeType: request.headers.get('Content-Type') ?? '', name },
-        )
+        const record = await session.putMedia({
+          body: request.body ?? new Uint8Array(),
+          mimeType: request.headers.get('Content-Type') ?? '',
+          name,
+        })
         return json(record)
       }
 
@@ -863,7 +869,7 @@ export function handleHarnessSocket(options: HarnessSocketOptions): void {
           const { threadId } = frame
           opened = (async () =>
             (await canAccess(principal, threadId))
-              ? host.open(harness, { threadId, principal })
+              ? host.open({ harness, threadId, principal })
               : undefined)()
           const session = await opened
           if (!session) {
@@ -903,12 +909,12 @@ export function handleHarnessSocket(options: HarnessSocketOptions): void {
           send({ type: 'harness.snapshot', snapshot: session.snapshot() })
           return
         }
-        const receipt = await applyInput(
+        const receipt = await applyInput({
           harness,
           session,
-          frame.input,
+          input: frame.input,
           principal,
-        )
+        })
         send({
           type: 'harness.receipt',
           requestId: frame.requestId,

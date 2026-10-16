@@ -8,6 +8,7 @@ import {
   defineHarness,
   definePlugin,
 } from '../src'
+import { SessionImpl } from '../src/session/harness-session'
 import {
   after,
   gate,
@@ -49,10 +50,12 @@ describe('an input that reaches a host that does not own the thread', () => {
       () => text('Two.'),
     ])
     const harness = harnessOf(adapter)
-    const owner = await createHarnessHost({ persistence }).open(harness, {
+    const owner = await createHarnessHost({ persistence }).open({
+      harness,
       threadId: THREAD,
     })
-    const other = await createHarnessHost({ persistence }).open(harness, {
+    const other = await createHarnessHost({ persistence }).open({
+      harness,
       threadId: THREAD,
     })
 
@@ -87,10 +90,12 @@ describe('an input that reaches a host that does not own the thread', () => {
       () => text('Two.'),
     ])
     const harness = harnessOf(adapter)
-    const owner = await createHarnessHost({ persistence }).open(harness, {
+    const owner = await createHarnessHost({ persistence }).open({
+      harness,
       threadId: THREAD,
     })
-    const other = await createHarnessHost({ persistence }).open(harness, {
+    const other = await createHarnessHost({ persistence }).open({
+      harness,
       threadId: THREAD,
     })
 
@@ -113,10 +118,12 @@ describe('an input that reaches a host that does not own the thread', () => {
     const release = gate()
     const { adapter } = mockAdapter([after(release.opened, 'One.')])
     const harness = harnessOf(adapter)
-    const owner = await createHarnessHost({ persistence }).open(harness, {
+    const owner = await createHarnessHost({ persistence }).open({
+      harness,
       threadId: THREAD,
     })
-    const other = await createHarnessHost({ persistence }).open(harness, {
+    const other = await createHarnessHost({ persistence }).open({
+      harness,
       threadId: THREAD,
     })
 
@@ -147,7 +154,8 @@ describe('an input that reaches a host that does not own the thread', () => {
       ownerId: 'stopped-host',
       until: Date.now() + 50,
     })
-    const first = await createHarnessHost({ persistence }).open(harness, {
+    const first = await createHarnessHost({ persistence }).open({
+      harness,
       threadId: THREAD,
     })
     const receipt = await first.send('Still there?', { mode: 'followUp' })
@@ -158,7 +166,7 @@ describe('an input that reaches a host that does not own the thread', () => {
     await new Promise((resolve) => setTimeout(resolve, 80))
     const host = createHarnessHost({ persistence })
     await host.resumePending({ harnesses: [harness] })
-    const next = await host.open(harness, { threadId: THREAD })
+    const next = await host.open({ harness, threadId: THREAD })
     const settled = await vi.waitFor(() => next.settled(receipt.inputId), {
       timeout: 3_000,
     })
@@ -187,12 +195,13 @@ describe('an input that reaches a host that does not own the thread', () => {
           }),
         },
       },
-    }).open(harness, { threadId: THREAD })
+    }).open({ harness, threadId: THREAD })
     const turn = owner.send('Go.')
     await turn.receipt
 
     // In that window, another host opens the thread and finds the input.
-    const other = await createHarnessHost({ persistence }).open(harness, {
+    const other = await createHarnessHost({ persistence }).open({
+      harness,
       threadId: THREAD,
     })
     leaseWrite.open()
@@ -226,14 +235,16 @@ describe('an input that reaches a host that does not own the thread', () => {
       adapter,
       plugins: () => [deploy],
     })
-    const owner = await createHarnessHost({ persistence }).open(harness, {
+    const owner = await createHarnessHost({ persistence }).open({
+      harness,
       threadId: THREAD,
     })
-    const other = await createHarnessHost({ persistence }).open(harness, {
+    const other = await createHarnessHost({ persistence }).open({
+      harness,
       threadId: THREAD,
     })
 
-    const running = owner.command('deploy')
+    const running = owner.command({ name: 'deploy' })
     await vi.waitFor(() =>
       expect(owner.snapshot().pendingQuestions).toHaveLength(1),
     )
@@ -271,14 +282,16 @@ describe('an input that reaches a host that does not own the thread', () => {
       adapter: mockAdapter([]).adapter,
       plugins: () => [login],
     })
-    const owner = await createHarnessHost({ persistence }).open(harness, {
+    const owner = await createHarnessHost({ persistence }).open({
+      harness,
       threadId: THREAD,
     })
-    const other = await createHarnessHost({ persistence }).open(harness, {
+    const other = await createHarnessHost({ persistence }).open({
+      harness,
       threadId: THREAD,
     })
 
-    const running = owner.command('login')
+    const running = owner.command({ name: 'login' })
     await vi.waitFor(() =>
       expect(owner.snapshot().pendingQuestions).toHaveLength(1),
     )
@@ -340,14 +353,15 @@ describe('an input that reaches a host that does not own the thread', () => {
           }),
         },
       },
-    }).open(harness, { threadId: THREAD })
-    const other = await createHarnessHost({ persistence }).open(harness, {
+    }).open({ harness, threadId: THREAD })
+    const other = await createHarnessHost({ persistence }).open({
+      harness,
       threadId: THREAD,
     })
 
     const turn = owner.send('Go.')
     await turn.receipt
-    await other.command('count')
+    await other.command({ name: 'count' })
     await vi.waitFor(
       async () => expect(await inbox.listPending(THREAD)).toEqual([]),
       { timeout: 4_000 },
@@ -365,10 +379,12 @@ describe('an input that reaches a host that does not own the thread', () => {
       () => text('Two.'),
     ])
     const harness = harnessOf(adapter)
-    const owner = await createHarnessHost({ persistence }).open(harness, {
+    const owner = await createHarnessHost({ persistence }).open({
+      harness,
       threadId: THREAD,
     })
-    const other = await createHarnessHost({ persistence }).open(harness, {
+    const other = await createHarnessHost({ persistence }).open({
+      harness,
       threadId: THREAD,
     })
 
@@ -399,10 +415,10 @@ describe('an input that reaches a host that does not own the thread', () => {
       ownerId: 'busy-host',
       until: Date.now() + 60_000,
     })
-    const other = await createHarnessHost({ persistence }).open(
-      harnessOf(mockAdapter([]).adapter),
-      { threadId: THREAD },
-    )
+    const other = await createHarnessHost({ persistence }).open({
+      harness: harnessOf(mockAdapter([]).adapter),
+      threadId: THREAD,
+    })
     let last = ''
     let operation: Operation<ChatTurnResult> | undefined
     for (let index = 0; index < 510; index++) {
@@ -425,14 +441,16 @@ describe('an input that reaches a host that does not own the thread', () => {
       after(release.opened, 'Two.'),
     ])
     const harness = harnessOf(adapter)
-    const owner = await createHarnessHost({ persistence }).open(harness, {
+    const owner = await createHarnessHost({ persistence }).open({
+      harness,
       threadId: THREAD,
     })
     await owner.send('First.')
     const turn = owner.send('Second.')
     await turn.receipt
     // Another instance opens the thread while the owner runs the turn.
-    const other = await createHarnessHost({ persistence }).open(harness, {
+    const other = await createHarnessHost({ persistence }).open({
+      harness,
       threadId: THREAD,
     })
     const [first] = await other.transcript()
@@ -458,10 +476,10 @@ describe('an input that reaches a host that does not own the thread', () => {
       ownerId: 'stopped-host',
       until: Date.now() + 50,
     })
-    const host = await createHarnessHost({ persistence }).open(
-      harnessOf(adapter),
-      { threadId: THREAD },
-    )
+    const host = await createHarnessHost({ persistence }).open({
+      harness: harnessOf(adapter),
+      threadId: THREAD,
+    })
     const turn = host.send('Still there?', { runId: 'run-9' })
     expect((await turn.receipt).status).toBe('queued')
     // The claim expires. This host reads the inbox and runs the input.
@@ -492,8 +510,9 @@ describe('an input that reaches a host that does not own the thread', () => {
           }),
         },
       },
-    }).open(harness, { threadId: THREAD })
-    const other = await createHarnessHost({ persistence }).open(harness, {
+    }).open({ harness, threadId: THREAD })
+    const other = await createHarnessHost({ persistence }).open({
+      harness,
       threadId: THREAD,
     })
 
@@ -533,9 +552,10 @@ describe('an input that reaches a host that does not own the thread', () => {
           }),
         },
       },
-    }).open(harness, { threadId: THREAD })
+    }).open({ harness, threadId: THREAD })
     await owner.send('First.').receipt
-    const other = await createHarnessHost({ persistence }).open(harness, {
+    const other = await createHarnessHost({ persistence }).open({
+      harness,
       threadId: THREAD,
     })
     const receipt = await other.send('Second.', { mode: 'followUp' }).receipt
@@ -561,7 +581,8 @@ describe('an input that reaches a host that does not own the thread', () => {
       () => text('Opened it.'),
     ])
     const harness = defineHarness({ name: NAME, adapter, tools: [openScreen] })
-    const owner = await createHarnessHost({ persistence }).open(harness, {
+    const owner = await createHarnessHost({ persistence }).open({
+      harness,
       threadId: THREAD,
     })
     const turn = await owner.send('Open settings.')
@@ -576,14 +597,18 @@ describe('an input that reaches a host that does not own the thread', () => {
       ownerId: 'busy-host',
       until: Date.now() + 100,
     })
-    const other = await createHarnessHost({ persistence }).open(harness, {
+    const other = await createHarnessHost({ persistence }).open({
+      harness,
       threadId: THREAD,
     })
-    // A `POST run` with a resume: the run id is the input id too.
-    const receipt = await other.resolve(
-      [{ interruptId, status: 'resolved', payload: { opened: true } }],
-      { inputId: 'run-r', runId: 'run-r' },
-    )
+    // A `POST run` with a resume: the run id is the input id too. The
+    // handler calls `resolveForRun`, which only the session class has.
+    if (!(other instanceof SessionImpl)) throw new Error('Not a SessionImpl.')
+    const receipt = await other.resolveForRun({
+      resume: [{ interruptId, status: 'resolved', payload: { opened: true } }],
+      inputId: 'run-r',
+      runId: 'run-r',
+    })
     expect(receipt).toMatchObject({ status: 'queued', operationId: 'run-r' })
     await vi.waitFor(() => expect(calls).toHaveLength(2), { timeout: 3_000 })
     expect((await other.settled('run-r')).outcome).toBe('completed')

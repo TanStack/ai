@@ -220,7 +220,10 @@ describe('POST run', () => {
     expect(refused.status).toBe(409)
     expect(await runs.get('run-x')).toEqual(stored)
     expect(deployed).toEqual([])
-    const session = await host.open(approvalHarness([]), { threadId: 't-1' })
+    const session = await host.open({
+      harness: approvalHarness([]),
+      threadId: 't-1',
+    })
     expect(session.snapshot().pendingInterrupts).toHaveLength(1)
     await host.close()
   })
@@ -388,10 +391,10 @@ describe('questions', () => {
     expect(streamed).toContain('harness.operation.finished')
 
     // The session stream has the question once.
-    const session = await host.open(
-      defineHarness({ name: 'test/run-route', adapter }),
-      { threadId: 't-1' },
-    )
+    const session = await host.open({
+      harness: defineHarness({ name: 'test/run-route', adapter }),
+      threadId: 't-1',
+    })
     let questions = 0
     for await (const entry of session.events({
       signal: AbortSignal.timeout(200),
@@ -577,10 +580,10 @@ describe('snapshot', () => {
       after(held.opened, 'First.'),
     ])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({ name: 'test/run-route', adapter }),
-      { threadId: 't-1' },
-    )
+    const session = await host.open({
+      harness: defineHarness({ name: 'test/run-route', adapter }),
+      threadId: 't-1',
+    })
     // Events of another turn come before this one.
     await session.send('Warm up.')
     const turn = session.send('Start.')

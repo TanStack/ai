@@ -57,7 +57,7 @@ async function open(replies: Array<Reply>, persistence = memoryPersistence()) {
     plugins: () => [pinger],
   })
   const host = createHarnessHost({ persistence })
-  const session = await host.open(harness, { threadId: 't' })
+  const session = await host.open({ harness, threadId: 't' })
   return { host, session, harness, persistence, calls: main.calls }
 }
 
@@ -141,10 +141,12 @@ describe('createSessionView', () => {
     second?.reject()
 
     expect(resolve).toHaveBeenCalledTimes(1)
-    expect(resolve.mock.calls[0]?.[0]).toEqual([
-      { interruptId: first?.id, status: 'resolved', payload: true },
-      { interruptId: second?.id, status: 'resolved', payload: false },
-    ])
+    expect(resolve.mock.calls[0]?.[0]).toEqual({
+      resume: [
+        { interruptId: first?.id, status: 'resolved', payload: true },
+        { interruptId: second?.id, status: 'resolved', payload: false },
+      ],
+    })
     await vi.waitFor(() => expect(view.store.get().status).toBe('idle'))
     view.dispose()
     await host.close()
@@ -158,9 +160,9 @@ describe('createSessionView', () => {
     await view.send('remove')
     await vi.waitFor(() => expect(view.store.get().approvals).toHaveLength(1))
     const id = view.store.get().approvals[0]?.id
-    const receipt = await session.resolve([
-      { interruptId: 'wrong', status: 'resolved', payload: true },
-    ])
+    const receipt = await session.resolve({
+      resume: [{ interruptId: 'wrong', status: 'resolved', payload: true }],
+    })
     await expect(session.operation(receipt.operationId ?? '')).rejects.toThrow()
     await vi.waitFor(() =>
       expect(view.store.get().approvals.map((item) => item.id)).toEqual([id]),
@@ -238,7 +240,7 @@ describe('createSessionView', () => {
     const errors: Array<string> = []
     view.on('error', (message) => errors.push(message))
 
-    await view.command('nope')
+    await view.command({ name: 'nope' })
 
     await vi.waitFor(() =>
       expect(errors).toEqual(['Not accepted: unknown_command']),
@@ -290,7 +292,7 @@ describe('createSessionView', () => {
     snapshot.mockClear()
 
     view.dispose()
-    await session.command('ping')
+    await session.command({ name: 'ping' })
     await new Promise((resolve) => setTimeout(resolve, 20))
 
     expect(view.store.get()).toEqual({ ...before, connection: 'closed' })
@@ -364,7 +366,7 @@ describe('createSessionView', () => {
       expect(errors).toEqual(['Not accepted: unknown_config']),
     )
     await view.setConfig({ key: 'mode', value: 'bypass' })
-    await view.command('ping')
+    await view.command({ name: 'ping' })
     await view.send('/ping')
 
     const refused = 'Not accepted: not_exposed'
@@ -404,14 +406,14 @@ describe('the agents of a session view', () => {
       },
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/view-agents',
         adapter: mockAdapter([]).adapter,
         agents: [writer],
       }),
-      { threadId: 't' },
-    )
+      threadId: 't',
+    })
     const run = session.agents.writer.start()
     return { hold, host, session, run }
   }
@@ -444,8 +446,8 @@ describe('the agents of a session view', () => {
         ctx.chat({ adapter: mockAdapter(() => text('Note 1')).adapter }),
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/view-children',
         adapter: mockAdapter([
           () => toolCall('writer', { prompt: 'Take notes' }, 'call-1'),
@@ -453,8 +455,8 @@ describe('the agents of a session view', () => {
         ]).adapter,
         subagents: { agents: [writer] },
       }),
-      { threadId: 't' },
-    )
+      threadId: 't',
+    })
     await session.send('Notes, please')
 
     const view = createSessionView(session)

@@ -26,15 +26,15 @@ async function open(
   } = {},
 ) {
   const host = createHarnessHost({ persistence })
-  const session = await host.open(
-    defineHarness({
+  const session = await host.open({
+    harness: defineHarness({
       name: 'test/title-usage',
       adapter: mockAdapter(reply).adapter,
       agents,
       plugins: () => plugins,
     }),
-    { threadId: 't' },
-  )
+    threadId: 't',
+  })
   return { host, session }
 }
 
@@ -162,7 +162,7 @@ describe('usage()', () => {
 
     // The lead call costs $3.25 from the lookup, the worker call $0.50 from
     // its provider.
-    expect(await session.command('usage')).toBe(
+    expect(await session.command({ name: 'usage' })).toBe(
       [
         '2 model calls, 2000000 input tokens (500000 cache read, 500000 cache write), 200000 output tokens, 2200000 total. Cost: $3.7500.',
         `mock/test-model: ${CALL_LINE}`,
@@ -190,7 +190,9 @@ describe('usage()', () => {
 
     await session.send('one')
 
-    expect(await session.command('usage')).toBe(`${CALL_LINE} Cost: $0.5000.`)
+    expect(await session.command({ name: 'usage' })).toBe(
+      `${CALL_LINE} Cost: $0.5000.`,
+    )
     expect((await host.sessions.get('t'))?.usage?.cost).toBe(0.5)
     await host.close()
   })
@@ -261,7 +263,7 @@ describe('usage()', () => {
     await session.send('one')
     await session.send('two')
 
-    expect(await session.command('usage')).toBe(
+    expect(await session.command({ name: 'usage' })).toBe(
       '2 model calls, 2000000 input tokens (500000 cache read, 500000 cache write), 200000 output tokens, 2200000 total. Cost: $6.5000.',
     )
     await host.close()
@@ -294,7 +296,7 @@ describe('usage()', () => {
 
     await session.send('one')
 
-    expect(await session.command('usage')).toBe(
+    expect(await session.command({ name: 'usage' })).toBe(
       `${CALL_LINE} Cost: $0.0000 (cost unknown for 1 call).`,
     )
     expect((await host.sessions.get('t'))?.usage).toEqual({

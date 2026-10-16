@@ -155,7 +155,7 @@ const attachmentsSchema: JSONSchema = {
  * `harness.expose.commands`, and `tool_<name>` for each tool in
  * `harness.expose.tools`.
  * Every tool takes an optional `threadId`. Sessions open with
- * `host.open(harness, { threadId })`.
+ * `host.open({ harness, threadId })`.
  *
  * Each interrupt in a result has a `kind`: `approval`, `client-tool`, or
  * `generic`. `approve` and `reject` answer approvals only. `resolve` answers
@@ -188,7 +188,8 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
   const waiting = new Map<string, Operation<unknown>>()
 
   const open = (args: unknown) =>
-    host.open(harness, {
+    host.open({
+      harness,
       threadId:
         isRecord(args) && typeof args.threadId === 'string'
           ? args.threadId
@@ -443,7 +444,7 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
   })
 
   // Agents and commands come from a session. Every thread has the same ones.
-  const session = await host.open(harness, { threadId: defaultThread })
+  const session = await host.open({ harness, threadId: defaultThread })
 
   const exposed: ReadonlyArray<string> = harness.expose?.agents ?? []
   const agents = exposed.flatMap((name) => {
@@ -484,7 +485,10 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
       }).server<MCPToolContext>(async (args, ctx) => {
         const target = await open(args)
         const from = target.snapshot().cursor
-        const operation = target.command(command.name, inputOf(args))
+        const operation = target.command({
+          name: command.name,
+          input: inputOf(args),
+        })
         return finish(target, operation, from, ctx.context)
       }),
   )
@@ -503,7 +507,7 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
       }).server<MCPToolContext>(async (args, ctx) => {
         const target = await open(args)
         const from = target.snapshot().cursor
-        const operation = target.tool(tool.name, inputOf(args))
+        const operation = target.tool({ name: tool.name, args: inputOf(args) })
         return finish(target, operation, from, ctx.context)
       }),
   )
@@ -538,11 +542,11 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
           }).server(async (args) => {
             const target = await open(args)
             const records = isRecord(args) ? args.records : undefined
-            const receipt = await applyInput(
+            const receipt = await applyInput({
               harness,
-              target,
-              parseHarnessInput({ op: 'append', records }),
-            )
+              session: target,
+              input: parseHarnessInput({ op: 'append', records }),
+            })
             if (receipt.status === 'rejected') {
               throw new Error(
                 `The harness refused the records: ${receipt.reason}.`,
@@ -560,12 +564,12 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
     mimeType: 'application/octet-stream',
     argsSchema: { parse: mediaAddress },
   }).read(async (_uri, { threadId, id }) => {
-    const target = await host.open(harness, { threadId })
+    const target = await host.open({ harness, threadId })
     const record = await target.getMedia(id)
     if (record === null) {
       throw new Error(`Media ${id} was not found in thread ${threadId}.`)
     }
-    const blob = toBase64(await target.loadMedia(id))
+    const blob = toBase64(await target.loadMedia({ id }))
     return { blob, mimeType: record.mimeType }
   })
 
@@ -597,9 +601,9 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
 // The harness needs one resolve that answers every open interrupt. An async
 // function waits for an operation that it returns, so the turn is wrapped.
 async function resolveAll(session: HarnessSession, answers: Array<Answer>) {
-  const receipt = await session.resolve(
-    answers.map((answer) => ({ ...answer, status: 'resolved' })),
-  )
+  const receipt = await session.resolve({
+    resume: answers.map((answer) => ({ ...answer, status: 'resolved' })),
+  })
   const operation =
     receipt.operationId === undefined
       ? undefined
@@ -713,7 +717,11 @@ async function attachmentPart(
     const file = await readAllowedFile(attachment.path, filePaths)
     const name = attachment.name ?? file.name
     return mediaPart(
-      await session.putMedia(file.bytes, { mimeType: file.mimeType, name }),
+      await session.putMedia({
+        body: file.bytes,
+        mimeType: file.mimeType,
+        name,
+      }),
     )
   }
   if ('url' in attachment) return urlPart(attachment)
@@ -722,7 +730,11 @@ async function attachmentPart(
   )
   const name = attachment.name ?? 'attachment'
   return mediaPart(
-    await session.putMedia(bytes, { mimeType: attachment.mimeType, name }),
+    await session.putMedia({
+      body: bytes,
+      mimeType: attachment.mimeType,
+      name,
+    }),
   )
 }
 
@@ -828,7 +840,7 @@ async function mediaBlock(session: HarnessSession, record: MediaRecord) {
   const { kind } = record
   const isSmall = record.size <= INLINE_MEDIA_MAX_BYTES
   if (isSmall && (kind === 'image' || kind === 'audio')) {
-    const data = toBase64(await session.loadMedia(record.id))
+    const data = toBase64(await session.loadMedia({ id: record.id }))
     const inline: ContentBlock = { type: kind, data, mimeType: record.mimeType }
     return inline
   }

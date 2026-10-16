@@ -58,7 +58,8 @@ describe('work claims while a session runs', () => {
     const release = gate()
     const { adapter } = mockAdapter([after(release.opened, 'Done.')])
     const host = createHarnessHost({ persistence })
-    const session = await host.open(defineHarness({ name: NAME, adapter }), {
+    const session = await host.open({
+      harness: defineHarness({ name: NAME, adapter }),
       threadId: THREAD,
     })
 
@@ -88,10 +89,10 @@ describe('work claims while a session runs', () => {
       toolCallAfter(reply.opened, 'deploy', { env: 'prod' }),
     ])
     const host = createHarnessHost({ persistence })
-    const session = await host.open(
-      defineHarness({ name: NAME, adapter, tools: [deploy] }),
-      { threadId: THREAD },
-    )
+    const session = await host.open({
+      harness: defineHarness({ name: NAME, adapter, tools: [deploy] }),
+      threadId: THREAD,
+    })
 
     const turn = session.send('Deploy.')
     await turn.receipt
@@ -120,10 +121,10 @@ describe('work claims while a session runs', () => {
     })
     const { adapter } = mockAdapter([() => text('Noted.')])
     const host = createHarnessHost({ persistence })
-    const session = await host.open(
-      defineHarness({ name: NAME, adapter, agents: [waiter] }),
-      { threadId: THREAD },
-    )
+    const session = await host.open({
+      harness: defineHarness({ name: NAME, adapter, agents: [waiter] }),
+      threadId: THREAD,
+    })
 
     const run = session.agents.waiter.start(undefined)
     await vi.waitFor(async () =>
@@ -148,7 +149,8 @@ describe('work claims while a session runs', () => {
     })
     const { adapter, calls } = mockAdapter([() => text('Done.')])
     const host = createHarnessHost({ persistence })
-    const session = await host.open(defineHarness({ name: NAME, adapter }), {
+    const session = await host.open({
+      harness: defineHarness({ name: NAME, adapter }),
       threadId: THREAD,
     })
 
@@ -174,7 +176,8 @@ describe('work claims while a session runs', () => {
     const host = createHarnessHost({
       persistence: { stores: { ...persistence.stores, inbox } },
     })
-    const session = await host.open(defineHarness({ name: NAME, adapter }), {
+    const session = await host.open({
+      harness: defineHarness({ name: NAME, adapter }),
       threadId: THREAD,
     })
 
@@ -192,7 +195,8 @@ describe('work claims while a session runs', () => {
     vi.spyOn(claims, 'release').mockRejectedValue(new Error('release failed'))
     const { adapter } = mockAdapter([() => text('Done.')])
     const host = createHarnessHost({ persistence })
-    const session = await host.open(defineHarness({ name: NAME, adapter }), {
+    const session = await host.open({
+      harness: defineHarness({ name: NAME, adapter }),
       threadId: THREAD,
     })
     const warnings: Array<unknown> = []
@@ -551,7 +555,7 @@ describe('host.resumePending', () => {
     const { adapter } = mockAdapter([after(release.opened, 'Done.')])
     const harness = defineHarness({ name: NAME, adapter })
     const live = createHarnessHost({ persistence })
-    const session = await live.open(harness, { threadId: THREAD })
+    const session = await live.open({ harness, threadId: THREAD })
     const turn = session.send('Go.')
     await turn.receipt
 
@@ -588,7 +592,7 @@ describe('host.resumePending', () => {
       await new Promise((resolve) => setTimeout(resolve, 50))
       // A session that closed sets its plugins up again on the next open.
       await vi.waitFor(async () => {
-        await host.open(harness, { threadId: THREAD })
+        await host.open({ harness, threadId: THREAD })
         expect(setup).toHaveBeenCalledTimes(setups)
       })
       await host.close()
@@ -671,7 +675,7 @@ describe('host.resumePending', () => {
     vi.spyOn(claims, 'release').mockImplementationOnce((claim) => {
       queueMicrotask(() => {
         arriving = host
-          .open(harness, { threadId: THREAD })
+          .open({ harness, threadId: THREAD })
           .then(async (session) => (await session.send('Again.')).text)
       })
       return release(claim)

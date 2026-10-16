@@ -302,8 +302,8 @@ describe('formatter', () => {
       () => text('done'),
     ])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/formatter',
         adapter,
         plugins: () => [
@@ -312,8 +312,8 @@ describe('formatter', () => {
           listener,
         ],
       }),
-      { threadId: 't' },
-    )
+      threadId: 't',
+    })
 
     await session.send('work')
     await host.close()
@@ -353,8 +353,8 @@ describe('formatter with permissions()', () => {
       () => text('done'),
     ])
     const host = createHarnessHost({ persistence })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/formatter-permissions',
         adapter,
         plugins: () => [
@@ -363,9 +363,9 @@ describe('formatter with permissions()', () => {
           formatter({ root, backend }),
         ],
       }),
-      { threadId: 't' },
-    )
-    await session.command('mode', mode)
+      threadId: 't',
+    })
+    await session.command({ name: 'mode', input: mode })
     return { host, session, runs, calls }
   }
 
@@ -444,8 +444,8 @@ describe('formatter with permissions()', () => {
       () => text('done'),
     ])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/formatter-no-permissions',
         adapter,
         plugins: () => [
@@ -453,8 +453,8 @@ describe('formatter with permissions()', () => {
           formatter({ root, backend }),
         ],
       }),
-      { threadId: 't' },
-    )
+      threadId: 't',
+    })
     await session.send('change the config')
     expect(runs.map((run) => run.command)).toEqual([
       `npx --no-install prettier --write ${quoted('prettier.config.js')}`,

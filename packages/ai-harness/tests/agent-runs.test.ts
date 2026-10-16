@@ -29,7 +29,8 @@ async function open<THarness extends AnyHarness>(
   persistence = memoryPersistence(),
 ) {
   const host = createHarnessHost({ persistence })
-  const session = await host.open(harness, {
+  const session = await host.open({
+    harness,
     threadId: THREAD,
     principal: alice,
   })
@@ -198,7 +199,8 @@ describe('follow-ups to an agent run', () => {
     const host = createHarnessHost({
       persistence: { stores: { log, runs, metadata } },
     })
-    const session = await host.open(writing(model.adapter), {
+    const session = await host.open({
+      harness: writing(model.adapter),
       threadId: THREAD,
       principal: alice,
     })
@@ -356,7 +358,8 @@ describe('agentRuns() and agentRun(id)', () => {
     }
     const first = mockAdapter([() => text('Draft one.')])
     const hostA = createHarnessHost({ persistence })
-    const sessionA = await hostA.open(writing(first.adapter), {
+    const sessionA = await hostA.open({
+      harness: writing(first.adapter),
       threadId: THREAD,
       principal: alice,
     })
@@ -366,7 +369,8 @@ describe('agentRuns() and agentRun(id)', () => {
 
     const second = mockAdapter([() => text('Draft two.')])
     const hostB = createHarnessHost({ persistence })
-    const sessionB = await hostB.open(writing(second.adapter), {
+    const sessionB = await hostB.open({
+      harness: writing(second.adapter),
       threadId: THREAD,
       principal: alice,
     })
@@ -551,7 +555,7 @@ describe('agents that agent code starts', () => {
     await vi.waitFor(() => expect(model.calls).toHaveLength(1))
     const queued = await run.send('Add a title.', { mode: 'followUp' })
 
-    const cancelled = await session.cancel(queued.operationId)
+    const cancelled = await session.cancel({ operationId: queued.operationId })
     release.open()
     await run
 
@@ -600,7 +604,8 @@ describe('messages to an agent run after its host stopped', () => {
     const { persistence, stop } = durable()
     const first = mockAdapter([untilAborted()])
     const hostA = createHarnessHost({ persistence })
-    const sessionA = await hostA.open(writing(first.adapter), {
+    const sessionA = await hostA.open({
+      harness: writing(first.adapter),
       threadId: THREAD,
       principal: alice,
     })
@@ -611,7 +616,8 @@ describe('messages to an agent run after its host stopped', () => {
 
     const next = mockAdapter([() => text('Cited.')])
     const hostB = createHarnessHost({ persistence })
-    const sessionB = await hostB.open(writing(next.adapter), {
+    const sessionB = await hostB.open({
+      harness: writing(next.adapter),
       threadId: THREAD,
       principal: alice,
     })
@@ -627,7 +633,8 @@ describe('messages to an agent run after its host stopped', () => {
     const { persistence, stop } = durable()
     const first = mockAdapter([untilAborted()])
     const hostA = createHarnessHost({ persistence })
-    const sessionA = await hostA.open(writing(first.adapter), {
+    const sessionA = await hostA.open({
+      harness: writing(first.adapter),
       threadId: THREAD,
       principal: alice,
     })
@@ -638,7 +645,8 @@ describe('messages to an agent run after its host stopped', () => {
 
     const next = mockAdapter([])
     const hostB = createHarnessHost({ persistence })
-    const sessionB = await hostB.open(writing(next.adapter), {
+    const sessionB = await hostB.open({
+      harness: writing(next.adapter),
       threadId: THREAD,
       principal: alice,
     })
@@ -657,7 +665,8 @@ describe('messages to an agent run after its host stopped', () => {
       untilAborted(),
     ])
     const hostA = createHarnessHost({ persistence })
-    const sessionA = await hostA.open(harness, {
+    const sessionA = await hostA.open({
+      harness,
       threadId: THREAD,
       principal: alice,
     })
@@ -669,7 +678,8 @@ describe('messages to an agent run after its host stopped', () => {
     await stop(sessionA, run)
 
     const hostB = createHarnessHost({ persistence })
-    const sessionB = await hostB.open(harness, {
+    const sessionB = await hostB.open({
+      harness,
       threadId: THREAD,
       principal: alice,
     })
@@ -684,7 +694,8 @@ describe('messages to an agent run after its host stopped', () => {
     const { persistence, stop } = durable()
     const first = mockAdapter([() => text('Draft one.'), untilAborted()])
     const hostA = createHarnessHost({ persistence })
-    const sessionA = await hostA.open(writing(first.adapter), {
+    const sessionA = await hostA.open({
+      harness: writing(first.adapter),
       threadId: THREAD,
       principal: alice,
     })
@@ -701,7 +712,8 @@ describe('messages to an agent run after its host stopped', () => {
 
     const next = mockAdapter([() => text('Titled.')])
     const hostB = createHarnessHost({ persistence })
-    const sessionB = await hostB.open(writing(next.adapter), {
+    const sessionB = await hostB.open({
+      harness: writing(next.adapter),
       threadId: THREAD,
       principal: alice,
     })

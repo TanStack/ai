@@ -202,15 +202,15 @@ async function firstToolNames(options: {
 }) {
   const { adapter, calls } = scripted([textTurn('ok')])
   const host = createHarnessHost({ persistence: memoryPersistence() })
-  const session = await host.open(
-    defineHarness({
+  const session = await host.open({
+    harness: defineHarness({
       name: 'test/code-mode-marked',
       adapter,
       tools: options.tools,
       plugins: () => options.plugins,
     }),
-    { threadId: 't' },
-  )
+    threadId: 't',
+  })
   await session.send('hi')
   await host.close()
   return calls[0].tools.map((tool: { name: string }) => tool.name)
@@ -224,15 +224,15 @@ describe('codeMode', () => {
       textTurn('done'),
     ])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/code-mode',
         adapter,
         tools: [tools.lookup, tools.remove, tools.askUser],
         plugins: () => [writes, notion, codeMode({ driver })],
       }),
-      { threadId: 't' },
-    )
+      threadId: 't',
+    })
     const turn = await session.send('look it up')
     expect(turn.text).toBe('done')
 
@@ -259,8 +259,8 @@ describe('codeMode', () => {
     const { driver } = fakeDriver()
     const { adapter, calls } = scripted([textTurn('one'), textTurn('two')])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const picked = await host.open(
-      defineHarness({
+    const picked = await host.open({
+      harness: defineHarness({
         name: 'test/code-mode-include',
         adapter,
         tools: [tools.lookup, tools.remove],
@@ -268,23 +268,23 @@ describe('codeMode', () => {
           codeMode({ driver, include: (tool) => tool.name === 'remove' }),
         ],
       }),
-      { threadId: 'picked' },
-    )
+      threadId: 'picked',
+    })
     await picked.send('hi')
     expect(calls[0].tools.map((tool: { name: string }) => tool.name)).toEqual([
       'lookup',
       'execute_typescript',
     ])
 
-    const none = await host.open(
-      defineHarness({
+    const none = await host.open({
+      harness: defineHarness({
         name: 'test/code-mode-none',
         adapter,
         tools: [tools.remove],
         plugins: () => [codeMode({ driver })],
       }),
-      { threadId: 'none' },
-    )
+      threadId: 'none',
+    })
     await none.send('hi')
     expect(calls[1].tools.map((tool: { name: string }) => tool.name)).toEqual([
       'remove',
@@ -302,15 +302,15 @@ describe('codeMode', () => {
       textTurn('found it'),
     ])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/code-mode-lazy',
         adapter,
         tools: [tools.lookup, tools.remove],
         plugins: () => [codeMode({ driver, lazy: true })],
       }),
-      { threadId: 't' },
-    )
+      threadId: 't',
+    })
     expect((await session.send('what can you call?')).text).toBe('found it')
 
     expect(calls[0].tools.map((tool: { name: string }) => tool.name)).toEqual([
@@ -351,8 +351,8 @@ describe('codeMode', () => {
       }).server(async () => reply)
     const { adapter, calls } = scripted([codeTurn('return 1'), textTurn('ok')])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/code-mode-names',
         adapter,
         tools: [
@@ -362,8 +362,8 @@ describe('codeMode', () => {
         ],
         plugins: () => [codeMode({ driver })],
       }),
-      { threadId: 't' },
-    )
+      threadId: 't',
+    })
     await session.send('search')
     // web_search clashes with web-search after the rename, so it stays direct.
     expect(calls[0].tools.map((tool: { name: string }) => tool.name)).toEqual([
@@ -486,8 +486,8 @@ describe('codeMode', () => {
       const { driver, seen } = fakeDriver()
       const { adapter } = scripted([codeTurn('return 1'), textTurn('done')])
       const host = createHarnessHost({ persistence: memoryPersistence() })
-      const session = await host.open(
-        defineHarness({
+      const session = await host.open({
+        harness: defineHarness({
           name: 'test/code-mode-allow',
           adapter,
           tools: [tools.lookup],
@@ -503,9 +503,10 @@ describe('codeMode', () => {
             codeMode({ driver }),
           ],
         }),
-        { threadId: 't' },
-      )
-      if (mode === 'plan') await session.command('mode', 'plan')
+        threadId: 't',
+      })
+      if (mode === 'plan')
+        await session.command({ name: 'mode', input: 'plan' })
       expect((await session.send('look it up')).text).toBe('done')
       // The program ran: a question would wait, and plan mode would deny it.
       expect(seen).toHaveLength(1)
@@ -517,8 +518,8 @@ describe('codeMode', () => {
     const { driver, seen } = fakeDriver()
     const { adapter } = scripted([codeTurn('return 1'), textTurn('done')])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/code-mode-user-rule',
         adapter,
         tools: [tools.lookup],
@@ -530,8 +531,8 @@ describe('codeMode', () => {
           codeMode({ driver }),
         ],
       }),
-      { threadId: 't' },
-    )
+      threadId: 't',
+    })
     const turn = session.send('look it up')
     await vi.waitFor(() =>
       expect(session.snapshot().pendingQuestions).toHaveLength(1),
@@ -553,8 +554,8 @@ describe('codeMode', () => {
     const { adapter, calls } = scripted([textTurn('one'), textTurn('two')])
     let isBroken = false
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/code-mode-failed-pick',
         adapter,
         tools: [tools.lookup],
@@ -568,8 +569,8 @@ describe('codeMode', () => {
           }),
         ],
       }),
-      { threadId: 't' },
-    )
+      threadId: 't',
+    })
     await session.send('first')
     expect(JSON.stringify(calls[0].systemPrompts)).toContain('external_lookup')
 

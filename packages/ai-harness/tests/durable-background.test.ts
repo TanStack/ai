@@ -30,14 +30,14 @@ function openOn(
   adapter: AnyTextAdapter,
   plugins: Array<HarnessPlugin> = [],
 ) {
-  return createHarnessHost({ persistence }).open(
-    defineHarness({
+  return createHarnessHost({ persistence }).open({
+    harness: defineHarness({
       name: 'test/durable-background',
       adapter,
       plugins: () => plugins,
     }),
-    { threadId: THREAD },
-  )
+    threadId: THREAD,
+  })
 }
 
 describe('background work after a crash', () => {
@@ -58,14 +58,14 @@ describe('background work after a crash', () => {
       () => toolCall('wait', {}, 'call-1'),
       () => text('Moved.'),
     ])
-    const crashed = await createHarnessHost({ persistence }).open(
-      defineHarness({
+    const crashed = await createHarnessHost({ persistence }).open({
+      harness: defineHarness({
         name: 'test/durable-background',
         adapter: first.adapter,
         tools: [wait],
       }),
-      { threadId: THREAD },
-    )
+      threadId: THREAD,
+    })
     const turn = crashed.send('Wait')
     await started.opened
     expect(await crashed.background('call-1')).toMatchObject({
@@ -108,29 +108,29 @@ describe('background work after a crash', () => {
       () => toolCall('remind', {}, 'call-1'),
       untilAborted(),
     ])
-    const crashed = await createHarnessHost({ persistence }).open(
-      defineHarness({
+    const crashed = await createHarnessHost({ persistence }).open({
+      harness: defineHarness({
         name: 'test/durable-background',
         adapter: first.adapter,
         tools: [remind],
         plugins: () => [noter],
       }),
-      { threadId: THREAD },
-    )
+      threadId: THREAD,
+    })
     void Promise.resolve(crashed.send('Remind me')).catch(() => {})
     await noted.opened
     await vi.waitFor(() => expect(first.calls).toHaveLength(2))
 
     const next = mockAdapter([() => text('Done.')])
-    const recovered = await createHarnessHost({ persistence }).open(
-      defineHarness({
+    const recovered = await createHarnessHost({ persistence }).open({
+      harness: defineHarness({
         name: 'test/durable-background',
         adapter: next.adapter,
         tools: [remind],
         plugins: () => [noter],
       }),
-      { threadId: THREAD },
-    )
+      threadId: THREAD,
+    })
     await vi.waitFor(async () =>
       expect(await assistantTexts(recovered)).toContain('Remember the milk.'),
     )

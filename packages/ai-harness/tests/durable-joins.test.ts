@@ -52,15 +52,15 @@ async function openDurable(
 ) {
   const { adapter, calls } = mockAdapter(replies)
   const host = createHarnessHost({ persistence })
-  const session = await host.open(
-    defineHarness({
+  const session = await host.open({
+    harness: defineHarness({
       name: 'test/joins',
       adapter,
       tools,
       ...(turn ? { turn } : {}),
     }),
-    { threadId: THREAD },
-  )
+    threadId: THREAD,
+  })
   return { host, session, calls }
 }
 
@@ -309,7 +309,7 @@ describe('the join rule', () => {
     const b = steer('b')
     const c = steer('c')
     await Promise.all([a, b, c].map((join) => join.receipt))
-    await session.cancel(b.id)
+    await session.cancel({ operationId: b.id })
     wait.done.open()
 
     await turn
@@ -338,15 +338,15 @@ describe('the join rule', () => {
       () => text('later answer'),
     ])
     const host = createHarnessHost({ persistence })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/joins',
         adapter,
         tools: [wait.tool],
         turn: { canJoin: ({ message }) => message !== 'later' },
       }),
-      { threadId: THREAD },
-    )
+      threadId: THREAD,
+    })
 
     const turn = session.send('start', { inputId: 'host' })
     await wait.started.opened
@@ -369,8 +369,8 @@ describe('the join rule', () => {
       () => text('done'),
     ])
     const host = createHarnessHost({ persistence })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/joins',
         adapter,
         tools: [wait.tool],
@@ -383,8 +383,8 @@ describe('the join rule', () => {
           }),
         },
       }),
-      { threadId: THREAD },
-    )
+      threadId: THREAD,
+    })
 
     const turn = session.send('start', { inputId: 'host' })
     await wait.started.opened
@@ -540,7 +540,7 @@ describe('the join rule', () => {
     await steer.receipt
     wait.done.open()
     await inJoin.opened
-    const receipt = await session.cancel(steer.id)
+    const receipt = await session.cancel({ operationId: steer.id })
     releaseJoin.open()
 
     expect(receipt).toMatchObject({ status: 'rejected', reason: 'not_running' })
@@ -577,7 +577,7 @@ describe('the join rule', () => {
         // The cancel of s1 lands while the join runs, and its append waits.
         canJoin: async ({ inputId }) => {
           if (inputId === 'join-a') {
-            cancelled = session.cancel(steer.id)
+            cancelled = session.cancel({ operationId: steer.id })
             await inAbort.opened
           }
           return true

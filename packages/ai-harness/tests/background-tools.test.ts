@@ -21,10 +21,10 @@ async function open(
   options: Omit<Parameters<typeof defineHarness>[0], 'name' | 'adapter'> = {},
 ) {
   const host = createHarnessHost({ persistence: memoryPersistence() })
-  const session = await host.open(
-    defineHarness({ name: 'test/background', adapter, ...options }),
-    { threadId: 't' },
-  )
+  const session = await host.open({
+    harness: defineHarness({ name: 'test/background', adapter, ...options }),
+    threadId: 't',
+  })
   return { host, session }
 }
 

@@ -42,7 +42,7 @@ describe.each([
     const persistence = persistenceFor(durable)
     const host = createHarnessHost({ persistence })
     const harness = defineHarness({ name: 'test/reset', adapter, ...extra })
-    const session = await host.open(harness, { threadId: 't1' })
+    const session = await host.open({ harness, threadId: 't1' })
     return { session, calls, host, harness, persistence }
   }
 
@@ -52,7 +52,8 @@ describe.each([
       () => text('Two.'),
     ])
     await session.send('First.')
-    const receipt = await session.reset('We agreed on plan B.', {
+    const receipt = await session.reset({
+      note: 'We agreed on plan B.',
       inputId: 'r1',
     })
     expect(receipt).toMatchObject({ status: 'accepted' })
@@ -105,7 +106,7 @@ describe.each([
       () => text('Four.'),
     ])
     await session.send('First.')
-    await session.reset('Note.')
+    await session.reset({ note: 'Note.' })
     await session.send('Second.')
     await session.send('Third.')
     await session.send('Fourth.')
@@ -135,7 +136,7 @@ describe.each([
     const first = session.send('First.')
     // Queued while the first turn runs, before the reset.
     const second = session.send('Second.')
-    const receipt = await session.reset('Note.')
+    const receipt = await session.reset({ note: 'Note.' })
     expect(receipt).toMatchObject({ status: 'queued' })
     release.open()
     await Promise.all([first, second])
@@ -170,7 +171,7 @@ describe.each([
       { tools: [lookup] },
     )
     await session.send('First.')
-    await session.reset('Note.')
+    await session.reset({ note: 'Note.' })
     const turn = session.send('Second.')
     await started.opened
     // Joins at the model call after the tool.
@@ -203,7 +204,7 @@ describe.each([
       { middleware: [watch] },
     )
     await session.send('First.')
-    await session.reset('Note.')
+    await session.reset({ note: 'Note.' })
     await session.send('Second.')
 
     expect(seen.at(-1)).toEqual(['Note.', 'Second.'])
@@ -213,12 +214,16 @@ describe.each([
   it('runs once for the same inputId and refuses another note', async () => {
     const { session, host } = await open([() => text('One.')])
     await session.send('First.')
-    await session.reset('Note.', { inputId: 'r1' })
+    await session.reset({ note: 'Note.', inputId: 'r1' })
     await session.settled('r1')
-    expect(await session.reset('Note.', { inputId: 'r1' })).toMatchObject({
-      status: 'accepted',
-    })
-    expect(await session.reset('Other.', { inputId: 'r1' })).toMatchObject({
+    expect(await session.reset({ note: 'Note.', inputId: 'r1' })).toMatchObject(
+      {
+        status: 'accepted',
+      },
+    )
+    expect(
+      await session.reset({ note: 'Other.', inputId: 'r1' }),
+    ).toMatchObject({
       status: 'rejected',
       reason: 'conflict',
     })
@@ -240,7 +245,7 @@ describe.each([
       tools: [deploy],
     })
     await session.send('Deploy.')
-    expect(await session.reset('Note.')).toMatchObject({
+    expect(await session.reset({ note: 'Note.' })).toMatchObject({
       status: 'rejected',
       reason: 'pending_interrupts',
     })
@@ -253,21 +258,21 @@ describe('reset on a durable host', () => {
     const persistence = persistenceFor(true)
     const first = mockAdapter([() => text('One.')])
     const hostA = createHarnessHost({ persistence })
-    const sessionA = await hostA.open(
-      defineHarness({ name: 'test/reset', adapter: first.adapter }),
-      { threadId: 't1' },
-    )
+    const sessionA = await hostA.open({
+      harness: defineHarness({ name: 'test/reset', adapter: first.adapter }),
+      threadId: 't1',
+    })
     await sessionA.send('First.')
-    await sessionA.reset('Note.', { inputId: 'r1' })
+    await sessionA.reset({ note: 'Note.', inputId: 'r1' })
     await sessionA.settled('r1')
     await hostA.close()
 
     const second = mockAdapter([() => text('Two.')])
     const hostB = createHarnessHost({ persistence })
-    const sessionB = await hostB.open(
-      defineHarness({ name: 'test/reset', adapter: second.adapter }),
-      { threadId: 't1' },
-    )
+    const sessionB = await hostB.open({
+      harness: defineHarness({ name: 'test/reset', adapter: second.adapter }),
+      threadId: 't1',
+    })
     await sessionB.send('Second.')
     expect(messageTexts(second.calls[0])).toEqual(['Note.', 'Second.'])
     expect(contents(await sessionB.transcript())).toEqual([
@@ -299,10 +304,10 @@ describe('reset on a durable host', () => {
     })
     const { adapter, calls } = mockAdapter([() => text('Two.')])
     const host = createHarnessHost({ persistence })
-    const session = await host.open(
-      defineHarness({ name: 'test/reset', adapter }),
-      { threadId: 't1' },
-    )
+    const session = await host.open({
+      harness: defineHarness({ name: 'test/reset', adapter }),
+      threadId: 't1',
+    })
     expect(await session.settled('r1')).toMatchObject({ outcome: 'completed' })
     await session.send('Second.')
     expect(messageTexts(calls[0])).toEqual(['Note.', 'Second.'])

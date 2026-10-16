@@ -43,9 +43,9 @@ async function approveFirst(
 ) {
   const interrupt = turn.interrupts?.[0]
   if (!interrupt) throw new Error('The turn has no interrupt.')
-  const receipt = await session.resolve([
-    { interruptId: interrupt.id, status: 'resolved', payload: true },
-  ])
+  const receipt = await session.resolve({
+    resume: [{ interruptId: interrupt.id, status: 'resolved', payload: true }],
+  })
   const resumed = session.operation(receipt.operationId ?? '')
   if (!resumed) throw new Error('The resolve started no turn.')
   return resumed
@@ -74,8 +74,8 @@ async function openRouted(options: {
     persistence,
     ...(options.ownership ? { ownership: options.ownership } : {}),
   })
-  const session = await host.open(
-    defineHarness({
+  const session = await host.open({
+    harness: defineHarness({
       name: 'test/router',
       adapter: main.adapter,
       ...(options.tools ? { tools: options.tools } : {}),
@@ -87,8 +87,8 @@ async function openRouted(options: {
         },
       },
     }),
-    { threadId: THREAD },
-  )
+    threadId: THREAD,
+  })
   return { host, session, runs, routerSaw, calls: main.calls }
 }
 

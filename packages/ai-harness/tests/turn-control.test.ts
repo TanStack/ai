@@ -109,8 +109,8 @@ async function open(options: {
         },
       })
     : createHarnessHost({ persistence })
-  const session = await host.open(
-    defineHarness({
+  const session = await host.open({
+    harness: defineHarness({
       name: 'test/turn-control',
       adapter,
       tools: options.tools,
@@ -118,8 +118,8 @@ async function open(options: {
       // Only the durable host reads it.
       durability: { project },
     }),
-    { threadId: THREAD },
-  )
+    threadId: THREAD,
+  })
   return { host, session, calls, runs, log }
 }
 
@@ -280,13 +280,15 @@ describe('turn.onModelError', () => {
       })
 
       const first = await session.send('remove a.txt')
-      const receipt = await session.resolve([
-        {
-          interruptId: first.interrupts![0]!.id,
-          status: 'resolved',
-          payload: true,
-        },
-      ])
+      const receipt = await session.resolve({
+        resume: [
+          {
+            interruptId: first.interrupts![0]!.id,
+            status: 'resolved',
+            payload: true,
+          },
+        ],
+      })
 
       expect(await session.operation(receipt.operationId!)).toEqual({
         text: 'removed',
@@ -707,8 +709,8 @@ describe('turn.onModelError', () => {
         const seen: Array<number> = []
         const { adapter, calls } = mockAdapter(replies)
         const host = createHarnessHost({ persistence })
-        const session = await host.open(
-          defineHarness({
+        const session = await host.open({
+          harness: defineHarness({
             name: 'test/turn-control',
             adapter,
             tools: [lookup()],
@@ -719,8 +721,8 @@ describe('turn.onModelError', () => {
               },
             },
           }),
-          { threadId: THREAD },
-        )
+          threadId: THREAD,
+        })
         return { host, session, calls, seen }
       }
       /** Run `replies`, then a call that hangs, and stop that host there. */
@@ -775,8 +777,8 @@ describe('turn.onModelError', () => {
         const seen: Array<number> = []
         const backoff = retryTransientErrors({ baseDelayMs })
         const host = createHarnessHost({ persistence })
-        const session = await host.open(
-          defineHarness({
+        const session = await host.open({
+          harness: defineHarness({
             name: 'test/turn-control',
             adapter: mockAdapter(replies).adapter,
             turn: {
@@ -786,8 +788,8 @@ describe('turn.onModelError', () => {
               },
             },
           }),
-          { threadId: THREAD },
-        )
+          threadId: THREAD,
+        })
         return { host, session, seen }
       }
       const first = await openOn([failsWith('503 Service Unavailable')], 60_000)
@@ -855,8 +857,8 @@ describe('turn.beforeFinish', () => {
       persistence: { stores: { log: memoryLogStore(), runs } },
     })
     let cycles = 0
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/turn-control',
         adapter,
         turn: {
@@ -869,8 +871,8 @@ describe('turn.beforeFinish', () => {
         },
         durability: { project: signalProject },
       }),
-      { threadId: THREAD },
-    )
+      threadId: THREAD,
+    })
 
     expect(await session.send('go')).toEqual({ text: 'onetwo', media: [] })
     expect(messageTexts(calls[1]).at(-1)).toBe('check the result')
@@ -1094,14 +1096,14 @@ describe('turn.beforeFinish', () => {
     const openOn = async (replies: Array<Reply>) => {
       const { adapter, calls } = mockAdapter(replies)
       const host = createHarnessHost({ persistence })
-      const session = await host.open(
-        defineHarness({
+      const session = await host.open({
+        harness: defineHarness({
           name: 'test/turn-control',
           adapter,
           turn: { beforeFinish },
         }),
-        { threadId: THREAD },
-      )
+        threadId: THREAD,
+      })
       return { host, session, calls }
     }
     const first = await openOn([() => text('draft'), untilAborted()])

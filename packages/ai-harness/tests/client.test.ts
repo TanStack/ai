@@ -153,14 +153,19 @@ describe('createHarnessClient', () => {
     })
 
     expect(
-      await client.tool(
-        'fetch_stats',
-        { queue: 'billing' },
-        { inputId: 't-1' },
-      ),
+      await client.tool({
+        name: 'fetch_stats',
+        args: { queue: 'billing' },
+        inputId: 't-1',
+      }),
     ).toMatchObject({ inputId: 't-1', status: 'accepted' })
-    // @ts-expect-error `queue` must be a string.
-    void client.tool('fetch_stats', { queue: 1 }).catch(() => {})
+    void client
+      .tool({
+        name: 'fetch_stats',
+        // @ts-expect-error `queue` must be a string.
+        args: { queue: 1 },
+      })
+      .catch(() => {})
     await vi.waitFor(async () =>
       expect(
         JSON.stringify(
@@ -278,7 +283,7 @@ describe('client.send to an agent run', () => {
     })
 
     expect(receipt).toMatchObject({ inputId: 'm-1', status: 'queued' })
-    const session = await host.open(studio, { threadId: 'thread-m' })
+    const session = await host.open({ harness: studio, threadId: 'thread-m' })
     expect(session.agentRuns()).toMatchObject([
       { operationId: started.operationId, agent: 'drafter' },
       {

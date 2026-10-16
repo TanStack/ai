@@ -136,7 +136,7 @@ async function openView(over: Partial<SessionViewSource> = {}) {
     resolve: async () => receipt,
     cancel: async () => receipt,
     answer: async () => receipt,
-    command: (name, input) => {
+    command: ({ name, input }) => {
       commands.push({ name, input })
     },
     setConfig: async () => receipt,
@@ -380,7 +380,7 @@ describe('media in createSessionView', () => {
           ],
           signal,
         ),
-      loadMedia: async (id) => new TextEncoder().encode(`bytes of ${id}`),
+      loadMedia: async ({ id }) => new TextEncoder().encode(`bytes of ${id}`),
     })
 
     await vi.waitFor(() => expect(mediaIn(view)).toHaveLength(1))

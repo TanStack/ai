@@ -67,10 +67,11 @@ async function stopDuringAgent(options: {
     untilAborted(),
   ])
   const hostA = createHarnessHost({ persistence })
-  const sessionA = await hostA.open(
-    harness(mockAdapter([]).adapter, first.adapter),
-    { threadId: THREAD, principal: alice },
-  )
+  const sessionA = await hostA.open({
+    harness: harness(mockAdapter([]).adapter, first.adapter),
+    threadId: THREAD,
+    principal: alice,
+  })
   const operation = sessionA.agent('worker')?.start(undefined, {
     wake: true,
     ...(options.resume ? { resume: true } : {}),
@@ -100,7 +101,8 @@ async function stopDuringAgent(options: {
   const agentModel = mockAdapter(options.next)
   const main = mockAdapter([() => text('noted')])
   const hostB = createHarnessHost({ persistence })
-  const sessionB = await hostB.open(harness(main.adapter, agentModel.adapter), {
+  const sessionB = await hostB.open({
+    harness: harness(main.adapter, agentModel.adapter),
     threadId: THREAD,
     principal: alice,
   })
@@ -175,14 +177,14 @@ describe('a background agent with resume: true', () => {
       description: 'Works',
       run: async () => 'done',
     })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/agent-resume-memory',
         adapter: mockAdapter([]).adapter,
         agents: [worker],
       }),
-      { threadId: THREAD },
-    )
+      threadId: THREAD,
+    })
 
     expect(() =>
       session.agent('worker')?.start(undefined, { resume: true }),

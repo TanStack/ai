@@ -74,11 +74,12 @@ describe('the sender of each input', () => {
       adapter,
       plugins: () => [plugin],
     })
-    const session = await host.open(harness, {
+    const session = await host.open({
+      harness,
       threadId: THREAD,
       principal: alice,
     })
-    expect(await host.open(harness, { threadId: THREAD, principal: bob })).toBe(
+    expect(await host.open({ harness, threadId: THREAD, principal: bob })).toBe(
       session,
     )
 
@@ -114,10 +115,11 @@ describe('the sender of each input', () => {
       })
     }
     const host = createHarnessHost({ persistence, credentials })
-    const session = await host.open(
-      defineHarness({ name: 'test/sender-keys', adapter }),
-      { threadId: THREAD, principal: alice },
-    )
+    const session = await host.open({
+      harness: defineHarness({ name: 'test/sender-keys', adapter }),
+      threadId: THREAD,
+      principal: alice,
+    })
 
     expect((await session.send('Hi.', { principal: bob })).text).toBe(
       'answered with bob-key',
@@ -137,8 +139,8 @@ describe('the sender of each input', () => {
     ])
     const candidates: Array<JoinCandidate> = []
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/sender-join',
         adapter,
         plugins: () => [plugin],
@@ -149,8 +151,9 @@ describe('the sender of each input', () => {
           },
         },
       }),
-      { threadId: THREAD, principal: alice },
-    )
+      threadId: THREAD,
+      principal: alice,
+    })
 
     const turn = session.send('Start.')
     await turn.receipt
@@ -186,8 +189,8 @@ describe('the sender of each input', () => {
     ])
     const candidates: Array<JoinCandidate> = []
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/sender-turn-principal',
         adapter,
         plugins: () => [plugin],
@@ -198,8 +201,9 @@ describe('the sender of each input', () => {
           },
         },
       }),
-      { threadId: THREAD, principal: alice },
-    )
+      threadId: THREAD,
+      principal: alice,
+    })
 
     const turn = session.send('Start.')
     await started.opened
@@ -239,14 +243,15 @@ describe('the sender of each input', () => {
       () => text('Bob here.'),
     ])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/sender-default-join',
         adapter,
         plugins: () => [plugin],
       }),
-      { threadId: THREAD, principal: alice },
-    )
+      threadId: THREAD,
+      principal: alice,
+    })
 
     const turn = session.send('Start.')
     await started.opened
@@ -297,19 +302,20 @@ describe('the sender of each input', () => {
       }),
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/sender-command',
         adapter,
         plugins: () => [plugin, commands],
       }),
-      { threadId: THREAD, principal: alice },
-    )
+      threadId: THREAD,
+      principal: alice,
+    })
 
     const turn = session.send('Start.')
     await started.opened
     // Bob runs a command while alice's turn runs.
-    await session.command('again', undefined, { principal: bob })
+    await session.command({ name: 'again', principal: bob })
     release.open()
 
     expect(await turn).toEqual({ text: 'First.', media: [] })
@@ -350,14 +356,15 @@ describe('the sender of each input', () => {
       () => text('woke'),
     ])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/sender-wake',
         adapter,
         plugins: () => [plugin, starter],
       }),
-      { threadId: THREAD, principal: alice },
-    )
+      threadId: THREAD,
+      principal: alice,
+    })
 
     await session.send('Start the writer.', { principal: bob })
     await vi.waitFor(() => expect(seen).toHaveLength(1))
@@ -414,14 +421,15 @@ describe('the sender of each input', () => {
       () => text('started'),
     ])
     const host = createHarnessHost({ persistence, credentials })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/sender-agent',
         adapter,
         plugins: () => [starter],
       }),
-      { threadId: THREAD, principal: alice },
-    )
+      threadId: THREAD,
+      principal: alice,
+    })
 
     await session.send('Start the writer.', { principal: bob })
     release.open()
@@ -480,10 +488,15 @@ describe('recovery keeps the sender and the context', () => {
       () => text('ok'),
     ])
     const host = createHarnessHost({ persistence })
-    const session = await host.open(
-      defineHarness({ name: 'test/recover-pending', adapter, plugins }),
-      { threadId: THREAD, principal: alice },
-    )
+    const session = await host.open({
+      harness: defineHarness({
+        name: 'test/recover-pending',
+        adapter,
+        plugins,
+      }),
+      threadId: THREAD,
+      principal: alice,
+    })
 
     expect(await session.settled('in-1')).toMatchObject({
       outcome: 'completed',
@@ -543,10 +556,15 @@ describe('recovery keeps the sender and the context', () => {
       () => text('ok'),
     ])
     const host = createHarnessHost({ persistence })
-    const session = await host.open(
-      defineHarness({ name: 'test/recover-stopped', adapter, plugins }),
-      { threadId: THREAD, principal: alice },
-    )
+    const session = await host.open({
+      harness: defineHarness({
+        name: 'test/recover-stopped',
+        adapter,
+        plugins,
+      }),
+      threadId: THREAD,
+      principal: alice,
+    })
 
     expect(await session.settled('in-1')).toMatchObject({
       outcome: 'completed',
@@ -590,14 +608,15 @@ describe('the turn where the model is picked', () => {
     })
     const { adapter } = mockAdapter([() => text('ok')])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/picker-turn',
         adapter,
         plugins: () => [sessionPlugin, turnPicker],
       }),
-      { threadId: THREAD, principal: alice },
-    )
+      threadId: THREAD,
+      principal: alice,
+    })
 
     const turn = session.send('Pick for me.', {
       inputId: 'in-1',
@@ -628,8 +647,8 @@ describe('the turn where the model is picked', () => {
     })
     const { adapter } = mockAdapter([() => text('ok')])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/router-turn',
         adapter,
         agents: [helper],
@@ -640,8 +659,9 @@ describe('the turn where the model is picked', () => {
           },
         },
       }),
-      { threadId: THREAD, principal: alice },
-    )
+      threadId: THREAD,
+      principal: alice,
+    })
 
     await session.send('Route me.', {
       principal: bob,
@@ -695,10 +715,15 @@ describe('the tenant of a principal', () => {
       () => text('ok'),
     ])
     const host = createHarnessHost({ persistence, credentials })
-    const session = await host.open(
-      defineHarness({ name: 'test/tenant', adapter, plugins: () => [plugin] }),
-      { threadId: THREAD, principal: { id: 'u1', tenantId: 'org-a' } },
-    )
+    const session = await host.open({
+      harness: defineHarness({
+        name: 'test/tenant',
+        adapter,
+        plugins: () => [plugin],
+      }),
+      threadId: THREAD,
+      principal: { id: 'u1', tenantId: 'org-a' },
+    })
 
     await session.send('Read it.')
     await session.send('Read it again.', {

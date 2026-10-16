@@ -22,7 +22,7 @@ describe('harnessText', () => {
     const collect = async (content: string) => {
       const chunks: Array<StreamChunk> = []
       for await (const chunk of chat({
-        adapter: harnessText(studio, { host }),
+        adapter: harnessText({ harness: studio, host }),
         messages: [{ role: 'user', content }],
         threadId: 'outer-1',
       })) {
@@ -71,7 +71,11 @@ describe('harnessText', () => {
       plugins: () => [watch],
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const adapter = harnessText(studio, { host, principal: { id: 'u-1' } })
+    const adapter = harnessText({
+      harness: studio,
+      host,
+      principal: { id: 'u-1' },
+    })
 
     for (const content of ['hello', 'again']) {
       for await (const _chunk of chat({
@@ -88,7 +92,9 @@ describe('harnessText', () => {
       { id: 'u-1' },
     ])
     for (const entry of seen) {
-      expect(host.isOpen(studio, { threadId: entry.threadId })).toBe(false)
+      expect(host.isOpen({ harness: studio, threadId: entry.threadId })).toBe(
+        false,
+      )
     }
     await host.close()
   })
@@ -98,16 +104,16 @@ describe('harnessText', () => {
     const studio = defineHarness({ name: 'test/inner', adapter: inner.adapter })
     const host = createHarnessHost({ persistence: memoryPersistence() })
     const threadId = 'outer-kept:test/inner'
-    await host.open(studio, { threadId })
+    await host.open({ harness: studio, threadId })
 
     for await (const _chunk of chat({
-      adapter: harnessText(studio, { host }),
+      adapter: harnessText({ harness: studio, host }),
       messages: [{ role: 'user', content: 'hello' }],
       threadId: 'outer-kept',
     })) {
       // drain
     }
-    expect(host.isOpen(studio, { threadId })).toBe(true)
+    expect(host.isOpen({ harness: studio, threadId })).toBe(true)
     await host.close()
   })
 
@@ -115,7 +121,7 @@ describe('harnessText', () => {
     const inner = mockAdapter([untilAborted()])
     const studio = defineHarness({ name: 'test/inner', adapter: inner.adapter })
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const adapter = harnessText(studio, { host })
+    const adapter = harnessText({ harness: studio, host })
 
     const chunks: Array<StreamChunk> = []
     for await (const chunk of adapter.chatStream({

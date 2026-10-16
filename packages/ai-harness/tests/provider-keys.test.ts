@@ -55,16 +55,17 @@ async function open(options: {
   const persistence = memoryPersistence()
   const credentials = memoryCredentialStore()
   const host = createHarnessHost({ persistence, credentials })
-  const session = await host.open(
-    defineHarness({
+  const session = await host.open({
+    harness: defineHarness({
       name: 'test/provider-keys',
       adapter: options.adapter,
       agents: options.agents ?? [],
       subagents: { agents: options.subagents ?? [] },
       plugins: () => options.plugins ?? [],
     }),
-    { threadId: 't', principal: { id: 'user-1' } },
-  )
+    threadId: 't',
+    principal: { id: 'user-1' },
+  })
   const events: Array<SessionEvent> = []
   const reader = new AbortController()
   const reading = (async () => {
@@ -100,7 +101,7 @@ function authRequired(events: ReadonlyArray<SessionEvent>) {
 
 /** Start `/connect acme`, and answer its question with `answer`. */
 async function connectWith(session: HarnessSession, answer: string) {
-  const result = session.command('connect:acme')
+  const result = session.command({ name: 'connect:acme' })
   await vi.waitFor(() =>
     expect(session.snapshot().pendingQuestions).toHaveLength(1),
   )
@@ -160,7 +161,7 @@ describe('a keyed main adapter', () => {
       ],
     })
     await saveKey(SAVED_KEY)
-    await session.command('model', 'acme')
+    await session.command({ name: 'model', input: 'acme' })
     expect(await session.send('hi')).toEqual({
       text: 'keyed answer',
       media: [],
@@ -224,7 +225,7 @@ describe('compact with a keyed adapter', () => {
     await saveKey(SAVED_KEY)
     await session.send('first')
     await session.send('second')
-    expect(await session.command('compact')).toBe(
+    expect(await session.command({ name: 'compact' })).toBe(
       'Compacted 4 messages into a summary.',
     )
     expect(summarizer.keys).toEqual([SAVED_KEY])
@@ -252,7 +253,7 @@ describe('providerKeys', () => {
       type: 'api_key',
       value: PASTED_KEY,
     })
-    expect(await session.command('keys')).toContain(
+    expect(await session.command({ name: 'keys' })).toContain(
       'Acme: connected (key ...5678)',
     )
     await close()
@@ -298,7 +299,7 @@ describe('providerKeys', () => {
       adapter: mockAdapter([]).adapter,
       plugins: [plugin()],
     })
-    const connecting = session.command('connect:acme')
+    const connecting = session.command({ name: 'connect:acme' })
     await vi.waitFor(() =>
       expect(session.snapshot().pendingQuestions).toHaveLength(1),
     )
@@ -320,11 +321,11 @@ describe('providerKeys', () => {
       plugins: [plugin()],
     })
     await saveKey(SAVED_KEY)
-    expect(await session.command('disconnect:acme')).toBe(
+    expect(await session.command({ name: 'disconnect:acme' })).toBe(
       'Disconnected from Acme.',
     )
     expect(await credentials.get({ scope: USER, id: 'acme' })).toBeNull()
-    expect(await session.command('keys')).toContain(
+    expect(await session.command({ name: 'keys' })).toContain(
       'Acme: missing. Run /connect acme.',
     )
     await close()
@@ -365,7 +366,7 @@ describe('providerKeys', () => {
       adapter: mockAdapter([]).adapter,
       plugins: [providerKeys({ providers: [{ ...acme, signIn }] })],
     })
-    expect(await session.command('connect:acme')).toBe(
+    expect(await session.command({ name: 'connect:acme' })).toBe(
       'Connected to Acme (key ...9876).',
     )
     expect(authRequired(events)).toEqual([
@@ -391,7 +392,7 @@ describe('providerKeys', () => {
         { id: 'gamma', label: 'Gamma', state: 'missing' },
       ],
     })
-    expect(await session.command('keys')).toBe(
+    expect(await session.command({ name: 'keys' })).toBe(
       [
         'Acme: missing. Run /connect acme.',
         'Beta: from the BETA_TEST_KEY env var',
@@ -414,7 +415,7 @@ describe('providerKeys', () => {
       adapter: mockAdapter([]).adapter,
       plugins: [plugin()],
     })
-    const connecting = session.command('connect:acme')
+    const connecting = session.command({ name: 'connect:acme' })
     await vi.waitFor(() =>
       expect(session.snapshot().pendingQuestions).toMatchObject([
         { message: 'Paste your Acme API key', secret: true },
@@ -439,7 +440,7 @@ describe('providerKeys', () => {
     const { receipt, result } = await connectWith(session, PASTED_KEY)
     const results = [
       result,
-      await session.command('keys'),
+      await session.command({ name: 'keys' }),
       await session.send('hi'),
     ]
     expect(keyed.keys).toEqual([PASTED_KEY])

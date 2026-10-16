@@ -79,7 +79,7 @@ describe('session.reload', () => {
       () => text('one'),
       () => text('two'),
     ])
-    const session = await host.open(harness, { threadId: 't' })
+    const session = await host.open({ harness, threadId: 't' })
     const reloaded = reloadedEvents(session)
     await session.send('first')
     expect(toolNames(calls[0])).not.toContain('extra')
@@ -116,7 +116,7 @@ describe('session.reload', () => {
       }),
       extra,
     )
-    const session = await host.open(harness, { threadId: 't' })
+    const session = await host.open({ harness, threadId: 't' })
     expect(session.agent('helper')).toBeDefined()
 
     plugins.splice(0)
@@ -132,7 +132,7 @@ describe('session.reload', () => {
       after(turn.opened, 'slow'),
       () => text('next'),
     ])
-    const session = await host.open(harness, { threadId: 't' })
+    const session = await host.open({ harness, threadId: 't' })
     const running = session.send('first')
     // The model call has started, so the turn runs.
     await expect.poll(() => calls.length).toBe(1)
@@ -165,7 +165,7 @@ describe('session.reload', () => {
         },
       }),
     )
-    const session = await host.open(harness, { threadId: 't' })
+    const session = await host.open({ harness, threadId: 't' })
     const running = session.send('first')
     await running.receipt
 
@@ -207,7 +207,7 @@ describe('session.reload', () => {
     const host = createHarnessHost({ persistence })
     hosts.push(host)
 
-    await expect(host.open(harness, { threadId: 't' })).rejects.toThrow(
+    await expect(host.open({ harness, threadId: 't' })).rejects.toThrow(
       'metadata down',
     )
     expect(disposed).toBe(1)
@@ -216,7 +216,7 @@ describe('session.reload', () => {
   it('keeps the session working with no plugins when the new setup throws', async () => {
     const { plugins, calls, harness, host } = setup([() => text('after')])
     plugins.push(extra)
-    const session = await host.open(harness, { threadId: 't' })
+    const session = await host.open({ harness, threadId: 't' })
     const failed = reloadedEvents(session)
 
     plugins.push(
@@ -250,7 +250,7 @@ describe('ctx.agents.set and ctx.agents.delete', () => {
         },
       }),
     )
-    const session = await host.open(harness, { threadId: 't' })
+    const session = await host.open({ harness, threadId: 't' })
     if (!agents) throw new Error('not set up')
 
     const writer = defineAgent({
@@ -281,9 +281,9 @@ describe('host.reload', () => {
       adapter: mockAdapter([]).adapter,
       plugins: () => [...plugins],
     })
-    const first = await host.open(harness, { threadId: 'a' })
-    const second = await host.open(harness, { threadId: 'b' })
-    const third = await host.open(other, { threadId: 'c' })
+    const first = await host.open({ harness, threadId: 'a' })
+    const second = await host.open({ harness, threadId: 'b' })
+    const third = await host.open({ harness: other, threadId: 'c' })
 
     plugins.push(extra)
     await host.reload(harness)
@@ -308,7 +308,7 @@ describe('reload keeps session work', () => {
         },
       }),
     )
-    const session = await host.open(harness, { threadId: 't' })
+    const session = await host.open({ harness, threadId: 't' })
     await session.reload()
     await session.reload()
     await session.reload()
@@ -333,7 +333,7 @@ describe('ctx.agents.set with subagent', () => {
         },
       }),
     )
-    const session = await host.open(harness, { threadId: 't' })
+    const session = await host.open({ harness, threadId: 't' })
     const writer = defineAgent({
       name: 'writer',
       description: 'Writes',

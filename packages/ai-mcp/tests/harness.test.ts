@@ -441,7 +441,7 @@ async function harnessServer(
       : { middleware: [reviewer.middleware], interrupts: [review] }),
   })
   const { server, host } = await serve(harness, serverOptions)
-  const session = () => host.open(harness, { threadId: 'main' })
+  const session = () => host.open({ harness, threadId: 'main' })
   return {
     server,
     session,
@@ -1244,7 +1244,7 @@ describe('createHarnessMcpServer', () => {
     const { server, session } = await harnessServer([])
     const { client } = await connect(server)
     const live = await session()
-    const confirm = live.command('confirm')
+    const confirm = live.command({ name: 'confirm' })
     const questionId = await nextQuestionId(live)
 
     const answered = await client.callTool({

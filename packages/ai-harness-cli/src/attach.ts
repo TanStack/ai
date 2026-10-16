@@ -73,7 +73,8 @@ export async function attach(
     if (file === undefined) continue
     rest += text.slice(end, token.index)
     end = token.index + token[0].length
-    const record = await session.putMedia(file.bytes, {
+    const record = await session.putMedia({
+      body: file.bytes,
       mimeType: file.mimeType,
       name: file.name,
     })
@@ -109,7 +110,7 @@ export async function saveMedia(
       `Cannot save ${JSON.stringify(name)}: it is not a plain file name.`,
     )
   }
-  const bytes = await session.loadMedia(record.id)
+  const bytes = await session.loadMedia({ id: record.id })
   await mkdir(dir, { recursive: true })
   const dot = name.lastIndexOf('.')
   const stem = dot > 0 ? name.slice(0, dot) : name

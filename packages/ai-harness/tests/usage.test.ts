@@ -90,14 +90,15 @@ describe('session usage totals', () => {
   it('adds every model call of a turn, by model and by sender, with the reported cost', async () => {
     const main = model('main-model', lookupThenAnswer([0.01, 0.02]))
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/usage',
         adapter: main.adapter,
         tools: [lookup],
       }),
-      { threadId: THREAD, principal: alice },
-    )
+      threadId: THREAD,
+      principal: alice,
+    })
     const events = await readEvents(session)
 
     const turn = session.send('Find it.')
@@ -137,10 +138,14 @@ describe('session usage totals', () => {
       () => withUsage(text('for bob'), { prompt: 8, completion: 2 }),
     ])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({ name: 'test/usage-senders', adapter: main.adapter }),
-      { threadId: THREAD, principal: alice },
-    )
+    const session = await host.open({
+      harness: defineHarness({
+        name: 'test/usage-senders',
+        adapter: main.adapter,
+      }),
+      threadId: THREAD,
+      principal: alice,
+    })
 
     await session.send('Hi.')
     await session.send('Hello.', { principal: bob })
@@ -181,15 +186,16 @@ describe('session usage totals', () => {
       run: (ctx) => ctx.chat({ adapter: workerModel.adapter }),
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/usage-agents',
         adapter: lead.adapter,
         subagents: { agents: [helper] },
         agents: [worker],
       }),
-      { threadId: THREAD, principal: alice },
-    )
+      threadId: THREAD,
+      principal: alice,
+    })
 
     expect((await session.send('Get help.')).text).toBe('lead done')
     expect(await session.agent('worker')?.start()).toBe('worked')
@@ -213,7 +219,8 @@ describe('usage totals after a restart', () => {
     const harness = (adapter: typeof first.adapter) =>
       defineHarness({ name: 'test/usage-durable', adapter, tools: [lookup] })
     const host = createHarnessHost({ persistence })
-    const session = await host.open(harness(first.adapter), {
+    const session = await host.open({
+      harness: harness(first.adapter),
       threadId: THREAD,
       principal: alice,
     })
@@ -227,7 +234,8 @@ describe('usage totals after a restart', () => {
     expect(records).toHaveLength(2)
 
     const next = createHarnessHost({ persistence })
-    const reopened = await next.open(harness(model('main-model', []).adapter), {
+    const reopened = await next.open({
+      harness: harness(model('main-model', []).adapter),
       threadId: THREAD,
       principal: alice,
     })
@@ -242,14 +250,16 @@ describe('usage totals after a restart', () => {
     const harness = (adapter: typeof first.adapter) =>
       defineHarness({ name: 'test/usage-metadata', adapter, tools: [lookup] })
     const host = createHarnessHost({ persistence })
-    const session = await host.open(harness(first.adapter), {
+    const session = await host.open({
+      harness: harness(first.adapter),
       threadId: THREAD,
     })
     await session.send('Find it.')
     await host.close()
 
     const next = createHarnessHost({ persistence })
-    const reopened = await next.open(harness(model('main-model', []).adapter), {
+    const reopened = await next.open({
+      harness: harness(model('main-model', []).adapter),
       threadId: THREAD,
     })
     expect(reopened.usage().total).toMatchObject({ calls: 2, totalTokens: 45 })

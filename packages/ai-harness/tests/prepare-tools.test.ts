@@ -42,15 +42,15 @@ describe('prepareTools', () => {
     })
     const { adapter, calls } = mockAdapter([() => text('ok')])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/prepare',
         adapter,
         tools: [tool('a'), tool('b')],
         plugins: () => [bundle, broken, extra],
       }),
-      { threadId: 't' },
-    )
+      threadId: 't',
+    })
     const seen: Array<SessionEvent> = []
     const controller = new AbortController()
     const reading = (async () => {

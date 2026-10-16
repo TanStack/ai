@@ -60,8 +60,8 @@ async function start(options: {
   })
   const persistence = options.persistence ?? memoryPersistence()
   const host = createHarnessHost({ persistence })
-  const session = await host.open(
-    defineHarness({
+  const session = await host.open({
+    harness: defineHarness({
       name: 'test/goal',
       adapter: main.adapter,
       tools: options.tools ?? [],
@@ -74,8 +74,8 @@ async function start(options: {
         listener,
       ],
     }),
-    { threadId: 't' },
-  )
+    threadId: 't',
+  })
   return {
     host,
     session,
@@ -88,7 +88,7 @@ async function start(options: {
 
 /** What `/goal` shows. */
 async function status(session: HarnessSession) {
-  return session.command('goal')
+  return session.command({ name: 'goal' })
 }
 
 /** Wait until `/goal` shows `expected`. */
@@ -116,9 +116,9 @@ describe('goal', () => {
       ],
     })
 
-    expect(await session.command('goal', 'all tests pass')).toBe(
-      'Goal: all tests pass\nStatus: active, round 0 of 20.',
-    )
+    expect(
+      await session.command({ name: 'goal', input: 'all tests pass' }),
+    ).toBe('Goal: all tests pass\nStatus: active, round 0 of 20.')
     await waitForStatus(
       session,
       'Goal: all tests pass\nStatus: met, round 3 of 20.\nLast check: All tests pass.',
@@ -151,7 +151,7 @@ describe('goal', () => {
       busy: 'reject',
     })
 
-    await session.command('goal', 'finish')
+    await session.command({ name: 'goal', input: 'finish' })
     await waitForStatus(
       session,
       'Goal: finish\nStatus: met, round 2 of 20.\nLast check: Done.',
@@ -170,7 +170,7 @@ describe('goal', () => {
       maxRounds: 2,
     })
 
-    await session.command('goal', 'all tests pass')
+    await session.command({ name: 'goal', input: 'all tests pass' })
     await waitForStatus(
       session,
       'Goal: all tests pass\nStatus: stopped, round 2 of 2.\nThe round limit (2) is reached. Run /goal resume for more rounds.\nLast check: One test fails.',
@@ -190,18 +190,20 @@ describe('goal', () => {
     expect(await status(session)).toBe(
       'No goal. Start one with /goal <what done looks like>.',
     )
-    expect(await session.command('goal', 'stop')).toBe('No goal is running.')
+    expect(await session.command({ name: 'goal', input: 'stop' })).toBe(
+      'No goal is running.',
+    )
 
-    await session.command('goal', 'create hello.txt')
+    await session.command({ name: 'goal', input: 'create hello.txt' })
     await vi.waitFor(() => expect(calls).toHaveLength(1))
-    expect(await session.command('goal', 'stop')).toBe(
+    expect(await session.command({ name: 'goal', input: 'stop' })).toBe(
       'Goal: create hello.txt\nStatus: stopped, round 1 of 20.\nYou stopped the goal.',
     )
     hold.open()
     await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
     expect(read).toHaveLength(0)
 
-    expect(await session.command('goal', 'resume')).toBe(
+    expect(await session.command({ name: 'goal', input: 'resume' })).toBe(
       'Goal: create hello.txt\nStatus: active, round 0 of 20.',
     )
     await waitForStatus(
@@ -224,7 +226,7 @@ describe('goal', () => {
 
     const question = session.send('what time is it?')
     await vi.waitFor(() => expect(calls).toHaveLength(1))
-    await session.command('goal', 'finish')
+    await session.command({ name: 'goal', input: 'finish' })
     await vi.waitFor(() => expect(session.inputs()).toHaveLength(1))
     const [waiting] = session.inputs()
     if (waiting) await session.cancelInput(waiting.inputId)
@@ -235,7 +237,7 @@ describe('goal', () => {
       'Goal: finish\nStatus: active, round 0 of 20.',
     )
 
-    await session.command('goal', 'resume')
+    await session.command({ name: 'goal', input: 'resume' })
     await waitForStatus(
       session,
       'Goal: finish\nStatus: met, round 1 of 20.\nLast check: Done.',
@@ -258,7 +260,7 @@ describe('goal', () => {
       ],
     })
 
-    await session.command('goal', 'all tests pass')
+    await session.command({ name: 'goal', input: 'all tests pass' })
     await vi.waitFor(() => expect(calls).toHaveLength(1))
     const question = session.send('what time is it?')
     hold.open()
@@ -270,7 +272,7 @@ describe('goal', () => {
     expect(calls).toHaveLength(2)
     expect(lastMessage(calls[1])).toBe('what time is it?')
 
-    await session.command('goal', 'resume')
+    await session.command({ name: 'goal', input: 'resume' })
     await waitForStatus(
       session,
       'Goal: all tests pass\nStatus: met, round 1 of 20.\nLast check: Done.',
@@ -294,7 +296,7 @@ describe('goal', () => {
       verdicts: [{ met: false, reason: 'Not yet.' }],
     })
 
-    await session.command('goal', 'all tests pass')
+    await session.command({ name: 'goal', input: 'all tests pass' })
     await vi.waitFor(() => expect(calls).toHaveLength(1))
     // The last model call of the turn is in flight, so the steer comes too late.
     await session.send('what time is it?', { mode: 'steer' }).receipt
@@ -351,7 +353,7 @@ describe('goal', () => {
       tools: [remove],
     })
 
-    await session.command('goal', 'clean the folder')
+    await session.command({ name: 'goal', input: 'clean the folder' })
     await vi.waitFor(() =>
       expect(session.snapshot().status).toBe('requires_action'),
     )
@@ -371,7 +373,7 @@ describe('goal', () => {
       judge,
     })
 
-    await session.command('goal', 'all tests pass')
+    await session.command({ name: 'goal', input: 'all tests pass' })
     await waitForStatus(
       session,
       'Goal: all tests pass\nStatus: paused, round 1 of 20.\nThe judge failed: The judge did not answer with met and reason.',
@@ -387,7 +389,7 @@ describe('goal', () => {
       replies: [() => text('step one'), untilAborted()],
       verdicts: [{ met: false, reason: 'Half done.' }],
     })
-    await first.session.command('goal', 'all tests pass')
+    await first.session.command({ name: 'goal', input: 'all tests pass' })
     await vi.waitFor(() => expect(first.calls).toHaveLength(2))
     await first.host.close()
 
@@ -399,7 +401,7 @@ describe('goal', () => {
     expect(await status(second.session)).toBe(
       'Goal: all tests pass\nStatus: paused, round 2 of 20.\nThe last turn was cancelled. Run /goal resume to continue.\nLast check: Half done.',
     )
-    await second.session.command('goal', 'resume')
+    await second.session.command({ name: 'goal', input: 'resume' })
     await waitForStatus(
       second.session,
       'Goal: all tests pass\nStatus: met, round 1 of 20.\nLast check: All tests pass.',
@@ -417,7 +419,7 @@ describe('goal', () => {
     })
     expect(selectGoal(session.snapshot())).toBeNull()
 
-    await session.command('goal', 'finish')
+    await session.command({ name: 'goal', input: 'finish' })
 
     await vi.waitFor(() =>
       expect(selectGoal(session.snapshot())).toMatchObject({

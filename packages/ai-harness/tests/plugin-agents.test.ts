@@ -51,22 +51,22 @@ describe('ctx.agents inside a session', () => {
       }),
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/agents',
         adapter: mockAdapter([]).adapter,
         agents: [painter],
         plugins: () => [director],
       }),
-      { threadId: 't' },
-    )
-    expect(await session.command('survey')).toEqual({
+      threadId: 't',
+    })
+    expect(await session.command({ name: 'survey' })).toEqual({
       names: ['painter'],
       byName: 'Paints',
       byOutput: 'painter',
       none: undefined,
     })
-    expect(await session.command('paint')).toEqual([
+    expect(await session.command({ name: 'paint' })).toEqual([
       'a painting of rain',
       'a painting of sun',
     ])

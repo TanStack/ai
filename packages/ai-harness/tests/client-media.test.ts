@@ -49,7 +49,8 @@ describe('client media', () => {
     // A view on a bigger buffer: only the bytes of the view are sent.
     const bytes = new Uint8Array([0, 1, 2, 3, 9]).subarray(1, 4)
 
-    const stored = await client.upload(bytes, {
+    const stored = await client.upload({
+      body: bytes,
       name: 'cat photo.png',
       mimeType: 'image/png',
     })
@@ -70,7 +71,8 @@ describe('client media', () => {
     )
 
     await expect(
-      client.upload(new Blob(['big']), {
+      client.upload({
+        body: new Blob(['big']),
         name: 'big.mp4',
         mimeType: 'video/mp4',
       }),
@@ -87,7 +89,8 @@ describe('client media', () => {
     )
 
     await expect(
-      client.upload(new ArrayBuffer(3), {
+      client.upload({
+        body: new ArrayBuffer(3),
         name: 'a.png',
         mimeType: 'image/png',
       }),
@@ -98,7 +101,8 @@ describe('client media', () => {
     const { client } = setup(() => Response.json({ id: 'm1' }))
 
     await expect(
-      client.upload(new Blob(['abc']), {
+      client.upload({
+        body: new Blob(['abc']),
         name: 'a.png',
         mimeType: 'image/png',
       }),
@@ -139,7 +143,7 @@ describe('client media', () => {
       () => new Response(new Uint8Array([7, 8, 9])),
     )
 
-    expect([...(await client.loadMedia('m1'))]).toEqual([7, 8, 9])
+    expect([...(await client.loadMedia({ id: 'm1' }))]).toEqual([7, 8, 9])
     expect(await sent(requests)).toEqual({
       url: 'http://local/api/harness/media?threadId=thread-m&id=m1',
       method: 'GET',
@@ -152,7 +156,7 @@ describe('client media', () => {
   it('throws instead of returning the error page of a missing media file', async () => {
     const { client } = setup(() => new Response('not found', { status: 404 }))
 
-    await expect(client.loadMedia('gone')).rejects.toThrow(
+    await expect(client.loadMedia({ id: 'gone' })).rejects.toThrow(
       'Harness media failed (404)',
     )
   })

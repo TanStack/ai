@@ -271,7 +271,7 @@ describe('HTTP handler', () => {
       }),
     ).toMatchObject({ status: expect.stringMatching(/^(accepted|queued)$/) })
 
-    const session = await host.open(harness, { threadId: 'user-1-m' })
+    const session = await host.open({ harness, threadId: 'user-1-m' })
     const hidden = session.agent('secret')?.start()
     expect(
       await control({
@@ -335,7 +335,7 @@ describe('HTTP handler', () => {
     await control({ op: 'followUp', message: 'I am real', wake: true })
 
     await vi.waitFor(() => expect(calls).toHaveLength(1))
-    const session = await host.open(harness, { threadId: 'user-1-wake' })
+    const session = await host.open({ harness, threadId: 'user-1-wake' })
     await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
     expect(wakeMessages(await session.transcript())).toEqual([])
     await host.close()

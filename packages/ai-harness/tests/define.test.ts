@@ -87,15 +87,15 @@ describe('toolExecution', () => {
     ]
     const { adapter } = mockAdapter([bothTools, () => text('done')])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/sequential',
         adapter,
         tools: [tool('first'), tool('second')],
         toolExecution: 'sequential',
       }),
-      { threadId: 't1' },
-    )
+      threadId: 't1',
+    })
 
     await expect(session.send('go')).resolves.toEqual({
       text: 'done',

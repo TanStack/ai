@@ -43,15 +43,15 @@ describe('extension points', () => {
     })
     const { adapter } = mockAdapter([])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/ext',
         adapter,
         plugins: () => [reader, writerA, writerB],
       }),
-      { threadId: 't' },
-    )
-    await session.command('rules')
+      threadId: 't',
+    })
+    await session.command({ name: 'rules' })
     expect(read).toEqual([{ tool: 'write_file' }, { tool: 'bash' }])
     expect(session.inspect().extensionPoints['test/rules']).toEqual([
       'test/a',
@@ -93,16 +93,16 @@ describe('extension points', () => {
     })
     const { adapter } = mockAdapter([])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/ext-view',
         adapter,
         plugins: () => [reader, writer],
       }),
-      { threadId: 't' },
-    )
+      threadId: 't',
+    })
 
-    await session.command('rules')
+    await session.command({ name: 'rules' })
 
     expect(seen).toEqual({
       has: true,
@@ -149,14 +149,14 @@ describe('events and state', () => {
     const persistence = memoryPersistence()
     const { adapter } = mockAdapter([])
     const host = createHarnessHost({ persistence })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/state',
         adapter,
         plugins: () => [todos, listener],
       }),
-      { threadId: 't' },
-    )
+      threadId: 't',
+    })
 
     const seen: Array<StreamChunk> = []
     const reader = new AbortController()
@@ -165,11 +165,15 @@ describe('events and state', () => {
         seen.push(entry.event)
     })()
 
-    expect(await session.command('add', { text: 'milk' })).toBe(1)
-    expect(await session.command('add', { text: 'eggs' })).toBe(2)
-    await expect(session.command('add', { text: 3 })).rejects.toThrow(
-      'Input validation failed',
-    )
+    expect(
+      await session.command({ name: 'add', input: { text: 'milk' } }),
+    ).toBe(1)
+    expect(
+      await session.command({ name: 'add', input: { text: 'eggs' } }),
+    ).toBe(2)
+    await expect(
+      session.command({ name: 'add', input: { text: 3 } }),
+    ).rejects.toThrow('Input validation failed')
     expect(heard).toEqual(['milk', 'eggs'])
     expect(
       await persistence.stores.metadata.get('plugin:test/todos', 't'),
@@ -227,7 +231,7 @@ describe('session config', () => {
       plugins: () => [thinking],
     })
     const host = createHarnessHost({ persistence })
-    const session = await host.open(harness, { threadId: 't' })
+    const session = await host.open({ harness, threadId: 't' })
 
     await session.send('one')
     expect(
@@ -254,7 +258,8 @@ describe('session config', () => {
     await host.close()
 
     // A new host reads the saved setting.
-    const again = await createHarnessHost({ persistence }).open(harness, {
+    const again = await createHarnessHost({ persistence }).open({
+      harness,
       threadId: 't',
     })
     expect(again.config().thinking?.value).toBe('high')
@@ -283,12 +288,16 @@ describe('commands and questions', () => {
     })
     const { adapter } = mockAdapter([])
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({ name: 'test/ask', adapter, plugins: () => [deploy] }),
-      { threadId: 't' },
-    )
+    const session = await host.open({
+      harness: defineHarness({
+        name: 'test/ask',
+        adapter,
+        plugins: () => [deploy],
+      }),
+      threadId: 't',
+    })
 
-    const running = session.command('deploy')
+    const running = session.command({ name: 'deploy' })
     await vi.waitFor(() =>
       expect(session.snapshot().pendingQuestions).toHaveLength(1),
     )
@@ -325,16 +334,14 @@ describe('commands and questions', () => {
     const { adapter } = mockAdapter([])
     const host = createHarnessHost({ persistence: memoryPersistence() })
     await expect(
-      host.open(
-        defineHarness({
+      host.open({
+        harness: defineHarness({
           name: 'test/dup-cmd',
           adapter,
           plugins: () => [make('test/one'), make('test/two')],
         }),
-        {
-          threadId: 't',
-        },
-      ),
+        threadId: 't',
+      }),
     ).rejects.toThrow(
       'Duplicate command "same": first owner test/one, second owner test/two',
     )
@@ -373,14 +380,15 @@ describe('adapter override and credentials', () => {
       }),
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
+    const session = await host.open({
+      harness: defineHarness({
         name: 'test/pick',
         adapter: main.adapter,
         plugins: () => [picker],
       }),
-      { threadId: 't', principal: { id: 'user-1' } },
-    )
+      threadId: 't',
+      principal: { id: 'user-1' },
+    })
 
     await session.setConfig({ key: 'model', value: 'other' })
     expect(await session.send('hi')).toEqual({
@@ -389,7 +397,7 @@ describe('adapter override and credentials', () => {
     })
     expect(main.calls).toHaveLength(0)
 
-    await expect(session.command('token')).rejects.toThrow(
+    await expect(session.command({ name: 'token' })).rejects.toThrow(
       'Sign in to github first',
     )
     expect(token).toBeUndefined()
