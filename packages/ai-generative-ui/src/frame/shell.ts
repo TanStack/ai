@@ -306,15 +306,28 @@ body{background:var(--ui-bg,transparent);color:var(--ui-text,#111);font:14px/1.5
  * interactivity in the fragment still works; host round-trips arrive once the
  * fragment speaks the MCP Apps guest protocol.
  */
-export function buildFragmentDocument(record: ArtifactRecord, theme?: FrameTheme): string {
+export interface FragmentDocumentOptions {
+  /**
+   * A pre-bundled MCP-Apps guest script (ext-apps `App` + the `window.__ogui`
+   * adapter from `FRAGMENT_GUEST_SOURCE`), inlined as a classic script BEFORE
+   * the fragment so `window.__ogui` exists when the fragment runs. Omit for a
+   * display-only fragment (local interactivity still works; host round-trips and
+   * content-sizing don't).
+   */
+  guestScript?: string
+}
+
+export function buildFragmentDocument(record: ArtifactRecord, theme?: FrameTheme, opts: FragmentDocumentOptions = {}): string {
   const themeCss = theme ? themeStyle(theme) : ''
-  // Center the authored content; the host iframe sizes it (true content-height
-  // arrives once the fragment sends MCP Apps `ui/notifications/size-changed`).
+  const guest = opts.guestScript ? `<script>${opts.guestScript}</script>` : ''
+  // Center the authored content; the host iframe sizes it once the guest adapter
+  // sends MCP Apps `ui/notifications/size-changed`.
   return `<!doctype html><html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escapeHtml(record.title)}</title>
 <style>${BASE_STYLE}body{display:flex;justify-content:center;padding:14px}#root{width:100%;max-width:420px}${themeCss}</style>
+${guest}
 </head><body>
 <div id="root">${record.source}</div>
 </body></html>`

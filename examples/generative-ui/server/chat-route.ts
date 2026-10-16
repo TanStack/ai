@@ -26,7 +26,7 @@ import {
   renderUICompositionGuidance,
   type FrameTheme,
 } from '@tanstack/ai-generative-ui'
-import { reactBuilder, registry, store } from './frame-host'
+import { getFragmentGuestScript, reactBuilder, registry, store } from './frame-host'
 
 // Light theme injected into html-fragment MCP-Apps documents (fragments also
 // carry var() fallbacks). A dedicated sandbox origin can't read the host's CSS.
@@ -110,6 +110,9 @@ export async function handleChat(req: IncomingMessage, res: ServerResponse): Pro
   const abortController = new AbortController()
   req.on('close', () => abortController.abort())
 
+  // Built once, cached: makes html-fragment artifacts MCP-Apps-native.
+  const guestScript = await getFragmentGuestScript()
+
   const stream = chat({
     adapter: adapterFor(provider),
     systemPrompts: [SYSTEM_PROMPT],
@@ -122,7 +125,7 @@ export async function handleChat(req: IncomingMessage, res: ServerResponse): Pro
         // Additive: also emit the standard MCP Apps ui-resource part for
         // html-fragment artifacts so they render through the SDK's MCPAppResource.
         emitUiResource: true,
-        renderShell: (rec) => buildFragmentDocument(rec, FRAGMENT_THEME),
+        renderShell: (rec) => buildFragmentDocument(rec, FRAGMENT_THEME, { guestScript }),
       }),
     ],
     tools: [renderUiTool()],

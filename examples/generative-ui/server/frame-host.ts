@@ -9,12 +9,44 @@
  */
 
 import { resolve } from 'node:path'
+import { createRequire } from 'node:module'
 import { transformWithEsbuild } from 'vite'
-import { FRAME_FIXTURES, REFERENCE_REGISTRY, makeReactBuilder } from '@tanstack/ai-generative-ui'
+import { FRAGMENT_GUEST_SOURCE, FRAME_FIXTURES, REFERENCE_REGISTRY, makeReactBuilder } from '@tanstack/ai-generative-ui'
 import { createBlobArtifactStore, createFrameArtifacts } from '@tanstack/ai-generative-ui/artifacts'
 import { createFsBlobStore } from './fs-blob-store'
 
-const DATA_DIR = resolve(import.meta.dirname, '..', '.data', 'artifacts')
+const EXAMPLE_ROOT = resolve(import.meta.dirname, '..')
+const DATA_DIR = resolve(EXAMPLE_ROOT, '.data', 'artifacts')
+
+// esbuild (via Vite) bundler for the MCP-Apps guest adapter.
+const localRequire = createRequire(import.meta.url)
+let esbuildCache: any = null
+function esbuildBundler(): any {
+  if (!esbuildCache) esbuildCache = createRequire(localRequire.resolve('vite'))('esbuild')
+  return esbuildCache
+}
+
+// Bundle the FRAGMENT_GUEST_SOURCE (ext-apps App + the window.__ogui adapter)
+// into one IIFE, once, so html-fragment artifacts are MCP-Apps-native (size +
+// host round-trips). Inlined ahead of the fragment by buildFragmentDocument.
+let guestScript: Promise<string> | null = null
+export function getFragmentGuestScript(): Promise<string> {
+  if (!guestScript) {
+    guestScript = (async () => {
+      const r = await esbuildBundler().build({
+        stdin: { contents: FRAGMENT_GUEST_SOURCE, loader: 'js', resolveDir: EXAMPLE_ROOT },
+        bundle: true,
+        format: 'iife',
+        platform: 'browser',
+        define: { 'process.env.NODE_ENV': '"production"' },
+        write: false,
+        legalComments: 'none',
+      })
+      return r.outputFiles?.[0]?.text ?? ''
+    })()
+  }
+  return guestScript
+}
 
 /** esbuild build-at-write: TSX → ESM, classic JSX, imports left bare for the import map. */
 export const reactBuilder = makeReactBuilder(async ({ source }) => {

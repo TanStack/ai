@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@mcp-ui/client": "^7.1.1",
+    "@modelcontextprotocol/ext-apps": "^1.7.4",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-anthropic": "workspace:*",
     "@tanstack/ai-generative-ui": "workspace:*",

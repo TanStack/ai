@@ -345,11 +345,9 @@ function MessageRow({
                   <span className="text-slate-600">·</span>
                   <span>MCP App</span>
                 </div>
-                {/* Fixed height until the fragment speaks the MCP Apps guest
-                    protocol (ui/notifications/size-changed) for content sizing. */}
-                <div style={{ height: 320, overflow: 'hidden' }}>
-                  <MCPAppResource part={part} sandbox={MCP_SANDBOX} bridge={mcpBridge} />
-                </div>
+                {/* The MCP-Apps-native guest sizes the iframe via
+                    ui/notifications/size-changed, so no fixed height is needed. */}
+                <MCPAppResource part={part} sandbox={MCP_SANDBOX} bridge={mcpBridge} />
               </div>
             )
           }
