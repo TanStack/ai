@@ -1,3 +1,4 @@
+import { base64url } from './utils'
 import type { Credential } from '@tanstack/ai/byok'
 
 /** An OAuth 2 app: where to send the user, and where to get tokens. */
@@ -15,13 +16,6 @@ export interface OAuthConfig {
 type Fetch = typeof fetch
 
 const encoder = new TextEncoder()
-
-/** Base64url (RFC 4648 section 5) without padding. */
-export function base64url(bytes: Uint8Array): string {
-  let binary = ''
-  for (const byte of bytes) binary += String.fromCharCode(byte)
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
 
 function randomString(bytes = 32): string {
   return base64url(crypto.getRandomValues(new Uint8Array(bytes)))

@@ -7,9 +7,8 @@ import {
   createHarnessHost,
   defineHarness,
   definePlugin,
-  mediaIdOf,
-  mediaPart,
 } from '../src'
+import { mediaIdOf, mediaPart } from '../src/media-entry'
 import { messageTexts, mockAdapter, text, toolCall } from './helpers'
 import type { ModelMessage } from '@tanstack/ai'
 import type { HarnessPersistence } from '../src'

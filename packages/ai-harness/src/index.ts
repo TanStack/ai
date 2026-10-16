@@ -51,8 +51,8 @@ export type {
 } from './plugins'
 
 export { createExtensionPoint, createPluginEvent } from './extensions'
-// Portable (no Node imports), so edge-safe plugins such as code mode can read
-// the permission rules and resources without the Node-only `./plugins` entry.
+// Portable (no Node imports), so plugins such as code mode can read the
+// permission rules and resources from the root.
 export {
   PermissionDecisionCapability,
   PermissionResources,
@@ -176,50 +176,8 @@ export type {
   WaitingInput,
 } from './types'
 
-export {
-  MEDIA_URL_PREFIX,
-  isMediaRecord,
-  kindOf,
-  mediaIdOf,
-  mediaOfMessage,
-  mediaPart,
-  mimeTypeOf,
-} from './media-ref'
-
-export { MediaError } from './media'
-export type { MediaOptions } from './media'
-
-export {
-  HARNESS_PROTOCOL_VERSION,
-  applyInput,
-  capabilitiesOf,
-  parseControlFrame,
-  parseHarnessInput,
-} from './protocol'
-export type { ControlFrame, HostFrame } from './protocol'
-
-export { createHarnessHandler, handleHarnessSocket } from './http'
-export type {
-  Authorize,
-  CanAccess,
-  HarnessHandlerOptions,
-  HarnessSocketOptions,
-} from './http'
-
 export { harnessText } from './harness-text'
 export type { HarnessTextOptions, RemoteHarness } from './harness-text'
-
-export {
-  buildAuthorizationUrl,
-  createPkce,
-  deviceLogin,
-  exchangeCode,
-  isExpired,
-  loopbackLogin,
-  refreshCredential,
-  startLoopbackReceiver,
-} from './oauth'
-export type { OAuthConfig } from './oauth'
 
 export { oauthConnector } from './connectors'
 export type { OAuthConnectorOptions } from './connectors'

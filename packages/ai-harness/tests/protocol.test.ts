@@ -2,17 +2,16 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { defineAgent } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
+import { createHarnessHost, defineHarness } from '../src'
 import {
   createHarnessHandler,
-  createHarnessHost,
-  defineHarness,
   handleHarnessSocket,
   parseControlFrame,
   parseHarnessInput,
-} from '../src'
+} from '../src/server'
 import { after, gate, mockAdapter, text, wakeMessages } from './helpers'
 import type { WebSocketLike } from '@tanstack/ai'
-import type { HostFrame } from '../src'
+import type { HostFrame } from '../src/server'
 import type { Reply } from './helpers'
 
 const pricer = defineAgent({

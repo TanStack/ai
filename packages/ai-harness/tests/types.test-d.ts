@@ -2,12 +2,12 @@ import { expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
 import { defineAgent } from '@tanstack/ai'
 import {
-  createHarnessHandler,
   createHarnessHost,
   defineHarness,
   definePlugin,
   oauthConnector,
 } from '../src'
+import { createHarnessHandler } from '../src/server'
 import { mockAdapter } from './helpers'
 import type { AnyTextAdapter, KeyedAdapter } from '@tanstack/ai'
 import type { SessionIndexEntry } from '@tanstack/ai-persistence'

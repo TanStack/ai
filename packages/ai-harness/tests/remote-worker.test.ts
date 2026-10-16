@@ -2,12 +2,8 @@ import { PassThrough } from 'node:stream'
 import { describe, expect, it, vi } from 'vitest'
 import { EventType, chat } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import {
-  createHarnessHandler,
-  createHarnessHost,
-  defineHarness,
-  harnessText,
-} from '../src'
+import { createHarnessHost, defineHarness, harnessText } from '../src'
+import { createHarnessHandler } from '../src/server'
 import { runHarnessWorker } from '../src/worker'
 import { mockAdapter, text } from './helpers'
 import type { StreamChunk } from '@tanstack/ai'

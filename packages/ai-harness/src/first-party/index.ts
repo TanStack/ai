@@ -1,5 +1,6 @@
-// First-party plugins. This entry is Node only: some plugins use the file
-// system and the shell.
+// First-party plugins. This entry is edge-safe: it loads no Node module. The
+// plugins that use the file system are in the `./plugins/node` entry
+// (`./node`).
 export { modelPicker } from './model-picker'
 export {
   PERMISSION_MODES,
@@ -22,7 +23,6 @@ export type {
 export { globToRegExp } from './glob'
 export { formatTodos, todos } from './todos'
 export type { Todo } from './todos'
-export { fileCommands, projectInstructions } from './files'
 export { compact, usage } from './session-tools'
 export { providerKeys } from './provider-keys'
 export type {
@@ -32,8 +32,5 @@ export type {
 } from './provider-keys'
 export { GoalMet, goal, selectGoal } from './goal'
 export type { Goal } from './goal'
-export { agents, builtInAgents } from './agents'
-export type { AgentProfile } from './agents'
 export { question } from './question'
 export { TitleFailed, title } from './title'
-export { boundToolOutput } from './bound-output'

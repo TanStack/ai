@@ -2,13 +2,13 @@ import { describe, expect, it, vi } from 'vitest'
 import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import {
-  createHarnessHandler,
   createHarnessHost,
   createPluginEvent,
   defineCommand,
   defineHarness,
   definePlugin,
 } from '../src'
+import { createHarnessHandler } from '../src/server'
 import { createHarnessClient } from '../src/client'
 import { createSessionView } from '../src/view'
 import { after, gate, mockAdapter, text, toolCall } from './helpers'

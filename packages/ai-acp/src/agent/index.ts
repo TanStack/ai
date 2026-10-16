@@ -6,12 +6,8 @@ import {
   agent,
   ndJsonStream,
 } from '@agentclientprotocol/sdk/experimental/v2'
-import {
-  InputRejectedError,
-  MediaError,
-  kindOf,
-  mediaPart,
-} from '@tanstack/ai-harness'
+import { InputRejectedError } from '@tanstack/ai-harness'
+import { MediaError, kindOf, mediaPart } from '@tanstack/ai-harness/media'
 import type {
   AgentApp,
   AgentContext,

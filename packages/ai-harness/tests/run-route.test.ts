@@ -3,12 +3,8 @@ import { z } from 'zod'
 import { readInterruptBinding, toolDefinition } from '@tanstack/ai'
 import { fakeText } from '@tanstack/ai/testing'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import {
-  createHarnessHandler,
-  createHarnessHost,
-  defineHarness,
-  definePlugin,
-} from '../src'
+import { createHarnessHost, defineHarness, definePlugin } from '../src'
+import { createHarnessHandler } from '../src/server'
 import { after, gate, mockAdapter, text, toolCall } from './helpers'
 import type { Interrupt } from '@tanstack/ai'
 import type { FakeResponse } from '@tanstack/ai/testing'

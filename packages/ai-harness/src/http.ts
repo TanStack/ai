@@ -11,7 +11,6 @@ import {
 import { parseRangeHeader, resolveBlobRange } from '@tanstack/ai-persistence'
 import { durableStoresOf, sessionOfTurn } from './host'
 import { MediaError } from './media'
-import { base64url } from './oauth'
 import {
   HARNESS_PROTOCOL_VERSION,
   applyInput,
@@ -20,7 +19,7 @@ import {
   parseControlFrame,
   parseHarnessInput,
 } from './protocol'
-import { isRecord } from './utils'
+import { base64url, isRecord } from './utils'
 import { SessionMetadataError } from './session-entry'
 import type {
   ModelMessage,

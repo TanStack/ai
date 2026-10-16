@@ -14,14 +14,8 @@ import {
   defineHarness,
   definePlugin,
 } from '../src'
-import {
-  compact,
-  fileCommands,
-  modelPicker,
-  projectInstructions,
-  todos,
-  usage,
-} from '../src/first-party'
+import { compact, modelPicker, todos, usage } from '../src/first-party'
+import { fileCommands, projectInstructions } from '../src/first-party/node'
 import { gate, mockAdapter, text, toolCall } from './helpers'
 import type { PluginState, SessionEvent } from '../src'
 
@@ -167,6 +161,12 @@ describe('commands', () => {
     await release.opened
     await waiting.cancel()
     await waiting.then(
+      () => undefined,
+      () => undefined,
+    )
+    expect(waiting.status()).toBe('cancelled')
+    await host.close()
+  })
 
   it('gives a command without a schema the input as sent, typed unknown', async () => {
     // Defined on their own, with no contextual type from a plugin's `setup`.
@@ -197,12 +197,6 @@ describe('commands', () => {
     expect(await session.command('peek', { foo: 'bar' })).toBe('bar')
     expect(await session.command('shout', 'hi')).toBe('HI')
     expect(await session.command('shout', { text: 'hi' })).toBe('no text')
-    await host.close()
-  })
-      () => undefined,
-      () => undefined,
-    )
-    expect(waiting.status()).toBe('cancelled')
     await host.close()
   })
 })

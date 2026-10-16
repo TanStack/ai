@@ -4,21 +4,24 @@ import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import {
   HARNESS_EVENTS,
-  buildAuthorizationUrl,
   createHarnessHost,
-  createPkce,
   defineCommand,
   defineHarness,
   definePlugin,
+  oauthConnector,
+  scrubSecrets,
+} from '../src'
+import {
+  buildAuthorizationUrl,
+  createPkce,
   deviceLogin,
   exchangeCode,
   loopbackLogin,
-  oauthConnector,
   refreshCredential,
-  scrubSecrets,
-} from '../src'
+} from '../src/oauth'
 import { mockAdapter, text, toolCall } from './helpers'
-import type { OAuthConfig, SessionEvent } from '../src'
+import type { SessionEvent } from '../src'
+import type { OAuthConfig } from '../src/oauth'
 
 const oauth: OAuthConfig = {
   authorizationUrl: 'https://auth.example/authorize',

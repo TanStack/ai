@@ -30,6 +30,18 @@
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
     },
+    "./server": {
+      "types": "./dist/esm/server.d.ts",
+      "import": "./dist/esm/server.js"
+    },
+    "./oauth": {
+      "types": "./dist/esm/oauth.d.ts",
+      "import": "./dist/esm/oauth.js"
+    },
+    "./media": {
+      "types": "./dist/esm/media-entry.d.ts",
+      "import": "./dist/esm/media-entry.js"
+    },
     "./client": {
       "types": "./dist/esm/client.d.ts",
       "import": "./dist/esm/client.js"
@@ -49,6 +61,10 @@
     "./plugins": {
       "types": "./dist/esm/first-party/index.d.ts",
       "import": "./dist/esm/first-party/index.js"
+    },
+    "./plugins/node": {
+      "types": "./dist/esm/first-party/node.d.ts",
+      "import": "./dist/esm/first-party/node.js"
     },
     "./plugins/coding": {
       "types": "./dist/esm/first-party/coding/index.d.ts",

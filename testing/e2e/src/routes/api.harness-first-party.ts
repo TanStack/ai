@@ -13,14 +13,13 @@ import {
 } from '@tanstack/ai-harness'
 import {
   TitleFailed,
-  agents,
   goal,
   permissions,
-  projectInstructions,
   providerKeys,
   selectGoal,
   title,
 } from '@tanstack/ai-harness/plugins'
+import { agents, projectInstructions } from '@tanstack/ai-harness/plugins/node'
 import { createOpenaiChat } from '@tanstack/ai-openai'
 import { openaiByok } from '@tanstack/ai-openai/byok'
 import { memoryPersistence } from '@tanstack/ai-persistence'

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHandler, createHarnessHost, defineHarness } from '../src'
+import { createHarnessHost, defineHarness } from '../src'
+import { createHarnessHandler } from '../src/server'
 import { gate, mockAdapter, text } from './helpers'
 import type { Reply } from './helpers'
 

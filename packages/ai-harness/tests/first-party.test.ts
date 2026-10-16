@@ -7,14 +7,13 @@ import { createHarnessHost, defineHarness } from '../src'
 import {
   compact,
   decidePermission,
-  fileCommands,
   globToRegExp,
   modelPicker,
   permissions,
-  projectInstructions,
   todos,
   usage,
 } from '../src/first-party'
+import { fileCommands, projectInstructions } from '../src/first-party/node'
 import { workspaceTools } from '../src/first-party/coding'
 import { messageTexts, mockAdapter, text, toolCall } from './helpers'
 import type { HarnessPlugin } from '../src'

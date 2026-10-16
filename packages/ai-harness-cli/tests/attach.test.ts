@@ -10,11 +10,8 @@ import {
   it,
   vi,
 } from 'vitest'
-import {
-  createHarnessHost,
-  defineHarness,
-  mediaIdOf,
-} from '@tanstack/ai-harness'
+import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import { mediaIdOf } from '@tanstack/ai-harness/media'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { attach, defaultMediaDir, saveMedia } from '../src/attach'
 import type { AnyTextAdapter } from '@tanstack/ai'

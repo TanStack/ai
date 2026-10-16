@@ -2,12 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import {
-  applyInput,
-  capabilitiesOf,
-  createHarnessHost,
-  defineHarness,
-} from '../src'
+import { createHarnessHost, defineHarness } from '../src'
+import { applyInput, capabilitiesOf } from '../src/server'
 import { permissions } from '../src/first-party/permissions'
 import { mockAdapter, text, toolCall } from './helpers'
 import type { HarnessPlugin } from '../src'

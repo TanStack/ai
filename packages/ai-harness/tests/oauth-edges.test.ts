@@ -4,19 +4,21 @@ import { toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import {
   AuthRequiredError,
-  buildAuthorizationUrl,
   createHarnessHost,
   defineHarness,
+  oauthConnector,
+  scrubSecrets,
+} from '../src'
+import {
+  buildAuthorizationUrl,
   deviceLogin,
   exchangeCode,
   isExpired,
   loopbackLogin,
-  oauthConnector,
   refreshCredential,
-  scrubSecrets,
-} from '../src'
+} from '../src/oauth'
 import { mockAdapter, text, toolCall } from './helpers'
-import type { OAuthConfig } from '../src'
+import type { OAuthConfig } from '../src/oauth'
 
 const oauth: OAuthConfig = {
   authorizationUrl: 'https://auth.example/authorize',

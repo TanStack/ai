@@ -1,15 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
-import {
-  createHarnessHandler,
-  createHarnessHost,
-  defineHarness,
-  isMediaRecord,
-  mediaPart,
-} from '../src'
+import { createHarnessHost, defineHarness } from '../src'
+import { createHarnessHandler } from '../src/server'
+import { isMediaRecord, mediaPart } from '../src/media-entry'
 import { mockAdapter, text } from './helpers'
 import type { ContentPart } from '@tanstack/ai'
-import type { Authorize, MediaOptions, MediaRecord } from '../src'
+import type { MediaRecord } from '../src'
+import type { Authorize } from '../src/server'
+import type { MediaOptions } from '../src/media-entry'
 
 const BASE = 'http://x/api/harness'
 const HOUR = 60 * 60 * 1000

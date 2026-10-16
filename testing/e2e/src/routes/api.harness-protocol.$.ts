@@ -5,12 +5,12 @@ import {
   type FinishContext,
   retryTransientErrors,
   configOption,
-  createHarnessHandler,
   createHarnessHost,
   defineCommand,
   defineHarness,
   definePlugin,
 } from '@tanstack/ai-harness'
+import { createHarnessHandler } from '@tanstack/ai-harness/server'
 import { mcp } from '@tanstack/ai-mcp/harness'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { z } from 'zod'

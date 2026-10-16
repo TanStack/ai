@@ -2,12 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import {
-  applyInput,
-  createHarnessHost,
-  defineHarness,
-  parseHarnessInput,
-} from '../src'
+import { createHarnessHost, defineHarness } from '../src'
+import { applyInput, parseHarnessInput } from '../src/server'
 import { mockAdapter, text, toolCall } from './helpers'
 
 /** A tool that records the execution context it was called with. */

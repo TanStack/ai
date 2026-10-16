@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { startLoopbackReceiver } from '../src'
+import { startLoopbackReceiver } from '../src/oauth'
 
 describe('startLoopbackReceiver', () => {
   it('returns the code for the matching state and ignores other paths', async () => {

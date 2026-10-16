@@ -1,13 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { EventType, defineAgent } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import {
-  HARNESS_EVENTS,
-  MediaError,
-  createHarnessHost,
-  defineHarness,
-  mediaPart,
-} from '../src'
+import { HARNESS_EVENTS, createHarnessHost, defineHarness } from '../src'
+import { MediaError, mediaPart } from '../src/media-entry'
 import { mockAdapter, text, toolCall } from './helpers'
 import type {
   AnyTextAdapter,
@@ -19,11 +14,11 @@ import type {
   AnyHarness,
   HarnessPersistence,
   MediaKind,
-  MediaOptions,
   MediaRecord,
   SessionEvent,
   UserInput,
 } from '../src'
+import type { MediaOptions } from '../src/media-entry'
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()

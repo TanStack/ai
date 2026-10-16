@@ -4,8 +4,8 @@ import {
   AuthRequiredError,
   defineCommand,
   definePlugin,
-  startLoopbackReceiver,
 } from '@tanstack/ai-harness'
+import { startLoopbackReceiver } from '@tanstack/ai-harness/oauth'
 import { connectTransport } from './client'
 import { MCPConnectionError } from './errors'
 import { askForInput, elicitFor, harnessClientOptions } from './harness-plugin'

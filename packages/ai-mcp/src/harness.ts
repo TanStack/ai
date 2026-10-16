@@ -4,15 +4,14 @@ import {
   readUnopenedInterruptBinding,
   toolDefinition,
 } from '@tanstack/ai'
+import { HARNESS_EVENTS } from '@tanstack/ai-harness'
 import {
-  HARNESS_EVENTS,
-  applyInput,
   isMediaRecord,
   kindOf,
   mediaPart,
   mimeTypeOf,
-  parseHarnessInput,
-} from '@tanstack/ai-harness'
+} from '@tanstack/ai-harness/media'
+import { applyInput, parseHarnessInput } from '@tanstack/ai-harness/server'
 // The inferred return type names `MCPHandleOptions`. Without an import of
 // `./server/index`, the .d.ts emit writes `./server.js`, which does not resolve.
 import { createMCPServer, resourceDefinition } from './server/index'

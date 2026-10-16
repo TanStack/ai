@@ -5,15 +5,16 @@ import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import {
   AuthRequiredError,
   HARNESS_EVENTS,
-  createHarnessHandler,
   createHarnessHost,
   defineCommand,
   defineHarness,
   definePlugin,
   oauthConnector,
 } from '../src'
+import { createHarnessHandler } from '../src/server'
 import { after, gate, mockAdapter, text, toolCall } from './helpers'
-import type { HarnessSession, OAuthConfig } from '../src'
+import type { HarnessSession } from '../src'
+import type { OAuthConfig } from '../src/oauth'
 import type { Reply } from './helpers'
 
 const oauth: OAuthConfig = {

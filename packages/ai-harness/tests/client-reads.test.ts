@@ -3,12 +3,12 @@ import { defineAgent } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import {
   configOption,
-  createHarnessHandler,
   createHarnessHost,
   defineCommand,
   defineHarness,
   definePlugin,
 } from '../src'
+import { createHarnessHandler } from '../src/server'
 import { createHarnessClient } from '../src/client'
 import { mockAdapter, text, toolCall } from './helpers'
 

@@ -1,6 +1,6 @@
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { basename, join, resolve } from 'node:path'
-import { mediaPart, mimeTypeOf } from '@tanstack/ai-harness'
+import { mediaPart, mimeTypeOf } from '@tanstack/ai-harness/media'
 import type { ContentPart } from '@tanstack/ai'
 import type {
   HarnessSession,
