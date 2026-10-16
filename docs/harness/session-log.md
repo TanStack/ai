@@ -31,7 +31,7 @@ const assistant = defineHarness({
 const host = createHarnessHost({
   persistence: { stores: { log, runs: memoryPersistence().stores.runs } },
 })
-const session = await host.open(assistant, { threadId: 'thread-1' })
+const session = await host.open({ harness: assistant, threadId: 'thread-1' })
 
 await session.append([{ type: 'app.signal', text: 'The build failed.' }])
 ```
@@ -43,7 +43,7 @@ await session.append([{ type: 'app.signal', text: 'The build failed.' }])
 
 ## Fold records into the model context
 
-By default, the model does not see your records. Give the host a `project` function that folds a record into the messages. It gets one object, `{ messages, record }`, and returns the new list, or `undefined` for no change:
+By default, the model does not see your records. Set `durability.project` on the harness to fold a record into the messages. Its `record` function gets one object, `{ messages, record }`, and returns the new list, or `undefined` for no change:
 
 ```ts group=harness-session-log
 import type { ProjectOptions } from '@tanstack/ai-harness'
@@ -58,9 +58,10 @@ const project: ProjectOptions = {
   },
 }
 
-const projectedHost = createHarnessHost({
-  persistence: { stores: { log, runs: memoryPersistence().stores.runs } },
-  project,
+export const projected = defineHarness({
+  name: 'acme/projected',
+  adapter: openaiText('gpt-6.1-sol'),
+  durability: { project },
 })
 ```
 
@@ -72,29 +73,33 @@ const projectedHost = createHarnessHost({
 
 ## Let a client add records
 
-A webhook or a browser knows something that the model needs: the build failed, or a payment arrived. Let it add a record to the thread, and the next turn reads the record through `project`.
+A webhook or a browser knows something that the model needs: the build failed, or a payment arrived. Let it add a record to the thread, and the next turn reads the record through `durability.project`.
 
-1. On the server, list the record types in `expose.records`. Serve the harness from the host that has `project`:
+1. On the server, list the record types in `expose.records`, and set `durability.project` on the same harness:
 
 ```ts group=harness-session-log
-import { createHarnessHandler } from '@tanstack/ai-harness'
+import { createHarnessHandler } from '@tanstack/ai-harness/server'
 
 export const watcher = defineHarness({
   name: 'acme/build-watcher',
   adapter: openaiText('gpt-6.1-sol'),
   expose: { records: ['app.signal'] },
+  durability: { project },
 })
 
+// A durable host signs media URLs with the same secret on every instance.
+const mediaSecret = process.env.HARNESS_MEDIA_SECRET
+if (!mediaSecret) throw new Error('Set HARNESS_MEDIA_SECRET.')
+
 export const handler = createHarnessHandler({
-  host: projectedHost,
+  host,
   harness: watcher,
   authorize: (request) =>
     request.headers.get('authorization') === `Bearer ${process.env.HARNESS_TOKEN}`
       ? { id: 'ci-bot' }
       : null,
   canAccess: () => true,
-  // A durable host signs media URLs with the same secret on every instance.
-  mediaSecret: process.env.HARNESS_MEDIA_SECRET,
+  media: { secret: mediaSecret },
 })
 ```
 
@@ -140,12 +145,12 @@ console.log(await messages.loadThread('thread-1'))
 
 ## Tune how text streams into the log
 
-A durable host merges streamed text and tool call arguments for `coalesceMs` (default 100) before it appends them. A message start or end, a tool call start or end, and your own records append at once.
+A durable host merges streamed text and tool call arguments for `log.coalesceMs` milliseconds (default 100) before it appends them. A message start or end, a tool call start or end, and your own records append at once.
 
 ```ts group=harness-session-log
 const smoothHost = createHarnessHost({
   persistence: { stores: { log, runs: memoryPersistence().stores.runs } },
-  coalesceMs: 250,
+  log: { coalesceMs: 250 },
 })
 ```
 

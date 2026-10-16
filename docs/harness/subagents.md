@@ -75,6 +75,8 @@ The harness saves the images, audio, and video that these agents make. See [Medi
 A background agent can work for a long time. When its host stops, for example in a deploy, the next host fails the run. Start it with `resume: true`, and the next host runs it again instead:
 
 ```ts group=harness-subagents
+import { harnessOf } from '@tanstack/ai-harness'
+
 // Your own services.
 async function startExport(customer: string) {
   return `export-${customer}`
@@ -88,7 +90,7 @@ const migrator = defineAgent({
   description: 'Moves the data of one customer to the new region',
   inputSchema: z.object({ customer: z.string() }),
   run: async (ctx) => {
-    const { step } = ctx.harness
+    const { step } = harnessOf(ctx)
     // Each side effect is a step. A finished step does not run again.
     const exportId = await step.do('export', () => startExport(ctx.input.customer))
     await step.do('import', () => importInto('eu-west', exportId))
@@ -119,10 +121,10 @@ export const migrations = definePlugin({
 ```
 
 1. Give the host a session log (`stores.log`). See [Durable sessions](./durable-sessions). Without a log, `start` with `resume: true` throws.
-2. Put each side effect in `ctx.harness.step.do(name, fn)`. The agent code runs again from its start, and a finished step returns its stored value.
+2. Put each side effect in `harnessOf(ctx).step.do(name, fn)`. The agent code runs again from its start, and a finished step returns its stored value.
 3. Give each step a name that is the same on every run, and return a JSON value from `fn`.
 
-`ctx.harness` is on the context of every agent run that a session starts. Outside such a run, `step.do` runs `fn` each time.
+`harnessOf(ctx)` returns the harness context of the run. Every agent run that a session starts has one. In an agent that the model calls as a tool, `step.do` runs `fn` each time. A run that a plain `chat()` starts has no harness context, so `harnessOf` throws a `TypeError`.
 
 What the next host does:
 
@@ -156,7 +158,7 @@ export const studio = defineHarness({
 })
 
 const host = createHarnessHost({ persistence: memoryPersistence() })
-const session = await host.open(studio, { threadId: 'user-1-thread' })
+const session = await host.open({ harness: studio, threadId: 'user-1-thread' })
 
 const run = session.agents.drafter.start()
 
@@ -212,14 +214,16 @@ A run and all of its follow-ups keep their messages in one thread: `<threadId>:<
 
 ### Start agents from agent code
 
-An agent can start other agents in the background with `ctx.harness.agents.start(agent, input, options)`. It returns a run that you can await, message, and cancel:
+An agent can start other agents in the background with `harnessOf(ctx).agents.start(agent, input, options)`. It returns a run that you can await, message, and cancel:
 
 ```ts group=harness-subagents-messages
+import { harnessOf } from '@tanstack/ai-harness'
+
 const editor = defineAgent({
   name: 'editor',
   description: 'Starts two drafts and joins them',
   run: async (ctx) => {
-    const { agents } = ctx.harness
+    const { agents } = harnessOf(ctx)
     const intro = agents.start(drafter)
     const outro = agents.start(drafter)
     await intro.send('Keep it under 100 words.')
@@ -326,7 +330,7 @@ const studio = defineHarness({
 })
 
 const host = createHarnessHost({ persistence: memoryPersistence() })
-const session = await host.open(studio, { threadId: 'user-1-thread' })
+const session = await host.open({ harness: studio, threadId: 'user-1-thread' })
 await session.send('Write a short intro, then have the writer edit it.')
 
 for (const message of await session.transcript()) {
@@ -455,7 +459,7 @@ const reviewer = defineHarness({
 export const lead = defineHarness({
   name: 'acme/lead',
   adapter: openaiText('gpt-6.1-sol'),
-  subagents: { agents: [harnessAgent(reviewer)] },
+  subagents: { agents: [harnessAgent({ harness: reviewer })] },
 })
 ```
 

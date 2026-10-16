@@ -34,8 +34,9 @@ const host = createHarnessHost({
   persistence: { stores: { log, runs, metadata } },
 })
 
-const parent = await host.open(assistant, { threadId: 'agent-1' })
-const child = await host.open(assistant, {
+const parent = await host.open({ harness: assistant, threadId: 'agent-1' })
+const child = await host.open({
+  harness: assistant,
   threadId: 'task-1',
   logId: 'agent-1',
 })
@@ -66,7 +67,7 @@ Here the child record and the link in the parent land together, or not at all.
 
 ## Keep state for the whole log
 
-Give the host a `reduce` option. It folds every host record of the log, from all sessions, in log order. Then `host.logState` reads the result:
+Give the harness a `durability.reduce` option. It folds every host record of the log, from all sessions, in log order. Then `host.logState` reads the result:
 
 ```ts group=harness-shared-logs
 import type { ReduceOptions } from '@tanstack/ai-harness'
@@ -84,23 +85,25 @@ const reduce: ReduceOptions<Children> = {
       : state,
 }
 
-const trackedHost = createHarnessHost({
-  persistence: { stores: { log, runs, metadata } },
-  reduce,
+const tracker = defineHarness({
+  name: 'acme/tracker',
+  adapter: openaiText('gpt-6.1-sol'),
+  durability: { reduce },
 })
-const tracked = await trackedHost.open(assistant, { threadId: 'agent-2' })
+const tracked = await host.open({ harness: tracker, threadId: 'agent-2' })
 await tracked.append([
   { type: 'app.child_created', thread: 'task-2', task: 'research' },
 ])
 
-console.log(trackedHost.logState('agent-2')?.tasks)
+console.log(host.logState({ harness: tracker, logId: 'agent-2' })?.tasks)
 ```
 
 - `record` must be pure. It returns the next state, or the same state for no change.
-- `host.logState(logId)` works for a log that has an open session in this host. Otherwise it returns `undefined`.
+- `host.logState({ harness, logId })` works for a log that has an open session in this host. Otherwise it returns `undefined`.
 - The type of the state flows from `initial` and `record`. Here `logState` returns `Children | undefined`.
+- If sessions of several harnesses share one log, the harness of the first session that opens the log folds it. For the other harnesses, `logState` returns `undefined`.
 - Change `version` when you change `record`. A fold checkpoint with another version is ignored.
-- `project` still works. It folds a host record into the messages of its own session only.
+- `durability.project` also works with `reduce`. It folds a host record into the messages of its own session only.
 
 ## One writer per log
 
@@ -124,5 +127,5 @@ console.log(await messages.loadThread('task-1'))
 
 - Many sessions in one durable log, each with its own transcript.
 - Appends that reach several sessions and land all together or not at all.
-- One state for the whole log, from `reduce`, that you read with `host.logState`.
+- One state for the whole log, from `durability.reduce`, that you read with `host.logState`.
 - A clear rule for conflicts: one writer, and a fresh fold on the next open.

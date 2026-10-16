@@ -18,7 +18,8 @@ Your harness runs on a server, but the people who use it are in a browser or ano
 Mount one fetch handler on a route. `authorize` is required, so no endpoint is open by accident.
 
 ```ts group=harness-connect
-import { defineHarness, createHarnessHandler, createHarnessHost } from '@tanstack/ai-harness'
+import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import { createHarnessHandler } from '@tanstack/ai-harness/server'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { openaiText } from '@tanstack/ai-openai'
 
@@ -42,7 +43,7 @@ export const handler = createHarnessHandler({
 
 `canAccess` is required. It decides which threads each principal can use. To let every principal use every thread, pass `canAccess: () => true`.
 
-On a durable host (`stores.log`), also set `mediaSecret`. It signs media URLs, so every instance must use the same value. Without a log store, the default is a random key, and signed URLs stop working after a restart.
+On a durable host (`stores.log`), also set `media: { secret }`. The secret signs media URLs, so every instance must use the same value. Without a log store, the default is a random key, and signed URLs stop working after a restart.
 
 The handler answers these paths under your route:
 
@@ -127,7 +128,8 @@ A background agent runs for minutes, and the user wants to correct it from the p
 
 ```ts group=harness-connect-agents
 import { defineAgent } from '@tanstack/ai'
-import { createHarnessHandler, createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import { createHarnessHandler } from '@tanstack/ai-harness/server'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { openaiText } from '@tanstack/ai-openai'
 
@@ -309,7 +311,7 @@ The join has these rules:
 For one connection that carries events and inputs, authorize the upgrade, then hand the socket to `handleHarnessSocket`:
 
 ```ts group=harness-connect
-import { handleHarnessSocket } from '@tanstack/ai-harness'
+import { handleHarnessSocket } from '@tanstack/ai-harness/server'
 import type { WebSocketLike } from '@tanstack/ai'
 
 export function onUpgrade(socket: WebSocketLike) {
@@ -334,7 +336,7 @@ import { chat } from '@tanstack/ai'
 import { harnessText } from '@tanstack/ai-harness'
 
 const stream = chat({
-  adapter: harnessText(assistant, { host }),
+  adapter: harnessText({ harness: assistant, host }),
   messages: [{ role: 'user', content: 'Fix the failing test.' }],
   threadId: 'outer-thread',
 })
@@ -342,7 +344,7 @@ const stream = chat({
 
 Each outer thread gets its own inner session, so the harness keeps its own history. The inner session gets every content part of the last user message, so images and files go through too.
 
-If a plugin picks the model of the harness, the harness has no adapter to read its input kinds from. Pass them with `harnessText(assistant, { host, inputModalities: ['text', 'image'] })`.
+If a plugin picks the model of the harness, the harness has no adapter to read its input kinds from. Pass them with `harnessText({ harness: assistant, host, inputModalities: ['text', 'image'] })`.
 
 ## What you have now
 

@@ -41,7 +41,7 @@ const log = memoryLogStore()
 const host = createHarnessHost({
   persistence: { stores: { log, runs: memoryPersistence().stores.runs } },
 })
-const session = await host.open(coder, { threadId: 'fix-login' })
+const session = await host.open({ harness: coder, threadId: 'fix-login' })
 ```
 
 - `root` is the workspace folder, an absolute path.
@@ -52,9 +52,9 @@ const session = await host.open(coder, { threadId: 'fix-login' })
 ## 2. Undo and redo a turn
 
 1. Send a prompt that changes files: `await session.send('Fix the login form.')`.
-2. Run `await session.command('undo')`. It returns the number of files that it put back, for example `Undid the last turn. Files restored: 3.`
+2. Run `await session.command({ name: 'undo' })`. It returns the number of files that it put back, for example `Undid the last turn. Files restored: 3.`
 3. Look at the files that the turn changed: they are as they were before the turn. The turn is gone from the conversation too.
-4. To bring back the files and the turn, run `await session.command('redo')`. It returns `Redid the last turn.`
+4. To bring back the files and the turn, run `await session.command({ name: 'redo' })`. It returns `Redid the last turn.`
 
 In a terminal app, the user types `/undo` and `/redo`. See [Build a coding agent](./coding-agent).
 

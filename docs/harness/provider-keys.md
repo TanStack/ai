@@ -70,7 +70,8 @@ export const assistant = defineHarness({
 })
 
 const host = createHarnessHost({ persistence: memoryPersistence() })
-const session = await host.open(assistant, {
+const session = await host.open({
+  harness: assistant,
   threadId: 'ada-chat',
   principal: { id: 'ada' },
 })
@@ -93,7 +94,7 @@ const stopAsking = session.onEvent('CUSTOM', async ({ event }) => {
   if (question) await session.answer({ questionId: question.questionId, value: 'sk-proj-...' })
 })
 
-console.log(await session.command('connect:openai')) // Connected to OpenAI (key ...abcd).
+console.log(await session.command({ name: 'connect:openai' })) // Connected to OpenAI (key ...abcd).
 stopAsking()
 ```
 

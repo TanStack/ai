@@ -31,7 +31,8 @@ export const assistant = defineHarness({
 const host = createHarnessHost({ persistence: memoryPersistence() })
 
 export async function branch(threadId: string, messageId: string) {
-  const fork = await host.fork(assistant, {
+  const fork = await host.fork({
+    harness: assistant,
     threadId,
     newThreadId: `${threadId}-branch-${messageId}`,
     at: messageId,
@@ -66,7 +67,7 @@ export async function editAndResend(threadId: string, messageId: string, text: s
     threadId,
     at: { before: messageId },
   })
-  const fork = await host.open(assistant, { threadId: entry.threadId })
+  const fork = await host.open({ harness: assistant, threadId: entry.threadId })
   await fork.send(text)
   return entry.threadId
 }
@@ -79,14 +80,14 @@ export async function editAndResend(threadId: string, messageId: string, text: s
 
 ## Reset with a handoff note
 
-`session.reset(note)` starts a fresh model context. From the next turn, the model sees only the note and what comes after the reset:
+`session.reset({ note })` starts a fresh model context. From the next turn, the model sees only the note and what comes after the reset:
 
 ```ts group=harness-fork-and-reset
 export async function startFresh(threadId: string) {
-  const session = await host.open(assistant, { threadId })
-  return session.reset(
-    'Summary: the user moves the billing service to the new region. The DNS change is done. The database move is next.',
-  )
+  const session = await host.open({ harness: assistant, threadId })
+  return session.reset({
+    note: 'Summary: the user moves the billing service to the new region. The DNS change is done. The database move is next.',
+  })
 }
 ```
 

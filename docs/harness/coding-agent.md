@@ -13,7 +13,7 @@ keywords:
   - undo
 ---
 
-You want your own coding agent in the terminal. It reads and edits files, and runs commands after you approve them. When a turn goes wrong, you undo it. The first-party plugins in `@tanstack/ai-harness/plugins` and `@tanstack/ai-harness/plugins/coding` give you those parts. You pick the model and the rules.
+You want your own coding agent in the terminal. It reads and edits files, and runs commands after you approve them. When a turn goes wrong, you undo it. The first-party plugins in `@tanstack/ai-harness/plugins`, `@tanstack/ai-harness/plugins/node`, and `@tanstack/ai-harness/plugins/coding` give you those parts. You pick the model and the rules.
 
 ## 1. Define the agent
 
@@ -28,14 +28,13 @@ import {
 } from '@tanstack/ai-harness'
 import {
   compact,
-  fileCommands,
   modelPicker,
   permissions,
-  projectInstructions,
   title,
   todos,
   usage,
 } from '@tanstack/ai-harness/plugins'
+import { fileCommands, projectInstructions } from '@tanstack/ai-harness/plugins/node'
 import { snapshots, workspaceTools } from '@tanstack/ai-harness/plugins/coding'
 import { openaiText } from '@tanstack/ai-openai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
@@ -64,7 +63,7 @@ const coder = defineHarness({
 })
 
 const host = createHarnessHost({ persistence: memoryPersistence() })
-const session = await host.open(coder, { threadId: 'main' })
+const session = await host.open({ harness: coder, threadId: 'main' })
 const terminal = createInterface({
   input: process.stdin,
   output: process.stdout,
@@ -92,7 +91,7 @@ while (line !== 'exit') {
   if (line.startsWith('/')) {
     // `/undo`, `/model fast`, `/mode plan`, and the other plugin commands.
     const [name = '', ...args] = line.slice(1).split(' ')
-    console.log(await session.command(name, args.join(' ') || undefined))
+    console.log(await session.command({ name, input: args.join(' ') || undefined }))
   } else {
     const turn = session.send(line)
     turn.onEvent('TEXT_MESSAGE_CONTENT', ({ event }) => {
@@ -112,7 +111,7 @@ terminal.close()
 await host.close()
 ```
 
-Both plugin entries run only in Node. The coding tools use the file system and the shell of the machine. A line that starts with `/` runs a command of a plugin. Any other line is a prompt.
+The `plugins/node` and `plugins/coding` entries run only in Node. The coding tools use the file system and the shell of the machine. A line that starts with `/` runs a command of a plugin. Any other line is a prompt.
 
 ## 2. Run it
 

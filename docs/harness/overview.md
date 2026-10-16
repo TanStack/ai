@@ -31,6 +31,36 @@ octane: @tanstack/ai @tanstack/ai-harness @tanstack/ai-persistence @tanstack/ai-
 
 <!-- ::end:tabs -->
 
+## Which import to use
+
+Import each name from the entry that holds it. Only four entries load Node modules: `plugins/node`, `plugins/coding`, `build`, and `worker`. All other entries also run on an edge runtime.
+
+For your app and its routes:
+
+| Import | Holds |
+| --- | --- |
+| `@tanstack/ai-harness` | `defineHarness`, `createHarnessHost`, `harnessOf`, `definePlugin`, `durableTool`, `harnessText`, `oauthConnector`, and the session and agent types. |
+| `@tanstack/ai-harness/server` | `createHarnessHandler` and `handleHarnessSocket`. For your own transport: `applyInput`, `parseHarnessInput`, `parseControlFrame`, `capabilitiesOf`, and `HARNESS_PROTOCOL_VERSION`. |
+| `@tanstack/ai-harness/client` | `createHarnessClient`, a typed client for a browser or another process. |
+| `@tanstack/ai-harness/view` | `createSessionView`, the live state of a session for a UI. |
+
+For plugins:
+
+| Import | Holds |
+| --- | --- |
+| `@tanstack/ai-harness/plugins` | The first-party plugins that load no Node module: `permissions`, `modelPicker`, `todos`, `goal`, `providerKeys`, and more. |
+| `@tanstack/ai-harness/plugins/node` | The first-party plugins that read files. Node only: `agents`, `builtInAgents`, `fileCommands`, `projectInstructions`, and `boundToolOutput`. |
+| `@tanstack/ai-harness/plugins/coding` | The coding tools. Node only: `workspaceTools`, `snapshots`, and `formatter`. |
+
+For helpers and builds:
+
+| Import | Holds |
+| --- | --- |
+| `@tanstack/ai-harness/oauth` | The OAuth helpers: `loopbackLogin`, `deviceLogin`, `exchangeCode`, `refreshCredential`, and more. |
+| `@tanstack/ai-harness/media` | The media helpers: `mediaPart`, `mediaOfMessage`, `MediaError`, and more. |
+| `@tanstack/ai-harness/build` | `buildHarness` and `artifactText`, to ship a harness as a worker. Node only. |
+| `@tanstack/ai-harness/worker` | `runHarnessWorker`, which runs a harness on stdin and stdout. Node only. |
+
 ## 1. Define the harness
 
 `defineHarness` takes the `chat()` options you know (`adapter`, `systemPrompts`, `tools`, `middleware`, `subagents`), plus a `name`. Importing it starts nothing.
@@ -69,7 +99,7 @@ import { createHarnessHost } from '@tanstack/ai-harness'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 
 const host = createHarnessHost({ persistence: memoryPersistence() })
-const session = await host.open(assistant, { threadId: 'thread-1' })
+const session = await host.open({ harness: assistant, threadId: 'thread-1' })
 ```
 
 Opening the same `threadId` again returns the live session.
@@ -192,7 +222,8 @@ export const longCache = defineHarness({
 To change it for one session, pass `promptCache` to `host.open`. The session value wins over the harness value:
 
 ```ts group=harness-first
-const support = await host.open(assistant, {
+const support = await host.open({
+  harness: assistant,
   threadId: 'thread-2',
   promptCache: { key: 'acme-support' },
 })

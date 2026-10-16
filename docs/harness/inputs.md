@@ -35,7 +35,7 @@ const host = createHarnessHost({
     stores: { log: memoryLogStore(), runs: memoryPersistence().stores.runs },
   },
 })
-const session = await host.open(assistant, { threadId: 'user-1-thread' })
+const session = await host.open({ harness: assistant, threadId: 'user-1-thread' })
 
 const turn = session.send('Summarize the report.', { inputId: 'req-42' })
 const receipt = await turn.receipt
@@ -185,7 +185,7 @@ A message that arrives while the model writes its final answer still gets an ans
 Waiting `steer` inputs join before each model call, in the order they arrived. They join as a prefix: the join stops at the first input that has an abort request, or that `turn.canJoin` refuses. The inputs after it wait.
 
 - The `operationId` in the receipt of a `busy: 'steer'` or `mode: 'steer'` message is the running turn. A cancel with that id cancels the turn.
-- A `busy: 'steer'` message also has its own operation, `joined`. To stop it before it joins, call `joined.cancel()` or `session.cancel(joined.id)`. It does not join, and it settles `aborted` when the running turn ends.
+- A `busy: 'steer'` message also has its own operation, `joined`. To stop it before it joins, call `joined.cancel()` or `session.cancel({ operationId: joined.id })`. It does not join, and it settles `aborted` when the running turn ends.
 - The session rejects a cancel that comes after the join started, with `reason: 'not_running'`.
 - A refused or late input runs as its own turn after the running one.
 
@@ -215,7 +215,7 @@ await migration
 - `delivery: 'steer'`: the input joins the running turn at the next model call. `'queue'`: it runs as its own turn, after the turns before it.
 - A cancelled input never runs, also after a restart. It settles `aborted`.
 - On a durable host, the log keeps a new delivery, and a restart obeys it. Without a log, the delivery stays in memory.
-- If the input started, or joins the running turn now, the receipt has `status: 'rejected'` and `reason: 'not_waiting'`. To stop it, cancel its operation with `session.cancel(operationId)`.
+- If the input started, or joins the running turn now, the receipt has `status: 'rejected'` and `reason: 'not_waiting'`. To stop it, cancel its operation with `session.cancel({ operationId })`.
 
 A client reads the waiting inputs from the snapshot, and sends the same two inputs:
 
@@ -308,7 +308,7 @@ const records = defineHarness({
   adapter: openaiText('gpt-6.1-sol'),
   tools: [openRecord],
 })
-const recordSession = await host.open(records, { threadId: 'user-1-records' })
+const recordSession = await host.open({ harness: records, threadId: 'user-1-records' })
 
 await recordSession.send('Summarize the record I have open.', {
   context: { recordId: 'inv-42' },

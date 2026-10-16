@@ -17,7 +17,7 @@ A cron job or a webhook needs to run one tool, not hold a conversation. You want
 
 ## Run a tool from server code
 
-Call `session.tool(name, args?)`. A schedule or a webhook handler calls it.
+Call `session.tool({ name, args })`. A schedule or a webhook handler calls it.
 
 ```ts group=harness-tool-runs
 import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
@@ -40,10 +40,10 @@ const dashboard = defineHarness({
 })
 
 const host = createHarnessHost({ persistence: memoryPersistence() })
-const session = await host.open(dashboard, { threadId: 'ops-thread' })
+const session = await host.open({ harness: dashboard, threadId: 'ops-thread' })
 
 // From a cron job, every hour:
-const run = session.tool('fetchStats', { window: '1h' })
+const run = session.tool({ name: 'fetchStats', args: { window: '1h' } })
 const { text } = await run
 ```
 
@@ -53,18 +53,18 @@ const { text } = await run
 - While an approval waits, `session.tool` is refused with `pending_interrupts`. Answer the approval first.
 - Pass `inputId` to make the run idempotent, as [`send`](./inputs) does.
 
-TypeScript types `args` from the input schema of a harness tool. `session.tool('fetchStats', { window: 1 })` does not compile. A plugin tool takes any `args`, and its input schema checks them when the tool runs.
+TypeScript types `args` from the input schema of a harness tool. `session.tool({ name: 'fetchStats', args: { window: 1 } })` does not compile. A plugin tool takes any `args`, and its input schema checks them when the tool runs.
 
 ## Tag a run with its trigger
 
 Pass `meta` to record why the tool ran, for example the schedule or the webhook event. The harness sends it as a `tanstack.injection` custom event with the tool call id.
 
 ```ts group=harness-tool-runs
-const fromWebhook = session.tool(
-  'fetchStats',
-  { window: '24h' },
-  { meta: { trigger: 'webhook', deliveryId: 'whk-99' } },
-)
+const fromWebhook = session.tool({
+  name: 'fetchStats',
+  args: { window: '24h' },
+  meta: { trigger: 'webhook', deliveryId: 'whk-99' },
+})
 await fromWebhook
 ```
 

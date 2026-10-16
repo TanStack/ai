@@ -59,7 +59,7 @@ const assistant = defineHarness({
 })
 
 const host = createHarnessHost({ persistence: memoryPersistence() })
-const session = await host.open(assistant, { threadId: 'thread-1' })
+const session = await host.open({ harness: assistant, threadId: 'thread-1' })
 
 const view = createSessionView(session)
 await view.ready
@@ -395,7 +395,8 @@ To send files with a message, give their records to `view.send`. This code sends
 ```ts group=harness-custom-ui
 import { readFile } from 'node:fs/promises'
 
-const screenshot = await session.putMedia(await readFile('./bug.png'), {
+const screenshot = await session.putMedia({
+  body: await readFile('./bug.png'),
   mimeType: 'image/png',
   name: 'bug.png',
 })
@@ -446,7 +447,8 @@ Your harness runs on a server, and your UI is a web page. Give `createSessionVie
 Serve the session with `createHarnessHandler`, and mount the handler on `/api/harness`:
 
 ```ts group=harness-custom-ui-server
-import { createHarnessHandler, createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import { createHarnessHandler } from '@tanstack/ai-harness/server'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { openaiText } from '@tanstack/ai-openai'
 

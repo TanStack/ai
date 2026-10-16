@@ -80,7 +80,7 @@ export const greeter = definePlugin({
 })
 ```
 
-- `session.command('greet', { name: 'Ada' })` runs the command. A Standard Schema input (zod here) is checked, and the command gets the parsed value. A JSON Schema input is not checked, the same as a JSON Schema tool input.
+- `session.command({ name: 'greet', input: { name: 'Ada' } })` runs the command. A Standard Schema input (zod here) is checked, and the command gets the parsed value. A JSON Schema input is not checked, the same as a JSON Schema tool input.
 - `session.setConfig({ key: 'tone', value: 'warm' })` changes the setting. A value the option does not accept is rejected.
 - `ask` waits for `session.answer({ questionId, value })`. The question goes to `session.onQuestion` listeners, and it stays in `session.snapshot().pendingQuestions` until someone answers.
 
@@ -368,7 +368,7 @@ import { watch } from 'node:fs'
 import { createHarnessHost } from '@tanstack/ai-harness'
 
 const host = createHarnessHost()
-const session = await host.open(assistant, { threadId: 'thread-1' })
+const session = await host.open({ harness: assistant, threadId: 'thread-1' })
 
 // One session.
 await session.reload()
@@ -402,4 +402,4 @@ If a `setup` throws, the session keeps working with no plugins. The promise reje
 - Plugins that share services, lists, and events without knowing each other.
 - Commands, agents, and whole plugins that change while the session runs.
 
-Next: add the first-party plugins from `@tanstack/ai-harness/plugins`. [Ask before risky tool calls](./permissions) and [Switch between agent profiles](./agents) are two of them.
+Next: add the first-party plugins from `@tanstack/ai-harness/plugins` and `@tanstack/ai-harness/plugins/node`. [Ask before risky tool calls](./permissions) and [Switch between agent profiles](./agents) are two of them.

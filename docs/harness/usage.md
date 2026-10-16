@@ -27,7 +27,8 @@ export const assistant = defineHarness({
 })
 
 const host = createHarnessHost({ persistence: memoryPersistence() })
-const session = await host.open(assistant, {
+const session = await host.open({
+  harness: assistant,
   threadId: 'team-thread',
   principal: { id: 'ada' },
 })
@@ -90,7 +91,7 @@ Read the totals of the sender before you send a prompt. This route refuses a pro
 const BUDGET_USD = 5
 
 export async function send(threadId: string, userId: string, text: string) {
-  const thread = await host.open(assistant, { threadId })
+  const thread = await host.open({ harness: assistant, threadId })
   const spent = thread.usage().bySender[userId]?.cost ?? 0
   if (spent >= BUDGET_USD) {
     return { error: 'You used your budget for this thread.' }
@@ -140,7 +141,7 @@ export const priced = defineHarness({
 })
 ```
 
-`session.command('usage')` reads `session.usage()` and shows the total. When the thread used more than one model, it also shows a line for each model:
+`session.command({ name: 'usage' })` reads `session.usage()` and shows the total. When the thread used more than one model, it also shows a line for each model:
 
 ```text
 3 model calls, 41200 input tokens (30000 cache read, 0 cache write), 2100 output tokens, 43300 total. Cost: $0.0432.

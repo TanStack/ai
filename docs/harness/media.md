@@ -21,7 +21,8 @@ A session saves a file with `putMedia`. `mediaPart(record)` makes the content pa
 
 ```ts group=harness-media-code
 import { readFile } from 'node:fs/promises'
-import { createHarnessHost, defineHarness, mediaPart } from '@tanstack/ai-harness'
+import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import { mediaPart } from '@tanstack/ai-harness/media'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { openaiText } from '@tanstack/ai-openai'
 
@@ -31,9 +32,10 @@ const assistant = defineHarness({
 })
 
 const host = createHarnessHost({ persistence: memoryPersistence() })
-const session = await host.open(assistant, { threadId: 'thread-1' })
+const session = await host.open({ harness: assistant, threadId: 'thread-1' })
 
-const scan = await session.putMedia(await readFile('./receipt.png'), {
+const scan = await session.putMedia({
+  body: await readFile('./receipt.png'),
   mimeType: 'image/png',
   name: 'receipt.png',
 })
@@ -50,7 +52,7 @@ console.log(turn.text)
 The session also has:
 
 - `getMedia(id)`: the record, or `null` when the thread has no file with this id.
-- `loadMedia(id, range?)`: the bytes, or one range of them.
+- `loadMedia({ id, range })`: the bytes, or one range of them. `range` is optional.
 - `mediaUrl(id)`: `{ url }`, with a data URL for a file up to 1 MB. A bigger file gets `{}`. Use `loadMedia` for it, and serve the bytes from your own route.
 
 ## Media that agents make
@@ -107,7 +109,7 @@ import { createHarnessHost } from '@tanstack/ai-harness'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 
 const host = createHarnessHost({ persistence: memoryPersistence() })
-const session = await host.open(studio, { threadId: 'thread-1' })
+const session = await host.open({ harness: studio, threadId: 'thread-1' })
 
 const turn = session.send('Draw a lighthouse at night.')
 turn.onMedia(({ media }) => {
@@ -128,7 +130,7 @@ A media record has:
 - `source`: `'user'` for a file that a user sent, and `'generated'` for a file that an agent made.
 - `runId` and `subagentRunId`: the turn and the child agent run that made the file.
 
-At the end of a turn, the harness adds its records to the last assistant message, in `metadata.harness.media`. So the media comes back after a restart. Read the records with `mediaOfMessage(message)`. A failed or cancelled turn keeps its media in the store only.
+At the end of a turn, the harness adds its records to the last assistant message, in `metadata.harness.media`. So the media comes back after a restart. Read the records with `mediaOfMessage(message)` from `@tanstack/ai-harness/media`. A failed or cancelled turn keeps its media in the store only.
 
 - If the harness cannot save a file, the agent still gets its result. The turn publishes a `harness.plugin.warning` event.
 - An agent that you run from code (`session.agents`, or `ctx.agents` in a plugin) also saves its media and publishes the event. This media is not added to the transcript.
