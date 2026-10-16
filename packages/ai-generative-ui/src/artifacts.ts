@@ -11,3 +11,4 @@
 export * from './artifacts/store'
 export * from './artifacts/operations'
 export * from './artifacts/middleware'
+export * from './artifacts/resource-uri'

@@ -7,6 +7,9 @@ import {
   createBlobArtifactStore,
   createFrameArtifacts,
   generativeUiArtifacts,
+  artifactResourceUri,
+  parseArtifactResourceUri,
+  MCP_APP_MIME_TYPE,
 } from '../src/artifacts'
 
 /** react-tsx "compiles" by wrapping; fragment passes through. */
@@ -142,5 +145,55 @@ describe('generativeUiArtifacts middleware', () => {
     const list = out.tools.find((t: any) => t.name === 'list_artifacts')
     const entries = await list.execute({ query: 'chord' }, {})
     expect(entries).toEqual([{ artifactId: 'art_1', revision: 1, title: 'Emaj7 chord', kind: 'html-fragment' }])
+  })
+})
+
+/* -------------------------------------------------------------------------- */
+describe('ui:// resource identity + MCP Apps emission (Phase 2)', () => {
+  it('round-trips ui://genui/<id>@<rev>', () => {
+    expect(artifactResourceUri('art_7', 3)).toBe('ui://genui/art_7@3')
+    expect(parseArtifactResourceUri('ui://genui/art_7@3')).toEqual({ artifactId: 'art_7', revision: 3 })
+    expect(parseArtifactResourceUri('ui://other/x@1')).toBeNull()
+    expect(parseArtifactResourceUri('nope')).toBeNull()
+  })
+
+  it('emitUiResource emits a standard ui-resource part for html-fragment (additive to the pin)', async () => {
+    const store = createInMemoryFrameArtifactStore()
+    const mw = generativeUiArtifacts({
+      store,
+      builder: fakeBuilder(),
+      registry: REFERENCE_REGISTRY,
+      genId: () => 'art_1',
+      now: () => 't',
+      emitUiResource: true,
+      renderShell: (rec) => `<!doctype html><title>${rec.title}</title>`,
+    })
+    const out: any = mw.onConfig!({} as any, { tools: [] } as any)
+    const create = out.tools.find((t: any) => t.name === 'create_artifact')
+    const emit = vi.fn()
+    await create.execute({ kind: 'html-fragment', title: 'Chord', source: '<p/>', fallbackText: 'fb' }, { emitCustomEvent: emit })
+
+    // Both the bespoke pin AND the standard ui-resource part fire.
+    expect(emit).toHaveBeenCalledWith('genui:artifact', expect.anything())
+    expect(emit).toHaveBeenCalledWith('ui-resource', expect.objectContaining({
+      resource: expect.objectContaining({ uri: 'ui://genui/art_1@1', mimeType: MCP_APP_MIME_TYPE }),
+      toolName: 'create_artifact',
+    }))
+    const uiCall = emit.mock.calls.find((c: Array<unknown>) => c[0] === 'ui-resource')!
+    expect((uiCall[1] as any).resource.text).toContain('<!doctype html>')
+  })
+
+  it('skips the ui-resource part for react-tsx unless includeReactTsx (needs a serving origin)', async () => {
+    const store = createInMemoryFrameArtifactStore()
+    const mw = generativeUiArtifacts({
+      store, builder: fakeBuilder(), registry: REFERENCE_REGISTRY, genId: () => 'art_2',
+      emitUiResource: true, renderShell: () => '<!doctype html>',
+    })
+    const out: any = mw.onConfig!({} as any, { tools: [] } as any)
+    const create = out.tools.find((t: any) => t.name === 'create_artifact')
+    const emit = vi.fn()
+    await create.execute({ kind: 'react-tsx', title: 'Card', source: `export default () => null`, fallbackText: 'fb' }, { emitCustomEvent: emit })
+    const uiCalls = emit.mock.calls.filter((c: Array<unknown>) => c[0] === 'ui-resource')
+    expect(uiCalls).toHaveLength(0)
   })
 })
