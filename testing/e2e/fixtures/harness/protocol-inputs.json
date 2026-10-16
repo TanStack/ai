@@ -294,6 +294,14 @@
       "response": {
         "content": "Your trip to Paris is booked, seat 12A."
       }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-append] the build failed"
+      },
+      "response": {
+        "content": "I will look at the build."
+      }
     }
   ]
 }

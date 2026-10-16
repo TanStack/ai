@@ -19,7 +19,7 @@ import type {
 } from '@tanstack/ai'
 import type { SessionIndexEntry } from '@tanstack/ai-persistence'
 import type { PluginSessionApi, Question } from '../commands'
-import type { AnyHarness } from '../define'
+import type { AnyHarness, HarnessToolInput, HarnessToolsOf } from '../define'
 import type {
   AgentSendOptions,
   ChatTurnResult,
@@ -259,10 +259,14 @@ export abstract class SessionRequests<
    * the call and its result join the transcript. A tool that asks for
    * approval stops the turn with an interrupt. `meta` is echoed as a
    * `tanstack.injection` custom event. The turn waits behind a running turn.
+   * While interrupts wait, it is refused with `'pending_interrupts'`.
+   *
+   * `args` is typed from the input schema of a harness tool. A plugin tool
+   * takes any `args`, and its input schema checks them.
    */
-  tool(
-    name: string,
-    args?: unknown,
+  tool<TName extends HarnessToolsOf<THarness>['name'] | (string & {})>(
+    name: TName,
+    args?: HarnessToolInput<THarness, TName>,
     options?: {
       meta?: Record<string, unknown>
       inputId?: string
@@ -287,6 +291,16 @@ export abstract class SessionRequests<
         (admission) => {
           if (admission !== 'new') {
             this.answerDuplicate(operation, inputId, admission)
+            return
+          }
+          // As a prompt: the open interrupts are answered first.
+          if (this.waitsForInterrupts()) {
+            this.reject(inputId, 'pending_interrupts')
+            this.refuse(operation, {
+              inputId,
+              status: 'rejected',
+              reason: 'pending_interrupts',
+            })
             return
           }
           const isWaiting =

@@ -916,7 +916,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
         })
       case 'tool':
         return stored(
-          session.tool(input.name, input.args, {
+          // Wire args are unknown here. The tool's input schema checks them.
+          session.tool(input.name, input.args as never, {
             inputId,
             ...(principal ? { principal } : {}),
             ...(input.meta ? { meta: input.meta } : {}),
@@ -927,6 +928,9 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       case 'agent':
       case 'background':
         // These run only on the owner. Another host never stores them.
+        return undefined
+      case 'append':
+        // It goes to the log at once, not to the inbox.
         return undefined
     }
   }

@@ -36,9 +36,16 @@ import { createTextAdapter } from '@/lib/providers'
 const host = createHarnessHost({ persistence: memoryPersistence() })
 // A durable host: a session log and run leases. A request picks it with the
 // `x-harness-durable: 1` header.
+// An `app.signal` record that a client appends becomes a user message.
 const durableHost = createHarnessHost({
   persistence: {
     stores: { log: memoryLogStore(), runs: memoryPersistence().stores.runs },
+  },
+  project: {
+    record: ({ messages, record }) =>
+      record.type === 'app.signal' && typeof record.text === 'string'
+        ? [...messages, { role: 'user', content: record.text }]
+        : [...messages],
   },
 })
 
@@ -164,9 +171,11 @@ function harnessFor(request: Request) {
     ...(turn ? { turn } : {}),
     tools: [
       deploy.server(async ({ env }) => ({ deployed: env })),
-      // The input's context, from `forwardedProps` on POST run.
+      // The input's context, from `forwardedProps` on POST run, and the
+      // thread that the harness gives each tool call.
       probe.server(async (_input, toolContext) => ({
         context: toolContext?.context ?? null,
+        threadId: toolContext?.threadId ?? null,
       })),
       // It supports `detach`, so a client can move it to the background.
       slowBuild.server((_input, toolContext) => {
@@ -210,6 +219,9 @@ function harnessFor(request: Request) {
       config: ['tone'],
       // `undo` lets a client revert and unrevert the transcript.
       commands: ['greet', 'release', 'undo'],
+      // A client runs `probe` with no model, and adds `app.signal` records.
+      tools: ['probe'],
+      records: ['app.signal'],
     },
     plugins: () => [
       ...servers,

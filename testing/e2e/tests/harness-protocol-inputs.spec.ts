@@ -295,6 +295,66 @@ test.describe('harness protocol inputs', () => {
     expect(textOf(chunks)).toBe('Probed the context.')
   })
 
+  test('runs an exposed tool with no model call, and refuses another tool', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const threadId = `tool-op-${testId}`
+    const user = asUser(request, testId, aimockPort)
+
+    const receipt = await user.control(threadId, {
+      op: 'tool',
+      name: 'probe',
+      args: {},
+      inputId: `tool-op-input-${testId}`,
+    })
+    expect(receipt).toMatchObject({
+      inputId: `tool-op-input-${testId}`,
+      status: 'accepted',
+    })
+    // The tool gets its thread in its context. No model call happened, so
+    // no aimock fixture answers this thread.
+    await expect
+      .poll(async () => JSON.stringify(await user.transcript(threadId)))
+      .toMatch(new RegExp(`threadId[\\\\":]+${threadId}`))
+
+    expect(
+      await user.control(threadId, { op: 'tool', name: 'deploy', args: {} }),
+    ).toMatchObject({ status: 'rejected', reason: 'not_exposed' })
+  })
+
+  test('adds an exposed record that the next turn reads', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const threadId = `append-${testId}`
+    const user = asUser(request, testId, aimockPort, 'e2e-token', {
+      'x-harness-durable': '1',
+    })
+
+    expect(
+      await user.control(threadId, {
+        op: 'append',
+        records: [
+          { type: 'app.signal', text: '[harness-append] the build failed' },
+        ],
+      }),
+    ).toMatchObject({ status: 'accepted' })
+    expect(
+      await user.control(threadId, {
+        op: 'append',
+        records: [{ type: 'app.secret', text: 'no' }],
+      }),
+    ).toMatchObject({ status: 'rejected', reason: 'not_exposed' })
+
+    await user.control(threadId, { op: 'continue' })
+    await expect
+      .poll(() => user.answers(threadId))
+      .toContain('I will look at the build.')
+  })
+
   test('runs each input as the user who sent it', async ({
     request,
     testId,

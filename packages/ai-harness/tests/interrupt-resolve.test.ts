@@ -125,9 +125,7 @@ describe.each([
     expect(await session.settled('approve')).toMatchObject({
       outcome: 'completed',
     })
-    expect(seen).toEqual([
-      { screen: 'settings', threadId: 't1', runId: expect.any(String) },
-    ])
+    expect(seen).toEqual([{ screen: 'settings' }])
     await second.host.close()
   })
 

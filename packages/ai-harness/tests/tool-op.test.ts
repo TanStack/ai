@@ -9,7 +9,7 @@ import {
   defineHarness,
 } from '../src'
 import { permissions } from '../src/first-party/permissions'
-import { mockAdapter, text } from './helpers'
+import { mockAdapter, text, toolCall } from './helpers'
 import type { HarnessPlugin } from '../src'
 import type { StreamChunk } from '@tanstack/ai'
 
@@ -98,11 +98,13 @@ describe('{ op: "tool" }', () => {
     const { harness, host } = setup()
     const session = await host.open(harness, { threadId: 't-bad-args' })
 
-    const operation = session.tool('fetch_stats', { wrong: true })
-    await operation.then(
-      () => {},
-      () => {},
-    )
+    // Wire args are not typed, so a client can send the wrong shape.
+    const receipt = await applyInput(harness, session, {
+      op: 'tool',
+      name: 'fetch_stats',
+      args: { wrong: true },
+    })
+    await session.operation(receipt.operationId ?? '')
     const transcript = await session.transcript()
     const result = transcript.find((message) => message.role === 'tool')
     expect(JSON.stringify(result?.content)).toMatch(/validation/i)
@@ -159,5 +161,83 @@ describe('{ op: "tool" }', () => {
       ]),
     )
     expect(byName).toEqual({ fetch_stats: true, secret_tool: false })
+  })
+
+  it('answers a client input with the real receipt', async () => {
+    const { harness, host } = setup()
+    const session = await host.open(harness, { threadId: 't-receipt' })
+
+    const input = {
+      op: 'tool' as const,
+      name: 'fetch_stats',
+      args: { ticketId: 'T-7' },
+      inputId: 'cron-1',
+    }
+    const first = await applyInput(harness, session, input)
+    expect(first).toMatchObject({ inputId: 'cron-1', status: 'accepted' })
+    // A retry with other args under the same id is a conflict.
+    expect(
+      await applyInput(harness, session, { ...input, args: { ticketId: 'X' } }),
+    ).toMatchObject({
+      inputId: 'cron-1',
+      status: 'rejected',
+      reason: 'conflict',
+    })
+
+    await host.close()
+  })
+
+  it('is refused while interrupts wait, as a prompt is', async () => {
+    const risky = toolDefinition({
+      name: 'risky',
+      description: 'Needs approval',
+      inputSchema: z.object({}),
+      needsApproval: true,
+    }).server(async () => 'done')
+    const { adapter } = mockAdapter([() => toolCall('risky', {})])
+    const harness = defineHarness({
+      name: 'test/tools-interrupted',
+      adapter,
+      tools: [risky, fetchStats],
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(harness, { threadId: 't-waiting' })
+    await session.send('go')
+
+    const operation = session.tool('fetch_stats', { ticketId: 'T-3' })
+    expect(await operation.receipt).toMatchObject({
+      status: 'rejected',
+      reason: 'pending_interrupts',
+    })
+    await operation.then(
+      () => {},
+      () => {},
+    )
+    const transcript = await session.transcript()
+    expect(JSON.stringify(transcript)).not.toContain('T-3')
+
+    await host.close()
+  })
+
+  it('types expose.tools and the args from the harness tools', () => {
+    expect(() =>
+      defineHarness({
+        name: 'test/tools-typo',
+        tools: [fetchStats],
+        // @ts-expect-error `fetch_stat` is not a harness tool.
+        expose: { tools: ['fetch_stat'] },
+      }),
+    ).toThrow(/expose\.tools names "fetch_stat"/)
+
+    const { harness } = setup()
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const check = async () => {
+      const session = await host.open(harness, { threadId: 't-types' })
+      // @ts-expect-error `ticketId` must be a string.
+      void session.tool('fetch_stats', { ticketId: 1 })
+      // A plugin tool takes any args.
+      void session.tool('plugin_tool', { anything: true })
+    }
+    expect(check).toBeTypeOf('function')
   })
 })

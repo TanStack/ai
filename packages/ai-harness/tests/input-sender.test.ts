@@ -487,12 +487,7 @@ describe('recovery keeps the sender and the context', () => {
         principal: { id: 'bob', tenantId: 'org' },
       }),
     ])
-    expect(seen).toEqual([
-      {
-        principal: 'bob',
-        context: { screen: 'x', threadId: THREAD, runId: expect.any(String) },
-      },
-    ])
+    expect(seen).toEqual([{ principal: 'bob', context: { screen: 'x' } }])
     await host.close()
   })
 
@@ -554,12 +549,7 @@ describe('recovery keeps the sender and the context', () => {
         principal: { id: 'bob' },
       }),
     ])
-    expect(seen).toEqual([
-      {
-        principal: 'bob',
-        context: { screen: 'x', threadId: THREAD, runId: expect.any(String) },
-      },
-    ])
+    expect(seen).toEqual([{ principal: 'bob', context: { screen: 'x' } }])
     await host.close()
   })
 })

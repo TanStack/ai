@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { defineAgent } from '@tanstack/ai'
+import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHandler, createHarnessHost, defineHarness } from '../src'
 import { createHarnessClient } from '../src/client'
@@ -121,6 +121,57 @@ describe('createHarnessClient', () => {
     expect(receipt).toMatchObject({ inputId: 'c-1', status: 'accepted' })
     await vi.waitFor(() => expect(calls).toHaveLength(1))
     expect(messageTexts(calls[0])).toEqual(['go'])
+    await host.close()
+  })
+
+  it('runs an exposed tool with typed args, and refuses an append it does not expose', async () => {
+    const stats = toolDefinition({
+      name: 'fetch_stats',
+      description: 'Stats of a queue',
+      inputSchema: z.object({ queue: z.string() }),
+    }).server(async ({ queue }) => ({ queue, open: 7 }))
+    const { adapter, calls } = mockAdapter([])
+    const studio = defineHarness({
+      name: 'test/client-tool',
+      adapter,
+      tools: [stats],
+      expose: { tools: ['fetch_stats'] },
+    })
+    const persistence = memoryPersistence()
+    const host = createHarnessHost({ persistence })
+    const handler = createHarnessHandler({
+      host,
+      harness: studio,
+      canAccess: () => true,
+      authorize: () => ({ id: 'u' }),
+    })
+    const client = createHarnessClient<typeof studio>({
+      url: 'http://local/api/harness',
+      threadId: 'thread-tool',
+      fetch: (input, init) => handler(new Request(input, init)),
+    })
+
+    expect(
+      await client.tool(
+        'fetch_stats',
+        { queue: 'billing' },
+        { inputId: 't-1' },
+      ),
+    ).toMatchObject({ inputId: 't-1', status: 'accepted' })
+    // @ts-expect-error `queue` must be a string.
+    void client.tool('fetch_stats', { queue: 1 }).catch(() => {})
+    await vi.waitFor(async () =>
+      expect(
+        JSON.stringify(
+          await persistence.stores.messages.loadThread('thread-tool'),
+        ),
+      ).toContain('billing'),
+    )
+    expect(calls).toHaveLength(0)
+    expect(await client.append([{ type: 'app.signal' }])).toMatchObject({
+      status: 'rejected',
+      reason: 'not_exposed',
+    })
     await host.close()
   })
 

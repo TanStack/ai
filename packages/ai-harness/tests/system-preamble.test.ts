@@ -73,7 +73,7 @@ describe('systemPreamble on the prompt op', () => {
 })
 
 describe('tool execution context carries the calling thread', () => {
-  it('an in-band tool sees the thread via context.context.threadId', async () => {
+  it('a tool call sees its thread and run in its context', async () => {
     const { tool, seen } = captureTool()
     const { adapter } = mockAdapter([
       () => toolCall('capture_ctx', {}),
@@ -90,8 +90,8 @@ describe('tool execution context carries the calling thread', () => {
     await session.send('go')
 
     expect(seen).toHaveLength(1)
-    expect(seen[0].context.threadId).toBe('t-inband')
-    expect(typeof seen[0].context.runId).toBe('string')
+    expect(seen[0].threadId).toBe('t-inband')
+    expect(typeof seen[0].runId).toBe('string')
 
     await host.close()
   })
@@ -110,8 +110,8 @@ describe('tool execution context carries the calling thread', () => {
     await session.tool('capture_ctx')
 
     expect(seen).toHaveLength(1)
-    expect(seen[0].context.threadId).toBe('t-oob')
-    expect(typeof seen[0].context.runId).toBe('string')
+    expect(seen[0].threadId).toBe('t-oob')
+    expect(typeof seen[0].runId).toBe('string')
 
     await host.close()
   })

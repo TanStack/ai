@@ -10,6 +10,7 @@ import type {
   RunAgentResumeItem,
   StreamChunk,
 } from '@tanstack/ai'
+import type { LogRecord } from '@tanstack/ai-persistence'
 import type { UsageCounts } from './usage'
 
 /** A user message: plain text, or content parts (text, images, files). */
@@ -237,6 +238,8 @@ export type HarnessInput = (
   | { op: 'config'; key: string; value: unknown }
   /** Run one tool in `expose.tools` with no model. See `session.tool`. */
   | { op: 'tool'; name: string; args?: unknown; meta?: Record<string, unknown> }
+  /** Add host records of the types in `expose.records`. See `session.append`. */
+  | { op: 'append'; records: Array<LogRecord> }
   | { op: 'configure'; settings: ThreadSettingsChange }
   | { op: 'reset'; note?: string }
   | { op: 'revert'; messageId: string }

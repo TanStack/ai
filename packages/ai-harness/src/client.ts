@@ -4,11 +4,18 @@
 import { isMediaRecord } from './media-ref'
 import type { ModelMessage, RunAgentResumeItem } from '@tanstack/ai'
 import type {
+  LogRecord,
   SessionIndexEntry,
   SessionIndexPage,
 } from '@tanstack/ai-persistence'
 import type { AgentInputOf } from './agents'
-import type { AnyHarness, HarnessAgentsOf, SessionMetadataOf } from './define'
+import type {
+  AnyHarness,
+  HarnessAgentsOf,
+  HarnessToolInput,
+  HarnessToolsOf,
+  SessionMetadataOf,
+} from './define'
 import type { HostEvent } from './host'
 import type { SessionDescription, SessionSnapshot } from './session/index'
 import type { SessionEntryChange } from './session-entry'
@@ -118,6 +125,21 @@ export interface HarnessClient<THarness extends AnyHarness> {
   answer: (answer: { questionId: string; value: unknown }) => Promise<Receipt>
   /** Run a plugin command. Its result arrives as a `harness.command.result` event. */
   command: (name: string, input?: unknown) => Promise<Receipt>
+  /**
+   * Run a harness tool with no model turn, as `session.tool` does. The
+   * harness must list it in `expose.tools`. `args` is typed from the
+   * tool's input schema.
+   */
+  tool: <TName extends HarnessToolsOf<THarness>['name']>(
+    name: TName,
+    args?: HarnessToolInput<THarness, TName>,
+    options?: { inputId?: string; meta?: Record<string, unknown> },
+  ) => Promise<Receipt>
+  /**
+   * Add host records to the session log, as `session.append` does. The
+   * harness must list each record type in `expose.records`.
+   */
+  append: (records: ReadonlyArray<LogRecord>) => Promise<Receipt>
   /** Change a session setting. */
   setConfig: (change: { key: string; value: unknown }) => Promise<Receipt>
   /** Change the stored settings of the thread. See `session.configure`. */
@@ -531,6 +553,15 @@ export function createHarnessClient<THarness extends AnyHarness>(
     answer: ({ questionId, value }) =>
       send({ op: 'answer', questionId, value }),
     command: (name, input) => send({ op: 'command', name, input }),
+    tool: (name, args, toolOptions) =>
+      send({
+        op: 'tool',
+        name,
+        ...(args !== undefined ? { args } : {}),
+        ...(toolOptions?.meta ? { meta: toolOptions.meta } : {}),
+        ...(toolOptions?.inputId ? { inputId: toolOptions.inputId } : {}),
+      }),
+    append: (records) => send({ op: 'append', records: [...records] }),
     setConfig: ({ key, value }) => send({ op: 'config', key, value }),
     configure: (settings) => send({ op: 'configure', settings }),
     reset: (note, resetOptions) =>

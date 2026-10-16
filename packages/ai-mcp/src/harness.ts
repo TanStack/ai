@@ -6,10 +6,12 @@ import {
 } from '@tanstack/ai'
 import {
   HARNESS_EVENTS,
+  applyInput,
   isMediaRecord,
   kindOf,
   mediaPart,
   mimeTypeOf,
+  parseHarnessInput,
 } from '@tanstack/ai-harness'
 // The inferred return type names `MCPHandleOptions`. Without an import of
 // `./server/index`, the .d.ts emit writes `./server.js`, which does not resolve.
@@ -507,6 +509,50 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
       }),
   )
 
+  // A client adds only the record types in `expose.records`, and only to
+  // the thread it names. `applyInput` checks both.
+  const recordTypes: ReadonlyArray<string> = harness.expose?.records ?? []
+  const appendTools =
+    recordTypes.length === 0
+      ? []
+      : [
+          toolDefinition({
+            name: 'append',
+            description: `Add records to the session log of a thread. The model sees what the host makes of them at its next call. Record types: ${recordTypes.join(', ')}.`,
+            inputSchema: withThreadId({
+              type: 'object',
+              properties: {
+                records: {
+                  type: 'array',
+                  minItems: 1,
+                  items: {
+                    type: 'object',
+                    properties: {
+                      type: { type: 'string', enum: [...recordTypes] },
+                    },
+                    required: ['type'],
+                  },
+                },
+              },
+              required: ['records'],
+            }),
+          }).server(async (args) => {
+            const target = await open(args)
+            const records = isRecord(args) ? args.records : undefined
+            const receipt = await applyInput(
+              harness,
+              target,
+              parseHarnessInput({ op: 'append', records }),
+            )
+            if (receipt.status === 'rejected') {
+              throw new Error(
+                `The harness refused the records: ${receipt.reason}.`,
+              )
+            }
+            return { appended: Array.isArray(records) ? records.length : 0 }
+          }),
+        ]
+
   // The bytes of a `resource_link` from a result. The link names its thread,
   // and a thread reads only its own media.
   const mediaResource = resourceDefinition({
@@ -544,6 +590,7 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
       ...agentTools,
       ...commandTools,
       ...toolTools,
+      ...appendTools,
     ],
   })
 }
@@ -943,6 +990,12 @@ function byName(left: { name: string }, right: { name: string }) {
 }
 
 function withThreadId(schema: JSONSchema | undefined) {
+  // `inputOf` drops `threadId` from the args, so the input could not get it.
+  if (schema?.properties?.threadId !== undefined) {
+    throw new Error(
+      'An MCP harness tool input cannot have a threadId field: the tool uses threadId to pick the thread. Rename the field.',
+    )
+  }
   return {
     ...schema,
     type: 'object',

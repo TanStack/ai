@@ -136,11 +136,11 @@ export abstract class SessionTurnParts<
   }
 
   /**
-   * Middleware that gives each tool call of a turn `detach` in its context,
-   * so `background()` can move the call to the background. A tool that
-   * calls `detach` supports it.
+   * Middleware that gives each tool call of a turn `threadId`, `runId`, and
+   * `detach` in its context. `detach` lets `background()` move the call to
+   * the background. A tool that calls `detach` supports it.
    */
-  protected detachTools(): AnyChatMiddleware {
+  protected detachTools(runId: string): AnyChatMiddleware {
     // Each model call gets the tools of the last one. Wrap each tool once.
     const wrapped = new WeakSet<AnyTool>()
     const wrap = (tool: AnyTool): AnyTool => {
@@ -151,6 +151,8 @@ export abstract class SessionTurnParts<
         execute: (args: unknown, context?: ToolExecutionContext) => {
           const id = context?.toolCallId
           if (!context || id === undefined) return execute(args, context)
+          context.threadId = this.threadId
+          context.runId = runId
           // The wake turn runs as the sender of the turn that detached the job.
           const principal = this.sender()
           context.detach = (work) =>

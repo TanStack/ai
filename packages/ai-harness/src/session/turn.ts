@@ -23,7 +23,6 @@ import {
   toolCallOf,
   storedPrincipal,
   turnContext,
-  isPlainObject,
   withoutPlugins,
   settingTools,
   resetMarker,
@@ -671,7 +670,7 @@ export abstract class SessionTurn<
               ...(runPlugins?.middleware ?? []),
               ...(keepTools ? [keepTools] : []),
               ...(durableTools ? [durableTools] : []),
-              this.detachTools(),
+              this.detachTools(operation.id),
               ...(rootBag ? [] : [this.syncFold()]),
               // Again: a middleware that returns `messages` (as `syncFold`
               // does) resets what the model gets to the whole transcript.
@@ -719,18 +718,8 @@ export abstract class SessionTurn<
             ...(this.harness.interrupts
               ? { interrupts: this.harness.interrupts }
               : {}),
-            // A plain-object (or absent) turn context also carries the live
-            // thread/run ids, so in-band tools can resolve the calling thread.
             // The context type narrows per harness; chat() wants it exact.
-            ...(context === undefined || isPlainObject(context)
-              ? {
-                  context: {
-                    ...context,
-                    threadId: this.threadId,
-                    runId: operation.id,
-                  } as never,
-                }
-              : { context: context as never }),
+            ...(context !== undefined ? { context: context as never } : {}),
             ...(reasoning !== undefined ? { reasoning } : {}),
             promptCache,
             threadId: this.threadId,

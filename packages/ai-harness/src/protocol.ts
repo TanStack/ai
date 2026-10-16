@@ -1,5 +1,6 @@
 import { convertSchemaToJsonSchema } from '@tanstack/ai'
 import { isRecord } from './utils'
+import { createInputId, errorText } from './session/helpers'
 import type { StreamChunk } from '@tanstack/ai'
 import type { AnyAgent } from './agents'
 import type { AnyHarness } from './define'
@@ -50,6 +51,7 @@ const INPUT_OPS = new Set([
   'answer',
   'config',
   'tool',
+  'append',
   'configure',
   'reset',
   'revert',
@@ -108,6 +110,17 @@ export function parseHarnessInput(value: unknown): HarnessInput {
   }
   if (value.op === 'tool' && typeof value.name !== 'string') {
     throw new Error('Invalid input: tool needs a name.')
+  }
+  const isRecords =
+    Array.isArray(value.records) &&
+    value.records.length > 0 &&
+    value.records.every(
+      (record) => isRecord(record) && typeof record.type === 'string',
+    )
+  if (value.op === 'append' && !isRecords) {
+    throw new Error(
+      'Invalid input: append needs records, each with a string type.',
+    )
   }
   const namesInput = value.op === 'cancelInput' || value.op === 'setDelivery'
   if (namesInput && typeof value.inputId !== 'string') {
@@ -311,10 +324,21 @@ export async function applyInput(
         () => {},
         () => {},
       )
-      return {
-        inputId: operation.id,
-        status: 'accepted',
-        operationId: operation.id,
+      return operation.receipt
+    }
+    case 'append': {
+      // A client adds only the exposed types, and only to this thread.
+      const types: ReadonlyArray<string> = harness.expose?.records ?? []
+      const isExposed = input.records.every(
+        (record) => types.includes(record.type) && !('thread' in record),
+      )
+      if (!isExposed) return notExposed
+      const inputId = input.inputId ?? createInputId()
+      try {
+        await session.append(input.records)
+        return { inputId, status: 'accepted' }
+      } catch (error) {
+        return { inputId, status: 'rejected', reason: errorText(error) }
       }
     }
     case 'configure': {

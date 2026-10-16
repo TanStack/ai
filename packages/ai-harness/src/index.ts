@@ -8,6 +8,8 @@ export type {
   HarnessRouterContext,
   HarnessRouting,
   HarnessSubagents,
+  HarnessToolInput,
+  HarnessToolsOf,
   SessionMetadataOf,
   SessionWithMetadata,
 } from './define'
