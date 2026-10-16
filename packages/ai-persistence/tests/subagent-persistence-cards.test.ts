@@ -878,6 +878,104 @@ describe('agent tools with persistence', () => {
     ])
   })
 
+  it('resumes a client tool of a child agent tool', async () => {
+    const persistence = memoryPersistence()
+    const child = scriptedAdapter([
+      [
+        {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: 'call_c',
+          toolCallName: 'check',
+          timestamp: t,
+        },
+        {
+          type: EventType.TOOL_CALL_ARGS,
+          toolCallId: 'call_c',
+          delta: '{}',
+          timestamp: t,
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'c1',
+          threadId: 'c',
+          finishReason: 'tool_calls',
+          timestamp: t,
+        },
+      ],
+      [
+        ...textMessage('child-done', 'Checked'),
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'c2',
+          threadId: 'c',
+          finishReason: 'stop',
+          timestamp: t,
+        },
+      ],
+    ])
+    // `check` is a client tool of the child only. The parent does not have it.
+    const agent = defineAgent({
+      name: 'writer',
+      description: 'Writes notes',
+      run: (ctx) =>
+        chat({
+          adapter: child,
+          messages: ctx.messages,
+          threadId: ctx.threadId,
+          runId: ctx.runId,
+          parentRunId: ctx.parentRunId,
+          subagentRunId: ctx.subagentRunId,
+          resume: ctx.resume,
+          tools: [{ name: 'check', description: 'Check on the client' }],
+        }),
+    })
+    const parent = callingSubagent('call_p', { prompt: 'Check' })
+    const run = (input: {
+      runId: string
+      parentRunId?: string
+      messages: Array<UIMessage | ModelMessage>
+      resume?: Array<{
+        interruptId: string
+        status: 'resolved'
+        payload: unknown
+      }>
+    }) =>
+      collect(
+        chat({
+          adapter: parent,
+          threadId: 'desk',
+          ...input,
+          middleware: [withPersistence(persistence)],
+          subagents: { agents: [agent] },
+        }),
+      )
+
+    await run({
+      runId: 'run-1',
+      messages: [{ id: 'u1', role: 'user', content: 'Check' }],
+    })
+    const suspended = await loadDesk(persistence)
+    const [pending] = suspended.interrupts?.pending ?? []
+    if (typeof pending?.id !== 'string') throw new Error('no pending interrupt')
+
+    const second = await run({
+      runId: 'run-2',
+      parentRunId: 'run-1',
+      messages: JSON.parse(
+        JSON.stringify(uiMessagesToWire(suspended.messages)),
+      ),
+      resume: [{ interruptId: pending.id, status: 'resolved', payload: {} }],
+    })
+
+    expect(second.find((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
+      undefined,
+    )
+    expect(cardOf((await loadDesk(persistence)).messages).subagent.status).toBe(
+      'finished',
+    )
+    expect((await loadDesk(persistence)).interrupts).toBeNull()
+  })
+
   it('does not continue a child of another thread', async () => {
     const middleware = withPersistence(memoryPersistence())
     const { agent, seen } = noteTaker()

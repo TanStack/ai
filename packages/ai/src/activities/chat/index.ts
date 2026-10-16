@@ -1258,6 +1258,9 @@ class TextEngine<
       subagentRunId: this.subagentRunIdOverride,
       subagentName: config.params.subagentName,
       parentSubagentRunId: config.params.parentSubagentRunId,
+      childResumeIds: (
+        config.params as { [CHILD_RESUME_IDS]?: ReadonlySet<string> }
+      )[CHILD_RESUME_IDS],
       threadId: this.threadId,
       // Legacy alias kept on the ctx so middleware that reads
       // `ctx.conversationId` keeps working. Always equals `threadId`.
