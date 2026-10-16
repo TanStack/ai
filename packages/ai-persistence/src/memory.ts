@@ -1,5 +1,6 @@
 import {
   LogConflictError,
+  LogTruncatedError,
   OwnershipLostError,
   UNOWNED_EPOCH,
   defineAIPersistence,
@@ -26,6 +27,7 @@ import type {
   InterruptRecord,
   InterruptStore,
   LogRecord,
+  LogSnapshot,
   LogStore,
   OrphanedLog,
   MessageStore,
@@ -745,10 +747,26 @@ interface Lane {
   inputs: Map<string, Offer>
 }
 
+/** The records that a log keeps. A truncate drops the first ones. */
+interface KeptLog {
+  /** The position of `records[0]`. A truncate moves it up. */
+  firstSeq: number
+  records: Array<LogRecord>
+}
+
+/**
+ * The last position of the log, or 0 for a log with no records. A truncate
+ * does not change it.
+ */
+function headOf(log: KeptLog) {
+  return log.firstSeq - 1 + log.records.length
+}
+
 // The methods are `async`, so a thrown error becomes a rejection. They never
 // await, so each call runs to its end before the next one starts.
 class MemoryLogStore implements LogStore {
-  private readonly logs = new Map<string, Array<LogRecord>>()
+  private readonly logs = new Map<string, KeptLog>()
+  private readonly snapshots = new Map<string, LogSnapshot>()
   private readonly listeners = new Map<string, Set<() => void>>()
   private readonly owners = new Map<string, Ownership>()
   // Kept apart from `owners`, because a log that no host acquired can have a
@@ -775,6 +793,11 @@ class MemoryLogStore implements LogStore {
     const isHolder =
       owner?.ownerId === ownerId && owner.epoch === epoch && !owner.released
     return isHolder ? owner : undefined
+  }
+
+  /** The kept records of `logId`, or an empty log that is not stored yet. */
+  private logOf(logId: string) {
+    return this.logs.get(logId) ?? { firstSeq: 1, records: [] }
   }
 
   /** The offers of `logId` that no append consumed, in offer order. */
@@ -812,11 +835,11 @@ class MemoryLogStore implements LogStore {
     if (!this.canWrite(logId, epoch)) {
       throw new OwnershipLostError(logId, epoch)
     }
-    const log = this.logs.get(logId) ?? []
+    const log = this.logOf(logId)
     // The position check comes before the consumes check, so the writer that
     // lost a race gets LogConflictError, also when the winner consumed the
     // same offers.
-    if (seq !== log.length + 1) throw new LogConflictError(logId, seq)
+    if (seq !== headOf(log) + 1) throw new LogConflictError(logId, seq)
     const inputs = this.lanes.get(logId)?.inputs
     const offers = consumes.map((inputId) => {
       const offer = inputs?.get(inputId)
@@ -831,20 +854,24 @@ class MemoryLogStore implements LogStore {
     // Copy the whole batch before the write, so a record that cannot become
     // JSON rejects the batch with nothing written and nothing consumed.
     const copies = records.map(copyJson)
-    log.push(...copies)
+    log.records.push(...copies)
     this.logs.set(logId, log)
     for (const offer of offers) offer.consumed = true
     this.notify(logId)
   }
 
-  read({ logId, after = 0, limit }: Parameters<LogStore['read']>[0]) {
-    const log = this.logs.get(logId) ?? []
-    const end = limit === undefined ? log.length : after + limit
-    const entries = log.slice(after, end).map((record, index) => ({
+  async read({ logId, after = 0, limit }: Parameters<LogStore['read']>[0]) {
+    const log = this.logOf(logId)
+    // The record at `after + 1` is dropped, so the page would have a hole.
+    if (after < log.firstSeq - 1) {
+      throw new LogTruncatedError(logId, log.firstSeq)
+    }
+    const start = after - (log.firstSeq - 1)
+    const end = limit === undefined ? log.records.length : start + limit
+    return log.records.slice(start, end).map((record, index) => ({
       seq: after + index + 1,
       record: copyJson(record),
     }))
-    return Promise.resolve(entries)
   }
 
   subscribe({ logId, listener }: Parameters<LogStore['subscribe']>[0]) {
@@ -1023,20 +1050,70 @@ class MemoryLogStore implements LogStore {
     }))
   }
 
-  getSnapshot() {
-    return Promise.reject(new Error('not implemented'))
+  async getSnapshot({ logId }: Parameters<LogStore['getSnapshot']>[0]) {
+    const snapshot = this.snapshots.get(logId)
+    return snapshot === undefined ? null : copyJson(snapshot)
   }
 
-  putSnapshot() {
-    return Promise.reject(new Error('not implemented'))
+  async putSnapshot({
+    logId,
+    epoch,
+    seq,
+    version,
+    state,
+  }: Parameters<LogStore['putSnapshot']>[0]) {
+    if (!this.canWrite(logId, epoch)) {
+      throw new OwnershipLostError(logId, epoch)
+    }
+    const head = headOf(this.logOf(logId))
+    if (seq > head) {
+      throw new RangeError(
+        `Snapshot position ${seq} is after the last position ${head} of log ${JSON.stringify(logId)}.`,
+      )
+    }
+    // Copy last, so a state that cannot become JSON keeps the old snapshot.
+    this.snapshots.set(logId, copyJson({ seq, version, state }))
   }
 
-  truncate() {
-    return Promise.reject(new Error('not implemented'))
+  async truncate({
+    logId,
+    epoch,
+    beforeSeq,
+  }: Parameters<LogStore['truncate']>[0]) {
+    if (!this.canWrite(logId, epoch)) {
+      throw new OwnershipLostError(logId, epoch)
+    }
+    // A reader that gets LogTruncatedError loads the snapshot, so the
+    // snapshot must hold every record that the cut drops.
+    const snapshot = this.snapshots.get(logId)
+    const isCovered = snapshot !== undefined && snapshot.seq >= beforeSeq - 1
+    if (!isCovered) {
+      throw new RangeError(
+        `Log ${JSON.stringify(logId)} has no snapshot at position ${beforeSeq - 1} or later, so it keeps the records before ${beforeSeq}.`,
+      )
+    }
+    // A snapshot is never after the head, so the cut drops kept records
+    // only. A cut before `firstSeq` drops nothing.
+    const log = this.logOf(logId)
+    const dropCount = beforeSeq - log.firstSeq
+    if (dropCount <= 0) return
+    log.records.splice(0, dropCount)
+    log.firstSeq = beforeSeq
   }
 
-  deleteLog() {
-    return Promise.reject(new Error('not implemented'))
+  async deleteLog({ logId }: Parameters<LogStore['deleteLog']>[0]) {
+    this.logs.delete(logId)
+    this.snapshots.delete(logId)
+    this.lanes.delete(logId)
+    this.affinities.delete(logId)
+    // Keep the epoch counter, so a write with an old epoch still fails. The
+    // log has no owner now, as after a release with no wake.
+    const owner = this.owners.get(logId)
+    if (owner !== undefined) {
+      owner.released = true
+      owner.wakeAt = undefined
+    }
+    this.notify(logId)
   }
 }
 

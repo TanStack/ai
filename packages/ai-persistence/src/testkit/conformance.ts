@@ -41,7 +41,12 @@
  * starting with `rc-`, or it silently changes that expected set.
  */
 import { beforeAll, describe, expect, it } from 'vitest'
-import { LogConflictError, OwnershipLostError, UNOWNED_EPOCH } from '../types'
+import {
+  LogConflictError,
+  LogTruncatedError,
+  OwnershipLostError,
+  UNOWNED_EPOCH,
+} from '../types'
 import type { ModelMessage } from '@tanstack/ai'
 import type {
   AIPersistence,
@@ -2630,6 +2635,252 @@ export function runPersistenceConformance(
         await waitForLateCalls()
         expect(counter.calls()).toBe(1)
         counter.stop()
+      })
+    })
+
+    describe('log snapshots and lifecycle', () => {
+      const LIVE_MS = 10_000
+      // The records r1, r2, and so on, for the positions 1 to `count`.
+      const recordsOf = (count: number) =>
+        Array.from({ length: count }, (_, index) => ({ type: `r${index + 1}` }))
+      // A new log that no host acquired, with `count` records.
+      const logWith = async (store: LogStore, count: number) => {
+        const logId = newLog()
+        await store.append({
+          logId,
+          seq: 1,
+          epoch: UNOWNED_EPOCH,
+          records: recordsOf(count),
+        })
+        return logId
+      }
+      const snapshotAt = (logId: string, seq: number) => ({
+        logId,
+        epoch: UNOWNED_EPOCH,
+        seq,
+        version: 'v1',
+        state: { upTo: seq, nested: { list: [seq] } },
+      })
+      // A log with 4 records and a snapshot at position 3.
+      const logWithSnapshot = async (store: LogStore) => {
+        const logId = await logWith(store, 4)
+        await store.putSnapshot(snapshotAt(logId, 3))
+        return logId
+      }
+      const seqsAfter = async (store: LogStore, logId: string, after: number) =>
+        (await store.read({ logId, after })).map((entry) => entry.seq)
+
+      it('stores the latest snapshot', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = await logWith(store, 2)
+
+        expect(await store.getSnapshot({ logId })).toBeNull()
+        await store.putSnapshot(snapshotAt(logId, 1))
+        const latest = snapshotAt(logId, 2)
+        await store.putSnapshot(latest)
+        // The store keeps copies, so these changes do not change the snapshot.
+        latest.state.nested.list.push(99)
+        required(await store.getSnapshot({ logId }), 'the snapshot').seq = 7
+
+        expect(await store.getSnapshot({ logId })).toEqual({
+          seq: 2,
+          version: 'v1',
+          state: { upTo: 2, nested: { list: [2] } },
+        })
+      })
+
+      it('fences putSnapshot and truncate', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        const claim = { logId, harness: 'h', ttlMs: LIVE_MS }
+        await store.acquire({ ...claim, ownerId: 'a' })
+        await store.release({ logId, ownerId: 'a', epoch: 1 })
+        await store.acquire({ ...claim, ownerId: 'b' })
+        await store.append({ logId, seq: 1, epoch: 2, records: recordsOf(2) })
+        await store.putSnapshot({ ...snapshotAt(logId, 1), epoch: 2 })
+
+        // Owner `b` holds the log at epoch 2, so epoch 1 is stale.
+        await expect(
+          store.putSnapshot({ ...snapshotAt(logId, 2), epoch: 1 }),
+        ).rejects.toBeInstanceOf(OwnershipLostError)
+        await expect(
+          store.truncate({ logId, epoch: 1, beforeSeq: 2 }),
+        ).rejects.toBeInstanceOf(OwnershipLostError)
+
+        // The refused calls changed nothing.
+        expect(await store.getSnapshot({ logId })).toMatchObject({ seq: 1 })
+        expect(await seqsAfter(store, logId, 0)).toEqual([1, 2])
+      })
+
+      it('refuses a snapshot past the head', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = await logWith(store, 2)
+
+        await expect(
+          store.putSnapshot(snapshotAt(logId, 5)),
+        ).rejects.toBeInstanceOf(RangeError)
+        // Position 3 is the next free position, so it has no record yet.
+        await expect(
+          store.putSnapshot(snapshotAt(logId, 3)),
+        ).rejects.toBeInstanceOf(RangeError)
+
+        expect(await store.getSnapshot({ logId })).toBeNull()
+      })
+
+      it('truncates before a snapshot and keeps counting positions', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = await logWithSnapshot(store)
+
+        await store.truncate({ logId, epoch: UNOWNED_EPOCH, beforeSeq: 4 })
+
+        expect(await store.read({ logId, after: 3 })).toEqual([
+          { seq: 4, record: { type: 'r4' } },
+        ])
+        // The log keeps 1 record, and the next free position is still 5.
+        await store.append({
+          logId,
+          seq: 5,
+          epoch: UNOWNED_EPOCH,
+          records: [{ type: 'r5' }],
+        })
+        expect(await seqsAfter(store, logId, 3)).toEqual([4, 5])
+      })
+
+      it('signals a read before the truncation point', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = await logWithSnapshot(store)
+        await store.truncate({ logId, epoch: UNOWNED_EPOCH, beforeSeq: 4 })
+
+        const read = store.read({ logId, after: 0 })
+        await expect(read).rejects.toBeInstanceOf(LogTruncatedError)
+        await expect(read).rejects.toMatchObject({ logId, firstSeq: 4 })
+        // The truncate dropped position 3 too, so a read after 2 fails.
+        await expect(store.read({ logId, after: 2 })).rejects.toBeInstanceOf(
+          LogTruncatedError,
+        )
+      })
+
+      it('refuses to truncate past the snapshot', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = await logWithSnapshot(store)
+        // A log with no snapshot cannot drop records either.
+        const bare = await logWith(store, 2)
+
+        await expect(
+          store.truncate({ logId, epoch: UNOWNED_EPOCH, beforeSeq: 5 }),
+        ).rejects.toBeInstanceOf(RangeError)
+        await expect(
+          store.truncate({ logId: bare, epoch: UNOWNED_EPOCH, beforeSeq: 2 }),
+        ).rejects.toBeInstanceOf(RangeError)
+
+        // The refused cuts dropped nothing.
+        expect(await seqsAfter(store, logId, 0)).toEqual([1, 2, 3, 4])
+        expect(await seqsAfter(store, bare, 0)).toEqual([1, 2])
+      })
+
+      it('deletes a log and keeps its epoch counter', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        const harness = newHarness()
+        const claim = { logId, harness, ttlMs: LIVE_MS }
+        const input = { logId, harness, inputId: 'i1', record: { type: 'in' } }
+        await store.acquire({ ...claim, ownerId: 'a' })
+        await store.setAffinity({ logId, epoch: 1, affinity: 'host-1' })
+        await store.append({ logId, seq: 1, epoch: 1, records: recordsOf(2) })
+        await store.putSnapshot({ ...snapshotAt(logId, 1), epoch: 1 })
+        await store.truncate({ logId, epoch: 1, beforeSeq: 2 })
+        await store.offer(input)
+
+        await store.deleteLog({ logId })
+
+        // The truncation point is gone too, so a read from the start works.
+        expect(await store.read({ logId })).toEqual([])
+        expect(await store.offered({ logId })).toEqual([])
+        expect(await store.getSnapshot({ logId })).toBeNull()
+        // The log has no owner now. The old epoch and UNOWNED_EPOCH stay
+        // fenced.
+        await expect(
+          store.append({ logId, seq: 1, epoch: 1, records: recordsOf(1) }),
+        ).rejects.toBeInstanceOf(OwnershipLostError)
+        await expect(
+          store.append({
+            logId,
+            seq: 1,
+            epoch: UNOWNED_EPOCH,
+            records: recordsOf(1),
+          }),
+        ).rejects.toBeInstanceOf(OwnershipLostError)
+        // The pin is gone, so a host with no affinity gets the next epoch.
+        expect(await store.acquire({ ...claim, ownerId: 'b' })).toEqual({
+          epoch: 2,
+        })
+        // The positions start at 1 again, and the input id is free again.
+        await store.append({ logId, seq: 1, epoch: 2, records: recordsOf(1) })
+        expect(await seqsAfter(store, logId, 0)).toEqual([1])
+        expect(await store.offer(input)).toBe('offered')
+
+        // The delete clears a due wake, so the log is not orphaned.
+        const woken = newLog()
+        const orphans = () =>
+          store.listOrphaned({ limit: 10, harnesses: [harness] })
+        await store.acquire({ ...claim, logId: woken, ownerId: 'a' })
+        await store.release({
+          logId: woken,
+          ownerId: 'a',
+          epoch: 1,
+          wakeInMs: 0,
+        })
+        expect(await orphans()).toEqual([
+          { logId: woken, harness, reason: 'wake' },
+        ])
+        await store.deleteLog({ logId: woken })
+        expect(await orphans()).toEqual([])
+      })
+
+      it('notifies subscribers of a delete', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = await logWith(store, 1)
+        const counter = countCalls(store, logId)
+
+        await store.deleteLog({ logId })
+
+        await expect.poll(counter.calls).toBe(1)
+        counter.stop()
+      })
+
+      it('keeps UNOWNED_EPOCH writes for a deleted log that no host acquired', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = await logWith(store, 2)
+
+        await store.deleteLog({ logId })
+
+        await store.append({
+          logId,
+          seq: 1,
+          epoch: UNOWNED_EPOCH,
+          records: [{ type: 'again' }],
+        })
+        expect(await store.read({ logId })).toEqual([
+          { seq: 1, record: { type: 'again' } },
+        ])
+        // The delete took no epoch, so the first acquire still gets epoch 1.
+        expect(
+          await store.acquire({
+            logId,
+            harness: 'h',
+            ownerId: 'a',
+            ttlMs: LIVE_MS,
+          }),
+        ).toEqual({ epoch: 1 })
       })
     })
 
