@@ -91,7 +91,7 @@ This works for a model call and for `session.tool`. Your own `context` data stay
 ## Let a client run a tool
 
 1. Add the tool to `expose.tools`. TypeScript suggests the names in `tools`, and `defineHarness` throws for any other name.
-2. Run it from the client with `client.tool(name, args?, options?)`. `args` is typed from the tool's input schema.
+2. Run it from the client with `client.tool({ name, args, meta, inputId })`. `args` is typed from the tool's input schema.
 
 ```ts group=harness-tool-runs-client
 import { createHarnessClient } from '@tanstack/ai-harness/client'
@@ -103,11 +103,11 @@ const client = createHarnessClient<typeof dashboard>({
   headers: { authorization: 'Bearer my-token' },
 })
 
-const receipt = await client.tool(
-  'fetchStats',
-  { window: '1h' },
-  { inputId: 'hourly-stats-09' },
-)
+const receipt = await client.tool({
+  name: 'fetchStats',
+  args: { window: '1h' },
+  inputId: 'hourly-stats-09',
+})
 ```
 
 - The receipt has your `inputId`. It is `queued` while another turn runs.

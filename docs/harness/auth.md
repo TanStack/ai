@@ -143,7 +143,7 @@ view.on('signIn', (signIn) => {
   console.log(`Connect ${signIn.connector} to continue the turn.`)
 })
 
-export const connectGithub = () => view.command('connect:github')
+export const connectGithub = () => view.command({ name: 'connect:github' })
 ```
 
 After the sign-in, the turn finishes its work with no new message.

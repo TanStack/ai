@@ -15,7 +15,7 @@ Run a harness tool with no model turn, add host records from a client, and add a
   event. `args` is typed from the input schema of a harness tool.
 - `expose.tools` lists the harness tools a client may run with a
   `{ op: 'tool', name, args?, meta? }` input, or with the new
-  `client.tool(name, args?, options?)`. The list is typed from the harness
+  `client.tool({ name, args?, meta?, inputId? })`. The list is typed from the harness
   `tools`, and `defineHarness` throws for a name that is not in `tools`. Any
   other tool is refused with `not_exposed`. The capabilities document marks
   each tool with `exposed`.

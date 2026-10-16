@@ -82,10 +82,10 @@ export const team = defineHarness({
 | Field | What a client can do |
 | --- | --- |
 | `agents` | Run these agents, for example with `client.agents.<name>.start(input)`. |
-| `settings` | Change these [thread settings](./thread-settings) with `client.configure(settings)`. |
+| `settings` | Change these [thread settings](./thread-settings) with `client.configure({ settings })`. |
 | `config` | Set these plugin config keys with `client.setConfig({ key, value })`. |
-| `commands` | Run these commands with `client.command(name)`, or with `/name` in a [session view](./custom-ui) on a client. |
-| `tools` | Run these harness tools with no model turn, with `client.tool(name, args)`. See [Run a tool without a model](./tool-runs). |
+| `commands` | Run these commands with `client.command({ name })`, or with `/name` in a [session view](./custom-ui) on a client. |
+| `tools` | Run these harness tools with no model turn, with `client.tool({ name, args })`. See [Run a tool without a model](./tool-runs). |
 | `records` | Add records of these types to the thread with `client.append(records)`. See [Let a client add records](./session-log#let-a-client-add-records). |
 
 - Any other input of these kinds gets `{ status: 'rejected', reason: 'not_exposed' }`.

@@ -64,7 +64,7 @@ In a terminal app, the user types `/undo` and `/redo`. See [Build a coding agent
 - The snapshots skip the files that `.gitignore` names, like `node_modules`. `/undo` does not touch them.
 - A new turn clears `/redo`.
 
-In your own UI, add `expose: { commands: ['undo', 'redo'] }` to `defineHarness`. A client can run only the commands that the harness exposes. Then call `client.command('undo')`. The result text arrives as a `harness.command.result` event.
+In your own UI, add `expose: { commands: ['undo', 'redo'] }` to `defineHarness`. A client can run only the commands that the harness exposes. Then call `client.command({ name: 'undo' })`. The result text arrives as a `harness.command.result` event.
 
 ## See what a step changed
 
