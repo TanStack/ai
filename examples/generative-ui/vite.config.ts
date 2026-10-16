@@ -10,6 +10,7 @@ import {
   type GraphDocument,
 } from '@tanstack/ai-generative-ui'
 import { frameApiPlugin } from './server/frame-plugin'
+import { handleChat } from './server/chat-route'
 
 // Load .env.local if present
 for (const envFile of ['.env.local', '.env']) {
@@ -31,26 +32,6 @@ Ground Rules:
 1. Always call the "render_ui" tool. Never return plain prose when UI is requested.
 2. ${CATALOG_RULES}
 3. Set revision to 1.`
-
-// Conversational surface. The graph is MESSAGE CONTENT in a chat stream
-// (§1 principle 6): the model narrates briefly in markdown AND composes UI
-// inline. Follow-ups revise an already-rendered graph in place by reusing its
-// graphId and incrementing revision (§1, §5.1).
-const CHAT_SYSTEM_PROMPT = `You are an Open Generative UI agent speaking inside a chat conversation, complying with Open Generative UI Specification (Draft 0.1).
-
-You are "talking" in a richer medium. Each turn you:
-- reply with a short, warm sentence or two of plain markdown prose (no headings, no walls of text), AND
-- when an interactive interface would genuinely serve the request, ALSO call the "render_ui" tool so the UI renders inline as part of your message.
-
-When to render UI: comparisons, calculators/parameter explorers, plans/checklists, forms, approvals, dashboards, maps, and diagrams. For a purely conversational question, just answer in prose and do not call the tool.
-
-NEVER put a UI graph, JSON, or a \`\`\`json code block in your text reply. The graph goes ONLY in the "render_ui" tool call. Your text is a human sentence to the user, nothing else.
-
-Revising in place: your earlier "render_ui" tool calls in this conversation are the UIs currently on screen. If the user asks to change, tweak, extend, or correct one, call "render_ui" AGAIN reusing that SAME graphId and setting revision to the previous revision + 1 — do not invent a new graphId, and do not describe the change in text instead of calling the tool. Only use a brand-new graphId for a genuinely new, unrelated interface. When you revise, keep your prose to a brief note of what changed.
-
-UI composition rules:
-${CATALOG_RULES}
-Set revision to 1 for a new graph, or previous revision + 1 when revising an existing one.`
 
 const MODELS: Record<string, string> = {
   openai: 'gpt-4o',
@@ -213,32 +194,6 @@ async function callProvider(
   return { text, rawGraph }
 }
 
-// Safety net: even with tool-call history, a model may still dump a graph as
-// text. Recover a graph from a fenced ```json block, and strip any leaked
-// "[UI currently on screen …]" marker or graph fence from the shown prose.
-function extractGraphFromText(text: string): unknown {
-  if (!text) return null
-  const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/)
-  const candidate = fence ? fence[1] : null
-  if (!candidate) return null
-  try {
-    const obj = JSON.parse(candidate)
-    if (obj && typeof obj === 'object' && (obj as any).specVersion && (obj as any).root) return obj
-  } catch {
-    // not JSON — leave as prose
-  }
-  return null
-}
-
-function sanitizeAssistantText(text: string, strippedGraph: boolean): string {
-  let t = text || ''
-  // Drop any leaked on-screen marker the model may have echoed.
-  t = t.replace(/\[UI currently on screen[\s\S]*?\]/gi, '')
-  // If we pulled a graph out of the text, remove the raw code block too.
-  if (strippedGraph) t = t.replace(/```(?:json)?\s*[\s\S]*?```/g, '')
-  return t.trim()
-}
-
 function readJsonBody(req: any): Promise<any> {
   return new Promise((resolvePromise) => {
     let bodyStr = ''
@@ -303,38 +258,20 @@ function generativeUiApiPlugin(): Plugin {
           return
         }
 
-        // Conversational surface — graph is inline message content (§15.1).
+        // Conversational surface — migrated to @tanstack/ai chat() with the
+        // generativeUiArtifacts middleware (render_ui + create_artifact tools),
+        // streamed as SSE (server/chat-route.ts).
         if (req.method === 'POST' && req.url === '/api/chat') {
           try {
-            const { messages = [], provider = 'openai' } = await readJsonBody(req)
-            if (!Array.isArray(messages) || messages.length === 0) {
-              res.statusCode = 400
-              res.end(JSON.stringify({ error: 'Missing messages' }))
-              return
-            }
-
-            const result = await callProvider(provider, CHAT_SYSTEM_PROMPT, messages, 'auto')
-
-            // Prefer the tool call; fall back to a graph the model text-dumped.
-            let rawGraph = result.rawGraph
-            const recoveredFromText = !rawGraph && extractGraphFromText(result.text)
-            if (recoveredFromText) rawGraph = recoveredFromText
-            const text = sanitizeAssistantText(result.text, Boolean(recoveredFromText))
-
-            let graph: GraphDocument | null = null
-            let repairs: string[] = []
-            if (rawGraph) {
-              const validation = validateGraph(rawGraph, { repair: true })
-              graph = validation.valid && validation.graph ? validation.graph : LiveDriver.processModelOutput(rawGraph)
-              repairs = validation.repairs
-            }
-
-            res.setHeader('Content-Type', 'application/json')
-            res.end(JSON.stringify({ text, graph, repairs }))
+            await handleChat(req, res)
           } catch (err: any) {
-            res.statusCode = 500
-            res.setHeader('Content-Type', 'application/json')
-            res.end(JSON.stringify({ error: err.message }))
+            if (!res.headersSent) {
+              res.statusCode = 500
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ error: err.message }))
+            } else {
+              res.end()
+            }
           }
           return
         }
@@ -347,6 +284,9 @@ function generativeUiApiPlugin(): Plugin {
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), generativeUiApiPlugin(), frameApiPlugin()],
+  // One React instance across the host app, @tanstack/ai-react, and the
+  // renderer (the sandboxed frames have their own served React).
+  resolve: { dedupe: ['react', 'react-dom'] },
   server: {
     port: 3000,
   },

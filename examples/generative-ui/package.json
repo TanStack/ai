@@ -10,7 +10,12 @@
     "test:types": "tsc --noEmit"
   },
   "dependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-anthropic": "workspace:*",
     "@tanstack/ai-generative-ui": "workspace:*",
+    "@tanstack/ai-openai": "workspace:*",
+    "@tanstack/ai-persistence": "workspace:*",
+    "@tanstack/ai-react": "workspace:*",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"
   },

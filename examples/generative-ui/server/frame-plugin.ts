@@ -1,35 +1,24 @@
 /**
- * Tier F serving layer for the POC host (Draft 0.2 §4, §5, §7.3.3), as Vite dev
- * middleware. Implements the reference host's responsibilities:
- *
- * - build-at-write-time: esbuild transforms react-tsx sources to ESM when an
- *   artifact is created (§7.3.3); the frame loads only the built bundle.
- * - the sandbox routes (§4.1): shell document, pinned built assets, pinned
- *   runtime modules, and a standalone artifact page.
- * - response CSP + hardening headers (§4.3, §9).
+ * Tier F serving layer for the POC host (Draft 0.2 §4, §5), as Vite dev
+ * middleware. Serves the sandbox routes — shell document, pinned built assets,
+ * pinned runtime modules, standalone page — and the library list, all over the
+ * SHARED async artifact store from `./frame-host` (the same store the chat
+ * middleware writes to). Build-at-write-time happens in the middleware / seeding
+ * now, not here.
  *
  * Single-origin POC caveat: a production host serves `/sandbox/*` from a
  * dedicated origin (§4.2); here the iframe's `sandbox="allow-scripts"` (no
- * allow-same-origin) still yields an opaque origin, so the frame cannot reach
- * app cookies/DOM — but same-origin isolation is weaker than §4.2 requires.
+ * allow-same-origin) yields an opaque origin, so the frame cannot reach app
+ * cookies/DOM — but same-origin isolation is weaker than §4.2 requires.
  */
 
 import { resolve } from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { createRequire } from 'node:module'
-import { transformWithEsbuild, type Plugin } from 'vite'
-import {
-  InMemoryArtifactStore,
-  REFERENCE_REGISTRY,
-  buildCsp,
-  buildShellDocument,
-  createArtifactTools,
-  makeReactBuilder,
-  FRAME_FIXTURES,
-  type ArtifactRecord,
-  type FrameTheme,
-} from '@tanstack/ai-generative-ui'
+import type { Plugin } from 'vite'
+import { buildCsp, buildShellDocument, type ArtifactRecord, type FrameTheme } from '@tanstack/ai-generative-ui'
 import { RUNTIME_NPM, RUNTIME_SHIMS } from './frame-runtime'
+import { registry, seedFixtures, store } from './frame-host'
 
 // esbuild is a transitive dep of Vite (not a direct example dep); resolve its
 // bundler through Vite so the config needs no extra dependency.
@@ -62,80 +51,9 @@ const SERVER_THEME: FrameTheme = {
   },
 }
 
-// The esbuild-backed builder: TSX → ESM, imports left as bare specifiers for
-// the shell's import map. Build errors become structured tool results (§7.3.3).
-const reactBuilder = makeReactBuilder(async ({ source }) => {
-  // Classic JSX (React.createElement) so artifacts need only `react` — not
-  // `react/jsx-runtime` (whose standalone bundle would re-import itself, since
-  // esbuild externalizes subpaths of an external package). React is injected
-  // when the source doesn't already import it.
-  const hasReact = /\bimport\s+(\*\s+as\s+)?React\b/.test(source)
-  const prepared = hasReact ? source : `import * as React from 'react';\n${source}`
-  try {
-    const out = await transformWithEsbuild(prepared, 'artifact.tsx', {
-      loader: 'tsx',
-      jsx: 'transform',
-      jsxFactory: 'React.createElement',
-      jsxFragment: 'React.Fragment',
-      format: 'esm',
-      target: 'es2020',
-      logLevel: 'silent',
-    })
-    return { code: out.code }
-  } catch (err: any) {
-    const e = err?.errors?.[0]
-    return { error: e?.text ?? String(err), line: e?.location?.line, column: e?.location?.column }
-  }
-})
-
-function readJsonBody(req: any): Promise<any> {
-  return new Promise((res) => {
-    let s = ''
-    req.on('data', (c: Buffer) => (s += c))
-    req.on('end', () => {
-      try {
-        res(JSON.parse(s || '{}'))
-      } catch {
-        res({})
-      }
-    })
-  })
-}
-
 export function frameApiPlugin(): Plugin {
-  const store = new InMemoryArtifactStore()
   const exampleRoot = resolve(import.meta.dirname, '..')
-  // Authoritative data per artifact (react-tsx props.data / host.init.data).
-  const artifactData = new Map<string, unknown>()
-  const fixtureIndex: Array<{ fixtureId: string; artifactId: string; revision: number; title: string; kind: string }> = []
   const runtimeCache = new Map<string, string>()
-
-  const tools = createArtifactTools({
-    store,
-    builder: reactBuilder,
-    registry: REFERENCE_REGISTRY,
-    ownerId: 'poc',
-    provenance: { driver: 'fixture' },
-  })
-
-  // Seed the canonical fixtures once (build happens here, at write time).
-  let seeded: Promise<void> | null = null
-  const ensureSeeded = () => {
-    if (!seeded) {
-      seeded = (async () => {
-        for (const fx of Object.values(FRAME_FIXTURES)) {
-          const res = await tools.create({ kind: fx.kind, title: fx.title, source: fx.source, fallbackText: fx.fallbackText, data: fx.data })
-          if ('artifactId' in res) {
-            if (fx.data !== undefined) artifactData.set(res.artifactId, fx.data)
-            fixtureIndex.push({ fixtureId: fx.id, artifactId: res.artifactId, revision: res.revision, title: fx.title, kind: fx.kind })
-          } else {
-            console.error(`[frame] fixture ${fx.id} failed to build:\n${res.buildLog}`)
-          }
-        }
-      })()
-    }
-    return seeded
-  }
 
   async function bundleRuntime(file: string): Promise<string | null> {
     if (runtimeCache.has(file)) return runtimeCache.get(file)!
@@ -160,7 +78,7 @@ export function frameApiPlugin(): Plugin {
     return code
   }
 
-  const sendJs = (res: any, code: string, _immutable = false) => {
+  const sendJs = (res: any, code: string) => {
     res.setHeader('Content-Type', 'text/javascript; charset=utf-8')
     res.setHeader('X-Content-Type-Options', 'nosniff')
     // The sandboxed frame has an opaque origin, so its ES-module fetches are
@@ -173,9 +91,8 @@ export function frameApiPlugin(): Plugin {
     res.end(code)
   }
 
-  function assetHashOf(rec: ArtifactRecord): string | null {
-    return rec.builtRef ? rec.builtRef.replace('store://assets/', '') : null
-  }
+  const assetHashOf = (rec: ArtifactRecord): string | null =>
+    rec.builtRef ? rec.builtRef.replace('store://assets/', '') : null
 
   return {
     name: 'generative-ui-frame-api',
@@ -186,23 +103,18 @@ export function frameApiPlugin(): Plugin {
         const appOrigin = `http://${req.headers.host}`
 
         try {
-          // ---- Library list (seed on first touch) --------------------------
+          // ---- Library list: every stored artifact (fixtures + authored) ----
           if (req.method === 'GET' && url === '/api/frame/list') {
-            await ensureSeeded()
+            await seedFixtures()
+            const artifacts = (await store.list()).map((r) => ({
+              artifactId: r.artifactId,
+              revision: r.revision,
+              title: r.title,
+              kind: r.kind,
+              driver: r.provenance.driver,
+            }))
             res.setHeader('Content-Type', 'application/json')
-            res.end(JSON.stringify({ artifacts: fixtureIndex }))
-            return
-          }
-
-          // ---- Create / revise (agent-facing, §8.1) ------------------------
-          if (req.method === 'POST' && (url === '/api/frame/create' || url === '/api/frame/revise')) {
-            await ensureSeeded()
-            const body = await readJsonBody(req)
-            const result = url === '/api/frame/create' ? await tools.create(body) : await tools.revise(body)
-            if ('artifactId' in result && body.data !== undefined) artifactData.set(result.artifactId, body.data)
-            res.setHeader('Content-Type', 'application/json')
-            res.statusCode = 'error' in result ? 422 : 200
-            res.end(JSON.stringify(result))
+            res.end(JSON.stringify({ artifacts }))
             return
           }
 
@@ -215,29 +127,29 @@ export function frameApiPlugin(): Plugin {
               res.end(`// unknown runtime module: ${rt[1]}`)
               return
             }
-            sendJs(res, code, true)
+            sendJs(res, code)
             return
           }
 
           // ---- Pinned built bundles (§3.2) ---------------------------------
           const asset = url.match(/^\/sandbox\/_assets\/(.+)$/)
           if (req.method === 'GET' && asset) {
-            await ensureSeeded()
-            const code = store.blobs.get(asset[1]!)
+            await seedFixtures()
+            const code = await store.getBuilt(asset[1]!)
             if (code == null) {
               res.statusCode = 404
               res.end('// unknown asset')
               return
             }
-            sendJs(res, code, true)
+            sendJs(res, code)
             return
           }
 
           // ---- Shell document for a pinned revision (§5) -------------------
           const shell = url.match(/^\/sandbox\/([^/]+)\/(\d+)$/)
           if (req.method === 'GET' && shell) {
-            await ensureSeeded()
-            const rec = store.get(shell[1]!, Number(shell[2]))
+            await seedFixtures()
+            const rec = await store.get(shell[1]!, Number(shell[2]))
             if (!rec) {
               res.statusCode = 404
               res.end('Unknown artifact revision')
@@ -251,9 +163,9 @@ export function frameApiPlugin(): Plugin {
               instanceId,
               appOrigin,
               theme: SERVER_THEME,
-              registry: REFERENCE_REGISTRY,
+              registry,
               builtUrl: hash ? `/sandbox/_assets/${hash}` : undefined,
-              props: { data: artifactData.get(rec.artifactId) },
+              props: { data: rec.data },
               nonce,
             })
             res.setHeader('Content-Type', 'text/html; charset=utf-8')
@@ -268,8 +180,8 @@ export function frameApiPlugin(): Plugin {
           // ---- Standalone artifact page (§4.1, a library surface) ----------
           const page = url.match(/^\/a\/([^/]+)$/)
           if (req.method === 'GET' && page) {
-            await ensureSeeded()
-            const rec = store.latest(page[1]!)
+            await seedFixtures()
+            const rec = await store.latest(page[1]!)
             if (!rec) {
               res.statusCode = 404
               res.end('Unknown artifact')
