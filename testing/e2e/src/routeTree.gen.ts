@@ -187,6 +187,7 @@ import { Route as ApiWorldRouteImport } from './routes/api.world'
 import { Route as ApiWrapFetchWireRouteImport } from './routes/api.wrap-fetch-wire'
 import { Route as ApiAudioStreamRouteImport } from './routes/api.audio.stream'
 import { Route as ApiHarnessProtocolSplatRouteImport } from './routes/api.harness-protocol.$'
+import { Route as ApiHarnessSecretAnswerSplatRouteImport } from './routes/api.harness-secret-answer.$'
 import { Route as ApiImageStreamRouteImport } from './routes/api.image.stream'
 import { Route as ApiTranscriptionStreamRouteImport } from './routes/api.transcription.stream'
 import { Route as ApiTtsStreamRouteImport } from './routes/api.tts.stream'
@@ -1125,6 +1126,12 @@ const ApiHarnessProtocolSplatRoute = ApiHarnessProtocolSplatRouteImport.update({
   path: '/api/harness-protocol/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHarnessSecretAnswerSplatRoute =
+  ApiHarnessSecretAnswerSplatRouteImport.update({
+    id: '/api/harness-secret-answer/$',
+    path: '/api/harness-secret-answer/$',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiImageStreamRoute = ApiImageStreamRouteImport.update({
   id: '/stream',
   path: '/stream',
@@ -1325,6 +1332,7 @@ export interface FileRoutesByFullPath {
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
+  '/api/harness-secret-answer/$': typeof ApiHarnessSecretAnswerSplatRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
   '/api/tts/stream': typeof ApiTtsStreamRoute
@@ -1509,6 +1517,7 @@ export interface FileRoutesByTo {
   '/$provider': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
+  '/api/harness-secret-answer/$': typeof ApiHarnessSecretAnswerSplatRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
   '/api/tts/stream': typeof ApiTtsStreamRoute
@@ -1694,6 +1703,7 @@ export interface FileRoutesById {
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
+  '/api/harness-secret-answer/$': typeof ApiHarnessSecretAnswerSplatRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
   '/api/tts/stream': typeof ApiTtsStreamRoute
@@ -1880,6 +1890,7 @@ export interface FileRouteTypes {
     | '/$provider/'
     | '/api/audio/stream'
     | '/api/harness-protocol/$'
+    | '/api/harness-secret-answer/$'
     | '/api/image/stream'
     | '/api/transcription/stream'
     | '/api/tts/stream'
@@ -2064,6 +2075,7 @@ export interface FileRouteTypes {
     | '/$provider'
     | '/api/audio/stream'
     | '/api/harness-protocol/$'
+    | '/api/harness-secret-answer/$'
     | '/api/image/stream'
     | '/api/transcription/stream'
     | '/api/tts/stream'
@@ -2248,6 +2260,7 @@ export interface FileRouteTypes {
     | '/$provider/'
     | '/api/audio/stream'
     | '/api/harness-protocol/$'
+    | '/api/harness-secret-answer/$'
     | '/api/image/stream'
     | '/api/transcription/stream'
     | '/api/tts/stream'
@@ -2432,6 +2445,7 @@ export interface RootRouteChildren {
   ApiWrapFetchWireRoute: typeof ApiWrapFetchWireRoute
   ProviderIndexRoute: typeof ProviderIndexRoute
   ApiHarnessProtocolSplatRoute: typeof ApiHarnessProtocolSplatRoute
+  ApiHarnessSecretAnswerSplatRoute: typeof ApiHarnessSecretAnswerSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -3682,6 +3696,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHarnessProtocolSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/harness-secret-answer/$': {
+      id: '/api/harness-secret-answer/$'
+      path: '/api/harness-secret-answer/$'
+      fullPath: '/api/harness-secret-answer/$'
+      preLoaderRoute: typeof ApiHarnessSecretAnswerSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/image/stream': {
       id: '/api/image/stream'
       path: '/stream'
@@ -3955,6 +3976,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWrapFetchWireRoute: ApiWrapFetchWireRoute,
   ProviderIndexRoute: ProviderIndexRoute,
   ApiHarnessProtocolSplatRoute: ApiHarnessProtocolSplatRoute,
+  ApiHarnessSecretAnswerSplatRoute: ApiHarnessSecretAnswerSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
