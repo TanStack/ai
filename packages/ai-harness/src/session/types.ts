@@ -9,6 +9,7 @@ import type {
   UIMessage,
 } from '@tanstack/ai'
 import type { OperationImpl } from '../operation'
+import type { RefreshFlights } from '../auth'
 import type { ToolTurn } from '../tool-turn'
 import type {
   AIPersistence,
@@ -240,6 +241,11 @@ export interface SessionDependencies {
    * it, a secret answer that reaches another host is refused.
    */
   sharedCredentials?: CredentialStore
+  /**
+   * The OAuth refreshes that run now, shared by every session of the host,
+   * so one host refreshes a token once. Without it, the session has its own.
+   */
+  refreshes?: RefreshFlights
   /** Where media lives: file records, bytes, and generation runs. */
   media: AIPersistence<{
     artifacts: ArtifactStore
