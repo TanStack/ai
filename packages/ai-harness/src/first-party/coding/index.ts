@@ -6,7 +6,11 @@ export { hostBackend } from './backend'
 export type { BoundWorkspace, WorkspaceBackend } from './backend'
 export { WorkspaceHooks } from '../workspace-hooks'
 export type { SearchProvider, WebToolsOptions } from './web'
-export { snapshots } from './snapshots'
-export type { SnapshotStep, SnapshotsOptions } from './snapshots'
+export { purgeSnapshots, snapshots } from './snapshots'
+export type {
+  SnapshotStep,
+  SnapshotThread,
+  SnapshotsOptions,
+} from './snapshots'
 export { FormatFailed, formatter } from './formatter'
 export type { Formatter, FormatterOptions, FormatterProject } from './formatter'

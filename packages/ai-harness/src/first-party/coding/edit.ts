@@ -143,7 +143,8 @@ export function fileVersions(env: ToolEnv) {
       seen.delete(path)
     },
     /** Is something at `path`? Call it before the lock. */
-    exists: async (path: string) => (await env.backend.stat(path)) !== undefined,
+    exists: async (path: string) =>
+      (await env.backend.stat(path)) !== undefined,
     /**
      * Throws when the file at `path` changed since a tool read or wrote it.
      * For a file that no tool read, it throws only when the tool saw no file

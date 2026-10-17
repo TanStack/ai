@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { BackgroundJobs, SessionSignal, definePlugin } from '../../plugins'
 import { isRecord } from '../../utils'
 import {
@@ -140,9 +141,9 @@ export function createLock() {
 }
 
 /**
- * The file locks of this process, by the workspace root and the path. Every
- * session and agent on one workspace shares them, so two edits of one file
- * run one after the other.
+ * The file locks of this process, by the bound workspace root and the real
+ * path of the file. Every session and agent on one workspace shares them, so
+ * two edits of one file run one after the other.
  *
  * ponytail: a lock is for this process only. Two processes or machines on
  * one shared sandbox do not wait for each other. The unchanged check of the
@@ -172,11 +173,25 @@ function isRun(value: unknown): value is RunContext {
   )
 }
 
-/** The run of a tool call: `ctx.context.run`, or `undefined` without one. */
-function runOf(context: unknown) {
+/**
+ * The run of a tool call or a middleware call: `ctx.context.run`, or
+ * `undefined` without one.
+ */
+export function runOf(context: unknown) {
   if (!isRecord(context) || !isRecord(context.context)) return undefined
   const { run } = context.context
   return isRun(run) ? run : undefined
+}
+
+/** The run of the workspace tool call that runs now. */
+const callRuns = new AsyncLocalStorage<RunContext | undefined>()
+
+/**
+ * The run of the workspace tool call that runs now, or `undefined` outside
+ * a call. A `WorkspaceHooks` hook reads it to know which run wrote a file.
+ */
+export function writingRun() {
+  return callRuns.getStore()
 }
 
 /**
@@ -367,8 +382,9 @@ function bindTools(
     backend,
     root,
     hooks: session.hooks ?? (() => []),
-    // The key has the root, so the fixed lock order of `patch` (by path) is
-    // the same for every session on this root.
+    // `path` is the real path from `reach`. The key has the root, so the
+    // fixed lock order of `patch` (by path) is the same for every session on
+    // this root.
     lock: (path, fn) =>
       fileLocks(`${root}\0${path}`, async () => {
         // `reach` checked `path` before the lock. A link made since then
@@ -573,8 +589,18 @@ export function createWorkspaceTools(
     },
     bash: { commands: bashResources },
   }
+  // Each call runs with its run in `callRuns`, for `writingRun`.
+  const tools = source.tools.map((tool): AnyTool => {
+    const { execute } = tool
+    if (!execute) return tool
+    return {
+      ...tool,
+      execute: (args: unknown, context?: ToolExecutionContext) =>
+        callRuns.run(runOf(context), () => execute(args, context)),
+    }
+  })
   return {
-    tools: source.tools,
+    tools,
     resources,
     prompt: source.prompt,
     bind: source.bind,

@@ -7,7 +7,7 @@ import { WorkspaceHooks } from '../workspace-hooks'
 import { hostBackend, pathsOf } from './backend'
 import { parsePatch } from './patch'
 import { GIT, GIT_ENV, quoteArg, shellPlatform } from './search'
-import { createLock } from './workspace'
+import { createLock, runOf, writingRun } from './workspace'
 import type { ModelMessage, ToolCall } from '@tanstack/ai'
 import type { WorkspaceBackend } from './backend'
 
@@ -98,7 +98,8 @@ function reportsChanges(call: ToolCall) {
   if (name !== 'patch') return false
   try {
     const args: unknown = JSON.parse(call.function.arguments)
-    const text = isRecord(args) && typeof args.patch === 'string' ? args.patch : ''
+    const text =
+      isRecord(args) && typeof args.patch === 'string' ? args.patch : ''
     const operations = parsePatch(text)
     return operations.every(
       (operation) =>
@@ -315,13 +316,37 @@ function shadowRepo(options: SnapshotsOptions, thread: SnapshotThread) {
 /** The shadow repository of one thread, from {@link shadowRepo}. */
 type ShadowRepo = ReturnType<typeof shadowRepo>
 
+/** What the snapshots know of one run of a session. */
+interface RunSteps {
+  /** The tree at the start of the step that runs. */
+  start: string | undefined
+  /**
+   * The files in the workspace that the workspace tools of this run wrote
+   * in the step that runs.
+   */
+  written: Set<string>
+  /** The steps of this run with changed files. */
+  steps: Array<SnapshotStep>
+}
+
+/**
+ * The id of the run of a middleware call. `''` outside a harness run: all
+ * such calls count as one run.
+ */
+const runIdOf = (ctx: unknown) => runOf(ctx)?.runId ?? ''
+
 const messageOf = (error: unknown) =>
   error instanceof Error ? error.message : String(error)
 
 /**
  * Remove the shadow repository of `thread`, that `snapshots(options)` made.
- * It waits for the git commands of that repository that run in this
- * process. It resolves also when there is no repository.
+ * Call it when the thread is deleted, after its sessions close. It waits
+ * for the git commands of that repository that run in this process. It
+ * resolves also when there is no repository, and throws when the folder is
+ * still there after the remove.
+ *
+ * - `options`: the options of the `snapshots()` plugin.
+ * - `thread`: the tenant and the thread of the repository.
  *
  * @example
  * ```ts
@@ -348,11 +373,12 @@ export function purgeSnapshots(
  * `session.revert(messageId)` also puts back the files that the tool calls
  * after that message changed, and `session.unrevert()` brings them back.
  *
- * A step keeps only the files that this session changed. The workspace
- * tools give each file that they write, so a change of another session or
- * agent in the same time is not in the step. A step with a tool that does
- * not give its changes, like `bash`, keeps every file that changed in it.
- * The snapshots never store `.env` files.
+ * A step keeps only the files that its run changed. The workspace tools
+ * give each file that they write, and the run that wrote it. So a change of
+ * another run, session, or agent in the same time is not in the step, and
+ * `/undo` keeps it. A step with a tool that does not give its changes, like
+ * `bash`, keeps every file that changed in it. The snapshots never store
+ * `.env*` files.
  *
  * The changed files of each step go to the session log as a
  * `tanstack/snapshots:step` record on a durable host, else to the plugin
@@ -481,13 +507,16 @@ export function snapshots(options: SnapshotsOptions) {
           )
         },
       })
-      /** The tree at the start of the step that runs. */
-      let stepStart: string | undefined
       /**
-       * The steps of the last turn, with changed files: what `/undo` puts
-       * back. `undefined` when there is nothing to undo.
+       * The runs of this session that run now, by run id. A turn and the
+       * agents that it starts in the background can run at the same time.
        */
-      let turnSteps: Array<SnapshotStep> | undefined
+      const active = new Map<string, RunSteps>()
+      /**
+       * The run that started last: what `/undo` puts back. `undefined` when
+       * there is nothing to undo.
+       */
+      let last: RunSteps | undefined
       /** What the last `/undo` removed: the steps, the end, and the messages. */
       let redo:
         | {
@@ -496,11 +525,6 @@ export function snapshots(options: SnapshotsOptions) {
             messages: Array<ModelMessage>
           }
         | undefined
-      /**
-       * The files in the workspace that the workspace tools of this session
-       * wrote in the step that runs. A session runs one turn at a time.
-       */
-      const written = new Set<string>()
 
       // A failed snapshot must not fail the turn. It only says so.
       const guard = async <T>(fn: () => Promise<T>) => {
@@ -532,9 +556,12 @@ export function snapshots(options: SnapshotsOptions) {
       return {
         contribute: [
           WorkspaceHooks.item({
+            // The write goes to the run of the tool call that wrote it.
             afterWrite: async (full) => {
+              const run = writingRun()
               const path = inRoot(full)
-              if (path !== undefined) written.add(path)
+              if (!run || path === undefined) return
+              active.get(run.runId)?.written.add(path)
             },
           }),
         ],
@@ -542,27 +569,38 @@ export function snapshots(options: SnapshotsOptions) {
           {
             name: 'tanstack/snapshots',
             optionalRequires: [LogRecordsCapability],
-            onIteration: async (_ctx, { iteration }) => {
+            onIteration: async (ctx, { iteration }) => {
+              const id = runIdOf(ctx)
+              const known = active.get(id)
               // A later step starts with the files the step before it left,
               // so it reuses that snapshot. The model call changes no file.
-              if (iteration > 0 && stepStart !== undefined) return
-              stepStart = await guard(repo.track)
-              if (iteration > 0) return
-              written.clear()
-              turnSteps = stepStart === undefined ? undefined : []
+              if (iteration > 0 && known) {
+                known.start ??= await guard(repo.track)
+                return
+              }
+              const run: RunSteps = {
+                start: await guard(repo.track),
+                written: new Set(),
+                steps: [],
+              }
+              active.set(id, run)
+              last = run.start === undefined ? undefined : run
               redo = undefined
             },
             onToolPhaseComplete: async (ctx, { toolCalls }) => {
-              const from = stepStart
-              const mine = new Set(written)
-              written.clear()
+              const run = active.get(runIdOf(ctx))
+              if (!run) return
+              const from = run.start
+              const mine = new Set(run.written)
+              run.written.clear()
               if (from === undefined) return
               // ponytail: a step with a tool like `bash` keeps every file
               // that changed in it, also a change of another agent then.
               const keepsAll = !toolCalls.every(reportsChanges)
               const step = await guard(async () => {
                 const to = await repo.track()
-                const hasNoChange = to === from || (!keepsAll && mine.size === 0)
+                const hasNoChange =
+                  to === from || (!keepsAll && mine.size === 0)
                 const changed = hasNoChange ? [] : await repo.changed(from, to)
                 // Git skips some files, like `.env`, so the step keeps the
                 // files that git saw change and the tools wrote.
@@ -573,9 +611,9 @@ export function snapshots(options: SnapshotsOptions) {
                 return { from, to, files, toolCallIds }
               })
               // A failed snapshot leaves no start: the next step takes one.
-              stepStart = step?.to
+              run.start = step?.to
               if (!step || step.files.length === 0) return
-              turnSteps?.push(step)
+              run.steps.push(step)
               const log = getLogRecords(ctx, { optional: true })
               if (log) await log.append([{ type: STEP_RECORD, ...step }])
               else {
@@ -583,6 +621,16 @@ export function snapshots(options: SnapshotsOptions) {
                   [...saved, step].slice(-MAX_STEPS),
                 )
               }
+            },
+            // `last` keeps the run for `/undo` after it ends.
+            onFinish: (ctx) => {
+              active.delete(runIdOf(ctx))
+            },
+            onAbort: (ctx) => {
+              active.delete(runIdOf(ctx))
+            },
+            onError: (ctx) => {
+              active.delete(runIdOf(ctx))
             },
           },
         ],
@@ -601,30 +649,25 @@ export function snapshots(options: SnapshotsOptions) {
               const start = messages.findLastIndex(
                 (message) => message.role === 'user',
               )
-              // When the session is idle, the step start is the tree at the
-              // end of the last turn.
-              const turnEnd = stepStart
-              if (
-                turnSteps === undefined ||
-                turnEnd === undefined ||
-                start === -1
-              ) {
+              // When the run is done, its step start is the tree at its end.
+              const turnEnd = last?.start
+              if (!last || turnEnd === undefined || start === -1) {
                 return 'Nothing to undo.'
               }
-              // Only the files that the steps of the turn changed go back,
+              // Only the files that the steps of the run changed go back,
               // each to its state before the first step that changed it. A
-              // later edit of the user in one of them is lost. Other files
-              // stay as they are.
-              const count = await restoreTurn(turnSteps, (tree) => ({
+              // later edit in one of them is lost. Other files, also the
+              // files of other runs and sessions, stay as they are.
+              const count = await restoreTurn(last.steps, (tree) => ({
                 tree,
                 from: turnEnd,
               }))
               redo = {
                 end: turnEnd,
-                steps: turnSteps,
+                steps: last.steps,
                 messages: messages.slice(start),
               }
-              turnSteps = undefined
+              last = undefined
               await session.replaceTranscript(messages.slice(0, start))
               return `Undid the last turn. Files restored: ${count}.`
             },
@@ -637,8 +680,8 @@ export function snapshots(options: SnapshotsOptions) {
               if (!redo) return 'Nothing to redo.'
               const { end, steps: undone, messages } = redo
               await restoreTurn(undone, (from) => ({ tree: end, from }))
-              // The same turn can be undone again. `stepStart` is still `end`.
-              turnSteps = undone
+              // The same turn can be undone again.
+              last = { start: end, written: new Set(), steps: undone }
               redo = undefined
               const transcript = await session.transcript()
               await session.replaceTranscript([...transcript, ...messages])

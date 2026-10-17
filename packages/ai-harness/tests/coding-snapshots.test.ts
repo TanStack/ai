@@ -14,10 +14,7 @@ import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, logIdOf } from '../src'
 import { hostBackend } from '../src/first-party/coding/backend'
 import { quoteArg } from '../src/first-party/coding/search'
-import {
-  purgeSnapshots,
-  snapshots,
-} from '../src/first-party/coding/snapshots'
+import { purgeSnapshots, snapshots } from '../src/first-party/coding/snapshots'
 import { workspaceTools } from '../src/first-party/coding/workspace'
 import {
   after,
@@ -154,6 +151,54 @@ function fakeBackend(
     exec,
   }
   return backend
+}
+
+/**
+ * A backend with a fake git. Each save of the files gives a new tree id, and
+ * each diff gives `a.txt`. The first `locked` saves fail, like git when
+ * another git process holds the index lock.
+ */
+function fakeGit({ locked = 0 } = {}) {
+  let trees = 0
+  let failures = locked
+  return fakeBackend(async (command) => {
+    if (!/write-tree/.test(command)) {
+      const isDiff = / diff --name-only /.test(command)
+      return { exitCode: 0, stdout: isDiff ? 'a.txt\0' : '', stderr: '' }
+    }
+    if (failures > 0) {
+      failures -= 1
+      return {
+        exitCode: 128,
+        stdout: '',
+        stderr: "fatal: Unable to create '/data/index.lock': File exists.",
+      }
+    }
+    trees += 1
+    return {
+      exitCode: 0,
+      stdout: `${trees.toString(16).padStart(40, '0')}\n`,
+      stderr: '',
+    }
+  })
+}
+
+/** The one shadow repository in the data folder. */
+async function onlyRepo() {
+  const [repo, ...others] = await readdir(dataDir)
+  if (repo === undefined || others.length > 0) {
+    throw new Error('The data folder must have one repository.')
+  }
+  return join(dataDir, repo)
+}
+
+/** The paths of the files in the tree `tree` of the repository `repo`. */
+async function filesOfTree(repo: string, tree: string) {
+  const quote = (value: string) => quoteArg(value, process.platform)
+  const result = await hostBackend.exec(
+    `git --git-dir ${quote(repo)} ls-tree -r --name-only ${tree}`,
+  )
+  return result.stdout.split('\n').filter((line) => line !== '')
 }
 
 describe.skipIf(!hasGit)('snapshots', () => {
@@ -410,6 +455,99 @@ describe.skipIf(!hasGit)('snapshots', () => {
     expect(savedSteps(session)).toMatchObject([{ files: ['b.txt'] }])
     expect(await filesUnder(projectGit)).toEqual(before)
     await host.close()
+  })
+})
+
+describe.skipIf(!hasGit)('snapshots of many runs', () => {
+  it("/undo of run A keeps the change that run B made during A's step", async () => {
+    await put('a.txt', 'one')
+    // B runs on the same thread and root, so both use one shadow repository.
+    const runB = await open({
+      workspace: true,
+      replies: [
+        () => toolCall('write_file', { path: 'b.txt', content: 'B' }, 'b-1'),
+        () => text('B done.'),
+      ],
+    })
+    const runA = await open({
+      workspace: true,
+      replies: [
+        // B writes its file while the step of A runs.
+        async function* () {
+          await runB.session.send('Write b.txt')
+          yield* toolCall('write_file', { path: 'a.txt', content: 'A' }, 'a-1')
+        },
+        () => text('A done.'),
+      ],
+    })
+
+    await runA.session.send('Write a.txt')
+    expect(await read('b.txt')).toBe('B')
+    expect(savedSteps(runA.session)).toMatchObject([{ files: ['a.txt'] }])
+    expect(await runA.session.command({ name: 'undo' })).toBe(
+      'Undid the last turn. Files restored: 1.',
+    )
+
+    expect(await read('a.txt')).toBe('one')
+    expect(await read('b.txt')).toBe('B')
+    await runA.host.close()
+    await runB.host.close()
+  })
+
+  it('gives two tenants on one root and one thread id two repositories', async () => {
+    const first = await open({
+      replies: [() => text('Hi.')],
+      principal: { id: 'user', tenantId: 'acme' },
+    })
+    const second = await open({
+      replies: [() => text('Hi.')],
+      principal: { id: 'user', tenantId: 'globex' },
+    })
+
+    expect(await readdir(dataDir)).toHaveLength(2)
+    await first.host.close()
+    await second.host.close()
+  })
+
+  it('never stores a .env file', async () => {
+    await put('a.txt', 'one')
+    await put('.env', 'SECRET=1')
+    await put('.env.local', 'SECRET=2')
+    const { host, session } = await open({
+      replies: editTurn('Done.'),
+      changes: [
+        async () => {
+          await put('a.txt', 'two')
+          await put('.env', 'SECRET=3')
+        },
+      ],
+    })
+
+    await session.send('Edit the files')
+
+    const [step] = savedSteps(session)
+    expect(step.files).toEqual(['a.txt'])
+    const repo = await onlyRepo()
+    expect(await filesOfTree(repo, step.from)).toEqual(['a.txt'])
+    expect(await filesOfTree(repo, step.to)).toEqual(['a.txt'])
+    await host.close()
+  })
+
+  it('purgeSnapshots removes the repository of that thread only', async () => {
+    const first = await open({ replies: [() => text('Hi.')] })
+    const second = await open({ replies: [() => text('Hi.')], threadId: 't2' })
+    await first.host.close()
+    await second.host.close()
+    expect(await readdir(dataDir)).toHaveLength(2)
+
+    await purgeSnapshots({ root, dataDir }, { threadId: THREAD })
+    expect(await readdir(dataDir)).toHaveLength(1)
+    await purgeSnapshots({ root, dataDir }, { threadId: 't2' })
+    expect(await readdir(dataDir)).toEqual([])
+    // A thread with no repository: nothing to remove.
+    await expect(
+      purgeSnapshots({ root, dataDir }, { threadId: THREAD }),
+    ).resolves.toBeUndefined()
   })
 })
 
@@ -748,6 +886,72 @@ describe('snapshots git safety', () => {
       )
       expect(run.env).toMatchObject({ GIT_CONFIG_NOSYSTEM: '1' })
     }
+    await host.close()
+  })
+})
+
+describe('snapshots with a fake git', () => {
+  it('keeps the last 500 steps in the plugin state', async () => {
+    // 11 turns of 46 steps: 506 steps. A turn has at most 50 model calls.
+    let callId = 0
+    const replies = Array.from(
+      { length: 11 },
+      (): Array<Reply> => [
+        ...Array.from({ length: 46 }, (): Reply => {
+          const id = `call-${callId++}`
+          return () => toolCall('change', {}, id)
+        }),
+        () => text('Done.'),
+      ],
+    ).flat()
+    const { host, session } = await open({ replies, backend: fakeGit() })
+
+    for (let turn = 0; turn < 11; turn += 1) await session.send('Edit')
+
+    const steps = savedSteps(session)
+    expect(steps).toHaveLength(500)
+    expect(steps[0]).toMatchObject({ toolCallIds: ['call-6'] })
+    expect(steps[499]).toMatchObject({ toolCallIds: ['call-505'] })
+    await host.close()
+  }, 60_000)
+
+  it('tries again when another git process holds the index lock', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { host, session } = await open({
+      replies: editTurn('Done.'),
+      backend: fakeGit({ locked: 2 }),
+    })
+
+    await session.send('Edit a.txt')
+
+    expect(savedSteps(session)).toMatchObject([{ files: ['a.txt'] }])
+    // Only the snapshot warnings: the host can warn about a handle of an
+    // earlier test that the garbage collector found.
+    const snapshotWarnings = warn.mock.calls.filter(([message]) =>
+      String(message).startsWith('snapshots:'),
+    )
+    expect(snapshotWarnings).toEqual([])
+    await host.close()
+  })
+
+  it('reports an index lock that stays, and the turn still runs', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { host, session } = await open({
+      replies: [() => text('Hi.')],
+      backend: fakeGit({ locked: Infinity }),
+    })
+
+    await session.send('Hello')
+
+    expect(await session.transcript()).toMatchObject([
+      { role: 'user', content: 'Hello' },
+      { role: 'assistant', content: 'Hi.' },
+    ])
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /^snapshots: another git process holds the index lock of .+: fatal: Unable to create/,
+      ),
+    )
     await host.close()
   })
 })

@@ -171,17 +171,20 @@ describe('the unchanged check', () => {
         ].join('\n'),
       },
     ],
-  ])('%s fails for a file that changed on disk after the read', async (name, args) => {
-    await put('a.txt', 'one\n')
-    const call = openSession()
-    await call('read_file', { path: 'a.txt' })
-    await put('a.txt', 'changed on disk\n')
+  ])(
+    '%s fails for a file that changed on disk after the read',
+    async (name, args) => {
+      await put('a.txt', 'one\n')
+      const call = openSession()
+      await call('read_file', { path: 'a.txt' })
+      await put('a.txt', 'changed on disk\n')
 
-    await expect(call(name, args)).rejects.toThrow(
-      'a.txt changed since it was read. Read it again before you edit it.',
-    )
-    expect(await read('a.txt')).toBe('changed on disk\n')
-  })
+      await expect(call(name, args)).rejects.toThrow(
+        'a.txt changed since it was read. Read it again before you edit it.',
+      )
+      expect(await read('a.txt')).toBe('changed on disk\n')
+    },
+  )
 
   it("keeps the session's own writes: a second edit after the first works", async () => {
     await put('a.txt', 'one two\n')
