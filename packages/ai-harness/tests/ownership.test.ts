@@ -16,6 +16,8 @@ import {
   ownershipExpired,
   text,
   toolCall,
+  untilAborted,
+  wrapLogStore,
 } from './helpers'
 import type { AnyTool } from '@tanstack/ai'
 import type { LogStore } from '@tanstack/ai-persistence'
@@ -42,15 +44,15 @@ async function openOn(
     persistence: { stores: { log } },
     ...(options.ownership ? { ownership: options.ownership } : {}),
   })
-  const session = await host.open(
-    defineHarness({
-      name: 'test/ownership',
-      adapter,
-      tools: options.tools ?? [],
-    }),
-    { threadId: options.threadId ?? THREAD },
-  )
-  return { host, session, calls }
+  const harness = defineHarness({
+    name: 'test/ownership',
+    adapter,
+    tools: options.tools ?? [],
+  })
+  const session = await host.open(harness, {
+    threadId: options.threadId ?? THREAD,
+  })
+  return { host, session, calls, harness }
 }
 
 /** Two hosts on one database: two log stores on one memory backend. */
@@ -172,6 +174,82 @@ describe('ownership of a log by two hosts', () => {
     expect(a.session.snapshot().status).toBe('idle')
     await a.host.close()
     await b.host.close()
+  })
+})
+
+describe('a host that lost the log and takes it back', () => {
+  it('runs again the turn that it stopped, when the next owner stopped too', async () => {
+    const log = memoryLogStore()
+    const a = await openOn(log, [untilAborted(), () => text('A again')], {
+      ownership: CRASHING_OWNERSHIP,
+    })
+    const turn = a.session.send('go', { inputId: 'in-1' })
+    await vi.waitFor(() => expect(a.calls).toHaveLength(1))
+    await ownershipExpired()
+
+    // B takes the log, writes once, and crashes before the turn settles.
+    const owned = await log.acquire({
+      logId: LOG,
+      harness: 'test/ownership',
+      ownerId: 'host-b',
+      ttlMs: CRASHING_OWNERSHIP.ttlMs,
+    })
+    if (owned === null) throw new Error('B did not get the log.')
+    const head = (await log.read({ logId: LOG })).at(-1)?.seq ?? 0
+    await log.append({
+      logId: LOG,
+      seq: head + 1,
+      epoch: owned.epoch,
+      records: [{ type: 'app.from-b' }],
+    })
+    await expect(Promise.resolve(turn)).rejects.toThrow(
+      'Another host took this thread over',
+    )
+    await ownershipExpired()
+
+    // The worker of A takes the log, with the session of A still open.
+    await a.host.resumePending({ harnesses: [a.harness] })
+    await vi.waitFor(() => expect(a.calls).toHaveLength(2))
+    expect(await a.session.settled('in-1')).toMatchObject({
+      outcome: 'completed',
+    })
+    await a.host.close()
+  })
+
+  it('keeps writing when its own worker takes the log after a store outage', async () => {
+    const inner = memoryLogStore()
+    let isDown = false
+    let renewals = 0
+    const log = wrapLogStore(inner, {
+      renew: async (input) => {
+        if (isDown) throw new Error('The store is down.')
+        renewals += 1
+        return inner.renew(input)
+      },
+    })
+    const release = gate()
+    const a = await openOn(log, [after(release.opened, 'done')], {
+      ownership: { ttlMs: 200, renewMs: 50 },
+    })
+    const turn = a.session.send('go', { inputId: 'in-1' })
+    await vi.waitFor(() => expect(a.calls).toHaveLength(1))
+
+    // No renewal lands for longer than the ownership lasts.
+    isDown = true
+    await ownershipExpired()
+    // The worker of the same host takes the expired log.
+    await a.host.resumePending({ harnesses: [a.harness] })
+    isDown = false
+    renewals = 0
+    await vi.waitFor(() => expect(renewals).toBeGreaterThan(0))
+
+    release.open()
+    expect(await turn).toEqual({ text: 'done', media: [] })
+    // The idle session gives the log back.
+    await vi.waitFor(async () =>
+      expect(await canOtherHostTake(log, LOG)).toBe(true),
+    )
+    await a.host.close()
   })
 })
 

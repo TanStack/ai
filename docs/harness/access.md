@@ -102,6 +102,8 @@ Each action covers these calls:
 | `transfer` | Give the session to a new owner. |
 
 - For `answer` and `cancel`, `authorize` also gets `run`: the `runId` and the `principalId` of the user who started that run.
+- For `cancelSchedule`, `run` is the schedule: the `runId` is the schedule id, and the `principalId` is the user who made it.
+- `host.submit` and `schedule` check an answer or a cancel when you send it, with `run` from the log. A run that the log does not have is refused with `unknown_run`: `submit` returns a `rejected` receipt, and `schedule` throws `InputRejectedError`.
 - A handle checks `read` once, when it opens. Each action that changes the session asks `authorize` again.
 
 ## What the host checks for you
