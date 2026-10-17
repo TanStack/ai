@@ -1910,12 +1910,13 @@ export function runPersistenceConformance(
     })
 
     // Expiry uses real time, so that every backend can run these cases: a
-    // short ttl or wake is due after `waitPastShort()`.
+    // short ttl or wake is due after `waitPastShort()`. The window is long
+    // enough for a store with network round trips to check "not due yet".
     describe('log ownership', () => {
       const LIVE_MS = 10_000
-      const SHORT_MS = 50
+      const SHORT_MS = 400
       const waitPastShort = () =>
-        new Promise((resolve) => setTimeout(resolve, 120))
+        new Promise((resolve) => setTimeout(resolve, 500))
       const claimOf = (logId: string, ownerId: string) => ({
         logId,
         harness: 'h',
