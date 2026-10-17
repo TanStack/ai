@@ -347,6 +347,32 @@ describe('media bytes', () => {
     await host.close()
   })
 
+  it('sends at most 8 MB for a Range with no end', async () => {
+    const { host, call, upload } = setup()
+    const cap = 8 * 1024 * 1024
+    const record = await upload('user-1-a', 'x'.repeat(cap + 10))
+
+    const capped = await call(`media?threadId=user-1-a&id=${record.id}`, {
+      headers: { range: 'bytes=2-' },
+    })
+    expect(capped.status).toBe(206)
+    expect(capped.headers.get('content-range')).toBe(
+      `bytes 2-${cap + 1}/${cap + 10}`,
+    )
+    expect(capped.headers.get('content-length')).toBe(String(cap))
+    expect((await capped.arrayBuffer()).byteLength).toBe(cap)
+
+    // The rest is under the cap, so it comes whole.
+    const rest = await call(`media?threadId=user-1-a&id=${record.id}`, {
+      headers: { range: `bytes=${cap + 2}-` },
+    })
+    expect(rest.headers.get('content-range')).toBe(
+      `bytes ${cap + 2}-${cap + 9}/${cap + 10}`,
+    )
+    expect(await rest.text()).toBe('xxxxxxxx')
+    await host.close()
+  })
+
   it('answers a Range past the end with 416', async () => {
     const { host, call, upload } = setup()
     const record = await upload('user-1-a')

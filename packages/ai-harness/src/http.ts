@@ -25,7 +25,7 @@ import {
 import { base64url, isRecord } from './utils'
 import { SessionMetadataError } from './session-entry'
 import { SessionImpl } from './session/harness-session'
-import { liveSessionOf } from './session/observed-session'
+import { liveSessionOf, mediaStoreOf } from './session/observed-session'
 import type {
   ModelMessage,
   RunStore,
@@ -82,6 +82,9 @@ export interface HarnessHandlerOptions<P extends Principal = Principal> {
 const SIGNED_URL_TTL_MS = 60 * 60 * 1000
 
 const HMAC = { name: 'HMAC', hash: 'SHA-256' }
+
+/** The most bytes one answer to an open-ended `Range` (`bytes=N-`) sends. */
+const OPEN_RANGE_MAX_BYTES = 8 * 1024 * 1024
 
 // Every media answer: a browser must not guess another type, and a `text/*`
 // document must not run as a page of this origin.
@@ -288,22 +291,37 @@ async function mediaResponse(
 ) {
   const record = await view.getMedia(id)
   if (!record) return json({ error: 'not found' }, 404)
-  const range = parseRangeHeader(request.headers.get('Range'), record.size)
-  if (range === 'unsatisfiable') {
+  const asked = parseRangeHeader(request.headers.get('Range'), record.size)
+  if (asked === 'unsatisfiable') {
     return new Response(null, {
       status: 416,
       headers: { ...MEDIA_HEADERS, 'Content-Range': `bytes */${record.size}` },
     })
   }
-  const bytes = await view.loadMedia({ id, range })
+  // A range with no end (`bytes=N-`) gets at most OPEN_RANGE_MAX_BYTES. A
+  // 206 may send less than was asked: the client asks again for the rest.
+  const range =
+    asked && asked.length === undefined
+      ? {
+          offset: asked.offset,
+          length: Math.min(OPEN_RANGE_MAX_BYTES, record.size - asked.offset),
+        }
+      : asked
+  const length = range
+    ? resolveBlobRange(record.size, range).length
+    : record.size
+  // A stream, so a big file is not held in memory.
+  const body =
+    (await mediaStoreOf(view)?.open(id, range)) ??
+    (await view.loadMedia({ id, range }))
   const headers = {
     ...MEDIA_HEADERS,
     'Content-Type': record.mimeType,
-    'Content-Length': String(bytes.byteLength),
+    'Content-Length': String(length),
   }
-  if (!range) return new Response(bytes, { headers })
-  const { offset, length } = resolveBlobRange(record.size, range)
-  return new Response(bytes, {
+  if (!range) return new Response(body, { headers })
+  const { offset } = range
+  return new Response(body, {
     status: 206,
     headers: {
       ...headers,

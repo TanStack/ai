@@ -217,6 +217,55 @@ describe('createMediaStore', () => {
     expect(decoder.decode(await store.load(record.id, range))).toBe(expected)
   })
 
+  it.each([[undefined], [{ offset: 6 }], [{ offset: 0, length: 5 }]])(
+    'opens the same bytes as a stream for the range %j',
+    async (range) => {
+      const { store } = setup()
+      const record = await store.put('hello world', {
+        mimeType: 'text/plain',
+        name: 'a.txt',
+      })
+      const stream = await store.open(record.id, range)
+      expect(stream).toBeInstanceOf(ReadableStream)
+      expect(new Uint8Array(await new Response(stream).arrayBuffer())).toEqual(
+        await store.load(record.id, range),
+      )
+    },
+  )
+
+  it('keeps the base64 of a file, and drops the oldest over the cap', async () => {
+    const persistence = memoryPersistence()
+    const blobGet = vi.spyOn(persistence.stores.blobs, 'get')
+    // Each 5-byte file is 8 characters of base64: two fit in 16.
+    const store = createMediaStore({
+      persistence,
+      threadId: 't1',
+      encodedBytes: 16,
+    })
+    const put = (body: string) =>
+      store.put(body, { mimeType: 'image/png', name: `${body}.png` })
+    const [a, b, c] = [
+      await put('aaaaa'),
+      await put('bbbbb'),
+      await put('ccccc'),
+    ]
+    const reads = async (id: string) => {
+      const before = blobGet.mock.calls.length
+      await store.dataUrl(id)
+      return blobGet.mock.calls.length - before
+    }
+
+    expect(await reads(a.id)).toBe(1)
+    expect(await reads(a.id)).toBe(0)
+    expect(await reads(b.id)).toBe(1)
+    // `c` pushes out `a`, the oldest.
+    expect(await reads(c.id)).toBe(1)
+    expect(await reads(b.id)).toBe(0)
+    expect(await reads(c.id)).toBe(0)
+    expect(await reads(a.id)).toBe(1)
+    expect(await store.dataUrl(a.id)).toBe('data:image/png;base64,YWFhYWE=')
+  })
+
   it('makes a data URL up to 1 MB only', async () => {
     const { store } = setup()
     const small = await store.put(encoder.encode('hello'), {
@@ -376,6 +425,32 @@ describe('mediaMiddleware', () => {
         },
       },
     ])
+  })
+
+  it('does not load or encode the file again at the next turn', async () => {
+    const { persistence, store } = setup()
+    const record = await store.put(encoder.encode('hello'), {
+      mimeType: 'image/png',
+      name: 'cat.png',
+    })
+    const blobGet = vi.spyOn(persistence.stores.blobs, 'get')
+    // A harness makes a new middleware at each turn, on the same store.
+    const first = await runTurn(
+      persistence,
+      mediaMiddleware({ store }),
+      userMessage(mediaPart(record)),
+    )
+    const second = await runTurn(
+      persistence,
+      mediaMiddleware({ store }),
+      userMessage(mediaPart(record)),
+    )
+    expect(blobGet).toHaveBeenCalledTimes(1)
+    expect(second.sent).toEqual(first.sent)
+    expect(second.sent).toContainEqual({
+      type: 'image',
+      source: { type: 'data', value: 'aGVsbG8=', mimeType: 'image/png' },
+    })
   })
 
   it.each([

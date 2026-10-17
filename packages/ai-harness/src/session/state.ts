@@ -236,7 +236,8 @@ export abstract class SessionState<
           id,
           record &&
             (await this.putMedia({
-              body: await source.loadMedia({ id }),
+              // A stream, so the copy does not hold the whole file in memory.
+              body: await source.mediaStore.open(id),
               mimeType: record.mimeType,
               name: record.name,
             })),

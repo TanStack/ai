@@ -7,7 +7,7 @@ import { INTERRUPTED, USAGE, isInterruptedTurn } from './helpers'
 import type { ModelMessage } from '@tanstack/ai'
 import type { BlobRange, SessionIndexEntry } from '@tanstack/ai-persistence'
 import type { LogReader, ReduceOptions } from '../log'
-import type { MediaPersistence } from '../media'
+import type { MediaPersistence, MediaStore } from '../media'
 import type { SessionUsage } from '../usage'
 import type {
   AnyHarness,
@@ -140,6 +140,14 @@ const liveSessions = new WeakMap<
  */
 export function liveSessionOf(view: ObservedSession) {
   return liveSessions.get(view)?.()
+}
+
+/** The media store of each view, for the HTTP handler. Not public API. */
+const mediaStores = new WeakMap<object, MediaStore>()
+
+/** @internal The media store that `view` reads, so a route can stream bytes. */
+export function mediaStoreOf(view: ObservedSession) {
+  return mediaStores.get(view)
 }
 
 /** The view of `host.observe`. See {@link ObservedSession}. */
@@ -320,5 +328,6 @@ export function observedSession<THarness extends AnyHarness>(
     },
   }
   liveSessions.set(view, live)
+  mediaStores.set(view, mediaStore)
   return view
 }
