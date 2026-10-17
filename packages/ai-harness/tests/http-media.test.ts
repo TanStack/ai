@@ -155,6 +155,9 @@ describe('media upload and signed URLs', () => {
     expect(() =>
       createHarnessHandler({ ...options, media: { secret: 'shared' } }),
     ).not.toThrow()
+    expect(() =>
+      createHarnessHandler({ ...options, media: { secret: '' } }),
+    ).toThrow(/not empty/)
   })
 
   it('stores an upload, signs its URL for 1 hour, and serves the signed URL without auth', async () => {
