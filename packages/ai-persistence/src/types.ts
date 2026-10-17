@@ -644,7 +644,7 @@ export interface BlobStore {
 // Opt-in stores for a host that keeps long-lived sessions: the inputs it
 // accepted, an append-only log, turn leases, work claims,
 // and a list of sessions. `withPersistence` writes only `sessions`, an entry
-// for each subagent child.
+// for each subagent child, in the tenant of its `tenantId` option.
 
 /** Lifecycle of one inbox entry. */
 export type InboxStatus = 'pending' | 'applied' | 'rejected'
@@ -1119,6 +1119,25 @@ export function defineWorkClaimStore(store: WorkClaimStore): WorkClaimStore {
 }
 
 /**
+ * A user who can open a session, and the role of that user in it. The
+ * `owner` is the user who opened the session. The host decides what a
+ * `member` and a `viewer` can do.
+ */
+export interface SessionMember {
+  userId: string
+  role: 'owner' | 'member' | 'viewer'
+}
+
+/**
+ * The key of one session index entry. Without `tenantId`, the key is in the
+ * default tenant.
+ */
+export interface SessionIndexKey {
+  tenantId?: string
+  threadId: string
+}
+
+/**
  * One entry of the session index: what a list of sessions shows for one
  * thread. The index holds no messages. The thread data stays in the stores
  * that hold it.
@@ -1128,7 +1147,24 @@ export function defineWorkClaimStore(store: WorkClaimStore): WorkClaimStore {
  *   sorts by it.
  */
 export interface SessionIndexEntry<TMetadata = Record<string, unknown>> {
+  /**
+   * The tenant of the thread. Without it, the entry is in the default tenant.
+   * The tenant and `threadId` together are the key, so one thread id in two
+   * tenants is two entries.
+   */
+  tenantId?: string
   threadId: string
+  /**
+   * The user id of the owner. Without it, the thread has no owner: a host
+   * without access rules opened it without a user.
+   */
+  ownerId?: string
+  /**
+   * The users who can open the thread. The owner is in it with the role
+   * `owner`. Empty when the thread has no owner. A subagent child keeps it
+   * empty: access to a child goes through its top-level thread.
+   */
+  members: Array<SessionMember>
   /** The name of the setup that runs the thread. */
   harness?: string
   title?: string
@@ -1142,8 +1178,6 @@ export interface SessionIndexEntry<TMetadata = Record<string, unknown>> {
   createdAt: number
   updatedAt: number
   pinned?: boolean
-  /** Who owns the thread, from the host's authorization. */
-  principal?: { id: string; tenantId?: string }
   /** Token totals of the thread. */
   usage?: {
     /** Model calls. */
@@ -1164,6 +1198,16 @@ export interface SessionIndexEntry<TMetadata = Record<string, unknown>> {
 
 /** Options for {@link SessionIndexStore.list}. */
 export interface SessionIndexListOptions {
+  /**
+   * The tenant to list. Without it, the list has only the default tenant. A
+   * list never has the entries of another tenant.
+   */
+  tenantId?: string
+  /**
+   * Only the entries whose `members` have this user id, with any role. An
+   * entry with an `ownerId` and no `members` (a subagent child) never matches.
+   */
+  memberId?: string
   /** The most entries in one page. Without it, the page has all entries. */
   limit?: number
   /** The `cursor` of the previous page. */
@@ -1173,11 +1217,6 @@ export interface SessionIndexListOptions {
    * entries with no parent (the top-level sessions).
    */
   parentThreadId?: string | null
-  /**
-   * Only the entries owned by this principal id. With `tenantId`, the
-   * tenant must match too. An entry without a principal never matches.
-   */
-  principal?: { id: string; tenantId?: string }
   /**
    * Only the entries whose `title` contains this text, without case. An entry
    * without a title never matches.
@@ -1204,60 +1243,65 @@ export interface SessionIndexPage {
   truncated?: boolean
 }
 
-/** Durable index of sessions, one entry per thread. */
+/**
+ * Durable index of sessions, one entry per tenant and thread. The key is
+ * `(tenantId ?? '', threadId)`: a key without `tenantId` is in the default
+ * tenant, and one thread id in two tenants is two entries.
+ */
 export interface SessionIndexStore {
+  /** The entry for `key`, or `undefined`. */
+  get: (key: SessionIndexKey) => Promise<SessionIndexEntry | undefined>
   /**
-   * Write the entry for `entry.threadId`.
-   *
-   * INVARIANT (full replace): a second upsert for the same thread replaces
-   * the whole entry. A field that the new entry does not have is gone. To
-   * change one field, `get` the entry and upsert a changed copy.
+   * The entry for `key` with its revision, or `undefined` when it is absent.
+   * A write that changes the entry gives it a new revision. A revision may
+   * name the content (a content-hash ETag, as in S3 or Netlify Blobs), so the
+   * same entry written again, also after a `delete`, can get the same
+   * revision back.
    */
-  upsert: (entry: SessionIndexEntry) => Promise<void>
-  /** The entry for `threadId`, or `undefined`. */
-  get: (threadId: string) => Promise<SessionIndexEntry | undefined>
-  /**
-   * Optional. The entry with a revision, or `undefined` when it is absent.
-   * Pair it with `upsertIf` for compare-and-set writes: implement both or
-   * neither. A write that changes the entry gives it a new revision. A
-   * revision may name the content (a content-hash ETag, as in S3 or Netlify
-   * Blobs), so the same entry written again, also after a `delete`, can get
-   * the same revision back.
-   */
-  getVersioned?: (
-    threadId: string,
+  getVersioned: (
+    key: SessionIndexKey,
   ) => Promise<{ entry: SessionIndexEntry; revision: string } | undefined>
   /**
-   * Optional. Write `entry` only when the current revision of its thread is
-   * `expectedRevision` (`null` means "only when absent"). Returns the new
-   * revision, or `{ ok: false, reason: 'conflict' }` when someone else wrote
-   * first. With both methods, hosts on several machines do not lose each
-   * other's changes to one entry.
+   * Write the entry for the tenant and thread of `entry`.
+   *
+   * INVARIANT (full replace): a second upsert for the same key replaces the
+   * whole entry. A field that the new entry does not have is gone. To change
+   * one field, read the entry and write a changed copy with `upsertIf`.
    */
-  upsertIf?: (write: {
+  upsert: (entry: SessionIndexEntry) => Promise<void>
+  /**
+   * Write `entry` only when the current revision of its key is `revision`
+   * (`null` means "only when absent"). Returns the new revision, or
+   * `{ ok: false, reason: 'conflict' }` when someone else wrote first. With
+   * `getVersioned`, hosts on several machines do not lose each other's
+   * changes to one entry. A full replace, the same as `upsert`.
+   */
+  upsertIf: (input: {
     entry: SessionIndexEntry
-    expectedRevision: string | null
+    revision: string | null
   }) => Promise<
     { ok: true; revision: string } | { ok: false; reason: 'conflict' }
   >
   /**
-   * The entries that match the filters, newest `updatedAt` first. Entries with
-   * the same `updatedAt` are in `threadId` order. Pinned entries get no
-   * special place. All filters must match.
+   * The entries of one tenant that match the filters, newest `updatedAt`
+   * first. Entries with the same `updatedAt` are in `threadId` order. Pinned
+   * entries get no special place. All filters must match.
    *
    * CURSOR SEMANTICS: when `limit` is given and more entries match, the page
-   * is `truncated: true` with a `cursor`. Pass that `cursor` back to get the
-   * entries that follow the last entry of the page. An entry that changes
-   * between two pages can move in the order.
+   * is `truncated: true` with a `cursor`. Pass that `cursor` back, with the
+   * same filters, to get the entries that follow the last entry of the page.
+   * An entry that changes between two pages can move in the order.
    */
   list: (options?: SessionIndexListOptions) => Promise<SessionIndexPage>
   /**
-   * Remove the index entry for `threadId`. A no-op for an unknown id.
+   * Remove the entry for `key`. A hard delete: after it, `get` and
+   * `getVersioned` return `undefined`, and `upsertIf` with revision `null`
+   * writes a new entry. A no-op for an unknown key.
    *
    * This removes the entry only. The messages, the log, and the other data of
    * the thread stay. The stores that hold that data remove it.
    */
-  delete: (threadId: string) => Promise<void>
+  delete: (key: SessionIndexKey) => Promise<void>
 }
 
 /** Type a {@link SessionIndexStore} implementation inline. */

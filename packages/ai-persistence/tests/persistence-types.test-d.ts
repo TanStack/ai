@@ -151,6 +151,16 @@ expectTypeOf(memoryPersistence()).toEqualTypeOf<
     sessions: SessionIndexStore
   }>
 >()
+// The session index is keyed by tenant and thread, and compare-and-set is part
+// of the contract: a store without it is not a session index store.
+expectTypeOf<Parameters<SessionIndexStore['get']>[0]>().toEqualTypeOf<{
+  tenantId?: string
+  threadId: string
+}>()
+expectTypeOf<
+  Omit<SessionIndexStore, 'getVersioned' | 'upsertIf'>
+>().not.toExtend<SessionIndexStore>()
+
 const transcript: ChatTranscriptPersistence = messagesOnly
 void transcript
 declare const fullChat: ChatPersistence

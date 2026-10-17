@@ -2260,6 +2260,12 @@ export interface WithPersistenceOptions {
    * interval for its transcript writes, with or without `snapshotStreaming`.
    */
   snapshotIntervalMs?: number
+  /**
+   * The tenant of the thread, for `stores.sessions`. The middleware reads the
+   * parent entry of a subagent child from this tenant and writes the child
+   * entry in it. Without it, the default tenant.
+   */
+  tenantId?: string
 }
 
 /**
@@ -2334,6 +2340,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       ? { interrupts: persistence.stores.interrupts }
       : {}),
     ...(sessions ? { sessions } : {}),
+    ...(options.tenantId !== undefined ? { tenantId: options.tenantId } : {}),
   })
 
   function resetStreaming(state: RunStateEntry) {

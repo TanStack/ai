@@ -35,8 +35,8 @@ import type {
   RunRecord,
   RunStore,
   SessionIndexEntry,
+  SessionIndexKey,
   SessionIndexListOptions,
-  SessionIndexPage,
   SessionIndexStore,
   WorkClaimStore,
   LeaseStore,
@@ -1291,61 +1291,58 @@ function parseSessionCursor(cursor: string) {
 }
 
 class MemorySessionIndexStore implements SessionIndexStore {
-  private readonly entries = new Map<
+  // Nested maps, tenant then thread. A joined `${tenant}:${thread}` key would
+  // make `('a:b', 'c')` and `('a', 'b:c')` the same entry. A missing tenant is
+  // the default tenant, `''`.
+  private readonly tenants = new Map<
     string,
-    { entry: SessionIndexEntry; revision: string }
+    Map<string, { entry: SessionIndexEntry; revision: string }>
   >()
   // One counter for the whole store, so an entry that is deleted and written
   // again never gets a revision that an earlier reader saw.
   private lastRevision = 0
-  upsert(entry: SessionIndexEntry): Promise<void> {
+  get(key: SessionIndexKey) {
+    const stored = this.find(key)
+    return Promise.resolve(stored && structuredClone(stored.entry))
+  }
+  getVersioned(key: SessionIndexKey) {
+    const stored = this.find(key)
+    return Promise.resolve(stored && structuredClone(stored))
+  }
+  upsert(entry: SessionIndexEntry) {
     this.write(entry)
     return Promise.resolve()
   }
-  get(threadId: string): Promise<SessionIndexEntry | undefined> {
-    const stored = this.entries.get(threadId)
-    return Promise.resolve(stored && structuredClone(stored.entry))
-  }
-  getVersioned(
-    threadId: string,
-  ): Promise<{ entry: SessionIndexEntry; revision: string } | undefined> {
-    const stored = this.entries.get(threadId)
-    return Promise.resolve(stored && structuredClone(stored))
-  }
   upsertIf({
     entry,
-    expectedRevision,
+    revision,
   }: {
     entry: SessionIndexEntry
-    expectedRevision: string | null
-  }): Promise<
-    { ok: true; revision: string } | { ok: false; reason: 'conflict' }
-  > {
-    const current = this.entries.get(entry.threadId)?.revision ?? null
-    if (current !== expectedRevision) {
-      return Promise.resolve({ ok: false, reason: 'conflict' })
+    revision: string | null
+  }) {
+    const current = this.find(entry)?.revision ?? null
+    if (current !== revision) {
+      return Promise.resolve({ ok: false, reason: 'conflict' } as const)
     }
-    return Promise.resolve({ ok: true, revision: this.write(entry) })
+    return Promise.resolve({ ok: true, revision: this.write(entry) } as const)
   }
-  list(options: SessionIndexListOptions = {}): Promise<SessionIndexPage> {
-    const { limit, cursor, parentThreadId, principal, search, harness } =
-      options
+  list(options: SessionIndexListOptions = {}) {
+    const { limit, cursor, parentThreadId, memberId, search, harness } = options
     const after = cursor === undefined ? undefined : parseSessionCursor(cursor)
     const needle = search?.toLowerCase()
     const metadata = Object.entries(options.metadata ?? {})
-    const matching = [...this.entries.values()]
-      .map((stored) => stored.entry)
+    const tenant = this.tenants.get(options.tenantId ?? '')
+    const stored = [...(tenant?.values() ?? [])]
+    const matching = stored
+      .map(({ entry }) => entry)
       .filter((entry) => {
         // `null` asks for the entries with no parent.
         const isChild =
           parentThreadId === undefined ||
           (entry.parentThreadId ?? null) === parentThreadId
-        const isSameTenant =
-          principal?.tenantId === undefined ||
-          entry.principal?.tenantId === principal.tenantId
-        const isOwned =
-          principal === undefined ||
-          (entry.principal?.id === principal.id && isSameTenant)
+        const isMember =
+          memberId === undefined ||
+          entry.members.some((member) => member.userId === memberId)
         const isAfterCursor =
           after === undefined || bySessionOrder(after, entry) < 0
         const isFound =
@@ -1357,7 +1354,7 @@ class MemorySessionIndexStore implements SessionIndexStore {
         )
         return (
           isChild &&
-          isOwned &&
+          isMember &&
           isFound &&
           isHarness &&
           hasMetadata &&
@@ -1376,17 +1373,27 @@ class MemorySessionIndexStore implements SessionIndexStore {
         : {}),
     })
   }
-  delete(threadId: string): Promise<void> {
-    this.entries.delete(threadId)
+  delete(key: SessionIndexKey) {
+    const tenantId = key.tenantId ?? ''
+    const tenant = this.tenants.get(tenantId)
+    if (!tenant) return Promise.resolve()
+    tenant.delete(key.threadId)
+    if (tenant.size === 0) this.tenants.delete(tenantId)
     return Promise.resolve()
   }
+  private find(key: SessionIndexKey) {
+    return this.tenants.get(key.tenantId ?? '')?.get(key.threadId)
+  }
   // Copies in and out, so a caller never changes a stored entry.
-  private write(entry: SessionIndexEntry): string {
+  private write(entry: SessionIndexEntry) {
+    const tenantId = entry.tenantId ?? ''
+    let tenant = this.tenants.get(tenantId)
+    if (!tenant) {
+      tenant = new Map()
+      this.tenants.set(tenantId, tenant)
+    }
     const revision = String(++this.lastRevision)
-    this.entries.set(entry.threadId, {
-      entry: structuredClone(entry),
-      revision,
-    })
+    tenant.set(entry.threadId, { entry: structuredClone(entry), revision })
     return revision
   }
 }
