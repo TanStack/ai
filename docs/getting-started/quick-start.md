@@ -32,6 +32,8 @@ For a React + Start app with BYOK, open [Basic Chat](../tutorials/basic-chat).
 
 For an MCP server with a tool, a resource, and a prompt, open [Build an MCP Server](../tutorials/mcp-server).
 
+For a signed MCP webhook, open [Subscribe to MCP Events](../tutorials/mcp-events).
+
 For an image from a prompt, open [Generate Image](../tutorials/generate-image).
 
 For a table that fills as JSON streams, open [Streaming Structured Table](../tutorials/streaming-structured-table).

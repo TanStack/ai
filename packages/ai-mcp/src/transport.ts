@@ -53,6 +53,89 @@ export function isTransportInstance(input: TransportInput): input is Transport {
  * For stdio, build the Transport with `stdioTransport` and pass that instance.
  * Throws an Error when the config type is `stdio` or is not a known type.
  */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * SDK 2.1.0 does not send `Mcp-Name` for custom `events/*` methods.
+ * SEP-3415 requires it on Streamable HTTP for name-scoped events requests.
+ */
+async function mcpNameFromRpc(request: Request): Promise<string | undefined> {
+  if (request.method !== 'POST') return undefined
+  let json: unknown
+  try {
+    json = await request.clone().json()
+  } catch {
+    return undefined
+  }
+  if (!isRecord(json)) return undefined
+  if (
+    json.method !== 'events/subscribe' &&
+    json.method !== 'events/unsubscribe'
+  ) {
+    return undefined
+  }
+  if (!isRecord(json.params) || typeof json.params.name !== 'string') {
+    return undefined
+  }
+  return json.params.name
+}
+
+const MCP_NAME_SENTINEL_PREFIX = '=?base64?'
+const MCP_NAME_SENTINEL_SUFFIX = '?='
+
+/**
+ * Copy of SDK 2.1.0 `needsBase64` / `encodeMcpParamValue` (not exported).
+ * Printable ASCII with no leading/trailing whitespace is sent as-is.
+ * Anything else uses `=?base64?{b64-of-utf8}?=` so `Headers.set` stays ASCII.
+ */
+function needsBase64(value: string): boolean {
+  if (value.length === 0) return true
+  if (
+    value.startsWith(MCP_NAME_SENTINEL_PREFIX) &&
+    value.endsWith(MCP_NAME_SENTINEL_SUFFIX)
+  ) {
+    return true
+  }
+  if (value !== value.trim()) return true
+  for (let i = 0; i < value.length; i++) {
+    const code = value.codePointAt(i)
+    if (code === 9 || (code !== undefined && code >= 32 && code <= 126)) {
+      continue
+    }
+    return true
+  }
+  return false
+}
+
+function utf8ToBase64(value: string): string {
+  const bytes = new TextEncoder().encode(value)
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCodePoint(byte)
+  return btoa(binary)
+}
+
+function encodeMcpName(value: string): string {
+  return needsBase64(value)
+    ? `${MCP_NAME_SENTINEL_PREFIX}${utf8ToBase64(value)}${MCP_NAME_SENTINEL_SUFFIX}`
+    : value
+}
+
+function fetchWithMcpEventName(baseFetch: typeof fetch = fetch): typeof fetch {
+  return async (input, init) => {
+    const request = new Request(input, init)
+    if (request.headers.has('mcp-name')) {
+      return baseFetch(input, init)
+    }
+    const name = await mcpNameFromRpc(request)
+    if (name === undefined) return baseFetch(input, init)
+    const headers = new Headers(request.headers)
+    headers.set('Mcp-Name', encodeMcpName(name))
+    return baseFetch(new Request(request, { headers }))
+  }
+}
+
 export async function resolveTransport(input: TransportInput) {
   if (isTransportInstance(input)) return input
 
@@ -60,13 +143,13 @@ export async function resolveTransport(input: TransportInput) {
     case 'http':
       return new StreamableHTTPClientTransport(new URL(input.url), {
         requestInit: { headers: input.headers },
-        fetch: input.fetch,
+        fetch: fetchWithMcpEventName(input.fetch),
         authProvider: input.authProvider,
       })
     case 'sse':
       return new SSEClientTransport(new URL(input.url), {
         requestInit: { headers: input.headers },
-        fetch: input.fetch,
+        fetch: fetchWithMcpEventName(input.fetch),
         authProvider: input.authProvider,
       })
     case 'stdio':

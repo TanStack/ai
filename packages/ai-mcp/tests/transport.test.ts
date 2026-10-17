@@ -79,4 +79,62 @@ describe('resolveTransport', () => {
       resolveTransport({ type: 'stdio', command: 'node', args: [] }),
     ).rejects.toThrow(/@tanstack\/ai-mcp\/stdio/)
   })
+
+  it('sets Mcp-Name for events/subscribe over http transport', async () => {
+    const seen: Array<Request> = []
+    const t = await resolveTransport({
+      type: 'http',
+      url: 'https://example.com/mcp',
+      fetch: async (input, init) => {
+        seen.push(new Request(input, init))
+        return new Response('{}')
+      },
+    })
+    const wrapped = Reflect.get(t, '_fetch') as typeof fetch
+    await wrapped('https://example.com/mcp', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'events/subscribe',
+        params: { name: 'incident.created' },
+      }),
+    })
+    expect(seen[0]?.headers.get('mcp-name')).toBe('incident.created')
+  })
+
+  it('encodes non-ASCII event names as the Base64 sentinel', async () => {
+    const names = ['événement.créé', '事件']
+    for (const name of names) {
+      const seen: Array<Request> = []
+      const t = await resolveTransport({
+        type: 'http',
+        url: 'https://example.com/mcp',
+        fetch: async (input, init) => {
+          seen.push(new Request(input, init))
+          return new Response('{}')
+        },
+      })
+      const wrapped = Reflect.get(t, '_fetch') as typeof fetch
+      await wrapped('https://example.com/mcp', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'events/subscribe',
+          params: { name },
+        }),
+      })
+      const header = seen[0]?.headers.get('mcp-name')
+      expect(header?.startsWith('=?base64?') && header.endsWith('?=')).toBe(
+        true,
+      )
+      const encoded = header!.slice('=?base64?'.length, -2)
+      const binary = atob(encoded)
+      const bytes = Uint8Array.from(binary, (char) => char.codePointAt(0) ?? 0)
+      expect(new TextDecoder().decode(bytes)).toBe(name)
+    }
+  })
 })

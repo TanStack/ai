@@ -20,6 +20,8 @@ Build a streaming React chat in [Basic Chat](../tutorials/basic-chat). The key s
 
 Serve a tool, a resource, and a prompt in [Build an MCP Server](../tutorials/mcp-server).
 
+Subscribe to a signed MCP webhook in [Subscribe to MCP Events](../tutorials/mcp-events).
+
 Generate an image from a prompt in [Generate Image](../tutorials/generate-image).
 
 Stream a typed table from `chat({ outputSchema })` in [Streaming Structured Table](../tutorials/streaming-structured-table).

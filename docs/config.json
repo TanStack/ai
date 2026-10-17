@@ -13,13 +13,13 @@
           "label": "Overview",
           "to": "getting-started/overview",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-29"
+          "updatedAt": "2026-10-17"
         },
         {
           "label": "Quick Start",
           "to": "getting-started/quick-start",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-17"
+          "updatedAt": "2026-10-17"
         },
         {
           "label": "Quick Start: React Native",
@@ -85,6 +85,11 @@
           "label": "Build an MCP Server",
           "to": "tutorials/mcp-server",
           "addedAt": "2026-09-22"
+        },
+        {
+          "label": "Subscribe to MCP Events",
+          "to": "tutorials/mcp-events",
+          "addedAt": "2026-10-17"
         }
       ]
     },
@@ -126,6 +131,11 @@
           "label": "MCP Server",
           "to": "framework/react/examples/mcp-server",
           "addedAt": "2026-09-22"
+        },
+        {
+          "label": "MCP Events",
+          "to": "framework/react/examples/mcp-events",
+          "addedAt": "2026-10-17"
         }
       ]
     },
@@ -543,7 +553,7 @@
           "label": "MCP Server Tools",
           "to": "tools/mcp",
           "addedAt": "2026-06-05",
-          "updatedAt": "2026-10-12"
+          "updatedAt": "2026-10-17"
         },
         {
           "label": "Managed MCP with chat()",
@@ -567,6 +577,11 @@
           "to": "tools/mcp-input",
           "addedAt": "2026-09-22",
           "updatedAt": "2026-10-13"
+        },
+        {
+          "label": "MCP Events",
+          "to": "tools/mcp-events",
+          "addedAt": "2026-10-17"
         },
         {
           "label": "MCP Apps",

@@ -1,14 +1,37 @@
 export { createMCPClient, createMCPClientFromTransport } from './client'
 export type { MCPServer } from './server/create-server'
-export type { MCPClient, TypedCallToolResult } from './client'
+export type { MCPClient, ManagedMCPClient, TypedCallToolResult } from './client'
 export type { DescriptorFromServer } from './direct-client'
 export type {
   AnyToolDefinition,
+  DirectMCPEventsOptions,
+  JSONObject,
+  ManagedMCPEvents,
+  ManagedMCPEventsOptions,
+  ManagedMCPSubscribeInput,
+  ManagedMCPSubscription,
+  ManagedMCPSubscriptionStatus,
   MappedServerTools,
   McpServerTool,
   McpToolMetadata,
   MCPClientOptions,
+  MCPEventAdapter,
+  MCPEventAdapterTransport,
+  MCPEventDefinition,
+  MCPEventDeliveryMode,
+  MCPEventDeliveryStatus,
+  MCPEventOccurrence,
+  MCPEventOperations,
+  MCPEvents,
+  MCPEventsOptions,
+  MCPEventStore,
+  MCPEventSubscribeResult,
+  MCPEventSubscription,
+  MCPEventSubscriptionInfo,
+  MCPEventSubscriptionRef,
+  MCPEventWebhookOptions,
   ServerDescriptor,
+  SubscribeMCPEventOptions,
   ToolsOptions,
 } from './types'
 export type {
@@ -30,7 +53,13 @@ export {
   MCPTaskRequiredToolError,
   MCPToolFilterError,
   MCPToolNotFoundError,
+  MCPEventsUnsupportedError,
+  MCPEventConfigError,
+  MCPUnknownEventError,
+  MCPEventRequestError,
+  MCPEventSubscriptionNotFoundError,
 } from './errors'
+export type { MCPEventRequestKind } from './errors'
 export {
   MCPInputRequiredError,
   isMCPInputRequiredError,

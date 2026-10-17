@@ -19,6 +19,8 @@ keywords:
 
 > MCP tool execution is **server-side only**. The `createMCPClient` call lives in a server route (or serverless function) — never in browser code.
 
+Servers can also push signed webhooks through the experimental MCP Events extension. See [MCP Events](./mcp-events). A Start app that subscribes and receives a delivery is in [Subscribe to MCP Events](../tutorials/mcp-events).
+
 ## Server MCP and WebMCP
 
 Server MCP and WebMCP solve different problems.

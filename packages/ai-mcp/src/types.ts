@@ -5,6 +5,7 @@ import type {
   ToolAnnotations,
 } from '@modelcontextprotocol/client'
 import type { TransportInput } from './transport'
+import type { MCPEventsOptions } from './events/types'
 
 /** A bare tool definition (from `toolDefinition({...})`, no `.server()`/`.client()` called). */
 export type AnyToolDefinition = ToolDefinition<any, any, string>
@@ -195,6 +196,26 @@ export interface MCPClientOptions {
    * ```
    */
   needsApproval?: (tool: McpToolDef) => boolean
+  /**
+   * MCP Events (SEP-3415). Omit for discovery-only (`list()`).
+   *
+   * Direct mode (`{ store }`) talks to the MCP server and stores webhook
+   * subscriptions. Managed mode (`{ adapter }`) delegates subscribe to a
+   * hosted backend such as Vercel Connect.
+   *
+   * @experimental
+   *
+   * @example
+   * ```ts
+   * import { inMemoryMCPEventStore } from '@tanstack/ai-mcp/events'
+   *
+   * const mcp = await createMCPClient({
+   *   transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+   *   experimental_events: { store: inMemoryMCPEventStore() },
+   * })
+   * ```
+   */
+  experimental_events?: MCPEventsOptions
 }
 
 export interface ToolsOptions {
@@ -243,3 +264,29 @@ export type DescriptorTools<TServer extends ServerDescriptor> = Array<
     [K in keyof TServer['tools'] & string]: DescribedTool<K>
   }[keyof TServer['tools'] & string]
 >
+
+export type {
+  DirectMCPEventsOptions,
+  JSONObject,
+  ManagedMCPEvents,
+  ManagedMCPEventsOptions,
+  ManagedMCPSubscribeInput,
+  ManagedMCPSubscription,
+  ManagedMCPSubscriptionStatus,
+  MCPEventAdapter,
+  MCPEventAdapterTransport,
+  MCPEventDefinition,
+  MCPEventDeliveryMode,
+  MCPEventDeliveryStatus,
+  MCPEventOccurrence,
+  MCPEventOperations,
+  MCPEvents,
+  MCPEventsOptions,
+  MCPEventStore,
+  MCPEventSubscribeResult,
+  MCPEventSubscription,
+  MCPEventSubscriptionInfo,
+  MCPEventSubscriptionRef,
+  MCPEventWebhookOptions,
+  SubscribeMCPEventOptions,
+} from './events/types'
