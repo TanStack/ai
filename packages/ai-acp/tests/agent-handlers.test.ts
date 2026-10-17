@@ -2,9 +2,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { EventType, toolDefinition } from '@tanstack/ai'
 import { client, ndJsonStream } from '@agentclientprotocol/sdk/experimental/v2'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import {
+  createHarnessHost,
+  defineHarness,
+  membersOnly,
+} from '@tanstack/ai-harness'
 import { createAcpAgent, serveAcp, toSessionUpdate } from '../src/agent'
 import type { AnyTextAdapter, ModelMessage, StreamChunk } from '@tanstack/ai'
+import type { HarnessAccess } from '@tanstack/ai-harness'
 import type {
   ClientApp,
   RequestPermissionOutcome,
@@ -130,7 +135,8 @@ function model(): AnyTextAdapter {
   }
 }
 
-function setup() {
+/** With `access`, the host checks each action of each principal. */
+function setup({ access }: { access?: HarnessAccess } = {}) {
   const remove = vi.fn(async () => ({ removed: true }))
   const harness = defineHarness({
     name: 'test/acp-handlers',
@@ -155,7 +161,7 @@ function setup() {
     ],
   })
   const persistence = memoryPersistence()
-  const host = createHarnessHost({ persistence })
+  const host = createHarnessHost({ persistence, access })
   const updates: Array<{ sessionId: string; update: SessionUpdate }> = []
   const permissions: Array<{ title: string; toolCallId: string }> = []
   // The answer of the editor to each permission request. Default: Reject.
@@ -758,6 +764,63 @@ describe('ACP agent handlers', () => {
       // Closing an unknown session and cancelling one are both quiet.
       await ctx.request('session/close', { sessionId: 'never-opened' })
       await ctx.notify('session/cancel', { sessionId: 'never-opened' })
+    })
+  })
+
+  describe('on a host with access', () => {
+    const olga = { id: 'olga', tenantId: 'acme' }
+    const bea = { id: 'bea', tenantId: 'acme' }
+    // The agent runs for one local user, so no request is identified.
+    const access: HarnessAccess = {
+      identify: () => null,
+      authorize: membersOnly(),
+    }
+
+    it('throws at the start without a principal', () => {
+      const { harness, host } = setup({ access })
+      close = () => host.close()
+
+      expect(() => createAcpAgent({ host, harness })).toThrow(
+        'createAcpAgent needs a principal: the host has access. Pass the local user as principal.',
+      )
+    })
+
+    it('opens and lists only the sessions of its principal', async () => {
+      const { harness, host, editor, idle, textOf } = setup({ access })
+      close = () => host.close()
+      await host.open(harness, { threadId: 'bea-thread', principal: bea })
+      const agentApp = createAcpAgent({ host, harness, principal: olga })
+      await editor.connectWith(agentApp, async (ctx) => {
+        await ctx.request('initialize', {
+          protocolVersion: 2,
+          info: { name: 'editor', version: '1.0.0' },
+        })
+        const { sessionId } = await ctx.request('session/new', {
+          cwd: '/tmp',
+          mcpServers: [],
+        })
+        await ctx.request('session/prompt', {
+          sessionId,
+          prompt: [{ type: 'text', text: 'hello' }],
+        })
+        await vi.waitFor(() => expect(idle(sessionId)).toBeDefined())
+
+        expect(textOf(sessionId)).toBe('echo: hello')
+        expect(
+          await host.sessions.get({ threadId: sessionId, principal: olga }),
+        ).toMatchObject({ ownerId: 'olga' })
+        const listed = await ctx.request('session/list', {})
+        expect(listed.sessions.map((session) => session.sessionId)).toEqual([
+          sessionId,
+        ])
+        // A session of another user gets the answer of an unknown id.
+        await expect(
+          ctx.request('session/resume', {
+            sessionId: 'bea-thread',
+            cwd: '/tmp',
+          }),
+        ).rejects.toMatchObject({ code: -32002 })
+      })
     })
   })
 })

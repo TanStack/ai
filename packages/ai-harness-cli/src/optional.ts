@@ -1,4 +1,5 @@
-import type { AnyHarness, HarnessHost } from '@tanstack/ai-harness'
+import type { AnyHarness, HarnessHost, Principal } from '@tanstack/ai-harness'
+import type { OpenAccess } from '@tanstack/ai-harness/server'
 
 // The packages behind `--acp`, `--mcp`, `/mcp`, and `--dashboard` are
 // optional. The specifier is a variable, so a build or a type check never
@@ -37,9 +38,11 @@ export interface McpFetchServer {
 
 /** `@tanstack/ai-mcp/harness` */
 export interface McpHarnessModule {
-  createHarnessMcpServer: (options: {
-    host: HarnessHost
+  createHarnessMcpServer: <P extends Principal>(options: {
+    host: HarnessHost<P>
     harness: AnyHarness
+    /** For a host without access: who the calls run as. */
+    openAccess?: OpenAccess<P>
     threadId?: string
     approvals?: 'ask' | 'auto'
     filePaths?: Array<string>
@@ -53,15 +56,23 @@ export interface McpStdioModule {
 
 /** `@tanstack/ai-acp/agent` */
 export interface AcpAgentModule {
-  serveAcp: (options: { host: HarnessHost; harness: AnyHarness }) => {
+  serveAcp: <P extends Principal>(options: {
+    host: HarnessHost<P>
+    harness: AnyHarness
+    /** The local user. Required on a host with access. */
+    principal?: P
+  }) => {
     closed: Promise<unknown>
   }
 }
 
-/** `@tanstack/ai-dashboard/connect` */
+/**
+ * `@tanstack/ai-dashboard/connect`. It takes no principal: its sessions
+ * open without one.
+ */
 export interface DashboardConnectModule {
-  connectDashboard: (options: {
-    host: HarnessHost
+  connectDashboard: <P extends Principal>(options: {
+    host: HarnessHost<P>
     harness: AnyHarness
     url: string
     threads: Array<string>

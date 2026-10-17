@@ -5,7 +5,7 @@ import { attach, defaultMediaDir } from './attach'
 import { runLines } from './lines'
 import { loadOptional } from './optional'
 import { EXIT, runPrint } from './print'
-import { createToken, serve } from './serve'
+import { createToken, hasAccess, serve } from './serve'
 import type {
   AnyHarness,
   HarnessHost,
@@ -35,7 +35,7 @@ function needs(flag: string, name: string): Error {
   )
 }
 
-export interface RunCliOptions {
+export interface RunCliOptions<P extends Principal = Principal> {
   /** Where sessions keep state. Default: in memory. Do not set it with `host`. */
   persistence?: HarnessPersistence
   /**
@@ -46,14 +46,17 @@ export interface RunCliOptions {
   /**
    * Your own host, so the CLI keeps its hooks: leases, recovery, and stores.
    * You own it: the CLI does not close it. Do not set it with `persistence`
-   * or `credentials`.
+   * or `credentials`. With host `access`, give `principal` too. `--serve`
+   * then reads the user of each request with `access.identify`, and `--mcp`
+   * refuses to start, as stdio has no login.
    */
-  host?: HarnessHost
+  host?: HarnessHost<P>
   /**
-   * Who uses the CLI. Sessions open as this principal, so credentials and
-   * provider keys are theirs. `--serve` authorizes each request as them.
+   * Who uses the CLI. Sessions open as this principal in every mode except
+   * `--dashboard`, so credentials and provider keys are theirs. On a host
+   * without access, `--serve` runs each request with the token as them.
    */
-  principal?: Principal
+  principal?: P
   /** Default: `process.argv.slice(2)`. */
   argv?: ReadonlyArray<string>
   stdin?: NodeJS.ReadStream
@@ -117,9 +120,9 @@ function attachingSource(session: HarnessSession) {
  * process.exitCode = await runCli(studio)
  * ```
  */
-export async function runCli(
+export async function runCli<P extends Principal = Principal>(
   harness: AnyHarness,
-  options: RunCliOptions = {},
+  options: RunCliOptions<P> = {},
 ): Promise<number> {
   const stdout = options.stdout ?? process.stdout
   const stderr = options.stderr ?? process.stderr
@@ -146,7 +149,7 @@ export async function runCli(
     )
     return EXIT.failed
   }
-  const host =
+  const host: HarnessHost<P> =
     options.host ??
     createHarnessHost({
       ...(options.persistence ? { persistence: options.persistence } : {}),
@@ -161,12 +164,18 @@ export async function runCli(
         'serveAcp',
       )
       if (!acp) throw needs('--acp', '@tanstack/ai-acp')
-      const connection = acp.serveAcp({ host, harness })
+      const connection = acp.serveAcp({ host, harness, principal })
       await connection.closed
       return EXIT.ok
     }
 
     if (args.mcp) {
+      // A host with access reads the user of each HTTP request.
+      if (hasAccess(host, harness)) {
+        throw new Error(
+          '--mcp serves over stdio, which has no login, so it cannot use a host with access. Give runCli a host without access, and the local user as principal.',
+        )
+      }
       const [mcp, stdio] = await Promise.all([
         loadOptional<McpHarnessModule>(
           '@tanstack/ai-mcp/harness',
@@ -181,6 +190,8 @@ export async function runCli(
       const server = await mcp.createHarnessMcpServer({
         host,
         harness,
+        // One local user: every call runs as them.
+        openAccess: principal ? { principal } : true,
         threadId: args.thread,
         approvals,
         // A local client can attach the files of the working folder by path.
@@ -203,6 +214,8 @@ export async function runCli(
       )
       if (!dashboard) throw needs('--dashboard', '@tanstack/ai-dashboard')
       const savedToken = env.HARNESS_DASHBOARD_TOKEN
+      // ponytail: the dashboard takes no principal, so its sessions open
+      // without one.
       const connection = await dashboard.connectDashboard({
         host,
         harness,

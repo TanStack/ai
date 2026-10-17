@@ -6,7 +6,7 @@ import {
   agent,
   ndJsonStream,
 } from '@agentclientprotocol/sdk/experimental/v2'
-import { InputRejectedError } from '@tanstack/ai-harness'
+import { AccessDeniedError, InputRejectedError } from '@tanstack/ai-harness'
 import { MediaError, kindOf, mediaPart } from '@tanstack/ai-harness/media'
 import type {
   AgentApp,
@@ -26,11 +26,19 @@ import type {
   HarnessHost,
   HarnessSession,
   Operation,
+  Principal,
 } from '@tanstack/ai-harness'
 
-export interface AcpAgentOptions {
-  host: HarnessHost
+export interface AcpAgentOptions<P extends Principal = Principal> {
+  host: HarnessHost<P>
   harness: AnyHarness
+  /**
+   * The user that the agent serves: an editor starts the agent for one
+   * local user. Each session opens as this principal, and `session/list`
+   * shows the sessions of this principal. Required when the host has
+   * `access`.
+   */
+  principal?: P
   /** Reported in `initialize`. Default `'0.0.0'`. */
   version?: string
   /**
@@ -237,34 +245,57 @@ const APPROVAL_OPTIONS = [
  * store of the session. A file the harness refuses (too big, or a type it
  * does not take) fails `session/prompt` with an invalid params error.
  *
+ * Each session opens as `principal`. On a host with `access`, the host
+ * checks each action, and a session that the principal may not read is not
+ * found. Without `principal`, a host with access throws at the start.
+ *
  * ACP v2 is a draft, so this API is experimental too.
  */
-export function createAcpAgent(options: AcpAgentOptions): AgentApp {
-  const { host, harness } = options
+export function createAcpAgent<P extends Principal = Principal>(
+  options: AcpAgentOptions<P>,
+): AgentApp {
+  const { host, harness, principal } = options
+  if (principal === undefined && hasAccess(host, harness)) {
+    throw new Error(
+      'createAcpAgent needs a principal: the host has access. Pass the local user as principal.',
+    )
+  }
   /** The ids of the sessions that this agent opened. */
   const opened = new Set<string>()
   /** The last pump of each session. The pumps of one session run in order. */
   const tails = new Map<string, Promise<void>>()
 
-  // The host gives back the live session of a thread, or opens it again after
-  // it closed, so the agent keeps no session objects.
+  // The host gives back a handle to the live session of a thread, or opens
+  // it again after it closed, so the agent keeps no session objects.
   const live = (sessionId: string) =>
-    host.open(harness, { threadId: sessionId })
+    host.open(harness, { threadId: sessionId, principal })
 
   /**
    * The session of an id that this agent or the session index knows. A
    * subagent child is not a session of its own: ACP reaches it through its
-   * parent.
+   * parent. A session that the principal may not read gets the same answer
+   * as an unknown id.
    */
   const known = async (sessionId: string) => {
-    if (!opened.has(sessionId)) {
-      const entry = await host.sessions.get({ threadId: sessionId })
-      const isOwnSession =
-        entry?.harness === harness.name && entry.parentThreadId === undefined
-      if (!isOwnSession) throw RequestError.resourceNotFound(sessionId)
+    try {
+      if (!opened.has(sessionId)) {
+        const entry = await host.sessions.get({
+          threadId: sessionId,
+          principal,
+        })
+        const isOwnSession =
+          entry?.harness === harness.name && entry.parentThreadId === undefined
+        if (!isOwnSession) throw RequestError.resourceNotFound(sessionId)
+      }
+      const session = await live(sessionId)
+      opened.add(sessionId)
+      return session
+    } catch (error) {
+      if (error instanceof AccessDeniedError) {
+        throw RequestError.resourceNotFound(sessionId)
+      }
+      throw error
     }
-    opened.add(sessionId)
-    return live(sessionId)
   }
 
   const notify = (
@@ -455,6 +486,7 @@ export function createAcpAgent(options: AcpAgentOptions): AgentApp {
       const cwd = options.cwd ?? process.cwd()
       if (params.cwd && params.cwd !== cwd) return { sessions: [] }
       const page = await host.sessions.list({
+        principal,
         harness: harness.name,
         limit: LIST_PAGE_SIZE,
         ...(params.cursor ? { cursor: params.cursor } : {}),
@@ -509,6 +541,8 @@ export function createAcpAgent(options: AcpAgentOptions): AgentApp {
     })
     .onRequest('session/close', async ({ params }) => {
       if (!opened.delete(params.sessionId)) return
+      // ponytail: a handle has no close of its own yet, so this closes the
+      // live session of the thread on this host, for every handle.
       await (await live(params.sessionId)).close()
     })
     .onNotification('session/cancel', async ({ params }) => {
@@ -522,12 +556,34 @@ export function createAcpAgent(options: AcpAgentOptions): AgentApp {
 /**
  * Serve a harness as an ACP v2 agent over a stream. With no stream, it uses
  * stdin and stdout as newline-delimited JSON (for editors that start the
- * agent as a process).
+ * agent as a process). The sessions open as `principal`, as in
+ * `createAcpAgent`.
+ *
+ * @example
+ * ```ts
+ * serveAcp({ host, harness: assistant, principal: { id: 'local-user' } })
+ * ```
  */
-export function serveAcp(
-  options: AcpAgentOptions & { stream?: Stream },
+export function serveAcp<P extends Principal = Principal>(
+  options: AcpAgentOptions<P> & { stream?: Stream },
 ): AgentConnection {
   return createAcpAgent(options).connect(options.stream ?? stdioStream())
+}
+
+/**
+ * True when `host` checks access. The host has no flag for it, but
+ * `host.isOpen` throws without a principal on a host with access.
+ */
+function hasAccess<P extends Principal>(
+  host: HarnessHost<P>,
+  harness: AnyHarness,
+) {
+  try {
+    host.isOpen(harness, { threadId: '' })
+    return false
+  } catch {
+    return true
+  }
 }
 
 function stdioStream(): Stream {
