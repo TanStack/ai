@@ -199,13 +199,18 @@ function thinkCallThinkCall(): Array<StreamChunk> {
 // The types refuse these store sets. The runtime check is for JavaScript
 // callers and dynamic store bags, so these tests pass them with `as never`.
 describe('durable host stores', () => {
-  it('needs runs next to the log', () => {
-    const { metadata } = memoryPersistence().stores
-    expect(() =>
-      createHarnessHost({
-        persistence: { stores: { log: memoryLogStore(), metadata } } as never,
-      }),
-    ).toThrow('needs stores.runs')
+  it('runs a session with only a log store', async () => {
+    const { adapter } = mockAdapter([() => text('from the log only')])
+    const host = createHarnessHost({
+      persistence: { stores: { log: memoryLogStore() } },
+    })
+    const session = await host.open(
+      defineHarness({ name: 'test/log-only', adapter }),
+      { threadId: THREAD },
+    )
+
+    expect((await session.send('hi')).text).toBe('from the log only')
+    await host.close()
   })
 
   it('needs a log store, and names the memory default', () => {
@@ -505,11 +510,11 @@ describe('durable session log', () => {
     await host.close()
   })
 
-  it('stops the session when another host wrote to the thread', async () => {
+  it('folds what another host wrote before its first write, and stays open', async () => {
     const inner = memoryLogStore()
     // This host does not see the other writer, like one in another process.
     const log = wrapLogStore(inner, { subscribe: () => () => {} })
-    const { adapter } = mockAdapter([() => text('never saved')])
+    const { adapter } = mockAdapter([() => text('saved after the other host')])
     const host = createHarnessHost({ persistence: durablePersistence(log) })
     const harness = defineHarness({ name: 'test/conflict', adapter })
     const session = await host.open(harness, { threadId: THREAD })
@@ -520,13 +525,13 @@ describe('durable session log', () => {
       records: [{ type: 'app.from-another-host' }],
     })
 
-    await expect(session.send('hi')).rejects.toThrow('Another host wrote')
+    const result = await session.send('hi')
 
-    // The host drops the stopped session, so the next open folds the log
-    // again in a new one.
-    await vi.waitFor(() =>
-      expect(host.isOpen(harness, { threadId: THREAD })).toBe(false),
-    )
+    expect(result.text).toBe('saved after the other host')
+    expect(host.isOpen(harness, { threadId: THREAD })).toBe(true)
+    const entries = await inner.read({ logId: LOG })
+    expect(entries[0]?.record.type).toBe('app.from-another-host')
+    expect(entries.length).toBeGreaterThan(1)
     await host.close()
   })
 

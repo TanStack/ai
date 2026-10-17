@@ -1,5 +1,10 @@
 import { EventType } from '@tanstack/ai'
-import { LogConflictError, UNOWNED_EPOCH } from '@tanstack/ai-persistence'
+import {
+  LogConflictError,
+  OwnershipLostError,
+  UNOWNED_EPOCH,
+} from '@tanstack/ai-persistence'
+import { LogOwnedElsewhereError } from './ownership'
 import {
   THREAD_RECORD_TYPES,
   emptyThreadState,
@@ -16,6 +21,7 @@ import type {
   MetadataStore,
 } from '@tanstack/ai-persistence'
 import type { EventFeed } from './feed'
+import type { HostOwnership } from './ownership'
 import type {
   AgentResultRecord,
   InterruptedTurnRecord,
@@ -936,6 +942,44 @@ export interface LogWriter extends EventFeed {
   flush: () => Promise<void>
   /** Fold the records that another writer appended, after the queued writes. */
   catchUp: () => Promise<void>
+  /**
+   * The epoch at which this host owns the log, or {@link UNOWNED_EPOCH} when
+   * it does not own it now.
+   */
+  readonly epoch: number
+  /**
+   * Another host took the log, and the work of this session that the loss
+   * stopped has not ended yet. Until `unfence()`, `append` and `commit`
+   * reject, and `publish` and `stage` do nothing.
+   */
+  readonly fenced: boolean
+  /** The work that the loss stopped has ended. A later write acquires the log again. */
+  unfence: () => void
+  /**
+   * Own the log before a write that recovery decides on: acquire it, then
+   * fold the records up to the head of the log. Resolves `false` when
+   * another live host owns it.
+   */
+  own: () => Promise<boolean>
+  /**
+   * The session has no work now. When no session of the log has work, the
+   * host gives the log up, so it makes no store calls for it. Resolves after
+   * that check, and never rejects.
+   */
+  rest: () => Promise<void>
+}
+
+/** What a session gives its view of a shared log. */
+export interface LogViewHooks {
+  /** A write failed, so the log stopped. */
+  onFailure: (error: unknown) => void
+  /**
+   * Another host took the log. Stop the running work: its writes are
+   * refused. The session still reads the log.
+   */
+  onLost: (error: OwnershipLostError) => void
+  /** The session has work, so the host keeps the log. */
+  isBusy: () => boolean
 }
 
 /**
@@ -963,10 +1007,19 @@ export interface LogReader<TState = unknown> {
 
 /**
  * Writes one log for every session that shares it, and keeps its fold.
- * All writes run one after another. Each batch goes at the next position.
- * When a write fails (another writer took the position, or the store failed
- * twice), every session of the log gets `onFailure`, and every later write
- * rejects.
+ * All writes run one after another. Each batch goes at the next position,
+ * with the epoch of this host.
+ *
+ * - The first write acquires the log, then folds the records up to the head
+ *   of the log, then appends. When another live host owns the log, the write
+ *   rejects with `LogOwnedElsewhereError`, and the log still reads.
+ * - When the host loses the log (a refused epoch, a refused renewal, or
+ *   records of another owner), every session of the log gets `onLost`, and
+ *   the sessions read on. A later write acquires the log again.
+ * - When no session of the log has work, the host releases the log.
+ * - When a write fails for another reason (another writer took the
+ *   position, or the store failed twice), every session of the log gets
+ *   `onFailure`, and every later write rejects.
  */
 export class SharedLog<TState = unknown> {
   /** The id of the log in the store. See {@link logIdOf}. */
@@ -980,7 +1033,19 @@ export class SharedLog<TState = unknown> {
   private readonly metadata: MetadataStore | undefined
   private readonly coalesceMs: number
   private readonly onIdle: () => void
-  private readonly failureListeners = new Set<(error: unknown) => void>()
+  private readonly ownership: HostOwnership
+  /** The harness name that the ownership record of the log keeps. */
+  private readonly harness: string
+  /**
+   * The epoch of this host, once it acquired the log and folded the records
+   * before its first append. `undefined` while it does not own the log.
+   */
+  private epoch: number | undefined
+  /** The open views, by thread. */
+  private readonly views = new Map<
+    string,
+    { hooks: LogViewHooks; fenced: boolean }
+  >()
   /** Events and host records that wait for the next append. */
   private readonly pending: Array<LogRecord> = []
   /** The merge key of the last pending record, when it is a delta event. */
@@ -1015,20 +1080,22 @@ export class SharedLog<TState = unknown> {
   /** Every event after this position is in `tail`. */
   private tailFrom: number
   private readonly waiters = new Set<() => void>()
-  /** The threads with an open view. */
-  private readonly threads = new Set<string>()
   /** The open readers. Like the views, they keep the log open. */
   private readers = 0
   /** `stopReaders` ran: every read of a reader ends. */
   private readersStopped = false
   private idle = false
   private writing = false
-  private hasWritten = false
   private writesSinceCheckpoint = 0
   private readonly unsubscribe: () => void
+  private readonly stopLost: () => void
 
   constructor(options: {
     store: LogStore
+    /** The logs that this host owns. */
+    ownership: HostOwnership
+    /** The harness of the sessions, for the ownership record. */
+    harness: string
     /** The id of the log in the store. See {@link logIdOf}. */
     logId: string
     /** The thread of the records that have no `thread` field. */
@@ -1044,6 +1111,8 @@ export class SharedLog<TState = unknown> {
     onIdle?: () => void
   }) {
     this.store = options.store
+    this.ownership = options.ownership
+    this.harness = options.harness
     this.logId = options.logId
     this.rootThread = options.rootThread
     this.state = options.state
@@ -1058,19 +1127,18 @@ export class SharedLog<TState = unknown> {
     }
     this.versions = versionsOf(options.project, options.reduce)
     this.tailFrom = options.state.seq
-    // Records from another writer (this host only reads) join the fold. A
-    // call during this writer's own append is its own records.
+    // Records from another writer join the fold. A call during this
+    // writer's own append is its own records.
     this.unsubscribe = options.store.subscribe({
       logId: options.logId,
       listener: () => {
         if (this.writing) return
-        // A read that fails leaves the fold behind the log: stop, as after
-        // a failed write.
-        this.enqueue(() => this.catchUp()).catch((error: unknown) => {
-          if (this.failure === undefined) this.fail(error)
-        })
+        this.catchUpLater()
       },
     })
+    this.stopLost = options.ownership.onLost(options.logId, (error) =>
+      this.lose(error),
+    )
   }
 
   /**
@@ -1128,42 +1196,59 @@ export class SharedLog<TState = unknown> {
   }
 
   /** The view of session `threadId`. Close it when the session closes. */
-  view(threadId: string, onFailure: (error: unknown) => void): LogWriter {
+  view(threadId: string, hooks: LogViewHooks): LogWriter {
     if (this.idle) {
       throw new Error(`The log ${JSON.stringify(this.logId)} is closed.`)
     }
-    if (this.threads.has(threadId)) {
+    if (this.views.has(threadId)) {
       throw new Error(
         `The thread ${JSON.stringify(threadId)} already has an open session on this log. Two harnesses cannot open one thread on a durable host.`,
       )
     }
-    this.threads.add(threadId)
-    // Its own function, so two views with the same `onFailure` both count.
-    const listener = (error: unknown) => onFailure(error)
-    this.failureListeners.add(listener)
+    const own = { hooks, fenced: false }
+    this.views.set(threadId, own)
     const shared = this.state
+    // `this` in a getter below is the view.
+    const epochOf = () => this.epoch ?? UNOWNED_EPOCH
     let closed = false
     // A closed view writes nothing more, like a host that stopped. After a
-    // failed write, a write still rejects with that failure.
-    const isDropped = () => closed && this.failure === undefined
+    // failed write, a write still rejects with that failure. A fenced view
+    // writes nothing either, but its writes reject: nothing was stored.
+    const isDropped = () =>
+      (closed && this.failure === undefined) || (!closed && own.fenced)
+    const refused = () =>
+      own.fenced && !closed
+        ? Promise.reject(new LogOwnedElsewhereError(this.logId))
+        : Promise.resolve()
     return {
       threadId,
       logId: this.logId,
       get state() {
         return sessionOf(shared, threadId)
       },
+      get epoch() {
+        return epochOf()
+      },
+      get fenced() {
+        return own.fenced
+      },
       publish: (operationId, event) => {
         if (!isDropped()) this.publish(threadId, operationId, event)
       },
       append: (records) =>
-        isDropped() ? Promise.resolve() : this.append(threadId, records),
+        isDropped() ? refused() : this.append(threadId, records),
       stage: (records, toolCallId) => {
         if (!isDropped()) this.stage(threadId, records, toolCallId)
       },
       commit: (options) =>
-        isDropped() ? Promise.resolve() : this.commit(threadId, options),
+        isDropped() ? refused() : this.commit(threadId, options),
       flush: () => this.flush(),
       catchUp: () => this.enqueue(() => this.catchUp()),
+      unfence: () => {
+        own.fenced = false
+      },
+      own: () => this.enqueue(() => this.ownForRecovery()),
+      rest: () => this.releaseWhenIdle(),
       head: () => this.head(),
       read: (options) =>
         this.read(threadId, { ...options, isClosed: () => closed }),
@@ -1171,14 +1256,16 @@ export class SharedLog<TState = unknown> {
       close: () => {
         if (closed) return
         closed = true
-        this.release(threadId, listener)
+        this.release(threadId, own)
       },
     }
   }
 
-  private release(threadId: string, listener: (error: unknown) => void) {
-    this.failureListeners.delete(listener)
-    this.threads.delete(threadId)
+  private release(
+    threadId: string,
+    own: { hooks: LogViewHooks; fenced: boolean },
+  ) {
+    if (this.views.get(threadId) === own) this.views.delete(threadId)
     // Like a crash: the records of a cut tool batch do not land later.
     for (const key of [...this.staged.keys()]) {
       if (key === threadId || key.startsWith(`${threadId}\u0000`)) {
@@ -1201,16 +1288,62 @@ export class SharedLog<TState = unknown> {
   private idleWhenUnused() {
     void this.flush()
       .catch(() => {})
+      // A log that no session of this host writes goes back first, so the
+      // next log of this id can acquire it.
+      .then(() => this.enqueue(() => this.releaseIfIdle()))
+      .catch(() => {})
       .then(() => {
-        if (this.threads.size > 0) return
-        // No session of this host writes any more, so the readers follow the
-        // records of another host, as a host that only reads does.
-        this.hasWritten = false
-        if (this.readers > 0) return
+        if (this.views.size > 0 || this.readers > 0) return
         this.idle = true
         this.unsubscribe()
+        this.stopLost()
         this.onIdle()
       })
+  }
+
+  /** Give the log up after the pending writes, when no session of it has work. */
+  private releaseWhenIdle() {
+    return (
+      this.flush()
+        .catch(() => {})
+        .then(() => this.enqueue(() => this.releaseIfIdle()))
+        // A release that fails lets the ownership expire.
+        .catch(() => {})
+    )
+  }
+
+  private async releaseIfIdle() {
+    const { epoch } = this
+    const isBusy = [...this.views.values()].some((view) => view.hooks.isBusy())
+    if (epoch === undefined || isBusy || this.pending.length > 0) return
+    this.epoch = undefined
+    await this.ownership.release(this.logId, epoch)
+  }
+
+  /** Fold the records of another writer, after the queued writes. */
+  private catchUpLater() {
+    // ponytail: a read that fails leaves the fold behind until the next
+    // notification. A reader never fails, and an owner has no other writer.
+    this.enqueue(() => this.catchUp()).catch(() => {})
+  }
+
+  /**
+   * Another host owns the log now. The work of this host on it stops: the
+   * pending and staged records are dropped, each view is fenced until its
+   * session says its work ended, and each session gets `onLost`. The fold
+   * then takes the records of the new owner.
+   */
+  private lose(error: OwnershipLostError) {
+    if (this.epoch === undefined) return
+    this.epoch = undefined
+    this.ownership.forget(this.logId)
+    this.takePending()
+    this.staged.clear()
+    this.resulted.clear()
+    const views = [...this.views.values()]
+    for (const view of views) view.fenced = true
+    for (const view of views) view.hooks.onLost(error)
+    this.catchUpLater()
   }
 
   /** Stamp a record with its session, unless it names one or the session is the root thread. */
@@ -1349,10 +1482,45 @@ export class SharedLog<TState = unknown> {
     }
   }
 
-  private enqueue(task: () => Promise<void>) {
+  private enqueue<T>(task: () => Promise<T>) {
     const run = this.chain.then(task)
-    this.chain = run.catch(() => {})
+    this.chain = run.then(
+      () => {},
+      () => {},
+    )
     return run
+  }
+
+  /**
+   * The epoch of this host. The first write acquires the log, then folds
+   * the records of the last owner, so its append goes at the head of the
+   * log. Throws `LogOwnedElsewhereError` when another live host owns it.
+   */
+  private async own() {
+    if (this.epoch !== undefined) return this.epoch
+    const epoch = await this.ownership.acquire(this.logId, this.harness)
+    if (epoch === null) throw new LogOwnedElsewhereError(this.logId)
+    try {
+      await this.catchUp()
+    } catch (error) {
+      // Not caught up, so it does not write: the log goes back.
+      await this.ownership.release(this.logId, epoch).catch(() => {})
+      throw error
+    }
+    this.epoch = epoch
+    return epoch
+  }
+
+  /** `own()` for recovery: `false` when another live host owns the log. */
+  private async ownForRecovery() {
+    if (this.failure !== undefined) throw this.failure
+    try {
+      await this.own()
+      return true
+    } catch (error) {
+      if (error instanceof LogOwnedElsewhereError) return false
+      throw error
+    }
   }
 
   private async write(batch: ReadonlyArray<LogRecord>) {
@@ -1363,18 +1531,25 @@ export class SharedLog<TState = unknown> {
       this.fail(error)
       throw error
     }
+    const epoch = await this.own()
     const seq = this.state.seq + 1
     this.writing = true
     try {
-      await this.appendOnce(seq, batch)
+      await this.appendOnce(seq, epoch, batch)
     } catch (error) {
-      this.fail(error)
+      // Another host took the log: this host reads on.
+      if (error instanceof OwnershipLostError) this.lose(error)
+      else this.fail(error)
       throw error
     } finally {
       this.writing = false
     }
     batch.forEach((record, index) => this.apply({ seq: seq + index, record }))
-    this.hasWritten = true
+    // A write of a session with no work (a setting, a title) gives the log
+    // back after it.
+    if (![...this.views.values()].some((view) => view.hooks.isBusy())) {
+      void this.releaseWhenIdle()
+    }
     this.writesSinceCheckpoint += 1
     if (this.writesSinceCheckpoint >= CHECKPOINT_EVERY) {
       this.writesSinceCheckpoint = 0
@@ -1394,30 +1569,37 @@ export class SharedLog<TState = unknown> {
   private fail(error: unknown) {
     this.failure = error
     this.idle = true
-    for (const listener of [...this.failureListeners]) listener(error)
+    for (const view of [...this.views.values()]) view.hooks.onFailure(error)
     // The readers end: their log stopped.
     this.wake()
+    // The host drops this log, so it gives the ownership back.
+    const { epoch } = this
+    this.epoch = undefined
+    if (epoch !== undefined) {
+      this.ownership.release(this.logId, epoch).catch(() => {})
+    }
     this.onIdle()
   }
 
   /**
    * Append once. After an error, read back: the batch may have landed before
-   * the error. When it did not land, a conflict fails at once, and another
-   * error gets one more try.
+   * the error. When it did not land, a conflict or a refused epoch fails at
+   * once, and another error gets one more try.
    */
-  private async appendOnce(seq: number, batch: ReadonlyArray<LogRecord>) {
-    const write = {
-      logId: this.logId,
-      seq,
-      epoch: UNOWNED_EPOCH,
-      records: batch,
-    }
+  private async appendOnce(
+    seq: number,
+    epoch: number,
+    batch: ReadonlyArray<LogRecord>,
+  ) {
+    const write = { logId: this.logId, seq, epoch, records: batch }
     try {
       await this.store.append(write)
       return
     } catch (error) {
       if (await this.landed(seq, batch)) return
-      if (error instanceof LogConflictError) throw error
+      const isFinal =
+        error instanceof LogConflictError || error instanceof OwnershipLostError
+      if (isFinal) throw error
     }
     try {
       await this.store.append(write)
@@ -1447,26 +1629,21 @@ export class SharedLog<TState = unknown> {
   }
 
   /**
-   * Fold records that another writer appended. A host that only reads
-   * follows the log. A writer that already wrote has lost the thread to
-   * another host, so it stops, as after a conflict.
+   * Fold records that another writer appended. A reader follows the log,
+   * and never fails because of them. Only the owner appends, so records of
+   * another writer while this host owns the log mean another host took it.
    */
   private async catchUp() {
     if (this.failure !== undefined) return
     const before = this.state.seq
-    if (this.hasWritten) {
-      const [first] = await this.store.read({
-        logId: this.logId,
-        after: before,
-        limit: 1,
-      })
-      if (first) this.fail(new LogConflictError(this.logId, first.seq))
-      return
-    }
     await readAll(this.store, this.logId, this.state, (entry) =>
       this.apply(entry),
     )
-    if (this.state.seq > before) this.wake()
+    if (this.state.seq === before) return
+    if (this.epoch !== undefined) {
+      this.lose(new OwnershipLostError(this.logId, this.epoch))
+    }
+    this.wake()
   }
 
   private apply(entry: LogEntry) {
@@ -1757,7 +1934,9 @@ export function engineMessageStore(options: SessionLogView) {
 /**
  * A `MessageStore` view of a session log, for a reader outside a session
  * (for example `reconstructChat`). `loadThread` folds the log. `saveThread`
- * appends the change as one transcript record.
+ * appends the change as one transcript record, with no owner: the store
+ * refuses it on a log that a host acquired. The logs of subagent children
+ * have no owner.
  *
  * @example
  * ```ts

@@ -1,5 +1,4 @@
 import { EventType } from '@tanstack/ai'
-import { UNOWNED_EPOCH } from '@tanstack/ai-persistence'
 import { loadLogState, logIdOf, sessionOf } from '../src/log'
 import type {
   AnyChatMiddleware,
@@ -60,19 +59,80 @@ export async function storedThreadState(
   return sessionOf(state, threadId).thread
 }
 
-/** Append `records` at the end of the log of a thread, as another writer does. */
+/**
+ * The `ownership` option of a host that a test lets crash: it owns a log for
+ * 200 ms and never renews it in a test, like a process that stopped. After
+ * `ownershipExpired()`, another host can take its logs and recover its work.
+ */
+export const CRASHING_OWNERSHIP = { ttlMs: 200, renewMs: 60_000 }
+
+/** Wait until an ownership of {@link CRASHING_OWNERSHIP} expired. */
+export const ownershipExpired = () =>
+  new Promise<void>((resolve) => setTimeout(resolve, 220))
+
+/**
+ * Append `records` at the end of the log of a thread, as another host does:
+ * it acquires the log, appends at its epoch, and releases the log. Throws
+ * when a live host owns the log.
+ */
 export async function appendToLog(
   log: LogStore,
   thread: StoredThread,
   records: Array<LogRecord>,
 ) {
   const logId = logIdOf({ tenantId: thread.tenantId, logId: thread.threadId })
-  const { seq } = await loadLogState({
-    store: log,
-    logId,
-    rootThread: thread.threadId,
+  await writeAsOtherHost(log, logId, async (epoch) => {
+    const { seq } = await loadLogState({
+      store: log,
+      logId,
+      rootThread: thread.threadId,
+    })
+    await log.append({ logId, seq: seq + 1, epoch, records })
   })
-  await log.append({ logId, seq: seq + 1, epoch: UNOWNED_EPOCH, records })
+}
+
+/**
+ * Can another host acquire the log `logId` (a store log id) now? It gives
+ * the log back at once.
+ */
+export async function canOtherHostTake(log: LogStore, logId: string) {
+  const ownerId = 'other-host'
+  const owned = await log.acquire({
+    logId,
+    harness: 'other-host',
+    ownerId,
+    ttlMs: 60_000,
+  })
+  if (owned === null) return false
+  await log.release({ logId, ownerId, epoch: owned.epoch })
+  return true
+}
+
+/**
+ * Run `write` as another host that owns the log `logId` (a store log id)
+ * for the call: it acquires the log, and releases it after. Throws when a
+ * live host owns the log.
+ */
+export async function writeAsOtherHost(
+  log: LogStore,
+  logId: string,
+  write: (epoch: number) => Promise<void>,
+) {
+  const ownerId = 'other-host'
+  const owned = await log.acquire({
+    logId,
+    harness: 'other-host',
+    ownerId,
+    ttlMs: 60_000,
+  })
+  if (owned === null) {
+    throw new Error(`A live host owns the log ${JSON.stringify(logId)}.`)
+  }
+  try {
+    await write(owned.epoch)
+  } finally {
+    await log.release({ logId, ownerId, epoch: owned.epoch })
+  }
 }
 
 export type Reply = (

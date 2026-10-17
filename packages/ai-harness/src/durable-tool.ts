@@ -6,7 +6,24 @@ import type {
   ToolDefinition,
   ToolExecutionContext,
 } from '@tanstack/ai'
+import { jsonCopy } from './utils'
 import type { LogRecord } from '@tanstack/ai-persistence'
+
+/** What the `fn` of one `step.do` gets. */
+export interface StepRun {
+  /**
+   * A key for the side effect of this step. Give it to a system that refuses
+   * a second call with the same key. In a harness session it is
+   * `${logId}:${toolCallId}:${name}:${attempt}` (see
+   * `RunContext.idempotencyKey`). Outside a session it is the step name.
+   */
+  idempotencyKey: string
+  /**
+   * The ownership epoch of the log (see `RunContext.epoch`). 0 outside a
+   * harness session.
+   */
+  epoch: number
+}
 
 /** The durable steps of one tool call. */
 export interface ToolStep {
@@ -14,13 +31,24 @@ export interface ToolStep {
    * Run `fn` once for `name` in this tool call, and store its value in the
    * session log before `do` resolves. When a crash makes the harness run the
    * call again, a stored step returns its value and `fn` does not run again.
+   * `do` returns the JSON copy of the value, the same value a replay gives.
    *
-   * A step is stored once and runs at least once: a crash after `fn` ends but
-   * before the value is stored runs `fn` again. The value must be JSON. Use a
-   * name that is the same on every run (for example `charge:${orderId}`).
-   * The same name twice in one call throws.
+   * A step runs at least once, and is stored once: a crash after `fn` ends
+   * but before the value is stored runs `fn` again. So pass
+   * `idempotencyKey` to the system that does the side effect, and it can
+   * refuse the second call. The value must be JSON: else `do` throws, and
+   * nothing is stored. Use a name that is the same on every run (for example
+   * `charge:${orderId}`). The same name twice in one call throws. A step
+   * does not start after the host lost the session log to another host.
+   *
+   * @example
+   * ```ts
+   * const charge = await step.do(`charge:${orderId}`, ({ idempotencyKey }) =>
+   *   payments.charge({ orderId, idempotencyKey }),
+   * )
+   * ```
    */
-  do: <T>(name: string, fn: () => T | Promise<T>) => Promise<T>
+  do: <T>(name: string, fn: (step: StepRun) => T | Promise<T>) => Promise<T>
 }
 
 /** What the `execute` of a {@link durableTool} gets. */
@@ -47,14 +75,18 @@ export const DURABLE_EXECUTE: unique symbol = Symbol(
   'tanstack.ai-harness.durable-execute',
 )
 
-/** @internal Steps over `recorded` values, stored with `record`. */
+/**
+ * @internal Steps over `recorded` values, stored with `record`. `run` gives
+ * the `fn` of a step what it gets, and throws when the step must not start.
+ */
 export function createToolStep(options: {
   recorded: (name: string) => { found: true; value: unknown } | { found: false }
   record: (name: string, value: unknown) => Promise<void>
+  run: (name: string) => StepRun
 }) {
   const used = new Set<string>()
   const step = {
-    do: async <T>(name: string, fn: () => T | Promise<T>) => {
+    do: async <T>(name: string, fn: (step: StepRun) => T | Promise<T>) => {
       if (used.has(name)) {
         throw new Error(
           `step.do: the step name ${JSON.stringify(name)} is already used in this tool call.`,
@@ -65,13 +97,28 @@ export function createToolStep(options: {
       // The log holds what an earlier run of this step returned. A copy, so
       // the tool cannot change the fold.
       if (stored.found) return structuredClone(stored.value) as T
-      const value = await fn()
-      await options.record(name, value)
-      return value
+      const value = await fn(options.run(name))
+      // The value a replay returns. A value that is not JSON fails now, not
+      // after a crash: nothing is stored, so a run again calls `fn` again.
+      const copy = jsonCopy(value)
+      if (copy === undefined && value !== undefined) {
+        throw new TypeError(
+          `step.do: the value of step ${JSON.stringify(name)} is not JSON, so the log cannot keep it.`,
+        )
+      }
+      await options.record(name, copy)
+      // JSON of `fn`'s own value: the type of `T`, as a replay gives it.
+      return copy as T
     },
   } satisfies ToolStep
   return step
 }
+
+/** What a step gets outside a harness session: its name as the key. */
+export const stepRunWithoutSession = (name: string) => ({
+  idempotencyKey: name,
+  epoch: 0,
+})
 
 const noLog = () => {
   throw new Error(
@@ -139,6 +186,7 @@ export function durableTool<
       step: createToolStep({
         recorded: () => ({ found: false }),
         record: async () => {},
+        run: stepRunWithoutSession,
       }),
       append: noLog,
     }),

@@ -3,15 +3,14 @@ import { z } from 'zod'
 import { chat, defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
+import { logIdOf } from '../src/log'
 import {
   INTERRUPTED_TOOL_RESULT,
-  LEASE,
   TRUNCATED_TOOL_RESULT,
   checkpointMiddleware,
-  holdRunLease,
   repairTranscript,
 } from '../src/resume'
-import { gate, mockAdapter, text, toolCall } from './helpers'
+import { canOtherHostTake, gate, mockAdapter, text, toolCall } from './helpers'
 import type { AnyChatMiddleware, AnyTool, ModelMessage } from '@tanstack/ai'
 
 /** Run one chat() turn with the checkpoint middleware and a fresh run record. */
@@ -54,8 +53,12 @@ const waiter = defineAgent({
     ),
 })
 
-describe('checkpoints and leases', () => {
-  it('holds a lease and records the running tool with its replay mode', async () => {
+/** Can another host acquire the log of thread `t1` now? */
+const isTakeable = (persistence: ReturnType<typeof memoryPersistence>) =>
+  canOtherHostTake(persistence.stores.log, logIdOf({ logId: 't1' }))
+
+describe('checkpoints and ownership', () => {
+  it('owns the log and records the running tool with its replay mode', async () => {
     const persistence = memoryPersistence()
     const host = createHarnessHost({ persistence })
     const started = gate()
@@ -83,12 +86,9 @@ describe('checkpoints and leases', () => {
 
     const turn = session.send('go')
     await started.opened
+    // Another host cannot take the thread while the turn runs.
+    expect(await isTakeable(persistence)).toBe(false)
     const running = await persistence.stores.runs.get(turn.id)
-    expect(running?.leaseOwner).toMatch(/^host-/)
-    expect(running?.leaseExpiresAt).toBeGreaterThan(Date.now())
-    expect(running?.leaseExpiresAt).toBeLessThanOrEqual(
-      Date.now() + LEASE.ttlMs,
-    )
     expect(running?.checkpoint?.pendingTools).toEqual([
       { toolCallId: 'call-1', name: 'lookup', replay: 'safe' },
     ])
@@ -103,7 +103,7 @@ describe('checkpoints and leases', () => {
     await host.close()
   })
 
-  it('holds a lease on a background agent run', async () => {
+  it('owns the log while a background agent runs, and gives it back after', async () => {
     const persistence = memoryPersistence()
     const host = createHarnessHost({ persistence })
     const { adapter } = mockAdapter([])
@@ -120,12 +120,19 @@ describe('checkpoints and leases', () => {
 
     const run = session.agents.waiter.start()
     await vi.waitFor(async () =>
-      expect(
-        (await persistence.stores.runs.get(run.id))?.leaseExpiresAt,
-      ).toBeGreaterThan(Date.now()),
+      expect((await persistence.stores.runs.get(run.id))?.status).toBe(
+        'running',
+      ),
     )
-    expect((await persistence.stores.runs.get(run.id))?.leaseOwner).toMatch(
-      /^host-/,
+    expect(await isTakeable(persistence)).toBe(false)
+
+    await session.cancel({ operationId: run.id })
+    await run.then(
+      () => {},
+      () => {},
+    )
+    await vi.waitFor(async () =>
+      expect(await isTakeable(persistence)).toBe(true),
     )
     await host.close()
   })
@@ -356,71 +363,6 @@ describe('crash resume', () => {
 })
 
 describe('checkpoint middleware options', () => {
-  it('keeps renewing the run lease after a renewal fails', async () => {
-    const unhandled = vi.fn()
-    process.on('unhandledRejection', unhandled)
-    const { runs } = memoryPersistence().stores
-    await runs.createOrResume({
-      runId: 'run-1',
-      threadId: 't1',
-      startedAt: Date.now(),
-    })
-    // Not a vi.spyOn: its mock handles the rejection itself.
-    let calls = 0
-    const update = runs.update.bind(runs)
-    runs.update = (runId, patch) => {
-      calls += 1
-      return calls === 2
-        ? Promise.reject(new Error('store down'))
-        : update(runId, patch)
-    }
-    const stop = await holdRunLease(runs, 'run-1', 'host-1', { renewMs: 1 })
-
-    await vi.waitFor(() => expect(calls).toBeGreaterThanOrEqual(3))
-    stop()
-    await new Promise((resolve) => setTimeout(resolve, 0))
-    process.off('unhandledRejection', unhandled)
-
-    expect(unhandled).not.toHaveBeenCalled()
-  })
-
-  it('stops renewing after another host took the run over', async () => {
-    const { runs } = memoryPersistence().stores
-    await runs.createOrResume({
-      runId: 'run-1',
-      threadId: 't1',
-      startedAt: Date.now(),
-    })
-    const stop = await holdRunLease(runs, 'run-1', 'host-1', { renewMs: 1 })
-    await runs.update('run-1', {
-      leaseOwner: 'host-2',
-      leaseExpiresAt: Date.now() + 60_000,
-    })
-    await new Promise((resolve) => setTimeout(resolve, 20))
-    expect((await runs.get('run-1'))?.leaseOwner).toBe('host-2')
-    stop()
-  })
-
-  it('uses the lease time it gets', async () => {
-    const startedAt = Date.now()
-    const stores = await runWithCheckpoint({
-      replies: [() => text('done')],
-      middleware: ({ runs, messages }) =>
-        checkpointMiddleware({
-          runs,
-          messages,
-          hostId: 'host-a',
-          lease: { ttlMs: 5_000 },
-        }),
-    })
-
-    const record = await stores.runs.get('run-1')
-    expect(record?.leaseOwner).toBe('host-a')
-    // 5 seconds, not the default 30 seconds.
-    expect(record?.leaseExpiresAt).toBeGreaterThanOrEqual(startedAt + 5_000)
-    expect(record?.leaseExpiresAt).toBeLessThan(startedAt + 15_000)
-  })
-
   it('gives onToolResult the tool message of each call that ends', async () => {
     const seen: Array<{ toolCallId: string; message: ModelMessage }> = []
     const tools = [
@@ -442,7 +384,6 @@ describe('checkpoint middleware options', () => {
         checkpointMiddleware({
           runs,
           messages,
-          hostId: 'host-a',
           onToolResult: (info) => {
             seen.push(info)
           },

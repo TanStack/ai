@@ -2,13 +2,22 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness } from '../src'
-import { gate, messageTexts, mockAdapter, text, toolCall } from './helpers'
+import { createHarnessHost, defineHarness, logIdOf } from '../src'
+import {
+  canOtherHostTake,
+  gate,
+  messageTexts,
+  mockAdapter,
+  text,
+  toolCall,
+} from './helpers'
 import type { AnyTool, SubagentRouterPick } from '@tanstack/ai'
-import type { AnyAgent, HarnessSession } from '../src'
+import type { AnyAgent, HarnessSession, OwnershipOptions } from '../src'
 import type { Reply } from './helpers'
 
 const THREAD = 't1'
+/** The id of the log of `THREAD` in the store. */
+const LOG = logIdOf({ logId: THREAD })
 
 /** The writer agent. It keeps the messages of each run and answers `Draft <n>`. */
 function writerAgent() {
@@ -59,11 +68,12 @@ async function openRouted(options: {
   agent: AnyAgent
   pick: SubagentRouterPick
   replies?: Array<Reply>
-  ownership?: { renewMs?: number; ttlMs?: number }
+  ownership?: OwnershipOptions
   tools?: ReadonlyArray<AnyTool>
 }) {
   const { runs, metadata } = memoryPersistence().stores
-  const persistence = { stores: { log: memoryLogStore(), runs, metadata } }
+  const log = memoryLogStore()
+  const persistence = { stores: { log, runs, metadata } }
   const main = mockAdapter(options.replies ?? [])
   const routerSaw: Array<Array<string>> = []
   const host = createHarnessHost({
@@ -87,7 +97,7 @@ async function openRouted(options: {
       threadId: THREAD,
     },
   )
-  return { host, session, runs, routerSaw, calls: main.calls }
+  return { host, session, runs, log, routerSaw, calls: main.calls }
 }
 
 describe('subagents.router', () => {
@@ -151,7 +161,7 @@ describe('subagents.router', () => {
     await host.close()
   })
 
-  it('holds a run lease while a routed agent runs', async () => {
+  it('keeps the thread from other hosts while a routed agent runs', async () => {
     const started = gate()
     const release = gate()
     const agent = defineAgent({
@@ -163,34 +173,37 @@ describe('subagents.router', () => {
         return 'Done.'
       },
     })
-    const { host, session, runs } = await openRouted({
+    const { host, session, runs, log } = await openRouted({
       agent,
       pick: 'writer',
     })
     const turn = session.send('go')
     await started.opened
-    const running = await runs.get(turn.id)
-    expect(running?.leaseOwner).toMatch(/^host-/)
-    expect(running?.leaseExpiresAt).toBeGreaterThan(Date.now())
+    expect((await runs.get(turn.id))?.status).toBe('running')
+    expect(await canOtherHostTake(log, LOG)).toBe(false)
     release.open()
     expect((await turn).text).toBe('writer:\nDone.')
     await host.close()
   })
 
-  it('stops the run lease when the turn ends', async () => {
+  it('gives the thread back when the turn ends', async () => {
     const { agent } = writerAgent()
-    const { host, session, runs } = await openRouted({
+    const { host, session, log } = await openRouted({
       agent,
       pick: 'writer',
       ownership: { renewMs: 5 },
     })
-    const turn = session.send('go')
-    await turn
-    const ended = (await runs.get(turn.id))?.leaseExpiresAt
-    expect(ended).toBeTypeOf('number')
-    // A lease that still renews moves forward within a few renewals.
+    const renew = vi.spyOn(log, 'renew')
+
+    await session.send('go')
+
+    await vi.waitFor(async () =>
+      expect(await canOtherHostTake(log, LOG)).toBe(true),
+    )
+    const renewals = renew.mock.calls.length
+    // A renewal that still runs would show within a few ticks.
     await new Promise((resolve) => setTimeout(resolve, 50))
-    expect((await runs.get(turn.id))?.leaseExpiresAt).toBe(ended)
+    expect(renew).toHaveBeenCalledTimes(renewals)
     await host.close()
   })
 

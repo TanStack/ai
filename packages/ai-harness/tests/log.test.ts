@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { EventType } from '@tanstack/ai'
 import {
   LogConflictError,
+  OwnershipLostError,
   UNOWNED_EPOCH,
   memoryLogStore,
   memoryPersistence,
@@ -17,14 +18,16 @@ import {
   sessionMessageStore,
   sessionOf,
 } from '../src/log'
-import { wrapLogStore } from './helpers'
+import { HostOwnership, LogOwnedElsewhereError } from '../src/ownership'
+import { wrapLogStore, writeAsOtherHost } from './helpers'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import type {
   LogRecord,
   LogStore,
   MetadataStore,
 } from '@tanstack/ai-persistence'
-import type { ProjectOptions, ReduceOptions } from '../src/log'
+import type { LogViewHooks, ProjectOptions, ReduceOptions } from '../src/log'
+import type { OwnershipOptions } from '../src/ownership'
 import type { SessionEvent } from '../src/types'
 
 const THREAD = 't1'
@@ -32,6 +35,39 @@ const THREAD = 't1'
 const LOG = logIdOf({ logId: THREAD })
 /** The tail of a test log: room for every event of a test. */
 const EVENT_BYTES = 1_000_000
+/** The harness name in the ownership records. */
+const HARNESS = 'test-harness'
+
+let hosts = 0
+/** The host of each store: the writers of one store object are one host. */
+const hostsByStore = new WeakMap<LogStore, HostOwnership>()
+/**
+ * The ownership of the host of `store`. With `timing`, a new host. A wrapped
+ * store (`silentStore`) is another object, so its writers are another host.
+ */
+function hostOwnership(store: LogStore, timing?: OwnershipOptions) {
+  const known = timing ? undefined : hostsByStore.get(store)
+  if (known) return known
+  const ownership = new HostOwnership({
+    store,
+    ownerId: `host-${(hosts += 1)}`,
+    ...(timing ? { timing } : {}),
+  })
+  if (!timing) hostsByStore.set(store, ownership)
+  return ownership
+}
+
+/**
+ * The hooks of a view. By default its session has no work, so the host gives
+ * the log back after each write.
+ */
+function hooksOf(options: Partial<LogViewHooks> = {}): LogViewHooks {
+  return {
+    onFailure: options.onFailure ?? (() => {}),
+    onLost: options.onLost ?? (() => {}),
+    isBusy: options.isBusy ?? (() => false),
+  }
+}
 
 function newWriter(
   store: LogStore,
@@ -46,6 +82,8 @@ function newWriter(
 ) {
   const log = new SharedLog({
     store,
+    ownership: hostOwnership(store),
+    harness: HARNESS,
     logId: LOG,
     rootThread: THREAD,
     state: options.state ?? emptySharedLogState(),
@@ -54,7 +92,7 @@ function newWriter(
     ...(options.project ? { project: options.project } : {}),
     ...(options.metadata ? { metadata: options.metadata } : {}),
   })
-  return log.view(THREAD, options.onFailure ?? (() => {}))
+  return log.view(THREAD, hooksOf({ onFailure: options.onFailure }))
 }
 
 /** The fold of the session `THREAD`. */
@@ -342,13 +380,15 @@ describe('tool call records', () => {
     const { store, batches } = recordingStore()
     const log = new SharedLog({
       store,
+      ownership: hostOwnership(store),
+      harness: HARNESS,
       logId: LOG,
       rootThread: THREAD,
       state: emptySharedLogState(),
       coalesceMs: 0,
       eventBytes: EVENT_BYTES,
     })
-    const writer = log.view(THREAD, () => {})
+    const writer = log.view(THREAD, hooksOf())
     await writer.append([result('call-1')])
     await writer.commit({ messages: paid })
 
@@ -455,22 +495,24 @@ describe('a closed view', () => {
     const store = memoryLogStore()
     const log = new SharedLog({
       store,
+      ownership: hostOwnership(store),
+      harness: HARNESS,
       logId: LOG,
       rootThread: THREAD,
       state: emptySharedLogState(),
       coalesceMs: 0,
       eventBytes: EVENT_BYTES,
     })
-    const closed = log.view('a', () => {})
+    const closed = log.view('a', hooksOf())
     // Another session keeps the log open.
-    log.view('b', () => {})
+    log.view('b', hooksOf())
 
     closed.close()
     closed.publish('op-1', textStart('m1'))
     closed.stage([{ type: 'app.staged' }])
     await closed.append([{ type: 'app.late' }])
     await closed.commit({ messages: [user('u0', 'late')] })
-    await log.view('a', () => {}).commit({ messages: [user('u1', 'hi')] })
+    await log.view('a', hooksOf()).commit({ messages: [user('u1', 'hi')] })
 
     expect(await records(store)).toEqual([
       {
@@ -547,6 +589,8 @@ describe('events and batches', () => {
     first.publish('op-b', textStart('m2'))
     first.publish('op-a', textEnd('m1'))
     await first.flush()
+    // The log goes back before the next session of this host opens it.
+    await first.rest()
     first.close()
 
     // A new session: the first events are only in the store.
@@ -592,25 +636,88 @@ describe('events and batches', () => {
 })
 
 describe('write failures', () => {
-  it('stops a writer that sees another writer after it wrote', async () => {
+  it('lets a writer whose log another host took read on, and write again once its work ended', async () => {
     const store = memoryLogStore()
     const failures: Array<unknown> = []
-    const first = newWriter(store, { onFailure: (e) => failures.push(e) })
-    await first.append([{ type: 'app.mine' }])
-    const state = await loadLogState({ store, logId: LOG, rootThread: THREAD })
-    const next = newWriter(store, { state })
-
-    // The newer host writes. The first host is notified and stops.
-    await next.append([{ type: 'app.newer' }])
-
-    await expect.poll(() => failures.length).toBe(1)
-    expect(failures[0]).toBeInstanceOf(LogConflictError)
-    await expect(first.append([{ type: 'app.zombie' }])).rejects.toBeInstanceOf(
-      LogConflictError,
+    const lost: Array<unknown> = []
+    // A busy session that holds the log for 20 ms and does not renew it in
+    // the test: a host that pauses.
+    const first = new SharedLog({
+      store,
+      ownership: hostOwnership(store, { ttlMs: 20, renewMs: 60_000 }),
+      harness: HARNESS,
+      logId: LOG,
+      rootThread: THREAD,
+      state: emptySharedLogState(),
+      coalesceMs: 0,
+      eventBytes: EVENT_BYTES,
+    }).view(
+      THREAD,
+      hooksOf({
+        onFailure: (error) => failures.push(error),
+        onLost: (error) => lost.push(error),
+        isBusy: () => true,
+      }),
     )
+    await first.append([{ type: 'app.mine' }])
+    expect(first.epoch).toBe(1)
+    await new Promise((resolve) => setTimeout(resolve, 30))
+
+    // Another host takes the expired log and writes.
+    await writeAsOtherHost(store, LOG, (epoch) =>
+      store.append({
+        logId: LOG,
+        seq: 2,
+        epoch,
+        records: [{ type: 'app.newer' }],
+      }),
+    )
+
+    await expect.poll(() => lost.length).toBe(1)
+    expect(lost[0]).toBeInstanceOf(OwnershipLostError)
+    expect(failures).toEqual([])
+    expect(first.state.seq).toBe(2)
+    expect(first.epoch).toBe(UNOWNED_EPOCH)
+    expect(first.fenced).toBe(true)
+    await expect(first.append([{ type: 'app.zombie' }])).rejects.toBeInstanceOf(
+      LogOwnedElsewhereError,
+    )
+    // The work of the session ended: the next write acquires the log again.
+    first.unfence()
+    await first.append([{ type: 'app.again' }])
+    expect(first.epoch).toBe(3)
     expect((await records(store)).map((record) => record.type)).toEqual([
       'app.mine',
       'app.newer',
+      'app.again',
+    ])
+  })
+
+  it('refuses a write while another live host owns the log, and still reads', async () => {
+    const store = memoryLogStore()
+    const failures: Array<unknown> = []
+    const writer = newWriter(store, { onFailure: (e) => failures.push(e) })
+    const other = await store.acquire({
+      logId: LOG,
+      harness: HARNESS,
+      ownerId: 'other-host',
+      ttlMs: 60_000,
+    })
+    if (other === null) throw new Error('The other host has no ownership.')
+    await store.append({
+      logId: LOG,
+      seq: 1,
+      epoch: other.epoch,
+      records: [{ type: 'app.other' }],
+    })
+
+    await expect(writer.append([{ type: 'app.mine' }])).rejects.toBeInstanceOf(
+      LogOwnedElsewhereError,
+    )
+    await expect.poll(() => writer.state.seq).toBe(1)
+    expect(failures).toEqual([])
+    expect((await records(store)).map((record) => record.type)).toEqual([
+      'app.other',
     ])
   })
 
@@ -618,13 +725,16 @@ describe('write failures', () => {
     const store = memoryLogStore()
     const old = newWriter(store)
     await old.commit({ messages: [user('u1', 'one')] })
+    await old.rest()
     // A newer host appends a harness record type that this version does not know.
-    await store.append({
-      logId: LOG,
-      seq: 2,
-      epoch: UNOWNED_EPOCH,
-      records: [{ type: 'harness.later', value: 1 }],
-    })
+    await writeAsOtherHost(store, LOG, (epoch) =>
+      store.append({
+        logId: LOG,
+        seq: 2,
+        epoch,
+        records: [{ type: 'harness.later', value: 1 }],
+      }),
+    )
     const state = await loadLogState({ store, logId: LOG, rootThread: THREAD })
     expect(state.newerRecord).toBe('harness.later')
     expect(sessionOf(state, THREAD).messages).toEqual([user('u1', 'one')])
@@ -647,10 +757,11 @@ describe('write failures', () => {
     ])
   })
 
-  it('calls onFailure on a conflict and rejects every later write', async () => {
+  it('folds the records of the last owner before its first append', async () => {
     const store = memoryLogStore()
     const failures: Array<unknown> = []
-    const stale = newWriter(silentStore(store), {
+    // It is not notified, so only the acquire makes it read the log.
+    const next = newWriter(silentStore(store), {
       onFailure: (error) => failures.push(error),
     })
     await store.append({
@@ -660,16 +771,36 @@ describe('write failures', () => {
       records: [{ type: 'app.from-another-host' }],
     })
 
-    await expect(stale.append([{ type: 'app.late' }])).rejects.toBeInstanceOf(
+    await next.append([{ type: 'app.mine' }])
+
+    expect(failures).toEqual([])
+    expect(next.state.seq).toBe(2)
+    expect((await records(store)).map((record) => record.type)).toEqual([
+      'app.from-another-host',
+      'app.mine',
+    ])
+  })
+
+  it('calls onFailure on a conflict and rejects every later write', async () => {
+    const inner = memoryLogStore()
+    const failures: Array<unknown> = []
+    // A store that refuses each position.
+    const store = wrapLogStore(silentStore(inner), {
+      append: (batch) =>
+        Promise.reject(new LogConflictError(batch.logId, batch.seq)),
+    })
+    const writer = newWriter(store, {
+      onFailure: (error) => failures.push(error),
+    })
+
+    await expect(writer.append([{ type: 'app.late' }])).rejects.toBeInstanceOf(
       LogConflictError,
     )
-    await expect(stale.append([{ type: 'app.later' }])).rejects.toBeInstanceOf(
+    await expect(writer.append([{ type: 'app.later' }])).rejects.toBeInstanceOf(
       LogConflictError,
     )
     expect(failures).toHaveLength(1)
-    expect((await records(store)).map((record) => record.type)).toEqual([
-      'app.from-another-host',
-    ])
+    expect(await records(inner)).toEqual([])
   })
 
   it('counts a batch that landed before an error as written', async () => {
@@ -694,7 +825,7 @@ describe('write failures', () => {
     expect(calls).toBe(2)
   })
 
-  it('stops when a read of records from another writer fails', async () => {
+  it('reads on after a read of records from another writer fails', async () => {
     const inner = memoryLogStore()
     let isDown = false
     const store = wrapLogStore(inner, {
@@ -704,18 +835,29 @@ describe('write failures', () => {
       },
     })
     const failures: Array<unknown> = []
-    newWriter(store, { onFailure: (e) => failures.push(e) })
+    const reader = newWriter(store, { onFailure: (e) => failures.push(e) })
     isDown = true
-
     await inner.append({
       logId: LOG,
       seq: 1,
       epoch: UNOWNED_EPOCH,
       records: [{ type: 'app.other' }],
     })
+    // After the failed read: the flush runs after it.
+    await reader.flush()
+    expect(reader.state.seq).toBe(0)
 
-    await expect.poll(() => failures.length).toBe(1)
-    expect(failures[0]).toMatchObject({ message: 'read failed' })
+    // The next notification reads both records.
+    isDown = false
+    await inner.append({
+      logId: LOG,
+      seq: 2,
+      epoch: UNOWNED_EPOCH,
+      records: [{ type: 'app.other' }],
+    })
+
+    await expect.poll(() => reader.state.seq).toBe(2)
+    expect(failures).toEqual([])
   })
 
   it('counts a landed batch as written when the store reorders its keys', async () => {
@@ -978,6 +1120,8 @@ describe('fold checkpoints', () => {
     }
     const log = new SharedLog({
       store,
+      ownership: hostOwnership(store),
+      harness: HARNESS,
       logId: LOG,
       rootThread: THREAD,
       state: emptySharedLogState(reduce),
@@ -986,7 +1130,7 @@ describe('fold checkpoints', () => {
       reduce,
       metadata,
     })
-    const writer = log.view(THREAD, () => {})
+    const writer = log.view(THREAD, hooksOf())
     for (let index = 0; index < 50; index += 1) {
       await writer.append([{ type: 'app.tick', index }])
     }
@@ -1202,6 +1346,8 @@ describe('a log shared by sessions', () => {
   const sharedWriter = (store: LogStore) => {
     const log = new SharedLog({
       store,
+      ownership: hostOwnership(store),
+      harness: HARNESS,
       logId: SHARED,
       rootThread: 'log-1',
       state: emptySharedLogState(),
@@ -1210,8 +1356,8 @@ describe('a log shared by sessions', () => {
     })
     return {
       log,
-      root: log.view('log-1', () => {}),
-      child: log.view('child', () => {}),
+      root: log.view('log-1', hooksOf()),
+      child: log.view('child', hooksOf()),
     }
   }
 
@@ -1279,6 +1425,8 @@ describe('a log shared by sessions', () => {
     }
     const log = new SharedLog({
       store,
+      ownership: hostOwnership(store),
+      harness: HARNESS,
       logId: SHARED,
       rootThread: 'log-1',
       state: emptySharedLogState(reduce),
@@ -1286,8 +1434,8 @@ describe('a log shared by sessions', () => {
       eventBytes: EVENT_BYTES,
       reduce,
     })
-    const root = log.view('log-1', () => {})
-    const child = log.view('child', () => {})
+    const root = log.view('log-1', hooksOf())
+    const child = log.view('child', hooksOf())
 
     await root.append([{ type: 'app.state_write', name: 'x', value: 1 }])
     await child.append([{ type: 'app.state_write', name: 'x', value: 2 }])
@@ -1335,16 +1483,18 @@ describe('a log shared by sessions', () => {
     child.close()
 
     await vi.waitFor(() => expect(log.isOpen).toBe(false))
-    expect(() => log.view('log-1', () => {})).toThrow(
+    expect(() => log.view('log-1', hooksOf())).toThrow(
       `The log ${JSON.stringify(SHARED)} is closed.`,
     )
   })
 
-  it('stops every view and closes when another writer appends', async () => {
+  it('fences every view when another host takes the log, and stays open', async () => {
     const store = memoryLogStore()
     const onIdle = vi.fn()
     const log = new SharedLog({
       store,
+      ownership: hostOwnership(store, { ttlMs: 20, renewMs: 60_000 }),
+      harness: HARNESS,
       logId: SHARED,
       rootThread: 'log-1',
       state: emptySharedLogState(),
@@ -1352,32 +1502,39 @@ describe('a log shared by sessions', () => {
       eventBytes: EVENT_BYTES,
       onIdle,
     })
-    const rootFailure = vi.fn()
-    const childFailure = vi.fn()
-    const root = log.view('log-1', rootFailure)
-    const child = log.view('child', childFailure)
+    const rootLost = vi.fn()
+    const childLost = vi.fn()
+    const failure = vi.fn()
+    const busy = { isBusy: () => true, onFailure: failure }
+    const root = log.view('log-1', hooksOf({ ...busy, onLost: rootLost }))
+    const child = log.view('child', hooksOf({ ...busy, onLost: childLost }))
     await root.append([{ type: 'app.mine' }])
+    await new Promise((resolve) => setTimeout(resolve, 30))
 
-    // Another writer takes the next position.
-    await store.append({
-      logId: SHARED,
-      seq: 2,
-      epoch: UNOWNED_EPOCH,
-      records: [{ type: 'app.other' }],
-    })
-    await expect(root.append([{ type: 'app.late' }])).rejects.toBeInstanceOf(
-      LogConflictError,
+    // Another host takes the expired log and writes.
+    await writeAsOtherHost(store, SHARED, (epoch) =>
+      store.append({
+        logId: SHARED,
+        seq: 2,
+        epoch,
+        records: [{ type: 'app.other' }],
+      }),
     )
 
-    expect(rootFailure).toHaveBeenCalledTimes(1)
-    expect(childFailure).toHaveBeenCalledTimes(1)
-    expect(onIdle).toHaveBeenCalled()
-    expect(log.isOpen).toBe(false)
+    await expect.poll(() => rootLost.mock.calls.length).toBe(1)
+    expect(childLost).toHaveBeenCalledTimes(1)
+    expect(failure).not.toHaveBeenCalled()
+    expect(onIdle).not.toHaveBeenCalled()
+    expect(log.isOpen).toBe(true)
+    expect(log.state.seq).toBe(2)
     await expect(root.append([{ type: 'app.x' }])).rejects.toBeInstanceOf(
-      LogConflictError,
+      LogOwnedElsewhereError,
     )
     await expect(child.append([{ type: 'app.x' }])).rejects.toBeInstanceOf(
-      LogConflictError,
+      LogOwnedElsewhereError,
+    )
+    expect((await records(store, SHARED)).map((record) => record.type)).toEqual(
+      ['app.mine', 'app.other'],
     )
   })
 
@@ -1385,13 +1542,13 @@ describe('a log shared by sessions', () => {
     const store = memoryLogStore()
     const { log, root } = sharedWriter(store)
 
-    expect(() => log.view('log-1', () => {})).toThrow(
+    expect(() => log.view('log-1', hooksOf())).toThrow(
       'The thread "log-1" already has an open session on this log.',
     )
     root.close()
 
     // The child view keeps the log open, so the thread opens again.
-    const again = log.view('log-1', () => {})
+    const again = log.view('log-1', hooksOf())
     await again.append([{ type: 'app.note' }])
     expect(await records(store, SHARED)).toEqual([{ type: 'app.note' }])
   })
@@ -1410,19 +1567,21 @@ describe('a log shared by sessions', () => {
     })
     const log = new SharedLog({
       store,
+      ownership: hostOwnership(store),
+      harness: HARNESS,
       logId: LOG,
       rootThread: THREAD,
       state: emptySharedLogState(),
       coalesceMs: 0,
       eventBytes: EVENT_BYTES,
     })
-    const view = log.view(THREAD, () => {})
+    const view = log.view(THREAD, hooksOf())
     void view.append([{ type: 'app.last' }])
     view.close()
 
     expect(log.isOpen).toBe(true)
     // An open now gets this log, so it has the last append.
-    const next = log.view(THREAD, () => {})
+    const next = log.view(THREAD, hooksOf())
     release()
     await next.flush()
     expect(next.state.seq).toBe(1)
@@ -1437,7 +1596,7 @@ describe('a log shared by sessions', () => {
 
     child.stage([{ type: 'app.x' }])
     child.close()
-    const next = log.view('child', () => {})
+    const next = log.view('child', hooksOf())
     await next.commit({ messages: [user('c1', 'hi')] })
 
     expect((await records(store, SHARED)).map((record) => record.type)).toEqual(

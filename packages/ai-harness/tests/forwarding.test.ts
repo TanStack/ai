@@ -527,10 +527,11 @@ describe('an input that reaches a host that does not own the thread', () => {
       () => text('Two.'),
     ])
     const harness = harnessWith(adapter)
-    // The owner stores its input, then stops before it writes its run lease.
+    // The owner stores its input, then stops in its turn. It never renews
+    // its claim or its ownership of the log, as after a crash.
     const runs = persistence.stores.runs
     const owner = await createHarnessHost({
-      ownership: { ttlMs: 200, renewMs: 50 },
+      ownership: { ttlMs: 200, renewMs: 60_000 },
       persistence: {
         stores: {
           ...persistence.stores,
@@ -547,7 +548,7 @@ describe('an input that reaches a host that does not own the thread', () => {
     const receipt = await other.send('Second.', { mode: 'followUp' }).receipt
     expect(receipt.status).toBe('queued')
 
-    // The owner stops renewing its claim, as after a crash.
+    // The owner stops reading the inbox too, as after a crash.
     ;(owner as unknown as { stopClaimTimer: () => void }).stopClaimTimer()
     await vi.waitFor(() => expect(calls).toHaveLength(2), { timeout: 4_000 })
     // The owner's input runs first, then the forwarded one.

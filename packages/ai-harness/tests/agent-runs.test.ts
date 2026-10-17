@@ -2,16 +2,11 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { defineAgent, toolDefinition } from '@tanstack/ai'
 import {
-  UNOWNED_EPOCH,
+  LogConflictError,
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
-import {
-  createHarnessHost,
-  defineHarness,
-  logIdOf,
-  logMessageStore,
-} from '../src'
+import { createHarnessHost, defineHarness, logMessageStore } from '../src'
 import {
   after,
   gate,
@@ -26,8 +21,6 @@ import type { AnyTextAdapter } from '@tanstack/ai'
 import type { AnyHarness, HarnessSession, Operation } from '../src'
 
 const THREAD = 't1'
-/** The id of the log of `THREAD` in the store. */
-const LOG = logIdOf({ logId: THREAD })
 const alice = { id: 'alice' }
 
 /** Open `harness` for alice. */
@@ -200,8 +193,14 @@ describe('follow-ups to an agent run', () => {
 
   it('cancels a queued follow-up when a log failure stops the session', async () => {
     const inner = memoryLogStore()
-    // This host does not see the other writer, like one in another process.
-    const log = wrapLogStore(inner, { subscribe: () => () => {} })
+    // After `isBroken`, the store refuses each position.
+    let isBroken = false
+    const log = wrapLogStore(inner, {
+      append: (batch) =>
+        isBroken
+          ? Promise.reject(new LogConflictError(batch.logId, batch.seq))
+          : inner.append(batch),
+    })
     const { runs, metadata } = memoryPersistence().stores
     const model = mockAdapter([untilAborted(), () => text('Draft two.')])
     const host = createHarnessHost({
@@ -215,13 +214,7 @@ describe('follow-ups to an agent run', () => {
     await vi.waitFor(() => expect(model.calls).toHaveLength(1))
     const receipt = await run.send('Add a title.', { mode: 'followUp' })
     const followUp = session.operation(receipt.operationId ?? '')
-    const [last] = (await inner.read({ logId: LOG })).slice(-1)
-    await inner.append({
-      logId: LOG,
-      seq: (last?.seq ?? 0) + 1,
-      epoch: UNOWNED_EPOCH,
-      records: [{ type: 'app.from-another-host' }],
-    })
+    isBroken = true
 
     await Promise.resolve(session.send('Next.')).catch(() => {})
 
@@ -581,7 +574,7 @@ describe('agents that agent code starts', () => {
 
 /**
  * Two hosts on one durable store. `stop` makes host A stop during `run`:
- * its log refuses writes, and the run's lease expires.
+ * its log refuses writes, so it gives the log up.
  */
 function durable() {
   const stores = memoryPersistence().stores
@@ -599,7 +592,6 @@ function durable() {
     await expect(session.append([{ type: 'app.ping' }])).rejects.toThrow()
     await expect(run).rejects.toThrow()
     refuse.mockRestore()
-    await stores.runs.update(run.id, { leaseExpiresAt: Date.now() - 1000 })
   }
   return { persistence, stop }
 }

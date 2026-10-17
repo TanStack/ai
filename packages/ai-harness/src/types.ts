@@ -463,6 +463,30 @@ export interface RunContext {
   runId: string
   /** The run that this run continues or that started it, when there is one. */
   parentRunId?: string
+  /**
+   * The ownership epoch of the log when the run started. Only one host owns
+   * a log at an epoch, and a later owner has a larger one. Give it to a
+   * system that fences writes, so a host that lost the log is refused.
+   */
+  epoch: number
+  /**
+   * A key for one side effect of this run, for a system that refuses a
+   * second call with the same key:
+   * `${logId}:${scope}:${step}`. `scope` defaults to `runId`. Pass the tool
+   * call id from a tool (`ctx.toolCallId`). A run again after a host stop,
+   * on any host, gets the same key, so the other system refuses the second
+   * side effect.
+   *
+   * @example
+   * ```ts
+   * const charge = toolDefinition({ name: 'charge', description: 'Charge the card' })
+   *   .server<HarnessRunContext>(async (_args, ctx) => {
+   *     const key = ctx.context.run.idempotencyKey('charge', ctx.toolCallId)
+   *     return payments.charge({ amount: 100, idempotencyKey: key })
+   *   })
+   * ```
+   */
+  idempotencyKey: (step: string, scope?: string) => string
   /** Aborts when this run stops. */
   signal: AbortSignal
   /** The credentials of the user of this run. */

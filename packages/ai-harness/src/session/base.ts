@@ -20,7 +20,7 @@ import { logIdOf } from '../log'
 import { pluginStateDeltas } from '../log-records'
 import { tenantStores } from '../tenant-stores'
 import { SESSION_PLUGIN_CREDENTIALS, SESSION_PLUGIN_KEYS } from '../plugins'
-import { LEASE } from '../resume'
+import { OWNERSHIP } from '../ownership'
 import { HARNESS_EVENTS } from '../types'
 import {
   DEFAULT_SUBAGENT_LIMITS,
@@ -55,8 +55,7 @@ import type {
 import type { AuthRequiredError, CredentialsAccess } from '../auth'
 import type { EventListener, ListenedFeed } from '../feed'
 import type { LogWriter, RevertState, engineMessageStore } from '../log'
-import type { DurableBind } from '../durable-tool'
-import type { LeaseOptions } from '../resume'
+import type { OwnershipOptions } from '../ownership'
 import type { MediaStore } from '../media'
 import type { PluginSessionApi } from '../commands'
 import type { SessionUsage } from '../usage'
@@ -244,7 +243,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   /**
    * The key of this thread in the stores that the session keys by thread
    * id: the tenant and the thread id, from `logIdOf`. The metadata rows, the
-   * inbox, the work claims, and the leases use it. `persistence` gives the
+   * inbox, and the work claims use it. `persistence` gives the
    * runs and interrupts in the tenant already.
    */
   protected readonly storeThreadId: string
@@ -395,11 +394,15 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   /** Tells the host each time the thread goes idle. See `SessionDependencies`. */
   protected readonly notifyIdle: (() => void) | undefined
   protected checkpoint: AnyChatMiddleware | undefined
-  /** Gives each durable tool call its steps in the log. One per session. */
-  protected bindTool: DurableBind | undefined
   protected readonly hostId: string
   protected readonly index: SessionIndexWriter
-  protected readonly lease: LeaseOptions | undefined
+  /** The ownership timing of the host. The work claims use it too. */
+  protected readonly ownership: OwnershipOptions | undefined
+  /**
+   * Why the work of this session stopped: another host took the log. Set
+   * from the loss until the stopped work ended.
+   */
+  protected ownershipLoss: Error | undefined
   protected readonly listeners = new Map<
     string,
     Set<(value: unknown) => void>
@@ -502,7 +505,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     this.notifyIdle = deps.onIdle
     this.hostId = deps.hostId
     this.index = deps.index
-    this.lease = deps.lease
+    this.ownership = deps.ownership
     this.log = deps.log
     // The session gets its log view in `open()`.
     this.messages = notOpenMessages
@@ -744,13 +747,19 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     canWait?: (id: string) => boolean
   }): RunContext {
     const { principal } = storedPrincipal(options.principal)
+    const { runId } = options
+    const logId = this.storeLogId
     return {
       ...(this.tenantId !== undefined ? { tenantId: this.tenantId } : {}),
       principal,
-      logId: this.storeLogId,
+      logId,
       threadId: this.threadId,
-      runId: options.runId,
+      runId,
       ...(options.parentRunId ? { parentRunId: options.parentRunId } : {}),
+      epoch: this.writer.epoch,
+      // No attempt in the key: a run again on another host must send the
+      // same key, so the other system refuses the second side effect.
+      idempotencyKey: (step, scope) => `${logId}:${scope ?? runId}:${step}`,
       signal: options.signal,
       credentials: this.credentialsOf(options.principal, options.canWait),
       keys: this.keysOf(options.principal),
@@ -904,7 +913,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected markBusy(): void {
     const claims = this.persistence.stores.workClaims
     if (!claims || this.claimTimer || this.closing) return
-    const ttlMs = this.lease?.ttlMs ?? LEASE.ttlMs
+    const ttlMs = this.ownership?.ttlMs ?? OWNERSHIP.ttlMs
     const claim = async () => {
       try {
         // Another host's claim that has not expired is left alone: the call
@@ -924,7 +933,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     }
     const timer = setInterval(
       () => void claim(),
-      this.lease?.renewMs ?? LEASE.renewMs,
+      this.ownership?.renewMs ?? OWNERSHIP.renewMs,
     )
     // A claim timer must not keep a CLI or a test process alive.
     if (typeof timer === 'object' && 'unref' in timer) timer.unref()
@@ -1008,14 +1017,20 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
         threadId: this.storeThreadId,
         harness: this.harness.name,
         ownerId: this.hostId,
-        until: Date.now() + (this.lease?.ttlMs ?? LEASE.ttlMs),
+        until: Date.now() + (this.ownership?.ttlMs ?? OWNERSHIP.ttlMs),
       })
       if (!isHeld) return
       // This host takes the thread from an owner that stopped. Its inputs
       // run first, as on an open.
       if (this.recoveryDeferred) {
-        await this.recoverFromLog(this.writer)
+        // Recovery defers again while another host owns the log.
         this.recoveryDeferred = false
+        try {
+          await this.recoverFromLog(this.writer)
+        } catch (error) {
+          this.recoveryDeferred = true
+          throw error
+        }
       }
       for (const entry of pending) {
         await this.applyForwarded(entry)
@@ -1248,6 +1263,13 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected checkIdle(): void {
     if (!this.isIdle()) return
     this.stopClaimTimer()
+    // The work that a lost log stopped has ended: a later write acquires the
+    // log again. An idle session owns nothing.
+    if (this.logWriter?.fenced) {
+      this.ownershipLoss = undefined
+      this.logWriter.unfence()
+    }
+    void this.logWriter?.rest()
     // ponytail: one release write per idle thread, also when this host
     // holds no claim (a sweep may hold one for it). Track the claim if the
     // writes matter.

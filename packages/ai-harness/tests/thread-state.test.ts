@@ -10,15 +10,17 @@ import {
   definePlugin,
 } from '../src'
 import {
+  CRASHING_OWNERSHIP,
   messageTexts,
   mockAdapter,
+  ownershipExpired,
   storedThreadState,
   text,
   toolCall,
   untilAborted,
 } from './helpers'
 import type { ModelMessage, ReasoningRequest } from '@tanstack/ai'
-import type { HarnessConfig } from '../src'
+import type { HarnessConfig, OwnershipOptions } from '../src'
 import type { Reply } from './helpers'
 
 const THREAD = 't1'
@@ -31,7 +33,7 @@ const CHECKPOINTS = 'harness:log-checkpoint'
 /**
  * Memory stores, as two servers share them, and the metadata namespaces
  * that the harness writes. Thread state goes to the log, so the list stays
- * empty. No host leases: a server that stopped holds only its run lease.
+ * empty. A server that stopped owns its logs until the ownership expires.
  */
 function sharedStores() {
   const { log, runs, metadata, interrupts } = memoryPersistence().stores
@@ -68,9 +70,13 @@ async function openOn(
   { persistence }: Shared,
   config: Omit<HarnessConfig, 'name' | 'adapter'>,
   replies: Array<Reply> = [],
+  ownership?: OwnershipOptions,
 ) {
   const model = mockAdapter(replies)
-  const host = createHarnessHost({ persistence })
+  const host = createHarnessHost({
+    persistence,
+    ...(ownership ? { ownership } : {}),
+  })
   const session = await host.open(
     defineHarness({
       name: 'test/thread-state',
@@ -220,20 +226,26 @@ describe('thread state in the log', () => {
       { role: 'user', content: 'Today is Friday.' },
     ]
     const stalled = mockAdapter([untilAborted()])
-    const first = await openOn(shared, {
-      models: { strong: stalled.adapter },
-    })
-    const turn = first.session.send('Plan the week.', {
-      inputId: 'in-1',
-      overrides: { model: 'strong', reasoning: HIGH },
-      systemPreamble: ['You plan weeks.'],
-      ephemeral: note,
-    })
+    const first = await openOn(
+      shared,
+      { models: { strong: stalled.adapter } },
+      [],
+      CRASHING_OWNERSHIP,
+    )
+    void first.session
+      .send('Plan the week.', {
+        inputId: 'in-1',
+        overrides: { model: 'strong', reasoning: HIGH },
+        systemPreamble: ['You plan weeks.'],
+        ephemeral: note,
+      })
+      .then(
+        () => {},
+        () => {},
+      )
     await vi.waitFor(() => expect(stalled.calls).toHaveLength(1))
-    // The first host stops: its run lease expires.
-    await shared.persistence.stores.runs.update(turn.id, {
-      leaseExpiresAt: Date.now() - 1,
-    })
+    // The first host stops: its ownership of the log expires.
+    await ownershipExpired()
 
     const strong = mockAdapter([() => text('Monday: plan.')])
     const second = await openOn(shared, { models: { strong: strong.adapter } })

@@ -17,8 +17,13 @@ import type {
   GenerationRunStore,
   LogStore,
 } from '@tanstack/ai-persistence'
-import type { InputState, LogWriter, ProjectOptions } from '../log'
-import type { LeaseOptions } from '../resume'
+import type {
+  InputState,
+  LogViewHooks,
+  LogWriter,
+  ProjectOptions,
+} from '../log'
+import type { OwnershipOptions } from '../ownership'
 import type { ConfigOption } from '../config'
 import type { SessionUsage } from '../usage'
 import type { AgentInputOf, AgentResultOf, AnyAgent } from '../agents'
@@ -214,7 +219,7 @@ export interface SessionDependencies {
   principal?: Principal
   /** The tenant of the session. Without it, the default tenant. */
   tenantId?: string
-  /** Identifies this host on run leases. */
+  /** Identifies this host on the ownership records and the work claims. */
   hostId: string
   /** Writes the session index entry of the thread. */
   index: SessionIndexWriter
@@ -227,10 +232,7 @@ export interface SessionDependencies {
     store: LogStore
     project?: ProjectOptions
     /** The view of this session in its shared log. */
-    open: (
-      threadId: string,
-      onFailure: (error: unknown) => void,
-    ) => Promise<LogWriter>
+    open: (threadId: string, hooks: LogViewHooks) => Promise<LogWriter>
   }
   /**
    * The log of the session: the `logId` of `host.open`, else the thread id.
@@ -240,7 +242,8 @@ export interface SessionDependencies {
   logId: string
   /** The id of that log in the store, with the tenant. See `logIdOf`. */
   storeLogId: string
-  lease?: LeaseOptions
+  /** The ownership timing of the host. The work claims use it too. */
+  ownership?: OwnershipOptions
   /** The `promptCache` of `host.open()`. It overrides the harness value. */
   promptCache?: PromptCacheOptions
   /** Gets each event the session publishes, after the feed has it. */

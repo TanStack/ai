@@ -1,9 +1,5 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
-import {
-  UNOWNED_EPOCH,
-  memoryLogStore,
-  memoryPersistence,
-} from '@tanstack/ai-persistence'
+import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import {
   createHarnessHost,
   defineHarness,
@@ -11,15 +7,18 @@ import {
   logMessageStore,
 } from '../src'
 import {
+  CRASHING_OWNERSHIP,
+  appendToLog,
   gate,
   messageTexts,
   mockAdapter,
+  ownershipExpired,
   text,
   untilAborted,
   wrapLogStore,
 } from './helpers'
 import type { LogRecord, LogStore } from '@tanstack/ai-persistence'
-import type { ReduceOptions } from '../src'
+import type { OwnershipOptions, ReduceOptions } from '../src'
 import type { Reply } from './helpers'
 
 const LOG = 'agent-1'
@@ -42,8 +41,8 @@ const reduce: ReduceOptions<Record<string, unknown>> = {
       : state,
 }
 
-function hostFor(persistence: Durable) {
-  return createHarnessHost({ persistence })
+function hostFor(persistence: Durable, ownership?: OwnershipOptions) {
+  return createHarnessHost({ persistence, ...(ownership ? { ownership } : {}) })
 }
 
 /** A harness whose `reduce` folds the logs it opens. */
@@ -63,14 +62,11 @@ const harnessWith = (replies: Array<Reply>) => {
 const plainHarness = () =>
   defineHarness({ name: 'test/shared', adapter: mockAdapter([]).adapter })
 
-const expireLease = (persistence: Durable, runId: string) =>
-  persistence.stores.runs.update(runId, { leaseExpiresAt: Date.now() - 1 })
-
 describe('sessions that share one log', () => {
   it('run turns at the same time and each rebuilds its own transcript after a crash', async () => {
     const persistence = durablePersistence()
     const release = gate()
-    const host = hostFor(persistence)
+    const host = hostFor(persistence, CRASHING_OWNERSHIP)
     const rootModel = harnessWith([
       () =>
         (async function* () {
@@ -93,11 +89,13 @@ describe('sessions that share one log', () => {
     })
     release.open()
     expect(await rootTurn).toEqual({ text: 'root answer', media: [] })
-    const childTurn = child.send('second child question', {
-      inputId: 'child-2',
-    })
+    void child.send('second child question', { inputId: 'child-2' }).then(
+      () => {},
+      () => {},
+    )
     await vi.waitFor(() => expect(childModel.calls).toHaveLength(2))
-    await expireLease(persistence, childTurn.id)
+    // The host stops: its ownership of the log expires.
+    await ownershipExpired()
 
     const next = hostFor(persistence)
     const rootAgain = await next.open(harnessWith([]).harness, {
@@ -231,7 +229,7 @@ describe('sessions that share one log', () => {
     await host.close()
   })
 
-  it('stops both sessions of the log when another host writes to it', async () => {
+  it('keeps both sessions of the log open when another host writes to it', async () => {
     const persistence = durablePersistence()
     const host = hostFor(persistence)
     const root = await host.open(harnessWith([]).harness, {
@@ -243,27 +241,20 @@ describe('sessions that share one log', () => {
     })
     await root.append([{ type: 'app.signal' }])
 
-    // Another writer takes the next position of the log.
-    const written = await persistence.stores.log.read({ logId: STORE_LOG })
-    await persistence.stores.log.append({
-      logId: STORE_LOG,
-      seq: written.length + 1,
-      epoch: UNOWNED_EPOCH,
-      records: [{ type: 'app.other' }],
-    })
-
-    await expect(root.append([{ type: 'app.signal' }])).rejects.toThrow(
-      'Log conflict',
+    // The sessions have no work, so the host gave the log up. Another host
+    // takes it and writes.
+    await vi.waitFor(() =>
+      appendToLog(persistence.stores.log, { threadId: LOG }, [
+        { type: 'app.other' },
+      ]),
     )
+
     const isOpen = (threadId: string) =>
       host.isOpen(harnessWith([]).harness, { threadId })
-    await vi.waitFor(() => {
-      expect(isOpen(LOG)).toBe(false)
-      expect(isOpen('task-1')).toBe(false)
-    })
-
-    // Each handle opens a new session on its next call. It folds the log
-    // again, so it appends after the record of the other writer.
+    expect(isOpen(LOG)).toBe(true)
+    expect(isOpen('task-1')).toBe(true)
+    // The next write acquires the log again, after the record of the other
+    // host.
     await child.append([{ type: 'app.child' }])
     await root.append([{ type: 'app.root' }])
     const records = await persistence.stores.log.read({ logId: STORE_LOG })

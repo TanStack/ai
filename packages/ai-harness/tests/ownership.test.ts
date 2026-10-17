@@ -1,0 +1,330 @@
+import { describe, expect, it, vi } from 'vitest'
+import { toolDefinition } from '@tanstack/ai'
+import {
+  memoryLogBackend,
+  memoryLogStore,
+  memoryPersistence,
+} from '@tanstack/ai-persistence'
+import { createHarnessHost, defineHarness, durableTool, logIdOf } from '../src'
+import { HostOwnership } from '../src/ownership'
+import {
+  CRASHING_OWNERSHIP,
+  after,
+  canOtherHostTake,
+  gate,
+  mockAdapter,
+  ownershipExpired,
+  text,
+  toolCall,
+} from './helpers'
+import type { AnyTool } from '@tanstack/ai'
+import type { LogStore } from '@tanstack/ai-persistence'
+import type { HarnessRunContext, OwnershipOptions } from '../src'
+import type { StepRun } from '../src/durable-tool'
+import type { Reply } from './helpers'
+
+const THREAD = 't1'
+/** The id of the log of `THREAD` in the store. */
+const LOG = logIdOf({ logId: THREAD })
+
+/** A host on `log` that runs one harness, with its replies and tools. */
+async function openOn(
+  log: LogStore,
+  replies: Array<Reply>,
+  options: {
+    tools?: Array<AnyTool>
+    ownership?: OwnershipOptions
+    threadId?: string
+  } = {},
+) {
+  const { adapter, calls } = mockAdapter(replies)
+  const host = createHarnessHost({
+    persistence: { stores: { log } },
+    ...(options.ownership ? { ownership: options.ownership } : {}),
+  })
+  const session = await host.open(
+    defineHarness({
+      name: 'test/ownership',
+      adapter,
+      tools: options.tools ?? [],
+    }),
+    { threadId: options.threadId ?? THREAD },
+  )
+  return { host, session, calls }
+}
+
+/** Two hosts on one database: two log stores on one memory backend. */
+function twoHosts() {
+  const backend = memoryLogBackend()
+  return {
+    logA: memoryLogStore({ backend }),
+    logB: memoryLogStore({ backend }),
+  }
+}
+
+/** The text of each assistant message in a transcript. */
+const assistantTexts = (
+  messages: ReadonlyArray<{ role: string; content: unknown }>,
+) =>
+  messages
+    .filter((message) => message.role === 'assistant')
+    .map((message) => message.content)
+
+describe('ownership of a log by two hosts', () => {
+  it('refuses the writes of a host while another host owns the log and renews it', async () => {
+    const { logA, logB } = twoHosts()
+    const release = gate()
+    // A renews well before its ownership would expire.
+    const a = await openOn(logA, [after(release.opened, 'from A')], {
+      ownership: { ttlMs: 100, renewMs: 20 },
+    })
+    const b = await openOn(logB, [() => text('from B')])
+    const turn = a.session.send('go', { inputId: 'in-a' })
+    await vi.waitFor(() => expect(a.calls).toHaveLength(1))
+    // Longer than the ownership lasts without a renewal.
+    await new Promise((resolve) => setTimeout(resolve, 150))
+
+    expect(await b.session.send('hi', { inputId: 'in-b' }).receipt).toEqual({
+      inputId: 'in-b',
+      status: 'rejected',
+      reason: 'owned_elsewhere',
+    })
+    await expect(b.session.append([{ type: 'app.from-b' }])).rejects.toThrow(
+      'Another host owns the log',
+    )
+    expect(b.calls).toHaveLength(0)
+
+    // B still reads: it gets the answer of A.
+    release.open()
+    expect(await turn).toEqual({ text: 'from A', media: [] })
+    await vi.waitFor(async () =>
+      expect(assistantTexts(await b.session.transcript())).toEqual(['from A']),
+    )
+    const types = (await logA.read({ logId: LOG })).map(
+      (entry) => entry.record.type,
+    )
+    expect(types).not.toContain('app.from-b')
+    await a.host.close()
+    await b.host.close()
+  })
+
+  it('aborts the work of a host that lost the log, and runs no side effect twice', async () => {
+    const { logA, logB } = twoHosts()
+    const aWakes = gate()
+    const aWaits = gate()
+    const steps: Array<{ host: string } & StepRun> = []
+    let charges = 0
+    /** The durable tool of a host: A pauses before its step. */
+    const chargeOn = (host: 'A' | 'B') =>
+      durableTool(
+        toolDefinition({ name: 'charge', description: 'Charge the card' }),
+        async (_args, { step }) => {
+          if (host === 'A') {
+            aWaits.open()
+            await aWakes.opened
+          }
+          return step.do('charge', (run) => {
+            steps.push({ host, ...run })
+            charges += 1
+            return 'paid'
+          })
+        },
+      )
+    const a = await openOn(
+      logA,
+      [() => toolCall('charge', {}, 'call-1'), () => text('A done')],
+      { tools: [chargeOn('A')], ownership: CRASHING_OWNERSHIP },
+    )
+    const turnA = a.session.send('charge it', { inputId: 'in-1' })
+    // A pauses in the tool, past the end of its ownership.
+    await aWaits.opened
+    await ownershipExpired()
+
+    // B takes the log over and runs the turn again.
+    const b = await openOn(logB, [() => text('B done')], {
+      tools: [chargeOn('B')],
+    })
+    expect(await b.session.settled('in-1')).toMatchObject({
+      outcome: 'completed',
+    })
+    expect(charges).toBe(1)
+
+    // A wakes up. Its turn stopped when B wrote, and its step does not run.
+    aWakes.open()
+    await expect(Promise.resolve(turnA)).rejects.toThrow(
+      'Another host took this thread over',
+    )
+    expect(charges).toBe(1)
+    expect(steps).toEqual([
+      { host: 'B', idempotencyKey: `${LOG}:call-1:charge`, epoch: 2 },
+    ])
+    const entries = await logA.read({ logId: LOG })
+    expect(
+      entries.filter((entry) => entry.record.type === 'harness.tool.step'),
+    ).toHaveLength(1)
+    // A reads on: it has the records of B.
+    expect(assistantTexts(await a.session.transcript())).toContain('B done')
+    expect(a.session.snapshot().status).toBe('idle')
+    await a.host.close()
+    await b.host.close()
+  })
+})
+
+describe('renewals', () => {
+  it('renews every log that a host owns with one timer', async () => {
+    // A value that no other timer uses.
+    const renewMs = 37
+    const intervals = vi.spyOn(globalThis, 'setInterval')
+    const log = memoryLogStore()
+    const renew = vi.spyOn(log, 'renew')
+    const release = gate()
+    // Every model call waits for `release`.
+    const { adapter } = mockAdapter(after(release.opened, 'done'))
+    const host = createHarnessHost({
+      persistence: { stores: { log } },
+      ownership: { ttlMs: 60_000, renewMs },
+    })
+    const harness = defineHarness({ name: 'test/ownership', adapter })
+    const threads = ['t1', 't2', 't3']
+    const logIds = threads.map((threadId) => logIdOf({ logId: threadId }))
+    // An operation is a thenable: wrap it, so `Promise.all` does not wait
+    // for the turn.
+    const running = await Promise.all(
+      threads.map(async (threadId) => {
+        const session = await host.open(harness, { threadId })
+        const turn = session.send('go')
+        await turn.receipt
+        return { turn }
+      }),
+    )
+    // Each thread owns its log while its turn runs.
+    for (const logId of logIds) {
+      expect(await canOtherHostTake(log, logId)).toBe(false)
+    }
+
+    // The next rounds renew each owned log.
+    const before = renew.mock.calls.length
+    await vi.waitFor(() =>
+      expect(renew.mock.calls.length).toBeGreaterThanOrEqual(before + 6),
+    )
+    const renewed = renew.mock.calls.slice(before).map(([claim]) => claim.logId)
+    expect(new Set(renewed)).toEqual(new Set(logIds))
+    const timers = intervals.mock.calls.filter(([, ms]) => ms === renewMs)
+    expect(timers).toHaveLength(1)
+
+    release.open()
+    await Promise.all(running.map(({ turn }) => turn))
+    await vi.waitFor(async () => {
+      for (const logId of logIds) {
+        expect(await canOtherHostTake(log, logId)).toBe(true)
+      }
+    })
+    await host.close()
+    intervals.mockRestore()
+  })
+
+  it('gives the log up when the session goes idle, and makes no more store calls', async () => {
+    const log = memoryLogStore()
+    const renew = vi.spyOn(log, 'renew')
+    const release = gate()
+    const { host, session } = await openOn(
+      log,
+      [after(release.opened, 'done')],
+      { ownership: { ttlMs: 60_000, renewMs: 10 } },
+    )
+
+    const turn = session.send('go')
+    await vi.waitFor(() => expect(renew).toHaveBeenCalled())
+    release.open()
+    await turn
+
+    await vi.waitFor(async () =>
+      expect(await canOtherHostTake(log, LOG)).toBe(true),
+    )
+    const calls = renew.mock.calls.length
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(renew).toHaveBeenCalledTimes(calls)
+    await host.close()
+  })
+
+  it('keeps the log after a renewal that fails, and renews it at the next tick', async () => {
+    const log = memoryLogStore()
+    const ownership = new HostOwnership({
+      store: log,
+      ownerId: 'host-1',
+      timing: { ttlMs: 60_000, renewMs: 10 },
+    })
+    const lost = vi.fn()
+    ownership.onLost(LOG, lost)
+    const epoch = await ownership.acquire(LOG, 'test/ownership')
+    const renew = vi
+      .spyOn(log, 'renew')
+      .mockRejectedValueOnce(new Error('store down'))
+
+    await vi.waitFor(() =>
+      expect(renew.mock.calls.length).toBeGreaterThanOrEqual(2),
+    )
+
+    expect(lost).not.toHaveBeenCalled()
+    expect(ownership.epochOf(LOG)).toBe(epoch)
+    expect(await canOtherHostTake(log, LOG)).toBe(false)
+    await ownership.close()
+    expect(await canOtherHostTake(log, LOG)).toBe(true)
+  })
+
+  it('tells the log when a renewal finds another owner', async () => {
+    const log = memoryLogStore()
+    const ownership = new HostOwnership({
+      store: log,
+      ownerId: 'host-1',
+      timing: { ttlMs: 20, renewMs: 40 },
+    })
+    const lost = vi.fn()
+    ownership.onLost(LOG, lost)
+    await ownership.acquire(LOG, 'test/ownership')
+    // The ownership expires before the first renewal, and another host
+    // takes the log.
+    await new Promise((resolve) => setTimeout(resolve, 25))
+    expect(await canOtherHostTake(log, LOG)).toBe(true)
+
+    await vi.waitFor(() => expect(lost).toHaveBeenCalledTimes(1))
+    expect(ownership.epochOf(LOG)).toBeUndefined()
+    await ownership.close()
+  })
+})
+
+describe('the run context', () => {
+  it('gives tools the epoch of the log and an idempotency key', async () => {
+    const seen: Array<{ epoch: number; key: string; scoped: string }> = []
+    const charge = toolDefinition({
+      name: 'charge',
+      description: 'Charge the card',
+    }).server<HarnessRunContext>(async (_args, ctx) => {
+      const { run } = ctx.context
+      seen.push({
+        epoch: run.epoch,
+        key: run.idempotencyKey('charge'),
+        scoped: run.idempotencyKey('charge', ctx.toolCallId),
+      })
+      return 'paid'
+    })
+    const persistence = memoryPersistence()
+    const { host, session } = await openOn(
+      persistence.stores.log,
+      [() => toolCall('charge', {}, 'call-7'), () => text('done')],
+      { tools: [charge] },
+    )
+
+    const turn = session.send('charge it', { inputId: 'in-1' })
+    await turn
+
+    expect(seen).toEqual([
+      {
+        epoch: 1,
+        key: `${LOG}:${turn.id}:charge`,
+        scoped: `${LOG}:call-7:charge`,
+      },
+    ])
+    await host.close()
+  })
+})

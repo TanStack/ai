@@ -15,10 +15,12 @@ import {
   logIdOf,
 } from '../src'
 import {
+  CRASHING_OWNERSHIP,
   after,
   gate,
   messageTexts,
   mockAdapter,
+  ownershipExpired,
   storedThreadState,
   text,
   toolCall,
@@ -32,7 +34,11 @@ import type {
   PromptCacheOptions,
   ReasoningRequest,
 } from '@tanstack/ai'
-import type { HarnessConfig, PluginContributions } from '../src'
+import type {
+  HarnessConfig,
+  OwnershipOptions,
+  PluginContributions,
+} from '../src'
 import type { Reply } from './helpers'
 
 const THREAD = 't1'
@@ -64,11 +70,16 @@ async function loggedEphemeral(persistence: Durable) {
 async function open(
   replies: Array<Reply>,
   extras: Omit<HarnessConfig, 'name' | 'adapter'> = {},
-  options: { persistence?: Durable; promptCache?: PromptCacheOptions } = {},
+  options: {
+    persistence?: Durable
+    promptCache?: PromptCacheOptions
+    ownership?: OwnershipOptions
+  } = {},
 ) {
   const { adapter, calls } = mockAdapter(replies)
   const host = createHarnessHost({
     persistence: options.persistence ?? memoryPersistence(),
+    ...(options.ownership ? { ownership: options.ownership } : {}),
   })
   const session = await host.open(
     defineHarness({ name: 'test/turn-overrides', adapter, ...extras }),
@@ -428,20 +439,27 @@ describe('turn overrides: queue, steer, and recovery', () => {
   it('runs a recovered turn after a restart with its JSON overrides, without its adapter', async () => {
     const persistence = durablePersistence()
     const stopped = mockAdapter([untilAborted()])
-    const first = await open([], {}, { persistence })
-    const turn = first.session.send('go', {
-      inputId: 'in-1',
-      overrides: {
-        adapter: stopped.adapter,
-        reasoning: HIGH,
-        promptCache: { key: 'turn-key' },
-      },
-    })
+    const first = await open(
+      [],
+      {},
+      { persistence, ownership: CRASHING_OWNERSHIP },
+    )
+    void first.session
+      .send('go', {
+        inputId: 'in-1',
+        overrides: {
+          adapter: stopped.adapter,
+          reasoning: HIGH,
+          promptCache: { key: 'turn-key' },
+        },
+      })
+      .then(
+        () => {},
+        () => {},
+      )
     await vi.waitFor(() => expect(stopped.calls).toHaveLength(1))
-    // The first host stops: its run lease expires.
-    await persistence.stores.runs.update(turn.id, {
-      leaseExpiresAt: Date.now() - 1,
-    })
+    // The first host stops: its ownership of the log expires.
+    await ownershipExpired()
 
     const next = await open([() => text('recovered')], {}, { persistence })
 
@@ -473,16 +491,23 @@ describe('turn overrides: queue, steer, and recovery', () => {
   it('runs a recovered turn with the overrides that the recover hook returns', async () => {
     const persistence = durablePersistence()
     const stopped = mockAdapter([untilAborted()])
-    const first = await open([], {}, { persistence })
-    const turn = first.session.send('go', {
-      inputId: 'in-1',
-      overrides: { adapter: stopped.adapter },
-    })
+    const first = await open(
+      [],
+      {},
+      { persistence, ownership: CRASHING_OWNERSHIP },
+    )
+    void first.session
+      .send('go', {
+        inputId: 'in-1',
+        overrides: { adapter: stopped.adapter },
+      })
+      .then(
+        () => {},
+        () => {},
+      )
     await vi.waitFor(() => expect(stopped.calls).toHaveLength(1))
-    // The first host stops: its run lease expires.
-    await persistence.stores.runs.update(turn.id, {
-      leaseExpiresAt: Date.now() - 1,
-    })
+    // The first host stops: its ownership of the log expires.
+    await ownershipExpired()
     const recovered = mockAdapter([() => text('recovered')])
 
     const next = await open(

@@ -5,6 +5,7 @@ import type {
   SchemaInput,
 } from '@tanstack/ai'
 import { registerSubagentContextDefaults } from '@tanstack/ai/adapter-internals'
+import { stepRunWithoutSession } from './durable-tool'
 import type { ToolStep } from './durable-tool'
 import type { AgentStartOptions } from './session/index'
 import type { AgentRun } from './types'
@@ -152,7 +153,8 @@ export interface HarnessAgentContext {
  * runs `fn` each time, `agents.start` throws.
  */
 export const NO_SESSION_CONTEXT: HarnessAgentContext = {
-  step: { do: async (_name, fn) => fn() },
+  // `fn` runs each time, so it needs no JSON copy.
+  step: { do: async (name, fn) => fn(stepRunWithoutSession(name)) },
   agents: {
     start: () => {
       throw new Error(

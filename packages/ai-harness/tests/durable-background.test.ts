@@ -2,7 +2,15 @@ import { describe, expect, it, vi } from 'vitest'
 import { toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin } from '../src'
-import { gate, mockAdapter, text, toolCall, untilAborted } from './helpers'
+import {
+  CRASHING_OWNERSHIP,
+  gate,
+  mockAdapter,
+  ownershipExpired,
+  text,
+  toolCall,
+  untilAborted,
+} from './helpers'
 import type { AnyTextAdapter } from '@tanstack/ai'
 import type { HarnessPlugin, HarnessSession, PluginSessionApi } from '../src'
 
@@ -60,7 +68,10 @@ describe('background work after a crash', () => {
       () => toolCall('wait', {}, 'call-1'),
       () => text('Moved.'),
     ])
-    const crashed = await createHarnessHost({ persistence }).open(
+    const crashed = await createHarnessHost({
+      persistence,
+      ownership: CRASHING_OWNERSHIP,
+    }).open(
       defineHarness({
         name: 'test/durable-background',
         adapter: first.adapter,
@@ -77,7 +88,9 @@ describe('background work after a crash', () => {
     })
     await turn
 
-    // The first host never closes, like a process that stopped.
+    // The first host never closes, like a process that stopped. Its
+    // ownership of the log expires.
+    await ownershipExpired()
     const next = mockAdapter([])
     const recovered = await openOn(persistence, next.adapter)
 
@@ -112,7 +125,10 @@ describe('background work after a crash', () => {
       () => toolCall('remind', {}, 'call-1'),
       untilAborted(),
     ])
-    const crashed = await createHarnessHost({ persistence }).open(
+    const crashed = await createHarnessHost({
+      persistence,
+      ownership: CRASHING_OWNERSHIP,
+    }).open(
       defineHarness({
         name: 'test/durable-background',
         adapter: first.adapter,
@@ -126,6 +142,7 @@ describe('background work after a crash', () => {
     void Promise.resolve(crashed.send('Remind me')).catch(() => {})
     await noted.opened
     await vi.waitFor(() => expect(first.calls).toHaveLength(2))
+    await ownershipExpired()
 
     const next = mockAdapter([() => text('Done.')])
     const recovered = await createHarnessHost({ persistence }).open(

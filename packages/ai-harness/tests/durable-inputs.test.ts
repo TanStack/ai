@@ -13,6 +13,7 @@ import {
   logIdOf,
 } from '../src'
 import {
+  CRASHING_OWNERSHIP,
   after,
   gate,
   messageTexts,
@@ -21,13 +22,19 @@ import {
   toolCall,
   untilAborted,
   appendToLog,
+  ownershipExpired,
   storedThreadState,
   wakeMessages,
   wrapLogStore,
 } from './helpers'
 import type { AnyTool, ModelMessage } from '@tanstack/ai'
-import type { LeaseStore, LogRecord } from '@tanstack/ai-persistence'
-import type { HarnessDurability, HarnessInput, RecoverDecision } from '../src'
+import type { LogRecord } from '@tanstack/ai-persistence'
+import type {
+  HarnessDurability,
+  HarnessInput,
+  OwnershipOptions,
+  RecoverDecision,
+} from '../src'
 import type { Reply } from './helpers'
 
 const THREAD = 't1'
@@ -67,7 +74,7 @@ const controlApplied: LogRecord = {
 /**
  * The log and run of a host that stopped during attempt `attempt` of input
  * `in-1`: the input, its applied record, and the user message that the turn
- * saved. The run lease has expired.
+ * saved. No host owns the log, so a host that opens it recovers the turn.
  */
 async function seedStoppedTurn(
   persistence: Durable,
@@ -113,8 +120,6 @@ async function seedStoppedTurn(
     startedAt: Date.now() - 60_000,
   })
   await persistence.stores.runs.update('op-stopped', {
-    leaseOwner: 'host-gone',
-    leaseExpiresAt: Date.now() - 1_000,
     checkpoint: { at: 1, pendingTools: [] },
   })
 }
@@ -124,9 +129,13 @@ async function openDurable(options: {
   replies: Array<Reply>
   durability?: HarnessDurability
   tools?: Array<AnyTool>
+  ownership?: OwnershipOptions
 }) {
   const { adapter, calls } = mockAdapter(options.replies)
-  const host = createHarnessHost({ persistence: options.persistence })
+  const host = createHarnessHost({
+    persistence: options.persistence,
+    ...(options.ownership ? { ownership: options.ownership } : {}),
+  })
   const session = await host.open(
     defineHarness({
       name: 'test/durable-inputs',
@@ -337,13 +346,14 @@ describe('recovery of a durable input', () => {
       persistence,
       replies: [() => toolCall('mail', {})],
       tools: [mail],
+      ownership: CRASHING_OWNERSHIP,
     })
-    const turn = first.session.send('mail it', { inputId: 'in-1' })
+    void Promise.resolve(
+      first.session.send('mail it', { inputId: 'in-1' }),
+    ).catch(() => {})
     await started.opened
-    // The first host stops: its run lease expires.
-    await persistence.stores.runs.update(turn.id, {
-      leaseExpiresAt: Date.now() - 1,
-    })
+    // The first host stops: its ownership of the log expires.
+    await ownershipExpired()
 
     const next = await openDurable({
       persistence,
@@ -565,10 +575,6 @@ describe('recovery of a durable input', () => {
       startedAt: Date.now() - 60_000,
       kind: 'agent',
       agent: 'waiter',
-    })
-    await persistence.stores.runs.update('op-agent', {
-      leaseOwner: 'host-gone',
-      leaseExpiresAt: Date.now() - 1_000,
     })
 
     const { host, session, calls } = await openDurable({
@@ -858,22 +864,28 @@ describe('recovery of a durable input', () => {
 })
 
 describe('session.recover()', () => {
-  /** A stopped turn whose run lease is alive: another host still runs it. */
+  /**
+   * A turn that another live host runs: it owns the log. `stop` gives the
+   * log up, as that host does when it stops.
+   */
   async function seedLiveTurn(persistence: Durable) {
     await seedStoppedTurn(persistence, { attempt: 1 })
-    await persistence.stores.runs.update('op-stopped', {
-      leaseExpiresAt: Date.now() + 60_000,
+    const { log } = persistence.stores
+    const ownerId = 'other-host'
+    const owned = await log.acquire({
+      logId: LOG,
+      harness: 'test/durable-inputs',
+      ownerId,
+      ttlMs: 60_000,
     })
+    if (owned === null) throw new Error('The other host has no ownership.')
+    const { epoch } = owned
+    return { epoch, stop: () => log.release({ logId: LOG, ownerId, epoch }) }
   }
 
-  const expireLease = (persistence: Durable) =>
-    persistence.stores.runs.update('op-stopped', {
-      leaseExpiresAt: Date.now() - 1,
-    })
-
-  it('runs a turn that another host held at open, after its lease expires', async () => {
+  it('runs a turn that another host held at open, after that host stops', async () => {
     const persistence = durablePersistence()
-    await seedLiveTurn(persistence)
+    const other = await seedLiveTurn(persistence)
     const { log } = persistence.stores
     // A store that does not push new records: the session reads them only
     // when it catches up.
@@ -894,10 +906,10 @@ describe('session.recover()', () => {
     await log.append({
       logId: LOG,
       seq: head + 1,
-      epoch: UNOWNED_EPOCH,
+      epoch: other.epoch,
       records: [pendingInput('in-2', 'next')],
     })
-    await expireLease(persistence)
+    await other.stop()
     await host.recover()
 
     expect(await session.settled('in-1')).toMatchObject({
@@ -912,12 +924,13 @@ describe('session.recover()', () => {
 
   it('runs the turn once when two calls run at once', async () => {
     const persistence = durablePersistence()
-    await seedLiveTurn(persistence)
+    const other = await seedLiveTurn(persistence)
     const { host, session, calls } = await openDurable({
       persistence,
       replies: [() => text('recovered'), () => text('later'), () => text('x')],
     })
-    await expireLease(persistence)
+    expect(calls).toHaveLength(0)
+    await other.stop()
 
     await Promise.all([session.recover(), host.recover(THREAD)])
     await session.settled('in-1')
@@ -1639,94 +1652,69 @@ describe('durable approval recovery', () => {
     await next.close()
   })
 
-  it.each(['applied', 'lease'])(
-    'keeps approval after an early %s failure',
-    async (kind) => {
-      const stores = memoryPersistence().stores
-      const log = memoryLogStore()
-      const leases: LeaseStore = {
-        acquire: vi.fn(async () => {}),
-        renew: vi.fn(async () => {}),
-        release: vi.fn(async () => {}),
-        isAlive: async () => false,
-      }
-      const persistence = {
-        stores: {
-          runs: stores.runs,
-          metadata: stores.metadata,
-          interrupts: stores.interrupts,
-          log,
-          leases,
-        },
-      }
-      const execute = vi.fn(async () => 'removed')
-      const tool = toolDefinition({
-        name: 'remove',
-        description: 'Remove',
-        needsApproval: true,
-      }).server(execute)
-      const main = mockAdapter([
-        () => toolCall('remove', {}, 'early-call'),
-        () => text('Done.'),
-      ])
-      const config = defineHarness({
-        name: 'early-approval',
-        adapter: main.adapter,
-        tools: [tool],
-      })
-      const host = createHarnessHost({ persistence })
-      const session = await host.open(config, { threadId: THREAD })
-      const result = await session.send('remove')
-      const approval = result.interrupts?.[0]
-      if (!approval) throw new Error('The turn did not stop for approval.')
-      const append = log.append.bind(log)
-      const write = vi
-        .spyOn(log, 'append')
-        .mockImplementation(async (batch) => {
-          if (
-            kind === 'applied' &&
-            batch.records.some(
-              (record) => record.type === 'harness.input.applied',
-            )
-          )
-            throw new Error('applied write failed')
-          await append(batch)
-        })
-      const lease = vi.spyOn(leases, 'acquire')
-      if (kind === 'lease')
-        lease.mockRejectedValueOnce(new Error('lease acquire failed'))
-      const receipt = await session.resolve({
+  it('keeps approval after an early applied failure', async () => {
+    const stores = memoryPersistence().stores
+    const log = memoryLogStore()
+    const persistence = {
+      stores: {
+        runs: stores.runs,
+        metadata: stores.metadata,
+        interrupts: stores.interrupts,
+        log,
+      },
+    }
+    const execute = vi.fn(async () => 'removed')
+    const tool = toolDefinition({
+      name: 'remove',
+      description: 'Remove',
+      needsApproval: true,
+    }).server(execute)
+    const main = mockAdapter([
+      () => toolCall('remove', {}, 'early-call'),
+      () => text('Done.'),
+    ])
+    const config = defineHarness({
+      name: 'early-approval',
+      adapter: main.adapter,
+      tools: [tool],
+    })
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(config, { threadId: THREAD })
+    const result = await session.send('remove')
+    const approval = result.interrupts?.[0]
+    if (!approval) throw new Error('The turn did not stop for approval.')
+    const append = log.append.bind(log)
+    const write = vi.spyOn(log, 'append').mockImplementation(async (batch) => {
+      if (
+        batch.records.some((record) => record.type === 'harness.input.applied')
+      )
+        throw new Error('applied write failed')
+      await append(batch)
+    })
+    const receipt = await session.resolve({
+      resume: [{ interruptId: approval.id, status: 'resolved', payload: true }],
+    })
+    await expect(session.operation(receipt.operationId ?? '')).rejects.toThrow()
+    expect(session.snapshot().pendingInterrupts.map((item) => item.id)).toEqual(
+      [approval.id],
+    )
+    expect(execute).not.toHaveBeenCalled()
+    write.mockRestore()
+    await host.close()
+    const next = createHarnessHost({ persistence })
+    const reopened = await next.open(config, { threadId: THREAD })
+    if (reopened.snapshot().pendingInterrupts.length > 0) {
+      const retry = await reopened.resolve({
         resume: [
           { interruptId: approval.id, status: 'resolved', payload: true },
         ],
       })
-      await expect(
-        session.operation(receipt.operationId ?? ''),
-      ).rejects.toThrow()
-      expect(
-        session.snapshot().pendingInterrupts.map((item) => item.id),
-      ).toEqual([approval.id])
-      expect(execute).not.toHaveBeenCalled()
-      write.mockRestore()
-      lease.mockRestore()
-      await host.close()
-      const next = createHarnessHost({ persistence })
-      const reopened = await next.open(config, { threadId: THREAD })
-      if (kind === 'lease') await reopened.settled(receipt.inputId)
-      // An applied lease failure can be retried by durable recovery itself.
-      if (reopened.snapshot().pendingInterrupts.length > 0) {
-        const retry = await reopened.resolve({
-          resume: [
-            { interruptId: approval.id, status: 'resolved', payload: true },
-          ],
-        })
-        await reopened.operation(retry.operationId ?? '')
-      }
-      expect(execute).toHaveBeenCalledTimes(1)
-      expect(reopened.snapshot().pendingInterrupts).toEqual([])
-      await next.close()
-    },
-  )
+      await reopened.operation(retry.operationId ?? '')
+    }
+    expect(execute).toHaveBeenCalledTimes(1)
+    expect(reopened.snapshot().pendingInterrupts).toEqual([])
+    await next.close()
+  })
 
   it.each([false, true])(
     'replays an applied resolve after a crash (interrupt store: %s)',
@@ -1766,39 +1754,30 @@ describe('durable approval recovery', () => {
       const approval = result.interrupts?.[0]
       if (!approval) throw new Error('The turn did not stop for approval.')
       await first.close()
-      const entries = await log.read({ logId: LOG })
-      await log.append({
-        logId: LOG,
-        seq: entries.length + 1,
-        epoch: UNOWNED_EPOCH,
-        records: [
-          {
-            type: 'harness.input',
-            inputId: 'resume-crash',
-            input: {
-              op: 'resolve',
-              resume: [
-                { interruptId: approval.id, status: 'resolved', payload: true },
-              ],
-            },
-            at: Date.now(),
+      // A host that applied a resolve and then crashed.
+      await appendToLog(log, { threadId: THREAD }, [
+        {
+          type: 'harness.input',
+          inputId: 'resume-crash',
+          input: {
+            op: 'resolve',
+            resume: [
+              { interruptId: approval.id, status: 'resolved', payload: true },
+            ],
           },
-          {
-            type: 'harness.input.applied',
-            inputId: 'resume-crash',
-            operationId: 'resume-stopped',
-            attempt: 1,
-          },
-        ],
-      })
+          at: Date.now(),
+        },
+        {
+          type: 'harness.input.applied',
+          inputId: 'resume-crash',
+          operationId: 'resume-stopped',
+          attempt: 1,
+        },
+      ])
       await stores.runs.createOrResume({
         runId: 'resume-stopped',
         threadId: LOG,
         startedAt: Date.now() - 60000,
-      })
-      await stores.runs.update('resume-stopped', {
-        leaseExpiresAt: Date.now() - 1000,
-        leaseOwner: 'gone',
       })
       const nextAdapter = mockAdapter([() => text('Recovered approval.')])
       const next = createHarnessHost({ persistence })

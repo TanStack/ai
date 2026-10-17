@@ -13,7 +13,7 @@ import { bindDurable } from '../durable-tool'
 import { mediaMiddleware } from '../media'
 import { OperationImpl } from '../operation'
 import { mountPlugins } from '../plugins'
-import { holdRunLease, truncationMiddleware } from '../resume'
+import { truncationMiddleware } from '../resume'
 import { HARNESS_EVENTS, InputRejectedError } from '../types'
 import {
   createInputId,
@@ -211,7 +211,11 @@ export abstract class SessionTurn<
       }).catch((failure: unknown) =>
         this.warnSession('harness:commands', failure),
       )
-      operation.fail(cancelled ? 'cancelled' : 'failed', error)
+      // A lost log stopped the command: that is the reason, not the abort.
+      operation.fail(
+        cancelled ? 'cancelled' : 'failed',
+        this.ownershipLoss ?? error,
+      )
     }
     this.publishFinished(operation)
   }
@@ -355,18 +359,10 @@ export abstract class SessionTurn<
         return failEarly(error)
       }
     }
-    let releaseLease: (() => Promise<void>) | undefined
-    try {
-      releaseLease = await this.holdLease(turn.inputId, operation)
-    } catch (error) {
-      await this.refreshTurnInterrupts(operation)
-      return failEarly(error)
-    }
     const stopTimer = this.startTimeout(turn.inputId, operation)
     this.publishStarted(operation)
 
     let runPlugins: MountedPlugins | undefined
-    let stopRunLease = () => {}
     /** The next chat() call runs the root agents that `routing` picked. */
     let isRootPart = false
     /** chat() refused the resume of this turn, so it ran nothing. */
@@ -536,10 +532,8 @@ export abstract class SessionTurn<
       // Each durableTool call gets its steps in the log. The tools are bound
       // here, so a middleware wrapper wraps the bound tool,
       // and again at each model call, for tools that a middleware returns.
-      const { bindTool } = this
-      const tools = bindTool
-        ? prepared.map((tool) => bindDurable(tool, bindTool))
-        : prepared
+      const bindTool = this.durableBinder(run)
+      const tools = prepared.map((tool) => bindDurable(tool, bindTool))
       // The override tools as the turn has them: prepared and bound.
       const keptTools = tools.filter((tool) => turnToolNames.has(tool.name))
       const keepTools =
@@ -568,7 +562,7 @@ export abstract class SessionTurn<
       if (!chatPersistence || !checkpoint) {
         throw new Error('The session is not open yet.')
       }
-      const durableTools = this.durableTools()
+      const durableTools = this.durableTools(bindTool)
       const signal = operation.abortController.signal
       const { routing } = this.harness
       // A new turn asks the router once. A resolve does not: it continues the
@@ -625,12 +619,6 @@ export abstract class SessionTurn<
           threadId: this.threadId,
           startedAt: Date.now(),
         })
-        stopRunLease = await holdRunLease(
-          runs,
-          operation.id,
-          this.hostId,
-          this.lease,
-        )
       }
       /** The messages a resolve of a routed turn continues from. */
       let routedFrom = turn.answers?.routed?.messages
@@ -722,7 +710,7 @@ export abstract class SessionTurn<
               ...(session?.middleware ?? []),
               ...(runPlugins?.middleware ?? []),
               ...(keepTools ? [keepTools] : []),
-              ...(durableTools ? [durableTools] : []),
+              durableTools,
               this.detachTools(operation.id, sender),
               ...(rootBag ? [] : [this.syncFold()]),
               // Again: a middleware that returns `messages` (as `syncFold`
@@ -1012,7 +1000,6 @@ export abstract class SessionTurn<
         })
       }
     } finally {
-      stopRunLease()
       stopTimer()
       await runPlugins?.dispose().catch(() => {})
     }
@@ -1020,7 +1007,7 @@ export abstract class SessionTurn<
     // A recoverable close: the turn stops as on a crash, and the next host
     // runs it again.
     if (operation.abortController.signal.reason === SHUTDOWN_REASON) {
-      await this.giveBack(operation, releaseLease)
+      this.giveBack(operation)
       this.requeueWaitingSteers()
       return
     }
@@ -1095,10 +1082,6 @@ export abstract class SessionTurn<
           })),
         ).catch(() => {})
       }
-      // Release after the settlement, so a crash in between leaves a settled
-      // input. Release before the operation ends, so the caller can act at
-      // once.
-      if (releaseLease) await releaseLease()
     }
     // A refused resume ran nothing, so its interrupts wait again. Before the
     // settlement, so a client that sees it can resolve once more.
@@ -1155,7 +1138,6 @@ export abstract class SessionTurn<
           !operation.abortController.signal.aborted),
     )
     if (this.logFailure) {
-      if (releaseLease) await releaseLease()
       operation.fail('failed', this.logFailure)
     } else if (timedOut) {
       const message = 'The input passed its time limit.'

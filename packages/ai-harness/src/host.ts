@@ -6,7 +6,7 @@ import { AccessDeniedError, membersOnlyPolicyOf } from './access'
 import { SharedLog, loadLogState, logIdOf, parseLogId } from './log'
 import { HostPlugins } from './host-plugins'
 import { purgeThreadData } from './purge'
-import { LEASE } from './resume'
+import { HostOwnership, OWNERSHIP } from './ownership'
 import { SessionImpl } from './session/harness-session'
 import { sessionHandle } from './session/handle'
 import { observedSession } from './session/observed-session'
@@ -42,7 +42,7 @@ import type { HandleGuard } from './session/handle'
 import type { AnyHarness, HarnessLogStateOf, SessionMetadataOf } from './define'
 import type { SessionEntryChange, SessionEntryUpdate } from './session-entry'
 import type { ReduceOptions } from './log'
-import type { LeaseOptions } from './resume'
+import type { OwnershipOptions } from './ownership'
 import type { HarnessSession } from './session/index'
 import type { ObservedSession } from './session/observed-session'
 import type { ForkPoint, Principal } from './types'
@@ -57,14 +57,9 @@ type SharedStores = {
   sessions?: SessionIndexStore
 }
 
-/** A durable host needs run leases, host leases, or both. */
-type DurableLeases =
-  | { runs: RunStore; leases?: LeaseStore }
-  | { runs?: RunStore; leases: LeaseStore }
-
 /**
- * The stores a host needs: a `log`, and `runs` or `leases`. The log holds the
- * events, transcript, inputs, and tool steps of each thread. In development,
+ * The stores a host needs: a `log`. It holds the events, transcript, inputs,
+ * and tool steps of each thread, and which host owns each thread. In development,
  * use `memoryPersistence()` from `@tanstack/ai-persistence`: it has a memory
  * log. The host does not use `messages`.
  *
@@ -89,8 +84,11 @@ export type HarnessPersistence = AIPersistence<
     metadata?: MetadataStore
     /** Inputs for the host that owns a thread. Needs `workClaims`. */
     inbox?: InboxStore
-  } & DurableLeases &
-    SharedStores
+    /** Turn checkpoints. The host finds a crashed turn from the log. */
+    runs?: RunStore
+    /** Not used: the log keeps which host owns each thread. */
+    leases?: LeaseStore
+  } & SharedStores
 >
 
 export interface HarnessHostOptions<P extends Principal = Principal> {
@@ -135,11 +133,14 @@ export interface HarnessHostOptions<P extends Principal = Principal> {
     coalesceMs?: number
   }
   /**
-   * How this host holds the runs it owns: how long a run lease lasts
-   * (default 30000 ms), and how often the host renews it (default 10000 ms).
-   * Leave it out for the defaults.
+   * How this host owns the threads it writes to. A host owns a thread from
+   * its first write until the thread has no work. `ttlMs`: how long the
+   * ownership lasts after each renewal (default 30000 ms). After it, another
+   * host can take the thread. `renewMs`: how often one timer renews every
+   * thread that the host owns (default 10000 ms). Leave it out for the
+   * defaults.
    */
-  ownership?: LeaseOptions
+  ownership?: OwnershipOptions
   /** How the sessions of this host live. Leave it out for the defaults. */
   lifecycle?: HostLifecycleOptions
 }
@@ -985,11 +986,6 @@ function checkDurableStores(persistence: HarnessPersistence) {
       'The harness needs stores.log: each session keeps its events, transcript, and inputs there. In development, use memoryPersistence() from @tanstack/ai-persistence.',
     )
   }
-  if (stores.runs === undefined && stores.leases === undefined) {
-    throw new Error(
-      'The harness needs stores.runs or stores.leases: a lease finds a crashed host.',
-    )
-  }
   if (stores.inbox !== undefined && stores.workClaims === undefined) {
     throw new Error(
       'The harness uses stores.inbox to pass inputs to the host that owns a thread. That needs stores.workClaims.',
@@ -1089,6 +1085,13 @@ export function createHarnessHost<P extends Principal = Principal>(
     settledAgentRuns: limits?.settledAgentRuns ?? 500,
     eventBytes: limits?.eventBytes ?? 8_000_000,
   }
+  const hostId = `host-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
+  /** The logs that this host owns. One timer renews them all. */
+  const ownership = new HostOwnership({
+    store: logStore,
+    ownerId: hostId,
+    ...(options.ownership ? { timing: options.ownership } : {}),
+  })
   /** The shared log of each log with an open session, by its store log id. */
   const logs = new Map<string, Promise<SharedLog>>()
   /** The resolved shared logs, and the reduce that folds each one, for `logState`. */
@@ -1120,6 +1123,8 @@ export function createHarnessHost<P extends Principal = Principal>(
     }).then((state) => {
       const log = new SharedLog({
         store,
+        ownership,
+        harness: harness.name,
         logId,
         rootThread,
         state,
@@ -1154,7 +1159,6 @@ export function createHarnessHost<P extends Principal = Principal>(
   const sweptOnly = new Set<string>()
   /** The closes of sessions that left the cache, by key. */
   const closing = new Map<string, Promise<void>>()
-  const hostId = `host-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
   const idleCloseMs = options.lifecycle?.idleCloseMs ?? 60_000
   const maxOpen = options.lifecycle?.maxOpen ?? 500
   /** `host.close()` ran: no session opens any more. */
@@ -1390,7 +1394,7 @@ export function createHarnessHost<P extends Principal = Principal>(
           ...(harness.durability?.project
             ? { project: harness.durability.project }
             : {}),
-          open: async (sessionThread, onFailure) => {
+          open: async (sessionThread, hooks) => {
             const ids = { logId: storeLogId, rootThread: logId }
             let log = await sharedLog(logStore, ids, harness)
             // The log closed while this open waited, and the host dropped
@@ -1398,10 +1402,10 @@ export function createHarnessHost<P extends Principal = Principal>(
             while (!log.isOpen) {
               log = await sharedLog(logStore, ids, harness)
             }
-            return log.view(sessionThread, onFailure)
+            return log.view(sessionThread, hooks)
           },
         },
-        ...(options.ownership ? { lease: options.ownership } : {}),
+        ...(options.ownership ? { ownership: options.ownership } : {}),
         ...(principal ? { principal } : {}),
         ...(promptCache ? { promptCache } : {}),
         ...(access ? { access: { envKeys: access.envKeys === true } } : {}),
@@ -1932,7 +1936,7 @@ export function createHarnessHost<P extends Principal = Principal>(
     async resumePending({ harnesses, close = 'whenIdle', limit = 100 }) {
       const claims = persistence.stores.workClaims
       if (!claims) throw new Error('resumePending needs stores.workClaims.')
-      const ttlMs = options.ownership?.ttlMs ?? LEASE.ttlMs
+      const ttlMs = options.ownership?.ttlMs ?? OWNERSHIP.ttlMs
       const byName = new Map(
         harnesses.map((harness) => [harness.name, harness]),
       )
@@ -2037,6 +2041,9 @@ export function createHarnessHost<P extends Principal = Principal>(
       )
       // After the sessions: each one gave its host plugins back.
       await hostPlugins.close()
+      // The sessions gave their logs back. A release that did not land yet
+      // goes now, and the renewal timer stops.
+      await ownership.close()
     },
     logState: ({ harness, logId, principal }) => {
       if (access) need(principal, 'host.logState')

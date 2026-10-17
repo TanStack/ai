@@ -917,7 +917,7 @@ export abstract class SessionRequests<
    *
    * With `recoverable`, the running turns and agent runs stop as on a host
    * crash: the log gets none of their later writes, they do not settle, and
-   * the run store gets no aborted state. They give their leases back, so the
+   * the run store gets no aborted state. The host gives the log up, so the
    * next host that opens the thread runs them again at once. `host.close`
    * passes it when a host shuts down, for example for a deploy.
    */

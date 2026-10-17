@@ -10,7 +10,6 @@ import { mediaCapture, mediaMiddleware } from '../media'
 import { OperationImpl } from '../operation'
 import {
   checkpointMiddleware,
-  holdRunLease,
   repairTranscript,
   truncationMiddleware,
 } from '../resume'
@@ -565,15 +564,13 @@ export abstract class SessionAgents<
    * phases, and `ctx.harness.step` values in the session log, under the key
    * of the input the run applies.
    */
-  protected resumable(inputId: string) {
+  protected resumable(inputId: string, run: RunContext) {
     const { writer } = this
     const { runs } = this.persistence.stores
     const key = agentKey(inputId)
     const checkpoint = checkpointMiddleware({
       ...(runs ? { runs } : {}),
       messages: this.engine,
-      hostId: this.hostId,
-      ...(this.lease ? { lease: this.lease } : {}),
       // As in a turn, each finished tool result goes to the session log at
       // once, under a key of this run. A run again puts it back.
       onToolResult: ({ toolCallId, message }) =>
@@ -585,14 +582,15 @@ export abstract class SessionAgents<
           },
         ]),
     })
-    const durableTools = this.durableTools()
     return {
       middleware: [
         checkpoint,
         truncationMiddleware(this.harness.durability?.truncatedToolResult),
-        ...(durableTools ? [durableTools] : []),
+        this.durableTools(this.durableBinder(run)),
       ],
-      step: this.durableBinding(writer, key).step,
+      // The steps of the run are under the key of its input: the same on
+      // each run again.
+      step: this.durableBinding(writer, key, run).step,
     }
   }
 
@@ -862,17 +860,7 @@ export abstract class SessionAgents<
     let result: unknown
     let failure: string | undefined
     const { subagentRunId, prompt } = child
-    let stopRunLease = () => {}
-    let releaseLease: (() => Promise<void>) | undefined
     try {
-      // A host that stops lets these leases expire. Then recovery fails the run.
-      stopRunLease = await holdRunLease(
-        runs,
-        operation.id,
-        this.hostId,
-        this.lease,
-      )
-      releaseLease = await this.holdLease(inputId, operation)
       // A first run starts from the session thread. A run again after a
       // host stop continues the chain's thread. A follow-up run continues
       // the chain's thread, with its message added. The message id is its
@@ -896,7 +884,7 @@ export abstract class SessionAgents<
         signal: operation.abortController.signal,
       })
       const binding = this.binding(operation, [], principal, run)
-      const durable = options.resume ? this.resumable(inputId) : undefined
+      const durable = options.resume ? this.resumable(inputId, run) : undefined
       const harnessContext: HarnessAgentContext = {
         step: durable?.step ?? NO_SESSION_CONTEXT.step,
         agents: this.agentStarter(chain),
@@ -1012,8 +1000,7 @@ export abstract class SessionAgents<
     // A recoverable close: the run stops as on a crash, and the next host
     // runs it again.
     if (operation.abortController.signal.reason === SHUTDOWN_REASON) {
-      stopRunLease()
-      await this.giveBack(operation, releaseLease)
+      this.giveBack(operation)
       return
     }
     try {
@@ -1062,13 +1049,10 @@ export abstract class SessionAgents<
         operation.finish('completed', value)
       }
     } finally {
-      // Also when a store write above threw: the leases must not stay held.
-      stopRunLease()
-      // The finished event goes out as the run settles, before the lease
-      // write, so the listeners of the run still get it. A run that a store
-      // write failed gets it from failOperation.
+      // The finished event goes out as the run settles, so the listeners of
+      // the run still get it. A run that a store write failed gets it from
+      // failOperation.
       if (operation.isSettled()) this.publishFinished(operation)
-      await releaseLease?.()
     }
   }
 

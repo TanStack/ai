@@ -2,8 +2,15 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness, definePlugin } from '../src'
-import { gate, messageTexts, mockAdapter, text, toolCall } from './helpers'
+import { createHarnessHost, defineHarness, definePlugin, logIdOf } from '../src'
+import {
+  canOtherHostTake,
+  gate,
+  messageTexts,
+  mockAdapter,
+  text,
+  toolCall,
+} from './helpers'
 import type { AnyTool, SubagentRouterPick } from '@tanstack/ai'
 import type {
   AnyAgent,
@@ -101,7 +108,8 @@ async function openRouting(options: {
   replies?: Array<Reply>
 }) {
   const { runs, metadata } = memoryPersistence().stores
-  const persistence = { stores: { log: memoryLogStore(), runs, metadata } }
+  const log = memoryLogStore()
+  const persistence = { stores: { log, runs, metadata } }
   const main = mockAdapter(options.replies ?? [])
   const host = createHarnessHost({ persistence })
   const session = await host.open(
@@ -122,7 +130,7 @@ async function openRouting(options: {
       threadId: THREAD,
     },
   )
-  return { host, session, runs, main }
+  return { host, session, runs, log, main }
 }
 
 async function transcriptTexts(session: HarnessSession) {
@@ -532,8 +540,8 @@ describe('routing.router', () => {
   })
 })
 
-describe('routing with run leases', () => {
-  it('holds a run lease while a routed agent runs', async () => {
+describe('routing and ownership', () => {
+  it('keeps the thread from other hosts while a routed agent runs', async () => {
     const started = gate()
     const release = gate()
     const writer = defineAgent({
@@ -545,16 +553,15 @@ describe('routing with run leases', () => {
         return 'Done.'
       },
     })
-    const { host, session, runs } = await openRouting({
+    const { host, session, runs, log } = await openRouting({
       router: () => 'writer',
       agents: [writer],
     })
 
     const turn = session.send('go')
     await started.opened
-    expect((await runs.get(turn.id))?.leaseExpiresAt).toBeGreaterThan(
-      Date.now(),
-    )
+    expect((await runs.get(turn.id))?.status).toBe('running')
+    expect(await canOtherHostTake(log, logIdOf({ logId: THREAD }))).toBe(false)
     release.open()
     expect((await turn).text).toBe('writer:\nDone.')
     await host.close()

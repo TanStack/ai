@@ -4,6 +4,7 @@ import { EventType, chat, toolDefinition } from '@tanstack/ai'
 import { bindDurable, createToolStep, durableTool } from '../src/durable-tool'
 import { mockAdapter, text, toolCall } from './helpers'
 import type { LogRecord } from '@tanstack/ai-persistence'
+import type { StepRun } from '../src/durable-tool'
 
 const invoiceDefinition = toolDefinition({
   name: 'create_invoice',
@@ -11,8 +12,17 @@ const invoiceDefinition = toolDefinition({
   inputSchema: z.object({ orderId: z.string() }),
 })
 
-/** A step that remembers values in a map, like the session log does. */
-function mapStep(stored: Map<string, unknown>) {
+/**
+ * A step that remembers values in a map, like the session log does. Each
+ * step gets the key `key:<name>` and epoch 7, unless `run` says else.
+ */
+function mapStep(
+  stored: Map<string, unknown>,
+  run: (name: string) => StepRun = (name) => ({
+    idempotencyKey: `key:${name}`,
+    epoch: 7,
+  }),
+) {
   return createToolStep({
     recorded: (name) =>
       stored.has(name)
@@ -21,16 +31,19 @@ function mapStep(stored: Map<string, unknown>) {
     record: async (name, value) => {
       stored.set(name, value)
     },
+    run,
   })
 }
 
 describe('durableTool', () => {
   it('runs in plain chat() and runs each step', async () => {
     const create = vi.fn(async (orderId: string) => `inv-${orderId}`)
+    const runs: Array<StepRun> = []
     const tool = durableTool(invoiceDefinition, async ({ orderId }, ctx) => {
-      const invoiceId = await ctx.step.do(`create:${orderId}`, () =>
-        create(orderId),
-      )
+      const invoiceId = await ctx.step.do(`create:${orderId}`, (run) => {
+        runs.push(run)
+        return create(orderId)
+      })
       return { invoiceId, callId: ctx.toolCallId }
     })
     const { adapter } = mockAdapter([
@@ -49,6 +62,8 @@ describe('durableTool', () => {
 
     expect(tool.replay).toBe('safe')
     expect(create).toHaveBeenCalledTimes(1)
+    // No session: the key is the step name.
+    expect(runs).toEqual([{ idempotencyKey: 'create:o1', epoch: 0 }])
     expect(results).toEqual([
       JSON.stringify({ invoiceId: 'inv-o1', callId: 'call-9' }),
     ])
@@ -76,6 +91,48 @@ describe('createToolStep', () => {
     expect(fresh).not.toHaveBeenCalled()
     expect(await step.do('send:o1', () => 'sent')).toBe('sent')
     expect(stored.get('send:o1')).toBe('sent')
+  })
+
+  it('gives fn the key and the epoch of its step', async () => {
+    const step = mapStep(new Map())
+
+    expect(await step.do('charge', (run) => run)).toEqual({
+      idempotencyKey: 'key:charge',
+      epoch: 7,
+    })
+  })
+
+  it('returns the JSON value that a replay returns, also in a live run', async () => {
+    const stored = new Map<string, unknown>()
+    const step = mapStep(stored)
+
+    const live = await step.do('when', () => ({ at: new Date(0) }))
+
+    expect(live).toEqual({ at: '1970-01-01T00:00:00.000Z' })
+    expect(stored.get('when')).toEqual(live)
+    expect(await mapStep(stored).do('when', () => 'again')).toEqual(live)
+  })
+
+  it('fails a value that is not JSON, and stores nothing', async () => {
+    const stored = new Map<string, unknown>()
+    const step = mapStep(stored)
+
+    await expect(step.do('big', () => 10n)).rejects.toThrow(
+      'the value of step "big" is not JSON',
+    )
+    expect(stored.has('big')).toBe(false)
+  })
+
+  it('does not start a step when its run refuses', async () => {
+    const fn = vi.fn(() => 'side effect')
+    const step = mapStep(new Map(), () => {
+      throw new Error('The host lost the log.')
+    })
+
+    await expect(step.do('charge', fn)).rejects.toThrow(
+      'The host lost the log.',
+    )
+    expect(fn).not.toHaveBeenCalled()
   })
 
   it('throws when a tool call uses a step name twice', async () => {

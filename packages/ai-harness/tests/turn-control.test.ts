@@ -10,15 +10,21 @@ import {
 } from '../src'
 import { TRUNCATED_TOOL_RESULT } from '../src/resume'
 import {
+  CRASHING_OWNERSHIP,
   gate,
   messageTexts,
   mockAdapter,
+  ownershipExpired,
   text,
   toolCall,
   untilAborted,
 } from './helpers'
 import type { AnyTool, StreamChunk } from '@tanstack/ai'
-import type { HarnessTurnOptions, ProjectOptions } from '../src'
+import type {
+  HarnessTurnOptions,
+  OwnershipOptions,
+  ProjectOptions,
+} from '../src'
 import type { Reply } from './helpers'
 
 const THREAD = 't1'
@@ -702,10 +708,16 @@ describe('turn.onModelError', () => {
     function durableHosts() {
       const { runs, metadata } = memoryPersistence().stores
       const persistence = { stores: { log: memoryLogStore(), runs, metadata } }
-      const openOn = async (replies: Array<Reply>) => {
+      const openOn = async (
+        replies: Array<Reply>,
+        ownership?: OwnershipOptions,
+      ) => {
         const seen: Array<number> = []
         const { adapter, calls } = mockAdapter(replies)
-        const host = createHarnessHost({ persistence })
+        const host = createHarnessHost({
+          persistence,
+          ...(ownership ? { ownership } : {}),
+        })
         const session = await host.open(
           defineHarness({
             name: 'test/turn-control',
@@ -726,12 +738,19 @@ describe('turn.onModelError', () => {
       }
       /** Run `replies`, then a call that hangs, and stop that host there. */
       const crashAfter = async (replies: Array<Reply>) => {
-        const first = await openOn([...replies, untilAborted()])
-        const turn = first.session.send('go', { inputId: 'in-1' })
+        const first = await openOn(
+          [...replies, untilAborted()],
+          CRASHING_OWNERSHIP,
+        )
+        void first.session.send('go', { inputId: 'in-1' }).then(
+          () => {},
+          () => {},
+        )
         await vi.waitFor(() =>
           expect(first.calls).toHaveLength(replies.length + 1),
         )
-        await runs.update(turn.id, { leaseExpiresAt: Date.now() - 1 })
+        // The host stops: its ownership of the log expires.
+        await ownershipExpired()
         return first
       }
       return { openOn, crashAfter }
@@ -1080,9 +1099,15 @@ describe('turn.beforeFinish', () => {
       messages.some((message) => message.content === REMINDER)
         ? undefined
         : { messages: [{ role: 'user', content: REMINDER }] }
-    const openOn = async (replies: Array<Reply>) => {
+    const openOn = async (
+      replies: Array<Reply>,
+      ownership?: OwnershipOptions,
+    ) => {
       const { adapter, calls } = mockAdapter(replies)
-      const host = createHarnessHost({ persistence })
+      const host = createHarnessHost({
+        persistence,
+        ...(ownership ? { ownership } : {}),
+      })
       const session = await host.open(
         defineHarness({
           name: 'test/turn-control',
@@ -1095,10 +1120,17 @@ describe('turn.beforeFinish', () => {
       )
       return { host, session, calls }
     }
-    const first = await openOn([() => text('draft'), untilAborted()])
-    const turn = first.session.send('answer the user', { inputId: 'in-1' })
+    const first = await openOn(
+      [() => text('draft'), untilAborted()],
+      CRASHING_OWNERSHIP,
+    )
+    void first.session.send('answer the user', { inputId: 'in-1' }).then(
+      () => {},
+      () => {},
+    )
     await vi.waitFor(() => expect(first.calls).toHaveLength(2))
-    await runs.update(turn.id, { leaseExpiresAt: Date.now() - 1 })
+    // The host stops: its ownership of the log expires.
+    await ownershipExpired()
 
     const next = await openOn([() => text('posted')])
 

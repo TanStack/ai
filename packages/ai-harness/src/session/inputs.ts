@@ -1,5 +1,6 @@
 import { EventType } from '@tanstack/ai'
 import { isRecord } from '../utils'
+import { LogOwnedElsewhereError } from '../ownership'
 import { HARNESS_EVENTS, InputRejectedError } from '../types'
 import {
   createInputId,
@@ -487,6 +488,13 @@ export abstract class SessionInputs<
     } catch (error) {
       // Not stored, so a retry with the same id is a new input.
       this.admitted.delete(inputId)
+      // Another host owns the log: the input goes to it, as for a claim of
+      // another host. An agent run starts only on the owner.
+      if (error instanceof LogOwnedElsewhereError) {
+        return input.op === 'agent'
+          ? 'owned_elsewhere'
+          : await this.forward(inputId, input, sender, runId)
+      }
       throw error
     }
     // An input with no work to run (a cancel, a setting) ends once stored.

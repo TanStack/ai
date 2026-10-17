@@ -2,7 +2,7 @@ import { LogRecordsCapability, provideLogRecords } from '@tanstack/ai'
 import { bindDurable, createToolStep } from '../durable-tool'
 import { commonPrefix, stepKey } from '../log'
 import { mediaIdOf, mediaOfMessage } from '../media-ref'
-import { LEASE } from '../resume'
+import { LogOwnedElsewhereError } from '../ownership'
 import { HARNESS_EVENTS } from '../types'
 import { callUsage } from '../usage'
 import {
@@ -25,6 +25,7 @@ import type {
   ToolExecutionContext,
 } from '@tanstack/ai'
 import type { LogRecord } from '@tanstack/ai-persistence'
+import type { DurableBind } from '../durable-tool'
 import type { LogWriter } from '../log'
 import type { UsageCall } from '../usage'
 import type { AnyHarness } from '../define'
@@ -34,24 +35,30 @@ import type {
   ChatTurnResult,
   MediaRecord,
   Principal,
+  RunContext,
   TurnInfo,
   UserInput,
 } from '../types'
 import type { QueuedTurn, AgentRunImpl, AgentChain } from './types'
 
 /**
- * A layer of {@link HarnessSession}: the tools, middleware, joins, and leases a
- * turn uses.
+ * A layer of {@link HarnessSession}: the tools, middleware, and joins a turn
+ * uses.
  */
 export abstract class SessionTurnParts<
   THarness extends AnyHarness = AnyHarness,
 > extends SessionRequests<THarness> {
   /**
-   * The `step` and `append` a durable tool call gets. A step value is in the
-   * log before `step.do` resolves. Staged records land with the call's
-   * stored result, so a call that a crash cuts leaves none of them.
+   * The `step` and `append` a durable tool call gets, in `run`. A step value
+   * is in the log before `step.do` resolves. Staged records land with the
+   * call's stored result, so a call that a crash cuts leaves none of them.
+   * A step does not start after another host took the log.
    */
-  protected durableBinding(writer: LogWriter, toolCallId: string) {
+  protected durableBinding(
+    writer: LogWriter,
+    toolCallId: string,
+    run: RunContext,
+  ) {
     const step = createToolStep({
       recorded: (name) => {
         const key = stepKey(toolCallId, name)
@@ -61,6 +68,13 @@ export abstract class SessionTurnParts<
       },
       record: (name, value) =>
         writer.append([{ type: 'harness.tool.step', toolCallId, name, value }]),
+      run: (name) => {
+        if (writer.fenced) throw new LogOwnedElsewhereError(writer.logId)
+        return {
+          idempotencyKey: run.idempotencyKey(name, toolCallId),
+          epoch: run.epoch,
+        }
+      },
     })
     const append = (records: ReadonlyArray<LogRecord>) => {
       checkHostRecords(records)
@@ -116,14 +130,18 @@ export abstract class SessionTurnParts<
     return prepared
   }
 
+  /** The binder of the durable tools of `run`: each call gets its steps in the log. */
+  protected durableBinder(run: RunContext): DurableBind {
+    const { writer } = this
+    return (toolCallId) => this.durableBinding(writer, toolCallId, run)
+  }
+
   /**
-   * Middleware that binds the durable tools of each model call: a
-   * middleware can return new tools from `onConfig`, and the engine runs the
-   * tools of that list.
+   * Middleware that binds the durable tools of each model call with
+   * `bindTool`: a middleware can return new tools from `onConfig`, and the
+   * engine runs the tools of that list.
    */
-  protected durableTools(): AnyChatMiddleware | undefined {
-    const { bindTool } = this
-    if (!bindTool) return undefined
+  protected durableTools(bindTool: DurableBind): AnyChatMiddleware {
     return {
       name: 'harness:durable-tools',
       onConfig: (ctx, config) => {
@@ -547,63 +565,17 @@ export abstract class SessionTurnParts<
   }
 
   /**
-   * Hold the lease of a turn or agent attempt in `stores.leases` while it
-   * runs. Returns the function that releases it. Without a lease store, it
-   * returns nothing: the run lease decides.
+   * End work that `close({ recoverable: true })` or a lost log stopped, with
+   * no settlement. The session gives the log up when it has no work left,
+   * so the next host that opens the thread runs the work again.
    */
-  protected async holdLease(
-    inputId: string | undefined,
+  protected giveBack(
     operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
-  ): Promise<(() => Promise<void>) | undefined> {
-    const leases = this.persistence.stores.leases
-    const attempt =
-      inputId === undefined
-        ? undefined
-        : this.writer.state.inputs.get(inputId)?.attempt
-    if (!leases || inputId === undefined || attempt === undefined) {
-      return undefined
-    }
-    const ttlMs = this.lease?.ttlMs ?? LEASE.ttlMs
-    const renewMs = this.lease?.renewMs ?? LEASE.renewMs
-    const lease = () => ({
-      threadId: this.storeThreadId,
-      inputId,
-      operationId: operation.id,
-      attempt,
-      ownerId: this.hostId,
-      expiresAt: Date.now() + ttlMs,
-    })
-    await leases.acquire(lease())
-    const timer = setInterval(
-      () =>
-        void leases
-          .renew(lease())
-          .catch((error: unknown) => this.warnSession('harness:leases', error)),
-      renewMs,
-    )
-    // A lease timer must not keep a CLI or a test process alive.
-    if (typeof timer === 'object' && 'unref' in timer) timer.unref()
-    return async () => {
-      clearInterval(timer)
-      await leases.release(lease()).catch(() => {})
-    }
-  }
-
-  /**
-   * End work that `close({ recoverable: true })` stopped, with no settlement.
-   * Its leases end now, so the next host that opens the thread runs it again
-   * at once. Call it after the run lease renewal stopped.
-   */
-  protected async giveBack(
-    operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
-    releaseLease: (() => Promise<void>) | undefined,
   ) {
-    // An expired run lease, for a host without a lease store.
-    await this.persistence.stores.runs
-      ?.update(operation.id, { leaseExpiresAt: 0 })
-      .catch(() => {})
-    await releaseLease?.()
-    operation.fail('cancelled', new Error('Session closed.'))
+    operation.fail(
+      'cancelled',
+      this.ownershipLoss ?? new Error('Session closed.'),
+    )
   }
 
   /** The model can answer the context: it ends with a user or a tool message. */

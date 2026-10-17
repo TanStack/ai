@@ -20,6 +20,7 @@ import {
   CONTROL_OPS,
   hasFinalAnswer,
   loggedExtras,
+  SHUTDOWN_REASON,
   tapFeed,
 } from './helpers'
 import { SessionTurn } from './turn'
@@ -89,6 +90,9 @@ export interface HarnessSession<
 export class SessionImpl<
   THarness extends AnyHarness = AnyHarness,
 > extends SessionTurn<THarness> {
+  /** The recoveries that run. The host keeps the log while one runs. */
+  private recovering = 0
+
   /** This session, typed as the public type, for the hooks of each layer. */
   protected override self(): HarnessSession<THarness> {
     return this
@@ -221,10 +225,10 @@ export class SessionImpl<
   }
 
   /**
-   * Recover the work in the log again, as `open()` does. `open()` skips a
-   * turn while another host holds its lease. Call this after that lease
-   * expires, and the turn runs here. The work that this session runs or
-   * queues stays as it is.
+   * Recover the work in the log again, as `open()` does. `open()` skips the
+   * work while another host owns the log. Call this after that host stops
+   * or gives the log up, and the work runs here. The work that this session
+   * runs or queues stays as it is.
    *
    * @example
    * ```ts
@@ -255,9 +259,13 @@ export class SessionImpl<
   protected async openLog(): Promise<void> {
     const { stores } = this.persistence
     const { store, project } = this.log
-    const writer = await this.log.open(this.threadId, (error) =>
-      this.stopOnLogFailure(error),
-    )
+    const writer = await this.log.open(this.threadId, {
+      onFailure: (error) => this.stopOnLogFailure(error),
+      onLost: () => this.stopOnOwnershipLoss(),
+      // A background job of this host keeps the log too: a host that takes
+      // the log over would note the job as stopped.
+      isBusy: () => !this.isIdle() || this.jobs.size > 0 || this.recovering > 0,
+    })
     this.logWriter = writer
     this.feed = tapFeed(writer, this.notifyHost, this.eventListeners)
     // The logs of the subagent children are in the tenant of this session.
@@ -282,8 +290,6 @@ export class SessionImpl<
     this.checkpoint = checkpointMiddleware({
       ...(stores.runs ? { runs: stores.runs } : {}),
       messages: engineMessages,
-      hostId: this.hostId,
-      ...(this.lease ? { lease: this.lease } : {}),
       // The log keeps each finished tool result, so a crash later in the
       // batch does not lose it.
       onToolStart: ({ toolCallId, name, replay }) =>
@@ -293,7 +299,6 @@ export class SessionImpl<
       onToolResult: ({ toolCallId, message }) =>
         writer.append([{ type: 'harness.tool.result', toolCallId, message }]),
     })
-    this.bindTool = (toolCallId) => this.durableBinding(writer, toolCallId)
   }
 
   /**
@@ -317,6 +322,29 @@ export class SessionImpl<
     // The feed closes with the session, so a failed plugin dispose has no one
     // to tell.
     this.close().catch(() => {})
+  }
+
+  /**
+   * Another host took the log of this session. Its running work stops at
+   * once, as on a crash: no later write of it lands, and the new owner runs
+   * it again. Queued turns end. The session stays open and reads the log.
+   * When the stopped work has ended (the session is idle), a later write
+   * acquires the log again.
+   */
+  protected stopOnOwnershipLoss(): void {
+    this.ownershipLoss = new Error(
+      'Another host took this thread over, so this host stopped its work on it. The new owner runs that work. This session still reads the thread.',
+    )
+    for (const turn of this.queue.splice(0)) {
+      turn.operation.fail('cancelled', this.ownershipLoss)
+    }
+    for (const operation of this.operations.values()) {
+      if (!operation.isSettled()) {
+        operation.abortController.abort(SHUTDOWN_REASON)
+      }
+    }
+    // With no work that still ends, the session is idle now and unfences.
+    queueMicrotask(() => this.checkIdle())
   }
 
   /**
@@ -450,7 +478,8 @@ export class SessionImpl<
 
   /**
    * Recover a durable session from its log, input by input, in admission
-   * order. A chat turn whose host stopped (its run lease expired) settles
+   * order. Only the owner of the log recovers: while another host owns it,
+   * recovery waits. A chat turn whose host stopped settles
    * `completed` when the log already has its final answer. Else it settles
    * `aborted` when an abort was asked, settles `failed` when no attempt or no
    * time is left, and else runs again as the next attempt. An agent run (a
@@ -471,6 +500,19 @@ export class SessionImpl<
       this.recoveryDeferred = true
       return
     }
+    // The owner of the log decides. A host that gets it knows that no other
+    // host runs these inputs: the last owner stopped or gave the log up.
+    // While another host owns it, its work is alive, and recovery waits.
+    // A log with nothing to recover is not acquired: a reader owns nothing.
+    const hasWork = [...writer.state.inputs.values()].some(
+      (input) =>
+        (input.status === 'pending' || input.status === 'applied') &&
+        !this.admitted.has(input.inputId),
+    )
+    if (hasWork && !(await writer.own())) {
+      this.recoveryDeferred = true
+      return
+    }
     // True for an input that this session stored or took. Else the session
     // takes it now, so `recover()` does not take it again.
     const taken: Array<string> = []
@@ -480,18 +522,26 @@ export class SessionImpl<
       taken.push(input.inputId)
       return false
     }
+    // The host keeps the log until recovery queued its work.
+    this.recovering += 1
     try {
-      await this.recoverInputs(writer, isTaken)
-    } catch (error) {
-      // Not recovered, so the next `recover()` takes them again.
-      for (const inputId of taken) {
-        if (!this.turnOperations.has(inputId)) this.admitted.delete(inputId)
+      try {
+        await this.recoverInputs(writer, isTaken)
+      } catch (error) {
+        // Not recovered, so the next `recover()` takes them again.
+        for (const inputId of taken) {
+          if (!this.turnOperations.has(inputId)) this.admitted.delete(inputId)
+        }
+        throw error
       }
-      throw error
+      // After the turns are decided: a note must not end the transcript
+      // that a cut turn continues.
+      await this.recoverBackground(writer)
+    } finally {
+      this.recovering -= 1
+      // A recovery that left no work gives the log back.
+      void writer.rest()
     }
-    // After the turns are decided: a note must not end the transcript that
-    // a cut turn continues.
-    await this.recoverBackground(writer)
   }
 
   private async recoverInputs(
@@ -634,23 +684,11 @@ export class SessionImpl<
       // An agent run: a first run, or a follow-up run of its chain.
       const first = chainInputOf(writer.state.inputs, input)
       if (input.status !== 'applied' || !(isChat || first)) continue
-      const leases = this.persistence.stores.leases
+      // This host owns the log (see `recoverFromLog`), so no other host
+      // drives this turn.
+      if (isTaken(input)) continue
       const run = input.operationId ? await runs?.get(input.operationId) : null
       const now = Date.now()
-      // A host lease store decides when there is one. Else the run lease does.
-      const isAlive =
-        leases && input.operationId
-          ? await leases.isAlive({
-              threadId: this.storeThreadId,
-              inputId: input.inputId,
-              operationId: input.operationId,
-              attempt: input.attempt,
-            })
-          : run?.status === 'running' &&
-            run.leaseExpiresAt !== undefined &&
-            run.leaseExpiresAt >= now
-      // Another host still drives this turn.
-      if (isAlive || isTaken(input)) continue
       if (first) {
         // A run that ended before its settle record landed did not stop.
         if (!run || run.status === 'running') {
