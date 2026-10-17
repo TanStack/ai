@@ -1,4 +1,5 @@
 import { ResourceScope, disposeAll } from './resources'
+import type { AnyHarness } from './define'
 import type {
   HostPluginContext,
   HostPluginContributions,
@@ -35,35 +36,48 @@ export function hostPluginContext(
 
 /**
  * @internal The plugins with `lifetime: 'host'` of one host. Each one is
- * set up once for each harness name and plugin name, and shared by a
+ * set up once for each harness definition and plugin name, and shared by a
  * reference count. The last release disposes it, and so does `close()`.
+ *
+ * The key is the harness object, not its name. An app that builds a new
+ * definition (with other plugin options) under the same name gets its own
+ * setup, never the one of the older definition.
  */
 export class HostPlugins {
-  private readonly entries = new Map<string, Entry>()
+  private readonly entries = new Map<AnyHarness, Map<string, Entry>>()
   private closed = false
 
-  /** The shared setup of `plugin` for the harness `harness`. */
+  /** The shared setup of `plugin` for `harness`. */
   async acquire(
-    harness: string,
+    harness: AnyHarness,
     plugin: HostPluginDefinition<any>,
   ): Promise<SharedHostPlugin> {
     if (this.closed) {
       throw new Error('The host is closed. Create a new host to open sessions.')
     }
-    const key = `${harness}\u0000${plugin.name}`
-    let entry = this.entries.get(key)
+    const plugins = this.entries.get(harness) ?? new Map<string, Entry>()
+    this.entries.set(harness, plugins)
+    const key = plugin.name
+    /** Drop `entry` when it is still the one of `key`. */
+    const forget = (entry: Entry) => {
+      if (plugins.get(key) !== entry) return false
+      plugins.delete(key)
+      if (plugins.size === 0) this.entries.delete(harness)
+      return true
+    }
+    let entry = plugins.get(key)
     if (!entry) {
       const scope = new ResourceScope()
       const ready = Promise.resolve().then(() =>
-        plugin.setup(hostPluginContext(harness, scope)),
+        plugin.setup(hostPluginContext(harness.name, scope)),
       )
       const created: Entry = { refs: 0, scope, ready }
       // A failed setup is not kept: the next session sets it up again.
       ready.catch(() => {
-        if (this.entries.get(key) === created) this.entries.delete(key)
+        forget(created)
         void scope.dispose().catch(() => {})
       })
-      this.entries.set(key, created)
+      plugins.set(key, created)
       entry = created
     }
     const held = entry
@@ -82,9 +96,7 @@ export class HostPlugins {
         if (released) return Promise.resolve()
         released = true
         held.refs -= 1
-        const isLast = held.refs <= 0 && this.entries.get(key) === held
-        if (!isLast) return Promise.resolve()
-        this.entries.delete(key)
+        if (held.refs > 0 || !forget(held)) return Promise.resolve()
         return held.scope.dispose()
       },
     }
@@ -93,7 +105,9 @@ export class HostPlugins {
   /** Dispose every shared setup. Later `acquire` calls throw. */
   close(): Promise<void> {
     this.closed = true
-    const scopes = [...this.entries.values()].map((entry) => entry.scope)
+    const scopes = [...this.entries.values()].flatMap((plugins) =>
+      [...plugins.values()].map((entry) => entry.scope),
+    )
     this.entries.clear()
     return disposeAll(scopes)
   }

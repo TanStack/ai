@@ -64,6 +64,32 @@ function setup(
 }
 
 describe('lifetime host', () => {
+  it('gives a new harness definition with the same name its own setup', async () => {
+    const first = countedPlugin()
+    const second = countedPlugin()
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      lifecycle: { idleCloseMs: 0 },
+    })
+    // Two definitions under one name, with other plugin options, as an app
+    // that builds its harness for each request does.
+    const define = (plugin: HarnessPlugin) =>
+      defineHarness({
+        name: 'test/same-name',
+        adapter: mockAdapter(callWho).adapter,
+        plugins: () => [plugin],
+      })
+
+    const a = await host.open(define(first.plugin), { threadId: 'a' })
+    const b = await host.open(define(second.plugin), { threadId: 'b' })
+
+    expect(first.counts.setups).toBe(1)
+    expect(second.counts.setups).toBe(1)
+    await a.close()
+    await b.close()
+    await host.close()
+  })
+
   it('sets up once for two sessions, and disposes after the last session closes', async () => {
     const { plugin, counts } = countedPlugin()
     const { host, harness } = setup(() => [plugin])
