@@ -366,6 +366,10 @@ const stream = chat({
 
 Each outer thread gets its own inner session, so the harness keeps its own history. The inner session gets every content part of the last user message, so images and files go through too.
 
+- Who runs the inner turn: when the outer `chat()` runs inside a harness turn, the inner session opens as the user of that turn. Else it opens as `principal`, for example `harnessText(assistant, { host, principal: { id: 'ada' } })`.
+- Usage: the outer run gets the token usage of every inner model call, so the usage totals of the outer session count them.
+- Cancel: an abort of the outer call cancels the inner turn. For a remote harness, `harnessText({ url, token })` also tells the remote host to cancel the turn.
+
 If a plugin picks the model of the harness, the harness has no adapter to read its input kinds from. Pass them with `harnessText(assistant, { host, inputModalities: ['text', 'image'] })`.
 
 ## What you have now

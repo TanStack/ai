@@ -1105,7 +1105,8 @@
         {
           "label": "Code mode in a harness",
           "to": "harness/code-mode",
-          "addedAt": "2026-10-13"
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-17"
         },
         {
           "label": "Work until a goal is met",
