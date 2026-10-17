@@ -50,13 +50,59 @@ export function Input(props) {
     }, props.style)
   }));
 }
+
+export function Slider(props) {
+  var rest = Object.assign({}, props); delete rest.style; delete rest.label;
+  return h('input', Object.assign({ type: 'range' }, rest, {
+    style: Object.assign({ width: '100%', accentColor: 'var(--ui-accent,#2563eb)' }, props.style)
+  }));
+}
+
+export function Select(props) {
+  var rest = Object.assign({}, props); delete rest.style; delete rest.children; delete rest.options;
+  var opts = props.options
+    ? props.options.map(function (o, i) { return h('option', { key: i, value: o.value != null ? o.value : o }, o.label != null ? o.label : o); })
+    : props.children;
+  return h('select', Object.assign({}, rest, {
+    style: Object.assign({
+      padding: '8px 10px', border: '1px solid var(--ui-border,#e5e7eb)', borderRadius: 8,
+      background: 'var(--ui-surface,#fff)', color: 'var(--ui-text,#111)', fontSize: 13
+    }, props.style)
+  }), opts);
+}
+
+export function Label(props) {
+  var rest = Object.assign({}, props); delete rest.style; delete rest.children;
+  return h('label', Object.assign({}, rest, {
+    style: Object.assign({ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--ui-muted,#64748b)', margin: '0 0 4px' }, props.style)
+  }), props.children);
+}
+
+export function Checkbox(props) {
+  var rest = Object.assign({}, props); delete rest.style;
+  return h('input', Object.assign({ type: 'checkbox' }, rest, { style: Object.assign({ accentColor: 'var(--ui-accent,#2563eb)' }, props.style) }));
+}
 `
 
 /* ---- @tanstack/react-table shim — headless sorting/model ----------------- */
 const REACT_TABLE_SHIM = /* js */ `
 export function getCoreRowModel() { return 'core'; }
 export function getSortedRowModel() { return 'sorted'; }
+export function getFilteredRowModel() { return 'filtered'; }
+export function getPaginationRowModel() { return 'pagination'; }
 export function flexRender(comp, ctx) { return typeof comp === 'function' ? comp(ctx) : comp; }
+export function createColumnHelper() {
+  return {
+    accessor: function (key, col) {
+      var base = typeof key === 'function' ? { accessorFn: key } : { accessorKey: key };
+      return Object.assign(base, col || {});
+    },
+    display: function (col) { return col || {}; },
+    group: function (col) { return col || {}; },
+  };
+}
+// v7 compatibility alias — some models reach for useTable.
+export function useTable(options) { return useReactTable(options); }
 
 export function useReactTable(options) {
   var data = options.data || [];

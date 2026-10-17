@@ -56,12 +56,16 @@
     "agent-ui"
   ],
   "peerDependencies": {
+    "@modelcontextprotocol/ext-apps": "^1.7.4",
     "@tanstack/ai": "workspace:^",
     "@tanstack/ai-persistence": "workspace:^",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"
   },
   "peerDependenciesMeta": {
+    "@modelcontextprotocol/ext-apps": {
+      "optional": true
+    },
     "@tanstack/ai": {
       "optional": true
     },
@@ -76,6 +80,7 @@
     }
   },
   "devDependencies": {
+    "@modelcontextprotocol/ext-apps": "^1.7.4",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-persistence": "workspace:*",
     "@types/react": "^19.2.7",

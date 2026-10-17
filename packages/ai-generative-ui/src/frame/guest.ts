@@ -18,7 +18,7 @@
  * `window.__ogui` exists before the fragment's inline script runs.
  */
 export const FRAGMENT_GUEST_SOURCE = /* js */ `
-import { App, applyHostStyleVariables } from '@modelcontextprotocol/ext-apps';
+import { App, PostMessageTransport, applyHostStyleVariables } from '@modelcontextprotocol/ext-apps';
 
 (function () {
   var app = new App({ name: 'ogui-fragment', version: '0.2.0' }, {});
@@ -67,9 +67,14 @@ import { App, applyHostStyleVariables } from '@modelcontextprotocol/ext-apps';
 
   (async function () {
     try {
-      // No explicit transport: App auto-wires the correct PostMessage channel
-      // for the @mcp-ui/client sandbox-proxy environment.
-      await app.connect();
+      // Direct mode (react-tsx shell in our own iframe): connect straight to the
+      // host AppBridge over window.parent. Proxy mode (html-fragment via
+      // @mcp-ui/client): no explicit transport — App auto-wires the proxy.
+      if (window.__OGUI_DIRECT__) {
+        await app.connect(new PostMessageTransport(window.parent, window));
+      } else {
+        await app.connect();
+      }
       if (app.getHostContext) applyTheme(app.getHostContext());
       if (app.setupSizeChangedNotifications) app.setupSizeChangedNotifications();
       ready = true;

@@ -191,15 +191,16 @@ export function ChatSurface() {
           ) : (
             <div className="space-y-6">
               {(messages as Array<any>).map((m) => (
-                <MessageRow
-                  key={m.id}
-                  message={m}
-                  framePins={framePins}
-                  latest={latest}
-                  mcpBridge={mcpBridge}
-                  onIntent={handleIntent}
-                  onExpand={setExpandedGraph}
-                />
+                <RenderErrorBoundary key={m.id}>
+                  <MessageRow
+                    message={m}
+                    framePins={framePins}
+                    latest={latest}
+                    mcpBridge={mcpBridge}
+                    onIntent={handleIntent}
+                    onExpand={setExpandedGraph}
+                  />
+                </RenderErrorBoundary>
               ))}
               {notices.map((n, i) => (
                 <div key={`notice_${i}`} className="flex justify-center">
@@ -293,6 +294,20 @@ function Hero({ starters, onSend }: { starters: Array<string>; onSend: (s: strin
 interface LatestMap {
   graphPart: Record<string, string>
   framePartByArtifact: Record<string, string>
+}
+
+/** Keeps one bad graph/artifact render from taking down the whole conversation. */
+class RenderErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: unknown }> {
+  state: { error: unknown } = { error: null }
+  static getDerivedStateFromError(error: unknown) {
+    return { error }
+  }
+  render() {
+    if (this.state.error) {
+      return <div className="chat-assistant-error"><Prose text="This view failed to render." /></div>
+    }
+    return this.props.children
+  }
 }
 
 function MessageRow({
@@ -398,6 +413,7 @@ function MessageRow({
                 sandboxUrl={sandboxUrl}
                 title={pin.title ?? 'Generated artifact'}
                 minHeight={120}
+                protocol="mcp-app"
                 onIntent={async (d) => {
                   onIntent({ graphId: pin.artifactId, nodeId: '', intent: d.intent, intentClass: d.intentClass, payload: d.payload, state: d.state } as IntentPayload)
                   return { ok: true, result: { acknowledged: true } }

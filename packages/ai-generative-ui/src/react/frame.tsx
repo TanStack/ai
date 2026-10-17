@@ -55,6 +55,13 @@ export interface FrameArtifactRendererProps {
   className?: string
   /** Show the host-owned frame affordance (border/label), §9.2.8. Default true. */
   chrome?: boolean
+  /**
+   * Bridge protocol. `ogui/1` (default) uses the built-in host bridge; `mcp-app`
+   * drives the frame over the standard MCP Apps (SEP-1865) protocol via a
+   * lazily-loaded ext-apps `AppBridge` — the shell must serve the ext-apps guest
+   * (buildShellDocument `guestScript`).
+   */
+  protocol?: 'ogui/1' | 'mcp-app'
 }
 
 /**
@@ -77,6 +84,7 @@ export function FrameArtifactRenderer(props: FrameArtifactRendererProps) {
     minHeight = 80,
     className,
     chrome = true,
+    protocol = 'ogui/1',
   } = props
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
@@ -101,6 +109,7 @@ export function FrameArtifactRenderer(props: FrameArtifactRendererProps) {
   }, [])
 
   useEffect(() => {
+    if (protocol === 'mcp-app') return
     const host = createFrameHost(
       { artifactId: pin.artifactId, instanceId: instanceId.current },
       {
@@ -141,6 +150,76 @@ export function FrameArtifactRenderer(props: FrameArtifactRendererProps) {
   useLayoutEffect(() => {
     hostRef.current?.pushTheme(themeRef.current())
   })
+
+  // MCP Apps (SEP-1865) host: drive the frame over the standard protocol via
+  // ext-apps `AppBridge`, connected directly to our iframe. ext-apps is lazily
+  // imported so the base renderer bundle stays free of it.
+  useEffect(() => {
+    if (protocol !== 'mcp-app') return
+    let cancelled = false
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- ext-apps is dynamically imported
+    let bridge: any = null
+    void (async () => {
+      // Host AppBridge lives on the `/app-bridge` subpath; PostMessageTransport
+      // on the root. (ext-apps `.` is the guest `App`.)
+      const [bridgeMod, rootMod]: [any, any] = await Promise.all([
+        import('@modelcontextprotocol/ext-apps/app-bridge'),
+        import('@modelcontextprotocol/ext-apps'),
+      ])
+      if (cancelled) return
+      const mod: any = { AppBridge: bridgeMod.AppBridge, PostMessageTransport: rootMod.PostMessageTransport }
+      const theme = themeRef.current()
+      const bridgeInstance = new mod.AppBridge(
+        null,
+        { name: 'generative-ui-host', version: '0.2.0' },
+        { openLinks: {} },
+        { hostContext: { theme: theme.mode, styles: { variables: theme.tokens } } },
+      )
+      bridge = bridgeInstance
+      bridgeInstance.oncalltool = async (params: any) => {
+        const outcome = await onIntent?.({ intentClass: 'action', intent: params.name, payload: params.arguments, state: stateRef.current })
+        const result = outcome?.result ?? {}
+        return { content: [{ type: 'text', text: JSON.stringify(result) }], structuredContent: result && typeof result === 'object' ? result : undefined }
+      }
+      bridgeInstance.onmessage = async ({ content }: any) => {
+        const text = (content ?? []).filter((c: any) => c.type === 'text').map((c: any) => c.text).join('')
+        void onIntent?.({ intentClass: 'submit', intent: 'message', payload: text, state: stateRef.current })
+        return {}
+      }
+      bridgeInstance.onopenlink = async ({ url }: any) => {
+        try { window.open(url, '_blank', 'noopener,noreferrer') } catch {}
+        return {}
+      }
+      bridgeInstance.onupdatemodelcontext = async (params: any) => {
+        if (params?.structuredContent && typeof params.structuredContent === 'object') {
+          stateRef.current = params.structuredContent
+          onStateChange?.(stateRef.current)
+        }
+        return {}
+      }
+      bridgeInstance.onsizechange = (params: any) => {
+        if (typeof params?.height === 'number') setHeight(Math.max(minHeight, params.height))
+      }
+      bridgeInstance.oninitialized = () => {
+        if (data !== undefined) {
+          const args = data && typeof data === 'object' && !Array.isArray(data) ? (data as Record<string, unknown>) : { value: data }
+          try { void bridgeInstance.sendToolInput({ arguments: args }) } catch {}
+        }
+      }
+      const iframe = iframeRef.current
+      if (!iframe?.contentWindow || cancelled) return
+      try {
+        await bridgeInstance.connect(new mod.PostMessageTransport(iframe.contentWindow, iframe.contentWindow))
+      } catch (err) {
+        onError?.({ message: `MCP Apps bridge failed: ${String(err)}` })
+      }
+    })()
+    return () => {
+      cancelled = true
+      try { bridge?.close?.() } catch {}
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pin.artifactId, pin.revision, url, protocol])
 
   return (
     <div

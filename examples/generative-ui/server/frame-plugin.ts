@@ -18,7 +18,7 @@ import { createRequire } from 'node:module'
 import type { Plugin } from 'vite'
 import { buildCsp, buildShellDocument, type ArtifactRecord, type FrameTheme } from '@tanstack/ai-generative-ui'
 import { RUNTIME_NPM, RUNTIME_SHIMS } from './frame-runtime'
-import { registry, seedFixtures, store } from './frame-host'
+import { getFragmentGuestScript, registry, seedFixtures, store } from './frame-host'
 import { mcpServer } from './mcp-server'
 
 /** Bridge a Node request → web Request → mcpServer.fetch → Node response. */
@@ -192,6 +192,9 @@ export function frameApiPlugin(): Plugin {
             const instanceId = query.get('i') || `inst_${rec.artifactId}`
             const nonce = randomBytes(12).toString('base64url')
             const hash = assetHashOf(rec)
+            // react-tsx speaks the standard MCP Apps protocol: serve the ext-apps
+            // guest adapter (the host uses FrameArtifactRenderer protocol="mcp-app").
+            const guestScript = rec.kind === 'react-tsx' ? await getFragmentGuestScript() : undefined
             const html = buildShellDocument({
               record: rec,
               instanceId,
@@ -201,6 +204,7 @@ export function frameApiPlugin(): Plugin {
               builtUrl: hash ? `/sandbox/_assets/${hash}` : undefined,
               props: { data: rec.data },
               nonce,
+              guestScript,
             })
             res.setHeader('Content-Type', 'text/html; charset=utf-8')
             res.setHeader('Content-Security-Policy', buildCsp({ kind: rec.kind, appOrigin, connectGrants: rec.networkGrants, nonce }))

@@ -41,13 +41,14 @@ export const REFERENCE_REGISTRY: ModuleRegistry = {
       version: '8.21.3',
       url: `/sandbox/_runtime/${REFERENCE_REGISTRY_VERSION}/tanstack-react-table.js`,
       description:
-        'Headless table/datagrid logic (sorting, filtering, grouping, selection); the model writes markup, Table does the state work.',
+        'TanStack Table v8 (headless). Import EXACTLY: useReactTable, getCoreRowModel, getSortedRowModel, getFilteredRowModel, flexRender, createColumnHelper. Define columns as plain objects [{ accessorKey, header, cell }], pass { data, columns, getCoreRowModel: getCoreRowModel() } to useReactTable, and render with table.getHeaderGroups()/getRowModel() + flexRender. Do NOT use the v7 useTable/useSortBy API.',
     },
     {
       name: '@tanstack/react-charts',
       version: '3.0.0-beta',
       url: `/sandbox/_runtime/${REFERENCE_REGISTRY_VERSION}/tanstack-react-charts.js`,
-      description: 'TanStack Charts React adapter: typed chart definitions instead of hand-rolled SVG axes.',
+      description:
+        'TanStack Charts. Import EXACTLY: Chart. Render <Chart options={{ data: [{ label, data: [{ primary, secondary }] }], primaryAxis: { getValue: d => d.primary }, secondaryAxes: [{ getValue: d => d.secondary }] }} /> inside a fixed-height container.',
     },
     {
       name: '@tanstack/react-query',
@@ -66,7 +67,8 @@ export const REFERENCE_REGISTRY: ModuleRegistry = {
       name: '@host/ui',
       version: '0.2.0',
       url: `/sandbox/_runtime/${REFERENCE_REGISTRY_VERSION}/host-ui.js`,
-      description: 'Host design-system primitives (Button, Card, Input) so artifacts are expressive and on-brand.',
+      description:
+        'Host design-system primitives. Exports EXACTLY: Card, Button, Input, Slider, Select, Label, Checkbox — import only these names. For anything else (text, headings, layout, badges) use plain HTML elements (div/p/h3/span) styled with host theme CSS variables: var(--ui-text), var(--ui-muted), var(--ui-accent), var(--ui-surface), var(--ui-border).',
     },
   ],
 }
