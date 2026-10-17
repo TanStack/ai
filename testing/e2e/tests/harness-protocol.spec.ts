@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures'
+import { openHarnessThread } from './helpers'
 
 test.describe('harness protocol', () => {
   const headers = (testId: string, aimockPort: number) => ({
@@ -400,11 +401,7 @@ test.describe('harness protocol', () => {
     // The stream ends with the turn.
     await run.text()
     // The second thread only opens.
-    const opened = await request.get(
-      `/api/harness-protocol/snapshot?threadId=${second}`,
-      { headers: auth },
-    )
-    expect(opened.status()).toBe(200)
+    await openHarnessThread(request, auth, second)
 
     const sessions = (body: object) =>
       request.post('/api/harness-protocol/sessions', {
@@ -509,11 +506,7 @@ test.describe('harness protocol', () => {
       [`search-c-${testId}`]: `Trip budget ${testId}`,
     }
     for (const [threadId, title] of Object.entries(titles)) {
-      const opened = await request.get(
-        `/api/harness-protocol/snapshot?threadId=${threadId}`,
-        { headers: auth },
-      )
-      expect(opened.status()).toBe(200)
+      await openHarnessThread(request, auth, threadId)
       const renamed = await request.post('/api/harness-protocol/sessions', {
         headers: json,
         data: { op: 'rename', threadId, title },
@@ -554,9 +547,7 @@ test.describe('harness protocol', () => {
     const auth = headers(testId, aimockPort)
     const threadId = `status-${testId}`
     // Open the session first, so the feed starts with its status.
-    await request.get(`/api/harness-protocol/snapshot?threadId=${threadId}`, {
-      headers: auth,
-    })
+    await openHarnessThread(request, auth, threadId)
     const feed = await fetch(`${baseURL}/api/harness-protocol/host-events`, {
       headers: auth,
     })

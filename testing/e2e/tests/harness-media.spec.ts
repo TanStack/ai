@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures'
+import { openHarnessThread } from './helpers'
 import type { APIRequestContext } from '@playwright/test'
 import type { MediaRecord } from '@tanstack/ai-harness'
 
@@ -184,6 +185,8 @@ test.describe('harness media', () => {
       return JSON.stringify(await response.json())
     }
     expect(await childOf(threadId)).toContain('Painted one image.')
-    expect(await childOf(`media-other-${testId}`)).toBe('[]')
+    const other = `media-other-${testId}`
+    await openHarnessThread(request, api.headers, other)
+    expect(await childOf(other)).toBe('[]')
   })
 })

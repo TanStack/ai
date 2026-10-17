@@ -1,6 +1,7 @@
 import { ChatClient, fetchServerSentEvents } from '@tanstack/ai-client'
 import { deploy } from '../src/lib/harness-protocol-tools'
 import { test, expect } from './fixtures'
+import { openHarnessThread } from './helpers'
 import type { APIRequestContext } from '@playwright/test'
 
 type Chunk = {
@@ -364,11 +365,7 @@ test.describe('harness protocol inputs', () => {
     const opener = asUser(request, testId, aimockPort)
     const bob = asUser(request, testId, aimockPort, 'e2e-token-bob')
     // The first user opens the session of the thread.
-    const snapshot = await request.get(
-      `/api/harness-protocol/snapshot?threadId=${threadId}`,
-      { headers: opener.headers },
-    )
-    expect(snapshot.status()).toBe(200)
+    await openHarnessThread(request, opener.headers, threadId)
 
     const chunks = sse(
       await (
@@ -438,13 +435,14 @@ test.describe('harness protocol inputs', () => {
           .join(''),
       }))
     const pendingQuestion = async () => {
+      const response = await request.get(
+        `/api/harness-protocol/snapshot?threadId=${threadId}`,
+        { headers: user.headers },
+      )
+      // 404 until the turn of the first tab opens the thread.
+      if (response.status() === 404) return undefined
       const snapshot: { pendingQuestions: Array<{ questionId: string }> } =
-        await (
-          await request.get(
-            `/api/harness-protocol/snapshot?threadId=${threadId}`,
-            { headers: user.headers },
-          )
-        ).json()
+        await response.json()
       return snapshot.pendingQuestions[0]?.questionId
     }
 
