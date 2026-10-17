@@ -71,4 +71,15 @@ describe('registerSubagentContextDefaults', () => {
 
     expect(await contextOfRun()).not.toHaveProperty('marker')
   })
+
+  it('keeps a default when another caller removes the same function', async () => {
+    const extend = () => ({ marker: 'shared' })
+    const first = registerSubagentContextDefaults(extend)
+    const second = registerSubagentContextDefaults(extend)
+    removers.push(second)
+
+    first()
+
+    expect(await contextOfRun()).toMatchObject({ marker: 'shared' })
+  })
 })

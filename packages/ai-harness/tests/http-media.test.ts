@@ -139,6 +139,20 @@ afterEach(() => {
 })
 
 describe('media upload and signed URLs', () => {
+  it('refuses an empty media.secret at the start', () => {
+    const { adapter } = mockAdapter(() => text('ok'))
+    const harness = defineHarness({ name: 'test/http-media-empty', adapter })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    expect(() =>
+      createHarnessHandler({
+        host,
+        harness,
+        openAccess: true,
+        media: { secret: '' },
+      }),
+    ).toThrow(/not empty/)
+  })
+
   it('stores an upload, signs its URL for 1 hour, and serves the signed URL without auth', async () => {
     vi.useFakeTimers({ toFake: ['Date'], now: NOW })
     const { host, upload, signedPath, fetchSigned } = setup()
