@@ -163,7 +163,7 @@ describe('media upload and signed URLs', () => {
         openAccess: true,
         media: { secret: '' },
       }),
-    ).toThrow(/not empty/)
+    ).toThrow(/at least 32 bytes/)
   })
 
   it('stores an upload, signs its URL for 1 hour, and serves the signed URL without auth', async () => {
