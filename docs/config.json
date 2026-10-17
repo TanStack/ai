@@ -353,7 +353,7 @@
           "label": "Middleware",
           "to": "advanced/middleware",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-14"
+          "updatedAt": "2026-10-17"
         },
         {
           "label": "Built-in Middleware",
