@@ -24,17 +24,20 @@ export { durableTool } from './durable-tool'
 export type {
   DurableToolContext,
   DurableToolOptions,
+  StepRun,
   ToolStep,
 } from './durable-tool'
 
 export { LogVersionError, logIdOf, logMessageStore } from './log'
-export type { ProjectOptions, ProjectRecord, ReduceOptions } from './log'
-export type { LeaseOptions } from './resume'
+export { LogOwnedElsewhereError } from './ownership'
 export type {
-  LeaseStore,
-  TurnLease,
-  TurnLeaseKey,
-} from '@tanstack/ai-persistence'
+  LogRecordRetention,
+  ProjectOptions,
+  ProjectRecord,
+  ReduceOptions,
+  SnapshotTiming,
+} from './log'
+export type { OwnershipOptions } from './ownership'
 
 export { definePlugin } from './plugins'
 export type {
@@ -99,6 +102,8 @@ export type {
 } from './agents'
 
 export { createHarnessHost } from './host'
+export { createHarnessWorker } from './harness-worker'
+export type { HarnessWorkerPoolOptions } from './harness-worker'
 export type {
   ForkSessionOptions,
   HarnessHost,
@@ -112,8 +117,11 @@ export type {
   HostSessions,
   HostStatusEvent,
   OpenSessionOptions,
+  ResumedThread,
   ResumePendingOptions,
   RetentionLimits,
+  SubmitInput,
+  SubmitOptions,
 } from './host'
 export { AccessDeniedError, membersOnly, membersOnlyPolicyOf } from './access'
 export type {
@@ -142,6 +150,7 @@ export type {
   AgentRunOptions,
   AgentStartOptions,
   DynamicAgentHandle,
+  ScheduleOptions,
   SessionDescription,
   SessionInspection,
   SessionSnapshot,

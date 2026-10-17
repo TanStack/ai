@@ -11,6 +11,7 @@ import {
   gate,
   messageTexts,
   mockAdapter,
+  stoppedRun,
   text,
   toolCall,
   wrapLogStore,
@@ -19,6 +20,12 @@ import type { AnyTool, ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { LogRecord } from '@tanstack/ai-persistence'
 import type { HarnessTurnOptions } from '../src'
 import type { Reply } from './helpers'
+
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
 
 const THREAD = 't1'
 /** The id of the log of `THREAD` in the store, and its key in the other stores. */
@@ -40,8 +47,8 @@ function durablePersistence(
       batches.push(batch.records.map((record) => record.type))
     },
   })
-  const { runs, metadata } = memoryPersistence().stores
-  return { persistence: { stores: { log, runs, metadata } }, batches, inner }
+  const { metadata } = memoryPersistence().stores
+  return { persistence: { stores: { log, metadata } }, batches, inner }
 }
 
 type Durable = ReturnType<typeof durablePersistence>['persistence']
@@ -122,17 +129,12 @@ async function seedStoppedTurn(
     logId: LOG,
     seq: 1,
     epoch: UNOWNED_EPOCH,
-    records,
-  })
-  await persistence.stores.runs.createOrResume({
-    runId: 'op-stopped',
-    threadId: LOG,
-    startedAt: Date.now() - 60_000,
-  })
-  await persistence.stores.runs.update('op-stopped', {
-    leaseOwner: 'host-gone',
-    leaseExpiresAt: Date.now() - 1_000,
-    checkpoint: { at: 1, pendingTools: [] },
+    records: [
+      ...records,
+      stoppedRun('op-stopped', THREAD, {
+        checkpoint: { at: 1, pendingTools: [] },
+      }),
+    ],
   })
 }
 
@@ -190,7 +192,7 @@ describe('durable joins', () => {
     ])
 
     const turn = session.send('first', { inputId: 'host' })
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     const late = session.send('one more thing', {
       busy: 'steer',
       inputId: 'late',
@@ -217,7 +219,7 @@ describe('durable joins', () => {
     ])
 
     const turn = session.send('first', { inputId: 'host' })
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     const late = session.send('this fails', {
       busy: 'steer',
       inputId: 'late',
@@ -599,7 +601,7 @@ describe('the join rule', () => {
     const steer = session.send('stop me', { busy: 'steer', inputId: 's1' })
     await Promise.all([a.receipt, steer.receipt])
     wait.done.open()
-    await vi.waitFor(() => expect(cancelled).toBeDefined())
+    await waitFor(() => expect(cancelled).toBeDefined())
     releaseAbort.open()
 
     expect(await cancelled).toMatchObject({ status: 'accepted' })

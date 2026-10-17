@@ -13,7 +13,7 @@ import { bindDurable } from '../durable-tool'
 import { mediaMiddleware } from '../media'
 import { OperationImpl } from '../operation'
 import { mountPlugins } from '../plugins'
-import { holdRunLease, truncationMiddleware } from '../resume'
+import { truncationMiddleware } from '../resume'
 import { HARNESS_EVENTS, InputRejectedError } from '../types'
 import {
   createInputId,
@@ -93,7 +93,7 @@ export abstract class SessionTurn<
     )
     this.track(operation)
     const principal = options.principal ?? this.principal
-    // A store write that throws (the inbox, the log) still ends the command.
+    // A store write that throws (the log) still ends the command.
     const inputId = options.inputId ?? createInputId()
     this.executeCommand(operation, name, input, principal, inputId).catch(
       (error: unknown) => this.failOperation(operation, error),
@@ -211,7 +211,11 @@ export abstract class SessionTurn<
       }).catch((failure: unknown) =>
         this.warnSession('harness:commands', failure),
       )
-      operation.fail(cancelled ? 'cancelled' : 'failed', error)
+      // A lost log stopped the command: that is the reason, not the abort.
+      operation.fail(
+        cancelled ? 'cancelled' : 'failed',
+        this.ownershipLoss ?? error,
+      )
     }
     this.publishFinished(operation)
   }
@@ -262,7 +266,7 @@ export abstract class SessionTurn<
     let error: { message: string; code?: string } | undefined
     try {
       await this.applied(inputId, operation.id)
-      await this.refreshInterrupted(undefined, false, false)
+      await this.refreshInterrupted(undefined, false)
       if (this.interrupted) {
         error = {
           message: 'The thread waits for interrupts. Resolve them first.',
@@ -333,7 +337,7 @@ export abstract class SessionTurn<
     // A new turn may ask for a sign-in the user cancelled before.
     if (!turn.answers) this.declinedSignIns.clear()
     try {
-      await this.refreshInterrupted(undefined, false, false)
+      await this.refreshInterrupted(undefined, false)
     } catch (error) {
       this.warn(operation, 'harness:interrupts', error)
       return failEarly(error)
@@ -355,18 +359,10 @@ export abstract class SessionTurn<
         return failEarly(error)
       }
     }
-    let releaseLease: (() => Promise<void>) | undefined
-    try {
-      releaseLease = await this.holdLease(turn.inputId, operation)
-    } catch (error) {
-      await this.refreshTurnInterrupts(operation)
-      return failEarly(error)
-    }
     const stopTimer = this.startTimeout(turn.inputId, operation)
     this.publishStarted(operation)
 
     let runPlugins: MountedPlugins | undefined
-    let stopRunLease = () => {}
     /** The next chat() call runs the root agents that `routing` picked. */
     let isRootPart = false
     /** chat() refused the resume of this turn, so it ran nothing. */
@@ -478,14 +474,28 @@ export abstract class SessionTurn<
       // A keyed adapter is built for this turn with the user's key. A
       // missing key publishes `auth_required` and fails the turn. It is
       // built before `prepareTools`, which gets its model id. The turn
-      // override, the stored model, a plugin pick, the harness model.
+      // override (an adapter, then a model name), the stored model, a plugin
+      // pick, the harness model.
       const named =
         stored.model === undefined
           ? undefined
           : this.harness.models?.[stored.model]
+      const turnModel =
+        overrides?.model === undefined
+          ? undefined
+          : this.harness.models?.[overrides.model]
+      if (overrides?.model !== undefined && !turnModel) {
+        throw new Error(
+          `Unknown model ${JSON.stringify(overrides.model)}. Add it to defineHarness({ models }).`,
+        )
+      }
       const model = turn.tool
         ? new ToolTurnAdapter(turn.tool, `tool-${turn.inputId ?? operation.id}`)
-        : (overrides?.adapter ?? named ?? picked ?? this.harness.adapter)
+        : (overrides?.adapter ??
+          turnModel ??
+          named ??
+          picked ??
+          this.harness.adapter)
       if (!model) throw new Error(NO_MODEL)
       const adapter: AnyTextAdapter = await run.keys.adapter(model)
       const resolvePrompt = (prompt: string | ((turn: TurnInfo) => string)) =>
@@ -519,19 +529,18 @@ export abstract class SessionTurn<
         },
         operation,
       )
-      // A durable host gives each durableTool call its steps in the log. The
-      // tools are bound here, so a middleware wrapper wraps the bound tool,
+      // Each durableTool call gets its steps in the log. The tools are bound
+      // here, so a middleware wrapper wraps the bound tool,
       // and again at each model call, for tools that a middleware returns.
-      const { bindTool } = this
-      const tools = bindTool
-        ? prepared.map((tool) => bindDurable(tool, bindTool))
-        : prepared
+      const bindTool = this.durableBinder(run)
+      const tools = prepared.map((tool) => bindDurable(tool, bindTool))
       // The override tools as the turn has them: prepared and bound.
       const keptTools = tools.filter((tool) => turnToolNames.has(tool.name))
       const keepTools =
         keptTools.length > 0 ? keepTurnTools(keptTools) : undefined
       const reasoning =
         overrides?.reasoning ?? stored.reasoning ?? this.harness.reasoning
+      const modelOptions = overrides?.modelOptions ?? this.harness.modelOptions
       // The server's run wins over a `run` key of the client's context.
       const context = withRun(
         turnContext(this.harness.context, turn.context),
@@ -553,7 +562,7 @@ export abstract class SessionTurn<
       if (!chatPersistence || !checkpoint) {
         throw new Error('The session is not open yet.')
       }
-      const durableTools = this.durableTools()
+      const durableTools = this.durableTools(bindTool)
       const signal = operation.abortController.signal
       const { routing } = this.harness
       // A new turn asks the router once. A resolve does not: it continues the
@@ -604,24 +613,17 @@ export abstract class SessionTurn<
       let routed = isRoutedBag(bag)
       if (routed) {
         // The same record withPersistence opens, so its open resumes this one.
-        const { runs } = this.persistence.stores
-        await runs?.createOrResume({
+        await this.runStore.createOrResume({
           runId: operation.id,
           threadId: this.threadId,
           startedAt: Date.now(),
         })
-        stopRunLease = await holdRunLease(
-          runs,
-          operation.id,
-          this.hostId,
-          this.lease,
-        )
       }
       /** The messages a resolve of a routed turn continues from. */
       let routedFrom = turn.answers?.routed?.messages
       /** Retries since the last finished tool phase. The log keeps them. */
       let retries =
-        this.writer?.state.inputs.get(turn.inputId ?? '')?.retries ?? 0
+        this.writer.state.inputs.get(turn.inputId ?? '')?.retries ?? 0
       /** The partial answer and the note that a `'continue'` adds. */
       let continued: Array<ModelMessage> = []
       /** How many times `turn.beforeFinish` continued this turn. */
@@ -707,7 +709,7 @@ export abstract class SessionTurn<
               ...(session?.middleware ?? []),
               ...(runPlugins?.middleware ?? []),
               ...(keepTools ? [keepTools] : []),
-              ...(durableTools ? [durableTools] : []),
+              durableTools,
               this.detachTools(operation.id, sender),
               ...(rootBag ? [] : [this.syncFold()]),
               // Again: a middleware that returns `messages` (as `syncFold`
@@ -751,9 +753,7 @@ export abstract class SessionTurn<
             ...(this.harness.toolExecution !== undefined
               ? { toolExecution: this.harness.toolExecution }
               : {}),
-            ...(this.harness.modelOptions !== undefined
-              ? { modelOptions: this.harness.modelOptions }
-              : {}),
+            ...(modelOptions !== undefined ? { modelOptions } : {}),
             ...(this.harness.interrupts
               ? { interrupts: this.harness.interrupts }
               : {}),
@@ -869,7 +869,7 @@ export abstract class SessionTurn<
           // The count with this failed call is in the log before the hook
           // waits, so a host that stops in the backoff loses no retry.
           if (!isStopped && turn.inputId !== undefined) {
-            await this.writer?.append([
+            await this.writer.append([
               {
                 type: 'harness.turn.retry',
                 inputId: turn.inputId,
@@ -925,7 +925,7 @@ export abstract class SessionTurn<
             // succeeds, so its interrupts are still open.
             message = undefined
             // withPersistence failed the run. It runs again, for the retry.
-            await this.persistence.stores.runs?.update(operation.id, {
+            await this.runStore.update(operation.id, {
               status: 'running',
               finishedAt: undefined,
               error: undefined,
@@ -978,7 +978,7 @@ export abstract class SessionTurn<
         parentRunId = undefined
         // withPersistence finished the run. It runs again, for the join or
         // the hook's additions.
-        await this.persistence.stores.runs?.update(operation.id, {
+        await this.runStore.update(operation.id, {
           status: 'running',
           finishedAt: undefined,
           error: undefined,
@@ -999,7 +999,6 @@ export abstract class SessionTurn<
         })
       }
     } finally {
-      stopRunLease()
       stopTimer()
       await runPlugins?.dispose().catch(() => {})
     }
@@ -1007,7 +1006,7 @@ export abstract class SessionTurn<
     // A recoverable close: the turn stops as on a crash, and the next host
     // runs it again.
     if (operation.abortController.signal.reason === SHUTDOWN_REASON) {
-      await this.giveBack(operation, releaseLease)
+      this.giveBack(operation)
       this.requeueWaitingSteers()
       return
     }
@@ -1082,10 +1081,6 @@ export abstract class SessionTurn<
           })),
         ).catch(() => {})
       }
-      // Release after the settlement, so a crash in between leaves a settled
-      // input. Release before the operation ends, so the caller can act at
-      // once.
-      if (releaseLease) await releaseLease()
     }
     // A refused resume ran nothing, so its interrupts wait again. Before the
     // settlement, so a client that sees it can resolve once more.
@@ -1132,17 +1127,11 @@ export abstract class SessionTurn<
         this.warn(operation, 'harness:interrupts', error),
       )
     }
-    await this.refreshTurnInterrupts(
-      operation,
-      observedInterrupts,
-      didResumedToolsRun ||
-        (turn.resume !== undefined &&
-          failure === undefined &&
-          !isResumeRefused &&
-          !operation.abortController.signal.aborted),
-    )
+    await this.refreshTurnInterrupts(operation, observedInterrupts)
+    // A failed log write can keep their records pending. Here they are used
+    // up all the same.
+    if (didResumedToolsRun) this.dropInterrupts(resumed)
     if (this.logFailure) {
-      if (releaseLease) await releaseLease()
       operation.fail('failed', this.logFailure)
     } else if (timedOut) {
       const message = 'The input passed its time limit.'

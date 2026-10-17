@@ -120,7 +120,7 @@ it('takes attempt and time limits, and the log folds, on the harness', () => {
       }
     | undefined
   >()
-  // The state type of `host.logState` comes from `initial` and `record`.
+  // The state type of `session.logState()` comes from `initial` and `record`.
   const counted = defineHarness({
     name: 'test/reduce',
     durability: {
@@ -130,9 +130,9 @@ it('takes attempt and time limits, and the log folds, on the harness', () => {
       },
     },
   })
-  expectTypeOf(
-    createHarnessHost().logState({ harness: counted, logId: 'log-1' }),
-  ).toEqualTypeOf<{ count: number } | undefined>()
+  expectTypeOf<
+    HarnessSession<typeof counted>['logState']
+  >().returns.resolves.toEqualTypeOf<{ count: number } | undefined>()
 })
 
 it('gives a started agent run send()', () => {

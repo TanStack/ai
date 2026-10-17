@@ -353,9 +353,9 @@ describe('the sender of each control input', () => {
 
   it('logs the principal that sent a cancel, an answer, a delivery change, a config change, and an agent run', async () => {
     const log = memoryLogStore()
-    const { runs, metadata } = memoryPersistence().stores
+    const { metadata } = memoryPersistence().stores
     const host = createHarnessHost({
-      persistence: { stores: { log, runs, metadata } },
+      persistence: { stores: { log, metadata } },
     })
     const noop = defineAgent({
       name: 'noop',

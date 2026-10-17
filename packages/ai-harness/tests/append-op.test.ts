@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
+import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
 import { applyInput, parseHarnessInput } from '../src/server'
 import { messageTexts, mockAdapter, text } from './helpers'
@@ -22,10 +22,7 @@ function setup() {
     expose: { records: ['app.signal'] },
     durability: { project },
   })
-  const { runs, metadata } = memoryPersistence().stores
-  const host = createHarnessHost({
-    persistence: { stores: { log: memoryLogStore(), runs, metadata } },
-  })
+  const host = createHarnessHost({ persistence: memoryPersistence() })
   return { harness, host, calls }
 }
 
@@ -65,24 +62,6 @@ describe('{ op: "append" }', () => {
         }),
       ).toMatchObject({ status: 'rejected', reason: 'not_exposed' })
     }
-    await host.close()
-  })
-
-  it('rejects an append on a host with no log', async () => {
-    const { harness } = setup()
-    const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(harness, { threadId: 't-no-log' })
-
-    expect(
-      await applyInput({
-        harness,
-        session,
-        input: {
-          op: 'append',
-          records: [{ type: 'app.signal', text: 'x' }],
-        },
-      }),
-    ).toMatchObject({ status: 'rejected', reason: /durable host/ })
     await host.close()
   })
 

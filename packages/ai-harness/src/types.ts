@@ -23,10 +23,13 @@ export type UserInput = string | Array<ContentPart>
  * `session.send(message, { mode: 'followUp', overrides })`. They apply to every model call
  * of the turn, retries included. The rest of the session keeps its defaults.
  *
- * They live only in memory, on the queued turn, so they are not part of the
- * input: the `inputId` duplicate check does not read them. A turn that
- * recovery runs again after a restart uses the defaults. A steer that joins
- * a running turn uses the overrides of that turn.
+ * They are not part of the input: the `inputId` duplicate check does not
+ * read them. The log keeps the JSON ones (`model`, `modelOptions`,
+ * `reasoning`, and `promptCache`), so a turn that recovery runs again after
+ * a restart uses them too. `adapter` and `tools` are objects, so they live
+ * only in memory: a turn that recovery runs again goes on without them, with
+ * a warning. Name the model with `model` to keep it. A steer that joins a
+ * running turn uses the overrides of that turn.
  *
  * @example
  * ```ts
@@ -38,6 +41,14 @@ export type UserInput = string | Array<ContentPart>
 export interface TurnOverrides {
   /** Replaces the harness adapter and every plugin pick for this turn. */
   adapter?: AnyTextAdapter | KeyedAdapter<AnyTextAdapter>
+  /**
+   * A model by name, from `defineHarness({ models })`, for this turn. It
+   * replaces the stored model, the plugin picks, and the harness adapter.
+   * `adapter` wins over it. An unknown name fails the turn.
+   */
+  model?: string
+  /** Replaces `HarnessConfig.modelOptions` for this turn. JSON. */
+  modelOptions?: Record<string, unknown>
   /** Replaces `HarnessConfig.reasoning` for this turn. */
   reasoning?: ReasoningOption
   /** Replaces the session and harness values for this turn, field by field. */
@@ -172,8 +183,8 @@ export interface OnEvent {
 }
 
 /**
- * An input a client sends to a session. Stored in the inbox, or in the log of
- * a durable host.
+ * An input a client sends to a session. Stored in the session log. While
+ * another host owns the thread, it waits in the input lane of the log.
  *
  * `inputId` is an optional id that the caller chooses. A second input with the
  * same id and the same payload gets the first input's receipt and does not run
@@ -187,9 +198,10 @@ export interface OnEvent {
  * In `cancelInput` and `setDelivery`, `inputId` is the input that waits.
  *
  * `ephemeral` of `prompt` and `continue` are messages for the model calls of
- * that turn only, as in `session.prompt`. The inbox and the log do not keep
- * them, and the duplicate check does not read them. Client data: do not
- * trust it.
+ * that turn only, as in `session.prompt`. The transcript does not keep them.
+ * The log keeps them with the turn, so a turn that runs again after a
+ * restart sees them. The duplicate check does not read them. Client data: do
+ * not trust it.
  */
 export type HarnessInput = (
   | {
@@ -287,8 +299,8 @@ export type ForkPoint = { before: string } | { through: string }
 
 /**
  * The stored settings of one thread. They apply from the next turn, stay
- * after a restart (with `stores.metadata`), and a fork copies them. A turn's
- * `overrides` win over them.
+ * after a restart (the session log keeps them), and a fork copies them. A
+ * turn's `overrides` win over them.
  */
 export interface ThreadSettings {
   /** A name from `defineHarness({ models })`. */
@@ -449,7 +461,7 @@ export interface RunContext {
   principal: { id: string; tenantId?: string } | undefined
   /**
    * The id of the log of the session in the `LogStore`: the tenant and the
-   * `logId` of `host.open`, from `logIdOf`.
+   * root thread of the session tree, from `logIdOf`.
    */
   logId: string
   threadId: string
@@ -457,6 +469,30 @@ export interface RunContext {
   runId: string
   /** The run that this run continues or that started it, when there is one. */
   parentRunId?: string
+  /**
+   * The ownership epoch of the log when the run started. Only one host owns
+   * a log at an epoch, and a later owner has a larger one. Give it to a
+   * system that fences writes, so a host that lost the log is refused.
+   */
+  epoch: number
+  /**
+   * A key for one side effect of this run, for a system that refuses a
+   * second call with the same key:
+   * `${logId}:${scope}:${step}`. `scope` defaults to `runId`. Pass the tool
+   * call id from a tool (`ctx.toolCallId`). A run again after a host stop,
+   * on any host, gets the same key, so the other system refuses the second
+   * side effect.
+   *
+   * @example
+   * ```ts
+   * const charge = toolDefinition({ name: 'charge', description: 'Charge the card' })
+   *   .server<HarnessRunContext>(async (_args, ctx) => {
+   *     const key = ctx.context.run.idempotencyKey('charge', ctx.toolCallId)
+   *     return payments.charge({ amount: 100, idempotencyKey: key })
+   *   })
+   * ```
+   */
+  idempotencyKey: (step: string, scope?: string) => string
   /** Aborts when this run stops. */
   signal: AbortSignal
   /** The credentials of the user of this run. */
@@ -523,8 +559,7 @@ export interface Operation<TResult> extends PromiseLike<TResult> {
   /**
    * The answer to the input of this operation. It resolves after the session
    * stored the input (`accepted` or `queued`), or refused it (`rejected`).
-   * With a durable host, a resolved receipt means that the input survives a
-   * restart.
+   * A resolved receipt means that the input survives a restart.
    */
   readonly receipt: Promise<Receipt>
   /** This operation's events, from `from` (exclusive) onward. */
