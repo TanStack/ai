@@ -242,7 +242,7 @@ describe('signals in --serve', () => {
       defineHarness({ name: 'test/signal-serve', adapter: recovered }),
       { threadId: 't' },
     )
-    expect(await session.settled(inputId)).toMatchObject({
+    expect(await session.settled({ inputId })).toMatchObject({
       outcome: 'completed',
     })
     await next.close()

@@ -217,6 +217,46 @@ describe('foldThreadRecord', () => {
       'harness.run.update',
       'harness.interrupt',
       'harness.interrupt.end',
+      'harness.wait',
+      'harness.wait.settled',
+    ])
+  })
+
+  it('keeps each wait by id, and its first end', () => {
+    const wait = { waitId: 'w1', kind: 'human' as const, runId: 'run-1' }
+    const state = fold([
+      { type: 'harness.wait', wait, at: 1 },
+      // A second open of the same id keeps the first record.
+      { type: 'harness.wait', wait: { ...wait, message: 'again' }, at: 2 },
+      { type: 'harness.wait', wait: { ...wait, waitId: 'w2' }, at: 3 },
+      {
+        type: 'harness.wait.settled',
+        waitId: 'w1',
+        outcome: 'answered',
+        at: 4,
+        value: { resume: true },
+      },
+      // A wait ends once: a later end changes nothing.
+      { type: 'harness.wait.settled', waitId: 'w1', outcome: 'expired', at: 5 },
+      {
+        type: 'harness.wait.settled',
+        waitId: 'nope',
+        outcome: 'expired',
+        at: 6,
+      },
+    ])
+    expect([...state.waits]).toEqual([
+      [
+        'w1',
+        {
+          wait,
+          at: 1,
+          outcome: 'answered',
+          settledAt: 4,
+          value: { resume: true },
+        },
+      ],
+      ['w2', { wait: { ...wait, waitId: 'w2' }, at: 3 }],
     ])
   })
 })

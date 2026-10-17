@@ -58,6 +58,7 @@ export interface HarnessSession<
   | 'agentHandle'
   | 'isIdle'
   | 'isClosing'
+  | 'openWait'
   // A handle closes itself, not the session.
   | 'close'
 > {
@@ -406,7 +407,9 @@ export class SessionImpl<
    * is still due (another host owns the log, or a write failed) waits
    * `SCHEDULE_RETRY_MS` before the next try.
    */
-  private armSchedules({ isRetry = false }: { isRetry?: boolean } = {}) {
+  protected override armSchedules({
+    isRetry = false,
+  }: { isRetry?: boolean } = {}) {
     clearTimeout(this.scheduleTimer)
     this.scheduleTimer = undefined
     if (this.closing || this.logWriter === undefined) return
@@ -788,6 +791,8 @@ export class SessionImpl<
       // After the turns are decided: a note must not end the transcript
       // that a cut turn continues.
       await this.recoverBackground(writer)
+      // The waits that expired, and the live waits of a host that stopped.
+      await this.endStaleWaits()
     } finally {
       this.recovering -= 1
       // A recovery that left no work gives the log back.

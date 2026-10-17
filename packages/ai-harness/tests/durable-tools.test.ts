@@ -156,7 +156,7 @@ describe('durable tools across a crash', () => {
 
     const next = await openDurable(persistence, [() => text('paid')], [pay])
 
-    expect(await next.session.settled('pay-1')).toMatchObject({
+    expect(await next.session.settled({ inputId: 'pay-1' })).toMatchObject({
       outcome: 'completed',
     })
     expect(reserve).toHaveBeenCalledTimes(1)
@@ -215,7 +215,7 @@ describe('durable tools across a crash', () => {
     await ownershipExpired()
 
     const next = await openDurable(persistence, [() => text('done')], tools)
-    await next.session.settled('batch-1')
+    await next.session.settled({ inputId: 'batch-1' })
 
     const results = (await next.session.transcript()).filter(
       (message) => message.role === 'tool',
@@ -305,7 +305,7 @@ describe('the final tool result across a crash', () => {
     await ownershipExpired()
 
     const next = openWith([() => text('done')])
-    await (await next.opened).settled('final-1')
+    await (await next.opened).settled({ inputId: 'final-1' })
 
     const charged = next.calls[0].messages.find(
       (message: { toolCallId?: string }) =>
@@ -547,7 +547,7 @@ describe('a durable tool with replay: never', () => {
     await ownershipExpired()
 
     const next = await openDurable(persistence, [() => text('checked')], [mail])
-    expect(await next.session.settled('mail-1')).toMatchObject({
+    expect(await next.session.settled({ inputId: 'mail-1' })).toMatchObject({
       outcome: 'completed',
     })
 
@@ -638,7 +638,7 @@ describe('durable tools that middleware returns', () => {
     await ownershipExpired()
 
     const next = await open([() => text('paid')])
-    expect(await next.session.settled('pay-1')).toMatchObject({
+    expect(await next.session.settled({ inputId: 'pay-1' })).toMatchObject({
       outcome: 'completed',
     })
 

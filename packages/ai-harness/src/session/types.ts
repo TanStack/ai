@@ -21,6 +21,7 @@ import type { InputState, LogViewHooks, LogWriter } from '../log'
 import type { ConfigOption } from '../config'
 import type { SessionUsage } from '../usage'
 import type { AgentInputOf, AgentResultOf, AnyAgent } from '../agents'
+import type { Wait } from '../waits'
 import type { AnyHarness, HarnessAgentsOf } from '../define'
 import type {
   HarnessPersistence,
@@ -178,9 +179,20 @@ export interface SessionSnapshot {
    * leave it out.
    */
   waitingInputs?: Array<WaitingInput>
+  /** The interrupts of `pendingWaits`, as the last turn stopped for them. */
   pendingInterrupts: Array<Interrupt>
-  /** Questions a command or a plugin asked, waiting for `session.answer`. */
+  /**
+   * The questions of `pendingWaits` that a command or a plugin asked,
+   * waiting for `session.answer`.
+   */
   pendingQuestions: Array<PendingQuestion>
+  /**
+   * Every wait that is open: the interrupts of the last turn, then the
+   * questions and the human waits, oldest first. Read the kind with
+   * `waitKind`. A session always sets it. A snapshot built by hand (a test
+   * fixture) can leave it out.
+   */
+  pendingWaits?: Array<Wait>
   /** The state of each plugin that uses `ctx.state`, by plugin name. */
   plugins: Record<string, unknown>
   /** The token usage of the thread, the same as `session.usage()`. */

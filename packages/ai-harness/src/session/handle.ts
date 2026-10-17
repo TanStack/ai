@@ -1,7 +1,7 @@
 import { AccessDeniedError } from '../access'
 import { InputRejectedError } from '../types'
 import { isSameSender } from './helpers'
-import type { AccessAction, AccessRun } from '../access'
+import type { AccessAction, AccessRun, AccessWait } from '../access'
 import type { AnyHarness } from '../define'
 import type {
   AgentSendOptions,
@@ -18,7 +18,11 @@ import type { AgentRunOptions, AgentStartOptions } from './types'
 /** What the handle of a host with access checks. */
 export interface HandleGuard {
   /** Throws `AccessDeniedError` unless `authorize` allows `action` now. */
-  authorize: (action: AccessAction, run?: AccessRun) => Promise<void>
+  authorize: (
+    action: AccessAction,
+    run?: AccessRun,
+    wait?: AccessWait,
+  ) => Promise<void>
   /** `host.revoke` took the access of the principal of the handle. */
   isRevoked: () => boolean
 }
@@ -344,6 +348,27 @@ export function sessionHandle<THarness extends AnyHarness>({
     const acting = actor(options.principal)
     return acting ? { ...options, principal: acting } : options
   }
+  /**
+   * The check of one input. A `human` wait takes an operator too: a user
+   * that may not answer the run may still have the `operator` action.
+   */
+  const checkInput = async (
+    authorize: HandleGuard['authorize'],
+    input: HarnessInput,
+    accessRun: AccessRun | undefined,
+    wait: AccessWait | undefined,
+  ) => {
+    const action = actionOf(input)
+    if (action !== 'answer' || wait?.kind !== 'human') {
+      return authorize(action, accessRun, wait)
+    }
+    try {
+      await authorize(action, accessRun, wait)
+    } catch (error) {
+      if (!(error instanceof AccessDeniedError)) throw error
+      await authorize('operator', accessRun, wait)
+    }
+  }
   /** `call` on `target`, which stores an input: the session checks it first. */
   const checkedOn = <T>(
     target: Session<THarness>,
@@ -351,8 +376,8 @@ export function sessionHandle<THarness extends AnyHarness>({
   ) =>
     guard
       ? target.checked(
-          ({ input, run: accessRun }) =>
-            guard.authorize(actionOf(input), accessRun),
+          ({ input, run: accessRun, wait }) =>
+            checkInput(guard.authorize, input, accessRun, wait),
           () => call(target),
         )
       : call(target)

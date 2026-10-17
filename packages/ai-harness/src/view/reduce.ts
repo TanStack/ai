@@ -1,9 +1,6 @@
-import {
-  EventType,
-  INTERRUPT_PAYLOAD_METADATA_KEY,
-  readUnopenedInterruptBinding,
-} from '@tanstack/ai'
+import { EventType } from '@tanstack/ai'
 import { isMediaRecord, mediaIdOf, mediaOfMessage } from '../media-ref'
+import { isApproval, signInOf, waitKind } from '../waits'
 import { HARNESS_EVENTS } from '../types'
 import type { Interrupt, ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { SessionDescription, SessionSnapshot } from '../session/index'
@@ -669,30 +666,6 @@ export function keep<T>(old: Array<T>, next: Array<T>): Array<T> {
     : next
 }
 
-/** The turn waits for the output of a client tool, not for a yes or no. */
-const isClientTool = (interrupt: Interrupt) =>
-  readUnopenedInterruptBinding(interrupt)?.kind === 'client-tool-execution'
-
-/** The turn waits for an answer of the interrupt's own shape. */
-const isGeneric = (interrupt: Interrupt) =>
-  readUnopenedInterruptBinding(interrupt)?.kind === 'generic' &&
-  !signInOf(interrupt)
-
-/**
- * The sign-in a turn waits for, from `credentials.require(id, { wait: true })`.
- * The connector's `connect:<id>` command answers it, not a yes or no.
- */
-function signInOf(interrupt: Interrupt): SignIn | undefined {
-  if (interrupt.reason !== 'auth_required') return undefined
-  const payload = recordOf(interrupt.metadata?.[INTERRUPT_PAYLOAD_METADATA_KEY])
-  const request = recordOf(payload.request)
-  if (typeof request.connector !== 'string') return undefined
-  return {
-    connector: request.connector,
-    ...(typeof request.url === 'string' ? { url: request.url } : {}),
-  }
-}
-
 /**
  * Take status, approvals, client tools, questions, background agents, and
  * waiting inputs from a snapshot. Plugin state is taken only for the first
@@ -708,12 +681,7 @@ export function applySnapshot(
   const approvals = keep(
     state.approvals,
     snapshot.pendingInterrupts
-      .filter(
-        (interrupt) =>
-          !isClientTool(interrupt) &&
-          !isGeneric(interrupt) &&
-          !signInOf(interrupt),
-      )
+      .filter(isApproval)
       .map(
         (interrupt) =>
           state.approvals.find((item) => item.id === interrupt.id) ??
@@ -726,7 +694,7 @@ export function applySnapshot(
   const clientTools = keep(
     state.clientTools,
     snapshot.pendingInterrupts
-      .filter(isClientTool)
+      .filter((interrupt) => waitKind(interrupt) === 'client-tool')
       .map(
         (interrupt) =>
           state.clientTools.find((item) => item.id === interrupt.id) ??
@@ -739,7 +707,11 @@ export function applySnapshot(
   const interrupts = keep(
     state.interrupts,
     snapshot.pendingInterrupts
-      .filter(isGeneric)
+      // An interrupt that waits for an answer of its own shape.
+      .filter((interrupt) => {
+        const kind = waitKind(interrupt)
+        return kind === 'question' || kind === 'human'
+      })
       .map(
         (interrupt) =>
           state.interrupts.find((item) => item.id === interrupt.id) ??

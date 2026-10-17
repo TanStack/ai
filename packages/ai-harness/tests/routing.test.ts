@@ -436,7 +436,7 @@ describe('routing.router', () => {
       release.open()
 
       expect((await turn).text).toBe(firstText)
-      const settled = await session.settled(receipt.inputId)
+      const settled = await session.settled({ inputId: receipt.inputId })
       expect(settled.outcome).toBe('completed')
       expect(settled.operationId).not.toBe(turn.id)
       expect(seen.map((ctx) => ctx.input)).toEqual(['first', 'second'])
@@ -605,7 +605,9 @@ describe('routing and ownership', () => {
       expect(signal?.aborted).toBe(true)
       expect(writer.runs).toEqual([])
       expect(main.calls).toHaveLength(0)
-      expect((await session.settled('in-1')).outcome).toBe('aborted')
+      expect((await session.settled({ inputId: 'in-1' })).outcome).toBe(
+        'aborted',
+      )
       await host.close()
     },
   )
@@ -621,7 +623,9 @@ describe('routing and ownership', () => {
     const turn = await session.send('clean up', { inputId: 'in-1' })
     expect(turn.interrupts).toHaveLength(1)
     expect(execute).not.toHaveBeenCalled()
-    expect((await session.settled('in-1')).outcome).toBe('interrupted')
+    expect((await session.settled({ inputId: 'in-1' })).outcome).toBe(
+      'interrupted',
+    )
     const resumed = await approve(session, turn)
 
     expect(await resumed).toEqual({
@@ -685,7 +689,7 @@ describe('routing and ownership', () => {
     await expect(turn).rejects.toThrow(error)
     expect(turn.status()).toBe('failed')
     expect(await errorMessages(turn)).toEqual([expect.stringContaining(error)])
-    const settled = await session.settled('in-1')
+    const settled = await session.settled({ inputId: 'in-1' })
     expect(settled.outcome).toBe('failed')
     expect(settled.error?.message).toContain(error)
     expect(writer.runs).toEqual([])

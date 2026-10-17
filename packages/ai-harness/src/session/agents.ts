@@ -312,7 +312,7 @@ export abstract class SessionAgents<
     inputId: string,
   ) {
     this.remoteRuns.add(operation.id)
-    void this.settled(inputId)
+    void this.settled({ inputId })
       .then(
         (settlement) => this.endAgentRun(operation, settlement),
         (error: unknown) => operation.fail('failed', error),

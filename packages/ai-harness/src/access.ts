@@ -1,5 +1,6 @@
 import type { SessionMember } from '@tanstack/ai-persistence'
 import type { Principal } from './types'
+import type { WaitKind } from './waits'
 
 /**
  * What a principal tries to do with a session.
@@ -8,6 +9,8 @@ import type { Principal } from './types'
  * - `list`: see the session in a list of sessions.
  * - `send`: prompt, steer, follow up, start agents, and run commands.
  * - `answer`: answer a question or an approval of a run.
+ * - `operator`: answer a `human` wait of any run, as an operator who takes
+ *   over from the agent. A `human` wait takes `answer` or `operator`.
  * - `cancel`: stop a run.
  * - `configure`: change the settings of the thread.
  * - `share`: add or remove members.
@@ -19,6 +22,7 @@ export type AccessAction =
   | 'read'
   | 'send'
   | 'answer'
+  | 'operator'
   | 'cancel'
   | 'configure'
   | 'share'
@@ -45,6 +49,12 @@ export interface AccessRun {
   principalId?: string
 }
 
+/** The wait that an `answer` or `operator` action answers. */
+export interface AccessWait {
+  waitId: string
+  kind: WaitKind
+}
+
 /** What `authorize` gets for one action. */
 export interface AuthorizeInput<P extends Principal = Principal> {
   principal: P
@@ -52,6 +62,8 @@ export interface AuthorizeInput<P extends Principal = Principal> {
   session: AccessSession
   /** The run that an `answer` or `cancel` targets, when the host knows it. */
   run?: AccessRun
+  /** The wait that an `answer` or `operator` action answers, when the host knows it. */
+  wait?: AccessWait
 }
 
 /** Decide if a principal may do one action. Return `false` to refuse. */
@@ -144,6 +156,7 @@ function allows(role: Role, { principal, action, run }: AuthorizeInput) {
       return true
     case 'send':
     case 'fork':
+    case 'operator':
       return role !== 'viewer'
     case 'answer':
     case 'cancel': {
@@ -163,8 +176,8 @@ function allows(role: Role, { principal, action, run }: AuthorizeInput) {
  * with the limits of the member's role.
  *
  * - Owner: every action.
- * - Member: read, list, send, and fork. Answer and cancel only the runs that
- *   the member started.
+ * - Member: read, list, send, fork, and operator (answer a `human` wait).
+ *   Answer and cancel only the runs that the member started.
  * - Viewer: read and list.
  * - Not a member: no action.
  *

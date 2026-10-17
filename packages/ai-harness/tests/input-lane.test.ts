@@ -123,9 +123,9 @@ describe('an input that reaches a host that does not own the log', () => {
     expect(receipt.status).toBe('queued')
 
     release.open()
-    expect((await other.session.settled(receipt.inputId)).outcome).toBe(
-      'completed',
-    )
+    expect(
+      (await other.session.settled({ inputId: receipt.inputId })).outcome,
+    ).toBe('completed')
     expect(ownerModel.calls).toHaveLength(2)
     expect(otherModel.calls).toHaveLength(0)
     expect(contents(await owner.session.transcript())).toEqual([
@@ -159,7 +159,9 @@ describe('an input that reaches a host that does not own the log', () => {
     expect([first.status, retry.status]).toEqual(['queued', 'queued'])
 
     release.open()
-    expect((await other.session.settled('in-b')).outcome).toBe('completed')
+    expect((await other.session.settled({ inputId: 'in-b' })).outcome).toBe(
+      'completed',
+    )
     expect(ownerModel.calls).toHaveLength(2)
     expect(
       contents(await owner.session.transcript()).filter(
@@ -500,7 +502,9 @@ describe('an input that reaches a host that does not own the log', () => {
     // The write fails and stops the session of the owner. The input waits
     // in the lane, and the host that offered it takes the log and runs it.
     await waitFor(() => expect(turn.status()).toBe('failed'))
-    expect((await other.session.settled('in-b')).outcome).toBe('completed')
+    expect((await other.session.settled({ inputId: 'in-b' })).outcome).toBe(
+      'completed',
+    )
     expect(otherModel.calls).toHaveLength(1)
     expect(await waiting(a)).toEqual([])
     release.open()
@@ -534,7 +538,9 @@ describe('an input that reaches a host that does not own the log', () => {
     await turn.receipt
     await other.session.send('And then?', { inputId: 'in-b' }).receipt
     release.open()
-    expect((await other.session.settled('in-b')).outcome).toBe('completed')
+    expect((await other.session.settled({ inputId: 'in-b' })).outcome).toBe(
+      'completed',
+    )
     expect(isLost).toBe(true)
 
     // A drain finds the input in the log: the offer goes, and the input
@@ -605,7 +611,9 @@ describe('host.submit', () => {
     ])
     await waitFor(() => expect(model.calls).toHaveLength(1))
     const session = await worker.open(harness, { threadId: THREAD })
-    expect((await session.settled('in-1')).outcome).toBe('completed')
+    expect((await session.settled({ inputId: 'in-1' })).outcome).toBe(
+      'completed',
+    )
     expect(await waiting(log)).toEqual([])
     await submitter.close()
     await worker.close()
@@ -676,7 +684,7 @@ describe('the input lane while idle', () => {
     await turn.receipt
     const receipt = await other.session.send('And then?').receipt
     release.open()
-    await other.session.settled(receipt.inputId)
+    await other.session.settled({ inputId: receipt.inputId })
     await owner.session.whenIdle()
     await other.session.whenIdle()
     // The writes that end the turn land, and the owner gives the log back.

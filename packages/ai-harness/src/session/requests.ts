@@ -660,10 +660,9 @@ export abstract class SessionRequests<
       this.publishFinished(target)
     } else {
       // A question of this turn gets no answer now.
-      for (const [questionId, question] of this.questions) {
+      for (const [questionId, question] of [...this.questions]) {
         if (question.operationId !== target.id) continue
-        this.questions.delete(questionId)
-        question.reject(new Error('Cancelled.'))
+        await this.endQuestion(questionId, 'cancelled', new Error('Cancelled.'))
       }
       target.abortController.abort(RUN_CANCEL_REASON)
     }
@@ -946,10 +945,17 @@ export abstract class SessionRequests<
           options?.recoverable ? SHUTDOWN_REASON : RUN_CANCEL_REASON,
         )
       }
-      for (const question of this.questions.values()) {
-        question.reject(new Error('Session closed.'))
-      }
-      this.questions.clear()
+      // Nobody can answer a live question now. The log gets the end, when
+      // it still takes writes.
+      await Promise.all(
+        [...this.questions.keys()].map((questionId) =>
+          this.endQuestion(
+            questionId,
+            'cancelled',
+            new Error('Session closed.'),
+          ),
+        ),
+      )
       await Promise.allSettled(
         running.map((operation) => Promise.resolve(operation)),
       )
@@ -1081,7 +1087,7 @@ export abstract class SessionRequests<
     }
     operation.resolveReceipt(receipt)
     this.followers.add(operation)
-    void this.settled(inputId)
+    void this.settled({ inputId })
       .then(
         (settlement) => this.settleOperation(operation, settlement),
         (error: unknown) => operation.fail('failed', error),

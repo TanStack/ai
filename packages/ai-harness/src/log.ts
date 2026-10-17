@@ -36,6 +36,7 @@ import type {
   ScheduleRecord,
   ThreadRecord,
   ThreadStateFold,
+  WaitState,
 } from './log-records'
 import type {
   Cursor,
@@ -541,6 +542,8 @@ export function foldEntry(
     case 'harness.run.update':
     case 'harness.interrupt':
     case 'harness.interrupt.end':
+    case 'harness.wait':
+    case 'harness.wait.settled':
       state.thread = foldThreadRecord(state.thread, record)
       return
   }
@@ -712,6 +715,7 @@ function serializeThread(thread: ThreadStateFold) {
     schedules: [...thread.schedules],
     runs: [...thread.runs],
     interrupts: [...thread.interrupts],
+    waits: [...thread.waits],
   }
 }
 
@@ -742,6 +746,12 @@ function parseThread(value: unknown) {
     schedules: new Map(schedules as Array<[string, ScheduleRecord]>),
     runs: new Map(runs as Array<[string, RunRecord]>),
     interrupts: new Map(interrupts as Array<[string, InterruptRecord]>),
+    // A state with no waits gets an empty value.
+    waits: new Map(
+      Array.isArray(value.waits)
+        ? (value.waits as Array<[string, WaitState]>)
+        : [],
+    ),
   }
   return thread
 }
@@ -916,8 +926,7 @@ export async function loadLogState<TState = unknown>(options: {
  * once the run starts. `undefined`: the input targets no run. `null`: the
  * log does not have the run, or a cancel names no operation.
  */
-// ponytail: this reads the whole log for each such input. Fold only the
-// tail after a snapshot if a host sends many of them.
+// ponytail: this folds the log for each such input, from its snapshot.
 export async function loggedRunOf({
   store,
   logId,
@@ -937,28 +946,7 @@ export async function loggedRunOf({
   ) {
     return undefined
   }
-  const state = emptySharedLogState()
-  /** The operation of each question that the log asked, by question id. */
-  const questions = new Map<string, string>()
-  const fold = { rootThread }
-  try {
-    await readAll(store, logId, state, (entry) => {
-      foldLogEntry(state, entry, fold)
-      const { record } = entry
-      if (!isHarnessRecord(record) || record.type !== 'harness.event') return
-      const { event } = record
-      const isQuestion =
-        event.type === EventType.CUSTOM &&
-        event.name === HARNESS_EVENTS.question &&
-        isRecord(event.value) &&
-        typeof event.value.questionId === 'string'
-      if (isQuestion) questions.set(event.value.questionId, record.operationId)
-    })
-  } catch (error) {
-    // A truncated log: the snapshot has the inputs, but no question.
-    if (!(error instanceof LogTruncatedError)) throw error
-    Object.assign(state, await loadLogState({ store, logId, rootThread }))
-  }
+  const state = await loadLogState({ store, logId, rootThread })
   const root = sessionOf(state, rootThread)
   const inputs = [...state.sessions.values()].flatMap((session) => [
     ...session.inputs.values(),
@@ -973,12 +961,13 @@ export async function loggedRunOf({
   }
   switch (input.op) {
     case 'answer': {
-      const operationId = questions.get(input.questionId)
-      if (operationId === undefined) return null
-      // A question of the session belongs to no run.
-      return operationId === 'session'
-        ? { runId: operationId }
-        : startedBy(operationId)
+      const { wait } = root.thread.waits.get(input.questionId) ?? {}
+      if (!wait) return null
+      // A wait of the session belongs to no run.
+      if (wait.principal || wait.runId === 'session') {
+        return { runId: wait.runId, ...by(wait.principal) }
+      }
+      return startedBy(wait.runId)
     }
     case 'cancel':
       return input.operationId === undefined

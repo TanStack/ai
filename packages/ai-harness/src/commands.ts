@@ -27,6 +27,16 @@ export interface Question<TSchema extends SchemaInput | undefined = undefined> {
    * verify page. Hosts show the link. The session does not open it.
    */
   url?: string
+  /**
+   * When the question expires with no answer, in epoch milliseconds. Then
+   * the wait ends `expired`, and `ask` rejects. Default: no limit.
+   */
+  expiresAt?: number
+  /**
+   * Stop the wait. The wait ends `cancelled`, and `ask` rejects with the
+   * reason of the signal.
+   */
+  signal?: AbortSignal
 }
 
 export type AnswerOf<TSchema> = TSchema extends SchemaInput
@@ -94,7 +104,10 @@ export interface PluginSessionApi<TMetadata = Record<string, unknown>> {
   ) => Promise<SessionIndexEntry<TMetadata> | undefined>
   /**
    * Ask the user and wait for the answer. Hosts show it (the CLI prompts,
-   * ACP shows an elicitation). Rejects when the session closes.
+   * ACP shows an elicitation). The log keeps the question as a wait of the
+   * run that asks, so a user on any machine can answer it. Rejects when the
+   * session closes, when the run is cancelled, when `signal` aborts, and
+   * when the question expires.
    */
   ask: <TSchema extends SchemaInput | undefined = undefined>(
     question: Question<TSchema>,

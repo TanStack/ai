@@ -408,6 +408,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       operationId: string
       resolve: (value: unknown) => void
       reject: (error: unknown) => void
+      /** Stop the listener on the `signal` of the ask. */
+      release: () => void
     }
   >()
   /** Plugin state by plugin name. No prototype, so any name is a plain key. */
@@ -914,7 +916,9 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     )
     if (hasFollowUps) return false
     return (
-      // A question waits in this host's memory: its answer must come here.
+      // A live wait (an `ask()`) waits in this host's memory: its answer
+      // must come here, so it keeps the log. A wait that only the log keeps
+      // does not: the session is idle, and an answer reaches any host.
       this.questions.size === 0 &&
       this.inputsInFlight === 0 &&
       this.activeTurn === undefined &&
@@ -1115,6 +1119,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     operationId?: string,
   ): PluginSessionApi
   protected abstract resumeSignIns(): Promise<void>
+  /** Set the timer of the next schedule. See `SessionImpl.armSchedules`. */
+  protected abstract armSchedules(options?: { isRetry?: boolean }): void
   /** @internal See `SessionRequests.resolveForRun`. */
   abstract resolveForRun(options: ResolveForRunOptions): Promise<Receipt>
   protected abstract recoverFromLog(writer: LogWriter): Promise<void>

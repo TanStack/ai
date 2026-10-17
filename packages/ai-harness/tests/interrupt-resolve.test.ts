@@ -75,7 +75,9 @@ describe('resolve', () => {
       resume: [{ interruptId, status: 'resolved', payload: true }],
       inputId: 'wrong',
     })
-    expect(await session.settled('wrong')).toMatchObject({ outcome: 'failed' })
+    expect(await session.settled({ inputId: 'wrong' })).toMatchObject({
+      outcome: 'failed',
+    })
     expect(session.snapshot()).toMatchObject({
       status: 'requires_action',
       pendingInterrupts: [{ id: interruptId }],
@@ -86,7 +88,7 @@ describe('resolve', () => {
       inputId: 'right',
     })
     expect(right.status).toBe('accepted')
-    expect(await session.settled('right')).toMatchObject({
+    expect(await session.settled({ inputId: 'right' })).toMatchObject({
       outcome: 'completed',
     })
     expect(calls).toHaveLength(2)
@@ -130,7 +132,7 @@ describe('resolve', () => {
       resume: [{ interruptId, status: 'resolved', payload: true }],
       inputId: 'approve',
     })
-    expect(await session.settled('approve')).toMatchObject({
+    expect(await session.settled({ inputId: 'approve' })).toMatchObject({
       outcome: 'completed',
     })
     // The harness adds the run of the turn to the context.
@@ -199,7 +201,7 @@ describe('resolve', () => {
       resume: [{ interruptId, status: 'resolved', payload: true }],
       inputId: 'approve',
     })
-    expect(await session.settled('approve')).toMatchObject({
+    expect(await session.settled({ inputId: 'approve' })).toMatchObject({
       outcome: 'failed',
     })
     expect(execute).toHaveBeenCalledTimes(1)
@@ -239,7 +241,7 @@ describe('resolve', () => {
       resume: [{ interruptId, status: 'resolved', payload: true }],
       inputId: 'approve',
     })
-    expect(await session.settled('approve')).toMatchObject({
+    expect(await session.settled({ inputId: 'approve' })).toMatchObject({
       outcome: 'failed',
     })
     await first.close()
@@ -322,7 +324,7 @@ describe('resolve', () => {
     release.open()
 
     expect((await turn).interrupts).toHaveLength(1)
-    expect(await session.settled('approve')).toMatchObject({
+    expect(await session.settled({ inputId: 'approve' })).toMatchObject({
       outcome: 'completed',
       operationId: receipt.operationId,
     })
@@ -400,7 +402,7 @@ describe('a resolve and a waiting steer', () => {
     release.open()
 
     await turn
-    expect(await session.settled('approve')).toMatchObject({
+    expect(await session.settled({ inputId: 'approve' })).toMatchObject({
       outcome: 'completed',
     })
     expect(await steer).toEqual({ text: 'Steered.', media: [] })
@@ -443,7 +445,7 @@ describe("prompt({ busy: 'steer' })", () => {
     const result = await turn
     expect(result.text).toBe('First.Second.')
     expect(await joined).toEqual(result)
-    expect(await session.settled('by-prompt')).toMatchObject({
+    expect(await session.settled({ inputId: 'by-prompt' })).toMatchObject({
       outcome: 'completed',
       operationId: turn.id,
     })

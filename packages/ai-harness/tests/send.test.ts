@@ -45,7 +45,7 @@ describe('session.send', () => {
     expect((await steer).text).toBe('both answered')
     expect((await turn).text).toBe('both answered')
     expect(calls).toHaveLength(2)
-    expect(await session.settled('join')).toMatchObject({
+    expect(await session.settled({ inputId: 'join' })).toMatchObject({
       outcome: 'completed',
       operationId: turn.id,
     })

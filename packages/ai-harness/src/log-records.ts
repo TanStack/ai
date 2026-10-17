@@ -13,6 +13,7 @@ import type {
   RunStore,
 } from '@tanstack/ai-persistence'
 import type { HarnessInput, ThreadSettings } from './types'
+import type { Wait, WaitOutcome } from './waits'
 
 /** A change to a run record, as `RunStore.update` takes it. */
 export type RunPatch = Parameters<RunStore['update']>[1]
@@ -97,6 +98,31 @@ export type ScheduleRecord = {
   principal?: RecordPrincipal
 }
 
+/** A wait as the log keeps it, with what only a question has. */
+export type WaitRecord = {
+  wait: Wait
+  /** When the wait opened (epoch ms). */
+  at: number
+  /** The answer is a secret: the log never keeps it. */
+  secret?: true
+  /** A page the user must open before they answer. */
+  url?: string
+  /**
+   * A promise of the host that opened the wait holds it, so only that host
+   * can take the answer (an `ask()`). It ends when that host stops.
+   */
+  live?: true
+}
+
+/** A wait of the fold: its record, and how it ended once it did. */
+export type WaitState = WaitRecord & {
+  outcome?: WaitOutcome
+  /** When it ended (epoch ms). */
+  settledAt?: number
+  /** The answer of a wait that no promise holds. JSON. Never a secret. */
+  value?: unknown
+}
+
 /**
  * The thread-state records of a session log. Each change to what a record
  * means takes a new record type, never a new shape of one of these.
@@ -158,6 +184,16 @@ export type ThreadRecord =
       at: number
       response?: unknown
     }
+  /** A wait opened. A wait id that the fold has already keeps its record. */
+  | ({ type: 'harness.wait' } & WaitRecord)
+  /** A known wait ended at `at` (epoch ms), with the answer when it has one. */
+  | {
+      type: 'harness.wait.settled'
+      waitId: string
+      outcome: WaitOutcome
+      at: number
+      value?: unknown
+    }
 
 /** The record types that {@link foldThreadRecord} folds. */
 export const THREAD_RECORD_TYPES = [
@@ -173,6 +209,8 @@ export const THREAD_RECORD_TYPES = [
   'harness.run.update',
   'harness.interrupt',
   'harness.interrupt.end',
+  'harness.wait',
+  'harness.wait.settled',
 ] as const satisfies ReadonlyArray<ThreadRecord['type']>
 
 const THREAD_TYPES = new Set<string>(THREAD_RECORD_TYPES)
@@ -201,6 +239,12 @@ export interface ThreadStateFold {
   runs: Map<string, RunRecord>
   /** Every interrupt of the thread and of its child runs, by id, oldest first. */
   interrupts: Map<string, InterruptRecord>
+  /**
+   * Every wait that the session opened (questions, human waits), by id,
+   * oldest first. The pending ones have no `outcome`. The waits of
+   * interrupts are in `interrupts`.
+   */
+  waits: Map<string, WaitState>
 }
 
 /** The thread state of a log with no thread-state records. */
@@ -215,6 +259,7 @@ export function emptyThreadState() {
     schedules: new Map(),
     runs: new Map(),
     interrupts: new Map(),
+    waits: new Map(),
   }
   return state
 }
@@ -380,6 +425,25 @@ export function foldThreadRecord(state: ThreadStateFold, record: LogRecord) {
         ...state,
         interrupts: withEntry(state.interrupts, record.interruptId, ended),
       }
+    }
+    case 'harness.wait': {
+      const { type: _type, ...opened } = record
+      if (state.waits.has(opened.wait.waitId)) return state
+      return {
+        ...state,
+        waits: withEntry(state.waits, opened.wait.waitId, opened),
+      }
+    }
+    case 'harness.wait.settled': {
+      const current = state.waits.get(record.waitId)
+      if (!current || current.outcome !== undefined) return state
+      const ended: WaitState = {
+        ...current,
+        outcome: record.outcome,
+        settledAt: record.at,
+        ...(record.value !== undefined ? { value: record.value } : {}),
+      }
+      return { ...state, waits: withEntry(state.waits, record.waitId, ended) }
     }
     default: {
       const unhandled: never = record

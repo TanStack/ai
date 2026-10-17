@@ -40,6 +40,7 @@ import type {
   AccessAction,
   AccessRun,
   AccessSession,
+  AccessWait,
   HarnessAccess,
 } from './access'
 import type { HandleGuard } from './session/handle'
@@ -1654,12 +1655,14 @@ export function createHarnessHost<P extends Principal = Principal>(
     threadId,
     entry,
     run,
+    wait,
   }: {
     principal: P
     action: AccessAction
     threadId: string
     entry: SessionIndexEntry | undefined
     run?: AccessRun
+    wait?: AccessWait
   }) => {
     if (!access) return
     const { tenantId } = principal
@@ -1676,6 +1679,7 @@ export function createHarnessHost<P extends Principal = Principal>(
       action,
       session,
       ...(run ? { run } : {}),
+      ...(wait ? { wait } : {}),
     })
     if (!isAllowed) throw new AccessDeniedError({ action, threadId })
   }
@@ -1729,13 +1733,14 @@ export function createHarnessHost<P extends Principal = Principal>(
     const count = revocations.get(key) ?? 0
     return {
       isRevoked: () => (revocations.get(key) ?? 0) !== count,
-      authorize: async (action, run) =>
+      authorize: async (action, run, wait) =>
         allow({
           principal,
           action,
           threadId,
           entry: await index.get({ tenantId: principal.tenantId, threadId }),
           ...(run ? { run } : {}),
+          ...(wait ? { wait } : {}),
         }),
     }
   }

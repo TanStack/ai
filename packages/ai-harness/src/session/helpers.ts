@@ -1,11 +1,11 @@
 import {
   EventType,
-  INTERRUPT_PAYLOAD_METADATA_KEY,
   compactForModel,
   provideDetachableRun,
   readInterruptBinding,
 } from '@tanstack/ai'
 import { isRecord, jsonCopy } from '../utils'
+import { signInOf } from '../waits'
 import type {
   AnyChatMiddleware,
   AnyTool,
@@ -257,12 +257,7 @@ export const loggedStatus = (input: InputState): AgentRunInfo['status'] => {
 
 /** The connector a sign-in interrupt (`require` with `wait`) waits for. */
 export function signInConnector(interrupt: Interrupt | undefined) {
-  if (interrupt?.reason !== 'auth_required') return undefined
-  const payload = interrupt.metadata?.[INTERRUPT_PAYLOAD_METADATA_KEY]
-  const request = isRecord(payload) ? payload.request : undefined
-  return isRecord(request) && typeof request.connector === 'string'
-    ? request.connector
-    : undefined
+  return interrupt && signInOf(interrupt)?.connector
 }
 
 /** Limits for a harness's children when `subagents.limits` is not set. */

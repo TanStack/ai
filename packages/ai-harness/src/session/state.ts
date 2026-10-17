@@ -1,5 +1,4 @@
 import {
-  EventType,
   INTERRUPT_BINDING_METADATA_KEY,
   convertSchemaToJsonSchema,
   validateWithStandardSchema,
@@ -20,9 +19,11 @@ import {
 } from '../plugins'
 import { HARNESS_EVENTS } from '../types'
 import { SECRET_ANSWER_PREFIX } from '../auth'
+import { expiryOf, openWaits, snapshotWaits, waitOfQuestion } from '../waits'
 import {
   createInputId,
   customEvent,
+  isOfferedInputRecord,
   scopeOf,
   storedPrincipal,
   changeSettings,
@@ -41,7 +42,8 @@ import type {
   SessionIndexEntry,
 } from '@tanstack/ai-persistence'
 import type { RevertState } from '../log'
-import type { ThreadRecord } from '../log-records'
+import type { ThreadRecord, WaitRecord, WaitState } from '../log-records'
+import type { Wait, WaitOutcome } from '../waits'
 import type { Question } from '../commands'
 import type { ConfigOption } from '../config'
 import type {
@@ -56,6 +58,7 @@ import type {
   HarnessInput,
   MediaRecord,
   MediaUpload,
+  PendingQuestion,
   Principal,
   Receipt,
   ThreadSettings,
@@ -147,6 +150,11 @@ export abstract class SessionState<
     const active = [...this.operations.values()].filter(
       (operation) => !operation.isSettled(),
     )
+    const stopped = this.interrupted
+    const pendingInterrupts =
+      this.activeResume && !this.activeTurn?.isSettled()
+        ? []
+        : (stopped?.interrupts ?? [])
     return {
       threadId: this.threadId,
       status: this.activeTurn
@@ -163,21 +171,12 @@ export abstract class SessionState<
       // A steer that waits to join the running turn waits too.
       queuedTurns: this.queue.length + this.steerQueue.length,
       waitingInputs: this.inputs(),
-      pendingInterrupts:
-        this.activeResume && !this.activeTurn?.isSettled()
-          ? []
-          : (this.interrupted?.interrupts ?? []),
-      pendingQuestions: [...this.questions.entries()].map(
-        ([questionId, question]) => ({
-          questionId,
-          message: question.message,
-          ...(question.schema
-            ? { schema: convertSchemaToJsonSchema(question.schema) }
-            : {}),
-          ...(question.secret ? { secret: true } : {}),
-          ...(question.url ? { url: question.url } : {}),
-        }),
-      ),
+      pendingInterrupts,
+      ...snapshotWaits({
+        stopped,
+        interrupts: pendingInterrupts,
+        waits: this.logWriter?.state.thread.waits,
+      }),
       plugins: { ...this.stateDoc },
       usage: this.usage(),
       cursor: this.feed.head(),
@@ -698,8 +697,9 @@ export abstract class SessionState<
   }
 
   /**
-   * Answer a question from `ctx.session.ask`. `principal` is who answers.
-   * Default: the principal that opened the session. The log keeps it.
+   * Answer an open wait: a question from `ctx.session.ask`, or a `human`
+   * wait, by its id. `principal` is who answers. Default: the principal that
+   * opened the session. The log keeps it.
    */
   async answer({
     questionId,
@@ -717,11 +717,13 @@ export abstract class SessionState<
     ref?: string
   }): Promise<Receipt> {
     // A secret (a key or a password) stays out of the log. A restart does
-    // not replay an answer, so it never needs it. A host that does not have
-    // the question logs no value either: the question can ask for a secret.
-    // When another host owns the log, `answerOffer` decides what goes to it.
+    // not replay an answer, so it never needs it. A host that does not know
+    // the wait logs no value either: the wait can ask for a secret. When
+    // another host owns the log, `answerOffer` decides what goes to it.
     const asked = this.questions.get(questionId)
-    const isHidden = ref !== undefined || asked === undefined || asked.secret
+    const logged = this.loggedWait(questionId)
+    const isSecret = asked?.secret ?? (!logged || logged.secret === true)
+    const isHidden = ref !== undefined || isSecret
     if (asked?.secret && typeof value === 'string') this.redactor.add(value)
     const sender = principal ?? this.principal
     let admission
@@ -752,7 +754,7 @@ export abstract class SessionState<
       answered = secret.value
     }
     const question = this.questions.get(questionId)
-    if (!question) return this.reject(inputId, 'unknown_question')
+    if (!question) return this.answerLoggedWait(inputId, questionId, answered)
     let checked: unknown = answered
     if (question.schema !== undefined) {
       const result = await validateWithStandardSchema(question.schema, answered)
@@ -768,21 +770,62 @@ export abstract class SessionState<
     }
     this.questions.delete(questionId)
     try {
-      await this.applied(inputId, 'session')
+      // In the append of the applied record: a crash keeps both or neither.
+      await this.applied(
+        inputId,
+        'session',
+        this.waitEndRecords(questionId, 'answered'),
+      )
     } catch (error) {
       // The answer was not stored. The question waits again, unless the
       // session closes: then nobody can answer it.
-      if (this.closing) question.reject(new Error('Session closed.'))
-      else this.questions.set(questionId, question)
+      if (this.closing) {
+        question.release()
+        question.reject(new Error('Session closed.'))
+      } else this.questions.set(questionId, question)
       throw error
     }
+    question.release()
     this.feed.publish(
       question.operationId,
       customEvent(HARNESS_EVENTS.questionAnswered, { questionId }),
     )
     question.resolve(checked)
+    await this.afterWaitEnd(questionId)
     // The question no longer holds the thread. The resolved work, if any,
     // marks it busy again first.
+    queueMicrotask(() => this.checkIdle())
+    return { inputId, status: 'accepted' }
+  }
+
+  /**
+   * Answer a wait that no promise of this host holds: the log keeps the
+   * answer, for the run that waits. A live wait of another host, and a wait
+   * that ended, are refused.
+   */
+  private async answerLoggedWait(
+    inputId: string,
+    waitId: string,
+    value: unknown,
+  ): Promise<Receipt> {
+    const logged = this.loggedWait(waitId)
+    const isOpen =
+      logged !== undefined &&
+      logged.outcome === undefined &&
+      logged.live === undefined
+    if (!isOpen) return this.reject(inputId, 'unknown_question')
+    // ponytail: the log has the JSON Schema of the wait, not a Standard
+    // Schema, so the answer goes as it is. The run that reads it checks it.
+    await this.applied(
+      inputId,
+      'session',
+      this.waitEndRecords(
+        waitId,
+        'answered',
+        logged.secret ? undefined : value,
+      ),
+    )
+    await this.afterWaitEnd(waitId)
     queueMicrotask(() => this.checkIdle())
     return { inputId, status: 'accepted' }
   }
@@ -791,7 +834,8 @@ export abstract class SessionState<
    * What goes to the owner of the log for an answer that this host logs
    * hidden. A plain answer goes as it is. A secret goes to the credential
    * store of the app, and the owner gets only its id, so the input lane
-   * never keeps the secret. Without that store, the answer is refused.
+   * never keeps the secret. Without that store, the answer is refused. An
+   * answer to a wait that ended is refused, so it leaves no secret behind.
    */
   private async answerOffer({
     questionId,
@@ -804,16 +848,23 @@ export abstract class SessionState<
     inputId: string
     sender: Principal | undefined
   }): Promise<HarnessInput> {
+    // The wait of another host: read what that host wrote first.
+    if (!this.questions.has(questionId)) await this.writer.catchUp()
+    const logged = this.loggedWait(questionId)
+    if (logged?.outcome !== undefined) {
+      throw new AnswerRefused('unknown_question')
+    }
+    // A wait that the log does not have (not read yet) counts as a secret,
+    // so its answer never goes in clear text.
     const isSecret =
       this.questions.get(questionId)?.secret ??
-      (await this.loggedQuestionIsSecret(questionId))
+      (!logged || logged.secret === true)
     if (!isSecret) return { op: 'answer', questionId, value }
     const store = this.sharedCredentials
     if (!store) throw new AnswerRefused('secret_answer_needs_credentials')
     // The input id makes the ref unique. A retry with the same input id
-    // offers the same record again, so it is a duplicate.
-    // ponytail: a ref that the owner never reads stays in the store. PR 7
-    // adds wait expiry, which can delete it.
+    // offers the same record again, so it is a duplicate. A ref that the
+    // owner never reads goes when the wait ends (see `dropAnswerRefs`).
     const ref = `${SECRET_ANSWER_PREFIX}${questionId}:${inputId}`
     await store.set({
       scope: scopeOf(this.threadId, sender),
@@ -856,35 +907,241 @@ export abstract class SessionState<
     return { value }
   }
 
+  // ===========================
+  // Waits
+  // ===========================
+
   /**
-   * Whether the question `questionId` of this thread asks for a secret, from
-   * its event in the log. A question that the log does not have (not written
-   * yet, or only in a snapshot) counts as a secret, so its answer never goes
-   * in clear text.
+   * The records that end the wait `waitId`: its end, and the done record of
+   * its expiry wake when that did not run yet.
    */
-  // ponytail: this reads the whole log, only for an answer to a question
-  // that another host asked.
-  private async loggedQuestionIsSecret(questionId: string) {
-    let after = 0
-    for (;;) {
-      const entries = await this.log.store.read({
-        logId: this.storeLogId,
-        after,
-        limit: 256,
-      })
-      // A store can return fewer than `limit` before the end: stop only at
-      // an empty page.
-      if (entries.length === 0) return true
-      for (const { seq, record } of entries) {
-        after = seq
-        if (threadOf(record, this.threadId) !== this.threadId) continue
-        const event = record.type === 'harness.event' ? record.event : null
-        const isQuestion =
-          isRecord(event) &&
-          event.type === EventType.CUSTOM &&
-          event.name === HARNESS_EVENTS.question
-        const asked = isQuestion && isRecord(event.value) ? event.value : null
-        if (asked?.questionId === questionId) return asked.secret === true
+  protected waitEndRecords(
+    waitId: string,
+    outcome: WaitOutcome,
+    value?: unknown,
+  ): Array<ThreadRecord> {
+    const wake = expiryWakeId(waitId)
+    return [
+      {
+        type: 'harness.wait.settled',
+        waitId,
+        outcome,
+        at: Date.now(),
+        ...(value !== undefined ? { value } : {}),
+      },
+      ...(this.writer.state.thread.schedules.has(wake)
+        ? [{ type: 'harness.schedule.done' as const, scheduleId: wake }]
+        : []),
+    ]
+  }
+
+  /** After the log ended the wait `waitId`: drop its secrets, and move the timer. */
+  protected async afterWaitEnd(waitId: string) {
+    this.armSchedules()
+    await this.dropAnswerRefs(waitId).catch((error: unknown) =>
+      this.warnSession('harness:waits', error),
+    )
+  }
+
+  /**
+   * Open a wait in the log. With `expiresAt`, a wake at that time goes in
+   * the same append: a worker opens the session then, and the wait expires,
+   * also when no host has the thread open.
+   */
+  protected async writeWait(record: WaitRecord) {
+    const { waitId, expiresAt } = record.wait
+    await this.writer.append([
+      { type: 'harness.wait', ...record },
+      ...(expiresAt !== undefined
+        ? [
+            {
+              type: 'harness.schedule' as const,
+              scheduleId: expiryWakeId(waitId),
+              at: expiresAt,
+            },
+          ]
+        : []),
+    ])
+    if (expiresAt !== undefined) this.armSchedules()
+  }
+
+  /**
+   * @internal Open a wait that no promise holds, for the run `runId`. The
+   * session stays idle: the log keeps the wait, and `answer` from any host
+   * ends it with the answer in the log. A `human` wait takes the answer of
+   * a user with the `operator` action. `expiresAt` defaults by kind (see
+   * `DEFAULT_WAIT_MS`). Resolves with the wait.
+   */
+  async openWait({
+    kind,
+    runId,
+    principal,
+    schema,
+    message,
+    expiresAt,
+  }: Omit<Wait, 'waitId'>): Promise<Wait> {
+    const expiry = expiryOf(kind, expiresAt)
+    const wait: Wait = {
+      waitId: createWaitId(),
+      kind,
+      runId,
+      ...(principal ? { principal } : {}),
+      ...(schema !== undefined ? { schema } : {}),
+      ...(expiry !== undefined ? { expiresAt: expiry } : {}),
+      ...(message !== undefined ? { message } : {}),
+    }
+    await this.writeWait({ wait, at: Date.now() })
+    return wait
+  }
+
+  /**
+   * Resolves with the first open wait of the session, or of the run
+   * `runId`: one that is open now, else the next one that opens. Rejects
+   * with the reason of `signal` when it aborts first, and with an error
+   * when the session closes.
+   *
+   * @example
+   * ```ts
+   * const turn = session.send('Delete the old logs.')
+   * const wait = await session.waitFor({ runId: turn.id })
+   * if (isApproval(wait)) console.log('Approve or reject:', wait.message)
+   * ```
+   */
+  waitFor({
+    runId,
+    signal,
+  }: { runId?: string; signal?: AbortSignal } = {}): Promise<Wait> {
+    const find = () =>
+      this.snapshot().pendingWaits?.find(
+        (wait) => runId === undefined || wait.runId === runId,
+      )
+    return new Promise<Wait>((resolve, reject) => {
+      if (signal?.aborted) return reject(signal.reason)
+      const now = find()
+      if (now) return resolve(now)
+      const closed = this.lifetime.signal
+      const stop = () => {
+        stopEvents()
+        stopIdle()
+        signal?.removeEventListener('abort', onAbort)
+        closed.removeEventListener('abort', onClose)
+      }
+      const onAbort = () => {
+        stop()
+        reject(signal?.reason)
+      }
+      const onClose = () => {
+        stop()
+        reject(new Error('Session closed.'))
+      }
+      // A wait opens with an event (a question, the end of a turn that
+      // stopped), or before the thread goes idle.
+      const check = () => {
+        const found = find()
+        if (!found) return
+        stop()
+        resolve(found)
+      }
+      const stopEvents = this.onEvent(check)
+      const stopIdle = this.onIdle(check)
+      signal?.addEventListener('abort', onAbort, { once: true })
+      closed.addEventListener('abort', onClose, { once: true })
+    })
+  }
+
+  /**
+   * End the live question `questionId` with no answer: the log gets the
+   * end, and its `ask` rejects with `error`.
+   */
+  protected async endQuestion(
+    questionId: string,
+    outcome: 'cancelled' | 'expired',
+    error: unknown,
+  ) {
+    const question = this.questions.get(questionId)
+    if (!question) return
+    this.questions.delete(questionId)
+    question.release()
+    question.reject(error)
+    try {
+      // Not in the log yet: the open of the wait is still on its way.
+      if (this.loggedWait(questionId)) {
+        await this.writer.append(this.waitEndRecords(questionId, outcome))
+        await this.afterWaitEnd(questionId)
+      }
+    } catch (failure) {
+      // A closed log takes no end. The next owner ends the wait, as a live
+      // wait of a host that stopped.
+      if (!this.closing) this.warnSession('harness:waits', failure)
+    }
+    queueMicrotask(() => this.checkIdle())
+  }
+
+  /**
+   * End the open waits that expired, and the live waits that no promise of
+   * this host holds: their host stopped, so no answer can reach them. Only
+   * the owner of the log ends them.
+   */
+  protected async endStaleWaits(): Promise<void> {
+    const now = Date.now()
+    const isExpired = ({ wait }: WaitState) =>
+      wait.expiresAt !== undefined && wait.expiresAt <= now
+    const stale = openWaits(this.writer.state.thread.waits).filter(
+      (state) =>
+        isExpired(state) ||
+        (state.live !== undefined && !this.questions.has(state.wait.waitId)),
+    )
+    if (stale.length === 0) return
+    if (!(await this.writer.own())) return
+    for (const state of stale) {
+      const { waitId } = state.wait
+      const outcome = isExpired(state) ? 'expired' : 'cancelled'
+      if (this.questions.has(waitId)) {
+        await this.endQuestion(
+          waitId,
+          outcome,
+          new Error('The question expired with no answer.'),
+        )
+        continue
+      }
+      // An answer ended it since the read above.
+      if (this.loggedWait(waitId)?.outcome !== undefined) continue
+      await this.writer.append(this.waitEndRecords(waitId, outcome))
+      await this.afterWaitEnd(waitId)
+    }
+  }
+
+  /**
+   * Delete the secret answers to the wait `waitId` that wait in the
+   * credential store: answers that another host saved and that the owner
+   * did not read. The wait ended, so nobody reads them now. They belong to
+   * the user of the run, the owner, the opener, or the sender of an answer
+   * that waits in the input lane.
+   */
+  // ponytail: the secret answer of another member, whose offer never
+  // reached the lane (its host stopped between the two writes), stays.
+  private async dropAnswerRefs(waitId: string) {
+    const store = this.sharedCredentials
+    const logged = this.loggedWait(waitId)
+    if (!store || logged?.secret === undefined) return
+    const prefix = `${SECRET_ANSWER_PREFIX}${waitId}:`
+    const offered = (await this.writer.offered()).flatMap(({ record }) =>
+      isOfferedInputRecord(record) &&
+      record.input.op === 'answer' &&
+      record.input.questionId === waitId
+        ? [record.principal]
+        : [],
+    )
+    const senders = [logged.wait.principal, this.owner, this.principal]
+    const scopes = new Map(
+      [...senders, ...offered].map((sender) => {
+        const scope = scopeOf(this.threadId, sender)
+        return [stableJson(scope), scope] as const
+      }),
+    )
+    for (const scope of scopes.values()) {
+      for (const { id } of await store.list(scope)) {
+        if (id.startsWith(prefix)) await store.delete({ scope, id })
       }
     }
   }
@@ -1076,14 +1333,38 @@ export abstract class SessionState<
     owner?: string,
   ): Promise<unknown> {
     if (this.closing) return Promise.reject(new Error('Session closed.'))
+    const { signal } = question
+    if (signal?.aborted) return Promise.reject(signal.reason)
     const questionId = `q-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
     // On the operation that asks (a command), else on the running chat turn,
     // so a client that streams that operation sees it, and a cancel of it
     // rejects the question. The session stream has every operation's events.
     const operationId = owner ?? this.activeTurn?.id ?? 'session'
-    // The question keeps the thread busy, so this host keeps the log, and an
-    // answer that reaches another host comes here through the input lane.
+    const pending: PendingQuestion = {
+      questionId,
+      message: question.message,
+      ...(question.schema
+        ? { schema: convertSchemaToJsonSchema(question.schema) }
+        : {}),
+      ...(question.secret ? { secret: true } : {}),
+      ...(question.url ? { url: question.url } : {}),
+    }
+    const principal =
+      operationId === 'session' ? undefined : this.principalOfRun(operationId)
+    const expiresAt = expiryOf('question', question.expiresAt)
+    const wait = waitOfQuestion({
+      question: pending,
+      runId: operationId,
+      ...storedPrincipal(principal),
+      ...(expiresAt !== undefined ? { expiresAt } : {}),
+    })
+    // The question is a live wait: it keeps the thread busy, so this host
+    // keeps the log, and an answer that reaches another host comes here
+    // through the input lane. The log keeps it too, so every host shows it.
     return new Promise((resolve, reject) => {
+      const onAbort = () =>
+        void this.endQuestion(questionId, 'cancelled', signal?.reason)
+      signal?.addEventListener('abort', onAbort, { once: true })
       this.questions.set(questionId, {
         message: question.message,
         schema: question.schema,
@@ -1092,19 +1373,45 @@ export abstract class SessionState<
         operationId,
         resolve,
         reject,
+        release: () => signal?.removeEventListener('abort', onAbort),
       })
-      this.feed.publish(
-        operationId,
-        customEvent(HARNESS_EVENTS.question, {
-          questionId,
-          message: question.message,
-          ...(question.schema
-            ? { schema: convertSchemaToJsonSchema(question.schema) }
-            : {}),
-          ...(question.secret ? { secret: true } : {}),
-          ...(question.url ? { url: question.url } : {}),
-        }),
+      const opened = this.writeWait({
+        wait,
+        at: Date.now(),
+        live: true,
+        ...(question.secret ? { secret: true as const } : {}),
+        ...(question.url ? { url: question.url } : {}),
+      })
+      opened.then(
+        () => {
+          if (this.questions.has(questionId)) {
+            this.feed.publish(
+              operationId,
+              customEvent(HARNESS_EVENTS.question, { ...pending }),
+            )
+            return
+          }
+          // A cancel or the close ended it before the log had it.
+          this.writer
+            .append(this.waitEndRecords(questionId, 'cancelled'))
+            .catch(() => {})
+        },
+        (error: unknown) => {
+          const asked = this.questions.get(questionId)
+          if (!asked) return
+          this.questions.delete(questionId)
+          asked.release()
+          reject(error)
+          queueMicrotask(() => this.checkIdle())
+        },
       )
     })
   }
+}
+
+/** The id of the wake that ends the wait `waitId` at its `expiresAt`. */
+const expiryWakeId = (waitId: string) => `wait:${waitId}`
+
+function createWaitId() {
+  return `w-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
 }

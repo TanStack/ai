@@ -71,6 +71,8 @@ export {
   mediaPart,
 } from '../media-ref'
 export type { MediaKind, MediaRecord, WaitingInput } from '../types'
+export { isApproval, waitKind, waitOfInterrupt, waitOfQuestion } from '../waits'
+export type { Wait, WaitKind, WaitOutcome } from '../waits'
 export type {
   AgentPart,
   Approval,

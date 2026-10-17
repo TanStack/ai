@@ -19,7 +19,7 @@ import {
   dropOldest,
 } from './helpers'
 import { SessionBase } from './base'
-import type { AccessRun } from '../access'
+import type { AccessRun, AccessWait } from '../access'
 import type { OperationImpl } from '../operation'
 import type { LogRecord, OfferedInput } from '@tanstack/ai-persistence'
 import type { HarnessRecord, InputState } from '../log'
@@ -73,6 +73,8 @@ interface ApplyingOffer {
 export type InputCheck = (check: {
   input: HarnessInput
   run: AccessRun | undefined
+  /** The wait that an answer answers, when the session knows it. */
+  wait?: AccessWait
 }) => Promise<void>
 
 /**
@@ -127,6 +129,9 @@ export abstract class SessionInputs<
         return { runId: stopped.runId, ...idOf(stopped.principal) }
       }
       case 'answer': {
+        // The log keeps the wait with its run, so any host knows it.
+        const wait = this.loggedWait(input.questionId)?.wait
+        if (wait) return { runId: wait.runId, ...idOf(wait.principal) }
         const operationId = this.questions.get(input.questionId)?.operationId
         return operationId === undefined
           ? undefined
@@ -160,22 +165,37 @@ export abstract class SessionInputs<
     }
   }
 
+  /** The wait `waitId` that the log keeps, or `undefined`. */
+  protected loggedWait(waitId: string) {
+    return this.logWriter?.state.thread.waits.get(waitId)
+  }
+
+  /** The wait that `input` answers, for the access check. */
+  protected waitOf(input: HarnessInput): AccessWait | undefined {
+    if (input.op !== 'answer') return undefined
+    const wait = this.loggedWait(input.questionId)?.wait
+    return wait ? { waitId: wait.waitId, kind: wait.kind } : undefined
+  }
+
   /** The operation `operationId`, with the id of who started it when known. */
   protected startedBy(operationId: string): AccessRun {
+    return { runId: operationId, ...idOf(this.principalOfRun(operationId)) }
+  }
+
+  /** Who started the operation `operationId`, when the session knows. */
+  protected principalOfRun(operationId: string) {
     const chain = this.chainOf.get(operationId)
     const agentRun = [...(chain?.runs ?? []), ...(chain?.followUps ?? [])].find(
       (run) => run.operation.id === operationId,
     )
     const inputId = this.operationInputs.get(operationId)
-    const principal =
-      this.activeTurn?.id === operationId
-        ? this.turnPrincipal
-        : agentRun
-          ? agentRun.principal
-          : inputId !== undefined
-            ? this.senderOf(inputId)
-            : undefined
-    return { runId: operationId, ...idOf(principal) }
+    if (this.activeTurn?.id === operationId) return this.turnPrincipal
+    if (agentRun) return agentRun.principal
+    if (inputId !== undefined) return this.senderOf(inputId)
+    // A command: the log has the input that it runs.
+    return [...(this.logWriter?.state.inputs.values() ?? [])].find(
+      (input) => input.operationId === operationId,
+    )?.principal
   }
 
   /** Who sent the input `inputId`: from the log, or from what waits. */
@@ -280,15 +300,25 @@ export abstract class SessionInputs<
    * agent run from the log.
    *
    * Rejects with `InputRejectedError` when the session refused the input,
-   * and with an error for an id this session does not know.
+   * with an error for an id this session does not know, and with the reason
+   * of `signal` when it aborts first.
    *
    * @example
    * ```ts
    * const turn = session.send('Summarize the report.', { inputId: 'req-42' })
-   * const { outcome } = await session.settled('req-42')
+   * const { outcome } = await session.settled({
+   *   inputId: 'req-42',
+   *   signal: AbortSignal.timeout(60_000),
+   * })
    * ```
    */
-  async settled(inputId: string): Promise<InputSettlement> {
+  async settled({
+    inputId,
+    signal,
+  }: {
+    inputId: string
+    signal?: AbortSignal
+  }): Promise<InputSettlement> {
     const known = this.knownSettlement(inputId)
     if (known) return known
     if (!this.isChatInput(inputId)) {
@@ -296,6 +326,7 @@ export abstract class SessionInputs<
         `The session knows no chat input with the id ${JSON.stringify(inputId)}.`,
       )
     }
+    signal?.throwIfAborted()
     const settledEvent = (entry: SessionEvent) =>
       entry.event.type === EventType.CUSTOM &&
       entry.event.name === HARNESS_EVENTS.inputSettled &&
@@ -304,10 +335,12 @@ export abstract class SessionInputs<
     for await (const _entry of this.feed.read({
       from: this.feed.head(),
       filter: settledEvent,
+      ...(signal ? { signal } : {}),
     })) {
       const settlement = this.knownSettlement(inputId)
       if (settlement) return settlement
     }
+    signal?.throwIfAborted()
     throw new Error('The session closed before the input ended.')
   }
 
@@ -505,7 +538,10 @@ export abstract class SessionInputs<
   }): Promise<Admission> {
     const check = this.pendingCheck
     this.pendingCheck = undefined
-    if (check) await check({ input, run: this.runOf(input) })
+    if (check) {
+      const wait = this.waitOf(input)
+      await check({ input, run: this.runOf(input), ...(wait ? { wait } : {}) })
+    }
     const sender = storedPrincipal(principal)
     const known = this.knownAdmission(
       inputId,

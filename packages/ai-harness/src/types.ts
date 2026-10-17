@@ -371,7 +371,7 @@ export interface MediaUpload<TBody> {
   name: string
 }
 
-/** How an input ended. `session.settled(inputId)` resolves to it. */
+/** How an input ended. `session.settled({ inputId })` resolves to it. */
 export type InputSettlement = {
   inputId: string
   /** The operation that ran the input, when one started. */

@@ -275,7 +275,7 @@ describe('follow-ups to an agent run', () => {
     await run
     await waitFor(() => expect(model.calls).toHaveLength(2))
     expect(messageTexts(model.calls[1]).at(-1)).toBe('Use a warmer tone.')
-    expect(await session.settled(receipt.inputId)).toMatchObject({
+    expect(await session.settled({ inputId: receipt.inputId })).toMatchObject({
       outcome: 'completed',
     })
     await host.close()
@@ -311,7 +311,7 @@ describe('steers to an agent run', () => {
     expect(receipt).toMatchObject({ status: 'accepted', operationId: run.id })
     expect(model.calls).toHaveLength(2)
     expect(messageTexts(model.calls[1]).at(-1)).toBe('Only primary sources.')
-    expect(await session.settled(receipt.inputId)).toMatchObject({
+    expect(await session.settled({ inputId: receipt.inputId })).toMatchObject({
       outcome: 'completed',
       operationId: run.id,
     })
@@ -595,7 +595,7 @@ describe('agents that agent code starts', () => {
       status: 'accepted',
       operationId: queued.operationId,
     })
-    expect(await session.settled(queued.inputId)).toMatchObject({
+    expect(await session.settled({ inputId: queued.inputId })).toMatchObject({
       outcome: 'aborted',
     })
     expect(model.calls).toHaveLength(1)
@@ -651,7 +651,7 @@ describe('messages to an agent run after its host stopped', () => {
       principal: alice,
     })
 
-    expect(await sessionB.settled('steer-1')).toMatchObject({
+    expect(await sessionB.settled({ inputId: 'steer-1' })).toMatchObject({
       outcome: 'completed',
     })
     expect(messageTexts(next.calls[0])).toContain('Cite the source.')
@@ -678,7 +678,7 @@ describe('messages to an agent run after its host stopped', () => {
       principal: alice,
     })
 
-    expect(await sessionB.settled('steer-1')).toMatchObject({
+    expect(await sessionB.settled({ inputId: 'steer-1' })).toMatchObject({
       outcome: 'aborted',
     })
     expect(next.calls).toHaveLength(0)
@@ -709,7 +709,7 @@ describe('messages to an agent run after its host stopped', () => {
       principal: alice,
     })
 
-    expect(await sessionB.settled('steer-2')).toMatchObject({
+    expect(await sessionB.settled({ inputId: 'steer-2' })).toMatchObject({
       outcome: 'failed',
     })
     await hostB.close()
@@ -741,7 +741,7 @@ describe('messages to an agent run after its host stopped', () => {
       principal: alice,
     })
 
-    expect(await sessionB.settled('follow-1')).toMatchObject({
+    expect(await sessionB.settled({ inputId: 'follow-1' })).toMatchObject({
       outcome: 'completed',
     })
     const texts = messageTexts(next.calls[0])

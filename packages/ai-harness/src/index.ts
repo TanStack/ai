@@ -128,6 +128,7 @@ export type {
   AccessAction,
   AccessRun,
   AccessSession,
+  AccessWait,
   Authorize,
   AuthorizeInput,
   HarnessAccess,
@@ -208,6 +209,9 @@ export type {
   UserInput,
   WaitingInput,
 } from './types'
+
+export { isApproval, waitKind, waitOfInterrupt, waitOfQuestion } from './waits'
+export type { Wait, WaitKind, WaitOutcome } from './waits'
 
 export { harnessText } from './harness-text'
 export type { HarnessTextOptions, RemoteHarness } from './harness-text'
