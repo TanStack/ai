@@ -1,10 +1,12 @@
 import { EventType } from '@tanstack/ai'
 import {
   LogConflictError,
+  LogTruncatedError,
   OwnershipLostError,
   UNOWNED_EPOCH,
 } from '@tanstack/ai-persistence'
 import { LogOwnedElsewhereError } from './ownership'
+import { HARNESS_EVENTS } from './types'
 import {
   THREAD_RECORD_TYPES,
   emptyThreadState,
@@ -17,9 +19,9 @@ import type {
   InterruptRecord,
   LogEntry,
   LogRecord,
+  LogSnapshot,
   LogStore,
   MessageStore,
-  MetadataStore,
   OfferResult,
   OfferedInput,
   RunRecord,
@@ -36,6 +38,7 @@ import type {
 } from './log-records'
 import type {
   Cursor,
+  EventGap,
   HarnessInput,
   InputSettlement,
   SettlementOutcome,
@@ -210,7 +213,7 @@ export type ProjectRecord = (args: {
 export interface ProjectOptions {
   record: ProjectRecord
   /**
-   * The version of `record`. A fold checkpoint with another version is
+   * The version of `record`. A fold snapshot with another version is
    * ignored, so a change to `record` never reads an old fold.
    */
   version?: string
@@ -246,7 +249,7 @@ export interface LogState {
   messages: Array<ModelMessage>
   /**
    * The position of the last transcript record. The events after it are not
-   * in the transcript. Unknown after a fold checkpoint from before this field.
+   * in the transcript. Unknown after a fold snapshot with no value for this field.
    */
   transcriptSeq?: number
   /** In admission order. */
@@ -548,7 +551,7 @@ export interface ReduceOptions<TState> {
   initial: TState
   /** Pure. Return the next state, or the same state for no change. */
   record: (args: { state: TState; record: LogRecord }) => TState
-  /** A fold checkpoint with another version is ignored. */
+  /** A fold snapshot with another version is ignored. */
   version?: string
 }
 
@@ -559,6 +562,8 @@ export interface SharedLogState<TState = unknown> {
   /** By thread id. */
   sessions: Map<string, LogState>
   reduced: TState | undefined
+  /** The position of the snapshot that the fold started from. */
+  snapshotSeq?: number
   /** The first `harness.*` record type of the log that this version does not know. */
   newerRecord?: string
 }
@@ -661,19 +666,38 @@ export function foldLogEntry<TState>(
   )
 }
 
-/** @internal The metadata namespace of log checkpoints, keyed by store log id. */
-export const CHECKPOINT_NAMESPACE = 'harness:log-checkpoint'
-// ponytail: a checkpoint every 50 appends. Tune it when a cold fold is slow.
-const CHECKPOINT_EVERY = 50
 const READ_PAGE = 500
 
-interface CheckpointVersions {
+/** The default bytes of new records (their JSON length) after which the owner writes a snapshot. */
+export const SNAPSHOT_AFTER_BYTES = 1_000_000
+/** The default milliseconds after the first record with no snapshot, after which the owner writes one. */
+export const SNAPSHOT_AFTER_MS = 300_000
+
+/** When the owner of a log writes a snapshot: at the first limit it meets. */
+export interface SnapshotTiming {
+  /** Default {@link SNAPSHOT_AFTER_BYTES}. */
+  afterBytes?: number
+  /** Default {@link SNAPSHOT_AFTER_MS}. */
+  afterMs?: number
+}
+
+/**
+ * Which records a log keeps. `'all'` keeps every record. `'since-snapshot'`
+ * drops the records before each new snapshot.
+ */
+export type LogRecordRetention = 'all' | 'since-snapshot'
+
+interface SnapshotVersions {
   version?: string
   reduceVersion?: string
 }
 
-/** The checkpoint version. A checkpoint of another version folds from the start. */
-const CHECKPOINT_VERSION = 4
+/**
+ * The version of the snapshot state shape. A snapshot of another version is
+ * not used: the fold starts at the first record. Version 4 was the metadata
+ * checkpoint, which a host does not read any more.
+ */
+export const SNAPSHOT_VERSION = '5'
 
 /** The thread state of a session as JSON: each map as its entries. */
 function serializeThread(thread: ThreadStateFold) {
@@ -690,7 +714,7 @@ function serializeThread(thread: ThreadStateFold) {
   }
 }
 
-/** The thread state of a checkpoint, or `undefined` when it is not shaped. */
+/** The thread state of a snapshot, or `undefined` when it is not shaped. */
 function parseThread(value: unknown) {
   if (!isRecord(value) || !isRecord(value.settings)) return undefined
   const { config, plugins, agentResults, turnOverrides, schedules } = value
@@ -721,10 +745,9 @@ function parseThread(value: unknown) {
   return thread
 }
 
-function serialize(state: SharedLogState, versions: CheckpointVersions) {
+/** The state of a snapshot of `state`. Its position is `state.seq`. */
+function serialize(state: SharedLogState, versions: SnapshotVersions) {
   return {
-    v: CHECKPOINT_VERSION,
-    seq: state.seq,
     ...versions,
     // A host that does not know one of these types folds from the start.
     recordTypes: [...HARNESS_RECORD_TYPES],
@@ -748,7 +771,7 @@ function serialize(state: SharedLogState, versions: CheckpointVersions) {
   }
 }
 
-/** One session of a checkpoint at `seq`, or `undefined` when it is not shaped. */
+/** One session of a snapshot at `seq`, or `undefined` when it is not shaped. */
 function parseSession(value: unknown, seq: number) {
   if (!isRecord(value)) return undefined
   const { messages, inputs, toolResults, steps } = value
@@ -764,7 +787,7 @@ function parseSession(value: unknown, seq: number) {
   const session: LogState = {
     seq,
     messages: (messages as Array<ModelMessage>).map(revive),
-    // A checkpoint from before `transcriptSeq` has none.
+    // A state with no `transcriptSeq` gets an empty value.
     ...(typeof value.transcriptSeq === 'number'
       ? { transcriptSeq: value.transcriptSeq }
       : {}),
@@ -772,7 +795,7 @@ function parseSession(value: unknown, seq: number) {
       (inputs as Array<InputState>).map((input) => [input.inputId, input]),
     ),
     toolResults: new Map(toolResults as Array<[string, ModelMessage]>),
-    // A checkpoint from before `started` has none.
+    // A state with no `started` gets an empty value.
     started: new Map(
       Array.isArray(value.started)
         ? (value.started as Array<
@@ -781,11 +804,11 @@ function parseSession(value: unknown, seq: number) {
         : [],
     ),
     steps: new Map(steps as Array<[string, unknown]>),
-    // A checkpoint from before usage totals has none.
+    // A state with no usage totals gets an empty value.
     usage: isSessionUsage(value.usage) ? value.usage : emptyUsage(),
-    // A checkpoint from before reverts has none.
+    // A state with no reverts gets an empty value.
     ...(revert ? { revert } : {}),
-    // A checkpoint from before jobs and notes has none.
+    // A state with no jobs and notes gets an empty value.
     jobs: new Set(
       Array.isArray(value.jobs) ? (value.jobs as Array<string>) : [],
     ),
@@ -799,21 +822,19 @@ function parseSession(value: unknown, seq: number) {
   return session
 }
 
-/** A checkpoint that the harness wrote with `versions`, or `undefined`. */
-function parseCheckpoint<TState>(
-  saved: unknown,
-  versions: CheckpointVersions,
+/** The fold of a snapshot that the harness wrote with `versions`, or `undefined`. */
+function parseSnapshot<TState>(
+  snapshot: LogSnapshot | null,
+  versions: SnapshotVersions,
 ): SharedLogState<TState> | undefined {
+  if (!snapshot || snapshot.version !== SNAPSHOT_VERSION) return undefined
+  const { seq } = snapshot
   // A copy: the fold changes its state in place (usage totals), and a store
   // can hand back the object it holds.
-  const value = isRecord(saved) ? normalize(saved) : saved
-  if (
-    !isRecord(value) ||
-    value.v !== CHECKPOINT_VERSION ||
-    typeof value.seq !== 'number'
-  ) {
-    return undefined
-  }
+  const value = isRecord(snapshot.state)
+    ? normalize(snapshot.state)
+    : snapshot.state
+  if (!isRecord(value) || typeof seq !== 'number') return undefined
   if (
     value.version !== versions.version ||
     value.reduceVersion !== versions.reduceVersion ||
@@ -831,12 +852,13 @@ function parseCheckpoint<TState>(
   const sessions = new Map<string, LogState>()
   for (const item of value.sessions) {
     if (!Array.isArray(item) || typeof item[0] !== 'string') return undefined
-    const session = parseSession(item[1], value.seq)
+    const session = parseSession(item[1], seq)
     if (!session) return undefined
     sessions.set(item[0], session)
   }
   return {
-    seq: value.seq,
+    seq,
+    snapshotSeq: seq,
     sessions,
     // The harness wrote this value with `serialize`, from `reduce`.
     reduced: (value.reduced ?? undefined) as TState | undefined,
@@ -846,42 +868,34 @@ function parseCheckpoint<TState>(
 const versionsOf = (
   project: ProjectOptions | undefined,
   reduce: { version?: string } | undefined,
-): CheckpointVersions => ({
+): SnapshotVersions => ({
   ...(project ? { version: project.version ?? '' } : {}),
-  // A checkpoint folded with reduce or project never loads without it, or the reverse.
+  // A snapshot folded with reduce or project never loads without it, or the reverse.
   ...(reduce ? { reduceVersion: reduce.version ?? '' } : {}),
 })
 
 /**
  * Fold the log `logId`, the id in the store (see {@link logIdOf}). The
- * records with no `thread` field belong to `rootThread`. With `metadata`,
- * start from the newest fold checkpoint when it is valid for this log and
- * these versions.
+ * records with no `thread` field belong to `rootThread`. The fold starts
+ * from the snapshot of the log when it is valid for these versions, and
+ * reads only the records after it.
+ *
+ * When the snapshot is not valid and a truncate dropped the first records,
+ * it rejects with `LogTruncatedError`.
  */
 export async function loadLogState<TState = unknown>(options: {
   store: LogStore
   logId: string
   rootThread: string
-  metadata?: MetadataStore
   project?: ProjectOptions
   reduce?: ReduceOptions<TState>
 }) {
-  const { store, logId, rootThread, metadata, project, reduce } = options
-  const saved = metadata
-    ? await metadata.get(CHECKPOINT_NAMESPACE, logId).catch(() => null)
-    : null
-  let state =
-    parseCheckpoint<TState>(saved, versionsOf(project, reduce)) ??
+  const { store, logId, rootThread, project, reduce } = options
+  // A snapshot that does not load only makes the fold longer.
+  const snapshot = await store.getSnapshot({ logId }).catch(() => null)
+  const state =
+    parseSnapshot<TState>(snapshot, versionsOf(project, reduce)) ??
     emptySharedLogState(reduce)
-  if (state.seq > 0) {
-    // A checkpoint past the end of the log belongs to another log.
-    const [atCheckpoint] = await store.read({
-      logId,
-      after: state.seq - 1,
-      limit: 1,
-    })
-    if (!atCheckpoint) state = emptySharedLogState(reduce)
-  }
   const fold: FoldOptions<TState> = {
     rootThread,
     ...(project ? { project: project.record } : {}),
@@ -1078,6 +1092,9 @@ export interface LogReader<TState = unknown> {
  * - When a write fails for another reason (another writer took the
  *   position, or the store failed twice), every session of the log gets
  *   `onFailure`, and every later write rejects.
+ * - The owner writes a snapshot of the whole fold after `afterBytes` of new
+ *   records, or `afterMs` after the first record with no snapshot. With
+ *   `logRecords: 'since-snapshot'`, it then truncates the records before it.
  */
 export class SharedLog<TState = unknown> {
   /** The id of the log in the store. See {@link logIdOf}. */
@@ -1087,8 +1104,17 @@ export class SharedLog<TState = unknown> {
   readonly state: SharedLogState<TState>
   private readonly store: LogStore
   private readonly fold: FoldOptions<TState>
-  private readonly versions: CheckpointVersions
-  private readonly metadata: MetadataStore | undefined
+  private readonly versions: SnapshotVersions
+  private readonly snapshotAfterBytes: number
+  private readonly snapshotAfterMs: number
+  private readonly logRecords: LogRecordRetention
+  /** The position of the newest snapshot that this host knows. */
+  private snapshotSeq: number
+  /** The JSON length of the records folded after `snapshotSeq`. */
+  private bytesSinceSnapshot = 0
+  /** When the first record after `snapshotSeq` folded. */
+  private firstUnsnapshottedAt: number | undefined
+  private snapshotTimer: ReturnType<typeof setTimeout> | undefined
   private readonly coalesceMs: number
   private readonly onIdle: () => void
   private readonly ownership: HostOwnership
@@ -1153,7 +1179,6 @@ export class SharedLog<TState = unknown> {
    */
   private hasLeftWork = false
   private writing = false
-  private writesSinceCheckpoint = 0
   private readonly unsubscribe: () => void
   private readonly stopLost: () => void
   private readonly stopWake: () => void
@@ -1174,7 +1199,10 @@ export class SharedLog<TState = unknown> {
     eventBytes: number
     project?: ProjectOptions
     reduce?: ReduceOptions<TState>
-    metadata?: MetadataStore
+    /** When the owner writes a snapshot. */
+    snapshot?: SnapshotTiming
+    /** Which records the log keeps after a snapshot. Default `'all'`. */
+    logRecords?: LogRecordRetention
     /** Called when the last session closes, or when a write fails. */
     onIdle?: () => void
   }) {
@@ -1184,7 +1212,11 @@ export class SharedLog<TState = unknown> {
     this.logId = options.logId
     this.rootThread = options.rootThread
     this.state = options.state
-    this.metadata = options.metadata
+    this.snapshotAfterBytes =
+      options.snapshot?.afterBytes ?? SNAPSHOT_AFTER_BYTES
+    this.snapshotAfterMs = options.snapshot?.afterMs ?? SNAPSHOT_AFTER_MS
+    this.logRecords = options.logRecords ?? 'all'
+    this.snapshotSeq = options.state.snapshotSeq ?? 0
     this.coalesceMs = options.coalesceMs
     this.eventBytes = options.eventBytes
     this.onIdle = options.onIdle ?? (() => {})
@@ -1402,6 +1434,7 @@ export class SharedLog<TState = unknown> {
       .then(() => {
         if (this.views.size > 0 || this.readers > 0) return
         this.idle = true
+        this.stopSnapshotTimer()
         this.unsubscribe()
         this.stopLost()
         this.stopWake()
@@ -1708,30 +1741,92 @@ export class SharedLog<TState = unknown> {
       this.writing = false
     }
     batch.forEach((record, index) => this.apply({ seq: seq + index, record }))
+    this.wake()
+    // In this write, so no queued release takes the epoch first.
+    if (this.isSnapshotDue()) await this.snapshot()
+    else this.startSnapshotTimer()
     // A write of a session with no work (a setting, a title) gives the log
     // back after it.
     if (![...this.views.values()].some((view) => view.hooks.isBusy())) {
       void this.releaseWhenIdle()
     }
-    this.writesSinceCheckpoint += 1
-    if (this.writesSinceCheckpoint >= CHECKPOINT_EVERY) {
-      this.writesSinceCheckpoint = 0
-      // A lost checkpoint only makes the next cold fold longer.
-      void this.metadata
-        ?.set(
-          CHECKPOINT_NAMESPACE,
-          this.logId,
-          normalize(serialize(this.state, this.versions)),
-        )
-        .catch(() => {})
+  }
+
+  /**
+   * True when this host owns the log, and enough bytes or time passed since
+   * the last snapshot. Only the owner writes one.
+   */
+  private isSnapshotDue() {
+    if (this.epoch === undefined || this.state.seq <= this.snapshotSeq) {
+      return false
     }
-    this.wake()
+    const since = Date.now() - (this.firstUnsnapshottedAt ?? Date.now())
+    return (
+      this.bytesSinceSnapshot >= this.snapshotAfterBytes ||
+      since >= this.snapshotAfterMs
+    )
+  }
+
+  /** A timer for the time limit of the records with no snapshot. */
+  private startSnapshotTimer() {
+    if (this.snapshotTimer !== undefined) return
+    if (this.firstUnsnapshottedAt === undefined) return
+    const since = Date.now() - this.firstUnsnapshottedAt
+    // A host that gave the log back when the timer fires writes none. The
+    // next owner does, at its next write.
+    this.snapshotTimer = setTimeout(() => {
+      this.snapshotTimer = undefined
+      if (this.isSnapshotDue()) {
+        this.enqueue(() => this.snapshot()).catch(() => {})
+      }
+    }, this.snapshotAfterMs - since)
+    // Like the coalescing timer, it must not keep a process alive.
+    const timer = this.snapshotTimer
+    if (typeof timer === 'object' && 'unref' in timer) timer.unref()
+  }
+
+  private stopSnapshotTimer() {
+    if (this.snapshotTimer !== undefined) clearTimeout(this.snapshotTimer)
+    this.snapshotTimer = undefined
+  }
+
+  /** Save the fold of the whole log at its head, with the epoch of this host. */
+  private async snapshot() {
+    const { epoch } = this
+    const { seq } = this.state
+    const isStale = seq <= this.snapshotSeq || this.failure !== undefined
+    if (epoch === undefined || isStale) return
+    try {
+      await this.store.putSnapshot({
+        logId: this.logId,
+        epoch,
+        seq,
+        version: SNAPSHOT_VERSION,
+        state: normalize(serialize(this.state, this.versions)),
+      })
+      this.snapshotSeq = seq
+      this.bytesSinceSnapshot = 0
+      this.firstUnsnapshottedAt = undefined
+      this.stopSnapshotTimer()
+      if (this.logRecords === 'since-snapshot') {
+        await this.store.truncate({
+          logId: this.logId,
+          epoch,
+          beforeSeq: seq + 1,
+        })
+      }
+    } catch (error) {
+      // Another host took the log: this host reads on. Another lost
+      // snapshot or truncate only makes the next open read more records.
+      if (error instanceof OwnershipLostError) this.lose(error)
+    }
   }
 
   /** Stop every session of the log. The host drops it, so the next open folds again. */
   private fail(error: unknown) {
     this.failure = error
     this.idle = true
+    this.stopSnapshotTimer()
     for (const view of [...this.views.values()]) view.hooks.onFailure(error)
     // The readers end: their log stopped.
     this.wake()
@@ -1824,9 +1919,14 @@ export class SharedLog<TState = unknown> {
   private async catchUp() {
     if (this.failure !== undefined) return
     const before = this.state.seq
-    await readAll(this.store, this.logId, this.state, (entry) =>
-      this.apply(entry),
-    )
+    try {
+      await readAll(this.store, this.logId, this.state, (entry) =>
+        this.apply(entry),
+      )
+    } catch (error) {
+      if (!(error instanceof LogTruncatedError)) throw error
+      await this.foldFromSnapshot(error)
+    }
     if (this.state.seq === before) return
     if (this.epoch !== undefined) {
       this.lose(new OwnershipLostError(this.logId, this.epoch))
@@ -1834,8 +1934,37 @@ export class SharedLog<TState = unknown> {
     this.wake()
   }
 
+  /**
+   * The owner truncated records that this fold did not read yet. Take the
+   * fold of the snapshot, then read the records after it. The events of the
+   * dropped records are not in the tail, so a reader of them gets a gap.
+   */
+  private async foldFromSnapshot(truncated: LogTruncatedError) {
+    const snapshot = await this.store.getSnapshot({ logId: this.logId })
+    const loaded = parseSnapshot<TState>(snapshot, this.versions)
+    if (!loaded) throw truncated
+    // The views read their state from `sessions` by thread on each call, so
+    // new entries replace the old ones.
+    this.state.sessions.clear()
+    for (const [thread, session] of loaded.sessions) {
+      this.state.sessions.set(thread, session)
+    }
+    this.state.seq = loaded.seq
+    this.state.reduced = loaded.reduced
+    this.snapshotSeq = loaded.seq
+    this.tail.length = 0
+    this.tailBytes = 0
+    this.tailFrom = loaded.seq
+    await readAll(this.store, this.logId, this.state, (entry) =>
+      this.apply(entry),
+    )
+  }
+
   private apply(entry: LogEntry) {
     foldLogEntry(this.state, entry, this.fold)
+    // ponytail: one more JSON length per record, for the snapshot limit.
+    this.bytesSinceSnapshot += JSON.stringify(entry.record).length
+    this.firstUnsnapshottedAt ??= Date.now()
     const { record } = entry
     const thread = threadOf(record, this.rootThread)
     // A result in the transcript does not wait for a commit any more.
@@ -1894,11 +2023,22 @@ export class SharedLog<TState = unknown> {
       if (after < this.tailFrom) {
         // Older than the in-memory tail: page it from the store.
         const upTo = this.tailFrom
-        const page = await this.store.read({
-          logId: this.logId,
-          after,
-          limit: READ_PAGE,
-        })
+        let page: Array<LogEntry>
+        try {
+          page = await this.store.read({
+            logId: this.logId,
+            after,
+            limit: READ_PAGE,
+          })
+        } catch (error) {
+          if (!(error instanceof LogTruncatedError)) throw error
+          // A truncate dropped the events after `after`: say so once, then
+          // go on from the first stored record.
+          const resumeAt = error.firstSeq - 1
+          yield gapEvent(String(after), String(resumeAt))
+          after = resumeAt
+          continue
+        }
         for (const entry of page) {
           if (entry.seq > upTo || signal?.aborted) break
           after = entry.seq
@@ -1966,6 +2106,22 @@ function mergeDelta(first: StreamChunk, second: StreamChunk): StreamChunk {
     return { ...first, delta: first.delta + rest, timestamp: second.timestamp }
   }
   return second
+}
+
+/** The `harness.gap` event for a reader at `from`. Its cursor is `resumeAt`. */
+function gapEvent(from: Cursor, resumeAt: Cursor): SessionEvent {
+  const value: EventGap = { from, resumeAt, reason: 'truncated' }
+  return {
+    cursor: resumeAt,
+    // No operation made it. Like a session input, it belongs to the session.
+    operationId: 'session',
+    event: {
+      type: EventType.CUSTOM,
+      name: HARNESS_EVENTS.gap,
+      value,
+      timestamp: Date.now(),
+    },
+  }
 }
 
 function sessionEventOf(entry: LogEntry) {
@@ -2133,9 +2289,9 @@ export function logMessageStore(options: {
   tenantId?: string
 }) {
   const { store, project, tenantId } = options
-  // ponytail: each read and save folds the whole log of the thread, with no
-  // checkpoint: O(n) per save. Pass `metadata` to loadLogState and write
-  // checkpoints here when a long log gets slow.
+  // ponytail: each read and save folds the log of the thread from its
+  // snapshot. This store writes no snapshot (it owns no epoch), so a log
+  // that only this store writes folds from the start: O(n) per save.
   const logOf = (threadId: string) => logIdOf({ tenantId, logId: threadId })
   const load = (threadId: string) =>
     loadLogState({

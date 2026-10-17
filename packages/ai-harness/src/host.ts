@@ -39,7 +39,7 @@ import type {
 import type { HandleGuard } from './session/handle'
 import type { AnyHarness, SessionMetadataOf } from './define'
 import type { SessionEntryChange, SessionEntryUpdate } from './session-entry'
-import type { ReduceOptions } from './log'
+import type { LogRecordRetention, ReduceOptions, SnapshotTiming } from './log'
 import type { OwnershipOptions } from './ownership'
 import type { HarnessSession } from './session/index'
 import type { ObservedSession } from './session/observed-session'
@@ -120,6 +120,18 @@ export interface HarnessHostOptions<P extends Principal = Principal> {
      * event) append at once. Default 100.
      */
     coalesceMs?: number
+    /**
+     * When the owner of a log saves a snapshot of its whole fold (every
+     * thread of the session tree) in the log store, at the first limit it
+     * meets. A new host opens from the snapshot, and reads only the records
+     * after it.
+     *
+     * - `afterBytes`: after this many bytes of new records, as the JSON
+     *   length of each. Default 1 000 000.
+     * - `afterMs`: this many milliseconds after the first record with no
+     *   snapshot. Default 300 000 (5 minutes).
+     */
+    snapshot?: SnapshotTiming
   }
   /**
    * How this host owns the threads it writes to. A host owns a thread from
@@ -148,13 +160,13 @@ export interface HostLifecycleOptions {
    * When there are none, the open goes on, with one warning. Default 500.
    */
   maxOpen?: number
-  /** How much each session keeps in memory. */
+  /** How much each session keeps in memory, and which records a log keeps. */
   retention?: RetentionLimits
 }
 
 /**
  * How much each session keeps in memory, so a long-lived session does not
- * grow. Leave a field out for its default.
+ * grow, and which records its log keeps. Leave a field out for its default.
  */
 export interface RetentionLimits {
   /**
@@ -178,6 +190,14 @@ export interface RetentionLimits {
    * 8 000 000.
    */
   eventBytes?: number
+  /**
+   * Which records the log store keeps. `'all'` (the default) keeps every
+   * record. `'since-snapshot'`: after each snapshot (see `log.snapshot`),
+   * the owner truncates the records before it. A reader whose cursor is
+   * before the cut then gets one `harness.gap` event, and goes on from the
+   * first stored record.
+   */
+  logRecords?: LogRecordRetention
 }
 
 /** {@link RetentionLimits} with every default filled in. */
@@ -294,7 +314,6 @@ export interface HostSessions<P extends Principal = Principal> {
    *   for an owner.
    * - deletes its media: the uploads and the generated files, records and
    *   bytes.
-   * - deletes its log checkpoint from `stores.metadata`.
    * - removes its index entry. Then `get` is `undefined`, and the next open
    *   of the thread writes a new entry.
    *
@@ -1086,7 +1105,7 @@ export function createHarnessHost<P extends Principal = Principal>(
     },
   }
   const logStore = persistence.stores.log
-  const { metadata, sessions: sessionStore } = persistence.stores
+  const { sessions: sessionStore } = persistence.stores
   /** One per running `host.events()` read. */
   const listeners = new Set<(event: HostEvent) => void>()
   const emit = (event: HostEvent) => {
@@ -1127,6 +1146,7 @@ export function createHarnessHost<P extends Principal = Principal>(
     settledOperations: limits?.settledOperations ?? 500,
     settledAgentRuns: limits?.settledAgentRuns ?? 500,
     eventBytes: limits?.eventBytes ?? 8_000_000,
+    logRecords: limits?.logRecords ?? 'all',
   }
   const hostId = `host-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
   /** The logs that this host owns. One timer renews them all. */
@@ -1160,7 +1180,6 @@ export function createHarnessHost<P extends Principal = Principal>(
       store,
       logId,
       rootThread,
-      ...(metadata ? { metadata } : {}),
       ...(project ? { project } : {}),
       ...(reduce ? { reduce } : {}),
     }).then((state) => {
@@ -1175,7 +1194,8 @@ export function createHarnessHost<P extends Principal = Principal>(
         eventBytes: retention.eventBytes,
         ...(project ? { project } : {}),
         ...(reduce ? { reduce } : {}),
-        ...(metadata ? { metadata } : {}),
+        ...(options.log?.snapshot ? { snapshot: options.log.snapshot } : {}),
+        logRecords: retention.logRecords,
         // The next open folds the log again.
         onIdle: () => {
           if (logs.get(logId) === loaded) logs.delete(logId)

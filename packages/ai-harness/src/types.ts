@@ -702,4 +702,24 @@ export const HARNESS_EVENTS = {
    * known), the `usage` of the call, and the new thread `total`.
    */
   usage: 'harness.usage',
+  /**
+   * The events after the reader's cursor are gone (a truncate dropped them),
+   * so the stream skips to the first event it has. The value is an
+   * `EventGap`. The cursor of this event is `resumeAt`. Load the snapshot and
+   * the transcript again.
+   */
+  gap: 'harness.gap',
 } as const
+
+/** The value of a `harness.gap` event. */
+export interface EventGap {
+  /** The cursor that the reader asked for. */
+  from: Cursor
+  /**
+   * The cursor that the stream goes on from: the events after it are
+   * stored. It is also the cursor of the gap event.
+   */
+  resumeAt: Cursor
+  /** `'truncated'`: a truncate of the log dropped the events. */
+  reason: 'truncated' | 'evicted'
+}

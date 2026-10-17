@@ -27,9 +27,6 @@ const THREAD = 't1'
 const alice = { id: 'alice' }
 const HIGH: ReasoningRequest = { level: 'high', summary: true }
 
-/** Where the log keeps its fold checkpoints. It is not thread state. */
-const CHECKPOINTS = 'harness:log-checkpoint'
-
 /**
  * Memory stores, as two servers share them, and the metadata namespaces
  * that the harness writes. Thread state goes to the log, so the list stays
@@ -40,7 +37,7 @@ function sharedStores() {
   const persistence = { stores: { log, metadata } }
   const written: Array<string> = []
   const record = (namespace: string) => {
-    if (namespace !== CHECKPOINTS) written.push(namespace)
+    written.push(namespace)
   }
   const { setIf } = metadata
   if (!setIf) throw new Error('The memory store has compare-and-set.')
