@@ -141,6 +141,7 @@ export type {
   SessionInspection,
   SessionSnapshot,
 } from './session/index'
+export type { ObservedSession } from './session/observed-session'
 export type { SessionUsage, UsageCounts } from './usage'
 export type { OnHarnessEvent } from './feed'
 

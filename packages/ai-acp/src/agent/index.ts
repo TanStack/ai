@@ -251,7 +251,8 @@ const APPROVAL_OPTIONS = [
  *
  * The agent holds one handle per session. `session/close` releases it, and
  * the close of the connection releases them all. The host then closes each
- * session when it is idle.
+ * session when it is idle. `session/resume` only checks the session index:
+ * the session opens at its first prompt.
  *
  * ACP v2 is a draft, so this API is experimental too.
  */
@@ -298,22 +299,30 @@ export function createAcpAgent<P extends Principal = Principal>(
   }
 
   /**
-   * The session of an id that this agent or the session index knows. A
-   * subagent child is not a session of its own: ACP reaches it through its
-   * parent. A session that the principal may not read gets the same answer
-   * as an unknown id.
+   * Throw unless this agent or the session index knows the id. A subagent
+   * child is not a session of its own: ACP reaches it through its parent. A
+   * session that the principal may not read gets the same answer as an
+   * unknown id. It reads the index only: no session opens.
    */
-  const known = async (sessionId: string) => {
+  const checkKnown = async (sessionId: string) => {
+    if (handles.has(sessionId)) return
     try {
-      if (!handles.has(sessionId)) {
-        const entry = await host.sessions.get({
-          threadId: sessionId,
-          principal,
-        })
-        const isOwnSession =
-          entry?.harness === harness.name && entry.parentThreadId === undefined
-        if (!isOwnSession) throw RequestError.resourceNotFound(sessionId)
+      const entry = await host.sessions.get({ threadId: sessionId, principal })
+      const isOwnSession =
+        entry?.harness === harness.name && entry.parentThreadId === undefined
+      if (!isOwnSession) throw RequestError.resourceNotFound(sessionId)
+    } catch (error) {
+      if (error instanceof AccessDeniedError) {
+        throw RequestError.resourceNotFound(sessionId)
       }
+      throw error
+    }
+  }
+
+  /** The session of an id that this agent or the session index knows. */
+  const known = async (sessionId: string) => {
+    await checkKnown(sessionId)
+    try {
       return await live(sessionId)
     } catch (error) {
       if (error instanceof AccessDeniedError) {
@@ -532,8 +541,9 @@ export function createAcpAgent<P extends Principal = Principal>(
           nextCursor: page.truncated ? page.cursor : null,
         }
       })
+      // The session opens at its first prompt: a resume mounts nothing.
       .onRequest('session/resume', async ({ params }) => {
-        await known(params.sessionId)
+        await checkKnown(params.sessionId)
         return {}
       })
       .onRequest('session/prompt', async ({ params, client }) => {

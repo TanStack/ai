@@ -34,8 +34,10 @@ import type {
   HarnessHost,
   HarnessSession,
   MediaRecord,
+  ObservedSession,
   Operation,
   Principal,
+  SessionSnapshot,
 } from '@tanstack/ai-harness'
 import type { OpenAccess } from '@tanstack/ai-harness/server'
 import type { ContentBlock } from '@modelcontextprotocol/server'
@@ -188,7 +190,8 @@ const attachmentsSchema: JSONSchema = {
  * `harness.expose.tools`.
  * Every tool takes an optional `threadId`. Sessions open with
  * `host.open(harness, { threadId, principal })`, so the host checks each
- * call.
+ * call. The `status` tool and the media resource only read: they use
+ * `host.observe`, so they open no session and mount no plugins.
  *
  * Who makes the calls:
  *
@@ -274,6 +277,9 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
   const open = (threadId: string, context: Record<string, unknown>) =>
     host.open(harness, { threadId, principal: principalOf(context) })
 
+  const observe = (threadId: string, context: Record<string, unknown>) =>
+    host.observe(harness, { threadId, principal: principalOf(context) })
+
   /**
    * The execute of a tool that works on the session of its thread. The
    * session opens for the user of the call, so the host checks each action.
@@ -296,6 +302,24 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
         } finally {
           await session.close()
         }
+      } catch (error) {
+        if (error instanceof AccessDeniedError) throw deniedError(error)
+        throw error
+      }
+    }
+
+  /**
+   * The execute of a tool that only reads its thread. It reads with
+   * `host.observe`, so it opens no session and mounts no plugins. A refused
+   * read becomes a tool error that says so.
+   */
+  const onView =
+    <T>(work: (view: ObservedSession) => Promise<T>) =>
+    async (args: unknown, ctx: ToolExecutionContext<CallContext>) => {
+      try {
+        return await work(
+          await observe(threadOf(args, defaultThread), ctx.context),
+        )
       } catch (error) {
         if (error instanceof AccessDeniedError) throw deniedError(error)
         throw error
@@ -345,7 +369,7 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
       const outcome = await settle(session, operation, from)
       if (!outcome.done) {
         waiting.set(outcome.questionId, operation)
-        return { status: 'waiting', ...pending(session) }
+        return { status: 'waiting', ...pending(session.snapshot()) }
       }
       media.push(...(await mediaOf(operation)))
       if (operation.kind !== 'chat') {
@@ -359,7 +383,7 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
         const result = {
           status: operation.status(),
           text: turnText(outcome.value),
-          ...pending(session),
+          ...pending(session.snapshot()),
         }
         return withMedia(session, result, media)
       }
@@ -532,7 +556,7 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
       waiting.delete(questionId)
       // A question that no tool call waits on: nothing to continue.
       if (operation === undefined) {
-        return { status: 'answered', ...pending(session) }
+        return { status: 'answered', ...pending(session.snapshot()) }
       }
       return finish(session, operation, from, context)
     }),
@@ -544,11 +568,11 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
       'Show what the harness does now: the status, the interrupts and questions that wait, the background agents, and the queued turns.',
     inputSchema: withThreadId(undefined),
   }).server<CallContext>(
-    onSession(async (session) => {
-      const snapshot = session.snapshot()
+    onView(async (view) => {
+      const snapshot = await view.snapshot()
       return {
         status: snapshot.status,
-        ...pending(session),
+        ...pending(snapshot),
         agents: snapshot.activeOperations
           .filter((operation) => operation.kind === 'agent')
           .map(({ id, agent }) => ({ id, agent })),
@@ -701,17 +725,14 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
     argsSchema: { parse: mediaAddress },
   }).read(async (_uri, { threadId, id }, ctx) => {
     try {
-      const target = await open(threadId, ctx.context)
-      try {
-        const record = await target.getMedia(id)
-        if (record === null) {
-          throw new Error(`Media ${id} was not found in thread ${threadId}.`)
-        }
-        const blob = toBase64(await target.loadMedia({ id }))
-        return { blob, mimeType: record.mimeType }
-      } finally {
-        await target.close()
+      // A read: no session opens.
+      const view = await observe(threadId, ctx.context)
+      const record = await view.getMedia(id)
+      if (record === null) {
+        throw new Error(`Media ${id} was not found in thread ${threadId}.`)
       }
+      const blob = toBase64(await view.loadMedia({ id }))
+      return { blob, mimeType: record.mimeType }
     } catch (error) {
       if (error instanceof AccessDeniedError) throw deniedError(error)
       throw error
@@ -862,8 +883,8 @@ async function questionAfter(
   return undefined
 }
 
-function pending(session: HarnessSession) {
-  const snapshot = session.snapshot()
+/** The interrupts and questions of `snapshot` that wait for the client. */
+function pending(snapshot: SessionSnapshot) {
   return {
     interrupts: snapshot.pendingInterrupts.map((interrupt) => ({
       id: interrupt.id,

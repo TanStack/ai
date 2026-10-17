@@ -798,6 +798,35 @@ describe('ACP agent handlers', () => {
     })
   })
 
+  it('resumes a session without opening it: it opens at its first prompt', async () => {
+    const { harness, host, editor, idle, textOf } = setup({
+      lifecycle: { idleCloseMs: 0 },
+    })
+    close = () => host.close()
+    await (await host.open(harness, { threadId: 'kept-session' })).close()
+    const isOpen = () => host.isOpen(harness, { threadId: 'kept-session' })
+    await editor.connectWith(createAcpAgent({ host, harness }), async (ctx) => {
+      await ctx.request('initialize', {
+        protocolVersion: 2,
+        info: { name: 'editor', version: '1.0.0' },
+      })
+
+      await ctx.request('session/resume', {
+        sessionId: 'kept-session',
+        cwd: '/tmp',
+      })
+      expect(isOpen()).toBe(false)
+
+      await ctx.request('session/prompt', {
+        sessionId: 'kept-session',
+        prompt: [{ type: 'text', text: 'hello' }],
+      })
+      await vi.waitFor(() => expect(idle('kept-session')).toBeDefined())
+      expect(textOf('kept-session')).toBe('echo: hello')
+      expect(isOpen()).toBe(true)
+    })
+  })
+
   describe('on a host with access', () => {
     const olga = { id: 'olga', tenantId: 'acme' }
     const bea = { id: 'bea', tenantId: 'acme' }

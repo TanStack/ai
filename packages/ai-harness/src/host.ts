@@ -7,6 +7,7 @@ import { SharedLog, loadLogState, logIdOf, parseLogId } from './log'
 import { LEASE } from './resume'
 import { SessionImpl } from './session/harness-session'
 import { sessionHandle } from './session/handle'
+import { observedSession } from './session/observed-session'
 import { HARNESS_EVENTS } from './types'
 import { isRecord } from './utils'
 import { changedEntry } from './session-entry'
@@ -42,6 +43,7 @@ import type { SessionEntryChange, SessionEntryUpdate } from './session-entry'
 import type { ReduceOptions } from './log'
 import type { LeaseOptions } from './resume'
 import type { HarnessSession } from './session/index'
+import type { ObservedSession } from './session/observed-session'
 import type { ForkPoint, Principal } from './types'
 
 type SharedStores = {
@@ -510,6 +512,32 @@ export interface HarnessHost<P extends Principal = Principal> {
     options: OpenSessionOptions<P>,
   ) => Promise<HarnessSession<THarness>>
   /**
+   * A read-only view of a thread of `harness`, for `principal`: its events,
+   * transcript, snapshot, media, usage, and index entry (see
+   * `ObservedSession`). It mounts no plugins, writes nothing (no index entry, no
+   * metadata), claims nothing, and runs no recovery, so a read of an idle
+   * thread costs only store reads. When the session of the thread is open on
+   * this host, the view reads through it, and it never holds it open. On a
+   * durable host, the views of one log share its fold and its events. Use
+   * `open` for a write, or for what needs plugins (`describe`).
+   *
+   * With access, `principal` is required, and the thread needs the `read`
+   * action, else the call throws `AccessDeniedError`. A child thread is
+   * checked through its root thread. A thread with no index entry gets the
+   * same answer as a refusal: a read creates no thread. Throws after
+   * `host.close()`.
+   *
+   * @example
+   * ```ts
+   * const view = await host.observe(assistant, { threadId: 't-1', principal })
+   * const snapshot = await view.snapshot()
+   * ```
+   */
+  observe: <THarness extends AnyHarness>(
+    harness: THarness,
+    options: Pick<OpenSessionOptions<P>, 'threadId' | 'principal' | 'logId'>,
+  ) => Promise<ObservedSession<THarness>>
+  /**
    * Is a session of `harness` open on `threadId` on this host, in the tenant
    * of `principal`? A session that closed on idle is not open, also when a
    * handle of it still exists.
@@ -576,12 +604,14 @@ export interface HarnessHost<P extends Principal = Principal> {
    */
   reload: (harness: AnyHarness) => Promise<void>
   /**
-   * Close every live session, for every handle, and refuse later opens.
-   * After it, a call on a handle throws, except a read that gives a value at
-   * once (`snapshot()`): it reads the last state. With `recoverable`, the
-   * running work stops with no settlement, and the next host that opens a
-   * thread runs it again: use it when a durable host shuts down, for
-   * example for a deploy. Without it, the running work is cancelled.
+   * Close every live session, for every handle, end the event reads of
+   * every `observe` view, and refuse later opens and views. After it, a call
+   * on a view throws, and so does a call on a handle, except a read that
+   * gives a value at once (`snapshot()`): it reads the last state. With
+   * `recoverable`, the running work stops with no settlement, and the next
+   * host that opens a thread runs it again: use it when a durable host shuts
+   * down, for example for a deploy. Without it, the running work is
+   * cancelled.
    *
    * @example
    * ```ts
@@ -591,10 +621,11 @@ export interface HarnessHost<P extends Principal = Principal> {
   close: (options?: { recoverable?: boolean }) => Promise<void>
   /**
    * The `durability.reduce` fold of `harness` for a log that has an open
-   * session in this host. `logId` is the `logId` of `open`, in the tenant of
-   * `principal`. `undefined` when no session has the log open, or when the
-   * reduce of another harness folded the log (the harness of its first
-   * session folds a shared log).
+   * session or a running `observe` read in this host. `logId` is the `logId`
+   * of `open`, in the tenant of `principal`. `undefined` when nothing has the
+   * log open, or when the reduce of another harness folded the log (the
+   * harness of its first session folds a shared log). `view.logState()` of
+   * `host.observe` reads a log that is not open too.
    *
    * @example
    * ```ts
@@ -1728,6 +1759,28 @@ export function createHarnessHost<P extends Principal = Principal>(
     }
   }
 
+  /**
+   * A reader of the log `ids` for the thread `threadId`, on a durable host,
+   * and the reduce that folds the log. It shares the log of the open
+   * sessions and the other readers. Close it after the read.
+   */
+  const readLog = async (
+    store: LogStore,
+    ids: { logId: string; rootThread: string },
+    harness: AnyHarness,
+    threadId: string,
+  ) => {
+    let log = await sharedLog(store, ids, harness)
+    // The log closed while this read waited, and the host dropped it.
+    while (!log.isOpen) log = await sharedLog(store, ids, harness)
+    // `host.close()` ran while the log loaded: it stopped the readers.
+    if (isClosed) throw hostClosed()
+    return {
+      reader: log.reader(threadId),
+      reduce: resolved.get(ids.logId)?.reduce,
+    }
+  }
+
   const host: HarnessHost<P> = {
     async open(harness, openOptions) {
       if (isClosed) throw hostClosed()
@@ -1742,6 +1795,43 @@ export function createHarnessHost<P extends Principal = Principal>(
         await release(key)
         throw error
       }
+    },
+    async observe(harness, { threadId, principal, logId: openLogId }) {
+      if (isClosed) throw hostClosed()
+      const tenantId = principal?.tenantId
+      if (access) {
+        const user = need(principal, 'host.observe')
+        const entry = await index.get({ tenantId, threadId })
+        // No entry is not found: the same answer as a refusal.
+        if (!entry) throw new AccessDeniedError({ action: 'read', threadId })
+        // `allow` checks a child thread through its root thread.
+        await allow({ principal: user, action: 'read', threadId, entry })
+      }
+      const key = sessionKey(harness.name, tenantId, threadId)
+      const logId = openLogId ?? threadId
+      const ids = { logId: logIdOf({ tenantId, logId }), rootThread: logId }
+      return observedSession({
+        harness,
+        threadId,
+        tenantId,
+        live: () => {
+          const open = isClosed ? undefined : live.get(key)
+          // The key names the harness, so the session is a session of
+          // `harness`, as in `openSession`.
+          return open && !open.isClosing()
+            ? (open as SessionImpl<typeof harness>)
+            : undefined
+        },
+        check: () => {
+          if (isClosed) throw hostClosed()
+        },
+        index,
+        persistence,
+        media,
+        readLog: logStore
+          ? () => readLog(logStore, ids, harness, threadId)
+          : undefined,
+      })
     },
     isOpen(harness, { threadId, principal }) {
       if (access) need(principal, 'host.isOpen')
@@ -1871,6 +1961,8 @@ export function createHarnessHost<P extends Principal = Principal>(
       // First: no open starts while the sessions close.
       isClosed = true
       for (const key of holds.keys()) cancelIdle(key)
+      // The event reads of `host.observe` views end.
+      for (const { log } of resolved.values()) log.stopReaders()
       await Promise.allSettled(closing.values())
       const opened = await Promise.allSettled(sessions.values())
       await Promise.all(

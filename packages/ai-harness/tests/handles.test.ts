@@ -238,15 +238,20 @@ describe('the HTTP handler', () => {
     await host.close()
   }, 60_000)
 
-  it('releases the handle of an event stream when the client leaves', async () => {
-    const { host, harness, isOpen } = setup({ idleCloseMs: 0 })
+  it('holds no handle for an event stream, so the session still closes on idle', async () => {
+    const { host, harness, isOpen, open } = setup({ idleCloseMs: 0 })
     const handler = createHarnessHandler({ host, harness, openAccess: true })
+    const session = await open('t1')
+    await session.send('Hello.')
     const response = await handler(new Request(`${BASE}/events?threadId=t1`))
+    // Only the handle of `open`.
     expect(hostCountsOf(host).handles).toBe(1)
 
-    await response.body?.cancel()
+    await session.close()
 
-    await vi.waitFor(() => expect(isOpen('t1')).toBe(false))
+    // The stream read the open session, and it ends with it.
+    expect(await response.text()).toContain('Hello back.')
+    expect(isOpen('t1')).toBe(false)
     expect(hostCountsOf(host).handles).toBe(0)
     await host.close()
   })

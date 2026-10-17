@@ -98,6 +98,21 @@ export function revertOf(value: unknown): RevertState | undefined {
   }
 }
 
+/**
+ * The messages that the transcript shows: while `revert` stands, the
+ * messages after its message are hidden.
+ */
+export function visibleMessages(
+  messages: ReadonlyArray<ModelMessage>,
+  revert: RevertState | undefined,
+) {
+  const at =
+    revert === undefined
+      ? -1
+      : messages.findIndex((message) => message.id === revert.messageId)
+  return at < 0 ? [...messages] : messages.slice(0, at + 1)
+}
+
 const HARNESS_RECORD_TYPES = new Set<string>([
   'harness.event',
   'harness.transcript',
@@ -844,6 +859,29 @@ export interface LogWriter extends EventFeed {
 }
 
 /**
+ * A read view of one session of a shared log, from {@link SharedLog.reader}.
+ * It follows what the writers append, and it never writes.
+ */
+export interface LogReader<TState = unknown> {
+  /** The fold of the session. Empty when the log has no record of it. */
+  readonly state: LogState
+  /** The `reduce` fold of the whole log. */
+  readonly reduced: TState | undefined
+  /** The log position. */
+  head: () => Cursor
+  /**
+   * The events of the session after `from` (exclusive), then each new one,
+   * until `signal` aborts, the reader closes, or the log fails.
+   */
+  read: (options: {
+    from?: Cursor
+    signal?: AbortSignal
+  }) => AsyncIterable<SessionEvent>
+  /** Let go of the log. A second call does nothing. */
+  close: () => void
+}
+
+/**
  * Writes one log for every session that shares it, and keeps its fold.
  * All writes run one after another. Each batch goes at the next position.
  * When a write fails (another writer took the position, or the store failed
@@ -899,6 +937,10 @@ export class SharedLog<TState = unknown> {
   private readonly waiters = new Set<() => void>()
   /** The threads with an open view. */
   private readonly threads = new Set<string>()
+  /** The open readers. Like the views, they keep the log open. */
+  private readers = 0
+  /** `stopReaders` ran: every read of a reader ends. */
+  private readersStopped = false
   private idle = false
   private writing = false
   private hasWritten = false
@@ -952,11 +994,57 @@ export class SharedLog<TState = unknown> {
   }
 
   /**
-   * False after the last view closed or a write failed. The host then opens
-   * a new log.
+   * False after the last view and the last reader closed, or after a write
+   * failed. The host then opens a new log.
    */
   get isOpen() {
     return !this.idle
+  }
+
+  /**
+   * A read view of session `threadId`: its fold and its events, which follow
+   * what the writers append. It never writes, and it is not a view of the
+   * thread, so a session of the thread can open while it reads. The readers
+   * of one log share its fold and its tail of events. Close it after the
+   * read: the log stays open while a view or a reader is open.
+   */
+  reader(threadId: string): LogReader<TState> {
+    if (this.idle) {
+      throw new Error(`The log ${JSON.stringify(this.logId)} is closed.`)
+    }
+    this.readers += 1
+    const shared = this.state
+    let closed = false
+    return {
+      get state() {
+        // Not `sessionOf`: a read adds no session to the fold.
+        return shared.sessions.get(threadId) ?? emptyLogState()
+      },
+      get reduced() {
+        return shared.reduced
+      },
+      head: () => this.head(),
+      read: (options) =>
+        this.read(threadId, {
+          ...options,
+          isClosed: () =>
+            closed || this.readersStopped || this.failure !== undefined,
+        }),
+      close: () => {
+        if (closed) return
+        closed = true
+        this.readers -= 1
+        // Its readers end. The others wait again.
+        this.wake()
+        this.idleWhenUnused()
+      },
+    }
+  }
+
+  /** End the reads of every reader, for a host that closes. */
+  stopReaders() {
+    this.readersStopped = true
+    this.wake()
   }
 
   /** The view of session `threadId`. Close it when the session closes. */
@@ -1022,12 +1110,23 @@ export class SharedLog<TState = unknown> {
     }
     // The readers of the closed view end. The others wait again.
     this.wake()
-    // Idle only after the last append landed. Until then the host keeps
-    // this log, so an open of the thread gets it, not a fold without it.
+    this.idleWhenUnused()
+  }
+
+  /**
+   * Close the log when no view and no reader uses it. Only after the last
+   * append landed: until then the host keeps this log, so an open of the
+   * thread gets it, not a fold without it.
+   */
+  private idleWhenUnused() {
     void this.flush()
       .catch(() => {})
       .then(() => {
         if (this.threads.size > 0) return
+        // No session of this host writes any more, so the readers follow the
+        // records of another host, as a host that only reads does.
+        this.hasWritten = false
+        if (this.readers > 0) return
         this.idle = true
         this.unsubscribe()
         this.onIdle()
@@ -1216,6 +1315,8 @@ export class SharedLog<TState = unknown> {
     this.failure = error
     this.idle = true
     for (const listener of [...this.failureListeners]) listener(error)
+    // The readers end: their log stopped.
+    this.wake()
     this.onIdle()
   }
 
