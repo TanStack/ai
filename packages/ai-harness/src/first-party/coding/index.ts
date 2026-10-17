@@ -13,4 +13,11 @@ export type {
   SnapshotsOptions,
 } from './snapshots'
 export { FormatFailed, formatter } from './formatter'
+export {
+  FormatterRewrote,
+  JobEnded,
+  JobOutput,
+  JobStarted,
+  SnapshotFailed,
+} from './events'
 export type { Formatter, FormatterOptions, FormatterProject } from './formatter'

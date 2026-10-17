@@ -286,15 +286,19 @@ describe('list_files and grep engines', () => {
     )
   })
 
-  it('rg: grep drops the lines of a protected file, and lists the files to count them', async () => {
+  it('rg: grep drops the lines of a protected file, and lists the files to count them in the same command', async () => {
+    // One shell runs the list, an `echo` of a marker line, and the search,
+    // like `sh` does with `;`.
+    const listAndSearch =
+      /^rg --files .* \. ; echo (-- [\w-]+ --) ; rg --line-number .* \.$/
     const fake = fakeBackend(
       { '.env': 'two=1\n', 'a.ts': 'two\n' },
       (command) => {
         if (command === 'rg --version') return ok('ripgrep 14.1.0')
-        if (command.startsWith('rg --files ')) return ok('./.env\0./a.ts\0')
-        return command.startsWith('rg --line-number ')
-          ? ok('./.env\x001:two=1\n./a.ts\x001:two\n')
-          : undefined
+        const marker = listAndSearch.exec(command)?.[1]
+        if (marker === undefined) return undefined
+        const hits = './.env\x001:two=1\n./a.ts\x001:two\n'
+        return ok(`./.env\0./a.ts\0${marker}\n${hits}`)
       },
     )
     // Rules that ask about every .env file, like permissions() does.
@@ -310,9 +314,29 @@ describe('list_files and grep engines', () => {
     )
     expect(fake.commands).toEqual([
       'rg --version',
-      expect.stringMatching(/^rg --files /),
-      expect.stringMatching(/^rg --line-number /),
+      expect.stringMatching(listAndSearch),
     ])
+  })
+
+  it('git: grep with protected files lists the files once', async () => {
+    const fake = fakeBackend(
+      { '.env': 'two=1\n', 'a.ts': 'two\n' },
+      (command) => (command === GIT ? ok('.env\0a.ts\0') : undefined),
+    )
+    const readdir = vi.spyOn(fake.backend, 'readdir')
+    const { grep } = searchOn(fake.backend, root, {
+      ask: async () => 'n',
+      mode: () => 'default',
+      rules: () => (_tool, paths) =>
+        paths.some((path) => path.endsWith('.env')) ? 'ask' : 'allow',
+    })
+
+    expect(await grep({ pattern: 'two' })).toBe(
+      'a.ts:1: two\n[Skipped 1 file that the permission rules protect.]',
+    )
+    expect(fake.commands.filter((command) => command === GIT)).toHaveLength(1)
+    // The link check of the git list reads the root folder once.
+    expect(readdir.mock.calls).toEqual([[root]])
   })
 })
 

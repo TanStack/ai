@@ -1,12 +1,18 @@
 import { posix } from 'node:path'
 import { shellQuote } from './journal'
 import type { WorkspaceBackend } from '@tanstack/ai-harness/plugins/coding'
-import type { ExecResult, SandboxHandle } from './contracts'
+import type { ExecResult, SandboxFs, SandboxHandle } from './contracts'
 
 /** A background job keeps the newest 1 MiB of its output. */
 const MAX_JOB_OUTPUT = 1024 * 1024
 /** `realpath` follows at most this many links, like Linux. */
 const MAX_LINKS = 40
+/** The first bytes that `readLines` gives, for the file type check. */
+const HEAD_BYTES = 8 * 1024
+/** `readLines` gives no more lines after this many bytes. */
+const MAX_PAGE_BYTES = 64 * 1024
+/** The line in the output of `readLines` between the head and the lines. */
+const LINES_MARK = '@lines'
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
@@ -69,6 +75,34 @@ function createOutputTail(maxBytes: number) {
 }
 
 /**
+ * The page in the output of the `readLines` command, for a page from line
+ * `first`. The output is the size, the first bytes as hex from `od`, a line
+ * {@link LINES_MARK}, the lines of the page, and a last line: `more`, or
+ * `total` and the number of lines.
+ */
+function parsePage(stdout: string, first: number) {
+  const rows = stdout.split('\n')
+  // The output ends with a newline, so the last row is empty.
+  if (rows.at(-1) === '') rows.pop()
+  const mark = rows.indexOf(LINES_MARK)
+  const status = rows.at(-1) ?? ''
+  const isPage =
+    mark > 0 && mark < rows.length - 1 && /^(more|total \d+)$/.test(status)
+  if (!isPage) {
+    throw new Error('readLines: the output of the sandbox is not a page.')
+  }
+  const size = Number((rows[0] ?? '').trim())
+  const hex = rows.slice(1, mark).join(' ').split(/\s+/).filter(Boolean)
+  const head = Uint8Array.from(hex, (byte) => Number.parseInt(byte, 16))
+  const lines = rows.slice(mark + 1, -1)
+  if (status === 'more') return { head, size, lines, total: undefined }
+  // An empty file has one empty line, like `''.split('\n')`.
+  if (size === 0)
+    return { head, size, lines: first === 1 ? [''] : [], total: 1 }
+  return { head, size, lines, total: Number(status.slice('total '.length)) }
+}
+
+/**
  * A `WorkspaceBackend` over a live sandbox. With it, `workspaceTools()`
  * reads and writes files and runs commands in the sandbox, not on this
  * machine.
@@ -88,12 +122,15 @@ function createOutputTail(maxBytes: number) {
  * - `spawn` is there only when the sandbox has
  *   `capabilities.backgroundProcesses`.
  * - `stat` gives `mtimeMs: 0`. The sandbox file system does not give the
- *   time of the last change.
+ *   time of the last change. With `lstat`, `stat` never reads the file.
+ * - `readLines` reads one page of a file in the sandbox with `wc`, `od`,
+ *   and `awk`, so only the page comes out of the sandbox.
  * - `realpath` resolves links in the sandbox: `lstat` finds each link, and
  *   `readlink` in the sandbox reads its target. A sandbox without `lstat`
  *   cannot find links, so `realpath` throws, and the tools refuse each path.
  *
- * - `spawn` keeps the newest 1 MiB of the output of a job.
+ * - `spawn` keeps the newest 1 MiB of the output of a job, and gives each
+ *   chunk to `onOutput` as it comes.
  * - `close({ reason: 'moved' })` keeps the jobs and the sandbox, so the
  *   next machine can resume them.
  *
@@ -123,10 +160,10 @@ export function sandboxWorkspaceBackend(
   const running = new Set<{ kill: () => void }>()
   let destroyed: Promise<void> | undefined
 
-  // The read of the sandbox follows links, so this follows links too. A
-  // path that `readBytes` cannot read is a folder.
-  // ponytail: reads the whole file for its size. Only links, and a sandbox
-  // without `lstat`, come here.
+  // Without `lstat`, the read of the sandbox follows links, so this
+  // follows links too. A path that `readBytes` cannot read is a folder.
+  // ponytail: reads the whole file for its size. Only a sandbox without
+  // `lstat` comes here.
   const follow: WorkspaceBackend['stat'] = async (path) => {
     if (!(await fs.exists(path))) return undefined
     const bytes = await fs.readBytes(path).catch(() => undefined)
@@ -135,8 +172,9 @@ export function sandboxWorkspaceBackend(
   }
 
   const stat: WorkspaceBackend['stat'] = async (path) => {
-    if (!fs.lstat) return follow(path)
-    const info = await fs.lstat(path)
+    const { lstat } = fs
+    if (!lstat) return follow(path)
+    const info = await lstat(path)
     if (!info) return undefined
     switch (info.type) {
       case 'file':
@@ -146,8 +184,13 @@ export function sandboxWorkspaceBackend(
       // Like `fs.stat` on the host, a fifo or a socket is an empty file.
       case 'other':
         return { type: 'file', size: 0, mtimeMs: 0 }
-      case 'symlink':
-        return follow(path)
+      case 'symlink': {
+        // The target, by its real path, so the file is not read. A link to
+        // a missing target is nothing, like `fs.stat` on the host.
+        const resolved = await resolveLinks(lstat, path)
+        if (resolved.missing) return undefined
+        return stat(resolved.real)
+      }
     }
   }
 
@@ -167,17 +210,14 @@ export function sandboxWorkspaceBackend(
   }
 
   /**
-   * `path` with every link resolved, part by part, or `undefined` when
-   * nothing is at `path`. Throws for a link to a missing target, and when
-   * there are more than 40 links, like a loop.
+   * `path` with every link resolved, part by part. `missing` is `'path'`
+   * when nothing is at `path`, and `'target'` for a link to a missing
+   * target. Throws when there are more than 40 links, like a loop.
    */
-  const realpath: WorkspaceBackend['realpath'] = async (path) => {
-    const { lstat } = fs
-    if (!lstat) {
-      throw new Error(
-        `This sandbox has no lstat, so links in ${path} cannot be checked.`,
-      )
-    }
+  const resolveLinks = async (
+    lstat: NonNullable<SandboxFs['lstat']>,
+    path: string,
+  ) => {
     let parts = posix.resolve('/', path).split('/').filter(Boolean)
     // The first parts that came from a link target. A missing one means a
     // link to a missing target. A missing part of `path` itself means
@@ -198,8 +238,8 @@ export function sandboxWorkspaceBackend(
       const next = posix.join(real, name)
       const info = await lstat(next)
       if (!info) {
-        if (!isFromLink) return undefined
-        throw new Error(`ENOENT: ${path} is a link to ${next}, not there.`)
+        const missing = isFromLink ? ('target' as const) : ('path' as const)
+        return { real: undefined, missing }
       }
       if (info.type !== 'symlink') {
         real = next
@@ -216,15 +256,82 @@ export function sandboxWorkspaceBackend(
       // The parts after it can come from an earlier link too.
       fromLink += targetParts.length
     }
-    return real
+    return { real, missing: undefined }
+  }
+
+  /**
+   * `path` with every link resolved, or `undefined` when nothing is at
+   * `path`. Throws for a link to a missing target, and when there are more
+   * than 40 links, like a loop.
+   */
+  const realpath: WorkspaceBackend['realpath'] = async (path) => {
+    const { lstat } = fs
+    if (!lstat) {
+      throw new Error(
+        `This sandbox has no lstat, so links in ${path} cannot be checked.`,
+      )
+    }
+    const resolved = await resolveLinks(lstat, path)
+    switch (resolved.missing) {
+      case undefined:
+        return resolved.real
+      case 'path':
+        return undefined
+      case 'target':
+        throw new Error(
+          `ENOENT: ${path} is a link to a target that is not there.`,
+        )
+    }
+  }
+
+  /**
+   * One page of the file `path`, read in the sandbox. One command gives the
+   * size (`wc`), the first 8 KiB as hex (`od`), and the lines of the page
+   * (`awk`). So only the page comes out of the sandbox, not the whole file.
+   * `awk` stops at the first line after the page, so `total` is there only
+   * when the page gets to the end of the file.
+   */
+  const readLines: NonNullable<WorkspaceBackend['readLines']> = async (
+    path,
+    { offset, limit },
+  ) => {
+    const first = Math.max(1, Math.floor(offset))
+    const end = first + Math.max(0, Math.floor(limit))
+    // A relative name in its folder, like `readlink`. `./` keeps a name
+    // that starts with `-` from being read as an option.
+    const name = shellQuote(`./${posix.basename(path)}`)
+    // `awk` prints the page, then one last line: `more` when the file goes
+    // on after the page, else `total` and the number of lines.
+    const awk = `NR >= e { more = 1; exit } NR >= o { print; n += length($0) + 1; if (n > max) e = NR + 1 } END { if (more) print "more"; else print "total " NR }`
+    const command = [
+      `wc -c < ${name}`,
+      `od -An -v -tx1 -N ${HEAD_BYTES} ${name}`,
+      `echo ${LINES_MARK}`,
+      `awk -v o=${first} -v e=${end} -v max=${MAX_PAGE_BYTES} ${shellQuote(awk)} ${name}`,
+    ].join(' && ')
+    const { exitCode, stdout, stderr } = await handle.process.exec(command, {
+      cwd: posix.dirname(path),
+    })
+    if (exitCode !== 0) {
+      throw new Error(`Cannot read ${path}: ${stderr.trim()}`)
+    }
+    return parsePage(stdout, first)
   }
 
   const spawn: WorkspaceBackend['spawn'] = (command, options) => {
     const output = createOutputTail(MAX_JOB_OUTPUT)
+    const onOutput = options?.onOutput
     const collect = async (stream: AsyncIterable<string>) => {
-      for await (const chunk of stream) output.push(chunk)
+      for await (const chunk of stream) {
+        output.push(chunk)
+        onOutput?.(chunk)
+      }
     }
-    const started = handle.process.spawn(command, options)
+    // `onOutput` is for this backend. The sandbox gets the folder and the env.
+    const started = handle.process.spawn(command, {
+      cwd: options?.cwd,
+      env: options?.env,
+    })
     // Wait for the end of the output too, so `output()` is complete.
     const exited = started
       .then(async (job) => {
@@ -272,6 +379,7 @@ export function sandboxWorkspaceBackend(
       if (!isFile) throw new Error(`Cannot remove ${path}: no such file.`)
       await fs.remove(path)
     },
+    readLines,
     stat,
     realpath,
     readdir: async (path) => {

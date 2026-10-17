@@ -2,6 +2,9 @@ import { toolDefinition } from '@tanstack/ai'
 import { isRecord } from '../../utils'
 import { boundText } from '../bound-output'
 import { pathsOf, stringArg } from './backend'
+import { JobEnded, JobOutput, JobStarted } from './events'
+import { createOutputTail } from './ring-buffer'
+import type { PluginEvent } from '../../extensions'
 import type { ToolEnv } from './backend'
 
 /** The longest timeout that one call can ask for: 10 minutes. */
@@ -106,6 +109,50 @@ export function bashResources(input: unknown) {
 
 /** At most this many background jobs run at a time in a session. */
 const DEFAULT_MAX_JOBS = 8
+/** A job sends at most one output event in this time. */
+const OUTPUT_EVERY_MS = 250
+/** One output event has at most the newest 64 KiB. */
+const MAX_EVENT_OUTPUT = 64 * 1024
+
+/** Sends a plugin event, like `ctx.emit` of a plugin. */
+type Emit = <T>(event: PluginEvent<T>, value: T) => void
+
+/**
+ * The output events of job `jobId`. `push` keeps new text. The text goes
+ * out at most once each {@link OUTPUT_EVERY_MS}. `flush` sends what waits
+ * now, and `stop` drops it.
+ */
+function outputEvents(jobId: string, emit: Emit) {
+  let waiting = createOutputTail(MAX_EVENT_OUTPUT)
+  let hasText = false
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let lastSent = 0
+  const flush = () => {
+    clearTimeout(timer)
+    timer = undefined
+    if (!hasText) return
+    const output = waiting.text()
+    waiting = createOutputTail(MAX_EVENT_OUTPUT)
+    hasText = false
+    lastSent = Date.now()
+    emit(JobOutput, { jobId, output })
+  }
+  const push = (text: string) => {
+    if (text === '') return
+    waiting.push(text)
+    hasText = true
+    if (timer) return
+    const wait = Math.max(0, lastSent + OUTPUT_EVERY_MS - Date.now())
+    timer = setTimeout(flush, wait)
+    // The timer must not keep the process alive.
+    timer.unref?.()
+  }
+  const stop = () => {
+    clearTimeout(timer)
+    timer = undefined
+  }
+  return { push, flush, stop }
+}
 
 /** The jobs of one session: the ones that run, and how many started. */
 interface Jobs {
@@ -145,7 +192,9 @@ function jobsOf(signal: AbortSignal | undefined) {
  * With `background: true`, the call returns at once with a job id, and
  * `note` tells the model when the job ends. Background jobs need
  * `env.backend.spawn`. At most `maxJobs` run at a time in a session. They
- * are killed when `signal` aborts.
+ * are killed when `signal` aborts. With `emit`, each job sends events:
+ * `tanstack/workspace-tools:job-started`, `tanstack/workspace-tools:job-output` (at most one each 250 ms), and
+ * `tanstack/workspace-tools:job-ended`.
  *
  * A command that runs in the foreground supports `detach` of the tool
  * context: the host can move it to the background while it runs. Then the
@@ -168,6 +217,11 @@ export function bashTools(
     signal?: AbortSignal
     /** Told when a background job starts and ends. A durable session logs it. */
     jobs?: { started: (jobId: string) => void; ended: (jobId: string) => void }
+    /**
+     * Sends the events of the background jobs: {@link JobStarted},
+     * {@link JobOutput}, and {@link JobEnded}. Without it, there are none.
+     */
+    emit?: Emit
     /**
      * At most this many background jobs run at a time in the session of
      * `signal`. One more gives a tool error. Default: 8.
@@ -222,19 +276,36 @@ export function bashTools(
         `${jobs.running.size} background jobs run already, and the limit is ${maxJobs}. Wait until a job ends, then start this one.`,
       )
     }
-    const job = env.backend.spawn(command, { cwd, env: AGENT_ENV })
+    const { emit } = options
+    // The output can come before `spawn` returns, so the id is made first.
+    const jobId = `bash-${jobs.started + 1}`
+    const events = emit && outputEvents(jobId, emit)
+    const job = env.backend.spawn(command, {
+      cwd,
+      env: AGENT_ENV,
+      ...(events ? { onOutput: events.push } : {}),
+    })
     jobs.started += 1
-    const jobId = `bash-${jobs.started}`
     jobs.running.add(job)
     options.jobs?.started(jobId)
+    emit?.(JobStarted, { jobId, command })
     const tell = async () => {
       // A job that fails to wait gives its place back too.
       const { exitCode } = await job
         .wait()
+        .catch((error: unknown) => {
+          events?.stop()
+          throw error
+        })
         .finally(() => jobs.running.delete(job))
       // A closed session keeps the job as running in the log, so the next
-      // host tells the model that it stopped.
-      if (signal?.aborted) return
+      // host tells the model that it stopped. No one gets its events now.
+      if (signal?.aborted) {
+        events?.stop()
+        return
+      }
+      events?.flush()
+      emit?.(JobEnded, { jobId, exitCode })
       try {
         if (note === undefined) return
         const result = await report(exitCode, job.output())

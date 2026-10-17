@@ -1,5 +1,5 @@
 import { posix } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { EventType } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
@@ -104,6 +104,41 @@ function memoryFs(seed: FsSeed, withLstat = true) {
   return { fs, files, dirs, links }
 }
 
+/** The `awk` program of the page command of `readLines`. */
+const PAGE_AWK = `'NR >= e { more = 1; exit } NR >= o { print; n += length($0) + 1; if (n > max) e = NR + 1 } END { if (more) print "more"; else print "total " NR }'`
+
+/** The page command of `readLines` for `name`, from line `first` to `end`. */
+const pageCommand = (name: string, first: number, end: number) =>
+  `wc -c < '${name}' && od -An -v -tx1 -N 8192 '${name}' && echo @lines && awk -v o=${first} -v e=${end} -v max=65536 ${PAGE_AWK} '${name}'`
+
+/** The page command with any name and range: the name, the first line, the end. */
+const PAGE_COMMAND =
+  /^wc -c < '(.+)' && od -An -v -tx1 -N 8192 '\1' && echo @lines && awk -v o=(\d+) -v e=(\d+) -v max=65536 '.+' '\1'$/
+
+/**
+ * What `wc -c`, `od -An -v -tx1 -N 8192`, `echo @lines`, and the `awk`
+ * program print for a file of `data`, for the lines from `first` to before
+ * `end`. It does not stop after 64 KiB.
+ */
+function pageOutput(data: Uint8Array, first: number, end: number) {
+  const text = decoder.decode(data)
+  const lines = text === '' ? [] : text.split('\n')
+  if (text.endsWith('\n')) lines.pop()
+  const hex: Array<string> = []
+  const head = data.subarray(0, 8192)
+  for (let at = 0; at < head.length; at += 16) {
+    const row = [...head.subarray(at, at + 16)]
+    hex.push(
+      row.map((byte) => ` ${byte.toString(16).padStart(2, '0')}`).join(''),
+    )
+  }
+  const page = lines.slice(first - 1, end - 1)
+  const status = lines.length >= end ? 'more' : `total ${lines.length}`
+  return [`${data.byteLength}`, ...hex, '@lines', ...page, status, ''].join(
+    '\n',
+  )
+}
+
 async function* fromChunks(chunks: Array<string>) {
   for (const chunk of chunks) yield chunk
 }
@@ -118,13 +153,40 @@ async function* fromChunks(chunks: Array<string>) {
  * of `x` before `flood out`.
  *
  * `readlink -- '<name>'` prints the target of the link `name` in the folder,
- * from `links`, like `readlink` in a sandbox.
+ * from `links`, like `readlink` in a sandbox. The page command of
+ * `readLines` prints what `wc`, `od`, and `awk` print for a file in `files`
+ * (see {@link pageOutput}). `commands` lists each command and its folder.
  */
-function fakeProcesses(links: ReadonlyMap<string, string> = new Map()) {
+function fakeProcesses(
+  links: ReadonlyMap<string, string> = new Map(),
+  files: ReadonlyMap<string, Uint8Array> = new Map(),
+) {
   const aborted: Array<string> = []
   const killed: Array<string> = []
+  const commands: Array<{ command: string; cwd?: string }> = []
   const process: SandboxHandle['process'] = {
     exec: (command, options = {}) => {
+      commands.push({ command, cwd: options.cwd })
+      const page = PAGE_COMMAND.exec(command)
+      if (page) {
+        const [, quoted = '', first = '', end = ''] = page
+        // The shell reads `'\''` in single quotes as one `'`.
+        const name = quoted.replaceAll(`'\\''`, `'`)
+        const data = files.get(posix.join(options.cwd ?? '/', name))
+        return Promise.resolve(
+          data === undefined
+            ? {
+                exitCode: 1,
+                stdout: '',
+                stderr: `sh: ${name}: No such file or directory`,
+              }
+            : {
+                exitCode: 0,
+                stdout: pageOutput(data, Number(first), Number(end)),
+                stderr: '',
+              },
+        )
+      }
       const readlink = /^readlink -- '(.+)'$/.exec(command)
       if (readlink) {
         const target = links.get(
@@ -174,7 +236,7 @@ function fakeProcesses(links: ReadonlyMap<string, string> = new Map()) {
       }
     },
   }
-  return { process, aborted, killed }
+  return { process, aborted, killed, commands }
 }
 
 /**
@@ -190,11 +252,11 @@ function fakeSandbox(
   } = {},
 ) {
   const { fs, files, dirs, links } = memoryFs(seed, options.withLstat)
-  const { process, aborted, killed } = fakeProcesses(links)
+  const { process, aborted, killed, commands } = fakeProcesses(links, files)
   const sandbox = makeFakeHandle('sandbox-1', 'fake', options.caps)
   const handle: SandboxHandle = { ...sandbox, fs, process }
   const backend = sandboxWorkspaceBackend(handle, { owned: options.owned })
-  return { backend, files, dirs, aborted, killed, sandbox }
+  return { backend, fs, files, dirs, aborted, killed, commands, sandbox }
 }
 
 const SEED: FsSeed = {
@@ -241,6 +303,17 @@ describe('sandboxWorkspaceBackend files', () => {
       expect(await backend.stat(path)).toEqual({ type, size, mtimeMs: 0 })
     },
   )
+
+  it('stat of a link does not read the file, when the sandbox has lstat', async () => {
+    const { backend, fs } = fakeSandbox(SEED)
+    const readBytes = vi.spyOn(fs, 'readBytes')
+    expect(await backend.stat('/workspace/to-file')).toEqual({
+      type: 'file',
+      size: 5,
+      mtimeMs: 0,
+    })
+    expect(readBytes).not.toHaveBeenCalled()
+  })
 
   it.each([true, false])(
     'stat gives undefined for a missing path and a broken link (lstat: %s)',
@@ -340,6 +413,84 @@ describe('sandboxWorkspaceBackend realpath', () => {
   })
 })
 
+describe('sandboxWorkspaceBackend readLines', () => {
+  /** A sandbox with `/workspace/notes.txt`, five lines. */
+  function notes() {
+    const sandbox = fakeSandbox({
+      files: { '/workspace/notes.txt': 'one\ntwo\nthree\nfour\nfive\n' },
+      dirs: ['/workspace'],
+    })
+    const readBytes = vi.spyOn(sandbox.fs, 'readBytes')
+    return { ...sandbox, readBytes }
+  }
+
+  it('reads one page in the sandbox, so the file does not come out whole', async () => {
+    const { backend, commands, readBytes } = notes()
+    const page = await backend.readLines?.('/workspace/notes.txt', {
+      offset: 2,
+      limit: 2,
+    })
+    expect(commands).toEqual([
+      { command: pageCommand('./notes.txt', 2, 4), cwd: '/workspace' },
+    ])
+    expect(page).toEqual({
+      head: encoder.encode('one\ntwo\nthree\nfour\nfive\n'),
+      size: 24,
+      lines: ['two', 'three'],
+      total: undefined,
+    })
+    expect(readBytes).not.toHaveBeenCalled()
+  })
+
+  it('counts the lines when the page gets to the end of the file', async () => {
+    const { backend } = notes()
+    const page = await backend.readLines?.('/workspace/notes.txt', {
+      offset: 4,
+      limit: 10,
+    })
+    expect(page).toMatchObject({ lines: ['four', 'five'], total: 5 })
+  })
+
+  it('gives one empty line for an empty file, like the host', async () => {
+    const { backend } = fakeSandbox({
+      files: { '/workspace/empty.txt': '' },
+      dirs: ['/workspace'],
+    })
+    const page = await backend.readLines?.('/workspace/empty.txt', {
+      offset: 1,
+      limit: 10,
+    })
+    expect(page).toEqual({
+      head: new Uint8Array(),
+      size: 0,
+      lines: [''],
+      total: 1,
+    })
+  })
+
+  it('throws with the error of the sandbox for a missing file', async () => {
+    const { backend } = notes()
+    await expect(
+      backend.readLines?.('/workspace/gone.txt', { offset: 1, limit: 10 }),
+    ).rejects.toThrow(
+      'Cannot read /workspace/gone.txt: sh: ./gone.txt: No such file or directory',
+    )
+  })
+
+  it('quotes a file name with a quote, and keeps a leading - from being an option', async () => {
+    const { backend, commands } = fakeSandbox({
+      files: { "/workspace/-it's.txt": 'a\n' },
+      dirs: ['/workspace'],
+    })
+    const page = await backend.readLines?.("/workspace/-it's.txt", {
+      offset: 1,
+      limit: 1,
+    })
+    expect(commands[0]?.command).toContain(`wc -c < './-it'\\''s.txt'`)
+    expect(page).toMatchObject({ lines: ['a'], total: 1 })
+  })
+})
+
 describe('sandboxWorkspaceBackend exec', () => {
   it('runs a command in the sandbox with the folder and the env', async () => {
     const { backend } = fakeSandbox()
@@ -381,6 +532,17 @@ describe('sandboxWorkspaceBackend spawn', () => {
     const job = backend.spawn?.('build', { cwd: '/workspace' })
     expect(await job?.wait()).toEqual({ exitCode: 0 })
     expect(job?.output()).toBe('build out\nbuild err\n')
+  })
+
+  it('gives each chunk of the output to onOutput as it comes', async () => {
+    const { backend } = fakeSandbox()
+    const chunks: Array<string> = []
+    const job = backend.spawn?.('build', {
+      onOutput: (text) => chunks.push(text),
+    })
+    await job?.wait()
+    // stdout and stderr come at the same time, so their order is not fixed.
+    expect(chunks.sort()).toEqual(['build err\n', 'build out\n'])
   })
 
   it('kills a background command, also before it started', async () => {

@@ -1,10 +1,11 @@
 import { getEventListeners } from 'node:events'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { bashTools } from '../src/first-party/coding/bash'
 import { createOutputTail } from '../src/first-party/coding/ring-buffer'
 import type { ToolExecutionContext } from '@tanstack/ai'
+import type { PluginEvent } from '../src/extensions'
 import type {
   ToolEnv,
   WorkspaceBackend,
@@ -238,5 +239,110 @@ describe('bash in the foreground', () => {
     await expect(
       bash({ command: 'one more', background: true }),
     ).rejects.toThrow('the limit is 1')
+  })
+})
+
+describe('bash job events', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  /**
+   * A workspace whose one background job gives its output to `write`, and
+   * ends with `end`. `events` has each event that the tools send.
+   */
+  function streaming() {
+    vi.useFakeTimers()
+    const started = runningJob()
+    let onOutput: (text: string) => void = () => undefined
+    const { env } = workspace({
+      spawn: (_command, options) => {
+        onOutput = options?.onOutput ?? onOutput
+        return started.job
+      },
+    })
+    const events: Array<{ name: string; value: unknown }> = []
+    const emit = <T>(event: PluginEvent<T>, value: T) => {
+      events.push({ name: event.name, value })
+    }
+    const session = new AbortController()
+    const bash = bashTool(env, { emit, signal: session.signal })
+    return {
+      start: () => bash({ command: 'npm run dev', background: true }),
+      write: (text: string) => onOutput(text),
+      end: started.end,
+      close: () => session.abort(),
+      events,
+      /** The output events, as their text. */
+      outputs: () =>
+        events
+          .filter((event) => event.name === 'tanstack/workspace-tools:job-output')
+          .map((event) => event.value),
+    }
+  }
+
+  it('sends started, then the output, then ended', async () => {
+    const job = streaming()
+    await job.start()
+    job.write('ready\n')
+    job.end(0)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(job.events).toEqual([
+      {
+        name: 'tanstack/workspace-tools:job-started',
+        value: { jobId: 'bash-1', command: 'npm run dev' },
+      },
+      {
+        name: 'tanstack/workspace-tools:job-output',
+        value: { jobId: 'bash-1', output: 'ready\n' },
+      },
+      { name: 'tanstack/workspace-tools:job-ended', value: { jobId: 'bash-1', exitCode: 0 } },
+    ])
+  })
+
+  it('sends at most one output event each 250 ms, with the new output', async () => {
+    const job = streaming()
+    await job.start()
+    job.write('a')
+    await vi.advanceTimersByTimeAsync(0)
+    job.write('b')
+    job.write('c')
+    await vi.advanceTimersByTimeAsync(249)
+    expect(job.outputs()).toEqual([{ jobId: 'bash-1', output: 'a' }])
+    await vi.advanceTimersByTimeAsync(1)
+    expect(job.outputs()).toEqual([
+      { jobId: 'bash-1', output: 'a' },
+      { jobId: 'bash-1', output: 'bc' },
+    ])
+  })
+
+  it('keeps the newest 64 KiB in one output event', async () => {
+    const job = streaming()
+    await job.start()
+    job.write('x'.repeat(70 * 1024))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(job.outputs()).toEqual([
+      {
+        jobId: 'bash-1',
+        output: `[6144 earlier bytes were dropped.]\n${'x'.repeat(64 * 1024)}`,
+      },
+    ])
+  })
+
+  it('sends no output or ended event after the session closed', async () => {
+    const job = streaming()
+    await job.start()
+    job.write('early')
+    await vi.advanceTimersByTimeAsync(0)
+    // This output waits for the next 250 ms.
+    job.write('late')
+    // Closing the session kills the job, so it ends with 143.
+    job.close()
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(job.events.map((event) => event.name)).toEqual([
+      'tanstack/workspace-tools:job-started',
+      'tanstack/workspace-tools:job-output',
+    ])
+    expect(job.outputs()).toEqual([{ jobId: 'bash-1', output: 'early' }])
   })
 })

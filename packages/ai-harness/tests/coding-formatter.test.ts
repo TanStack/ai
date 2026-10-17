@@ -10,6 +10,7 @@ import {
   formatOnWrite,
   formatter,
 } from '../src/first-party/coding/formatter'
+import { FormatterRewrote } from '../src/first-party/coding/events'
 import { mockAdapter, text, toolCall } from './helpers'
 import type { HarnessSession } from '../src'
 import type { WorkspaceBackend } from '../src/first-party/coding/backend'
@@ -84,8 +85,9 @@ async function formatIn(
 ) {
   const { backend, runs } = project(files, exec)
   const failures: Array<FormatFailure> = []
-  const afterWrite = formatOnWrite({ root, backend, ...options }, (failure) =>
-    failures.push(failure),
+  const afterWrite = formatOnWrite(
+    { root, backend, ...options },
+    { onFailure: (failure) => failures.push(failure) },
   )
   await afterWrite(join(root, path))
   return { runs, commands: runs.map((run) => run.command), failures }
@@ -201,7 +203,7 @@ describe('formatOnWrite', () => {
     const { backend, runs } = project(prettier, ok, 'sh')
     const afterWrite = formatOnWrite(
       { root: '/workspace', backend },
-      () => undefined,
+      { onFailure: () => undefined },
     )
     await afterWrite('/workspace/src/a.ts')
     expect(runs).toEqual([
@@ -227,8 +229,9 @@ describe('formatOnWrite', () => {
       return readdir(dir)
     }
     const failures: Array<FormatFailure> = []
-    const afterWrite = formatOnWrite({ root, backend }, (failure) =>
-      failures.push(failure),
+    const afterWrite = formatOnWrite(
+      { root, backend },
+      { onFailure: (failure) => failures.push(failure) },
     )
     await afterWrite(join(root, 'a.ts'))
     fail = false
@@ -239,7 +242,10 @@ describe('formatOnWrite', () => {
 
   it('checks the config files once, at the first write', async () => {
     const { backend, runs, put } = project({})
-    const afterWrite = formatOnWrite({ root, backend }, () => undefined)
+    const afterWrite = formatOnWrite(
+      { root, backend },
+      { onFailure: () => undefined },
+    )
     await afterWrite(join(root, 'a.ts'))
     put('.prettierrc', '{}')
     await afterWrite(join(root, 'a.ts'))
@@ -272,6 +278,34 @@ describe('formatOnWrite', () => {
     expect(runs[0]?.timeoutMs).toBe(5000)
     expect(failures).toEqual([{ path: join(root, 'a.ts'), message }])
   })
+
+  it.each([
+    [
+      'changed',
+      'let a = 1\n',
+      [{ path: join(root, 'a.ts'), formatter: 'prettier' }],
+    ],
+    ['kept', 'let a=1', []],
+  ])(
+    'reports a rewrite only when the formatter changed the file (%s)',
+    async (_, formatted, expected) => {
+      // The fake prettier writes `formatted` to the file.
+      const files = project({ ...prettier, 'a.ts': 'let a=1' }, () => {
+        files.put('a.ts', formatted)
+        return { exitCode: 0, stdout: '', stderr: '' }
+      })
+      const rewrites: Array<{ path: string; formatter: string }> = []
+      const afterWrite = formatOnWrite(
+        { root, backend: files.backend },
+        {
+          onFailure: () => undefined,
+          onRewrite: (rewrite) => rewrites.push(rewrite),
+        },
+      )
+      await afterWrite(join(root, 'a.ts'))
+      expect(rewrites).toEqual(expected)
+    },
+  )
 
   it('reports a backend that throws, and does not throw', async () => {
     const { failures } = await formatIn(prettier, 'a.ts', {}, () => {
@@ -333,6 +367,48 @@ describe('formatter', () => {
     expect(JSON.stringify(calls[2].messages)).toContain(
       'Edited a.ts (1 change).',
     )
+  })
+})
+
+describe('formatter events', () => {
+  it('sends tanstack/formatter:rewrote when the formatter changed the written file', async () => {
+    // The fake prettier puts spaces around `=`.
+    const files = project(prettier, () => {
+      files.put('a.ts', files.read('a.ts').replace('=', ' = '))
+      return { exitCode: 0, stdout: '', stderr: '' }
+    })
+    const rewrites: Array<unknown> = []
+    const listener = definePlugin({
+      name: 'test/listener',
+      setup: (ctx) => {
+        ctx.on(FormatterRewrote, (rewrite) => rewrites.push(rewrite))
+      },
+    })
+    const { adapter } = mockAdapter([
+      () => toolCall('write_file', { path: 'a.ts', content: 'let a=1' }, 'c1'),
+      () => text('done'),
+    ])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/formatter-events',
+        adapter,
+        plugins: () => [
+          workspaceTools({ root, backend: files.backend }),
+          formatter({ root, backend: files.backend }),
+          listener,
+        ],
+      }),
+      { threadId: 't' },
+    )
+
+    await session.send('work')
+    await host.close()
+
+    expect(files.read('a.ts')).toBe('let a = 1')
+    expect(rewrites).toEqual([
+      { path: join(root, 'a.ts'), formatter: 'prettier' },
+    ])
   })
 })
 

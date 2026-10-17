@@ -361,32 +361,53 @@ export function searchTools(env: ToolEnv) {
 
   /**
    * The hits for `pattern` under `base`, in the files that `isWanted` keeps.
-   * `listed` is the result of `filesUnder(base)`, when the caller has it.
+   * With `withFiles`, also every file under `base`, like `filesUnder(base)`.
+   * The files are listed once: the JS engines search the list, and rg lists
+   * and searches in one command.
    */
   async function grepUnder(
     base: string,
     pattern: string,
     isWanted: (path: string) => boolean,
-    listed?: Awaited<ReturnType<typeof filesUnder>>,
+    withFiles: boolean,
   ) {
     // A pattern that is not a valid JS regular expression throws here,
     // whichever engine runs.
     const regex = new RegExp(pattern)
     const command = await findRgOnce()
     if (command === undefined) {
-      const { files, partial } = listed ?? (await filesUnder(base))
+      const { files, partial } = await filesUnder(base)
       const hits = await grepFiles(backend, base, files.filter(isWanted), regex)
-      return { hits, partial }
+      return { hits, partial, files }
     }
+    const search = `${command} ${RG_GREP} ${rgCommon} -e ${quoteArg(pattern, platform)} .`
+    const hitsOf = (out: string) =>
+      rgHits(out)
+        .filter((hit) => isWanted(hit.path))
+        .sort(byPath)
+    if (!withFiles) {
+      const hits = hitsOf(await runRg(backend, search, base))
+      return { hits, partial: false, files: undefined }
+    }
+    // One shell runs the list and the search, with a line between them that
+    // no file name has. The exit code is the one of the search.
+    const marker = `-- ${crypto.randomUUID()} --`
+    const then = platform === 'win32' ? '&' : ';'
     const out = await runRg(
       backend,
-      `${command} ${RG_GREP} ${rgCommon} -e ${quoteArg(pattern, platform)} .`,
+      `${command} --files ${rgCommon} . ${then} echo ${marker} ${then} ${search}`,
       base,
     )
-    const hits = rgHits(out)
-      .filter((hit) => isWanted(hit.path))
-      .sort(byPath)
-    return { hits, partial: false }
+    const at = out.indexOf(marker)
+    if (at === -1) throw new Error('The search failed: rg gave no file list.')
+    const listing = out.slice(0, at)
+    // `cmd.exe` keeps the space before `&` in the line of `echo`.
+    const found = out.slice(at + marker.length).replace(/^[ \t]*\r?\n/, '')
+    return {
+      hits: hitsOf(found),
+      partial: false,
+      files: tidy(listing.split('\0')),
+    }
   }
 
   return [
@@ -452,15 +473,19 @@ export function searchTools(env: ToolEnv) {
       // grep must not show the lines of a file that read_file could not
       // read without a question.
       const isProtected = await env.protectedIn?.(base)
-      // The note counts the protected files in the list, not in the hits,
-      // so it does not tell whether a protected file has the pattern.
-      const listed = isProtected ? await filesUnder(base) : undefined
-      const skipped =
-        listed?.files.filter((path) => inGlob(path) && isProtected?.(path))
-          .length ?? 0
       const isWanted = (path: string) =>
         inGlob(path) && !(isProtected?.(path) ?? false)
-      const { hits, partial } = await grepUnder(base, pattern, isWanted, listed)
+      const {
+        hits,
+        partial,
+        files: listed,
+      } = await grepUnder(base, pattern, isWanted, isProtected !== undefined)
+      // The note counts the protected files in the list, not in the hits,
+      // so it does not tell whether a protected file has the pattern.
+      const skipped = isProtected
+        ? (listed ?? []).filter((path) => inGlob(path) && isProtected(path))
+            .length
+        : 0
       const shown = hits.slice(0, MAX_MATCHES).map((hit) => {
         const text = hit.text.slice(0, MAX_LINE).trim()
         return `${env.shown(resolve(base, hit.path))}:${hit.line}: ${text}`

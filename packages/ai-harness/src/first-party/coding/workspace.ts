@@ -16,6 +16,7 @@ import { readTools } from './read'
 import { searchTools } from './search'
 import { webTools } from './web'
 import type { AnyTool, ToolExecutionContext } from '@tanstack/ai'
+import type { PluginEvent } from '../../extensions'
 import type { RunContext } from '../../types'
 import type { PermissionDecision, ToolResources } from '../permissions'
 import type { BoundWorkspace, ToolEnv, WorkspaceBackend } from './backend'
@@ -112,6 +113,8 @@ interface SessionAccess {
   note?: (text: string) => Promise<void>
   signal?: AbortSignal
   jobs?: { started: (jobId: string) => void; ended: (jobId: string) => void }
+  /** Sends the events of the background `bash` jobs. */
+  emit?: <T>(event: PluginEvent<T>, value: T) => void
 }
 
 /** A Windows network path (`\\server\share`). Not `\\?\` or `\\.\`. */
@@ -438,6 +441,7 @@ function bindTools(
       spillDir: options.spillDir,
       signal: session.signal,
       jobs: session.jobs,
+      emit: session.emit,
       maxJobs: options.maxJobs,
     }),
     ...(options.web === false ? [] : webTools(options.web)),
@@ -724,6 +728,8 @@ export function workspaceTools(options: WorkspaceToolsOptions) {
         // keeps them. Without a session, the plugin cleanup kills them.
         signal: ctx.getOptional(SessionSignal) ?? ctx.resources.signal,
         jobs: ctx.getOptional(BackgroundJobs),
+        // The events of the background jobs go to the clients.
+        emit: ctx.emit,
       })
       return {
         tools,

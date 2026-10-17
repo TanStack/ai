@@ -4,6 +4,7 @@ import { isRecord } from '../../utils'
 import { PermissionPrompt, PermissionRules } from '../permissions'
 import { WorkspaceHooks } from '../workspace-hooks'
 import { hostBackend, pathsOf, readText } from './backend'
+import { FormatterRewrote } from './events'
 import { quoteArg, shellPlatform } from './search'
 import type { WorkspaceBackend } from './backend'
 
@@ -138,15 +139,22 @@ const messageOf = (error: unknown) =>
 /**
  * The `afterWrite` hook of {@link formatter}. It runs the first formatter
  * that the project uses for the file type. The project is checked at the
- * first write, once. A failure goes to `onFailure` and never throws.
- * `allow` says if the formatter `name` can run on `path`. When it says no,
- * the hook resolves to a note for the tool result.
+ * first write, once.
+ *
+ * - `onFailure` gets a failure. The hook never throws.
+ * - `onRewrite` gets the file and the formatter when a run changed the file.
+ * - `allow` says if the formatter `name` can run on `path`. When it says no,
+ *   the hook resolves to a note for the tool result.
  */
 export function formatOnWrite(
   options: FormatterOptions,
-  onFailure: (failure: FormatFailure) => void,
-  allow?: (name: string, path: string) => Promise<boolean>,
+  report: {
+    onFailure: (failure: FormatFailure) => void
+    onRewrite?: (rewrite: { path: string; formatter: string }) => void
+    allow?: (name: string, path: string) => Promise<boolean>
+  },
 ) {
+  const { onFailure, onRewrite, allow } = report
   const backend = options.backend ?? hostBackend
   const { extname, join, resolve } = pathsOf(backend)
   const root = resolve(options.root)
@@ -188,8 +196,19 @@ export function formatOnWrite(
       return `The formatter ${match.name} did not run: it is not allowed.`
     }
     const command = match.command(quoteArg(path, platform))
+    // The bytes before the run, to tell if the formatter changed the file.
+    // A file that cannot be read gives no rewrite event, and no failure.
+    const read = () => backend.readFile(path).catch(() => undefined)
+    const before = onRewrite && (await read())
     const result = await backend.exec(command, { cwd: root, timeoutMs })
-    if (result.exitCode === 0) return undefined
+    if (result.exitCode === 0) {
+      if (!onRewrite || !before) return undefined
+      const after = await read()
+      const isChanged =
+        after !== undefined && !Buffer.from(before).equals(after)
+      if (isChanged) onRewrite({ path, formatter: match.name })
+      return undefined
+    }
     const reason =
       result.exitCode === 124
         ? `it took longer than ${timeoutMs / 1000} seconds`
@@ -222,7 +241,8 @@ export function formatOnWrite(
  * Each run is a command through `backend.exec` in `root`, with a time limit
  * (`timeoutMs`, default 20 seconds). A formatter that fails, times out, or
  * is not installed does not fail the tool call: the file stays as written,
- * and the plugin sends a {@link FormatFailed} event.
+ * and the plugin sends a {@link FormatFailed} event. A run that changes the
+ * file sends a `tanstack/formatter:rewrote` event (`FormatterRewrote`).
  *
  * A formatter runs code from the project, like its config files. So with
  * `permissions()`, each run is a command named `formatter:<name>`, for
@@ -250,11 +270,11 @@ export function formatter(options: FormatterOptions) {
     setup: (ctx) => ({
       contribute: [
         WorkspaceHooks.item({
-          afterWrite: formatOnWrite(
-            options,
-            (failure) => ctx.emit(FormatFailed, failure),
+          afterWrite: formatOnWrite(options, {
+            onFailure: (failure) => ctx.emit(FormatFailed, failure),
+            onRewrite: (rewrite) => ctx.emit(FormatterRewrote, rewrite),
             // Read at each write, so permissions() can come after this plugin.
-            async (name, path) => {
+            allow: async (name, path) => {
               const ask = ctx.getOptional(PermissionPrompt)
               return ask
                 ? ask(
@@ -263,7 +283,7 @@ export function formatter(options: FormatterOptions) {
                   )
                 : true
             },
-          ),
+          }),
         }),
         PermissionRules.item({
           tool: 'formatter:*',

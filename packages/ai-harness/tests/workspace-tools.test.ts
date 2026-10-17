@@ -3,9 +3,14 @@ import { tmpdir } from 'node:os'
 import * as nodePath from 'node:path'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness } from '../src'
+import { createHarnessHost, defineHarness, definePlugin } from '../src'
 import { permissions } from '../src/first-party/permissions'
 import { hostBackend } from '../src/first-party/coding/backend'
+import {
+  JobEnded,
+  JobOutput,
+  JobStarted,
+} from '../src/first-party/coding/events'
 import {
   createWorkspaceTools,
   workspaceTools,
@@ -831,6 +836,44 @@ describe('background bash in a session', () => {
     expect(JSON.stringify(calls[2].messages)).toContain(
       'Background job bash-1 ended.\\nexit code: 0\\nbuilt',
     )
+    await host.close()
+  })
+
+  it('sends the start, the output, and the end of a job as plugin events', async () => {
+    const { backend } = memoryBackend({
+      spawn: (_command, options) => {
+        options?.onOutput?.('built\n')
+        return {
+          wait: async () => ({ exitCode: 0 }),
+          kill: () => undefined,
+          output: () => 'built\n',
+        }
+      },
+    })
+    const events: Array<unknown> = []
+    const listener = definePlugin({
+      name: 'test/job-events',
+      setup: (ctx) => {
+        ctx.on(JobStarted, (value) => events.push(['started', value]))
+        ctx.on(JobOutput, (value) => events.push(['output', value]))
+        ctx.on(JobEnded, (value) => events.push(['ended', value]))
+      },
+    })
+    const { adapter } = mockAdapter([
+      () => toolCall('bash', { command: 'make', background: true }, 'c1'),
+      () => text('started'),
+    ])
+    const { host, session } = await openSession(adapter, [
+      workspaceTools({ root: '/workspace', backend }),
+      listener,
+    ])
+    await session.send('build')
+    await vi.waitFor(() => expect(events).toHaveLength(3))
+    expect(events).toEqual([
+      ['started', { jobId: 'bash-1', command: 'make' }],
+      ['output', { jobId: 'bash-1', output: 'built\n' }],
+      ['ended', { jobId: 'bash-1', exitCode: 0 }],
+    ])
     await host.close()
   })
 

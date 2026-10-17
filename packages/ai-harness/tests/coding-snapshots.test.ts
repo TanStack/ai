@@ -11,7 +11,8 @@ import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness, logIdOf } from '../src'
+import { createHarnessHost, defineHarness, definePlugin, logIdOf } from '../src'
+import { SnapshotFailed } from '../src/first-party/coding/events'
 import { hostBackend } from '../src/first-party/coding/backend'
 import { quoteArg } from '../src/first-party/coding/search'
 import { purgeSnapshots, snapshots } from '../src/first-party/coding/snapshots'
@@ -89,6 +90,15 @@ async function open(options: {
     return 'changed'
   })
   const plugin = snapshots({ root, dataDir, backend: options.backend })
+  // The messages of the `tanstack/snapshots:failed` events. The listener comes
+  // first, so it also gets an event that `snapshots()` sends in its setup.
+  const failures: Array<string> = []
+  const listener = definePlugin({
+    name: 'test/snapshot-failures',
+    setup: (ctx) => {
+      ctx.on(SnapshotFailed, ({ message }) => failures.push(message))
+    },
+  })
   const { adapter, calls } = mockAdapter(options.replies)
   const host = createHarnessHost({
     persistence: options.persistence ?? memoryPersistence(),
@@ -100,15 +110,15 @@ async function open(options: {
       tools: [change],
       plugins: () =>
         options.workspace
-          ? [workspaceTools({ root, web: false }), plugin]
-          : [plugin],
+          ? [listener, workspaceTools({ root, web: false }), plugin]
+          : [listener, plugin],
     }),
     {
       threadId: options.threadId ?? THREAD,
       principal: options.principal,
     },
   )
-  return { host, session, plugin, calls }
+  return { host, session, plugin, calls, failures }
 }
 
 /** The steps that the plugin state keeps. */
@@ -916,8 +926,7 @@ describe('snapshots with a fake git', () => {
   }, 60_000)
 
   it('tries again when another git process holds the index lock', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const { host, session } = await open({
+    const { host, session, failures } = await open({
       replies: editTurn('Done.'),
       backend: fakeGit({ locked: 2 }),
     })
@@ -925,18 +934,12 @@ describe('snapshots with a fake git', () => {
     await session.send('Edit a.txt')
 
     expect(savedSteps(session)).toMatchObject([{ files: ['a.txt'] }])
-    // Only the snapshot warnings: the host can warn about a handle of an
-    // earlier test that the garbage collector found.
-    const snapshotWarnings = warn.mock.calls.filter(([message]) =>
-      String(message).startsWith('snapshots:'),
-    )
-    expect(snapshotWarnings).toEqual([])
+    expect(failures).toEqual([])
     await host.close()
   })
 
-  it('reports an index lock that stays, and the turn still runs', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const { host, session } = await open({
+  it('reports an index lock that stays with an event, and the turn still runs', async () => {
+    const { host, session, failures } = await open({
       replies: [() => text('Hi.')],
       backend: fakeGit({ locked: Infinity }),
     })
@@ -947,20 +950,19 @@ describe('snapshots with a fake git', () => {
       { role: 'user', content: 'Hello' },
       { role: 'assistant', content: 'Hi.' },
     ])
-    expect(warn).toHaveBeenCalledWith(
+    expect(failures).toEqual([
       expect.stringMatching(
         /^snapshots: another git process holds the index lock of .+: fatal: Unable to create/,
       ),
-    )
+    ])
     await host.close()
   })
 })
 
 describe('snapshots without git', () => {
-  it('adds no commands, warns once, and the turn still runs', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  it('adds no commands, sends one failed event, and the turn still runs', async () => {
     // Every command fails, like a machine with no git.
-    const { host, session, plugin } = await open({
+    const { host, session, plugin, failures } = await open({
       replies: [() => text('Hi.')],
       backend: fakeBackend(async () => ({
         exitCode: 127,
@@ -976,8 +978,8 @@ describe('snapshots without git', () => {
       { role: 'user', content: 'Hello' },
       { role: 'assistant', content: 'Hi.' },
     ])
-    expect(warn.mock.calls).toEqual([
-      ['snapshots: git was not found. Snapshots are off.'],
+    expect(failures).toEqual([
+      'snapshots: git was not found. Snapshots are off.',
     ])
     await expect(plugin.diff('abc')).rejects.toThrow(
       'snapshots: git is not available.',

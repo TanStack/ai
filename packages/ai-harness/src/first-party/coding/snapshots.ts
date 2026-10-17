@@ -5,6 +5,7 @@ import { RevertFiles, RevertStanding, definePlugin } from '../../plugins'
 import { isRecord } from '../../utils'
 import { WorkspaceHooks } from '../workspace-hooks'
 import { hostBackend, pathsOf } from './backend'
+import { SnapshotFailed } from './events'
 import { parsePatch } from './patch'
 import { GIT, GIT_ENV, quoteArg, shellPlatform } from './search'
 import { createLock, runOf, writingRun } from './workspace'
@@ -387,6 +388,8 @@ export function purgeSnapshots(
  * `to`, it compares with the files now.
  *
  * Needs the git CLI on the backend. Without git, the plugin does nothing.
+ * A snapshot that fails does not fail the turn: the plugin sends a
+ * `tanstack/snapshots:failed` event (`SnapshotFailed`) and goes on.
  *
  * @example
  * ```ts
@@ -402,23 +405,21 @@ export function snapshots(options: SnapshotsOptions) {
   const paths = pathsOf(backend)
   // The repositories of the open sessions, for `diff`.
   const repos = new Set<ShadowRepo>()
-  let found: Promise<boolean> | undefined
-  /** Is git on the backend? It asks once, and warns once when it is not. */
-  const hasGit = () =>
+  let found: Promise<string | undefined> | undefined
+  /**
+   * Why git cannot run on the backend, or `undefined` when it can. It asks
+   * once.
+   */
+  const gitMissing = () =>
     (found ??= backend
       .exec(`${GIT} --version`, { env: GIT_ENV, timeoutMs: TIMEOUT_MS })
       .then(
-        (probe) => {
-          const isFound = probe.exitCode === 0
-          if (!isFound) {
-            console.warn('snapshots: git was not found. Snapshots are off.')
-          }
-          return isFound
-        },
-        (error: unknown) => {
-          console.warn(`snapshots: ${messageOf(error)}. Snapshots are off.`)
-          return false
-        },
+        (probe) =>
+          probe.exitCode === 0
+            ? undefined
+            : 'snapshots: git was not found. Snapshots are off.',
+        (error: unknown) =>
+          `snapshots: ${messageOf(error)}. Snapshots are off.`,
       ))
 
   /** `full` as a path in the workspace with `/`, or `undefined` outside it. */
@@ -435,7 +436,9 @@ export function snapshots(options: SnapshotsOptions) {
   return definePlugin({
     name: 'tanstack/snapshots',
     diff: async (from: string, to?: string) => {
-      if (!(await hasGit())) throw new Error('snapshots: git is not available.')
+      if ((await gitMissing()) !== undefined) {
+        throw new Error('snapshots: git is not available.')
+      }
       // ponytail: each thread has its own repository, so `diff` asks the
       // repositories of the open sessions, one by one, which has `from`.
       const open = [...repos]
@@ -450,16 +453,16 @@ export function snapshots(options: SnapshotsOptions) {
         tenantId: ctx.session.principal?.tenantId,
         threadId: ctx.session.threadId,
       })
-      const isReady =
-        (await hasGit()) &&
+      // Why snapshots are off in this session, or `undefined`.
+      const off =
+        (await gitMissing()) ??
         (await repo.init().then(
-          () => true,
-          (error: unknown) => {
-            console.warn(`snapshots: ${messageOf(error)}. Snapshots are off.`)
-            return false
-          },
+          () => undefined,
+          (error: unknown) =>
+            `snapshots: ${messageOf(error)}. Snapshots are off.`,
         ))
-      if (!isReady) {
+      if (off !== undefined) {
+        ctx.emit(SnapshotFailed, { message: off })
         // Without git, a revert changes only the transcript.
         ctx.provide(RevertFiles, {
           revert: async () => undefined,
@@ -526,12 +529,15 @@ export function snapshots(options: SnapshotsOptions) {
           }
         | undefined
 
-      // A failed snapshot must not fail the turn. It only says so.
+      // A failed snapshot must not fail the turn. It only says so, with a
+      // `tanstack/snapshots:failed` event.
       const guard = async <T>(fn: () => Promise<T>) => {
         try {
           return await fn()
         } catch (error) {
-          console.warn(`snapshots: ${messageOf(error)}`)
+          ctx.emit(SnapshotFailed, {
+            message: `snapshots: ${messageOf(error)}`,
+          })
           return undefined
         }
       }

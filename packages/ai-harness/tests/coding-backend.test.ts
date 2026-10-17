@@ -207,13 +207,17 @@ describe('hostBackend', () => {
 })
 
 describe('hostBackend.readLines', () => {
-  /** The page and the line count of a whole-file read, as `read_file` makes them. */
+  /**
+   * The page of a whole-file read, as `read_file` makes it, and the line
+   * count when the page gets to the end of the file.
+   */
   const expected = (text: string, offset: number, limit: number) => {
     const all = text.replace(/^﻿/, '').split('\n')
     if (text.endsWith('\n')) all.pop()
+    const isLast = offset - 1 + limit >= all.length
     return {
       lines: all.slice(offset - 1, offset - 1 + limit),
-      total: all.length,
+      total: isLast ? all.length : undefined,
     }
   }
   // 1 MiB is the read size: `é` is split over the edge of the first read.
@@ -239,12 +243,44 @@ describe('hostBackend.readLines', () => {
     expect(read.head).toEqual(Buffer.from(text).subarray(0, 8 * 1024))
   })
 
-  it('stops after 64 KiB of lines, and still counts every line', async () => {
+  it('stops after 64 KiB of lines, and does not count the lines after it', async () => {
     const file = join(dir, 'long.txt')
     await writeFile(file, `${'y'.repeat(40 * 1024)}\n`.repeat(4))
     const read = await hostBackend.readLines(file, { offset: 1, limit: 10 })
     expect(read.lines).toHaveLength(2)
-    expect(read.total).toBe(4)
+    expect(read.total).toBeUndefined()
+  })
+
+  /** A file of 300,000 lines of 10 bytes: 3 MB, more than one read. */
+  async function manyLines() {
+    const file = join(dir, 'many.txt')
+    const lines = Array.from(
+      { length: 300_000 },
+      (_, index) => `line${String(index + 1).padStart(6, '0')}`,
+    )
+    await writeFile(file, `${lines.join('\n')}\n`)
+    return file
+  }
+
+  it('stops after the first page of a big file, so the line count is not known', async () => {
+    const read = await hostBackend.readLines(await manyLines(), {
+      offset: 1,
+      limit: 3,
+    })
+    expect(read).toMatchObject({
+      size: 3_300_000,
+      lines: ['line000001', 'line000002', 'line000003'],
+    })
+    expect(read.total).toBeUndefined()
+  })
+
+  it('counts the lines when the page gets to the end of a big file', async () => {
+    const read = await hostBackend.readLines(await manyLines(), {
+      offset: 299_999,
+      limit: 5,
+    })
+    expect(read.lines).toEqual(['line299999', 'line300000'])
+    expect(read.total).toBe(300_000)
   })
 })
 

@@ -24,12 +24,16 @@ export interface WorkspaceBackend {
   readFile: (path: string) => Promise<Uint8Array>
   /**
    * One page of a file, without the whole file in memory: the first 8 KiB
-   * (`head`), the size in bytes, the lines from line `offset` (from 1) as
-   * UTF-8 text, and the number of lines. It gives at most `limit` lines, and
-   * fewer when the lines are long: no more lines after 64 KiB. A final
-   * newline ends the last line. It does not start a new one. Throws when
-   * there is no file. Optional: without it, `read_file` reads the whole
-   * file.
+   * (`head`), the size in bytes, and the lines from line `offset` (from 1)
+   * as UTF-8 text. It gives at most `limit` lines, and fewer when the lines
+   * are long: no more lines after 64 KiB. A final newline ends the last
+   * line. It does not start a new one. Throws when there is no file.
+   *
+   * It stops reading after the page. `total`, the number of lines, is there
+   * only when the read got to the end of the file. `undefined` means that
+   * the file has more lines after the page.
+   *
+   * Optional: without it, `read_file` reads the whole file.
    */
   readLines?: (
     path: string,
@@ -38,7 +42,7 @@ export interface WorkspaceBackend {
     head: Uint8Array
     size: number
     lines: Array<string>
-    total: number
+    total?: number
   }>
   /** Create or replace a file. Missing parent folders are created. */
   writeFile: (path: string, data: Uint8Array | string) => Promise<void>
@@ -86,12 +90,18 @@ export interface WorkspaceBackend {
    * Start a shell command in the background. `output()` is stdout and
    * stderr so far: the newest 1 MiB, with a first line that tells how many
    * older bytes were dropped. `kill()` stops the command and every command
-   * it started, also right after the start. Optional: without it,
-   * background commands give an error.
+   * it started, also right after the start. `onOutput` gets the new text
+   * of stdout and stderr as it comes. A backend that cannot stream the
+   * output does not call it. Optional: without `spawn`, background commands
+   * give an error.
    */
   spawn?: (
     command: string,
-    options?: { cwd?: string; env?: Record<string, string> },
+    options?: {
+      cwd?: string
+      env?: Record<string, string>
+      onOutput?: (text: string) => void
+    },
   ) => {
     wait: () => Promise<{ exitCode: number }>
     kill: () => void
@@ -426,9 +436,12 @@ export const hostBackend = {
       let end = offset + limit
       const page: Array<Buffer> = []
       let pageBytes = 0
+      // True when a byte of line `end` was found: the file goes on after
+      // the page, and the read stops there.
+      let hasMore = false
       // ponytail: reads up to the size at the start. Bytes added later wait
       // for the next read.
-      for (let position = 0; position < size;) {
+      for (let position = 0; position < size && !hasMore;) {
         const { bytesRead } = await handle.read(
           chunk,
           0,
@@ -446,6 +459,10 @@ export const hostBackend = {
         let pageTo = -1
         // Count the lines with `indexOf`. Only the page is decoded.
         for (let from = 0; from < bytesRead;) {
+          if (line >= end) {
+            hasMore = true
+            break
+          }
           const newline = data.indexOf(10, from)
           const to = newline === -1 ? bytesRead : newline + 1
           if (line >= offset && line < end) {
@@ -461,11 +478,17 @@ export const hostBackend = {
         if (pageFrom !== -1)
           page.push(Buffer.from(data.subarray(pageFrom, pageTo)))
       }
-      // An empty file has one empty line, like `''.split('\n')`.
-      const total = line - 1 + (size === 0 || last !== 10 ? 1 : 0)
       const text = pageDecoder.decode(Buffer.concat(page))
-      const lines = offset > total ? [] : text.split('\n')
-      if (text.endsWith('\n')) lines.pop()
+      const split = text.split('\n')
+      if (text.endsWith('\n')) split.pop()
+      // An empty file has one empty line, like `''.split('\n')`.
+      const total = hasMore
+        ? undefined
+        : line - 1 + (size === 0 || last !== 10 ? 1 : 0)
+      // No lines for an offset after the end, or a page of no lines, like
+      // with a limit of 0.
+      const isEmpty = total === undefined ? text === '' : offset > total
+      const lines = isEmpty ? [] : split
       return { head: head ?? Buffer.alloc(0), size, lines, total }
     } finally {
       await handle.close()
@@ -567,8 +590,19 @@ export const hostBackend = {
     // Bytes, not text: the text is made at `output()`, so a character split
     // over two chunks stays whole.
     const output = createOutputTail(MAX_JOB_OUTPUT)
-    child.stdout.on('data', output.push)
-    child.stderr.on('data', output.push)
+    const { onOutput } = options
+    /** Keep the chunks of `stream`, and give their text to `onOutput`. */
+    const collect = (stream: NodeJS.ReadableStream) => {
+      // One decoder for each stream keeps a character that is split over
+      // two chunks whole.
+      const decoder = new TextDecoder()
+      stream.on('data', (chunk: Buffer) => {
+        output.push(chunk)
+        if (onOutput) onOutput(decoder.decode(chunk, { stream: true }))
+      })
+    }
+    collect(child.stdout)
+    collect(child.stderr)
     const exited = new Promise<{ exitCode: number }>((done) => {
       child.on('close', (code) => done({ exitCode: code ?? 1 }))
       child.on('error', (error) => {
