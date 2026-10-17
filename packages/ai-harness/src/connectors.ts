@@ -64,7 +64,7 @@ export function oauthConnector(options: OAuthConnectorOptions) {
   const { id, label, oauth } = options
   return definePlugin({
     name: `connector/${id}`,
-    setup: (ctx) => {
+    setup: () => {
       // The token of the user of the run that calls, never of another run.
       const token = async ({
         run,
@@ -107,23 +107,25 @@ export function oauthConnector(options: OAuthConnectorOptions) {
           [`connect:${id}`]: defineCommand({
             description: `Sign in to ${label}`,
             // The sign-in belongs to the user who runs the command. A cancel
-            // or a session close stops it at once.
-            run: async (_input, { credentials, signal }) => {
+            // or a session close stops it at once. The `session` of the
+            // command makes the sign-in a wait of the command run.
+            run: async (_input, { credentials, signal, session }) => {
               const credential =
                 options.login === 'device'
                   ? await deviceLogin(oauth, {
-                      onCode: ({ userCode, verificationUri }) =>
-                        ctx.session.authRequired({
+                      onCode: ({ userCode, verificationUri, expiresAt }) =>
+                        session.authRequired({
                           connector: id,
                           url: verificationUri,
                           userCode,
+                          expiresAt,
                         }),
                       fetch: options.fetch,
                       signal,
                     })
                   : await loopbackLogin(oauth, {
                       onUrl: (url) =>
-                        ctx.session.authRequired({ connector: id, url }),
+                        session.authRequired({ connector: id, url }),
                       fetch: options.fetch,
                       signal,
                     })

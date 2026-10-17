@@ -140,11 +140,10 @@ export function editTools(env: ToolEnv) {
         'file',
       )
       const content = stringArg(args, 'content')
-      return env.lock(full, async () => {
-        await env.backend.writeFile(full, content)
-        const notes = await afterWrite(env, full)
-        return [`Wrote ${env.shown(full)}.`, ...notes].join('\n')
-      })
+      await env.lock(full, () => env.backend.writeFile(full, content))
+      // After the lock: a hook (a formatter) never runs while it is held.
+      const notes = await afterWrite(env, full)
+      return [`Wrote ${env.shown(full)}.`, ...notes].join('\n')
     }),
     toolDefinition({
       name: 'edit_file',
@@ -165,7 +164,7 @@ export function editTools(env: ToolEnv) {
       const oldText = stringArg(args, 'old')
       const newText = stringArg(args, 'new')
       const replaceAll = isRecord(args) && args.replaceAll === true
-      return env.lock(full, async () => {
+      const count = await env.lock(full, async () => {
         const before = await readText(env.backend, full)
         const matches = findMatches(before, oldText)
         const count = matches.length
@@ -186,12 +185,14 @@ export function editTools(env: ToolEnv) {
         // Keep the byte order mark, also when the new text drops it.
         const keepBom = before.startsWith(BOM) && !after.startsWith(BOM)
         await env.backend.writeFile(full, keepBom ? BOM + after : after)
-        const notes = await afterWrite(env, full)
-        return [
-          `Edited ${env.shown(full)} (${count} change${count > 1 ? 's' : ''}).`,
-          ...notes,
-        ].join('\n')
+        return matches.length
       })
+      // After the lock: a hook (a formatter) never runs while it is held.
+      const notes = await afterWrite(env, full)
+      return [
+        `Edited ${env.shown(full)} (${count} change${count > 1 ? 's' : ''}).`,
+        ...notes,
+      ].join('\n')
     }),
   ]
 }

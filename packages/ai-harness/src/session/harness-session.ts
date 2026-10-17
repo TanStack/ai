@@ -793,6 +793,7 @@ export class SessionImpl<
       await this.recoverBackground(writer)
       // The waits that expired, and the live waits of a host that stopped.
       await this.endStaleWaits()
+      await this.expireInterrupted()
     } finally {
       this.recovering -= 1
       // A recovery that left no work gives the log back.

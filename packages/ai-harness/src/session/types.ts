@@ -147,8 +147,12 @@ export type AgentHandles<THarness> = {
 export interface AgentRunInfo {
   operationId: string
   agent: string
-  /** `queued`: a follow-up that waits for the run before it. */
-  status: 'running' | 'queued' | 'completed' | 'failed' | 'cancelled'
+  /**
+   * `queued`: a follow-up that waits for the run before it. `waiting`: the
+   * run stopped for its waits (an approval, a sign-in), and an answer
+   * resumes it. See `pendingWaits`.
+   */
+  status: 'running' | 'queued' | 'waiting' | 'completed' | 'failed' | 'cancelled'
   /** The run whose agent code started this run. */
   parentRunId?: string
   /** Who the run runs for. */
@@ -444,6 +448,17 @@ export interface AgentRunStart {
   resumed?: boolean
   /** The agent tool call that started a first run. */
   child?: AgentChild
+  /**
+   * The answers to the interrupts that the run waited for: the run goes on
+   * from its stopped chat run `interruptedRunId`.
+   */
+  answers?: {
+    resume: Array<RunAgentResumeItem>
+    interruptedRunId: string
+    subagentRunId: string
+    /** The connectors whose sign-in the user cancelled. */
+    declined: ReadonlyArray<string>
+  }
 }
 
 /** The `agent` input of a first run, as the log keeps it. */

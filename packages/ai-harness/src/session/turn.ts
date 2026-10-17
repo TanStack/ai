@@ -11,6 +11,7 @@ import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { withPersistence } from '@tanstack/ai-persistence'
 import { redactMiddleware } from '../auth'
 import { bindDurable } from '../durable-tool'
+import { BOUNDARY_INTERRUPTS } from '../boundary-waits'
 import { mediaMiddleware } from '../media'
 import { OperationImpl } from '../operation'
 import { mountPlugins } from '../plugins'
@@ -761,9 +762,12 @@ export abstract class SessionTurn<
               ? { toolExecution: this.harness.toolExecution }
               : {}),
             ...(modelOptions !== undefined ? { modelOptions } : {}),
-            ...(this.harness.interrupts
-              ? { interrupts: this.harness.interrupts }
-              : {}),
+            // The approvals and questions that plugins stop the turn with
+            // before its tools run, then the app's own.
+            interrupts: [
+              ...BOUNDARY_INTERRUPTS,
+              ...(this.harness.interrupts ?? []),
+            ],
             // The context type narrows per harness; chat() wants it exact.
             context: context as never,
             ...(reasoning !== undefined ? { reasoning } : {}),

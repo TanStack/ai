@@ -1,11 +1,17 @@
 import { createCapability, getMetadata } from '@tanstack/ai'
+import { approvalInterrupt, readApproval } from '../boundary-waits'
 import { defineCommand } from '../commands'
 import { configOption } from '../config'
 import { createExtensionPoint } from '../extensions'
 import { SessionMetadata, definePlugin } from '../plugins'
 import { isRecord } from '../utils'
 import { globToRegExp } from './glob'
-import type { AnyChatMiddleware, JSONSchema, MetadataStore } from '@tanstack/ai'
+import type {
+  AnyChatMiddleware,
+  MetadataStore,
+  ModelMessage,
+  ToolCall,
+} from '@tanstack/ai'
 
 export type PermissionDecision = 'allow' | 'ask' | 'deny'
 
@@ -31,16 +37,35 @@ export const PermissionRules = createExtensionPoint<PermissionRule>(
   'tanstack/permission-rules',
 )
 
+/** A list of resources, now or later. */
+type Listed = ReadonlyArray<string> | Promise<ReadonlyArray<string>>
+
 /**
  * What the calls of one tool touch. Each function gets the raw input the
- * model sent, before the schema check. A function that throws refuses the
- * call.
+ * model sent, before the schema check, and can be async (for example to
+ * read the real path of a link). A function that throws refuses the call.
+ * `permissions()` reads them before the tools of a model message run, so a
+ * call that asks stops the turn before it starts.
  */
 export interface ToolResources {
   /** The files the call reads or writes, relative to the root or absolute. */
-  paths?: (input: unknown) => ReadonlyArray<string>
+  paths?: (input: unknown) => Listed
   /** The shell commands the call runs, one part for each simple command. */
-  commands?: (input: unknown) => ReadonlyArray<string>
+  commands?: (input: unknown) => Listed
+  /**
+   * The paths of the call outside the folders the tool may use. Each one
+   * asks, like a path outside `root`, unless a rule with a `resource`
+   * allows it.
+   */
+  outside?: (input: unknown) => Listed
+  /**
+   * The other actions the call runs, by the tool name of their rules, for
+   * example `formatter:prettier` after a write. Each one is decided by its
+   * own rules. One that asks makes the call ask, and an `always` answer
+   * saves an allow rule for it. One that a rule denies does not refuse the
+   * call: the plugin that runs it skips it.
+   */
+  actions?: (input: unknown) => Listed
 }
 
 /**
@@ -77,16 +102,6 @@ export const PermissionDecisionCapability = createCapability<
 >()('tanstack/permission-decision')
 
 /**
- * @internal Ask the rules of `permissions()` about `tool`, an action that is
- * not a tool call, like `formatter:prettier`. It uses the saved answers. On
- * `ask`, it asks the user with `message`, and saves an `always` answer.
- * Resolves to `true` when the action can run. The package does not export it.
- */
-export const PermissionPrompt = createCapability<
-  (tool: string, message: string) => Promise<boolean>
->()('tanstack/permission-prompt')
-
-/**
  * True when a command part still has shell syntax that can run or chain
  * more commands (`$(`, a backtick, `;`, `&`, `|`, `<`, `>`, a new line), so
  * no allow rule applies to it.
@@ -99,6 +114,10 @@ export function isUnsplittableCommand(part: string) {
 export interface CallResources {
   paths?: ReadonlyArray<string>
   commands?: ReadonlyArray<string>
+  /** Paths that ask, like a path outside the root. */
+  outside?: ReadonlyArray<string>
+  /** Other actions of the call, by the tool name of their rules. */
+  actions?: ReadonlyArray<string>
 }
 
 /** One thing a call touches, ready to match rule globs against. */
@@ -293,6 +312,10 @@ export function decidePermission(
           ...(options.resources.paths ?? []).map((path) =>
             pathResource(path, options.root),
           ),
+          ...(options.resources.outside ?? []).map((path) => ({
+            ...pathResource(path, options.root),
+            risky: true,
+          })),
           ...(options.resources.commands ?? []).map(commandResource),
         ]
   // Unknown resources: the rules with a `resource` after the tool rule could
@@ -306,7 +329,16 @@ export function decidePermission(
       : resources.length === 0
         ? [decisionOf(toolLevel)]
         : resources.map(decideOne)
-  const decision = strictest(decisions)
+  // Each other action of the call is a tool of its own rules. An action
+  // that asks makes the call ask. A denied action does not refuse the call:
+  // the plugin that runs it skips it.
+  const actions = (options.resources?.actions ?? []).map((action) =>
+    decidePermission(rules, action, mode, { fallback: options.fallback }) ===
+    'ask'
+      ? 'ask'
+      : 'allow',
+  )
+  const decision = strictest([...decisions, ...actions])
   if (mode === 'plan' && decision !== 'allow') return 'deny'
   return decision
 }
@@ -322,38 +354,6 @@ function isHidden(
   return last?.decision === 'deny' && last.resource === undefined
 }
 
-/** The answer to a permission question, for hosts that render a form. */
-const ANSWER_SCHEMA: JSONSchema = {
-  type: 'object',
-  properties: {
-    answer: {
-      type: 'string',
-      enum: ['once', 'always', 'reject'],
-      description:
-        'once: allow this call. always: allow it from now on in this project. reject: refuse it.',
-    },
-    message: {
-      type: 'string',
-      description: 'With reject: what the model should do instead.',
-    },
-  },
-  required: ['answer'],
-}
-
-/** The user's reply. Anything that is not `once` or `always` rejects. */
-function readAnswer(value: unknown) {
-  const raw = isRecord(value) ? value.answer : value
-  const choice = typeof raw === 'string' ? raw.trim().toLowerCase() : ''
-  const text =
-    isRecord(value) && typeof value.message === 'string'
-      ? value.message.trim()
-      : ''
-  return {
-    choice: choice === 'once' || choice === 'always' ? choice : 'reject',
-    message: text === '' ? undefined : text,
-  }
-}
-
 function isSavedRule(value: unknown): value is PermissionRule {
   return (
     isRecord(value) &&
@@ -366,6 +366,36 @@ function isSavedRule(value: unknown): value is PermissionRule {
 /** A refused call: the model gets a tool error with `error`. */
 function refuse(error: string) {
   return { type: 'skip' as const, result: { error } }
+}
+
+/**
+ * The tool calls of the last model message that have no result yet: the
+ * calls that the tools phase runs next.
+ */
+function pendingCalls(messages: ReadonlyArray<ModelMessage>) {
+  const index = messages.findLastIndex(
+    (message) => message.role === 'assistant' && message.toolCalls?.length,
+  )
+  const calls: ReadonlyArray<ToolCall> = messages[index]?.toolCalls ?? []
+  const done = new Set(
+    messages
+      .slice(index + 1)
+      .flatMap((message) =>
+        message.role === 'tool' && message.toolCallId
+          ? [message.toolCallId]
+          : [],
+      ),
+  )
+  return calls.filter((call) => !done.has(call.id))
+}
+
+/** The arguments of a tool call. Text that is not JSON is the arguments as they are. */
+function parseArgs(text: string): unknown {
+  try {
+    return JSON.parse(text) as unknown
+  } catch {
+    return text
+  }
 }
 
 const METADATA_NAMESPACE = 'tanstack/permissions'
@@ -538,7 +568,7 @@ export function permissions(
 ) {
   return definePlugin({
     name: 'tanstack/permissions',
-    provides: [PermissionDecisionCapability, PermissionPrompt],
+    provides: [PermissionDecisionCapability],
     setup: (ctx) => {
       const contributed = ctx.collect(PermissionRules)
       const declared = ctx.collect(PermissionResources)
@@ -604,20 +634,29 @@ export function permissions(
         memory.splice(0, memory.length, ...kept)
         return `Forgot rule ${arg}: ${describeRule(rule)}.`
       }
-      const resourcesOf = (tool: string, input: unknown) => {
-        const entry = declared.findLast((item) => Object.hasOwn(item, tool))?.[
-          tool
-        ]
-        if (!entry) return undefined
-        const resources = {
-          paths: entry.paths?.(input) ?? [],
-          commands: entry.commands?.(input) ?? [],
+      /** What a call touches: the resources of every plugin that names the tool. */
+      const resourcesOf = async (tool: string, input: unknown) => {
+        const entries = declared.flatMap((item) =>
+          Object.hasOwn(item, tool) && item[tool] ? [item[tool]] : [],
+        )
+        if (entries.length === 0) return undefined
+        const list = async (field: keyof ToolResources) => {
+          const lists = await Promise.all(
+            entries.map((entry) => entry[field]?.(input) ?? []),
+          )
+          const values = lists.flat()
+          if (!values.every((value) => typeof value === 'string')) {
+            throw new Error('A resource is not a string.')
+          }
+          return values
         }
-        const values = [...resources.paths, ...resources.commands]
-        if (!values.every((value) => typeof value === 'string')) {
-          throw new Error('A resource is not a string.')
-        }
-        return resources
+        const [paths, commands, outside, actions] = await Promise.all([
+          list('paths'),
+          list('commands'),
+          list('outside'),
+          list('actions'),
+        ])
+        return { paths, commands, outside, actions }
       }
       /** The rules an `always` answer saves: one allow for each resource. */
       const rulesToSave = (
@@ -628,7 +667,7 @@ export function permissions(
           return [{ tool, decision: 'allow' as const }]
         }
         const values = [
-          ...(resources.paths ?? []).map(
+          ...[...(resources.paths ?? []), ...(resources.outside ?? [])].map(
             (path) => pathResource(path, root).match,
           ),
           ...(resources.commands ?? [])
@@ -636,9 +675,14 @@ export function permissions(
             .map((part) => part.trim()),
         ]
         // A `*` or `?` would turn the saved rule into a wider glob.
-        return values
+        const forTool = [...new Set(values)]
           .filter((value) => !/[*?]/.test(value))
           .map((resource) => ({ tool, resource, decision: 'allow' as const }))
+        const forActions = (resources.actions ?? []).map((action) => ({
+          tool: action,
+          decision: 'allow' as const,
+        }))
+        return [...forTool, ...forActions]
       }
       const decide = async (
         tool: string,
@@ -646,7 +690,7 @@ export function permissions(
         current: PermissionMode,
         metadata: MetadataStore | undefined,
       ) => {
-        const resources = resourcesOf(tool, input)
+        const resources = await resourcesOf(tool, input)
         const settings = { fallback: options.default, resources, root }
         const rules = configured()
         // A saved answer turns an ask into an allow. It never beats a deny,
@@ -657,42 +701,69 @@ export function permissions(
         const decision = decidePermission(rules, tool, current, settings)
         return { decision, resources }
       }
-      /** Ask the user. An `always` answer saves the rules for the call. */
-      const askUser = async (
-        message: string,
-        tool: string,
-        resources: CallResources | undefined,
-        metadata: MetadataStore | undefined,
-      ) => {
-        // A closed session rejects the question: that is a reject too.
-        const reply = readAnswer(
-          await ctx.session
-            .ask({
-              message: `${message} Answer once, always, or reject.`,
-              schema: ANSWER_SCHEMA,
-            })
-            .catch(() => undefined),
-        )
-        if (reply.choice === 'always') {
-          // The session keeps the answer in memory, so a failed write does
-          // not fail the call the user allowed.
-          await save(metadata, rulesToSave(tool, resources)).catch(() => {})
-        }
-        return reply
+      /** The question of an approval for a call of `tool` with `args`. */
+      const approvalMessage = (tool: string, args: unknown) => {
+        const text = JSON.stringify(args ?? {})
+        // Say when the preview is cut, so the user knows part of the call is hidden.
+        const preview =
+          text.length > PREVIEW_LENGTH
+            ? `${text.slice(0, PREVIEW_LENGTH)}... (${text.length - PREVIEW_LENGTH} more characters not shown)`
+            : text
+        return `Allow ${tool} ${preview}? Answer once, always, or reject.`
       }
-      ctx.provide(PermissionPrompt, async (tool, message) => {
-        const { decision } = await decide(
-          tool,
-          undefined,
-          mode(),
-          sessionMetadata,
-        )
-        if (decision !== 'ask') return decision === 'allow'
-        const reply = await askUser(message, tool, undefined, sessionMetadata)
-        return reply.choice !== 'reject'
-      })
+      /**
+       * The answers to the approvals of the turn, by tool call id. The turn
+       * that resumes gets them in `onInterruptResolution`, on any host,
+       * before its tools run. A call takes its answer when it runs.
+       */
+      const answers = new Map<string, ReturnType<typeof readApproval>>()
+      /**
+       * Decide each tool call of the model message before the tools run.
+       * Each call that asks opens one approval wait, so the turn stops, and
+       * no process waits for the user.
+       */
+      const boundary: AnyChatMiddleware['onInterruptBoundary'] = async (
+        run,
+      ) => {
+        if (run.phase !== 'beforeTools') return undefined
+        const current = mode()
+        if (current === 'bypass') return undefined
+        const metadata = getMetadata(run, { optional: true })
+        const interrupts = []
+        for (const call of pendingCalls(run.messages)) {
+          if (answers.has(call.id)) continue
+          const tool = call.function.name
+          const args = parseArgs(call.function.arguments)
+          // A call that cannot be checked is refused when it runs.
+          const checked = await decide(tool, args, current, metadata).catch(
+            () => undefined,
+          )
+          if (checked?.decision !== 'ask') continue
+          interrupts.push(
+            approvalInterrupt.interrupt({
+              key: call.id,
+              reason: 'approval',
+              message: approvalMessage(tool, args),
+              payload: { toolCallId: call.id, tool },
+            }),
+          )
+        }
+        return interrupts.length > 0 ? { interrupts } : undefined
+      }
       const check = {
         name: 'tanstack/permissions',
+        onInterruptBoundary: boundary,
+        onInterruptResolution: (_run, resolutions) => {
+          for (const resolution of resolutions.for(approvalInterrupt)) {
+            // A cancelled approval is a reject.
+            answers.set(
+              resolution.request.key,
+              resolution.status === 'resolved'
+                ? readApproval(resolution.response)
+                : { choice: 'reject', message: undefined },
+            )
+          }
+        },
         onBeforeToolCall: async (run, hook) => {
           const current = mode()
           if (current === 'bypass') return undefined
@@ -720,23 +791,35 @@ export function permissions(
                 : 'A permission rule denies this tool.',
             )
           }
-          const args = JSON.stringify(hook.args ?? {})
-          // Say when the preview is cut, so the user knows part of the call is hidden.
-          const preview =
-            args.length > PREVIEW_LENGTH
-              ? `${args.slice(0, PREVIEW_LENGTH)}... (${args.length - PREVIEW_LENGTH} more characters not shown)`
-              : args
-          const reply = await askUser(
-            `Allow ${hook.toolName} ${preview}?`,
-            hook.toolName,
-            resources,
-            metadata,
-          )
+          const reply = answers.get(hook.toolCallId)
+          answers.delete(hook.toolCallId)
+          // The boundary asked about every call of the turn. A call with no
+          // answer did not get one: an agent run cannot stop for an approval.
+          if (!reply) {
+            return refuse(
+              'This call needs the approval of the user, and this run cannot ask for it.',
+            )
+          }
           if (reply.choice === 'reject') {
             return refuse(reply.message ?? 'The user denied this tool call.')
           }
+          if (reply.choice === 'always') {
+            // The session keeps the answer in memory, so a failed write does
+            // not fail the call the user allowed.
+            await save(metadata, rulesToSave(hook.toolName, resources)).catch(
+              () => {},
+            )
+          }
           return undefined
         },
+      } satisfies AnyChatMiddleware
+      // An agent run cannot stop for an approval: `chat()` of an agent does
+      // not register the approval interrupt. So it gets no boundary, and a
+      // call that asks is refused.
+      // ponytail: agent runs cannot ask for approvals until their chat() registers the boundary interrupts.
+      const agentCheck = {
+        name: check.name,
+        onBeforeToolCall: check.onBeforeToolCall,
       } satisfies AnyChatMiddleware
       return {
         config: {
@@ -800,7 +883,7 @@ export function permissions(
         // The lead turn and every agent run check the same rules. Each run
         // gets only one of the two lists, so a call is checked once.
         middleware: [check],
-        agentMiddleware: [check],
+        agentMiddleware: [agentCheck],
       }
     },
   })

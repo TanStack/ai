@@ -19,7 +19,14 @@ import {
 } from '../plugins'
 import { HARNESS_EVENTS } from '../types'
 import { SECRET_ANSWER_PREFIX } from '../auth'
-import { expiryOf, openWaits, snapshotWaits, waitOfQuestion } from '../waits'
+import {
+  expiryOf,
+  openWaits,
+  snapshotWaits,
+  timeOf,
+  waitKind,
+  waitOfQuestion,
+} from '../waits'
 import {
   createInputId,
   customEvent,
@@ -174,7 +181,13 @@ export abstract class SessionState<
       pendingInterrupts,
       ...snapshotWaits({
         stopped,
-        interrupts: pendingInterrupts,
+        // With the expiry of each wait, also the default one of its kind.
+        interrupts: pendingInterrupts.map((interrupt) => {
+          const expiresAt = this.interruptExpiry(interrupt)
+          return expiresAt === undefined || interrupt.expiresAt !== undefined
+            ? interrupt
+            : { ...interrupt, expiresAt: new Date(expiresAt).toISOString() }
+        }),
         waits: this.logWriter?.state.thread.waits,
       }),
       plugins: { ...this.stateDoc },
@@ -941,28 +954,39 @@ export abstract class SessionState<
     await this.dropAnswerRefs(waitId).catch((error: unknown) =>
       this.warnSession('harness:waits', error),
     )
+    // An agent run whose last wait ended goes on.
+    await this.resumeWaitingRuns().catch((error: unknown) =>
+      this.warnSession('harness:agents', error),
+    )
   }
 
   /**
-   * Open a wait in the log. With `expiresAt`, a wake at that time goes in
+   * Open waits in the log. With `expiresAt`, a wake at that time goes in
    * the same append: a worker opens the session then, and the wait expires,
    * also when no host has the thread open.
    */
-  protected async writeWait(record: WaitRecord) {
-    const { waitId, expiresAt } = record.wait
-    await this.writer.append([
-      { type: 'harness.wait', ...record },
-      ...(expiresAt !== undefined
-        ? [
-            {
-              type: 'harness.schedule' as const,
-              scheduleId: expiryWakeId(waitId),
-              at: expiresAt,
-            },
-          ]
-        : []),
-    ])
-    if (expiresAt !== undefined) this.armSchedules()
+  protected async writeWait(...records: Array<WaitRecord>) {
+    // One append: a run that waits for several opens all or none.
+    await this.writer.append(
+      records.flatMap((record): Array<ThreadRecord> => {
+        const { waitId, expiresAt } = record.wait
+        return [
+          { type: 'harness.wait', ...record },
+          ...(expiresAt !== undefined
+            ? [
+                {
+                  type: 'harness.schedule' as const,
+                  scheduleId: expiryWakeId(waitId),
+                  at: expiresAt,
+                },
+              ]
+            : []),
+        ]
+      }),
+    )
+    if (records.some((record) => record.wait.expiresAt !== undefined)) {
+      this.armSchedules()
+    }
   }
 
   /**
@@ -1086,10 +1110,12 @@ export abstract class SessionState<
     const now = Date.now()
     const isExpired = ({ wait }: WaitState) =>
       wait.expiresAt !== undefined && wait.expiresAt <= now
+    const isHeld = (waitId: string) =>
+      this.questions.has(waitId) || this.signIns.has(waitId)
     const stale = openWaits(this.writer.state.thread.waits).filter(
       (state) =>
         isExpired(state) ||
-        (state.live !== undefined && !this.questions.has(state.wait.waitId)),
+        (state.live !== undefined && !isHeld(state.wait.waitId)),
     )
     if (stale.length === 0) return
     if (!(await this.writer.own())) return
@@ -1104,10 +1130,88 @@ export abstract class SessionState<
         )
         continue
       }
+      const signIn = this.signIns.get(waitId)
+      if (signIn) {
+        // The login stops with its command.
+        await this.endSignIn(waitId, outcome)
+        signIn.operation.abortController.abort(
+          new Error(`The sign-in to ${signIn.connector} expired.`),
+        )
+        continue
+      }
       // An answer ended it since the read above.
       if (this.loggedWait(waitId)?.outcome !== undefined) continue
       await this.writer.append(this.waitEndRecords(waitId, outcome))
       await this.afterWaitEnd(waitId)
+    }
+  }
+
+  /**
+   * Open the live `sign-in` wait of an OAuth login that the command
+   * `operationId` runs, once for each connector. The log keeps it, so every
+   * host shows it, and the command keeps the session on this host. The wait
+   * ends with the command: `answered` when it completes, `cancelled` when
+   * it fails. At its expiry (default 15 minutes), it ends `expired`, and the
+   * command is cancelled.
+   */
+  protected openSignIn(
+    info: {
+      connector: string
+      url?: string
+      userCode?: string
+      expiresAt?: number
+    },
+    operationId: string,
+  ) {
+    const operation = this.operations.get(operationId)
+    if (operation?.kind !== 'command' || operation.isSettled()) return
+    const { connector, url, userCode } = info
+    const isOpen = [...this.signIns.values()].some(
+      (held) => held.operation === operation && held.connector === connector,
+    )
+    if (isOpen) return
+    const expiresAt = expiryOf('sign-in', info.expiresAt)
+    const wait: Wait = {
+      waitId: createWaitId(),
+      kind: 'sign-in',
+      runId: operationId,
+      ...storedPrincipal(this.principalOfRun(operationId)),
+      ...(expiresAt !== undefined ? { expiresAt } : {}),
+      message: userCode
+        ? `Sign in to ${connector} with the code ${userCode}.`
+        : `Sign in to ${connector}.`,
+    }
+    const { waitId } = wait
+    this.signIns.set(waitId, { connector, operation })
+    this.writeWait({
+      wait,
+      at: Date.now(),
+      live: true,
+      ...(url ? { url } : {}),
+    }).then(
+      () =>
+        Promise.resolve(operation).then(
+          () => this.endSignIn(waitId, 'answered'),
+          () => this.endSignIn(waitId, 'cancelled'),
+        ),
+      (error: unknown) => {
+        this.signIns.delete(waitId)
+        this.warnSession('harness:waits', error)
+      },
+    )
+  }
+
+  /** End the live sign-in wait `waitId` of this host, once. */
+  protected async endSignIn(waitId: string, outcome: WaitOutcome) {
+    if (!this.signIns.delete(waitId)) return
+    try {
+      if (this.loggedWait(waitId)?.outcome !== undefined) return
+      await this.writer.append(this.waitEndRecords(waitId, outcome))
+      await this.afterWaitEnd(waitId)
+    } catch (failure) {
+      // A closed log takes no end. The next owner ends the wait, as a live
+      // wait of a host that stopped.
+      if (!this.closing) this.warnSession('harness:waits', failure)
     }
   }
 
@@ -1326,6 +1430,39 @@ export abstract class SessionState<
       this.warn(operation, 'harness:interrupts', error),
     )
     this.interrupted = stopped
+    await this.armInterruptExpiry(stopped).catch((error: unknown) =>
+      this.warn(operation, 'harness:waits', error),
+    )
+  }
+
+  /**
+   * When the interrupt `interrupt` expires: its `expiresAt`, else the
+   * default of its kind (a sign-in: 15 minutes) from when it opened.
+   * `undefined`: never.
+   */
+  protected interruptExpiry(interrupt: Interrupt): number | undefined {
+    const own = timeOf(interrupt.expiresAt)
+    if (own !== undefined) return own
+    const opened = this.logWriter?.state.thread.interrupts.get(interrupt.id)
+    return opened && expiryOf(waitKind(interrupt), undefined, opened.requestedAt)
+  }
+
+  /**
+   * A wake at the expiry of each interrupt of `stopped` that expires, so a
+   * worker ends it on time, also when no host has the thread open.
+   */
+  protected async armInterruptExpiry(stopped: InterruptedTurn) {
+    const { schedules } = this.writer.state.thread
+    const wakes = stopped.interrupts.flatMap((interrupt): Array<ThreadRecord> => {
+      const at = this.interruptExpiry(interrupt)
+      const scheduleId = expiryWakeId(interrupt.id)
+      return at === undefined || schedules.has(scheduleId)
+        ? []
+        : [{ type: 'harness.schedule', scheduleId, at }]
+    })
+    if (wakes.length === 0) return
+    await this.writer.append(wakes)
+    this.armSchedules()
   }
 
   protected ask(
@@ -1335,11 +1472,16 @@ export abstract class SessionState<
     if (this.closing) return Promise.reject(new Error('Session closed.'))
     const { signal } = question
     if (signal?.aborted) return Promise.reject(signal.reason)
+    // A live wait of a tool call (an MCP elicitation) belongs to the run of
+    // that call, and it ends when that run stops.
+    const run = question.live?.run
+    if (run?.signal.aborted) return Promise.reject(run.signal.reason)
     const questionId = `q-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
-    // On the operation that asks (a command), else on the running chat turn,
-    // so a client that streams that operation sees it, and a cancel of it
-    // rejects the question. The session stream has every operation's events.
-    const operationId = owner ?? this.activeTurn?.id ?? 'session'
+    // On the run of the tool call, else on the operation that asks (a
+    // command), else on the running chat turn, so a client that streams that
+    // operation sees it, and a cancel of it rejects the question. The session
+    // stream has every operation's events.
+    const operationId = run?.runId ?? owner ?? this.activeTurn?.id ?? 'session'
     const pending: PendingQuestion = {
       questionId,
       message: question.message,
@@ -1349,8 +1491,11 @@ export abstract class SessionState<
       ...(question.secret ? { secret: true } : {}),
       ...(question.url ? { url: question.url } : {}),
     }
-    const principal =
-      operationId === 'session' ? undefined : this.principalOfRun(operationId)
+    const principal = run
+      ? run.principal
+      : operationId === 'session'
+        ? undefined
+        : this.principalOfRun(operationId)
     const expiresAt = expiryOf('question', question.expiresAt)
     const wait = waitOfQuestion({
       question: pending,
@@ -1364,7 +1509,10 @@ export abstract class SessionState<
     return new Promise((resolve, reject) => {
       const onAbort = () =>
         void this.endQuestion(questionId, 'cancelled', signal?.reason)
+      const onRunStop = () =>
+        void this.endQuestion(questionId, 'cancelled', run?.signal.reason)
       signal?.addEventListener('abort', onAbort, { once: true })
+      run?.signal.addEventListener('abort', onRunStop, { once: true })
       this.questions.set(questionId, {
         message: question.message,
         schema: question.schema,
@@ -1373,7 +1521,10 @@ export abstract class SessionState<
         operationId,
         resolve,
         reject,
-        release: () => signal?.removeEventListener('abort', onAbort),
+        release: () => {
+          signal?.removeEventListener('abort', onAbort)
+          run?.signal.removeEventListener('abort', onRunStop)
+        },
       })
       const opened = this.writeWait({
         wait,

@@ -124,6 +124,10 @@ export abstract class SessionInputs<
   protected runOf(input: HarnessInput): AccessRun | undefined {
     switch (input.op) {
       case 'resolve': {
+        // The interrupt of a background agent run: the log keeps its wait.
+        const first = input.resume[0]
+        const wait = first && this.loggedWait(first.interruptId)?.wait
+        if (wait) return { runId: wait.runId, ...idOf(wait.principal) }
         const stopped = this.interrupted
         if (!stopped) return undefined
         return { runId: stopped.runId, ...idOf(stopped.principal) }

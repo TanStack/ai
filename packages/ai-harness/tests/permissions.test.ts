@@ -4,7 +4,6 @@ import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin } from '../src'
 import {
   PermissionDecisionCapability,
-  PermissionPrompt,
   PermissionResources,
   PermissionRules,
   decidePermission,
@@ -309,15 +308,22 @@ async function open(
   return { host, session, calls }
 }
 
-/** Wait for the one open question, then answer it. Returns its message. */
+/**
+ * Wait for the one open approval of the turn, then answer it through
+ * `resolve`, and wait for the turn that resumes. Returns its message.
+ */
 async function answer(session: HarnessSession, value: unknown) {
-  await waitFor(() =>
-    expect(session.snapshot().pendingQuestions).toHaveLength(1),
-  )
-  const [question] = session.snapshot().pendingQuestions
-  if (!question) throw new Error('No question.')
-  await session.answer({ questionId: question.questionId, value })
-  return question.message
+  await waitFor(() => expect(session.snapshot().pendingWaits).toHaveLength(1))
+  const [wait] = session.snapshot().pendingWaits ?? []
+  if (!wait) throw new Error('No approval.')
+  expect(wait.kind).toBe('approval')
+  const inputId = `answer:${wait.waitId}`
+  await session.resolve({
+    resume: [{ interruptId: wait.waitId, status: 'resolved', payload: value }],
+    inputId,
+  })
+  await session.settled({ inputId })
+  return wait.message ?? ''
 }
 
 describe('permissions()', () => {
@@ -416,7 +422,7 @@ describe('permissions()', () => {
     )
 
     const turn = session.send('run it')
-    const message = await answer(session, 'reject')
+    const message = await answer(session, { answer: 'reject' })
     await turn
 
     expect(message).toMatch(/\.\.\. \(\d+ more characters not shown\)\?/)
@@ -834,27 +840,48 @@ describe('permissions()', () => {
     await host.close()
   })
 
-  it('asks about an action that is not a tool call, like a formatter, by the mode', async () => {
+  it('decides the other actions of a call, like a formatter, with the call, by the mode', async () => {
     const persistence = memoryPersistence()
-    let prompt:
-      | ((tool: string, message: string) => Promise<boolean>)
-      | undefined
-    // A plugin like formatter(): it adds an ask rule, and asks before it runs.
+    const ran: Array<string> = []
+    // A tool that writes, and a plugin like formatter(): it adds an ask
+    // rule, and names the action that the call runs after the write.
+    const writer = definePlugin({
+      name: 'test/writer',
+      setup: () => ({
+        tools: [
+          toolDefinition({ name: 'write_doc', description: 'Write' }).server(
+            async () => {
+              ran.push('write_doc')
+              return 'written'
+            },
+          ),
+        ],
+        contribute: [
+          PermissionRules.item({
+            tool: 'write_doc',
+            decision: 'allow',
+            kind: 'edit',
+          }),
+          PermissionResources.item({ write_doc: { paths: () => ['a.md'] } }),
+        ],
+      }),
+    })
     const runner = definePlugin({
       name: 'test/runner',
-      optionalRequires: [PermissionPrompt],
-      setup: (ctx) => {
-        prompt = ctx.getOptional(PermissionPrompt)
-        return {
-          contribute: [
-            PermissionRules.item({
-              tool: 'formatter:*',
-              decision: 'ask',
-              kind: 'execute',
-            }),
-          ],
-        }
-      },
+      setup: () => ({
+        contribute: [
+          PermissionRules.item({
+            tool: 'formatter:*',
+            decision: 'ask',
+            kind: 'execute',
+          }),
+          PermissionResources.item({
+            write_doc: {
+              actions: async (input) => [`formatter:${field(input, 'with')}`],
+            },
+          }),
+        ],
+      }),
     })
     const { host, session } = await open(
       persistence,
@@ -863,39 +890,84 @@ describe('permissions()', () => {
           root: ROOT,
           rules: [{ tool: 'formatter:biome', decision: 'allow' }],
         }),
+        writer,
         runner,
       ],
-      [],
+      [
+        () => toolCall('write_doc', { with: 'biome' }, 'c1'),
+        () => toolCall('write_doc', { with: 'prettier' }, 'c2'),
+        () => text('done'),
+        () => toolCall('write_doc', { with: 'prettier' }, 'c3'),
+        () => text('done'),
+        () => toolCall('write_doc', { with: 'prettier' }, 'c4'),
+        () => text('done'),
+      ],
     )
-    if (!prompt) throw new Error('No PermissionPrompt.')
-
-    // A user rule allows biome. prettier asks, also in acceptEdits mode.
-    expect(await prompt('formatter:biome', 'Run biome?')).toBe(true)
     await session.command({ name: 'mode', input: 'acceptEdits' })
-    const first = prompt('formatter:prettier', 'Run prettier?')
-    expect(await answer(session, { answer: 'reject' })).toBe(
-      'Run prettier? Answer once, always, or reject.',
-    )
-    expect(await first).toBe(false)
 
-    // always saves the rule for the project, so it asks no more.
-    const second = prompt('formatter:prettier', 'Run prettier?')
+    // A user rule allows biome. prettier asks, also in acceptEdits mode,
+    // before the call runs: one approval for the call and its formatter.
+    await session.send('write twice')
+    expect(ran).toEqual(['write_doc'])
+    expect(await answer(session, { answer: 'reject' })).toContain(
+      'Allow write_doc {"with":"prettier"}?',
+    )
+    expect(ran).toEqual(['write_doc'])
+
+    // always saves the rule of the formatter for the project.
+    await session.send('write again')
     await answer(session, { answer: 'always' })
-    expect(await second).toBe(true)
-    expect(await prompt('formatter:prettier', 'Run prettier?')).toBe(true)
+    expect(ran).toEqual(['write_doc', 'write_doc'])
     expect(
       await persistence.stores.metadata.get(
         'tanstack/permissions',
         'permissions:saved::/work/repo',
       ),
-    ).toEqual([{ tool: 'formatter:prettier', decision: 'allow' }])
+    ).toEqual([
+      { tool: 'write_doc', resource: 'a.md', decision: 'allow' },
+      { tool: 'formatter:prettier', decision: 'allow' },
+    ])
+    await session.send('and again')
+    expect(ran).toHaveLength(3)
+    expect(session.snapshot().pendingWaits).toEqual([])
+    await host.close()
+  })
 
-    // bypass runs everything. plan runs no command.
-    await session.command({ name: 'mode', input: 'bypass' })
-    expect(await prompt('formatter:oxfmt', 'Run oxfmt?')).toBe(true)
-    await session.command({ name: 'mode', input: 'plan' })
-    expect(await prompt('formatter:prettier', 'Run prettier?')).toBe(false)
-    expect(session.snapshot().pendingQuestions).toHaveLength(0)
+  it('tells other plugins the decision for the actions of a call', async () => {
+    let decide:
+      | ((
+          tool: string,
+          mode: PermissionMode,
+          resources?: CallResources,
+        ) => PermissionDecision)
+      | undefined
+    const reader = definePlugin({
+      name: 'test/reader',
+      optionalRequires: [PermissionDecisionCapability],
+      setup: (ctx) => {
+        decide = ctx.getOptional(PermissionDecisionCapability)
+        return {}
+      },
+    })
+    const { host } = await open(
+      memoryPersistence(),
+      [
+        permissions({
+          rules: [
+            { tool: 'write_doc', decision: 'allow', kind: 'edit' },
+            { tool: 'formatter:*', decision: 'ask', kind: 'execute' },
+            { tool: 'formatter:biome', decision: 'allow' },
+          ],
+        }),
+        reader,
+      ],
+      [],
+    )
+    const actions = (name: string) => ({ actions: [`formatter:${name}`] })
+    expect(decide?.('write_doc', 'default', actions('biome'))).toBe('allow')
+    expect(decide?.('write_doc', 'acceptEdits', actions('oxfmt'))).toBe('ask')
+    expect(decide?.('write_doc', 'plan', actions('oxfmt'))).toBe('deny')
+    expect(decide?.('write_doc', 'bypass', actions('oxfmt'))).toBe('allow')
     await host.close()
   })
 })

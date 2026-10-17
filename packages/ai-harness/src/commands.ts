@@ -37,6 +37,14 @@ export interface Question<TSchema extends SchemaInput | undefined = undefined> {
    * reason of the signal.
    */
   signal?: AbortSignal
+  /**
+   * A live wait of a tool call, by its name: the harness keeps the answer
+   * in the memory of this host, so the host keeps the session while it
+   * waits. Only an MCP elicitation (`'mcp-elicitation'`) asks this way. The
+   * wait belongs to `run`, the run of the tool call: its user may answer,
+   * and the wait ends `cancelled` when that run stops.
+   */
+  live?: { name: 'mcp-elicitation'; run: RunContext }
 }
 
 export type AnswerOf<TSchema> = TSchema extends SchemaInput
@@ -115,11 +123,18 @@ export interface PluginSessionApi<TMetadata = Record<string, unknown>> {
   /**
    * Tell clients that the user must sign in. Hosts show the link (the CLI
    * opens the browser) or the device code.
+   *
+   * In a command (an OAuth login), it also opens a live `sign-in` wait of
+   * the command run. The wait ends `answered` when the command completes,
+   * and `cancelled` when it fails. At `expiresAt` (default: 15 minutes), the
+   * wait ends `expired`, and the command is cancelled.
    */
   authRequired: (info: {
     connector: string
     url?: string
     userCode?: string
+    /** When the sign-in expires, in epoch milliseconds. */
+    expiresAt?: number
   }) => void
   /** Change a session setting, the same as a client. Applies at the next turn. */
   setConfig: (change: { key: string; value: unknown }) => Promise<Receipt>

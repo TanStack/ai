@@ -8,6 +8,7 @@ import type {
   PluginResources,
   PluginSessionApi,
   PluginSetupContext,
+  RunContext,
   TurnInfo,
 } from '@tanstack/ai-harness'
 import type { OnElicit } from './client'
@@ -97,16 +98,12 @@ export function mcp(options: {
     // The stdio servers connect once for the host. The rest is per session.
     lifetime: 'host',
     setup: (host) => {
-      // The sessions whose tool call of a shared server runs now, newest last.
-      const calling: Array<PluginSessionApi> = []
-      // ponytail: a spec 2025 request of a shared server goes to the session
-      // of the newest running call. Two sessions that call one stdio server
-      // at the same time can get the question of the other one.
-      const askCaller: OnElicit = async (params) => {
-        const session = calling.at(-1)
-        if (!session) return { action: 'decline' }
-        return elicitFor(session)(params)
-      }
+      // The tool calls of a shared server that run now, newest last.
+      const calling: Array<Caller> = []
+      // ponytail: a spec 2025 request of a shared server goes to the newest
+      // running call. Two sessions that call one stdio server at the same
+      // time can get the question of the other one.
+      const askCaller = elicitFor(calling)
       const shared = new Map<string, SharedServer>()
       for (const [name, server] of servers) {
         if (server.type !== 'stdio') continue
@@ -124,7 +121,7 @@ async function sessionPart(
   ctx: PluginSetupContext,
   servers: ReadonlyArray<[string, McpServerConfig]>,
   shared: ReadonlyMap<string, SharedServer>,
-  calling: Array<PluginSessionApi>,
+  calling: Array<Caller>,
 ) {
   const statuses = new Map<string, McpServerStatus>()
   for (const [name] of servers) {
@@ -146,8 +143,10 @@ async function sessionPart(
    */
   const connect = async (name: string, server: McpServerConfig) => {
     const sharedServer = shared.get(name)
+    // The tool calls of this server for this session that run now.
+    const own: Array<Caller> = []
     const opened = await (sharedServer ??
-      openServer(ctx.resources, name, server, elicitFor(ctx.session)))
+      openServer(ctx.resources, name, server, elicitFor(own, ctx.session)))
     const failed = opened instanceof Error
     const status: McpServerStatus = failed
       ? { name, status: 'failed', error: opened.message, toolCount: 0 }
@@ -156,9 +155,11 @@ async function sessionPart(
     // reads `statuses`, which is set first.
     await setStatus(status).catch(() => undefined)
     if (failed) return []
-    const tools = sharedServer
-      ? trackCaller(opened.tools, ctx.session, calling)
-      : opened.tools
+    const tools = trackCaller(
+      opened.tools,
+      ctx.session,
+      sharedServer ? calling : own,
+    )
     return askForInput(tools, ctx.session)
   }
 
@@ -274,11 +275,20 @@ function openServer(
     .catch((error: unknown) => new Error(errorText(error)))
 }
 
-/** Marks `session` as the caller of a shared server while a tool call runs. */
-function trackCaller(
+/** A tool call that runs now: its session, and the run that calls. */
+export interface Caller {
+  session: PluginSessionApi
+  run?: RunContext
+}
+
+/**
+ * Puts each call of `tools` in `calling` while it runs, with its session
+ * and its run, so a spec 2025 elicitation goes to the run that calls.
+ */
+export function trackCaller(
   tools: ReadonlyArray<AnyTool>,
   session: PluginSessionApi,
-  calling: Array<PluginSessionApi>,
+  calling: Array<Caller>,
 ) {
   return tools.map((tool): AnyTool => {
     const execute = tool.execute
@@ -286,11 +296,13 @@ function trackCaller(
     return {
       ...tool,
       execute: async (args, context) => {
-        calling.push(session)
+        const run = runOf(context)
+        const caller: Caller = { session, ...(run ? { run } : {}) }
+        calling.push(caller)
         try {
           return await execute(args, context)
         } finally {
-          calling.splice(calling.lastIndexOf(session), 1)
+          calling.splice(calling.lastIndexOf(caller), 1)
         }
       },
     }
@@ -316,28 +328,52 @@ export function askForInput(
   tools: ReadonlyArray<AnyTool>,
   session: PluginSessionApi,
 ) {
-  const askInput: AskInput = async (request) => ({
-    status: 'resolved',
-    payload: await ask(session, request),
-  })
   return tools.map((tool): AnyTool => {
     const execute = tool.execute
     if (!execute) return tool
     return {
       ...tool,
-      execute: (args, context) =>
-        execute(args, { ...(isRecord(context) ? context : {}), askInput }),
+      execute: (args, context) => {
+        // The question is a wait of the run of this call.
+        const run = runOf(context)
+        const askInput: AskInput = async (request) => ({
+          status: 'resolved',
+          payload: await ask(session, request, run),
+        })
+        return execute(args, {
+          ...(isRecord(context) ? context : {}),
+          askInput,
+        })
+      },
     }
   })
 }
 
-/** Answers the `elicitation/create` requests of a spec 2025 server. */
-export function elicitFor(session: PluginSessionApi): OnElicit {
-  return async (params) => elicitResult(await ask(session, params))
+/**
+ * Answers the `elicitation/create` requests of a spec 2025 server: it asks
+ * for the newest call of `calling`. With no call, it asks `fallback`, else
+ * it declines.
+ */
+export function elicitFor(
+  calling: ReadonlyArray<Caller>,
+  fallback?: PluginSessionApi,
+): OnElicit {
+  return async (params) => {
+    const caller = calling.at(-1) ?? (fallback && { session: fallback })
+    if (!caller) return { action: 'decline' }
+    return elicitResult(await ask(caller.session, params, caller.run))
+  }
 }
 
-/** Asks the session user for one MCP elicitation request body. */
-async function ask(session: PluginSessionApi, request: unknown) {
+/**
+ * Asks the session user for one MCP elicitation request body. With `run`,
+ * the question is a live wait of that run, by the name `mcp-elicitation`.
+ */
+async function ask(
+  session: PluginSessionApi,
+  request: unknown,
+  run: RunContext | undefined,
+) {
   const body = isRecord(request) ? request : {}
   const url =
     body.mode === 'url' && typeof body.url === 'string' ? body.url : undefined
@@ -350,6 +386,7 @@ async function ask(session: PluginSessionApi, request: unknown) {
       ? body.requestedSchema
       : undefined,
     ...(url ? { url } : {}),
+    ...(run ? { live: { name: 'mcp-elicitation' as const, run } } : {}),
   })
   // A URL request has no content: the answer only says "done".
   return url !== undefined && !(isRecord(answer) && 'action' in answer)
@@ -381,6 +418,25 @@ function isElicitContent(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
+}
+
+/** The run of a harness tool call, from its context: `ctx.context.run`. */
+function runOf(context: unknown): RunContext | undefined {
+  const run =
+    isRecord(context) && isRecord(context.context)
+      ? context.context.run
+      : undefined
+  return isRunContext(run) ? run : undefined
+}
+
+// ponytail: the harness sets `ctx.context.run`. A run id and a signal tell
+// it apart from other context values.
+function isRunContext(value: unknown): value is RunContext {
+  return (
+    isRecord(value) &&
+    typeof value.runId === 'string' &&
+    value.signal instanceof AbortSignal
+  )
 }
 
 // ponytail: the server owns the schema. The session passes it on as is.
